@@ -57,7 +57,7 @@ bool ParseIndex(ots::Buffer *table, ots::CFFIndex *index) {
   }
   if (index->count == 0) {
     // An empty INDEX.
-    index->offset_to_next = table->offset();
+    index->offset_to_next = table->offset() + sizeof(index->count);
     return true;
   }
 
@@ -760,13 +760,14 @@ bool ParseDictData(const uint8_t *data, size_t table_length,
             return OTS_FAILURE();
           }
           const uint32_t private_length = operands.back().first;
-          if (private_offset > table_length) {
+          if (private_offset >= table_length) {
             return OTS_FAILURE();
           }
           if (private_length >= table_length) {
             return OTS_FAILURE();
           }
           if (private_length + private_offset > table_length) {
+            // does not overflow since table_length < 1GB
             return OTS_FAILURE();
           }
           // parse "15. Private DICT Data"

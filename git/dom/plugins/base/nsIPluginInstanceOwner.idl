@@ -49,9 +49,7 @@ class nsPluginEvent;
 
 [ptr] native nsNPAPIPluginInstancePtr(nsNPAPIPluginInstance);
 
-// Do not make this interface scriptable, because the virtual functions in C++
-// blocks will make script call the wrong functions.
-[uuid(23bd0a76-a5dc-4a1d-be76-13d7a0dfd9ff)]
+[uuid(17E89C1F-AE62-448E-83D5-C33FA6E07A19)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**
@@ -119,9 +117,9 @@ interface nsIPluginInstanceOwner : nsISupports
   void invalidateRegion(in NPRegion aRegion);
 
   /**
-   * Have the plugin recomposited.
+   * Force a redraw
    */
-  void redrawPlugin();
+  void forceRedraw();
 
   /**
    * Get NetscapeWindow, corresponds to NPNVnetscapeWindow
@@ -135,10 +133,6 @@ interface nsIPluginInstanceOwner : nsISupports
   virtual NPError ShowNativeContextMenu(NPMenu* menu, void* event) = 0;
   virtual NPBool  ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                                double *destX, double *destY, NPCoordinateSpace destSpace) = 0;
-  virtual NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
-                                   void *initData, NPAsyncSurface *surface) = 0;
-  virtual NPError FinalizeAsyncSurface(NPAsyncSurface *surface) = 0;
-  virtual void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed) = 0;
 %}
 
   void setEventModel(in PRInt32 eventModel);
@@ -150,5 +144,5 @@ interface nsIPluginInstanceOwner : nsISupports
   /**
    * Call NPP_SetWindow on the plugin.
    */
-  void callSetWindow();
+  void setWindow();
 };

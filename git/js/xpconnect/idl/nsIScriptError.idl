@@ -43,7 +43,7 @@
 #include "nsISupports.idl"
 #include "nsIConsoleMessage.idl"
 
-[scriptable, uuid(c6dd877a-87b6-47cc-968d-90f4514ec65f)]
+[scriptable, uuid(b0196fc7-1913-441a-882a-453c0d8b89b8)]
 interface nsIScriptError : nsIConsoleMessage
 {
     /** pseudo-flag for default case */
@@ -81,15 +81,23 @@ interface nsIScriptError : nsIConsoleMessage
      */
     readonly attribute string category;
 
-    /*
-       The time (in milliseconds from the Epoch) that the script error instance
-       was initialised, and thus the time when the error occurred.
-       Currently used to display date and time of the message in Error console.
-       The timestamp is initialized as JS_now/1000 so that it can be
-       compared to Date.now in Javascript.
-     */
-    readonly attribute long long timeStamp;
+    void init(in wstring message,
+              in wstring sourceName,
+              in wstring sourceLine,
+              in PRUint32 lineNumber,
+              in PRUint32 columnNumber,
+              in PRUint32 flags,
+              in string category);
 
+    AUTF8String toString();
+};
+
+/**
+ * An interface that nsIScriptError objects can implement to allow
+ * them to be initialized with a window id.
+ */
+[scriptable, uuid(4472646b-c928-4d76-9e7c-6b91da7f24cc)]
+interface nsIScriptError2 : nsISupports {
     /* Get the window id this was initialized with.  Zero will be
        returned if init() was used instead of initWithWindowID(). */
     readonly attribute unsigned long long outerWindowID;
@@ -98,13 +106,9 @@ interface nsIScriptError : nsIConsoleMessage
        returned if init() was used instead of initWithWindowID(). */
     readonly attribute unsigned long long innerWindowID;
 
-    void init(in wstring message,
-              in wstring sourceName,
-              in wstring sourceLine,
-              in PRUint32 lineNumber,
-              in PRUint32 columnNumber,
-              in PRUint32 flags,
-              in string category);
+    /* Elapsed time, in milliseconds, from a platform-specific zero time to the
+       time the message was created. */
+    readonly attribute long long timeStamp;
 
     /* This should be called instead of nsIScriptError.init to
        initialize with a window id.  The window id should be for the
@@ -117,8 +121,6 @@ interface nsIScriptError : nsIConsoleMessage
                           in PRUint32 flags,
                           in string category,
                           in unsigned long long innerWindowID);
-
-    AUTF8String toString();
 };
 
 %{ C++

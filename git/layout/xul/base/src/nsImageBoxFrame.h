@@ -61,8 +61,7 @@ public:
   NS_IMETHOD OnImageIsAnimated(imgIRequest* aRequest);
 
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIRequest *aRequest,
-                          imgIContainer *aContainer,
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *aDirtyRect);
 
   void SetFrame(nsImageBoxFrame *frame) { mFrame = frame; }
@@ -127,8 +126,7 @@ public:
                           const PRUnichar *statusArg);
   NS_IMETHOD OnImageIsAnimated(imgIRequest* aRequest);
 
-  NS_IMETHOD FrameChanged(imgIRequest *aRequest,
-                          imgIContainer *aContainer,
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *aDirtyRect);
 
   virtual ~nsImageBoxFrame();

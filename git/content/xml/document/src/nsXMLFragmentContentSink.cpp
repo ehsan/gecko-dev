@@ -166,7 +166,7 @@ NS_NewXMLFragmentContentSink(nsIFragmentContentSink** aResult)
 nsXMLFragmentContentSink::nsXMLFragmentContentSink()
  : mParseError(false)
 {
-  mRunsToCompletion = true;
+  mFragmentMode = true;
 }
 
 nsXMLFragmentContentSink::~nsXMLFragmentContentSink()
@@ -211,7 +211,7 @@ nsXMLFragmentContentSink::WillBuildModel(nsDTDMode aDTDMode)
 NS_IMETHODIMP 
 nsXMLFragmentContentSink::DidBuildModel(bool aTerminated)
 {
-  nsRefPtr<nsParserBase> kungFuDeathGrip(mParser);
+  nsCOMPtr<nsIParser> kungFuDeathGrip(mParser);
 
   // Drop our reference to the parser to get rid of a circular
   // reference.
@@ -272,7 +272,8 @@ nsXMLFragmentContentSink::CloseElement(nsIContent* aContent)
 {
   // don't do fancy stuff in nsXMLContentSink
   if (mPreventScriptExecution && aContent->Tag() == nsGkAtoms::script &&
-      (aContent->IsHTML() || aContent->IsSVG())) {
+      (aContent->GetNameSpaceID() == kNameSpaceID_XHTML ||
+       aContent->GetNameSpaceID() == kNameSpaceID_SVG)) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aContent);
     NS_ASSERTION(sele, "script did QI correctly!");
     sele->PreventExecution();

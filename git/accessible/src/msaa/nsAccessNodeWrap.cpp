@@ -41,7 +41,6 @@
 #include "AccessibleApplication.h"
 #include "ISimpleDOMNode_i.c"
 
-#include "Compatibility.h"
 #include "nsAccessibilityService.h"
 #include "nsApplicationAccessibleWrap.h"
 #include "nsCoreUtils.h"
@@ -63,15 +62,35 @@
 using namespace mozilla;
 using namespace mozilla::a11y;
 
+/// the accessible library and cached methods
+HINSTANCE nsAccessNodeWrap::gmAccLib = nsnull;
+HINSTANCE nsAccessNodeWrap::gmUserLib = nsnull;
+LPFNACCESSIBLEOBJECTFROMWINDOW nsAccessNodeWrap::gmAccessibleObjectFromWindow = nsnull;
+LPFNLRESULTFROMOBJECT nsAccessNodeWrap::gmLresultFromObject = NULL;
+LPFNNOTIFYWINEVENT nsAccessNodeWrap::gmNotifyWinEvent = nsnull;
+LPFNGETGUITHREADINFO nsAccessNodeWrap::gmGetGUIThreadInfo = nsnull;
+
+// Used to determine whether an IAccessible2 compatible screen reader is loaded.
+bool nsAccessNodeWrap::gIsIA2Disabled = false;
+
 AccTextChangeEvent* nsAccessNodeWrap::gTextEvent = nsnull;
+
+// Pref to disallow CtrlTab preview functionality if JAWS or Window-Eyes are
+// running.
+#define CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF "browser.ctrlTab.disallowForScreenReaders"
+
+
+/* For documentation of the accessibility architecture, 
+ * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
+ */
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNodeWrap
 ////////////////////////////////////////////////////////////////////////////////
 
 nsAccessNodeWrap::
-  nsAccessNodeWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessNode(aContent, aDoc)
+  nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessNode(aContent, aShell)
 {
 }
 
@@ -339,7 +358,7 @@ __try{
     return E_FAIL;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl =
-    nsWinUtils::GetComputedStyleDeclaration(mContent);
+    nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mContent);
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 length;
@@ -374,7 +393,7 @@ __try {
     return E_FAIL;
  
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl =
-    nsWinUtils::GetComputedStyleDeclaration(mContent);
+    nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mContent);
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 index;
@@ -396,8 +415,9 @@ __try {
     aScrollTopLeft ? nsIAccessibleScrollType::SCROLL_TYPE_TOP_LEFT :
                      nsIAccessibleScrollType::SCROLL_TYPE_BOTTOM_RIGHT;
 
-  ScrollTo(scrollType);
-  return S_OK;
+  nsresult rv = ScrollTo(scrollType);
+  if (NS_SUCCEEDED(rv))
+    return S_OK;
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return E_FAIL;
@@ -412,7 +432,8 @@ nsAccessNodeWrap::MakeAccessNode(nsINode *aNode)
   nsAccessNodeWrap *newNode = NULL;
 
   ISimpleDOMNode *iNode = NULL;
-  nsAccessible* acc = mDoc->GetAccessible(aNode);
+  nsAccessible *acc =
+    GetAccService()->GetAccessibleInWeakShell(aNode, mWeakShell);
   if (acc) {
     IAccessible *msaaAccessible = nsnull;
     acc->GetNativeInterface((void**)&msaaAccessible); // addrefs
@@ -426,7 +447,7 @@ nsAccessNodeWrap::MakeAccessNode(nsINode *aNode)
       return NULL;
     }
 
-    newNode = new nsAccessNodeWrap(content, mDoc);
+    newNode = new nsAccessNodeWrap(content, mWeakShell);
     if (!newNode)
       return NULL;
 
@@ -552,7 +573,10 @@ __try {
   *aLanguage = NULL;
 
   nsAutoString language;
-  Language(language);
+  if (NS_FAILED(GetLanguage(language))) {
+    return E_FAIL;
+  }
+
   if (language.IsEmpty())
     return S_FALSE;
 
@@ -570,7 +594,7 @@ nsAccessNodeWrap::get_localInterface(
     /* [out] */ void __RPC_FAR *__RPC_FAR *localInterface)
 {
 __try {
-  *localInterface = static_cast<nsAccessNode*>(this);
+  *localInterface = static_cast<nsIAccessNode*>(this);
   NS_ADDREF_THIS();
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
@@ -578,7 +602,18 @@ __try {
  
 void nsAccessNodeWrap::InitAccessibility()
 {
-  Compatibility::Init();
+  if (!gmUserLib) {
+    gmUserLib =::LoadLibraryW(L"USER32.DLL");
+  }
+
+  if (gmUserLib) {
+    if (!gmNotifyWinEvent)
+      gmNotifyWinEvent = (LPFNNOTIFYWINEVENT)GetProcAddress(gmUserLib,"NotifyWinEvent");
+    if (!gmGetGUIThreadInfo)
+      gmGetGUIThreadInfo = (LPFNGETGUITHREADINFO)GetProcAddress(gmUserLib,"GetGUIThreadInfo");
+  }
+
+  DoATSpecificProcessing();
 
   nsWinUtils::MaybeStartWindowEmulation();
 
@@ -636,6 +671,73 @@ GetHRESULT(nsresult aResult)
   }
 }
 
+bool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
+{
+  HMODULE jhookhandle = ::GetModuleHandleW(kJAWSModuleHandle);
+  if (!jhookhandle)
+    return false;  // No JAWS, or some other screen reader, use IA2
+
+  PRUnichar fileName[MAX_PATH];
+  ::GetModuleFileNameW(jhookhandle, fileName, MAX_PATH);
+
+  DWORD dummy;
+  DWORD length = ::GetFileVersionInfoSizeW(fileName, &dummy);
+
+  LPBYTE versionInfo = new BYTE[length];
+  ::GetFileVersionInfoW(fileName, 0, length, versionInfo);
+
+  UINT uLen;
+  VS_FIXEDFILEINFO *fixedFileInfo;
+  ::VerQueryValueW(versionInfo, L"\\", (LPVOID*)&fixedFileInfo, &uLen);
+  DWORD dwFileVersionMS = fixedFileInfo->dwFileVersionMS;
+  DWORD dwFileVersionLS = fixedFileInfo->dwFileVersionLS;
+  delete [] versionInfo;
+
+  DWORD dwLeftMost = HIWORD(dwFileVersionMS);
+//  DWORD dwSecondLeft = LOWORD(dwFileVersionMS);
+  DWORD dwSecondRight = HIWORD(dwFileVersionLS);
+//  DWORD dwRightMost = LOWORD(dwFileVersionLS);
+
+  return (dwLeftMost < 8
+          || (dwLeftMost == 8 && dwSecondRight < 2173));
+}
+
+void nsAccessNodeWrap::TurnOffNewTabSwitchingForJawsAndWE()
+{
+  HMODULE srHandle = ::GetModuleHandleW(kJAWSModuleHandle);
+  if (!srHandle) {
+    // No JAWS, try Window-Eyes
+    srHandle = ::GetModuleHandleW(kWEModuleHandle);
+    if (!srHandle) {
+      // no screen reader we're interested in. Bail out.
+      return;
+    }
+  }
+
+  // Check to see if the pref for disallowing CtrlTab is already set.
+  // If so, bail out.
+  // If not, set it.
+  if (Preferences::HasUserValue(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF)) {
+    // This pref has been set before. There is no default for it.
+    // Do nothing further, respect the setting that's there.
+    // That way, if noone touches it, it'll stay on after toggled once.
+    // If someone decided to turn it off, we respect that, too.
+    return;
+  }
+  
+  // Value has never been set, set it.
+  Preferences::SetBool(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF, true);
+}
+
+void nsAccessNodeWrap::DoATSpecificProcessing()
+{
+  if (IsOnlyMsaaCompatibleJawsPresent())
+    // All versions below 8.0.2173 are not compatible
+    gIsIA2Disabled  = true;
+
+  TurnOffNewTabSwitchingForJawsAndWE();
+}
+
 nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible> nsAccessNodeWrap::sHWNDCache;
 
 LRESULT CALLBACK
@@ -654,8 +756,8 @@ nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
           IAccessible* msaaAccessible = NULL;
           document->GetNativeInterface((void**)&msaaAccessible); // does an addref
           if (msaaAccessible) {
-            LRESULT result = ::LresultFromObject(IID_IAccessible, wParam,
-                                                 msaaAccessible); // does an addref
+            LRESULT result = LresultFromObject(IID_IAccessible, wParam,
+                                               msaaAccessible); // does an addref
             msaaAccessible->Release(); // release extra addref
             return result;
           }
@@ -673,4 +775,22 @@ nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
   }
 
   return ::DefWindowProcW(hWnd, msg, wParam, lParam);
+}
+
+STDMETHODIMP_(LRESULT)
+nsAccessNodeWrap::LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc)
+{
+  // open the dll dynamically
+  if (!gmAccLib)
+    gmAccLib =::LoadLibraryW(L"OLEACC.DLL");
+
+  if (gmAccLib) {
+    if (!gmLresultFromObject)
+      gmLresultFromObject = (LPFNLRESULTFROMOBJECT)GetProcAddress(gmAccLib,"LresultFromObject");
+
+    if (gmLresultFromObject)
+      return gmLresultFromObject(riid, wParam, pAcc);
+  }
+
+  return 0;
 }

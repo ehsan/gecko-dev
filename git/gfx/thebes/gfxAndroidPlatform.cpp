@@ -41,9 +41,6 @@
 
 #include "gfxFT2FontList.h"
 #include "gfxImageSurface.h"
-#include "nsXULAppAPI.h"
-#include "nsIScreen.h"
-#include "nsIScreenManager.h"
 
 #include "cairo.h"
 
@@ -59,15 +56,6 @@ static FT_Library gPlatformFTLibrary = NULL;
 gfxAndroidPlatform::gfxAndroidPlatform()
 {
     FT_Init_FreeType(&gPlatformFTLibrary);
-
-    nsCOMPtr<nsIScreenManager> screenMgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
-    nsCOMPtr<nsIScreen> screen;
-    screenMgr->GetPrimaryScreen(getter_AddRefs(screen));
-    PRInt32 depth = 24;
-    screen->GetColorDepth(&depth);
-
-    mOffscreenFormat = depth == 16 ? gfxASurface::ImageFormatRGB16_565 :
-                                     gfxASurface::ImageFormatARGB32;
 }
 
 gfxAndroidPlatform::~gfxAndroidPlatform()
@@ -207,28 +195,3 @@ gfxAndroidPlatform::GetScaledFontForFont(gfxFont *aFont)
     return scaledFont;
 }
 
-bool
-gfxAndroidPlatform::FontHintingEnabled()
-{
-    // In "mobile" builds, we sometimes use non-reflow-zoom, so we
-    // might not want hinting.  Let's see.
-#ifdef MOZ_USING_ANDROID_JAVA_WIDGETS
-    // On android-java, we currently only use gecko to render web
-    // content that can always be be non-reflow-zoomed.  So turn off
-    // hinting.
-    // 
-    // XXX when gecko-android-java is used as an "app runtime", we'll
-    // want to re-enable hinting.
-    return false;
-#else
-    // Otherwise, if we're in a content process, assume we don't want
-    // hinting.
-    //
-    // XXX when we use content processes to load "apps", we'll want to
-    // configure this dynamically based on whether we're an "app
-    // content process" or a "browser content process".  The former
-    // wants hinting, the latter doesn't since it might be
-    // non-reflow-zoomed.
-    return (XRE_GetProcessType() != GeckoProcessType_Content);
-#endif //  MOZ_USING_ANDROID_JAVA_WIDGETS
-}

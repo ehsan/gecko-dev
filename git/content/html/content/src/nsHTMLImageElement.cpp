@@ -126,7 +126,7 @@ public:
   NS_DECL_NSIDOMHTMLIMAGEELEMENT
 
   // override from nsImageLoadingContent
-  CORSMode GetCORSMode();
+  nsImageLoadingContent::CORSMode GetCORSMode();
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
@@ -244,6 +244,13 @@ NS_IMPL_STRING_ATTR(nsHTMLImageElement, Lowsrc, lowsrc)
 NS_IMPL_URI_ATTR(nsHTMLImageElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLImageElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLImageElement, Vspace, vspace)
+
+static const nsAttrValue::EnumTable kCrossOriginTable[] = {
+  // Order matters here; see ParseAttribute
+  { "anonymous",       nsImageLoadingContent::CORS_ANONYMOUS },
+  { "use-credentials", nsImageLoadingContent::CORS_USE_CREDENTIALS },
+  { 0 }
+};
 
 // crossorigin is not "limited to only known values" per spec, so it's
 // just a string attr purposes of the DOM crossOrigin property.
@@ -363,8 +370,10 @@ nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::crossorigin) {
-      ParseCORSValue(aValue, aResult);
-      return true;
+      return aResult.ParseEnumValue(aValue, kCrossOriginTable, false,
+                                    // default value is anonymous if aValue is
+                                    // not a value we understand
+                                    &kCrossOriginTable[0]);
     }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
       return true;
@@ -409,7 +418,7 @@ nsHTMLImageElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sImageAlignAttributeMap
   };
 
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
 }
 
 
@@ -585,7 +594,7 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   }
 
   // The first (optional) argument is the width of the image
-  uint32_t width;
+  uint32 width;
   JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
@@ -593,7 +602,7 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
-    uint32_t height;
+    uint32 height;
     ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
@@ -660,8 +669,17 @@ nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
   return nsGenericHTMLElement::CopyInnerTo(aDest);
 }
 
-CORSMode
+nsImageLoadingContent::CORSMode
 nsHTMLImageElement::GetCORSMode()
 {
-  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
+  nsImageLoadingContent::CORSMode ret = nsImageLoadingContent::CORS_NONE;
+
+  const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossorigin);
+  if (value) {
+    NS_ASSERTION(value->Type() == nsAttrValue::eEnum,
+                 "Why is this not an enum value?");
+    ret = nsImageLoadingContent::CORSMode(value->GetEnumValue());
+  }
+
+  return ret;
 }

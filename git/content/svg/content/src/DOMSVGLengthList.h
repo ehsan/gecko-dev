@@ -37,15 +37,13 @@
 #ifndef MOZILLA_DOMSVGLENGTHLIST_H__
 #define MOZILLA_DOMSVGLENGTHLIST_H__
 
-#include "DOMSVGAnimatedLengthList.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGLengthList.h"
-#include "nsTArray.h"
 #include "SVGLengthList.h"
+#include "SVGLength.h"
+#include "DOMSVGAnimatedLengthList.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
-class nsIDOMSVGLength;
 class nsSVGElement;
 
 namespace mozilla {
@@ -69,22 +67,19 @@ class DOMSVGLength;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGLengthList : public nsIDOMSVGLengthList,
-                         public nsWrapperCache
+class DOMSVGLengthList : public nsIDOMSVGLengthList
 {
   friend class DOMSVGLength;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGLengthList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGLengthList)
   NS_DECL_NSIDOMSVGLENGTHLIST
 
   DOMSVGLengthList(DOMSVGAnimatedLengthList *aAList,
                    const SVGLengthList &aInternalList)
     : mAList(aAList)
   {
-    SetIsProxy();
-
     // aInternalList must be passed in explicitly because we can't use
     // InternalList() here. (Because it depends on IsAnimValList, which depends
     // on this object having been assigned to aAList's mBaseVal or mAnimVal,
@@ -102,14 +97,6 @@ public:
     }
   };
 
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap);
-
-  nsISupports* GetParentObject()
-  {
-    return static_cast<nsIContent*>(Element());
-  }
-
   /**
    * This will normally be the same as InternalList().Length(), except if we've
    * hit OOM in which case our length will be zero.
@@ -120,6 +107,8 @@ public:
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
+
+  nsIDOMSVGLength* GetItemWithoutAddRef(PRUint32 aIndex);
 
   /// Called to notify us to syncronize our length and detach excess items.
   void InternalListLengthWillChange(PRUint32 aNewLength);

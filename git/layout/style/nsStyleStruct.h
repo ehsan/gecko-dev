@@ -48,8 +48,6 @@
 #ifndef nsStyleStruct_h___
 #define nsStyleStruct_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsMargin.h"
@@ -113,9 +111,6 @@ struct nsStyleFont {
   nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext);
   nsStyleFont(const nsStyleFont& aStyleFont);
   nsStyleFont(nsPresContext *aPresContext);
-private:
-  void Init(nsPresContext *aPresContext);
-public:
   ~nsStyleFont(void) {
     MOZ_COUNT_DTOR(nsStyleFont);
   }
@@ -149,7 +144,6 @@ public:
   nscoord mScriptUnconstrainedSize;
   nscoord mScriptMinSize;        // [inherited] length
   float   mScriptSizeMultiplier; // [inherited]
-  nsCOMPtr<nsIAtom> mLanguage;   // [inherited]
 };
 
 struct nsStyleGradientStop {
@@ -185,8 +179,9 @@ public:
 private:
   ~nsStyleGradient() {}
 
-  nsStyleGradient(const nsStyleGradient& aOther) MOZ_DELETE;
-  nsStyleGradient& operator=(const nsStyleGradient& aOther) MOZ_DELETE;
+  // Not to be implemented
+  nsStyleGradient(const nsStyleGradient& aOther);
+  nsStyleGradient& operator=(const nsStyleGradient& aOther);
 };
 
 enum nsStyleImageType {
@@ -436,26 +431,6 @@ struct nsStyleBackground {
       return !(*this == aOther);
     }
   };
-  
-  struct Repeat;
-  friend struct Repeat;
-  struct Repeat {
-    PRUint8 mXRepeat, mYRepeat;
-    
-    // Initialize nothing
-    Repeat() {}
-
-    // Initialize to initial values
-    void SetInitialValues();
-
-    bool operator==(const Repeat& aOther) const {
-      return mXRepeat == aOther.mXRepeat &&
-             mYRepeat == aOther.mYRepeat;
-    }
-    bool operator!=(const Repeat& aOther) const {
-      return !(*this == aOther);
-    }
-  };
 
   struct Layer;
   friend struct Layer;
@@ -463,7 +438,7 @@ struct nsStyleBackground {
     PRUint8 mAttachment;                // [reset] See nsStyleConsts.h
     PRUint8 mClip;                      // [reset] See nsStyleConsts.h
     PRUint8 mOrigin;                    // [reset] See nsStyleConsts.h
-    Repeat mRepeat;                     // [reset] See nsStyleConsts.h
+    PRUint8 mRepeat;                    // [reset] See nsStyleConsts.h
     Position mPosition;                 // [reset]
     nsStyleImage mImage;                // [reset]
     Size mSize;                         // [reset]
@@ -764,6 +739,17 @@ struct nsStyleBorder {
   static nsChangeHint MaxDifference();
 #endif
   static bool ForceCompare() { return false; }
+  bool ImageBorderDiffers() const;
+
+  nsStyleCorners mBorderRadius;    // [reset] coord, percent, calc
+  nsStyleSides  mBorderImageSplit; // [reset] integer, percent
+  PRUint8       mFloatEdge;       // [reset] see nsStyleConsts.h
+  PRUint8       mBorderImageHFill; // [reset]
+  PRUint8       mBorderImageVFill; // [reset]
+  nsBorderColors** mBorderColors; // [reset] multiple levels of color for a border.
+  nsRefPtr<nsCSSShadowArray> mBoxShadow; // [reset] NULL for 'none'
+  bool          mHaveBorderImageWidth; // [reset]
+  nsMargin      mBorderImageWidth; // [reset]
 
   void EnsureBorderColors() {
     if (!mBorderColors) {
@@ -801,11 +787,18 @@ struct nsStyleBorder {
       mComputedBorder.Side(aSide) = roundedWidth;
   }
 
-  // Returns the computed border.
-  inline const nsMargin& GetActualBorder() const
+  void SetBorderImageWidthOverride(mozilla::css::Side aSide, nscoord aBorderWidth)
   {
-    return mComputedBorder;
+    mBorderImageWidth.Side(aSide) =
+      NS_ROUND_BORDER_TO_PIXELS(aBorderWidth, mTwipsPerPixel);
   }
+
+  // Get the actual border, in twips.  (If there is no border-image
+  // loaded, this is the same as GetComputedBorder.  If there is a
+  // border-image loaded, it uses the border-image width overrides if
+  // present, and otherwise mBorder, which is GetComputedBorder without
+  // considering border-style: none.)
+  const nsMargin& GetActualBorder() const;
 
   // Get the computed border (plus rounding).  This does consider the
   // effects of 'border-style: none', but does not consider
@@ -867,12 +860,10 @@ struct nsStyleBorder {
   inline void SetBorderImage(imgIRequest* aImage);
   inline imgIRequest* GetBorderImage() const;
 
-  bool HasBorderImage() {return !!mBorderImageSource;}
+  bool HasBorderImage() {return !!mBorderImage;}
 
   void TrackImage(nsPresContext* aContext);
   void UntrackImage(nsPresContext* aContext);
-
-  nsMargin GetImageOutset() const;
 
   // These methods are used for the caller to caches the sub images created during
   // a border-image paint operation
@@ -909,61 +900,45 @@ struct nsStyleBorder {
     mBorderStyle[aSide] |= BORDER_COLOR_FOREGROUND;
   }
 
-public:
-  nsBorderColors** mBorderColors;        // [reset] composite (stripe) colors
-  nsRefPtr<nsCSSShadowArray> mBoxShadow; // [reset] NULL for 'none'
-
 #ifdef DEBUG
   bool mImageTracked;
 #endif
 
 protected:
-  nsCOMPtr<imgIRequest> mBorderImageSource; // [reset]
-
-public:
-  nsStyleCorners mBorderRadius;       // [reset] coord, percent
-  nsStyleSides   mBorderImageSlice;   // [reset] factor, percent
-  PRUint8        mBorderImageFill;    // [reset]
-  nsStyleSides   mBorderImageWidth;   // [reset] length, factor, percent, auto
-  nsStyleSides   mBorderImageOutset;  // [reset] length, factor
-
-  PRUint8        mBorderImageRepeatH; // [reset] see nsStyleConsts.h
-  PRUint8        mBorderImageRepeatV; // [reset]
-  PRUint8        mFloatEdge;          // [reset]
-  // 8 bits free here
-
-protected:
-  // mComputedBorder holds the CSS2.1 computed border-width values.
-  // In particular, these widths take into account the border-style
-  // for the relevant side, and the values are rounded to the nearest
-  // device pixel (which is not part of the definition of computed
-  // values). The presence or absence of a border-image does not
-  // affect border-width values.
+  // mComputedBorder holds the CSS2.1 computed border-width values.  In
+  // particular, these widths take into account the border-style for the
+  // relevant side and the values are rounded to the nearest device
+  // pixel.  They are also rounded (which is not part of the definition
+  // of computed values).  However, they do *not* take into account the
+  // presence of border-image.  See GetActualBorder above for how to
+  // really get the actual border.
   nsMargin      mComputedBorder;
 
-  // mBorder holds the nscoord values for the border widths as they
-  // would be if all the border-style values were visible (not hidden
-  // or none).  This member exists so that when we create structs
-  // using the copy constructor during style resolution the new
-  // structs will know what the specified values of the border were in
-  // case they have more specific rules setting the border style.
-  //
-  // Note that this isn't quite the CSS specified value, since this
-  // has had the enumerated border widths converted to lengths, and
-  // all lengths converted to twips.  But it's not quite the computed
-  // value either. The values are rounded to the nearest device pixel.
+  // mBorder holds the nscoord values for the border widths as they would be if
+  // all the border-style values were visible (not hidden or none).  This
+  // member exists so that when we create structs using the copy
+  // constructor during style resolution the new structs will know what the
+  // specified values of the border were in case they have more specific rules
+  // setting the border style.  Note that this isn't quite the CSS specified
+  // value, since this has had the enumerated border widths converted to
+  // lengths, and all lengths converted to twips.  But it's not quite the
+  // computed value either. The values are rounded to the nearest device pixel
+  // We also use these values when we have a loaded border-image that
+  // does not have width overrides.
   nsMargin      mBorder;
 
   PRUint8       mBorderStyle[4];  // [reset] See nsStyleConsts.h
-  nscolor       mBorderColor[4];  // [reset] the colors to use for a simple
-                                  // border.  not used for -moz-border-colors
+  nscolor       mBorderColor[4];  // [reset] the colors to use for a simple border.  not used
+                                  // if -moz-border-colors is specified
 private:
+  nsCOMPtr<imgIRequest> mBorderImage; // [reset]
+
   // Cache used by callers for border-image painting
   nsCOMArray<imgIContainer> mSubImages;
 
   nscoord       mTwipsPerPixel;
 
-  nsStyleBorder& operator=(const nsStyleBorder& aOther) MOZ_DELETE;
+  nsStyleBorder& operator=(const nsStyleBorder& aOther); // Not to be implemented
 };
 
 
@@ -1089,7 +1064,7 @@ struct nsStyleList {
   PRUint8   mListStylePosition;         // [inherited]
 private:
   nsCOMPtr<imgIRequest> mListStyleImage; // [inherited]
-  nsStyleList& operator=(const nsStyleList& aOther) MOZ_DELETE;
+  nsStyleList& operator=(const nsStyleList& aOther); // Not to be implemented
 public:
   nsRect        mImageRegion;           // [inherited] the rect to use within an image
 };
@@ -1301,7 +1276,6 @@ struct nsStyleText {
   static bool ForceCompare() { return false; }
 
   PRUint8 mTextAlign;                   // [inherited] see nsStyleConsts.h
-  PRUint8 mTextAlignLast;               // [inherited] see nsStyleConsts.h
   PRUint8 mTextTransform;               // [inherited] see nsStyleConsts.h
   PRUint8 mWhiteSpace;                  // [inherited] see nsStyleConsts.h
   PRUint8 mWordWrap;                    // [inherited] see nsStyleConsts.h
@@ -1361,6 +1335,7 @@ struct nsStyleVisibility {
 
   PRUint8 mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   PRUint8   mVisible;                  // [inherited]
+  nsCOMPtr<nsIAtom> mLanguage;         // [inherited]
   PRUint8 mPointerEvents;              // [inherited] see nsStyleConsts.h
 
   bool IsVisible() const {
@@ -1664,11 +1639,17 @@ struct nsStyleDisplay {
            mOverflowX != NS_STYLE_OVERFLOW_CLIP;
   }
 
+  // For table elements that don't support scroll frame creation, we
+  // support 'overflow: hidden' to mean 'overflow: -moz-hidden-unscrollable'.
+  bool IsTableClip() const {
+    return mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
+           (mOverflowX == NS_STYLE_OVERFLOW_HIDDEN &&
+            mOverflowY == NS_STYLE_OVERFLOW_HIDDEN);
+  }
+
   /* Returns whether the element has the -moz-transform property. */
   bool HasTransform() const {
-    return mSpecifiedTransform != nsnull || 
-           mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
-           mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
+    return mSpecifiedTransform != nsnull || mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D;
   }
 };
 
@@ -2104,8 +2085,6 @@ struct nsStyleColumn {
 
   nscolor      mColumnRuleColor;  // [reset]
   PRUint8      mColumnRuleStyle;  // [reset]
-  PRUint8      mColumnFill;  // [reset] see nsStyleConsts.h
-
   // See https://bugzilla.mozilla.org/show_bug.cgi?id=271586#c43 for why
   // this is hard to replace with 'currentColor'.
   bool mColumnRuleColorIsForeground;

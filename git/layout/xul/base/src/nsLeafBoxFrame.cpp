@@ -53,7 +53,7 @@
 #include "nsBoxLayoutState.h"
 #include "nsWidgetsCID.h"
 #include "nsIViewManager.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsDisplayList.h"
 
 //

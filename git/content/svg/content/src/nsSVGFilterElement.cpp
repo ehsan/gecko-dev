@@ -84,9 +84,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGFilterElement,nsSVGFilterElementBase)
 DOMCI_NODE_DATA(SVGFilterElement, nsSVGFilterElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGFilterElement)
-  NS_NODE_INTERFACE_TABLE6(nsSVGFilterElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGFilterElement,
+  NS_NODE_INTERFACE_TABLE5(nsSVGFilterElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGFilterElement,
                            nsIDOMSVGURIReference)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFilterElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFilterElementBase)
@@ -196,7 +195,7 @@ nsSVGFilterElement::IsAttributeMapped(const nsIAtom* name) const
     sTextContentElementsMap,
     sViewportsMap
   };
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGGraphicElementBase::IsAttributeMapped(name);
 }
 
@@ -218,15 +217,6 @@ nsSVGFilterElement::Invalidate()
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ bool
-nsSVGFilterElement::HasValidDimensions() const
-{
-  return (!mLengthAttributes[WIDTH].IsExplicitlySet() ||
-           mLengthAttributes[WIDTH].GetAnimValInSpecifiedUnits() > 0) &&
-         (!mLengthAttributes[HEIGHT].IsExplicitlySet() || 
-           mLengthAttributes[HEIGHT].GetAnimValInSpecifiedUnits() > 0);
-}
 
 nsSVGElement::LengthAttributesInfo
 nsSVGFilterElement::GetLengthInfo()

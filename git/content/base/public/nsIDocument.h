@@ -68,6 +68,7 @@
 #include "nsEventStates.h"
 #include "nsIStructuredCloneContainer.h"
 #include "nsIBFCacheEntry.h"
+#include "nsDOMMemoryReporter.h"
 
 class nsIContent;
 class nsPresContext;
@@ -110,7 +111,6 @@ class nsIBoxObject;
 class imgIRequest;
 class nsISHEntry;
 class nsDOMNavigationTiming;
-class nsWindowSizes;
 
 namespace mozilla {
 namespace css {
@@ -124,9 +124,8 @@ class Element;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x283ec27d, 0x5b23, 0x49b2, \
-  { 0x94, 0xd9, 0x9, 0xb5, 0xdb, 0x45, 0x30, 0x73 } }
-
+{ 0x3b78f6, 0x6dc5, 0x44c6, \
+  { 0xbc, 0x28, 0x60, 0x2a, 0xb2, 0x4f, 0xfb, 0x7b } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -156,6 +155,7 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IDOCUMENT_IID)
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
+  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
 
 #ifdef MOZILLA_INTERNAL_API
   nsIDocument()
@@ -752,30 +752,20 @@ public:
 
   /**
    * Asynchronously requests that the document make aElement the full-screen
-   * element, and move into full-screen mode. The current full-screen element
-   * (if any) is pushed onto the full-screen element stack, and it can be
-   * returned to full-screen status by calling RestorePreviousFullScreenState().
+   * element, and move into full-screen mode.
    */
   virtual void AsyncRequestFullScreen(Element* aElement) = 0;
 
   /**
-   * Restores the previous full-screen element to full-screen status. If there
-   * is no former full-screen element, this exits full-screen, moving the
-   * top-level browser window out of full-screen mode.
+   * Requests that the document, and all documents in its hierarchy exit
+   * from DOM full-screen mode.
    */
-  virtual void RestorePreviousFullScreenState() = 0;
+  virtual void CancelFullScreen() = 0;
 
   /**
    * Returns true if this document is in full-screen mode.
    */
   virtual bool IsFullScreenDoc() = 0;
-
-  /**
-   * Exits all documents from DOM full-screen mode, and moves the top-level
-   * browser window out of full-screen mode. If aRunAsync is true, this runs
-   * asynchronously.
-   */
-  static void ExitFullScreen(bool aRunAsync);
 
   //----------------------------------------------------------------------
 
@@ -1424,8 +1414,7 @@ public:
   /**
    * Called by nsParser to preload images. Can be removed and code moved
    * to nsPreloadURIs::PreloadURIs() in file nsParser.cpp whenever the
-   * parser-module is linked with gklayout-module.  aCrossOriginAttr should
-   * be a void string if the attr is not present.
+   * parser-module is linked with gklayout-module.
    */
   virtual void MaybePreLoadImage(nsIURI* uri,
                                  const nsAString& aCrossOriginAttr) = 0;
@@ -1495,7 +1484,7 @@ public:
    * Register/Unregister a filedata uri as being "owned" by this document. 
    * I.e. that its lifetime is connected with this document. When the document
    * goes away it should "kill" the uri by calling
-   * nsBlobProtocolHandler::RemoveFileDataEntry
+   * nsFileDataProtocolHandler::RemoveFileDataEntry
    */
   virtual void RegisterFileDataUri(const nsACString& aUri) = 0;
   virtual void UnregisterFileDataUri(const nsACString& aUri) = 0;
@@ -1529,9 +1518,7 @@ public:
    */
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
 
-  nsresult ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
-                                        PRInt32 *aHandle);
-  void CancelFrameRequestCallback(PRInt32 aHandle);
+  void ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback);
 
   typedef nsTArray< nsCOMPtr<nsIFrameRequestCallback> > FrameRequestCallbackList;
   /**
@@ -1600,32 +1587,6 @@ public:
   void WarnOnceAbout(DeprecatedOperations aOperation);
 
   virtual void PostVisibilityUpdateEvent() = 0;
-  
-  bool IsSyntheticDocument() { return mIsSyntheticDocument; }
-
-  void SetNeedLayoutFlush() {
-    mNeedLayoutFlush = true;
-    if (mDisplayDocument) {
-      mDisplayDocument->SetNeedLayoutFlush();
-    }
-  }
-
-  void SetNeedStyleFlush() {
-    mNeedStyleFlush = true;
-    if (mDisplayDocument) {
-      mDisplayDocument->SetNeedStyleFlush();
-    }
-  }
-
-  // Note: nsIDocument is a sub-class of nsINode, which has a
-  // SizeOfExcludingThis function.  However, because nsIDocument objects can
-  // only appear at the top of the DOM tree, we have a specialized measurement
-  // function which returns multiple sizes.
-  virtual void DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const;
-  // DocSizeOfIncludingThis doesn't need to be overridden by sub-classes
-  // because nsIDocument inherits from nsINode;  see the comment above the
-  // declaration of nsINode::SizeOfIncludingThis.
-  virtual void DocSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const;
 
 private:
   PRUint64 mWarnedAbout;
@@ -1791,12 +1752,6 @@ protected:
   // True if this document has links whose state needs updating
   bool mHasLinksToUpdate;
 
-  // True if a layout flush might not be a no-op
-  bool mNeedLayoutFlush;
-
-  // True if a style flush might not be a no-op
-  bool mNeedStyleFlush;
-
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -1844,42 +1799,13 @@ protected:
    */
   PRUint32 mExternalScriptsBeingEvaluated;
 
-  /**
-   * The current frame request callback handle
-   */
-  PRInt32 mFrameRequestCallbackCounter;
-
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mSecriptGlobalObject.
   nsPIDOMWindow *mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
-  struct FrameRequest {
-    FrameRequest(nsIFrameRequestCallback* aCallback,
-                 PRInt32 aHandle) :
-      mCallback(aCallback),
-      mHandle(aHandle)
-    {}
-
-    // Conversion operator so that we can append these to a
-    // FrameRequestCallbackList
-    operator nsIFrameRequestCallback* const () const { return mCallback; }
-
-    // Comparator operators to allow RemoveElementSorted with an
-    // integer argument on arrays of FrameRequest
-    bool operator==(PRInt32 aHandle) const {
-      return mHandle == aHandle;
-    }
-    bool operator<(PRInt32 aHandle) const {
-      return mHandle < aHandle;
-    }
-    
-    nsCOMPtr<nsIFrameRequestCallback> mCallback;
-    PRInt32 mHandle;
-  };
-
-  nsTArray<FrameRequest> mFrameRequestCallbacks;
+  FrameRequestCallbackList mFrameRequestCallbacks;
 
   // This object allows us to evict ourself from the back/forward cache.  The
   // pointer is non-null iff we're currently in the bfcache.

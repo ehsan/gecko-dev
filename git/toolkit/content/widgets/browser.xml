@@ -180,7 +180,7 @@
 
             if (aCharset) {
               try { 
-                this.docShell.parentCharset = this.mAtomService.getAtom(aCharset);
+                this.documentCharsetInfo.parentCharset = this.mAtomService.getAtom(aCharset);
               }
               catch (e) {
               }
@@ -436,6 +436,10 @@
 
       <property name="contentViewerFile"
                 onget="return this.docShell.contentViewer.QueryInterface(Components.interfaces.nsIContentViewerFile);"
+                readonly="true"/>
+
+      <property name="documentCharsetInfo"
+                onget="return this.docShell.documentCharsetInfo;"
                 readonly="true"/>
 
       <property name="contentDocument"
@@ -1210,7 +1214,7 @@
     <handlers>
       <handler event="keypress" keycode="VK_F7" group="system">
         <![CDATA[
-          if (event.defaultPrevented || !event.isTrusted)
+          if (event.getPreventDefault() || !event.isTrusted)
             return;
 
           var isEnabled = this.mPrefs.getBoolPref("accessibility.browsewithcaret_shortcut.enabled");
@@ -1271,7 +1275,7 @@
       </handler>
       <handler event="dragover" group="system">
       <![CDATA[
-        if (!this.droppedLinkHandler || event.defaultPrevented)
+        if (!this.droppedLinkHandler || event.getPreventDefault())
           return;
 
         // For drags that appear to be internal text (for example, tab drags),
@@ -1292,18 +1296,21 @@
       </handler>
       <handler event="drop" group="system">
       <![CDATA[
-        if (!this.droppedLinkHandler || event.defaultPrevented)
+        if (!this.droppedLinkHandler || event.getPreventDefault())
           return;
 
         let name = { };
         let linkHandler = Components.classes["@mozilla.org/content/dropped-link-handler;1"].
                             getService(Components.interfaces.nsIDroppedLinkHandler);
         try {
-          // Pass true to prevent the dropping of javascript:/data: URIs
-          var uri = linkHandler.dropLink(event, name, true);
+          var uri = linkHandler.dropLink(event, name);
         } catch (ex) {
           return;
         }
+
+        // don't allow dropping javascript or data urls
+        if (/^\s*(javascript|data):/.test(uri))
+          return;
 
         if (uri) {
           this.droppedLinkHandler(event, uri, name.value);

@@ -244,12 +244,6 @@ function do_check_addon(aActualAddon, aExpectedAddon, aProperties) {
         do_check_eq(actualValue.getTime(), expectedValue.getTime());
         break;
 
-      case "compatibilityOverrides":
-        do_check_eq(actualValue.length, expectedValue.length);
-        for (let i = 0; i < actualValue.length; i++)
-          do_check_compatibilityoverride(actualValue[i], expectedValue[i]);
-        break;
-
       default:
         if (actualValue !== expectedValue)
           do_throw("Failed for " + aProperty + " for add-on " + aExpectedAddon.id +
@@ -289,24 +283,6 @@ function do_check_screenshot(aActual, aExpected) {
   do_check_eq(aActual.thumbnailWidth, aExpected.thumbnailWidth);
   do_check_eq(aActual.thumbnailHeight, aExpected.thumbnailHeight);
   do_check_eq(aActual.caption, aExpected.caption);
-}
-
-/**
- * Check that the actual compatibility override is the same as the expected
- * compatibility override.
- *
- * @param  aAction
- *         The actual compatibility override to check.
- * @param  aExpected
- *         The expected compatibility override to check against.
- */
-function do_check_compatibilityoverride(aActual, aExpected) {
-  do_check_eq(aActual.type, aExpected.type);
-  do_check_eq(aActual.minVersion, aExpected.minVersion);
-  do_check_eq(aActual.maxVersion, aExpected.maxVersion);
-  do_check_eq(aActual.appID, aExpected.appID);
-  do_check_eq(aActual.appMinVersion, aExpected.appMinVersion);
-  do_check_eq(aActual.appMaxVersion, aExpected.appMaxVersion);
 }
 
 /**
@@ -402,8 +378,8 @@ function shutdownManager() {
       thr.processNextEvent(false);
   }
 
-  // Force the XPIProvider provider to reload to better
-  // simulate real-world usage.
+  // Force the XPIProvider provider to reload since it defines some constants on
+  // load that need to change during tests
   let scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
   AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
   Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
@@ -1127,7 +1103,6 @@ Services.prefs.setBoolPref("extensions.showMismatchUI", false);
 
 // Point update checks to the local machine for fast failures
 Services.prefs.setCharPref("extensions.update.url", "http://127.0.0.1/updateURL");
-Services.prefs.setCharPref("extensions.update.background.url", "http://127.0.0.1/updateBackgroundURL");
 Services.prefs.setCharPref("extensions.blocklist.url", "http://127.0.0.1/blocklistURL");
 
 // By default ignore bundled add-ons
@@ -1135,9 +1110,6 @@ Services.prefs.setBoolPref("extensions.installDistroAddons", false);
 
 // By default use strict compatibility
 Services.prefs.setBoolPref("extensions.strictCompatibility", true);
-
-// By default don't check for hotfixes
-Services.prefs.setCharPref("extensions.hotfix.id", "");
 
 // By default, set min compatible versions to 0
 Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_APP_VERSION, "0");

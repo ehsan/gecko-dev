@@ -38,10 +38,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
-#include <stdarg.h>
 
 #include "jscntxt.h"
-#include "jscompartment.h"
 #include "jscrashformat.h"
 #include "jscrashreport.h"
 #include "jsprf.h"
@@ -54,342 +52,74 @@
 namespace js {
 namespace gcstats {
 
-/* Except for the first and last, slices of less than 12ms are not reported. */
-static const int64_t SLICE_MIN_REPORT_TIME = 12 * PRMJ_USEC_PER_MSEC;
-
-class StatisticsSerializer
+Statistics::ColumnInfo::ColumnInfo(const char *title, double t, double total)
+  : title(title)
 {
-    typedef Vector<char, 128, SystemAllocPolicy> CharBuffer;
-    CharBuffer buf_;
-    bool asJSON_;
-    bool needComma_;
-    bool oom_;
-
-    const static int MaxFieldValueLength = 128;
-
-  public:
-    enum Mode {
-        AsJSON = true,
-        AsText = false
-    };
-
-    StatisticsSerializer(Mode asJSON)
-      : buf_(), asJSON_(asJSON), needComma_(false), oom_(false)
-    {}
-
-    bool isJSON() { return asJSON_; }
-
-    bool isOOM() { return oom_; }
-
-    void endLine() {
-        if (!asJSON_) {
-            p("\n");
-            needComma_ = false;
-        }
-    }
-
-    void extra(const char *str) {
-        if (!asJSON_) {
-            needComma_ = false;
-            p(str);
-        }
-    }
-
-    void appendString(const char *name, const char *value) {
-        put(name, value, "", true);
-    }
-
-    void appendNumber(const char *name, const char *vfmt, const char *units, ...) {
-        va_list va;
-        va_start(va, units);
-        append(name, vfmt, va, units);
-        va_end(va);
-    }
-
-    void appendIfNonzeroMS(const char *name, double v) {
-        if (asJSON_ || v)
-            appendNumber(name, "%.1f", "ms", v);
-    }
-
-    void beginObject(const char *name) {
-        if (needComma_)
-            pJSON(", ");
-        if (asJSON_ && name) {
-            putQuoted(name);
-            pJSON(": ");
-        }
-        pJSON("{");
-        needComma_ = false;
-    }
-
-    void endObject() {
-        needComma_ = false;
-        pJSON("}");
-        needComma_ = true;
-    }
-
-    void beginArray(const char *name) {
-        if (needComma_)
-            pJSON(", ");
-        if (asJSON_)
-            putQuoted(name);
-        pJSON(": [");
-        needComma_ = false;
-    }
-
-    void endArray() {
-        needComma_ = false;
-        pJSON("]");
-        needComma_ = true;
-    }
-
-    jschar *finishJSString() {
-        char *buf = finishCString();
-        if (!buf)
-            return NULL;
-
-        size_t nchars = strlen(buf);
-        jschar *out = (jschar *)js_malloc(sizeof(jschar) * (nchars + 1));
-        if (!out) {
-            oom_ = true;
-            js_free(buf);
-            return NULL;
-        }
-
-        size_t outlen = nchars;
-        bool ok = InflateStringToBuffer(NULL, buf, nchars, out, &outlen);
-        js_free(buf);
-        if (!ok) {
-            oom_ = true;
-            js_free(out);
-            return NULL;
-        }
-        out[nchars] = 0;
-
-        return out;
-    }
-
-    char *finishCString() {
-        if (oom_)
-            return NULL;
-
-        buf_.append('\0');
-
-        char *buf = buf_.extractRawBuffer();
-        if (!buf)
-            oom_ = true;
-
-        return buf;
-    }
-
-  private:
-    void append(const char *name, const char *vfmt,
-                va_list va, const char *units)
-    {
-        char val[MaxFieldValueLength];
-        JS_vsnprintf(val, MaxFieldValueLength, vfmt, va);
-        put(name, val, units, false);
-    }
-
-    void p(const char *cstr) {
-        if (oom_)
-            return;
-
-        if (!buf_.append(cstr, strlen(cstr)))
-            oom_ = true;
-    }
-
-    void p(const char c) {
-        if (oom_)
-            return;
-
-        if (!buf_.append(c))
-            oom_ = true;
-    }
-
-    void pJSON(const char *str) {
-        if (asJSON_)
-            p(str);
-    }
-
-    void put(const char *name, const char *val, const char *units, bool valueIsQuoted) {
-        if (needComma_)
-            p(", ");
-        needComma_ = true;
-
-        putKey(name);
-        p(": ");
-        if (valueIsQuoted)
-            putQuoted(val);
-        else
-            p(val);
-        if (!asJSON_)
-            p(units);
-    }
-
-    void putQuoted(const char *str) {
-        pJSON("\"");
-        p(str);
-        pJSON("\"");
-    }
-
-    void putKey(const char *str) {
-        if (!asJSON_) {
-            p(str);
-            return;
-        }
-
-        p("\"");
-        const char *c = str;
-        while (*c) {
-            if (*c == ' ' || *c == '\t')
-                p('_');
-            else if (isupper(*c))
-                p(tolower(*c));
-            else if (*c == '+')
-                p("added_");
-            else if (*c == '-')
-                p("removed_");
-            else if (*c != '(' && *c != ')')
-                p(*c);
-            c++;
-        }
-        p("\"");
-    }
-};
-
-static const char *
-ExplainReason(gcreason::Reason reason)
-{
-    switch (reason) {
-#define SWITCH_REASON(name)                     \
-        case gcreason::name:                    \
-          return #name;
-        GCREASONS(SWITCH_REASON)
-
-        default:
-          JS_NOT_REACHED("bad GC reason");
-          return "?";
-#undef SWITCH_REASON
-    }
+    JS_snprintf(str, sizeof(str), "%.1f", t);
+    JS_snprintf(totalStr, sizeof(totalStr), "%.1f", total);
+    width = 6;
 }
 
-static double
-t(int64_t t)
+Statistics::ColumnInfo::ColumnInfo(const char *title, double t)
+  : title(title)
 {
-    return double(t) / PRMJ_USEC_PER_MSEC;
+    JS_snprintf(str, sizeof(str), "%.1f", t);
+    strcpy(totalStr, "n/a");
+    width = 6;
 }
 
-static void
-formatPhases(StatisticsSerializer &ss, const char *name, int64_t *times)
+Statistics::ColumnInfo::ColumnInfo(const char *title, unsigned int data)
+  : title(title)
 {
-    ss.beginObject(name);
-    ss.appendIfNonzeroMS("Mark", t(times[PHASE_MARK]));
-    ss.appendIfNonzeroMS("Mark Roots", t(times[PHASE_MARK_ROOTS]));
-    ss.appendIfNonzeroMS("Mark Delayed", t(times[PHASE_MARK_DELAYED]));
-    ss.appendIfNonzeroMS("Mark Other", t(times[PHASE_MARK_OTHER]));
-    ss.appendIfNonzeroMS("Sweep", t(times[PHASE_SWEEP]));
-    ss.appendIfNonzeroMS("Sweep Object", t(times[PHASE_SWEEP_OBJECT]));
-    ss.appendIfNonzeroMS("Sweep String", t(times[PHASE_SWEEP_STRING]));
-    ss.appendIfNonzeroMS("Sweep Script", t(times[PHASE_SWEEP_SCRIPT]));
-    ss.appendIfNonzeroMS("Sweep Shape", t(times[PHASE_SWEEP_SHAPE]));
-    ss.appendIfNonzeroMS("Discard Code", t(times[PHASE_DISCARD_CODE]));
-    ss.appendIfNonzeroMS("Discard Analysis", t(times[PHASE_DISCARD_ANALYSIS]));
-    ss.appendIfNonzeroMS("XPConnect", t(times[PHASE_XPCONNECT]));
-    ss.appendIfNonzeroMS("Deallocate", t(times[PHASE_DESTROY]));
-    ss.endObject();
+    JS_snprintf(str, sizeof(str), "%d", data);
+    strcpy(totalStr, "n/a");
+    width = 4;
 }
 
-bool
-Statistics::formatData(StatisticsSerializer &ss)
+Statistics::ColumnInfo::ColumnInfo(const char *title, const char *data)
+  : title(title)
 {
-    int64_t total = 0, longest = 0;
-    for (SliceData *slice = slices.begin(); slice != slices.end(); slice++) {
-        total += slice->duration();
-        if (slice->duration() > longest)
-            longest = slice->duration();
-    }
-
-    double mmu20 = computeMMU(20 * PRMJ_USEC_PER_MSEC);
-    double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
-
-    ss.beginObject(NULL);
-    ss.appendNumber("Total Time", "%.1f", "ms", t(total));
-    ss.appendString("Type", compartment ? "compartment" : "global");
-    ss.appendNumber("MMU (20ms)", "%d", "%", int(mmu20 * 100));
-    ss.appendNumber("MMU (50ms)", "%d", "%", int(mmu50 * 100));
-    if (slices.length() > 1 || ss.isJSON())
-        ss.appendNumber("Max Pause", "%.1f", "ms", t(longest));
-    else
-        ss.appendString("Reason", ExplainReason(slices[0].reason));
-    if (nonincrementalReason || ss.isJSON()) {
-        ss.appendString("Nonincremental Reason",
-                        nonincrementalReason ? nonincrementalReason : "none");
-    }
-    ss.appendNumber("+Chunks", "%d", "", counts[STAT_NEW_CHUNK]);
-    ss.appendNumber("-Chunks", "%d", "", counts[STAT_DESTROY_CHUNK]);
-    ss.endLine();
-
-    if (slices.length() > 1 || ss.isJSON()) {
-        ss.beginArray("Slices");
-        for (size_t i = 0; i < slices.length(); i++) {
-            int64_t width = slices[i].duration();
-            if (i != 0 && i != slices.length() - 1 && width < SLICE_MIN_REPORT_TIME &&
-                !slices[i].resetReason && !ss.isJSON())
-            {
-                continue;
-            }
-
-            ss.beginObject(NULL);
-            ss.extra("    ");
-            ss.appendNumber("Slice", "%d", "", i);
-            ss.appendNumber("Time", "%.1f", "ms", t(slices[i].end - slices[0].start));
-            ss.extra(" (");
-            ss.appendNumber("Pause", "%.1f", "", t(width));
-            ss.appendString("Reason", ExplainReason(slices[i].reason));
-            if (slices[i].resetReason)
-                ss.appendString("Reset", slices[i].resetReason);
-            ss.extra("): ");
-            formatPhases(ss, "times", slices[i].phaseTimes);
-            ss.endLine();
-            ss.endObject();
-        }
-        ss.endArray();
-    }
-    ss.extra("    Totals: ");
-    formatPhases(ss, "totals", phaseTimes);
-    ss.endObject();
-
-    return !ss.isOOM();
+    JS_ASSERT(strlen(data) < sizeof(str));
+    strcpy(str, data);
+    strcpy(totalStr, "n/a ");
+    width = 0;
 }
 
-jschar *
-Statistics::formatMessage()
-{
-    StatisticsSerializer ss(StatisticsSerializer::AsText);
-    formatData(ss);
-    return ss.finishJSString();
-}
+static const int NUM_COLUMNS = 17;
 
-jschar *
-Statistics::formatJSON()
+void
+Statistics::makeTable(ColumnInfo *cols)
 {
-    StatisticsSerializer ss(StatisticsSerializer::AsJSON);
-    formatData(ss);
-    return ss.finishJSString();
+    int i = 0;
+
+    cols[i++] = ColumnInfo("Type", compartment ? "Comp" : "Glob");
+
+    cols[i++] = ColumnInfo("Total", t(PHASE_GC), total(PHASE_GC));
+    cols[i++] = ColumnInfo("Wait", beginDelay(PHASE_MARK, PHASE_GC));
+    cols[i++] = ColumnInfo("Mark", t(PHASE_MARK), total(PHASE_MARK));
+    cols[i++] = ColumnInfo("Sweep", t(PHASE_SWEEP), total(PHASE_SWEEP));
+    cols[i++] = ColumnInfo("FinObj", t(PHASE_SWEEP_OBJECT), total(PHASE_SWEEP_OBJECT));
+    cols[i++] = ColumnInfo("FinStr", t(PHASE_SWEEP_STRING), total(PHASE_SWEEP_STRING));
+    cols[i++] = ColumnInfo("FinScr", t(PHASE_SWEEP_SCRIPT), total(PHASE_SWEEP_SCRIPT));
+    cols[i++] = ColumnInfo("FinShp", t(PHASE_SWEEP_SHAPE), total(PHASE_SWEEP_SHAPE));
+    cols[i++] = ColumnInfo("DisCod", t(PHASE_DISCARD_CODE), total(PHASE_DISCARD_CODE));
+    cols[i++] = ColumnInfo("DisAnl", t(PHASE_DISCARD_ANALYSIS), total(PHASE_DISCARD_ANALYSIS));
+    cols[i++] = ColumnInfo("XPCnct", t(PHASE_XPCONNECT), total(PHASE_XPCONNECT));
+    cols[i++] = ColumnInfo("Destry", t(PHASE_DESTROY), total(PHASE_DESTROY));
+    cols[i++] = ColumnInfo("End", endDelay(PHASE_GC, PHASE_DESTROY));
+
+    cols[i++] = ColumnInfo("+Chu", counts[STAT_NEW_CHUNK]);
+    cols[i++] = ColumnInfo("-Chu", counts[STAT_DESTROY_CHUNK]);
+
+    cols[i++] = ColumnInfo("Reason", ExplainReason(triggerReason));
+
+    JS_ASSERT(i == NUM_COLUMNS);
 }
 
 Statistics::Statistics(JSRuntime *rt)
-  : runtime(rt),
-    startupTime(PRMJ_Now()),
-    fp(NULL),
-    fullFormat(false),
-    compartment(NULL),
-    nonincrementalReason(NULL)
+  : runtime(rt)
+  , triggerReason(PUBLIC_API) //dummy reason to satisfy makeTable
 {
-    PodArrayZero(phaseTotals);
-    PodArrayZero(counts);
-
     char *env = getenv("MOZ_GCTIMER");
     if (!env || strcmp(env, "none") == 0) {
         fp = NULL;
@@ -407,20 +137,33 @@ Statistics::Statistics(JSRuntime *rt)
 
         fp = fopen(env, "a");
         JS_ASSERT(fp);
+
+        fprintf(fp, "     AppTime");
+
+        ColumnInfo cols[NUM_COLUMNS];
+        makeTable(cols);
+        for (int i = 0; i < NUM_COLUMNS; i++)
+            fprintf(fp, ", %*s", cols[i].width, cols[i].title);
+        fprintf(fp, "\n");
     }
+
+    PodArrayZero(counts);
+    PodArrayZero(totals);
+
+    startupTime = PRMJ_Now();
 }
 
 Statistics::~Statistics()
 {
     if (fp) {
         if (fullFormat) {
-            StatisticsSerializer ss(StatisticsSerializer::AsText);
-            formatPhases(ss, "", phaseTotals);
-            char *msg = ss.finishCString();
-            if (msg) {
-                fprintf(fp, "TOTALS\n%s\n\n-------\n", msg);
-                js_free(msg);
-            }
+            fprintf(fp, "------>TOTAL");
+
+            ColumnInfo cols[NUM_COLUMNS];
+            makeTable(cols);
+            for (int i = 0; i < NUM_COLUMNS && cols[i].totalStr[0]; i++)
+                fprintf(fp, ", %*s", cols[i].width, cols[i].totalStr);
+            fprintf(fp, "\n");
         }
 
         if (fp != stdout && fp != stderr)
@@ -428,63 +171,123 @@ Statistics::~Statistics()
     }
 }
 
-int64_t
-Statistics::gcDuration()
+struct GCCrashData
 {
-    return slices.back().end - slices[0].start;
+    int isRegen;
+    int isCompartment;
+};
+
+void
+Statistics::beginGC(JSCompartment *comp, Reason reason)
+{
+    compartment = comp;
+
+    PodArrayZero(phaseStarts);
+    PodArrayZero(phaseEnds);
+    PodArrayZero(phaseTimes);
+
+    triggerReason = reason;
+
+    beginPhase(PHASE_GC);
+    Probes::GCStart(compartment);
+
+    GCCrashData crashData;
+    crashData.isRegen = runtime->shapeGen & SHAPE_OVERFLOW_BIT;
+    crashData.isCompartment = !!compartment;
+    crash::SaveCrashData(crash::JS_CRASH_TAG_GC, &crashData, sizeof(crashData));
+}
+
+double
+Statistics::t(Phase phase)
+{
+    return double(phaseTimes[phase]) / PRMJ_USEC_PER_MSEC;
+}
+
+double
+Statistics::total(Phase phase)
+{
+    return double(totals[phase]) / PRMJ_USEC_PER_MSEC;
+}
+
+double
+Statistics::beginDelay(Phase phase1, Phase phase2)
+{
+    return double(phaseStarts[phase1] - phaseStarts[phase2]) / PRMJ_USEC_PER_MSEC;
+}
+
+double
+Statistics::endDelay(Phase phase1, Phase phase2)
+{
+    return double(phaseEnds[phase1] - phaseEnds[phase2]) / PRMJ_USEC_PER_MSEC;
+}
+
+void
+Statistics::statsToString(char *buffer, size_t size)
+{
+    JS_ASSERT(size);
+    buffer[0] = 0x00;
+
+    ColumnInfo cols[NUM_COLUMNS];
+    makeTable(cols);
+
+    size_t pos = 0;
+    for (int i = 0; i < NUM_COLUMNS; i++) {
+        int len = strlen(cols[i].title) + 1 + strlen(cols[i].str);
+        if (i > 0)
+            len += 2;
+        if (pos + len >= size)
+            break;
+        if (i > 0)
+            strcat(buffer, ", ");
+        strcat(buffer, cols[i].title);
+        strcat(buffer, ":");
+        strcat(buffer, cols[i].str);
+        pos += len;
+    }
 }
 
 void
 Statistics::printStats()
 {
     if (fullFormat) {
-        StatisticsSerializer ss(StatisticsSerializer::AsText);
-        formatData(ss);
-        char *msg = ss.finishCString();
-        if (msg) {
-            fprintf(fp, "GC(T+%.3fs) %s\n", t(slices[0].start - startupTime) / 1000.0, msg);
-            js_free(msg);
-        }
+        fprintf(fp, "%12.0f", double(phaseStarts[PHASE_GC] - startupTime) / PRMJ_USEC_PER_MSEC);
+
+        ColumnInfo cols[NUM_COLUMNS];
+        makeTable(cols);
+        for (int i = 0; i < NUM_COLUMNS; i++)
+            fprintf(fp, ", %*s", cols[i].width, cols[i].str);
+        fprintf(fp, "\n");
     } else {
         fprintf(fp, "%f %f %f\n",
-                t(gcDuration()),
-                t(phaseTimes[PHASE_MARK]),
-                t(phaseTimes[PHASE_SWEEP]));
+                t(PHASE_GC), t(PHASE_MARK), t(PHASE_SWEEP));
     }
     fflush(fp);
 }
 
 void
-Statistics::beginGC()
-{
-    PodArrayZero(phaseStarts);
-    PodArrayZero(phaseTimes);
-
-    slices.clearAndFree();
-    nonincrementalReason = NULL;
-
-    Probes::GCStart();
-}
-
-void
 Statistics::endGC()
 {
-    Probes::GCEnd();
+    Probes::GCEnd(compartment);
+    endPhase(PHASE_GC);
     crash::SnapshotGCStack();
 
     for (int i = 0; i < PHASE_LIMIT; i++)
-        phaseTotals[i] += phaseTimes[i];
+        totals[i] += phaseTimes[i];
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback) {
+        (*cb)(JS_TELEMETRY_GC_REASON, triggerReason);
         (*cb)(JS_TELEMETRY_GC_IS_COMPARTMENTAL, compartment ? 1 : 0);
-        (*cb)(JS_TELEMETRY_GC_MS, t(gcDuration()));
-        (*cb)(JS_TELEMETRY_GC_MARK_MS, t(phaseTimes[PHASE_MARK]));
-        (*cb)(JS_TELEMETRY_GC_SWEEP_MS, t(phaseTimes[PHASE_SWEEP]));
-        (*cb)(JS_TELEMETRY_GC_NON_INCREMENTAL, !!nonincrementalReason);
-        (*cb)(JS_TELEMETRY_GC_INCREMENTAL_DISABLED, !runtime->gcIncrementalEnabled);
+        (*cb)(JS_TELEMETRY_GC_IS_SHAPE_REGEN,
+              runtime->shapeGen & SHAPE_OVERFLOW_BIT ? 1 : 0);
+        (*cb)(JS_TELEMETRY_GC_MS, t(PHASE_GC));
+        (*cb)(JS_TELEMETRY_GC_MARK_MS, t(PHASE_MARK));
+        (*cb)(JS_TELEMETRY_GC_SWEEP_MS, t(PHASE_SWEEP));
+    }
 
-        double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
-        (*cb)(JS_TELEMETRY_GC_MMU_50, mmu50 * 100);
+    if (JSGCFinishedCallback cb = runtime->gcFinishedCallback) {
+        char buffer[1024];
+        statsToString(buffer, sizeof(buffer));
+        (*cb)(runtime, compartment, buffer);
     }
 
     if (fp)
@@ -494,108 +297,38 @@ Statistics::endGC()
 }
 
 void
-Statistics::beginSlice(JSCompartment *comp, gcreason::Reason reason)
-{
-    compartment = comp;
-
-    bool first = runtime->gcIncrementalState == gc::NO_INCREMENTAL;
-    if (first)
-        beginGC();
-
-    SliceData data(reason, PRMJ_Now());
-    (void) slices.append(data); /* Ignore any OOMs here. */
-
-    if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback)
-        (*cb)(JS_TELEMETRY_GC_REASON, reason);
-
-    if (GCSliceCallback cb = runtime->gcSliceCallback)
-        (*cb)(runtime, first ? GC_CYCLE_BEGIN : GC_SLICE_BEGIN, GCDescription(!!compartment));
-}
-
-void
-Statistics::endSlice()
-{
-    slices.back().end = PRMJ_Now();
-
-    if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback) {
-        (*cb)(JS_TELEMETRY_GC_SLICE_MS, t(slices.back().end - slices.back().start));
-        (*cb)(JS_TELEMETRY_GC_RESET, !!slices.back().resetReason);
-    }
-
-    bool last = runtime->gcIncrementalState == gc::NO_INCREMENTAL;
-    if (last)
-        endGC();
-
-    if (GCSliceCallback cb = runtime->gcSliceCallback) {
-        if (last)
-            (*cb)(runtime, GC_CYCLE_END, GCDescription(!!compartment));
-        else
-            (*cb)(runtime, GC_SLICE_END, GCDescription(!!compartment));
-    }
-}
-
-void
 Statistics::beginPhase(Phase phase)
 {
     phaseStarts[phase] = PRMJ_Now();
 
-    if (phase == gcstats::PHASE_MARK)
-        Probes::GCStartMarkPhase();
-    else if (phase == gcstats::PHASE_SWEEP)
-        Probes::GCStartSweepPhase();
+    if (phase == gcstats::PHASE_SWEEP) {
+        Probes::GCStartSweepPhase(NULL);
+        if (!compartment) {
+            for (JSCompartment **c = runtime->compartments.begin();
+                 c != runtime->compartments.end(); ++c)
+            {
+                Probes::GCStartSweepPhase(*c);
+            }
+        }
+    }
 }
 
 void
 Statistics::endPhase(Phase phase)
 {
-    int64_t now = PRMJ_Now();
-    int64_t t = now - phaseStarts[phase];
-    slices.back().phaseTimes[phase] += t;
-    phaseTimes[phase] += t;
+    phaseEnds[phase] = PRMJ_Now();
+    phaseTimes[phase] += phaseEnds[phase] - phaseStarts[phase];
 
-    if (phase == gcstats::PHASE_MARK)
-        Probes::GCEndMarkPhase();
-    else if (phase == gcstats::PHASE_SWEEP)
-        Probes::GCEndSweepPhase();
-}
-
-/*
- * MMU (minimum mutator utilization) is a measure of how much garbage collection
- * is affecting the responsiveness of the system. MMU measurements are given
- * with respect to a certain window size. If we report MMU(50ms) = 80%, then
- * that means that, for any 50ms window of time, at least 80% of the window is
- * devoted to the mutator. In other words, the GC is running for at most 20% of
- * the window, or 10ms. The GC can run multiple slices during the 50ms window
- * as long as the total time it spends is at most 10ms.
- */
-double
-Statistics::computeMMU(int64_t window)
-{
-    JS_ASSERT(!slices.empty());
-
-    int64_t gc = slices[0].end - slices[0].start;
-    int64_t gcMax = gc;
-
-    if (gc >= window)
-        return 0.0;
-
-    int startIndex = 0;
-    for (size_t endIndex = 1; endIndex < slices.length(); endIndex++) {
-        gc += slices[endIndex].end - slices[endIndex].start;
-
-        while (slices[endIndex].end - slices[startIndex].end >= window) {
-            gc -= slices[startIndex].end - slices[startIndex].start;
-            startIndex++;
+    if (phase == gcstats::PHASE_SWEEP) {
+        if (!compartment) {
+            for (JSCompartment **c = runtime->compartments.begin();
+                 c != runtime->compartments.end(); ++c)
+            {
+                Probes::GCEndSweepPhase(*c);
+            }
         }
-
-        int64_t cur = gc;
-        if (slices[endIndex].end - slices[startIndex].start > window)
-            cur -= (slices[endIndex].end - slices[startIndex].start - window);
-        if (cur > gcMax)
-            gcMax = cur;
+        Probes::GCEndSweepPhase(NULL);
     }
-
-    return double(window - gcMax) / window;
 }
 
 } /* namespace gcstats */

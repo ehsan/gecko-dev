@@ -42,7 +42,6 @@
 #include "Constants.h"
 #include "nsDOMEvent.h"
 #include "mozilla/Preferences.h"
-#include "nsDOMEventTargetHelper.h"
 
 /**
  * We have to use macros here because our leak analysis tool things we are
@@ -62,7 +61,7 @@ namespace battery {
 NS_IMPL_CYCLE_COLLECTION_CLASS(BatteryManager)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BatteryManager,
-                                                  nsDOMEventTargetHelper)
+                                                  nsDOMEventTargetWrapperCache)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(levelchange)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(chargingchange)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(chargingtimechange)
@@ -70,7 +69,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BatteryManager,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BatteryManager,
-                                                nsDOMEventTargetHelper)
+                                                nsDOMEventTargetWrapperCache)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(levelchange)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(chargingchange)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(chargingtimechange)
@@ -80,29 +79,40 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BatteryManager)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozBatteryManager)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozBatteryManager)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
 
-NS_IMPL_ADDREF_INHERITED(BatteryManager, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(BatteryManager, nsDOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(BatteryManager, nsDOMEventTargetWrapperCache)
+NS_IMPL_RELEASE_INHERITED(BatteryManager, nsDOMEventTargetWrapperCache)
 
 BatteryManager::BatteryManager()
   : mLevel(kDefaultLevel)
   , mCharging(kDefaultCharging)
-  , mRemainingTime(kDefaultRemainingTime)
+  , mRemainingTime(kUnknownRemainingTime)
 {
 }
 
-void
-BatteryManager::Init(nsPIDOMWindow *aWindow)
+BatteryManager::~BatteryManager()
 {
-  BindToOwner(aWindow);
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+}
+
+void
+BatteryManager::Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext)
+{
+  // Those vars come from nsDOMEventTargetHelper.
+  mOwner = aWindow;
+  mScriptContext = aScriptContext;
 
   hal::RegisterBatteryObserver(this);
 
-  hal::BatteryInformation batteryInfo;
-  hal::GetCurrentBatteryInformation(&batteryInfo);
+  hal::BatteryInformation* batteryInfo = new hal::BatteryInformation();
+  hal::GetCurrentBatteryInformation(batteryInfo);
 
-  UpdateFromBatteryInfo(batteryInfo);
+  UpdateFromBatteryInfo(*batteryInfo);
+
+  delete batteryInfo;
 }
 
 void
@@ -165,7 +175,7 @@ BatteryManager::DispatchTrustedEventToSelf(const nsAString& aEventName)
   nsresult rv = event->InitEvent(aEventName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(true);
+  rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
@@ -181,14 +191,6 @@ BatteryManager::UpdateFromBatteryInfo(const hal::BatteryInformation& aBatteryInf
   mLevel = aBatteryInfo.level();
   mCharging = aBatteryInfo.charging();
   mRemainingTime = aBatteryInfo.remainingTime();
-
-  // Add some guards to make sure the values are coherent.
-  if (mLevel == 1.0 && mCharging == true &&
-      mRemainingTime != kDefaultRemainingTime) {
-    mRemainingTime = kDefaultRemainingTime;
-    NS_ERROR("Battery API: When charging and level at 1.0, remaining time "
-             "should be 0. Please fix your backend!");
-  }
 }
 
 void

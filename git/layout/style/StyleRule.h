@@ -45,11 +45,8 @@
 #ifndef mozilla_css_StyleRule_h__
 #define mozilla_css_StyleRule_h__
 
-#include "mozilla/Attributes.h"
-
-#include "mozilla/Attributes.h"
+//#include <stdio.h>
 #include "mozilla/css/Rule.h"
-
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsCSSPseudoElements.h"
@@ -70,15 +67,14 @@ public:
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsAtomList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
   nsCOMPtr<nsIAtom> mAtom;
   nsAtomList*       mNext;
 private: 
   nsAtomList* Clone(bool aDeep) const;
 
-  nsAtomList(const nsAtomList& aCopy) MOZ_DELETE;
-  nsAtomList& operator=(const nsAtomList& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsAtomList(const nsAtomList& aCopy);
+  nsAtomList& operator=(const nsAtomList& aCopy); 
 };
 
 struct nsPseudoClassList {
@@ -92,8 +88,6 @@ public:
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsPseudoClassList* Clone() const { return Clone(true); }
-
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   union {
     // For a given value of mType, we have either:
@@ -115,8 +109,9 @@ public:
 private: 
   nsPseudoClassList* Clone(bool aDeep) const;
 
-  nsPseudoClassList(const nsPseudoClassList& aCopy) MOZ_DELETE;
-  nsPseudoClassList& operator=(const nsPseudoClassList& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsPseudoClassList(const nsPseudoClassList& aCopy);
+  nsPseudoClassList& operator=(const nsPseudoClassList& aCopy); 
 };
 
 #define NS_ATTR_FUNC_SET        0     // [attr]
@@ -151,8 +146,9 @@ public:
 private: 
   nsAttrSelector* Clone(bool aDeep) const;
 
-  nsAttrSelector(const nsAttrSelector& aCopy) MOZ_DELETE;
-  nsAttrSelector& operator=(const nsAttrSelector& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsAttrSelector(const nsAttrSelector& aCopy);
+  nsAttrSelector& operator=(const nsAttrSelector& aCopy); 
 };
 
 struct nsCSSSelector {
@@ -221,8 +217,6 @@ public:
     mPseudoType = static_cast<PRInt16>(aType);
   }
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
   // For case-sensitive documents, mLowercaseTag is the same as mCasedTag,
   // but in case-insensitive documents (HTML) mLowercaseTag is lowercase.
   // Also, for pseudo-elements mCasedTag will be null but mLowercaseTag
@@ -241,9 +235,9 @@ public:
 private:
   // PRInt16 to make sure it packs well with mOperator
   PRInt16        mPseudoType;
-
-  nsCSSSelector(const nsCSSSelector& aCopy) MOZ_DELETE;
-  nsCSSSelector& operator=(const nsCSSSelector& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsCSSSelector(const nsCSSSelector& aCopy);
+  nsCSSSelector& operator=(const nsCSSSelector& aCopy); 
 };
 
 /**
@@ -277,16 +271,15 @@ struct nsCSSSelectorList {
    */
   nsCSSSelectorList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
   nsCSSSelector*     mSelectors;
   PRInt32            mWeight;
   nsCSSSelectorList* mNext;
 private: 
   nsCSSSelectorList* Clone(bool aDeep) const;
 
-  nsCSSSelectorList(const nsCSSSelectorList& aCopy) MOZ_DELETE;
-  nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsCSSSelectorList(const nsCSSSelectorList& aCopy);
+  nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy); 
 };
 
 // 464bab7a-2fce-4f30-ab44-b7a5f3aae57d
@@ -325,7 +318,7 @@ protected:
   friend class StyleRule;
 };
 
-class StyleRule MOZ_FINAL : public Rule
+class StyleRule : public Rule
 {
  public:
   StyleRule(nsCSSSelectorList* aSelector,
@@ -388,7 +381,9 @@ public:
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+private:
+  // This is not supported and not implemented!
+  StyleRule& operator=(const StyleRule& aCopy);
 
 private:
   ~StyleRule();
@@ -401,9 +396,6 @@ private:
   // Keep the same type so that MSVC packs them.
   PRUint32                mLineNumber : 31;
   PRUint32                mWasMatched : 1;
-
-private:
-  StyleRule& operator=(const StyleRule& aCopy) MOZ_DELETE;
 };
 
 } // namespace css

@@ -13,7 +13,6 @@ function login_handling(handler) {
     } else {
       let body = "Unauthorized";
       response.setStatusLine(request.httpVersion, 401, "Unauthorized");
-      response.setHeader("Content-Type", "text/plain");
       response.bodyOutputStream.write(body, body.length);
     }
   };
@@ -40,8 +39,8 @@ add_test(function test_offline() {
 });
 
 function setup() {
-  Service.serverURL = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.serverURL = "http://localhost:8080/";
+  Service.clusterURL = "http://localhost:8080/";
 
   let janeHelper = track_collections_helper();
   let janeU      = janeHelper.with_updated_collection;

@@ -56,9 +56,6 @@ public:
         MOZ_COUNT_DTOR(TestSelfManageRootParent);
     }
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
-
     void Main();
 
 protected:    

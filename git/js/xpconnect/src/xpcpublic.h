@@ -41,7 +41,6 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "js/MemoryMetrics.h"
 #include "jsclass.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
@@ -55,12 +54,7 @@
 #include "nsTArray.h"
 
 class nsIPrincipal;
-class nsIXPConnectWrappedJS;
 struct nsDOMClassInfoData;
-
-#ifndef BAD_TLS_INDEX
-#define BAD_TLS_INDEX ((PRUint32) -1)
-#endif
 
 nsresult
 xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
@@ -75,8 +69,7 @@ xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
 
 #define XPCONNECT_GLOBAL_FLAGS                                                \
     JSCLASS_XPCONNECT_GLOBAL | JSCLASS_HAS_PRIVATE |                          \
-    JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_IMPLEMENTS_BARRIERS |            \
-    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(1)
+    JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(1)
 
 void
 TraceXPCGlobal(JSTracer *trc, JSObject *obj);
@@ -88,10 +81,8 @@ xpc_LocalizeContext(JSContext *cx);
 nsresult
 xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
-static inline bool IS_WRAPPER_CLASS(js::Class* clazz)
-{
-    return clazz->ext.isWrappedNative;
-}
+#define IS_WRAPPER_CLASS(clazz)                                               \
+    ((clazz)->ext.isWrappedNative)
 
 inline JSBool
 DebugCheckWrapperClass(JSObject* obj)
@@ -162,15 +153,19 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope)
 
 // The JS GC marks objects gray that are held alive directly or
 // indirectly by an XPConnect root. The cycle collector explores only
-// this subset of the JS heap.
+// this subset of the JS heap.  JSStaticAtoms cause this to crash,
+// because they are statically allocated in the data segment and thus
+// are not really GCThings.
 inline JSBool
 xpc_IsGrayGCThing(void *thing)
 {
-    return js::GCThingIsMarkedGray(thing);
+    return js_GCThingIsMarked(thing, js::gc::GRAY);
 }
 
-// The cycle collector only cares about some kinds of GCthings that are
-// reachable from an XPConnect root. Implemented in nsXPConnect.cpp.
+// The cycle collector only cares about JS objects and XML objects that
+// are held alive directly or indirectly by an XPConnect root.  This
+// version is preferred to xpc_IsGrayGCThing when it isn't known if thing
+// is a JSString or not. Implemented in nsXPConnect.cpp.
 extern JSBool
 xpc_GCThingIsGrayCCThing(void *thing);
 
@@ -183,49 +178,14 @@ xpc_UnmarkGrayObjectRecursive(JSObject* obj);
 inline void
 xpc_UnmarkGrayObject(JSObject *obj)
 {
-    if (obj) {
-        if (xpc_IsGrayGCThing(obj))
-            xpc_UnmarkGrayObjectRecursive(obj);
-        else if (js::IsIncrementalBarrierNeededOnObject(obj))
-            js::IncrementalReferenceBarrier(obj);
-    }
+    if (obj && xpc_IsGrayGCThing(obj))
+        xpc_UnmarkGrayObjectRecursive(obj);
 }
-
-// If aVariant is an XPCVariant, this marks the object to be in aGeneration.
-// This also unmarks the gray JSObject.
-extern void
-xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration);
-
-// Unmarks aWrappedJS's JSObject.
-extern void
-xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS);
-
-extern void
-xpc_UnmarkSkippableJSHolders();
 
 // No JS can be on the stack when this is called. Probably only useful from
 // xpcshell.
 NS_EXPORT_(void)
 xpc_ActivateDebugMode();
-
-namespace xpc {
-
-// If these functions return false, then an exception will be set on cx.
-bool Base64Encode(JSContext *cx, JS::Value val, JS::Value *out);
-bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
-
-/**
- * Convert an nsString to jsval, returning true on success.
- * Note, the ownership of the string buffer may be moved from str to rval.
- * If that happens, str will point to an empty string after this call.
- */
-bool StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
-bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
-
-#ifdef DEBUG
-void DumpJSHeap(FILE* file);
-#endif
-} // namespace xpc
 
 class nsIMemoryMultiReporterCallback;
 
@@ -233,13 +193,98 @@ namespace mozilla {
 namespace xpconnect {
 namespace memory {
 
-// This reports all the stats in |rtStats| that belong in the "explicit" tree,
-// (which isn't all of them).
-nsresult
-ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
-                                 const nsACString &pathPrefix,
-                                 nsIMemoryMultiReporterCallback *cb,
-                                 nsISupports *closure);
+struct CompartmentStats
+{
+    CompartmentStats(JSContext *cx, JSCompartment *c);
+
+    nsCString name;
+    PRInt64 gcHeapArenaHeaders;
+    PRInt64 gcHeapArenaPadding;
+    PRInt64 gcHeapArenaUnused;
+
+    PRInt64 gcHeapObjectsNonFunction;
+    PRInt64 gcHeapObjectsFunction;
+    PRInt64 gcHeapStrings;
+    PRInt64 gcHeapShapesTree;
+    PRInt64 gcHeapShapesDict;
+    PRInt64 gcHeapScripts;
+    PRInt64 gcHeapTypeObjects;
+    PRInt64 gcHeapXML;
+
+    PRInt64 objectSlots;
+    PRInt64 stringChars;
+    PRInt64 shapesExtraTreeTables;
+    PRInt64 shapesExtraDictTables;
+    PRInt64 shapesExtraTreeShapeKids;
+    PRInt64 scriptData;
+
+#ifdef JS_METHODJIT
+    PRInt64 mjitCodeMethod;
+    PRInt64 mjitCodeRegexp;
+    PRInt64 mjitCodeUnused;
+    PRInt64 mjitData;
+#endif
+    TypeInferenceMemoryStats typeInferenceMemory;
+};
+
+struct IterateData
+{
+    IterateData()
+      : runtimeObjectSize(0),
+        atomsTableSize(0),
+        stackSize(0),
+        gcHeapChunkTotal(0),
+        gcHeapChunkCleanUnused(0),
+        gcHeapChunkDirtyUnused(0),
+        gcHeapChunkCleanDecommitted(0),
+        gcHeapChunkDirtyDecommitted(0),
+        gcHeapArenaUnused(0),
+        gcHeapChunkAdmin(0),
+        gcHeapUnusedPercentage(0),
+        totalObjects(0),
+        totalShapes(0),
+        totalScripts(0),
+        totalStrings(0),
+#ifdef JS_METHODJIT
+        totalMjit(0),
+#endif
+        totalTypeInference(0),
+        totalAnalysisTemp(0),
+        compartmentStatsVector(),
+        currCompartmentStats(NULL) { }
+
+    PRInt64 runtimeObjectSize;
+    PRInt64 atomsTableSize;
+    PRInt64 stackSize;
+    PRInt64 gcHeapChunkTotal;
+    PRInt64 gcHeapChunkCleanUnused;
+    PRInt64 gcHeapChunkDirtyUnused;
+    PRInt64 gcHeapChunkCleanDecommitted;
+    PRInt64 gcHeapChunkDirtyDecommitted;
+    PRInt64 gcHeapArenaUnused;
+    PRInt64 gcHeapChunkAdmin;
+    PRInt64 gcHeapUnusedPercentage;
+    PRInt64 totalObjects;
+    PRInt64 totalShapes;
+    PRInt64 totalScripts;
+    PRInt64 totalStrings;
+#ifdef JS_METHODJIT
+    PRInt64 totalMjit;
+#endif
+    PRInt64 totalTypeInference;
+    PRInt64 totalAnalysisTemp;
+
+    nsTArray<CompartmentStats> compartmentStatsVector;
+    CompartmentStats *currCompartmentStats;
+};
+
+JSBool
+CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data);
+
+void
+ReportJSRuntimeStats(const IterateData &data, const nsACString &pathPrefix,
+                     nsIMemoryMultiReporterCallback *callback,
+                     nsISupports *closure);
 
 } // namespace memory
 } // namespace xpconnect

@@ -1,9 +1,10 @@
 # HG changeset patch
-# Parent 93033f21b121382b50e5bc9787edf704d6906508
+# Parent 85ffde53712cab3c217bbbf0c1ec9b7ec2ae8ea6
+
 diff --git a/gfx/angle/Makefile.in b/gfx/angle/Makefile.in
 --- a/gfx/angle/Makefile.in
 +++ b/gfx/angle/Makefile.in
-@@ -129,16 +129,18 @@ CSRCS   = \
+@@ -127,16 +127,18 @@ CSRCS   = \
  	$(NULL)
  
  DEFINES += -DANGLE_USE_NSPR -DANGLE_BUILD -DCOMPILER_IMPLEMENTATION
@@ -22,6 +23,27 @@ diff --git a/gfx/angle/Makefile.in b/gfx/angle/Makefile.in
  libs::
  	expand "$(MOZ_D3DX9_CAB)" -F:$(MOZ_D3DX9_DLL) "$(DIST)/bin"
  	expand "$(MOZ_D3DCOMPILER_CAB)" -F:$(MOZ_D3DCOMPILER_DLL) "$(DIST)/bin"
+diff --git a/gfx/angle/README.mozilla b/gfx/angle/README.mozilla
+--- a/gfx/angle/README.mozilla
++++ b/gfx/angle/README.mozilla
+@@ -3,16 +3,17 @@ This is the ANGLE project, from http://c
+ Current revision: r885
+ 
+ == Applied local patches ==
+ 
+ In this order:
+   angle-renaming-debug.patch - rename debug.h to compilerdebug.h to avoid conflict in our makefiles
+   angle-intrinsic-msvc2005.patch - work around a MSVC 2005 compile error
+   angle-limit-identifiers-to-250-chars.patch - see bug 675625
++  angle-use-xmalloc.patch - see bug 680840. Can drop this patch whenever the new preprocessor lands.
+ 
+ In addition to these patches, the Makefile.in files are ours, they're not present in upsteam ANGLE.
+ 
+ == How to update this ANGLE copy ==
+ 
+ 1. Unapply patches
+ 2. Apply diff with new ANGLE version
+ 3. Reapply patches.
 diff --git a/gfx/angle/src/compiler/preprocessor/atom.c b/gfx/angle/src/compiler/preprocessor/atom.c
 --- a/gfx/angle/src/compiler/preprocessor/atom.c
 +++ b/gfx/angle/src/compiler/preprocessor/atom.c

@@ -45,7 +45,7 @@
 class nsHTMLLinkAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLinkAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLLinkAccessible(nsIContent *aContent, nsIWeakReference *aShell);
  
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -56,7 +56,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible

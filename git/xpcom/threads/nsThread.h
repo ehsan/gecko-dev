@@ -77,8 +77,8 @@ public:
   // nsIThreadManager::NewThread.
   bool ShutdownRequired() { return mShutdownRequired; }
 
-  // Clear the observer list.
-  void ClearObservers() { mEventObservers.Clear(); }
+  // The global thread observer
+  static nsIThreadObserver* sGlobalObserver;
 
 private:
   friend class nsThreadShutdownEvent;
@@ -177,17 +177,5 @@ private:
   nsCOMPtr<nsIRunnable> mSyncTask;
   nsresult mResult;
 };
-
-namespace mozilla {
-
-/**
- * This function causes the main thread to fire a memory pressure event at its
- * next available opportunity.
- *
- * You may call this function from any thread.
- */
-void ScheduleMemoryPressureEvent();
-
-} // namespace mozilla
 
 #endif  // nsThread_h__

@@ -41,6 +41,7 @@
 #include "nsCOMPtr.h"
 #include "nsIXBLService.h"
 #include "nsIInputStream.h"
+#include "nsDoubleHashtable.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsIChannel.h"
@@ -987,9 +988,6 @@ nsBindingManager::AddToAttachedQueue(nsXBLBinding* aBinding)
   if (!mProcessingAttachedStack && !mProcessAttachedQueueEvent) {
     PostProcessAttachedQueueEvent();
   }
-
-  // Make sure that flushes will flush out the new items as needed.
-  mDocument->SetNeedStyleFlush();
 
   return NS_OK;
 

@@ -82,6 +82,7 @@ CPPSRCS = \
   Intermediate.cpp \
   intermOut.cpp \
   IntermTraverse.cpp \
+  MozAngleLink.cpp \
   parseConst.cpp \
   ParseHelper.cpp \
   PoolAlloc.cpp \
@@ -96,7 +97,6 @@ CPPSRCS = \
   ValidateLimitations.cpp \
   ForLoopUnroll.cpp \
   MapLongVariableNames.cpp \
-  spooky.cpp \
   BuiltInFunctionEmulator.cpp \
   $(NULL)
 
@@ -140,7 +140,6 @@ endif
 
 CPPSRCS += \
   debug.cpp \
-  RefCountObject.cpp \
   Config.cpp \
   Display.cpp \
   libEGL.cpp \

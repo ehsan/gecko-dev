@@ -74,14 +74,14 @@ SourceSurfaceSkia::InitFromData(unsigned char* aData,
                                 int32_t aStride,
                                 SurfaceFormat aFormat)
 {
-  SkBitmap temp;
-  temp.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
-  temp.setPixels(aData);
-
-  if (!temp.copyTo(&mBitmap, GfxFormatToSkiaConfig(aFormat))) {
+  mBitmap.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
+  if (!mBitmap.allocPixels()) {
     return false;
   }
   
+  if (!mBitmap.copyPixelsFrom(aData, mBitmap.getSafeSize(), aStride)) {
+    return false;
+  }
   mSize = aSize;
   mFormat = aFormat;
   mStride = aStride;

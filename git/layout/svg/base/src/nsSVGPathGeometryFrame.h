@@ -41,11 +41,11 @@
 
 #include "nsFrame.h"
 #include "nsISVGChildFrame.h"
-#include "nsSVGUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGGeometryFrame.h"
+#include "gfxRect.h"
+#include "gfxMatrix.h"
 
-class nsRenderingContext;
 class nsSVGMarkerFrame;
 class nsSVGMarkerProperty;
 
@@ -90,28 +90,26 @@ public:
 
 protected:
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
   virtual void NotifySVGChanged(PRUint32 aFlags);
-  virtual void NotifyRedrawSuspended();
-  virtual void NotifyRedrawUnsuspended();
+  NS_IMETHOD NotifyRedrawSuspended();
+  NS_IMETHOD NotifyRedrawUnsuspended();
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
-  NS_IMETHOD_(bool) HasValidCoveredRect() {
-    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  NS_IMETHOD_(bool) HasValidCoveredRect() { return true; }
 
 protected:
   void GeneratePath(gfxContext *aContext,
                     const gfxMatrix *aOverrideTransform = nsnull);
 
 private:
-  void Render(nsRenderingContext *aContext);
+  void Render(nsSVGRenderState *aContext);
 
   struct MarkerProperties {
     nsSVGMarkerProperty* mMarkerStart;

@@ -119,7 +119,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_bug470769.html \
 		test_bug499655.html \
 		test_bug499655.xhtml \
-		test_bug511909.html \
 		test_bug517224.html \
 		test_bug524175.html \
 		test_bug534804.html \
@@ -133,7 +132,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_bug645998.html \
 		file_bug645998-1.css \
 		file_bug645998-2.css \
-		test_bug716226.html \
 		test_cascade.html \
 		test_ch_ex_no_infloops.html \
 		test_compute_data_with_start_struct.html \
@@ -229,7 +227,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		visited_image_loading_frame.html \
 		visited_image_loading_frame_empty.html \
 		test_load_events_on_stylesheets.html \
-		test_bug721136.html \
 		$(NULL)
 
 _VISITED_REFTEST_FILES = \

@@ -43,7 +43,7 @@ const Cr = Components.results;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-const DB_VERSION = 4;
+const DB_VERSION = 3;
 const DAY_IN_MS  = 86400000; // 1 day in milliseconds
 
 function FormHistory() {
@@ -74,11 +74,6 @@ FormHistory.prototype = {
                 "lastUsed"  : "INTEGER",
                 "guid"      : "TEXT"
             },
-            moz_deleted_formhistory: {
-                "id"          : "INTEGER PRIMARY KEY",
-                "timeDeleted" : "INTEGER",
-                "guid"        : "TEXT"
-            }
         },
         indices : {
             moz_formhistory_index : {
@@ -250,18 +245,10 @@ FormHistory.prototype = {
         let params = { id : id };
 
         try {
-            this.dbConnection.beginTransaction();
-            this.moveToDeletedTable("VALUES (:guid, :timeDeleted)", {
-              guid: guid,
-              timeDeleted: Date.now()
-            });
-
-            // remove from the formhistory database
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
             this.sendStringNotification("removeEntry", name, value, guid);
         } catch (e) {
-            this.dbConnection.rollbackTransaction();
             this.log("removeEntry failed: " + e);
             throw e;
         } finally {
@@ -269,7 +256,6 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        this.dbConnection.commitTransaction();
     },
 
 
@@ -283,19 +269,10 @@ FormHistory.prototype = {
         let params = { fieldname : name };
 
         try {
-            this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-              "SELECT guid, :timeDeleted FROM moz_formhistory " +
-              "WHERE fieldname = :fieldname", {
-                fieldname: name,
-                timeDeleted: Date.now()
-            });
-
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
             this.sendStringNotification("removeEntriesForName", name);
         } catch (e) {
-            this.dbConnection.rollbackTransaction();
             this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
@@ -303,7 +280,6 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        this.dbConnection.commitTransaction();
     },
 
 
@@ -316,17 +292,10 @@ FormHistory.prototype = {
         let query = "DELETE FROM moz_formhistory";
 
         try {
-            this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-              "SELECT guid, :timeDeleted FROM moz_formhistory", {
-              timeDeleted: Date.now()
-            });
-
             stmt = this.dbCreateStatement(query);
             stmt.execute();
             this.sendNotification("removeAllEntries", null);
         } catch (e) {
-            this.dbConnection.rollbackTransaction();
             this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
@@ -334,7 +303,6 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        this.dbConnection.commitTransaction();
     },
 
 
@@ -376,19 +344,10 @@ FormHistory.prototype = {
                         endTime   : endTime
                      };
         try {
-            this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-                  "SELECT guid, :timeDeleted FROM moz_formhistory " +
-                  "WHERE firstUsed >= :beginTime AND firstUsed <= :endTime", {
-              beginTime: beginTime,
-              endTime: endTime
-            });
-
             stmt = this.dbCreateStatement(query, params);
             stmt.executeStep();
             this.sendIntNotification("removeEntriesByTimeframe", beginTime, endTime);
         } catch (e) {
-            this.dbConnection.rollbackTransaction();
             this.log("removeEntriesByTimeframe failed: " + e);
             throw e;
         } finally {
@@ -396,33 +355,12 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        this.dbConnection.commitTransaction();
-    },
 
-    moveToDeletedTable : function (values, params) {
-#ifdef ANDROID
-        this.log("move entries to deleted");
-
-        let stmt;
-
-        try {
-            // move the entry to the deleted items table
-            let query = "INSERT INTO moz_deleted_formhistory (guid, timeDeleted) ";
-            if (values) query += values;
-            stmt = this.dbCreateStatement(query, params);
-            stmt.execute();
-        } catch (e) {
-            this.log("move entry failed: " + e);
-            throw e;
-        } finally {
-            if (stmt) {
-                stmt.reset();
-            }
-        }
-#endif
     },
 
     get dbConnection() {
+        let connection;
+
         // Make sure dbConnection can't be called from now to prevent infinite loops.
         delete FormHistory.prototype.dbConnection;
 
@@ -437,7 +375,7 @@ FormHistory.prototype = {
             this.log("Initialization failed: " + e);
             // If dbInit fails...
             if (e.result == Cr.NS_ERROR_FILE_CORRUPTED) {
-                this.dbCleanup();
+                this.dbCleanup(true);
                 FormHistory.prototype.dbConnection = this.dbOpen();
                 this.dbInit();
             } else {
@@ -466,7 +404,7 @@ FormHistory.prototype = {
             this.expireOldEntries();
             break;
         case "profile-before-change":
-            this._dbClose(false);
+            this._dbFinalize();
             break;
         default:
             this.log("Oops! Unexpected notification: " + topic);
@@ -711,7 +649,8 @@ FormHistory.prototype = {
         this.log("Creating DB -- tables");
         for (let name in this.dbSchema.tables) {
             let table = this.dbSchema.tables[name];
-            this.dbCreateTable(name, table);
+            let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+            this.dbConnection.createTable(name, tSQL);
         }
 
         this.log("Creating DB -- indices");
@@ -725,11 +664,6 @@ FormHistory.prototype = {
         this.dbConnection.schemaVersion = DB_VERSION;
     },
 
-    dbCreateTable: function(name, table) {
-        let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
-        this.log("Creating table " + name + " with " + tSQL);
-        this.dbConnection.createTable(name, tSQL);
-    },
 
     dbMigrate : function (oldVersion) {
         this.log("Attempting to migrate from version " + oldVersion);
@@ -888,11 +822,6 @@ FormHistory.prototype = {
         }
     },
 
-    dbMigrateToVersion4 : function () {
-        if (!this.dbConnection.tableExists("moz_deleted_formhistory")) {
-            this.dbCreateTable("moz_deleted_formhistory", this.dbSchema.tables.moz_deleted_formhistory);
-        }
-    },
 
     /*
      * dbAreExpectedColumnsPresent
@@ -938,33 +867,16 @@ FormHistory.prototype = {
     },
 
     /**
-     * _dbClose
+     * _dbFinalize
      *
-     * Finalize all statements and close the connection.
-     *
-      * @param aBlocking - Should we spin the loop waiting for the db to be
-      *                    closed.
+     * Finalize all statements to allow closing the connection correctly.
      */
-    _dbClose : function FH__dbClose(aBlocking) {
+    _dbFinalize : function FH__dbFinalize() {
+        // FIXME (bug 696486): close the connection in here.
         for each (let stmt in this.dbStmts) {
             stmt.finalize();
         }
         this.dbStmts = {};
-        if (this.dbConnection === undefined)
-            return;
-
-        let completed = false;
-        try {
-            this.dbConnection.asyncClose(function () { completed = true; });
-        } catch (e) {
-            completed = true;
-            Components.utils.reportError(e);
-        }
-
-        let thread = Services.tm.currentThread;
-        while (aBlocking && !completed) {
-            thread.processNextEvent(true);
-        }
     },
 
     /*
@@ -973,16 +885,23 @@ FormHistory.prototype = {
      * Called when database creation fails. Finalizes database statements,
      * closes the database connection, deletes the database file.
      */
-    dbCleanup : function () {
-        this.log("Cleaning up DB file - close & remove & backup")
+    dbCleanup : function (backup) {
+        this.log("Cleaning up DB file - close & remove & backup=" + backup)
 
         // Create backup file
-        let storage = Cc["@mozilla.org/storage/service;1"].
-                      getService(Ci.mozIStorageService);
-        let backupFile = this.dbFile.leafName + ".corrupt";
-        storage.backupDatabaseFile(this.dbFile, backupFile);
+        if (backup) {
+            let storage = Cc["@mozilla.org/storage/service;1"].
+                          getService(Ci.mozIStorageService);
 
-        this._dbClose(true);
+            let backupFile = this.dbFile.leafName + ".corrupt";
+            storage.backupDatabaseFile(this.dbFile, backupFile);
+        }
+
+        this._dbFinalize();
+
+        // Close the connection, ignore 'already closed' error
+        // FIXME (bug 696483): we should reportError in here.
+        try { this.dbConnection.close(); } catch(e) {}
         this.dbFile.remove(false);
     }
 };

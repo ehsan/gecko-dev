@@ -336,13 +336,13 @@ public:
 
     void UnlinkJSObjects();
 
-    void Set(nsScriptObjectHolder<JSScript>& aHolder)
+    void Set(nsScriptObjectHolder &aHolder)
     {
         NS_ASSERTION(mScriptObject.mLangID == aHolder.getScriptTypeID(),
                      "Wrong language, this will leak the previous object.");
 
         mScriptObject.mLangID = aHolder.getScriptTypeID();
-        Set(aHolder.get());
+        Set(aHolder.getScript());
     }
     void Set(JSScript* aObject);
 
@@ -626,10 +626,9 @@ protected:
     }
 
     virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                   const nsAttrValueOrString* aValue,
-                                   bool aNotify);
+                                   const nsAString* aValue, bool aNotify);
     virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify);
+                                  const nsAString* aValue, bool aNotify);
 
     virtual void UpdateEditableState(bool aNotify);
 
@@ -657,7 +656,7 @@ protected:
 
     // attribute setters for widget
     nsresult HideWindowChrome(bool aShouldHide);
-    void SetChromeMargins(const nsAttrValue* aValue);
+    void SetChromeMargins(const nsAString* aValue);
     void ResetChromeMargins();
     void SetTitlebarColor(nscolor aColor, bool aActive);
 

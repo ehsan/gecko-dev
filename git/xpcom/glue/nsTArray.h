@@ -39,9 +39,6 @@
 #ifndef nsTArray_h__
 #define nsTArray_h__
 
-#include "mozilla/Assertions.h"
-#include "mozilla/Util.h"
-
 #include <string.h>
 
 #include "prtypes.h"
@@ -50,6 +47,7 @@
 #include "nsQuickSort.h"
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
+#include "mozilla/Util.h"
 #include NEW_H
 
 //
@@ -66,22 +64,22 @@
 // moz_free() end up calling the same underlying free()).
 //
 
-#if defined(MOZALLOC_HAVE_XMALLOC)
 struct nsTArrayFallibleAllocator
 {
   static void* Malloc(size_t size) {
-    return moz_malloc(size);
+    return NS_Alloc(size);
   }
 
   static void* Realloc(void* ptr, size_t size) {
-    return moz_realloc(ptr, size);
+    return NS_Realloc(ptr, size);
   }
 
   static void Free(void* ptr) {
-    moz_free(ptr);
+    NS_Free(ptr);
   }
 };
 
+#if defined(MOZALLOC_HAVE_XMALLOC)
 struct nsTArrayInfallibleAllocator
 {
   static void* Malloc(size_t size) {
@@ -96,25 +94,6 @@ struct nsTArrayInfallibleAllocator
     moz_free(ptr);
   }
 };
-
-#else
-
-#include <stdlib.h>
-struct nsTArrayFallibleAllocator
-{
-  static void* Malloc(size_t size) {
-    return malloc(size);
-  }
-
-  static void* Realloc(void* ptr, size_t size) {
-    return realloc(ptr, size);
-  }
-
-  static void Free(void* ptr) {
-    free(ptr);
-  }
-};
-
 #endif
 
 #if defined(MOZALLOC_HAVE_XMALLOC)
@@ -274,7 +253,7 @@ protected:
   // zero-length array is inserted into our array. But then n should
   // always be 0.
   void IncrementLength(PRUint32 n) {
-    MOZ_ASSERT(mHdr != EmptyHdr() || n == 0, "bad data pointer");
+    NS_ASSERTION(mHdr != EmptyHdr() || n == 0, "bad data pointer");
     mHdr->mLength += n;
   }
 
@@ -316,11 +295,11 @@ protected:
 
   // Returns a Header for the built-in buffer of this nsAutoTArray.
   Header* GetAutoArrayBuffer(size_t elemAlign) {
-    MOZ_ASSERT(IsAutoArray(), "Should be an auto array to call this");
+    NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
     return GetAutoArrayBufferUnsafe(elemAlign);
   }
   const Header* GetAutoArrayBuffer(size_t elemAlign) const {
-    MOZ_ASSERT(IsAutoArray(), "Should be an auto array to call this");
+    NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
     return GetAutoArrayBufferUnsafe(elemAlign);
   }
 
@@ -536,18 +515,14 @@ public:
     return *this;
   }
 
-  // @return The amount of memory used by this nsTArray, excluding
+  // @return The amount of memory taken used by this nsTArray, not including
   // sizeof(*this).
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) const {
+  size_t SizeOf() const {
     if (this->UsesAutoArrayBuffer() || Hdr() == EmptyHdr())
       return 0;
-    return mallocSizeOf(this->Hdr());
-  }
-
-  // @return The amount of memory used by this nsTArray, including
-  // sizeof(*this).
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf) const {
-    return mallocSizeOf(this) + SizeOfExcludingThis(mallocSizeOf);
+    size_t usable = moz_malloc_usable_size(this->Hdr());
+    return usable ? usable : 
+      this->Capacity() * sizeof(elem_type) + sizeof(*this->Hdr());
   }
 
   //
@@ -573,7 +548,7 @@ public:
   // @param i  The index of an element in the array.
   // @return   A reference to the i'th element of the array.
   elem_type& ElementAt(index_type i) {
-    MOZ_ASSERT(i < Length(), "invalid array index");
+    NS_ASSERTION(i < Length(), "invalid array index");
     return Elements()[i];
   }
 
@@ -582,7 +557,7 @@ public:
   // @param i  The index of an element in the array.
   // @return   A const reference to the i'th element of the array.
   const elem_type& ElementAt(index_type i) const {
-    MOZ_ASSERT(i < Length(), "invalid array index");
+    NS_ASSERTION(i < Length(), "invalid array index");
     return Elements()[i];
   }
 
@@ -941,7 +916,7 @@ public:
   // @return A pointer to the newly appended elements, or null on OOM.
   template<class Item, class Allocator>
   elem_type *MoveElementsFrom(nsTArray<Item, Allocator>& array) {
-    MOZ_ASSERT(&array != this, "argument must be different array");
+    NS_PRECONDITION(&array != this, "argument must be different array");
     index_type len = Length();
     index_type otherLen = array.Length();
     if (!this->EnsureCapacity(len + otherLen, sizeof(elem_type)))
@@ -956,8 +931,8 @@ public:
   // @param start  The starting index of the elements to remove.
   // @param count  The number of elements to remove.
   void RemoveElementsAt(index_type start, size_type count) {
-    MOZ_ASSERT(count == 0 || start < Length(), "Invalid start index");
-    MOZ_ASSERT(start + count <= Length(), "Invalid length");
+    NS_ASSERTION(count == 0 || start < Length(), "Invalid start index");
+    NS_ASSERTION(start + count <= Length(), "Invalid length");
     DestructRange(start, count);
     this->ShiftData(start, count, 0, sizeof(elem_type), MOZ_ALIGNOF(elem_type));
   }
@@ -1334,18 +1309,18 @@ private:
   friend class nsTArray_base;
 
   void Init() {
-    MOZ_STATIC_ASSERT(MOZ_ALIGNOF(elem_type) <= 8,
-                      "can't handle alignments greater than 8, "
-                      "see nsTArray_base::UsesAutoArrayBuffer()");
+    // We can't handle alignments greater than 8; see
+    // nsTArray_base::UsesAutoArrayBuffer().
+    PR_STATIC_ASSERT(MOZ_ALIGNOF(elem_type) <= 8);
 
     *base_type::PtrToHdr() = reinterpret_cast<Header*>(&mAutoBuf);
     base_type::Hdr()->mLength = 0;
     base_type::Hdr()->mCapacity = N;
     base_type::Hdr()->mIsAutoArray = 1;
 
-    MOZ_ASSERT(base_type::GetAutoArrayBuffer(MOZ_ALIGNOF(elem_type)) ==
-               reinterpret_cast<Header*>(&mAutoBuf),
-               "GetAutoArrayBuffer needs to be fixed");
+    NS_ASSERTION(base_type::GetAutoArrayBuffer(MOZ_ALIGNOF(elem_type)) ==
+                 reinterpret_cast<Header*>(&mAutoBuf),
+                 "GetAutoArrayBuffer needs to be fixed");
   }
 
   // Declare mAutoBuf aligned to the maximum of the header's alignment and
@@ -1385,10 +1360,8 @@ public:
 // 64-bit system, where the compiler inserts 4 bytes of padding at the end of
 // the auto array to make its size a multiple of alignof(void*) == 8 bytes.
 
-MOZ_STATIC_ASSERT(sizeof(nsAutoTArray<PRUint32, 2>) ==
-                  sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(PRUint32) * 2,
-                  "nsAutoTArray shouldn't contain any extra padding, "
-                  "see the comment");
+PR_STATIC_ASSERT(sizeof(nsAutoTArray<PRUint32, 2>) ==
+                 sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(PRUint32) * 2);
 
 template<class E, PRUint32 N>
 class AutoFallibleTArray : public nsAutoArrayBase<FallibleTArray<E>, N>

@@ -9,11 +9,6 @@ var gWin;
 
 function waitForView(aView, aCallback) {
   var view = gWin.document.getElementById(aView);
-  if (view.parentNode.selectedPanel == view) {
-    aCallback();
-    return;
-  }
-
   view.addEventListener("ViewChanged", function() {
     view.removeEventListener("ViewChanged", arguments.callee, false);
     aCallback();
@@ -127,6 +122,8 @@ function setupUI(aFailDownloads, aFailInstalls, aCallback) {
 
 function test() {
   waitForExplicitFinish();
+  requestLongerTimeout(100);
+
   run_next_test();
 }
 

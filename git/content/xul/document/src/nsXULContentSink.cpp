@@ -47,8 +47,7 @@
  * see http://developer.mozilla.org/en/docs/XUL
  */
 
-#include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"  // for JSVERSION_HAS_XML
 #include "nsXULContentSink.h"
 #include "nsCOMPtr.h"
 #include "nsForwardReference.h"
@@ -74,6 +73,7 @@
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
 #include "nsRDFCID.h"
+#include "nsParserUtils.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsXULElement.h"
@@ -299,7 +299,7 @@ XULContentSinkImpl::WillResume(void)
 }
 
 NS_IMETHODIMP 
-XULContentSinkImpl::SetParser(nsParserBase* aParser)
+XULContentSinkImpl::SetParser(nsIParser* aParser)
 {
     NS_IF_RELEASE(mParser);
     mParser = aParser;
@@ -1060,7 +1060,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
               // our implementation knowledge to reuse JSVERSION_HAS_XML as a
               // safe version flag. This is still OK if version is
               // JSVERSION_UNKNOWN (-1),
-              version = js::VersionSetXML(JSVersion(version), true);
+              version |= js::VersionFlags::HAS_XML;
 
               nsAutoString value;
               rv = parser.GetParameter("e4x", value);
@@ -1069,7 +1069,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
                       return rv;
               } else {
                   if (value.Length() == 1 && value[0] == '0')
-                    version = js::VersionSetXML(JSVersion(version), false);
+                    version &= ~js::VersionFlags::HAS_XML;
               }
           }
       }
@@ -1078,12 +1078,12 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           // various version strings anyway.  So we make no attempt to support
           // languages other than JS for language=
           nsAutoString lang(aAttributes[1]);
-          if (nsContentUtils::IsJavaScriptLanguage(lang, &version)) {
+          if (nsParserUtils::IsJavaScriptLanguage(lang, &version)) {
               langID = nsIProgrammingLanguage::JAVASCRIPT;
 
               // Even when JS version < 1.6 is specified, E4X is
               // turned on in XUL.
-              version = js::VersionSetXML(JSVersion(version), true);
+              version |= js::VersionFlags::HAS_XML;
           }
       }
       aAttributes += 2;

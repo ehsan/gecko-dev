@@ -67,9 +67,6 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGCircleElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGCircleElementBase::)
 
-  // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const;
-
   // nsSVGPathGeometryElement methods:
   virtual void ConstructPath(gfxContext *aCtx);
 
@@ -103,9 +100,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGCircleElement,nsSVGCircleElementBase)
 DOMCI_NODE_DATA(SVGCircleElement, nsSVGCircleElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGCircleElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGCircleElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGCircleElement)
+  NS_NODE_INTERFACE_TABLE4(nsSVGCircleElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGCircleElement)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGCircleElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGCircleElementBase)
 
@@ -145,13 +141,6 @@ NS_IMETHODIMP nsSVGCircleElement::GetR(nsIDOMSVGAnimatedLength * *aR)
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ bool
-nsSVGCircleElement::HasValidDimensions() const
-{
-  return mLengthAttributes[R].IsExplicitlySet() &&
-         mLengthAttributes[R].GetAnimValInSpecifiedUnits() > 0;
-}
 
 nsSVGElement::LengthAttributesInfo
 nsSVGCircleElement::GetLengthInfo()

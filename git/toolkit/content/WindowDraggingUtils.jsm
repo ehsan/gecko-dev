@@ -36,9 +36,9 @@
 
 let EXPORTED_SYMBOLS = [ "WindowDraggingElement" ];
 
-function WindowDraggingElement(elem) {
+function WindowDraggingElement(elem, window) {
   this._elem = elem;
-  this._window = elem.ownerDocument.defaultView;
+  this._window = window;
 #ifdef XP_WIN
   if (!this.isPanel())
     this._elem.addEventListener("MozMouseHittest", this, false);
@@ -56,7 +56,7 @@ WindowDraggingElement.prototype = {
     if (aEvent.button != 0 ||
         this._window.fullScreen ||
         !this.mouseDownCheck.call(this._elem, aEvent) ||
-        aEvent.defaultPrevented)
+        aEvent.getPreventDefault())
       return false;
 
     let target = aEvent.originalTarget, parent = aEvent.originalTarget;

@@ -61,8 +61,6 @@ CPPSRCS		= \
 		DOMSVGPathSegList.cpp \
 		DOMSVGPoint.cpp \
 		DOMSVGPointList.cpp \
-		DOMSVGStringList.cpp \
-		DOMSVGTests.cpp \
 		DOMSVGTransform.cpp \
 		DOMSVGTransformList.cpp \
 		nsDOMSVGZoomEvent.cpp \
@@ -121,7 +119,6 @@ CPPSRCS		= \
 		nsSVGTextPathElement.cpp \
 		nsSVGTextPositioningElement.cpp \
 		nsSVGTitleElement.cpp \
-		nsSVGUnknownElement.cpp \
 		nsSVGUseElement.cpp \
 		nsSVGViewBox.cpp \
 		SVGAnimatedLengthList.cpp \
@@ -136,7 +133,6 @@ CPPSRCS		= \
 		SVGPathData.cpp \
 		SVGPathSegUtils.cpp \
 		SVGPointList.cpp \
-		SVGStringList.cpp \
 		SVGTransform.cpp \
 		SVGTransformList.cpp \
 		SVGTransformListParser.cpp \
@@ -146,7 +142,6 @@ CPPSRCS		= \
 		nsSVGAnimationElement.cpp \
 		nsSVGMpathElement.cpp \
 		nsSVGSetElement.cpp \
-		SVGAttrValueWrapper.cpp \
 		SVGIntegerPairSMILType.cpp \
 		SVGLengthListSMILType.cpp \
 		SVGMotionSMILType.cpp \
@@ -170,12 +165,13 @@ FORCE_STATIC_LIB = 1
 EXPORTS =  			\
 	nsSVGFeatures.h            \
 	nsSVGRect.h                \
-	SVGAttrValueWrapper.h      \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
 INCLUDES += 	\
+		-I$(srcdir)/../../../shared/public \
+		-I$(srcdir)/../../../html/base/src \
 		-I$(srcdir)/../../../xml/content/src \
 		-I$(srcdir)/../../../../dom \
 		-I$(srcdir)/../../../base/src \

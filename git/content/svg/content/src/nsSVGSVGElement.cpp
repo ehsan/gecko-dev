@@ -182,9 +182,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 DOMCI_NODE_DATA(SVGSVGElement, nsSVGSVGElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGSVGElement)
-  NS_NODE_INTERFACE_TABLE8(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGSVGElement,
+  NS_NODE_INTERFACE_TABLE7(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGSVGElement,
                            nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
                            nsIDOMSVGZoomAndPan)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSVGElement)
@@ -750,16 +749,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
 {
-  gfxMatrix m;
-  if (IsRoot()) {
-    // Consistency with other elements would have us return only the
-    // eFromUserSpace transforms, but this is what we've been doing for
-    // a while, and it keeps us consistent with WebKit and Opera (if not
-    // really with the ambiguous spec).
-    m = PrependLocalTransformsTo(m);
-  } else {
-    m = nsSVGUtils::GetCTM(this, true);
-  }
+  gfxMatrix m = nsSVGUtils::GetCTM(this, true);
   *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -893,20 +883,6 @@ nsSVGSVGElement::GetTimedDocumentRoot()
 NS_IMETHODIMP_(bool)
 nsSVGSVGElement::IsAttributeMapped(const nsIAtom* name) const
 {
-  // We want to map the 'width' and 'height' attributes into style for
-  // outer-<svg>, except when the attributes aren't set (since their default
-  // values of '100%' can cause unexpected and undesirable behaviour for SVG
-  // inline in HTML). We rely on nsSVGElement::UpdateContentStyleRule() to
-  // prevent mapping of the default values into style (it only maps attributes
-  // that are set). We also rely on a check in nsSVGElement::
-  // UpdateContentStyleRule() to prevent us mapping the attributes when they're
-  // given a <length> value that is not currently recognized by the SVG
-  // specification.
-
-  if (!IsInner() && (name == nsGkAtoms::width || name == nsGkAtoms::height)) {
-    return true;
-  }
-
   static const MappedAttributeEntry* const map[] = {
     sColorMap,
     sFEFloodMap,
@@ -921,7 +897,7 @@ nsSVGSVGElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
 
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGSVGElementBase::IsAttributeMapped(name);
 }
 
@@ -999,10 +975,6 @@ nsSVGSVGElement::GetViewBoxTransform() const
   } else {
     viewportWidth = mViewportWidth;
     viewportHeight = mViewportHeight;
-  }
-
-  if (viewportWidth <= 0.0f || viewportHeight <= 0.0f) {
-    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
   nsSVGViewBoxRect viewBox;
@@ -1114,7 +1086,7 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
 {
   nsIContent* parent = aBindingParent ? aBindingParent : aParent;
 
-  while (parent && parent->IsSVG()) {
+  while (parent && parent->GetNameSpaceID() == kNameSpaceID_SVG) {
     nsIAtom* tag = parent->Tag();
     if (tag == nsGkAtoms::foreignObject) {
       // SVG in a foreignObject must have its own <svg> (nsSVGOuterSVGFrame).
@@ -1189,43 +1161,16 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
   return 0;
 }
 
-void
-nsSVGSVGElement::SyncWidthOrHeight(nsIAtom* aName, nsSVGElement *aTarget) const
-{
-  NS_ASSERTION(aName == nsGkAtoms::width || aName == nsGkAtoms::height,
-               "The clue is in the function name");
-
-  PRUint32 index = *sLengthInfo[WIDTH].mName == aName ? WIDTH : HEIGHT;
-  aTarget->SetLength(aName, mLengthAttributes[index]);
-}
-
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
 /* virtual */ gfxMatrix
-nsSVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                                          TransformTypes aWhich) const
+nsSVGSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
 {
-  NS_ABORT_IF_FALSE(aWhich != eChildToUserSpace || aMatrix.IsIdentity(),
-                    "Skipping eUserSpaceToParent transforms makes no sense");
-
   if (IsInner()) {
     float x, y;
     const_cast<nsSVGSVGElement*>(this)->GetAnimatedLengthValues(&x, &y, nsnull);
-    if (aWhich == eAllTransforms) {
-      // the common case
-      return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
-    }
-    if (aWhich == eUserSpaceToParent) {
-      return gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
-    }
-    NS_ABORT_IF_FALSE(aWhich == eChildToUserSpace, "Unknown TransformTypes");
-    return GetViewBoxTransform(); // no need to multiply identity aMatrix
-  }
-
-  if (aWhich == eUserSpaceToParent) {
-    // only inner-<svg> has eUserSpaceToParent transforms
-    return aMatrix;
+    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
   }
 
   if (IsRoot()) {
@@ -1237,16 +1182,6 @@ nsSVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
 
   // outer-<svg>, but inline in some other content:
   return GetViewBoxTransform() * aMatrix;
-}
-
-/* virtual */ bool
-nsSVGSVGElement::HasValidDimensions() const
-{
-  return !IsInner() ||
-    ((!mLengthAttributes[WIDTH].IsExplicitlySet() ||
-       mLengthAttributes[WIDTH].GetAnimValInSpecifiedUnits() > 0) &&
-     (!mLengthAttributes[HEIGHT].IsExplicitlySet() || 
-       mLengthAttributes[HEIGHT].GetAnimValInSpecifiedUnits() > 0));
 }
 
 nsSVGElement::LengthAttributesInfo

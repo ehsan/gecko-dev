@@ -39,12 +39,12 @@
 #ifndef __NS_SVGIMAGEELEMENT_H__
 #define __NS_SVGIMAGEELEMENT_H__
 
+#include "nsSVGPathGeometryElement.h"
 #include "nsIDOMSVGImageElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsImageLoadingContent.h"
-#include "nsSVGLength2.h"
-#include "nsSVGPathGeometryElement.h"
 #include "nsSVGString.h"
+#include "nsSVGLength2.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 
 typedef nsSVGPathGeometryElement nsSVGImageElementBase;
@@ -78,7 +78,7 @@ public:
 
   // nsIContent interface
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
@@ -89,9 +89,6 @@ public:
 
   // nsSVGPathGeometryElement methods:
   virtual void ConstructPath(gfxContext *aCtx);
-
-  // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 

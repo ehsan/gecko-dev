@@ -54,10 +54,8 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIJSContextStack.h"
-#include "xpcpublic.h"
-#include "nsJSEnvironment.h"
-#include "nsDOMJSUtils.h"
 #ifdef NS_DEBUG
+#include "nsDOMJSUtils.h"
 
 #include "nspr.h" // PR_fprintf
 
@@ -129,18 +127,6 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSEventListener)
                                                  mHandler)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsJSEventListener)
-  return tmp->IsBlackForCC();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsJSEventListener)
-  return tmp->IsBlackForCC();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsJSEventListener)
-  return tmp->IsBlackForCC();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSEventListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
   NS_INTERFACE_MAP_ENTRY(nsIJSEventListener)
@@ -149,20 +135,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsJSEventListener)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSEventListener)
-
-bool
-nsJSEventListener::IsBlackForCC()
-{
-  if ((mContext && mContext->GetScriptTypeID() ==
-         nsIProgrammingLanguage::JAVASCRIPT) &&
-      (!mScopeObject || !xpc_IsGrayGCThing(mScopeObject)) &&
-      (!mHandler || !xpc_IsGrayGCThing(mHandler))) {
-    nsIScriptGlobalObject* sgo =
-      static_cast<nsJSContext*>(mContext.get())->GetCachedGlobalObject();
-    return sgo && sgo->IsBlackForCC();
-  }
-  return false;
-}
 
 nsresult
 nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
@@ -233,8 +205,6 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
                "JSEventListener has wrong script context?");
 #endif
   nsCOMPtr<nsIVariant> vrv;
-  xpc_UnmarkGrayObject(mScopeObject);
-  xpc_UnmarkGrayObject(mHandler);
   rv = mContext->CallEventHandler(mTarget, mScopeObject, mHandler, iargv,
                                   getter_AddRefs(vrv));
 

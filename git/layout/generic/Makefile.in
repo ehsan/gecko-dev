@@ -41,7 +41,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+DIRS		+= test
+endif
 
 MODULE		= layout
 LIBRARY_NAME	= gkgeneric_s
@@ -93,6 +95,7 @@ CPPSRCS		= \
 		nsFrameUtil.cpp \
 		nsGfxScrollFrame.cpp \
 		nsHTMLCanvasFrame.cpp \
+		nsHTMLContainerFrame.cpp \
 		nsCanvasFrame.cpp \
 		nsHTMLReflowMetrics.cpp \
 		nsHTMLReflowState.cpp \

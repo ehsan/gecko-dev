@@ -64,8 +64,9 @@ const PREF_EM_DSS_ENABLED             = "extensions.dss.enabled";
 const PREF_DSS_SWITCHPENDING          = "extensions.dss.switchPending";
 const PREF_DSS_SKIN_TO_SELECT         = "extensions.lastSelectedSkin";
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
+const PREF_EM_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
+const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
 const PREF_EM_UPDATE_URL              = "extensions.update.url";
-const PREF_EM_UPDATE_BACKGROUND_URL   = "extensions.update.background.url";
 const PREF_EM_ENABLED_ADDONS          = "extensions.enabledAddons";
 const PREF_EM_EXTENSION_FORMAT        = "extensions.";
 const PREF_EM_ENABLED_SCOPES          = "extensions.enabledScopes";
@@ -112,6 +113,8 @@ const KEY_APP_SYSTEM_LOCAL            = "app-system-local";
 const KEY_APP_SYSTEM_SHARE            = "app-system-share";
 const KEY_APP_SYSTEM_USER             = "app-system-user";
 
+const CATEGORY_UPDATE_PARAMS          = "extension-update-params";
+
 const UNKNOWN_XPCOM_ABI               = "unknownABI";
 const XPI_PERMISSION                  = "install";
 
@@ -122,7 +125,18 @@ const PREFIX_NS_EM                    = "http://www.mozilla.org/2004/em-rdf#";
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
+const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
+
 const DB_SCHEMA                       = 12;
+const REQ_VERSION                     = 2;
+
+#ifdef MOZ_COMPATIBILITY_NIGHTLY
+const PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE +
+                                    ".nightly";
+#else
+const PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
+                                    Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+#endif
 
 // Properties that exist in the install manifest
 const PROP_METADATA      = ["id", "version", "type", "internalName", "updateURL",
@@ -189,24 +203,6 @@ var gIDTest = /^(\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\
     return this[aName];
   })
 }, this);
-
-/**
- * Sets permissions on a file
- *
- * @param  aFile
- *         The file or directory to operate on.
- * @param  aPermissions
- *         The permisions to set
- */
-function setFilePermissions(aFile, aPermissions) {
-  try {
-    aFile.permissions = aPermissions;
-  }
-  catch (e) {
-    WARN("Failed to set permissions " + aPermissions.toString(8) + " on " +
-         aFile.path, e);
-  }
-}
 
 /**
  * A safe way to install a file or the contents of a directory to a new
@@ -286,7 +282,7 @@ SafeInstallOperation.prototype = {
     // The directory should be empty by this point. If it isn't this will throw
     // and all of the operations will be rolled back
     try {
-      setFilePermissions(aDirectory, FileUtils.PERMS_DIRECTORY);
+      aDirectory.permissions = FileUtils.PERMS_DIRECTORY;
       aDirectory.remove(false);
     }
     catch (e) {
@@ -525,13 +521,13 @@ function isUsableAddon(aAddon) {
   if (aAddon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
     return false;
 
-  if (AddonManager.checkUpdateSecurity && !aAddon.providesUpdatesSecurely)
+  if (XPIProvider.checkUpdateSecurity && !aAddon.providesUpdatesSecurely)
     return false;
 
   if (!aAddon.isPlatformCompatible)
     return false;
 
-  if (AddonManager.checkCompatibility) {
+  if (XPIProvider.checkCompatibility) {
     if (!aAddon.isCompatible)
       return false;
   }
@@ -827,21 +823,6 @@ function loadManifestFromRDF(aUri, aStream) {
 
   addon.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DEFAULT;
 
-  // Load the storage service before NSS (nsIRandomGenerator),
-  // to avoid a SQLite initialization error (bug 717904).
-  let storage = Services.storage;
-
-  // Generate random GUID used for Sync.
-  // This was lifted from util.js:makeGUID() from services-sync.
-  let rng = Cc["@mozilla.org/security/random-generator;1"].
-            createInstance(Ci.nsIRandomGenerator);
-  let bytes = rng.generateRandomBytes(9);
-  let byte_string = [String.fromCharCode(byte) for each (byte in bytes)]
-                    .join("");
-  // Base64 encode
-  addon.syncGUID = btoa(byte_string).replace(/\+/g, '-')
-                                    .replace(/\//g, '_');
-
   return addon;
 }
 
@@ -1096,13 +1077,7 @@ function extractFiles(aZipFile, aDir) {
         continue;
 
       zipReader.extract(entryName, target);
-      try {
-        target.permissions |= FileUtils.PERMS_FILE;
-      }
-      catch (e) {
-        WARN("Failed to set permissions " + aPermissions.toString(8) + " on " +
-             target.path, e);
-      }
+      target.permissions |= FileUtils.PERMS_FILE;
     }
   }
   finally {
@@ -1157,7 +1132,33 @@ function verifyZipSigning(aZip, aPrincipal) {
  */
 function escapeAddonURI(aAddon, aUri, aUpdateType, aAppVersion)
 {
-  let uri = AddonManager.escapeAddonURI(aAddon, aUri, aAppVersion);
+  var addonStatus = aAddon.userDisabled || aAddon.softDisabled ? "userDisabled"
+                                                               : "userEnabled";
+
+  if (!aAddon.isCompatible)
+    addonStatus += ",incompatible";
+  if (aAddon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
+    addonStatus += ",blocklisted";
+  if (aAddon.blocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
+    addonStatus += ",softblocked";
+
+  try {
+    var xpcomABI = Services.appinfo.XPCOMABI;
+  } catch (ex) {
+    xpcomABI = UNKNOWN_XPCOM_ABI;
+  }
+
+  let uri = aUri.replace(/%ITEM_ID%/g, aAddon.id);
+  uri = uri.replace(/%ITEM_VERSION%/g, aAddon.version);
+  uri = uri.replace(/%ITEM_STATUS%/g, addonStatus);
+  uri = uri.replace(/%APP_ID%/g, Services.appinfo.ID);
+  uri = uri.replace(/%APP_VERSION%/g, aAppVersion ? aAppVersion :
+                                                    Services.appinfo.version);
+  uri = uri.replace(/%REQ_VERSION%/g, REQ_VERSION);
+  uri = uri.replace(/%APP_OS%/g, Services.appinfo.OS);
+  uri = uri.replace(/%APP_ABI%/g, xpcomABI);
+  uri = uri.replace(/%APP_LOCALE%/g, getLocale());
+  uri = uri.replace(/%CURRENT_APP_VERSION%/g, Services.appinfo.version);
 
   // If there is an updateType then replace the UPDATE_TYPE string
   if (aUpdateType)
@@ -1173,14 +1174,27 @@ function escapeAddonURI(aAddon, aUri, aUpdateType, aAppVersion)
     maxVersion = "";
   uri = uri.replace(/%ITEM_MAXAPPVERSION%/g, maxVersion);
 
-  let compatMode = "normal";
-  if (!AddonManager.checkCompatibility)
-    compatMode = "ignore";
-  else if (AddonManager.strictCompatibility)
-    compatMode = "strict";
-  uri = uri.replace(/%COMPATIBILITY_MODE%/g, compatMode);
+  // Replace custom parameters (names of custom parameters must have at
+  // least 3 characters to prevent lookups for something like %D0%C8)
+  var catMan = null;
+  uri = uri.replace(/%(\w{3,})%/g, function(aMatch, aParam) {
+    if (!catMan) {
+      catMan = Cc["@mozilla.org/categorymanager;1"].
+               getService(Ci.nsICategoryManager);
+    }
 
-  return uri;
+    try {
+      var contractID = catMan.getCategoryEntry(CATEGORY_UPDATE_PARAMS, aParam);
+      var paramHandler = Cc[contractID].getService(Ci.nsIPropertyBag2);
+      return paramHandler.getPropertyAsAString(aParam);
+    }
+    catch(e) {
+      return aMatch;
+    }
+  });
+
+  // escape() does not properly encode + symbols in any embedded FVF strings.
+  return uri.replace(/\+/g, "%2B");
 }
 
 /**
@@ -1269,7 +1283,7 @@ function cleanStagingDir(aDir, aLeafNames) {
   }
 
   try {
-    setFilePermissions(aDir, FileUtils.PERMS_DIRECTORY);
+    aDir.permissions = FileUtils.PERMS_DIRECTORY;
     aDir.remove(false);
   }
   catch (e) {
@@ -1285,8 +1299,8 @@ function cleanStagingDir(aDir, aLeafNames) {
  *         The nsIFile to remove
  */
 function recursiveRemove(aFile) {
-  setFilePermissions(aFile, aFile.isDirectory() ? FileUtils.PERMS_DIRECTORY
-                                                : FileUtils.PERMS_FILE);
+  aFile.permissions = aFile.isDirectory() ? FileUtils.PERMS_DIRECTORY
+                                          : FileUtils.PERMS_FILE;
 
   try {
     aFile.remove(true);
@@ -1470,6 +1484,10 @@ var XPIProvider = {
   // will be the same as currentSkin when it is the skin to be used when the
   // application is restarted
   selectedSkin: null,
+  // The value of the checkCompatibility preference
+  checkCompatibility: true,
+  // The value of the checkUpdateSecurity preference
+  checkUpdateSecurity: true,
   // The value of the minCompatibleAppVersion preference
   minCompatibleAppVersion: null,
   // The value of the minCompatiblePlatformVersion preference
@@ -1595,12 +1613,18 @@ var XPIProvider = {
     this.selectedSkin = this.currentSkin;
     this.applyThemeChange();
 
+    this.checkCompatibility = Prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY,
+                                                true)
+    this.checkUpdateSecurity = Prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY,
+                                                 true)
     this.minCompatibleAppVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_APP_VERSION,
                                                      null);
     this.minCompatiblePlatformVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_PLATFORM_VERSION,
                                                           null);
     this.enabledAddons = [];
 
+    Services.prefs.addObserver(PREF_EM_CHECK_COMPATIBILITY, this, false);
+    Services.prefs.addObserver(PREF_EM_CHECK_UPDATE_SECURITY, this, false);
     Services.prefs.addObserver(PREF_EM_MIN_COMPAT_APP_VERSION, this, false);
     Services.prefs.addObserver(PREF_EM_MIN_COMPAT_PLATFORM_VERSION, this, false);
 
@@ -1643,7 +1667,7 @@ var XPIProvider = {
       } catch (e) { }
       try {
         Services.appinfo.annotateCrashReport("EMCheckCompatibility",
-                                             AddonManager.checkCompatibility);
+                                             this.checkCompatibility);
       } catch (e) { }
       this.addAddonsToCrashReporter();
     }
@@ -1681,6 +1705,9 @@ var XPIProvider = {
    */
   shutdown: function XPI_shutdown() {
     LOG("shutdown");
+
+    Services.prefs.removeObserver(PREF_EM_CHECK_COMPATIBILITY, this);
+    Services.prefs.removeObserver(PREF_EM_CHECK_UPDATE_SECURITY, this);
 
     this.bootstrappedAddons = {};
     this.bootstrapScopes = {};
@@ -3320,41 +3347,6 @@ var XPIProvider = {
   },
 
   /**
-   * Update the repositoryAddon property for all add-ons.
-   *
-   * @param  aCallback
-   *         Function to call when operation is complete.
-   */
-  updateAddonRepositoryData: function XPI_updateAddonRepositoryData(aCallback) {
-    let self = this;
-    XPIDatabase.getVisibleAddons(null, function UARD_getVisibleAddonsCallback(aAddons) {
-      let pending = aAddons.length;
-      if (pending == 0) {
-        aCallback();
-        return;
-      }
-
-      function notifyComplete() {
-        if (--pending == 0)
-          aCallback();
-      }
-
-      aAddons.forEach(function UARD_forEachCallback(aAddon) {
-        AddonRepository.getCachedAddonByID(aAddon.id,
-                                           function UARD_getCachedAddonCallback(aRepoAddon) {
-          if (aRepoAddon) {
-            aAddon._repositoryAddon = aRepoAddon;
-            aAddon.compatibilityOverrides = aRepoAddon.compatibilityOverrides;
-            self.updateAddonDisabledState(aAddon);
-          }
-
-          notifyComplete();
-        });
-      });
-    });
-  },
-
-  /**
    * When the previously selected theme is removed this method will be called
    * to enable the default theme.
    */
@@ -3391,8 +3383,14 @@ var XPIProvider = {
    */
   observe: function XPI_observe(aSubject, aTopic, aData) {
     switch (aData) {
+    case PREF_EM_CHECK_COMPATIBILITY:
+    case PREF_EM_CHECK_UPDATE_SECURITY:
     case PREF_EM_MIN_COMPAT_APP_VERSION:
     case PREF_EM_MIN_COMPAT_PLATFORM_VERSION:
+      this.checkCompatibility = Prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY,
+                                                  true);
+      this.checkUpdateSecurity = Prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY,
+                                                   true);
       this.minCompatibleAppVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_APP_VERSION,
                                                        null);
       this.minCompatiblePlatformVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_PLATFORM_VERSION,
@@ -3756,22 +3754,12 @@ var XPIProvider = {
     let wasDisabled = isAddonDisabled(aAddon);
     let isDisabled = aUserDisabled || aSoftDisabled || appDisabled;
 
-    // If appDisabled changes but the result of isAddonDisabled() doesn't,
-    // no onDisabling/onEnabling is sent - so send a onPropertyChanged.
-    let appDisabledChanged = aAddon.appDisabled != appDisabled;
-
     // Update the properties in the database
     XPIDatabase.setAddonProperties(aAddon, {
       userDisabled: aUserDisabled,
       appDisabled: appDisabled,
       softDisabled: aSoftDisabled
     });
-
-    if (appDisabledChanged) {
-      AddonManagerPrivate.callAddonListeners("onPropertyChanged",
-                                            aAddon,
-                                            ["appDisabled"]);
-    }
 
     // If the add-on is not visible or the add-on is not changing state then
     // there is no need to do anything else
@@ -4064,9 +4052,6 @@ AsyncAddonListCallback.prototype = {
       XPIDatabase.makeAddonFromRowAsync(row, function(aAddon) {
         function completeAddon(aRepositoryAddon) {
           aAddon._repositoryAddon = aRepositoryAddon;
-          aAddon.compatibilityOverrides = aRepositoryAddon ?
-                                            aRepositoryAddon.compatibilityOverrides :
-                                            null;
           self.addons.push(aAddon);
           if (self.complete && self.addons.length == self.count)
            self.callback(self.addons);
@@ -5302,6 +5287,18 @@ var XPIDatabase = {
    *         The file descriptor of the add-on
    */
   addAddonMetadata: function XPIDB_addAddonMetadata(aAddon, aDescriptor) {
+    // Create a GUID if one does not exist
+    if (!aAddon.syncGUID) {
+      let rng = Cc["@mozilla.org/security/random-generator;1"].
+                createInstance(Ci.nsIRandomGenerator);
+      let bytes = rng.generateRandomBytes(9);
+      let byte_string = [String.fromCharCode(byte) for each (byte in bytes)]
+                        .join("");
+      // Base64 encode
+      aAddon.syncGUID = btoa(byte_string).replace('+', '-', 'g')
+                                         .replace('/', '_', 'g');
+    }
+
     // If there is no DB yet then forcibly create one
     if (!this.connection)
       this.openConnection(false, true);
@@ -6155,8 +6152,6 @@ AddonInstall.prototype = {
       AddonRepository.getCachedAddonByID(aAddon.id, function(aRepoAddon) {
         if (aRepoAddon) {
           aAddon._repositoryAddon = aRepoAddon;
-          aAddon.compatibilityOverrides = aRepoAddon.compatibilityOverrides;
-          aAddon.appDisabled = !isUsableAddon(aAddon);
           aCallback();
           return;
         }
@@ -6165,10 +6160,6 @@ AddonInstall.prototype = {
         AddonRepository.cacheAddons([aAddon.id], function() {
           AddonRepository.getCachedAddonByID(aAddon.id, function(aRepoAddon) {
             aAddon._repositoryAddon = aRepoAddon;
-            aAddon.compatibilityOverrides = aRepoAddon ?
-                                              aRepoAddon.compatibilityOverrides :
-                                              null;
-            aAddon.appDisabled = !isUsableAddon(aAddon);
             aCallback();
           });
         });
@@ -6928,15 +6919,8 @@ function UpdateChecker(aAddon, aListener, aReason, aAppVersion, aPlatformVersion
   this.platformVersion = aPlatformVersion;
   this.syncCompatibility = (aReason == AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
 
-  let updateURL = aAddon.updateURL;
-  if (!updateURL) {
-    if (aReason == AddonManager.UPDATE_WHEN_PERIODIC_UPDATE &&
-        Services.prefs.getPrefType(PREF_EM_UPDATE_BACKGROUND_URL) == Services.prefs.PREF_STRING) {
-      updateURL = Services.prefs.getCharPref(PREF_EM_UPDATE_BACKGROUND_URL);
-    } else {
-      updateURL = Services.prefs.getCharPref(PREF_EM_UPDATE_URL);
-    }
-  }
+  let updateURL = aAddon.updateURL ? aAddon.updateURL :
+                                     Services.prefs.getCharPref(PREF_EM_UPDATE_URL);
 
   const UPDATE_TYPE_COMPATIBILITY = 32;
   const UPDATE_TYPE_NEWVERSION = 64;
@@ -6986,24 +6970,10 @@ UpdateChecker.prototype = {
   onUpdateCheckComplete: function UC_onUpdateCheckComplete(aUpdates) {
     let AUC = AddonUpdateChecker;
 
-    let ignoreMaxVersion = false;
-    let ignoreStrictCompat = false;
-    if (!AddonManager.checkCompatibility) {
-      ignoreMaxVersion = true;
-      ignoreStrictCompat = true;
-    } else if (this.addon.type == "extension" &&
-               !AddonManager.strictCompatibility &&
-               !this.addon.strictCompatibility &&
-               !this.addon.hasBinaryComponents) {
-      ignoreMaxVersion = true;
-    }
-
     // Always apply any compatibility update for the current version
     let compatUpdate = AUC.getCompatibilityUpdate(aUpdates, this.addon.version,
-                                                  this.syncCompatibility,
-                                                  null, null,
-                                                  ignoreMaxVersion,
-                                                  ignoreStrictCompat);
+                                                  this.syncCompatibility);
+
     // Apply the compatibility update to the database
     if (compatUpdate)
       this.addon.applyCompatibilityUpdate(compatUpdate, this.syncCompatibility);
@@ -7017,9 +6987,7 @@ UpdateChecker.prototype = {
          Services.vc.compare(this.platformVersion, Services.appinfo.platformVersion) != 0)) {
       compatUpdate = AUC.getCompatibilityUpdate(aUpdates, this.addon.version,
                                                 false, this.appVersion,
-                                                this.platformVersion,
-                                                ignoreMaxVersion,
-                                                ignoreStrictCompat);
+                                                this.platformVersion);
     }
 
     if (compatUpdate)
@@ -7039,16 +7007,9 @@ UpdateChecker.prototype = {
                          AddonManager.UPDATE_STATUS_NO_ERROR);
     }
 
-    let compatOverrides = AddonManager.strictCompatibility ?
-                            null :
-                            this.addon.compatibilityOverrides;
-
     let update = AUC.getNewestCompatibleUpdate(aUpdates,
                                                this.appVersion,
-                                               this.platformVersion,
-                                               ignoreMaxVersion,
-                                               ignoreStrictCompat,
-                                               compatOverrides);
+                                               this.platformVersion);
 
     if (update && Services.vc.compare(this.addon.version, update.version) < 0) {
       for (let i = 0; i < XPIProvider.installs.length; i++) {
@@ -7188,17 +7149,6 @@ AddonInternal.prototype = {
     if (this.type == "extension" && !AddonManager.strictCompatibility &&
         !this.strictCompatibility && !this.hasBinaryComponents) {
 
-      // The repository can specify compatibility overrides.
-      // Note: For now, only blacklisting is supported by overrides.
-      if (this._repositoryAddon &&
-          this._repositoryAddon.compatibilityOverrides) {
-        let overrides = this._repositoryAddon.compatibilityOverrides;
-        let override = AddonRepository.findMatchingCompatOverride(this.version,
-                                                                  overrides);
-        if (override && override.type == "incompatible")
-          return false;
-      }
-
       // Extremely old extensions should not be compatible by default.
       let minCompatVersion;
       if (app.id == Services.appinfo.ID)
@@ -7300,10 +7250,9 @@ AddonInternal.prototype = {
    *         A JS object containing the cached metadata
    */
   importMetadata: function(aObj) {
-    ["syncGUID", "targetApplications", "userDisabled", "softDisabled",
-     "existingAddonID", "sourceURI", "releaseNotesURI", "installDate",
-     "updateDate", "applyBackgroundUpdates", "compatibilityOverrides"]
-    .forEach(function(aProp) {
+    ["targetApplications", "userDisabled", "softDisabled", "existingAddonID",
+     "sourceURI", "releaseNotesURI", "installDate", "updateDate",
+     "applyBackgroundUpdates"].forEach(function(aProp) {
       if (!(aProp in aObj))
         return;
 
@@ -7419,7 +7368,7 @@ function AddonWrapper(aAddon) {
   ["id", "syncGUID", "version", "type", "isCompatible", "isPlatformCompatible",
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
    "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
-   "strictCompatibility", "compatibilityOverrides"].forEach(function(aProp) {
+   "strictCompatibility"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function() aAddon[aProp]);
   }, this);
 
@@ -7602,9 +7551,7 @@ function AddonWrapper(aAddon) {
     if (aAddon.syncGUID == val)
       return val;
 
-    if (aAddon instanceof DBAddonInternal)
-      XPIDatabase.setAddonSyncGUID(aAddon, val);
-
+    XPIDatabase.setAddonSyncGUID(aAddon, val);
     aAddon.syncGUID = val;
 
     return val;
@@ -8091,11 +8038,7 @@ DirectoryInstallLocation.prototype = {
 
     let newFile = this._directory.clone().QueryInterface(Ci.nsILocalFile);
     newFile.append(aSource.leafName);
-    try {
-      newFile.lastModifiedTime = Date.now();
-    } catch (e)  {
-      WARN("failed to set lastModifiedTime on " + newFile.path, e);
-    }
+    newFile.lastModifiedTime = Date.now();
     this._FileToIDMap[newFile.path] = aId;
     this._IDToFileMap[aId] = newFile;
 

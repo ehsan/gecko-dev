@@ -36,34 +36,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Hal.h"
+#include "nscore.h"
 #include "nsScreen.h"
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsLayoutUtils.h"
-#include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
-
-/* static */ bool nsScreen::sInitialized = false;
-/* static */ bool nsScreen::sAllowScreenEnabledProperty = false;
-/* static */ bool nsScreen::sAllowScreenBrightnessProperty = false;
-
-/* static */ void
-nsScreen::Initialize()
-{
-  MOZ_ASSERT(!sInitialized);
-  sInitialized = true;
-  Preferences::AddBoolVarCache(&sAllowScreenEnabledProperty,
-                               "dom.screenEnabledProperty.enabled");
-  Preferences::AddBoolVarCache(&sAllowScreenBrightnessProperty,
-                               "dom.screenBrightnessProperty.enabled");
-}
 
 //
 //  Screen class implementation
@@ -71,9 +51,6 @@ nsScreen::Initialize()
 nsScreen::nsScreen(nsIDocShell* aDocShell)
   : mDocShell(aDocShell)
 {
-  if (!sInitialized) {
-    Initialize();
-  }
 }
 
 nsScreen::~nsScreen()
@@ -258,83 +235,5 @@ nsScreen::GetAvailRect(nsRect& aRect)
   aRect.height = nsPresContext::AppUnitsToIntCSSPixels(aRect.height);
   aRect.width = nsPresContext::AppUnitsToIntCSSPixels(aRect.width);
 
-  return NS_OK;
-}
-
-namespace {
-
-bool IsWhiteListed(nsIDocShell *aDocShell) {
-  nsCOMPtr<nsIDocShellTreeItem> ds = do_QueryInterface(aDocShell);
-  if (!ds) {
-    return false;
-  }
-
-  PRInt32 itemType;
-  ds->GetItemType(&itemType);
-  if (itemType == nsIDocShellTreeItem::typeChrome) {
-    return true;
-  }
-
-  nsCOMPtr<nsIDocument> doc = do_GetInterface(aDocShell);
-  nsIPrincipal *principal = doc->NodePrincipal();
-
-  nsCOMPtr<nsIURI> principalURI;
-  principal->GetURI(getter_AddRefs(principalURI));
-  if (nsContentUtils::URIIsChromeOrInPref(principalURI,
-                                          "dom.mozScreenWhitelist")) {
-    return true;
-  }
-
-  return false;
-}
-
-} // anonymous namespace
-
-nsresult
-nsScreen::GetMozEnabled(bool *aEnabled)
-{
-  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
-    *aEnabled = true;
-    return NS_OK;
-  }
-
-  *aEnabled = hal::GetScreenEnabled();
-  return NS_OK;
-}
-
-nsresult
-nsScreen::SetMozEnabled(bool aEnabled)
-{
-  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
-    return NS_OK;
-  }
-
-  // TODO bug 707589: When the screen's state changes, all visible windows
-  // should fire a visibility change event.
-  hal::SetScreenEnabled(aEnabled);
-  return NS_OK;
-}
-
-nsresult
-nsScreen::GetMozBrightness(double *aBrightness)
-{
-  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
-    *aBrightness = 1;
-    return NS_OK;
-  }
-
-  *aBrightness = hal::GetScreenBrightness();
-  return NS_OK;
-}
-
-nsresult
-nsScreen::SetMozBrightness(double aBrightness)
-{
-  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
-    return NS_OK;
-  }
-
-  NS_ENSURE_TRUE(0 <= aBrightness && aBrightness <= 1, NS_ERROR_INVALID_ARG);
-  hal::SetScreenBrightness(aBrightness);
   return NS_OK;
 }

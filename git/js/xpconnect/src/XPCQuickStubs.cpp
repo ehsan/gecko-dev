@@ -39,8 +39,7 @@
 #include "mozilla/Util.h"
 
 #include "jsapi.h"
-#include "jsatom.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"  /* for error messages */
 #include "nsCOMPtr.h"
 #include "xpcprivate.h"
 #include "XPCInlines.h"
@@ -137,7 +136,7 @@ ApplyPropertyOp<JSStrictPropertyOp>(JSContext *cx, JSStrictPropertyOp op, JSObje
 
 template<typename Op>
 static JSBool
-PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
+PropertyOpForwarder(JSContext *cx, uintN argc, jsval *vp)
 {
     // Layout:
     //   this = our this
@@ -148,13 +147,15 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
+    jsval v;
 
-    jsval v = js::GetFunctionNativeReserved(callee, 0);
-
+    if (!JS_GetReservedSlot(cx, callee, 0, &v))
+        return false;
     JSObject *ptrobj = JSVAL_TO_OBJECT(v);
-    Op *popp = static_cast<Op *>(JS_GetPrivate(ptrobj));
+    Op *popp = static_cast<Op *>(JS_GetPrivate(cx, ptrobj));
 
-    v = js::GetFunctionNativeReserved(callee, 1);
+    if (!JS_GetReservedSlot(cx, callee, 1, &v))
+        return false;
 
     jsval argval = (argc > 0) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     jsid id;
@@ -167,7 +168,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 static void
 PointerFinalize(JSContext *cx, JSObject *obj)
 {
-    JSPropertyOp *popp = static_cast<JSPropertyOp *>(JS_GetPrivate(obj));
+    JSPropertyOp *popp = static_cast<JSPropertyOp *>(JS_GetPrivate(cx, obj));
     delete popp;
 }
 
@@ -181,45 +182,45 @@ PointerHolderClass = {
 
 template<typename Op>
 static JSObject *
-GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, unsigned argc, Op pop)
+GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
 {
     // The JS engine provides two reserved slots on function objects for
     // XPConnect to use. Use them to stick the necessary info here.
     JSFunction *fun =
-        js::NewFunctionByIdWithReserved(cx, PropertyOpForwarder<Op>, argc, 0, obj, id);
+        JS_NewFunctionById(cx, PropertyOpForwarder<Op>, argc, 0, obj, id);
     if (!fun)
-        return nsnull;
+        return false;
 
     JSObject *funobj = JS_GetFunctionObject(fun);
 
-    JS::AutoObjectRooter tvr(cx, funobj);
+    js::AutoObjectRooter tvr(cx, funobj);
 
     // Unfortunately, we cannot guarantee that Op is aligned. Use a
     // second object to work around this.
     JSObject *ptrobj = JS_NewObject(cx, &PointerHolderClass, nsnull, funobj);
     if (!ptrobj)
-        return nsnull;
+        return false;
     Op *popp = new Op;
     if (!popp)
-        return nsnull;
+        return false;
     *popp = pop;
-    JS_SetPrivate(ptrobj, popp);
+    JS_SetPrivate(cx, ptrobj, popp);
 
-    js::SetFunctionNativeReserved(funobj, 0, OBJECT_TO_JSVAL(ptrobj));
-    js::SetFunctionNativeReserved(funobj, 1, js::IdToJsval(id));
+    JS_SetReservedSlot(cx, funobj, 0, OBJECT_TO_JSVAL(ptrobj));
+    JS_SetReservedSlot(cx, funobj, 1, js::IdToJsval(id));
     return funobj;
 }
 
 static JSBool
-ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, unsigned orig_attrs,
+ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, uintN orig_attrs,
                  JSPropertyOp getter, JSStrictPropertyOp setter,
                  JSObject **getterobjp, JSObject **setterobjp)
 {
     // Generate both getter and setter and stash them in the prototype.
     jsval roots[2] = { JSVAL_NULL, JSVAL_NULL };
-    JS::AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
+    js::AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
 
-    unsigned attrs = JSPROP_SHARED | (orig_attrs & JSPROP_ENUMERATE);
+    uintN attrs = JSPROP_SHARED | (orig_attrs & JSPROP_ENUMERATE);
     JSObject *getterobj;
     if (getter) {
         getterobj = GeneratePropertyOp(cx, obj, id, 0, getter);
@@ -251,7 +252,7 @@ ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, unsigned orig_attrs,
 }
 
 static JSBool
-LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, unsigned argc, jsval *vp)
+LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
@@ -319,21 +320,21 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, unsigned argc, jsval *vp)
 }
 
 static JSBool
-SharedLookupGetter(JSContext *cx, unsigned argc, jsval *vp)
+SharedLookupGetter(JSContext *cx, uintN argc, jsval *vp)
 {
     return LookupGetterOrSetter(cx, true, argc, vp);
 }
 
 static JSBool
-SharedLookupSetter(JSContext *cx, unsigned argc, jsval *vp)
+SharedLookupSetter(JSContext *cx, uintN argc, jsval *vp)
 {
     return LookupGetterOrSetter(cx, false, argc, vp);
 }
 
 static JSBool
-DefineGetterOrSetter(JSContext *cx, unsigned argc, JSBool wantGetter, jsval *vp)
+DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
 {
-    unsigned attrs;
+    uintN attrs;
     JSBool found;
     JSPropertyOp getter;
     JSStrictPropertyOp setter;
@@ -374,25 +375,22 @@ DefineGetterOrSetter(JSContext *cx, unsigned argc, JSBool wantGetter, jsval *vp)
 }
 
 static JSBool
-SharedDefineGetter(JSContext *cx, unsigned argc, jsval *vp)
+SharedDefineGetter(JSContext *cx, uintN argc, jsval *vp)
 {
     return DefineGetterOrSetter(cx, argc, true, vp);
 }
 
 static JSBool
-SharedDefineSetter(JSContext *cx, unsigned argc, jsval *vp)
+SharedDefineSetter(JSContext *cx, uintN argc, jsval *vp)
 {
     return DefineGetterOrSetter(cx, argc, false, vp);
 }
 
 
 JSBool
-xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned flags,
+xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
                        PRUint32 ifacec, const nsIID **interfaces,
-                       PRUint32 tableSize, const xpc_qsHashEntry *table,
-                       const xpc_qsPropertySpec *propspecs,
-                       const xpc_qsFunctionSpec *funcspecs,
-                       const char *stringTable)
+                       PRUint32 tableSize, const xpc_qsHashEntry *table)
 {
     /*
      * Walk interfaces in reverse order to behave like XPConnect when a
@@ -403,7 +401,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned flags,
      * front of 'interfaces' overwrite those toward the back.
      */
     bool definedProperty = false;
-    for (uint32_t i = ifacec; i-- != 0;) {
+    for (uint32 i = ifacec; i-- != 0;) {
         const nsID &iid = *interfaces[i];
         const xpc_qsHashEntry *entry =
             LookupInterfaceOrAncestor(tableSize, table, iid);
@@ -411,26 +409,26 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned flags,
         if (entry) {
             for (;;) {
                 // Define quick stubs for attributes.
-                const xpc_qsPropertySpec *ps = propspecs + entry->prop_index;
-                const xpc_qsPropertySpec *ps_end = ps + entry->n_props;
-                for ( ; ps < ps_end; ++ps) {
-                    definedProperty = true;
-                    if (!JS_DefineProperty(cx, proto,
-                                           stringTable + ps->name_index,
-                                           JSVAL_VOID, ps->getter, ps->setter,
-                                           flags | JSPROP_SHARED)) 
-                        return false;
+                const xpc_qsPropertySpec *ps = entry->properties;
+                if (ps) {
+                    for (; ps->name; ps++) {
+                        definedProperty = true;
+                        if (!JS_DefineProperty(cx, proto, ps->name, JSVAL_VOID,
+                                               ps->getter, ps->setter,
+                                               flags | JSPROP_SHARED))
+                            return false;
+                    }
                 }
 
                 // Define quick stubs for methods.
-                const xpc_qsFunctionSpec *fs = funcspecs + entry->func_index;
-                const xpc_qsFunctionSpec *fs_end = fs + entry->n_funcs;
-                for ( ; fs < fs_end; ++fs) {
-                    if (!JS_DefineFunction(cx, proto,
-                                           stringTable + fs->name_index,
-                                           reinterpret_cast<JSNative>(fs->native),
-                                           fs->arity, flags))
-                        return false;
+                const xpc_qsFunctionSpec *fs = entry->functions;
+                if (fs) {
+                    for (; fs->name; fs++) {
+                        if (!JS_DefineFunction(cx, proto, fs->name,
+                                               reinterpret_cast<JSNative>(fs->native),
+                                               fs->arity, flags))
+                            return false;
+                    }
                 }
 
                 // Next.
@@ -510,13 +508,13 @@ GetMethodInfo(JSContext *cx, jsval *vp, const char **ifaceNamep, jsid *memberIdp
     JSObject *funobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
     NS_ASSERTION(JS_ObjectIsFunction(cx, funobj),
                  "JSNative callee should be Function object");
-    JSString *str = JS_GetFunctionId(JS_GetObjectFunction(funobj));
+    JSString *str = JS_GetFunctionId((JSFunction *) JS_GetPrivate(cx, funobj));
     jsid methodId = str ? INTERNED_STRING_TO_JSID(cx, str) : JSID_VOID;
     GetMemberInfo(JSVAL_TO_OBJECT(vp[1]), methodId, ifaceNamep);
     *memberIdp = methodId;
 }
 
-static bool
+static JSBool
 ThrowCallFailed(JSContext *cx, nsresult rv,
                 const char *ifaceName, jsid memberId, const char *memberName)
 {
@@ -592,17 +590,17 @@ xpc_qsThrowMethodFailedWithCcx(XPCCallContext &ccx, nsresult rv)
     return false;
 }
 
-bool
+void
 xpc_qsThrowMethodFailedWithDetails(JSContext *cx, nsresult rv,
                                    const char *ifaceName,
                                    const char *memberName)
 {
-    return ThrowCallFailed(cx, rv, ifaceName, JSID_VOID, memberName);
+    ThrowCallFailed(cx, rv, ifaceName, JSID_VOID, memberName);
 }
 
 static void
 ThrowBadArg(JSContext *cx, nsresult rv, const char *ifaceName,
-            jsid memberId, const char *memberName, unsigned paramnum)
+            jsid memberId, const char *memberName, uintN paramnum)
 {
     /* Only one memberId or memberName should be given. */
     JS_ASSERT(JSID_IS_VOID(memberId) != !memberName);
@@ -630,7 +628,7 @@ ThrowBadArg(JSContext *cx, nsresult rv, const char *ifaceName,
 }
 
 void
-xpc_qsThrowBadArg(JSContext *cx, nsresult rv, jsval *vp, unsigned paramnum)
+xpc_qsThrowBadArg(JSContext *cx, nsresult rv, jsval *vp, uintN paramnum)
 {
     const char *ifaceName;
     jsid memberId;
@@ -639,13 +637,13 @@ xpc_qsThrowBadArg(JSContext *cx, nsresult rv, jsval *vp, unsigned paramnum)
 }
 
 void
-xpc_qsThrowBadArgWithCcx(XPCCallContext &ccx, nsresult rv, unsigned paramnum)
+xpc_qsThrowBadArgWithCcx(XPCCallContext &ccx, nsresult rv, uintN paramnum)
 {
     XPCThrower::ThrowBadParam(rv, paramnum, ccx);
 }
 
 void
-xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, unsigned paramnum,
+xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
                              const char *ifaceName, const char *memberName)
 {
     ThrowBadArg(cx, rv, ifaceName, JSID_VOID, memberName, paramnum);
@@ -782,51 +780,22 @@ getNativeFromWrapper(JSContext *cx,
 nsresult
 getWrapper(JSContext *cx,
            JSObject *obj,
+           JSObject *callee,
            XPCWrappedNative **wrapper,
            JSObject **cur,
            XPCWrappedNativeTearOff **tearoff)
 {
-    // We can have at most three layers in need of unwrapping here:
-    // * A (possible) security wrapper
-    // * A (possible) Xray waiver
-    // * A (possible) outer window
-    //
-    // If we pass stopAtOuter == false, we can handle all three with one call
-    // to XPCWrapper::Unwrap.
-    if (js::IsWrapper(obj)) {
-        obj = XPCWrapper::Unwrap(cx, obj, false);
-
-        // The safe unwrap might have failed for SCRIPT_ACCESS_ONLY objects. If it
-        // didn't fail though, we should be done with wrappers.
-        if (!obj)
-            return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
-        MOZ_ASSERT(!js::IsWrapper(obj));
+    if (XPCWrapper::IsSecurityWrapper(obj) &&
+        !(obj = XPCWrapper::Unwrap(cx, obj))) {
+        return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
     }
 
-    // Start with sane values.
-    *wrapper = nsnull;
-    *cur = nsnull;
+    *cur = obj;
     *tearoff = nsnull;
 
-    // Handle tearoffs.
-    //
-    // If |obj| is of the tearoff class, that means we're dealing with a JS
-    // object reflection of a particular interface (ie, |foo.nsIBar|). These
-    // JS objects are parented to their wrapper, so we snag the tearoff object
-    // along the way (if desired), and then set |obj| to its parent.
-    if (js::GetObjectClass(obj) == &XPC_WN_Tearoff_JSClass) {
-        *tearoff = (XPCWrappedNativeTearOff*) js::GetObjectPrivate(obj);
-        obj = js::GetObjectParent(obj);
-    }
-
-    // If we've got a WN or slim wrapper, store things the way callers expect.
-    // Otherwise, leave things null and return.
-    if (IS_WRAPPER_CLASS(js::GetObjectClass(obj))) {
-        if (IS_WN_WRAPPER_OBJECT(obj))
-            *wrapper = (XPCWrappedNative*) js::GetObjectPrivate(obj);
-        else
-            *cur = obj;
-    }
+    *wrapper =
+        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj, callee, cur,
+                                                     tearoff);
 
     return NS_OK;
 }
@@ -944,7 +913,7 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
         wrapper = nsnull;
         obj2 = src;
     } else {
-        rv = getWrapper(cx, src, &wrapper, &obj2, &tearoff);
+        rv = getWrapper(cx, src, nsnull, &wrapper, &obj2, &tearoff);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1045,23 +1014,15 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, const PRUnichar **pst
     return true;
 }
 
-namespace xpc {
-
-bool
-StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
+JSBool
+xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
 {
     // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
     if (str.IsVoid()) {
         *rval = JSVAL_NULL;
         return true;
     }
-    return NonVoidStringToJsval(cx, str, rval);
-}
 
-bool
-NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
-{
-    MOZ_ASSERT(!str.IsVoid());
     nsStringBuffer* sharedBuffer;
     jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
     if (JSVAL_IS_NULL(jsstr))
@@ -1074,8 +1035,6 @@ NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
     }
     return true;
 }
-
-} // namespace xpc
 
 JSBool
 xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval)
@@ -1111,10 +1070,16 @@ xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper &aHelper,
 
     JSContext *cx = lccx.GetJSContext();
 
+    // XXX The OBJ_IS_NOT_GLOBAL here is not really right. In
+    // fact, this code is depending on the fact that the
+    // global object will not have been collected, and
+    // therefore this NativeInterface2JSObject will not end up
+    // creating a new XPCNativeScriptableShared.
+
     nsresult rv;
     if (!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull,
                                               aHelper, iid, iface,
-                                              true, &rv)) {
+                                              true, OBJ_IS_NOT_GLOBAL, &rv)) {
         // I can't tell if NativeInterface2JSObject throws JS exceptions
         // or not.  This is a sloppy stab at the right semantics; the
         // method really ought to be fixed to behave consistently.
@@ -1158,7 +1123,9 @@ xpc_qsAssertContextOK(JSContext *cx)
     XPCPerThreadData *thread = XPCPerThreadData::GetData(cx);
     XPCJSContextStack* stack = thread->GetJSContextStack();
 
-    JSContext *topJSContext = stack->Peek();
+    JSContext* topJSContext = nsnull;
+    nsresult rv = stack->Peek(&topJSContext);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "XPCJSContextStack::Peek failed");
 
     // This is what we're actually trying to assert here.
     NS_ASSERTION(cx == topJSContext, "wrong context on XPCJSContextStack!");

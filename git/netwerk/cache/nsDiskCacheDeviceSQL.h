@@ -51,6 +51,7 @@
 #include "nsCOMArray.h"
 #include "nsInterfaceHashtable.h"
 #include "nsClassHashtable.h"
+#include "nsHashSets.h"
 #include "nsWeakReference.h"
 
 class nsIURI;
@@ -100,6 +101,8 @@ public:
   /**
    * nsCacheDevice methods
    */
+
+  virtual ~nsOfflineCacheDevice();
 
   static nsOfflineCacheDevice *GetInstance();
 
@@ -270,7 +273,7 @@ private:
 
   nsInterfaceHashtable<nsCStringHashKey, nsIWeakReference> mCaches;
   nsClassHashtable<nsCStringHashKey, nsCString> mActiveCachesByGroup;
-  nsTHashtable<nsCStringHashKey> mActiveCaches;
+  nsCStringHashSet mActiveCaches;
 
   nsCOMPtr<nsIThread> mInitThread;
 };

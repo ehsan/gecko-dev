@@ -37,20 +37,20 @@
 #ifndef __NS_SVGFILTERSELEMENT_H__
 #define __NS_SVGFILTERSELEMENT_H__
 
-#include "gfxImageSurface.h"
-#include "gfxRect.h"
-#include "nsIDOMSVGFilters.h"
-#include "nsIDOMSVGURIReference.h"
-#include "nsIFrame.h"
-#include "nsImageLoadingContent.h"
+#include "nsSVGStylableElement.h"
 #include "nsSVGLength2.h"
 #include "nsSVGString.h"
-#include "nsSVGStylableElement.h"
+#include "nsIFrame.h"
+#include "gfxRect.h"
+#include "gfxImageSurface.h"
+#include "nsIDOMSVGFilters.h"
+#include "nsImageLoadingContent.h"
+#include "nsIDOMSVGURIReference.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 
-class nsSVGFilterInstance;
 class nsSVGFilterResource;
 class nsSVGNumberPair;
+class nsSVGFilterInstance;
 
 struct nsSVGStringInfo {
   nsSVGStringInfo(const nsSVGString* aString,
@@ -157,9 +157,6 @@ public:
 
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
-
-  // nsSVGElement interface
-  virtual bool HasValidDimensions() const;
 
   virtual nsSVGString& GetResultImageName() = 0;
   // Return a list of all image names used as sources. Default is to
@@ -291,7 +288,7 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
@@ -301,8 +298,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver
-  NS_IMETHOD FrameChanged(imgIRequest* aRequest,
-                          imgIContainer *aContainer,
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *aDirtyRect);
   // imgIContainerObserver
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,

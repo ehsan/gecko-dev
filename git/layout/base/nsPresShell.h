@@ -74,7 +74,7 @@
 #include "nsContentUtils.h"
 #include "nsRefreshDriver.h"
 
-class nsRange;
+class nsIRange;
 class nsIDragService;
 class nsCSSStyleSheet;
 
@@ -134,15 +134,14 @@ public:
   void Push();
   void Pop();
 
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-    size_t n = 0;
+  PRUint32 Size() {
+    PRUint32 result = 0;
     StackBlock *block = mBlocks;
     while (block) {
-      n += aMallocSizeOf(block);
+      result += sizeof(StackBlock);
       block = block->mNext;
     }
-    n += aMallocSizeOf(mMarks);
-    return n;
+    return result;
   }
 
 private:
@@ -316,7 +315,7 @@ public:
 
   virtual void Paint(nsIView* aViewToPaint, nsIWidget* aWidget,
                      const nsRegion& aDirtyRegion, const nsIntRegion& aIntDirtyRegion,
-                     bool aWillSendDidPaint);
+                     bool aPaintDefaultBackground, bool aWillSendDidPaint);
   virtual nsresult HandleEvent(nsIFrame*       aFrame,
                                nsGUIEvent*     aEvent,
                                bool            aDontRetargetEvents,
@@ -330,7 +329,6 @@ public:
   virtual bool ShouldIgnoreInvalidation();
   virtual void WillPaint(bool aWillSendDidPaint);
   virtual void DidPaint();
-  virtual void ScheduleViewManagerFlush();
   virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange);
   virtual void ClearMouseCaptureOnView(nsIView* aView);
   virtual bool IsVisible();
@@ -361,13 +359,11 @@ public:
   NS_IMETHOD PageMove(bool aForward, bool aExtend);
   NS_IMETHOD ScrollPage(bool aForward);
   NS_IMETHOD ScrollLine(bool aForward);
-  NS_IMETHOD ScrollCharacter(bool aRight);
+  NS_IMETHOD ScrollHorizontal(bool aLeft);
   NS_IMETHOD CompleteScroll(bool aForward);
   NS_IMETHOD CompleteMove(bool aForward, bool aExtend);
   NS_IMETHOD SelectAll();
   NS_IMETHOD CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOffset, bool *_retval);
-  virtual nsresult CheckVisibilityContent(nsIContent* aNode, PRInt16 aStartOffset,
-                                          PRInt16 aEndOffset, bool* aRetval);
 
   // nsIDocumentObserver
   NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
@@ -461,12 +457,6 @@ protected:
   nsresult DidCauseReflow();
   friend class nsAutoCauseReflowNotifier;
 
-  bool TouchesAreEqual(nsIDOMTouch *aTouch1, nsIDOMTouch *aTouch2);
-  void DispatchTouchEvent(nsEvent *aEvent,
-                          nsEventStatus* aStatus,
-                          nsPresShellEventCB* aEventCB,
-                          bool aTouchIsNew);
-
   void     WillDoReflow();
   void     DidDoReflow(bool aInterruptible);
   // ProcessReflowCommands returns whether we processed all our dirty roots
@@ -557,7 +547,7 @@ protected:
   // the range
   nsRect ClipListToRange(nsDisplayListBuilder *aBuilder,
                          nsDisplayList* aList,
-                         nsRange* aRange);
+                         nsIRange* aRange);
 
   // create a RangePaintInfo for the range aRange containing the
   // display list needed to paint the range to a surface
@@ -861,28 +851,17 @@ private:
   // over our window or there is no last observed mouse location for some
   // reason.
   nsPoint mMouseLocation;
-  class nsSynthMouseMoveEvent : public nsARefreshObserver {
+  class nsSynthMouseMoveEvent : public nsRunnable {
   public:
     nsSynthMouseMoveEvent(PresShell* aPresShell, bool aFromScroll)
       : mPresShell(aPresShell), mFromScroll(aFromScroll) {
       NS_ASSERTION(mPresShell, "null parameter");
     }
-    ~nsSynthMouseMoveEvent() {
-      Revoke();
-    }
-
-    NS_INLINE_DECL_REFCOUNTING(nsSynthMouseMoveEvent)
-    
-    void Revoke() {
-      if (mPresShell) {
-        mPresShell->GetPresContext()->RefreshDriver()->
-          RemoveRefreshObserver(this, Flush_Display);
-        mPresShell = nsnull;
-      }
-    }
-    virtual void WillRefresh(mozilla::TimeStamp aTime) {
+    void Revoke() { mPresShell = nsnull; }
+    NS_IMETHOD Run() {
       if (mPresShell)
         mPresShell->ProcessSynthMouseMoveEvent(mFromScroll);
+      return NS_OK;
     }
   private:
     PresShell* mPresShell;
@@ -901,11 +880,26 @@ private:
 
 public:
 
-  void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                           size_t *aArenasSize,
-                           size_t *aStyleSetsSize,
-                           size_t *aTextRunsSize) const;
-  size_t SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf) const;
+  PRUint32 EstimateMemoryUsed() {
+    PRUint32 result = 0;
+
+    result += sizeof(PresShell);
+    result += mStackArena.Size();
+    result += mFrameArena.Size();
+
+    return result;
+  }
+
+  size_t SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf);
+
+  class MemoryReporter : public nsIMemoryMultiReporter
+  {
+  public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEMORYMULTIREPORTER
+  protected:
+    static PLDHashOperator SizeEnumerator(PresShellPtrKey *aEntry, void *userArg);
+  };
 
 protected:
   void QueryIsActive();

@@ -62,9 +62,12 @@ nsINameSpaceManager.h \
 nsINode.h \
 nsINodeInfo.h \
 nsINodeList.h \
+nsIRange.h \
+nsIRangeUtils.h \
 nsIScriptElement.h \
 nsIStyleSheetLinkingElement.h \
 nsIContentSerializer.h \
+nsIHTMLToTextSink.h \
 nsIXPathEvaluatorInternal.h \
 mozISanitizingSerializer.h \
 nsCaseTreatment.h \
@@ -76,19 +79,19 @@ nsLineBreaker.h \
 nsReferencedElement.h \
 nsTreeSanitizer.h \
 nsXMLNameSpaceMap.h \
-nsIXFormsUtilityService.h \
+nsDOMEventTargetWrapperCache.h \
 $(NULL)
 
-EXPORTS_NAMESPACES = mozilla/dom mozilla
+EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
 		Element.h \
 		FromParser.h \
 		$(NULL)
 
-EXPORTS_mozilla = \
-		CORSMode.h \
-		$(NULL)
+ifndef DISABLE_XFORMS_HOOKS
+EXPORTS += nsIXFormsUtilityService.h
+endif
 
 SDK_XPIDLSRCS   = \
 		nsISelection.idl  \
@@ -101,6 +104,7 @@ XPIDLSRCS	= \
 		nsIDOMFileReader.idl \
 		nsIDOMFileList.idl \
 		nsIDOMFileException.idl \
+		nsIDOMFileError.idl \
 		nsIDOMFormData.idl \
 		nsIDOMParser.idl \
 		nsIDOMSerializer.idl \
@@ -116,7 +120,7 @@ XPIDLSRCS	= \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
 		nsIFrameMessageManager.idl \
-		nsIWebSocket.idl \
+		nsIMozWebSocket.idl \
 		nsIEventSource.idl \
 		$(NULL)
 

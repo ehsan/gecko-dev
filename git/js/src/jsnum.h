@@ -42,6 +42,7 @@
 
 #include <math.h>
 
+#include "jsstdint.h"
 #include "jsobj.h"
 
 /*
@@ -64,6 +65,18 @@
 #endif
 #endif
 
+typedef union jsdpun {
+    struct {
+#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
+        uint32 lo, hi;
+#else
+        uint32 hi, lo;
+#endif
+    } s;
+    uint64   u64;
+    jsdouble d;
+} jsdpun;
+
 /* Low-level floating-point predicates. See bug 640494. */
 #define JSDOUBLE_HI32_SIGNBIT   0x80000000
 #define JSDOUBLE_HI32_EXPMASK   0x7ff00000
@@ -71,32 +84,16 @@
 #define JSDOUBLE_HI32_NAN       0x7ff80000
 #define JSDOUBLE_LO32_NAN       0x00000000
 
-#define JSDOUBLE_HI32_EXPSHIFT  20
-#define JSDOUBLE_EXPBIAS        1023
-
-typedef union jsdpun {
-    struct {
-#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
-        uint32_t lo, hi;
-#else
-        uint32_t hi, lo;
-#endif
-    } s;
-    uint64_t u64;
-    double d;
-} jsdpun;
-
 static inline int
-JSDOUBLE_IS_NaN(double d)
+JSDOUBLE_IS_NaN(jsdouble d)
 {
     jsdpun u;
     u.d = d;
-    return (u.u64 & JSDOUBLE_EXPMASK) == JSDOUBLE_EXPMASK &&
-           (u.u64 & JSDOUBLE_MANTMASK) != 0;
+    return (u.s.hi & JSDOUBLE_HI32_NAN) == JSDOUBLE_HI32_NAN;
 }
 
 static inline int
-JSDOUBLE_IS_FINITE(double d)
+JSDOUBLE_IS_FINITE(jsdouble d)
 {
     /* -0 is finite. NaNs are not. */
     jsdpun u;
@@ -105,7 +102,7 @@ JSDOUBLE_IS_FINITE(double d)
 }
 
 static inline int
-JSDOUBLE_IS_INFINITE(double d)
+JSDOUBLE_IS_INFINITE(jsdouble d)
 {
     jsdpun u;
     u.d = d;
@@ -113,24 +110,33 @@ JSDOUBLE_IS_INFINITE(double d)
 }
 
 static inline bool
-JSDOUBLE_IS_NEG(double d)
+JSDOUBLE_IS_NEG(jsdouble d)
 {
     jsdpun u;
     u.d = d;
     return (u.s.hi & JSDOUBLE_HI32_SIGNBIT) != 0;
 }
 
-static inline uint32_t
-JS_HASH_DOUBLE(double d)
+static inline uint32
+JS_HASH_DOUBLE(jsdouble d)
 {
     jsdpun u;
     u.d = d;
     return u.s.lo ^ u.s.hi;
 }
 
-extern double js_NaN;
-extern double js_PositiveInfinity;
-extern double js_NegativeInfinity;
+#if defined(XP_WIN)
+#define JSDOUBLE_COMPARE(LVAL, OP, RVAL, IFNAN)                               \
+    ((JSDOUBLE_IS_NaN(LVAL) || JSDOUBLE_IS_NaN(RVAL))                         \
+     ? (IFNAN)                                                                \
+     : (LVAL) OP (RVAL))
+#else
+#define JSDOUBLE_COMPARE(LVAL, OP, RVAL, IFNAN) ((LVAL) OP (RVAL))
+#endif
+
+extern jsdouble js_NaN;
+extern jsdouble js_PositiveInfinity;
+extern jsdouble js_NegativeInfinity;
 
 namespace js {
 
@@ -160,7 +166,7 @@ class JSString;
 class JSFixedString;
 
 extern JSString * JS_FASTCALL
-js_IntToString(JSContext *cx, int i);
+js_IntToString(JSContext *cx, jsint i);
 
 /*
  * When base == 10, this function implements ToString() as specified by
@@ -168,7 +174,7 @@ js_IntToString(JSContext *cx, int i);
  * performance.  See also js::NumberToCString().
  */
 extern JSString * JS_FASTCALL
-js_NumberToString(JSContext *cx, double d);
+js_NumberToString(JSContext *cx, jsdouble d);
 
 namespace js {
 
@@ -181,10 +187,10 @@ NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb);
 
 /* Same as js_NumberToString, different signature. */
 extern JSFixedString *
-NumberToString(JSContext *cx, double d);
+NumberToString(JSContext *cx, jsdouble d);
 
 extern JSFixedString *
-IndexToString(JSContext *cx, uint32_t index);
+IndexToString(JSContext *cx, uint32 index);
 
 /*
  * Usually a small amount of static storage is enough, but sometimes we need
@@ -213,13 +219,13 @@ struct ToCStringBuf
  * js_NumberToCString().
  */
 extern char *
-NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10);
+NumberToCString(JSContext *cx, ToCStringBuf *cbuf, jsdouble d, jsint base = 10);
 
 /*
  * The largest positive integer such that all positive integers less than it
  * may be precisely represented using the IEEE-754 double-precision format.
  */
-const double DOUBLE_INTEGRAL_PRECISION_LIMIT = uint64_t(1) << 53;
+const double DOUBLE_INTEGRAL_PRECISION_LIMIT = uint64(1) << 53;
 
 /*
  * Compute the positive integer of the given base described immediately at the
@@ -235,7 +241,7 @@ const double DOUBLE_INTEGRAL_PRECISION_LIMIT = uint64_t(1) << 53;
  */
 extern bool
 GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base,
-                 const jschar **endp, double *dp);
+                 const jschar **endp, jsdouble *dp);
 
 /* ES5 9.3 ToNumber. */
 JS_ALWAYS_INLINE bool
@@ -264,50 +270,50 @@ ToNumber(JSContext *cx, Value *vp)
 }
 
 /*
- * Convert a value to an int32_t or uint32_t, according to the ECMA rules for
+ * Convert a value to an int32 or uint32, according to the ECMA rules for
  * ToInt32 and ToUint32. Return converted value in *out on success, !ok on
  * failure.
  */
 JS_ALWAYS_INLINE bool
-ToInt32(JSContext *cx, const js::Value &v, int32_t *out)
+ValueToECMAInt32(JSContext *cx, const js::Value &v, int32_t *out)
 {
     if (v.isInt32()) {
         *out = v.toInt32();
         return true;
     }
-    extern bool ToInt32Slow(JSContext *cx, const js::Value &v, int32_t *ip);
-    return ToInt32Slow(cx, v, out);
+    extern bool ValueToECMAInt32Slow(JSContext *, const js::Value &, int32_t *);
+    return ValueToECMAInt32Slow(cx, v, out);
 }
 
 JS_ALWAYS_INLINE bool
-ToUint32(JSContext *cx, const js::Value &v, uint32_t *out)
+ValueToECMAUint32(JSContext *cx, const js::Value &v, uint32_t *out)
 {
     if (v.isInt32()) {
         *out = (uint32_t)v.toInt32();
         return true;
     }
-    extern bool ToUint32Slow(JSContext *cx, const js::Value &v, uint32_t *ip);
-    return ToUint32Slow(cx, v, out);
+    extern bool ValueToECMAUint32Slow(JSContext *, const js::Value &, uint32_t *);
+    return ValueToECMAUint32Slow(cx, v, out);
 }
 
 /*
- * Convert a value to a number, then to an int32_t if it fits by rounding to
+ * Convert a value to a number, then to an int32 if it fits by rounding to
  * nearest. Return converted value in *out on success, !ok on failure. As a
  * side effect, *vp will be mutated to match *out.
  */
 JS_ALWAYS_INLINE bool
-NonstandardToInt32(JSContext *cx, const js::Value &v, int32_t *out)
+ValueToInt32(JSContext *cx, const js::Value &v, int32_t *out)
 {
     if (v.isInt32()) {
         *out = v.toInt32();
         return true;
     }
-    extern bool NonstandardToInt32Slow(JSContext *cx, const js::Value &v, int32_t *ip);
-    return NonstandardToInt32Slow(cx, v, out);
+    extern bool ValueToInt32Slow(JSContext *, const js::Value &, int32_t *);
+    return ValueToInt32Slow(cx, v, out);
 }
 
 /*
- * Convert a value to a number, then to a uint16_t according to the ECMA rules
+ * Convert a value to a number, then to a uint16 according to the ECMA rules
  * for ToUint16. Return converted value on success, !ok on failure. v must be a
  * copy of a rooted value.
  */
@@ -315,15 +321,12 @@ JS_ALWAYS_INLINE bool
 ValueToUint16(JSContext *cx, const js::Value &v, uint16_t *out)
 {
     if (v.isInt32()) {
-        *out = uint16_t(v.toInt32());
+        *out = (uint16_t)v.toInt32();
         return true;
     }
-    extern bool ValueToUint16Slow(JSContext *cx, const js::Value &v, uint16_t *out);
+    extern bool ValueToUint16Slow(JSContext *, const js::Value &, uint16_t *);
     return ValueToUint16Slow(cx, v, out);
 }
-
-JSBool
-num_parseInt(JSContext *cx, unsigned argc, Value *vp);
 
 }  /* namespace js */
 
@@ -340,14 +343,14 @@ num_parseInt(JSContext *cx, unsigned argc, Value *vp);
  *  5.  If Result(4) is greater than or equal to 2^31, return Result(4)- 2^32,
  *  otherwise return Result(4).
  */
-static inline int32_t
-js_DoubleToECMAInt32(double d)
+static inline int32
+js_DoubleToECMAInt32(jsdouble d)
 {
 #if defined(__i386__) || defined(__i386) || defined(__x86_64__) || \
     defined(_M_IX86) || defined(_M_X64)
     jsdpun du, duh, two32;
-    uint32_t di_h, u_tmp, expon, shift_amount;
-    int32_t mask32;
+    uint32 di_h, u_tmp, expon, shift_amount;
+    int32 mask32;
 
     /*
      * Algorithm Outline
@@ -415,7 +418,7 @@ js_DoubleToECMAInt32(double d)
         du.d -= two32.d;
     }
 
-    return int32_t(du.d);
+    return int32(du.d);
 #elif defined (__arm__) && defined (__GNUC__)
     int32_t i;
     uint32_t    tmp0;
@@ -538,36 +541,33 @@ js_DoubleToECMAInt32(double d)
         );
     return i;
 #else
-    int32_t i;
-    double two32, two31;
+    int32 i;
+    jsdouble two32, two31;
 
     if (!JSDOUBLE_IS_FINITE(d))
         return 0;
 
-    i = (int32_t) d;
-    if ((double) i == d)
+    i = (int32) d;
+    if ((jsdouble) i == d)
         return i;
 
     two32 = 4294967296.0;
     two31 = 2147483648.0;
     d = fmod(d, two32);
     d = (d >= 0) ? floor(d) : ceil(d) + two32;
-    return (int32_t) (d >= two31 ? d - two32 : d);
+    return (int32) (d >= two31 ? d - two32 : d);
 #endif
 }
 
-inline uint32_t
-js_DoubleToECMAUint32(double d)
-{
-    return uint32_t(js_DoubleToECMAInt32(d));
-}
+uint32
+js_DoubleToECMAUint32(jsdouble d);
 
 /*
- * Convert a double to an integral number, stored in a double.
+ * Convert a jsdouble to an integral number, stored in a jsdouble.
  * If d is NaN, return 0.  If d is an infinity, return it without conversion.
  */
-static inline double
-js_DoubleToInteger(double d)
+static inline jsdouble
+js_DoubleToInteger(jsdouble d)
 {
     if (d == 0)
         return d;
@@ -596,10 +596,10 @@ js_DoubleToInteger(double d)
  */
 extern JSBool
 js_strtod(JSContext *cx, const jschar *s, const jschar *send,
-          const jschar **ep, double *dp);
+          const jschar **ep, jsdouble *dp);
 
 extern JSBool
-js_num_valueOf(JSContext *cx, unsigned argc, js::Value *vp);
+js_num_valueOf(JSContext *cx, uintN argc, js::Value *vp);
 
 namespace js {
 
@@ -623,16 +623,16 @@ ValueFitsInInt32(const Value &v, int32_t *pi)
  * consider this possibility when using this method.
  */
 static JS_ALWAYS_INLINE bool
-IsDefinitelyIndex(const Value &v, uint32_t *indexp)
+IsDefinitelyIndex(const Value &v, uint32 *indexp)
 {
     if (v.isInt32() && v.toInt32() >= 0) {
         *indexp = v.toInt32();
         return true;
     }
 
-    int32_t i;
+    int32 i;
     if (v.isDouble() && JSDOUBLE_IS_INT32(v.toDouble(), &i) && i >= 0) {
-        *indexp = uint32_t(i);
+        *indexp = uint32(i);
         return true;
     }
 
@@ -641,7 +641,7 @@ IsDefinitelyIndex(const Value &v, uint32_t *indexp)
 
 /* ES5 9.4 ToInteger. */
 static inline bool
-ToInteger(JSContext *cx, const js::Value &v, double *dp)
+ToInteger(JSContext *cx, const js::Value &v, jsdouble *dp)
 {
     if (v.isInt32()) {
         *dp = v.toInt32();

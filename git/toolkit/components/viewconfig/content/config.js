@@ -54,7 +54,7 @@ const nsAtomService_CONTRACTID = "@mozilla.org/atom-service;1";
 
 const gPromptService = Components.classes[nsPrompt_CONTRACTID].getService(nsIPromptService);
 const gPrefService = Components.classes[nsPrefService_CONTRACTID].getService(nsIPrefService);
-const gPrefBranch = gPrefService.getBranch(null);
+const gPrefBranch = gPrefService.getBranch(null).QueryInterface(Components.interfaces.nsIPrefBranch2);
 const gClipboardHelper = Components.classes[nsClipboardHelper_CONTRACTID].getService(nsIClipboardHelper);
 const gAtomService = Components.classes[nsAtomService_CONTRACTID].getService(nsIAtomService);
 
@@ -462,8 +462,7 @@ function FilterPrefs()
     gFilter = null;
   }
 
-  var prefCol = (view.selection && view.selection.currentIndex < 0) ?
-                null : gPrefView[view.selection.currentIndex].prefCol;
+  var prefCol = view.selection.currentIndex < 0 ? null : gPrefView[view.selection.currentIndex].prefCol;
   var oldlen = gPrefView.length;
   gPrefView = gPrefArray;
   if (gFilter) {

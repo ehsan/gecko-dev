@@ -72,8 +72,8 @@ class nsMediaList;
 namespace mozilla {
 namespace css {
 
-class MediaRule MOZ_FINAL : public GroupRule,
-                            public nsIDOMCSSMediaRule
+class MediaRule : public GroupRule,
+                  public nsIDOMCSSMediaRule
 {
 public:
   MediaRule();
@@ -111,15 +111,12 @@ public:
   // @media rule methods
   nsresult SetMedia(nsMediaList* aMedia);
   
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 protected:
   nsRefPtr<nsMediaList> mMedia;
 };
 
-class DocumentRule MOZ_FINAL : public GroupRule,
-                               public nsIDOMCSSMozDocumentRule
+class DocumentRule : public GroupRule,
+                     public nsIDOMCSSMozDocumentRule
 {
 public:
   DocumentRule();
@@ -177,9 +174,6 @@ public:
 
   void SetURLs(URL *aURLs) { mURLs = aURLs; }
 
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 protected:
   nsAutoPtr<URL> mURLs; // linked list of |struct URL| above.
 };
@@ -200,9 +194,14 @@ public:
 
 protected:
   friend class nsCSSFontFaceRule;
-#define CSS_FONT_DESC(name_, method_) nsCSSValue m##method_;
-#include "nsCSSFontDescList.h"
-#undef CSS_FONT_DESC
+  nsCSSValue mFamily;
+  nsCSSValue mStyle;
+  nsCSSValue mWeight;
+  nsCSSValue mStretch;
+  nsCSSValue mSrc;
+  nsCSSValue mUnicodeRange;
+  nsCSSValue mFontFeatureSettings;
+  nsCSSValue mFontLanguageOverride;
 
   static nsCSSValue nsCSSFontFaceStyleDecl::* const Fields[];  
   inline nsCSSFontFaceRule* ContainingRule();
@@ -246,8 +245,6 @@ public:
 
   void SetDesc(nsCSSFontDesc aDescID, nsCSSValue const & aValue);
   void GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue);
-
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 protected:
   friend class nsCSSFontFaceStyleDecl;
@@ -309,8 +306,6 @@ public:
   NS_IMETHOD GetEncoding(nsAString& aEncoding);
   NS_IMETHOD SetEncoding(const nsAString& aEncoding);
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
   nsString  mEncoding;
 };
@@ -320,7 +315,7 @@ private:
 
 class nsCSSKeyframeRule;
 
-class nsCSSKeyframeStyleDeclaration MOZ_FINAL : public nsDOMCSSDeclaration
+class nsCSSKeyframeStyleDeclaration : public nsDOMCSSDeclaration
 {
 public:
   nsCSSKeyframeStyleDeclaration(nsCSSKeyframeRule *aRule);
@@ -388,8 +383,6 @@ public:
 
   void ChangeDeclaration(mozilla::css::Declaration* aDeclaration);
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
   nsAutoTArray<float, 1>                     mKeys;
   nsAutoPtr<mozilla::css::Declaration>       mDeclaration;
@@ -397,8 +390,8 @@ private:
   nsRefPtr<nsCSSKeyframeStyleDeclaration>    mDOMDeclaration;
 };
 
-class nsCSSKeyframesRule MOZ_FINAL : public mozilla::css::GroupRule,
-                                     public nsIDOMMozCSSKeyframesRule
+class nsCSSKeyframesRule : public mozilla::css::GroupRule,
+                           public nsIDOMMozCSSKeyframesRule
 {
 public:
   nsCSSKeyframesRule(const nsSubstring& aName)
@@ -435,8 +428,6 @@ public:
                                     nsMediaQueryResultCacheKey& aKey);
 
   const nsString& GetName() { return mName; }
-
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   PRUint32 FindRuleIndexForKey(const nsAString& aKey);

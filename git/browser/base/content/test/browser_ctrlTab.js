@@ -74,7 +74,7 @@ function test() {
     let focusedWindow = document.commandDispatcher.focusedWindow;
     let eventConsumed = true;
     let detectKeyEvent = function (event) {
-      eventConsumed = event.defaultPrevented;
+      eventConsumed = event.getPreventDefault();
     };
     document.addEventListener("keypress", detectKeyEvent, false);
     pressCtrlTab();

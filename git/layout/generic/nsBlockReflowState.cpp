@@ -62,7 +62,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::layout;
 
 nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
                                        nsPresContext* aPresContext,
@@ -147,6 +146,22 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mCurrentLine = aFrame->end_lines();
 
   mMinLineHeight = aReflowState.CalcLineHeight();
+}
+
+nsLineBox*
+nsBlockReflowState::NewLineBox(nsIFrame* aFrame,
+                               PRInt32 aCount,
+                               bool aIsBlock)
+{
+  return NS_NewLineBox(mPresContext->PresShell(), aFrame, aCount, aIsBlock);
+}
+
+void
+nsBlockReflowState::FreeLineBox(nsLineBox* aLine)
+{
+  if (aLine) {
+    aLine->Destroy(mPresContext->PresShell());
+  }
 }
 
 void
@@ -582,7 +597,6 @@ FloatMarginWidth(const nsHTMLReflowState& aCBReflowState,
                  nsIFrame *aFloat,
                  const nsCSSOffsetState& aFloatOffsetState)
 {
-  AutoMaybeNullInflationContainer an(aFloat);
   return aFloat->ComputeSize(
     aCBReflowState.rendContext,
     nsSize(aCBReflowState.ComputedWidth(),

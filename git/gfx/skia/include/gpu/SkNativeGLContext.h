@@ -12,10 +12,6 @@
 
 #if defined(SK_BUILD_FOR_MAC)
     #include <AGL/agl.h>
-
-#elif defined(SK_BUILD_FOR_ANDROID)
-    #include <GLES2/gl2.h>
-    #include <EGL/egl.h>
 #elif defined(SK_BUILD_FOR_UNIX)
     #include <X11/Xlib.h>
     #include <GL/glx.h>
@@ -47,10 +43,6 @@ public:
     #elif defined(SK_BUILD_FOR_WIN32)
         HDC fOldHDC;
         HGLRC fOldHGLRC;
-    #elif defined(SK_BUILD_FOR_ANDROID)
-        EGLContext fOldEGLContext;
-        EGLDisplay fOldDisplay;
-        EGLSurface fOldSurface;
     #endif
     };
 
@@ -71,10 +63,6 @@ private:
     HDC fDeviceContext;
     HGLRC fGlRenderContext;
     static ATOM gWC;
-#elif defined(SK_BUILD_FOR_ANDROID)
-    EGLContext fContext;
-    EGLDisplay fDisplay;
-    EGLSurface fSurface;
 #endif
 };
 

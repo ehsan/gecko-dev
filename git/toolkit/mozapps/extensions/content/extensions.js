@@ -52,10 +52,23 @@ Cu.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
+const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
+const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
+const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
 const PREF_GETADDONS_CACHE_ID_ENABLED = "extensions.%ID%.getAddons.cache.enabled";
 const PREF_UI_TYPE_HIDDEN = "extensions.ui.%TYPE%.hidden";
 const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
+
+const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
+
+#ifdef MOZ_COMPATIBILITY_NIGHTLY
+const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
+                                 ".nightly";
+#else
+const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE + "." +
+                                 Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+#endif
 
 const LOADING_MSG_DELAY = 100;
 
@@ -329,10 +342,12 @@ var gEventManager = {
         self.delegateInstallEvent(aEvent, Array.splice(arguments, 0));
       };
     });
-
-    AddonManager.addManagerListener(this);
     AddonManager.addInstallListener(this);
     AddonManager.addAddonListener(this);
+
+    Services.prefs.addObserver(PREF_CHECK_COMPATIBILITY, this, false);
+    Services.prefs.addObserver(PREF_CHECK_UPDATE_SECURITY, this, false);
+    Services.prefs.addObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
     this.refreshGlobalWarning();
     this.refreshAutoUpdateDefault();
@@ -358,7 +373,10 @@ var gEventManager = {
   },
 
   shutdown: function() {
-    AddonManager.removeManagerListener(this);
+    Services.prefs.removeObserver(PREF_CHECK_COMPATIBILITY, this);
+    Services.prefs.removeObserver(PREF_CHECK_UPDATE_SECURITY, this);
+    Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
+
     AddonManager.removeInstallListener(this);
     AddonManager.removeAddonListener(this);
   },
@@ -440,43 +458,53 @@ var gEventManager = {
       return;
     } 
 
-    if (AddonManager.checkUpdateSecurityDefault &&
-        !AddonManager.checkUpdateSecurity) {
+    var checkUpdateSecurity = true;
+    var checkUpdateSecurityDefault = true;
+    try {
+      checkUpdateSecurity = Services.prefs.getBoolPref(PREF_CHECK_UPDATE_SECURITY);
+    } catch(e) { }
+    try {
+      var defaultBranch = Services.prefs.getDefaultBranch("");
+      checkUpdateSecurityDefault = defaultBranch.getBoolPref(PREF_CHECK_UPDATE_SECURITY);
+    } catch(e) { }
+    if (checkUpdateSecurityDefault && !checkUpdateSecurity) {
       page.setAttribute("warning", "updatesecurity");
       return;
     }
 
-    if (!AddonManager.checkCompatibility) {
+    var checkCompatibility = true;
+    try {
+      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
+    } catch(e) { }
+    if (!checkCompatibility) {
       page.setAttribute("warning", "checkcompatibility");
       return;
     }
-
+    
     page.removeAttribute("warning");
   },
-
+  
   refreshAutoUpdateDefault: function() {
-    var updateEnabled = AddonManager.updateEnabled;
-    var autoUpdateDefault = AddonManager.autoUpdateDefault;
-
-    // The checkbox needs to reflect that both prefs need to be true
-    // for updates to be checked for and applied automatically
-    document.getElementById("utils-autoUpdateDefault")
-            .setAttribute("checked", updateEnabled && autoUpdateDefault);
-
-    document.getElementById("utils-resetAddonUpdatesToAutomatic").hidden = !autoUpdateDefault;
-    document.getElementById("utils-resetAddonUpdatesToManual").hidden = autoUpdateDefault;
+    var defaultEnable = true;
+    try {
+      defaultEnable = Services.prefs.getBoolPref(PREF_AUTOUPDATE_DEFAULT);
+    } catch(e) { }
+    document.getElementById("utils-autoUpdateDefault").setAttribute("checked",
+                                                                    defaultEnable);
+    document.getElementById("utils-resetAddonUpdatesToAutomatic").hidden = !defaultEnable;
+    document.getElementById("utils-resetAddonUpdatesToManual").hidden = defaultEnable;
   },
-
-  onCompatibilityModeChanged: function() {
-    this.refreshGlobalWarning();
-  },
-
-  onCheckUpdateSecurityChanged: function() {
-    this.refreshGlobalWarning();
-  },
-
-  onUpdateModeChanged: function() {
-    this.refreshAutoUpdateDefault();
+  
+  observe: function(aSubject, aTopic, aData) {
+    switch (aData) {
+    case PREF_CHECK_COMPATIBILITY:
+    case PREF_CHECK_UPDATE_SECURITY:
+      this.refreshGlobalWarning();
+      break;
+    case PREF_AUTOUPDATE_DEFAULT:
+      this.refreshAutoUpdateDefault();
+      break;
+    }
   }
 };
 
@@ -704,14 +732,14 @@ var gViewController = {
     cmd_enableCheckCompatibility: {
       isEnabled: function() true,
       doCommand: function() {
-        AddonManager.checkCompatibility = true;
+        Services.prefs.clearUserPref(PREF_CHECK_COMPATIBILITY);
       }
     },
 
     cmd_enableUpdateSecurity: {
       isEnabled: function() true,
       doCommand: function() {
-        AddonManager.checkUpdateSecurity = true;
+        Services.prefs.clearUserPref(PREF_CHECK_UPDATE_SECURITY);
       }
     },
 
@@ -725,17 +753,11 @@ var gViewController = {
     cmd_toggleAutoUpdateDefault: {
       isEnabled: function() true,
       doCommand: function() {
-        if (!AddonManager.updateEnabled || !AddonManager.autoUpdateDefault) {
-          // One or both of the prefs is false, i.e. the checkbox is not checked.
-          // Now toggle both to true. If the user wants us to auto-update
-          // add-ons, we also need to auto-check for updates.
-          AddonManager.updateEnabled = true;
-          AddonManager.autoUpdateDefault = true;
-        } else {
-          // Both prefs are true, i.e. the checkbox is checked.
-          // Toggle the auto pref to false, but don't touch the enabled check.
-          AddonManager.autoUpdateDefault = false;
-        }
+        var oldValue = true;
+        try {
+          oldValue = Services.prefs.getBoolPref(PREF_AUTOUPDATE_DEFAULT);
+        } catch(e) { }
+        Services.prefs.setBoolPref(PREF_AUTOUPDATE_DEFAULT, !oldValue);
       }
     },
 
@@ -778,10 +800,9 @@ var gViewController = {
       isEnabled: function(aAddon) {
         return !!aAddon && (gViewController.currentViewObj != gDetailView);
       },
-      doCommand: function(aAddon, aScrollToPreferences) {
+      doCommand: function(aAddon) {
         gViewController.loadView("addons://detail/" +
-                                 encodeURIComponent(aAddon.id) +
-                                 (aScrollToPreferences ? "/preferences" : ""));
+                                 encodeURIComponent(aAddon.id));
       }
     },
 
@@ -919,8 +940,9 @@ var gViewController = {
         return true;
       },
       doCommand: function(aAddon) {
-        if (aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-          gViewController.commands.cmd_showItemDetails.doCommand(aAddon, true);
+        if (gViewController.currentViewObj == gListView &&
+            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
+          gViewController.commands.cmd_showItemDetails.doCommand(aAddon);
           return;
         }
         var optionsURL = aAddon.optionsURL;
@@ -1703,16 +1725,6 @@ var gHeader = {
     updateNavButtonVisibility();
   },
 
-  focusSearchBox: function() {
-    this._search.focus();
-  },
-
-  onKeyPress: function(aEvent) {
-    if (String.fromCharCode(aEvent.charCode) == "/") {
-      this.focusSearchBox();
-    }
-  },
-
   get shouldShowNavButtons() {
     var docshellItem = window.QueryInterface(Ci.nsIInterfaceRequestor)
                              .getInterface(Ci.nsIWebNavigation)
@@ -1778,15 +1790,9 @@ var gDiscoverView = {
     this._error = document.getElementById("discover-error");
     this._browser = document.getElementById("discover-browser");
 
-    let compatMode = "normal";
-    if (!AddonManager.checkCompatibility)
-      compatMode = "ignore";
-    else if (AddonManager.strictCompatibility)
-      compatMode = "strict";
-
-    var url = Services.prefs.getCharPref(PREF_DISCOVERURL);
-    url = url.replace("%COMPATIBILITY_MODE%", compatMode);
-    url = Services.urlFormatter.formatURL(url);
+    var url = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
+                .getService(Ci.nsIURLFormatter)
+                .formatURLPref(PREF_DISCOVERURL);
 
     var self = this;
 
@@ -1800,7 +1806,8 @@ var gDiscoverView = {
       }
 
       self._browser.homePage = self.homepageURL.spec;
-      self._browser.addProgressListener(self);
+      self._browser.addProgressListener(self, Ci.nsIWebProgress.NOTIFY_ALL |
+                                              Ci.nsIWebProgress.NOTIFY_STATE_ALL);
 
       if (self.loaded)
         self._loadURL(self.homepageURL.spec, false, notifyInitialized);
@@ -1835,15 +1842,6 @@ var gDiscoverView = {
 
       setURL(url + "#" + JSON.stringify(list));
     });
-  },
-
-  destroy: function() {
-    try {
-      this._browser.removeProgressListener(this);
-    }
-    catch (e) {
-      // Ignore the case when the listener wasn't already registered
-    }
   },
 
   show: function(aParam, aRequest, aState, aIsRefresh) {
@@ -1964,13 +1962,6 @@ var gDiscoverView = {
   },
 
   onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus) {
-    let transferStart = Ci.nsIWebProgressListener.STATE_IS_DOCUMENT |
-                        Ci.nsIWebProgressListener.STATE_IS_REQUEST |
-                        Ci.nsIWebProgressListener.STATE_TRANSFERRING;
-    // Once transferring begins show the content
-    if (aStateFlags & transferStart)
-      this.node.selectedPanel = this._browser;
-
     // Only care about the network events
     if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_IS_NETWORK)))
       return;
@@ -1990,8 +1981,7 @@ var gDiscoverView = {
     // If there was an error loading the page or the new hostname is not the
     // same as the default hostname or the default scheme is secure and the new
     // scheme is insecure then show the error page
-    const NS_ERROR_PARSED_DATA_CACHED = 0x805D0021;
-    if (!(Components.isSuccessCode(aStatus) || aStatus == NS_ERROR_PARSED_DATA_CACHED) ||
+    if (!Components.isSuccessCode(aStatus) ||
         (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded)) {
       this.showError();
     } else {
@@ -2503,6 +2493,7 @@ var gDetailView = {
   node: null,
   _addon: null,
   _loadingTimer: null,
+  _updatePrefs: null,
   _autoUpdate: null,
 
   initialize: function() {
@@ -2514,18 +2505,24 @@ var gDetailView = {
     this._autoUpdate.addEventListener("command", function() {
       self._addon.applyBackgroundUpdates = self._autoUpdate.value;
     }, true);
+    
+    this._updatePrefs = Services.prefs.getBranch("extensions.update.");
+    this._updatePrefs.QueryInterface(Ci.nsIPrefBranch2);
   },
   
   shutdown: function() {
-    AddonManager.removeManagerListener(this);
+    this._updatePrefs.removeObserver("", this);
+    delete this._updatePrefs;
   },
 
-  onUpdateModeChanged: function() {
-    this.onPropertyChanged(["applyBackgroundUpdates"]);
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic == "nsPref:changed" && aData == "autoUpdateDefault") {
+      this.onPropertyChanged(["applyBackgroundUpdates"]);
+    }
   },
 
-  _updateView: function(aAddon, aIsRemote, aScrollToPreferences) {
-    AddonManager.addManagerListener(this);
+  _updateView: function(aAddon, aIsRemote) {
+    this._updatePrefs.addObserver("", this, false);
     this.clearLoading();
 
     this._addon = aAddon;
@@ -2697,7 +2694,7 @@ var gDetailView = {
       }
     }
 
-    this.fillSettingsRows(aScrollToPreferences);
+    this.fillSettingsRows();
 
     this.updateState();
 
@@ -2706,13 +2703,6 @@ var gDetailView = {
   },
 
   show: function(aAddonId, aRequest) {
-    let index = aAddonId.indexOf("/preferences");
-    let scrollToPreferences = false;
-    if (index >= 0) {
-      aAddonId = aAddonId.substring(0, index);
-      scrollToPreferences = true;
-    }
-
     var self = this;
     this._loadingTimer = setTimeout(function() {
       self.node.setAttribute("loading-extended", true);
@@ -2725,7 +2715,7 @@ var gDetailView = {
         return;
 
       if (aAddon) {
-        self._updateView(aAddon, false, scrollToPreferences);
+        self._updateView(aAddon, false);
         return;
       }
 
@@ -2753,22 +2743,12 @@ var gDetailView = {
   },
 
   hide: function() {
-    AddonManager.removeManagerListener(this);
+    this._updatePrefs.removeObserver("", this);
     this.clearLoading();
     if (this._addon) {
-      if (this._addon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-        Services.obs.notifyObservers(document,
-                                     "addon-options-hidden",
-                                     this._addon.id);
-      }
-
       gEventManager.unregisterAddonListener(this, this._addon.id);
       gEventManager.unregisterInstallListener(this);
       this._addon = null;
-
-      // Flush the preferences to disk so they survive any crash
-      if (this.node.getElementsByTagName("setting").length)
-        Services.prefs.savePrefFile(null);
     }
   },
 
@@ -2854,7 +2834,7 @@ var gDetailView = {
       rows.removeChild(rows.lastChild);
   },
 
-  fillSettingsRows: function (aScrollToPreferences) {
+  fillSettingsRows: function () {
     this.emptySettingsRows();
     if (this._addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE)
       return;
@@ -2879,18 +2859,21 @@ var gDetailView = {
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", this._addon.optionsURL, false);
+    xhr.responseType = "document";
     xhr.send();
 
     var xml = xhr.responseXML;
     var settings = xml.querySelectorAll(":root > setting");
 
-    var firstSetting = null;
-    for (var i = 0; i < settings.length; i++) {
+    for (var i = 0, first = true; i < settings.length; i++) {
       var setting = settings[i];
 
+      // Remove setting description, for replacement later
       var desc = stripTextNodes(setting).trim();
-      if (!setting.hasAttribute("desc"))
-        setting.setAttribute("desc", desc);
+      if (setting.hasAttribute("desc")) {
+        desc = setting.getAttribute("desc").trim();
+        setting.removeAttribute("desc");
+      }
 
       var type = setting.getAttribute("type");
       if (type == "file" || type == "directory")
@@ -2898,46 +2881,26 @@ var gDetailView = {
 
       rows.appendChild(setting);
       var visible = window.getComputedStyle(setting, null).getPropertyValue("display") != "none";
-      if (!firstSetting && visible) {
+      if (first && visible) {
         setting.setAttribute("first-row", true);
-        firstSetting = setting;
+        first = false;
+      }
+
+      // Add a new row containing the description
+      if (desc) {
+        var row = document.createElement("row");
+        if (!visible) {
+          row.setAttribute("unsupported", "true");
+        }
+        var label = document.createElement("label");
+        label.className = "preferences-description";
+        label.textContent = desc;
+        row.appendChild(label);
+        rows.appendChild(row);
       }
     }
 
-    // Ensure the page has loaded and force the XBL bindings to be synchronously applied,
-    // then notify observers.
-    if (gViewController.viewPort.selectedPanel.hasAttribute("loading")) {
-      gDetailView.node.addEventListener("ViewChanged", function viewChangedEventListener() {
-        gDetailView.node.removeEventListener("ViewChanged", viewChangedEventListener, false);
-        if (firstSetting)
-          firstSetting.clientTop;
-        Services.obs.notifyObservers(document, "addon-options-displayed", gDetailView._addon.id);
-        if (aScrollToPreferences)
-          gDetailView.scrollToPreferencesRows();
-      }, false);
-    } else {
-      if (firstSetting)
-        firstSetting.clientTop;
-      Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
-      if (aScrollToPreferences)
-        gDetailView.scrollToPreferencesRows();
-    }
-  },
-
-  scrollToPreferencesRows: function() {
-    // We find this row, rather than remembering it from above,
-    // in case it has been changed by the observers.
-    let firstRow = gDetailView.node.querySelector('setting[first-row="true"]');
-    if (firstRow) {
-      let top = firstRow.boxObject.y;
-      top -= parseInt(window.getComputedStyle(firstRow, null).getPropertyValue("margin-top"));
-      
-      let detailViewBoxObject = gDetailView.node.boxObject;
-      top -= detailViewBoxObject.y;
-
-      detailViewBoxObject.QueryInterface(Ci.nsIScrollBoxObject);
-      detailViewBoxObject.scrollTo(0, top);
-    }
+    Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
   },
 
   getSelectedAddon: function() {
@@ -2953,14 +2916,8 @@ var gDetailView = {
     this.fillSettingsRows();
   },
 
-  onDisabling: function(aNeedsRestart) {
+  onDisabling: function() {
     this.updateState();
-    if (!aNeedsRestart &&
-        this._addon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-      Services.obs.notifyObservers(document,
-                                   "addon-options-hidden",
-                                   this._addon.id);
-    }
   },
 
   onDisabled: function() {
@@ -2986,9 +2943,6 @@ var gDetailView = {
       let hideFindUpdates = AddonManager.shouldAutoUpdate(this._addon);
       document.getElementById("detail-findUpdates-btn").hidden = hideFindUpdates;
     }
-
-    if (aProperties.indexOf("appDisabled") != -1)
-      this.updateState();
   },
 
   onExternalInstall: function(aAddon, aExistingAddon, aNeedsRestart) {
@@ -3280,8 +3234,8 @@ var gDragDrop = {
       if (pos == urls.length) {
         if (installs.length > 0) {
           // Display the normal install confirmation for the installs
-          AddonManager.installAddonsFromWebpage("application/x-xpinstall",
-                                                window, null, installs);
+          AddonManager.installAddonsFromWebpage("application/x-xpinstall", this,
+                                                null, installs);
         }
         return;
       }

@@ -38,13 +38,13 @@
 #ifndef nsProgressFrame_h___
 #define nsProgressFrame_h___
 
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsCOMPtr.h"
 
 class nsBaseContentList;
 
-class nsProgressFrame : public nsContainerFrame,
+class nsProgressFrame : public nsHTMLContainerFrame,
                         public nsIAnonymousContentCreator
 {
 public:
@@ -56,10 +56,6 @@ public:
   virtual ~nsProgressFrame();
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
-
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD Reflow(nsPresContext*           aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -93,7 +89,7 @@ public:
 
   virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsContainerFrame::IsFrameOfType(aFlags &
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 

@@ -155,10 +155,6 @@ struct GLContextSymbols
     PFNGLTEXPARAMETERFPROC fTexParameterf;
     typedef GLubyte* (GLAPIENTRY * PFNGLGETSTRINGPROC) (GLenum);
     PFNGLGETSTRINGPROC fGetString;
-    typedef void (GLAPIENTRY * PFNGLGETTEXIMAGEPROC) (GLenum target, GLint level, GLenum format, GLenum type, GLvoid* image);
-    PFNGLGETTEXIMAGEPROC fGetTexImage;
-    typedef void (GLAPIENTRY * PFNGLGETTEXLEVELPARAMETERIVPROC) (GLenum target, GLint level, GLenum pname, GLint *params);
-    PFNGLGETTEXLEVELPARAMETERIVPROC fGetTexLevelParameteriv;
     typedef void (GLAPIENTRY * PFNGLGETTEXPARAMETERFVPROC) (GLenum target, GLenum pname, const GLfloat *params);
     PFNGLGETTEXPARAMETERFVPROC fGetTexParameterfv;
     typedef void (GLAPIENTRY * PFNGLGETTEXPARAMETERIVPROC) (GLenum target, GLenum pname, const GLint *params);
@@ -285,8 +281,6 @@ struct GLContextSymbols
     PFNGLGETSHADERIVPROC fGetShaderiv;
     typedef void (GLAPIENTRY * PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
     PFNGLGETSHADERINFOLOGPROC fGetShaderInfoLog;
-    typedef void (GLAPIENTRY * PFNGETSHADERPRECISIONFORMAT) (GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision);
-    PFNGETSHADERPRECISIONFORMAT fGetShaderPrecisionFormat;
     typedef void (GLAPIENTRY * PFNGLGETSHADERSOURCEPROC) (GLint obj, GLsizei maxLength, GLsizei* length, GLchar* source);
     PFNGLGETSHADERSOURCEPROC fGetShaderSource;
     typedef void (GLAPIENTRY * PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar** strings, const GLint* lengths);

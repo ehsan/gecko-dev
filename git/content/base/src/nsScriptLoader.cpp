@@ -41,9 +41,9 @@
  * A class that handles loading and evaluation of <script> elements.
  */
 
-#include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
 #include "nsScriptLoader.h"
+#include "nsParserUtils.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIContent.h"
@@ -74,17 +74,13 @@
 #include "nsChannelPolicy.h"
 #include "nsCRT.h"
 #include "nsContentCreatorFunctions.h"
-#include "nsGenericElement.h"
-#include "nsCrossSiteListenerProxy.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/CORSMode.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gCspPRLog;
 #endif
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //////////////////////////////////////////////////////////////
@@ -94,14 +90,11 @@ using namespace mozilla::dom;
 class nsScriptLoadRequest : public nsISupports {
 public:
   nsScriptLoadRequest(nsIScriptElement* aElement,
-                      PRUint32 aVersion,
-                      CORSMode aCORSMode)
+                      PRUint32 aVersion)
     : mElement(aElement),
       mLoading(true),
       mIsInline(true),
-      mJSVersion(aVersion),
-      mLineNo(1),
-      mCORSMode(aCORSMode)
+      mJSVersion(aVersion), mLineNo(1)
   {
   }
 
@@ -127,9 +120,8 @@ public:
   nsString mScriptText;              // Holds script for loaded scripts
   PRUint32 mJSVersion;
   nsCOMPtr<nsIURI> mURI;
-  nsCOMPtr<nsIPrincipal> mOriginPrincipal;
+  nsCOMPtr<nsIURI> mFinalURI;
   PRInt32 mLineNo;
-  const CORSMode mCORSMode;
 };
 
 // The nsScriptLoadRequest is passed as the context to necko, and thus
@@ -301,6 +293,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
   }
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
+  nsCOMPtr<nsIStreamLoader> loader;
 
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
   if (!window) {
@@ -339,21 +332,10 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
     httpChannel->SetReferrer(mDocument->GetDocumentURI());
   }
 
-  nsCOMPtr<nsIStreamLoader> loader;
   rv = NS_NewStreamLoader(getter_AddRefs(loader), this);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIStreamListener> listener = loader.get();
-
-  if (aRequest->mCORSMode != CORS_NONE) {
-    bool withCredentials = (aRequest->mCORSMode == CORS_USE_CREDENTIALS);
-    listener =
-      new nsCORSListenerProxy(listener, mDocument->NodePrincipal(), channel,
-                              withCredentials, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  rv = channel->AsyncOpen(listener, aRequest);
+  rv = channel->AsyncOpen(loader, aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -516,7 +498,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
           // We re-use our knowledge of the implementation to reuse
           // JSVERSION_HAS_XML as a safe version flag.
           // If version has JSVERSION_UNKNOWN (-1), then this is still OK.
-          version = js::VersionSetXML(JSVersion(version), true);
+          version |= js::VersionFlags::HAS_XML;
       }
     }
   } else {
@@ -526,14 +508,14 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     if (scriptContent->IsHTML()) {
       scriptContent->GetAttr(kNameSpaceID_None, nsGkAtoms::language, language);
       if (!language.IsEmpty()) {
-        if (nsContentUtils::IsJavaScriptLanguage(language, &version))
+        if (nsParserUtils::IsJavaScriptLanguage(language, &version))
           typeID = nsIProgrammingLanguage::JAVASCRIPT;
         else
           typeID = nsIProgrammingLanguage::UNKNOWN;
         // IE, Opera, etc. do not respect language version, so neither should
         // we at this late date in the browser wars saga.  Note that this change
         // affects HTML but not XUL or SVG (but note also that XUL has its own
-        // code to check nsContentUtils::IsJavaScriptLanguage -- that's probably
+        // code to check nsParserUtils::IsJavaScriptLanguage -- that's probably
         // a separate bug, one we may not be able to fix short of XUL2).  See
         // bug 255895 (https://bugzilla.mozilla.org/show_bug.cgi?id=255895).
         NS_ASSERTION(JSVERSION_DEFAULT == 0,
@@ -569,7 +551,6 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     if (!scriptURI) {
       return false;
     }
-    CORSMode ourCORSMode = aElement->GetCORSMode();
     nsTArray<PreloadInfo>::index_type i =
       mPreloads.IndexOf(scriptURI.get(), 0, PreloadURIComparator());
     if (i != nsTArray<PreloadInfo>::NoIndex) {
@@ -584,8 +565,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       // the charset we have now.
       nsAutoString elementCharset;
       aElement->GetScriptCharset(elementCharset);
-      if (elementCharset.Equals(preloadCharset) &&
-          ourCORSMode == request->mCORSMode) {
+      if (elementCharset.Equals(preloadCharset)) {
         rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
         NS_ENSURE_SUCCESS(rv, false);
       } else {
@@ -596,7 +576,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 
     if (!request) {
       // no usable preload
-      request = new nsScriptLoadRequest(aElement, version, ourCORSMode);
+      request = new nsScriptLoadRequest(aElement, version);
       request->mURI = scriptURI;
       request->mIsInline = false;
       request->mLoading = true;
@@ -717,8 +697,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     }
   }
 
-  // Inline scripts ignore ther CORS mode and are always CORS_NONE
-  request = new nsScriptLoadRequest(aElement, version, CORS_NONE);
+  request = new nsScriptLoadRequest(aElement, version);
   request->mJSVersion = version;
   request->mLoading = false;
   request->mIsInline = true;
@@ -903,6 +882,8 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     return NS_ERROR_FAILURE;
   }
 
+  nsIURI* uri = aRequest->mFinalURI ? aRequest->mFinalURI : aRequest->mURI;
+
   bool oldProcessingScriptTag = context->GetProcessingScriptTag();
   context->SetProcessingScriptTag(true);
 
@@ -910,17 +891,14 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   nsCOMPtr<nsIScriptElement> oldCurrent = mCurrentScript;
   mCurrentScript = aRequest->mElement;
 
-  // It's very important to use aRequest->mURI, not the final URI of the channel
-  // aRequest ended up getting script data from, as the script filename.
   nsCAutoString url;
-  nsContentUtils::GetWrapperSafeScriptFilename(mDocument, aRequest->mURI, url);
+  nsContentUtils::GetWrapperSafeScriptFilename(mDocument, uri, url);
 
   bool isUndefined;
   rv = context->EvaluateString(aScript, globalObject->GetGlobalJSObject(),
-                               mDocument->NodePrincipal(),
-                               aRequest->mOriginPrincipal,
-                               url.get(), aRequest->mLineNo,
-                               aRequest->mJSVersion, nsnull, &isUndefined);
+                          mDocument->NodePrincipal(), url.get(),
+                          aRequest->mLineNo, aRequest->mJSVersion, nsnull,
+                          &isUndefined);
 
   // Put the old script back in case it wants to do anything else.
   mCurrentScript = oldCurrent;
@@ -962,9 +940,8 @@ nsScriptLoader::ProcessPendingRequests()
       !mParserBlockingRequest->mLoading &&
       ReadyToExecuteScripts()) {
     request.swap(mParserBlockingRequest);
-    UnblockParser(request);
+    // nsContentSink::ScriptAvailable unblocks the parser
     ProcessRequest(request);
-    ContinueParserAsync(request);
   }
 
   while (ReadyToExecuteScripts() && 
@@ -1080,7 +1057,7 @@ DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen, nsCString& oChars
 
 /* static */ nsresult
 nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const PRUint8* aData,
-                               PRUint32 aLength, const nsAString& aHintCharset,
+                               PRUint32 aLength, const nsString& aHintCharset,
                                nsIDocument* aDocument, nsString& aString)
 {
   if (!aLength) {
@@ -1190,9 +1167,8 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
       FireScriptAvailable(rv, request);
     } else if (mParserBlockingRequest == request) {
       mParserBlockingRequest = nsnull;
-      UnblockParser(request);
+      // nsContentSink::ScriptAvailable unblocks the parser
       FireScriptAvailable(rv, request);
-      ContinueParserAsync(request);
     } else {
       mPreloads.RemoveElement(request, PreloadRequestComparator());
     }
@@ -1202,18 +1178,6 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   ProcessPendingRequests();
 
   return NS_OK;
-}
-
-void
-nsScriptLoader::UnblockParser(nsScriptLoadRequest* aParserBlockingRequest)
-{
-  aParserBlockingRequest->mElement->UnblockParser();
-}
-
-void
-nsScriptLoader::ContinueParserAsync(nsScriptLoadRequest* aParserBlockingRequest)
-{
-  aParserBlockingRequest->mElement->ContinueParserAsync();
 }
 
 nsresult
@@ -1249,15 +1213,7 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
   }
 
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(req);
-  // If this load was subject to a CORS check; don't flag it with a
-  // separate origin principal, so that it will treat our document's
-  // principal as the origin principal
-  if (aRequest->mCORSMode == CORS_NONE) {
-    rv = nsContentUtils::GetSecurityManager()->
-      GetChannelPrincipal(channel, getter_AddRefs(aRequest->mOriginPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
+  NS_GetFinalChannelURI(channel, getter_AddRefs(aRequest->mFinalURI));
   if (aStringLen) {
     // Check the charset attribute to determine script charset.
     nsAutoString hintCharset;
@@ -1351,17 +1307,14 @@ nsScriptLoader::ParsingComplete(bool aTerminated)
 
 void
 nsScriptLoader::PreloadURI(nsIURI *aURI, const nsAString &aCharset,
-                           const nsAString &aType,
-                           const nsAString &aCrossOrigin)
+                           const nsAString &aType)
 {
   // Check to see if scripts has been turned off.
   if (!mEnabled || !mDocument->IsScriptEnabled()) {
     return;
   }
 
-  nsRefPtr<nsScriptLoadRequest> request =
-    new nsScriptLoadRequest(nsnull, 0,
-                            nsGenericElement::StringToCORSMode(aCrossOrigin));
+  nsRefPtr<nsScriptLoadRequest> request = new nsScriptLoadRequest(nsnull, 0);
   request->mURI = aURI;
   request->mIsInline = false;
   request->mLoading = true;

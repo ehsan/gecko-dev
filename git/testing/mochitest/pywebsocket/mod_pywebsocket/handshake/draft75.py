@@ -43,7 +43,7 @@ import re
 from mod_pywebsocket import common
 from mod_pywebsocket.stream import StreamHixie75
 from mod_pywebsocket import util
-from mod_pywebsocket.handshake._base import HandshakeException
+from mod_pywebsocket.handshake._base import HandshakeError
 from mod_pywebsocket.handshake._base import build_location
 from mod_pywebsocket.handshake._base import validate_subprotocol
 
@@ -131,7 +131,7 @@ class Handshaker(object):
     def _set_subprotocol(self):
         subprotocol = self._request.headers_in.get('WebSocket-Protocol')
         if subprotocol is not None:
-            validate_subprotocol(subprotocol, hixie=True)
+            validate_subprotocol(subprotocol)
         self._request.ws_protocol = subprotocol
 
     def _set_protocol_version(self):
@@ -157,10 +157,10 @@ class Handshaker(object):
         for key, expected_value in _MANDATORY_HEADERS:
             actual_value = self._request.headers_in.get(key)
             if not actual_value:
-                raise HandshakeException('Header %s is not defined' % key)
+                raise HandshakeError('Header %s is not defined' % key)
             if expected_value:
                 if actual_value != expected_value:
-                    raise HandshakeException(
+                    raise HandshakeError(
                         'Expected %r for header %s but found %r' %
                         (expected_value, key, actual_value))
         if self._strict:
@@ -174,17 +174,16 @@ class Handshaker(object):
 
     def _check_first_lines(self, lines):
         if len(lines) < len(_FIRST_FIVE_LINES):
-            raise HandshakeException('Too few header lines: %d' % len(lines))
+            raise HandshakeError('Too few header lines: %d' % len(lines))
         for line, regexp in zip(lines, _FIRST_FIVE_LINES):
             if not regexp.search(line):
-                raise HandshakeException(
-                    'Unexpected header: %r doesn\'t match %r'
-                    % (line, regexp.pattern))
+                raise HandshakeError('Unexpected header: %r doesn\'t match %r'
+                                     % (line, regexp.pattern))
         sixth_and_later = ''.join(lines[5:])
         if not _SIXTH_AND_LATER.search(sixth_and_later):
-            raise HandshakeException(
-                'Unexpected header: %r doesn\'t match %r'
-                % (sixth_and_later, _SIXTH_AND_LATER.pattern))
+            raise HandshakeError('Unexpected header: %r doesn\'t match %r'
+                                 % (sixth_and_later,
+                                    _SIXTH_AND_LATER.pattern))
 
 
 # vi:sts=4 sw=4 et

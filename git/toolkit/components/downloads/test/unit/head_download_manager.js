@@ -41,7 +41,6 @@ do_load_httpd_js();
 do_get_profile();
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 var downloadUtils = { };
 XPCOMUtils.defineLazyServiceGetter(downloadUtils,
@@ -189,7 +188,3 @@ XPCOMUtils.defineLazyGetter(this, "Services", function() {
 
 // Disable alert service notifications
 Services.prefs.setBoolPref("browser.download.manager.showAlertOnComplete", false);
-
-do_register_cleanup(function() {
-  Services.obs.notifyObservers(null, "quit-application", null);
-});

@@ -45,30 +45,21 @@ interface nsIIDBRequest;
 interface nsIIDBTransaction;
 interface nsIDOMDOMStringList;
 
-dictionary IDBIndexParameters
-{
-  boolean unique;
-  boolean multiEntry;
-};
-
 /**
  * nsIIDBObjectStore interface.  See
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-nsIIDBObjectStore
  * for more information.
  */
-[scriptable, builtinclass, uuid(43157a3c-bed1-4ce7-98c0-11365b852560)]
+[scriptable, builtinclass, uuid(adc6a1e2-9fd7-4d28-a7f9-9c653313124b)]
 interface nsIIDBObjectStore : nsISupports
 {
   readonly attribute DOMString name;
 
-  [implicit_jscontext]
-  readonly attribute jsval keyPath;
+  readonly attribute DOMString keyPath;
 
   readonly attribute nsIDOMDOMStringList indexNames;
 
   readonly attribute nsIIDBTransaction transaction;
-
-  readonly attribute boolean autoIncrement;
 
   // Success fires IDBTransactionEvent, result == value for key
   [implicit_jscontext]
@@ -104,17 +95,21 @@ interface nsIIDBObjectStore : nsISupports
 
   // Success fires IDBTransactionEvent, result == IDBCursor or result == null if
   // no match.
-  // direction can be "next", "nextunique", "prev" or "prevunique"
   [implicit_jscontext, optional_argc]
   nsIIDBRequest
   openCursor([optional /* null */] in jsval range,
-             [optional /* "next" */] in DOMString direction);
+             [optional /* NEXT */] in unsigned short direction);
 
+  /**
+   * Optional arguments:
+   *   - unique (boolean):
+   *       Specifies whether values in the index must be unique. Defaults to
+   *       false.
+   */
   [implicit_jscontext]
   nsIIDBIndex
   createIndex([Null(Stringify)] in DOMString name,
-              in jsval keyPath,
-              /* nsIIDBIndexParameters */
+              [Null(Stringify)] in DOMString keyPath,
               [optional /* none */] in jsval options);
 
   // Returns object immediately

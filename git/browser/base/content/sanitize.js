@@ -204,13 +204,24 @@ Sanitizer.prototype = {
     offlineApps: {
       clear: function ()
       {
-        Components.utils.import("resource:///modules/offlineAppCache.jsm");
-        OfflineAppCacheHelper.clear();
+        const Cc = Components.classes;
+        const Ci = Components.interfaces;
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].
+                           getService(Ci.nsICacheService);
+        try {
+          // Offline app data is "timeless", and doesn't respect
+          // the setting of timespan, it always clears everything
+          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
+        } catch(er) {}
+
+        var storageManagerService = Cc["@mozilla.org/dom/storagemanager;1"].
+                                    getService(Ci.nsIDOMStorageManager);
+        storageManagerService.clearOfflineApps();
       },
 
       get canClear()
       {
-        return true;
+          return true;
       }
     },
 
@@ -233,7 +244,7 @@ Sanitizer.prototype = {
         
         // Clear last URL of the Open Web Location dialog
         var prefs = Components.classes["@mozilla.org/preferences-service;1"]
-                              .getService(Components.interfaces.nsIPrefBranch);
+                              .getService(Components.interfaces.nsIPrefBranch2);
         try {
           prefs.clearUserPref("general.open_location.last_url");
         }

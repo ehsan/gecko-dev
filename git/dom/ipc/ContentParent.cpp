@@ -50,6 +50,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -217,14 +218,15 @@ ContentParent::Init()
         obs->AddObserver(this, "a11y-init-or-shutdown", false);
 #endif
     }
-    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    nsCOMPtr<nsIPrefBranch2> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) {
         prefs->AddObserver("", this, false);
     }
     nsCOMPtr<nsIThreadInternal>
             threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt) {
-        threadInt->AddObserver(this);
+        threadInt->GetObserver(getter_AddRefs(mOldObserver));
+        threadInt->SetObserver(this);
     }
     if (obs) {
         obs->NotifyObservers(static_cast<nsIObserver*>(this), "ipc:content-created", nsnull);
@@ -330,7 +332,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     SetChildMemoryReporters(empty);
 
     // remove the global remote preferences observers
-    nsCOMPtr<nsIPrefBranch> prefs 
+    nsCOMPtr<nsIPrefBranch2> prefs 
             (do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) { 
         prefs->RemoveObserver("", this);
@@ -342,7 +344,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt)
-        threadInt->RemoveObserver(this);
+        threadInt->SetObserver(mOldObserver);
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
 
@@ -1117,8 +1119,10 @@ ContentParent::RecvLoadURIExternal(const IPC::URI& uri)
 NS_IMETHODIMP
 ContentParent::OnDispatchedEvent(nsIThreadInternal *thread)
 {
-   NS_NOTREACHED("OnDispatchedEvent unimplemented");
-   return NS_ERROR_NOT_IMPLEMENTED;
+    if (mOldObserver)
+        return mOldObserver->OnDispatchedEvent(thread);
+
+    return NS_OK;
 }
 
 /* void onProcessNextEvent (in nsIThreadInternal thread, in boolean mayWait, in unsigned long recursionDepth); */
@@ -1129,6 +1133,9 @@ ContentParent::OnProcessNextEvent(nsIThreadInternal *thread,
 {
     if (mRunToCompletionDepth)
         ++mRunToCompletionDepth;
+
+    if (mOldObserver)
+        return mOldObserver->OnProcessNextEvent(thread, mayWait, recursionDepth);
 
     return NS_OK;
 }
@@ -1148,6 +1155,9 @@ ContentParent::AfterProcessNextEvent(nsIThreadInternal *thread,
                 UnblockChild();
             }
     }
+
+    if (mOldObserver)
+        return mOldObserver->AfterProcessNextEvent(thread, recursionDepth);
 
     return NS_OK;
 }
@@ -1288,12 +1298,6 @@ ContentParent::OnMotionChange(nsIDeviceMotionData *aDeviceData) {
     aDeviceData->GetZ(&z);
 
     unused << SendDeviceMotionChanged(type, x, y, z);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-ContentParent::NeedsCalibration() {
-    unused << SendNeedsCalibration();
     return NS_OK;
 }
 

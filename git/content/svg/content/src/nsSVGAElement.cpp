@@ -67,12 +67,11 @@ NS_IMPL_RELEASE_INHERITED(nsSVGAElement, nsSVGAElementBase)
 DOMCI_NODE_DATA(SVGAElement, nsSVGAElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
-  NS_NODE_INTERFACE_TABLE8(nsSVGAElement,
+  NS_NODE_INTERFACE_TABLE7(nsSVGAElement,
                            nsIDOMNode,
                            nsIDOMElement,
                            nsIDOMSVGElement,
                            nsIDOMSVGAElement,
-                           nsIDOMSVGTests,
                            nsIDOMSVGURIReference,
                            nsILink,
                            Link)
@@ -197,7 +196,7 @@ nsSVGAElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
 
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGAElementBase::IsAttributeMapped(name);
 }
 

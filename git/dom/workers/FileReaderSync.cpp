@@ -43,9 +43,10 @@
 
 #include "jsapi.h"
 #include "jsatom.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
 #include "jstypedarray.h"
 #include "nsJSUtils.h"
+#include "xpcprivate.h"
 
 #include "Exceptions.h"
 #include "File.h"
@@ -69,7 +70,7 @@ EnsureSucceededOrThrow(JSContext* aCx, nsresult rv)
     return true;
   }
 
-  int code = rv == NS_ERROR_FILE_NOT_FOUND ?
+  intN code = rv == NS_ERROR_FILE_NOT_FOUND ?
               FILE_NOT_FOUND_ERR :
               FILE_NOT_READABLE_ERR;
   ThrowFileExceptionForCode(aCx, code);
@@ -78,17 +79,19 @@ EnsureSucceededOrThrow(JSContext* aCx, nsresult rv)
 
 inline nsIDOMBlob*
 GetDOMBlobFromJSObject(JSContext* aCx, JSObject* aObj) {
-  // aObj can be null as JS_ConvertArguments("o") successfully converts JS
-  // null to a null pointer to JSObject 
+  JSClass* classPtr = NULL;
+
   if (aObj) {
-    nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aObj);
+    nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aCx, aObj);
     if (blob) {
       return blob;
     }
+
+    classPtr = JS_GET_CLASS(aCx, aObj);
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
-                       aObj ? JS_GetClass(aObj)->name : "Object", "not a Blob.");
+                       classPtr ? classPtr->name : "Object", "not a Blob.");
   return NULL;
 }
 
@@ -110,13 +113,13 @@ public:
   }
 
   static FileReaderSyncPrivate*
-  GetPrivate(JSObject* aObj)
+  GetPrivate(JSContext* aCx, JSObject* aObj)
   {
     if (aObj) {
-      JSClass* classPtr = JS_GetClass(aObj);
+      JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
       if (classPtr == &sClass) {
         FileReaderSyncPrivate* fileReader =
-          GetJSPrivateSafeish<FileReaderSyncPrivate>(aObj);
+          GetJSPrivateSafeish<FileReaderSyncPrivate>(aCx, aObj);
         return fileReader;
       }
     }
@@ -127,19 +130,25 @@ private:
   static FileReaderSyncPrivate*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    FileReaderSyncPrivate* fileReader = GetPrivate(aObj);
-    if (fileReader) {
-      return fileReader;
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      FileReaderSyncPrivate* fileReader = GetPrivate(aCx, aObj);
+      if (fileReader) {
+        return fileReader;
+      }
+
+      classPtr = JS_GET_CLASS(aCx, aObj);
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         JS_GetClass(aObj)->name);
+                         classPtr ? classPtr->name : "Object");
     return NULL;
   }
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
     if (!obj) {
@@ -149,7 +158,10 @@ private:
     FileReaderSyncPrivate* fileReader = new FileReaderSyncPrivate();
     NS_ADDREF(fileReader);
 
-    SetJSPrivateSafeish(obj, fileReader);
+    if (!SetJSPrivateSafeish(aCx, obj, fileReader)) {
+      NS_RELEASE(fileReader);
+      return false;
+    }
 
     JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
     return true;
@@ -158,19 +170,16 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     FileReaderSyncPrivate* fileReader =
-      GetJSPrivateSafeish<FileReaderSyncPrivate>(aObj);
+      GetJSPrivateSafeish<FileReaderSyncPrivate>(aCx, aObj);
     NS_IF_RELEASE(fileReader);
   }
 
   static JSBool
-  ReadAsArrayBuffer(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ReadAsArrayBuffer(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     FileReaderSyncPrivate* fileReader =
       GetInstancePrivate(aCx, obj, "readAsArrayBuffer");
@@ -199,8 +208,8 @@ private:
       return false;
     }
 
-    uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
-    uint8_t* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer);
+    JSUint32 bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
+    uint8* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer);
 
     rv = fileReader->ReadAsArrayBuffer(blob, bufferLength, arrayBuffer);
     if (!EnsureSucceededOrThrow(aCx, rv)) {
@@ -212,12 +221,9 @@ private:
   }
 
   static JSBool
-  ReadAsDataURL(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ReadAsDataURL(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     FileReaderSyncPrivate* fileReader =
       GetInstancePrivate(aCx, obj, "readAsDataURL");
@@ -252,12 +258,9 @@ private:
   }
 
   static JSBool
-  ReadAsBinaryString(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ReadAsBinaryString(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     FileReaderSyncPrivate* fileReader =
       GetInstancePrivate(aCx, obj, "readAsBinaryString");
@@ -292,12 +295,9 @@ private:
   }
 
   static JSBool
-  ReadAsText(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ReadAsText(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     FileReaderSyncPrivate* fileReader =
       GetInstancePrivate(aCx, obj, "readAsText");

@@ -40,25 +40,21 @@
 
 #include "nsTextAccessible.h"
 
-#include "Role.h"
-
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsTextAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
 nsTextAccessible::
-  nsTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsLinkableAccessible(aContent, aDoc)
+  nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsLinkableAccessible(aContent, aShell)
 {
   mFlags |= eTextLeafAccessible;
 }
 
-role
+PRUint32
 nsTextAccessible::NativeRole()
 {
-  return roles::TEXT_LEAF;
+  return nsIAccessibleRole::ROLE_TEXT_LEAF;
 }
 
 void

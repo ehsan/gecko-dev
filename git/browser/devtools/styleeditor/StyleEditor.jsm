@@ -59,23 +59,6 @@ const UPDATE_STYLESHEET_THROTTLE_DELAY = 500;
 // @see StyleEditor._persistExpando
 const STYLESHEET_EXPANDO = "-moz-styleeditor-stylesheet-";
 
-const TRANSITIONS_PREF = "devtools.styleeditor.transitions";
-
-const TRANSITION_CLASS = "moz-styleeditor-transitioning";
-const TRANSITION_DURATION_MS = 500;
-const TRANSITION_RULE = "\
-:root.moz-styleeditor-transitioning, :root.moz-styleeditor-transitioning * {\
--moz-transition-duration: " + TRANSITION_DURATION_MS + "ms !important; \
--moz-transition-delay: 0ms !important;\
--moz-transition-timing-function: ease-out !important;\
--moz-transition-property: all !important;\
-}";
-
-/**
- * Style Editor module-global preferences
- */
-const TRANSITIONS_ENABLED = Services.prefs.getBoolPref(TRANSITIONS_PREF);
-
 
 /**
  * StyleEditor constructor.
@@ -111,7 +94,6 @@ function StyleEditor(aDocument, aStyleSheet)
 
   this._styleSheet = aStyleSheet;
   this._styleSheetIndex = -1; // unknown for now, will be set after load
-  this._styleSheetFilePath = null; // original file path for the style sheet
 
   this._loaded = false;
 
@@ -125,9 +107,6 @@ function StyleEditor(aDocument, aStyleSheet)
 
   // this is to perform pending updates before editor closing
   this._onWindowUnloadBinding = this._onWindowUnload.bind(this);
-
-  this._transitionRefCount = 0;
-
   this._focusOnSourceEditorReady = false;
 }
 
@@ -146,7 +125,7 @@ StyleEditor.prototype = {
    */
   get styleSheet()
   {
-    assert(this._styleSheet, "StyleSheet must be loaded first.");
+    assert(this._styleSheet, "StyleSheet must be loaded first.")
     return this._styleSheet;
   },
 
@@ -222,7 +201,7 @@ StyleEditor.prototype = {
 
     let sourceEditor = new SourceEditor();
     let config = {
-      initialText: this._state.text,
+      placeholderText: this._state.text, //! this is initialText (bug 680371)
       showLineNumbers: true,
       mode: SourceEditor.MODES.CSS,
       readOnly: this._state.readOnly,
@@ -230,8 +209,6 @@ StyleEditor.prototype = {
     };
 
     sourceEditor.init(aElement, config, function onSourceEditorReady() {
-      setupBracketCompletion(sourceEditor);
-
       sourceEditor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
                                     function onTextChanged(aEvent) {
         this.updateStyleSheet();
@@ -359,6 +336,7 @@ StyleEditor.prototype = {
   load: function SE_load()
   {
     if (!this._styleSheet) {
+      this._flags.push(StyleEditorFlags.NEW);
       this._appendNewStyleSheet();
     }
     this._loadSource();
@@ -427,13 +405,8 @@ StyleEditor.prototype = {
    *                           Arguments: (StyleEditor editor)
    *                           @see inputElement
    *
-   *   onUpdate:               Called when changes are being applied to the live
-   *                           DOM style sheet but might not be complete from
-   *                           a WYSIWYG perspective (eg. transitioned update).
-   *                           Arguments: (StyleEditor editor)
-   *
-   *   onCommit:               Called when changes have been completely committed
-   *                           /applied to the live DOM style sheet.
+   *   onCommit:               Called when changes have been committed/applied
+   *                           to the live DOM style sheet.
    *                           Arguments: (StyleEditor editor)
    * }
    *
@@ -572,7 +545,6 @@ StyleEditor.prototype = {
    * @param mixed aFile
    *        Optional nsIFile or string representing the filename to save in the
    *        background, no UI will be displayed.
-   *        If not specified, the original style sheet URI is used.
    *        To implement 'Save' instead of 'Save as', you can pass savedFile here.
    * @param function(nsIFile aFile) aCallback
    *        Optional callback called when the operation has finished.
@@ -582,8 +554,7 @@ StyleEditor.prototype = {
    */
   saveToFile: function SE_saveToFile(aFile, aCallback)
   {
-    aFile = this._showFilePicker(aFile || this._styleSheetFilePath, true);
-
+    aFile = this._showFilePicker(aFile, true);
     if (!aFile) {
       if (aCallback) {
         aCallback(null);
@@ -669,49 +640,14 @@ StyleEditor.prototype = {
     let source = this._state.text;
     let oldNode = this.styleSheet.ownerNode;
     let oldIndex = this.styleSheetIndex;
-    let content = this.contentDocument;
-    let newNode = content.createElement("style");
+
+    let newNode = this.contentDocument.createElement("style");
     newNode.setAttribute("type", "text/css");
-    newNode.appendChild(content.createTextNode(source));
+    newNode.appendChild(this.contentDocument.createTextNode(source));
     oldNode.parentNode.replaceChild(newNode, oldNode);
 
-    this._styleSheet = content.styleSheets[oldIndex];
+    this._styleSheet = this.contentDocument.styleSheets[oldIndex];
     this._persistExpando();
-
-    if (!TRANSITIONS_ENABLED) {
-      this._triggerAction("Update");
-      this._triggerAction("Commit");
-      return;
-    }
-
-    // Insert the global transition rule
-    // Use a ref count to make sure we do not add it multiple times.. and remove
-    // it only when all pending StyleEditor-generated transitions ended.
-    if (!this._transitionRefCount) {
-      this._styleSheet.insertRule(TRANSITION_RULE, 0);
-      content.documentElement.classList.add(TRANSITION_CLASS);
-    }
-
-    this._transitionRefCount++;
-
-    // Set up clean up and commit after transition duration (+10% buffer)
-    // @see _onTransitionEnd
-    content.defaultView.setTimeout(this._onTransitionEnd.bind(this),
-                                   Math.floor(TRANSITION_DURATION_MS * 1.1));
-
-    this._triggerAction("Update");
-  },
-
-  /**
-    * This cleans up class and rule added for transition effect and then trigger
-    * Commit as the changes have been completed.
-    */
-  _onTransitionEnd: function SE__onTransitionEnd()
-  {
-    if (--this._transitionRefCount == 0) {
-      this.contentDocument.documentElement.classList.remove(TRANSITION_CLASS);
-      this.styleSheet.deleteRule(0);
-    }
 
     this._triggerAction("Commit");
   },
@@ -732,14 +668,6 @@ StyleEditor.prototype = {
   _showFilePicker: function SE__showFilePicker(aFile, aSave, aParentWindow)
   {
     if (typeof(aFile) == "string") {
-      try {
-        if (Services.io.extractScheme(aFile) == "file") {
-          let uri = Services.io.newURI(aFile, null, null);
-          let file = uri.QueryInterface(Ci.nsIFileURL).file;
-          return file;
-        }
-      } catch (ex) {
-      }
       try {
         let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
         file.initWithPath(aFile);
@@ -783,7 +711,6 @@ StyleEditor.prototype = {
     let scheme = Services.io.extractScheme(this.styleSheet.href);
     switch (scheme) {
       case "file":
-        this._styleSheetFilePath = this.styleSheet.href;
       case "chrome":
       case "resource":
         this._loadSourceFromFile(this.styleSheet.href);
@@ -824,28 +751,70 @@ StyleEditor.prototype = {
    */
   _loadSourceFromCache: function SE__loadSourceFromCache(aHref)
   {
-    let channel = Services.io.newChannel(aHref, null, null);
+    try {
+      let cacheService = Cc["@mozilla.org/network/cache-service;1"]
+                           .getService(Ci.nsICacheService);
+      let session = cacheService.createSession("HTTP", Ci.nsICache.STORE_ANYWHERE, true);
+      session.doomEntriesIfExpired = false;
+      session.asyncOpenCacheEntry(aHref, Ci.nsICache.ACCESS_READ, {
+        onCacheEntryAvailable: this._onCacheEntryAvailable.bind(this)
+      });
+    } catch (ex) {
+      this._signalError(LOAD_ERROR);
+    }
+  },
+
+   /**
+    * The nsICacheListener.onCacheEntryAvailable method implementation used when
+    * the style sheet source is loaded from the browser cache.
+    *
+    * @param nsICacheEntryDescriptor aEntry
+    * @param nsCacheAccessMode aMode
+    * @param integer aStatus
+    */
+  _onCacheEntryAvailable: function SE__onCacheEntryAvailable(aEntry, aMode, aStatus)
+  {
+    if (!Components.isSuccessCode(aStatus)) {
+      return this._signalError(LOAD_ERROR);
+    }
+
+    let stream = aEntry.openInputStream(0);
     let chunks = [];
     let streamListener = { // nsIStreamListener inherits nsIRequestObserver
       onStartRequest: function (aRequest, aContext, aStatusCode) {
-        if (!Components.isSuccessCode(aStatusCode)) {
-          return this._signalError(LOAD_ERROR);
-        }
-      }.bind(this),
+      },
       onDataAvailable: function (aRequest, aContext, aStream, aOffset, aCount) {
         chunks.push(NetUtil.readInputStreamToString(aStream, aCount));
       },
       onStopRequest: function (aRequest, aContext, aStatusCode) {
-        if (!Components.isSuccessCode(aStatusCode)) {
-          return this._signalError(LOAD_ERROR);
-        }
-
         this._onSourceLoad(chunks.join(""));
-      }.bind(this)
+      }.bind(this),
     };
 
-    channel.loadFlags = channel.LOAD_FROM_CACHE;
-    channel.asyncOpen(streamListener, null);
+    let head = aEntry.getMetaDataElement("response-head");
+    if (/^Content-Encoding:\s*gzip/mi.test(head)) {
+      let converter = Cc["@mozilla.org/streamconv;1?from=gzip&to=uncompressed"]
+                        .createInstance(Ci.nsIStreamConverter);
+      converter.asyncConvertData("gzip", "uncompressed", streamListener, null);
+      streamListener = converter; // proxy original listener via converter
+    }
+
+    try {
+      streamListener.onStartRequest(null, null);
+      while (stream.available()) {
+        streamListener.onDataAvailable(null, null, stream, 0, stream.available());
+      }
+      streamListener.onStopRequest(null, null, 0);
+    } catch (ex) {
+      this._signalError(LOAD_ERROR);
+    } finally {
+      try {
+        stream.close();
+      } catch (ex) {
+        // swallow (some stream implementations can auto-close at eos)
+      }
+      aEntry.close();
+    }
   },
 
   /**
@@ -879,12 +848,9 @@ StyleEditor.prototype = {
     parent.appendChild(style);
 
     this._styleSheet = document.styleSheets[document.styleSheets.length - 1];
+    this._flags.push(aText ? StyleEditorFlags.IMPORTED : StyleEditorFlags.NEW);
     if (aText) {
       this._onSourceLoad(aText);
-      this._flags.push(StyleEditorFlags.IMPORTED);
-    } else {
-      this._flags.push(StyleEditorFlags.NEW);
-      this._flags.push(StyleEditorFlags.UNSAVED);
     }
   },
 
@@ -921,11 +887,9 @@ StyleEditor.prototype = {
       aArgs.unshift(this);
     }
 
-    // copy the list of listeners to allow adding/removing listeners in handlers
-    let listeners = this._actionListeners.concat();
     // trigger all listeners that have this action handler
-    for (let i = 0; i < listeners.length; ++i) {
-      let listener = listeners[i];
+    for (let i = 0; i < this._actionListeners.length; ++i) {
+      let listener = this._actionListeners[i];
       let actionHandler = listener["on" + aName];
       if (actionHandler) {
         actionHandler.apply(listener, aArgs);
@@ -1052,6 +1016,25 @@ StyleEditor.prototype = {
       }.bind(this)
     });
 
+    bindings.push({
+      action: "undo",
+      code: _("undo.commandkey"),
+      accel: true,
+      callback: function undo() {
+        this._sourceEditor.undo();
+      }.bind(this)
+    });
+
+    bindings.push({
+      action: "redo",
+      code: _("redo.commandkey"),
+      accel: true,
+      shift: true,
+      callback: function redo() {
+        this._sourceEditor.redo();
+      }.bind(this)
+    });
+
     return bindings;
   }
 };
@@ -1149,49 +1132,4 @@ function prettifyCSS(aText)
 function repeat(aText, aCount)
 {
   return (new Array(aCount + 1)).join(aText);
-}
-
-/**
- * Set up bracket completion on a given SourceEditor.
- * This automatically closes the following CSS brackets: "{", "(", "["
- *
- * @param SourceEditor aSourceEditor
- */
-function setupBracketCompletion(aSourceEditor)
-{
-  let editorElement = aSourceEditor.editorElement;
-  let pairs = {
-    123: { // {
-      closeString: "}",
-      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_CLOSE_BRACKET
-    },
-    40: { // (
-      closeString: ")",
-      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_0
-    },
-    91: { // [
-      closeString: "]",
-      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_CLOSE_BRACKET
-    },
-  };
-
-  editorElement.addEventListener("keypress", function onKeyPress(aEvent) {
-    let pair = pairs[aEvent.charCode];
-    if (!pair) {
-      return true;
-    }
-
-    // We detected an open bracket, sending closing character
-    let keyCode = pair.closeKeyCode;
-    let charCode = pair.closeString.charCodeAt(0);
-    let modifiers = 0;
-    let utils = editorElement.ownerDocument.defaultView.
-                  QueryInterface(Ci.nsIInterfaceRequestor).
-                  getInterface(Ci.nsIDOMWindowUtils);
-    let handled = utils.sendKeyEvent("keydown", keyCode, 0, modifiers);
-    utils.sendKeyEvent("keypress", 0, charCode, modifiers, !handled);
-    utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
-    // and rewind caret
-    aSourceEditor.setCaretOffset(aSourceEditor.getCaretOffset() - 1);
-  }, false);
 }

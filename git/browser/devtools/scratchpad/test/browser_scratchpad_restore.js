@@ -48,7 +48,11 @@ function testRestore()
 
   asyncMap(states, function(state, done) {
     // Open some scratchpad windows
-    openScratchpad(done, {state: state, noFocus: true});
+    let win = ScratchpadManager.openScratchpad(state);
+    win.addEventListener("load", function onScratchpadLoad() {
+      removeEventListener("load", onScratchpadLoad, false);
+      done(win);
+    }, false)
   }, function(wins) {
     // Then save the windows to session store
     ScratchpadManager.saveOpenWindows();
@@ -70,11 +74,12 @@ function testRestore()
     is(restoredWins.length, 3, "Three scratchad windows restored");
 
     asyncMap(restoredWins, function(restoredWin, done) {
-      openScratchpad(function(aWin) {
-        let state = aWin.Scratchpad.getState();
-        aWin.close();
+      restoredWin.addEventListener("load", function onScratchpadLoad() {
+        restoredWin.removeEventListener("load", onScratchpadLoad, false);
+        let state = restoredWin.Scratchpad.getState();
+        restoredWin.close();
         done(state);
-      }, {window: restoredWin, noFocus: true});
+      }, false);
     }, function(restoredStates) {
       // Then make sure they were restored with the right states
       ok(statesMatch(restoredStates, states),

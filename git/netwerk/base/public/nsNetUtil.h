@@ -48,9 +48,8 @@
 #include "nsMemory.h"
 #include "nsCOMPtr.h"
 #include "prio.h" // for read/write flags, permissions, etc.
-#include "nsHashKeys.h"
 
-#include "plstr.h"
+#include "nsCRT.h"
 #include "nsIURI.h"
 #include "nsIStandardURL.h"
 #include "nsIURLParser.h"
@@ -107,9 +106,10 @@
 #include "nsIChannelPolicy.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
-#include "nsIRedirectChannelRegistrar.h"
 #include "nsIMIMEHeaderParam.h"
 #include "mozilla/Services.h"
+
+#include "nsIRedirectChannelRegistrar.h"
 
 #ifdef MOZILLA_INTERNAL_API
 
@@ -232,7 +232,7 @@ NS_NewChannel(nsIChannel           **result,
             if (loadFlags != nsIRequest::LOAD_NORMAL)
                 rv |= chan->SetLoadFlags(loadFlags);
             if (channelPolicy) {
-                nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan);
+                nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan, &rv);
                 if (props) {
                     props->SetPropertyAsInterface(NS_CHANNEL_PROP_CHANNEL_POLICY,
                                                   channelPolicy);
@@ -1618,7 +1618,7 @@ NS_SecurityHashURI(nsIURI* aURI)
     nsCAutoString scheme;
     PRUint32 schemeHash = 0;
     if (NS_SUCCEEDED(baseURI->GetScheme(scheme)))
-        schemeHash = mozilla::HashString(scheme);
+        schemeHash = nsCRT::HashCode(scheme.get());
 
     // TODO figure out how to hash file:// URIs
     if (scheme.EqualsLiteral("file"))
@@ -1631,16 +1631,17 @@ NS_SecurityHashURI(nsIURI* aURI)
         nsCAutoString spec;
         PRUint32 specHash = baseURI->GetSpec(spec);
         if (NS_SUCCEEDED(specHash))
-            specHash = mozilla::HashString(spec);
+            specHash = nsCRT::HashCode(spec.get());
         return specHash;
     }
 
     nsCAutoString host;
     PRUint32 hostHash = 0;
     if (NS_SUCCEEDED(baseURI->GetAsciiHost(host)))
-        hostHash = mozilla::HashString(host);
+        hostHash = nsCRT::HashCode(host.get());
 
-    return mozilla::AddToHash(schemeHash, hostHash, NS_GetRealPort(baseURI));
+    // XOR to combine hash values
+    return schemeHash ^ hostHash ^ NS_GetRealPort(baseURI);
 }
 
 inline bool
@@ -2027,33 +2028,6 @@ NS_IsAboutBlank(nsIURI *uri)
     nsCAutoString str;
     uri->GetSpec(str);
     return str.EqualsLiteral("about:blank");
-}
-
-
-inline nsresult
-NS_GenerateHostPort(const nsCString& host, PRInt32 port,
-                    nsCString& hostLine)
-{
-    if (strchr(host.get(), ':')) {
-        // host is an IPv6 address literal and must be encapsulated in []'s
-        hostLine.Assign('[');
-        // scope id is not needed for Host header.
-        int scopeIdPos = host.FindChar('%');
-        if (scopeIdPos == -1)
-            hostLine.Append(host);
-        else if (scopeIdPos > 0)
-            hostLine.Append(Substring(host, 0, scopeIdPos));
-        else
-          return NS_ERROR_MALFORMED_URI;
-        hostLine.Append(']');
-    }
-    else
-        hostLine.Assign(host);
-    if (port != -1) {
-        hostLine.Append(':');
-        hostLine.AppendInt(port);
-    }
-    return NS_OK;
 }
 
 #endif // !nsNetUtil_h__

@@ -41,12 +41,11 @@
 
 #include "nsContainerFrame.h"
 #include "nsISVGChildFrame.h"
-#include "nsSVGUtils.h"
 #include "nsRegion.h"
 #include "nsIPresShell.h"
-#include "mozilla/Attributes.h"
+#include "gfxRect.h"
+#include "gfxMatrix.h"
 
-class nsRenderingContext;
 class nsSVGOuterSVGFrame;
 
 typedef nsContainerFrame nsSVGForeignObjectFrameBase;
@@ -72,8 +71,6 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
-
   virtual nsIFrame* GetContentInsertionFrame() {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
@@ -94,8 +91,7 @@ public:
   /**
    * Foreign objects can return a transform matrix.
    */
-  virtual gfx3DMatrix GetTransformMatrix(nsIFrame* aAncestor,
-                                         nsIFrame **aOutAncestor);
+  virtual gfx3DMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Get the "type" of the frame
@@ -122,21 +118,19 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
   virtual void NotifySVGChanged(PRUint32 aFlags);
-  virtual void NotifyRedrawSuspended();
-  virtual void NotifyRedrawUnsuspended();
+  NS_IMETHOD NotifyRedrawSuspended();
+  NS_IMETHOD NotifyRedrawUnsuspended();
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return true; }
-  NS_IMETHOD_(bool) HasValidCoveredRect() {
-    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  NS_IMETHOD_(bool) HasValidCoveredRect() { return true; }
 
   gfxMatrix GetCanvasTM();
 
@@ -166,8 +160,6 @@ protected:
 
   // Areas dirtied by changes to sub-documents embedded by our decendents
   nsRegion mSubDocDirtyRegion;
-
-  nsRect mCoveredRegion;
 
   bool mInReflow;
 };

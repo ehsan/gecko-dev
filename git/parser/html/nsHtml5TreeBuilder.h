@@ -53,7 +53,6 @@
 #include "nsHtml5StreamParser.h"
 #include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Highlighter.h"
-#include "nsHtml5ViewSourceUtils.h"
 
 class nsHtml5StreamParser;
 
@@ -218,7 +217,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 
   private:
     bool isInForeign();
-    bool isInForeignButNotHtmlOrMathTextIntegrationPoint();
+    bool isInForeignButNotHtmlIntegrationPoint();
   public:
     void setFragmentContext(nsIAtom* context, PRInt32 ns, nsIContent** node, bool quirks);
   protected:

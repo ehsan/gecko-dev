@@ -47,7 +47,11 @@
  */
 typedef double gfxFloat;
 
-# define THEBES_API
+#if defined(IMPL_THEBES)
+# define THEBES_API NS_EXPORT
+#else
+# define THEBES_API NS_IMPORT
+#endif
 
 /**
  * gfx errors
@@ -84,5 +88,28 @@ enum gfxBreakPriority {
     eWordWrapBreak,
     eNormalBreak
 };
+
+#define THEBES_INLINE_DECL_THREADSAFE_REFCOUNTING(_class)                     \
+public:                                                                       \
+    nsrefcnt AddRef(void) {                                                   \
+        NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");             \
+        nsrefcnt count = NS_AtomicIncrementRefcnt(mRefCnt);                   \
+        NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                   \
+        return count;                                                         \
+    }                                                                         \
+    nsrefcnt Release(void) {                                                  \
+        NS_PRECONDITION(0 != mRefCnt, "dup release");                         \
+        nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);                   \
+        NS_LOG_RELEASE(this, count, #_class);                                 \
+        if (count == 0) {                                                     \
+            mRefCnt = 1; /* stabilize */                                      \
+            delete this;                                                      \
+            return 0;                                                         \
+        }                                                                     \
+        return count;                                                         \
+    }                                                                         \
+protected:                                                                    \
+    nsAutoRefCnt mRefCnt;                                                     \
+public:
 
 #endif /* GFX_TYPES_H */

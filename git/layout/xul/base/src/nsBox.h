@@ -62,7 +62,7 @@ public:
 
   virtual nsSize GetMinSizeForScrollArea(nsBoxLayoutState& aBoxLayoutState);
 
-  virtual bool IsCollapsed();
+  virtual bool IsCollapsed(nsBoxLayoutState& aBoxLayoutState);
 
   virtual void SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
                          bool aRemoveOverflowAreas = false);

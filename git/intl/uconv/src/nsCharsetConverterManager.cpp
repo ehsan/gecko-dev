@@ -40,7 +40,7 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsIServiceManager.h"
 #include "nsICategoryManager.h"
 #include "nsICharsetConverterManager.h"
@@ -201,8 +201,7 @@ nsCharsetConverterManager::GetUnicodeDecoderInternal(const char * aSrc,
   nsCAutoString charset;
   
   // fully qualify to possibly avoid vtable call
-  nsresult rv = nsCharsetConverterManager::GetCharsetAlias(aSrc, charset);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCharsetConverterManager::GetCharsetAlias(aSrc, charset);
 
   return nsCharsetConverterManager::GetUnicodeDecoderRawInternal(charset.get(),
                                                                  aResult);
@@ -238,6 +237,7 @@ nsCharsetConverterManager::GetList(const nsACString& aCategory,
   *aResult = NULL;
 
   nsresult rv;
+  nsCAutoString alias;
 
   nsCOMPtr<nsICategoryManager> catman = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
   if (NS_FAILED(rv))
@@ -261,13 +261,18 @@ nsCharsetConverterManager::GetList(const nsACString& aCategory,
     if (!supStr)
       continue;
 
+    nsCAutoString fullName(aPrefix);
+    
     nsCAutoString name;
     if (NS_FAILED(supStr->GetData(name)))
       continue;
 
-    nsCAutoString fullName(aPrefix);
-    fullName.Append(name);
-    NS_ENSURE_TRUE(array->AppendElement(fullName), NS_ERROR_OUT_OF_MEMORY);
+    fullName += name;
+    rv = GetCharsetAlias(fullName.get(), alias);
+    if (NS_FAILED(rv)) 
+      continue;
+
+    rv = array->AppendElement(alias) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
   }
     
   return NS_NewAdoptingUTF8StringEnumerator(aResult, array);
@@ -303,15 +308,24 @@ NS_IMETHODIMP
 nsCharsetConverterManager::GetCharsetAlias(const char * aCharset, 
                                            nsACString& aResult)
 {
-  NS_ENSURE_ARG_POINTER(aCharset);
+  NS_PRECONDITION(aCharset, "null param");
+  if (!aCharset)
+    return NS_ERROR_NULL_POINTER;
 
   // We try to obtain the preferred name for this charset from the charset 
-  // aliases.
-  nsresult rv;
+  // aliases. If we don't get it from there, we just use the original string
+  nsDependentCString charset(aCharset);
+  nsCOMPtr<nsICharsetAlias> csAlias(do_GetService(NS_CHARSETALIAS_CONTRACTID));
+  NS_ASSERTION(csAlias, "failed to get the CharsetAlias service");
+  if (csAlias) {
+    nsAutoString pref;
+    nsresult rv = csAlias->GetPreferred(charset, aResult);
+    if (NS_SUCCEEDED(rv)) {
+      return (!aResult.IsEmpty()) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    }
+  }
 
-  rv = nsCharsetAlias::GetPreferred(nsDependentCString(aCharset), aResult);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  aResult = charset;
   return NS_OK;
 }
 
@@ -320,11 +334,12 @@ NS_IMETHODIMP
 nsCharsetConverterManager::GetCharsetTitle(const char * aCharset, 
                                            nsAString& aResult)
 {
-  NS_ENSURE_ARG_POINTER(aCharset);
+  if (aCharset == NULL) return NS_ERROR_NULL_POINTER;
 
   if (mTitleBundle == NULL) {
     nsresult rv = LoadExtensibleBundle(NS_TITLE_BUNDLE_CATEGORY, &mTitleBundle);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv))
+      return rv;
   }
 
   return GetBundleValue(mTitleBundle, aCharset, NS_LITERAL_STRING(".title"), aResult);
@@ -356,7 +371,8 @@ nsCharsetConverterManager::GetCharsetLangGroup(const char * aCharset,
   nsCAutoString charset;
 
   nsresult rv = GetCharsetAlias(aCharset, charset);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   // fully qualify to possibly avoid vtable call
   return nsCharsetConverterManager::GetCharsetLangGroupRaw(charset.get(),

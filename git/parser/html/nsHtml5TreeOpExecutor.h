@@ -56,9 +56,8 @@
 #include "nsCOMArray.h"
 #include "nsAHtml5TreeOpSink.h"
 #include "nsHtml5TreeOpStage.h"
+#include "nsHashSets.h"
 #include "nsIURI.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 
 class nsHtml5Parser;
 class nsHtml5TreeBuilder;
@@ -109,7 +108,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     /**
      * URLs already preloaded/preloading.
      */
-    nsTHashtable<nsCStringHashKey> mPreloadedURLs;
+    nsCStringHashSet mPreloadedURLs;
 
     nsCOMPtr<nsIURI> mSpeculationBaseURI;
 
@@ -140,7 +139,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
   public:
   
-    nsHtml5TreeOpExecutor(bool aRunsToCompletion = false);
+    nsHtml5TreeOpExecutor();
     virtual ~nsHtml5TreeOpExecutor();
   
     // nsIContentSink
@@ -180,7 +179,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     /**
      * Sets the parser.
      */
-    NS_IMETHOD SetParser(nsParserBase* aParser);
+    NS_IMETHOD SetParser(nsIParser* aParser);
 
     /**
      * No-op for backwards compat.
@@ -203,6 +202,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     // nsContentSink methods
     virtual void UpdateChildCounts();
     virtual nsresult FlushTags();
+    virtual void PostEvaluateScript(nsIScriptElement *aElement);
     virtual void ContinueInterruptedParsingAsync();
  
     /**
@@ -249,6 +249,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
      * a document--only when parsing to an actual DOM fragment
      */
     void EnableFragmentMode(bool aPreventScriptExecution) {
+      mFragmentMode = true;
       mPreventScriptExecution = aPreventScriptExecution;
     }
     
@@ -256,8 +257,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mPreventScriptExecution = true;
     }
 
-    bool BelongsToStringParser() {
-      return mRunsToCompletion;
+    bool IsFragmentMode() {
+      return mFragmentMode;
     }
 
     /**
@@ -425,8 +426,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void PreloadScript(const nsAString& aURL,
                        const nsAString& aCharset,
-                       const nsAString& aType,
-                       const nsAString& aCrossOrigin);
+                       const nsAString& aType);
 
     void PreloadStyle(const nsAString& aURL, const nsAString& aCharset);
 
@@ -436,6 +436,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
   private:
     nsHtml5Parser* GetParser();
+
+    nsHtml5Tokenizer* GetTokenizer();
 
     /**
      * Get a nsIURI for an nsString if the URL hasn't been preloaded yet.

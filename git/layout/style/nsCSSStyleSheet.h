@@ -99,8 +99,6 @@ private:
   // Create a new namespace map
   nsresult CreateNamespaceMap();
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
   nsAutoTArray<nsCSSStyleSheet*, 8> mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
   nsCOMPtr<nsIURI>       mOriginalSheetURI;  // for GetHref.  Can be null.
@@ -136,9 +134,9 @@ struct ChildSheetListBuilder;
  { 0x84, 0x67, 0x80, 0x3f, 0xb3, 0x2a, 0xf2, 0x0a } }
 
 
-class nsCSSStyleSheet MOZ_FINAL : public nsIStyleSheet,
-                                  public nsIDOMCSSStyleSheet,
-                                  public nsICSSLoaderObserver
+class nsCSSStyleSheet : public nsIStyleSheet,
+                        public nsIDOMCSSStyleSheet,
+                        public nsICSSLoaderObserver
 {
 public:
   nsCSSStyleSheet();
@@ -268,8 +266,6 @@ public:
   // list after we clone a unique inner for ourselves.
   static bool RebuildChildList(mozilla::css::Rule* aRule, void* aBuilder);
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
                   nsCSSStyleSheet* aParentToUse,
@@ -290,7 +286,7 @@ protected:
 
   // Return success if the subject principal subsumes the principal of our
   // inner, error otherwise.  This will also succeed if the subject has
-  // UniversalXPConnect.
+  // UniversalBrowserWrite.
   nsresult SubjectSubsumesInnerPrincipal() const;
 
   // Add the namespace mapping from this @namespace rule to our namespace map

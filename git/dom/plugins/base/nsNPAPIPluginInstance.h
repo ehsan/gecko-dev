@@ -49,12 +49,16 @@
 #include "nsIChannel.h"
 #include "nsInterfaceHashtable.h"
 #include "nsHashKeys.h"
-#ifdef MOZ_WIDGET_ANDROID
-#include "nsIRunnable.h"
-#endif
+
+#include "gfxASurface.h"
+#include "gfxImageSurface.h"
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/PluginLibrary.h"
+
+#ifdef ANDROID
+#include "mozilla/Mutex.h"
+#endif
 
 struct JSObject;
 
@@ -63,18 +67,6 @@ class nsNPAPIPluginStreamListener; // plugin-initiated stream class
 class nsIPluginInstanceOwner;
 class nsIPluginStreamListener;
 class nsIOutputStream;
-
-#if defined(OS_WIN)
-const NPDrawingModel kDefaultDrawingModel = NPDrawingModelSyncWin;
-#elif defined(MOZ_X11)
-const NPDrawingModel kDefaultDrawingModel = NPDrawingModelSyncX;
-#else
-#ifndef NP_NO_QUICKDRAW
-const NPDrawingModel kDefaultDrawingModel = NPDrawingModelQuickDraw;
-#else
-const NPDrawingModel kDefaultDrawingModel = NPDrawingModelCoreGraphics;
-#endif
-#endif
 
 class nsNPAPITimer
 {
@@ -98,6 +90,7 @@ public:
   nsresult Start();
   nsresult Stop();
   nsresult SetWindow(NPWindow* window);
+  nsresult NewStreamToPlugin(nsIPluginStreamListener** listener);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
 #ifdef MOZ_WIDGET_ANDROID
@@ -112,7 +105,7 @@ public:
   bool ShouldCache();
   nsresult IsWindowless(bool* isWindowless);
   nsresult AsyncSetWindow(NPWindow* window);
-  nsresult GetImageContainer(ImageContainer **aContainer);
+  nsresult GetImage(ImageContainer* aContainer, Image** aImage);
   nsresult GetImageSize(nsIntSize* aSize);
   nsresult NotifyPainted(void);
   nsresult UseAsyncPainting(bool* aIsAsync);
@@ -126,6 +119,7 @@ public:
   nsresult GetPluginAPIVersion(PRUint16* version);
   nsresult InvalidateRect(NPRect *invalidRect);
   nsresult InvalidateRegion(NPRegion invalidRegion);
+  nsresult ForceRedraw();
   nsresult GetMIMEType(const char* *result);
   nsresult GetJSContext(JSContext* *outContext);
   nsresult GetOwner(nsIPluginInstanceOwner **aOwner);
@@ -140,7 +134,12 @@ public:
 
   nsresult GetNPP(NPP * aNPP);
 
+  void SetURI(nsIURI* uri);
+  nsIURI* GetURI();
+
   NPError SetWindowless(bool aWindowless);
+
+  NPError SetWindowlessLocal(bool aWindowlessLocal);
 
   NPError SetTransparent(bool aTransparent);
 
@@ -149,28 +148,21 @@ public:
   NPError SetUsesDOMForCursor(bool aUsesDOMForCursor);
   bool UsesDOMForCursor();
 
-  void SetDrawingModel(NPDrawingModel aModel);
-  void RedrawPlugin();
 #ifdef XP_MACOSX
+  void SetDrawingModel(NPDrawingModel aModel);
   void SetEventModel(NPEventModel aModel);
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
-  void NotifyForeground(bool aForeground);
-  void NotifyOnScreen(bool aOnScreen);
-  void MemoryPressure();
-
-  bool IsOnScreen() {
-    return mOnScreen;
-  }
-
-  PRUint32 GetANPDrawingModel() { return mANPDrawingModel; }
-  void SetANPDrawingModel(PRUint32 aModel);
-
-  // This stuff is for kSurface_ANPDrawingModel
+  void SetDrawingModel(PRUint32 aModel);
   void* GetJavaSurface();
-  void SetJavaSurface(void* aSurface);
-  void RequestJavaSurface();
+
+  gfxImageSurface* LockTargetSurface();
+  gfxImageSurface* LockTargetSurface(PRUint32 aWidth, PRUint32 aHeight, gfxASurface::gfxImageFormat aFormat,
+                                     NPRect* aRect);
+  void UnlockTargetSurface(bool aInvalidate);
+
+  static nsNPAPIPluginInstance* FindByJavaSurface(void* aJavaSurface);
 #endif
 
   nsresult NewStreamListener(const char* aURL, void* notifyData,
@@ -223,11 +215,6 @@ public:
 
   void URLRedirectResponse(void* notifyData, NPBool allow);
 
-  NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
-                           void *initData, NPAsyncSurface *surface);
-  NPError FinalizeAsyncSurface(NPAsyncSurface *surface);
-  void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed);
-
   // Called when the instance fails to instantiate beceause the Carbon
   // event model is not supported.
   void CarbonNPAPIFailure();
@@ -246,11 +233,12 @@ protected:
   // the browser.
   NPP_t mNPP;
 
+#ifdef XP_MACOSX
   NPDrawingModel mDrawingModel;
+#endif
 
 #ifdef MOZ_WIDGET_ANDROID
-  PRUint32 mANPDrawingModel;
-  nsCOMPtr<nsIRunnable> mSurfaceGetter;
+  PRUint32 mDrawingModel;
 #endif
 
   enum {
@@ -263,6 +251,7 @@ protected:
   // these are used to store the windowless properties
   // which the browser will later query
   bool mWindowless;
+  bool mWindowlessLocal;
   bool mTransparent;
   bool mCached;
   bool mUsesDOMForCursor;
@@ -297,10 +286,16 @@ private:
   // This is only valid when the plugin is actually stopped!
   mozilla::TimeStamp mStopTime;
 
+  nsCOMPtr<nsIURI> mURI;
+
   bool mUsePluginLayersPref;
 #ifdef MOZ_WIDGET_ANDROID
+  void InvalidateTargetRect();
+  
   void* mSurface;
-  bool mOnScreen;
+  gfxImageSurface *mTargetSurface;
+  mozilla::Mutex* mTargetSurfaceLock;
+  NPRect mTargetLockRect;
 #endif
 };
 

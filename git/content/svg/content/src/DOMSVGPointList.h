@@ -37,16 +37,13 @@
 #ifndef MOZILLA_DOMSVGPOINTLIST_H__
 #define MOZILLA_DOMSVGPOINTLIST_H__
 
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGPointList.h"
-#include "nsSVGElement.h"
-#include "nsTArray.h"
-#include "SVGPointList.h" // IWYU pragma: keep
+#include "SVGPointList.h"
+#include "SVGPoint.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
-class nsIDOMSVGPoint;
+class nsSVGElement;
 
 namespace mozilla {
 
@@ -78,23 +75,14 @@ class SVGAnimatedPointList;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGPointList : public nsIDOMSVGPointList,
-                        public nsWrapperCache
+class DOMSVGPointList : public nsIDOMSVGPointList
 {
   friend class DOMSVGPoint;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPointList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGPointList)
   NS_DECL_NSIDOMSVGPOINTLIST
-
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap);
-
-  nsISupports* GetParentObject()
-  {
-    return static_cast<nsIContent*>(mElement);
-  }
 
   /**
    * Factory method to create and return a DOMSVGPointList wrapper
@@ -137,6 +125,8 @@ public:
     return mItems.Length();
   }
 
+  nsIDOMSVGPoint* GetItemWithoutAddRef(PRUint32 aIndex);
+
   /**
    * WATCH OUT! If you add code to call this on a baseVal wrapper, then you
    * must also call it on the animVal wrapper too if necessary!! See other
@@ -171,8 +161,6 @@ private:
     : mElement(aElement)
     , mIsAnimValList(aIsAnimValList)
   {
-    SetIsProxy();
-
     InternalListWillChangeTo(InternalList()); // Sync mItems
   }
 

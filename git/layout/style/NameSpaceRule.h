@@ -40,9 +40,7 @@
 #ifndef mozilla_css_NameSpaceRule_h__
 #define mozilla_css_NameSpaceRule_h__
 
-#include "mozilla/Attributes.h"
 #include "mozilla/css/Rule.h"
-
 #include "nsIDOMCSSRule.h"
 
 class nsIAtom;
@@ -55,8 +53,8 @@ class nsIAtom;
 namespace mozilla {
 namespace css {
 
-class NameSpaceRule MOZ_FINAL : public Rule,
-                                public nsIDOMCSSRule
+class NameSpaceRule : public Rule,
+                      public nsIDOMCSSRule
 {
 public:
   NameSpaceRule(nsIAtom* aPrefix, const nsString& aURLSpec);
@@ -83,9 +81,6 @@ public:
   nsIAtom* GetPrefix() const { return mPrefix; }
 
   void GetURLSpec(nsString& aURLSpec) const { aURLSpec = mURLSpec; }
-
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE

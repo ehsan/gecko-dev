@@ -47,7 +47,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "prinrval.h"
-#include "SpdySession.h"
 
 #include "nsIStreamListener.h"
 #include "nsISocketTransport.h"
@@ -93,9 +92,8 @@ public:
                   nsIEventTarget *);
 
     // Activate causes the given transaction to be processed on this
-    // connection.  It fails if there is already an existing transaction unless
-    // a multiplexing protocol such as SPDY is being used
-    nsresult Activate(nsAHttpTransaction *, PRUint8 caps, PRInt32 pri);
+    // connection.  It fails if there is already an existing transaction.
+    nsresult Activate(nsAHttpTransaction *, PRUint8 caps);
 
     // Close the underlying socket transport.
     void Close(nsresult reason);
@@ -104,15 +102,15 @@ public:
     // XXX document when these are ok to call
 
     bool     SupportsPipelining() { return mSupportsPipelining; }
-    bool     IsKeepAlive() { return mUsingSpdy ||
-                                    (mKeepAliveMask && mKeepAlive); }
+    bool     IsKeepAlive() { return mKeepAliveMask && mKeepAlive; }
     bool     CanReuse();   // can this connection be reused?
-    bool     CanDirectlyActivate();
 
     // Returns time in seconds for how long connection can be reused.
     PRUint32 TimeToLive();
 
-    void     DontReuse();
+    void     DontReuse()   { mKeepAliveMask = false;
+                             mKeepAlive = false;
+                             mIdleTimeout = 0; }
     void     DropTransport() { DontReuse(); mSocketTransport = 0; }
 
     bool     LastTransactionExpectedNoContent()
@@ -125,7 +123,6 @@ public:
         mLastTransactionExpectedNoContent = val;
     }
 
-    nsISocketTransport   *Transport()      { return mSocketTransport; }
     nsAHttpTransaction   *Transaction()    { return mTransaction; }
     nsHttpConnectionInfo *ConnectionInfo() { return mConnInfo; }
 
@@ -140,7 +137,7 @@ public:
     bool     IsPersistent() { return IsKeepAlive(); }
     bool     IsReused();
     void     SetIsReusedAfter(PRUint32 afterMilliseconds);
-    void     SetIdleTimeout(PRIntervalTime val) {mIdleTimeout = val;}
+    void     SetIdleTimeout(PRUint16 val) {mIdleTimeout = val;}
     nsresult PushBack(const char *data, PRUint32 length);
     nsresult ResumeSend();
     nsresult ResumeRecv();
@@ -156,11 +153,6 @@ public:
     void BeginIdleMonitoring();
     void EndIdleMonitoring();
 
-    bool UsingSpdy() { return mUsingSpdy; }
-
-    // When the connection is active this is called every 15 seconds
-    void  ReadTimeoutTick(PRIntervalTime now);
-
 private:
     // called to cause the underlying socket to start speaking SSL
     nsresult ProxyStartSSL();
@@ -171,25 +163,9 @@ private:
 
     nsresult SetupProxyConnect();
 
-    PRIntervalTime IdleTime();
     bool     IsAlive();
     bool     SupportsPipelining(nsHttpResponseHead *);
     
-    // Makes certain the SSL handshake is complete and NPN negotiation
-    // has had a chance to happen
-    bool     EnsureNPNComplete();
-    void     SetupNPN(PRUint8 caps);
-
-    // Inform the connection manager of any SPDY Alternate-Protocol
-    // redirections
-    void     HandleAlternateProtocol(nsHttpResponseHead *);
-
-    // Start the Spdy transaction handler when NPN indicates spdy/2
-    void     StartSpdy();
-
-    // Directly Add a transaction to an active connection for SPDY
-    nsresult AddTransaction(nsAHttpTransaction *, PRInt32);
-
 private:
     nsCOMPtr<nsISocketTransport>    mSocketTransport;
     nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
@@ -211,13 +187,12 @@ private:
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
 
     PRUint32                        mLastReadTime;
-    PRIntervalTime                  mMaxHangTime;    // max download time before dropping keep-alive status
-    PRIntervalTime                  mIdleTimeout;    // value of keep-alive: timeout=
+    PRUint16                        mMaxHangTime;    // max download time before dropping keep-alive status
+    PRUint16                        mIdleTimeout;    // value of keep-alive: timeout=
     PRIntervalTime                  mConsiderReusedAfterInterval;
     PRIntervalTime                  mConsiderReusedAfterEpoch;
     PRInt64                         mCurrentBytesRead;   // data read per activation
     PRInt64                         mMaxBytesRead;       // max read in 1 activation
-    PRInt64                         mTotalBytesRead;     // total data read
 
     nsRefPtr<nsIAsyncInputStream>   mInputOverflow;
 
@@ -228,21 +203,6 @@ private:
     bool                            mCompletedProxyConnect;
     bool                            mLastTransactionExpectedNoContent;
     bool                            mIdleMonitoring;
-
-    // The number of <= HTTP/1.1 transactions performed on this connection. This
-    // excludes spdy transactions.
-    PRUint32                        mHttp1xTransactionCount;
-
-    // SPDY related
-    bool                            mNPNComplete;
-    bool                            mSetupNPNCalled;
-    bool                            mUsingSpdy;
-    nsRefPtr<mozilla::net::SpdySession> mSpdySession;
-    PRInt32                         mPriority;
-    bool                            mReportedSpdy;
-
-    // mUsingSpdy is cleared when mSpdySession is freed, this is permanent
-    bool                            mEverUsedSpdy;
 };
 
 #endif // nsHttpConnection_h__

@@ -37,12 +37,11 @@
 #ifndef __NS_SVGMASKELEMENT_H__
 #define __NS_SVGMASKELEMENT_H__
 
-#include "DOMSVGTests.h"
+#include "nsSVGStylableElement.h"
 #include "nsIDOMSVGMaskElement.h"
 #include "nsIDOMSVGUnitTypes.h"
-#include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
-#include "nsSVGStylableElement.h"
+#include "nsSVGEnum.h"
 
 //--------------------- Masks ------------------------
 
@@ -50,7 +49,6 @@ typedef nsSVGStylableElement nsSVGMaskElementBase;
 
 class nsSVGMaskElement : public nsSVGMaskElementBase,
                          public nsIDOMSVGMaskElement,
-                         public DOMSVGTests,
                          public nsIDOMSVGUnitTypes
 {
   friend class nsSVGMaskFrame;
@@ -76,9 +74,6 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const;
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();

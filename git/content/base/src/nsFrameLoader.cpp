@@ -76,7 +76,6 @@
 #include "nsFrameLoader.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
-#include "nsIScrollableFrame.h"
 #include "nsSubDocumentFrame.h"
 #include "nsDOMError.h"
 #include "nsGUIEvent.h"
@@ -88,11 +87,10 @@
 #include "nsIXULWindow.h"
 #include "nsIEditor.h"
 #include "nsIEditorDocShell.h"
-#include "nsIMozBrowserFrame.h"
 
 #include "nsLayoutUtils.h"
 #include "nsIView.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 
 #include "nsIURI.h"
 #include "nsIURL.h"
@@ -145,12 +143,14 @@ public:
   nsRefPtr<nsIDocShell> mDocShell;
 };
 
-static void InvalidateFrame(nsIFrame* aFrame, PRUint32 aFlags)
+static void InvalidateFrame(nsIFrame* aFrame)
 {
-  if (!aFrame)
-    return;
   nsRect rect = nsRect(nsPoint(0, 0), aFrame->GetRect().Size());
-  aFrame->InvalidateWithFlags(rect, aFlags);
+  // NB: we pass INVALIDATE_NO_THEBES_LAYERS here to keep view
+  // semantics the same for both in-process and out-of-process
+  // <browser>.  This is just a transform of the layer subtree in
+  // both.
+  aFrame->InvalidateWithFlags(rect, nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
 }
 
 NS_IMPL_ISUPPORTS1(nsContentView, nsIContentView)
@@ -189,11 +189,8 @@ nsContentView::Update(const ViewConfig& aConfig)
 
   // XXX could be clever here and compute a smaller invalidation
   // rect
-  // NB: we pass INVALIDATE_NO_THEBES_LAYERS here to keep view
-  // semantics the same for both in-process and out-of-process
-  // <browser>.  This is just a transform of the layer subtree in
-  // both.
-  InvalidateFrame(mFrameLoader->GetPrimaryFrameOfOwningContent(), nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
+  nsIFrame* frame = mFrameLoader->GetPrimaryFrameOfOwningContent();
+  InvalidateFrame(frame);
   return NS_OK;
 }
 
@@ -331,8 +328,6 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mDelayRemoteDialogs(false)
   , mRemoteBrowserShown(false)
   , mRemoteFrame(false)
-  , mClipSubdocument(true)
-  , mClampScrollPosition(true)
   , mCurrentRemoteFrame(nsnull)
   , mRemoteBrowser(nsnull)
   , mRenderMode(RENDER_MODE_DEFAULT)
@@ -402,9 +397,9 @@ void
 nsFrameLoader::FireErrorEvent()
 {
   if (mOwnerContent) {
-    nsRefPtr<nsAsyncDOMEvent> event =
-      new nsLoadBlockingAsyncDOMEvent(mOwnerContent, NS_LITERAL_STRING("error"),
-                                      false, false);
+    nsRefPtr<nsPLDOMEvent> event =
+      new nsLoadBlockingPLDOMEvent(mOwnerContent, NS_LITERAL_STRING("error"),
+                                   false, false);
     event->PostDOMEvent();
   }
 }
@@ -745,12 +740,12 @@ AllDescendantsOfType(nsIDocShellTreeItem* aParentItem, PRInt32 aType)
 class NS_STACK_CLASS AutoResetInShow {
   private:
     nsFrameLoader* mFrameLoader;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
   public:
-    AutoResetInShow(nsFrameLoader* aFrameLoader MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoResetInShow(nsFrameLoader* aFrameLoader MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
       : mFrameLoader(aFrameLoader)
     {
-      MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+      MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoResetInShow() { mFrameLoader->mInShow = false; }
 };
@@ -981,9 +976,9 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsCOMPtr<nsIDocShell> ourDocshell = GetExistingDocShell();
+  nsCOMPtr<nsIDocShell> ourDochell = GetExistingDocShell();
   nsCOMPtr<nsIDocShell> otherDocshell = aOther->GetExistingDocShell();
-  if (!ourDocshell || !otherDocshell) {
+  if (!ourDochell || !otherDocshell) {
     // How odd
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -991,7 +986,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   // To avoid having to mess with session history, avoid swapping
   // frameloaders that don't correspond to root same-type docshells,
   // unless both roots have session history disabled.
-  nsCOMPtr<nsIDocShellTreeItem> ourTreeItem = do_QueryInterface(ourDocshell);
+  nsCOMPtr<nsIDocShellTreeItem> ourTreeItem = do_QueryInterface(ourDochell);
   nsCOMPtr<nsIDocShellTreeItem> otherTreeItem =
     do_QueryInterface(otherDocshell);
   nsCOMPtr<nsIDocShellTreeItem> ourRootTreeItem, otherRootTreeItem;
@@ -1059,7 +1054,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(ourDocshell);
+  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(ourDochell);
   nsCOMPtr<nsPIDOMWindow> otherWindow = do_GetInterface(otherDocshell);
 
   nsCOMPtr<nsIDOMElement> ourFrameElement =
@@ -1106,14 +1101,6 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   nsIPresShell* ourShell = ourDoc->GetShell();
   nsIPresShell* otherShell = otherDoc->GetShell();
   if (!ourShell || !otherShell) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
-  bool weAreBrowserFrame = false;
-  bool otherIsBrowserFrame = false;
-  ourDocshell->GetIsBrowserFrame(&weAreBrowserFrame);
-  otherDocshell->GetIsBrowserFrame(&otherIsBrowserFrame);
-  if (weAreBrowserFrame != otherIsBrowserFrame) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
@@ -1214,19 +1201,13 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     mMessageManager->GetParentManager() : nsnull;
   nsFrameMessageManager* otherParentManager = aOther->mMessageManager ?
     aOther->mMessageManager->GetParentManager() : nsnull;
-  JSContext* thisCx =
-    mMessageManager ? mMessageManager->GetJSContext() : nsnull;
-  JSContext* otherCx = 
-    aOther->mMessageManager ? aOther->mMessageManager->GetJSContext() : nsnull;
   if (mMessageManager) {
-    mMessageManager->RemoveFromParent();
-    mMessageManager->SetJSContext(otherCx);
+    mMessageManager->Disconnect();
     mMessageManager->SetParentManager(otherParentManager);
     mMessageManager->SetCallbackData(aOther, false);
   }
   if (aOther->mMessageManager) {
-    aOther->mMessageManager->RemoveFromParent();
-    aOther->mMessageManager->SetJSContext(thisCx);
+    aOther->mMessageManager->Disconnect();
     aOther->mMessageManager->SetParentManager(ourParentManager);
     aOther->mMessageManager->SetCallbackData(this, false);
   }
@@ -1490,13 +1471,6 @@ nsFrameLoader::MaybeCreateDocShell()
     mDocShell->SetChromeEventHandler(chromeEventHandler);
   }
 
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  if (browserFrame) {
-    bool isBrowserFrame = false;
-    browserFrame->GetReallyIsBrowser(&isBrowserFrame);
-    mDocShell->SetIsBrowserFrame(isBrowserFrame);
-  }
-
   // This is nasty, this code (the do_GetInterface(mDocShell) below)
   // *must* come *after* the above call to
   // mDocShell->SetChromeEventHandler() for the global window to get
@@ -1719,11 +1693,7 @@ nsFrameLoader::SetRenderMode(PRUint32 aRenderMode)
   }
 
   mRenderMode = aRenderMode;
-  // NB: we pass INVALIDATE_NO_THEBES_LAYERS here to keep view
-  // semantics the same for both in-process and out-of-process
-  // <browser>.  This is just a transform of the layer subtree in
-  // both.
-  InvalidateFrame(GetPrimaryFrameOfOwningContent(), nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
+  InvalidateFrame(GetPrimaryFrameOfOwningContent());
   return NS_OK;
 }
 
@@ -1738,70 +1708,6 @@ NS_IMETHODIMP
 nsFrameLoader::SetEventMode(PRUint32 aEventMode)
 {
   mEventMode = aEventMode;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::GetClipSubdocument(bool* aResult)
-{
-  *aResult = mClipSubdocument;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::SetClipSubdocument(bool aClip)
-{
-  mClipSubdocument = aClip;
-  nsIFrame* frame = GetPrimaryFrameOfOwningContent();
-  if (frame) {
-    InvalidateFrame(frame, 0);
-    frame->PresContext()->PresShell()->
-      FrameNeedsReflow(frame, nsIPresShell::eResize, NS_FRAME_IS_DIRTY);
-    nsSubDocumentFrame* subdocFrame = do_QueryFrame(frame);
-    if (subdocFrame) {
-      nsIFrame* subdocRootFrame = subdocFrame->GetSubdocumentRootFrame();
-      if (subdocRootFrame) {
-        nsIFrame* subdocRootScrollFrame = subdocRootFrame->PresContext()->PresShell()->
-          GetRootScrollFrame();
-        if (subdocRootScrollFrame) {
-          frame->PresContext()->PresShell()->
-            FrameNeedsReflow(frame, nsIPresShell::eResize, NS_FRAME_IS_DIRTY);
-        }
-      }
-    }
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::GetClampScrollPosition(bool* aResult)
-{
-  *aResult = mClampScrollPosition;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::SetClampScrollPosition(bool aClamp)
-{
-  mClampScrollPosition = aClamp;
-
-  // When turning clamping on, make sure the current position is clamped.
-  if (aClamp) {
-    nsIFrame* frame = GetPrimaryFrameOfOwningContent();
-    if (frame) {
-      nsSubDocumentFrame* subdocFrame = do_QueryFrame(frame);
-      if (subdocFrame) {
-        nsIFrame* subdocRootFrame = subdocFrame->GetSubdocumentRootFrame();
-        if (subdocRootFrame) {
-          nsIScrollableFrame* subdocRootScrollFrame = subdocRootFrame->PresContext()->PresShell()->
-            GetRootScrollFrameAsScrollable();
-          if (subdocRootScrollFrame) {
-            subdocRootScrollFrame->ScrollTo(subdocRootScrollFrame->GetScrollPosition(), nsIScrollableFrame::INSTANT);
-          }
-        }
-      }
-    }
-  }
   return NS_OK;
 }
 

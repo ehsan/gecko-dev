@@ -844,12 +844,12 @@ void cairo_d2d_present_backbuffer(cairo_surface_t *surface)
     }
 }
 
-struct d2d_clip_t
+struct d2d_clip
 {
     enum clip_type {LAYER, AXIS_ALIGNED_CLIP};
-    d2d_clip_t * const prev;
+    d2d_clip * const prev;
     const enum clip_type type;
-    d2d_clip_t(d2d_clip_t *prev, clip_type type) : prev(prev), type(type) { }
+    d2d_clip(d2d_clip *prev, clip_type type) : prev(prev), type(type) { }
 };
 
 static RefPtr<ID2D1PathGeometry>
@@ -889,7 +889,7 @@ push_clip (cairo_d2d_surface_t *d2dsurf, cairo_clip_path_t *clip_path)
 		    _cairo_fixed_to_float(box.p2.y)),
 		mode);
 
-	d2dsurf->d2d_clip = new d2d_clip_t (d2dsurf->d2d_clip, d2d_clip_t::AXIS_ALIGNED_CLIP);
+	d2dsurf->d2d_clip = new d2d_clip (d2dsurf->d2d_clip, d2d_clip::AXIS_ALIGNED_CLIP);
     } else {
 	HRESULT hr;
 	RefPtr<ID2D1PathGeometry> geom = _cairo_d2d_create_path_geometry_for_path (&clip_path->path,
@@ -914,7 +914,7 @@ push_clip (cairo_d2d_surface_t *d2dsurf, cairo_clip_path_t *clip_path)
 		    options),
 		layer);
 
-	d2dsurf->d2d_clip = new d2d_clip_t(d2dsurf->d2d_clip, d2d_clip_t::LAYER);
+	d2dsurf->d2d_clip = new d2d_clip(d2dsurf->d2d_clip, d2d_clip::LAYER);
    }
     if (!d2dsurf->d2d_clip)
 	return _cairo_error(CAIRO_STATUS_NO_MEMORY);
@@ -924,12 +924,12 @@ push_clip (cairo_d2d_surface_t *d2dsurf, cairo_clip_path_t *clip_path)
 static void
 pop_clip (cairo_d2d_surface_t *d2dsurf)
 {
-    d2d_clip_t *current_clip = d2dsurf->d2d_clip;
+    d2d_clip *current_clip = d2dsurf->d2d_clip;
 
     /* pop the clip from the render target */
-    if (current_clip->type == d2d_clip_t::LAYER) {
+    if (current_clip->type == d2d_clip::LAYER) {
 	d2dsurf->rt->PopLayer();
-    } else if (current_clip->type == d2d_clip_t::AXIS_ALIGNED_CLIP) {
+    } else if (current_clip->type == d2d_clip::AXIS_ALIGNED_CLIP) {
 	d2dsurf->rt->PopAxisAlignedClip();
     }
 
@@ -1956,14 +1956,14 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 						 srcSurf->data,
 						 srcSurf->stride);
 		    cairo_surface_t *nullSurf =
-			cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
+			_cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
 		    cachebitmap->refs++;
 		    cachebitmap->dirty = false;
 		    cairo_surface_set_user_data(nullSurf,
 						&bitmap_key_snapshot,
 						cachebitmap,
 						NULL);
-		    cairo_surface_attach_snapshot(surfacePattern->surface,
+		    _cairo_surface_attach_snapshot(surfacePattern->surface,
 						   nullSurf,
 						   _d2d_snapshot_detached);
 		}
@@ -2020,12 +2020,12 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 						cachebitmap,
 						_d2d_release_bitmap);
 		    cairo_surface_t *nullSurf =
-			cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
+			_cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
 		    cairo_surface_set_user_data(nullSurf,
 						&bitmap_key_snapshot,
 						cachebitmap,
 						NULL);
-		    cairo_surface_attach_snapshot(surfacePattern->surface,
+		    _cairo_surface_attach_snapshot(surfacePattern->surface,
 						   nullSurf,
 						   _d2d_snapshot_detached);
 		    cache_usage += _d2d_compute_bitmap_mem_size(sourceBitmap);
@@ -2432,10 +2432,6 @@ _cairo_d2d_create_similar(void			*surface,
     RefPtr<ID3D10Texture2D> texture;
     RefPtr<IDXGISurface> dxgiSurface;
 
-    D2D1_RENDER_TARGET_USAGE usage = (desc.MiscFlags & D3D10_RESOURCE_MISC_GDI_COMPATIBLE) ?
-					  D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE
-					: D2D1_RENDER_TARGET_USAGE_NONE;
-
     hr = d2dsurf->device->mD3D10Device->CreateTexture2D(&desc, NULL, &texture);
     if (FAILED(hr)) {
 	goto FAIL_CREATESIMILAR;
@@ -2448,6 +2444,10 @@ _cairo_d2d_create_similar(void			*surface,
     if (FAILED(hr)) {
 	goto FAIL_CREATESIMILAR;
     }
+
+    D2D1_RENDER_TARGET_USAGE usage = (desc.MiscFlags & D3D10_RESOURCE_MISC_GDI_COMPATIBLE) ?
+					  D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE
+					: D2D1_RENDER_TARGET_USAGE_NONE;
 
     hr = sD2DFactory->CreateDxgiSurfaceRenderTarget(dxgiSurface,
 						    D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
@@ -2595,7 +2595,7 @@ _cairo_d2d_acquire_source_image(void                    *abstract_surface,
     assert(cairo_surface_status(image_out) == CAIRO_STATUS_SUCCESS ||
 	   cairo_surface_status(image_out) == CAIRO_STATUS_NO_MEMORY);
 
-    *image_extra = softTexture.forget().drop();
+    *image_extra = softTexture.forget();
     *image_out_ret = (cairo_image_surface_t*)image_out;
 
     return cairo_surface_status(image_out);
@@ -2668,7 +2668,7 @@ _cairo_d2d_acquire_dest_image(void                    *abstract_surface,
 										  size.width,
 										  size.height,
 										  data.RowPitch);
-    *image_extra = softTexture.forget().drop();
+    *image_extra = softTexture.forget();
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -3281,7 +3281,7 @@ _cairo_d2d_mask(void			*surface,
     cairo_box_t box;
     _cairo_box_from_rectangle(&box, &extents);
 
-    if (clip && isSolidAlphaMask) {
+    if (clip) {
 	// We do some work here to try and avoid pushing and popping clips for rectangular areas,
 	// if we do this fill rects will occur without rectangular clips being pushed and popped.
 	// This is faster for non-axis aligned clips in general and allows more efficient batching
@@ -3674,7 +3674,7 @@ _cairo_dwrite_manual_show_glyphs_on_d2d_surface(void			    *surface,
     _cairo_d2d_set_clip(dst, NULL);
     dst->rt->Flush();
 
-    AutoDWriteGlyphRun run;
+    DWRITE_GLYPH_RUN run;
     _cairo_dwrite_glyph_run_from_glyphs(glyphs, num_glyphs, scaled_font, &run, &transform);
 
     RefPtr<IDWriteGlyphRunAnalysis> analysis;
@@ -3731,6 +3731,9 @@ _cairo_dwrite_manual_show_glyphs_on_d2d_surface(void			    *surface,
 						      0,
 						      0,
 						      &analysis);
+    delete [] run.glyphIndices;
+    delete [] run.glyphAdvances;
+    delete [] run.glyphOffsets;
     if (FAILED(hr)) {
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
@@ -4102,7 +4105,8 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
 
     cairo_bool_t transform = FALSE;
 
-    AutoDWriteGlyphRun run;
+    DWRITE_GLYPH_RUN run;
+    
     _cairo_dwrite_glyph_run_from_glyphs(glyphs, num_glyphs, dwritesf, &run, &transform);
 
     D2D1::Matrix3x2F mat = _cairo_d2d_matrix_from_matrix(&dwritesf->mat);
@@ -4137,6 +4141,9 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
 								   source);
 
     if (!brush) {
+	delete [] run.glyphIndices;
+	delete [] run.glyphOffsets;
+	delete [] run.glyphAdvances;
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
     
@@ -4157,6 +4164,10 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     if (transform) {
 	target_rt->SetTransform(D2D1::Matrix3x2F::Identity());
     }
+
+    delete [] run.glyphIndices;
+    delete [] run.glyphOffsets;
+    delete [] run.glyphAdvances;
 
     if (target_rt.get() != dst->rt.get()) {
 	return _cairo_d2d_blend_temp_surface(dst, op, target_rt, clip, &fontArea);
@@ -4469,7 +4480,6 @@ cairo_d2d_surface_create_for_handle(cairo_device_t *device, HANDLE handle, cairo
     D2D1_RENDER_TARGET_PROPERTIES props;
     DXGI_FORMAT format;
     DXGI_SURFACE_DESC desc;
-    D2D1_ALPHA_MODE alpha = D2D1_ALPHA_MODE_PREMULTIPLIED;
 
     hr = d2d_device->mD3D10Device->OpenSharedResource(handle,
 						      __uuidof(ID3D10Resource),
@@ -4488,6 +4498,7 @@ cairo_d2d_surface_create_for_handle(cairo_device_t *device, HANDLE handle, cairo
     dxgiSurface->GetDesc(&desc);
     format = desc.Format;
     
+    D2D1_ALPHA_MODE alpha = D2D1_ALPHA_MODE_PREMULTIPLIED;
     if (format == DXGI_FORMAT_B8G8R8A8_UNORM) {
 	if (content == CAIRO_CONTENT_ALPHA) {
 	    status = CAIRO_STATUS_INVALID_CONTENT;

@@ -40,8 +40,6 @@
 #ifndef nsIconChannel_h___
 #define nsIconChannel_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nsCOMPtr.h"
 #include "nsXPIDLString.h"
 #include "nsIChannel.h"
@@ -57,7 +55,7 @@
 
 class nsIFile;
 
-class nsIconChannel MOZ_FINAL : public nsIChannel, public nsIStreamListener
+class nsIconChannel : public nsIChannel, public nsIStreamListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -87,8 +85,10 @@ protected:
   nsresult MakeInputStream(nsIInputStream** _retval, bool nonBlocking);
 
   // Functions specific to Vista and above
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 protected:
   nsresult GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon);
+#endif
 };
 
 #endif /* nsIconChannel_h___ */

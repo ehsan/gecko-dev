@@ -17,10 +17,10 @@
 #include <GLES2/gl2.h>
 #include <d3d9.h>
 
-#include "common/debug.h"
-#include "common/RefCountObject.h"
 #include "libGLESv2/Renderbuffer.h"
+#include "libGLESv2/RefCountObject.h"
 #include "libGLESv2/utilities.h"
+#include "common/debug.h"
 
 namespace egl
 {
@@ -56,7 +56,7 @@ class Image
     HRESULT lock(D3DLOCKED_RECT *lockedRect, const RECT *rect);
     void unlock();
 
-    bool isRenderableFormat() const;
+    bool isRenderable() const;
     D3DFORMAT getD3DFormat() const;
 
     GLsizei getWidth() const {return mWidth;}
@@ -134,9 +134,7 @@ class Image
     GLenum mType;
 
     bool mDirty;
-
-    D3DPOOL mD3DPool;   // can only be D3DPOOL_SYSTEMMEM or D3DPOOL_MANAGED since it needs to be lockable.
-    D3DFORMAT mD3DFormat;
+    bool mManaged;
 
     IDirect3DSurface9 *mSurface;
 };
@@ -144,21 +142,20 @@ class Image
 class TextureStorage
 {
   public:
-    explicit TextureStorage(bool renderTarget);
+    explicit TextureStorage(bool renderable);
 
     virtual ~TextureStorage();
 
-    bool isRenderTarget() const;
+    bool isRenderable() const;
     bool isManaged() const;
-    D3DPOOL getPool() const;
     unsigned int getTextureSerial() const;
     virtual unsigned int getRenderTargetSerial(GLenum target) const = 0;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(TextureStorage);
 
-    const bool mRenderTarget;
-    const D3DPOOL mD3DPool;
+    const bool mRenderable;
+    const bool mManaged;
 
     const unsigned int mTextureSerial;
     static unsigned int issueTextureSerial();
@@ -172,9 +169,6 @@ class Texture : public RefCountObject
     explicit Texture(GLuint id);
 
     virtual ~Texture();
-
-    virtual void addProxyRef(const Renderbuffer *proxy) = 0;
-    virtual void releaseProxy(const Renderbuffer *proxy) = 0;
 
     virtual GLenum getTarget() const = 0;
 
@@ -190,8 +184,8 @@ class Texture : public RefCountObject
     GLenum getWrapT() const;
     GLenum getUsage() const;
 
-    virtual GLsizei getWidth(GLint level) const = 0;
-    virtual GLsizei getHeight(GLint level) const = 0;
+    virtual GLsizei getWidth() const = 0;
+    virtual GLsizei getHeight() const = 0;
     virtual GLenum getInternalFormat() const = 0;
     virtual GLenum getType() const = 0;
     virtual D3DFORMAT getD3DFormat() const = 0;
@@ -208,8 +202,8 @@ class Texture : public RefCountObject
     bool hasDirtyParameters() const;
     bool hasDirtyImages() const;
     void resetDirty();
-    unsigned int getTextureSerial();
-    unsigned int getRenderTargetSerial(GLenum target);
+    unsigned int getTextureSerial() const;
+    unsigned int getRenderTargetSerial(GLenum target) const;
 
     bool isImmutable() const;
 
@@ -251,14 +245,14 @@ class Texture : public RefCountObject
   private:
     DISALLOW_COPY_AND_ASSIGN(Texture);
 
-    virtual TextureStorage *getStorage(bool renderTarget) = 0;
+    virtual TextureStorage *getStorage() const = 0;
 };
 
 class TextureStorage2D : public TextureStorage
 {
   public:
     explicit TextureStorage2D(IDirect3DTexture9 *surfaceTexture);
-    TextureStorage2D(int levels, D3DFORMAT format, int width, int height, bool renderTarget);
+    TextureStorage2D(int levels, D3DFORMAT format, int width, int height, bool renderable);
 
     virtual ~TextureStorage2D();
 
@@ -281,13 +275,10 @@ class Texture2D : public Texture
 
     ~Texture2D();
 
-    void addProxyRef(const Renderbuffer *proxy);
-    void releaseProxy(const Renderbuffer *proxy);
-
     virtual GLenum getTarget() const;
 
-    virtual GLsizei getWidth(GLint level) const;
-    virtual GLsizei getHeight(GLint level) const;
+    virtual GLsizei getWidth() const;
+    virtual GLsizei getHeight() const;
     virtual GLenum getInternalFormat() const;
     virtual GLenum getType() const;
     virtual D3DFORMAT getD3DFormat() const;
@@ -317,7 +308,7 @@ class Texture2D : public Texture
     virtual void updateTexture();
     virtual void convertToRenderTarget();
     virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
-    virtual TextureStorage *getStorage(bool renderTarget);
+    virtual TextureStorage *getStorage() const;
 
     bool isMipmapComplete() const;
 
@@ -326,22 +317,16 @@ class Texture2D : public Texture
 
     Image mImageArray[IMPLEMENTATION_MAX_TEXTURE_LEVELS];
 
-    TextureStorage2D *mTexStorage;
+    TextureStorage2D *mTexture;
     egl::Surface *mSurface;
 
-    // A specific internal reference count is kept for colorbuffer proxy references,
-    // because, as the renderbuffer acting as proxy will maintain a binding pointer
-    // back to this texture, there would be a circular reference if we used a binding
-    // pointer here. This reference count will cause the pointer to be set to NULL if
-    // the count drops to zero, but will not cause deletion of the Renderbuffer.
-    Renderbuffer *mColorbufferProxy;
-    unsigned int mProxyRefs;
+    BindingPointer<Renderbuffer> mColorbufferProxy;
 };
 
 class TextureStorageCubeMap : public TextureStorage
 {
   public:
-    TextureStorageCubeMap(int levels, D3DFORMAT format, int size, bool renderTarget);
+    TextureStorageCubeMap(int levels, D3DFORMAT format, int size, bool renderable);
 
     virtual ~TextureStorageCubeMap();
 
@@ -364,13 +349,10 @@ class TextureCubeMap : public Texture
 
     ~TextureCubeMap();
 
-    void addProxyRef(const Renderbuffer *proxy);
-    void releaseProxy(const Renderbuffer *proxy);
-
     virtual GLenum getTarget() const;
     
-    virtual GLsizei getWidth(GLint level) const;
-    virtual GLsizei getHeight(GLint level) const;
+    virtual GLsizei getWidth() const;
+    virtual GLsizei getHeight() const;
     virtual GLenum getInternalFormat() const;
     virtual GLenum getType() const;
     virtual D3DFORMAT getD3DFormat() const;
@@ -407,7 +389,7 @@ class TextureCubeMap : public Texture
     virtual void updateTexture();
     virtual void convertToRenderTarget();
     virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
-    virtual TextureStorage *getStorage(bool renderTarget);
+    virtual TextureStorage *getStorage() const;
 
     bool isCubeComplete() const;
     bool isMipmapCubeComplete() const;
@@ -418,15 +400,9 @@ class TextureCubeMap : public Texture
 
     Image mImageArray[6][IMPLEMENTATION_MAX_TEXTURE_LEVELS];
 
-    TextureStorageCubeMap *mTexStorage;
+    TextureStorageCubeMap *mTexture;
 
-    // A specific internal reference count is kept for colorbuffer proxy references,
-    // because, as the renderbuffer acting as proxy will maintain a binding pointer
-    // back to this texture, there would be a circular reference if we used a binding
-    // pointer here. This reference count will cause the pointer to be set to NULL if
-    // the count drops to zero, but will not cause deletion of the Renderbuffer.
-    Renderbuffer *mFaceProxies[6];
-    unsigned int *mFaceProxyRefs[6];
+    BindingPointer<Renderbuffer> mFaceProxies[6];
 };
 }
 

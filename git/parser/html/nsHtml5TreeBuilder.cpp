@@ -52,7 +52,6 @@
 #include "nsHtml5StreamParser.h"
 #include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Highlighter.h"
-#include "nsHtml5ViewSourceUtils.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5MetaScanner.h"
@@ -200,7 +199,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
     case NS_HTML5TREE_BUILDER_IN_BODY:
     case NS_HTML5TREE_BUILDER_IN_CELL:
     case NS_HTML5TREE_BUILDER_IN_CAPTION: {
-      if (!isInForeignButNotHtmlOrMathTextIntegrationPoint()) {
+      if (!isInForeignButNotHtmlIntegrationPoint()) {
         reconstructTheActiveFormattingElements();
       }
     }
@@ -246,7 +245,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                if (!isInForeignButNotHtmlOrMathTextIntegrationPoint()) {
+                if (!isInForeignButNotHtmlIntegrationPoint()) {
                   flushCharacters();
                   reconstructTheActiveFormattingElements();
                 }
@@ -348,7 +347,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                if (!isInForeignButNotHtmlOrMathTextIntegrationPoint()) {
+                if (!isInForeignButNotHtmlIntegrationPoint()) {
                   flushCharacters();
                   reconstructTheActiveFormattingElements();
                 }
@@ -438,7 +437,11 @@ nsHtml5TreeBuilder::zeroOriginatingReplacementCharacter()
     return;
   }
   if (currentPtr >= 0) {
-    if (isSpecialParentInForeign(stack[currentPtr])) {
+    nsHtml5StackNode* stackNode = stack[currentPtr];
+    if (stackNode->ns == kNameSpaceID_XHTML) {
+      return;
+    }
+    if (stackNode->isHtmlIntegrationPoint()) {
       return;
     }
     accumulateCharacters(REPLACEMENT_CHARACTER, 0, 1);
@@ -1242,6 +1245,9 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
                   errStartTagSeenWithoutRuby(name);
                 } else {
                   errUnclosedChildrenInRuby();
+                }
+                while (currentPtr > eltPos) {
+                  pop();
                 }
               }
               appendToCurrentNodeAndPushElementMayFoster(elementName, attributes);
@@ -3814,12 +3820,9 @@ nsHtml5TreeBuilder::isInForeign()
 }
 
 bool 
-nsHtml5TreeBuilder::isInForeignButNotHtmlOrMathTextIntegrationPoint()
+nsHtml5TreeBuilder::isInForeignButNotHtmlIntegrationPoint()
 {
-  if (currentPtr < 0) {
-    return false;
-  }
-  return !isSpecialParentInForeign(stack[currentPtr]);
+  return currentPtr >= 0 && stack[currentPtr]->ns != kNameSpaceID_XHTML && !stack[currentPtr]->isHtmlIntegrationPoint();
 }
 
 void 

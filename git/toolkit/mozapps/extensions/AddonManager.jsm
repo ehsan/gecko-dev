@@ -21,7 +21,6 @@
 #
 # Contributor(s):
 #   Dave Townsend <dtownsend@oxymoronical.com>
-#   Blair McBride <bmcbride@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,36 +49,12 @@ const PREF_EM_LAST_APP_VERSION        = "extensions.lastAppVersion";
 const PREF_EM_LAST_PLATFORM_VERSION   = "extensions.lastPlatformVersion";
 const PREF_EM_AUTOUPDATE_DEFAULT      = "extensions.update.autoUpdateDefault";
 const PREF_EM_STRICT_COMPATIBILITY    = "extensions.strictCompatibility";
-const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
-const PREF_EM_UPDATE_BACKGROUND_URL   = "extensions.update.background.url";
-const PREF_APP_UPDATE_ENABLED         = "app.update.enabled";
-const PREF_APP_UPDATE_AUTO            = "app.update.auto";
-const PREF_EM_HOTFIX_ID               = "extensions.hotfix.id";
-const PREF_EM_HOTFIX_LASTVERSION      = "extensions.hotfix.lastVersion";
-const PREF_EM_HOTFIX_URL              = "extensions.hotfix.url";
-const PREF_EM_CERT_CHECKATTRIBUTES    = "extensions.hotfix.cert.checkAttributes";
-const PREF_EM_HOTFIX_CERTS            = "extensions.hotfix.certs.";
-const PREF_MATCH_OS_LOCALE            = "intl.locale.matchOS";
-const PREF_SELECTED_LOCALE            = "general.useragent.locale";
 
-const UPDATE_REQUEST_VERSION          = 2;
-const CATEGORY_UPDATE_PARAMS          = "extension-update-params";
-
-const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
-const PREF_EM_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
-#ifdef MOZ_COMPATIBILITY_NIGHTLY
-var PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + ".nightly";
-#else
-var PREF_EM_CHECK_COMPATIBILITY;
-#endif
-
-const TOOLKIT_ID                      = "toolkit@mozilla.org";
+const STRICT_COMPATIBILITY_DEFAULT    = true;
 
 const VALID_TYPES_REGEXP = /^[\w\-]+$/;
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-var CertUtils = {};
-Components.utils.import("resource://gre/modules/CertUtils.jsm", CertUtils);
 
 var EXPORTED_SYMBOLS = [ "AddonManager", "AddonManagerPrivate" ];
 
@@ -145,33 +120,6 @@ function callProvider(aProvider, aMethod, aDefault) {
     ERROR("Exception calling provider " + aMethod, e);
     return aDefault;
   }
-}
-
-/**
- * Gets the currently selected locale for display.
- * @return  the selected locale or "en-US" if none is selected
- */
-function getLocale() {
-  try {
-    if (Services.prefs.getBoolPref(PREF_MATCH_OS_LOCALE))
-      return Services.locale.getLocaleComponentForUserAgent();
-  }
-  catch (e) { }
-
-  try {
-    let locale = Services.prefs.getComplexValue(PREF_SELECTED_LOCALE,
-                                                Ci.nsIPrefLocalizedString);
-    if (locale)
-      return locale;
-  }
-  catch (e) { }
-
-  try {
-    return Services.prefs.getCharPref(PREF_SELECTED_LOCALE);
-  }
-  catch (e) { }
-
-  return "en-US";
 }
 
 /**
@@ -287,67 +235,6 @@ AddonScreenshot.prototype = {
   }
 }
 
-
-/**
- * This represents a compatibility override for an addon.
- *
- * @param  aType
- *         Overrride type - "compatible" or "incompatible"
- * @param  aMinVersion
- *         Minimum version of the addon to match
- * @param  aMaxVersion
- *         Maximum version of the addon to match
- * @param  aAppID
- *         Application ID used to match appMinVersion and appMaxVersion
- * @param  aAppMinVersion
- *         Minimum version of the application to match
- * @param  aAppMaxVersion
- *         Maximum version of the application to match
- */
-function AddonCompatibilityOverride(aType, aMinVersion, aMaxVersion, aAppID,
-                                    aAppMinVersion, aAppMaxVersion) {
-  this.type = aType;
-  this.minVersion = aMinVersion;
-  this.maxVersion = aMaxVersion;
-  this.appID = aAppID;
-  this.appMinVersion = aAppMinVersion;
-  this.appMaxVersion = aAppMaxVersion;
-}
-
-AddonCompatibilityOverride.prototype = {
-  /**
-   * Type of override - "incompatible" or "compatible".
-   * Only "incompatible" is supported for now.
-   */
-  type: null,
-
-  /**
-   * Min version of the addon to match.
-   */
-  minVersion: null,
-
-  /**
-   * Max version of the addon to match.
-   */
-  maxVersion: null,
-
-  /**
-   * Application ID to match.
-   */
-  appID: null,
-
-  /**
-   * Min version of the application to match.
-   */
-  appMinVersion: null,
-
-  /**
-   * Max version of the application to match.
-   */
-  appMaxVersion: null
-};
-
-
 /**
  * A type of add-on, used by the UI to determine how to display different types
  * of add-ons.
@@ -397,19 +284,13 @@ function AddonType(aId, aLocaleURI, aLocaleKey, aViewType, aUIPriority, aFlags) 
 }
 
 var gStarted = false;
-var gCheckCompatibility = true;
-var gStrictCompatibility = true;
-var gCheckUpdateSecurityDefault = true;
-var gCheckUpdateSecurity = gCheckUpdateSecurityDefault;
-var gUpdateEnabled = true;
-var gAutoUpdateDefault = true;
+var gStrictCompatibility = STRICT_COMPATIBILITY_DEFAULT;
 
 /**
  * This is the real manager, kept here rather than in AddonManager to keep its
  * contents hidden from API users.
  */
 var AddonManagerInternal = {
-  managerListeners: [],
   installListeners: [],
   addonListeners: [],
   typeListeners: [],
@@ -497,40 +378,10 @@ var AddonManagerInternal = {
                                 (appChanged === undefined ? 0 : -1));
     }
 
-#ifndef MOZ_COMPATIBILITY_NIGHTLY
-    PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
-                                  Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-#endif
-
-    try {
-      gCheckCompatibility = Services.prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY);
-    } catch (e) {}
-    Services.prefs.addObserver(PREF_EM_CHECK_COMPATIBILITY, this, false);
-
     try {
       gStrictCompatibility = Services.prefs.getBoolPref(PREF_EM_STRICT_COMPATIBILITY);
     } catch (e) {}
     Services.prefs.addObserver(PREF_EM_STRICT_COMPATIBILITY, this, false);
-
-    try {
-      let defaultBranch = Services.prefs.getDefaultBranch("");
-      gCheckUpdateSecurityDefault = defaultBranch.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY);
-    } catch(e) {}
-
-    try {
-      gCheckUpdateSecurity = Services.prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY);
-    } catch (e) {}
-    Services.prefs.addObserver(PREF_EM_CHECK_UPDATE_SECURITY, this, false);
-
-    try {
-      gUpdateEnabled = Services.prefs.getBoolPref(PREF_EM_UPDATE_ENABLED);
-    } catch (e) {}
-    Services.prefs.addObserver(PREF_EM_UPDATE_ENABLED, this, false);
-
-    try {
-      gAutoUpdateDefault = Services.prefs.getBoolPref(PREF_EM_AUTOUPDATE_DEFAULT);
-    } catch (e) {}
-    Services.prefs.addObserver(PREF_EM_AUTOUPDATE_DEFAULT, this, false);
 
     // Ensure all default providers have had a chance to register themselves
     DEFAULT_PROVIDERS.forEach(function(url) {
@@ -653,17 +504,12 @@ var AddonManagerInternal = {
    * up everything in order for automated tests to fake restarts.
    */
   shutdown: function AMI_shutdown() {
-    Services.prefs.removeObserver(PREF_EM_CHECK_COMPATIBILITY, this);
     Services.prefs.removeObserver(PREF_EM_STRICT_COMPATIBILITY, this);
-    Services.prefs.removeObserver(PREF_EM_CHECK_UPDATE_SECURITY, this);
-    Services.prefs.removeObserver(PREF_EM_UPDATE_ENABLED, this);
-    Services.prefs.removeObserver(PREF_EM_AUTOUPDATE_DEFAULT, this);
 
     this.providers.forEach(function(provider) {
       callProvider(provider, "shutdown");
     });
 
-    this.managerListeners.splice(0, this.managerListeners.length);
     this.installListeners.splice(0, this.installListeners.length);
     this.addonListeners.splice(0, this.addonListeners.length);
     this.typeListeners.splice(0, this.typeListeners.length);
@@ -679,139 +525,22 @@ var AddonManagerInternal = {
    */
   observe: function AMI_observe(aSubject, aTopic, aData) {
     switch (aData) {
-      case PREF_EM_CHECK_COMPATIBILITY: {
-        let oldValue = gCheckCompatibility;
-        try {
-          gCheckCompatibility = Services.prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY);
-        } catch(e) {
-          gCheckCompatibility = true;
-        }
-
-        this.callManagerListeners("onCompatibilityModeChanged");
-
-        if (gCheckCompatibility != oldValue)
-          this.updateAddonAppDisabledStates();
-
-        break;
-      }
-      case PREF_EM_STRICT_COMPATIBILITY: {
-        let oldValue = gStrictCompatibility;
-        try {
-          gStrictCompatibility = Services.prefs.getBoolPref(PREF_EM_STRICT_COMPATIBILITY);
-        } catch(e) {
-          gStrictCompatibility = true;
-        }
-
-        this.callManagerListeners("onCompatibilityModeChanged");
-
-        if (gStrictCompatibility != oldValue)
-          this.updateAddonAppDisabledStates();
-
-        break;
-      }
-      case PREF_EM_CHECK_UPDATE_SECURITY: {
-        let oldValue = gCheckUpdateSecurity;
-        try {
-          gCheckUpdateSecurity = Services.prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY);
-        } catch(e) {
-          gCheckUpdateSecurity = true;
-        }
-
-        this.callManagerListeners("onCheckUpdateSecurityChanged");
-
-        if (gCheckUpdateSecurity != oldValue)
-          this.updateAddonAppDisabledStates();
-
-        break;
-      }
-      case PREF_EM_UPDATE_ENABLED: {
-        let oldValue = gUpdateEnabled;
-        try {
-          gUpdateEnabled = Services.prefs.getBoolPref(PREF_EM_UPDATE_ENABLED);
-        } catch(e) {
-          gUpdateEnabled = true;
-        }
-
-        this.callManagerListeners("onUpdateModeChanged");
-        break;
-      }
-      case PREF_EM_AUTOUPDATE_DEFAULT: {
-        let oldValue = gAutoUpdateDefault;
-        try {
-          gAutoUpdateDefault = Services.prefs.getBoolPref(PREF_EM_AUTOUPDATE_DEFAULT);
-        } catch(e) {
-          gAutoUpdateDefault = true;
-        }
-
-        this.callManagerListeners("onUpdateModeChanged");
-        break;
-      }
-    }
-  },
-
-  /**
-   * Replaces %...% strings in an addon url (update and updateInfo) with
-   * appropriate values.
-   *
-   * @param  aAddon
-   *         The AddonInternal representing the add-on
-   * @param  aUri
-   *         The uri to escape
-   * @param  aAppVersion
-   *         The optional application version to use for %APP_VERSION%
-   * @return the appropriately escaped uri.
-   */
-  escapeAddonURI: function AMI_escapeAddonURI(aAddon, aUri, aAppVersion)
-  {
-    var addonStatus = aAddon.userDisabled || aAddon.softDisabled ? "userDisabled"
-                                                                 : "userEnabled";
-
-    if (!aAddon.isCompatible)
-      addonStatus += ",incompatible";
-    if (aAddon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
-      addonStatus += ",blocklisted";
-    if (aAddon.blocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
-      addonStatus += ",softblocked";
-
-    try {
-      var xpcomABI = Services.appinfo.XPCOMABI;
-    } catch (ex) {
-      xpcomABI = UNKNOWN_XPCOM_ABI;
-    }
-
-    let uri = aUri.replace(/%ITEM_ID%/g, aAddon.id);
-    uri = uri.replace(/%ITEM_VERSION%/g, aAddon.version);
-    uri = uri.replace(/%ITEM_STATUS%/g, addonStatus);
-    uri = uri.replace(/%APP_ID%/g, Services.appinfo.ID);
-    uri = uri.replace(/%APP_VERSION%/g, aAppVersion ? aAppVersion :
-                                                      Services.appinfo.version);
-    uri = uri.replace(/%REQ_VERSION%/g, UPDATE_REQUEST_VERSION);
-    uri = uri.replace(/%APP_OS%/g, Services.appinfo.OS);
-    uri = uri.replace(/%APP_ABI%/g, xpcomABI);
-    uri = uri.replace(/%APP_LOCALE%/g, getLocale());
-    uri = uri.replace(/%CURRENT_APP_VERSION%/g, Services.appinfo.version);
-
-    // Replace custom parameters (names of custom parameters must have at
-    // least 3 characters to prevent lookups for something like %D0%C8)
-    var catMan = null;
-    uri = uri.replace(/%(\w{3,})%/g, function(aMatch, aParam) {
-      if (!catMan) {
-        catMan = Cc["@mozilla.org/categorymanager;1"].
-                 getService(Ci.nsICategoryManager);
-      }
-
+    case PREF_EM_STRICT_COMPATIBILITY:
+      let oldValue = gStrictCompatibility;
       try {
-        var contractID = catMan.getCategoryEntry(CATEGORY_UPDATE_PARAMS, aParam);
-        var paramHandler = Cc[contractID].getService(Ci.nsIPropertyBag2);
-        return paramHandler.getPropertyAsAString(aParam);
+        gStrictCompatibility = Services.prefs.getBoolPref(PREF_EM_STRICT_COMPATIBILITY);
+      } catch(e) {
+        gStrictCompatibility = STRICT_COMPATIBILITY_DEFAULT;
       }
-      catch(e) {
-        return aMatch;
-      }
-    });
 
-    // escape() does not properly encode + symbols in any embedded FVF strings.
-    return uri.replace(/\+/g, "%2B");
+      // XXXunf Currently, this won't notify listeners that an addon's
+      // compatibility status has changed if the addon's appDisabled state
+      // doesn't change.
+      if (gStrictCompatibility != oldValue)
+        this.updateAddonAppDisabledStates();
+
+      break;
+    }
   },
 
   /**
@@ -819,166 +548,48 @@ var AddonManagerInternal = {
    * that can be updated.
    */
   backgroundUpdateCheck: function AMI_backgroundUpdateCheck() {
-    let hotfixID = null;
-    if (Services.prefs.getPrefType(PREF_EM_HOTFIX_ID) == Ci.nsIPrefBranch.PREF_STRING)
-      hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-
-    let checkHotfix = hotfixID &&
-                      Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED) &&
-                      Services.prefs.getBoolPref(PREF_APP_UPDATE_AUTO);
-
-    if (!this.updateEnabled && !checkHotfix)
+    if (!Services.prefs.getBoolPref(PREF_EM_UPDATE_ENABLED))
       return;
 
     Services.obs.notifyObservers(null, "addons-background-update-start", null);
-
-    // Start this from one to ensure the whole of this function completes before
-    // we can send the complete notification. Some parts can in some cases
-    // complete synchronously before later parts have a chance to increment
-    // pendingUpdates.
     let pendingUpdates = 1;
 
     function notifyComplete() {
-      if (--pendingUpdates == 0) {
-        Services.obs.notifyObservers(null,
-                                     "addons-background-update-complete",
-                                     null);
-      }
+      if (--pendingUpdates == 0)
+        Services.obs.notifyObservers(null, "addons-background-update-complete", null);
     }
 
-    if (this.updateEnabled) {
-      let scope = {};
-      Components.utils.import("resource://gre/modules/AddonRepository.jsm", scope);
-      Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", scope);
-      scope.LightweightThemeManager.updateCurrentTheme();
+    let scope = {};
+    Components.utils.import("resource://gre/modules/AddonRepository.jsm", scope);
+    Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", scope);
+    scope.LightweightThemeManager.updateCurrentTheme();
 
+    this.getAllAddons(function getAddonsCallback(aAddons) {
       pendingUpdates++;
-      this.getAllAddons(function getAddonsCallback(aAddons) {
-        // If there is a known hotfix then exclude it from the list of add-ons to update.
-        var ids = [a.id for each (a in aAddons) if (a.id != hotfixID)];
+      var ids = [a.id for each (a in aAddons)];
+      scope.AddonRepository.repopulateCache(ids, notifyComplete);
 
-        // Repopulate repository cache first, to ensure compatibility overrides
-        // are up to date before checking for addon updates.
-        scope.AddonRepository.backgroundUpdateCheck(ids, function BUC_backgroundUpdateCheckCallback() {
-          AddonManagerInternal.updateAddonRepositoryData(function BUC_updateAddonCallback() {
+      pendingUpdates += aAddons.length;
 
-            pendingUpdates += aAddons.length;
-            aAddons.forEach(function BUC_forEachCallback(aAddon) {
-              if (aAddon.id == hotfixID) {
-                notifyComplete();
-                return;
-              }
+      aAddons.forEach(function BUC_forEachCallback(aAddon) {
+        // Check all add-ons for updates so that any compatibility updates will
+        // be applied
+        aAddon.findUpdates({
+          onUpdateAvailable: function BUC_onUpdateAvailable(aAddon, aInstall) {
+            // Start installing updates when the add-on can be updated and
+            // background updates should be applied.
+            if (aAddon.permissions & AddonManager.PERM_CAN_UPGRADE &&
+                AddonManager.shouldAutoUpdate(aAddon)) {
+              aInstall.install();
+            }
+          },
 
-              // Check all add-ons for updates so that any compatibility updates will
-              // be applied
-              aAddon.findUpdates({
-                onUpdateAvailable: function BUC_onUpdateAvailable(aAddon, aInstall) {
-                  // Start installing updates when the add-on can be updated and
-                  // background updates should be applied.
-                  if (aAddon.permissions & AddonManager.PERM_CAN_UPGRADE &&
-                      AddonManager.shouldAutoUpdate(aAddon)) {
-                    aInstall.install();
-                  }
-                },
-
-                onUpdateFinished: notifyComplete
-              }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
-            });
-
-            notifyComplete();
-          });
-        });
+          onUpdateFinished: notifyComplete
+        }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
       });
-    }
 
-    if (checkHotfix) {
-      var hotfixVersion = "";
-      try {
-        hotfixVersion = Services.prefs.getCharPref(PREF_EM_HOTFIX_LASTVERSION);
-      }
-      catch (e) { }
-
-      let url = null;
-      if (Services.prefs.getPrefType(PREF_EM_HOTFIX_URL) == Ci.nsIPrefBranch.PREF_STRING)
-        url = Services.prefs.getCharPref(PREF_EM_HOTFIX_URL);
-      else
-        url = Services.prefs.getCharPref(PREF_EM_UPDATE_BACKGROUND_URL);
-
-      // Build the URI from a fake add-on data.
-      url = AddonManager.escapeAddonURI({
-        id: hotfixID,
-        version: hotfixVersion,
-        userDisabled: false,
-        appDisabled: false
-      }, url);
-
-      pendingUpdates++;
-      Components.utils.import("resource://gre/modules/AddonUpdateChecker.jsm");
-      AddonUpdateChecker.checkForUpdates(hotfixID, "extension", null, url, {
-        onUpdateCheckComplete: function(aUpdates) {
-          let update = AddonUpdateChecker.getNewestCompatibleUpdate(aUpdates);
-          if (!update) {
-            notifyComplete();
-            return;
-          }
-
-          // If the available version isn't newer than the last installed
-          // version then ignore it.
-          if (Services.vc.compare(hotfixVersion, update.version) >= 0) {
-            notifyComplete();
-            return;
-          }
-
-          LOG("Downloading hotfix version " + update.version);
-          AddonManager.getInstallForURL(update.updateURL, function(aInstall) {
-            aInstall.addListener({
-              onDownloadEnded: function(aInstall) {
-                try {
-                  if (!Services.prefs.getBoolPref(PREF_EM_CERT_CHECKATTRIBUTES))
-                    return;
-                }
-                catch (e) {
-                  // By default don't do certificate checks.
-                  return;
-                }
-
-                try {
-                  CertUtils.validateCert(aInstall.certificate,
-                                         CertUtils.readCertPrefs(PREF_EM_HOTFIX_CERTS));
-                }
-                catch (e) {
-                  WARN("The hotfix add-on was not signed by the expected " +
-                       "certificate and so will not be installed.");
-                  aInstall.cancel();
-                }
-              },
-
-              onInstallEnded: function(aInstall) {
-                // Remember the last successfully installed version.
-                Services.prefs.setCharPref(PREF_EM_HOTFIX_LASTVERSION,
-                                           aInstall.version);
-              },
-
-              onInstallCancelled: function(aInstall) {
-                // Revert to the previous version if the installation was
-                // cancelled.
-                Services.prefs.setCharPref(PREF_EM_HOTFIX_LASTVERSION,
-                                           hotfixVersion);
-              }
-            });
-
-            aInstall.install();
-
-            notifyComplete();
-          }, "application/x-xpinstall", update.updateHash, null,
-             null, update.version);
-        },
-
-        onUpdateCheckError: notifyComplete
-      });
-    }
-
-    notifyComplete();
+      notifyComplete();
+    });
   },
 
   /**
@@ -1022,26 +633,6 @@ var AddonManagerInternal = {
       return;
 
     this.startupChanges[aType] = this.startupChanges[aType].filter(function(aItem) aItem != aID);
-  },
-
-  /**
-   * Calls all registered AddonManagerListeners with an event. Any parameters
-   * after the method parameter are passed to the listener.
-   *
-   * @param  aMethod
-   *         The method on the listeners to call
-   */
-  callManagerListeners: function AMI_callManagerListeners(aMethod) {
-    var args = Array.slice(arguments, 1);
-    this.managerListeners.forEach(function(listener) {
-      try {
-        if (aMethod in listener)
-          listener[aMethod].apply(listener, args);
-      }
-      catch (e) {
-        WARN("AddonManagerListener threw exception when calling " + aMethod, e);
-      }
-    });
   },
 
   /**
@@ -1124,31 +715,7 @@ var AddonManagerInternal = {
       callProvider(provider, "updateAddonAppDisabledStates");
     });
   },
-  
-  /**
-   * Notifies all providers that the repository has updated its data for
-   * installed add-ons.
-   *
-   * @param  aCallback
-   *         Function to call when operation is complete.
-   */
-  updateAddonRepositoryData: function AMI_updateAddonRepositoryData(aCallback) {
-    if (!aCallback)
-      throw Components.Exception("Must specify aCallback",
-                                 Cr.NS_ERROR_INVALID_ARG);
 
-    new AsyncObjectCaller(this.providers, "updateAddonRepositoryData", {
-      nextObject: function(aCaller, aProvider) {
-        callProvider(aProvider,
-                     "updateAddonRepositoryData",
-                     null,
-                     aCaller.callNext.bind(aCaller));
-      },
-      noMoreObjects: function(aCaller) {
-        safeCall(aCallback);
-      }
-    });
-  },
   /**
    * Asynchronously gets an AddonInstall for a URL.
    *
@@ -1545,33 +1112,6 @@ var AddonManagerInternal = {
   },
 
   /**
-   * Adds a new AddonManagerListener if the listener is not already registered.
-   *
-   * @param  aListener
-   *         The listener to add
-   */
-  addManagerListener: function AMI_addManagerListener(aListener) {
-    if (!this.managerListeners.some(function(i) { return i == aListener; }))
-      this.managerListeners.push(aListener);
-  },
-
-  /**
-   * Removes an AddonManagerListener if the listener is registered.
-   *
-   * @param  aListener
-   *         The listener to remove
-   */
-  removeManagerListener: function AMI_removeManagerListener(aListener) {
-    let pos = 0;
-    while (pos < this.managerListeners.length) {
-      if (this.managerListeners[pos] == aListener)
-        this.managerListeners.splice(pos, 1);
-      else
-        pos++;
-    }
-  },
-
-  /**
    * Adds a new AddonListener if the listener is not already registered.
    *
    * @param  aListener
@@ -1618,70 +1158,14 @@ var AddonManagerInternal = {
   },
 
   get autoUpdateDefault() {
-    return gAutoUpdateDefault;
-  },
-
-  set autoUpdateDefault(aValue) {
-    aValue = !!aValue;
-    if (aValue != gAutoUpdateDefault)
-      Services.prefs.setBoolPref(PREF_EM_AUTOUPDATE_DEFAULT, aValue);
-    return aValue;
-  },
-
-  get checkCompatibility() {
-    return gCheckCompatibility;
-  },
-
-  set checkCompatibility(aValue) {
-    aValue = !!aValue;
-    if (aValue != gCheckCompatibility) {
-      if (!aValue)
-        Services.prefs.setBoolPref(PREF_EM_CHECK_COMPATIBILITY, false);
-      else
-        Services.prefs.clearUserPref(PREF_EM_CHECK_COMPATIBILITY);
-    }
-    return aValue;
+    try {
+      return Services.prefs.getBoolPref(PREF_EM_AUTOUPDATE_DEFAULT);
+    } catch(e) { }
+    return true;
   },
 
   get strictCompatibility() {
     return gStrictCompatibility;
-  },
-
-  set strictCompatibility(aValue) {
-    aValue = !!aValue;
-    if (aValue != gStrictCompatibility)
-      Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, aValue);
-    return aValue;
-  },
-
-  get checkUpdateSecurityDefault() {
-    return gCheckUpdateSecurityDefault;
-  },
-
-  get checkUpdateSecurity() {
-    return gCheckUpdateSecurity;
-  },
-
-  set checkUpdateSecurity(aValue) {
-    aValue = !!aValue;
-    if (aValue != gCheckUpdateSecurity) {
-      if (aValue != gCheckUpdateSecurityDefault)
-        Services.prefs.setBoolPref(PREF_EM_CHECK_UPDATE_SECURITY, aValue);
-      else
-        Services.prefs.clearUserPref(PREF_EM_CHECK_UPDATE_SECURITY);
-    }
-    return aValue;
-  },
-
-  get updateEnabled() {
-    return gUpdateEnabled;
-  },
-
-  set updateEnabled(aValue) {
-    aValue = !!aValue;
-    if (aValue != gUpdateEnabled)
-      Services.prefs.setBoolPref(PREF_EM_UPDATE_ENABLED, aValue);
-    return aValue;
   }
 };
 
@@ -1728,10 +1212,6 @@ var AddonManagerPrivate = {
     AddonManagerInternal.updateAddonAppDisabledStates();
   },
 
-  updateAddonRepositoryData: function AMP_updateAddonRepositoryData(aCallback) {
-    AddonManagerInternal.updateAddonRepositoryData(aCallback);
-  },
-
   callInstallListeners: function AMP_callInstallListeners(aMethod) {
     return AddonManagerInternal.callInstallListeners.apply(AddonManagerInternal,
                                                            arguments);
@@ -1744,8 +1224,6 @@ var AddonManagerPrivate = {
   AddonAuthor: AddonAuthor,
 
   AddonScreenshot: AddonScreenshot,
-
-  AddonCompatibilityOverride: AddonCompatibilityOverride,
 
   AddonType: AddonType
 };
@@ -1972,14 +1450,6 @@ var AddonManager = {
     AddonManagerInternal.installAddonsFromWebpage(aType, aSource, aUri, aInstalls);
   },
 
-  addManagerListener: function AM_addManagerListener(aListener) {
-    AddonManagerInternal.addManagerListener(aListener);
-  },
-
-  removeManagerListener: function AM_removeManagerListener(aListener) {
-    AddonManagerInternal.removeManagerListener(aListener);
-  },
-
   addInstallListener: function AM_addInstallListener(aListener) {
     AddonManagerInternal.addInstallListener(aListener);
   },
@@ -2008,6 +1478,10 @@ var AddonManager = {
     return AddonManagerInternal.addonTypes;
   },
 
+  get autoUpdateDefault() {
+    return AddonManagerInternal.autoUpdateDefault;
+  },
+
   shouldAutoUpdate: function AM_shouldAutoUpdate(aAddon) {
     if (!("applyBackgroundUpdates" in aAddon))
       return false;
@@ -2018,52 +1492,8 @@ var AddonManager = {
     return this.autoUpdateDefault;
   },
 
-  get checkCompatibility() {
-    return AddonManagerInternal.checkCompatibility;
-  },
-
-  set checkCompatibility(aValue) {
-    AddonManagerInternal.checkCompatibility = aValue;
-  },
-
   get strictCompatibility() {
     return AddonManagerInternal.strictCompatibility;
-  },
-
-  set strictCompatibility(aValue) {
-    AddonManagerInternal.strictCompatibility = aValue;
-  },
-
-  get checkUpdateSecurityDefault() {
-    return AddonManagerInternal.checkUpdateSecurityDefault;
-  },
-
-  get checkUpdateSecurity() {
-    return AddonManagerInternal.checkUpdateSecurity;
-  },
-
-  set checkUpdateSecurity(aValue) {
-    AddonManagerInternal.checkUpdateSecurity = aValue;
-  },
-
-  get updateEnabled() {
-    return AddonManagerInternal.updateEnabled;
-  },
-
-  set updateEnabled(aValue) {
-    AddonManagerInternal.updateEnabled = aValue;
-  },
-
-  get autoUpdateDefault() {
-    return AddonManagerInternal.autoUpdateDefault;
-  },
-
-  set autoUpdateDefault(aValue) {
-    AddonManagerInternal.autoUpdateDefault = aValue;
-  },
-
-  escapeAddonURI: function AM_escapeAddonURI(aAddon, aUri, aAppVersion) {
-    return AddonManagerInternal.escapeAddonURI(aAddon, aUri, aAppVersion);
   }
 };
 

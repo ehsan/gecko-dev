@@ -1,8 +1,5 @@
 const Cm = Components.manager;
 
-const TEST_CLUSTER_URL = "http://localhost:8080/";
-const TEST_SERVER_URL  = "http://localhost:8080/";
-
 // Shared logging for all HTTP server functions.
 Cu.import("resource://services-sync/log4moz.js");
 const SYNC_HTTP_LOGGER = "Sync.Test.Server";
@@ -26,9 +23,9 @@ function return_timestamp(request, response, timestamp) {
   return timestamp;
 }
 
-function httpd_setup (handlers, port) {
-  let port   = port || 8080;
+function httpd_setup (handlers) {
   let server = new nsHttpServer();
+  let port   = 8080;
   for (let path in handlers) {
     server.registerPathHandler(path, handlers[path]);
   }
@@ -295,16 +292,6 @@ ServerCollection.prototype = {
     return this.insertWBO(new ServerWBO(id, payload, modified));
   },
 
-  /**
-   * Removes an object entirely from the collection.
-   *
-   * @param id
-   *        (string) ID to remove.
-   */
-  remove: function remove(id) {
-    delete this._wbos[id];
-  },
-
   _inResultSet: function(wbo, options) {
     return wbo.payload
            && (!options.ids || (options.ids.indexOf(wbo.id) != -1))
@@ -524,8 +511,7 @@ function track_collections_helper() {
       default:
         throw "Non-GET on info_collections.";
     }
-
-    response.setHeader("Content-Type", "application/json");
+        
     response.setHeader("X-Weave-Timestamp",
                        "" + new_timestamp(),
                        false);
@@ -554,15 +540,7 @@ function track_collections_helper() {
  */
 let SyncServerCallback = {
   onCollectionDeleted: function onCollectionDeleted(user, collection) {},
-  onItemDeleted: function onItemDeleted(user, collection, wboID) {},
-
-  /**
-   * Called at the top of every request.
-   *
-   * Allows the test to inspect the request. Hooks should be careful not to
-   * modify or change state of the request or they may impact future processing.
-   */
-  onRequest: function onRequest(request) {},
+  onItemDeleted: function onItemDeleted(user, collection, wboID) {}
 };
 
 /**
@@ -827,24 +805,7 @@ SyncServer.prototype = {
    * TODO: check username in path against username in BasicAuth. 
    */
   handleDefault: function handleDefault(handler, req, resp) {
-    try {
-      this._handleDefault(handler, req, resp);
-    } catch (e) {
-      if (e instanceof HttpError) {
-        this.respond(req, resp, e.code, e.description, "", {});
-      } else {
-        throw e;
-      }
-    }
-  },
-
-  _handleDefault: function _handleDefault(handler, req, resp) {
     this._log.debug("SyncServer: Handling request: " + req.method + " " + req.path);
-
-    if (this.callback.onRequest) {
-      this.callback.onRequest(req);
-    }
-
     let parts = this.pathRE.exec(req.path);
     if (!parts) {
       this._log.debug("SyncServer: Unexpected request: bad URL " + req.path);

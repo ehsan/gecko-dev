@@ -208,7 +208,6 @@ let TabView = {
     this._iframe = document.createElement("iframe");
     this._iframe.id = "tab-view";
     this._iframe.setAttribute("transparent", "true");
-    this._iframe.setAttribute("tooltip", "tab-view-tooltip");
     this._iframe.flex = 1;
 
     let self = this;
@@ -236,12 +235,6 @@ let TabView = {
 
     this._iframe.setAttribute("src", "chrome://browser/content/tabview.html");
     this._deck.appendChild(this._iframe);
-
-    // ___ create tooltip
-    let tooltip = document.createElement("tooltip");
-    tooltip.id = "tab-view-tooltip";
-    tooltip.setAttribute("onpopupshowing", "return TabView.fillInTooltip(document.tooltipNode);");
-    document.getElementById("mainPopupSet").appendChild(tooltip);
   },
 
   // ----------
@@ -360,10 +353,8 @@ let TabView = {
           if (!tabItem)
             return;
 
-          if (gBrowser.selectedTab.pinned)
-            groupItems.updateActiveGroupItemAndTabBar(tabItem, {dontSetActiveTabInGroup: true});
-          else
-            gBrowser.selectedTab = tabItem.tab;
+          // Switch to the new tab
+          window.gBrowser.selectedTab = tabItem.tab;
         });
       }
     }, true);
@@ -449,29 +440,5 @@ let TabView = {
       // show banner
       this._window.UI.notifySessionRestoreEnabled();
     }
-  },
-
-  // ----------
-  // Function: fillInTooltip
-  // Fills in the tooltip text.
-  fillInTooltip: function fillInTooltip(tipElement) {
-    let retVal = false;
-    let titleText = null;
-    let direction = tipElement.ownerDocument.dir;
-
-    while (!titleText && tipElement) {
-      if (tipElement.nodeType == Node.ELEMENT_NODE)
-        titleText = tipElement.getAttribute("title");
-      tipElement = tipElement.parentNode;
-    }
-    let tipNode = document.getElementById("tab-view-tooltip");
-    tipNode.style.direction = direction;
-
-    if (titleText) {
-      tipNode.setAttribute("label", titleText);
-      retVal = true;
-    }
-
-    return retVal;
   }
 };

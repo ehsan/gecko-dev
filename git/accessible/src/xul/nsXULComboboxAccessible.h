@@ -50,7 +50,7 @@ class nsXULComboboxAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Click = 0 };
 
-  nsXULComboboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULComboboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& aValue);
@@ -59,9 +59,9 @@ public:
 
   // nsAccessible
   virtual void Description(nsString& aDescription);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();

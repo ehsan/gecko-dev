@@ -49,10 +49,8 @@
 #include "gfxColor.h"
 #include "gfxPattern.h"
 #include "nsTArray.h"
-#include "nsThreadUtils.h"
 
 #include "mozilla/gfx/2D.h"
-#include "mozilla/TimeStamp.h"
 
 #if defined(DEBUG) || defined(PR_LOGGING)
 #  include <stdio.h>            // FILE
@@ -429,9 +427,9 @@ public:
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer() { return nsnull; }
 
   /**
-   * Can be called anytime, from any thread.
+   * Can be called anytime
    */
-  static already_AddRefed<ImageContainer> CreateImageContainer();
+  virtual already_AddRefed<ImageContainer> CreateImageContainer() = 0;
 
   /**
    * Type of layer manager his is. This is to be used sparsely in order to
@@ -514,11 +512,6 @@ public:
    */
   void LogSelf(const char* aPrefix="");
 
-  void StartFrameTimeRecording();
-  nsTArray<float> StopFrameTimeRecording();
-
-  void PostPresent();
-
   static bool IsLogEnabled();
   static PRLogModuleInfo* GetLog() { return sLog; }
 
@@ -539,9 +532,6 @@ protected:
 
   static void InitLog();
   static PRLogModuleInfo* sLog;
-private:
-  TimeStamp mLastFrameTime;
-  nsTArray<float> mFrameTimes;
 };
 
 class ThebesLayer;
@@ -1344,11 +1334,6 @@ protected:
    */
   bool mDirty;
 };
-
-#ifdef MOZ_DUMP_PAINTING
-void WriteSnapshotToDumpFile(Layer* aLayer, gfxASurface* aSurf);
-void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf);
-#endif
 
 }
 }

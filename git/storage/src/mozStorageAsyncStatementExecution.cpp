@@ -215,17 +215,7 @@ AsyncExecuteStatements::execute(StatementDataArray &aStatements,
 
   // Dispatch it to the background
   nsIEventTarget *target = aConnection->getAsyncExecutionTarget();
-
-  // If we don't have a valid target, this is a bug somewhere else. In the past,
-  // this assert found cases where a Run method would schedule a new statement
-  // without checking if asyncClose had been called. The caller must prevent
-  // that from happening or, if the work is not critical, just avoid creating
-  // the new statement during shutdown. See bug 718449 for an example.
-  MOZ_ASSERT(target);
-  if (!target) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
+  NS_ENSURE_TRUE(target, NS_ERROR_NOT_AVAILABLE);
   nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -375,7 +365,7 @@ AsyncExecuteStatements::executeStatement(sqlite3_stmt *aStatement)
     // lock the sqlite mutex so sqlite3_errmsg cannot change
     SQLiteMutexAutoLock lockedScope(mDBMutex);
 
-    int rc = mConnection->stepStatement(aStatement);
+    int rc = stepStmt(aStatement);
     // Stop if we have no more results.
     if (rc == SQLITE_DONE)
     {

@@ -41,14 +41,10 @@ interface nsIURI;
 interface nsIInterfaceRequestor;
 interface nsILoadGroup;
 interface nsIWebSocketListener;
-interface nsIInputStream;
 
 #include "nsISupports.idl"
 
-/** 
- *  You probably want nsI{Moz}WebSocket.idl
- */
-[uuid(ace34548-6dde-4570-b0b4-451aa6a877e0)]
+[scriptable, uuid(e8ae0371-c28f-4d61-b257-514e014a4686)]
 interface nsIWebSocketChannel : nsISupports
 {
     /**
@@ -123,21 +119,13 @@ interface nsIWebSocketChannel : nsISupports
     void close(in unsigned short aCode, in AUTF8String aReason);
     
     // section 7.4.1 defines these close codes
-    const unsigned short CLOSE_NORMAL               = 1000;
-    const unsigned short CLOSE_GOING_AWAY           = 1001;
-    const unsigned short CLOSE_PROTOCOL_ERROR       = 1002;
-    const unsigned short CLOSE_UNSUPPORTED_DATATYPE = 1003;
-    //  code 1004 is reserved
-    const unsigned short CLOSE_NO_STATUS            = 1005;
-    const unsigned short CLOSE_ABNORMAL             = 1006;
-    const unsigned short CLOSE_INVALID_PAYLOAD      = 1007;
-    const unsigned short CLOSE_POLICY_VIOLATION     = 1008;
-    const unsigned short CLOSE_TOO_LARGE            = 1009;
-    const unsigned short CLOSE_EXTENSION_MISSING    = 1010;
-
-    // Websocket spec doesn't have equivalent of HTTP 500 code for internal
-    // errors: just use CLOSE_GOING_AWAY for now
-    const unsigned short CLOSE_INTERNAL_ERROR      = CLOSE_GOING_AWAY;
+    const unsigned short CLOSE_NORMAL         = 1000;
+    const unsigned short CLOSE_GOING_AWAY     = 1001;
+    const unsigned short CLOSE_PROTOCOL_ERROR = 1002;
+    const unsigned short CLOSE_UNSUPPORTED    = 1003;
+    const unsigned short CLOSE_TOO_LARGE      = 1004;
+    const unsigned short CLOSE_NO_STATUS      = 1005;
+    const unsigned short CLOSE_ABNORMAL       = 1006;
 
     /**
      * Use to send text message down the connection to WebSocket peer.
@@ -152,12 +140,4 @@ interface nsIWebSocketChannel : nsISupports
      * @param aMsg the data to send
      */
     void sendBinaryMsg(in ACString aMsg);
-
-    /** 
-     * Use to send a binary stream (Blob) to Websocket peer.
-     *
-     * @param aStream The input stream to be sent.  
-     */
-    void sendBinaryStream(in nsIInputStream aStream, 
-                          in unsigned long length);
 };

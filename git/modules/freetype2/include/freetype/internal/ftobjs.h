@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    The FreeType private base classes (specification).                   */
 /*                                                                         */
-/*  Copyright 1996-2006, 2008, 2010, 2012 by                               */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2008, 2010 by       */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -243,7 +243,7 @@ FT_BEGIN_HEADER
     clazz->variant_list = variant_list_;                                     \
     clazz->charvariant_list = charvariant_list_;                             \
     clazz->variantchar_list = variantchar_list_;                             \
-  }
+  } 
 #endif /* FT_CONFIG_OPTION_PIC */
 
   /* create a new charmap and add it to charmap->face */
@@ -436,16 +436,19 @@ FT_BEGIN_HEADER
   /*                                                                       */
   /*    memory  :: A handle to the memory manager.                         */
   /*                                                                       */
+  /*    generic :: A generic structure for user-level extensibility (?).   */
+  /*                                                                       */
   typedef struct  FT_ModuleRec_
   {
     FT_Module_Class*  clazz;
     FT_Library        library;
     FT_Memory         memory;
+    FT_Generic        generic;
 
   } FT_ModuleRec;
 
 
-  /* typecast an object to an FT_Module */
+  /* typecast an object to a FT_Module */
 #define FT_MODULE( x )          ((FT_Module)( x ))
 #define FT_MODULE_CLASS( x )    FT_MODULE( x )->clazz
 #define FT_MODULE_LIBRARY( x )  FT_MODULE( x )->library
@@ -708,6 +711,10 @@ FT_BEGIN_HEADER
   /*     faces_list   :: The list of faces currently opened by this        */
   /*                     driver.                                           */
   /*                                                                       */
+  /*     extensions   :: A typeless pointer to the driver's extensions     */
+  /*                     registry, if they are supported through the       */
+  /*                     configuration macro FT_CONFIG_OPTION_EXTENSIONS.  */
+  /*                                                                       */
   /*     glyph_loader :: The glyph loader for all faces managed by this    */
   /*                     driver.  This object isn't defined for unscalable */
   /*                     formats.                                          */
@@ -716,7 +723,10 @@ FT_BEGIN_HEADER
   {
     FT_ModuleRec     root;
     FT_Driver_Class  clazz;
+
     FT_ListRec       faces_list;
+    void*            extensions;
+
     FT_GlyphLoader   glyph_loader;
 
   } FT_DriverRec;
@@ -765,6 +775,9 @@ FT_BEGIN_HEADER
   /* <Fields>                                                              */
   /*    memory           :: The library's memory object.  Manages memory   */
   /*                        allocation.                                    */
+  /*                                                                       */
+  /*    generic          :: Client data variable.  Used to extend the      */
+  /*                        Library class by higher levels and clients.    */
   /*                                                                       */
   /*    version_major    :: The major version number of the library.       */
   /*                                                                       */
@@ -824,6 +837,8 @@ FT_BEGIN_HEADER
   typedef struct  FT_LibraryRec_
   {
     FT_Memory          memory;           /* library's memory manager */
+
+    FT_Generic         generic;
 
     FT_Int             version_major;
     FT_Int             version_minor;
@@ -961,7 +976,7 @@ FT_BEGIN_HEADER
     move_to_, line_to_, conic_to_, cubic_to_, shift_, delta_                 \
   };
 
-#else /* FT_CONFIG_OPTION_PIC */
+#else /* FT_CONFIG_OPTION_PIC */ 
 
 #define FT_DEFINE_OUTLINE_FUNCS(class_, move_to_, line_to_, conic_to_,       \
                                 cubic_to_, shift_, delta_)                   \
@@ -975,9 +990,9 @@ FT_BEGIN_HEADER
     clazz->shift = shift_;                                                   \
     clazz->delta = delta_;                                                   \
     return FT_Err_Ok;                                                        \
-  }
+  } 
 
-#endif /* FT_CONFIG_OPTION_PIC */
+#endif /* FT_CONFIG_OPTION_PIC */ 
 
   /*************************************************************************/
   /*                                                                       */
@@ -1003,7 +1018,7 @@ FT_BEGIN_HEADER
     raster_set_mode_, raster_render_, raster_done_                           \
   };
 
-#else /* FT_CONFIG_OPTION_PIC */
+#else /* FT_CONFIG_OPTION_PIC */ 
 
 #define FT_DEFINE_RASTER_FUNCS(class_, glyph_format_, raster_new_,           \
     raster_reset_, raster_set_mode_, raster_render_, raster_done_)           \
@@ -1016,9 +1031,9 @@ FT_BEGIN_HEADER
     clazz->raster_set_mode = raster_set_mode_;                               \
     clazz->raster_render = raster_render_;                                   \
     clazz->raster_done = raster_done_;                                       \
-  }
+  } 
 
-#endif /* FT_CONFIG_OPTION_PIC */
+#endif /* FT_CONFIG_OPTION_PIC */ 
 
   /*************************************************************************/
   /*************************************************************************/
@@ -1057,7 +1072,7 @@ FT_BEGIN_HEADER
     size_, format_, init_, done_, copy_, transform_, bbox_, prepare_         \
   };
 
-#else /* FT_CONFIG_OPTION_PIC */
+#else /* FT_CONFIG_OPTION_PIC */ 
 
 #define FT_DEFINE_GLYPH(class_, size_, format_, init_, done_, copy_,         \
                         transform_, bbox_, prepare_)                         \
@@ -1072,9 +1087,9 @@ FT_BEGIN_HEADER
     clazz->glyph_transform = transform_;                                     \
     clazz->glyph_bbox = bbox_;                                               \
     clazz->glyph_prepare = prepare_;                                         \
-  }
+  } 
 
-#endif /* FT_CONFIG_OPTION_PIC */
+#endif /* FT_CONFIG_OPTION_PIC */ 
 
   /*************************************************************************/
   /*                                                                       */
@@ -1104,9 +1119,7 @@ FT_BEGIN_HEADER
   /*    and initialize any additional global data, like module specific    */
   /*    interface, and put them in the global pic container defined in     */
   /*    ftpic.h. if you don't need them just implement the functions as    */
-  /*    empty to resolve the link error.  Also the pic_init and pic_free   */
-  /*    functions should be declared in pic.h, to be referred by renderer  */
-  /*    definition calling FT_DEFINE_RENDERER() in following.              */
+  /*    empty to resolve the link error.                                   */
   /*                                                                       */
   /*    When FT_CONFIG_OPTION_PIC is not defined the struct will be        */
   /*    allocated in the global scope (or the scope where the macro        */
@@ -1137,7 +1150,7 @@ FT_BEGIN_HEADER
     raster_class_                                                            \
   };
 
-#else /* FT_CONFIG_OPTION_PIC */
+#else /* FT_CONFIG_OPTION_PIC */ 
 
 #define FT_DECLARE_RENDERER(class_)  FT_DECLARE_MODULE(class_)
 
@@ -1146,6 +1159,8 @@ FT_BEGIN_HEADER
                            interface_, init_, done_, get_interface_,         \
                            glyph_format_, render_glyph_, transform_glyph_,   \
                            get_glyph_cbox_, set_mode_, raster_class_ )       \
+  void class_##_pic_free( FT_Library library );                              \
+  FT_Error class_##_pic_init( FT_Library library );                          \
                                                                              \
   void                                                                       \
   FT_Destroy_Class_##class_( FT_Library        library,                      \
@@ -1190,11 +1205,11 @@ FT_BEGIN_HEADER
                                                                              \
     *output_class = (FT_Module_Class*)clazz;                                 \
     return FT_Err_Ok;                                                        \
-  }
+  } 
 
 
 
-#endif /* FT_CONFIG_OPTION_PIC */
+#endif /* FT_CONFIG_OPTION_PIC */ 
 
   /*************************************************************************/
   /*************************************************************************/
@@ -1275,9 +1290,7 @@ FT_BEGIN_HEADER
   /*    and initialize any additional global data, like module specific    */
   /*    interface, and put them in the global pic container defined in     */
   /*    ftpic.h. if you don't need them just implement the functions as    */
-  /*    empty to resolve the link error.  Also the pic_init and pic_free   */
-  /*    functions should be declared in pic.h, to be referred by module    */
-  /*    definition calling FT_DEFINE_MODULE() in following.                */
+  /*    empty to resolve the link error.                                   */
   /*                                                                       */
   /*    When FT_CONFIG_OPTION_PIC is not defined the struct will be        */
   /*    allocated in the global scope (or the scope where the macro        */
@@ -1354,10 +1367,12 @@ FT_BEGIN_HEADER
                                                                              \
     clazz->root.module_init        = init_;                                  \
     clazz->root.module_done        = done_;                                  \
-    clazz->root.get_interface      = get_interface_;
+    clazz->root.get_interface      = get_interface_;               
 
 #define FT_DEFINE_MODULE(class_, flags_, size_, name_, version_, requires_,  \
                          interface_, init_, done_, get_interface_)           \
+  void class_##_pic_free( FT_Library library );                              \
+  FT_Error class_##_pic_init( FT_Library library );                          \
                                                                              \
   void                                                                       \
   FT_Destroy_Class_##class_( FT_Library library,                             \
@@ -1400,7 +1415,7 @@ FT_BEGIN_HEADER
                                                                              \
     *output_class = clazz;                                                   \
     return FT_Err_Ok;                                                        \
-  }
+  } 
 
 #endif /* FT_CONFIG_OPTION_PIC */
 

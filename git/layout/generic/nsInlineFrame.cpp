@@ -71,25 +71,11 @@ NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsInlineFrame(aContext);
 }
 
-NS_IMETHODIMP
-nsInlineFrame::Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow)
-{
-  // Let the base class do its processing
-  nsresult rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
-
-  // Transforms do not affect regular inline elements (bug 722463)
-  mState &= ~NS_FRAME_MAY_BE_TRANSFORMED;
-
-  return rv;
-}
-
 NS_IMPL_FRAMEARENA_HELPERS(nsInlineFrame)
 
 NS_QUERYFRAME_HEAD(nsInlineFrame)
   NS_QUERYFRAME_ENTRY(nsInlineFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsInlineFrameSuper)
 
 #ifdef DEBUG
 NS_IMETHODIMP
@@ -199,9 +185,9 @@ nsInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
-  nsresult rv = BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsHTMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
-
+  
   // The sole purpose of this is to trigger display of the selection
   // window for Named Anchors, which don't have any children and
   // normally don't have any size, but in Editor we use CSS to display
@@ -660,8 +646,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   }
 
   nsRefPtr<nsFontMetrics> fm;
-  float inflation =
-    nsLayoutUtils::FontSizeInflationFor(this, nsLayoutUtils::eInReflow);
+  float inflation = nsLayoutUtils::FontSizeInflationFor(aReflowState);
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm), inflation);
   aReflowState.rendContext->SetFont(fm);
 
@@ -939,7 +924,7 @@ void
 nsInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   DestroyAbsoluteFrames(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsInlineFrameSuper::DestroyFrom(aDestructRoot);
 }
 
 #ifdef ACCESSIBILITY

@@ -38,7 +38,6 @@
 
 #include "nsHTMLWin32ObjectAccessible.h"
 
-#include "Role.h"
 #include "States.h"
 
 using namespace mozilla::a11y;
@@ -48,9 +47,9 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLWin32ObjectOwnerAccessible::
-  nsHTMLWin32ObjectOwnerAccessible(nsIContent* aContent,
-                                   nsDocAccessible* aDoc, void* aHwnd) :
-  nsAccessibleWrap(aContent, aDoc), mHwnd(aHwnd)
+  nsHTMLWin32ObjectOwnerAccessible(nsIContent *aContent,
+                                   nsIWeakReference *aShell, void *aHwnd) :
+  nsAccessibleWrap(aContent, aShell), mHwnd(aHwnd)
 {
   // Our only child is a nsHTMLWin32ObjectAccessible object.
   mNativeAccessible = new nsHTMLWin32ObjectAccessible(mHwnd);
@@ -69,10 +68,10 @@ nsHTMLWin32ObjectOwnerAccessible::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLWin32ObjectOwnerAccessible: nsAccessible implementation
 
-role
+PRUint32
 nsHTMLWin32ObjectOwnerAccessible::NativeRole()
 {
-  return roles::EMBEDDED_OBJECT;
+  return nsIAccessibleRole::ROLE_EMBEDDED_OBJECT;
 }
 
 PRUint64
@@ -114,16 +113,11 @@ nsLeafAccessible(nsnull, nsnull)
   }
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLWin32ObjectAccessible, nsAccessible)
+NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLWin32ObjectAccessible, nsAccessible, nsIAccessibleWin32Object)
 
-NS_IMETHODIMP 
-nsHTMLWin32ObjectAccessible::GetNativeInterface(void** aNativeAccessible)
+NS_IMETHODIMP nsHTMLWin32ObjectAccessible::GetHwnd(void **aHwnd) 
 {
-  if (mHwnd) {
-    ::AccessibleObjectFromWindow(static_cast<HWND>(mHwnd),
-                                 OBJID_WINDOW, IID_IAccessible,
-                                 aNativeAccessible);
-  }
+  *aHwnd = mHwnd;
   return NS_OK;
 }
 

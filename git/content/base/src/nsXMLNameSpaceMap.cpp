@@ -45,7 +45,7 @@
 #include "nsContentUtils.h"
 #include "nsGkAtoms.h"
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsDefaultComparator <nsNameSpaceEntry, nsIAtom*> {
   public:
     bool Equals(const nsNameSpaceEntry& aEntry, nsIAtom* const& aPrefix) const {
@@ -53,7 +53,7 @@ class nsDefaultComparator <nsNameSpaceEntry, nsIAtom*> {
     }
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsDefaultComparator <nsNameSpaceEntry, PRInt32> {
   public:
     bool Equals(const nsNameSpaceEntry& aEntry, const PRInt32& aNameSpace) const {

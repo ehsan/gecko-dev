@@ -59,4 +59,6 @@ SkMallocPixelRef::SkMallocPixelRef(SkFlattenableReadBuffer& buffer)
     }
 }
 
-SK_DEFINE_PIXEL_REF_REGISTRAR(SkMallocPixelRef)
+static SkPixelRef::Registrar reg("SkMallocPixelRef",
+                                 SkMallocPixelRef::Create);
+

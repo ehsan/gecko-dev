@@ -64,8 +64,6 @@ public:
 
   NS_DECL_NSIDOMCLOSEEVENT
 
-  virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, jsval* aVal);
 private:
   bool mWasClean;
   PRUint16 mReasonCode;

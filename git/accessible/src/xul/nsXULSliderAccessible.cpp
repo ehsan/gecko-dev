@@ -39,7 +39,6 @@
 #include "nsXULSliderAccessible.h"
 
 #include "nsAccessibilityService.h"
-#include "Role.h"
 #include "States.h"
 
 #include "nsIDOMDocument.h"
@@ -53,8 +52,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULSliderAccessible::
-  nsXULSliderAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsXULSliderAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -66,10 +65,10 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULSliderAccessible,
 
 // nsAccessible
 
-role
+PRUint32
 nsXULSliderAccessible::NativeRole()
 {
-  return roles::SLIDER;
+  return nsIAccessibleRole::ROLE_SLIDER;
 }
 
 PRUint64
@@ -190,7 +189,7 @@ nsXULSliderAccessible::SetCurrentValue(double aValue)
 }
 
 bool
-nsXULSliderAccessible::CanHaveAnonChildren()
+nsXULSliderAccessible::GetAllowsAnonChildAccessibles()
 {
   // Do not allow anonymous xul:slider be accessible.
   return false;
@@ -289,17 +288,17 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, double aValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULThumbAccessible::
-  nsXULThumbAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsXULThumbAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULThumbAccessible: nsAccessible
 
-role
+PRUint32
 nsXULThumbAccessible::NativeRole()
 {
-  return roles::INDICATOR;
+  return nsIAccessibleRole::ROLE_INDICATOR;
 }
 

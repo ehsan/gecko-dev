@@ -38,7 +38,7 @@
 #define nsTableOuterFrame_h__
 
 #include "nscore.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsBlockFrame.h"
 #include "nsITableLayout.h"
 #include "nsTableFrame.h"
@@ -57,7 +57,7 @@ public:
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, bool aShrinkWrap);
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsIFrame* GetParentStyleContextFrame();
 
 #ifdef ACCESSIBILITY
   virtual already_AddRefed<nsAccessible> CreateAccessible();
@@ -82,7 +82,7 @@ protected:
  * the nsTableOuterFrame contains 0 or one caption frame, and a nsTableFrame
  * pseudo-frame (referred to as the "inner frame').
  */
-class nsTableOuterFrame : public nsContainerFrame, public nsITableLayout
+class nsTableOuterFrame : public nsHTMLContainerFrame, public nsITableLayout
 {
 public:
   NS_DECL_QUERYFRAME
@@ -102,7 +102,7 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);
  
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const;
+  virtual nsFrameList GetChildList(ChildListID aListID) const;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
   NS_IMETHOD AppendFrames(ChildListID     aListID,
@@ -159,7 +159,12 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  /** SetSelected needs to be overridden to talk to inner tableframe
+   */
+  void SetSelected(bool aSelected,
+                   SelectionType aType);
+
+  virtual nsIFrame* GetParentStyleContextFrame();
 
   /*---------------- nsITableLayout methods ------------------------*/
 
@@ -188,7 +193,7 @@ protected:
 
   /** Always returns 0, since the outer table frame has no border of its own
     * The inner table frame can answer this question in a meaningful way.
-    * @see nsContainerFrame::GetSkipSides */
+    * @see nsHTMLContainerFrame::GetSkipSides */
   virtual PRIntn GetSkipSides() const;
 
   PRUint8 GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
@@ -250,7 +255,7 @@ protected:
                       nscoord                  aAvailableWidth,
                       nsMargin&                aMargin);
 
-  nsTableFrame* InnerTableFrame() const {
+  nsTableFrame* InnerTableFrame() {
     return static_cast<nsTableFrame*>(mFrames.FirstChild());
   }
   

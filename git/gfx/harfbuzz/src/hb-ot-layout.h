@@ -1,5 +1,5 @@
 /*
- * Copyright © 2007,2008,2009  Red Hat, Inc.
+ * Copyright (C) 2007,2008,2009  Red Hat, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -59,11 +59,12 @@ hb_ot_layout_get_attach_points (hb_face_t      *face,
 /* Ligature caret positions */
 unsigned int
 hb_ot_layout_get_ligature_carets (hb_font_t      *font,
+				  hb_face_t      *face,
 				  hb_direction_t  direction,
 				  hb_codepoint_t  glyph,
 				  unsigned int    start_offset,
 				  unsigned int   *caret_count /* IN/OUT */,
-				  hb_position_t  *caret_array /* OUT */);
+				  int            *caret_array /* OUT */);
 
 
 /*
@@ -92,8 +93,7 @@ hb_bool_t
 hb_ot_layout_table_choose_script (hb_face_t      *face,
 				  hb_tag_t        table_tag,
 				  const hb_tag_t *script_tags,
-				  unsigned int   *script_index,
-				  hb_tag_t       *chosen_script);
+				  unsigned int   *script_index);
 
 unsigned int
 hb_ot_layout_table_get_feature_tags (hb_face_t    *face,
@@ -166,19 +166,11 @@ hb_ot_layout_feature_get_lookup_indexes (hb_face_t    *face,
 hb_bool_t
 hb_ot_layout_has_substitution (hb_face_t *face);
 
-/* Should be called before all the substitute_lookup's are done. */
-void
-hb_ot_layout_substitute_start (hb_buffer_t  *buffer);
-
 hb_bool_t
 hb_ot_layout_substitute_lookup (hb_face_t    *face,
 				hb_buffer_t  *buffer,
 				unsigned int  lookup_index,
 				hb_mask_t     mask);
-
-/* Should be called after all the substitute_lookup's are done */
-void
-hb_ot_layout_substitute_finish (hb_buffer_t  *buffer);
 
 /*
  * GPOS
@@ -187,12 +179,9 @@ hb_ot_layout_substitute_finish (hb_buffer_t  *buffer);
 hb_bool_t
 hb_ot_layout_has_positioning (hb_face_t *face);
 
-/* Should be called before all the position_lookup's are done.  Resets positions to zero. */
-void
-hb_ot_layout_position_start (hb_buffer_t  *buffer);
-
 hb_bool_t
 hb_ot_layout_position_lookup (hb_font_t    *font,
+			      hb_face_t    *face,
 			      hb_buffer_t  *buffer,
 			      unsigned int  lookup_index,
 			      hb_mask_t     mask);

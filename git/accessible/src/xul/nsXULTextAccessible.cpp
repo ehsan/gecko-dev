@@ -45,7 +45,6 @@
 #include "nsCoreUtils.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 #include "nsIAccessibleRelation.h"
@@ -61,8 +60,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTextAccessible::
-  nsXULTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsXULTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -75,10 +74,10 @@ nsXULTextAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-role
+PRUint32
 nsXULTextAccessible::NativeRole()
 {
-  return roles::LABEL;
+  return nsIAccessibleRole::ROLE_LABEL;
 }
 
 PRUint64
@@ -98,7 +97,7 @@ nsXULTextAccessible::RelationByType(PRUint32 aType)
     nsIContent *parent = mContent->GetParent();
     if (parent && parent->Tag() == nsGkAtoms::caption) {
       nsAccessible* parent = Parent();
-      if (parent && parent->Role() == roles::GROUPING)
+      if (parent && parent->Role() == nsIAccessibleRole::ROLE_GROUPING)
         rel.AppendTarget(parent);
     }
   }
@@ -112,8 +111,8 @@ nsXULTextAccessible::RelationByType(PRUint32 aType)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTooltipAccessible::
-  nsXULTooltipAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsLeafAccessible(aContent, aDoc)
+  nsXULTooltipAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsLeafAccessible(aContent, aShell)
 {
 }
 
@@ -127,10 +126,10 @@ nsXULTooltipAccessible::NativeState()
   return states;
 }
 
-role
+PRUint32
 nsXULTooltipAccessible::NativeRole()
 {
-  return roles::TOOLTIP;
+  return nsIAccessibleRole::ROLE_TOOLTIP;
 }
 
 
@@ -139,8 +138,8 @@ nsXULTooltipAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULLinkAccessible::
-  nsXULLinkAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsXULLinkAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -173,10 +172,10 @@ nsXULLinkAccessible::GetNameInternal(nsAString& aName)
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
-role
+PRUint32
 nsXULLinkAccessible::NativeRole()
 {
-  return roles::LINK;
+  return nsIAccessibleRole::ROLE_LINK;
 }
 
 

@@ -154,6 +154,16 @@ void TypeInState::Reset()
 }
 
 
+nsresult TypeInState::SetProp(nsIAtom *aProp)
+{
+  return SetProp(aProp,EmptyString(),EmptyString());
+}
+
+nsresult TypeInState::SetProp(nsIAtom *aProp, const nsString &aAttr)
+{
+  return SetProp(aProp,aAttr,EmptyString());
+}
+
 nsresult TypeInState::SetProp(nsIAtom *aProp, const nsString &aAttr, const nsString &aValue)
 {
   // special case for big/small, these nest
@@ -198,6 +208,11 @@ nsresult TypeInState::ClearAllProps()
 {
   // null prop means "all" props
   return ClearProp(nsnull,EmptyString());
+}
+
+nsresult TypeInState::ClearProp(nsIAtom *aProp)
+{
+  return ClearProp(aProp,EmptyString());
 }
 
 nsresult TypeInState::ClearProp(nsIAtom *aProp, const nsString &aAttr)
@@ -270,6 +285,15 @@ nsresult TypeInState::GetTypingState(bool &isSet, bool &theSetting, nsIAtom *aPr
 {
   return GetTypingState(isSet, theSetting, aProp, EmptyString(), nsnull);
 }
+
+nsresult TypeInState::GetTypingState(bool &isSet, 
+                                     bool &theSetting, 
+                                     nsIAtom *aProp, 
+                                     const nsString &aAttr)
+{
+  return GetTypingState(isSet, theSetting, aProp, aAttr, nsnull);
+}
+
 
 nsresult TypeInState::GetTypingState(bool &isSet, 
                                      bool &theSetting, 

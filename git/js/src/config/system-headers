@@ -113,6 +113,11 @@ fusion/protocol.h
 fusion/fusion.h
 fusion/arena.h
 fusion/object.h
+directfbgl.h
+directfb_version.h
+directfb.h
+directfb_util.h
+directfb_keynames.h
 dgiff.h
 direct/util.h
 direct/memcpy.h
@@ -268,11 +273,6 @@ freetype/ftoutln.h
 freetype/ttnameid.h
 freetype/tttables.h
 freetype/t1tables.h
-freetype/ftlcdfil.h
-freetype/ftsizes.h
-freetype/ftadvanc.h
-freetype/ftbitmap.h
-freetype/ftxf86.h
 fribidi/fribidi.h
 FSp_fopen.h
 fstream
@@ -531,7 +531,6 @@ nl_types.h
 NodeInfo.h
 nss.h
 nssilock.h
-nsswitch.h
 objbase.h
 objidl.h
 Objsafe.h
@@ -729,7 +728,6 @@ sys/pstat.h
 sys/ptrace.h
 sys/queue.h
 sys/quota.h
-sys/reboot.h
 sys/reg.h
 sys/regset.h
 sys/resource.h
@@ -752,7 +750,6 @@ sys/sysctl.h
 sys/sysinfo.h
 sys/sysmp.h
 sys/syssgi.h
-sys/system_properties.h
 sys/systeminfo.h
 sys/timeb.h
 sys/time.h
@@ -913,7 +910,6 @@ sechash.h
 secoidt.h
 certdb.h
 secerr.h
-nssutil.h
 nssb64.h
 secasn1.h
 secder.h
@@ -1040,16 +1036,4 @@ shareuiinterface.h
 #if MOZ_NATIVE_LIBVPX==1
 vpx/vpx_decoder.h
 vpx/vp8dx.h
-#endif
-#ifdef XP_WIN
-vpx/vpx_decoder.h
-vpx/vp8dx.h
-sydneyaudio/sydney_audio.h
-vorbis/codec.h
-theora/theoradec.h
-tremor/ivorbiscodec.h
-ogg/ogg.h
-ogg/os_types.h
-nestegg/nestegg.h
-cubeb/cubeb.h
 #endif

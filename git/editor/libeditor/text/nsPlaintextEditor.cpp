@@ -75,7 +75,6 @@
 #include "nsGkAtoms.h"
 #include "nsDebug.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -88,6 +87,7 @@ using namespace mozilla;
 
 nsPlaintextEditor::nsPlaintextEditor()
 : nsEditor()
+, mIgnoreSpuriousDragEvent(false)
 , mRules(nsnull)
 , mWrapToWindow(false)
 , mWrapColumn(0)
@@ -228,110 +228,97 @@ nsPlaintextEditor::EndEditorInit()
   return res;
 }
 
-NS_IMETHODIMP
-nsPlaintextEditor::SetDocumentCharacterSet(const nsACString& characterSet)
-{
-  nsresult rv = nsEditor::SetDocumentCharacterSet(characterSet);
-  NS_ENSURE_SUCCESS(rv, rv);
+NS_IMETHODIMP 
+nsPlaintextEditor::SetDocumentCharacterSet(const nsACString & characterSet) 
+{ 
+  nsresult result; 
 
-  // Update META charset element.
-  nsCOMPtr<nsIDOMDocument> domdoc;
-  rv = GetDocument(getter_AddRefs(domdoc));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(domdoc, NS_ERROR_FAILURE);
+  result = nsEditor::SetDocumentCharacterSet(characterSet); 
 
-  if (UpdateMetaCharset(domdoc, characterSet)) {
-    return NS_OK;
-  }
+  // update META charset tag 
+  if (NS_SUCCEEDED(result)) { 
+    nsCOMPtr<nsIDOMDocument>domdoc; 
+    result = GetDocument(getter_AddRefs(domdoc)); 
+    if (NS_SUCCEEDED(result) && domdoc) { 
+      nsCOMPtr<nsIDOMNodeList>metaList; 
+      nsCOMPtr<nsIDOMElement>metaElement; 
+      bool newMetaCharset = true; 
 
-  nsCOMPtr<nsIDOMNodeList> headList;
-  rv = domdoc->GetElementsByTagName(NS_LITERAL_STRING("head"), getter_AddRefs(headList));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(headList, NS_OK);
+      // get a list of META tags 
+      result = domdoc->GetElementsByTagName(NS_LITERAL_STRING("meta"), getter_AddRefs(metaList)); 
+      if (NS_SUCCEEDED(result) && metaList) { 
+        PRUint32 listLength = 0; 
+        (void) metaList->GetLength(&listLength); 
 
-  nsCOMPtr<nsIDOMNode> headNode;
-  headList->Item(0, getter_AddRefs(headNode));
-  NS_ENSURE_TRUE(headNode, NS_OK);
+        nsCOMPtr<nsIDOMNode>metaNode; 
+        for (PRUint32 i = 0; i < listLength; i++) { 
+          metaList->Item(i, getter_AddRefs(metaNode)); 
+          if (!metaNode) continue; 
+          metaElement = do_QueryInterface(metaNode); 
+          if (!metaElement) continue; 
 
-  // Create a new meta charset tag
-  nsCOMPtr<nsIDOMNode> resultNode;
-  rv = CreateNode(NS_LITERAL_STRING("meta"), headNode, 0, getter_AddRefs(resultNode));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-  NS_ENSURE_TRUE(resultNode, NS_OK);
+          nsAutoString currentValue; 
+          if (NS_FAILED(metaElement->GetAttribute(NS_LITERAL_STRING("http-equiv"), currentValue))) continue; 
 
-  // Set attributes to the created element
-  if (characterSet.IsEmpty()) {
-    return NS_OK;
-  }
+          if (FindInReadable(NS_LITERAL_STRING("content-type"),
+                             currentValue,
+                             nsCaseInsensitiveStringComparator())) { 
+            NS_NAMED_LITERAL_STRING(content, "content");
+            if (NS_FAILED(metaElement->GetAttribute(content, currentValue))) continue; 
 
-  nsCOMPtr<dom::Element> metaElement = do_QueryInterface(resultNode);
-  if (!metaElement) {
-    return NS_OK;
-  }
+            NS_NAMED_LITERAL_STRING(charsetEquals, "charset=");
+            nsAString::const_iterator originalStart, start, end;
+            originalStart = currentValue.BeginReading(start);
+            currentValue.EndReading(end);
+            if (FindInReadable(charsetEquals, start, end,
+                               nsCaseInsensitiveStringComparator())) {
 
-  // not undoable, undo should undo CreateNode
-  metaElement->SetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv,
-                       NS_LITERAL_STRING("Content-Type"), true);
-  metaElement->SetAttr(kNameSpaceID_None, nsGkAtoms::content,
-                       NS_LITERAL_STRING("text/html;charset=") +
-                         NS_ConvertASCIItoUTF16(characterSet),
-                       true);
-  return NS_OK;
-}
+              // set attribute to <original prefix> charset=text/html
+              result = nsEditor::SetAttribute(metaElement, content,
+                                              Substring(originalStart, start) +
+                                              charsetEquals + NS_ConvertASCIItoUTF16(characterSet)); 
+              if (NS_SUCCEEDED(result)) 
+                newMetaCharset = false; 
+              break; 
+            } 
+          } 
+        } 
+      } 
 
-bool
-nsPlaintextEditor::UpdateMetaCharset(nsIDOMDocument* aDocument,
-                                     const nsACString& aCharacterSet)
-{
-  // get a list of META tags
-  nsCOMPtr<nsIDOMNodeList> metaList;
-  nsresult rv = aDocument->GetElementsByTagName(NS_LITERAL_STRING("meta"),
-                                                getter_AddRefs(metaList));
-  NS_ENSURE_SUCCESS(rv, false);
-  NS_ENSURE_TRUE(metaList, false);
+      if (newMetaCharset) { 
+        nsCOMPtr<nsIDOMNodeList>headList; 
+        result = domdoc->GetElementsByTagName(NS_LITERAL_STRING("head"),getter_AddRefs(headList)); 
+        if (NS_SUCCEEDED(result) && headList) { 
+          nsCOMPtr<nsIDOMNode>headNode; 
+          headList->Item(0, getter_AddRefs(headNode)); 
+          if (headNode) { 
+            nsCOMPtr<nsIDOMNode>resultNode; 
+            // Create a new meta charset tag 
+            result = CreateNode(NS_LITERAL_STRING("meta"), headNode, 0, getter_AddRefs(resultNode)); 
+            NS_ENSURE_SUCCESS(result, NS_ERROR_FAILURE); 
 
-  PRUint32 listLength = 0;
-  metaList->GetLength(&listLength);
+            // Set attributes to the created element 
+            if (resultNode && !characterSet.IsEmpty()) { 
+              metaElement = do_QueryInterface(resultNode); 
+              if (metaElement) { 
+                // not undoable, undo should undo CreateNode 
+                result = metaElement->SetAttribute(NS_LITERAL_STRING("http-equiv"), NS_LITERAL_STRING("Content-Type")); 
+                if (NS_SUCCEEDED(result)) { 
+                  // not undoable, undo should undo CreateNode 
+                  result = metaElement->SetAttribute(NS_LITERAL_STRING("content"),
+                                                     NS_LITERAL_STRING("text/html;charset=") + NS_ConvertASCIItoUTF16(characterSet)); 
+                } 
+              } 
+            } 
+          } 
+        } 
+      } 
+    } 
+  } 
 
-  for (PRUint32 i = 0; i < listLength; ++i) {
-    nsCOMPtr<nsIContent> metaNode = metaList->GetNodeAt(i);
-    MOZ_ASSERT(metaNode);
+  return result; 
+} 
 
-    if (!metaNode->IsElement()) {
-      continue;
-    }
-
-    nsAutoString currentValue;
-    metaNode->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, currentValue);
-
-    if (!FindInReadable(NS_LITERAL_STRING("content-type"),
-                        currentValue,
-                        nsCaseInsensitiveStringComparator())) {
-      continue;
-    }
-
-    metaNode->GetAttr(kNameSpaceID_None, nsGkAtoms::content, currentValue);
-
-    NS_NAMED_LITERAL_STRING(charsetEquals, "charset=");
-    nsAString::const_iterator originalStart, start, end;
-    originalStart = currentValue.BeginReading(start);
-    currentValue.EndReading(end);
-    if (!FindInReadable(charsetEquals, start, end,
-                        nsCaseInsensitiveStringComparator())) {
-      continue;
-    }
-
-    // set attribute to <original prefix> charset=text/html
-    nsCOMPtr<nsIDOMElement> metaElement = do_QueryInterface(metaNode);
-    MOZ_ASSERT(metaElement);
-    rv = nsEditor::SetAttribute(metaElement, NS_LITERAL_STRING("content"),
-                                Substring(originalStart, start) +
-                                  charsetEquals +
-                                  NS_ConvertASCIItoUTF16(aCharacterSet));
-    return NS_SUCCEEDED(rv);
-  }
-  return false;
-}
 
 NS_IMETHODIMP nsPlaintextEditor::InitRules()
 {
@@ -448,13 +435,9 @@ NS_IMETHODIMP nsPlaintextEditor::TypedText(const nsAString& aString,
   return NS_ERROR_FAILURE; 
 }
 
-nsresult
-nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
-                                PRInt32* aInOutOffset,
-                                nsCOMPtr<nsIDOMNode>* outBRNode,
-                                EDirection aSelect)
+NS_IMETHODIMP nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode> *aInOutParent, PRInt32 *aInOutOffset, nsCOMPtr<nsIDOMNode> *outBRNode, EDirection aSelect)
 {
-  NS_ENSURE_TRUE(aInOutParent && *aInOutParent && aInOutOffset && outBRNode, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_SUCCESS(aInOutParent && *aInOutParent && aInOutOffset && outBRNode, NS_ERROR_NULL_POINTER);
   *outBRNode = nsnull;
   nsresult res;
   
@@ -538,8 +521,7 @@ NS_IMETHODIMP nsPlaintextEditor::CreateBR(nsIDOMNode *aNode, PRInt32 aOffset, ns
   return CreateBRImpl(address_of(parent), &offset, outBRNode, aSelect);
 }
 
-nsresult
-nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode>* outBRNode)
+NS_IMETHODIMP nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode> *outBRNode)
 {
   NS_ENSURE_TRUE(outBRNode, NS_ERROR_NULL_POINTER);
   *outBRNode = nsnull;
@@ -589,8 +571,7 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   aSelection->GetFocusNode(getter_AddRefs(endNode));
   aSelection->GetFocusOffset(&endNodeOffset);
 
-  dom::Element *rootElement = GetRoot();
-  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(rootElement);
+  nsIDOMElement* rootNode = GetRoot();
   NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
 
   PRInt32 startOffset = -1;
@@ -604,7 +585,8 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   PRInt32 nodeCount = 0; // only needed for the assertions below
 #endif
   PRUint32 totalLength = 0;
-  iter->Init(rootElement);
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootNode);
+  iter->Init(rootContent);
   for (; !iter->IsDone() && (startOffset == -1 || endOffset == -1); iter->Next()) {
     nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(iter->GetCurrentNode());
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(currentNode);
@@ -957,7 +939,10 @@ nsresult
 nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
                                         nsIPrivateTextRangeList* aTextRangeList)
 {
-  NS_ABORT_IF_FALSE(aTextRangeList, "aTextRangeList must not be NULL");
+  if (!aTextRangeList && !aCompositionString.IsEmpty()) {
+    NS_ERROR("aTextRangeList is null but the composition string is not null");
+    return NS_ERROR_NULL_POINTER;
+  }
 
   nsCOMPtr<nsIPresShell> ps = GetPresShell();
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
@@ -968,15 +953,27 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
 
   nsRefPtr<nsCaret> caretP = ps->GetCaret();
 
-  // Update information of clauses in the new composition string.
-  // This will be refered by followed methods.
-  mIMETextRangeList = aTextRangeList;
+  // We should return caret position if it is possible. Because this event
+  // dispatcher always expects to be returned the correct caret position.
+  // But in following cases, we don't need to process the composition string,
+  // so, we only need to return the caret position.
 
-  // We set mIsIMEComposing properly.
-  SetIsIMEComposing();
+  // aCompositionString.IsEmpty() && !mIMETextNode:
+  //   Workaround for Windows IME bug 23558: We get every IME event twice.
+  //   For escape keypress, this causes an empty string to be passed
+  //   twice, which freaks out the editor.
 
-  {
+  // aCompositionString.IsEmpty() && !aTextRangeList:
+  //   Some Chinese IMEs for Linux are always composition string and text range
+  //   list are empty when listing the Chinese characters. In this case,
+  //   we don't need to process composition string too. See bug 271815.
+
+  if (!aCompositionString.IsEmpty() || (mIMETextNode && aTextRangeList)) {
+    mIMETextRangeList = aTextRangeList;
+
     nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
+
+    SetIsIMEComposing(); // We set mIsIMEComposing properly.
 
     rv = InsertText(aCompositionString);
 
@@ -985,14 +982,11 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
     if (caretP) {
       caretP->SetCaretDOMSelection(selection);
     }
-  }
 
-  // If still composing, we should fire input event via observer.
-  // Note that if committed, we don't need to notify it since it will be
-  // notified at followed compositionend event.
-  // NOTE: We must notify after the auto batch will be gone.
-  if (mIsIMEComposing) {
-    NotifyEditorObservers();
+    // second part of 23558 fix:
+    if (aCompositionString.IsEmpty()) {
+      mIMETextNode = nsnull;
+    }
   }
 
   return rv;
@@ -1026,15 +1020,16 @@ nsPlaintextEditor::GetTextLength(PRInt32 *aCount)
   if (docEmpty)
     return NS_OK;
 
-  dom::Element *rootElement = GetRoot();
-  NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
+  nsIDOMElement* rootNode = GetRoot();
+  NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIContentIterator> iter =
     do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 totalLength = 0;
-  iter->Init(rootElement);
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootNode);
+  iter->Init(rootContent);
   for (; !iter->IsDone(); iter->Next()) {
     nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(iter->GetCurrentNode());
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(currentNode);
@@ -1109,12 +1104,13 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
 
   // Ought to set a style sheet here ...
   // Probably should keep around an mPlaintextStyleSheet for this purpose.
-  dom::Element *rootElement = GetRoot();
+  nsIDOMElement *rootElement = GetRoot();
   NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
 
   // Get the current style for this root element:
+  NS_NAMED_LITERAL_STRING(styleName, "style");
   nsAutoString styleValue;
-  nsresult res = rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::style, styleValue);
+  nsresult res = rootElement->GetAttribute(styleName, styleValue);
   NS_ENSURE_SUCCESS(res, res);
 
   // We'll replace styles for these values:
@@ -1158,7 +1154,7 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   else
     styleValue.AppendLiteral("white-space: pre;");
 
-  return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::style, styleValue, true);
+  return rootElement->SetAttribute(styleName, styleValue);
 }
 
 NS_IMETHODIMP 
@@ -1327,15 +1323,16 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
   nsCOMPtr<nsIDocumentEncoder> docEncoder (do_CreateInstance(formatType.get(), &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryReferent(mDocWeak);
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
   NS_ASSERTION(domDoc, "Need a document");
 
   rv = docEncoder->Init(domDoc, aFormatType, aFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!aCharset.IsEmpty() && !aCharset.EqualsLiteral("null")) {
+  if (!aCharset.IsEmpty()
+    && !(aCharset.EqualsLiteral("null")))
     docEncoder->SetCharset(aCharset);
-  }
 
   PRInt32 wc;
   (void) GetWrapWidth(&wc);
@@ -1349,26 +1346,25 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
   {
     nsCOMPtr<nsISelection> selection;
     rv = GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (selection) {
+    if (NS_SUCCEEDED(rv) && selection)
       rv = docEncoder->SetSelection(selection);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   // ... or if the root element is not a body,
   // in which case we set the selection to encompass the root.
   else
   {
-    dom::Element* rootElement = GetRoot();
+    nsIDOMElement *rootElement = GetRoot();
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
-    if (!rootElement->IsHTML(nsGkAtoms::body)) {
-      rv = docEncoder->SetNativeContainerNode(rootElement);
+    if (!nsTextEditUtils::IsBody(rootElement))
+    {
+      rv = docEncoder->SetContainerNode(rootElement);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
-  docEncoder.forget(encoder);
-  return NS_OK;
+  NS_ADDREF(*encoder = docEncoder);
+  return rv;
 }
 
 
@@ -1688,7 +1684,7 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   if (NS_SUCCEEDED(mRules->DocumentIsEmpty(&bDocIsEmpty)) && bDocIsEmpty)
   {
     // get root node
-    nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
+    nsIDOMElement *rootElement = GetRoot();
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
 
     // if it's empty don't select entire doc - that would select the bogus node

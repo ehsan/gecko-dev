@@ -30,7 +30,7 @@
 <p>blah blah blah blah</p>
 </div>
 <script class="testbody" type="text/javascript">
-info("\nProfile::EventUtilsLoadTime: " + (loadTime - start) + "\n");
+SimpleTest.info("\nProfile::EventUtilsLoadTime: " + (loadTime - start) + "\n");
 function starttest() {
   SimpleTest.waitForFocus(
     function () {
@@ -46,19 +46,17 @@ function starttest() {
       check = false;
       $("testKeyEvent").addEventListener("keypress", function() { check = true; }, false);
       $("testKeyEvent").focus();
-      sendChar("x");
+      sendChar("x", "testKeyEvent");
       is($("testKeyEvent").value, "x", "sendChar should work");
       is(check, true, "sendChar should dispatch keyPress");
       $("testKeyEvent").value = "";
     
-      $("testStrEvent").focus();
-      sendString("string");
+      sendString("string", "testStrEvent");
       is($("testStrEvent").value, "string", "sendString should work");
       $("testStrEvent").value = "";
     
       check = false;
-      $("testKeyEvent").focus();
-      sendKey("DOWN");
+      sendKey("DOWN", "testKeyEvent");
       is(check, true, "sendKey should dispatch keyPress");
     
       /* test synthesizeMouse* */
@@ -164,7 +162,7 @@ function starttest() {
       is(querySelectedText.text, "",
          "query selected text event returns wrong selected text");
       var endTime = new Date();
-      info("\nProfile::EventUtilsRunTime: " + (endTime-startTime) + "\n");
+      SimpleTest.info("\nProfile::EventUtilsRunTime: " + (endTime-startTime) + "\n");
       SimpleTest.finish();
     }
   );

@@ -41,7 +41,6 @@
 #ifndef jsonparser_h___
 #define jsonparser_h___
 
-#include "mozilla/Attributes.h"
 #include "mozilla/RangedPtr.h"
 
 #include "jscntxt.h"
@@ -52,9 +51,6 @@
  */
 class JSONParser
 {
-    JSONParser(const JSONParser &other) MOZ_DELETE;
-    void operator=(const JSONParser &other) MOZ_DELETE;
-
   public:
     enum ErrorHandling { RaiseError, NoError };
     enum ParsingMode { StrictJSON, LegacyJSON };
@@ -152,7 +148,7 @@ class JSONParser
         return String;
     }
 
-    Token numberToken(double d) {
+    Token numberToken(jsdouble d) {
         this->v = js::NumberValue(d);
 #ifdef DEBUG
         lastToken = Number;

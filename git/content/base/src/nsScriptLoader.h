@@ -177,7 +177,7 @@ public:
    */
   static nsresult ConvertToUTF16(nsIChannel* aChannel, const PRUint8* aData,
                                  PRUint32 aLength,
-                                 const nsAString& aHintCharset,
+                                 const nsString& aHintCharset,
                                  nsIDocument* aDocument, nsString& aString);
 
   /**
@@ -238,25 +238,11 @@ public:
    * @param aURI The URI of the external script.
    * @param aCharset The charset parameter for the script.
    * @param aType The type parameter for the script.
-   * @param aCrossOrigin The crossorigin attribute for the script.
-   *                     Void if not present.
    */
   virtual void PreloadURI(nsIURI *aURI, const nsAString &aCharset,
-                          const nsAString &aType,
-                          const nsAString &aCrossOrigin);
+                          const nsAString &aType);
 
 private:
-  /**
-   * Unblocks the creator parser of the parser-blocking scripts.
-   */
-  void UnblockParser(nsScriptLoadRequest* aParserBlockingRequest);
-
-  /**
-   * Asynchronously resumes the creator parser of the parser-blocking scripts.
-   */
-  void ContinueParserAsync(nsScriptLoadRequest* aParserBlockingRequest);
-
-
   /**
    * Helper function to check the content policy for a given request.
    */

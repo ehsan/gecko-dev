@@ -151,6 +151,9 @@
         false
 #endif
       </field>
+      <field name="mAddProgressListenerWasCalled">
+        false
+      </field>
       <field name="_browsers">
         null
       </field>
@@ -536,8 +539,7 @@
                 if (!this.mBlank) {
                   if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
                     this.mTab.setAttribute("busy", "true");
-                    if (!(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_RELOAD))
-                      this.mTabBrowser.setTabTitleLoading(this.mTab);
+                    this.mTabBrowser.setTabTitleLoading(this.mTab);
                   }
 
                   if (this.mTab.selected)
@@ -614,8 +616,7 @@
 
               if (topLevel) {
                 // The document loaded correctly, clear the value if we should
-                if (this.mBrowser.userTypedClear > 0 ||
-                    (aRequest && !Components.isSuccessCode(aRequest.status)))
+                if (this.mBrowser.userTypedClear > 0)
                   this.mBrowser.userTypedValue = null;
 
                 // Clear out the missing plugins list since it's related to the
@@ -633,7 +634,7 @@
                   autocomplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
                   delete this.mBrowser.registeredOpenURI;
                 }
-                if (!isBlankPageURL(aLocation.spec)) {
+                if (aLocation.spec != "about:blank") {
                   autocomplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
@@ -693,8 +694,8 @@
             if (aURI && this.mFaviconService) {
               if (!(aURI instanceof Ci.nsIURI))
                 aURI = makeURI(aURI);
-              this.mFaviconService.setAndFetchFaviconForPage(browser.currentURI,
-                                                             aURI, false);
+              this.mFaviconService.setAndLoadFaviconForPage(browser.currentURI,
+                                                            aURI, false);
             }
 
             if ((browser.mIconURL || "") != aTab.getAttribute("image")) {
@@ -1066,7 +1067,7 @@
                 }
               }
 
-              if (title && !isBlankPageURL(title)) {
+              if (title && title != "about:blank") {
                 // At this point, we now have a URI.
                 // Let's try to unescape it using a character set
                 // in case the URI is not ASCII.
@@ -1263,16 +1264,8 @@
               setTimeout(function (tabContainer) {
                 if (t.pinned)
                   tabContainer._handleNewTab(t);
-                else {
-                  t._animStartTime = Date.now();
+                else
                   t.setAttribute("fadein", "true");
-
-                  // This call to adjustTabstrip is redundant but needed so that
-                  // when opening a second tab, the first tab's close buttons
-                  // appears immediately rather than when the transition ends.
-                  if (tabContainer.childNodes.length == 2)
-                    tabContainer.adjustTabstrip();
-                }
               }, 0, this.tabContainer);
             }
 
@@ -1371,8 +1364,7 @@
 
               // pretend the user typed this so it'll be available till
               // the document successfully loads
-              if (!isBlankPageURL(aURI))
-                b.userTypedValue = aURI;
+              b.userTypedValue = aURI;
 
               let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
               if (aAllowThirdPartyFixup)
@@ -1418,9 +1410,7 @@
       <parameter name="aAll"/>
       <body>
         <![CDATA[
-          var tabsToClose = (aAll ?
-                               this.tabs.length - this._removingTabs.length :
-                               this.visibleTabs.length - 1)
+          var tabsToClose = (aAll ? this.tabs.length : this.visibleTabs.length - 1)
                             - gBrowser._numPinnedTabs;
           if (tabsToClose <= 1)
             return true;
@@ -1528,7 +1518,6 @@
             if (!animate /* the caller didn't opt in */ ||
                 isLastTab ||
                 aTab.pinned ||
-                aTab.hidden ||
                 this._removingTabs.length > 3 /* don't want lots of concurrent animations */ ||
                 aTab.getAttribute("fadein") != "true" /* fade-in transition hasn't been triggered yet */ ||
                 window.getComputedStyle(aTab).maxWidth == "0.1px" /* fade-in transition hasn't moved yet */ ||
@@ -1536,8 +1525,6 @@
               this._endRemoveTab(aTab);
               return;
             }
-
-            aTab._animStartTime = Date.now();
 
             this._blurTab(aTab);
             aTab.style.maxWidth = ""; // ensure that fade-out transition happens
@@ -1567,26 +1554,15 @@
         <parameter name="aCloseWindowFastpath"/>
         <body>
           <![CDATA[
-            if (aTab.closing ||
-                aTab._pendingPermitUnload ||
-                this._windowIsClosing)
+            if (aTab.closing || this._windowIsClosing)
               return false;
 
             var browser = this.getBrowserForTab(aTab);
 
             if (!aTabWillBeMoved) {
               let ds = browser.docShell;
-              if (ds && ds.contentViewer) {
-                // We need to block while calling permitUnload() because it
-                // processes the event queue and may lead to another removeTab()
-                // call before permitUnload() even returned.
-                aTab._pendingPermitUnload = true;
-                let permitUnload = ds.contentViewer.permitUnload();
-                delete aTab._pendingPermitUnload;
-
-                if (!permitUnload)
-                  return false;
-              }
+              if (ds && ds.contentViewer && !ds.contentViewer.permitUnload())
+                return false;
             }
 
             var closeWindow = false;
@@ -1611,7 +1587,7 @@
             aTab.closing = true;
             this._removingTabs.push(aTab);
             if (newTab)
-              this.addTab(BROWSER_NEW_TAB_URL, {skipAnimation: true});
+              this.addTab("about:blank", {skipAnimation: true});
             else
               this.tabContainer.updateVisibility();
 
@@ -1931,6 +1907,11 @@
                                            "608628.");
             }
 
+            if (!this.mAddProgressListenerWasCalled) {
+              this.mAddProgressListenerWasCalled = true;
+              this.tabContainer.updateVisibility();
+            }
+
             this.mProgressListeners.push(aListener);
           ]]>
         </body>
@@ -1982,8 +1963,6 @@
             else
               this.showTab(tab);
           }, this);
-
-          this.tabContainer.mTabstrip.ensureElementIsVisible(this.selectedTab, false);
         ]]>
         </body>
       </method>
@@ -2397,6 +2376,10 @@
                 onget="return this.mCurrentBrowser.contentViewerFile;"
                 readonly="true"/>
 
+      <property name="documentCharsetInfo"
+                onget="return this.mCurrentBrowser.documentCharsetInfo;"
+                readonly="true"/>
+
       <property name="contentDocument"
                 onget="return this.mCurrentBrowser.contentDocument;"
                 readonly="true"/>
@@ -2429,7 +2412,7 @@
           // _shouldFastFind (see findbar.xml).
           if (!gFindBarInitialized &&
               !(aEvent.ctrlKey || aEvent.metaKey) &&
-              !aEvent.defaultPrevented) {
+              !aEvent.getPreventDefault()) {
             let charCode = aEvent.charCode;
             if (charCode) {
               let char = String.fromCharCode(charCode);
@@ -2779,7 +2762,9 @@
 
           Services.prefs.addObserver("browser.tabs.", this._prefObserver, false);
           window.addEventListener("resize", this, false);
-          window.addEventListener("load", this, false);
+
+          if (window.TabsInTitlebar)
+            TabsInTitlebar.allowedBy("tabs-visible", this.visible);
         ]]>
       </constructor>
 
@@ -2839,39 +2824,24 @@
         this.parentNode && this.parentNode.localName == "toolbar" ? this.parentNode : this;
       ]]></field>
 
-      <field name="_propagatedVisibilityOnce">false</field>
-
       <property name="visible"
                 onget="return !this._container.collapsed;">
         <setter><![CDATA[
-          if (val == this.visible &&
-              this._propagatedVisibilityOnce)
+          if (val == this.visible)
             return val;
 
           this._container.collapsed = !val;
 
-          this._propagateVisibility();
-          this._propagatedVisibilityOnce = true;
+          document.getElementById("menu_closeWindow").hidden = !val;
+          document.getElementById("menu_close").setAttribute("label",
+            this.tabbrowser.mStringBundle.getString(val ? "tabs.closeTab" : "tabs.close"));
+
+          if (window.TabsInTitlebar)
+            TabsInTitlebar.allowedBy("tabs-visible", val);
 
           return val;
         ]]></setter>
       </property>
-
-      <method name="_propagateVisibility">
-        <body><![CDATA[
-          let visible = this.visible;
-
-          document.getElementById("menu_closeWindow").hidden = !visible;
-          document.getElementById("menu_close").setAttribute("label",
-            this.tabbrowser.mStringBundle.getString(visible ? "tabs.closeTab" : "tabs.close"));
-
-          goSetCommandEnabled("cmd_ToggleTabsOnTop", visible);
-
-          TabsOnTop.syncUI();
-
-          TabsInTitlebar.allowedBy("tabs-visible", visible);
-        ]]></body>
-      </method>
 
       <method name="updateVisibility">
         <body><![CDATA[
@@ -2950,6 +2920,7 @@
       <field name="_tabDefaultMaxWidth">NaN</field>
       <field name="_lastTabClosedByMouse">false</field>
       <field name="_hasTabTempMaxWidth">false</field>
+      <field name="_usingClosingTabsSpacer">false</field>
 
       <!-- Try to keep the active tab's close button under the mouse cursor -->
       <method name="_lockTabSizing">
@@ -3017,7 +2988,7 @@
         <body><![CDATA[
           let spacer = this._closingTabsSpacer;
           spacer.style.width = parseFloat(spacer.style.width) + pixels + "px";
-          this.setAttribute("using-closing-tabs-spacer", "true");
+          this._usingClosingTabsSpacer = true;
           this.tabbrowser.addEventListener("mousemove", this, false);
           window.addEventListener("mouseout", this, false);
         ]]></body>
@@ -3027,16 +2998,14 @@
         <body><![CDATA[
           this.tabbrowser.removeEventListener("mousemove", this, false);
           window.removeEventListener("mouseout", this, false);
-
           if (this._hasTabTempMaxWidth) {
             this._hasTabTempMaxWidth = false;
             let tabs = this.tabbrowser.visibleTabs;
             for (let i = 0; i < tabs.length; i++)
               tabs[i].style.maxWidth = "";
           }
-
-          if (this.hasAttribute("using-closing-tabs-spacer")) {
-            this.removeAttribute("using-closing-tabs-spacer");
+          if (this._usingClosingTabsSpacer) {
+            this._usingClosingTabsSpacer = false;
             this._closingTabsSpacer.style.width = 0;
           }
         ]]></body>
@@ -3082,9 +3051,6 @@
         <parameter name="aEvent"/>
         <body><![CDATA[
           switch (aEvent.type) {
-            case "load":
-              this.updateVisibility();
-              break;
             case "resize":
               if (aEvent.target != window)
                 break;
@@ -3288,14 +3254,6 @@
           return;
 
         var tab = event.target;
-
-        if (tab._animStartTime) {
-          Services.telemetry.getHistogramById(tab.closing ?
-                                              "FX_TAB_ANIM_CLOSE_MS" :
-                                              "FX_TAB_ANIM_OPEN_MS")
-                            .add(Date.now() - tab._animStartTime);
-          tab._animStartTime = 0;
-        }
 
         if (tab.getAttribute("fadein") == "true") {
           if (tab._fullyOpen)
@@ -3559,14 +3517,12 @@
           // it triggers will correctly update our URL bar.
           this.tabbrowser.selectedTab = newTab;
         } else {
-          // Pass true to disallow dropping javascript: or data: urls
-          let url;
-          try {
-            url = browserDragAndDrop.drop(event, { }, true);
-          } catch (ex) {}
+          let url = browserDragAndDrop.drop(event, { });
 
           // valid urls don't contain spaces ' '; if we have a space it isn't a valid url.
-          if (!url || url.indexOf(" ") != -1)
+          // Also disallow dropping javascript: or data: urls--bail out
+          if (!url || !url.length || url.indexOf(" ", 0) != -1 ||
+              /^\s*(javascript|data):/.test(url))
             return;
 
           let bgLoad = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
@@ -3594,10 +3550,8 @@
 
         // these offsets are only used in dragend, but we need to free them here
         // as well
-        if (draggedTab) {
-          delete draggedTab._dragOffsetX;
-          delete draggedTab._dragOffsetY;
-        }
+        delete draggedTab._dragOffsetX;
+        delete draggedTab._dragOffsetY;
       ]]></handler>
 
       <handler event="dragend"><![CDATA[
@@ -3838,33 +3792,48 @@
   <binding id="tabbrowser-alltabs-popup"
            extends="chrome://global/content/bindings/popup.xml#popup">
     <implementation implements="nsIDOMEventListener">
+      <method name="_menuItemOnCommand">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          gBrowser.selectedTab = aEvent.target.tab;
+        ]]></body>
+      </method>
+
       <method name="_tabOnAttrModified">
         <parameter name="aEvent"/>
         <body><![CDATA[
           var tab = aEvent.target;
-          if (tab.mCorrespondingMenuitem)
-            this._setMenuitemAttributes(tab.mCorrespondingMenuitem, tab);
+          this._setMenuitemAttributes(tab.mCorrespondingMenuitem, tab);
         ]]></body>
       </method>
 
       <method name="_tabOnTabClose">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          var tab = aEvent.target;
-          if (tab.mCorrespondingMenuitem)
-            this.removeChild(tab.mCorrespondingMenuitem);
+          var menuItem = aEvent.target.mCorrespondingMenuitem;
+          if (menuItem)
+            this.removeChild(menuItem);
         ]]></body>
       </method>
 
       <method name="handleEvent">
         <parameter name="aEvent"/>
         <body><![CDATA[
+          if (!aEvent.isTrusted)
+            return;
+
           switch (aEvent.type) {
+            case "command":
+              this._menuItemOnCommand(aEvent);
+              break;
             case "TabAttrModified":
               this._tabOnAttrModified(aEvent);
               break;
             case "TabClose":
               this._tabOnTabClose(aEvent);
+              break;
+            case "TabOpen":
+              this._createTabMenuItem(aEvent.originalTarget);
               break;
             case "scroll":
               this._updateTabsVisibilityStatus();
@@ -3886,6 +3855,8 @@
             if (!curTab) // "Tab Groups" menuitem and its menuseparator
               continue;
             let curTabBO = curTab.boxObject;
+            if (!curTabBO) // "Tabs From Other Computers" menuitem
+              continue;
             if (curTabBO.screenX >= tabstripBO.screenX &&
                 curTabBO.screenX + curTabBO.width <= tabstripBO.screenX + tabstripBO.width)
               this.childNodes[i].setAttribute("tabIsVisible", "true");
@@ -3906,10 +3877,14 @@
 
           this._setMenuitemAttributes(menuItem, aTab);
 
+          // Keep some attributes of the menuitem in sync with its
+          // corresponding tab (e.g. the tab label)
           aTab.mCorrespondingMenuitem = menuItem;
           menuItem.tab = aTab;
+          menuItem.addEventListener("command", this, false);
 
           this.appendChild(menuItem);
+          return menuItem;
         ]]></body>
       </method>
 
@@ -3944,17 +3919,18 @@
     <handlers>
       <handler event="popupshowing">
       <![CDATA[
+        // set up the menu popup
         var tabcontainer = gBrowser.tabContainer;
+        let tabs = gBrowser.visibleTabs;
 
         // Listen for changes in the tab bar.
+        tabcontainer.addEventListener("TabOpen", this, false);
         tabcontainer.addEventListener("TabAttrModified", this, false);
         tabcontainer.addEventListener("TabClose", this, false);
         tabcontainer.mTabstrip.addEventListener("scroll", this, false);
 
-        let tabs = gBrowser.visibleTabs;
         for (var i = 0; i < tabs.length; i++) {
-          if (!tabs[i].pinned)
-            this._createTabMenuItem(tabs[i]);
+          this._createTabMenuItem(tabs[i]);
         }
         this._updateTabsVisibilityStatus();
       ]]></handler>
@@ -3965,12 +3941,14 @@
         for (let i = this.childNodes.length - 1; i > 0; i--) {
           let menuItem = this.childNodes[i];
           if (menuItem.tab) {
+            menuItem.removeEventListener("command", this, false);
             menuItem.tab.mCorrespondingMenuitem = null;
             this.removeChild(menuItem);
           }
         }
         var tabcontainer = gBrowser.tabContainer;
         tabcontainer.mTabstrip.removeEventListener("scroll", this, false);
+        tabcontainer.removeEventListener("TabOpen", this, false);
         tabcontainer.removeEventListener("TabAttrModified", this, false);
         tabcontainer.removeEventListener("TabClose", this, false);
       ]]></handler>
@@ -3991,11 +3969,6 @@
         XULBrowserWindow.setOverLink("", null);
       ]]></handler>
 
-      <handler event="command"><![CDATA[
-        if (event.target.tab)
-          gBrowser.selectedTab = event.target.tab;
-      ]]></handler>
-
     </handlers>
   </binding>
 
@@ -4012,18 +3985,21 @@
 
     <implementation implements="nsIDOMEventListener">
       <constructor><![CDATA[
-        window.addEventListener("resize", this, false);
+        window.addEventListener("findbaropen", this, false);
       ]]></constructor>
 
       <destructor><![CDATA[
-        window.removeEventListener("resize", this, false);
-        MousePosTracker.removeListener(this);
+        window.removeEventListener("findbaropen", this, false);
       ]]></destructor>
 
       <property name="label">
         <setter><![CDATA[
-          if (!this.label)
-            this.removeAttribute("mirror");
+          if (!this.label) {
+            if (window.gFindBarInitialized && !window.gFindBar.hidden)
+              this.setAttribute("mirror", "true");
+            else
+              this.removeAttribute("mirror");
+          }
 
           this.style.minWidth = this.getAttribute("type") == "status" &&
                                 this.getAttribute("previoustype") == "status"
@@ -4032,11 +4008,8 @@
           if (val) {
             this.setAttribute("label", val);
             this.removeAttribute("inactive");
-            this._calcMouseTargetRect();
-            MousePosTracker.addListener(this);
           } else {
             this.setAttribute("inactive", "true");
-            MousePosTracker.removeListener(this);
           }
 
           return val;
@@ -4046,52 +4019,12 @@
         </getter>
       </property>
 
-      <method name="getMouseTargetRect">
-        <body><![CDATA[
-          return this._mouseTargetRect;
-        ]]></body>
-      </method>
-
-      <method name="onMouseEnter">
-        <body>
-          this._mirror();
-        </body>
-      </method>
-
-      <method name="onMouseLeave">
-        <body>
-          this._mirror();
-        </body>
-      </method>
-
       <method name="handleEvent">
         <parameter name="event"/>
         <body><![CDATA[
-          if (!this.label)
-            return;
-
-          switch (event.type) {
-            case "resize":
-              this._calcMouseTargetRect();
-              break;
-          }
-        ]]></body>
-      </method>
-
-      <method name="_calcMouseTargetRect">
-        <body><![CDATA[
-          let alignRight = false;
-
-          if (getComputedStyle(document.documentElement).direction == "rtl")
-            alignRight = !alignRight;
-
-          let rect = this.getBoundingClientRect();
-          this._mouseTargetRect = {
-            top:    rect.top,
-            bottom: rect.bottom,
-            left:   alignRight ? window.innerWidth - rect.width : 0,
-            right:  alignRight ? window.innerWidth : rect.width
-          };
+          if (event.type == "findbaropen" &&
+              this.label)
+            this.setAttribute("mirror", "true");
         ]]></body>
       </method>
 
@@ -4104,6 +4037,11 @@
         </body>
       </method>
     </implementation>
+
+    <handlers>
+      <handler event="mouseover" action="this._mirror();"/>
+      <handler event="dragover" action="this._mirror();"/>
+    </handlers>
   </binding>
 
 </bindings>

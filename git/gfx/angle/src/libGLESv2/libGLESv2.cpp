@@ -27,7 +27,6 @@
 #include "libGLESv2/Renderbuffer.h"
 #include "libGLESv2/Shader.h"
 #include "libGLESv2/Texture.h"
-#include "libGLESv2/Query.h"
 
 bool validImageSize(GLint level, GLsizei width, GLsizei height)
 {
@@ -54,41 +53,6 @@ bool validImageSize(GLint level, GLsizei width, GLsizei height)
     return false;
 }
 
-bool validateSubImageParams(bool compressed, GLsizei width, GLsizei height, GLint xoffset, GLint yoffset, GLint level, GLenum format, gl::Texture *texture)
-{
-    if (!texture)
-    {
-        return error(GL_INVALID_OPERATION, false);
-    }
-
-    if (compressed != texture->isCompressed())
-    {
-        return error(GL_INVALID_OPERATION, false);
-    }
-
-    if (format != GL_NONE && format != texture->getInternalFormat())
-    {
-        return error(GL_INVALID_OPERATION, false);
-    }
-
-    if (compressed)
-    {
-        if ((width % 4 != 0 && width != texture->getWidth(0)) || 
-            (height % 4 != 0 && height != texture->getHeight(0)))
-        {
-            return error(GL_INVALID_OPERATION, false);
-        }
-    }
-
-    if (xoffset + width > texture->getWidth(level) ||
-        yoffset + height > texture->getHeight(level))
-    {
-        return error(GL_INVALID_VALUE, false);
-    }
-
-    return true;
-}
-
 // check for combinations of format and type that are valid for ReadPixels
 bool validReadFormatType(GLenum format, GLenum type)
 {
@@ -98,6 +62,17 @@ bool validReadFormatType(GLenum format, GLenum type)
         switch (type)
         {
           case GL_UNSIGNED_BYTE:
+            break;
+          default:
+            return false;
+        }
+        break;
+      case GL_BGRA_EXT:
+        switch (type)
+        {
+          case GL_UNSIGNED_BYTE:
+          case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+          case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
             break;
           default:
             return false;
@@ -186,39 +161,6 @@ void __stdcall glAttachShader(GLuint program, GLuint shader)
             {
                 return error(GL_INVALID_OPERATION);
             }
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
-void __stdcall glBeginQueryEXT(GLenum target, GLuint id)
-{
-    EVENT("(GLenum target = 0x%X, GLuint %d)", target, id);
-
-    try
-    {
-        switch (target)
-        {
-          case GL_ANY_SAMPLES_PASSED_EXT: 
-          case GL_ANY_SAMPLES_PASSED_CONSERVATIVE_EXT:
-              break;
-          default: 
-              return error(GL_INVALID_ENUM);
-        }
-
-        if (id == 0)
-        {
-            return error(GL_INVALID_OPERATION);
-        }
-
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-            context->beginQuery(target, id);
         }
     }
     catch(std::bad_alloc&)
@@ -1011,7 +953,7 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
 
     try
     {
-        if (!gl::IsInternalTextureTarget(target))
+        if (!gl::IsTextureTarget(target))
         {
             return error(GL_INVALID_ENUM);
         }
@@ -1083,18 +1025,46 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
             if (target == GL_TEXTURE_2D)
             {
                 gl::Texture2D *texture = context->getTexture2D();
-                if (validateSubImageParams(true, width, height, xoffset, yoffset, level, GL_NONE, texture))
+
+                if (!texture)
                 {
-                    texture->subImageCompressed(level, xoffset, yoffset, width, height, format, imageSize, data);
+                    return error(GL_INVALID_OPERATION);
                 }
+
+                if (!texture->isCompressed())
+                {
+                    return error(GL_INVALID_OPERATION);
+                }
+
+                if ((width % 4 != 0 && width != texture->getWidth()) || 
+                    (height % 4 != 0 && height != texture->getHeight()))
+                {
+                    return error(GL_INVALID_OPERATION);
+                }
+
+                texture->subImageCompressed(level, xoffset, yoffset, width, height, format, imageSize, data);
             }
             else if (gl::IsCubemapTextureTarget(target))
             {
                 gl::TextureCubeMap *texture = context->getTextureCubeMap();
-                if (validateSubImageParams(true, width, height, xoffset, yoffset, level, GL_NONE, texture))
+
+                if (!texture)
                 {
-                    texture->subImageCompressed(target, level, xoffset, yoffset, width, height, format, imageSize, data);
+                    return error(GL_INVALID_OPERATION);
                 }
+
+                if (!texture->isCompressed())
+                {
+                    return error(GL_INVALID_OPERATION);
+                }
+
+                if ((width % 4 != 0 && width != texture->getWidth()) || 
+                    (height % 4 != 0 && height != texture->getHeight()))
+                {
+                    return error(GL_INVALID_OPERATION);
+                }
+
+                texture->subImageCompressed(target, level, xoffset, yoffset, width, height, format, imageSize, data);
             }
             else
             {
@@ -1300,7 +1270,7 @@ void __stdcall glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GL
 
     try
     {
-        if (!gl::IsInternalTextureTarget(target))
+        if (!gl::IsTextureTarget(target))
         {
             return error(GL_INVALID_ENUM);
         }
@@ -1355,9 +1325,9 @@ void __stdcall glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GL
             }
             else UNREACHABLE();
 
-            if (!validateSubImageParams(false, width, height, xoffset, yoffset, level, GL_NONE, texture))
+            if (!texture)
             {
-                return; // error already registered by validateSubImageParams
+                return error(GL_INVALID_OPERATION);
             }
 
             GLenum textureFormat = texture->getInternalFormat();
@@ -1608,33 +1578,6 @@ void __stdcall glDeleteProgram(GLuint program)
             }
 
             context->deleteProgram(program);
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
-void __stdcall glDeleteQueriesEXT(GLsizei n, const GLuint *ids)
-{
-    EVENT("(GLsizei n = %d, const GLuint *ids = 0x%0.8p)", n, ids);
-
-    try
-    {
-        if (n < 0)
-        {
-            return error(GL_INVALID_VALUE);
-        }
-
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-            for (int i = 0; i < n; i++)
-            {
-                context->deleteQuery(ids[i]);
-            }
         }
     }
     catch(std::bad_alloc&)
@@ -2037,34 +1980,6 @@ void __stdcall glEnableVertexAttribArray(GLuint index)
     }
 }
 
-void __stdcall glEndQueryEXT(GLenum target)
-{
-    EVENT("GLenum target = 0x%X)", target);
-
-    try
-    {
-        switch (target)
-        {
-          case GL_ANY_SAMPLES_PASSED_EXT: 
-          case GL_ANY_SAMPLES_PASSED_CONSERVATIVE_EXT:
-              break;
-          default: 
-              return error(GL_INVALID_ENUM);
-        }
-
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-            context->endQuery(target);
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
 void __stdcall glFinishFenceNV(GLuint fence)
 {
     EVENT("(GLuint fence = %d)", fence);
@@ -2443,33 +2358,6 @@ void __stdcall glGenFramebuffers(GLsizei n, GLuint* framebuffers)
     }
 }
 
-void __stdcall glGenQueriesEXT(GLsizei n, GLuint* ids)
-{
-    EVENT("(GLsizei n = %d, GLuint* ids = 0x%0.8p)", n, ids);
-
-    try
-    {
-        if (n < 0)
-        {
-            return error(GL_INVALID_VALUE);
-        }
-
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-            for (int i = 0; i < n; i++)
-            {
-                ids[i] = context->createQuery();
-            }
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
 void __stdcall glGenRenderbuffers(GLsizei n, GLuint* renderbuffers)
 {
     EVENT("(GLsizei n = %d, GLuint* renderbuffers = 0x%0.8p)", n, renderbuffers);
@@ -2812,7 +2700,10 @@ GLenum __stdcall glGetError(void)
 
     if (context)
     {
-        return context->getError();
+        if (context->isContextLost())
+            return GL_OUT_OF_MEMORY;
+        else
+            return context->getError();
     }
 
     return GL_NO_ERROR;
@@ -2965,7 +2856,7 @@ void __stdcall glGetFramebufferAttachmentParameteriv(GLenum target, GLenum attac
             {
                 attachmentObjectType = attachmentType;
             }
-            else if (gl::IsInternalTextureTarget(attachmentType))
+            else if (gl::IsTextureTarget(attachmentType))
             {
                 attachmentObjectType = GL_TEXTURE;
             }
@@ -3191,83 +3082,6 @@ void __stdcall glGetProgramInfoLog(GLuint program, GLsizei bufsize, GLsizei* len
             }
 
             programObject->getInfoLog(bufsize, length, infolog);
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
-void __stdcall glGetQueryivEXT(GLenum target, GLenum pname, GLint *params)
-{
-    EVENT("GLenum target = 0x%X, GLenum pname = 0x%X, GLint *params = 0x%0.8p)", target, pname, params);
-
-    try
-    {
-        switch (pname)
-        {
-          case GL_CURRENT_QUERY_EXT:
-            break;
-          default:
-            return error(GL_INVALID_ENUM);
-        }
-
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-            params[0] = context->getActiveQuery(target);
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
-void __stdcall glGetQueryObjectuivEXT(GLuint id, GLenum pname, GLuint *params)
-{
-    EVENT("(GLuint id = %d, GLenum pname = 0x%X, GLuint *params = 0x%0.8p)", id, pname, params);
-
-    try
-    {
-        switch (pname)
-        {
-          case GL_QUERY_RESULT_EXT:
-          case GL_QUERY_RESULT_AVAILABLE_EXT:
-            break;
-          default:
-            return error(GL_INVALID_ENUM);
-        }
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-
-            gl::Query *queryObject = context->getQuery(id, false, GL_NONE);
-
-            if (!queryObject)
-            {
-                return error(GL_INVALID_OPERATION);
-            }
-
-            if (context->getActiveQuery(queryObject->getType()) == id)
-            {
-                return error(GL_INVALID_OPERATION);
-            }
-
-            switch(pname)
-            {
-              case GL_QUERY_RESULT_EXT:
-                params[0] = queryObject->getResult();
-                break;
-              case GL_QUERY_RESULT_AVAILABLE_EXT:
-                params[0] = queryObject->isResultAvailable();
-                break;
-              default:
-                ASSERT(false);
-            }
         }
     }
     catch(std::bad_alloc&)
@@ -4175,37 +3989,6 @@ GLboolean __stdcall glIsProgram(GLuint program)
     return GL_FALSE;
 }
 
-GLboolean __stdcall glIsQueryEXT(GLuint id)
-{
-    EVENT("(GLuint id = %d)", id);
-
-    try
-    {
-        if (id == 0)
-        {
-            return GL_FALSE;
-        }
-
-        gl::Context *context = gl::getNonLostContext();
-
-        if (context)
-        {
-            gl::Query *queryObject = context->getQuery(id, false, GL_NONE);
-
-            if (queryObject)
-            {
-                return GL_TRUE;
-            }
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY, GL_FALSE);
-    }
-
-    return GL_FALSE;
-}
-
 GLboolean __stdcall glIsRenderbuffer(GLuint renderbuffer)
 {
     EVENT("(GLuint renderbuffer = %d)", renderbuffer);
@@ -4369,10 +4152,6 @@ void __stdcall glPixelStorei(GLenum pname, GLint param)
                 }
 
                 context->setPackAlignment(param);
-                break;
-
-              case GL_PACK_REVERSE_ROW_ORDER_ANGLE:
-                context->setPackReverseRowOrder(param != 0);
                 break;
 
               default:
@@ -5259,26 +5038,6 @@ void __stdcall glTexStorage2DEXT(GLenum target, GLsizei levels, GLenum internalf
 
         if (context)
         {
-            switch (target)
-            {
-              case GL_TEXTURE_2D:
-                if (width > context->getMaximumTextureDimension() ||
-                    height > context->getMaximumTextureDimension())
-                {
-                    return error(GL_INVALID_VALUE);
-                }
-                break;
-              case GL_TEXTURE_CUBE_MAP:
-                if (width > context->getMaximumCubeTextureDimension() ||
-                    height > context->getMaximumCubeTextureDimension())
-                {
-                    return error(GL_INVALID_VALUE);
-                }
-                break;
-              default:
-                return error(GL_INVALID_ENUM);
-            }
-
             if (levels != 1 && !context->supportsNonPower2Texture())
             {
                 if (!gl::isPow2(width) || !gl::isPow2(height))
@@ -5381,7 +5140,7 @@ void __stdcall glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint 
 
     try
     {
-        if (!gl::IsInternalTextureTarget(target))
+        if (!gl::IsTextureTarget(target))
         {
             return error(GL_INVALID_ENUM);
         }
@@ -5433,18 +5192,34 @@ void __stdcall glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint 
             if (target == GL_TEXTURE_2D)
             {
                 gl::Texture2D *texture = context->getTexture2D();
-                if (validateSubImageParams(false, width, height, xoffset, yoffset, level, format, texture))
+
+                if (!texture)
                 {
-                    texture->subImage(level, xoffset, yoffset, width, height, format, type, context->getUnpackAlignment(), pixels);
+                    return error(GL_INVALID_OPERATION);
                 }
+
+                if (texture->isCompressed())
+                {
+                    return error(GL_INVALID_OPERATION);
+                }
+
+                if (format != texture->getInternalFormat())
+                {
+                    return error(GL_INVALID_OPERATION);
+                }
+
+                texture->subImage(level, xoffset, yoffset, width, height, format, type, context->getUnpackAlignment(), pixels);
             }
             else if (gl::IsCubemapTextureTarget(target))
             {
                 gl::TextureCubeMap *texture = context->getTextureCubeMap();
-                if (validateSubImageParams(false, width, height, xoffset, yoffset, level, format, texture))
+
+                if (!texture)
                 {
-                    texture->subImage(target, level, xoffset, yoffset, width, height, format, type, context->getUnpackAlignment(), pixels);
+                    return error(GL_INVALID_OPERATION);
                 }
+
+                texture->subImage(target, level, xoffset, yoffset, width, height, format, type, context->getUnpackAlignment(), pixels);
             }
             else
             {
@@ -6377,13 +6152,6 @@ __eglMustCastToProperFunctionPointerType __stdcall glGetProcAddress(const char *
         {"glReadnPixelsEXT", (__eglMustCastToProperFunctionPointerType)glReadnPixelsEXT},
         {"glGetnUniformfvEXT", (__eglMustCastToProperFunctionPointerType)glGetnUniformfvEXT},
         {"glGetnUniformivEXT", (__eglMustCastToProperFunctionPointerType)glGetnUniformivEXT},
-        {"glGenQueriesEXT", (__eglMustCastToProperFunctionPointerType)glGenQueriesEXT},
-        {"glDeleteQueriesEXT", (__eglMustCastToProperFunctionPointerType)glDeleteQueriesEXT},
-        {"glIsQueryEXT", (__eglMustCastToProperFunctionPointerType)glIsQueryEXT},
-        {"glBeginQueryEXT", (__eglMustCastToProperFunctionPointerType)glBeginQueryEXT},
-        {"glEndQueryEXT", (__eglMustCastToProperFunctionPointerType)glEndQueryEXT},
-        {"glGetQueryivEXT", (__eglMustCastToProperFunctionPointerType)glGetQueryivEXT},
-        {"glGetQueryObjectuivEXT", (__eglMustCastToProperFunctionPointerType)glGetQueryObjectuivEXT},
     };
 
     for (int ext = 0; ext < sizeof(glExtensions) / sizeof(Extension); ext++)

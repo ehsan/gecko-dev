@@ -50,8 +50,8 @@ template<int Max>
 class ProgressMeterAccessible: public nsFormControlAccessible
 {
 public:
-  ProgressMeterAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-    nsFormControlAccessible(aContent, aDoc)
+  ProgressMeterAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
+    nsFormControlAccessible(aContent, aShell)
   {
   }
 
@@ -62,7 +62,7 @@ public:
   NS_IMETHOD GetValue(nsAString &aValue);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // Widgets
   virtual bool IsWidget() const;
@@ -75,14 +75,14 @@ class nsRadioButtonAccessible : public nsFormControlAccessible
 {
 
 public:
-  nsRadioButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsRadioButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();

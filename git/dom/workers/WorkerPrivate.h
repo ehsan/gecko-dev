@@ -69,6 +69,16 @@ class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
 
+namespace mozilla {
+namespace xpconnect {
+namespace memory {
+
+struct IterateData;
+
+} // namespace memory
+} // namespace xpconnect
+} // namespace mozilla
+
 BEGIN_WORKERS_NAMESPACE
 
 class WorkerPrivate;
@@ -78,13 +88,11 @@ class WorkerRunnable : public nsIRunnable
 public:
   enum Target { ParentThread, WorkerThread };
   enum BusyBehavior { ModifyBusyCount, UnchangedBusyCount };
-  enum ClearingBehavior { SkipWhenClearing, RunWhenClearing };
 
 protected:
   WorkerPrivate* mWorkerPrivate;
   Target mTarget;
-  BusyBehavior mBusyBehavior;
-  ClearingBehavior mClearingBehavior;
+  bool mBusyBehavior;
 
 public:
   NS_DECL_ISUPPORTS
@@ -95,21 +103,14 @@ public:
   static bool
   DispatchToMainThread(nsIRunnable*);
 
-  bool
-  WantsToRunDuringClear()
-  {
-    return mClearingBehavior == RunWhenClearing;
-  }
-
 protected:
   WorkerRunnable(WorkerPrivate* aWorkerPrivate, Target aTarget,
-                 BusyBehavior aBusyBehavior,
-                 ClearingBehavior aClearingBehavior)
+                 BusyBehavior aBusyBehavior)
 #ifdef DEBUG
   ;
 #else
   : mWorkerPrivate(aWorkerPrivate), mTarget(aTarget),
-    mBusyBehavior(aBusyBehavior), mClearingBehavior(aClearingBehavior)
+    mBusyBehavior(aBusyBehavior)
   { }
 #endif
 
@@ -146,10 +147,8 @@ protected:
   friend class WorkerPrivate;
 
   WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate, PRUint32 aSyncQueueKey,
-                     bool aBypassSyncQueue = false,
-                     ClearingBehavior aClearingBehavior = SkipWhenClearing)
-  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
-                   aClearingBehavior),
+                     bool aBypassSyncQueue = false)
+  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mSyncQueueKey(aSyncQueueKey), mBypassSyncQueue(aBypassSyncQueue)
   { }
 
@@ -165,7 +164,7 @@ class WorkerControlRunnable : public WorkerRunnable
 protected:
   WorkerControlRunnable(WorkerPrivate* aWorkerPrivate, Target aTarget,
                         BusyBehavior aBusyBehavior)
-  : WorkerRunnable(aWorkerPrivate, aTarget, aBusyBehavior, SkipWhenClearing)
+  : WorkerRunnable(aWorkerPrivate, aTarget, aBusyBehavior)
   { }
 
   virtual ~WorkerControlRunnable()
@@ -217,7 +216,6 @@ private:
   PRUint64 mBusyCount;
   Status mParentStatus;
   PRUint32 mJSContextOptions;
-  PRUint32 mJSRuntimeHeapSize;
   PRUint8 mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
@@ -243,15 +241,6 @@ private:
     return static_cast<Derived*>(const_cast<WorkerPrivateParent*>(this));
   }
 
-  bool
-  NotifyPrivate(JSContext* aCx, Status aStatus, bool aFromJSFinalizer);
-
-  bool
-  TerminatePrivate(JSContext* aCx, bool aFromJSFinalizer)
-  {
-    return NotifyPrivate(aCx, Terminating, aFromJSFinalizer);
-  }
-
 public:
   // May be called on any thread...
   bool
@@ -259,10 +248,7 @@ public:
 
   // Called on the parent thread.
   bool
-  Notify(JSContext* aCx, Status aStatus)
-  {
-    return NotifyPrivate(aCx, aStatus, false);
-  }
+  Notify(JSContext* aCx, Status aStatus);
 
   bool
   Cancel(JSContext* aCx)
@@ -297,7 +283,7 @@ public:
   bool
   Terminate(JSContext* aCx)
   {
-    return TerminatePrivate(aCx, false);
+    return Notify(aCx, Terminating);
   }
 
   bool
@@ -321,16 +307,10 @@ public:
   void
   UpdateJSContextOptions(JSContext* aCx, PRUint32 aOptions);
 
-  void
-  UpdateJSRuntimeHeapSize(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
-
 #ifdef JS_GC_ZEAL
   void
   UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
-
-  void
-  GarbageCollect(JSContext* aCx, bool aShrinking);
 
   using events::EventTarget::GetEventListenerOnEventTarget;
   using events::EventTarget::SetEventListenerOnEventTarget;
@@ -463,12 +443,6 @@ public:
     return mJSContextOptions;
   }
 
-  PRUint32
-  GetJSRuntimeHeapSize() const
-  {
-    return mJSRuntimeHeapSize;
-  }
-
 #ifdef JS_GC_ZEAL
   PRUint8
   GetGCZeal() const
@@ -507,13 +481,13 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 
   struct TimeoutInfo;
 
-  typedef Queue<WorkerRunnable*, 50> EventQueue;
+  typedef Queue<nsIRunnable*, 50> EventQueue;
   EventQueue mQueue;
   EventQueue mControlQueue;
 
   struct SyncQueue
   {
-    Queue<WorkerRunnable*, 10> mQueue;
+    Queue<nsIRunnable*, 10> mQueue;
     bool mComplete;
     bool mResult;
 
@@ -523,7 +497,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 
     ~SyncQueue()
     {
-      WorkerRunnable* event;
+      nsIRunnable* event;
       while (mQueue.Pop(event)) {
         event->Release();
       }
@@ -534,7 +508,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 
   // Touched on multiple threads, protected with mMutex.
   JSContext* mJSContext;
-  nsRefPtr<WorkerCrossThreadDispatcher> mCrossThreadDispatcher;
 
   // Things touched on worker thread only.
   nsTArray<ParentType*> mChildWorkers;
@@ -655,7 +628,7 @@ public:
   ReportError(JSContext* aCx, const char* aMessage, JSErrorReport* aReport);
 
   bool
-  SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp, bool aIsInterval);
+  SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp, bool aIsInterval);
 
   bool
   ClearTimeout(JSContext* aCx, uint32 aId);
@@ -684,13 +657,11 @@ public:
   UpdateJSContextOptionsInternal(JSContext* aCx, PRUint32 aOptions);
 
   void
-  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
-
-  void
   ScheduleDeletion(bool aWasPending);
 
   bool
-  BlockAndCollectRuntimeStats(bool isQuick, void* aData, bool* aDisabled);
+  BlockAndCollectRuntimeStats(mozilla::xpconnect::memory::IterateData* aData,
+                              bool* aDisabled);
 
   bool
   DisableMemoryReporter();
@@ -699,10 +670,6 @@ public:
   void
   UpdateGCZealInternal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
-
-  void
-  GarbageCollectInternal(JSContext* aCx, bool aShrinking,
-                         bool aCollectChildren);
 
   JSContext*
   GetJSContext() const
@@ -725,9 +692,6 @@ public:
   AssertIsOnWorkerThread() const
   { }
 #endif
-
-  WorkerCrossThreadDispatcher*
-  GetCrossThreadDispatcher();
 
 private:
   WorkerPrivate(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -786,8 +750,8 @@ private:
     mStatus = Dead;
     mJSContext = nsnull;
 
-    ClearQueue(&mControlQueue);
     ClearQueue(&mQueue);
+    ClearQueue(&mControlQueue);
   }
 
   bool

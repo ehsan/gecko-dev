@@ -14,3 +14,5 @@ var arr = [ false, false, false, false, false, , , , , , true ];
 for (var i = 0; i < 10; ++i) {
     (s = arr[i]) + f(i);
 }
+
+checkStats({ traceTriggered: 2, sideExitIntoInterpreter: 2 })

@@ -51,6 +51,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsIDOMRange.h"
+#include "nsIDOMNSRange.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIContent.h"
 #include "nsIContentIterator.h"
@@ -67,7 +68,6 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -460,7 +460,8 @@ nsTextEditRules::CollapseSelectionToTrailingBRIfNeeded(nsISelection* aSelection)
                                   &parentOffset);
   NS_ENSURE_SUCCESS(res, res);
 
-  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(mEditor->GetRoot());
+  nsIDOMElement *rootElem = mEditor->GetRoot();
+  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(rootElem);
   NS_ENSURE_TRUE(root, NS_ERROR_NULL_POINTER);
   if (parentNode != root) return NS_OK;
 
@@ -486,7 +487,7 @@ GetTextNode(nsISelection *selection, nsEditor *editor) {
     // if node is null, return it to indicate there's no text
     NS_ENSURE_TRUE(node, nsnull);
     // This should be the root node, walk the tree looking for text nodes
-    nsNodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, nsnull);
+    nsNodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, nsnull, true);
     while (!editor->IsTextNode(selNode)) {
       if (NS_FAILED(res = iter.NextNode(getter_AddRefs(selNode))) || !selNode) {
         return nsnull;
@@ -939,19 +940,23 @@ nsTextEditRules::WillUndo(nsISelection *aSelection, bool *aCancel, bool *aHandle
 nsresult
 nsTextEditRules::DidUndo(nsISelection *aSelection, nsresult aResult)
 {
-  NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
-  // If aResult is an error, we return it.
-  NS_ENSURE_SUCCESS(aResult, aResult);
-
-  dom::Element* theRoot = mEditor->GetRoot();
-  NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
-  nsIContent* node = mEditor->GetLeftmostChild(theRoot);
-  if (node && mEditor->IsMozEditorBogusNode(node)) {
-    mBogusNode = do_QueryInterface(node);
-  } else {
-    mBogusNode = nsnull;
+  nsresult res = aResult;  // if aResult is an error, we return it.
+  if (!aSelection) { return NS_ERROR_NULL_POINTER; }
+  if (NS_SUCCEEDED(res)) 
+  {
+    if (mBogusNode) {
+      mBogusNode = nsnull;
+    }
+    else
+    {
+      nsIDOMElement *theRoot = mEditor->GetRoot();
+      NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
+      nsCOMPtr<nsIDOMNode> node = mEditor->GetLeftmostChild(theRoot);
+      if (node && mEditor->IsMozEditorBogusNode(node))
+        mBogusNode = node;
+    }
   }
-  return aResult;
+  return res;
 }
 
 nsresult
@@ -972,30 +977,29 @@ nsTextEditRules::DidRedo(nsISelection *aSelection, nsresult aResult)
   if (!aSelection) { return NS_ERROR_NULL_POINTER; }
   if (NS_SUCCEEDED(res)) 
   {
-    nsCOMPtr<nsIDOMElement> theRoot = do_QueryInterface(mEditor->GetRoot());
-    NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
-    
-    nsCOMPtr<nsIDOMNodeList> nodeList;
-    res = theRoot->GetElementsByTagName(NS_LITERAL_STRING("br"),
-                                        getter_AddRefs(nodeList));
-    NS_ENSURE_SUCCESS(res, res);
-    if (nodeList)
+    if (mBogusNode) {
+      mBogusNode = nsnull;
+    }
+    else
     {
-      PRUint32 len;
-      nodeList->GetLength(&len);
+      nsIDOMElement *theRoot = mEditor->GetRoot();
+      NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
       
-      if (len != 1) {
-        // only in the case of one br could there be the bogus node
-        mBogusNode = nsnull;
-        return NS_OK;  
-      }
-
-      nsCOMPtr<nsIContent> content = nodeList->GetNodeAt(0);
-      MOZ_ASSERT(content);
-      if (mEditor->IsMozEditorBogusNode(content)) {
-        mBogusNode = do_QueryInterface(content);
-      } else {
-        mBogusNode = nsnull;
+      nsCOMPtr<nsIDOMNodeList> nodeList;
+      res = theRoot->GetElementsByTagName(NS_LITERAL_STRING("br"),
+                                          getter_AddRefs(nodeList));
+      NS_ENSURE_SUCCESS(res, res);
+      if (nodeList)
+      {
+        PRUint32 len;
+        nodeList->GetLength(&len);
+        
+        if (len != 1) return NS_OK;  // only in the case of one br could there be the bogus node
+        nsCOMPtr<nsIDOMNode> node;
+        nodeList->Item(0, getter_AddRefs(node));
+        NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+        if (mEditor->IsMozEditorBogusNode(node))
+          mBogusNode = node;
       }
     }
   }
@@ -1052,36 +1056,52 @@ nsTextEditRules::RemoveRedundantTrailingBR()
   if (IsSingleLineEditor())
     return NS_OK;
 
-  nsRefPtr<dom::Element> body = mEditor->GetRoot();
+  nsIDOMNode* body = mEditor->GetRoot();
   if (!body)
     return NS_ERROR_NULL_POINTER;
 
-  PRUint32 childCount = body->GetChildCount();
-  if (childCount > 1) {
+  bool hasChildren;
+  nsresult res = body->HasChildNodes(&hasChildren);
+  NS_ENSURE_SUCCESS(res, res);
+
+  if (hasChildren) {
+    nsCOMPtr<nsIDOMNodeList> childList;
+    res = body->GetChildNodes(getter_AddRefs(childList));
+    NS_ENSURE_SUCCESS(res, res);
+
+    if (!childList)
+      return NS_ERROR_NULL_POINTER;
+
+    PRUint32 childCount;
+    res = childList->GetLength(&childCount);
+    NS_ENSURE_SUCCESS(res, res);
+
     // The trailing br is redundant if it is the only remaining child node
-    return NS_OK;
+    if (childCount != 1)
+      return NS_OK;
+
+    nsCOMPtr<nsIDOMNode> child;
+    res = body->GetFirstChild(getter_AddRefs(child));
+    NS_ENSURE_SUCCESS(res, res);
+
+    if (nsTextEditUtils::IsMozBR(child)) {
+      // Rather than deleting this node from the DOM tree we should instead
+      // morph this br into the bogus node
+      nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(child);
+      if (elem) {
+        elem->RemoveAttribute(NS_LITERAL_STRING("type"));
+        NS_ENSURE_SUCCESS(res, res);
+
+        // set mBogusNode to be this <br>
+        mBogusNode = elem;
+ 
+        // give it the bogus node attribute
+        nsCOMPtr<nsIContent> content = do_QueryInterface(elem);
+        content->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
+                         kMOZEditorBogusNodeValue, false);
+      }
+    }
   }
-
-  nsRefPtr<nsIContent> child = body->GetFirstChild();
-  if (!child || !child->IsElement()) {
-    return NS_OK;
-  }
-
-  dom::Element* elem = child->AsElement();
-  if (!nsTextEditUtils::IsMozBR(elem)) {
-    return NS_OK;
-  }
-
-  // Rather than deleting this node from the DOM tree we should instead
-  // morph this br into the bogus node
-  elem->UnsetAttr(kNameSpaceID_None, nsGkAtoms::type, true);
-
-  // set mBogusNode to be this <br>
-  mBogusNode = do_QueryInterface(elem);
-
-  // give it the bogus node attribute
-  elem->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                kMOZEditorBogusNodeValue, false);
   return NS_OK;
 }
 
@@ -1091,7 +1111,7 @@ nsTextEditRules::CreateTrailingBRIfNeeded()
   // but only if we aren't a single line edit field
   if (IsSingleLineEditor())
     return NS_OK;
-  nsCOMPtr<nsIDOMNode> body = do_QueryInterface(mEditor->GetRoot());
+  nsIDOMNode *body = mEditor->GetRoot();
   NS_ENSURE_TRUE(body, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDOMNode> lastChild;
   nsresult res = body->GetLastChild(getter_AddRefs(lastChild));
@@ -1114,63 +1134,66 @@ nsTextEditRules::CreateTrailingBRIfNeeded()
 nsresult
 nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
 {
-  NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
-  NS_ENSURE_TRUE(mEditor, NS_ERROR_NULL_POINTER);
-
-  if (mBogusNode) {
-    // Let's not create more than one, ok?
-    return NS_OK;
-  }
+  if (!aSelection) { return NS_ERROR_NULL_POINTER; }
+  if (!mEditor) { return NS_ERROR_NULL_POINTER; }
+  if (mBogusNode) return NS_OK;  // let's not create more than one, ok?
 
   // tell rules system to not do any post-processing
   nsAutoRules beginRulesSniffing(mEditor, nsEditor::kOpIgnore, nsIEditor::eNone);
 
-  nsCOMPtr<dom::Element> body = mEditor->GetRoot();
-  if (!body) {
-    // We don't even have a body yet, don't insert any bogus nodes at
+  nsIDOMNode* body = mEditor->GetRoot();
+  if (!body)
+  {
+    // we don't even have a body yet, don't insert any bogus nodes at
     // this point.
+
     return NS_OK;
   }
 
-  // Now we've got the body element. Iterate over the body element's children,
-  // looking for editable content. If no editable content is found, insert the
-  // bogus node.
-  for (nsCOMPtr<nsIContent> bodyChild = body->GetFirstChild();
-       bodyChild;
-       bodyChild = bodyChild->GetNextSibling()) {
+  // now we've got the body tag.
+  // iterate the body tag, looking for editable content
+  // if no editable content is found, insert the bogus node
+  bool needsBogusContent=true;
+  nsCOMPtr<nsIDOMNode> bodyChild;
+  nsresult res = body->GetFirstChild(getter_AddRefs(bodyChild));        
+  while ((NS_SUCCEEDED(res)) && bodyChild)
+  { 
     if (mEditor->IsMozEditorBogusNode(bodyChild) ||
-        !mEditor->IsEditable(body) || // XXX hoist out of the loop?
-        mEditor->IsEditable(bodyChild)) {
-      return NS_OK;
+        !mEditor->IsEditable(body) ||
+        mEditor->IsEditable(bodyChild))
+    {
+      needsBogusContent = false;
+      break;
     }
+    nsCOMPtr<nsIDOMNode>temp;
+    bodyChild->GetNextSibling(getter_AddRefs(temp));
+    bodyChild = do_QueryInterface(temp);
   }
+  // Skip adding the bogus node if body is read-only
+  if (needsBogusContent && mEditor->IsModifiableNode(body))
+  {
+    // create a br
+    nsCOMPtr<nsIContent> newContent;
+    res = mEditor->CreateHTMLContent(NS_LITERAL_STRING("br"), getter_AddRefs(newContent));
+    NS_ENSURE_SUCCESS(res, res);
+    nsCOMPtr<nsIDOMElement>brElement = do_QueryInterface(newContent);
 
-  // Skip adding the bogus node if body is read-only.
-  if (!mEditor->IsModifiableNode(body)) {
-    return NS_OK;
+    // set mBogusNode to be the newly created <br>
+    mBogusNode = brElement;
+    NS_ENSURE_TRUE(mBogusNode, NS_ERROR_NULL_POINTER);
+
+    // give it a special attribute
+    newContent->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
+                        kMOZEditorBogusNodeValue, false);
+    
+    // put the node in the document
+    res = mEditor->InsertNode(mBogusNode, body, 0);
+    NS_ENSURE_SUCCESS(res, res);
+
+    // set selection
+    aSelection->Collapse(body, 0);
   }
-
-  // Create a br.
-  nsCOMPtr<nsIContent> newContent;
-  nsresult rv = mEditor->CreateHTMLContent(NS_LITERAL_STRING("br"), getter_AddRefs(newContent));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // set mBogusNode to be the newly created <br>
-  mBogusNode = do_QueryInterface(newContent);
-  NS_ENSURE_TRUE(mBogusNode, NS_ERROR_NULL_POINTER);
-
-  // Give it a special attribute.
-  newContent->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                      kMOZEditorBogusNodeValue, false);
-
-  // Put the node in the document.
-  nsCOMPtr<nsIDOMNode> bodyNode = do_QueryInterface(body);
-  rv = mEditor->InsertNode(mBogusNode, bodyNode, 0);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Set selection.
-  aSelection->CollapseNative(body, 0);
-  return NS_OK;
+  return res;
 }
 
 

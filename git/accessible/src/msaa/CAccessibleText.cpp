@@ -45,8 +45,6 @@
 
 #include "nsHyperTextAccessible.h"
 
-#include "nsIPersistentProperties2.h"
-
 // IUnknown
 
 STDMETHODIMP
@@ -178,8 +176,6 @@ __try {
   *aNSelections = 0;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return E_FAIL;
 
   PRInt32 selCount = 0;
   nsresult rv = textAcc->GetSelectionCount(&selCount);

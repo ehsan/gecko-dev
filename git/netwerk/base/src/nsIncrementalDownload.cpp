@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-
 #include "nsIIncrementalDownload.h"
 #include "nsIRequestObserver.h"
 #include "nsIProgressEventSink.h"
@@ -122,14 +120,13 @@ MakeRangeSpec(const PRInt64 &size, const PRInt64 &maxSize, PRInt32 chunkSize,
 
 //-----------------------------------------------------------------------------
 
-class nsIncrementalDownload MOZ_FINAL
-  : public nsIIncrementalDownload
-  , public nsIStreamListener
-  , public nsIObserver
-  , public nsIInterfaceRequestor
-  , public nsIChannelEventSink
-  , public nsSupportsWeakReference
-  , public nsIAsyncVerifyRedirectCallback
+class nsIncrementalDownload : public nsIIncrementalDownload
+                            , public nsIStreamListener
+                            , public nsIObserver
+                            , public nsIInterfaceRequestor
+                            , public nsIChannelEventSink
+                            , public nsSupportsWeakReference
+                            , public nsIAsyncVerifyRedirectCallback
 {
 public:
   NS_DECL_ISUPPORTS

@@ -38,7 +38,7 @@
 #define nsTableFrame_h__
 
 #include "nscore.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
 #include "nsITableLayout.h"
@@ -128,7 +128,7 @@ private:
   * The principal child list contains row group frames. There is also an
   * additional child list, kColGroupList, which contains the col group frames.
   */
-class nsTableFrame : public nsContainerFrame, public nsITableLayout
+class nsTableFrame : public nsHTMLContainerFrame, public nsITableLayout
 {
 public:
   NS_DECL_QUERYFRAME
@@ -244,7 +244,7 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);
 
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const;
+  virtual nsFrameList GetChildList(ChildListID aListID) const;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -292,7 +292,7 @@ public:
 
   friend class nsDelayedCalcBCBorders;
   
-  void AddBCDamageArea(const nsIntRect& aValue);
+  void AddBCDamageArea(const nsRect& aValue);
   bool BCRecalcNeeded(nsStyleContext* aOldStyleContext,
                         nsStyleContext* aNewStyleContext);
   void PaintBCBorders(nsRenderingContext& aRenderingContext,
@@ -349,7 +349,7 @@ public:
 
   nsFrameList& GetColGroups();
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsIFrame* GetParentStyleContextFrame();
 
   /**
    * Get the "type" of the frame
@@ -506,8 +506,6 @@ public:
                               const nsRect& aOrigVisualOverflow,
                               bool aIsFirstReflow);
 
-  virtual bool UpdateOverflow();
-
 protected:
 
   /** protected constructor. 
@@ -520,7 +518,7 @@ protected:
 
   void InitChildReflowState(nsHTMLReflowState& aReflowState);
 
-  /** implement abstract method on nsContainerFrame */
+  /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
 
 public:
@@ -700,7 +698,7 @@ protected:
   void SetFullBCDamageArea();
   void CalcBCBorders();
 
-  void ExpandBCDamageArea(nsIntRect& aRect) const;
+  void ExpandBCDamageArea(nsRect& aRect) const;
 
   void SetColumnDimensions(nscoord         aHeight,
                            const nsMargin& aReflowState);

@@ -53,7 +53,7 @@
 class nsOuterDocAccessible : public nsAccessibleWrap
 {
 public:
-  nsOuterDocAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsOuterDocAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -66,7 +66,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);

@@ -41,6 +41,7 @@
 
 #include "nsIXPConnect.h"
 
+#include "jscntxt.h"
 #include "nsDOMClassInfo.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
@@ -138,7 +139,7 @@ GetKeyFromJSValOrThrow(JSContext* aCx,
 
 JSBool
 MakeOnlyKeyRange(JSContext* aCx,
-                 unsigned aArgc,
+                 uintN aArgc,
                  jsval* aVp)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -159,7 +160,7 @@ MakeOnlyKeyRange(JSContext* aCx,
 
 JSBool
 MakeLowerBoundKeyRange(JSContext* aCx,
-                       unsigned aArgc,
+                       uintN aArgc,
                        jsval* aVp)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -181,7 +182,7 @@ MakeLowerBoundKeyRange(JSContext* aCx,
 
 JSBool
 MakeUpperBoundKeyRange(JSContext* aCx,
-                       unsigned aArgc,
+                       uintN aArgc,
                        jsval* aVp)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -203,7 +204,7 @@ MakeUpperBoundKeyRange(JSContext* aCx,
 
 JSBool
 MakeBoundKeyRange(JSContext* aCx,
-                  unsigned aArgc,
+                  uintN aArgc,
                   jsval* aVp)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -271,9 +272,7 @@ IDBKeyRange::FromJSVal(JSContext* aCx,
   if (JSVAL_IS_VOID(aVal) || JSVAL_IS_NULL(aVal)) {
     // undefined and null returns no IDBKeyRange.
   }
-  else if (JSVAL_IS_PRIMITIVE(aVal) ||
-           JS_IsArrayObject(aCx, JSVAL_TO_OBJECT(aVal)) ||
-           JS_ObjectIsDate(aCx, JSVAL_TO_OBJECT(aVal))) {
+  else if (JSVAL_IS_PRIMITIVE(aVal)) {
     // A valid key returns an 'only' IDBKeyRange.
     keyRange = new IDBKeyRange(false, false, true);
 

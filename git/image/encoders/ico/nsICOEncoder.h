@@ -35,10 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/ReentrantMonitor.h"
-
 #include "imgIEncoder.h"
+
+#include "mozilla/ReentrantMonitor.h"
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -58,7 +57,7 @@ class nsPNGEncoder;
 // Provides ICO encoding functionality. Use InitFromData() to do the
 // encoding. See that function definition for encoding options.
 
-class nsICOEncoder MOZ_FINAL : public imgIEncoder
+class nsICOEncoder : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:
@@ -108,8 +107,8 @@ protected:
   // These headers will always contain endian independent stuff.
   // Don't trust the width and height of mICODirEntry directly,
   // instead use the accessors GetRealWidth() and GetRealHeight().
-  mozilla::image::IconFileHeader mICOFileHeader;
-  mozilla::image::IconDirEntry mICODirEntry;
+  mozilla::imagelib::IconFileHeader mICOFileHeader;
+  mozilla::imagelib::IconDirEntry mICODirEntry;
 
   // Keeps track of the start of the image buffer
   PRUint8* mImageBufferStart;

@@ -45,10 +45,13 @@
 #include "nsIWidget.h"
 #include "nsIViewManager.h"
 
+#import "mozAccessibleWrapper.h"
+
+
 nsRootAccessibleWrap::
-  nsRootAccessibleWrap(nsIDocument* aDocument, nsIContent* aRootContent,
-                       nsIPresShell* aPresShell) :
-  nsRootAccessible(aDocument, aRootContent, aPresShell)
+  nsRootAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
+                       nsIWeakReference *aShell) :
+  nsRootAccessible(aDocument, aRootContent, aShell)
 {
 }
 

@@ -363,7 +363,7 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
 
   // Set the script global object on the superclass before doing
   // anything that might require it....
-  MediaDocument::SetScriptGlobalObject(aScriptGlobalObject);
+  nsHTMLDocument::SetScriptGlobalObject(aScriptGlobalObject);
 
   if (aScriptGlobalObject) {
     if (!GetRootElement()) {
@@ -381,10 +381,6 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
     target = do_QueryInterface(aScriptGlobalObject);
     target->AddEventListener(NS_LITERAL_STRING("resize"), this, false);
     target->AddEventListener(NS_LITERAL_STRING("keypress"), this, false);
-
-    if (!nsContentUtils::IsChildOfSameType(this)) {
-      LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelImageDocument.css"));
-    }
   }
 }
 
@@ -613,6 +609,31 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
       ShrinkToFit();
     }
   }
+  else if (eventType.EqualsLiteral("keypress")) {
+    nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aEvent);
+    PRUint32 charCode;
+    bool ctrlKey, metaKey, altKey;
+    keyEvent->GetCharCode(&charCode);
+    keyEvent->GetCtrlKey(&ctrlKey);
+    keyEvent->GetMetaKey(&metaKey);
+    keyEvent->GetAltKey(&altKey);
+    // plus key
+    if (charCode == 0x2B && !ctrlKey && !metaKey && !altKey) {
+      mShouldResize = false;
+      if (mImageIsResized) {
+        ResetZoomLevel();
+        RestoreImage();
+      }
+    }
+    // minus key
+    else if (charCode == 0x2D && !ctrlKey && !metaKey && !altKey) {
+      mShouldResize = true;
+      if (mImageIsOverflowing) {
+        ResetZoomLevel();
+        ShrinkToFit();
+      }
+    }
+  }
 
   return NS_OK;
 }
@@ -644,6 +665,8 @@ ImageDocument::CreateSyntheticDocument()
 
     styleContent->SetTextContent(NS_LITERAL_STRING("img { display: block; }"));
     head->AppendChildTo(styleContent, false);
+  } else {
+    LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelImageDocument.css"));
   }
 
   // Add the image element
@@ -691,7 +714,7 @@ ImageDocument::CheckOverflowing(bool changeState)
 {
   /* Create a scope so that the style context gets destroyed before we might
    * call RebuildStyleData.  Also, holding onto pointers to the
-   * presentation through style resolution is potentially dangerous.
+   * presentatation through style resolution is potentially dangerous.
    */
   {
     nsIPresShell *shell = GetShell();
@@ -701,6 +724,23 @@ ImageDocument::CheckOverflowing(bool changeState)
 
     nsPresContext *context = shell->GetPresContext();
     nsRect visibleArea = context->GetVisibleArea();
+
+    Element* body = GetBodyElement();
+    if (!body) {
+      NS_WARNING("no body on image document!");
+      return NS_ERROR_FAILURE;
+    }
+
+    nsRefPtr<nsStyleContext> styleContext =
+      context->StyleSet()->ResolveStyleFor(body, nsnull);
+
+    nsMargin m;
+    if (styleContext->GetStyleMargin()->GetMargin(m))
+      visibleArea.Deflate(m);
+    m = styleContext->GetStyleBorder()->GetActualBorder();
+    visibleArea.Deflate(m);
+    if (styleContext->GetStylePadding()->GetPadding(m))
+      visibleArea.Deflate(m);
 
     mVisibleWidth = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.width);
     mVisibleHeight = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.height);

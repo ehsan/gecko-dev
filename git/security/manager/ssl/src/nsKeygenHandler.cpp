@@ -509,6 +509,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     nsresult rv = NS_ERROR_FAILURE;
     char *keystring = nsnull;
     char *keyparamsString = nsnull, *str = nsnull;
+    KeyType type;
     PRUint32 keyGenMechanism;
     PRInt32 primeBits;
     PK11SlotInfo *slot = nsnull;
@@ -548,6 +549,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
 
     // Set the keygen mechanism
     if (aKeyType.IsEmpty() || aKeyType.LowerCaseEqualsLiteral("rsa")) {
+        type = rsaKey;
         keyGenMechanism = CKM_RSA_PKCS_KEY_PAIR_GEN;
     } else if (aKeyType.LowerCaseEqualsLiteral("dsa")) {
         char * end;
@@ -557,6 +559,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
             goto loser;
         }
 
+        type = dsaKey;
         keyGenMechanism = CKM_DSA_KEY_PAIR_GEN;
         if (strcmp(keyparamsString, "null") == 0)
             goto loser;
@@ -583,6 +586,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
             goto loser;
         }
 
+        type = ecKey;
         keyGenMechanism = CKM_EC_KEY_PAIR_GEN;
         /* ecParams are initialized later */
     } else {

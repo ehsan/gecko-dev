@@ -40,11 +40,9 @@
 
 #include "nsXULComboboxAccessible.h"
 
-#include "nsAccessibilityService.h"
-#include "nsDocAccessible.h"
-#include "nsCoreUtils.h"
-#include "Role.h"
 #include "States.h"
+#include "nsAccessibilityService.h"
+#include "nsCoreUtils.h"
 
 #include "nsIAutoCompleteInput.h"
 #include "nsIDOMXULMenuListElement.h"
@@ -57,8 +55,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULComboboxAccessible::
-  nsXULComboboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsXULComboboxAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                             nsGkAtoms::autocomplete, eIgnoreCase))
@@ -67,10 +65,12 @@ nsXULComboboxAccessible::
     mFlags |= eComboboxAccessible;
 }
 
-role
+PRUint32
 nsXULComboboxAccessible::NativeRole()
 {
-  return IsAutoComplete() ? roles::AUTOCOMPLETE : roles::COMBOBOX;
+  if (IsAutoComplete())
+    return nsIAccessibleRole::ROLE_AUTOCOMPLETE;
+  return nsIAccessibleRole::ROLE_COMBOBOX;
 }
 
 PRUint64
@@ -132,15 +132,16 @@ nsXULComboboxAccessible::Description(nsString& aDescription)
   menuListElm->GetSelectedItem(getter_AddRefs(focusedOptionItem));
   nsCOMPtr<nsIContent> focusedOptionContent =
     do_QueryInterface(focusedOptionItem);
-  if (focusedOptionContent && mDoc) {
-    nsAccessible* focusedOptionAcc = mDoc->GetAccessible(focusedOptionContent);
+  if (focusedOptionContent) {
+    nsAccessible* focusedOptionAcc = GetAccService()->
+      GetAccessibleInWeakShell(focusedOptionContent, mWeakShell);
     if (focusedOptionAcc)
       focusedOptionAcc->Description(aDescription);
   }
 }
 
 bool
-nsXULComboboxAccessible::CanHaveAnonChildren()
+nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
 {
   if (mContent->NodeInfo()->Equals(nsGkAtoms::textbox, kNameSpaceID_XUL) ||
       mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::editable,
@@ -223,7 +224,7 @@ nsXULComboboxAccessible::IsActiveWidget() const
     PRInt32 childCount = mChildren.Length();
     for (PRInt32 idx = 0; idx < childCount; idx++) {
       nsAccessible* child = mChildren[idx];
-      if (child->Role() == roles::ENTRY)
+      if (child->Role() == nsIAccessibleRole::ROLE_ENTRY)
         return FocusMgr()->HasDOMFocus(child->GetContent());
     }
     return false;

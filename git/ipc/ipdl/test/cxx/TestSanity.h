@@ -17,9 +17,6 @@ public:
     TestSanityParent();
     virtual ~TestSanityParent();
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
-
     void Main();
 
 protected:    

@@ -39,7 +39,6 @@
 
 #ifndef jsopcode_h___
 #define jsopcode_h___
-
 /*
  * JS bytecode definitions.
  */
@@ -82,17 +81,20 @@ typedef enum JSOp {
 #define JOF_LOOKUPSWITCH  5       /* lookup switch */
 #define JOF_QARG          6       /* quickened get/set function argument ops */
 #define JOF_LOCAL         7       /* var or block-local variable */
-#define JOF_DOUBLE        8       /* uint32_t index for double value */
+#define JOF_SLOTATOM      8       /* uint16 slot + constant index */
+#define JOF_JUMPX         9       /* signed 32-bit jump offset immediate */
+#define JOF_TABLESWITCHX  10      /* extended (32-bit offset) table switch */
+#define JOF_LOOKUPSWITCHX 11      /* extended (32-bit offset) lookup switch */
 #define JOF_UINT24        12      /* extended unsigned 24-bit literal (index) */
-#define JOF_UINT8         13      /* uint8_t immediate, e.g. top 8 bits of 24-bit
+#define JOF_UINT8         13      /* uint8 immediate, e.g. top 8 bits of 24-bit
                                      atom index */
-#define JOF_INT32         14      /* int32_t immediate operand */
+#define JOF_INT32         14      /* int32 immediate operand */
 #define JOF_OBJECT        15      /* unsigned 16-bit object index */
-#define JOF_SLOTOBJECT    16      /* uint16_t slot index + object index */
-#define JOF_REGEXP        17      /* unsigned 32-bit regexp index */
-#define JOF_INT8          18      /* int8_t immediate operand */
-#define JOF_ATOMOBJECT    19      /* uint16_t constant index + object index */
-#define JOF_UINT16PAIR    20      /* pair of uint16_t immediates */
+#define JOF_SLOTOBJECT    16      /* uint16 slot index + object index */
+#define JOF_REGEXP        17      /* unsigned 16-bit regexp index */
+#define JOF_INT8          18      /* int8 immediate operand */
+#define JOF_ATOMOBJECT    19      /* uint16 constant index + object index */
+#define JOF_UINT16PAIR    20      /* pair of uint16 immediates */
 #define JOF_TYPEMASK      0x001f  /* mask for above immediate types */
 
 #define JOF_NAME          (1U<<5) /* name operation */
@@ -107,13 +109,16 @@ typedef enum JSOp {
 #define JOF_INC          (2U<<10) /* increment (++, not --) opcode */
 #define JOF_INCDEC       (3U<<10) /* increment or decrement opcode */
 #define JOF_POST         (1U<<12) /* postorder increment or decrement */
+#define JOF_FOR          (1U<<13) /* for-in property op (akin to JOF_SET) */
 #define JOF_ASSIGNING     JOF_SET /* hint for Class.resolve, used for ops
                                      that do simplex assignment */
 #define JOF_DETECTING    (1U<<14) /* object detection for JSNewResolveOp */
 #define JOF_BACKPATCH    (1U<<15) /* backpatch placeholder during codegen */
 #define JOF_LEFTASSOC    (1U<<16) /* left-associative operator */
 #define JOF_DECLARING    (1U<<17) /* var, const, or function declaration op */
-/* (1U<<18) is unused */
+#define JOF_INDEXBASE    (1U<<18) /* atom segment base setting prefix op */
+#define JOF_CALLOP       (1U<<19) /* call operation that pushes function and
+                                     this */
 #define JOF_PARENHEAD    (1U<<20) /* opcode consumes value of expression in
                                      parenthesized statement head */
 #define JOF_INVOKE       (1U<<21) /* JSOP_CALL, JSOP_NEW, JSOP_EVAL */
@@ -127,7 +132,9 @@ typedef enum JSOp {
 #define JOF_TMPSLOT_SHIFT 22
 #define JOF_TMPSLOT_MASK  (JS_BITMASK(2) << JOF_TMPSLOT_SHIFT)
 
-/* (1U<<24) is unused */
+#define JOF_SHARPSLOT    (1U<<24) /* first immediate is uint16 stack slot no.
+                                     that needs fixup when in global code (see
+                                     js::frontend::CompileScript) */
 #define JOF_GNAME        (1U<<25) /* predicted global name */
 #define JOF_TYPESET      (1U<<26) /* has an entry in a script's type sets */
 #define JOF_DECOMPOSE    (1U<<27) /* followed by an equivalent decomposed
@@ -143,68 +150,80 @@ typedef enum JSOp {
 #define JOF_OPMODE(op)  JOF_MODE(js_CodeSpec[op].format)
 
 #define JOF_TYPE_IS_EXTENDED_JUMP(t) \
-    ((unsigned)((t) - JOF_JUMP) <= (unsigned)(JOF_LOOKUPSWITCH - JOF_JUMP))
+    ((unsigned)((t) - JOF_JUMPX) <= (unsigned)(JOF_LOOKUPSWITCHX - JOF_JUMPX))
 
 /*
  * Immediate operand getters, setters, and bounds.
  */
 
-static JS_ALWAYS_INLINE uint8_t
-GET_UINT8(jsbytecode *pc)
-{
-    return (uint8_t) pc[1];
-}
-
-static JS_ALWAYS_INLINE void
-SET_UINT8(jsbytecode *pc, uint8_t u)
-{
-    pc[1] = (jsbytecode) u;
-}
-
-/* Common uint16_t immediate format helpers. */
+/* Common uint16 immediate format helpers. */
 #define UINT16_LEN              2
 #define UINT16_HI(i)            ((jsbytecode)((i) >> 8))
 #define UINT16_LO(i)            ((jsbytecode)(i))
-#define GET_UINT16(pc)          ((unsigned)(((pc)[1] << 8) | (pc)[2]))
+#define GET_UINT16(pc)          ((uintN)(((pc)[1] << 8) | (pc)[2]))
 #define SET_UINT16(pc,i)        ((pc)[1] = UINT16_HI(i), (pc)[2] = UINT16_LO(i))
-#define UINT16_LIMIT            ((unsigned)1 << 16)
+#define UINT16_LIMIT            ((uintN)1 << 16)
 
-/* Helpers for accessing the offsets of jump opcodes. */
-#define JUMP_OFFSET_LEN         4
-#define JUMP_OFFSET_MIN         INT32_MIN
-#define JUMP_OFFSET_MAX         INT32_MAX
+/* Short (2-byte signed offset) relative jump macros. */
+#define JUMP_OFFSET_LEN         2
+#define JUMP_OFFSET_HI(off)     ((jsbytecode)((off) >> 8))
+#define JUMP_OFFSET_LO(off)     ((jsbytecode)(off))
+#define GET_JUMP_OFFSET(pc)     ((int16)GET_UINT16(pc))
+#define SET_JUMP_OFFSET(pc,off) ((pc)[1] = JUMP_OFFSET_HI(off),               \
+                                 (pc)[2] = JUMP_OFFSET_LO(off))
+#define JUMP_OFFSET_MIN         ((int16)0x8000)
+#define JUMP_OFFSET_MAX         ((int16)0x7fff)
 
-static JS_ALWAYS_INLINE int32_t
-GET_JUMP_OFFSET(jsbytecode *pc)
-{
-    return (pc[1] << 24) | (pc[2] << 16) | (pc[3] << 8) | pc[4];
-}
+/*
+ * When a short jump won't hold a relative offset, its 2-byte immediate offset
+ * operand is an unsigned index of a span-dependency record, maintained until
+ * code generation finishes -- after which some (but we hope not nearly all)
+ * span-dependent jumps must be extended (see js::frontend::OptimizeSpanDeps in
+ * frontend/BytecodeEmitter.cpp).
+ *
+ * If the span-dependency record index overflows SPANDEP_INDEX_MAX, the jump
+ * offset will contain SPANDEP_INDEX_HUGE, indicating that the record must be
+ * found (via binary search) by its "before span-dependency optimization" pc
+ * offset (from script main entry point).
+ */
+#define GET_SPANDEP_INDEX(pc)   ((uint16)GET_UINT16(pc))
+#define SET_SPANDEP_INDEX(pc,i) ((pc)[1] = JUMP_OFFSET_HI(i),                 \
+                                 (pc)[2] = JUMP_OFFSET_LO(i))
+#define SPANDEP_INDEX_MAX       ((uint16)0xfffe)
+#define SPANDEP_INDEX_HUGE      ((uint16)0xffff)
 
-static JS_ALWAYS_INLINE void
-SET_JUMP_OFFSET(jsbytecode *pc, int32_t off)
-{
-    pc[1] = (jsbytecode)(off >> 24);
-    pc[2] = (jsbytecode)(off >> 16);
-    pc[3] = (jsbytecode)(off >> 8);
-    pc[4] = (jsbytecode)off;
-}
+/* Ultimately, if short jumps won't do, emit long (4-byte signed) offsets. */
+#define JUMPX_OFFSET_LEN        4
+#define JUMPX_OFFSET_B3(off)    ((jsbytecode)((off) >> 24))
+#define JUMPX_OFFSET_B2(off)    ((jsbytecode)((off) >> 16))
+#define JUMPX_OFFSET_B1(off)    ((jsbytecode)((off) >> 8))
+#define JUMPX_OFFSET_B0(off)    ((jsbytecode)(off))
+#define GET_JUMPX_OFFSET(pc)    ((int32)(((pc)[1] << 24) | ((pc)[2] << 16)    \
+                                         | ((pc)[3] << 8) | (pc)[4]))
+#define SET_JUMPX_OFFSET(pc,off)((pc)[1] = JUMPX_OFFSET_B3(off),              \
+                                 (pc)[2] = JUMPX_OFFSET_B2(off),              \
+                                 (pc)[3] = JUMPX_OFFSET_B1(off),              \
+                                 (pc)[4] = JUMPX_OFFSET_B0(off))
+#define JUMPX_OFFSET_MIN        ((int32)0x80000000)
+#define JUMPX_OFFSET_MAX        ((int32)0x7fffffff)
 
-#define UINT32_INDEX_LEN        4
+/*
+ * A literal is indexed by a per-script atom or object maps. Most scripts
+ * have relatively few literals, so the standard JOF_ATOM, JOF_OBJECT and
+ * JOF_REGEXP formats specifies a fixed 16 bits of immediate operand index.
+ * A script with more than 64K literals must wrap the bytecode into
+ * JSOP_INDEXBASE and JSOP_RESETBASE pair.
+ */
+#define INDEX_LEN               2
+#define INDEX_HI(i)             ((jsbytecode)((i) >> 8))
+#define INDEX_LO(i)             ((jsbytecode)(i))
+#define GET_INDEX(pc)           GET_UINT16(pc)
+#define SET_INDEX(pc,i)         ((pc)[1] = INDEX_HI(i), (pc)[2] = INDEX_LO(i))
 
-static JS_ALWAYS_INLINE uint32_t
-GET_UINT32_INDEX(const jsbytecode *pc)
-{
-    return (pc[1] << 24) | (pc[2] << 16) | (pc[3] << 8) | pc[4];
-}
-
-static JS_ALWAYS_INLINE void
-SET_UINT32_INDEX(jsbytecode *pc, uint32_t index)
-{
-    pc[1] = (jsbytecode)(index >> 24);
-    pc[2] = (jsbytecode)(index >> 16);
-    pc[3] = (jsbytecode)(index >> 8);
-    pc[4] = (jsbytecode)index;
-}
+#define GET_INDEXBASE(pc)       (JS_ASSERT(*(pc) == JSOP_INDEXBASE            \
+                                           || *(pc) == JSOP_TRAP),            \
+                                 ((uintN)((pc)[1])) << 16)
+#define INDEXBASE_LEN           1
 
 #define UINT24_HI(i)            ((jsbytecode)((i) >> 16))
 #define UINT24_MID(i)           ((jsbytecode)((i) >> 8))
@@ -216,20 +235,20 @@ SET_UINT32_INDEX(jsbytecode *pc, uint32_t index)
                                  (pc)[2] = UINT24_MID(i),                     \
                                  (pc)[3] = UINT24_LO(i))
 
-#define GET_INT8(pc)            (int8_t((pc)[1]))
+#define GET_INT8(pc)            ((jsint)(int8)(pc)[1])
 
-#define GET_INT32(pc)           (((uint32_t((pc)[1]) << 24) |                 \
-                                  (uint32_t((pc)[2]) << 16) |                 \
-                                  (uint32_t((pc)[3]) << 8)  |                 \
-                                  uint32_t((pc)[4])))
-#define SET_INT32(pc,i)         ((pc)[1] = (jsbytecode)(uint32_t(i) >> 24),   \
-                                 (pc)[2] = (jsbytecode)(uint32_t(i) >> 16),   \
-                                 (pc)[3] = (jsbytecode)(uint32_t(i) >> 8),    \
-                                 (pc)[4] = (jsbytecode)uint32_t(i))
+#define GET_INT32(pc)           ((jsint)(((uint32)((pc)[1]) << 24) |          \
+                                         ((uint32)((pc)[2]) << 16) |          \
+                                         ((uint32)((pc)[3]) << 8)  |          \
+                                         (uint32)(pc)[4]))
+#define SET_INT32(pc,i)         ((pc)[1] = (jsbytecode)((uint32)(i) >> 24),   \
+                                 (pc)[2] = (jsbytecode)((uint32)(i) >> 16),   \
+                                 (pc)[3] = (jsbytecode)((uint32)(i) >> 8),    \
+                                 (pc)[4] = (jsbytecode)(uint32)(i))
 
 /* Index limit is determined by SN_3BYTE_OFFSET_FLAG, see frontend/BytecodeEmitter.h. */
 #define INDEX_LIMIT_LOG2        23
-#define INDEX_LIMIT             (uint32_t(1) << INDEX_LIMIT_LOG2)
+#define INDEX_LIMIT             ((uint32)1 << INDEX_LIMIT_LOG2)
 
 /* Actual argument count operand format helpers. */
 #define ARGC_HI(argc)           UINT16_HI(argc)
@@ -249,17 +268,19 @@ SET_UINT32_INDEX(jsbytecode *pc, uint32_t index)
 #define SLOTNO_LIMIT            UINT16_LIMIT
 
 struct JSCodeSpec {
-    int8_t              length;         /* length including opcode byte */
-    int8_t              nuses;          /* arity, -1 if variadic */
-    int8_t              ndefs;          /* number of stack results */
-    uint8_t             prec;           /* operator precedence */
-    uint32_t            format;         /* immediate operand format */
+    int8                length;         /* length including opcode byte */
+    int8                nuses;          /* arity, -1 if variadic */
+    int8                ndefs;          /* number of stack results */
+    uint8               prec;           /* operator precedence */
+    uint32              format;         /* immediate operand format */
 
-    uint32_t type() const { return JOF_TYPE(format); }
+#ifdef __cplusplus
+    uint32 type() const { return JOF_TYPE(format); }
+#endif
 };
 
 extern const JSCodeSpec js_CodeSpec[];
-extern unsigned            js_NumCodeSpecs;
+extern uintN            js_NumCodeSpecs;
 extern const char       *js_CodeName[];
 extern const char       js_EscapeMap[];
 
@@ -290,7 +311,7 @@ js_QuoteString(JSContext *cx, JSString *str, jschar quote);
 
 extern JSPrinter *
 js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
-              unsigned indent, JSBool pretty, JSBool grouped, JSBool strict);
+              uintN indent, JSBool pretty, JSBool grouped, JSBool strict);
 
 extern void
 js_DestroyPrinter(JSPrinter *jp);
@@ -304,29 +325,90 @@ js_printf(JSPrinter *jp, const char *format, ...);
 extern JSBool
 js_puts(JSPrinter *jp, const char *s);
 
+/*
+ * Get index operand from the bytecode using a bytecode analysis to deduce the
+ * the index register. This function is infallible, in spite of taking cx as
+ * its first parameter; it uses only cx->runtime when calling JS_GetTrapOpcode.
+ * The GET_*_FROM_BYTECODE macros that call it pick up cx from their caller's
+ * lexical environments.
+ */
+uintN
+js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        ptrdiff_t pcoff);
+
+/*
+ * A slower version of GET_ATOM when the caller does not want to maintain
+ * the index segment register itself.
+ */
 #define GET_ATOM_FROM_BYTECODE(script, pc, pcoff, atom)                       \
     JS_BEGIN_MACRO                                                            \
-        JS_ASSERT(js_CodeSpec[*(pc)].format & JOF_ATOM);                      \
-        (atom) = (script)->getAtom(GET_UINT32_INDEX((pc) + (pcoff)));         \
+        JS_ASSERT(*(pc) != JSOP_DOUBLE);                                      \
+        uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
+        JS_GET_SCRIPT_ATOM(script, pc, index_, atom);                         \
     JS_END_MACRO
 
-#define GET_NAME_FROM_BYTECODE(script, pc, pcoff, name)                       \
+#define GET_DOUBLE_FROM_BYTECODE(script, pc, pcoff, dbl)                      \
     JS_BEGIN_MACRO                                                            \
-        JSAtom *atom_;                                                        \
-        GET_ATOM_FROM_BYTECODE(script, pc, pcoff, atom_);                     \
-        JS_ASSERT(js_CodeSpec[*(pc)].format & (JOF_NAME | JOF_PROP));         \
-        (name) = atom_->asPropertyName();                                     \
+        uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
+        JS_ASSERT(index_ < (script)->consts()->length);                       \
+        (dbl) = (script)->getConst(index_).toDouble();                        \
     JS_END_MACRO
 
-namespace js {
+#define GET_OBJECT_FROM_BYTECODE(script, pc, pcoff, obj)                      \
+    JS_BEGIN_MACRO                                                            \
+        uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
+        obj = (script)->getObject(index_);                                    \
+    JS_END_MACRO
 
-extern unsigned
-StackUses(JSScript *script, jsbytecode *pc);
+#define GET_FUNCTION_FROM_BYTECODE(script, pc, pcoff, fun)                    \
+    JS_BEGIN_MACRO                                                            \
+        uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
+        fun = (script)->getFunction(index_);                                  \
+    JS_END_MACRO
 
-extern unsigned
-StackDefs(JSScript *script, jsbytecode *pc);
+#define GET_REGEXP_FROM_BYTECODE(script, pc, pcoff, obj)                      \
+    JS_BEGIN_MACRO                                                            \
+        uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
+        obj = (script)->getRegExp(index_);                                    \
+    JS_END_MACRO
 
-}  /* namespace js */
+/*
+ * Find the number of stack slots used by a variadic opcode such as JSOP_CALL
+ * (for such ops, JSCodeSpec.nuses is -1).
+ */
+extern uintN
+js_GetVariableStackUses(JSOp op, jsbytecode *pc);
+
+/*
+ * Find the number of stack slots defined by JSOP_ENTERBLOCK (for this op,
+ * JSCodeSpec.ndefs is -1).
+ */
+extern uintN
+js_GetEnterBlockStackDefs(JSContext *cx, JSScript *script, jsbytecode *pc);
+
+#ifdef __cplusplus /* Aargh, libgjs, bug 492720. */
+static JS_INLINE uintN
+js_GetStackUses(const JSCodeSpec *cs, JSOp op, jsbytecode *pc)
+{
+    JS_ASSERT(cs == &js_CodeSpec[op]);
+    if (cs->nuses >= 0)
+        return cs->nuses;
+    return js_GetVariableStackUses(op, pc);
+}
+
+static JS_INLINE uintN
+js_GetStackDefs(JSContext *cx, const JSCodeSpec *cs, JSOp op, JSScript *script,
+                jsbytecode *pc)
+{
+    JS_ASSERT(cs == &js_CodeSpec[op]);
+    if (cs->ndefs >= 0)
+        return cs->ndefs;
+
+    /* Only JSOP_ENTERBLOCK has a variable number of stack defs. */
+    JS_ASSERT(op == JSOP_ENTERBLOCK);
+    return js_GetEnterBlockStackDefs(cx, script, pc);
+}
+#endif
 
 /*
  * Decompilers, for script, function, and expression pretty-printing.
@@ -351,7 +433,7 @@ typedef JSBool (* JSDecompilerPtr)(JSPrinter *);
 
 extern JSString *
 js_DecompileToString(JSContext *cx, const char *name, JSFunction *fun,
-                     unsigned indent, JSBool pretty, JSBool grouped, JSBool strict,
+                     uintN indent, JSBool pretty, JSBool grouped, JSBool strict,
                      JSDecompilerPtr decompiler);
 
 /*
@@ -367,14 +449,14 @@ js_DecompileToString(JSContext *cx, const char *name, JSFunction *fun,
  * The caller must call JS_free on the result after a succsesful call.
  */
 extern char *
-js_DecompileValueGenerator(JSContext *cx, int spindex, jsval v,
+js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback);
 
 /*
  * Given bytecode address pc in script's main program code, return the operand
  * stack depth just before (JSOp) *pc executes.
  */
-extern unsigned
+extern uintN
 js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 #ifdef _MSC_VER
@@ -386,16 +468,24 @@ JS_END_EXTERN_C
 #define JSDVG_IGNORE_STACK      0
 #define JSDVG_SEARCH_STACK      1
 
+#ifdef __cplusplus
 /*
  * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
  */
 extern size_t
-js_GetVariableBytecodeLength(jsbytecode *pc);
+js_GetVariableBytecodeLength(JSOp op, jsbytecode *pc);
+
+inline size_t
+js_GetVariableBytecodeLength(jsbytecode *pc)
+{
+    JS_ASSERT(*pc != JSOP_TRAP);
+    return js_GetVariableBytecodeLength(JSOp(*pc), pc);
+}
 
 namespace js {
 
 static inline char *
-DecompileValueGenerator(JSContext *cx, int spindex, const Value &v,
+DecompileValueGenerator(JSContext *cx, intN spindex, const Value &v,
                         JSString *fallback)
 {
     return js_DecompileValueGenerator(cx, spindex, v, fallback);
@@ -404,81 +494,35 @@ DecompileValueGenerator(JSContext *cx, int spindex, const Value &v,
 /*
  * Sprintf, but with unlimited and automatically allocated buffering.
  */
-class Sprinter
-{
-  public:
-    struct InvariantChecker
-    {
-        const Sprinter *parent;
-
-        explicit InvariantChecker(const Sprinter *p) : parent(p) {
-            parent->checkInvariants();
-        }
-
-        ~InvariantChecker() {
-            parent->checkInvariants();
-        }
-    };
-
-    JSContext               *context;       /* context executing the decompiler */
-
-  private:
-    static const size_t     DefaultSize;
-#ifdef DEBUG
-    bool                    initialized;    /* true if this is initialized, use for debug builds */
-#endif
-    char                    *base;          /* malloc'd buffer address */
-    size_t                  size;           /* size of buffer allocated at base */
-    ptrdiff_t               offset;         /* offset of next free char in buffer */
-
-    bool realloc_(size_t newSize);
-
-  public:
-    explicit Sprinter(JSContext *cx);
-    ~Sprinter();
-
-    /* Initialize this sprinter, returns false on error */
-    bool init();
-
-    void checkInvariants() const;
-
-    const char *string() const;
-    const char *stringEnd() const;
-    /* Returns the string at offset |off| */
-    char *stringAt(ptrdiff_t off) const;
-    /* Returns the char at offset |off| */
-    char &operator[](size_t off);
-    /* Test if this Sprinter is empty */
-    bool empty() const;
-
-    /*
-     * Attempt to reserve len + 1 space (for a trailing NULL byte). If the
-     * attempt succeeds, return a pointer to the start of that space and adjust the
-     * internal content. The caller *must* completely fill this space on success.
-     */
-    char *reserve(size_t len);
-    /* Like reserve, but memory is initialized to 0 */
-    char *reserveAndClear(size_t len);
-
-    /*
-     * Puts |len| characters from |s| at the current position and return an offset to
-     * the beginning of this new data
-     */
-    ptrdiff_t put(const char *s, size_t len);
-    ptrdiff_t put(const char *s);
-    ptrdiff_t putString(JSString *str);
-
-    /* Prints a formatted string into the buffer */
-    int printf(const char *fmt, ...);
-
-    /* Change the offset */
-    void setOffset(const char *end);
-    void setOffset(ptrdiff_t off);
-
-    /* Get the offset */
-    ptrdiff_t getOffset() const;
-    ptrdiff_t getOffsetOf(const char *string) const;
+struct Sprinter {
+    JSContext       *context;       /* context executing the decompiler */
+    LifoAlloc       *pool;          /* string allocation pool */
+    char            *base;          /* base address of buffer in pool */
+    size_t          size;           /* size of buffer allocated at base */
+    ptrdiff_t       offset;         /* offset of next free char in buffer */
 };
+
+#define INIT_SPRINTER(cx, sp, ap, off) \
+    ((sp)->context = cx, (sp)->pool = ap, (sp)->base = NULL, (sp)->size = 0,  \
+     (sp)->offset = off)
+
+/*
+ * Attempt to reserve len space in sp (including a trailing NULL byte). If the
+ * attempt succeeds, return a pointer to the start of that space and adjust the
+ * length of sp's contents. The caller *must* completely fill this space
+ * (including the space for the trailing NULL byte) on success.
+ */
+extern char *
+SprintReserveAmount(Sprinter *sp, size_t len);
+
+extern ptrdiff_t
+SprintPut(Sprinter *sp, const char *s, size_t len);
+
+extern ptrdiff_t
+SprintCString(Sprinter *sp, const char *s);
+
+extern ptrdiff_t
+SprintString(Sprinter *sp, JSString *str);
 
 extern ptrdiff_t
 Sprint(Sprinter *sp, const char *format, ...);
@@ -486,27 +530,19 @@ Sprint(Sprinter *sp, const char *format, ...);
 extern bool
 CallResultEscapes(jsbytecode *pc);
 
-static inline unsigned
+static inline uintN
 GetDecomposeLength(jsbytecode *pc, size_t len)
 {
     /*
-     * The last byte of a DECOMPOSE op stores the decomposed length.  This is a
-     * constant: perhaps we should just hardcode values instead?
+     * The last byte of a DECOMPOSE op stores the decomposed length. This can
+     * vary across different instances of an opcode due to INDEXBASE ops.
      */
-    JS_ASSERT(size_t(js_CodeSpec[*pc].length) == len);
-    return (unsigned) pc[len - 1];
+    JS_ASSERT_IF(JSOp(*pc) != JSOP_TRAP, size_t(js_CodeSpec[*pc].length) == len);
+    return (uintN) pc[len - 1];
 }
 
-static inline unsigned
-GetBytecodeLength(jsbytecode *pc)
-{
-    JSOp op = (JSOp)*pc;
-    JS_ASSERT(op < JSOP_LIMIT);
-
-    if (js_CodeSpec[op].length != -1)
-        return js_CodeSpec[op].length;
-    return js_GetVariableBytecodeLength(pc);
-}
+extern size_t
+GetBytecodeLength(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 extern bool
 IsValidBytecodeOffset(JSContext *cx, JSScript *script, size_t offset);
@@ -516,8 +552,26 @@ FlowsIntoNext(JSOp op)
 {
     /* JSOP_YIELD is considered to flow into the next instruction, like JSOP_CALL. */
     return op != JSOP_STOP && op != JSOP_RETURN && op != JSOP_RETRVAL && op != JSOP_THROW &&
-           op != JSOP_GOTO && op != JSOP_RETSUB;
+           op != JSOP_GOTO && op != JSOP_GOTOX && op != JSOP_RETSUB;
 }
+
+/*
+ * AutoScriptUntrapper mutates the given script in place to replace JSOP_TRAP
+ * opcodes with the original opcode they replaced. The destructor mutates the
+ * script back into its original state.
+ */
+class AutoScriptUntrapper
+{
+    JSContext *cx;
+    JSScript *origScript;
+    jsbytecode *origCode;
+    size_t nbytes;
+    bool saveOriginal(JSScript *script);
+  public:
+    AutoScriptUntrapper();
+    bool untrap(JSContext *cx, JSScript *script);
+    ~AutoScriptUntrapper();
+};
 
 /*
  * Counts accumulated for a single opcode in a script. The counts tracked vary
@@ -569,6 +623,7 @@ class OpcodeCounts
          * Access ops include all name, element and property reads, as well as
          * SETELEM and SETPROP (for ElementCounts/PropertyCounts alignment).
          */
+        JS_ASSERT(op != JSOP_TRAP);
         if (op == JSOP_SETELEM || op == JSOP_SETPROP || op == JSOP_SETMETHOD)
             return true;
         int format = js_CodeSpec[op].format;
@@ -591,7 +646,7 @@ class OpcodeCounts
     };
 
     static bool elementOp(JSOp op) {
-        return accessOp(op) && (JOF_MODE(js_CodeSpec[op].format) == JOF_ELEM);
+        return accessOp(op) && !!(js_CodeSpec[op].format & JOF_ELEM);
     }
 
     enum PropertyCounts {
@@ -603,7 +658,7 @@ class OpcodeCounts
     };
 
     static bool propertyOp(JSOp op) {
-        return accessOp(op) && (JOF_MODE(js_CodeSpec[op].format) == JOF_PROP);
+        return accessOp(op) && !!(js_CodeSpec[op].format & JOF_PROP);
     }
 
     enum ArithCounts {
@@ -616,6 +671,7 @@ class OpcodeCounts
     };
 
     static bool arithOp(JSOp op) {
+        JS_ASSERT(op != JSOP_TRAP);
         return !!(js_CodeSpec[op].format & (JOF_INCDEC | JOF_ARITH));
     }
 
@@ -641,24 +697,20 @@ class OpcodeCounts
         JS_ASSERT(which < capacity);
         return counts[which];
     }
-
-    /* Boolean conversion, for 'if (counters) ...' */
-    operator void*() const {
-        return counts;
-    }
 };
 
 } /* namespace js */
+#endif /* __cplusplus */
 
-#if defined(DEBUG)
+#if defined(DEBUG) && defined(__cplusplus)
 /*
  * Disassemblers, for debugging only.
  */
 extern JS_FRIEND_API(JSBool)
 js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp);
 
-extern JS_FRIEND_API(unsigned)
-js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, unsigned loc,
+extern JS_FRIEND_API(uintN)
+js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
                 JSBool lines, js::Sprinter *sp);
 
 extern JS_FRIEND_API(void)

@@ -38,7 +38,6 @@ DEPTH      = ../../..
 topsrcdir  = @top_srcdir@
 srcdir     = @srcdir@
 VPATH      = @srcdir@
-relativesrcdir = toolkit/components/startup
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -71,10 +70,10 @@ endif
 endif
 endif
 
-XPCSHELL_TESTS = tests/unit
-
+ifdef ENABLE_TESTS
 ifneq (mobile,$(MOZ_BUILD_APP))
-TEST_DIRS += tests/browser
+DIRS += tests/browser
+endif
 endif
 
 include $(topsrcdir)/config/rules.mk

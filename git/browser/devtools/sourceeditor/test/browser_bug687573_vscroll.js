@@ -4,9 +4,7 @@
 
 "use strict";
 
-let tempScope = {};
-Cu.import("resource:///modules/source-editor.jsm", tempScope);
-let SourceEditor = tempScope.SourceEditor;
+Cu.import("resource:///modules/source-editor.jsm");
 
 let testWin;
 let editor;
@@ -48,7 +46,7 @@ function initEditor()
 
   let config = {
     showLineNumbers: true,
-    initialText: text,
+    placeholderText: text,
   };
 
   editor = new SourceEditor();

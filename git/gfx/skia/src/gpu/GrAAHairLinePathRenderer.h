@@ -21,7 +21,7 @@ public:
                              const SkPath& path,
                              GrPathFill fill,
                              bool antiAlias) const  SK_OVERRIDE;
-    virtual void drawPath(GrDrawState::StageMask stages) SK_OVERRIDE;
+    virtual void drawPath(GrDrawTarget::StageBitfield stages) SK_OVERRIDE;
 
 protected:
 
@@ -35,13 +35,13 @@ private:
                              const GrIndexBuffer* fLinesIndexBuffer,
                              const GrIndexBuffer* fQuadsIndexBuffer);
 
-    bool createGeom(GrDrawState::StageMask stages);
+    bool createGeom(GrDrawTarget::StageBitfield stages);
 
     const GrIndexBuffer*        fLinesIndexBuffer;
     const GrIndexBuffer*        fQuadsIndexBuffer;
 
     // have to recreate geometry if stages in use changes :(
-    GrDrawState::StageMask      fPreviousStages;
+    GrDrawTarget::StageBitfield fPreviousStages;
     int                         fPreviousRTHeight;
     SkVector                    fPreviousTranslate;
     GrIRect                     fClipRect;

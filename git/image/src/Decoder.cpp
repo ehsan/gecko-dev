@@ -42,19 +42,19 @@
 #include "nsIScriptError.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 Decoder::Decoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
   : mImage(aImage)
   , mObserver(aObserver)
   , mDecodeFlags(0)
-  , mDecodeDone(false)
-  , mDataError(false)
   , mFrameCount(0)
   , mFailCode(NS_OK)
   , mInitialized(false)
   , mSizeDecode(false)
   , mInFrame(false)
+  , mDecodeDone(false)
+  , mDataError(false)
   , mIsAnimated(false)
 {
 }
@@ -130,21 +130,23 @@ Decoder::Finish()
     // Log data errors to the error console
     nsCOMPtr<nsIConsoleService> consoleService =
       do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    nsCOMPtr<nsIScriptError> errorObject =
+    nsCOMPtr<nsIScriptError2> errorObject =
       do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
 
     if (consoleService && errorObject && !HasDecoderError()) {
       nsAutoString msg(NS_LITERAL_STRING("Image corrupt or truncated: ") +
                        NS_ConvertASCIItoUTF16(mImage.GetURIString()));
 
-      if (NS_SUCCEEDED(errorObject->InitWithWindowID(
-                         msg.get(),
-                         NS_ConvertUTF8toUTF16(mImage.GetURIString()).get(),
-                         nsnull, 0, 0, nsIScriptError::errorFlag,
-                         "Image", mImage.InnerWindowID()
-                       ))) {
-        consoleService->LogMessage(errorObject);
-      }
+      errorObject->InitWithWindowID
+        (msg.get(),
+         NS_ConvertUTF8toUTF16(mImage.GetURIString()).get(),
+         nsnull,
+         0, 0, nsIScriptError::errorFlag,
+         "Image", mImage.InnerWindowID()
+         );
+  
+      nsCOMPtr<nsIScriptError> error = do_QueryInterface(errorObject);
+      consoleService->LogMessage(error);
     }
 
     // If we only have a data error, see if things are worth salvaging
@@ -326,5 +328,5 @@ Decoder::PostDecoderError(nsresult aFailureCode)
   NS_WARNING("Image decoding error - This is probably a bug!");
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

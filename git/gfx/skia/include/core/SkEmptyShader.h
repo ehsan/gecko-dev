@@ -15,26 +15,24 @@
 
 /**
  *  \class SkEmptyShader
- *  A Shader that always draws nothing. Its setContext always returns false,
- *  so it never expects that its shadeSpan() methods will get called.
+ *  A Shader that always draws nothing.
  */
 class SK_API SkEmptyShader : public SkShader {
 public:
-    SkEmptyShader() {}
+    SkEmptyShader();
 
-    virtual uint32_t getFlags() SK_OVERRIDE;
-    virtual uint8_t getSpan16Alpha() const SK_OVERRIDE;
-    virtual bool setContext(const SkBitmap&, const SkPaint&,
-                            const SkMatrix&) SK_OVERRIDE;
-    virtual void shadeSpan(int x, int y, SkPMColor span[], int count) SK_OVERRIDE;
-    virtual void shadeSpan16(int x, int y, uint16_t span[], int count) SK_OVERRIDE;
-    virtual void shadeSpanAlpha(int x, int y, uint8_t alpha[], int count) SK_OVERRIDE;
+    virtual uint32_t getFlags();
+    virtual uint8_t getSpan16Alpha() const;
+    virtual bool setContext(const SkBitmap& device, const SkPaint& paint,
+                            const SkMatrix& matrix);
+    virtual void shadeSpan(int x, int y, SkPMColor span[], int count);
+    virtual void shadeSpan16(int x, int y, uint16_t span[], int count);
+    virtual void shadeSpanAlpha(int x, int y, uint8_t alpha[], int count);
 
 protected:
     SkEmptyShader(SkFlattenableReadBuffer&);
-
-    virtual Factory getFactory() SK_OVERRIDE;
-    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory();
+    virtual void flatten(SkFlattenableWriteBuffer&);
 
 private:
     typedef SkShader INHERITED;

@@ -52,7 +52,7 @@ class nsHTMLTableCellAccessible : public nsHyperTextAccessibleWrap,
                                   public nsIAccessibleTableCell
 {
 public:
-  nsHTMLTableCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLTableCellAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -61,7 +61,7 @@ public:
   NS_DECL_NSIACCESSIBLETABLECELL
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
@@ -95,11 +95,11 @@ protected:
 class nsHTMLTableHeaderCellAccessible : public nsHTMLTableCellAccessible
 {
 public:
-  nsHTMLTableHeaderCellAccessible(nsIContent* aContent,
-                                  nsDocAccessible* aDoc);
+  nsHTMLTableHeaderCellAccessible(nsIContent *aContent,
+                                  nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 
@@ -124,7 +124,7 @@ class nsHTMLTableAccessible : public nsAccessibleWrap,
                               public nsIAccessibleTable
 {
 public:
-  nsHTMLTableAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLTableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLETABLE
@@ -133,7 +133,7 @@ public:
   // nsAccessible
   virtual void Description(nsString& aDescription);
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual Relation RelationByType(PRUint32 aRelationType);
@@ -142,7 +142,8 @@ public:
   inline nsAccessible* Caption() const
   {
     nsAccessible* child = mChildren.SafeElementAt(0, nsnull);
-    return child && child->Role() == mozilla::a11y::roles::CAPTION ? child : nsnull;
+    return child && child->Role() == nsIAccessibleRole::ROLE_CAPTION ?
+      child : nsnull;
   }
 
   // nsHTMLTableAccessible
@@ -211,14 +212,13 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsHTMLTableAccessible,
 class nsHTMLCaptionAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLCaptionAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-    nsHyperTextAccessibleWrap(aContent, aDoc) { }
-  virtual ~nsHTMLCaptionAccessible() { }
+  nsHTMLCaptionAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+    nsHyperTextAccessibleWrap(aContent, aShell) { }
 
   // nsIAccessible
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual Relation RelationByType(PRUint32 aRelationType);
 };
 

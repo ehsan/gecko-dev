@@ -190,7 +190,7 @@ public:
                                          nsStyleContext* aStyleContext);
   virtual void SetParent(nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const;
+  virtual nsFrameList GetChildList(ChildListID aListID) const;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext, 
@@ -232,6 +232,7 @@ public:
   NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsIView** aView) const;
   virtual nsIAtom* GetType() const;
 
+  NS_IMETHOD  GetSelected(bool *aSelected) const;
   NS_IMETHOD  IsSelectable(bool* aIsSelectable, PRUint8* aSelectStyle) const;
 
   NS_IMETHOD  GetSelectionController(nsPresContext *aPresContext, nsISelectionController **aSelCon);
@@ -263,7 +264,7 @@ public:
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() const {
+  virtual nsIFrame* GetParentStyleContextFrame() {
     return DoGetParentStyleContextFrame();
   }
 
@@ -274,7 +275,7 @@ public:
    * frames by using the frame manager's placeholder map and it also
    * handles block-within-inline and generated content wrappers.)
    */
-  nsIFrame* DoGetParentStyleContextFrame() const;
+  nsIFrame* DoGetParentStyleContextFrame();
 
   virtual bool IsEmpty();
   virtual bool IsSelfEmpty();
@@ -345,8 +346,6 @@ public:
                                       nsReflowStatus&          aStatus);
   void DestroyAbsoluteFrames(nsIFrame* aDestructRoot);
   virtual bool CanContinueTextRun() const;
-
-  virtual bool UpdateOverflow();
 
   // Selection Methods
   // XXX Doc me... (in nsIFrame.h puhleeze)
@@ -582,35 +581,15 @@ public:
                                bool aLockScroll,
                                nsIFrame** aContainingBlock = nsnull);
 
-  /**
-   * Returns true if aFrame should apply overflow clipping.
-   */
-  static bool ApplyOverflowClipping(const nsIFrame* aFrame,
-                                    const nsStyleDisplay* aDisp)
+  // test whether aFrame should apply paginated overflow clipping.
+  static bool ApplyPaginatedOverflowClipping(const nsIFrame* aFrame)
   {
-    // clip overflow:-moz-hidden-unscrollable ...
-    if (NS_UNLIKELY(aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP)) {
-      return true;
-    }
-
-    // and overflow:hidden that we should interpret as -moz-hidden-unscrollable
-    if (aDisp->mOverflowX == NS_STYLE_OVERFLOW_HIDDEN &&
-        aDisp->mOverflowY == NS_STYLE_OVERFLOW_HIDDEN) {
-      // REVIEW: these are the frame types that set up clipping.
-      nsIAtom* type = aFrame->GetType();
-      if (type == nsGkAtoms::tableFrame ||
-          type == nsGkAtoms::tableCellFrame ||
-          type == nsGkAtoms::bcTableCellFrame) {
-        return true;
-      }
-    }
-    
     // If we're paginated and a block, and have NS_BLOCK_CLIP_PAGINATED_OVERFLOW
     // set, then we want to clip our overflow.
     return
       aFrame->PresContext()->IsPaginated() &&
-      (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0 &&
-      aFrame->GetType() == nsGkAtoms::blockFrame;
+      aFrame->GetType() == nsGkAtoms::blockFrame &&
+      (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
   }
 
 protected:
@@ -728,8 +707,7 @@ public:
 public:
 
   static void PrintDisplayList(nsDisplayListBuilder* aBuilder,
-                               const nsDisplayList& aList,
-                               FILE* aFile = stdout);
+                               const nsDisplayList& aList);
 
 #endif
 };

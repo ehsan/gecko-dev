@@ -42,19 +42,17 @@
 #include "nsSVGGeometryFrame.h"
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsISVGChildFrame.h"
-#include "nsSVGUtils.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
+#include "gfxRect.h"
+#include "gfxMatrix.h"
 #include "nsTextFragment.h"
 
-class nsRenderingContext;
 class nsSVGTextFrame;
 class nsSVGTextPathFrame;
 class nsSVGGlyphFrame;
 class CharacterIterator;
 struct CharacterPosition;
-
-typedef gfxFont::DrawMode DrawMode;
 
 typedef nsSVGGeometryFrame nsSVGGlyphFrameBase;
 
@@ -71,7 +69,8 @@ protected:
       mStartIndex(0),
       mCompressWhitespace(true),
       mTrimLeadingWhitespace(false),
-      mTrimTrailingWhitespace(false)
+      mTrimTrailingWhitespace(false),
+      mPropagateTransform(true)
       {}
   ~nsSVGGlyphFrame()
   {
@@ -124,16 +123,10 @@ public:
     return mContent->GetText()->GetLength() == 0;
   }
   void SetTrimLeadingWhitespace(bool aTrimLeadingWhitespace) {
-    if (mTrimLeadingWhitespace != aTrimLeadingWhitespace) {
-      mTrimLeadingWhitespace = aTrimLeadingWhitespace;
-      ClearTextRun();
-    }
+    mTrimLeadingWhitespace = aTrimLeadingWhitespace;
   }
   void SetTrimTrailingWhitespace(bool aTrimTrailingWhitespace) {
-    if (mTrimTrailingWhitespace != aTrimTrailingWhitespace) {
-      mTrimTrailingWhitespace = aTrimTrailingWhitespace;
-      ClearTextRun();
-    }
+    mTrimTrailingWhitespace = aTrimTrailingWhitespace;
   }
   bool EndsWithWhitespace() const;
   bool IsAllWhitespace() const;
@@ -143,6 +136,9 @@ public:
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
+  virtual void SetSelected(bool          aSelected,
+                           SelectionType aType);
+  NS_IMETHOD  GetSelected(bool *aSelected) const;
   NS_IMETHOD  IsSelectable(bool* aIsSelectable, PRUint8* aSelectStyle) const;
 
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -173,7 +169,7 @@ public:
 
   // nsISVGChildFrame interface:
   // These four always use the global transform, even if NS_STATE_NONDISPLAY_CHILD
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD UpdateCoveredRegion();
@@ -183,12 +179,10 @@ public:
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD InitialUpdate();
   virtual void NotifySVGChanged(PRUint32 aFlags);
-  virtual void NotifyRedrawSuspended();
-  virtual void NotifyRedrawUnsuspended();
+  NS_IMETHOD NotifyRedrawSuspended();
+  NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
-  NS_IMETHOD_(bool) HasValidCoveredRect() {
-    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  NS_IMETHOD_(bool) HasValidCoveredRect() { return true; }
 
   // nsSVGGeometryFrame methods
   gfxMatrix GetCanvasTM();
@@ -202,10 +196,7 @@ public:
   NS_IMETHOD_(nsSVGGlyphFrame *) GetFirstGlyphFrame();
   NS_IMETHOD_(nsSVGGlyphFrame *) GetNextGlyphFrame();
   NS_IMETHOD_(void) SetWhitespaceCompression(bool aCompressWhitespace) {
-    if (mCompressWhitespace != aCompressWhitespace) {
-      mCompressWhitespace = aCompressWhitespace;
-      ClearTextRun();
-    }
+    mCompressWhitespace = aCompressWhitespace;
   }
 
 protected:
@@ -239,12 +230,11 @@ protected:
                            gfxContext *aContext);
   void AddBoundingBoxesToPath(CharacterIterator *aIter,
                               gfxContext *aContext);
-  void DrawCharacters(CharacterIterator *aIter,
-                      gfxContext *aContext,
-                      DrawMode aDrawMode,
-                      gfxPattern *aStrokePattern = nsnull);
+  void FillCharacters(CharacterIterator *aIter,
+                      gfxContext *aContext);
 
   void NotifyGlyphMetricsChange();
+  bool GetGlobalTransform(gfxMatrix *aMatrix);
   void SetupGlobalTransform(gfxContext *aContext);
   nsresult GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
                         nscolor *foreground, nscolor *background);
@@ -267,10 +257,7 @@ protected:
   bool mCompressWhitespace;
   bool mTrimLeadingWhitespace;
   bool mTrimTrailingWhitespace;
-
-private:
-  DrawMode SetupCairoState(gfxContext *aContext,
-                           gfxPattern **aStrokePattern);
+  bool mPropagateTransform;
 };
 
 #endif

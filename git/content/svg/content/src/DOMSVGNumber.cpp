@@ -123,12 +123,8 @@ DOMSVGNumber::SetValue(float aValue)
   NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
 
   if (HasOwner()) {
-    if (InternalItem() == aValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(mAttrEnum);
     InternalItem() = aValue;
-    Element()->DidChangeNumberList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeNumberList(mAttrEnum, true);
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }

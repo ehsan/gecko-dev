@@ -44,8 +44,6 @@
 #ifndef mozilla_css_Declaration_h
 #define mozilla_css_Declaration_h
 
-#include "mozilla/Attributes.h"
-
 // This header is in EXPORTS because it's used in several places in content/,
 // but it's not really a public interface.
 #ifndef _IMPL_NS_LAYOUT
@@ -118,7 +116,6 @@ public:
   /**
    * Transfer all of the state from |aExpandedData| into this declaration.
    * After calling, |aExpandedData| should be in its initial state.
-   * Callers must make sure mOrder is updated as necessary.
    */
   void CompressFrom(nsCSSExpandedDataBlock *aExpandedData) {
     NS_ABORT_IF_FALSE(!mData, "oops");
@@ -242,8 +239,9 @@ public:
 #endif
 
 private:
-  Declaration& operator=(const Declaration& aCopy) MOZ_DELETE;
-  bool operator==(const Declaration& aCopy) const MOZ_DELETE;
+  // Not implemented, and not supported.
+  Declaration& operator=(const Declaration& aCopy);
+  bool operator==(const Declaration& aCopy) const;
 
   static void AppendImportanceToString(bool aIsImportant, nsAString& aString);
   // return whether there was a value in |aValue| (i.e., it had a non-null unit)
@@ -257,8 +255,6 @@ public:
   nsCSSProperty OrderValueAt(PRUint32 aValue) const {
     return nsCSSProperty(mOrder.ElementAt(aValue));
   }
-
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   nsAutoTArray<PRUint8, 8> mOrder;

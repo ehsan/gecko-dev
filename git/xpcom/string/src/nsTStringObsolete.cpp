@@ -479,7 +479,7 @@ nsTString_CharT::AssignWithConversion( const incompatible_char_type* aData, PRIn
         if (aLength < 0)
           aLength = nsCharTraits<incompatible_char_type>::length(aData);
 
-        AssignWithConversion(Substring(aData, aLength));
+        AssignWithConversion(Substring(aData, aData + aLength));
       }
   }
 
@@ -498,6 +498,6 @@ nsTString_CharT::AppendWithConversion( const incompatible_char_type* aData, PRIn
         if (aLength < 0)
           aLength = nsCharTraits<incompatible_char_type>::length(aData);
 
-        AppendWithConversion(Substring(aData, aLength));
+        AppendWithConversion(Substring(aData, aData + aLength));
       }
   }

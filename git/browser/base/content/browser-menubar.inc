@@ -291,12 +291,12 @@
                 </menu>
                 <menu id="pageStyleMenu" label="&pageStyleMenu.label;"
                       accesskey="&pageStyleMenu.accesskey;" observes="isImage">
-                  <menupopup onpopupshowing="gPageStyleMenu.fillPopup(this);"
-                             oncommand="gPageStyleMenu.switchStyleSheet(event.target.getAttribute('data'));">
+                  <menupopup onpopupshowing="stylesheetFillPopup(this);"
+                             oncommand="stylesheetSwitchAll(window.content, event.target.getAttribute('data')); setStyleDisabled(false);">
                     <menuitem id="menu_pageStyleNoStyle"
                               label="&pageStyleNoStyle.label;"
                               accesskey="&pageStyleNoStyle.accesskey;"
-                              oncommand="gPageStyleMenu.disableStyle(); event.stopPropagation();"
+                              oncommand="setStyleDisabled(true); event.stopPropagation();"
                               type="radio"/>
                     <menuitem id="menu_pageStylePersistentOnly"
                               label="&pageStylePersistentOnly.label;"
@@ -531,14 +531,12 @@
               <menu id="webDeveloperMenu"
                     label="&webDeveloperMenu.label;"
                     accesskey="&webDeveloperMenu.accesskey;">
-                <menupopup id="menuWebDeveloperPopup"
-                           onpopupshowing="onWebDeveloperMenuShowing();">
+                <menupopup id="menuWebDeveloperPopup">
                   <menuitem id="webConsole"
-                            type="checkbox"
                             label="&webConsoleCmd.label;"
                             accesskey="&webConsoleCmd.accesskey;"
                             key="key_webConsole"
-                            command="Tools:WebConsole"/>
+                            oncommand="HUDConsoleUI.toggleHUD();"/>
                   <menuitem id="menu_pageinspect"
                             type="checkbox"
                             hidden="true"
@@ -546,11 +544,6 @@
                             accesskey="&inspectMenu.accesskey;"
                             key="key_inspect"
                             command="Tools:Inspect"/>
-                  <menuitem id="menu_debugger"
-                            hidden="true"
-                            label="&debuggerMenu.label;"
-                            key="key_debugger"
-                            command="Tools:Debugger"/>
                   <menuitem id="menu_scratchpad"
                             hidden="true"
                             label="&scratchpad.label;"

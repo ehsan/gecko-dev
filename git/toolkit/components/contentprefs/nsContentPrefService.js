@@ -229,7 +229,7 @@ ContentPrefService.prototype = {
   get _prefSvc() {
     if (!this.__prefSvc)
       this.__prefSvc = Cc["@mozilla.org/preferences-service;1"].
-                       getService(Ci.nsIPrefBranch);
+                       getService(Ci.nsIPrefBranch2);
     return this.__prefSvc;
   },
 
@@ -303,8 +303,6 @@ ContentPrefService.prototype = {
       this.__stmtUpdatePref.finalize();
       this.__stmtUpdatePref = null;
     }
-
-    this._dbConnection.asyncClose();
 
     // Delete references to XPCOM components to make sure we don't leak them
     // (although we haven't observed leakage in tests).  Also delete references

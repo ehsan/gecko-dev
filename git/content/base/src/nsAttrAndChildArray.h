@@ -44,8 +44,6 @@
 #ifndef nsAttrAndChildArray_h___
 #define nsAttrAndChildArray_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nscore.h"
 #include "nsAttrName.h"
 #include "nsAttrValue.h"
@@ -105,6 +103,7 @@ public:
   PRUint32 AttrCount() const;
   const nsAttrValue* GetAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID = kNameSpaceID_None) const;
   const nsAttrValue* AttrAt(PRUint32 aPos) const;
+  nsresult SetAttr(nsIAtom* aLocalName, const nsAString& aValue);
   nsresult SetAndTakeAttr(nsIAtom* aLocalName, nsAttrValue& aValue);
   nsresult SetAndTakeAttr(nsINodeInfo* aName, nsAttrValue& aValue);
 
@@ -135,15 +134,11 @@ public:
            !AttrSlotIsTaken(ATTRCHILD_ARRAY_MAX_ATTR_COUNT - 1);
   }
 
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-  bool HasMappedAttrs() const
-  {
-    return MappedAttrCount();
-  }
+  PRInt64 SizeOf() const;
 
 private:
-  nsAttrAndChildArray(const nsAttrAndChildArray& aOther) MOZ_DELETE;
-  nsAttrAndChildArray& operator=(const nsAttrAndChildArray& aOther) MOZ_DELETE;
+  nsAttrAndChildArray(const nsAttrAndChildArray& aOther); // Not to be implemented
+  nsAttrAndChildArray& operator=(const nsAttrAndChildArray& aOther); // Not to be implemented
 
   void Clear();
 

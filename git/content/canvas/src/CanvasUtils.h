@@ -77,6 +77,9 @@ void DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
                               bool forceWriteOnly,
                               bool CORSUsed);
 
+void LogMessage (const nsCString& errorString);
+void LogMessagef (const char *fmt, ...);
+
 // Make a double out of |v|, treating undefined values as 0.0 (for
 // the sake of sparse arrays).  Return true iff coercion
 // succeeded.
@@ -146,11 +149,11 @@ JSValToDashArray(JSContext* cx, const jsval& patternArray,
 {
     // The cap is pretty arbitrary.  16k should be enough for
     // anybody...
-    static const uint32_t MAX_NUM_DASHES = 1 << 14;
+    static const jsuint MAX_NUM_DASHES = 1 << 14;
 
     if (!JSVAL_IS_PRIMITIVE(patternArray)) {
         JSObject* obj = JSVAL_TO_OBJECT(patternArray);
-        uint32_t length;
+        jsuint length;
         if (!JS_GetArrayLength(cx, obj, &length)) {
             // Not an array-like thing
             return NS_ERROR_INVALID_ARG;

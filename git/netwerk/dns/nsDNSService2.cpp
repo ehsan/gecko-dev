@@ -41,8 +41,8 @@
 #include "nsICancelable.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIServiceManager.h"
-#include "nsProxyRelease.h"
 #include "nsReadableUtils.h"
 #include "nsString.h"
 #include "nsAutoPtr.h"
@@ -64,7 +64,6 @@ using namespace mozilla;
 
 static const char kPrefDnsCacheEntries[]    = "network.dnsCacheEntries";
 static const char kPrefDnsCacheExpiration[] = "network.dnsCacheExpiration";
-static const char kPrefDnsCacheGrace[]      = "network.dnsCacheExpirationGracePeriod";
 static const char kPrefEnableIDN[]          = "network.enableIDN";
 static const char kPrefIPv4OnlyDomains[]    = "network.dns.ipv4OnlyDomains";
 static const char kPrefDisableIPv6[]        = "network.dns.disableIPv6";
@@ -279,10 +278,6 @@ public:
     ~nsDNSAsyncRequest() {}
 
     void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
-    // Returns TRUE if the DNS listener arg is the same as the member listener
-    // Used in Cancellations to remove DNS requests associated with a
-    // particular hostname and nsIDNSListener
-    bool EqualsAsyncListener(nsIDNSListener *aListener);
 
     nsRefPtr<nsHostResolver> mResolver;
     nsCString                mHost; // hostname we're resolving
@@ -315,12 +310,6 @@ nsDNSAsyncRequest::OnLookupComplete(nsHostResolver *resolver,
     NS_RELEASE_THIS();
 }
 
-bool
-nsDNSAsyncRequest::EqualsAsyncListener(nsIDNSListener *aListener)
-{
-    return (aListener == mListener);
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsDNSAsyncRequest, nsICancelable)
 
 NS_IMETHODIMP
@@ -343,7 +332,6 @@ public:
     virtual ~nsDNSSyncRequest() {}
 
     void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
-    bool EqualsAsyncListener(nsIDNSListener *aListener);
 
     bool                   mDone;
     nsresult               mStatus;
@@ -365,13 +353,6 @@ nsDNSSyncRequest::OnLookupComplete(nsHostResolver *resolver,
     mHostRecord = hostRecord;
     PR_Notify(mMonitor);
     PR_ExitMonitor(mMonitor);
-}
-
-bool
-nsDNSSyncRequest::EqualsAsyncListener(nsIDNSListener *aListener)
-{
-    // Sync request: no listener to compare
-    return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -398,8 +379,7 @@ nsDNSService::Init()
 
     // prefs
     PRUint32 maxCacheEntries  = 400;
-    PRUint32 maxCacheLifetime = 2; // minutes
-    PRUint32 lifetimeGracePeriod = 1;
+    PRUint32 maxCacheLifetime = 3; // minutes
     bool     enableIDN        = true;
     bool     disableIPv6      = false;
     bool     disablePrefetch  = false;
@@ -408,15 +388,13 @@ nsDNSService::Init()
     nsAdoptingCString ipv4OnlyDomains;
 
     // read prefs
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
         PRInt32 val;
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheEntries, &val)))
             maxCacheEntries = (PRUint32) val;
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheExpiration, &val)))
             maxCacheLifetime = val / 60; // convert from seconds to minutes
-        if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheGrace, &val)))
-            lifetimeGracePeriod = val / 60; // convert from seconds to minutes
 
         // ASSUMPTION: pref branch does not modify out params on failure
         prefs->GetBoolPref(kPrefEnableIDN, &enableIDN);
@@ -435,7 +413,6 @@ nsDNSService::Init()
         if (prefs) {
             prefs->AddObserver(kPrefDnsCacheEntries, this, false);
             prefs->AddObserver(kPrefDnsCacheExpiration, this, false);
-            prefs->AddObserver(kPrefDnsCacheGrace, this, false);
             prefs->AddObserver(kPrefEnableIDN, this, false);
             prefs->AddObserver(kPrefIPv4OnlyDomains, this, false);
             prefs->AddObserver(kPrefDisableIPv6, this, false);
@@ -463,7 +440,6 @@ nsDNSService::Init()
     nsRefPtr<nsHostResolver> res;
     nsresult rv = nsHostResolver::Create(maxCacheEntries,
                                          maxCacheLifetime,
-                                         lifetimeGracePeriod,
                                          getter_AddRefs(res));
     if (NS_SUCCEEDED(rv)) {
         // now, set all of our member variables while holding the lock
@@ -503,12 +479,6 @@ public:
     , mTargetThread(aTargetThread)
   { }
 
-  ~DNSListenerProxy()
-  {
-    nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
-    NS_ProxyRelease(mainThread, mListener);
-  }
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDNSLISTENER
 
@@ -524,12 +494,6 @@ public:
       , mRecord(aRecord)
       , mStatus(aStatus)
     { }
-
-    ~OnLookupCompleteRunnable()
-    {
-      nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
-      NS_ProxyRelease(mainThread, mListener);
-    }
 
     NS_DECL_NSIRUNNABLE
 
@@ -618,42 +582,6 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
         NS_RELEASE(*result);
     }
     return rv;
-}
-
-NS_IMETHODIMP
-nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
-                                 PRUint32           aFlags,
-                                 nsIDNSListener    *aListener,
-                                 nsresult           aReason)
-{
-    // grab reference to global host resolver and IDN service.  beware
-    // simultaneous shutdown!!
-    nsRefPtr<nsHostResolver> res;
-    nsCOMPtr<nsIIDNService> idn;
-    {
-        MutexAutoLock lock(mLock);
-
-        if (mDisablePrefetch && (aFlags & RESOLVE_SPECULATE))
-            return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
-
-        res = mResolver;
-        idn = mIDN;
-    }
-    if (!res)
-        return NS_ERROR_OFFLINE;
-
-    nsCString hostname(aHostname);
-
-    nsCAutoString hostACE;
-    if (idn && !IsASCII(aHostname)) {
-        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(aHostname, hostACE)))
-            hostname = hostACE;
-    }
-
-    PRUint16 af = GetAFForLookup(hostname, aFlags);
-
-    res->CancelAsyncRequest(hostname.get(), aFlags, af, aListener, aReason);
-    return NS_OK;
 }
 
 NS_IMETHODIMP

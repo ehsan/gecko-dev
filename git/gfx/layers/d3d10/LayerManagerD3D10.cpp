@@ -125,9 +125,9 @@ LayerManagerD3D10::~LayerManagerD3D10()
 }
 
 bool
-LayerManagerD3D10::Initialize(bool force)
+LayerManagerD3D10::Initialize()
 {
-  ScopedGfxFeatureReporter reporter("D3D10 Layers", force);
+  ScopedGfxFeatureReporter reporter("D3D10 Layers");
 
   HRESULT hr;
 
@@ -418,6 +418,13 @@ already_AddRefed<ReadbackLayer>
 LayerManagerD3D10::CreateReadbackLayer()
 {
   nsRefPtr<ReadbackLayer> layer = new ReadbackLayerD3D10(this);
+  return layer.forget();
+}
+
+already_AddRefed<ImageContainer>
+LayerManagerD3D10::CreateImageContainer()
+{
+  nsRefPtr<ImageContainer> layer = new ImageContainerD3D10(mDevice);
   return layer.forget();
 }
 
@@ -771,7 +778,6 @@ LayerManagerD3D10::Render()
   } else {
     mSwapChain->Present(0, 0);
   }
-  LayerManager::PostPresent();
 }
 
 void

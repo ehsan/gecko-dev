@@ -62,7 +62,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsFirstLetterFrame)
 
 NS_QUERYFRAME_HEAD(nsFirstLetterFrame)
   NS_QUERYFRAME_ENTRY(nsFirstLetterFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsFirstLetterFrameSuper)
 
 #ifdef NS_DEBUG
 NS_IMETHODIMP
@@ -85,14 +85,6 @@ nsFirstLetterFrame::GetSkipSides() const
 }
 
 NS_IMETHODIMP
-nsFirstLetterFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                     const nsRect&           aDirtyRect,
-                                     const nsDisplayListSet& aLists)
-{
-  return BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
-}
-
-NS_IMETHODIMP
 nsFirstLetterFrame::Init(nsIContent*      aContent,
                          nsIFrame*        aParent,
                          nsIFrame*        aPrevInFlow)
@@ -111,7 +103,7 @@ nsFirstLetterFrame::Init(nsIContent*      aContent,
     }
   }
 
-  return nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  return nsFirstLetterFrameSuper::Init(aContent, aParent, aPrevInFlow);
 }
 
 NS_IMETHODIMP
@@ -187,7 +179,7 @@ nsFirstLetterFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     // inline frame.
     return nsSize(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
-  return nsContainerFrame::ComputeSize(aRenderingContext,
+  return nsFirstLetterFrameSuper::ComputeSize(aRenderingContext,
       aCBSize, aAvailableWidth, aMargin, aBorder, aPadding, aShrinkWrap);
 }
 
@@ -300,7 +292,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     else {
       // Create a continuation for the child frame if it doesn't already
       // have one.
-      if (!IsFloating()) {
+      if (!GetStyleDisplay()->IsFloating()) {
         nsIFrame* nextInFlow;
         rv = CreateNextInFlow(aPresContext, kid, nextInFlow);
         if (NS_FAILED(rv)) {
@@ -342,7 +334,7 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
                                                         nsIFrame** aContinuation,
                                                         bool aIsFluid)
 {
-  NS_ASSERTION(IsFloating(),
+  NS_ASSERTION(GetStyleDisplay()->IsFloating(),
                "can only call this on floating first letter frames");
   NS_PRECONDITION(aContinuation, "bad args");
 

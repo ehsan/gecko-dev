@@ -65,7 +65,6 @@
 #include "nsImageLoadingContent.h"
 #include "jsgc.h"
 #include "nsWrapperCacheInlines.h"
-#include "nsObjectLoadingContent.h"
 
 using namespace mozilla::dom;
 
@@ -282,8 +281,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
   }
   aNode->UnsetFlags(NODE_HAS_PROPERTIES);
 
-  if (aNode->NodeType() != nsIDOMNode::DOCUMENT_NODE &&
-      aNode->HasFlag(NODE_HAS_LISTENERMANAGER)) {
+  if (aNode->HasFlag(NODE_HAS_LISTENERMANAGER)) {
 #ifdef DEBUG
     if (nsContentUtils::IsInitialized()) {
       nsEventListenerManager* manager =
@@ -568,20 +566,15 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
       }
     }
 
-    if (wasRegistered && oldDoc != newDoc) {
 #ifdef MOZ_MEDIA
+    if (wasRegistered && oldDoc != newDoc) {
       nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aNode));
       if (domMediaElem) {
         nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aNode);
         mediaElem->NotifyOwnerDocumentActivityChanged();
       }
-#endif
-      nsCOMPtr<nsIObjectLoadingContent> objectLoadingContent(do_QueryInterface(aNode));
-      if (objectLoadingContent) {
-        nsObjectLoadingContent* olc = static_cast<nsObjectLoadingContent*>(objectLoadingContent.get());
-        olc->NotifyOwnerDocumentActivityChanged();
-      }
     }
+#endif
 
     // nsImageLoadingContent needs to know when its document changes
     if (oldDoc != newDoc) {
@@ -597,9 +590,28 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     if (aCx && wrapper) {
       nsIXPConnect *xpc = nsContentUtils::XPConnect();
       if (xpc) {
+        JSObject *preservedWrapper = nsnull;
+
+        // If reparenting moves us to a new compartment, preserving causes
+        // problems. In that case, we release ourselves and re-preserve after
+        // reparenting so we're sure to have the right JS object preserved.
+        // We use a JSObject stack copy of the wrapper to protect it from GC
+        // under ReparentWrappedNativeIfFound.
+        if (aNode->PreservingWrapper()) {
+          preservedWrapper = wrapper;
+          nsContentUtils::ReleaseWrapper(aNode, aNode);
+          NS_ASSERTION(aNode->GetWrapper(),
+                       "ReleaseWrapper cleared our wrapper, this code needs to "
+                       "be changed to deal with that!");
+        }
+
         nsCOMPtr<nsIXPConnectJSObjectHolder> oldWrapper;
         rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode,
                                                getter_AddRefs(oldWrapper));
+
+        if (preservedWrapper) {
+          nsContentUtils::PreserveWrapper(aNode, aNode);
+        }
 
         if (NS_FAILED(rv)) {
           aNode->mNodeInfo.swap(nodeInfo);

@@ -38,7 +38,6 @@
 #include "nsIHTMLDocument.h"
 #include "nsIDOMEventTarget.h"
 #include "nsEventStateManager.h"
-#include "nsEventStates.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -378,7 +377,7 @@ nsHTMLFormElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify)
+                                const nsAString* aValue, bool aNotify)
 {
   if (aName == nsGkAtoms::novalidate && aNameSpaceID == kNameSpaceID_None) {
     // Update all form elements states because they might be [no longer]
@@ -680,20 +679,17 @@ nsHTMLFormElement::DoSubmitOrReset(nsEvent* aEvent,
   // JBK Don't get form frames anymore - bug 34297
 
   // Submit or Reset the form
+  nsresult rv = NS_OK;
   if (NS_FORM_RESET == aMessage) {
-    return DoReset();
+    rv = DoReset();
   }
-
-  if (NS_FORM_SUBMIT == aMessage) {
+  else if (NS_FORM_SUBMIT == aMessage) {
     // Don't submit if we're not in a document.
-    if (!doc) {
-      return NS_OK;
+    if (doc) {
+      rv = DoSubmit(aEvent);
     }
-    return DoSubmit(aEvent);
   }
-
-  MOZ_ASSERT(false);
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -701,7 +697,7 @@ nsHTMLFormElement::DoReset()
 {
   // JBK walk the elements[] array instead of form frame controls - bug 34297
   PRUint32 numElements = GetElementCount();
-  for (PRUint32 elementX = 0; elementX < numElements; ++elementX) {
+  for (PRUint32 elementX = 0; (elementX < numElements); elementX++) {
     // Hold strong ref in case the reset does something weird
     nsCOMPtr<nsIFormControl> controlNode = GetElementAt(elementX);
     if (controlNode) {
@@ -1811,8 +1807,6 @@ nsHTMLFormElement::UpdateValidity(bool aElementValidity)
       mControls->mNotInElements[i]->UpdateState(true);
     }
   }
-
-  UpdateState(true);
 }
 
 // nsIWebProgressListener
@@ -2136,19 +2130,6 @@ nsHTMLFormElement::SetValueMissingState(const nsAString& aName, bool aValue)
   mValueMissingRadioGroups.Put(aName, aValue);
 }
 
-nsEventStates
-nsHTMLFormElement::IntrinsicState() const
-{
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
-
-  if (mInvalidElementsCount) {
-    state |= NS_EVENT_STATE_INVALID;
-  } else {
-      state |= NS_EVENT_STATE_VALID;
-  }
-
-  return state;
-}
 
 //----------------------------------------------------------------------
 // nsFormControlList implementation, this could go away if there were

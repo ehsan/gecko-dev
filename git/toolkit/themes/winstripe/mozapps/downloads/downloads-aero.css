@@ -1,6 +1,6 @@
 %include downloads.css
 
-@media (-moz-windows-compositor) {
+@media all and (-moz-windows-compositor) {
   #downloadManager {
     -moz-appearance: -moz-win-glass;
     background: transparent;

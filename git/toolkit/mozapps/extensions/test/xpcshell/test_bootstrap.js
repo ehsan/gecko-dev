@@ -149,7 +149,6 @@ function run_test_1() {
     do_check_eq(install.version, "1.0");
     do_check_eq(install.name, "Test Bootstrap 1");
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
-    do_check_neq(install.addon.syncGUID, null);
     do_check_true(install.addon.hasResource("install.rdf"));
     do_check_true(install.addon.hasResource("bootstrap.js"));
     do_check_false(install.addon.hasResource("foo.bar"));
@@ -168,13 +167,13 @@ function run_test_1() {
       "onInstallEnded",
     ], function() {
       do_check_true(addon.hasResource("install.rdf"));
-      check_test_1(addon.syncGUID);
+      check_test_1();
     });
     install.install();
   });
 }
 
-function check_test_1(installSyncGUID) {
+function check_test_1() {
   let file = gProfD.clone();
   file.append("extensions.sqlite");
   do_check_true(file.exists());
@@ -190,8 +189,6 @@ function check_test_1(installSyncGUID) {
     AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
       do_check_neq(b1, null);
       do_check_eq(b1.version, "1.0");
-      do_check_neq(b1.syncGUID, null);
-      do_check_eq(b1.syncGUID, installSyncGUID);
       do_check_false(b1.appDisabled);
       do_check_false(b1.userDisabled);
       do_check_true(b1.isActive);

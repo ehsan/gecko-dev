@@ -50,7 +50,7 @@ class nsXULTreeGridAccessible : public nsXULTreeAccessible,
                                 public nsIAccessibleTable
 {
 public:
-  nsXULTreeGridAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTreeGridAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -59,7 +59,7 @@ public:
   NS_DECL_NSIACCESSIBLETABLE
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
 protected:
 
@@ -78,9 +78,9 @@ public:
   using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
 
-  nsXULTreeGridRowAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
-                             nsAccessible* aParent, nsITreeBoxObject* aTree,
-                             nsITreeView* aTreeView, PRInt32 aRow);
+  nsXULTreeGridRowAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                             nsAccessible *aParent, nsITreeBoxObject *aTree,
+                             nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -91,7 +91,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   NS_IMETHOD GetName(nsAString& aName);
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);
@@ -132,9 +132,9 @@ class nsXULTreeGridCellAccessible : public nsLeafAccessible,
 public:
   using nsAccessible::GetParent;
 
-  nsXULTreeGridCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
-                              nsXULTreeGridRowAccessible* aRowAcc,
-                              nsITreeBoxObject* aTree, nsITreeView* aTreeView,
+  nsXULTreeGridCellAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                              nsXULTreeGridRowAccessible *aRowAcc,
+                              nsITreeBoxObject *aTree, nsITreeView *aTreeView,
                               PRInt32 aRow, nsITreeColumn* aColumn);
 
   // nsISupports
@@ -164,7 +164,7 @@ public:
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual PRInt32 IndexInParent() const;
   virtual Relation RelationByType(PRUint32 aType);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible

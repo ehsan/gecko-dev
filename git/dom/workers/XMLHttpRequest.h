@@ -70,9 +70,6 @@ UpdateXHRState(JSContext* aCx, JSObject* aObj, bool aIsUpload,
 
 } // namespace xhr
 
-bool
-ClassIsXMLHttpRequest(JSClass* aClass);
-
 END_WORKERS_NAMESPACE
 
 #endif /* mozilla_dom_workers_xmlhttprequest_h__ */

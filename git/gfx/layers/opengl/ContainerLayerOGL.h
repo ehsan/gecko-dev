@@ -96,8 +96,6 @@ public:
   {
     DefaultComputeEffectiveTransforms(aTransformToSurface);
   }
-
-  virtual void CleanupResources();
 };
 
 class ShadowContainerLayerOGL : public ShadowContainerLayer,
@@ -137,8 +135,6 @@ public:
   {
     DefaultComputeEffectiveTransforms(aTransformToSurface);
   }
-
-  virtual void CleanupResources();
 };
 
 } /* layers */

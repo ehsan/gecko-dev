@@ -50,9 +50,12 @@ public:
     gfxHarfBuzzShaper(gfxFont *aFont);
     virtual ~gfxHarfBuzzShaper();
 
-    virtual bool ShapeWord(gfxContext *aContext,
-                           gfxShapedWord *aShapedWord,
-                           const PRUnichar *aText);
+    virtual bool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript);
 
     // get a given font table in harfbuzz blob form
     hb_blob_t * GetFontTable(hb_tag_t aTag) const;
@@ -62,16 +65,21 @@ public:
                             hb_codepoint_t variation_selector) const;
 
     // get harfbuzz glyph advance, in font design units
-    hb_position_t GetGlyphHAdvance(gfxContext *aContext,
-                                   hb_codepoint_t glyph) const;
+    void GetGlyphAdvance(gfxContext *aContext,
+                         hb_codepoint_t glyph,
+                         hb_position_t *x_advance,
+                         hb_position_t *y_advance) const;
 
-    hb_position_t GetHKerning(PRUint16 aFirstGlyph,
-                              PRUint16 aSecondGlyph) const;
+    hb_position_t GetKerning(PRUint16 aFirstGlyph,
+                             PRUint16 aSecondGlyph) const;
 
 protected:
+    // extract glyphs from HarfBuzz buffer and store into the gfxTextRun
     nsresult SetGlyphsFromRun(gfxContext *aContext,
-                              gfxShapedWord *aShapedWord,
-                              hb_buffer_t *aBuffer);
+                              gfxTextRun *aTextRun,
+                              hb_buffer_t *aBuffer,
+                              PRUint32 aTextRunOffset,
+                              PRUint32 aRunLength);
 
     // retrieve glyph positions, applying advance adjustments and attachments
     // returns results in appUnits

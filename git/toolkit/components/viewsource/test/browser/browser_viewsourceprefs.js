@@ -2,18 +2,12 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const source = "about:mozilla";
+let source = "about:robots";
 let mWindow, wrapMenuItem, syntaxMenuItem;
 
 // Check the default values are set.
 function test() {
   waitForExplicitFinish();
-
-  registerCleanupFunction(function() {
-    SpecialPowers.clearUserPref("view_source.tab_size");
-    SpecialPowers.clearUserPref("view_source.wrap_long_lines");
-    SpecialPowers.clearUserPref("view_source.syntax_highlight");
-  });
 
   openViewSourceWindow(source, function(aWindow) {
     mWindow = aWindow;
@@ -83,11 +77,11 @@ function test4() {
 
 // Open a new view-source window to check prefs are obeyed.
 function test5() {
-  SpecialPowers.setIntPref("view_source.tab_size", 2);
-  SpecialPowers.setBoolPref("view_source.wrap_long_lines", true);
-  SpecialPowers.setBoolPref("view_source.syntax_highlight", false);
-
-  executeSoon(function() {
+  SpecialPowers.pushPrefEnv({'set': [
+    ["view_source.tab_size", 2],
+    ["view_source.wrap_long_lines", true],
+    ["view_source.syntax_highlight", false]
+  ]}, function() {
     openViewSourceWindow(source, function(aWindow) {
       wrapMenuItem = aWindow.document.getElementById('menu_wrapLongLines');
       syntaxMenuItem = aWindow.document.getElementById('menu_highlightSyntax');

@@ -334,7 +334,7 @@ public:
         return branch32(cond, left, Imm32(right));
     }
 
-    Jump branchPtr(Condition cond, AbsoluteAddress left, ImmPtr right, RegisterID scratch)
+    Jump branchPtr(Condition cond, AbsoluteAddress left, ImmPtr right)
     {
         return branch32(cond, left, Imm32(right));
     }

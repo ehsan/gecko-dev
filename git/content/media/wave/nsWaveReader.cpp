@@ -36,13 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsError.h"
+#include "nsBuiltinDecoderStateMachine.h"
 #include "nsBuiltinDecoder.h"
-#include "MediaResource.h"
+#include "nsMediaStream.h"
 #include "nsWaveReader.h"
 #include "nsTimeRanges.h"
 #include "VideoUtils.h"
-
-#include "mozilla/StandardInteger.h"
 
 using namespace mozilla;
 
@@ -226,8 +225,8 @@ bool nsWaveReader::DecodeAudioData()
 
   double posTime = BytesToTime(pos);
   double readSizeTime = BytesToTime(readSize);
-  NS_ASSERTION(posTime <= INT64_MAX / USECS_PER_S, "posTime overflow");
-  NS_ASSERTION(readSizeTime <= INT64_MAX / USECS_PER_S, "readSizeTime overflow");
+  NS_ASSERTION(posTime <= PR_INT64_MAX / USECS_PER_S, "posTime overflow");
+  NS_ASSERTION(readSizeTime <= PR_INT64_MAX / USECS_PER_S, "readSizeTime overflow");
   NS_ASSERTION(frames < PR_INT32_MAX, "frames overflow");
 
   mAudioQueue.Push(new AudioData(pos,
@@ -256,13 +255,13 @@ nsresult nsWaveReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTim
     return NS_ERROR_FAILURE;
   }
   double d = BytesToTime(GetDataLength());
-  NS_ASSERTION(d < INT64_MAX / USECS_PER_S, "Duration overflow"); 
+  NS_ASSERTION(d < PR_INT64_MAX / USECS_PER_S, "Duration overflow"); 
   PRInt64 duration = static_cast<PRInt64>(d * USECS_PER_S);
   double seekTime = NS_MIN(aTarget, duration) / static_cast<double>(USECS_PER_S);
   PRInt64 position = RoundDownToFrame(static_cast<PRInt64>(TimeToBytes(seekTime)));
-  NS_ASSERTION(INT64_MAX - mWavePCMOffset > position, "Integer overflow during wave seek");
+  NS_ASSERTION(PR_INT64_MAX - mWavePCMOffset > position, "Integer overflow during wave seek");
   position += mWavePCMOffset;
-  return mDecoder->GetResource()->Seek(nsISeekableStream::NS_SEEK_SET, position);
+  return mDecoder->GetStream()->Seek(nsISeekableStream::NS_SEEK_SET, position);
 }
 
 static double RoundToUsecs(double aSeconds) {
@@ -271,9 +270,9 @@ static double RoundToUsecs(double aSeconds) {
 
 nsresult nsWaveReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
 {
-  PRInt64 startOffset = mDecoder->GetResource()->GetNextCachedData(mWavePCMOffset);
+  PRInt64 startOffset = mDecoder->GetStream()->GetNextCachedData(mWavePCMOffset);
   while (startOffset >= 0) {
-    PRInt64 endOffset = mDecoder->GetResource()->GetCachedDataEnd(startOffset);
+    PRInt64 endOffset = mDecoder->GetStream()->GetCachedDataEnd(startOffset);
     // Bytes [startOffset..endOffset] are cached.
     NS_ASSERTION(startOffset >= mWavePCMOffset, "Integer underflow in GetBuffered");
     NS_ASSERTION(endOffset >= mWavePCMOffset, "Integer underflow in GetBuffered");
@@ -283,7 +282,7 @@ nsresult nsWaveReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     // the media element.
     aBuffered->Add(RoundToUsecs(BytesToTime(startOffset - mWavePCMOffset)),
                    RoundToUsecs(BytesToTime(endOffset - mWavePCMOffset)));
-    startOffset = mDecoder->GetResource()->GetNextCachedData(endOffset);
+    startOffset = mDecoder->GetStream()->GetNextCachedData(endOffset);
   }
   return NS_OK;
 }
@@ -297,8 +296,8 @@ nsWaveReader::ReadAll(char* aBuf, PRInt64 aSize, PRInt64* aBytesRead)
   }
   do {
     PRUint32 read = 0;
-    if (NS_FAILED(mDecoder->GetResource()->Read(aBuf + got, PRUint32(aSize - got), &read))) {
-      NS_WARNING("Resource read failed");
+    if (NS_FAILED(mDecoder->GetStream()->Read(aBuf + got, PRUint32(aSize - got), &read))) {
+      NS_WARNING("Stream read failed");
       return false;
     }
     if (read == 0) {
@@ -319,8 +318,8 @@ nsWaveReader::LoadRIFFChunk()
   char riffHeader[RIFF_INITIAL_SIZE];
   const char* p = riffHeader;
 
-  NS_ABORT_IF_FALSE(mDecoder->GetResource()->Tell() == 0,
-                    "LoadRIFFChunk called when resource in invalid state");
+  NS_ABORT_IF_FALSE(mDecoder->GetStream()->Tell() == 0,
+                    "LoadRIFFChunk called when stream in invalid state");
 
   if (!ReadAll(riffHeader, sizeof(riffHeader))) {
     return false;
@@ -328,7 +327,7 @@ nsWaveReader::LoadRIFFChunk()
 
   PR_STATIC_ASSERT(sizeof(PRUint32) * 2 <= RIFF_INITIAL_SIZE);
   if (ReadUint32BE(&p) != RIFF_CHUNK_MAGIC) {
-    NS_WARNING("resource data not in RIFF format");
+    NS_WARNING("Stream data not in RIFF format");
     return false;
   }
 
@@ -391,8 +390,8 @@ nsWaveReader::LoadFormatChunk()
   const char* p = waveFormat;
 
   // RIFF chunks are always word (two byte) aligned.
-  NS_ABORT_IF_FALSE(mDecoder->GetResource()->Tell() % 2 == 0,
-                    "LoadFormatChunk called with unaligned resource");
+  NS_ABORT_IF_FALSE(mDecoder->GetStream()->Tell() % 2 == 0,
+                    "LoadFormatChunk called with unaligned stream");
 
   // The "format" chunk may not directly follow the "riff" chunk, so skip
   // over any intermediate chunks.
@@ -456,8 +455,8 @@ nsWaveReader::LoadFormatChunk()
   }
 
   // RIFF chunks are always word (two byte) aligned.
-  NS_ABORT_IF_FALSE(mDecoder->GetResource()->Tell() % 2 == 0,
-                    "LoadFormatChunk left resource unaligned");
+  NS_ABORT_IF_FALSE(mDecoder->GetStream()->Tell() % 2 == 0,
+                    "LoadFormatChunk left stream unaligned");
 
   // Make sure metadata is fairly sane.  The rate check is fairly arbitrary,
   // but the channels check is intentionally limited to mono or stereo
@@ -486,8 +485,8 @@ bool
 nsWaveReader::FindDataOffset()
 {
   // RIFF chunks are always word (two byte) aligned.
-  NS_ABORT_IF_FALSE(mDecoder->GetResource()->Tell() % 2 == 0,
-                    "FindDataOffset called with unaligned resource");
+  NS_ABORT_IF_FALSE(mDecoder->GetStream()->Tell() % 2 == 0,
+                    "FindDataOffset called with unaligned stream");
 
   // The "data" chunk may not directly follow the "format" chunk, so skip
   // over any intermediate chunks.
@@ -496,7 +495,7 @@ nsWaveReader::FindDataOffset()
     return false;
   }
 
-  PRInt64 offset = mDecoder->GetResource()->Tell();
+  PRInt64 offset = mDecoder->GetStream()->Tell();
   if (offset <= 0 || offset > PR_UINT32_MAX) {
     NS_WARNING("PCM data offset out of range");
     return false;
@@ -536,7 +535,7 @@ nsWaveReader::GetDataLength()
   // If the decoder has a valid content length, and it's shorter than the
   // expected length of the PCM data, calculate the playback duration from
   // the content length rather than the expected PCM data length.
-  PRInt64 streamLength = mDecoder->GetResource()->GetLength();
+  PRInt64 streamLength = mDecoder->GetStream()->GetLength();
   if (streamLength >= 0) {
     PRInt64 dataLength = NS_MAX<PRInt64>(0, streamLength - mWavePCMOffset);
     length = NS_MIN(dataLength, length);
@@ -547,5 +546,5 @@ nsWaveReader::GetDataLength()
 PRInt64
 nsWaveReader::GetPosition()
 {
-  return mDecoder->GetResource()->Tell();
+  return mDecoder->GetStream()->Tell();
 }

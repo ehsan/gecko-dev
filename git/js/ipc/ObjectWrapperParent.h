@@ -69,10 +69,6 @@ public:
 
     JSObject* GetJSObject(JSContext* cx) const;
 
-    JSObject* GetJSObjectOrNull() const {
-        return mObj;
-    }
-
     jsval GetJSVal(JSContext* cx) const {
         return OBJECT_TO_JSVAL(GetJSObject(cx));
     }
@@ -112,7 +108,7 @@ private:
                       jsval *statep, jsid *idp);
 
     static JSBool
-    CPOW_NewResolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+    CPOW_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                     JSObject **objp);
 
     static JSBool
@@ -122,10 +118,10 @@ private:
     CPOW_Finalize(JSContext* cx, JSObject* obj);
 
     static JSBool
-    CPOW_Call(JSContext* cx, unsigned argc, jsval* vp);
+    CPOW_Call(JSContext* cx, uintN argc, jsval* vp);
 
     static JSBool
-    CPOW_Construct(JSContext *cx, unsigned argc, jsval *vp);
+    CPOW_Construct(JSContext *cx, uintN argc, jsval *vp);
     
     static JSBool
     CPOW_HasInstance(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
@@ -137,7 +133,8 @@ private:
     static bool jsval_from_JSVariant(JSContext* cx, const JSVariant& from,
                                      jsval* to);
     static bool
-    JSObject_to_PObjectWrapperParent(JSObject* from, PObjectWrapperParent** to);
+    JSObject_to_PObjectWrapperParent(JSContext* cx, JSObject* from,
+                                     PObjectWrapperParent** to);
     static bool
     JSObject_from_PObjectWrapperParent(JSContext* cx,
                                        const PObjectWrapperParent* from,

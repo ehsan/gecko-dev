@@ -39,18 +39,17 @@
 #ifndef NS_SVGANIMATIONELEMENT_H_
 #define NS_SVGANIMATIONELEMENT_H_
 
-#include "DOMSVGTests.h"
-#include "nsIDOMElementTimeControl.h"
-#include "nsIDOMSVGAnimationElement.h"
-#include "nsISMILAnimationElement.h"
-#include "nsReferencedElement.h"
-#include "nsSMILTimedElement.h"
 #include "nsSVGElement.h"
+#include "nsAutoPtr.h"
+#include "nsReferencedElement.h"
+#include "nsIDOMSVGAnimationElement.h"
+#include "nsIDOMElementTimeControl.h"
+#include "nsISMILAnimationElement.h"
+#include "nsSMILTimedElement.h"
 
 typedef nsSVGElement nsSVGAnimationElementBase;
 
 class nsSVGAnimationElement : public nsSVGAnimationElementBase,
-                              public DOMSVGTests,
                               public nsISMILAnimationElement,
                               public nsIDOMElementTimeControl
 {
@@ -84,12 +83,11 @@ public:
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
 
   // nsISMILAnimationElement interface
   virtual const Element& AsElement() const;
   virtual Element& AsElement();
-  virtual bool PassesConditionalProcessingTests();
   virtual const nsAttrValue* GetAnimAttr(nsIAtom* aName) const;
   virtual bool GetAnimAttr(nsIAtom* aAttName, nsAString& aResult) const;
   virtual bool HasAnimAttr(nsIAtom* aAttName) const;

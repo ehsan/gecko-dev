@@ -43,7 +43,6 @@
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsIProgrammingLanguage.h"
-#include "jsfriendapi.h"
 #include "jspubtd.h"
 
 class nsIScriptGlobalObject;
@@ -54,9 +53,8 @@ class nsIArray;
 class nsIVariant;
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
-template<class> class nsScriptObjectHolder;
+class nsScriptObjectHolder;
 class nsIScriptObjectPrincipal;
-class nsIDOMWindow;
 
 typedef void (*nsScriptTerminationFunc)(nsISupports* aRef);
 
@@ -76,8 +74,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContextPrincipal,
                               NS_ISCRIPTCONTEXTPRINCIPAL_IID)
 
 #define NS_ISCRIPTCONTEXT_IID \
-{ 0xdfaea249, 0xaaad, 0x48bd, \
-  { 0xb8, 0x04, 0x92, 0xad, 0x30, 0x88, 0xd0, 0xc6 } }
+{ 0x39b3ea7c, 0xdc26, 0x4756, \
+  { 0xa0, 0x3c, 0x13, 0xa0, 0x42, 0x03, 0x07, 0x6a } }
 
 /* This MUST match JSVERSION_DEFAULT.  This version stuff if we don't
    know what language we have is a little silly... */
@@ -101,9 +99,7 @@ public:
    * @param aScript a string representing the script to be executed
    * @param aScopeObject a script object for the scope to execute in, or
    *                     nsnull to use a default scope
-   * @param aPrincipal the principal the script should be evaluated with
-   * @param aOriginPrincipal the principal the script originates from.  If null,
-   *                         aPrincipal is used.
+   * @param aPrincipal the principal that produced the script
    * @param aURL the URL or filename for error messages
    * @param aLineNo the starting line number of the script for error messages
    * @param aVersion the script language version to use when executing
@@ -119,7 +115,6 @@ public:
   virtual nsresult EvaluateString(const nsAString& aScript,
                                   JSObject* aScopeObject,
                                   nsIPrincipal *aPrincipal,
-                                  nsIPrincipal *aOriginPrincipal,
                                   const char *aURL,
                                   PRUint32 aLineNo,
                                   PRUint32 aVersion,
@@ -156,7 +151,7 @@ public:
                                  const char* aURL,
                                  PRUint32 aLineNo,
                                  PRUint32 aVersion,
-                                 nsScriptObjectHolder<JSScript>& aScriptObject) = 0;
+                                 nsScriptObjectHolder &aScriptObject) = 0;
 
   /**
    * Execute a precompiled script object.
@@ -211,7 +206,7 @@ public:
                                        const char* aURL,
                                        PRUint32 aLineNo,
                                        PRUint32 aVersion,
-                                       nsScriptObjectHolder<JSObject>& aHandler) = 0;
+                                       nsScriptObjectHolder &aHandler) = 0;
 
   /**
    * Call the function object with given args and return its boolean result,
@@ -253,7 +248,7 @@ public:
   virtual nsresult BindCompiledEventHandler(nsISupports* aTarget,
                                             JSObject* aScope,
                                             JSObject* aHandler,
-                                            nsScriptObjectHolder<JSObject>& aBoundHandler) = 0;
+                                            nsScriptObjectHolder& aBoundHandler) = 0;
 
   /**
    * Compile a function that isn't used as an event handler.
@@ -272,6 +267,13 @@ public:
                                    PRUint32 aVersion,
                                    bool aShared,
                                    JSObject** aFunctionObject) = 0;
+
+  /**
+   * Set the default scripting language version for this context, which must
+   * be a context specific to a particular scripting language.
+   *
+   **/
+  virtual void SetDefaultLanguageVersion(PRUint32 aVersion) = 0;
 
   /**
    * Return the global object.
@@ -346,12 +348,17 @@ public:
   virtual bool IsContextInitialized() = 0;
 
   /**
+   * Called as the global object discards its reference to the context.
+   */
+  virtual void FinalizeContext() = 0;
+
+  /**
    * For garbage collected systems, do a synchronous collection pass.
    * May be a no-op on other systems
    *
    * @return NS_OK if the method is successful
    */
-  virtual void GC(js::gcreason::Reason aReason) = 0;
+  virtual void GC() = 0;
 
   /**
    * Inform the context that a script was evaluated.
@@ -373,7 +380,7 @@ public:
   /* Deserialize a script from a stream.
    */
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                               nsScriptObjectHolder<JSScript>& aResult) = 0;
+                               nsScriptObjectHolder &aResult) = 0;
 
   /**
    * JS only - this function need not be implemented by languages other
@@ -385,8 +392,8 @@ public:
    *
    * @throws NS_ERROR_OUT_OF_MEMORY if that happens
    */
-  virtual void SetTerminationFunction(nsScriptTerminationFunc aFunc,
-                                      nsIDOMWindow* aRef) = 0;
+  virtual nsresult SetTerminationFunction(nsScriptTerminationFunc aFunc,
+                                          nsISupports* aRef) = 0;
 
   /**
    * Called to disable/enable script execution in this context.
@@ -396,7 +403,7 @@ public:
 
   // SetProperty is suspect and jst believes should not be needed.  Currenly
   // used only for "arguments".
-  virtual nsresult SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aVal) = 0;
+  virtual nsresult SetProperty(void *aTarget, const char *aPropName, nsISupports *aVal) = 0;
   /** 
    * Called to set/get information if the script context is
    * currently processing a script tag
@@ -422,6 +429,20 @@ public:
    * (successfully) initialized.
    */
   virtual nsresult InitClasses(JSObject* aGlobalObj) = 0;
+
+  /**
+   * Clear the scope object - may be called either as we are being torn down,
+   * or before we are attached to a different document.
+   *
+   * aClearFromProtoChain is probably somewhat JavaScript specific.  It
+   * indicates that the global scope polluter should be removed from the
+   * prototype chain and that the objects in the prototype chain should
+   * also have their scopes cleared.  We don't do this all the time
+   * because the prototype chain is shared between inner and outer
+   * windows, and needs to stay with inner windows that we're keeping
+   * around.
+   */
+  virtual void ClearScope(void* aGlobalObj, bool aClearFromProtoChain) = 0;
 
   /**
    * Tell the context we're about to be reinitialize it.

@@ -69,6 +69,7 @@ public:
     virtual bool SetupCairoFont(gfxContext *aContext);
 
 protected:
+    cairo_scaled_font_t *mScaledFont;
     PRUint32 mSpaceGlyph;
     bool mHasMetrics;
     Metrics mMetrics;

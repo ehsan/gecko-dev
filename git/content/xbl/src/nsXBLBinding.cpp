@@ -108,15 +108,15 @@ static void
 XBLFinalize(JSContext *cx, JSObject *obj)
 {
   nsXBLDocumentInfo* docInfo =
-    static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(obj));
+    static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(cx, obj));
   NS_RELEASE(docInfo);
   
-  nsXBLJSClass* c = static_cast<nsXBLJSClass*>(::JS_GetClass(obj));
+  nsXBLJSClass* c = static_cast<nsXBLJSClass*>(::JS_GET_CLASS(cx, obj));
   c->Drop();
 }
 
 static JSBool
-XBLResolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
            JSObject **objp)
 {
   // Note: if we get here, that means that the implementation for some binding
@@ -135,7 +135,8 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
 
   nsDependentJSString fieldName(id);
 
-  jsval slotVal = ::JS_GetReservedSlot(obj, 0);
+  jsval slotVal;
+  ::JS_GetReservedSlot(cx, obj, 0, &slotVal);
   NS_ASSERTION(!JSVAL_IS_VOID(slotVal), "How did that happen?");
     
   nsXBLPrototypeBinding* protoBinding =
@@ -148,7 +149,7 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
   }
 
   // We have this field.  Time to install it.  Get our node.
-  JSClass* nodeClass = ::JS_GetClass(origObj);
+  JSClass* nodeClass = ::JS_GET_CLASS(cx, origObj);
   if (!nodeClass) {
     return JS_FALSE;
   }
@@ -160,7 +161,7 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
   }
 
   nsCOMPtr<nsIXPConnectWrappedNative> xpcWrapper =
-    do_QueryInterface(static_cast<nsISupports*>(::JS_GetPrivate(origObj)));
+    do_QueryInterface(static_cast<nsISupports*>(::JS_GetPrivate(cx, origObj)));
   if (!xpcWrapper) {
     // Looks like whatever |origObj| is it's not our nsIContent.  It might well
     // be the proto our binding installed, however, where the private is the
@@ -308,8 +309,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLBinding)
   tmp->mInsertionPointTable = nsnull;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXBLBinding)
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb,
-                                     "mPrototypeBinding->XBLDocumentInfo()");
   cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(
                       tmp->mPrototypeBinding->XBLDocumentInfo()));
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
@@ -1087,12 +1086,12 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
               }
 
               for ( ; true; base = proto) { // Will break out on null proto
-                proto = ::JS_GetPrototype(base);
+                proto = ::JS_GetPrototype(cx, base);
                 if (!proto) {
                   break;
                 }
 
-                JSClass* clazz = ::JS_GetClass(proto);
+                JSClass* clazz = ::JS_GET_CLASS(cx, proto);
                 if (!clazz ||
                     (~clazz->flags &
                      (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) ||
@@ -1104,13 +1103,17 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
                 }
 
                 nsRefPtr<nsXBLDocumentInfo> docInfo =
-                  static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(proto));
+                  static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(cx, proto));
                 if (!docInfo) {
                   // Not the proto we seek
                   continue;
                 }
 
-                jsval protoBinding = ::JS_GetReservedSlot(proto, 0);
+                jsval protoBinding;
+                if (!::JS_GetReservedSlot(cx, proto, 0, &protoBinding)) {
+                  NS_ERROR("Really shouldn't happen");
+                  continue;
+                }
 
                 if (JSVAL_TO_PRIVATE(protoBinding) != mPrototypeBinding) {
                   // Not the right binding
@@ -1119,7 +1122,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
 
                 // Alright!  This is the right prototype.  Pull it out of the
                 // proto chain.
-                JSObject* grandProto = ::JS_GetPrototype(proto);
+                JSObject* grandProto = ::JS_GetPrototype(cx, proto);
                 ::JS_SetPrototype(cx, base, grandProto);
                 break;
               }
@@ -1219,7 +1222,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 
   if (obj) {
     // Retrieve the current prototype of obj.
-    parent_proto = ::JS_GetPrototype(obj);
+    parent_proto = ::JS_GetPrototype(cx, obj);
     if (parent_proto) {
       // We need to create a unique classname based on aClassName and
       // parent_proto.  Append a space (an invalid URI character) to ensure that
@@ -1322,10 +1325,16 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
     // collection doesn't seem to work right if the private is not an
     // nsISupports.
     nsXBLDocumentInfo* docInfo = aProtoBinding->XBLDocumentInfo();
-    ::JS_SetPrivate(proto, docInfo);
+    ::JS_SetPrivate(cx, proto, docInfo);
     NS_ADDREF(docInfo);
 
-    ::JS_SetReservedSlot(proto, 0, PRIVATE_TO_JSVAL(aProtoBinding));
+    if (!::JS_SetReservedSlot(cx, proto, 0, PRIVATE_TO_JSVAL(aProtoBinding))) {
+      (nsXBLService::gClassTable)->Remove(&key);
+
+      // |c| will get dropped when |proto| is finalized
+
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     *aClassObject = proto;
   }

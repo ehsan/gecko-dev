@@ -37,13 +37,11 @@
 #ifndef MOZILLA_DOMSVGLENGTH_H__
 #define MOZILLA_DOMSVGLENGTH_H__
 
-#include "DOMSVGLengthList.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGLength.h"
-#include "nsTArray.h"
+#include "DOMSVGLengthList.h"
 #include "SVGLength.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsAutoPtr.h"
 
 class nsSVGElement;
 

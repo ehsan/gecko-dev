@@ -38,21 +38,16 @@
 #ifndef mozilla_dom_sms_Types_h
 #define mozilla_dom_sms_Types_h
 
-#include "IPCMessageUtils.h"
-
 namespace mozilla {
 namespace dom {
 namespace sms {
 
 // For SmsMessageDate.delivery.
-// Please keep the following files in sync with enum below:
-// embedding/android/GeckoSmsManager.java
 enum DeliveryState {
-  eDeliveryState_Sent = 0,
+  eDeliveryState_Sent,
   eDeliveryState_Received,
-  eDeliveryState_Unknown,
   // This state should stay at the end.
-  eDeliveryState_EndGuard
+  eDeliveryState_Unknown
 };
 
 } // namespace sms
@@ -68,7 +63,7 @@ template <>
 struct ParamTraits<mozilla::dom::sms::DeliveryState>
   : public EnumSerializer<mozilla::dom::sms::DeliveryState,
                           mozilla::dom::sms::eDeliveryState_Sent,
-                          mozilla::dom::sms::eDeliveryState_EndGuard>
+                          mozilla::dom::sms::eDeliveryState_Unknown>
 {};
 
 } // namespace IPC

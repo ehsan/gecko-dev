@@ -48,18 +48,17 @@
 // functions and a fully inline implementation should keep the cost down.
 // [Note that a fully inline implementation is necessary for use by other
 // languages, which do not link against the layout component module]
-template<class T>
 class NS_STACK_CLASS nsScriptObjectHolder {
 public:
   // A constructor that will cause a reference to |ctx| to be stored in
   // the object.  Only use for short-lived object holders.
-  nsScriptObjectHolder<T>(nsIScriptContext *ctx, T* aObject = nsnull) :
+  nsScriptObjectHolder(nsIScriptContext *ctx, void *aObject = nsnull) :
       mObject(aObject), mContext(ctx) {
     NS_ASSERTION(ctx, "Must provide a valid context");
   }
 
   // copy constructor
-  nsScriptObjectHolder<T>(const nsScriptObjectHolder<T>& other) :
+  nsScriptObjectHolder(const nsScriptObjectHolder& other) :
       mObject(other.mObject),
       mContext(other.mContext)
   {
@@ -68,24 +67,27 @@ public:
       mContext->HoldScriptObject(mObject);
   }
 
-  ~nsScriptObjectHolder<T>() {
+  ~nsScriptObjectHolder() {
     if (mObject)
       mContext->DropScriptObject(mObject);
   }
 
   // misc operators
-  nsScriptObjectHolder<T> &operator=(const nsScriptObjectHolder<T> &other) {
+  nsScriptObjectHolder &operator=(const nsScriptObjectHolder &other) {
     set(other);
     return *this;
   }
   bool operator!() const {
     return !mObject;
   }
-  operator bool() const {
-    return !!mObject;
-  }
-  T* get() const {
+  operator void *() const {
     return mObject;
+  }
+  JSScript* getScript() const {
+    return static_cast<JSScript*>(mObject);
+  }
+  JSObject* getObject() const {
+    return static_cast<JSObject*>(mObject);
   }
 
   // Drop the script object - but *not* the nsIScriptContext.
@@ -98,7 +100,13 @@ public:
     return rv;
   }
 
-  nsresult set(T* object) {
+  nsresult setScript(JSScript* aScript) {
+    return set(aScript);
+  }
+  nsresult setObject(JSObject* aObject) {
+    return set(aObject);
+  }
+  nsresult set(void *object) {
     NS_ASSERTION(getScriptTypeID() != nsIProgrammingLanguage::UNKNOWN,
                  "Must know the language!");
     nsresult rv = drop();
@@ -113,7 +121,7 @@ public:
     }
     return rv;
   }
-  nsresult set(const nsScriptObjectHolder<T> &other) {
+  nsresult set(const nsScriptObjectHolder &other) {
     NS_ASSERTION(getScriptTypeID() == other.getScriptTypeID(),
                  "Must have identical languages!");
     nsresult rv = drop();
@@ -126,7 +134,7 @@ public:
     return mContext->GetScriptTypeID();
   }
 protected:
-  T* mObject;
+  void *mObject;
   nsCOMPtr<nsIScriptContext> mContext;
 };
 

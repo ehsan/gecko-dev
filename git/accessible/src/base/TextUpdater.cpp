@@ -94,8 +94,8 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
     skipEnd++;
   }
 
-  PRUint32 strLen1 = oldLen - aSkipStart - skipEnd;
-  PRUint32 strLen2 = newLen - aSkipStart - skipEnd;
+  PRInt32 strLen1 = oldLen - aSkipStart - skipEnd;
+  PRInt32 strLen2 = newLen - aSkipStart - skipEnd;
 
   const nsAString& str1 = Substring(aOldText, aSkipStart, strLen1);
   const nsAString& str2 = Substring(aNewText, aSkipStart, strLen2);
@@ -122,7 +122,13 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
       mDocument->FireDelayedAccessibleEvent(textInsertEvent);
     }
 
-    mDocument->MaybeNotifyOfValueChange(mHyperText);
+    // Fire value change event.
+    if (mHyperText->Role() == nsIAccessibleRole::ROLE_ENTRY) {
+      nsRefPtr<AccEvent> valueChangeEvent =
+        new AccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, mHyperText,
+                     eAutoDetect, AccEvent::eRemoveDupes);
+      mDocument->FireDelayedAccessibleEvent(valueChangeEvent);
+    }
 
     // Update the text.
     mTextLeaf->SetText(aNewText);
@@ -167,7 +173,12 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
   for (PRInt32 idx = events.Length() - 1; idx >= 0; idx--)
     mDocument->FireDelayedAccessibleEvent(events[idx]);
 
-  mDocument->MaybeNotifyOfValueChange(mHyperText);
+  if (mHyperText->Role() == nsIAccessibleRole::ROLE_ENTRY) {
+    nsRefPtr<AccEvent> valueChangeEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, mHyperText,
+                   eAutoDetect, AccEvent::eRemoveDupes);
+    mDocument->FireDelayedAccessibleEvent(valueChangeEvent);
+  }
 
   // Update the text.
   mTextLeaf->SetText(aNewText);
@@ -187,7 +198,7 @@ TextUpdater::ComputeTextChangeEvents(const nsAString& aStr1,
 
   PRInt32 colLen = colEnd + 1;
   PRUint32* row = aEntries + rowIdx * colLen;
-  PRUint32 dist = row[colIdx]; // current Levenshtein distance
+  PRInt32 dist = row[colIdx]; // current Levenshtein distance
   while (rowIdx && colIdx) { // stop when we can't move diagonally
     if (aStr1[colIdx - 1] == aStr2[rowIdx - 1]) { // match
       if (rowIdx < rowEnd) { // deal with any pending insertion

@@ -188,7 +188,7 @@ jsd_GetValueBoolean(JSDContext* jsdc, JSDValue* jsdval)
     return JSVAL_TO_BOOLEAN(val);
 }
 
-int32_t
+int32
 jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval)
 {
     jsval val = jsdval->val;
@@ -197,7 +197,7 @@ jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval)
     return JSVAL_TO_INT(val);
 }
 
-double
+jsdouble
 jsd_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval)
 {
     if(!JSVAL_IS_DOUBLE(jsdval->val))
@@ -228,7 +228,7 @@ jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
     JS_BeginRequest(cx);
 
     /* Objects call JS_ValueToString in their own compartment. */
-    scopeObj = !JSVAL_IS_PRIMITIVE(jsdval->val) ? JSVAL_TO_OBJECT(jsdval->val) : jsdc->glob;
+    scopeObj = JSVAL_IS_OBJECT(jsdval->val) ? JSVAL_TO_OBJECT(jsdval->val) : jsdc->glob;
     call = JS_EnterCrossCompartmentCall(cx, scopeObj);
     if(!call) {
         JS_EndRequest(cx);
@@ -397,7 +397,7 @@ jsd_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval)
 }
 
 static JSDProperty* _newProperty(JSDContext* jsdc, JSPropertyDesc* pd,
-                                 unsigned additionalFlags)
+                                 uintN additionalFlags)
 {
     JSDProperty* jsdprop;
 
@@ -444,7 +444,7 @@ static JSBool _buildProps(JSDContext* jsdc, JSDValue* jsdval)
     JSContext* cx = jsdc->dumbContext;
     JSObject *obj;
     JSPropertyDescArray pda;
-    unsigned i;
+    uintN i;
     JSCrossCompartmentCall *call = NULL;
 
     JS_ASSERT(JS_CLIST_IS_EMPTY(&jsdval->props));
@@ -528,11 +528,11 @@ jsd_RefreshValue(JSDContext* jsdc, JSDValue* jsdval)
 
 /***************************************************************************/
 
-unsigned
+uintN
 jsd_GetCountOfProperties(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSDProperty* jsdprop;
-    unsigned count = 0;
+    uintN count = 0;
 
     if(!(CHECK_BIT_FLAG(jsdval->flags, GOT_PROPS)))
         if(!_buildProps(jsdc, jsdval))
@@ -576,7 +576,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* name)
     JSDProperty* jsdprop;
     JSDProperty* iter = NULL;
     JSObject* obj;
-    unsigned  attrs = 0;
+    uintN  attrs = 0;
     JSBool found;
     JSPropertyDesc pd;
     const jschar * nameChars;
@@ -593,7 +593,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* name)
     {
         JSString* propName = jsd_GetValueString(jsdc, jsdprop->name);
         if(propName) {
-            int result;
+            intN result;
             if (JS_CompareStrings(cx, propName, name, &result) && !result)
                 return jsdprop;
         }
@@ -706,7 +706,16 @@ jsd_GetValuePrototype(JSDContext* jsdc, JSDValue* jsdval)
             return NULL;
         if(!(obj = JSVAL_TO_OBJECT(jsdval->val)))
             return NULL;
-        proto = JS_GetPrototype(obj);
+        JS_BeginRequest(jsdc->dumbContext);
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
+        if(!call) {
+            JS_EndRequest(jsdc->dumbContext);
+
+            return NULL;
+        }
+        proto = JS_GetPrototype(jsdc->dumbContext, obj);
+        JS_LeaveCrossCompartmentCall(call);
+        JS_EndRequest(jsdc->dumbContext);
         if(!proto)
             return NULL;
         jsdval->proto = jsd_NewValue(jsdc, OBJECT_TO_JSVAL(proto));
@@ -738,7 +747,7 @@ jsd_GetValueParent(JSDContext* jsdc, JSDValue* jsdval)
 
             return NULL;
         }
-        parent = JS_GetParentOrScopeChain(jsdc->dumbContext,obj);
+        parent = JS_GetParent(jsdc->dumbContext,obj);
         JS_LeaveCrossCompartmentCall(call);
         JS_EndRequest(jsdc->dumbContext);
         if(!parent)
@@ -766,14 +775,18 @@ jsd_GetValueConstructor(JSDContext* jsdc, JSDValue* jsdval)
             return NULL;
         if(!(obj = JSVAL_TO_OBJECT(jsdval->val)))
             return NULL;
-        proto = JS_GetPrototype(obj);
-        if(!proto)
-            return NULL;
         JS_BeginRequest(jsdc->dumbContext);
         call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
         if(!call) {
             JS_EndRequest(jsdc->dumbContext);
 
+            return NULL;
+        }
+        proto = JS_GetPrototype(jsdc->dumbContext,obj);
+        if(!proto)
+        {
+            JS_LeaveCrossCompartmentCall(call);
+            JS_EndRequest(jsdc->dumbContext);
             return NULL;
         }
         ctor = JS_GetConstructor(jsdc->dumbContext,proto);
@@ -806,7 +819,8 @@ jsd_GetValueClassName(JSDContext* jsdc, JSDValue* jsdval)
 
             return NULL;
         }
-        jsdval->className = JS_GetClass(obj)->name;
+        if(JS_GET_CLASS(jsdc->dumbContext, obj))
+            jsdval->className = JS_GET_CLASS(jsdc->dumbContext, obj)->name;
         JS_LeaveCrossCompartmentCall(call);
         JS_EndRequest(jsdc->dumbContext);
     }
@@ -878,13 +892,13 @@ jsd_GetPropertyAlias(JSDContext* jsdc, JSDProperty* jsdprop)
     return jsdprop->alias;
 }
 
-unsigned
+uintN
 jsd_GetPropertyFlags(JSDContext* jsdc, JSDProperty* jsdprop)
 {
     return jsdprop->flags;
 }
 
-unsigned
+uintN
 jsd_GetPropertyVarArgSlot(JSDContext* jsdc, JSDProperty* jsdprop)
 {
     return jsdprop->slot;

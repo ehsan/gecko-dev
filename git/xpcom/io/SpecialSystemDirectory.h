@@ -51,6 +51,7 @@
 #endif
 
 extern void StartupSpecialSystemDirectory();
+extern void ShutdownSpecialSystemDirectory();
 
 
 enum SystemDirectories {
@@ -108,7 +109,6 @@ enum SystemDirectories {
   Win_LocalAppdata          =   228,
   Win_ProgramFiles          =   229,
   Win_Downloads             =   230,
-  Win_Common_AppData        =   231,
   
   Unix_LocalDirectory       =   301,   
   Unix_LibDirectory         =   302,   

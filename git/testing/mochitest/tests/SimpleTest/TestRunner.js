@@ -133,28 +133,6 @@ TestRunner._currentLoop = 0;
 TestRunner.onComplete = null;
 
 /**
- * Adds a failed test case to a list so we can rerun only the failed tests
- **/
-TestRunner._failedTests = {};
-TestRunner._failureFile = "";
-
-TestRunner.addFailedTest = function(testName) {
-    if (TestRunner._failedTests[testName] == undefined) {
-        TestRunner._failedTests[testName] = "";
-    }
-};
-
-TestRunner.setFailureFile = function(fileName) {
-    TestRunner._failureFile = fileName;
-}
-
-TestRunner.generateFailureList = function() {
-    var failures = new SpecialPowersLogger(TestRunner._failureFile);
-    failures.log(JSON.stringify(TestRunner._failedTests));
-    failures.close();
-};
-
-/**
  * If logEnabled is true, this is the logger that will be used.
 **/
 TestRunner.logger = LogController;
@@ -214,20 +192,6 @@ TestRunner._makeIframe = function (url, retry) {
     iframe.name = url;
     iframe.width = "500";
     return iframe;
-};
-
-/**
- * Returns the current test URL.
- * We use this to tell whether the test has navigated to another test without
- * being finished first.
- */
-TestRunner.getLoadedTestURL = function () {
-    var prefix = "";
-    // handle mochitest-chrome URIs
-    if ($('testframe').contentWindow.location.protocol == "chrome:") {
-      prefix = "chrome://mochitests";
-    }
-    return prefix + $('testframe').contentWindow.location.pathname;
 };
 
 /**
@@ -368,7 +332,6 @@ TestRunner.runNextTest = function() {
           if (TestRunner.onComplete)
             TestRunner.onComplete();
        }
-       TestRunner.generateFailureList();
     }
 };
 
@@ -404,17 +367,9 @@ TestRunner.testFinished = function(tests) {
     }
 
     function runNextTest() {
-        if (TestRunner.currentTestURL != TestRunner.getLoadedTestURL()) {
-            TestRunner.log("TEST-UNEXPECTED-FAIL | " +
-                           TestRunner.currentTestURL +
-                           " | finished in a non-clean fashion (in " +
-                           TestRunner.getLoadedTestURL() + ")");
-            tests.push({ result: false });
-        }
-
         var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
         TestRunner.log("TEST-END | " +
-                       TestRunner.currentTestURL +
+                       TestRunner._urls[TestRunner._currentTest] +
                        " | finished in " + runtime + "ms");
 
         TestRunner.updateUI(tests);

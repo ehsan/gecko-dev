@@ -20,9 +20,6 @@ public:
     TestOpensParent() {}
     virtual ~TestOpensParent() {}
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return false; }
-
     void Main();
 
 protected:

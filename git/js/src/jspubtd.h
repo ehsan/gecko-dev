@@ -39,11 +39,11 @@
 
 #ifndef jspubtd_h___
 #define jspubtd_h___
-
 /*
  * JS public API typedefs.
  */
 #include "jstypes.h"
+#include "jscompat.h"
 
 /*
  * Allow headers to reference JS::Value without #including the whole jsapi.h.
@@ -93,10 +93,16 @@ typedef ptrdiff_t jsid;
 
 JS_BEGIN_EXTERN_C
 
+/* Scalar typedefs. */
+typedef JSInt32   jsint;
+typedef JSUint32  jsuint;
+typedef double    jsdouble;
+typedef JSInt32   jsrefcount;   /* PRInt32 if JS_THREADSAFE, see jslock.h */
+
 #ifdef WIN32
 typedef wchar_t   jschar;
 #else
-typedef uint16_t  jschar;
+typedef JSUint16  jschar;
 #endif
 
 /*
@@ -195,7 +201,6 @@ typedef enum {
     JSTRACE_XML,
 #endif
     JSTRACE_SHAPE,
-    JSTRACE_BASE_SHAPE,
     JSTRACE_TYPE_OBJECT,
     JSTRACE_LAST = JSTRACE_TYPE_OBJECT
 } JSGCTraceKind;

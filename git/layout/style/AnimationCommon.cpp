@@ -126,23 +126,10 @@ CommonAnimationManager::MediumFeaturesChanged(nsPresContext* aPresContext)
   return false;
 }
 
-/* virtual */ size_t
-CommonAnimationManager::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+/* virtual */ PRInt64
+CommonAnimationManager::SizeOf() const
 {
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mElementData
-  //
-  // The following members are not measured
-  // - mPresContext, because it's non-owning
-
-  return 0;
-}
-
-/* virtual */ size_t
-CommonAnimationManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+  return sizeof(*this);
 }
 
 /* static */ bool

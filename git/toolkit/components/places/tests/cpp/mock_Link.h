@@ -57,12 +57,6 @@ public:
   , mHandler(aHandlerFunction)
   , mRunNextTest(aRunNextTest)
   {
-    // Create a cyclic ownership, so that the link will be released only
-    // after its status has been updated.  This will ensure that, when it should
-    // run the next test, it will happen at the end of the test function, if
-    // the link status has already been set before.  Indeed the link status is
-    // updated on a separate connection, thus may happen at any time.
-    mDeathGrip = this;
   }
 
   virtual void SetLinkState(nsLinkState aState)
@@ -70,26 +64,18 @@ public:
     // Notify our callback function.
     mHandler(aState);
 
-    // Break the cycle so the object can be destroyed.
-    mDeathGrip = 0;
-  }
-
-  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-  {
-    return 0;   // the value shouldn't matter
-  }
-
-  ~mock_Link() {
     // Run the next test if we are supposed to.
     if (mRunNextTest) {
       run_next_test();
     }
+
+    // Finally, we must manually release ourselves.
+    NS_RELEASE_THIS();
   }
 
 private:
   void (*mHandler)(nsLinkState);
   bool mRunNextTest;
-  nsRefPtr<Link> mDeathGrip;
 };
 
 NS_IMPL_ISUPPORTS1(
@@ -138,13 +124,6 @@ Link::GetURI() const
 {
   NS_NOTREACHED("Unexpected call to Link::GetURI");
   return nsnull; // suppress compiler warning
-}
-
-size_t
-Link::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  NS_NOTREACHED("Unexpected call to Link::SizeOfExcludingThis");
-  return 0;
 }
 
 } // namespace dom

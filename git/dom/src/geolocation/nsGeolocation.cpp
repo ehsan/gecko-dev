@@ -67,7 +67,7 @@
 #include "nsIPermissionManager.h"
 #include "nsIObserverService.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIJSContextStack.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Services.h"
@@ -86,10 +86,6 @@
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidLocationProvider.h"
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-#include "GonkGPSGeolocationProvider.h"
 #endif
 
 #include "nsIDOMDocument.h"
@@ -512,13 +508,36 @@ NS_IMPL_THREADSAFE_RELEASE(nsGeolocationService)
 
 static bool sGeoEnabled = true;
 static bool sGeoIgnoreLocationFilter = false;
-static PRInt32 sProviderTimeout = 6000; // Time, in milliseconds, to wait for the location provider to spin up.
+
+static int
+GeoEnabledChangedCallback(const char *aPrefName, void *aClosure)
+{
+  sGeoEnabled = Preferences::GetBool("geo.enabled", true);
+  return 0;
+}
+
+static int
+GeoIgnoreLocationFilterChangedCallback(const char *aPrefName, void *aClosure)
+{
+  sGeoIgnoreLocationFilter =
+    Preferences::GetBool("geo.ignore.location_filter", true);
+  return 0;
+}
+
 
 nsresult nsGeolocationService::Init()
 {
-  Preferences::AddIntVarCache(&sProviderTimeout, "geo.timeout", sProviderTimeout);
-  Preferences::AddBoolVarCache(&sGeoEnabled, "geo.enabled", sGeoEnabled);
-  Preferences::AddBoolVarCache(&sGeoIgnoreLocationFilter, "geo.ignore.location_filter", sGeoIgnoreLocationFilter);
+  mTimeout = Preferences::GetInt("geo.timeout", 6000);
+
+  Preferences::RegisterCallback(GeoIgnoreLocationFilterChangedCallback,
+                                "geo.ignore.location_filter");
+
+  GeoIgnoreLocationFilterChangedCallback("geo.ignore.location_filter", nsnull);
+
+
+  Preferences::RegisterCallback(GeoEnabledChangedCallback, "geo.enabled");
+
+  GeoEnabledChangedCallback("geo.enabled", nsnull);
 
   if (!sGeoEnabled)
     return NS_ERROR_FAILURE;
@@ -581,13 +600,6 @@ nsresult nsGeolocationService::Init()
   if (provider)
     mProviders.AppendObject(provider);
 #endif
-
-#ifdef MOZ_WIDGET_GONK
-  provider = GonkGPSGeolocationProvider::GetSingleton();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
-
   return NS_OK;
 }
 
@@ -698,7 +710,7 @@ nsGeolocationService::SetDisconnectTimer()
     mDisconnectTimer->Cancel();
 
   mDisconnectTimer->Init(this,
-                         sProviderTimeout,
+                         mTimeout,
                          nsITimer::TYPE_ONE_SHOT);
 }
 
@@ -869,7 +881,7 @@ nsGeolocation::HasActiveCallbacks()
     if (mWatchingCallbacks[i]->IsActive())
       return true;
 
-  return mPendingCallbacks.Length() != 0;
+  return false;
 }
 
 void

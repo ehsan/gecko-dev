@@ -40,8 +40,6 @@
 #ifndef dom_plugins_PluginModuleChild_h
 #define dom_plugins_PluginModuleChild_h 1
 
-#include "mozilla/Attributes.h"
-
 #include <string>
 #include <vector>
 
@@ -123,7 +121,7 @@ protected:
 
     // Implement the PPluginModuleChild interface
     virtual bool AnswerNP_GetEntryPoints(NPError* rv);
-    virtual bool AnswerNP_Initialize(const uint32_t& aFlags, NPError* rv);
+    virtual bool AnswerNP_Initialize(NPError* rv);
 
     virtual PPluginIdentifierChild*
     AllocPPluginIdentifier(const nsCString& aString,
@@ -194,7 +192,7 @@ protected:
     virtual void
     ActorDestroy(ActorDestroyReason why);
 
-    MOZ_NORETURN void QuickExit();
+    NS_NORETURN void QuickExit();
 
     NS_OVERRIDE virtual bool
     RecvProcessNativeEventsInRPCCall();
@@ -227,8 +225,6 @@ public:
 #ifdef DEBUG
     bool NPObjectIsRegistered(NPObject* aObject);
 #endif
-
-    bool AsyncDrawingAllowed() { return mAsyncDrawingAllowed; }
 
     /**
      * The child implementation of NPN_CreateObject.
@@ -359,7 +355,6 @@ private:
     nsCString mPluginFilename; // UTF8
     nsCString mUserAgent;
     int mQuirks;
-    bool mAsyncDrawingAllowed;
 
     // we get this from the plugin
     NP_PLUGINSHUTDOWN mShutdownFunc;

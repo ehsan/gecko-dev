@@ -27,7 +27,6 @@
 #  Alexander J. Vincent <ajvincent@gmail.com>
 #  Dão Gottwald <dao@mozilla.com>
 #  Robert Strong <robert.bugzilla@gmail.com>
-#  Brian R. Bondy <netzen@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -67,6 +66,7 @@ const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
 const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
 const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
+const PREF_APP_UPDATE_DESIREDCHANNEL      = "app.update.desiredChannel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
@@ -81,15 +81,10 @@ const PREF_APP_UPDATE_SILENT              = "app.update.silent";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
-const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
-const PREF_APP_UPDATE_SERVICE_ERRORS      = "app.update.service.errors";
-const PREF_APP_UPDATE_SERVICE_MAX_ERRORS  = "app.update.service.maxErrors";
 
 const PREF_PARTNER_BRANCH                 = "app.partner.";
 const PREF_APP_DISTRIBUTION               = "distribution.id";
 const PREF_APP_DISTRIBUTION_VERSION       = "distribution.version";
-
-const PREF_EM_HOTFIX_ID                   = "extensions.hotfix.id";
 
 const URI_UPDATE_PROMPT_DIALOG  = "chrome://mozapps/content/update/updates.xul";
 const URI_UPDATE_HISTORY_DIALOG = "chrome://mozapps/content/update/history.xul";
@@ -113,6 +108,7 @@ const KEY_UPDROOT         = "UpdRootD";
 #endif
 
 const DIR_UPDATES         = "updates";
+const FILE_CHANNELCHANGE  = "channelchange";
 const FILE_UPDATE_STATUS  = "update.status";
 const FILE_UPDATE_VERSION = "update.version";
 #ifdef ANDROID
@@ -131,7 +127,6 @@ const FILE_UPDATE_LOCALE  = "update.locale";
 const STATE_NONE            = "null";
 const STATE_DOWNLOADING     = "downloading";
 const STATE_PENDING         = "pending";
-const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
@@ -139,17 +134,7 @@ const STATE_FAILED          = "failed";
 
 // From updater/errors.h:
 const WRITE_ERROR        = 7;
-const UNEXPECTED_ERROR   = 8;
 const ELEVATION_CANCELED = 9;
-
-// Windows service specific errors
-const SERVICE_UPDATER_COULD_NOT_BE_STARTED = 24;
-const SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS = 25;
-const SERVICE_UPDATER_SIGN_ERROR           = 26;
-const SERVICE_UPDATER_COMPARE_ERROR        = 27;
-const SERVICE_UPDATER_IDENTITY_ERROR       = 28;
-const SERVICE_STILL_APPLYING_ON_SUCCESS    = 29;
-const SERVICE_STILL_APPLYING_ON_FAILURE    = 30;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
 const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
@@ -160,10 +145,6 @@ const DOWNLOAD_BACKGROUND_INTERVAL  = 600;    // seconds
 const DOWNLOAD_FOREGROUND_INTERVAL  = 0;
 
 const UPDATE_WINDOW_NAME      = "Update:Wizard";
-
-// The number of consecutive failures when updating using the service before
-// setting the app.update.service.enabled preference to false.
-const DEFAULT_SERVICE_MAX_ERRORS = 10;
 
 var gLocale     = null;
 
@@ -477,7 +458,7 @@ function LOG(string) {
 #  @param   defaultValue
 #           The default value to return in the event the preference has
 #           no setting
-#  @return  The value of the preference, or undefined if there was no
+#  @returns The value of the preference, or undefined if there was no
 #           user or default value.
  */
 function getPref(func, preference, defaultValue) {
@@ -546,7 +527,7 @@ function getUpdateFile(pathArray) {
  * @param   defaultCode
  *          The default code to look up should human readable status text
  *          not exist for |code|
- * @return  A human readable status text string
+ * @returns A human readable status text string
  */
 function getStatusTextFromCode(code, defaultCode) {
   var reason;
@@ -566,7 +547,7 @@ function getStatusTextFromCode(code, defaultCode) {
 
 /**
  * Get the Active Updates directory
- * @return The active updates directory, as a nsIFile object
+ * @returns The active updates directory, as a nsIFile object
  */
 function getUpdatesDir() {
   // Right now, we only support downloading one patch at a time, so we always
@@ -579,7 +560,7 @@ function getUpdatesDir() {
  * directory.
  * @param   dir
  *          The dir to look for an update.status file in
- * @return  The status value of the update.
+ * @returns The status value of the update.
  */
 function readStatusFile(dir) {
   var statusFile = dir.clone();
@@ -606,22 +587,6 @@ function writeStatusFile(dir, state) {
 }
 
 /**
- * Determines if the service should be used to attempt an update
- * or not.  For now this is only when PREF_APP_UPDATE_SERVICE_ENABLED
- * is true and we have Firefox.
- *
- * @return  true if the service should be used for updates.
- */
-function shouldUseService() {
-#ifdef MOZ_MAINTENANCE_SERVICE
-  return getPref("getBoolPref", 
-                 PREF_APP_UPDATE_SERVICE_ENABLED, false);
-#else
-  return false;
-#endif
-}
-
-/**
 #  Writes the update's application version to a file in the patch directory. If
 #  the update doesn't provide application version information via the
 #  appVersion attribute the string "null" will be written to the file.
@@ -640,6 +605,15 @@ function writeVersionFile(dir, version) {
   var versionFile = dir.clone();
   versionFile.append(FILE_UPDATE_VERSION);
   writeStringToFile(versionFile, version);
+}
+
+function createChannelChangeFile(dir) {
+  var channelChangeFile = dir.clone();
+  channelChangeFile.append(FILE_CHANNELCHANGE);
+  if (!channelChangeFile.exists()) {
+    channelChangeFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE,
+                             FileUtils.PERMS_FILE);
+  }
 }
 
 /**
@@ -770,6 +744,19 @@ function getUpdateChannel() {
   }
 
   return channel;
+}
+
+function getDesiredChannel() {
+  let desiredChannel = getPref("getCharPref", PREF_APP_UPDATE_DESIREDCHANNEL, null);
+  if (!desiredChannel)
+    return null;
+  
+  if (desiredChannel == getUpdateChannel()) {
+    Services.prefs.clearUserPref(PREF_APP_UPDATE_DESIREDCHANNEL);
+    return null;
+  }
+  LOG("getDesiredChannel - channel set to: " + desiredChannel);
+  return desiredChannel;
 }
 
 /* Get the distribution pref values, from defaults only */
@@ -1280,6 +1267,9 @@ const UpdateServiceFactory = {
  */
 function UpdateService() {
   Services.obs.addObserver(this, "xpcom-shutdown", false);
+  // This will clear the preference if the channel is the same as the
+  // application's channel.
+  getDesiredChannel();
 }
 
 UpdateService.prototype = {
@@ -1373,7 +1363,6 @@ UpdateService.prototype = {
                    createInstance(Ci.nsIUpdatePrompt);
 
     update.state = status;
-    this._submitTelemetryPing(status);
     if (status == STATE_SUCCEEDED) {
       update.statusText = gUpdateBundle.GetStringFromName("installSuccess");
 
@@ -1384,6 +1373,9 @@ UpdateService.prototype = {
 
       // Done with this update. Clean it up.
       cleanupActiveUpdate();
+
+      if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_DESIREDCHANNEL))      
+        Services.prefs.clearUserPref(PREF_APP_UPDATE_DESIREDCHANNEL);
     }
     else {
       // If we hit an error, then the error code will be included in the status
@@ -1403,37 +1395,7 @@ UpdateService.prototype = {
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
           return;
         }
-
-        if (update.errorCode == ELEVATION_CANCELED) {
-          writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-          return;
-        }
-
-        if (update.errorCode == SERVICE_UPDATER_COULD_NOT_BE_STARTED ||
-            update.errorCode == SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS ||
-            update.errorCode == SERVICE_UPDATER_SIGN_ERROR ||
-            update.errorCode == SERVICE_UPDATER_COMPARE_ERROR ||
-            update.errorCode == SERVICE_UPDATER_IDENTITY_ERROR ||
-            update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
-            update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE) {
-          var failCount = getPref("getIntPref", 
-                                  PREF_APP_UPDATE_SERVICE_ERRORS, 0);
-          var maxFail = getPref("getIntPref", 
-                                PREF_APP_UPDATE_SERVICE_MAX_ERRORS, 
-                                DEFAULT_SERVICE_MAX_ERRORS);
-
-          // As a safety, when the service reaches maximum failures, it will
-          // disable itself and fallback to using the normal update mechanism
-          // without the service.
-          if (failCount >= maxFail) {
-            Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
-            Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ERRORS);
-          } else {
-            failCount++;
-            Services.prefs.setIntPref(PREF_APP_UPDATE_SERVICE_ERRORS, 
-                                      failCount);
-          }
-
+        else if (update.errorCode == ELEVATION_CANCELED) {
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
           return;
         }
@@ -1461,31 +1423,6 @@ UpdateService.prototype = {
       update.QueryInterface(Ci.nsIWritablePropertyBag);
       update.setProperty("patchingFailed", oldType);
       prompter.showUpdateError(update);
-    }
-  },
-
-  /**
-   * Submit the results of applying the update via telemetry.
-   *
-   * @param  status
-   *         The status of the update as read from the update.status file
-   */
-  _submitTelemetryPing: function AUS__submitTelemetryPing(status) {
-    try {
-      let parts = status.split(":");
-      if ((parts.length == 1 && status != STATE_SUCCEEDED) ||
-          (parts.length > 1  && parts[0] != STATE_FAILED)) {
-        // we only want to report success or failure
-        return;
-      }
-      let result = 0; // 0 means success
-      if (parts.length > 1) {
-        result = parseInt(parts[1]) || UNEXPECTED_ERROR;
-      }
-      Services.telemetry.getHistogramById("UPDATER_STATUS_CODES").add(result);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Components.utils.reportError(e);
     }
   },
 
@@ -1556,11 +1493,17 @@ UpdateService.prototype = {
    * be offered.
    * @param   updates
    *          An array of available nsIUpdate items
-   * @return  The nsIUpdate to offer.
+   * @returns The nsIUpdate to offer.
    */
   selectUpdate: function AUS_selectUpdate(updates) {
     if (updates.length == 0)
       return null;
+
+    if (getDesiredChannel()) {
+      LOG("UpdateService:selectUpdate - skipping version checks for channel " +
+          "change request");
+      return updates[0];
+    }
 
     // Choose the newest of the available minor and major updates.
     var majorUpdate = null;
@@ -1723,11 +1666,6 @@ UpdateService.prototype = {
   },
 
   _checkAddonCompatibility: function AUS__checkAddonCompatibility() {
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     // Get all the installed add-ons
     var self = this;
     AddonManager.getAllAddons(function(addons) {
@@ -1752,10 +1690,9 @@ UpdateService.prototype = {
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (addon.type != "plugin" && addon.id != hotfixID &&
+          if (addon.type != "plugin" &&
               !addon.appDisabled && !addon.userDisabled &&
               addon.scope != AddonManager.SCOPE_APPLICATION &&
               addon.isCompatible &&
@@ -1920,7 +1857,7 @@ UpdateService.prototype = {
     // current application's version or the update's version is the same as the
     // application's version and the build ID is the same as the application's
     // build ID.
-    if (update.appVersion &&
+    if (!getDesiredChannel() && update.appVersion &&
         (Services.vc.compare(update.appVersion, Services.appinfo.version) < 0 ||
          update.buildID && update.buildID == Services.appinfo.appBuildID &&
          update.appVersion == Services.appinfo.version)) {
@@ -2039,7 +1976,7 @@ UpdateManager.prototype = {
    * Loads an updates.xml formatted file into an array of nsIUpdate items.
    * @param   file
    *          A nsIFile for the updates.xml file
-   * @return  The array of nsIUpdate items held in the file.
+   * @returns The array of nsIUpdate items held in the file.
    */
   _loadXMLFileIntoArray: function UM__loadXMLFileIntoArray(file) {
     if (!file.exists()) {
@@ -2117,8 +2054,9 @@ UpdateManager.prototype = {
    * See nsIUpdateService.idl
    */
   get activeUpdate() {
+    let currentChannel = getDesiredChannel() || getUpdateChannel();
     if (this._activeUpdate &&
-        this._activeUpdate.channel != getUpdateChannel()) {
+        this._activeUpdate.channel != currentChannel) {
       // User switched channels, clear out any old active updates and remove
       // partial downloads
       this._activeUpdate = null;
@@ -2222,7 +2160,7 @@ UpdateManager.prototype = {
       for (let i = updates.length - 1; i >= 0; --i) {
         let state = updates[i].state;
         if (state == STATE_NONE || state == STATE_DOWNLOADING ||
-            state == STATE_PENDING || state == STATE_PENDING_SVC) {
+            state == STATE_PENDING) {
           updates.splice(i, 1);
         }
       }
@@ -2293,6 +2231,10 @@ Checker.prototype = {
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION_VERSION));
     url = url.replace(/\+/g, "%2B");
 
+    let desiredChannel = getDesiredChannel();
+    if (desiredChannel)
+      url += (url.indexOf("?") != -1 ? "&" : "?") + "newchannel=" + desiredChannel;
+
     if (force)
       url += (url.indexOf("?") != -1 ? "&" : "?") + "force=1";
 
@@ -2310,6 +2252,11 @@ Checker.prototype = {
     var url = this.getUpdateURL(force);
     if (!url || (!this.enabled && !force))
       return;
+
+    // If the user changes the update channel there can be leftover files from
+    // a previous download so clean the updates directory for manual checks.
+    if (force)
+      cleanUpUpdatesDir();
 
     this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                     createInstance(Ci.nsISupports);
@@ -2378,7 +2325,7 @@ Checker.prototype = {
         continue;
       }
       update.serviceURL = this.getUpdateURL(this._forced);
-      update.channel = getUpdateChannel();
+      update.channel = getDesiredChannel() || getUpdateChannel();
       updates.push(update);
     }
 
@@ -2412,8 +2359,24 @@ Checker.prototype = {
     var prefs = Services.prefs;
     var certs = null;
     if (!prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE) &&
-        getPref("getBoolPref", PREF_APP_UPDATE_CERT_CHECKATTRS, true)) {
-      certs = gCertUtils.readCertPrefs(PREF_APP_UPDATE_CERTS_BRANCH);
+        getPref("getBoolPref", PREF_APP_UPDATE_CERT_CHECKATTRS, true) &&
+        prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH).getChildList("").length) {
+      certs = [];
+      let counter = 1;
+      while (true) {
+        let prefBranchCert = prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH +
+                                             counter + ".");
+        let prefCertAttrs = prefBranchCert.getChildList("");
+        if (prefCertAttrs.length == 0)
+          break;
+
+        let certAttrs = {};
+        for each (let prefCertAttr in prefCertAttrs)
+          certAttrs[prefCertAttr] = prefBranchCert.getCharPref(prefCertAttr);
+
+        certs.push(certAttrs);
+        counter++;
+      }
     }
 
     try {
@@ -2448,7 +2411,6 @@ Checker.prototype = {
       this._callback.onError(request, update);
     }
 
-    this._callback = null;
     this._request = null;
   },
 
@@ -2498,8 +2460,6 @@ Checker.prototype = {
       Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, this._enabled);
       break;
     }
-
-    this._callback = null;
   },
 
   classID: Components.ID("{898CDC9B-E43F-422F-9CC4-2F6291B415A3}"),
@@ -2551,8 +2511,7 @@ Downloader.prototype = {
    * Whether or not a patch has been downloaded and staged for installation.
    */
   get patchIsStaged() {
-    var readState = readStatusFile(getUpdatesDir()); 
-    return readState == STATE_PENDING || readState == STATE_PENDING_SVC;
+    return readStatusFile(getUpdatesDir()) == STATE_PENDING;
   },
 
   /**
@@ -2604,7 +2563,7 @@ Downloader.prototype = {
    *          A nsIUpdate object to select a patch from
    * @param   updateDir
    *          A nsIFile representing the update directory
-   * @return  A nsIUpdatePatch object to download
+   * @returns A nsIUpdatePatch object to download
    */
   _selectPatch: function Downloader__selectPatch(update, updateDir) {
     // Given an update to download, we will always try to download the patch
@@ -2614,7 +2573,7 @@ Downloader.prototype = {
      * Return the first UpdatePatch with the given type.
      * @param   type
      *          The type of the patch ("complete" or "partial")
-     * @return  A nsIUpdatePatch object matching the type specified
+     * @returns A nsIUpdatePatch object matching the type specified
      */
     function getPatchOfType(type) {
       for (var i = 0; i < update.patchCount; ++i) {
@@ -2634,7 +2593,7 @@ Downloader.prototype = {
 
     // If this is a patch that we know about, then select it.  If it is a patch
     // that we do not know about, then remove it and use our default logic.
-    var useComplete = false;
+    var useComplete = getDesiredChannel() ? true : false;
     if (selectedPatch) {
       LOG("Downloader:_selectPatch - found existing patch with state: " +
           state);
@@ -2642,7 +2601,6 @@ Downloader.prototype = {
       case STATE_DOWNLOADING:
         LOG("Downloader:_selectPatch - resuming download");
         return selectedPatch;
-      case STATE_PENDING_SVC:
       case STATE_PENDING:
         LOG("Downloader:_selectPatch - already downloaded and staged");
         return null;
@@ -2870,7 +2828,7 @@ Downloader.prototype = {
     var deleteActiveUpdate = false;
     if (Components.isSuccessCode(status)) {
       if (this._verifyDownload()) {
-        state = shouldUseService() ? STATE_PENDING_SVC : STATE_PENDING
+        state = STATE_PENDING;
 
         // We only need to explicitly show the prompt if this is a background
         // download, since otherwise some kind of UI is already visible and
@@ -2881,6 +2839,8 @@ Downloader.prototype = {
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);
         writeVersionFile(getUpdatesDir(), this._update.appVersion);
+        if (getDesiredChannel())
+          createChannelChangeFile(getUpdatesDir());
         this._update.installDate = (new Date()).getTime();
         this._update.statusText = gUpdateBundle.GetStringFromName("installPending");
       }

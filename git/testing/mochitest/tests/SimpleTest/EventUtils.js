@@ -32,8 +32,8 @@ function getElement(id) {
 this.$ = this.getElement;
 
 function sendMouseEvent(aEvent, aTarget, aWindow) {
-  if (['click', 'dblclick', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].indexOf(aEvent.type) == -1) {
-    throw new Error("sendMouseEvent doesn't know about event type '" + aEvent.type + "'");
+  if (['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].indexOf(aEvent.type) == -1) {
+    throw new Error("sendMouseEvent doesn't know about event type '"+aEvent.type+"'");
   }
 
   if (!aWindow) {
@@ -52,8 +52,7 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
   var viewArg          = aWindow;
   var detailArg        = aEvent.detail        || (aEvent.type == 'click'     ||
                                                   aEvent.type == 'mousedown' ||
-                                                  aEvent.type == 'mouseup' ? 1 :
-                                                  aEvent.type == 'dblclick'? 2 : 0);
+                                                  aEvent.type == 'mouseup' ? 1 : 0);
   var screenXArg       = aEvent.screenX       || 0;
   var screenYArg       = aEvent.screenY       || 0;
   var clientXArg       = aEvent.clientX       || 0;
@@ -74,40 +73,105 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
 }
 
 /**
- * Send the char aChar to the focused element.  This method handles casing of
- * chars (sends the right charcode, and sends a shift key for uppercase chars).
- * No other modifiers are handled at this point.
+ * Send the char aChar to the node with id aTarget.  If aTarget is not
+ * provided, use "target".  This method handles casing of chars (sends the
+ * right charcode, and sends a shift key for uppercase chars).  No other
+ * modifiers are handled at this point.
  *
  * For now this method only works for English letters (lower and upper case)
  * and the digits 0-9.
+ *
+ * Returns true if the keypress event was accepted (no calls to preventDefault
+ * or anything like that), false otherwise.
  */
-function sendChar(aChar, aWindow) {
+function sendChar(aChar, aTarget) {
   // DOM event charcodes match ASCII (JS charcodes) for a-zA-Z0-9.
   var hasShift = (aChar == aChar.toUpperCase());
-  synthesizeKey(aChar, { shiftKey: hasShift }, aWindow);
+  var charCode = aChar.charCodeAt(0);
+  var keyCode = charCode;
+  if (!hasShift) {
+    // For lowercase letters, the keyCode is actually 32 less than the charCode
+    keyCode -= 0x20;
+  }
+
+  return __doEventDispatch(aTarget, charCode, keyCode, hasShift);
 }
 
 /**
- * Send the string aStr to the focused element.
+ * Send the string aStr to the node with id aTarget.  If aTarget is not
+ * provided, use "target".
  *
  * For now this method only works for English letters (lower and upper case)
  * and the digits 0-9.
  */
-function sendString(aStr, aWindow) {
+function sendString(aStr, aTarget) {
   for (var i = 0; i < aStr.length; ++i) {
-    sendChar(aStr.charAt(i), aWindow);
+    sendChar(aStr.charAt(i), aTarget);
   }
 }
 
 /**
- * Send the non-character key aKey to the focused node.
- * The name of the key should be the part that comes after "DOM_VK_" in the
- *   KeyEvent constant name for this key.
- * No modifiers are handled at this point.
+ * Send the non-character key aKey to the node with id aTarget. If aTarget is
+ * not provided, use "target".  The name of the key should be a lowercase
+ * version of the part that comes after "DOM_VK_" in the KeyEvent constant
+ * name for this key.  No modifiers are handled at this point.
+ *
+ * Returns true if the keypress event was accepted (no calls to preventDefault
+ * or anything like that), false otherwise.
  */
-function sendKey(aKey, aWindow) {
-  var keyName = "VK_" + aKey.toUpperCase();
-  synthesizeKey(keyName, { shiftKey: false }, aWindow);
+function sendKey(aKey, aTarget) {
+  keyName = "DOM_VK_" + aKey.toUpperCase();
+
+  if (!KeyEvent[keyName]) {
+    throw "Unknown key: " + keyName;
+  }
+
+  return __doEventDispatch(aTarget, 0, KeyEvent[keyName], false);
+}
+
+/**
+ * Actually perform event dispatch given a charCode, keyCode, and boolean for
+ * whether "shift" was pressed.  Send the event to the node with id aTarget.  If
+ * aTarget is not provided, use "target".
+ *
+ * Returns true if the keypress event was accepted (no calls to preventDefault
+ * or anything like that), false otherwise.
+ */
+function __doEventDispatch(aTarget, aCharCode, aKeyCode, aHasShift) {
+  if (aTarget === undefined) {
+    aTarget = "target";
+  }
+
+  var event = document.createEvent("KeyEvents");
+  event.initKeyEvent("keydown", true, true, document.defaultView,
+                     false, false, aHasShift, false,
+                     aKeyCode, 0);
+  var accepted = SpecialPowers.dispatchEvent(window, aTarget, event);
+
+  // Preventing the default keydown action also prevents the default
+  // keypress action.
+  event = document.createEvent("KeyEvents");
+  if (aCharCode) {
+    event.initKeyEvent("keypress", true, true, document.defaultView,
+                       false, false, aHasShift, false,
+                       0, aCharCode);
+  } else {
+    event.initKeyEvent("keypress", true, true, document.defaultView,
+                       false, false, aHasShift, false,
+                       aKeyCode, 0);
+  }
+  if (!accepted) {
+    event.preventDefault();
+  }
+  accepted = SpecialPowers.dispatchEvent(window, aTarget, event);
+
+  // Always send keyup
+  var event = document.createEvent("KeyEvents");
+  event.initKeyEvent("keyup", true, true, document.defaultView,
+                     false, false, aHasShift, false,
+                     aKeyCode, 0);
+  SpecialPowers.dispatchEvent(window, aTarget, event);
+  return accepted;
 }
 
 /**
@@ -148,24 +212,6 @@ function _parseModifiers(aEvent)
  */
 function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
 {
-  var rect = aTarget.getBoundingClientRect();
-  synthesizeMouseAtPoint(rect.left + aOffsetX, rect.top + aOffsetY,
-			 aEvent, aWindow);
-}
-
-/*
- * Synthesize a mouse event at a particular point in aWindow.
- *
- * aEvent is an object which may contain the properties:
- *   shiftKey, ctrlKey, altKey, metaKey, accessKey, clickCount, button, type
- *
- * If the type is specified, an mouse event of that type is fired. Otherwise,
- * a mousedown followed by a mouse up is performed.
- *
- * aWindow is optional, and defaults to the current window object.
- */
-function synthesizeMouseAtPoint(left, top, aEvent, aWindow)
-{
   var utils = _getDOMWindowUtils(aWindow);
 
   if (utils) {
@@ -173,7 +219,12 @@ function synthesizeMouseAtPoint(left, top, aEvent, aWindow)
     var clickCount = aEvent.clickCount || 1;
     var modifiers = _parseModifiers(aEvent);
 
-    if (("type" in aEvent) && aEvent.type) {
+    var rect = aTarget.getBoundingClientRect();
+
+    var left = rect.left + aOffsetX;
+    var top = rect.top + aOffsetY;
+
+    if (aEvent.type) {
       utils.sendMouseEvent(aEvent.type, left, top, button, clickCount, modifiers);
     }
     else {
@@ -233,7 +284,7 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var left = rect.left;
     var top = rect.top;
 
-    var type = (("type" in aEvent) && aEvent.type) || "DOMMouseScroll";
+    var type = aEvent.type || "DOMMouseScroll";
     var axis = aEvent.axis || "vertical";
     var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
     if (aEvent.hasPixels) {
@@ -323,40 +374,6 @@ function _computeKeyCodeFromChar(aChar)
 }
 
 /**
- * isKeypressFiredKey() returns TRUE if the given key should cause keypress
- * event when widget handles the native key event.  Otherwise, FALSE.
- *
- * aDOMKeyCode should be one of consts of nsIDOMKeyEvent::DOM_VK_*, or a key
- * name begins with "VK_", or a character.
- */
-function isKeypressFiredKey(aDOMKeyCode)
-{
-  if (typeof(aDOMKeyCode) == "string") {
-    if (aDOMKeyCode.indexOf("VK_") == 0) {
-      aDOMKeyCode = KeyEvent["DOM_" + aDOMKeyCode];
-      if (!aDOMKeyCode) {
-        throw "Unknown key: " + aDOMKeyCode;
-      }
-    } else {
-      // If the key generates a character, it must cause a keypress event.
-      return true;
-    }
-  }
-  switch (aDOMKeyCode) {
-    case KeyEvent.DOM_VK_SHIFT:
-    case KeyEvent.DOM_VK_CONTROL:
-    case KeyEvent.DOM_VK_ALT:
-    case KeyEvent.DOM_VK_CAPS_LOCK:
-    case KeyEvent.DOM_VK_NUM_LOCK:
-    case KeyEvent.DOM_VK_SCROLL_LOCK:
-    case KeyEvent.DOM_VK_META:
-      return false;
-    default:
-      return true;
-  }
-}
-
-/**
  * Synthesize a key event. It is targeted at whatever would be targeted by an
  * actual keypress by the user, typically the focused element.
  *
@@ -376,34 +393,26 @@ function synthesizeKey(aKey, aEvent, aWindow)
   var utils = _getDOMWindowUtils(aWindow);
   if (utils) {
     var keyCode = 0, charCode = 0;
-    if (aKey.indexOf("VK_") == 0) {
+    if (aKey.indexOf("VK_") == 0)
       keyCode = KeyEvent["DOM_" + aKey];
-      if (!keyCode) {
-        throw "Unknown key: " + aKey;
-      }
-    } else {
+    else {
       charCode = aKey.charCodeAt(0);
       keyCode = _computeKeyCodeFromChar(aKey.charAt(0));
     }
 
     var modifiers = _parseModifiers(aEvent);
 
-    if (!("type" in aEvent) || !aEvent.type) {
-      // Send keydown + (optional) keypress + keyup events.
-      var keyDownDefaultHappened =
-          utils.sendKeyEvent("keydown", keyCode, 0, modifiers);
-      if (isKeypressFiredKey(keyCode)) {
-        utils.sendKeyEvent("keypress", charCode ? 0 : keyCode, charCode,
-                           modifiers, !keyDownDefaultHappened);
-      }
-      utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
-    } else if (aEvent.type == "keypress") {
-      // Send standalone keypress event.
+    if (aEvent.type == "keypress") {
       utils.sendKeyEvent(aEvent.type, charCode ? 0 : keyCode,
                          charCode, modifiers);
-    } else {
-      // Send other standalone event than keypress.
+    } else if (aEvent.type) {
       utils.sendKeyEvent(aEvent.type, keyCode, 0, modifiers);
+    } else {
+      var keyDownDefaultHappened =
+          utils.sendKeyEvent("keydown", keyCode, 0, modifiers);
+      utils.sendKeyEvent("keypress", charCode ? 0 : keyCode, charCode,
+                         modifiers, !keyDownDefaultHappened);
+      utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
     }
   }
 }
@@ -516,8 +525,7 @@ function _getDOMWindowUtils(aWindow)
   //  chrome: toolkit/content/tests/chrome/test_popup_anchor.xul
   if ("SpecialPowers" in window && window.SpecialPowers != undefined) {
     return SpecialPowers.getDOMWindowUtils(aWindow);
-  }
-  if ("SpecialPowers" in parent && parent.SpecialPowers != undefined) {
+  } else if ("SpecialPowers" in parent && parent.SpecialPowers != undefined) {
     return parent.SpecialPowers.getDOMWindowUtils(aWindow);
   }
 
@@ -648,8 +656,9 @@ function synthesizeQuerySelectedText(aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return null;
+    return nsnull;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_SELECTED_TEXT, 0, 0, 0, 0);
 }
+
+

@@ -145,5 +145,8 @@ SkCornerPathEffect::SkCornerPathEffect(SkFlattenableReadBuffer& buffer) {
     fRadius = buffer.readScalar();
 }
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkCornerPathEffect)
+///////////////////////////////////////////////////////////////////////////////
+
+static SkFlattenable::Registrar gReg("SkCornerPathEffect",
+                                     SkCornerPathEffect::CreateProc);
 

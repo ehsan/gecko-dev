@@ -40,20 +40,19 @@
 #ifndef __NS_SVGSVGELEMENT_H__
 #define __NS_SVGSVGELEMENT_H__
 
-#include "DOMSVGTests.h"
-#include "mozilla/dom/FromParser.h"
+#include "nsSVGStylableElement.h"
+#include "nsIDOMSVGSVGElement.h"
 #include "nsIDOMSVGFitToViewBox.h"
 #include "nsIDOMSVGLocatable.h"
-#include "nsIDOMSVGPoint.h"
-#include "nsIDOMSVGSVGElement.h"
 #include "nsIDOMSVGZoomAndPan.h"
-#include "nsSVGEnum.h"
+#include "nsIDOMSVGMatrix.h"
+#include "nsIDOMSVGPoint.h"
 #include "nsSVGLength2.h"
-#include "nsSVGStylableElement.h"
+#include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
+#include "mozilla/dom/FromParser.h"
 
-class nsIDOMSVGMatrix;
 class nsSMILTimeContainer;
 
 typedef nsSVGStylableElement nsSVGSVGElementBase;
@@ -119,7 +118,6 @@ public:
 
 class nsSVGSVGElement : public nsSVGSVGElementBase,
                         public nsIDOMSVGSVGElement,
-                        public DOMSVGTests,
                         public nsIDOMSVGFitToViewBox,
                         public nsIDOMSVGLocatable,
                         public nsIDOMSVGZoomAndPan
@@ -186,14 +184,10 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                      TransformTypes aWhich = eAllTransforms) const;
-  virtual bool HasValidDimensions() const;
- 
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  
   // nsSVGSVGElement methods:
   float GetLength(PRUint8 mCtxType);
-  // Copy our width or height to the target
-  void SyncWidthOrHeight(nsIAtom* aName, nsSVGElement *aTarget) const;
 
   // public helpers:
   gfxMatrix GetViewBoxTransform() const;
@@ -255,7 +249,7 @@ protected:
    */
   bool IsInner() const {
     const nsIContent *parent = GetFlattenedTreeParent();
-    return parent && parent->IsSVG() &&
+    return parent && parent->GetNameSpaceID() == kNameSpaceID_SVG &&
            parent->Tag() != nsGkAtoms::foreignObject;
   }
 

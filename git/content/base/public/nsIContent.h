@@ -43,6 +43,7 @@
 #include "nsChangeHint.h"
 #include "nsINode.h"
 #include "nsIDocument.h" // for IsInHTMLDocument
+#include "nsDOMMemoryReporter.h"
 
 // Forward declarations
 class nsIAtom;
@@ -77,8 +78,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID \
-{ 0x94671671, 0x9e1b, 0x447a, \
-  { 0xad, 0xb7, 0xc3, 0x2e, 0x05, 0x6a, 0x96, 0xc9 } }
+{ 0xed40a3e5, 0xd7ed, 0x473e, \
+ { 0x85, 0xe3, 0x82, 0xc3, 0xf0, 0x41, 0xdb, 0x52 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -102,6 +103,8 @@ public:
 #endif // MOZILLA_INTERNAL_API
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENT_IID)
+
+  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsIContent, nsINode);
 
   /**
    * Bind this content node to a tree.  If this method throws, the caller must
@@ -321,11 +324,8 @@ public:
   }
 
   inline bool IsSVG() const {
-    return IsInNamespace(kNameSpaceID_SVG);
-  }
-
-  inline bool IsSVG(nsIAtom* aTag) const {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_SVG);
+    /* Some things in the SVG namespace are not in fact SVG elements */
+    return IsNodeOfType(eSVG);
   }
 
   inline bool IsXUL() const {
@@ -334,10 +334,6 @@ public:
 
   inline bool IsMathML() const {
     return IsInNamespace(kNameSpaceID_MathML);
-  }
-
-  inline bool IsMathML(nsIAtom* aTag) const {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_MathML);
   }
 
   /**
@@ -899,8 +895,8 @@ public:
   virtual nsresult SetSMILOverrideStyleRule(mozilla::css::StyleRule* aStyleRule,
                                             bool aNotify) = 0;
 
-  nsresult LookupNamespaceURIInternal(const nsAString& aNamespacePrefix,
-                                      nsAString& aNamespaceURI) const;
+  nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
+                              nsAString& aNamespaceURI) const;
 
   /**
    * If this content has independent selection, e.g., if this is input field
@@ -917,7 +913,7 @@ public:
 
   /**
    * Determing language. Look at the nearest ancestor element that has a lang
-   * attribute in the XML namespace or is an HTML/SVG element and has a lang in
+   * attribute in the XML namespace or is an HTML element and has a lang in
    * no namespace attribute.
    */
   void GetLang(nsAString& aResult) const {
@@ -927,7 +923,7 @@ public:
         // XHTML1 section C.7).
         bool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
                                           aResult);
-        if (!hasAttr && (content->IsHTML() || content->IsSVG())) {
+        if (!hasAttr && content->IsHTML()) {
           hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
                                      aResult);
         }
@@ -944,9 +940,6 @@ public:
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
-
-  virtual bool IsPurple() = 0;
-  virtual void RemovePurple() = 0;
 
 protected:
   /**
@@ -996,6 +989,7 @@ public:
   // accessibility.tabfocus_applies_to_xul pref - if it is set to true,
   // the tabfocus bit field applies to xul elements.
   static bool sTabFocusModelAppliesToXUL;
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIContent, NS_ICONTENT_IID)

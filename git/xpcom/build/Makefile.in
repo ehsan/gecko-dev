@@ -59,19 +59,14 @@ ifeq ($(OS_ARCH),Linux)
 DEFINES += -DXP_LINUX
 endif
 
-CPPSRCS = \
-  $(XPCOM_GLUE_SRC_LCPPSRCS) \
-  $(XPCOM_GLUENS_SRC_LCPPSRCS) \
-  nsXPComInit.cpp \
-  nsXPCOMStrings.cpp \
-  Services.cpp \
-  Omnijar.cpp \
-  FileLocation.cpp \
-  $(NULL)
-
-ifeq ($(OS_ARCH),WINNT)
-CPPSRCS += perfprobe.cpp
-endif
+CPPSRCS		= \
+		$(XPCOM_GLUE_SRC_LCPPSRCS) \
+		$(XPCOM_GLUENS_SRC_LCPPSRCS) \
+		nsXPComInit.cpp \
+		nsXPCOMStrings.cpp \
+		Services.cpp \
+		Omnijar.cpp \
+		$(NULL)
 
 SHARED_LIBRARY_LIBS = \
 		$(DEPTH)/chrome/src/$(LIB_PREFIX)chrome_s.$(LIB_SUFFIX) \
@@ -79,6 +74,7 @@ SHARED_LIBRARY_LIBS = \
 		../io/$(LIB_PREFIX)xpcomio_s.$(LIB_SUFFIX) \
 		../components/$(LIB_PREFIX)xpcomcomponents_s.$(LIB_SUFFIX) \
 		../threads/$(LIB_PREFIX)xpcomthreads_s.$(LIB_SUFFIX) \
+		../proxy/src/$(LIB_PREFIX)xpcomproxy_s.$(LIB_SUFFIX) \
 		../base/$(LIB_PREFIX)xpcombase_s.$(LIB_SUFFIX) \
 		../reflect/xptcall/src/$(LIB_PREFIX)xptcall.$(LIB_SUFFIX) \
 		../reflect/xptcall/src/$(LIB_PREFIX)xptcmd.$(LIB_SUFFIX) \
@@ -102,6 +98,8 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../io \
 		-I$(srcdir)/../components \
 		-I$(srcdir)/../threads \
+		-I$(srcdir)/../threads/_xpidlgen \
+		-I$(srcdir)/../proxy/src \
 		-I$(srcdir)/../reflect/xptinfo/src \
 		-I$(topsrcdir)/chrome/src \
 		-I$(srcdir)/../../docshell/base \
@@ -118,7 +116,6 @@ EXPORTS	= \
   nsXPCOMCIDInternal.h \
   xrecore.h \
   nsXULAppAPI.h \
-  nsXREAppData.h \
   $(NULL)
 
 EXPORTS_mozilla = \
@@ -126,12 +123,7 @@ EXPORTS_mozilla = \
   Services.h \
   ServiceList.h \
   Omnijar.h \
-  FileLocation.h \
   $(NULL)
-
-ifeq ($(OS_ARCH),WINNT)
-EXPORTS_mozilla += perfprobe.h
-endif
 
 
 GARBAGE         += $(XPCOM_GLUE_SRC_LCPPSRCS) $(XPCOM_GLUENS_SRC_LCPPSRCS) $(wildcard *.$(OBJ_SUFFIX))

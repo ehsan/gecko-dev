@@ -39,8 +39,6 @@
 #ifndef nsIconChannel_h_
 #define nsIconChannel_h_
 
-#include "mozilla/Attributes.h"
-
 #include "nsIChannel.h"
 #include "nsIURI.h"
 #include "nsIIconURI.h"
@@ -51,7 +49,7 @@
  * It asks Android for an icon, and creates a new channel for
  * that file to which all calls will be proxied.
  */
-class nsIconChannel MOZ_FINAL : public nsIChannel {
+class nsIconChannel : public nsIChannel {
   public:
     NS_DECL_ISUPPORTS
     NS_FORWARD_NSIREQUEST(mRealChannel->)

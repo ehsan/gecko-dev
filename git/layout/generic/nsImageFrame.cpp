@@ -62,11 +62,12 @@
 #include "nsILinkHandler.h"
 #include "nsIURL.h"
 #include "nsIIOService.h"
+#include "nsIURL.h"
 #include "nsILoadGroup.h"
 #include "nsISupportsPriority.h"
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "prprf.h"
 #include "nsCSSRendering.h"
 #include "nsILink.h"
@@ -79,6 +80,7 @@
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
+#include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
 #include "nsGUIEvent.h"
 #include "nsLayoutUtils.h"
@@ -680,8 +682,7 @@ nsImageFrame::OnStopDecode(imgIRequest *aRequest,
 }
 
 nsresult
-nsImageFrame::FrameChanged(imgIRequest *aRequest,
-                           imgIContainer *aContainer,
+nsImageFrame::FrameChanged(imgIContainer *aContainer,
                            const nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible()) {
@@ -986,7 +987,7 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
   aRenderingContext.SetColor(GetStyleColor()->mColor);
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-    nsLayoutUtils::FontSizeInflationFor(this, nsLayoutUtils::eNotInReflow));
+    nsLayoutUtils::FontSizeInflationFor(this));
   aRenderingContext.SetFont(fm);
 
   // Format the text to display within the formatting rect
@@ -1208,13 +1209,19 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
                  : (PRUint32) imgIContainer::FLAG_NONE);
 }
 
-already_AddRefed<ImageContainer>
-nsDisplayImage::GetContainer()
+nsCOMPtr<imgIContainer>
+nsDisplayImage::GetImage()
 {
-  nsRefPtr<ImageContainer> container;
-  nsresult rv = mImage->GetImageContainer(getter_AddRefs(container));
-  NS_ENSURE_SUCCESS(rv, nsnull);
-  return container.forget();
+  return mImage;
+}
+
+nsRefPtr<ImageContainer>
+nsDisplayImage::GetContainer(LayerManager* aManager)
+{
+  ImageContainer* container;
+  nsresult rv = mImage->GetImageContainer(aManager, &container);
+  NS_ENSURE_SUCCESS(rv, NULL);
+  return container;
 }
 
 void
@@ -1677,7 +1684,7 @@ nsImageFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", (unsigned long long)mState);
+    fprintf(out, " [state=%016llx]", mState);
   }
   fprintf(out, " [content=%p]", (void*)mContent);
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
@@ -1981,8 +1988,7 @@ nsImageFrame::IconLoad::OnDiscard(imgIRequest *aRequest)
 }
 
 NS_IMETHODIMP
-nsImageFrame::IconLoad::FrameChanged(imgIRequest *aRequest,
-                                     imgIContainer *aContainer,
+nsImageFrame::IconLoad::FrameChanged(imgIContainer *aContainer,
                                      const nsIntRect *aDirtyRect)
 {
   nsTObserverArray<nsImageFrame*>::ForwardIterator iter(mIconObservers);
@@ -2037,14 +2043,13 @@ NS_IMETHODIMP nsImageListener::OnStopDecode(imgIRequest *aRequest,
   return mFrame->OnStopDecode(aRequest, status, statusArg);
 }
 
-NS_IMETHODIMP nsImageListener::FrameChanged(imgIRequest *aRequest,
-                                            imgIContainer *aContainer,
+NS_IMETHODIMP nsImageListener::FrameChanged(imgIContainer *aContainer,
                                             const nsIntRect *aDirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aRequest, aContainer, aDirtyRect);
+  return mFrame->FrameChanged(aContainer, aDirtyRect);
 }
 
 static bool

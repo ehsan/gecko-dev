@@ -42,7 +42,6 @@
 // NOTE: alphabetically ordered
 #include "nsBaseWidgetAccessible.h"
 #include "nsXULMenuAccessible.h"
-#include "XULSelectControlAccessible.h"
 
 /**
  * An individual tab, xul:tab element.
@@ -52,7 +51,7 @@ class nsXULTabAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Switch = 0 };
 
-  nsXULTabAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTabAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
@@ -61,7 +60,7 @@ public:
   // nsAccessible
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual Relation RelationByType(PRUint32 aType);
 
@@ -73,17 +72,17 @@ public:
 /**
  * A container of tab objects, xul:tabs element.
  */
-class nsXULTabsAccessible : public XULSelectControlAccessible
+class nsXULTabsAccessible : public nsXULSelectableAccessible
 {
 public:
-  nsXULTabsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTabsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& _retval);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
@@ -96,10 +95,10 @@ public:
 class nsXULTabpanelsAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULTabpanelsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTabpanelsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 
@@ -116,10 +115,10 @@ public:
 class nsXULTabpanelAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULTabpanelAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTabpanelAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual Relation RelationByType(PRUint32 aType);
 };
 

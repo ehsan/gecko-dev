@@ -38,7 +38,7 @@
 #define nsTableRowFrame_h__
 
 #include "nscore.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsTablePainter.h"
 
 class  nsTableFrame;
@@ -64,7 +64,7 @@ struct nsTableCellReflowState;
  * @see nsTableRowGroupFrame
  * @see nsTableCellFrame
  */
-class nsTableRowFrame : public nsContainerFrame
+class nsTableRowFrame : public nsHTMLContainerFrame
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsTableRowFrame)
@@ -267,7 +267,7 @@ protected:
                             bool                    aBorderCollapse,
                             nsTableCellReflowState& aReflowState);
   
-  /** implement abstract method on nsContainerFrame */
+  /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
 
   // row-specific methods

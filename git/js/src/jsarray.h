@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -49,21 +49,36 @@
 #include "jsobj.h"
 
 /* Small arrays are dense, no matter what. */
-const unsigned MIN_SPARSE_INDEX = 256;
+const uintN MIN_SPARSE_INDEX = 256;
+
+inline uint32
+JSObject::getDenseArrayInitializedLength()
+{
+    JS_ASSERT(isDenseArray());
+    return initializedLength();
+}
+
+inline bool
+JSObject::isPackedDenseArray()
+{
+    JS_ASSERT(isDenseArray());
+    return flags & PACKED_ARRAY;
+}
 
 namespace js {
 /* 2^32-2, inclusive */
-const uint32_t MAX_ARRAY_INDEX = 4294967294u;
+const uint32 MAX_ARRAY_INDEX = 4294967294u;
 }
 
 inline JSBool
-js_IdIsIndex(jsid id, uint32_t *indexp)
+js_IdIsIndex(jsid id, jsuint *indexp)
 {
     if (JSID_IS_INT(id)) {
-        int32_t i = JSID_TO_INT(id);
+        jsint i;
+        i = JSID_TO_INT(id);
         if (i < 0)
             return JS_FALSE;
-        *indexp = (uint32_t)i;
+        *indexp = (jsuint)i;
         return JS_TRUE;
     }
 
@@ -101,7 +116,8 @@ js_InitArrayClass(JSContext *cx, JSObject *obj);
 extern bool
 js_InitContextBusyArrayTable(JSContext *cx);
 
-namespace js {
+namespace js
+{
 
 /* Create a dense array with no capacity allocated, length set to 0. */
 extern JSObject * JS_FASTCALL
@@ -109,7 +125,7 @@ NewDenseEmptyArray(JSContext *cx, JSObject *proto=NULL);
 
 /* Create a dense array with length and capacity == 'length', initialized length set to 0. */
 extern JSObject * JS_FASTCALL
-NewDenseAllocatedArray(JSContext *cx, uint32_t length, JSObject *proto=NULL);
+NewDenseAllocatedArray(JSContext *cx, uint length, JSObject *proto=NULL);
 
 /*
  * Create a dense array with length, capacity and initialized length == 'length', and filled with holes.
@@ -117,39 +133,39 @@ NewDenseAllocatedArray(JSContext *cx, uint32_t length, JSObject *proto=NULL);
  * array elements.
  */
 extern JSObject * JS_FASTCALL
-NewDenseAllocatedEmptyArray(JSContext *cx, uint32_t length, JSObject *proto=NULL);
+NewDenseAllocatedEmptyArray(JSContext *cx, uint length, JSObject *proto=NULL);
 
 /*
  * Create a dense array with a set length, but without allocating space for the
  * contents. This is useful, e.g., when accepting length from the user.
  */
 extern JSObject * JS_FASTCALL
-NewDenseUnallocatedArray(JSContext *cx, uint32_t length, JSObject *proto=NULL);
+NewDenseUnallocatedArray(JSContext *cx, uint length, JSObject *proto=NULL);
 
 /* Create a dense array with a copy of vp. */
 extern JSObject *
-NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *vp, JSObject *proto = NULL);
+NewDenseCopiedArray(JSContext *cx, uint32 length, const Value *vp, JSObject *proto = NULL);
 
 /* Create a sparse array. */
 extern JSObject *
 NewSlowEmptyArray(JSContext *cx);
 
-} /* namespace js */
+}
 
 extern JSBool
-js_GetLengthProperty(JSContext *cx, JSObject *obj, uint32_t *lengthp);
+js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
 
 extern JSBool
-js_SetLengthProperty(JSContext *cx, JSObject *obj, double length);
+js_SetLengthProperty(JSContext *cx, JSObject *obj, jsdouble length);
 
 namespace js {
 
 extern JSBool
-array_defineElement(JSContext *cx, JSObject *obj, uint32_t index, const Value *value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+array_defineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *value,
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 
 extern JSBool
-array_deleteElement(JSContext *cx, JSObject *obj, uint32_t index, Value *rval, JSBool strict);
+array_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict);
 
 /*
  * Copy 'length' elements from aobj to vp.
@@ -158,30 +174,33 @@ array_deleteElement(JSContext *cx, JSObject *obj, uint32_t index, Value *rval, J
  * js_GetLengthProperty on aobj.
  */
 extern bool
-GetElements(JSContext *cx, JSObject *aobj, uint32_t length, js::Value *vp);
+GetElements(JSContext *cx, JSObject *aobj, jsuint length, js::Value *vp);
+
+}
 
 /* Natives exposed for optimization by the interpreter and JITs. */
+namespace js {
 
 extern JSBool
-array_sort(JSContext *cx, unsigned argc, js::Value *vp);
+array_sort(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-array_push(JSContext *cx, unsigned argc, js::Value *vp);
+array_push(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-array_pop(JSContext *cx, unsigned argc, js::Value *vp);
+array_pop(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-array_concat(JSContext *cx, unsigned argc, js::Value *vp);
+array_concat(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-array_shift(JSContext *cx, unsigned argc, js::Value *vp);
+array_shift(JSContext *cx, uintN argc, js::Value *vp);
 
 } /* namespace js */
 
 #ifdef DEBUG
 extern JSBool
-js_ArrayInfo(JSContext *cx, unsigned argc, jsval *vp);
+js_ArrayInfo(JSContext *cx, uintN argc, jsval *vp);
 #endif
 
 /*
@@ -206,6 +225,9 @@ js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id,
 
 /* Array constructor native. Exposed only so the JIT can know its address. */
 JSBool
-js_Array(JSContext *cx, unsigned argc, js::Value *vp);
+js_Array(JSContext *cx, uintN argc, js::Value *vp);
+
+extern JSBool JS_FASTCALL
+js_EnsureDenseArrayCapacity(JSContext *cx, JSObject *obj, jsint i);
 
 #endif /* jsarray_h___ */

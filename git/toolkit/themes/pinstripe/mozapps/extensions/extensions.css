@@ -73,7 +73,7 @@
   border-bottom: 1px solid rgba(50, 65, 92, 0.4);
 }
 
-@media (max-width: 600px) {
+@media all and (max-width: 600px) {
   .global-warning-text {
     display: none;
   }
@@ -239,7 +239,7 @@
 }
 
 /* Maximize the size of the viewport when the window is small */
-@media (max-width: 800px) {
+@media all and (max-width: 800px) {
   .category-name {
     display: none;
   }
@@ -787,13 +787,9 @@
   -moz-margin-start: 0;
 }
 
-#detail-icon-container {
-  width: 64px;
+#detail-icon {
   -moz-margin-end: 10px;
   margin-top: 6px;
-}
-
-#detail-icon {
   max-width: 64px;
   max-height: 64px;
 }
@@ -902,7 +898,6 @@
 }
 
 #detail-grid > columns > column:first-child {
-  min-width: 15em;
   max-width: 25em;
 }
 
@@ -934,25 +929,15 @@ setting[first-row="true"] {
   margin-top: 2em;
 }
 
-setting {
-  -moz-box-align: start;
-}
-
-.preferences-alignment {
-  min-height: 30px;
-  -moz-box-align: center;
-}
-
 .preferences-description {
   font-size: 90.9%;
   color: graytext;
   margin-top: -2px;
   -moz-margin-start: 2em;
-  white-space: pre-wrap;
 }
 
-.preferences-description:empty {
-  display: none;
+setting[type="string"] > .setting-input > textbox {
+  -moz-box-flex: 1;
 }
 
 setting[type="radio"] > radiogroup {

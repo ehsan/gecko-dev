@@ -754,16 +754,6 @@ ContentChild::RecvDeviceMotionChanged(const long int& type,
 }
 
 bool
-ContentChild::RecvNeedsCalibration()
-{
-    nsCOMPtr<nsIDeviceMotionUpdate> dmu = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dmu)
-        dmu->NeedsCalibration();
-    return true;
-}
-
-bool
 ContentChild::RecvScreenSizeChanged(const gfxIntSize& size)
 {
 #ifdef ANDROID
@@ -810,14 +800,14 @@ ContentChild::GetIndexedDBPath()
 bool
 ContentChild::RecvGarbageCollect()
 {
-    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC);
+    nsJSContext::GarbageCollectNow();
     return true;
 }
 
 bool
 ContentChild::RecvCycleCollect()
 {
-    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC);
+    nsJSContext::GarbageCollectNow();
     nsJSContext::CycleCollectNow();
     return true;
 }

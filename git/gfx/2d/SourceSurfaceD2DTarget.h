@@ -51,8 +51,7 @@ class DrawTargetD2D;
 class SourceSurfaceD2DTarget : public SourceSurface
 {
 public:
-  SourceSurfaceD2DTarget(DrawTargetD2D* aDrawTarget, ID3D10Texture2D* aTexture,
-                         SurfaceFormat aFormat);
+  SourceSurfaceD2DTarget();
   ~SourceSurfaceD2DTarget();
 
   virtual SurfaceType GetType() const { return SURFACE_D2D1_DRAWTARGET; }
@@ -63,6 +62,10 @@ public:
 private:
   friend class DrawTargetD2D;
   ID3D10ShaderResourceView *GetSRView();
+
+  // This returns true if this source surface has been copied from its
+  // drawtarget, in that case changes no longer need to be tracked.
+  bool IsCopy() { return mIsCopy; }
 
   // This function is called by the draw target this texture belongs to when
   // it is about to be changed. The texture will be required to make a copy
@@ -77,13 +80,15 @@ private:
 
   RefPtr<ID3D10ShaderResourceView> mSRView;
   RefPtr<ID2D1Bitmap> mBitmap;
-  // Non-null if this is a "lazy copy" of the given draw target.
-  // Null if we've made a copy. The target is not kept alive, otherwise we'd
-  // have leaks since it might keep us alive. If the target is destroyed, it
-  // will notify us.
-  DrawTargetD2D* mDrawTarget;
+  RefPtr<DrawTargetD2D> mDrawTarget;
   mutable RefPtr<ID3D10Texture2D> mTexture;
   SurfaceFormat mFormat;
+
+  // This is a list of the drawtargets that need to be notified when the
+  // underlying drawtarget is changed.
+  std::vector<RefPtr<DrawTargetD2D>> mDependentSurfaces;
+
+  bool mIsCopy;
 };
 
 class DataSourceSurfaceD2DTarget : public DataSourceSurface

@@ -48,8 +48,6 @@
 #include "dombindings.h"
 #include "XPCMaps.h"
 
-#include "jsfriendapi.h"
-
 using namespace js;
 
 namespace xpc {
@@ -101,12 +99,10 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
     {
         // See if we already have a waiver wrapper for this object.
         CompartmentPrivate *priv =
-            (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(obj));
+            (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, js::GetObjectCompartment(obj));
         JSObject *wobj = nsnull;
-        if (priv && priv->waiverWrapperMap) {
+        if (priv && priv->waiverWrapperMap)
             wobj = priv->waiverWrapperMap->Find(obj);
-            xpc_UnmarkGrayObject(wobj);
-        }
 
         // No wrapper yet, make one.
         if (!wobj) {
@@ -145,7 +141,7 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
 // expects |cx->compartment != obj->compartment()|. The returned object will
 // be in the same compartment as |obj|.
 JSObject *
-WrapperFactory::DoubleWrap(JSContext *cx, JSObject *obj, unsigned flags)
+WrapperFactory::DoubleWrap(JSContext *cx, JSObject *obj, uintN flags)
 {
     if (flags & WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG) {
         JSAutoEnterCompartment ac;
@@ -158,7 +154,7 @@ WrapperFactory::DoubleWrap(JSContext *cx, JSObject *obj, unsigned flags)
 }
 
 JSObject *
-WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj, unsigned flags)
+WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj, uintN flags)
 {
     // Don't unwrap an outer window, just double wrap it if needed.
     if (js::GetObjectClass(obj)->ext.innerObject)
@@ -265,21 +261,21 @@ CanXray(JSObject *obj, bool *proxy)
 
 JSObject *
 WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSObject *parent,
-                       unsigned flags)
+                       uintN flags)
 {
     NS_ASSERTION(!IsWrapper(obj) ||
                  GetProxyHandler(obj) == &WaiveXrayWrapperWrapper ||
                  js::GetObjectClass(obj)->ext.innerObject,
                  "wrapped object passed to rewrap");
-    NS_ASSERTION(JS_GetClass(obj) != &XrayUtils::HolderClass, "trying to wrap a holder");
+    NS_ASSERTION(JS_GET_CLASS(cx, obj) != &XrayUtils::HolderClass, "trying to wrap a holder");
 
     JSCompartment *origin = js::GetObjectCompartment(obj);
-    JSCompartment *target = js::GetContextCompartment(cx);
+    JSCompartment *target = cx->compartment;
     JSObject *xrayHolder = nsnull;
 
     Wrapper *wrapper;
     CompartmentPrivate *targetdata =
-        static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(target));
+        static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(cx, target));
     if (AccessCheck::isChrome(target)) {
         if (AccessCheck::isChrome(origin)) {
             wrapper = &CrossCompartmentWrapper::singleton;
@@ -401,6 +397,8 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
     if (!wrapperObj || !xrayHolder)
         return wrapperObj;
 
+    // NB: The fact that the only wrappers to use ProxyExtra are XrayWrappers
+    // is relied on by XPCNativeWrapper.unwrap.
     js::SetProxyExtra(wrapperObj, 0, js::ObjectValue(*xrayHolder));
     return wrapperObj;
 }
@@ -441,7 +439,7 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
 
     JSObject *obj = js::UnwrapObject(JSVAL_TO_OBJECT(*vp));
     obj = GetCurrentOuter(cx, obj);
-    if (js::IsObjectInContextCompartment(obj, cx)) {
+    if (js::GetObjectCompartment(obj) == cx->compartment) {
         *vp = OBJECT_TO_JSVAL(obj);
         return true;
     }
@@ -458,7 +456,7 @@ JSObject *
 WrapperFactory::WrapSOWObject(JSContext *cx, JSObject *obj)
 {
     JSObject *wrapperObj =
-        Wrapper::New(cx, obj, JS_GetPrototype(obj), JS_GetGlobalForObject(cx, obj),
+        Wrapper::New(cx, obj, JS_GetPrototype(cx, obj), JS_GetGlobalForObject(cx, obj),
                      &FilteringWrapper<SameCompartmentSecurityWrapper,
                      OnlyIfSubjectIsSystem>::singleton);
     return wrapperObj;

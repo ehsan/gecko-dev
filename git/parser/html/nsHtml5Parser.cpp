@@ -42,6 +42,7 @@
 #include "nsScriptLoader.h"
 #include "nsNetUtil.h"
 #include "nsIStyleSheetLinkingElement.h"
+#include "nsICharsetAlias.h"
 #include "nsIWebShellServices.h"
 #include "nsIDocShell.h"
 #include "nsEncoderDecoderUtils.h"
@@ -129,7 +130,6 @@ nsHtml5Parser::SetCommand(const char* aCommand)
 {
   NS_ASSERTION(!strcmp(aCommand, "view") ||
                !strcmp(aCommand, "view-source") ||
-               !strcmp(aCommand, "external-resource") ||
                !strcmp(aCommand, kLoadAsData),
                "Unsupported parser command");
 }
@@ -154,6 +154,12 @@ nsHtml5Parser::SetDocumentCharset(const nsACString& aCharset,
   mStreamParser->SetDocumentCharset(trimmed, aCharsetSource);
   mExecutor->SetDocumentCharsetAndSource(trimmed,
                                          aCharsetSource);
+}
+
+NS_IMETHODIMP_(void)
+nsHtml5Parser::SetParserFilter(nsIParserFilter* aFilter)
+{
+  NS_ERROR("Attempt to set a parser filter on HTML5 parser.");
 }
 
 NS_IMETHODIMP
@@ -196,13 +202,6 @@ NS_IMETHODIMP_(void)
 nsHtml5Parser::UnblockParser()
 {
   mBlocked = false;
-  mExecutor->ContinueInterruptedParsingAsync();
-}
-
-NS_IMETHODIMP_(void)
-nsHtml5Parser::ContinueInterruptedParsingAsync()
-{
-  mExecutor->ContinueInterruptedParsingAsync();
 }
 
 NS_IMETHODIMP_(bool)
@@ -218,9 +217,9 @@ nsHtml5Parser::IsComplete()
 }
 
 NS_IMETHODIMP
-nsHtml5Parser::Parse(nsIURI* aURL,
+nsHtml5Parser::Parse(nsIURI* aURL, // legacy parameter; ignored
                      nsIRequestObserver* aObserver,
-                     void* aKey, // legacy; ignored
+                     void* aKey,
                      nsDTDMode aMode) // legacy; ignored
 {
   /*
@@ -232,9 +231,9 @@ nsHtml5Parser::Parse(nsIURI* aURL,
   NS_PRECONDITION(mStreamParser, 
                   "Can't call this Parse() variant on script-created parser");
   mStreamParser->SetObserver(aObserver);
-  mStreamParser->SetViewSourceTitle(aURL); // In case we're viewing source
   mExecutor->SetStreamParser(mStreamParser);
   mExecutor->SetParser(this);
+  mRootContextKey = aKey;
   return NS_OK;
 }
 
@@ -245,6 +244,8 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
                      bool aLastCall,
                      nsDTDMode aMode) // ignored
 {
+  NS_PRECONDITION(!mExecutor->IsFragmentMode(),
+                  "Document.write called in fragment mode!");
   if (mExecutor->IsBroken()) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -287,14 +288,10 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     return NS_OK;
   }
 
-  if (aLastCall && aSourceBuffer.IsEmpty() && !aKey) {
+  if (aLastCall && aSourceBuffer.IsEmpty() && aKey == GetRootContextKey()) {
     // document.close()
     NS_ASSERTION(!mStreamParser,
                  "Had stream parser but got document.close().");
-    if (mDocumentClosed) {
-      // already closed
-      return NS_OK;
-    }
     mDocumentClosed = true;
     if (!mBlocked && !mInDocumentWrite) {
       ParseUntilBlocked();
@@ -409,7 +406,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     mLastWasCR = false;
     if (stackBuffer.hasMore()) {
       PRInt32 lineNumberSave;
-      bool inRootContext = (!mStreamParser && !aKey);
+      bool inRootContext = (!mStreamParser && (aKey == mRootContextKey));
       if (inRootContext) {
         mTokenizer->setLineNumber(mRootContextLineNumber);
       } else {
@@ -536,6 +533,15 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
   return NS_OK;
 }
 
+/**
+ * This magic value is passed to the previous method on document.close()
+ */
+NS_IMETHODIMP_(void *)
+nsHtml5Parser::GetRootContextKey()
+{
+  return mRootContextKey;
+}
+
 NS_IMETHODIMP
 nsHtml5Parser::Terminate()
 {
@@ -562,6 +568,79 @@ nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+nsresult
+nsHtml5Parser::ParseHtml5Fragment(const nsAString& aSourceBuffer,
+                                  nsIContent* aTargetNode,
+                                  nsIAtom* aContextLocalName,
+                                  PRInt32 aContextNamespace,
+                                  bool aQuirks,
+                                  bool aPreventScriptExecution)
+{
+  NS_ENSURE_TRUE(aSourceBuffer.Length() <= PR_INT32_MAX,
+      NS_ERROR_OUT_OF_MEMORY);
+  nsIDocument* doc = aTargetNode->OwnerDoc();
+  
+  nsIURI* uri = doc->GetDocumentURI();
+  NS_ENSURE_TRUE(uri, NS_ERROR_NOT_AVAILABLE);
+
+  mExecutor->EnableFragmentMode(aPreventScriptExecution);
+
+  Initialize(doc, uri, nsnull, nsnull);
+
+  mExecutor->SetParser(this);
+  mExecutor->SetNodeInfoManager(doc->NodeInfoManager());
+
+  nsIContent* target = aTargetNode;
+  mTreeBuilder->setFragmentContext(aContextLocalName,
+                                   aContextNamespace,
+                                   &target,
+                                   aQuirks);
+
+#ifdef DEBUG
+  if (!aPreventScriptExecution) {
+    NS_ASSERTION(!aTargetNode->IsInDoc(),
+        "If script execution isn't prevented, "
+        "the target node must not be in doc.");
+    nsCOMPtr<nsIDOMDocumentFragment> domFrag = do_QueryInterface(aTargetNode);
+    NS_ASSERTION(domFrag,
+        "If script execution isn't prevented, must parse to DOM fragment.");
+  }
+#endif
+
+  NS_PRECONDITION(!mExecutor->HasStarted(),
+                  "Tried to start parse without initializing the parser.");
+  mTreeBuilder->setScriptingEnabled(mExecutor->IsScriptEnabled());
+  mTokenizer->start();
+  mExecutor->Start(); // Don't call WillBuildModel in fragment case
+  if (!aSourceBuffer.IsEmpty()) {
+    bool lastWasCR = false;
+    nsHtml5DependentUTF16Buffer buffer(aSourceBuffer);    
+    while (buffer.hasMore()) {
+      buffer.adjust(lastWasCR);
+      lastWasCR = false;
+      if (buffer.hasMore()) {
+        lastWasCR = mTokenizer->tokenizeBuffer(&buffer);
+        if (mTreeBuilder->HasScript()) {
+          // Flush on each script, because the execution prevention code
+          // can handle at most one script per flush.
+          mTreeBuilder->Flush(); // Move ops to the executor
+          mExecutor->FlushDocumentWrite(); // run the ops
+        }
+      }
+    }
+  }
+  mTokenizer->eof();
+  mTreeBuilder->StreamEnded();
+  mTreeBuilder->Flush();
+  mExecutor->FlushDocumentWrite();
+  mTokenizer->end();
+  mExecutor->DropParserAndPerfHint();
+  mExecutor->DropHeldElements();
+  mTreeBuilder->DropHandles();
+  mAtomTable.Clear();
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsHtml5Parser::BuildModel()
 {
@@ -579,7 +658,22 @@ nsHtml5Parser::CancelParsingEvents()
 void
 nsHtml5Parser::Reset()
 {
-  NS_NOTREACHED("Don't call this!");
+  NS_PRECONDITION(mExecutor->IsFragmentMode(),
+                  "Reset called on a non-fragment parser.");
+  mExecutor->Reset();
+  mLastWasCR = false;
+  UnblockParser();
+  mDocumentClosed = false;
+  mStreamParser = nsnull;
+  mRootContextLineNumber = 1;
+  mParserInsertedScriptsBeingEvaluated = 0;
+  mRootContextKey = nsnull;
+  mAtomTable.Clear(); // should be already cleared in the fragment case anyway
+  // Portable parser objects
+  mFirstBuffer->next = nsnull;
+  mFirstBuffer->setStart(0);
+  mFirstBuffer->setEnd(0);
+  mLastBuffer = mFirstBuffer;
 }
 
 bool
@@ -618,8 +712,6 @@ nsHtml5Parser::MarkAsNotScriptCreated(const char* aCommand)
     mode = VIEW_SOURCE_HTML;
   } else if (!nsCRT::strcmp(aCommand, "view-source-xml")) {
     mode = VIEW_SOURCE_XML;
-  } else if (!nsCRT::strcmp(aCommand, "view-source-plain")) {
-    mode = VIEW_SOURCE_PLAIN;
   } else if (!nsCRT::strcmp(aCommand, "plain-text")) {
     mode = PLAIN_TEXT;
   } else if (!nsCRT::strcmp(aCommand, kLoadAsData)) {
@@ -627,9 +719,8 @@ nsHtml5Parser::MarkAsNotScriptCreated(const char* aCommand)
   }
 #ifdef DEBUG
   else {
-    NS_ASSERTION(!nsCRT::strcmp(aCommand, "view") ||
-                 !nsCRT::strcmp(aCommand, "external-resource"),
-                 "Unsupported parser command!");
+    NS_ASSERTION(!nsCRT::strcmp(aCommand, "view"),
+        "Unsupported parser command!");
   }
 #endif
   mStreamParser = new nsHtml5StreamParser(mExecutor, this, mode);
@@ -647,6 +738,9 @@ nsHtml5Parser::IsScriptCreated()
 void
 nsHtml5Parser::ParseUntilBlocked()
 {
+  NS_PRECONDITION(!mExecutor->IsFragmentMode(),
+                  "ParseUntilBlocked called in fragment mode.");
+
   if (mBlocked || mExecutor->IsComplete() || mExecutor->IsBroken()) {
     return;
   }
@@ -707,7 +801,8 @@ nsHtml5Parser::ParseUntilBlocked()
     mFirstBuffer->adjust(mLastWasCR);
     mLastWasCR = false;
     if (mFirstBuffer->hasMore()) {
-      bool inRootContext = (!mStreamParser && !mFirstBuffer->key);
+      bool inRootContext = (!mStreamParser &&
+                              (mFirstBuffer->key == mRootContextKey));
       if (inRootContext) {
         mTokenizer->setLineNumber(mRootContextLineNumber);
       }

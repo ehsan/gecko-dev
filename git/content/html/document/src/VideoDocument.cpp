@@ -57,7 +57,6 @@ public:
                                      nsIStreamListener** aDocListener,
                                      bool                aReset = true,
                                      nsIContentSink*     aSink = nsnull);
-  virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject);
 
 protected:
 
@@ -85,6 +84,8 @@ VideoDocument::StartDocumentLoad(const char*         aCommand,
   NS_ENSURE_SUCCESS(rv, rv);
 
   mStreamListener = new MediaDocumentStreamListener(this);
+  if (!mStreamListener)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // Create synthetic document
   rv = CreateSyntheticVideoDocument(aChannel,
@@ -93,18 +94,6 @@ VideoDocument::StartDocumentLoad(const char*         aCommand,
 
   NS_ADDREF(*aDocListener = mStreamListener);
   return rv;
-}
-
-void
-VideoDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
-{
-  // Set the script global object on the superclass before doing
-  // anything that might require it....
-  MediaDocument::SetScriptGlobalObject(aScriptGlobalObject);
-
-  if (aScriptGlobalObject && !nsContentUtils::IsChildOfSameType(this)) {
-    LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelVideoDocument.css"));
-  }
 }
 
 nsresult
@@ -144,6 +133,8 @@ VideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
     element->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
         NS_LITERAL_STRING("position:absolute; top:0; left:0; width:100%; height:100%"),
         true);
+  } else {
+    LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelVideoDocument.css"));
   }
 
   return body->AppendChildTo(element, false);
@@ -167,6 +158,7 @@ nsresult
 NS_NewVideoDocument(nsIDocument** aResult)
 {
   mozilla::dom::VideoDocument* doc = new mozilla::dom::VideoDocument();
+  NS_ENSURE_TRUE(doc, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ADDREF(doc);
   nsresult rv = doc->Init();

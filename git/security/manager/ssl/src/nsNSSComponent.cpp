@@ -47,6 +47,7 @@
 #include "nsNSSComponent.h"
 #include "nsNSSCallbacks.h"
 #include "nsNSSIOLayer.h"
+#include "nsSSLThread.h"
 #include "nsCertVerificationThread.h"
 
 #include "nsNetUtil.h"
@@ -67,6 +68,7 @@
 #include "prlog.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsIDOMEvent.h"
@@ -362,7 +364,7 @@ nsNSSComponent::nsNSSComponent()
    mNSSInitialized(false),
    mCrlTimerLock("nsNSSComponent.mCrlTimerLock"),
    mThreadList(nsnull),
-   mCertVerificationThread(NULL)
+   mSSLThread(NULL), mCertVerificationThread(NULL)
 {
 #ifdef PR_LOGGING
   if (!gPIPNSSLog)
@@ -389,6 +391,12 @@ nsNSSComponent::nsNSSComponent()
 void 
 nsNSSComponent::deleteBackgroundThreads()
 {
+  if (mSSLThread)
+  {
+    mSSLThread->requestExit();
+    delete mSSLThread;
+    mSSLThread = nsnull;
+  }
   if (mCertVerificationThread)
   {
     mCertVerificationThread->requestExit();
@@ -400,11 +408,20 @@ nsNSSComponent::deleteBackgroundThreads()
 void
 nsNSSComponent::createBackgroundThreads()
 {
+  NS_ASSERTION(mSSLThread == nsnull, "SSL thread already created.");
   NS_ASSERTION(mCertVerificationThread == nsnull,
                "Cert verification thread already created.");
 
+  mSSLThread = new nsSSLThread;
+  nsresult rv = mSSLThread->startThread();
+  if (NS_FAILED(rv)) {
+    delete mSSLThread;
+    mSSLThread = nsnull;
+    return;
+  }
+
   mCertVerificationThread = new nsCertVerificationThread;
-  nsresult rv = mCertVerificationThread->startThread();
+  rv = mCertVerificationThread->startThread();
   if (NS_FAILED(rv)) {
     delete mCertVerificationThread;
     mCertVerificationThread = nsnull;
@@ -827,10 +844,7 @@ nsNSSComponent::InstallLoadableRoots()
   if (!directoryService)
     return;
 
-  static const char nss_lib[] = "nss3";
   const char *possible_ckbi_locations[] = {
-    nss_lib, // This special value means: search for ckbi in the directory
-             // where nss3 is.
     NS_XPCOM_CURRENT_PROCESS_DIR,
     NS_GRE_DIR,
     0 // This special value means: 
@@ -848,30 +862,9 @@ nsNSSComponent::InstallLoadableRoots()
     }
     else
     {
-      if (possible_ckbi_locations[il] == nss_lib) {
-        // Get the location of the nss3 library.
-        char *nss_path = PR_GetLibraryFilePathname(DLL_PREFIX "nss3" DLL_SUFFIX,
-                                                   (PRFuncPtr) NSS_Initialize);
-        if (!nss_path) {
-          continue;
-        }
-        // Get the directory containing the nss3 library.
-        nsCOMPtr<nsILocalFile> nssLib(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
-        if (NS_SUCCEEDED(rv)) {
-          rv = nssLib->InitWithNativePath(nsDependentCString(nss_path));
-        }
-        PR_Free(nss_path);
-        if (NS_SUCCEEDED(rv)) {
-          nsCOMPtr<nsIFile> file;
-          if (NS_SUCCEEDED(nssLib->GetParent(getter_AddRefs(file)))) {
-            mozFile = do_QueryInterface(file);
-          }
-        }
-      } else {
-        directoryService->Get( possible_ckbi_locations[il],
-                               NS_GET_IID(nsILocalFile), 
-                               getter_AddRefs(mozFile));
-      }
+      directoryService->Get( possible_ckbi_locations[il],
+                             NS_GET_IID(nsILocalFile), 
+                             getter_AddRefs(mozFile));
   
       if (!mozFile) {
         continue;
@@ -1365,6 +1358,8 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
 NS_IMETHODIMP
 nsNSSComponent::Notify(nsITimer *timer)
 {
+  nsresult rv;
+
   //Timer has fired. So set the flag accordingly
   {
     MutexAutoLock lock(mCrlTimerLock);
@@ -1372,7 +1367,7 @@ nsNSSComponent::Notify(nsITimer *timer)
   }
 
   //First, handle this download
-  DownloadCrlSilently();
+  rv = DownloadCrlSilently();
 
   //Dont Worry if successful or not
   //Set the next timer
@@ -1597,26 +1592,6 @@ nsNSSComponent::TryCFM2MachOMigration(nsIFile *cfmPath, nsIFile *machoPath)
 }
 #endif
 
-static void configureMD5(bool enabled)
-{
-  if (enabled) { // set flags
-    NSS_SetAlgorithmPolicy(SEC_OID_MD5, 
-        NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE, 0);
-    NSS_SetAlgorithmPolicy(SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION,
-        NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE, 0);
-    NSS_SetAlgorithmPolicy(SEC_OID_PKCS5_PBE_WITH_MD5_AND_DES_CBC,
-        NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE, 0);
-  }
-  else { // clear flags
-    NSS_SetAlgorithmPolicy(SEC_OID_MD5,
-        0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
-    NSS_SetAlgorithmPolicy(SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION,
-        0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
-    NSS_SetAlgorithmPolicy(SEC_OID_PKCS5_PBE_WITH_MD5_AND_DES_CBC,
-        0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
-  }
-}
-
 nsresult
 nsNSSComponent::InitializeNSS(bool showWarningBox)
 {
@@ -1799,7 +1774,8 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
       PK11_SetPasswordFunc(PK11PasswordPrompt);
 
       // Register an observer so we can inform NSS when these prefs change
-      mPrefBranch->AddObserver("security.", this, false);
+      nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefBranch);
+      pbi->AddObserver("security.", this, false);
 
       SSL_OptionSetDefault(SSL_ENABLE_SSL2, false);
       SSL_OptionSetDefault(SSL_V2_COMPATIBLE_HELLO, false);
@@ -1808,8 +1784,6 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
       SSL_OptionSetDefault(SSL_ENABLE_SSL3, enabled);
       mPrefBranch->GetBoolPref("security.enable_tls", &enabled);
       SSL_OptionSetDefault(SSL_ENABLE_TLS, enabled);
-      mPrefBranch->GetBoolPref("security.enable_md5_signatures", &enabled);
-      configureMD5(enabled);
 
       // Configure TLS session tickets
       mPrefBranch->GetBoolPref("security.enable_tls_session_tickets", &enabled);
@@ -1925,7 +1899,8 @@ nsNSSComponent::ShutdownNSS()
     UnregisterMyOCSPAIAInfoCallback();
 
     if (mPrefBranch) {
-      mPrefBranch->RemoveObserver("security.", this);
+      nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefBranch);
+      pbi->RemoveObserver("security.", this);
     }
 
     ShutdownSmartCardThreads();
@@ -2024,7 +1999,7 @@ nsNSSComponent::Init()
     mClientAuthRememberService->Init();
 
   createBackgroundThreads();
-  if (!mCertVerificationThread)
+  if (!mSSLThread || !mCertVerificationThread)
   {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, could not create threads\n"));
 
@@ -2300,9 +2275,11 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
     // Cleanup code that requires services, it's too late in destructor.
 
     if (mPSMContentListener) {
+      nsresult rv = NS_ERROR_FAILURE;
+
       nsCOMPtr<nsIURILoader> dispatcher(do_GetService(NS_URI_LOADER_CONTRACTID));
       if (dispatcher) {
-        dispatcher->UnRegisterContentListener(mPSMContentListener);
+        rv = dispatcher->UnRegisterContentListener(mPSMContentListener);
       }
       mPSMContentListener = nsnull;
     }
@@ -2331,10 +2308,6 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
     } else if (prefName.Equals("security.enable_tls")) {
       mPrefBranch->GetBoolPref("security.enable_tls", &enabled);
       SSL_OptionSetDefault(SSL_ENABLE_TLS, enabled);
-      clearSessionCache = true;
-    } else if (prefName.Equals("security.enable_md5_signatures")) {
-      mPrefBranch->GetBoolPref("security.enable_md5_signatures", &enabled);
-      configureMD5(enabled);
       clearSessionCache = true;
     } else if (prefName.Equals("security.enable_tls_session_tickets")) {
       mPrefBranch->GetBoolPref("security.enable_tls_session_tickets", &enabled);
@@ -2576,6 +2549,8 @@ nsNSSComponent::DoProfileApproveChange(nsISupports* aSubject)
 void
 nsNSSComponent::DoProfileChangeNetTeardown()
 {
+  if (mSSLThread)
+    mSSLThread->requestExit();
   if (mCertVerificationThread)
     mCertVerificationThread->requestExit();
   mIsNetworkDown = true;

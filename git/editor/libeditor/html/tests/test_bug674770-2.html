@@ -49,7 +49,6 @@ function clickEventHnalder(aEvent)
 //       are a lot of functions and SimpleTest.executeSoon()s.
 
 SimpleTest.waitForFocus(function() {
-  SpecialPowers.setBoolPref("middlemouse.contentLoadURL", false);
   SpecialPowers.setBoolPref("middlemouse.paste", true);
 
   frameWindow = iframe.contentWindow;
@@ -65,9 +64,9 @@ SimpleTest.waitForFocus(function() {
 
   SimpleTest.executeSoon(function() {
     synthesizeKey("a", { accelKey: true }, frameWindow);
-    // Windows and Mac don't have primary selection, we should copy the text to
-    // the global clipboard.
-    if (!SpecialPowers.supportsSelectionClipboard()) {
+    // Windows doesn't have primary selection, we should copy the text to the
+    // global clipboard.
+    if (navigator.platform.indexOf("Win") == 0) {
       SimpleTest.waitForClipboard("pasted",
         function() { synthesizeKey("c", { accelKey: true }, frameWindow); },
         function() { SimpleTest.executeSoon(runInputTests1) },
@@ -385,9 +384,7 @@ function runBodyEditableDocumentTests2()
 
 function cleanup()
 {
-  SpecialPowers.clearUserPref("middlemouse.contentLoadURL");
   SpecialPowers.clearUserPref("middlemouse.paste");
-
   SimpleTest.finish();
 }
 

@@ -181,9 +181,3 @@ interface nsIDOMEvent : nsISupports
    */
   void                       stopImmediatePropagation();
 };
-
-dictionary EventInit
-{
-  boolean bubbles;
-  boolean cancelable;
-};

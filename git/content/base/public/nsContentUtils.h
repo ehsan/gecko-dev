@@ -79,15 +79,9 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsINode.h"
 #include "nsHashtable.h"
 #include "nsIDOMNode.h"
-#include "nsHtml5StringParser.h"
-#include "nsIParser.h"
-#include "nsIDocument.h"
+#include "nsHtml5Parser.h"
 #include "nsIFragmentContentSink.h"
-#include "nsContentSink.h"
 #include "nsMathUtils.h"
-#include "nsThreadUtils.h"
-#include "nsIContent.h"
-#include "nsCharSeparatedTokenizer.h"
 
 #include "mozilla/AutoRestore.h"
 #include "mozilla/GuardObjects.h"
@@ -131,6 +125,7 @@ class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
 template<class K, class V> class nsRefPtrHashtable;
 struct JSRuntime;
+class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
 class nsIPresShell;
@@ -177,48 +172,6 @@ enum EventNameType {
   EventNameType_All = 0xFFFF
 };
 
-/**
- * Information retrieved from the <meta name="viewport"> tag. See
- * GetViewportInfo for more information on this functionality.
- */
-struct ViewportInfo
-{
-    // Default zoom indicates the level at which the display is 'zoomed in'
-    // initially for the user, upon loading of the page.
-    double defaultZoom;
-
-    // The minimum zoom level permitted by the page.
-    double minZoom;
-
-    // The maximum zoom level permitted by the page.
-    double maxZoom;
-
-    // The width of the viewport, specified by the <meta name="viewport"> tag,
-    // in CSS pixels.
-    PRUint32 width;
-
-    // The height of the viewport, specified by the <meta name="viewport"> tag,
-    // in CSS pixels.
-    PRUint32 height;
-
-    // Whether or not we should automatically size the viewport to the device's
-    // width. This is true if the document has been optimized for mobile, and
-    // the width property of a specified <meta name="viewport"> tag is either
-    // not specified, or is set to the special value 'device-width'.
-    bool autoSize;
-
-    // Whether or not the user can zoom in and out on the page. Default is true.
-    bool allowZoom;
-
-    // This is a holdover from e10s fennec, and might be removed in the future.
-    // It's a hack to work around bugs that didn't allow zooming of documents
-    // from within the parent process. It is still used in native Fennec for XUL
-    // documents, but it should probably be removed.
-    // Currently, from, within GetViewportInfo(), This is only set to false
-    // if the document is a XUL document.
-    bool autoScale;
-};
-
 struct EventNameMapping
 {
   nsIAtom* mAtom;
@@ -239,6 +192,7 @@ struct nsShortcutCandidate {
 class nsContentUtils
 {
   friend class nsAutoScriptBlockerSuppressNodeRemoved;
+  friend class mozilla::AutoRestore<bool>;
   typedef mozilla::dom::Element Element;
   typedef mozilla::TimeDuration TimeDuration;
 
@@ -279,9 +233,10 @@ public:
   static bool     IsCallerTrustedForWrite();
 
   /**
-   * Check whether a caller has UniversalXPConnect.
+   * Check whether a caller is trusted to have aCapability.  This also
+   * checks for UniversalXPConnect in addition to aCapability.
    */
-  static bool     CallerHasUniversalXPConnect();
+  static bool     IsCallerTrustedForCapability(const char* aCapability);
 
   static bool     IsImageSrcSetDisabled();
 
@@ -374,9 +329,6 @@ public:
   static PRInt32 ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
                                nsINode* aParent2, PRInt32 aOffset2,
                                bool* aDisconnected = nsnull);
-  static PRInt32 ComparePoints(nsIDOMNode* aParent1, PRInt32 aOffset1,
-                               nsIDOMNode* aParent2, PRInt32 aOffset2,
-                               bool* aDisconnected = nsnull);
 
   /**
    * Brute-force search of the element subtree rooted at aContent for
@@ -422,8 +374,8 @@ public:
   /**
    * Returns true if aChar is of class Ps, Pi, Po, Pf, or Pe.
    */
-  static bool IsFirstLetterPunctuation(PRUint32 aChar);
-  static bool IsFirstLetterPunctuationAt(const nsTextFragment* aFrag, PRUint32 aOffset);
+  static bool IsPunctuationMark(PRUint32 aChar);
+  static bool IsPunctuationMarkAt(const nsTextFragment* aFrag, PRUint32 aOffset);
  
   /**
    * Returns true if aChar is of class Lu, Ll, Lt, Lm, Lo, Nd, Nl or No
@@ -440,16 +392,6 @@ public:
    * HTML 4.01 also lists U+200B (zero-width space).
    */
   static bool IsHTMLWhitespace(PRUnichar aChar);
-
-  /**
-   * Is the HTML local name a block element?
-   */
-  static bool IsHTMLBlock(nsIAtom* aLocalName);
-
-  /**
-   * Is the HTML local name a void element?
-   */
-  static bool IsHTMLVoid(nsIAtom* aLocalName);
 
   /**
    * Parse a margin string of format 'top, right, bottom, left' into
@@ -634,6 +576,11 @@ public:
     return sWordBreaker;
   }
 
+  static nsIUGenCategory* GetGenCat()
+  {
+    return sGenCat;
+  }
+
   /**
    * Regster aObserver as a shutdown observer. A strong reference is held
    * to aObserver until UnregisterShutdownObserver is called.
@@ -793,22 +740,19 @@ public:
 
   /**
    * Report a localized error message to the error console.
-   *   @param aErrorFlags See nsIScriptError.
-   *   @param aCategory Name of module reporting error.
-   *   @param aDocument Reference to the document which triggered the message.
    *   @param aFile Properties file containing localized message.
    *   @param aMessageName Name of localized message.
-   *   @param [aParams=nsnull] (Optional) Parameters to be substituted into
-              localized message.
-   *   @param [aParamsLength=0] (Optional) Length of aParams.
-   *   @param [aURI=nsnull] (Optional) URI of resource containing error.
-   *   @param [aSourceLine=EmptyString()] (Optional) The text of the line that
-              contains the error (may be empty).
-   *   @param [aLineNumber=0] (Optional) Line number within resource
-              containing error.
-   *   @param [aColumnNumber=0] (Optional) Column number within resource
-              containing error.
-              If aURI is null, then aDocument->GetDocumentURI() is used.
+   *   @param aParams Parameters to be substituted into localized message.
+   *   @param aParamsLength Length of aParams.
+   *   @param aURI URI of resource containing error (may be null).
+   *   @param aSourceLine The text of the line that contains the error (may be
+              empty).
+   *   @param aLineNumber Line number within resource containing error.
+   *   @param aColumnNumber Column number within resource containing error.
+   *   @param aErrorFlags See nsIScriptError.
+   *   @param aCategory Name of module reporting error.
+   *   @param [aInnerWindowId=0] (Optional) The window ID of the inner window
+   *          the message originates from.
    */
   enum PropertiesFile {
     eCSS_PROPERTIES,
@@ -824,18 +768,45 @@ public:
     eCOMMON_DIALOG_PROPERTIES,
     PropertiesFile_COUNT
   };
-  static nsresult ReportToConsole(PRUint32 aErrorFlags,
-                                  const char *aCategory,
-                                  nsIDocument* aDocument,
-                                  PropertiesFile aFile,
+  static nsresult ReportToConsole(PropertiesFile aFile,
                                   const char *aMessageName,
-                                  const PRUnichar **aParams = nsnull,
-                                  PRUint32 aParamsLength = 0,
-                                  nsIURI* aURI = nsnull,
-                                  const nsAFlatString& aSourceLine
-                                    = EmptyString(),
-                                  PRUint32 aLineNumber = 0,
-                                  PRUint32 aColumnNumber = 0);
+                                  const PRUnichar **aParams,
+                                  PRUint32 aParamsLength,
+                                  nsIURI* aURI,
+                                  const nsAFlatString& aSourceLine,
+                                  PRUint32 aLineNumber,
+                                  PRUint32 aColumnNumber,
+                                  PRUint32 aErrorFlags,
+                                  const char *aCategory,
+                                  PRUint64 aInnerWindowId = 0);
+
+  /**
+   * Report a localized error message to the error console.
+   *   @param aFile Properties file containing localized message.
+   *   @param aMessageName Name of localized message.
+   *   @param aParams Parameters to be substituted into localized message.
+   *   @param aParamsLength Length of aParams.
+   *   @param aURI URI of resource containing error (may be null).
+   *   @param aSourceLine The text of the line that contains the error (may be
+              empty).
+   *   @param aLineNumber Line number within resource containing error.
+   *   @param aColumnNumber Column number within resource containing error.
+   *   @param aErrorFlags See nsIScriptError.
+   *   @param aCategory Name of module reporting error.
+   *   @param aDocument Reference to the document which triggered the message.
+              If aURI is null, then aDocument->GetDocumentURI() is used.
+   */
+  static nsresult ReportToConsole(PropertiesFile aFile,
+                                  const char *aMessageName,
+                                  const PRUnichar **aParams,
+                                  PRUint32 aParamsLength,
+                                  nsIURI* aURI,
+                                  const nsAFlatString& aSourceLine,
+                                  PRUint32 aLineNumber,
+                                  PRUint32 aColumnNumber,
+                                  PRUint32 aErrorFlags,
+                                  const char *aCategory,
+                                  nsIDocument* aDocument);
 
   /**
    * Get the localized string named |aKey| in properties file |aFile|.
@@ -848,22 +819,11 @@ public:
    * Fill (with the parameters given) the localized string named |aKey| in
    * properties file |aFile|.
    */
-private:
   static nsresult FormatLocalizedString(PropertiesFile aFile,
                                         const char* aKey,
-                                        const PRUnichar** aParams,
+                                        const PRUnichar **aParams,
                                         PRUint32 aParamsLength,
                                         nsXPIDLString& aResult);
-  
-public:
-  template<PRUint32 N>
-  static nsresult FormatLocalizedString(PropertiesFile aFile,
-                                        const char* aKey,
-                                        const PRUnichar* (&aParams)[N],
-                                        nsXPIDLString& aResult)
-  {
-    return FormatLocalizedString(aFile, aKey, aParams, N, aResult);
-  }
 
   /**
    * Returns true if aDocument is a chrome document
@@ -965,26 +925,6 @@ public:
                                        bool aCanBubble,
                                        bool aCancelable,
                                        bool *aDefaultAction = nsnull);
-                                       
-  /**
-   * This method creates and dispatches a untrusted event.
-   * Works only with events which can be created by calling
-   * nsIDOMDocument::CreateEvent() with parameter "Events".
-   * @param aDoc           The document which will be used to create the event.
-   * @param aTarget        The target of the event, should be QIable to
-   *                       nsIDOMEventTarget.
-   * @param aEventName     The name of the event.
-   * @param aCanBubble     Whether the event can bubble.
-   * @param aCancelable    Is the event cancelable.
-   * @param aDefaultAction Set to true if default action should be taken,
-   *                       see nsIDOMEventTarget::DispatchEvent.
-   */
-  static nsresult DispatchUntrustedEvent(nsIDocument* aDoc,
-                                         nsISupports* aTarget,
-                                         const nsAString& aEventName,
-                                         bool aCanBubble,
-                                         bool aCancelable,
-                                         bool *aDefaultAction = nsnull);
 
   /**
    * This method creates and dispatches a trusted event to the chrome
@@ -1074,8 +1014,6 @@ public:
   static nsEventListenerManager* GetListenerManager(nsINode* aNode,
                                                     bool aCreateIfNotFound);
 
-  static void UnmarkGrayJSListenersInCCGenerationDocuments(PRUint32 aGeneration);
-
   /**
    * Remove the eventlistener manager for aNode.
    *
@@ -1131,8 +1069,7 @@ public:
    *        don't set to false when parsing into a target node that has been
    *        bound to tree.
    * @return NS_ERROR_DOM_INVALID_STATE_ERR if a re-entrant attempt to parse
-   *         fragments is made, NS_ERROR_OUT_OF_MEMORY if aSourceBuffer is too
-   *         long and NS_OK otherwise.
+   *         fragments is made and NS_OK otherwise.
    */
   static nsresult ParseFragmentHTML(const nsAString& aSourceBuffer,
                                     nsIContent* aTargetNode,
@@ -1157,42 +1094,6 @@ public:
                                    nsTArray<nsString>& aTagStack,
                                    bool aPreventScriptExecution,
                                    nsIDOMDocumentFragment** aReturn);
-
-  /**
-   * Parse a string into a document using the HTML parser.
-   * Script elements are marked unexecutable.
-   *
-   * @param aSourceBuffer the string to parse as an HTML document
-   * @param aTargetDocument the document object to parse into. Must not have
-   *                        child nodes.
-   * @param aScriptingEnabledForNoscriptParsing whether <noscript> is parsed
-   *                                            as if scripting was enabled
-   * @return NS_ERROR_DOM_INVALID_STATE_ERR if a re-entrant attempt to parse
-   *         fragments is made, NS_ERROR_OUT_OF_MEMORY if aSourceBuffer is too
-   *         long and NS_OK otherwise.
-   */
-  static nsresult ParseDocumentHTML(const nsAString& aSourceBuffer,
-                                    nsIDocument* aTargetDocument,
-                                    bool aScriptingEnabledForNoscriptParsing);
-
-  /**
-   * Converts HTML source to plain text by parsing the source and using the
-   * plain text serializer on the resulting tree.
-   *
-   * @param aSourceBuffer the string to parse as an HTML document
-   * @param aResultBuffer the string where the plain text result appears;
-   *                      may be the same string as aSourceBuffer
-   * @param aFlags Flags from nsIDocumentEncoder.
-   * @param aWrapCol Number of columns after which to line wrap; 0 for no
-   *                 auto-wrapping
-   * @return NS_ERROR_DOM_INVALID_STATE_ERR if a re-entrant attempt to parse
-   *         fragments is made, NS_ERROR_OUT_OF_MEMORY if aSourceBuffer is too
-   *         long and NS_OK otherwise.
-   */
-  static nsresult ConvertToPlainText(const nsAString& aSourceBuffer,
-                                     nsAString& aResultBuffer,
-                                     PRUint32 aFlags,
-                                     PRUint32 aWrapCol);
 
   /**
    * Creates a new XML document, which is marked to be loaded as data.
@@ -1556,6 +1457,13 @@ public:
   static void AddScriptBlocker();
 
   /**
+   * Increases the count of blockers preventing scripts from running.
+   * Also, while this script blocker is active, script runners must not be
+   * added --- we'll assert if one is, and ignore it.
+   */
+  static void AddScriptBlockerAndPreventAddingRunners();
+
+  /**
    * Decreases the count of blockers preventing scripts from running.
    * NOTE: You might want to use nsAutoScriptBlocker rather than calling
    * this directly
@@ -1588,18 +1496,6 @@ public:
     return sScriptBlockerCount == 0;
   }
 
-  /**
-   * Retrieve information about the viewport as a data structure.
-   * This will return information in the viewport META data section
-   * of the document. This can be used in lieu of ProcessViewportInfo(),
-   * which places the viewport information in the document header instead
-   * of returning it directly.
-   *
-   * NOTE: If the site is optimized for mobile (via the doctype), this
-   * will return viewport information that specifies default information.
-   */
-  static ViewportInfo GetViewportInfo(nsIDocument* aDocument);
-
   /* Process viewport META data. This gives us information for the scale
    * and zoom of a page on mobile devices. We stick the information in
    * the document header and use it later on after rendering.
@@ -1619,43 +1515,7 @@ public:
    * case for ASCII characters a-z.
    */
   static bool EqualsIgnoreASCIICase(const nsAString& aStr1,
-                                    const nsAString& aStr2);
-
-  /**
-   * Case insensitive comparison between a string and an ASCII literal.
-   * This must ONLY be applied to an actual literal string. Do not attempt
-   * to use it with a regular char* pointer, or with a char array variable.
-   * The template trick to acquire the array length at compile time without
-   * using a macro is due to Corey Kosak, which much thanks.
-   */
-  static bool EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
-                                           const char* aStr2,
-                                           const PRUint32 len);
-#ifdef NS_DISABLE_LITERAL_TEMPLATE
-  static inline bool
-  EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
-                               const char* aStr2)
-  {
-    PRUint32 len = strlen(aStr2);
-    return EqualsLiteralIgnoreASCIICase(aStr1, aStr2, len);
-  }
-#else
-  template<int N>
-  static inline bool
-  EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
-                               const char (&aStr2)[N])
-  {
-    return EqualsLiteralIgnoreASCIICase(aStr1, aStr2, N-1);
-  }
-  template<int N>
-  static inline bool
-  EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
-                               char (&aStr2)[N])
-  {
-    const char* s = aStr2;
-    return EqualsLiteralIgnoreASCIICase(aStr1, s, N-1);
-  }
-#endif
+                                      const nsAString& aStr2);
 
   /**
    * Convert ASCII A-Z to a-z.
@@ -1767,12 +1627,6 @@ public:
                       aAllowWrapping);
   }
 
-  /**
-   * Creates an arraybuffer from a binary string.
-   */
-  static nsresult CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
-                                    JSObject** aResult);
-
   static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
 
   /**
@@ -1804,13 +1658,6 @@ public:
   static nsresult GetElementsByClassName(nsINode* aRootNode,
                                          const nsAString& aClasses,
                                          nsIDOMNodeList** aReturn);
-
-  /**
-   * Returns the widget for this document if there is one. Looks at all ancestor
-   * documents to try to find a widget, so for example this can still find a
-   * widget for documents in display:none frames that have no presentation.
-   */
-  static nsIWidget *WidgetForDocument(nsIDocument *aDoc);
 
   /**
    * Returns a layer manager to use for the given document. Basically we
@@ -2008,44 +1855,6 @@ public:
    */
   static bool IsAutocompleteEnabled(nsIDOMHTMLInputElement* aInput);
 
-  /**
-   * If the URI is chrome, return true unconditionarlly.
-   *
-   * Otherwise, get the contents of the given pref, and treat it as a
-   * comma-separated list of URIs.  Return true if the given URI's prepath is
-   * in the list, and false otherwise.
-   *
-   * Comparisons are case-insensitive, and whitespace between elements of the
-   * comma-separated list is ignored.
-   */
-  static bool URIIsChromeOrInPref(nsIURI *aURI, const char *aPref);
-
-  /**
-   * This will parse aSource, to extract the value of the pseudo attribute
-   * with the name specified in aName. See
-   * http://www.w3.org/TR/xml-stylesheet/#NT-StyleSheetPI for the specification
-   * which is used to parse aSource.
-   *
-   * @param aSource the string to parse
-   * @param aName the name of the attribute to get the value for
-   * @param aValue [out] the value for the attribute with name specified in
-   *                     aAttribute. Empty if the attribute isn't present.
-   * @return true     if the attribute exists and was successfully parsed.
-   *         false if the attribute doesn't exist, or has a malformed
-   *                  value, such as an unknown or unterminated entity.
-   */
-  static bool GetPseudoAttributeValue(const nsString& aSource, nsIAtom *aName,
-                                      nsAString& aValue);
-
-  /**
-   * Returns true if the language name is a version of JavaScript and
-   * false otherwise
-   */
-  static bool IsJavaScriptLanguage(const nsString& aName, PRUint32 *aVerFlags);
-
-  static void SplitMimeType(const nsAString& aValue, nsString& aType,
-                            nsString& aParams);
-
 private:
   static bool InitializeEventTable();
 
@@ -2064,14 +1873,6 @@ private:
                              const nsIID* aIID, jsval *vp,
                              nsIXPConnectJSObjectHolder** aHolder,
                              bool aAllowWrapping);
-                            
-  static nsresult DispatchEvent(nsIDocument* aDoc,
-                                nsISupports* aTarget,
-                                const nsAString& aEventName,
-                                bool aCanBubble,
-                                bool aCancelable,
-                                bool aTrusted,
-                                bool *aDefaultAction = nsnull);
 
   static void InitializeModifierStrings();
 
@@ -2116,6 +1917,7 @@ private:
 
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
+  static nsIUGenCategory* sGenCat;
 
   static nsIScriptRuntime* sScriptRuntimes[NS_STID_ARRAY_UBOUND];
   static PRInt32 sScriptRootCount[NS_STID_ARRAY_UBOUND];
@@ -2144,7 +1946,7 @@ private:
   static bool sFullScreenKeyInputRestricted;
   static PRUint32 sHandlingInputTimeout;
 
-  static nsHtml5StringParser* sHTMLFragmentParser;
+  static nsHtml5Parser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;
   static nsIFragmentContentSink* sXMLFragmentSink;
 
@@ -2159,9 +1961,6 @@ private:
   static nsString* sAltText;
   static nsString* sModifierSeparator;
 };
-
-typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
-                                                    HTMLSplitOnSpacesTokenizer;
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
   nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz),        \
@@ -2206,15 +2005,15 @@ private:
 
 class NS_STACK_CLASS nsAutoScriptBlocker {
 public:
-  nsAutoScriptBlocker(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+  nsAutoScriptBlocker(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     nsContentUtils::AddScriptBlocker();
   }
   ~nsAutoScriptBlocker() {
     nsContentUtils::RemoveScriptBlocker();
   }
 private:
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
@@ -2316,6 +2115,13 @@ public:
                         DOUBLE_HI32_EXPMASK | DOUBLE_HI32_MANTMASK}}
 #endif
 
+#if defined(XP_WIN)
+#define DOUBLE_COMPARE(LVAL, OP, RVAL)                                  \
+    (!DOUBLE_IS_NaN(LVAL) && !DOUBLE_IS_NaN(RVAL) && (LVAL) OP (RVAL))
+#else
+#define DOUBLE_COMPARE(LVAL, OP, RVAL) ((LVAL) OP (RVAL))
+#endif
+
 /*
  * In the following helper macros we exploit the fact that the result of a
  * series of additions will not be finite if any one of the operands in the
@@ -2378,23 +2184,6 @@ public:
 private:
   NS_ConvertUTF16toUTF8 mString;
   nsIMIMEHeaderParam*   mService;
-};
-
-class nsDocElementCreatedNotificationRunner : public nsRunnable
-{
-public:
-    nsDocElementCreatedNotificationRunner(nsIDocument* aDoc)
-        : mDoc(aDoc)
-    {
-    }
-
-    NS_IMETHOD Run()
-    {
-        nsContentSink::NotifyDocElementCreated(mDoc);
-        return NS_OK;
-    }
-
-    nsCOMPtr<nsIDocument> mDoc;
 };
 
 #endif /* nsContentUtils_h___ */

@@ -42,11 +42,10 @@
  
 #include "nsApplicationAccessible.h"
 
+#include "Relation.h"
+#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "Relation.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIComponentManager.h"
 #include "nsIDOMDocument.h"
@@ -342,10 +341,10 @@ nsApplicationAccessible::ApplyARIAState(PRUint64* aState)
 {
 }
 
-role
+PRUint32
 nsApplicationAccessible::NativeRole()
 {
-  return roles::APP_ROOT;
+  return nsIAccessibleRole::ROLE_APP_ROOT;
 }
 
 PRUint64
@@ -421,7 +420,7 @@ nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIAccessible
+// nsIAccessNode and nsAccessNode
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetDOMNode(nsIDOMNode **aDOMNode)
@@ -464,6 +463,24 @@ NS_IMETHODIMP
 nsApplicationAccessible::ScrollToPoint(PRUint32 aCoordinateType,
                                        PRInt32 aX, PRInt32 aY)
 {
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetComputedStyleValue(const nsAString &aPseudoElt,
+                                               const nsAString &aPropertyName,
+                                               nsAString &aValue)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetComputedStyleCSSValue(const nsAString &aPseudoElt,
+                                                  const nsAString &aPropertyName,
+                                                  nsIDOMCSSPrimitiveValue **aCSSPrimitiveValue)
+{
+  NS_ENSURE_ARG_POINTER(aCSSPrimitiveValue);
+  *aCSSPrimitiveValue = nsnull;
   return NS_OK;
 }
 

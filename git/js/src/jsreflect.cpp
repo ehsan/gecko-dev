@@ -54,6 +54,7 @@
 #include "jsval.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsobj.h"
 #include "jsarray.h"
 #include "jsnum.h"
 
@@ -189,7 +190,7 @@ class NodeBuilder
 
         if (!userobj) {
             userv.setNull();
-            for (unsigned i = 0; i < AST_LIMIT; i++) {
+            for (uintN i = 0; i < AST_LIMIT; i++) {
                 callbacks[i].setNull();
             }
             return true;
@@ -197,7 +198,7 @@ class NodeBuilder
 
         userv.setObject(*userobj);
 
-        for (unsigned i = 0; i < AST_LIMIT; i++) {
+        for (uintN i = 0; i < AST_LIMIT; i++) {
             Value funv;
 
             const char *name = callbackNames[i];
@@ -320,7 +321,7 @@ class NodeBuilder
     }
 
     bool newObject(JSObject **dst) {
-        JSObject *nobj = NewBuiltinClassInstance(cx, &ObjectClass);
+        JSObject *nobj = NewNonFunction<WithProto::Class>(cx, &ObjectClass, NULL, NULL);
         if (!nobj)
             return false;
 
@@ -556,6 +557,10 @@ class NodeBuilder
     bool generatorExpression(Value body, NodeVector &blocks, Value filter,
                              TokenPos *pos, Value *dst);
 
+    bool graphExpression(jsint idx, Value expr, TokenPos *pos, Value *dst);
+
+    bool graphIndexExpression(jsint idx, TokenPos *pos, Value *dst);
+
     bool letExpression(NodeVector &head, Value expr, TokenPos *pos, Value *dst);
 
     /*
@@ -614,6 +619,8 @@ class NodeBuilder
 
     bool xmlComment(Value text, TokenPos *pos, Value *dst);
 
+    bool xmlPI(Value target, TokenPos *pos, Value *dst);
+
     bool xmlPI(Value target, Value content, TokenPos *pos, Value *dst);
 };
 
@@ -624,7 +631,7 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, JSObject **dst)
 
     Value tv;
 
-    JSObject *node = NewBuiltinClassInstance(cx, &ObjectClass);
+    JSObject *node = NewNonFunction<WithProto::Class>(cx, &ObjectClass, NULL, NULL);
     if (!node ||
         !setNodeLoc(node, pos) ||
         !atomValue(nodeTypeNames[type], &tv) ||
@@ -639,15 +646,11 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, JSObject **dst)
 bool
 NodeBuilder::newArray(NodeVector &elts, Value *dst)
 {
-    const size_t len = elts.length();
-    if (len > UINT32_MAX) {
-        js_ReportAllocationOverflow(cx);
-        return false;
-    }
-    JSObject *array = NewDenseAllocatedArray(cx, uint32_t(len));
+    JSObject *array = NewDenseEmptyArray(cx);
     if (!array)
         return false;
 
+    const size_t len = elts.length();
     for (size_t i = 0; i < len; i++) {
         Value val = elts[i];
 
@@ -1221,6 +1224,29 @@ NodeBuilder::generatorExpression(Value body, NodeVector &blocks, Value filter, T
 }
 
 bool
+NodeBuilder::graphExpression(jsint idx, Value expr, TokenPos *pos, Value *dst)
+{
+    Value cb = callbacks[AST_GRAPH_EXPR];
+    if (!cb.isNull())
+        return callback(cb, NumberValue(idx), pos, dst);
+
+    return newNode(AST_GRAPH_EXPR, pos,
+                   "index", NumberValue(idx),
+                   "expression", expr,
+                   dst);
+}
+
+bool
+NodeBuilder::graphIndexExpression(jsint idx, TokenPos *pos, Value *dst)
+{
+    Value cb = callbacks[AST_GRAPH_IDX_EXPR];
+    if (!cb.isNull())
+        return callback(cb, NumberValue(idx), pos, dst);
+
+    return newNode(AST_GRAPH_IDX_EXPR, pos, "index", NumberValue(idx), dst);
+}
+
+bool
 NodeBuilder::letExpression(NodeVector &head, Value expr, TokenPos *pos, Value *dst)
 {
     Value array;
@@ -1545,6 +1571,12 @@ NodeBuilder::xmlComment(Value text, TokenPos *pos, Value *dst)
 }
 
 bool
+NodeBuilder::xmlPI(Value target, TokenPos *pos, Value *dst)
+{
+    return xmlPI(target, NullValue(), pos, dst);
+}
+
+bool
 NodeBuilder::xmlPI(Value target, Value contents, TokenPos *pos, Value *dst)
 {
     Value cb = callbacks[AST_XMLPI];
@@ -1569,7 +1601,7 @@ class ASTSerializer
     JSContext     *cx;
     Parser        *parser;
     NodeBuilder   builder;
-    uint32_t      lineno;
+    uint32        lineno;
 
     Value atomContents(JSAtom *atom) {
         return StringValue(atom ? atom : cx->runtime->atomState.emptyAtom);
@@ -1591,7 +1623,7 @@ class ASTSerializer
     bool declaration(ParseNode *pn, Value *dst);
     bool variableDeclaration(ParseNode *pn, bool let, Value *dst);
     bool variableDeclarator(ParseNode *pn, VarDeclKind *pkind, Value *dst);
-    bool let(ParseNode *pn, bool expr, Value *dst);
+    bool letHead(ParseNode *pn, NodeVector &dtors);
 
     bool optStatement(ParseNode *pn, Value *dst) {
         if (!pn) {
@@ -1649,7 +1681,7 @@ class ASTSerializer
     bool xml(ParseNode *pn, Value *dst);
 
   public:
-    ASTSerializer(JSContext *c, bool l, char const *src, uint32_t ln)
+    ASTSerializer(JSContext *c, bool l, char const *src, uint32 ln)
         : cx(c), builder(c, l, src), lineno(ln) {
     }
 
@@ -1931,21 +1963,14 @@ ASTSerializer::variableDeclarator(ParseNode *pn, VarDeclKind *pkind, Value *dst)
 }
 
 bool
-ASTSerializer::let(ParseNode *pn, bool expr, Value *dst)
+ASTSerializer::letHead(ParseNode *pn, NodeVector &dtors)
 {
-    ParseNode *letHead = pn->pn_left;
-    LOCAL_ASSERT(letHead->isArity(PN_LIST));
-
-    ParseNode *letBody = pn->pn_right;
-    LOCAL_ASSERT(letBody->isKind(PNK_LEXICALSCOPE));
-
-    NodeVector dtors(cx);
-    if (!dtors.reserve(letHead->pn_count))
+    if (!dtors.reserve(pn->pn_count))
         return false;
 
     VarDeclKind kind = VARDECL_LET_HEAD;
 
-    for (ParseNode *next = letHead->pn_head; next; next = next->pn_next) {
+    for (ParseNode *next = pn->pn_head; next; next = next->pn_next) {
         Value child;
         /*
          * Unlike in |variableDeclaration|, this does not update |kind|; since let-heads do
@@ -1956,12 +1981,7 @@ ASTSerializer::let(ParseNode *pn, bool expr, Value *dst)
         dtors.infallibleAppend(child);
     }
 
-    Value v;
-    return expr
-           ? expression(letBody->pn_expr, &v) &&
-             builder.letExpression(dtors, v, &pn->pn_pos, dst)
-           : statement(letBody->pn_expr, &v) &&
-             builder.letStatement(dtors, v, &pn->pn_pos, dst);
+    return true;
 }
 
 bool
@@ -2058,6 +2078,8 @@ ASTSerializer::forInit(ParseNode *pn, Value *dst)
 
     return (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST))
            ? variableDeclaration(pn, false, dst)
+           : pn->isKind(PNK_LET)
+           ? variableDeclaration(pn, true, dst)
            : expression(pn, dst);
 }
 
@@ -2069,12 +2091,8 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
       case PNK_FUNCTION:
       case PNK_VAR:
       case PNK_CONST:
-        return declaration(pn, dst);
-
       case PNK_LET:
-        return pn->isArity(PN_BINARY)
-               ? let(pn, false, dst)
-               : declaration(pn, dst);
+        return declaration(pn, dst);
 
       case PNK_NAME:
         LOCAL_ASSERT(pn->isUsed());
@@ -2090,6 +2108,15 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
 
       case PNK_LEXICALSCOPE:
         pn = pn->pn_expr;
+        if (pn->isKind(PNK_LET)) {
+            NodeVector dtors(cx);
+            Value stmt;
+
+            return letHead(pn->pn_left, dtors) &&
+                   statement(pn->pn_right, &stmt) &&
+                   builder.letStatement(dtors, stmt, &pn->pn_pos, dst);
+        }
+
         if (!pn->isKind(PNK_STATEMENTLIST))
             return statement(pn, dst);
         /* FALL THROUGH */
@@ -2149,9 +2176,9 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
 
             return (!head->pn_kid1
                     ? pattern(head->pn_kid2, NULL, &var)
-                    : head->pn_kid1->isKind(PNK_LEXICALSCOPE)
-                      ? variableDeclaration(head->pn_kid1->pn_expr, true, &var)
-                      : variableDeclaration(head->pn_kid1, false, &var)) &&
+                    : variableDeclaration(head->pn_kid1,
+                                          head->pn_kid1->isKind(PNK_LET),
+                                          &var)) &&
                    expression(head->pn_kid3, &expr) &&
                    builder.forInStatement(var, expr, stmt, isForEach, &pn->pn_pos, dst);
         }
@@ -2378,7 +2405,7 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
                builder.sequenceExpression(exprs, &pn->pn_pos, dst);
       }
 
-      case PNK_CONDITIONAL:
+      case PNK_HOOK:
       {
         Value test, cons, alt;
 
@@ -2400,22 +2427,15 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
         return leftAssociate(pn, dst);
       }
 
-      case PNK_PREINCREMENT:
-      case PNK_PREDECREMENT:
+      case PNK_INC:
+      case PNK_DEC:
       {
-        bool inc = pn->isKind(PNK_PREINCREMENT);
-        Value expr;
-        return expression(pn->pn_kid, &expr) &&
-               builder.updateExpression(expr, inc, true, &pn->pn_pos, dst);
-      }
+        bool incr = pn->isKind(PNK_INC);
+        bool prefix = pn->getOp() >= JSOP_INCNAME && pn->getOp() <= JSOP_DECELEM;
 
-      case PNK_POSTINCREMENT:
-      case PNK_POSTDECREMENT:
-      {
-        bool inc = pn->isKind(PNK_POSTINCREMENT);
         Value expr;
         return expression(pn->pn_kid, &expr) &&
-               builder.updateExpression(expr, inc, false, &pn->pn_pos, dst);
+               builder.updateExpression(expr, incr, prefix, &pn->pn_pos, dst);
       }
 
       case PNK_ASSIGN:
@@ -2596,6 +2616,16 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
                builder.yieldExpression(arg, &pn->pn_pos, dst);
       }
 
+      case PNK_DEFSHARP:
+      {
+        Value expr;
+        return expression(pn->pn_kid, &expr) &&
+               builder.graphExpression(pn->pn_num, expr, &pn->pn_pos, dst);
+      }
+
+      case PNK_USESHARP:
+        return builder.graphIndexExpression(pn->pn_num, &pn->pn_pos, dst);
+
       case PNK_ARRAYCOMP:
         /* NB: it's no longer the case that pn_count could be 2. */
         LOCAL_ASSERT(pn->pn_count == 1);
@@ -2603,8 +2633,17 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
 
         return comprehension(pn->pn_head->pn_expr, dst);
 
-      case PNK_LET:
-        return let(pn, true, dst);
+      case PNK_LEXICALSCOPE:
+      {
+        pn = pn->pn_expr;
+
+        NodeVector dtors(cx);
+        Value expr;
+
+        return letHead(pn->pn_left, dtors) &&
+               expression(pn->pn_right, &expr) &&
+               builder.letExpression(dtors, expr, &pn->pn_pos, dst);
+      }
 
 #ifdef JS_HAS_XML_SUPPORT
       case PNK_XMLUNARY:
@@ -2753,13 +2792,14 @@ ASTSerializer::xml(ParseNode *pn, Value *dst)
       case PNK_XMLCOMMENT:
         return builder.xmlComment(atomContents(pn->pn_atom), &pn->pn_pos, dst);
 
-      case PNK_XMLPI: {
-        XMLProcessingInstruction &pi = pn->asXMLProcessingInstruction();
-        return builder.xmlPI(atomContents(pi.target()),
-                             atomContents(pi.data()),
-                             &pi.pn_pos,
-                             dst);
-      }
+      case PNK_XMLPI:
+        if (!pn->pn_pidata)
+            return builder.xmlPI(atomContents(pn->pn_pitarget), &pn->pn_pos, dst);
+        else
+            return builder.xmlPI(atomContents(pn->pn_pitarget),
+                                 atomContents(pn->pn_pidata),
+                                 &pn->pn_pos,
+                                 dst);
 #endif
 
       default:
@@ -2823,7 +2863,7 @@ ASTSerializer::literal(ParseNode *pn, Value *dst)
         if (!js_GetClassPrototype(cx, &cx->fp()->scopeChain(), JSProto_RegExp, &proto))
             return false;
 
-        JSObject *re2 = CloneRegExpObject(cx, re1, proto);
+        JSObject *re2 = js_CloneRegExpObject(cx, re1, proto);
         if (!re2)
             return false;
 
@@ -3035,7 +3075,7 @@ bool
 ASTSerializer::functionArgs(ParseNode *pn, ParseNode *pnargs, ParseNode *pndestruct,
                             ParseNode *pnbody, NodeVector &args)
 {
-    uint32_t i = 0;
+    uint32 i = 0;
     ParseNode *arg = pnargs ? pnargs->pn_head : NULL;
     ParseNode *destruct = pndestruct ? pndestruct->pn_head : NULL;
     Value node;
@@ -3095,7 +3135,7 @@ ASTSerializer::functionBody(ParseNode *pn, TokenPos *pos, Value *dst)
 } /* namespace js */
 
 static JSBool
-reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
+reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
 {
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
@@ -3103,13 +3143,13 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
         return JS_FALSE;
     }
 
-    JSString *src = ToString(cx, JS_ARGV(cx, vp)[0]);
+    JSString *src = js_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!src)
         return JS_FALSE;
 
     char *filename = NULL;
     AutoReleaseNullablePtr filenamep(cx, filename);
-    uint32_t lineno = 1;
+    uint32 lineno = 1;
     bool loc = true;
 
     JSObject *builder = NULL;
@@ -3143,7 +3183,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             }
 
             if (!prop.isNullOrUndefined()) {
-                JSString *str = ToString(cx, prop);
+                JSString *str = js_ValueToString(cx, prop);
                 if (!str)
                     return JS_FALSE;
 
@@ -3161,7 +3201,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             /* config.line */
             if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.lineAtom),
                                     Int32Value(1), &prop) ||
-                !ToUint32(cx, prop, &lineno)) {
+                !ValueToECMAUint32(cx, prop, &lineno)) {
                 return JS_FALSE;
             }
         }
@@ -3192,7 +3232,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!chars)
         return JS_FALSE;
 
-    Parser parser(cx, NULL, NULL, NULL, false);
+    Parser parser(cx, NULL, NULL, false);
 
     if (!parser.init(chars, length, filename, lineno, cx->findVersion()))
         return JS_FALSE;
@@ -3224,10 +3264,7 @@ JS_BEGIN_EXTERN_C
 JS_PUBLIC_API(JSObject *)
 JS_InitReflect(JSContext *cx, JSObject *obj)
 {
-    RootObject root(cx, &obj);
-    RootedVarObject Reflect(cx);
-
-    Reflect = NewObjectWithClassProto(cx, &ObjectClass, NULL, obj);
+    JSObject *Reflect = NewNonFunction<WithProto::Class>(cx, &ObjectClass, NULL, obj);
     if (!Reflect || !Reflect->setSingletonType(cx))
         return NULL;
 

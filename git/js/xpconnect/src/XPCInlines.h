@@ -164,7 +164,7 @@ inline void
 XPCCallContext::SetScopeForNewJSObjects(JSObject *scope)
 {
     NS_ABORT_IF_FALSE(mState == HAVE_CONTEXT, "wrong call context state");
-    NS_ABORT_IF_FALSE(js::IsObjectInContextCompartment(scope, mJSContext), "wrong compartment");
+    NS_ABORT_IF_FALSE(js::GetObjectCompartment(scope) == mJSContext->compartment, "wrong compartment");
     mScopeForNewJSObjects = scope;
     mState = HAVE_SCOPE;
 }
@@ -279,7 +279,7 @@ XPCCallContext::GetStaticMemberIsLocal() const
     return mStaticMemberIsLocal;
 }
 
-inline unsigned
+inline uintN
 XPCCallContext::GetArgc() const
 {
     CHECK_STATE(READY_TO_CALL);
@@ -298,6 +298,13 @@ XPCCallContext::GetRetVal() const
 {
     CHECK_STATE(READY_TO_CALL);
     return mRetVal;
+}
+
+inline JSBool
+XPCCallContext::GetReturnValueWasSet() const
+{
+    CHECK_STATE(READY_TO_CALL);
+    return mReturnValueWasSet;
 }
 
 inline void
@@ -582,17 +589,9 @@ inline void XPCNativeSet::ASSERT_NotMarked()
 /***************************************************************************/
 
 inline
-JSObject* XPCWrappedNativeTearOff::GetJSObjectPreserveColor() const
+JSObject* XPCWrappedNativeTearOff::GetJSObject() const
 {
     return mJSObject;
-}
-
-inline
-JSObject* XPCWrappedNativeTearOff::GetJSObject()
-{
-    JSObject *obj = GetJSObjectPreserveColor();
-    xpc_UnmarkGrayObject(obj);
-    return obj;
 }
 
 inline
@@ -604,8 +603,7 @@ void XPCWrappedNativeTearOff::SetJSObject(JSObject*  JSObj)
 inline
 XPCWrappedNativeTearOff::~XPCWrappedNativeTearOff()
 {
-    NS_ASSERTION(!(GetInterface()||GetNative()||GetJSObjectPreserveColor()),
-                 "tearoff not empty in dtor");
+    NS_ASSERTION(!(GetInterface()||GetNative()||GetJSObject()), "tearoff not empty in dtor");
 }
 
 /***************************************************************************/
@@ -630,7 +628,7 @@ XPCWrappedNative::SweepTearOffs()
 
             // If this tearoff does not have a live dedicated JSObject,
             // then let's recycle it.
-            if (!to->GetJSObjectPreserveColor()) {
+            if (!to->GetJSObject()) {
                 nsISupports* obj = to->GetNative();
                 if (obj) {
                     obj->Release();
@@ -658,11 +656,14 @@ inline JSObject*
 xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
                                 bool uniqueType, JSObject *parent)
 {
-    // Global creation should go through XPCWrappedNative::WrapNewGlobal().
-    MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
-
     JSObject *obj;
-    if (uniqueType) {
+    if (clasp->flags & JSCLASS_IS_GLOBAL) {
+        obj = JS_NewGlobalObject(cx, clasp);
+        if (obj && proto) {
+            if (!JS_SplicePrototype(cx, obj, proto))
+                obj = NULL;
+        }
+    } else if (uniqueType) {
         obj = JS_NewObjectWithUniqueType(cx, clasp, proto, parent);
     } else {
         obj = JS_NewObject(cx, clasp, proto, parent);
@@ -673,14 +674,20 @@ xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
 }
 
 inline jsid
-GetRTIdByIndex(JSContext *cx, unsigned index)
+GetRTIdByIndex(JSContext *cx, uintN index)
 {
   XPCJSRuntime *rt = nsXPConnect::FastGetXPConnect()->GetRuntime();
   return rt->GetStringID(index);
 }
 
+inline jsval
+GetRTStringByIndex(JSContext *cx, uintN index)
+{
+  return STRING_TO_JSVAL(JSID_TO_STRING(GetRTIdByIndex(cx, index)));
+}
+
 inline
-JSBool ThrowBadParam(nsresult rv, unsigned paramNum, XPCCallContext& ccx)
+JSBool ThrowBadParam(nsresult rv, uintN paramNum, XPCCallContext& ccx)
 {
     XPCThrower::ThrowBadParam(rv, paramNum, ccx);
     return false;

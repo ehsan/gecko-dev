@@ -20,7 +20,6 @@ ifeq ($(PLATFORM),ansi)
   #
   is_unix := $(strip $(wildcard /sbin/init) \
                      $(wildcard /usr/sbin/init) \
-                     $(wildcard /dev/null) \
                      $(wildcard /hurd/auth))
   ifneq ($(is_unix),)
 

@@ -26,3 +26,8 @@ function testBitOrInconvertibleObjectAny()
   return "pass";
 }
 assertEq(testBitOrInconvertibleObjectAny(), "pass");
+checkStats({
+  recorderStarted: 1,
+  recorderAborted: 0,
+  sideExitIntoInterpreter: 3
+});

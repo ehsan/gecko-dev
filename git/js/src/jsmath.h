@@ -54,10 +54,10 @@ class MathCache
   public:
     MathCache();
 
-    unsigned hash(double x) {
-        union { double d; struct { uint32_t one, two; } s; } u = { x };
-        uint32_t hash32 = u.s.one ^ u.s.two;
-        uint16_t hash16 = uint16_t(hash32 ^ (hash32 >> 16));
+    uintN hash(double x) {
+        union { double d; struct { uint32 one, two; } s; } u = { x };
+        uint32 hash32 = u.s.one ^ u.s.two;
+        uint16 hash16 = (uint16)(hash32 ^ (hash32 >> 16));
         return (hash16 & (Size - 1)) ^ (hash16 >> (16 - SizeLog2));
     }
 
@@ -66,7 +66,7 @@ class MathCache
      * and -0 to different table entries, which is asserted in MathCache().
      */
     double lookup(UnaryFunType f, double x) {
-        unsigned index = hash(x);
+        uintN index = hash(x);
         Entry &e = table[index];
         if (e.in == x && e.f == f)
             return e.out;
@@ -92,33 +92,36 @@ extern void
 js_InitRandom(JSContext *cx);
 
 extern JSBool
-js_math_abs(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_abs(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_ceil(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_ceil(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_floor(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_floor(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_max(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_max(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_min(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_min(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_round(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_round(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_sqrt(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_sqrt(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_math_pow(JSContext *cx, unsigned argc, js::Value *vp);
+js_math_pow(JSContext *cx, uintN argc, js::Value *vp);
 
-extern double
-js_math_ceil_impl(double x);
+extern jsdouble
+js_math_ceil_impl(jsdouble x);
 
-extern double
-js_math_floor_impl(double x);
+extern jsdouble
+js_math_floor_impl(jsdouble x);
+
+extern jsdouble
+js_math_round_impl(jsdouble x);
 
 #endif /* jsmath_h___ */

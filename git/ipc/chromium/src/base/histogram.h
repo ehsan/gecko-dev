@@ -276,7 +276,6 @@ class Histogram {
     HISTOGRAM,
     LINEAR_HISTOGRAM,
     BOOLEAN_HISTOGRAM,
-    FLAG_HISTOGRAM,
     CUSTOM_HISTOGRAM,
     NOT_VALID_IN_RENDERER
   };
@@ -298,7 +297,7 @@ class Histogram {
     // histogram!).
     kIPCSerializationSourceFlag = 0x10,
 
-    kHexRangePrintingFlag = 0x8000  // Fancy bucket-naming supported.
+    kHexRangePrintingFlag = 0x8000,  // Fancy bucket-naming supported.
   };
 
   enum Inconsistencies {
@@ -643,29 +642,10 @@ class BooleanHistogram : public LinearHistogram {
 
   virtual void AddBoolean(bool value);
 
- protected:
+ private:
   explicit BooleanHistogram(const std::string& name);
 
   DISALLOW_COPY_AND_ASSIGN(BooleanHistogram);
-};
-
-//------------------------------------------------------------------------------
-
-// FlagHistogram is like boolean histogram, but only allows a single off/on value.
-class FlagHistogram : public BooleanHistogram
-{
-public:
-  static Histogram *FactoryGet(const std::string &name, Flags flags);
-
-  virtual ClassType histogram_type() const;
-
-  virtual void Accumulate(Sample value, Count count, size_t index);
-
-private:
-  explicit FlagHistogram(const std::string &name);
-  bool mSwitched;
-
-  DISALLOW_COPY_AND_ASSIGN(FlagHistogram);
 };
 
 //------------------------------------------------------------------------------

@@ -88,43 +88,11 @@ Tester.prototype = {
 
   start: function Tester_start() {
     //if testOnLoad was not called, then gConfig is not defined
-    if (!gConfig)
+    if(!gConfig)
       gConfig = readConfig();
     this.repeat = gConfig.repeat;
     this.dumper.dump("*** Start BrowserChrome Test Results ***\n");
     this._cs.registerListener(this);
-    this._globalProperties = Object.keys(window);
-    this._globalPropertyWhitelist = ["navigator", "constructor", "Application",
-      "__SS_tabsToRestore", "__SSi", "webConsoleCommandController",
-
-      // Temporarily added to whitelist for Fennec tests:
-      "AddonUpdateChecker",
-      "PlacesAggregatedTransaction",
-      "PlacesCreateFolderTransaction",
-      "PlacesCreateBookmarkTransaction",
-      "PlacesCreateSeparatorTransaction",
-      "PlacesCreateLivemarkTransaction",
-      "PlacesMoveItemTransaction",
-      "PlacesRemoveItemTransaction",
-      "PlacesEditItemTitleTransaction",
-      "PlacesEditBookmarkURITransaction",
-      "PlacesSetItemAnnotationTransaction",
-      "PlacesSetPageAnnotationTransaction",
-      "PlacesEditBookmarkKeywordTransaction",
-      "PlacesEditBookmarkPostDataTransaction",
-      "PlacesEditLivemarkSiteURITransaction",
-      "PlacesEditLivemarkFeedURITransaction",
-      "PlacesEditItemDateAddedTransaction",
-      "PlacesEditItemLastModifiedTransaction",
-      "PlacesSortFolderByNameTransaction",
-      "PlacesTagURITransaction",
-      "PlacesUntagURITransaction",
-      "DownloadUtils",
-      "AddonRepository",
-      "LocaleRepository",
-      "Contacts",
-      "VKBstateHasChanged"
-    ];
 
     if (this.tests.length)
       this.nextTest();
@@ -215,10 +183,6 @@ Tester.prototype = {
   },
 
   observe: function Tester_observe(aConsoleMessage) {
-    // Ignore empty messages.
-    if (!aConsoleMessage.message)
-      return;
-
     try {
       var msg = "Console message: " + aConsoleMessage.message;
       if (this.currentTest)
@@ -245,18 +209,6 @@ Tester.prototype = {
           this.currentTest.addResult(new testResult(false, "Cleanup function threw an exception", ex, false));
         }
       };
-
-      if (this.SimpleTest.isExpectingUncaughtException()) {
-        this.currentTest.addResult(new testResult(false, "expectUncaughtException was called but no uncaught exception was detected!", "", false));
-      }
-
-      Object.keys(window).forEach(function (prop) {
-        if (this._globalProperties.indexOf(prop) == -1) {
-          this._globalProperties.push(prop);
-          if (this._globalPropertyWhitelist.indexOf(prop) == -1)
-            this.currentTest.addResult(new testResult(false, "leaked window property: " + prop, "", false));
-        }
-      }, this);
 
       // Clear document.popupNode.  The test could have set it to a custom value
       // for its own purposes, nulling it out it will go back to the default
@@ -298,8 +250,6 @@ Tester.prototype = {
   execTest: function Tester_execTest() {
     this.dumper.dump("TEST-START | " + this.currentTest.path + "\n");
 
-    this.SimpleTest.reset();
-
     // Load the tests into a testscope
     this.currentTest.scope = new testScope(this, this.currentTest);
 
@@ -309,7 +259,7 @@ Tester.prototype = {
     this.currentTest.scope.gTestPath = this.currentTest.path;
 
     // Override SimpleTest methods with ours.
-    ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot", "info"].forEach(function(m) {
+    ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot"].forEach(function(m) {
       this.SimpleTest[m] = this[m];
     }, this.currentTest.scope);
 
@@ -346,13 +296,7 @@ Tester.prototype = {
         this.currentTest.scope.test();
       }
     } catch (ex) {
-      var isExpected = !!this.SimpleTest.isExpectingUncaughtException();
-      if (!this.SimpleTest.isIgnoringAllUncaughtExceptions()) {
-        this.currentTest.addResult(new testResult(isExpected, "Exception thrown", ex, false));
-        this.SimpleTest.expectUncaughtException(false);
-      } else {
-        this.currentTest.addResult(new testMessage("Exception thrown: " + ex));
-      }
+      this.currentTest.addResult(new testResult(false, "Exception thrown", ex, false));
       this.currentTest.scope.finish();
     }
 
@@ -435,11 +379,12 @@ function testMessage(aName) {
 // cannot conflict with global variables used in tests.
 function testScope(aTester, aTest) {
   this.__tester = aTester;
+  this.__browserTest = aTest;
 
   var self = this;
   this.ok = function test_ok(condition, name, diag, stack) {
-    aTest.addResult(new testResult(condition, name, diag, false,
-                                   stack ? stack : Components.stack.caller));
+    self.__browserTest.addResult(new testResult(condition, name, diag, false,
+                                                stack ? stack : Components.stack.caller));
   };
   this.is = function test_is(a, b, name) {
     self.ok(a == b, name, "Got " + a + ", expected " + b, false,
@@ -450,8 +395,8 @@ function testScope(aTester, aTest) {
             Components.stack.caller);
   };
   this.todo = function test_todo(condition, name, diag, stack) {
-    aTest.addResult(new testResult(!condition, name, diag, true,
-                                   stack ? stack : Components.stack.caller));
+    self.__browserTest.addResult(new testResult(!condition, name, diag, true,
+                                                stack ? stack : Components.stack.caller));
   };
   this.todo_is = function test_todo_is(a, b, name) {
     self.todo(a == b, name, "Got " + a + ", expected " + b,
@@ -462,7 +407,7 @@ function testScope(aTester, aTest) {
               Components.stack.caller);
   };
   this.info = function test_info(name) {
-    aTest.addResult(new testMessage(name));
+    self.__browserTest.addResult(new testMessage(name));
   };
 
   this.executeSoon = function test_executeSoon(func) {
@@ -493,13 +438,7 @@ function testScope(aTester, aTest) {
       // StopIteration means test is finished.
       self.finish();
     } catch (ex) {
-      var isExpected = !!self.SimpleTest.isExpectingUncaughtException();
-      if (!self.SimpleTest.isIgnoringAllUncaughtExceptions()) {
-        aTest.addResult(new testResult(isExpected, "Exception thrown", ex, false));
-        self.SimpleTest.expectUncaughtException(false);
-      } else {
-        aTest.addResult(new testMessage("Exception thrown: " + ex));
-      }
+      aTest.addResult(new testResult(false, "Exception thrown", ex, false));
       self.finish();
     }
   };
@@ -528,16 +467,19 @@ function testScope(aTester, aTest) {
     self.SimpleTest.copyToProfile(filename);
   };
 
-  this.expectUncaughtException = function test_expectUncaughtException(aExpecting) {
-    self.SimpleTest.expectUncaughtException(aExpecting);
+  this.expectUncaughtException = function test_expectUncaughtException() {
+    self.SimpleTest.expectUncaughtException();
   };
 
-  this.ignoreAllUncaughtExceptions = function test_ignoreAllUncaughtExceptions(aIgnoring) {
-    self.SimpleTest.ignoreAllUncaughtExceptions(aIgnoring);
+  this.ignoreAllUncaughtExceptions = function test_ignoreAllUncaughtExceptions() {
+    self.SimpleTest.ignoreAllUncaughtExceptions();
   };
 
   this.finish = function test_finish() {
     self.__done = true;
+    if (self.SimpleTest._expectingUncaughtException) {
+      self.ok(false, "expectUncaughtException was called but no uncaught exception was detected!");
+    }
     if (self.__waitTimer) {
       self.executeSoon(function() {
         if (self.__done && self.__waitTimer) {

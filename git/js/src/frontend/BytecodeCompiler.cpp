@@ -93,7 +93,7 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
                                  JSPROP_ENUMERATE | JSPROP_PERMANENT, 0, 0, DNP_SKIP_TYPE);
         if (!shape)
             return false;
-        def.knownSlot = shape->slot();
+        def.knownSlot = shape->slot;
     }
 
     Vector<JSScript *, 16> worklist(cx);
@@ -123,10 +123,10 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
                 JSObject *obj = arr->vector[i];
                 if (!obj->isFunction())
                     continue;
-                JSFunction *fun = obj->toFunction();
+                JSFunction *fun = obj->getFunctionPrivate();
                 JS_ASSERT(fun->isInterpreted());
                 JSScript *inner = fun->script();
-                if (outer->function() && outer->function()->isHeavyweight()) {
+                if (outer->isHeavyweightFunction) {
                     outer->isOuterFunction = true;
                     inner->isInnerFunction = true;
                 }
@@ -143,9 +143,9 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
             continue;
 
         GlobalSlotArray *globalUses = outer->globals();
-        uint32_t nGlobalUses = globalUses->length;
-        for (uint32_t i = 0; i < nGlobalUses; i++) {
-            uint32_t index = globalUses->vector[i].slot;
+        uint32 nGlobalUses = globalUses->length;
+        for (uint32 i = 0; i < nGlobalUses; i++) {
+            uint32 index = globalUses->vector[i].slot;
             JS_ASSERT(index < globalScope.defs.length());
             globalUses->vector[i].slot = globalScope.defs[index].knownSlot;
         }
@@ -156,12 +156,11 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
 
 JSScript *
 frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerFrame,
-                        JSPrincipals *principals, JSPrincipals *originPrincipals,
-                        uint32_t tcflags,
+                        JSPrincipals *principals, uint32 tcflags,
                         const jschar *chars, size_t length,
-                        const char *filename, unsigned lineno, JSVersion version,
+                        const char *filename, uintN lineno, JSVersion version,
                         JSString *source /* = NULL */,
-                        unsigned staticLevel /* = 0 */)
+                        uintN staticLevel /* = 0 */)
 {
     TokenKind tt;
     ParseNode *pn;
@@ -178,7 +177,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     JS_ASSERT_IF(callerFrame, tcflags & TCF_COMPILE_N_GO);
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
-    Parser parser(cx, principals, originPrincipals, callerFrame);
+    Parser parser(cx, principals, callerFrame);
     if (!parser.init(chars, length, filename, lineno, version))
         return NULL;
 
@@ -192,9 +191,9 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     MUST_FLOW_THROUGH("out");
 
     // We can specialize a bit for the given scope chain if that scope chain is the global object.
-    JSObject *globalObj = scopeChain && scopeChain == &scopeChain->global()
-                          ? &scopeChain->global()
-                          : NULL;
+    JSObject *globalObj = scopeChain && scopeChain == scopeChain->getGlobal()
+                        ? scopeChain->getGlobal()
+                        : NULL;
 
     JS_ASSERT_IF(globalObj, globalObj->isNative());
     JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
@@ -255,7 +254,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
      * Inline this->statements to emit as we go to save AST space. We must
      * generate our script-body blockid since we aren't calling Statements.
      */
-    uint32_t bodyid;
+    uint32 bodyid;
     if (!GenerateBlockId(&bce, bodyid))
         goto out;
     bce.bodyid = bodyid;
@@ -316,6 +315,40 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 #endif
 
     /*
+     * Global variables (gvars) share the atom index space with locals. Due to
+     * incremental code generation we need to patch the bytecode to adjust the
+     * local references to skip the globals.
+     */
+    if (bce.hasSharps()) {
+        jsbytecode *code, *end;
+        JSOp op;
+        const JSCodeSpec *cs;
+        uintN len, slot;
+
+        code = bce.base();
+        for (end = code + bce.offset(); code != end; code += len) {
+            JS_ASSERT(code < end);
+            op = (JSOp) *code;
+            cs = &js_CodeSpec[op];
+            len = (cs->length > 0)
+                  ? (uintN) cs->length
+                  : js_GetVariableBytecodeLength(code);
+            if ((cs->format & JOF_SHARPSLOT) ||
+                JOF_TYPE(cs->format) == JOF_LOCAL ||
+                (JOF_TYPE(cs->format) == JOF_SLOTATOM)) {
+                JS_ASSERT_IF(!(cs->format & JOF_SHARPSLOT),
+                             JOF_TYPE(cs->format) != JOF_SLOTATOM);
+                slot = GET_SLOTNO(code);
+                if (!(cs->format & JOF_SHARPSLOT))
+                    slot += bce.sharpSlots();
+                if (slot >= SLOTNO_LIMIT)
+                    goto too_many_slots;
+                SET_SLOTNO(code, slot);
+            }
+        }
+    }
+
+    /*
      * Nowadays the threaded interpreter needs a stop instruction, so we
      * do have to emit that here.
      */
@@ -336,6 +369,11 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
   out:
     Probes::compileScriptEnd(cx, script, filename, lineno);
     return script;
+
+  too_many_slots:
+    parser.reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_TOO_MANY_LOCALS);
+    script = NULL;
+    goto out;
 }
 
 /*
@@ -343,12 +381,11 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
  * handler attribute in an HTML <INPUT> tag.
  */
 bool
-frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
-                              JSPrincipals *principals, JSPrincipals *originPrincipals,
+frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
                               Bindings *bindings, const jschar *chars, size_t length,
-                              const char *filename, unsigned lineno, JSVersion version)
+                              const char *filename, uintN lineno, JSVersion version)
 {
-    Parser parser(cx, principals, originPrincipals);
+    Parser parser(cx, principals);
     if (!parser.init(chars, length, filename, lineno, version))
         return false;
 
@@ -371,7 +408,7 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
         fn->pn_body = NULL;
         fn->pn_cookie.makeFree();
 
-        unsigned nargs = fun->nargs;
+        uintN nargs = fun->nargs;
         if (nargs) {
             /*
              * NB: do not use AutoLocalNameArray because it will release space
@@ -381,7 +418,7 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
             if (!funbce.bindings.getLocalNameArray(cx, &names)) {
                 fn = NULL;
             } else {
-                for (unsigned i = 0; i < nargs; i++) {
+                for (uintN i = 0; i < nargs; i++) {
                     if (!DefineArg(fn, names[i], i, &funbce)) {
                         fn = NULL;
                         break;

@@ -43,21 +43,21 @@
 #include "CrossOriginWrapper.h"
 #include "WrapperFactory.h"
 
+#include "jscntxt.h"
+
 #include "nsINode.h"
 #include "nsIDocument.h"
 
 #include "XPCWrapper.h"
 #include "xpcprivate.h"
 
-#include "jsapi.h"
-
 namespace xpc {
 
 using namespace js;
 
-static const uint32_t JSSLOT_WN = 0;
-static const uint32_t JSSLOT_RESOLVING = 1;
-static const uint32_t JSSLOT_EXPANDO = 2;
+static const uint32 JSSLOT_WN = 0;
+static const uint32 JSSLOT_RESOLVING = 1;
+static const uint32 JSSLOT_EXPANDO = 2;
 
 class ResolvingId
 {
@@ -110,7 +110,8 @@ JSClass HolderClass = {
     JSCLASS_HAS_RESERVED_SLOTS(3),
     JS_PropertyStub,        JS_PropertyStub, holder_get,      holder_set,
     JS_EnumerateStub,       JS_ResolveStub,  JS_ConvertStub,  NULL,
-    JSCLASS_NO_OPTIONAL_MEMBERS
+    NULL,                   NULL,            NULL,            NULL,
+    NULL,                   NULL,            NULL,            NULL
 };
 
 }
@@ -159,7 +160,7 @@ EnsureExpandoObject(JSContext *cx, JSObject *holder)
     if (expando)
         return expando;
     CompartmentPrivate *priv =
-        (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(holder));
+        (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, js::GetObjectCompartment(holder));
     XPCWrappedNative *wn = GetWrappedNativeFromHolder(holder);
     expando = priv->LookupExpandoObject(wn);
     if (!expando) {
@@ -260,7 +261,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapper, JSObject *holder, jsid i
 
     // There are no native numeric properties, so we can shortcut here. We will not
     // find the property.
-    if (!JSID_IS_STRING(id)) {
+    if (!JSID_IS_ATOM(id)) {
         /* Not found */
         return true;
     }
@@ -446,10 +447,10 @@ nodePrincipal_getter(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
 }
 
 static JSBool
-XrayToString(JSContext *cx, unsigned argc, jsval *vp)
+XrayToString(JSContext *cx, uintN argc, jsval *vp)
 {
     JSObject *wrapper = JS_THIS_OBJECT(cx, vp);
-    if (!wrapper || !IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
+    if (!IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
         JS_ReportError(cx, "XrayToString called on an incompatible object");
         return false;
     }
@@ -491,7 +492,7 @@ XrayToString(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 template <typename Base>
-XrayWrapper<Base>::XrayWrapper(unsigned flags)
+XrayWrapper<Base>::XrayWrapper(uintN flags)
   : Base(flags | WrapperFactory::IS_XRAY_WRAPPER_FLAG)
 {
 }
@@ -611,7 +612,7 @@ XrayWrapper<Base>::resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id,
 
     desc->obj = NULL;
 
-    unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
+    uintN flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
     JSObject *holder = GetHolder(wrapper);
     JSObject *expando = GetExpandoObject(holder);
 
@@ -833,7 +834,7 @@ XrayWrapper<Base>::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
 }
 
 static bool
-EnumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoIdVector &props)
+EnumerateNames(JSContext *cx, JSObject *wrapper, uintN flags, js::AutoIdVector &props)
 {
     JSObject *holder = GetHolder(wrapper);
 
@@ -859,7 +860,7 @@ EnumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoIdVecto
         return false;
 
     // Force all native properties to be materialized onto the wrapped native.
-    JS::AutoIdVector wnProps(cx);
+    js::AutoIdVector wnProps(cx);
     {
         JSAutoEnterCompartment ac;
         if (!ac.enter(cx, wnObject))
@@ -883,7 +884,7 @@ EnumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoIdVecto
 template <typename Base>
 bool
 XrayWrapper<Base>::getOwnPropertyNames(JSContext *cx, JSObject *wrapper,
-                                       JS::AutoIdVector &props)
+                                       js::AutoIdVector &props)
 {
     return EnumerateNames(cx, wrapper, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
@@ -924,7 +925,7 @@ XrayWrapper<Base>::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 
 template <typename Base>
 bool
-XrayWrapper<Base>::enumerate(JSContext *cx, JSObject *wrapper, JS::AutoIdVector &props)
+XrayWrapper<Base>::enumerate(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props)
 {
     return EnumerateNames(cx, wrapper, 0, props);
 }
@@ -977,7 +978,7 @@ XrayWrapper<Base>::hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 
 template <typename Base>
 bool
-XrayWrapper<Base>::keys(JSContext *cx, JSObject *wrapper, JS::AutoIdVector &props)
+XrayWrapper<Base>::keys(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props)
 {
     // Skip our Base if it isn't already ProxyHandler.
     return ProxyHandler::keys(cx, wrapper, props);
@@ -985,7 +986,7 @@ XrayWrapper<Base>::keys(JSContext *cx, JSObject *wrapper, JS::AutoIdVector &prop
 
 template <typename Base>
 bool
-XrayWrapper<Base>::iterate(JSContext *cx, JSObject *wrapper, unsigned flags, js::Value *vp)
+XrayWrapper<Base>::iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Value *vp)
 {
     // Skip our Base if it isn't already ProxyHandler.
     return ProxyHandler::iterate(cx, wrapper, flags, vp);
@@ -993,7 +994,7 @@ XrayWrapper<Base>::iterate(JSContext *cx, JSObject *wrapper, unsigned flags, js:
 
 template <typename Base>
 bool
-XrayWrapper<Base>::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Value *vp)
+XrayWrapper<Base>::call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value *vp)
 {
     JSObject *holder = GetHolder(wrapper);
     XPCWrappedNative *wn = GetWrappedNativeFromHolder(holder);
@@ -1019,7 +1020,7 @@ XrayWrapper<Base>::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Val
 
 template <typename Base>
 bool
-XrayWrapper<Base>::construct(JSContext *cx, JSObject *wrapper, unsigned argc,
+XrayWrapper<Base>::construct(JSContext *cx, JSObject *wrapper, uintN argc,
                              js::Value *argv, js::Value *rval)
 {
     JSObject *holder = GetHolder(wrapper);
@@ -1052,7 +1053,7 @@ XrayWrapper<Base>::createHolder(JSContext *cx, JSObject *wrappedNative, JSObject
         return nsnull;
 
     CompartmentPrivate *priv =
-        (CompartmentPrivate *)JS_GetCompartmentPrivate(js::GetObjectCompartment(holder));
+        (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, js::GetObjectCompartment(holder));
     JSObject *inner = JS_ObjectToInnerObject(cx, wrappedNative);
     XPCWrappedNative *wn = GetWrappedNative(inner);
     Value expando = ObjectOrNullValue(priv->LookupExpandoObject(wn));
@@ -1073,7 +1074,7 @@ XrayWrapper<Base>::createHolder(JSContext *cx, JSObject *wrappedNative, JSObject
     return holder;
 }
 
-XrayProxy::XrayProxy(unsigned flags)
+XrayProxy::XrayProxy(uintN flags)
   : XrayWrapper<CrossCompartmentWrapper>(flags)
 {
 }
@@ -1082,17 +1083,13 @@ XrayProxy::~XrayProxy()
 {
 }
 
-// The 'holder' here isn't actually of [[Class]] HolderClass like those used by
-// XrayWrapper. Instead, it's a funny hybrid of the 'expando' and 'holder'
-// properties. However, we store it in the same slot. Exercise caution.
 static JSObject *
 GetHolderObject(JSContext *cx, JSObject *wrapper, bool createHolder = true)
 {
     if (!js::GetProxyExtra(wrapper, 0).isUndefined())
         return &js::GetProxyExtra(wrapper, 0).toObject();
 
-    JSObject *obj = JS_NewObjectWithGivenProto(cx, nsnull, nsnull,
-                                               JS_GetGlobalForObject(cx, wrapper));
+    JSObject *obj = JS_NewObjectWithGivenProto(cx, nsnull, nsnull, js::GetObjectGlobal(wrapper));
     if (!obj)
         return nsnull;
     js::SetProxyExtra(wrapper, 0, ObjectValue(*obj));
@@ -1132,18 +1129,6 @@ XrayProxy::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
         return JS_WrapPropertyDescriptor(cx, desc);
     }
 
-    // We don't want to cache own properties on our holder. So we first do this
-    // call, and return if we find it (without caching). If we don't find it,
-    // we check the cache and do a full resolve (caching any result).
-    if (!js::GetProxyHandler(obj)->getOwnPropertyDescriptor(cx, wrapper, id, set, desc))
-        return false;
-    if (desc->obj) {
-        desc->obj = wrapper;
-        return true;
-    }
-
-    // Now that we're sure this isn't an own property, look up cached non-own
-    // properties before calling all the way through.
     if (!JS_GetPropertyDescriptorById(cx, holder, id, JSRESOLVE_QUALIFIED, desc))
         return false;
     if (desc->obj) {
@@ -1151,7 +1136,13 @@ XrayProxy::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
         return true;
     }
 
-    // Nothing in the cache. Call through, and cache the result.
+    if (!js::GetProxyHandler(obj)->getOwnPropertyDescriptor(cx, wrapper, id, set, desc))
+        return false;
+    if (desc->obj) {
+        desc->obj = wrapper;
+        return true;
+    }
+
     if (!js::GetProxyHandler(obj)->getPropertyDescriptor(cx, wrapper, id, set, desc))
         return false;
 
@@ -1219,12 +1210,10 @@ XrayProxy::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
     if (!js::GetProxyHandler(obj)->getOwnPropertyDescriptor(cx, wrapper, id, set, desc))
         return false;
 
-    // The 'not found' property descriptor has obj == NULL.
-    if (desc->obj)
-      desc->obj = wrapper;
+    desc->obj = wrapper;
 
-    // Own properties don't get cached on the holder. Just return.
-    return true;
+    return JS_DefinePropertyById(cx, holder, id, desc->value, desc->getter, desc->setter,
+                                 desc->attrs);
 }
 
 bool
@@ -1257,7 +1246,7 @@ XrayProxy::defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
 }
 
 static bool
-EnumerateProxyNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoIdVector &props)
+EnumerateProxyNames(JSContext *cx, JSObject *wrapper, uintN flags, js::AutoIdVector &props)
 {
     JSObject *obj = &js::GetProxyPrivate(wrapper).toObject();
 
@@ -1282,7 +1271,7 @@ EnumerateProxyNames(JSContext *cx, JSObject *wrapper, unsigned flags, JS::AutoId
 }
 
 bool
-XrayProxy::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, JS::AutoIdVector &props)
+XrayProxy::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props)
 {
     return EnumerateProxyNames(cx, wrapper, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
@@ -1317,7 +1306,7 @@ XrayProxy::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 }
 
 bool
-XrayProxy::enumerate(JSContext *cx, JSObject *wrapper, JS::AutoIdVector &props)
+XrayProxy::enumerate(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props)
 {
     return EnumerateProxyNames(cx, wrapper, 0, props);
 }

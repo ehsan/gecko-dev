@@ -10,3 +10,4 @@ function g() {
 for (var i = 0; i < 1000; ++i)
     g();
 
+checkStats({recorderStarted:1, recorderAborted:0, traceCompleted:1});

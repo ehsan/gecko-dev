@@ -34,13 +34,11 @@ addLoadEvent(function() {
   is(iframe.contentWindow.scrollY, 0, "Sanity check");
   var rect = iframe.getBoundingClientRect();
   setTimeout(function() {
-    var onscroll = function () {
-      iframe.contentWindow.removeEventListener("scroll", onscroll, false);
+    synthesizeMouse(iframe, rect.width - 5, rect.height / 2, {});
+    setTimeout(function() {
       isnot(iframe.contentWindow.scrollY, 0, "The scrollbar should work");
       SimpleTest.finish();
-    }
-    iframe.contentWindow.addEventListener("scroll", onscroll, false);
-    synthesizeMouse(iframe, rect.width - 5, rect.height / 2, {});
+    }, 0);
   }, 0);
 });
 

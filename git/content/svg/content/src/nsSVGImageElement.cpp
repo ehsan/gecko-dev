@@ -72,9 +72,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 DOMCI_NODE_DATA(SVGImageElement, nsSVGImageElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGImageElement)
-  NS_NODE_INTERFACE_TABLE8(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGImageElement,
+  NS_NODE_INTERFACE_TABLE7(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGImageElement,
                            nsIDOMSVGURIReference, imgIDecoderObserver,
                            nsIImageLoadingContent)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGImageElement)
@@ -170,7 +169,7 @@ nsSVGImageElement::LoadSVGImage(bool aForce, bool aNotify)
 
 nsresult
 nsSVGImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify)
+                                const nsAString* aValue, bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_XLink && aName == nsGkAtoms::href) {
 
@@ -242,7 +241,7 @@ nsSVGImageElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap,
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGImageElementBase::IsAttributeMapped(name);
 }
 
@@ -266,15 +265,6 @@ nsSVGImageElement::ConstructPath(gfxContext *aCtx)
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ bool
-nsSVGImageElement::HasValidDimensions() const
-{
-  return mLengthAttributes[WIDTH].IsExplicitlySet() &&
-         mLengthAttributes[WIDTH].GetAnimValInSpecifiedUnits() > 0 &&
-         mLengthAttributes[HEIGHT].IsExplicitlySet() &&
-         mLengthAttributes[HEIGHT].GetAnimValInSpecifiedUnits() > 0;
-}
 
 nsSVGElement::LengthAttributesInfo
 nsSVGImageElement::GetLengthInfo()

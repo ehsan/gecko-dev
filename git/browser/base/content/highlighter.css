@@ -12,10 +12,10 @@
   overflow: hidden;
 }
 
-#highlighter-veil-container:not([disable-transitions]) > .highlighter-veil,
-#highlighter-veil-container:not([disable-transitions]) > #highlighter-veil-middlebox,
-#highlighter-veil-container:not([disable-transitions]) > #highlighter-veil-middlebox > .highlighter-veil,
-#highlighter-veil-container:not([disable-transitions]) > #highlighter-veil-middlebox > #highlighter-veil-transparentbox {
+#highlighter-veil-container:not([locked]) > .highlighter-veil,
+#highlighter-veil-container:not([locked]) > #highlighter-veil-middlebox,
+#highlighter-veil-container:not([locked]) > #highlighter-veil-middlebox > .highlighter-veil,
+#highlighter-veil-container:not([locked]) > #highlighter-veil-middlebox > #highlighter-veil-transparentbox {
   -moz-transition-property: width, height;
   -moz-transition-duration: 0.1s;
   -moz-transition-timing-function: linear;
@@ -34,16 +34,24 @@
   direction: ltr;
 }
 
+.inspector-resizer {
+  display: none;
+}
+
+#inspector-toolbar[treepanel-open] > vbox > #inspector-top-resizer,
+#inspector-toolbar[treepanel-open] > vbox > hbox > #inspector-end-resizer {
+  display: -moz-box;
+}
+
 /*
  * Node Infobar
  */
 
 #highlighter-nodeinfobar-container {
   position: absolute;
-  max-width: 95%;
 }
 
-#highlighter-nodeinfobar-container:not([disable-transitions]) {
+#highlighter-nodeinfobar-container:not([locked]) {
   -moz-transition-property: top, left;
   -moz-transition-duration: 0.1s;
   -moz-transition-timing-function: linear;
@@ -53,19 +61,6 @@
   display: block;
   white-space: nowrap;
   direction: ltr;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#highlighter-nodeinfobar-container[locked] > #highlighter-nodeinfobar {
-  pointer-events: auto;
-}
-
-html|*#highlighter-nodeinfobar-id,
-html|*#highlighter-nodeinfobar-classes,
-html|*#highlighter-nodeinfobar-tagname {
-  -moz-user-select: text;
-  cursor: text;
 }
 
 .highlighter-nodeinfobar-arrow {
@@ -84,10 +79,18 @@ html|*#highlighter-nodeinfobar-tagname {
   visibility: hidden;
 }
 
-html|*#highlighter-nodeinfobar-tagname {
-  text-transform: lowercase;
+#highlighter-nodeinfobar-id:empty {
+  display: none;
 }
 
-.devtools-toolbarbutton:not([label]) > .toolbarbutton-text {
-  display: none;
+#highlighter-nodeinfobar-id::before {
+  content: "#";
+}
+
+.highlighter-nodeinfobar-class::before {
+  content: ".";
+}
+
+#highlighter-nodeinfobar-tagname {
+  text-transform: lowercase;
 }

@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const CURRENT_SCHEMA_VERSION = 19;
+const CURRENT_SCHEMA_VERSION = 13;
 
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
@@ -74,13 +74,18 @@ XPCOMUtils.defineLazyGetter(this, "FileUtils", function() {
   return FileUtils;
 });
 
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
+XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
+  Cu.import("resource://gre/modules/PlacesUtils.jsm");
+  return PlacesUtils;
+});
+
 
 function LOG(aMsg) {
   aMsg = ("*** PLACES TESTS: " + aMsg);
   Services.console.logStringMessage(aMsg);
   print(aMsg);
 }
+
 
 let gTestDir = do_get_cwd();
 
@@ -107,32 +112,25 @@ function uri(aSpec) NetUtil.newURI(aSpec);
  * Gets the database connection.  If the Places connection is invalid it will
  * try to create a new connection.
  *
- * @param [optional] aForceNewConnection
- *        Forces creation of a new connection to the database.  When a
- *        connection is asyncClosed it cannot anymore schedule async statements,
- *        though connectionReady will keep returning true (Bug 726990).
- *
  * @return The database connection or null if unable to get one.
  */
 let gDBConn;
-function DBConn(aForceNewConnection) {
-  if (!aForceNewConnection) {
-    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                                .DBConnection;
-    if (db.connectionReady)
-      return db;
-  }
+function DBConn() {
+  let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
+                              .DBConnection;
+  if (db.connectionReady)
+    return db;
 
   // If the Places database connection has been closed, create a new connection.
-  if (!gDBConn || aForceNewConnection) {
+  if (!gDBConn) {
     let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
     file.append("places.sqlite");
-    let dbConn = gDBConn = Services.storage.openDatabase(file);
+    gDBConn = Services.storage.openDatabase(file);
 
     // Be sure to cleanly close this connection.
-    Services.obs.addObserver(function DBCloseCallback(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(DBCloseCallback, aTopic);
-      dbConn.asyncClose();
+    Services.obs.addObserver(function (aSubject, aTopic, aData) {
+      Services.obs.removeObserver(arguments.callee, aTopic);
+      gDBConn.asyncClose();
     }, "profile-before-change", false);
   }
 
@@ -640,21 +638,6 @@ function waitForAsyncUpdates(aCallback, aScope, aArguments)
 }
 
 /**
- * Shutdowns Places, invoking the callback when the connection has been closed.
- *
- * @param aCallback
- *        Function to be called when done.
- */
-function waitForConnectionClosed(aCallback)
-{
-  Services.obs.addObserver(function WFCCCallback() {
-    Services.obs.removeObserver(WFCCCallback, "places-connection-closed");
-    aCallback();
-  }, "places-connection-closed", false);
-  shutdownPlaces();
-}
-
-/**
  * Tests if a given guid is valid for use in Places or not.
  *
  * @param aGuid
@@ -719,53 +702,6 @@ function do_check_guid_for_uri(aURI,
 }
 
 /**
- * Retrieves the guid for a given bookmark.
- *
- * @param aId
- *        The bookmark id to check.
- * @param [optional] aStack
- *        The stack frame used to report the error.
- * @return the associated the guid.
- */
-function do_get_guid_for_bookmark(aId,
-                                  aStack)
-{
-  if (!aStack) {
-    aStack = Components.stack.caller;
-  }
-  let stmt = DBConn().createStatement(
-    "SELECT guid "
-  + "FROM moz_bookmarks "
-  + "WHERE id = :item_id "
-  );
-  stmt.params.item_id = aId;
-  do_check_true(stmt.executeStep(), aStack);
-  let guid = stmt.row.guid;
-  stmt.finalize();
-  do_check_valid_places_guid(guid, aStack);
-  return guid;
-}
-
-/**
- * Tests that a guid was set in moz_places for a given bookmark.
- *
- * @param aId
- *        The bookmark id to check.
- * @param [optional] aGUID
- *        The expected guid in the database.
- */
-function do_check_guid_for_bookmark(aId,
-                                    aGUID)
-{
-  let caller = Components.stack.caller;
-  let guid = do_get_guid_for_bookmark(aId, caller);
-  if (aGUID) {
-    do_check_valid_places_guid(aGUID, caller);
-    do_check_eq(guid, aGUID, caller);
-  }
-}
-
-/**
  * Logs info to the console in the standard way (includes the filename).
  *
  * @param aMessage
@@ -800,24 +736,3 @@ function do_compare_arrays(a1, a2, sorted)
            a2.filter(function (e) a1.indexOf(e) == -1).length == 0;
   }
 }
-
-/**
- * Generic nsINavHistoryObserver that doesn't implement anything, but provides
- * dummy methods to prevent errors about an object not having a certain method.
- */
-function NavHistoryObserver() {}
-
-NavHistoryObserver.prototype = {
-  onBeginUpdateBatch: function () {},
-  onEndUpdateBatch: function () {},
-  onVisit: function () {},
-  onTitleChanged: function () {},
-  onBeforeDeleteURI: function () {},
-  onDeleteURI: function () {},
-  onClearHistory: function () {},
-  onPageChanged: function () {},
-  onDeleteVisits: function () {},
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsINavHistoryObserver,
-  ])
-};

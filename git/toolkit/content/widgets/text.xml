@@ -299,7 +299,7 @@
         <body>
         <![CDATA[
           var href = this.href;
-          if (!href || this.disabled || aEvent.defaultPrevented)
+          if (!href || this.disabled || aEvent.getPreventDefault())
             return;
 
           var uri = null;

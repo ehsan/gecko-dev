@@ -62,9 +62,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "xpcpublic.h"
-#include "nsCrossSiteListenerProxy.h"
-#include "nsWrapperCacheInlines.h"
-#include "nsDOMEventTargetHelper.h"
 
 using namespace mozilla;
 
@@ -88,8 +85,6 @@ nsEventSource::nsEventSource() :
   mFrozen(false),
   mErrorLoadOnRedirect(false),
   mGoingToDispatchAllMessages(false),
-  mWithCredentials(false),
-  mWaitingForOnStopRequest(false),
   mLastConvertionResult(NS_OK),
   mReadyState(nsIEventSource::CONNECTING),
   mScriptLine(0),
@@ -100,6 +95,11 @@ nsEventSource::nsEventSource() :
 nsEventSource::~nsEventSource()
 {
   Close();
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+    mListenerManager = nsnull;
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -108,38 +108,8 @@ nsEventSource::~nsEventSource()
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsEventSource)
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsEventSource)
-  bool isBlack = tmp->IsBlack();
-  if (isBlack || tmp->mWaitingForOnStopRequest) {
-    if (tmp->mListenerManager) {
-      tmp->mListenerManager->UnmarkGrayJSListeners();
-      NS_UNMARK_LISTENER_WRAPPER(Open)
-      NS_UNMARK_LISTENER_WRAPPER(Message)
-      NS_UNMARK_LISTENER_WRAPPER(Error)
-    }
-    if (!isBlack) {
-      xpc_UnmarkGrayObject(tmp->PreservingWrapper() ? 
-                           tmp->GetWrapperPreserveColor() :
-                           tmp->GetExpandoObjectPreserveColor());
-    }
-    return true;
-  }
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsEventSource)
-  return tmp->IsBlack();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsEventSource)
-  return tmp->IsBlack();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsEventSource,
-                                               nsDOMEventTargetHelper)
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsEventSource,
-                                                  nsDOMEventTargetHelper)
+                                                  nsDOMEventTargetWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSrc)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNotificationCallbacks)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLoadGroup)
@@ -152,7 +122,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsEventSource,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mUnicodeDecoder)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsEventSource, nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsEventSource, nsDOMEventTargetWrapperCache)
   tmp->Close();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnOpenListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnMessageListener)
@@ -171,20 +141,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsEventSource)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(EventSource)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
 
-NS_IMPL_ADDREF_INHERITED(nsEventSource, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsEventSource, nsDOMEventTargetHelper)
-
-void
-nsEventSource::DisconnectFromOwner()
-{
-  nsDOMEventTargetHelper::DisconnectFromOwner();
-  NS_DISCONNECT_EVENT_HANDLER(Open)
-  NS_DISCONNECT_EVENT_HANDLER(Message)
-  NS_DISCONNECT_EVENT_HANDLER(Error)
-  Close();
-}
+NS_IMPL_ADDREF_INHERITED(nsEventSource, nsDOMEventTargetWrapperCache)
+NS_IMPL_RELEASE_INHERITED(nsEventSource, nsDOMEventTargetWrapperCache)
 
 //-----------------------------------------------------------------------------
 // nsEventSource::nsIEventSource
@@ -202,14 +162,6 @@ nsEventSource::GetReadyState(PRInt32 *aReadyState)
 {
   NS_ENSURE_ARG_POINTER(aReadyState);
   *aReadyState = mReadyState;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEventSource::GetWithCredentials(bool *aWithCredentials)
-{
-  NS_ENSURE_ARG_POINTER(aWithCredentials);
-  *aWithCredentials = mWithCredentials;
   return NS_OK;
 }
 
@@ -261,6 +213,9 @@ nsEventSource::Close()
   mSrc = nsnull;
   mFrozen = false;
 
+  mScriptContext = nsnull;
+  mOwner = nsnull;
+
   mUnicodeDecoder = nsnull;
 
   mReadyState = nsIEventSource::CLOSED;
@@ -275,8 +230,7 @@ NS_IMETHODIMP
 nsEventSource::Init(nsIPrincipal* aPrincipal,
                     nsIScriptContext* aScriptContext,
                     nsPIDOMWindow* aOwnerWindow,
-                    const nsAString& aURL,
-                    bool aWithCredentials)
+                    const nsAString& aURL)
 {
   NS_ENSURE_ARG(aPrincipal);
 
@@ -285,12 +239,12 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
   }
 
   mPrincipal = aPrincipal;
-  mWithCredentials = aWithCredentials;
+  mScriptContext = aScriptContext;
   if (aOwnerWindow) {
-    BindToOwner(aOwnerWindow->IsOuterWindow() ?
-      aOwnerWindow->GetCurrentInnerWindow() : aOwnerWindow);
+    mOwner = aOwnerWindow->IsOuterWindow() ?
+      aOwnerWindow->GetCurrentInnerWindow() : aOwnerWindow;
   } else {
-    BindToOwner(aOwnerWindow);
+    mOwner = nsnull;
   }
 
   nsCOMPtr<nsIJSContextStack> stack =
@@ -308,11 +262,9 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
   // Get the load group for the page. When requesting we'll add ourselves to it.
   // This way any pending requests will be automatically aborted if the user
   // leaves the page.
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  if (sc) {
+  if (mScriptContext) {
     nsCOMPtr<nsIDocument> doc =
-      nsContentUtils::GetDocumentFromScriptContext(sc);
+      nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
     if (doc) {
       mLoadGroup = doc->GetDocumentLoadGroup();
     }
@@ -320,7 +272,7 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
 
   // get the src
   nsCOMPtr<nsIURI> baseURI;
-  rv = GetBaseURI(getter_AddRefs(baseURI));
+  nsresult rv = GetBaseURI(getter_AddRefs(baseURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIURI> srcURI;
@@ -338,8 +290,8 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
   rv = os->AddObserver(this, DOM_WINDOW_THAWED_TOPIC, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoString origin;
-  rv = nsContentUtils::GetUTFOrigin(srcURI, origin);
+  nsXPIDLCString origin;
+  rv = mPrincipal->GetOrigin(getter_Copies(origin));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCAutoString spec;
@@ -424,31 +376,7 @@ nsEventSource::Initialize(nsISupports* aOwner,
   nsCOMPtr<nsIPrincipal> principal = scriptPrincipal->GetPrincipal();
   NS_ENSURE_STATE(principal);
 
-  bool withCredentialsParam = false;
-  if (aArgc >= 2) {
-    NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(aArgv[1]), NS_ERROR_INVALID_ARG);
-
-    JSObject *obj = JSVAL_TO_OBJECT(aArgv[1]);
-    NS_ASSERTION(obj, "obj shouldn't be null!!");
-
-    JSBool hasProperty = JS_FALSE;
-    NS_ENSURE_TRUE(JS_HasProperty(aContext, obj, "withCredentials",
-                                  &hasProperty), NS_ERROR_FAILURE);
-
-    if (hasProperty) {
-      jsval withCredentialsVal;
-      NS_ENSURE_TRUE(JS_GetProperty(aContext, obj, "withCredentials",
-                                    &withCredentialsVal), NS_ERROR_FAILURE);
-
-      JSBool withCredentials = JS_FALSE;
-      NS_ENSURE_TRUE(JS_ValueToBoolean(aContext, withCredentialsVal,
-                                       &withCredentials), NS_ERROR_FAILURE);
-      withCredentialsParam = !!withCredentials;
-    }
-  }
-
-  return Init(principal, scriptContext, ownerWindow,
-              urlParam, withCredentialsParam);
+  return Init(principal, scriptContext, ownerWindow, urlParam);
 }
 
 //-----------------------------------------------------------------------------
@@ -465,7 +393,7 @@ nsEventSource::Observe(nsISupports* aSubject,
   }
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aSubject);
-  if (!GetOwner() || window != GetOwner()) {
+  if (!mOwner || window != mOwner) {
     return NS_OK;
   }
 
@@ -614,8 +542,6 @@ nsEventSource::OnStopRequest(nsIRequest *aRequest,
                              nsISupports *aContext,
                              nsresult aStatusCode)
 {
-  mWaitingForOnStopRequest = false;
-
   if (mReadyState == nsIEventSource::CLOSED) {
     return NS_ERROR_ABORT;
   }
@@ -842,8 +768,8 @@ nsEventSource::GetInterface(const nsIID & aIID,
     // of the dialogs works as it should when using tabs.
 
     nsCOMPtr<nsIDOMWindow> window;
-    if (GetOwner()) {
-      window = GetOwner()->GetOuterWindow();
+    if (mOwner) {
+      window = mOwner->GetOuterWindow();
     }
 
     return wwatch->GetPrompt(window, aIID, aResult);
@@ -869,17 +795,15 @@ nsEventSource::GetBaseURI(nsIURI **aBaseURI)
   nsCOMPtr<nsIURI> baseURI;
 
   // first we try from document->GetBaseURI()
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   nsCOMPtr<nsIDocument> doc =
-    nsContentUtils::GetDocumentFromScriptContext(sc);
+    nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
   if (doc) {
     baseURI = doc->GetBaseURI();
   }
 
   // otherwise we get from the doc's principal
   if (!baseURI) {
-    rv = mPrincipal->GetURI(getter_AddRefs(baseURI));
+    nsresult rv = mPrincipal->GetURI(getter_AddRefs(baseURI));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -911,6 +835,13 @@ nsEventSource::SetupHttpChannel()
   if (NS_SUCCEEDED(rv)) {
     rv = mHttpChannel->SetReferrer(codebase);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  nsCOMPtr<nsIInterfaceRequestor> notificationCallbacks;
+  mHttpChannel->GetNotificationCallbacks(getter_AddRefs(notificationCallbacks));
+  if (notificationCallbacks != this) {
+    mNotificationCallbacks = notificationCallbacks;
+    mHttpChannel->SetNotificationCallbacks(this);
   }
 
   return NS_OK;
@@ -955,24 +886,8 @@ nsEventSource::InitChannelAndRequestEventSource()
   rv = SetupHttpChannel();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIInterfaceRequestor> notificationCallbacks;
-  mHttpChannel->GetNotificationCallbacks(getter_AddRefs(notificationCallbacks));
-  if (notificationCallbacks != this) {
-    mNotificationCallbacks = notificationCallbacks;
-    mHttpChannel->SetNotificationCallbacks(this);
-  }
-
-  nsCOMPtr<nsIStreamListener> listener =
-    new nsCORSListenerProxy(this, mPrincipal, mHttpChannel,
-                            mWithCredentials, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // Start reading from the channel
-  rv = mHttpChannel->AsyncOpen(listener, nsnull);
-  if (NS_SUCCEEDED(rv)) {
-    mWaitingForOnStopRequest = true;
-  }
-  return rv;
+  return mHttpChannel->AsyncOpen(this, nsnull);
 }
 
 void
@@ -1140,7 +1055,7 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
     do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIScriptError> errObj(
+  nsCOMPtr<nsIScriptError2> errObj(
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1155,16 +1070,16 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = errObj->InitWithWindowID(message.get(),
-                                mScriptFile.get(),
-                                nsnull,
-                                mScriptLine, 0,
-                                nsIScriptError::errorFlag,
-                                "Event Source", mInnerWindowID);
-  NS_ENSURE_SUCCESS(rv, rv);
+  errObj->InitWithWindowID(message.get(),
+                           mScriptFile.get(),
+                           nsnull,
+                           mScriptLine, 0,
+                           nsIScriptError::errorFlag,
+                           "Event Source", mInnerWindowID);
 
   // print the error message directly to the JS console
-  rv = console->LogMessage(errObj);
+  nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errObj);
+  rv = console->LogMessage(logError);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1258,12 +1173,15 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
     return false;
   }
 
+  bool isSameOrigin = false;
   bool isValidURI = false;
   bool isValidContentLoadPolicy = false;
   bool isValidProtocol = false;
 
   nsCOMPtr<nsIURI> srcToTest = aSrc ? aSrc : mSrc.get();
   NS_ENSURE_TRUE(srcToTest, false);
+
+  isSameOrigin = NS_SUCCEEDED(mPrincipal->CheckMayLoad(srcToTest, false));
 
   PRUint32 aCheckURIFlags =
     nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL |
@@ -1277,9 +1195,8 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
 
   // After the security manager, the content-policy check
 
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   nsCOMPtr<nsIDocument> doc =
-    nsContentUtils::GetDocumentFromScriptContext(sc);
+    nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
 
   // mScriptContext should be initialized because of GetBaseURI() above.
   // Still need to consider the case that doc is nsnull however.
@@ -1305,7 +1222,8 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
                       targetURIScheme.EqualsLiteral("https");
   }
 
-  return isValidURI && isValidContentLoadPolicy && isValidProtocol;
+  return isSameOrigin && isValidURI && isValidContentLoadPolicy &&
+         isValidProtocol;
 }
 
 // static
@@ -1429,7 +1347,7 @@ nsEventSource::DispatchAllMessageEvents()
   }
 
   // Let's play get the JSContext
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(mOwner);
   NS_ENSURE_TRUE(sgo,);
 
   nsIScriptContext* scriptContext = sgo->GetContext();
@@ -1469,7 +1387,7 @@ nsEventSource::DispatchAllMessageEvents()
     rv = messageEvent->InitMessageEvent(message->mEventName,
                                         false, false,
                                         jsData,
-                                        mOrigin,
+                                        NS_ConvertUTF8toUTF16(mOrigin),
                                         message->mLastEventID, nsnull);
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to init the message event!!!");

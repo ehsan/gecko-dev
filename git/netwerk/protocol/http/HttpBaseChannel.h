@@ -167,9 +167,6 @@ public:
   NS_IMETHOD GetLocalPort(PRInt32* port);
   NS_IMETHOD GetRemoteAddress(nsACString& addr);
   NS_IMETHOD GetRemotePort(PRInt32* port);
-  NS_IMETHOD GetAllowSpdy(bool *aAllowSpdy);
-  NS_IMETHOD SetAllowSpdy(bool aAllowSpdy);
-  
   inline void CleanRedirectCacheChainIfNecessary()
   {
       if (mRedirectedCachekeys) {
@@ -233,8 +230,7 @@ protected:
   void AddCookiesToRequest();
   virtual nsresult SetupReplacementChannel(nsIURI *,
                                            nsIChannel *,
-                                           bool preserveMethod,
-                                           bool forProxy);
+                                           bool preserveMethod);
 
   // Helper function to simplify getting notification callbacks.
   template <class T>
@@ -299,7 +295,6 @@ protected:
   PRUint32                          mTracingEnabled             : 1;
   // True if timing collection is enabled
   PRUint32                          mTimingEnabled              : 1;
-  PRUint32                          mAllowSpdy                  : 1;
 
   // Current suspension depth for this channel object
   PRUint32                          mSuspendCount;

@@ -51,7 +51,7 @@ namespace layers {
 class LayerManager;
 class ImageContainer;
 }
-namespace image {
+namespace imagelib {
 
 class SVGDocumentWrapper;
 class SVGRootRenderingObserver;
@@ -73,7 +73,7 @@ public:
   NS_SCRIPTABLE NS_IMETHOD GetAnimated(bool *aAnimated);
   NS_SCRIPTABLE NS_IMETHOD GetCurrentFrameIsOpaque(bool *aCurrentFrameIsOpaque);
   NS_IMETHOD GetFrame(PRUint32 aWhichFrame, PRUint32 aFlags, gfxASurface **_retval NS_OUTPARAM);
-  NS_IMETHOD GetImageContainer(mozilla::layers::ImageContainer **_retval NS_OUTPARAM) { *_retval = NULL; return NS_OK; }
+  NS_IMETHOD GetImageContainer(mozilla::layers::LayerManager* aManager, mozilla::layers::ImageContainer **_retval NS_OUTPARAM) { *_retval = NULL; return NS_OK; }
   NS_IMETHOD CopyFrame(PRUint32 aWhichFrame, PRUint32 aFlags, gfxImageSurface **_retval NS_OUTPARAM);
   NS_IMETHOD ExtractFrame(PRUint32 aWhichFrame, const nsIntRect & aRect, PRUint32 aFlags, imgIContainer **_retval NS_OUTPARAM);
   NS_IMETHOD Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter, const gfxMatrix & aUserSpaceToImageSpace, const gfxRect & aFill, const nsIntRect & aSubimage, const nsIntSize & aViewportSize, PRUint32 aFlags);
@@ -81,7 +81,6 @@ public:
   NS_SCRIPTABLE NS_IMETHOD RequestDecode(void);
   NS_SCRIPTABLE NS_IMETHOD LockImage(void);
   NS_SCRIPTABLE NS_IMETHOD UnlockImage(void);
-  NS_SCRIPTABLE NS_IMETHOD RequestDiscard(void);
   NS_SCRIPTABLE NS_IMETHOD ResetAnimation(void);
   NS_IMETHOD_(void) RequestRefresh(const mozilla::TimeStamp& aTime);
   // END NS_DECL_IMGICONTAINER
@@ -96,10 +95,10 @@ public:
                 PRUint32 aFlags);
   void GetCurrentFrameRect(nsIntRect& aRect);
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t NonHeapSizeOfDecoded() const;
-  virtual size_t OutOfProcessSizeOfDecoded() const;
+  virtual PRUint32 GetDecodedHeapSize();
+  virtual PRUint32 GetDecodedNonheapSize();
+  virtual PRUint32 GetDecodedOutOfProcessSize();
+  virtual PRUint32 GetSourceHeapSize();
 
   // Callback for SVGRootRenderingObserver
   void InvalidateObserver();
@@ -133,7 +132,7 @@ private:
                                           // created via ExtractFrame?
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif // mozilla_imagelib_VectorImage_h_

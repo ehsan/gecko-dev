@@ -86,9 +86,6 @@ _TEST_FILES =   imgutils.js \
                 bug671906-iframe.html \
                 bug671906.sjs \
                 test_bug671906.html \
-		test_error_events.html \
-		error-early.png \
-		test_drawDiscardedImage.html \
                 $(NULL)
 
 # Tests disabled due to intermittent orange
@@ -101,7 +98,6 @@ _CHROME_FILES = imgutils.js \
                 animation.svg \
                 test_animSVGImage.html \
                 test_animation.html \
-                test_animation2.html \
                 animated-gif-finalframe.gif \
                 animated-gif.gif \
                 animated-gif2.gif \

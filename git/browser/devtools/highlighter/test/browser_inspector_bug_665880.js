@@ -5,7 +5,6 @@
 function test()
 {
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
 
   let doc;
   let objectNode;
@@ -34,7 +33,8 @@ function test()
       InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
 
     executeSoon(function() {
-      InspectorUI.highlighter.addListener("nodeselected", performTestComparison);
+      Services.obs.addObserver(performTestComparison,
+        InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
 
       InspectorUI.inspectNode(objectNode);
     });
@@ -42,7 +42,8 @@ function test()
 
   function performTestComparison()
   {
-    InspectorUI.highlighter.removeListener("nodeselected", performTestComparison);
+    Services.obs.removeObserver(performTestComparison,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
 
     is(InspectorUI.selection, objectNode, "selection matches node");
 

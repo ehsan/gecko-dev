@@ -46,6 +46,7 @@
 
 #include "AccCollector.h"
 #include "nsAccessibleWrap.h"
+#include "nsTextAttrs.h"
 
 #include "nsFrameSelection.h"
 #include "nsISelectionController.h"
@@ -75,9 +76,7 @@ class nsHyperTextAccessible : public nsAccessibleWrap,
                               public nsIAccessibleEditableText
 {
 public:
-  nsHyperTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
-  virtual ~nsHyperTextAccessible() { }
-
+  nsHyperTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLETEXT
   NS_DECL_NSIACCESSIBLEHYPERTEXT
@@ -88,7 +87,7 @@ public:
   virtual PRInt32 GetLevelInternal();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   virtual void InvalidateChildren();
@@ -264,14 +263,6 @@ public:
     return GetChildAt(GetChildIndexAtOffset(aOffset));
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-  // EditableTextAccessible
-
-  /**
-   * Return the editor associated with the accessible.
-   */
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
-
 protected:
   // nsHyperTextAccessible
 
@@ -369,7 +360,7 @@ protected:
   /**
    * Return selection ranges within the accessible subtree.
    */
-  void GetSelectionDOMRanges(PRInt16 aType, nsTArray<nsRange*>* aRanges);
+  void GetSelectionDOMRanges(PRInt16 aType, nsCOMArray<nsIDOMRange>* aRanges);
 
   nsresult SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos);
 
@@ -399,10 +390,10 @@ protected:
    *                        outside of hyper text
    * @param aHTOffset       [out] the result offset
    */
-  nsresult RangeBoundToHypertextOffset(nsRange *aRange,
-                                       bool aIsStartBound,
-                                       bool aIsStartOffset,
-                                       PRInt32 *aHTOffset);
+  nsresult DOMRangeBoundToHypertextOffset(nsIDOMRange *aRange,
+                                          bool aIsStartBound,
+                                          bool aIsStartOffset,
+                                          PRInt32 *aHTOffset);
 
   /**
    * Set 'misspelled' text attribute and return range offsets where the
@@ -417,7 +408,7 @@ protected:
    * @param aEndOffset        [in, out] the end offset
    * @param aAttributes       [out, optional] result attributes
    */
-  nsresult GetSpellTextAttribute(nsINode* aNode, PRInt32 aNodeOffset,
+  nsresult GetSpellTextAttribute(nsIDOMNode *aNode, PRInt32 aNodeOffset,
                                  PRInt32 *aStartOffset,
                                  PRInt32 *aEndOffset,
                                  nsIPersistentProperties *aAttributes);

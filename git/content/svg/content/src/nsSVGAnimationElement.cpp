@@ -55,7 +55,6 @@ NS_IMPL_RELEASE_INHERITED(nsSVGAnimationElement, nsSVGAnimationElementBase)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAnimationElement)
   NS_INTERFACE_MAP_ENTRY(nsISMILAnimationElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMElementTimeControl)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGTests)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGAnimationElementBase)
 
 // Cycle collection magic -- based on nsSVGUseElement
@@ -117,14 +116,6 @@ Element&
 nsSVGAnimationElement::AsElement()
 {
   return *this;
-}
-
-bool
-nsSVGAnimationElement::PassesConditionalProcessingTests()
-{
-  nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(
-    static_cast<nsSVGElement*>(this)));
-  return tests->PassesConditionalProcessingTests();
 }
 
 const nsAttrValue*
@@ -376,7 +367,7 @@ nsSVGAnimationElement::ParseAttribute(PRInt32 aNamespaceID,
 
 nsresult
 nsSVGAnimationElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                    const nsAttrValue* aValue, bool aNotify)
+                                    const nsAString* aValue, bool aNotify)
 {
   nsresult rv =
     nsSVGAnimationElementBase::AfterSetAttr(aNamespaceID, aName, aValue,
@@ -389,9 +380,7 @@ nsSVGAnimationElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     mHrefTarget.Unlink();
     AnimationTargetChanged();
   } else if (IsInDoc()) {
-    NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eString,
-                      "Expected href attribute to be string type");
-    UpdateHrefTarget(this, aValue->GetStringValue());
+    UpdateHrefTarget(this, *aValue);
   } // else: we're not yet in a document -- we'll update the target on
     // next BindToTree call.
 
@@ -419,7 +408,7 @@ nsSVGAnimationElement::UnsetAttr(PRInt32 aNamespaceID,
 bool
 nsSVGAnimationElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eANIMATION));
+  return !(aFlags & ~(eCONTENT | eSVG | eANIMATION));
 }
 
 //----------------------------------------------------------------------

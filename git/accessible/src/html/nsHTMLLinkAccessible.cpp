@@ -39,11 +39,9 @@
 
 #include "nsHTMLLinkAccessible.h"
 
-#include "nsCoreUtils.h"
-#include "Role.h"
 #include "States.h"
+#include "nsCoreUtils.h"
 
-#include "nsDocAccessible.h"
 #include "nsEventStates.h"
 #include "mozilla/dom/Element.h"
 
@@ -54,8 +52,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLLinkAccessible::
-  nsHTMLLinkAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsHTMLLinkAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -66,10 +64,10 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-role
+PRUint32
 nsHTMLLinkAccessible::NativeRole()
 {
-  return roles::LINK;
+  return nsIAccessibleRole::ROLE_LINK;
 }
 
 PRUint64
@@ -117,7 +115,7 @@ nsHTMLLinkAccessible::GetValue(nsAString& aValue)
   if (!aValue.IsEmpty())
     return NS_OK;
   
-  nsIPresShell* presShell(mDoc->PresShell());
+  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   return presShell->GetLinkLocation(DOMNode, aValue);
 }

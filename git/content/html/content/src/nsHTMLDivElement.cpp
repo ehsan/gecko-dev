@@ -43,6 +43,7 @@
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
+#include "nsDOMMemoryReporter.h"
 
 using namespace mozilla;
 
@@ -67,6 +68,9 @@ public:
 
   // nsIDOMHTMLDivElement
   NS_DECL_NSIDOMHTMLDIVELEMENT
+
+  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsHTMLDivElement,
+                                              nsGenericHTMLElement)
 
   virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -166,7 +170,7 @@ nsHTMLDivElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       sDivAlignAttributeMap,
       sCommonAttributeMap
     };
-    return FindAttributeDependence(aAttribute, map);
+    return FindAttributeDependence(aAttribute, map, ArrayLength(map));
   }
   if (mNodeInfo->Equals(nsGkAtoms::marquee)) {  
     static const MappedAttributeEntry* const map[] = {
@@ -174,7 +178,7 @@ nsHTMLDivElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       sBackgroundColorAttributeMap,
       sCommonAttributeMap
     };
-    return FindAttributeDependence(aAttribute, map);
+    return FindAttributeDependence(aAttribute, map, ArrayLength(map));
   }
 
   return nsGenericHTMLElement::IsAttributeMapped(aAttribute);

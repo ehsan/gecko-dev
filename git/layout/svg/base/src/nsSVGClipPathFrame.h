@@ -40,8 +40,6 @@
 #include "nsSVGContainerFrame.h"
 #include "gfxMatrix.h"
 
-class nsRenderingContext;
-
 typedef nsSVGContainerFrame nsSVGClipPathFrameBase;
 
 class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
@@ -49,18 +47,15 @@ class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
   friend nsIFrame*
   NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGClipPathFrame(nsStyleContext* aContext)
-    : nsSVGClipPathFrameBase(aContext)
-    , mInUse(false)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  nsSVGClipPathFrame(nsStyleContext* aContext) :
+    nsSVGClipPathFrameBase(aContext),
+    mInUse(false) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsSVGClipPathFrame methods:
-  nsresult ClipPaint(nsRenderingContext* aContext,
+  nsresult ClipPaint(nsSVGRenderState* aContext,
                      nsIFrame* aParent,
                      const gfxMatrix &aMatrix);
 

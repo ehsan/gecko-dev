@@ -17,12 +17,6 @@ public:
     TestHangsParent();
     virtual ~TestHangsParent();
 
-    static bool RunTestInProcesses() { return true; }
-
-    // FIXME/bug 703320 Disabled because parent kills child proc, not
-    //                  clear how that should work in threads.
-    static bool RunTestInThreads() { return false; }
-
     void Main();
 
 protected:

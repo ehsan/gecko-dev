@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -51,9 +51,10 @@
 
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
+#include "vm/String.h"
 
 struct JSIdArray {
-    int length;
+    jsint length;
     js::HeapId vector[1];    /* actually, length jsid words */
 };
 
@@ -154,8 +155,8 @@ struct DefaultHasher<jsid>
 #if JS_BYTES_PER_WORD == 4
 # define ATOM_HASH(atom)          ((JSHashNumber)(atom) >> 2)
 #elif JS_BYTES_PER_WORD == 8
-# define ATOM_HASH(atom)          (((JSHashNumber)(uintptr_t)(atom) >> 3) ^   \
-                                   (JSHashNumber)((uintptr_t)(atom) >> 32))
+# define ATOM_HASH(atom)          (((JSHashNumber)(jsuword)(atom) >> 3) ^     \
+                                   (JSHashNumber)((jsuword)(atom) >> 32))
 #else
 # error "Unsupported configuration"
 #endif
@@ -170,44 +171,16 @@ js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes);
 namespace js {
 
 /* Compute a hash function from chars/length. */
-inline uint32_t
+inline uint32
 HashChars(const jschar *chars, size_t length)
 {
-    uint32_t h = 0;
+    uint32 h = 0;
     for (; length; chars++, length--)
         h = JS_ROTATE_LEFT32(h, 4) ^ *chars;
     return h;
 }
 
-class AtomStateEntry
-{
-    uintptr_t bits;
-
-    static const uintptr_t NO_TAG_MASK = uintptr_t(-1) - 1;
-
-  public:
-    AtomStateEntry() : bits(0) {}
-    AtomStateEntry(const AtomStateEntry &other) : bits(other.bits) {}
-    AtomStateEntry(JSAtom *ptr, bool tagged)
-      : bits(uintptr_t(ptr) | uintptr_t(tagged))
-    {
-        JS_ASSERT((uintptr_t(ptr) & 0x1) == 0);
-    }
-
-    bool isTagged() const {
-        return bits & 0x1;
-    }
-
-    /*
-     * Non-branching code sequence. Note that the const_cast is safe because
-     * the hash function doesn't consider the tag to be a portion of the key.
-     */
-    void setTagged(bool enabled) const {
-        const_cast<AtomStateEntry *>(this)->bits |= uintptr_t(enabled);
-    }
-
-    JSAtom *asPtr() const;
-};
+typedef TaggedPointerEntry<JSAtom> AtomStateEntry;
 
 struct AtomHasher
 {
@@ -218,11 +191,22 @@ struct AtomHasher
         const JSAtom    *atom; /* Optional. */
 
         Lookup(const jschar *chars, size_t length) : chars(chars), length(length), atom(NULL) {}
-        inline Lookup(const JSAtom *atom);
+        Lookup(const JSAtom *atom) : chars(atom->chars()), length(atom->length()), atom(atom) {}
     };
 
-    static HashNumber hash(const Lookup &l) { return HashChars(l.chars, l.length); }
-    static inline bool match(const AtomStateEntry &entry, const Lookup &lookup);
+    static HashNumber hash(const Lookup &l) {
+        return HashChars(l.chars, l.length);
+    }
+
+    static bool match(const AtomStateEntry &entry, const Lookup &lookup) {
+        JSAtom *key = entry.asPtr();
+
+        if (lookup.atom)
+            return lookup.atom == key;
+        if (key->length() != lookup.length)
+            return false;
+        return PodEqual(key->chars(), lookup.chars, lookup.length);
+    }
 };
 
 typedef HashSet<AtomStateEntry, AtomHasher, SystemAllocPolicy> AtomSet;
@@ -250,13 +234,15 @@ enum FlationCoding
     CESU8Encoding
 };
 
-class PropertyName;
-
 }  /* namespace js */
 
 struct JSAtomState
 {
     js::AtomSet         atoms;
+
+#ifdef JS_THREADSAFE
+    JSThinLock          lock;
+#endif
 
     /*
      * From this point until the end of struct definition the struct must
@@ -314,7 +300,6 @@ struct JSAtomState
     js::PropertyName    *noSuchMethodAtom;
     js::PropertyName    *objectNullAtom;
     js::PropertyName    *objectUndefinedAtom;
-    js::PropertyName    *ofAtom;
     js::PropertyName    *protoAtom;
     js::PropertyName    *setAtom;
     js::PropertyName    *sourceAtom;
@@ -541,24 +526,13 @@ extern void
 js_TraceAtomState(JSTracer *trc);
 
 extern void
-js_SweepAtomState(JSRuntime *rt);
+js_SweepAtomState(JSContext *cx);
 
 extern bool
 js_InitCommonAtoms(JSContext *cx);
 
 extern void
 js_FinishCommonAtoms(JSContext *cx);
-
-namespace js {
-
-/* N.B. must correspond to boolean tagging behavior. */
-enum InternBehavior
-{
-    DoNotInternAtom = false,
-    InternAtom = true
-};
-
-}  /* namespace js */
 
 extern JSAtom *
 js_Atomize(JSContext *cx, const char *bytes, size_t length,
@@ -568,9 +542,6 @@ js_Atomize(JSContext *cx, const char *bytes, size_t length,
 extern JSAtom *
 js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length,
                 js::InternBehavior ib = js::DoNotInternAtom);
-
-extern JSAtom *
-js_AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
 
 /*
  * Return an existing atom for the given char array or null if the char

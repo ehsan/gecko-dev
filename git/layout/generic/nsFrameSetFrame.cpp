@@ -41,7 +41,7 @@
 #include "nsFrameSetFrame.h"
 #include "nsGenericHTMLElement.h"
 #include "nsLeafFrame.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIComponentManager.h"
@@ -57,6 +57,7 @@
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "nsHTMLParts.h"
+#include "nsIComponentManager.h"
 #include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
 #include "nsIServiceManager.h"
@@ -201,7 +202,7 @@ bool    nsHTMLFramesetFrame::gDragInProgress = false;
 #define DEFAULT_BORDER_WIDTH_PX 6
 
 nsHTMLFramesetFrame::nsHTMLFramesetFrame(nsStyleContext* aContext)
-  : nsContainerFrame(aContext)
+  : nsHTMLContainerFrame(aContext)
 {
   mNumRows             = 0;
   mRowSizes            = nsnull;
@@ -243,7 +244,7 @@ nsHTMLFramesetFrame::~nsHTMLFramesetFrame()
 
 NS_QUERYFRAME_HEAD(nsHTMLFramesetFrame)
   NS_QUERYFRAME_ENTRY(nsHTMLFramesetFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 // static
 int
@@ -284,7 +285,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
                           nsIFrame*        aParent,
                           nsIFrame*        aPrevInFlow)
 {
-  nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
   // find the highest ancestor that is a frameset
   nsresult rv = NS_OK;
   nsIFrame* parentFrame = GetParent();
@@ -483,7 +484,7 @@ nsHTMLFramesetFrame::SetInitialChildList(ChildListID  aListID,
     return NS_OK;
   }
 
-  return nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(aListID, aChildList);
 }
 
 // XXX should this try to allocate twips based on an even pixel boundary?
@@ -826,7 +827,7 @@ nsHTMLFramesetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                       const nsRect&           aDirtyRect,
                                       const nsDisplayListSet& aLists)
 {
-  nsresult rv = BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsHTMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
   
   if (mDragger && aBuilder->IsForEventDelivery()) {
@@ -1532,6 +1533,19 @@ nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext,
   ENSURE_TRUE(weakFrame.IsAlive());
   if (change != 0) {
     mDrag.Reset(mDragger->mVertical, mDragger->mPrevNeighbor, change, this);
+    nsIFrame* parentFrame = GetParent();
+    if (!parentFrame) {
+      return;
+    }
+
+    // Update the view immediately (make drag appear snappier)
+    nsIViewManager* vm = aPresContext->GetPresShell()->GetViewManager();
+    if (vm) {
+      nsIView* root = vm->GetRootView();
+      if (root) {
+        vm->UpdateView(root, NS_VMREFRESH_IMMEDIATE);
+      }
+    }
   }
 }  
 

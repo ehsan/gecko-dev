@@ -221,8 +221,11 @@ HandlerInfoWrapper.prototype = {
   _handlerSvc: Cc["@mozilla.org/uriloader/handler-service;1"].
                getService(Ci.nsIHandlerService),
 
+  // Retrieve this as nsIPrefBranch and then immediately QI to nsIPrefBranch2
+  // so both interfaces are available to callers.
   _prefSvc: Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch),
+            getService(Ci.nsIPrefBranch).
+            QueryInterface(Ci.nsIPrefBranch2),
 
   _categoryMgr: Cc["@mozilla.org/categorymanager;1"].
                 getService(Ci.nsICategoryManager),
@@ -474,6 +477,10 @@ HandlerInfoWrapper.prototype = {
 
   get smallIcon() {
     return this._getIcon(16);
+  },
+
+  get largeIcon() {
+    return this._getIcon(32);
   },
 
   _getIcon: function(aSize) {
@@ -814,6 +821,10 @@ FeedHandlerInfo.prototype = {
 
   get smallIcon() {
     return this._smallIcon;
+  },
+
+  get largeIcon() {
+    return this._largeIcon;
   }
 
 };
@@ -825,6 +836,7 @@ var feedHandlerInfo = {
   _prefSelectedAction: PREF_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/feedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/feedIcon.png",
   _appPrefLabel: "webFeed"
 }
 
@@ -835,6 +847,7 @@ var videoFeedHandlerInfo = {
   _prefSelectedAction: PREF_VIDEO_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_VIDEO_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/videoFeedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/videoFeedIcon.png",
   _appPrefLabel: "videoPodcastFeed"
 }
 
@@ -845,6 +858,7 @@ var audioFeedHandlerInfo = {
   _prefSelectedAction: PREF_AUDIO_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_AUDIO_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/audioFeedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/audioFeedIcon.png",
   _appPrefLabel: "audioPodcastFeed"
 }
 
@@ -882,8 +896,11 @@ var gApplicationsPane = {
   _list           : null,
   _filter         : null,
 
+  // Retrieve this as nsIPrefBranch and then immediately QI to nsIPrefBranch2
+  // so both interfaces are available to callers.
   _prefSvc      : Cc["@mozilla.org/preferences-service;1"].
-                  getService(Ci.nsIPrefBranch),
+                  getService(Ci.nsIPrefBranch).
+                  QueryInterface(Ci.nsIPrefBranch2),
 
   _mimeSvc      : Cc["@mozilla.org/mime;1"].
                   getService(Ci.nsIMIMEService),
@@ -1335,7 +1352,7 @@ var gApplicationsPane = {
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__.exe";
 #else
 #ifdef XP_MACOSX
-#expand    aExecutable.leafName != "__MOZ_MACBUNDLE_NAME__";
+#expand    aExecutable.leafName != "__MOZ_APP_DISPLAYNAME__.app";
 #else
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__-bin";
 #endif

@@ -69,6 +69,7 @@
 
 #ifdef XP_MACOSX
 #include "nsVersionComparator.h"
+#include "MacQuirks.h"
 #include "MacLaunchHelper.h"
 #include "MacApplicationDelegate.h"
 #include "MacAutoreleasePool.h"
@@ -150,7 +151,6 @@ using mozilla::unused;
 #include "nsXPCOM.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
-#include "nsPrintfCString.h"
 #include "nsVersionComparator.h"
 
 #include "nsAppDirectoryServiceDefs.h"
@@ -234,8 +234,6 @@ char **gArgv;
 
 static const char gToolkitVersion[] = NS_STRINGIFY(GRE_MILESTONE);
 static const char gToolkitBuildID[] = NS_STRINGIFY(GRE_BUILDID);
-
-static nsIProfileLock* gProfileLock;
 
 static int    gRestartArgc;
 static char **gRestartArgv;
@@ -766,6 +764,7 @@ nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
 SYNC_ENUMS(DEFAULT, Default)
 SYNC_ENUMS(PLUGIN, Plugin)
 SYNC_ENUMS(CONTENT, Content)
+SYNC_ENUMS(JETPACK, Jetpack)
 SYNC_ENUMS(IPDLUNITTEST, IPDLUnitTest)
 
 // .. and ensure that that is all of them:
@@ -828,15 +827,6 @@ nsXULAppInfo::InvalidateCachesOnRestart()
     if (NS_FAILED(rv))
       return rv;
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::GetReplacedLockTime(PRInt64 *aReplacedLockTime)
-{
-  if (!gProfileLock)
-    return NS_ERROR_NOT_AVAILABLE;
-  gProfileLock->GetReplacedLockTime(aReplacedLockTime);
   return NS_OK;
 }
 
@@ -1342,8 +1332,7 @@ DumpHelp()
          "  -P <profile>       Start with <profile>.\n"
          "  -migration         Start with migration wizard.\n"
          "  -ProfileManager    Start with ProfileManager.\n"
-         "  -no-remote         Do not accept or send remote commands; implies -new-instance.\n"
-         "  -new-instance      Open new instance, not a new window in running instance.\n"
+         "  -no-remote         Open new instance, not a new window in running instance.\n"
          "  -UILocale <locale> Start with <locale> resources as UI Locale.\n"
          "  -safe-mode         Disables extensions and themes for this session.\n", gAppData->name);
 
@@ -1902,6 +1891,35 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
   return LaunchChild(aNative);
 }
 
+static nsresult
+ImportProfiles(nsIToolkitProfileService* aPService,
+               nsINativeAppSupport* aNative)
+{
+  nsresult rv;
+
+  SaveToEnv("XRE_IMPORT_PROFILES=1");
+
+  // try to import old-style profiles
+  { // scope XPCOM
+    ScopedXPCOMStartup xpcom;
+    rv = xpcom.Initialize();
+    if (NS_SUCCEEDED(rv)) {
+#ifdef XP_MACOSX
+      CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, true);
+#endif
+
+      nsCOMPtr<nsIProfileMigrator> migrator
+        (do_GetService(NS_PROFILEMIGRATOR_CONTRACTID));
+      if (migrator) {
+        migrator->Import();
+      }
+    }
+  }
+
+  aPService->Flush();
+  return LaunchChild(aNative);
+}
+
 // Pick a profile. We need to end up with a profile lock.
 //
 // 1) check for -profile <path>
@@ -1912,72 +1930,9 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
 // 6) display the profile-manager UI
 
 static bool gDoMigration = false;
-static bool gDoProfileReset = false;
-
-/**
- * Creates a new profile with a timestamp in the name to use for profile reset.
- */
-static nsresult
-ResetProfile(nsIToolkitProfileService* aProfileSvc, nsIToolkitProfile* *aNewProfile)
-{
-  NS_ENSURE_ARG_POINTER(aProfileSvc);
-
-  nsCOMPtr<nsIToolkitProfile> newProfile;
-  // Make the new profile "default-" + the time in seconds since epoch for uniqueness.
-  nsCAutoString newProfileName("default-");
-  newProfileName.Append(nsPrintfCString("%lld", PR_Now() / 1000));
-  nsresult rv = aProfileSvc->CreateProfile(nsnull, // choose a default dir for us
-                                           nsnull, // choose a default dir for us
-                                           newProfileName,
-                                           getter_AddRefs(newProfile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aProfileSvc->Flush();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_IF_ADDREF(*aNewProfile = newProfile);
-
-  return NS_OK;
-}
-
-/**
- * Set the currently running profile as the default/selected one.
- *
- * @param aCurrentProfileRoot The root directory of the current profile.
- * @return an error if aCurrentProfileRoot is not found or the profile could not
- * be set as the default.
- */
-static nsresult
-SetCurrentProfileAsDefault(nsIToolkitProfileService* aProfileSvc,
-                           nsILocalFile* aCurrentProfileRoot)
-{
-  NS_ENSURE_ARG_POINTER(aProfileSvc);
-
-  nsCOMPtr<nsISimpleEnumerator> profiles;
-  nsresult rv = aProfileSvc->GetProfiles(getter_AddRefs(profiles));
-  if (NS_FAILED(rv))
-    return rv;
-
-  bool foundMatchingProfile = false;
-  nsCOMPtr<nsIToolkitProfile> profile;
-  rv = profiles->GetNext(getter_AddRefs(profile));
-  while (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsILocalFile> profileRoot;
-    profile->GetRootDir(getter_AddRefs(profileRoot));
-    profileRoot->Equals(aCurrentProfileRoot, &foundMatchingProfile);
-    if (foundMatchingProfile && profile) {
-      rv = aProfileSvc->SetSelectedProfile(profile);
-      if (NS_SUCCEEDED(rv))
-        rv = aProfileSvc->Flush();
-      return rv;
-    }
-    rv = profiles->GetNext(getter_AddRefs(profile));
-  }
-  return rv;
-}
 
 static nsresult
-SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, nsINativeAppSupport* aNative,
+SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
               bool* aStartOffline, nsACString* aProfileName)
 {
   nsresult rv;
@@ -1995,28 +1950,6 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
   if (ar || EnvHasValue("XRE_START_OFFLINE"))
     *aStartOffline = true;
 
-  if (EnvHasValue("MOZ_RESET_PROFILE_RESTART")) {
-    gDoProfileReset = true;
-    gDoMigration = true;
-    SaveToEnv("MOZ_RESET_PROFILE_RESTART=");
-  }
-
-  // reset-profile and migration args need to be checked before any profiles are chosen below.
-  ar = CheckArg("reset-profile", true);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -reset-profile is invalid when argument -osint is specified\n");
-    return NS_ERROR_FAILURE;
-  } else if (ar == ARG_FOUND) {
-    gDoProfileReset = true;
-  }
-
-  ar = CheckArg("migration", true);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -migration is invalid when argument -osint is specified\n");
-    return NS_ERROR_FAILURE;
-  } else if (ar == ARG_FOUND) {
-    gDoMigration = true;
-  }
 
   nsCOMPtr<nsILocalFile> lf = GetFileFromEnv("XRE_PROFILE_PATH");
   if (lf) {
@@ -2036,30 +1969,15 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     CheckArg("profile", false, &dummy);
     CheckArg("profilemanager");
 
-    if (gDoProfileReset) {
-      // If we're resetting a profile, create a new one and use it to startup.
-      nsCOMPtr<nsIToolkitProfile> newProfile;
-      rv = ResetProfile(aProfileSvc, getter_AddRefs(newProfile));
-      if (NS_SUCCEEDED(rv)) {
-        rv = newProfile->GetRootDir(getter_AddRefs(lf));
-        NS_ENSURE_SUCCESS(rv, rv);
-        SaveFileToEnv("XRE_PROFILE_PATH", lf);
-
-        rv = newProfile->GetLocalDir(getter_AddRefs(localDir));
-        NS_ENSURE_SUCCESS(rv, rv);
-        SaveFileToEnv("XRE_PROFILE_LOCAL_PATH", localDir);
-
-        rv = newProfile->GetName(*aProfileName);
-        if (NS_FAILED(rv))
-          aProfileName->Truncate(0);
-        SaveWordToEnv("XRE_PROFILE_NAME", *aProfileName);
-      } else {
-        NS_WARNING("Profile reset failed.");
-        gDoProfileReset = false;
-      }
-    }
-
     return NS_LockProfilePath(lf, localDir, nsnull, aResult);
+  }
+
+  ar = CheckArg("migration", true);
+  if (ar == ARG_BAD) {
+    PR_fprintf(PR_STDERR, "Error: argument -migration is invalid when argument -osint is specified\n");
+    return NS_ERROR_FAILURE;
+  } else if (ar == ARG_FOUND) {
+    gDoMigration = true;
   }
 
   ar = CheckArg("profile", true, &arg);
@@ -2068,11 +1986,6 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     return NS_ERROR_FAILURE;
   }
   if (ar) {
-    if (gDoProfileReset) {
-      NS_WARNING("Profile reset is only supported for the default profile.");
-      gDoProfileReset = false;
-    }
-
     nsCOMPtr<nsILocalFile> lf;
     rv = XRE_GetFileFromPath(arg, getter_AddRefs(lf));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2096,6 +2009,13 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     return ProfileLockedDialog(lf, lf, unlocker, aNative, aResult);
   }
 
+  nsCOMPtr<nsIToolkitProfileService> profileSvc;
+  rv = NS_NewToolkitProfileService(getter_AddRefs(profileSvc));
+  if (rv == NS_ERROR_FILE_ACCESS_DENIED)
+    PR_fprintf(PR_STDERR, "Error: Access was denied while trying to open files in " \
+                "your profile directory.\n"); 
+  NS_ENSURE_SUCCESS(rv, rv);
+
   ar = CheckArg("createprofile", true, &arg);
   if (ar == ARG_BAD) {
     PR_fprintf(PR_STDERR, "Error: argument -createprofile requires a profile name\n");
@@ -2116,10 +2036,10 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       
       // As with -profile, assume that the given path will be used for both the
       // main profile directory and the temp profile directory.
-      rv = aProfileSvc->CreateProfile(lf, lf, nsDependentCSubstring(arg, delim),
+      rv = profileSvc->CreateProfile(lf, lf, nsDependentCSubstring(arg, delim),
                                      getter_AddRefs(profile));
     } else {
-      rv = aProfileSvc->CreateProfile(nsnull, nsnull, nsDependentCString(arg),
+      rv = profileSvc->CreateProfile(nsnull, nsnull, nsDependentCString(arg),
                                      getter_AddRefs(profile));
     }
     // Some pathological arguments can make it this far
@@ -2128,7 +2048,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       return rv; 
     }
     rv = NS_ERROR_ABORT;  
-    aProfileSvc->Flush();
+    profileSvc->Flush();
 
     // XXXben need to ensure prefs.js exists here so the tinderboxes will
     //        not go orange.
@@ -2148,8 +2068,14 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
   }
 
   PRUint32 count;
-  rv = aProfileSvc->GetProfileCount(&count);
+  rv = profileSvc->GetProfileCount(&count);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (gAppData->flags & NS_XRE_ENABLE_PROFILE_MIGRATOR) {
+    if (!count && !EnvHasValue("XRE_IMPORT_PROFILES")) {
+      return ImportProfiles(profileSvc, aNative);
+    }
+  }
 
   ar = CheckArg("p", false, &arg);
   if (ar == ARG_BAD) {
@@ -2158,7 +2084,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       PR_fprintf(PR_STDERR, "Error: argument -p is invalid when argument -osint is specified\n");
       return NS_ERROR_FAILURE;
     }
-    return ShowProfileManager(aProfileSvc, aNative);
+    return ShowProfileManager(profileSvc, aNative);
   }
   if (ar) {
     ar = CheckArg("osint");
@@ -2167,15 +2093,9 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       return NS_ERROR_FAILURE;
     }
     nsCOMPtr<nsIToolkitProfile> profile;
-    rv = aProfileSvc->GetProfileByName(nsDependentCString(arg),
+    rv = profileSvc->GetProfileByName(nsDependentCString(arg),
                                       getter_AddRefs(profile));
     if (NS_SUCCEEDED(rv)) {
-      // If we're resetting a profile, create a new one and use it to startup.
-      if (gDoProfileReset) {
-        NS_WARNING("Profile reset is only supported for the default profile.");
-        gDoProfileReset = false;
-      }
-
       nsCOMPtr<nsIProfileUnlocker> unlocker;
       rv = profile->Lock(nsnull, aResult);
       if (NS_SUCCEEDED(rv)) {
@@ -2196,7 +2116,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
                                  aNative, aResult);
     }
 
-    return ShowProfileManager(aProfileSvc, aNative);
+    return ShowProfileManager(profileSvc, aNative);
   }
 
   ar = CheckArg("profilemanager", true);
@@ -2204,21 +2124,20 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     PR_fprintf(PR_STDERR, "Error: argument -profilemanager is invalid when argument -osint is specified\n");
     return NS_ERROR_FAILURE;
   } else if (ar == ARG_FOUND) {
-    return ShowProfileManager(aProfileSvc, aNative);
+    return ShowProfileManager(profileSvc, aNative);
   }
 
   if (!count) {
     gDoMigration = true;
-    gDoProfileReset = false;
 
     // create a default profile
     nsCOMPtr<nsIToolkitProfile> profile;
-    nsresult rv = aProfileSvc->CreateProfile(nsnull, // choose a default dir for us
-                                             nsnull, // choose a default dir for us
-                                             NS_LITERAL_CSTRING("default"),
-                                             getter_AddRefs(profile));
+    nsresult rv = profileSvc->CreateProfile(nsnull, // choose a default dir for us
+                                            nsnull, // choose a default dir for us
+                                            NS_LITERAL_CSTRING("default"),
+                                            getter_AddRefs(profile));
     if (NS_SUCCEEDED(rv)) {
-      aProfileSvc->Flush();
+      profileSvc->Flush();
       rv = profile->Lock(nsnull, aResult);
       if (NS_SUCCEEDED(rv)) {
         if (aProfileName)
@@ -2230,22 +2149,13 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
 
   bool useDefault = true;
   if (count > 1)
-    aProfileSvc->GetStartWithLastProfile(&useDefault);
+    profileSvc->GetStartWithLastProfile(&useDefault);
 
   if (useDefault) {
     nsCOMPtr<nsIToolkitProfile> profile;
     // GetSelectedProfile will auto-select the only profile if there's just one
-    aProfileSvc->GetSelectedProfile(getter_AddRefs(profile));
+    profileSvc->GetSelectedProfile(getter_AddRefs(profile));
     if (profile) {
-      // If we're resetting a profile, create a new one and use it to startup.
-      if (gDoProfileReset) {
-        nsCOMPtr<nsIToolkitProfile> newProfile;
-        rv = ResetProfile(aProfileSvc, getter_AddRefs(newProfile));
-        if (NS_SUCCEEDED(rv))
-          profile = newProfile;
-        else
-          gDoProfileReset = false;
-      }
       nsCOMPtr<nsIProfileUnlocker> unlocker;
       rv = profile->Lock(getter_AddRefs(unlocker), aResult);
       if (NS_SUCCEEDED(rv)) {
@@ -2271,7 +2181,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     }
   }
 
-  return ShowProfileManager(aProfileSvc, aNative);
+  return ShowProfileManager(profileSvc, aNative);
 }
 
 /** 
@@ -2708,7 +2618,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
   NS_TIME_FUNCTION;
   SAMPLER_INIT();
-  SAMPLE_LABEL("Startup", "XRE_Main");
+  SAMPLE_CHECKPOINT("Startup", "XRE_Main");
 
   StartupTimeline::Record(StartupTimeline::MAIN);
 
@@ -2718,6 +2628,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef DEBUG
   if (PR_GetEnv("XRE_MAIN_BREAK"))
     NS_BREAK();
+#endif
+
+#ifdef XP_MACOSX
+  TriggerQuirks();
 #endif
 
   // see bug 639842
@@ -2902,9 +2816,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (appData.name)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ProductName"),
                                          nsDependentCString(appData.name));
-    if (appData.ID)
-      CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ProductID"),
-                                         nsDependentCString(appData.ID));
     if (appData.version)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Version"),
                                          nsDependentCString(appData.version));
@@ -3033,22 +2944,14 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     gSafeMode = true;
 #endif
 
-  // Handle -no-remote and -new-instance command line arguments. Setup
-  // the environment to better accommodate other components and various
-  // restart scenarios.
+  // Handle -no-remote command line argument. Setup the environment to
+  // better accommodate other components and various restart scenarios.
   ar = CheckArg("no-remote", true);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -no-remote is invalid when argument -osint is specified\n");
+    PR_fprintf(PR_STDERR, "Error: argument -a requires an application name\n");
     return 1;
   } else if (ar == ARG_FOUND) {
     SaveToEnv("MOZ_NO_REMOTE=1");
-  }
-  ar = CheckArg("new-instance", true);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -new-instance is invalid when argument -osint is specified\n");
-    return 1;
-  } else if (ar == ARG_FOUND) {
-    SaveToEnv("MOZ_NEW_INSTANCE=1");
   }
 
   // Handle -help and -version command line arguments.
@@ -3170,16 +3073,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
 #ifdef MOZ_ENABLE_XREMOTE
     // handle -remote now that xpcom is fired up
-    bool disableRemote, newInstance;
+    bool disableRemote = false;
     {
       char *e = PR_GetEnv("MOZ_NO_REMOTE");
       disableRemote = (e && *e);
-      if (disableRemote) {
-        newInstance = true;
-      } else {
-        e = PR_GetEnv("MOZ_NEW_INSTANCE");
-        newInstance = (e && *e);
-      }
     }
 
     const char* xremotearg;
@@ -3194,7 +3091,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return HandleRemoteArgument(xremotearg, desktopStartupIDPtr);
     }
 
-    if (!newInstance) {
+    if (!disableRemote) {
       // Try to remote the entire command line. If this fails, start up normally.
       RemoteResult rr = RemoteCommandLine(desktopStartupIDPtr);
       if (rr == REMOTE_FOUND)
@@ -3272,25 +3169,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (NS_FAILED(rv))
       updRoot = dirProvider.GetAppDir();
 
-    // If the MOZ_PROCESS_UPDATES environment variable already exists, then
-    // we are being called from the callback application.
-    if (EnvHasValue("MOZ_PROCESS_UPDATES")) {
-      // If the caller has asked us to log our arguments, do so.  This is used
-      // to make sure that the maintenance service successfully launches the
-      // callback application.
-      const char *logFile = nsnull;
-      if (ARG_FOUND == CheckArg("dump-args", false, &logFile)) {
-        FILE* logFP = fopen(logFile, "wb");
-        if (logFP) {
-          for (i = 1; i < gRestartArgc; ++i) {
-            fprintf(logFP, "%s\n", gRestartArgv[i]);
-          }
-          fclose(logFP);
-        }
-      }
-      return 0;
-    }
-
     // Support for processing an update and exiting. The MOZ_PROCESS_UPDATES
     // environment variable will be part of the updater's environment and the
     // application that is relaunched by the updater. When the application is
@@ -3315,19 +3193,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     bool startOffline = false;
     nsCAutoString profileName;
 
-    nsCOMPtr<nsIToolkitProfileService> profileSvc;
-    rv = NS_NewToolkitProfileService(getter_AddRefs(profileSvc));
-    if (rv == NS_ERROR_FILE_ACCESS_DENIED) {
-      PR_fprintf(PR_STDERR, "Error: Access was denied while trying to open files in " \
-                 "your profile directory.\n");
-    }
-    if (NS_FAILED(rv)) {
-      // We failed to choose or create profile - notify user and quit
-      ProfileMissingDialog(nativeApp);
-      return 1;
-    }
-
-    rv = SelectProfile(getter_AddRefs(profileLock), profileSvc, nativeApp, &startOffline,
+    rv = SelectProfile(getter_AddRefs(profileLock), nativeApp, &startOffline,
                        &profileName);
     if (rv == NS_ERROR_LAUNCHED_CHILD_PROCESS ||
         rv == NS_ERROR_ABORT) return 0;
@@ -3337,7 +3203,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       ProfileMissingDialog(nativeApp);
       return 1;
     }
-    gProfileLock = profileLock;
 
     nsCOMPtr<nsILocalFile> profD;
     rv = profileLock->GetDirectory(getter_AddRefs(profD));
@@ -3556,20 +3421,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           gDoMigration = false;
           nsCOMPtr<nsIProfileMigrator> pm
             (do_CreateInstance(NS_PROFILEMIGRATOR_CONTRACTID));
-          if (pm) {
-            nsCAutoString aKey;
-            if (gDoProfileReset) {
-              // Automatically migrate from the current application if we just
-              // reset the profile.
-              aKey = MOZ_APP_NAME;
-              pm->Migrate(&dirProvider, aKey);
-              // Set the new profile as the default after migration.
-              rv = SetCurrentProfileAsDefault(profileSvc, profD);
-              if (NS_FAILED(rv)) NS_WARNING("Could not set current profile as the default");
-            } else {
-              pm->Migrate(&dirProvider, aKey);
-            }
-          }
+          if (pm)
+            pm->Migrate(&dirProvider);
         }
 
         NS_TIME_FUNCTION_MARK("Profile migration");
@@ -3616,6 +3469,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         SaveToEnv("XRE_PROFILE_LOCAL_PATH=");
         SaveToEnv("XRE_PROFILE_NAME=");
         SaveToEnv("XRE_START_OFFLINE=");
+        SaveToEnv("XRE_IMPORT_PROFILES=");
         SaveToEnv("NO_EM_RESTART=");
         SaveToEnv("XUL_APP_FILE=");
         SaveToEnv("XRE_BINARY_PATH=");
@@ -3690,8 +3544,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         }
 
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
-        if (PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP") || SAMPLER_IS_ACTIVE()) {
-          mozilla::InitEventTracing();
+        bool event_tracing_running = false;
+        if (PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP")) {
+          event_tracing_running = mozilla::InitEventTracing();
         }
 #endif /* MOZ_INSTRUMENT_EVENT_LOOP */
 
@@ -3712,7 +3567,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         NS_TIME_FUNCTION_MARK("appStartup->Run done");
 
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
-        mozilla::ShutdownEventTracing();
+        if (event_tracing_running)
+          mozilla::ShutdownEventTracing();
 #endif
 
         // Check for an application initiated restart.  This is one that
@@ -3734,7 +3590,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // unlock the profile after ScopedXPCOMStartup object (xpcom) 
     // has gone out of scope.  see bug #386739 for more details
     profileLock->Unlock();
-    gProfileLock = nsnull;
 
 #if defined(MOZ_WIDGET_QT)
     nsQAppInstance::Release();

@@ -80,7 +80,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mChannelIsForDownload(false)
   , mTracingEnabled(true)
   , mTimingEnabled(false)
-  , mAllowSpdy(true)
   , mSuspendCount(0)
   , mRedirectedCachekeys(nsnull)
 {
@@ -589,43 +588,14 @@ HttpBaseChannel::ApplyContentConversions()
     return NS_OK;
   }
 
-  nsCAutoString contentEncoding;
-  char *cePtr, *val;
-  nsresult rv;
-
-  rv = mResponseHead->GetHeader(nsHttp::Content_Encoding, contentEncoding);
-  if (NS_FAILED(rv) || contentEncoding.IsEmpty())
-    return NS_OK;
-
-  // The encodings are listed in the order they were applied
-  // (see rfc 2616 section 14.11), so they need to removed in reverse
-  // order. This is accomplished because the converter chain ends up
-  // being a stack with the last converter created being the first one
-  // to accept the raw network data.
-
-  cePtr = contentEncoding.BeginWriting();
-  PRUint32 count = 0;
-  while ((val = nsCRT::strtok(cePtr, HTTP_LWS ",", &cePtr))) {
-    if (++count > 16) {
-      // That's ridiculous. We only understand 2 different ones :)
-      // but for compatibility with old code, we will just carry on without
-      // removing the encodings
-      LOG(("Too many Content-Encodings. Ignoring remainder.\n"));
-      break;
-    }
-
-    if (gHttpHandler->IsAcceptableEncoding(val)) {
-      nsCOMPtr<nsIStreamConverterService> serv;
-      rv = gHttpHandler->GetStreamConverterService(getter_AddRefs(serv));
-
-      // we won't fail to load the page just because we couldn't load the
-      // stream converter service.. carry on..
-      if (NS_FAILED(rv)) {
-        if (val)
-          LOG(("Unknown content encoding '%s', ignoring\n", val));
-        continue;
-      }
-
+  const char *val = mResponseHead->PeekHeader(nsHttp::Content_Encoding);
+  if (gHttpHandler->IsAcceptableEncoding(val)) {
+    nsCOMPtr<nsIStreamConverterService> serv;
+    nsresult rv = gHttpHandler->
+            GetStreamConverterService(getter_AddRefs(serv));
+    // we won't fail to load the page just because we couldn't load the
+    // stream converter service.. carry on..
+    if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIStreamListener> converter;
       nsCAutoString from(val);
       ToLowerCase(from);
@@ -634,18 +604,13 @@ HttpBaseChannel::ApplyContentConversions()
                                   mListener,
                                   mListenerContext,
                                   getter_AddRefs(converter));
-      if (NS_FAILED(rv)) {
-        LOG(("Unexpected failure of AsyncConvertData %s\n", val));
-        return rv;
+      if (NS_SUCCEEDED(rv)) {
+        LOG(("converter installed from \'%s\' to \'uncompressed\'\n", val));
+        mListener = converter;
       }
-
-      LOG(("converter removed '%s' content-encoding\n", val));
-      mListener = converter;
     }
-    else {
-      if (val)
-        LOG(("Unknown content encoding '%s', ignoring\n", val));
-    }
+  } else if (val != nsnull) {
+    LOG(("Unknown content encoding '%s', ignoring\n", val));
   }
 
   return NS_OK;
@@ -1345,22 +1310,6 @@ HttpBaseChannel::HTTPUpgrade(const nsACString &aProtocolName,
     return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::GetAllowSpdy(bool *aAllowSpdy)
-{
-  NS_ENSURE_ARG_POINTER(aAllowSpdy);
-
-  *aAllowSpdy = mAllowSpdy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetAllowSpdy(bool aAllowSpdy)
-{
-  mAllowSpdy = aAllowSpdy;
-  return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsISupportsPriority
 //-----------------------------------------------------------------------------
@@ -1552,13 +1501,14 @@ bool
 HttpBaseChannel::ShouldRewriteRedirectToGET(PRUint32 httpStatus,
                                             nsHttpAtom method)
 {
-  // for 301 and 302, only rewrite POST
+  // always rewrite for 301 and 302, but see bug 598304
+  // and  RFC 2616, Section 8.3.
   if (httpStatus == 301 || httpStatus == 302)
-    return method == nsHttp::Post;
+    return true;
 
-  // rewrite for 303 unless it was HEAD
+  // always rewrite for 303
   if (httpStatus == 303)
-    return method != nsHttp::Head;
+    return true;
 
   // otherwise, such as for 307, do not rewrite
   return false;
@@ -1582,12 +1532,11 @@ HttpBaseChannel::IsSafeMethod(nsHttpAtom method)
 nsresult
 HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI, 
                                          nsIChannel   *newChannel,
-                                         bool          preserveMethod,
-                                         bool          forProxy)
+                                         bool          preserveMethod)
 {
   LOG(("HttpBaseChannel::SetupReplacementChannel "
-     "[this=%p newChannel=%p preserveMethod=%d forProxy=%d]",
-     this, newChannel, preserveMethod, forProxy));
+     "[this=%p newChannel=%p preserveMethod=%d]",
+     this, newChannel, preserveMethod));
   PRUint32 newLoadFlags = mLoadFlags | LOAD_REPLACE;
   // if the original channel was using SSL and this channel is not using
   // SSL, then no need to inhibit persistent caching.  however, if the
@@ -1670,8 +1619,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   if (httpInternal) {
     // convey the mForceAllowThirdPartyCookie flag
     httpInternal->SetForceAllowThirdPartyCookie(mForceAllowThirdPartyCookie);
-    // convey the spdy flag
-    httpInternal->SetAllowSpdy(mAllowSpdy);
 
     // update the DocumentURI indicator since we are being redirected.
     // if this was a top-level document channel, then the new channel
@@ -1710,21 +1657,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   nsCOMPtr<nsITimedChannel> timed(do_QueryInterface(newChannel));
   if (timed)
     timed->SetTimingEnabled(mTimingEnabled);
-
-  if (forProxy) {
-    // Transfer all the headers from the previous channel
-    //  this is needed for any headers that are not covered by the code above
-    //  or have been set separately. e.g. manually setting Referer without
-    //  setting up mReferrer
-    PRUint32 count = mRequestHead.Headers().Count();
-    for (PRUint32 i = 0; i < count; ++i) {
-      nsHttpAtom header;
-      const char *value = mRequestHead.Headers().PeekHeaderAt(i, header);
-
-      httpChannel->SetRequestHeader(nsDependentCString(header),
-                                    nsDependentCString(value), false);
-    }
-  }
 
   return NS_OK;
 }

@@ -87,12 +87,6 @@ def main():
                     default = None,
                     help = "path to file containing a pulse message in "
                            "json format that you want to inject into the monitor")
-  parser.add_option("--ignore-unused-engines",
-                     default=False,
-                     action="store_true",
-                     dest="ignore_unused_engines",
-                     help="If defined, don't load unused engines in individual tests."
-                           " Has no effect for pulse monitor.")
   (options, args) = parser.parse_args()
 
   configfile = options.configfile
@@ -159,8 +153,7 @@ def main():
                       config=config,
                       rlock=rlock,
                       mobile=options.mobile,
-                      autolog=options.autolog,
-                      ignore_unused_engines=options.ignore_unused_engines)
+                      autolog=options.autolog)
   TPS.run_tests()
 
 if __name__ == "__main__":

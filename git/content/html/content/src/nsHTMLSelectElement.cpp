@@ -808,7 +808,7 @@ nsHTMLSelectElement::SetLength(PRUint32 aLength)
       if (i + 1 < aLength) {
         nsCOMPtr<nsIDOMNode> newNode;
 
-        rv = node->CloneNode(true, 1, getter_AddRefs(newNode));
+        rv = node->CloneNode(true, getter_AddRefs(newNode));
         NS_ENSURE_SUCCESS(rv, rv);
 
         node = newNode;
@@ -1371,8 +1371,7 @@ nsHTMLSelectElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 nsHTMLSelectElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                   const nsAttrValueOrString* aValue,
-                                   bool aNotify)
+                                   const nsAString* aValue, bool aNotify)
 {
   if (aNotify && aName == nsGkAtoms::disabled &&
       aNameSpaceID == kNameSpaceID_None) {
@@ -1385,7 +1384,7 @@ nsHTMLSelectElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsHTMLSelectElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+                                  const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::disabled) {
@@ -1513,7 +1512,7 @@ nsHTMLSelectElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sImageAlignAttributeMap
   };
 
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -1992,8 +1991,6 @@ nsHTMLOptionCollection::GetOptionIndex(mozilla::dom::Element* aOption,
                                        bool aForward,
                                        PRInt32* aIndex)
 {
-  // NOTE: aIndex shouldn't be set if the returned value isn't NS_OK.
-
   PRInt32 index;
 
   // Make the common case fast

@@ -43,6 +43,7 @@
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 #include "nsDOMError.h"
+#include "nsICharsetAlias.h"
 #include "nsICharsetDetector.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
@@ -59,7 +60,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsIUUIDGenerator.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsFileDataProtocolHandler.h"
 #include "nsStringStream.h"
 #include "CheckedInt.h"
 #include "nsJSUtils.h"
@@ -67,10 +68,8 @@
 
 #include "plbase64.h"
 #include "prmem.h"
-#include "dombindings.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // XXXkhuey the input stream that we pass out of a DOMFile
 // can outlive the actual DOMFile object.  Thus, we must
@@ -166,12 +165,12 @@ nsDOMFileBase::GetMozFullPath(nsAString &aFileName)
 {
   NS_ASSERTION(mIsFile, "Should only be called on files");
 
-  // It is unsafe to call CallerHasUniversalXPConnect on a non-main thread. If
+  // It is unsafe to call IsCallerTrustedForCapability on a non-main thread. If
   // you hit the following assertion you need to figure out some other way to
   // determine privileges and call GetMozFullPathInternal.
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (nsContentUtils::CallerHasUniversalXPConnect()) {
+  if (nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
     return GetMozFullPathInternal(aFileName);
   }
   aFileName.Truncate();
@@ -238,9 +237,9 @@ ParseSize(PRInt64 aSize, PRInt64& aStart, PRInt64& aEnd)
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::Slice(PRInt64 aStart, PRInt64 aEnd,
-                     const nsAString& aContentType, PRUint8 optional_argc,
-                     nsIDOMBlob **aBlob)
+nsDOMFileBase::MozSlice(PRInt64 aStart, PRInt64 aEnd,
+                        const nsAString& aContentType, PRUint8 optional_argc,
+                        nsIDOMBlob **aBlob)
 {
   *aBlob = nsnull;
 
@@ -288,85 +287,15 @@ nsDOMFileBase::GetInternalUrl(nsIPrincipal* aPrincipal, nsAString& aURL)
   char chars[NSID_LENGTH];
   id.ToProvidedString(chars);
     
-  nsCString url = NS_LITERAL_CSTRING(BLOBURI_SCHEME ":") +
+  nsCString url = NS_LITERAL_CSTRING(FILEDATA_SCHEME ":") +
     Substring(chars + 1, chars + NSID_LENGTH - 2);
 
-  nsBlobProtocolHandler::AddFileDataEntry(url, this,
+  nsFileDataProtocolHandler::AddFileDataEntry(url, this,
                                               aPrincipal);
 
   CopyASCIItoUTF16(url, aURL);
   
   return NS_OK;
-}
-
-NS_IMETHODIMP_(PRInt64)
-nsDOMFileBase::GetFileId()
-{
-  PRInt64 id = -1;
-
-  if (IsStoredFile() && IsWholeFile()) {
-    if (!indexedDB::IndexedDatabaseManager::IsClosed()) {
-      indexedDB::IndexedDatabaseManager::FileMutex().Lock();
-    }
-
-    NS_ASSERTION(!mFileInfos.IsEmpty(),
-                 "A stored file must have at least one file info!");
-
-    nsRefPtr<indexedDB::FileInfo>& fileInfo = mFileInfos.ElementAt(0);
-    if (fileInfo) {
-      id =  fileInfo->Id();
-    }
-
-    if (!indexedDB::IndexedDatabaseManager::IsClosed()) {
-      indexedDB::IndexedDatabaseManager::FileMutex().Unlock();
-    }
-  }
-
-  return id;
-}
-
-NS_IMETHODIMP_(void)
-nsDOMFileBase::AddFileInfo(indexedDB::FileInfo* aFileInfo)
-{
-  if (indexedDB::IndexedDatabaseManager::IsClosed()) {
-    NS_ERROR("Shouldn't be called after shutdown!");
-    return;
-  }
-
-  nsRefPtr<indexedDB::FileInfo> fileInfo = aFileInfo;
-
-  MutexAutoLock lock(indexedDB::IndexedDatabaseManager::FileMutex());
-
-  NS_ASSERTION(!mFileInfos.Contains(aFileInfo),
-               "Adding the same file info agan?!");
-
-  nsRefPtr<indexedDB::FileInfo>* element = mFileInfos.AppendElement();
-  element->swap(fileInfo);
-}
-
-NS_IMETHODIMP_(indexedDB::FileInfo*)
-nsDOMFileBase::GetFileInfo(indexedDB::FileManager* aFileManager)
-{
-  if (indexedDB::IndexedDatabaseManager::IsClosed()) {
-    NS_ERROR("Shouldn't be called after shutdown!");
-    return nsnull;
-  }
-
-  // A slice created from a stored file must keep the file info alive.
-  // However, we don't support sharing of slices yet, so the slice must be
-  // copied again. That's why we have to ignore the first file info.
-  PRUint32 startIndex = IsStoredFile() && !IsWholeFile() ? 1 : 0;
-
-  MutexAutoLock lock(indexedDB::IndexedDatabaseManager::FileMutex());
-
-  for (PRUint32 i = startIndex; i < mFileInfos.Length(); i++) {
-    nsRefPtr<indexedDB::FileInfo>& fileInfo = mFileInfos.ElementAt(i);
-    if (fileInfo->Manager() == aFileManager) {
-      return fileInfo;
-    }
-  }
-
-  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -608,39 +537,14 @@ nsDOMMemoryFile::GetInternalStream(nsIInputStream **aStream)
 
 DOMCI_DATA(FileList, nsDOMFileList)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileList)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMFileList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMFileList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMFileList)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMFileList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+NS_INTERFACE_MAP_BEGIN(nsDOMFileList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFileList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFileList)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(FileList)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMFileList)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMFileList)
-
-JSObject*
-nsDOMFileList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                          bool *triedToWrap)
-{
-  return mozilla::dom::binding::FileList::create(cx, scope, this, triedToWrap);
-}
-
-nsIDOMFile*
-nsDOMFileList::GetItemAt(PRUint32 aIndex)
-{
-  return mFiles.SafeObjectAt(aIndex);
-}
+NS_IMPL_ADDREF(nsDOMFileList)
+NS_IMPL_RELEASE(nsDOMFileList)
 
 NS_IMETHODIMP
 nsDOMFileList::GetLength(PRUint32* aLength)
@@ -653,8 +557,29 @@ nsDOMFileList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsDOMFileList::Item(PRUint32 aIndex, nsIDOMFile **aFile)
 {
-  NS_IF_ADDREF(*aFile = nsDOMFileList::GetItemAt(aIndex));
+  NS_IF_ADDREF(*aFile = GetItemAt(aIndex));
 
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////
+// nsDOMFileError implementation
+
+DOMCI_DATA(FileError, nsDOMFileError)
+
+NS_INTERFACE_MAP_BEGIN(nsDOMFileError)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFileError)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMFileError)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(FileError)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_ADDREF(nsDOMFileError)
+NS_IMPL_RELEASE(nsDOMFileError)
+
+NS_IMETHODIMP
+nsDOMFileError::GetCode(PRUint16* aCode)
+{
+  *aCode = mCode;
   return NS_OK;
 }
 
@@ -663,8 +588,8 @@ nsDOMFileList::Item(PRUint32 aIndex, nsIDOMFile **aFile)
 
 nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile,
                                                        nsIPrincipal* aPrincipal
-                                                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
-  MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+                                                       MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
+  MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   aFile->GetInternalUrl(aPrincipal, mUrl);
 }
  
@@ -672,6 +597,6 @@ nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {
   if (!mUrl.IsEmpty()) {
     nsCAutoString narrowUrl;
     CopyUTF16toUTF8(mUrl, narrowUrl);
-    nsBlobProtocolHandler::RemoveFileDataEntry(narrowUrl);
+    nsFileDataProtocolHandler::RemoveFileDataEntry(narrowUrl);
   }
 }

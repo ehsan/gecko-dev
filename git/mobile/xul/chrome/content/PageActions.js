@@ -70,7 +70,6 @@ var PageActions = {
    * @param aThisObj (optional) scope object for aCallback
    */
   register: function register(aId, aCallback, aThisObj) {
-    this.init();
     this._handlers.push({id: aId, callback: aCallback, obj: aThisObj});
   },
 

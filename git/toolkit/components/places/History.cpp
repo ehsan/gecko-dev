@@ -45,7 +45,6 @@
 #include "History.h"
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
-#include "nsAnnotationService.h"
 #include "Helpers.h"
 #include "PlaceInfo.h"
 #include "VisitInfo.h"
@@ -79,11 +78,6 @@ namespace places {
 #define URI_VISITED_RESOLUTION_TOPIC "visited-status-resolution"
 // Observer event fired after a visit has been registered in the DB.
 #define URI_VISIT_SAVED "uri-visit-saved"
-
-#define DESTINATIONFILEURI_ANNO \
-        NS_LITERAL_CSTRING("downloads/destinationFileURI")
-#define DESTINATIONFILENAME_ANNO \
-        NS_LITERAL_CSTRING("downloads/destinationFileName")
 
 ////////////////////////////////////////////////////////////////////////////////
 //// VisitData
@@ -292,7 +286,7 @@ GetIntFromJSObject(JSContext* aCtx,
   NS_ENSURE_ARG(JSVAL_IS_PRIMITIVE(value));
   NS_ENSURE_ARG(JSVAL_IS_NUMBER(value));
 
-  double num;
+  jsdouble num;
   rc = JS_ValueToNumber(aCtx, value, &num);
   NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   NS_ENSURE_ARG(IntType(num) == num);
@@ -318,7 +312,7 @@ GetIntFromJSObject(JSContext* aCtx,
 nsresult
 GetJSObjectFromArray(JSContext* aCtx,
                      JSObject* aArray,
-                     uint32_t aIndex,
+                     jsuint aIndex,
                      JSObject** _rooter)
 {
   NS_PRECONDITION(JS_IsArrayObject(aCtx, aArray),
@@ -335,8 +329,7 @@ GetJSObjectFromArray(JSContext* aCtx,
 class VisitedQuery : public AsyncStatementCallback
 {
 public:
-  static nsresult Start(nsIURI* aURI,
-                        mozIVisitedStatusCallback* aCallback=nsnull)
+  static nsresult Start(nsIURI* aURI)
   {
     NS_PRECONDITION(aURI, "Null URI");
 
@@ -353,7 +346,7 @@ public:
     nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
     NS_ENSURE_STATE(navHistory);
     if (navHistory->hasEmbedVisit(aURI)) {
-      nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI, aCallback, true);
+      nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI, true);
       NS_ENSURE_TRUE(callback, NS_ERROR_OUT_OF_MEMORY);
       // As per IHistory contract, we must notify asynchronously.
       nsCOMPtr<nsIRunnable> event =
@@ -372,7 +365,7 @@ public:
     nsresult rv = URIBinder::Bind(stmt, 0, aURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI, aCallback);
+    nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI);
     NS_ENSURE_TRUE(callback, NS_ERROR_OUT_OF_MEMORY);
 
     nsCOMPtr<mozIStoragePendingStatement> handle;
@@ -407,12 +400,6 @@ public:
 
   nsresult NotifyVisitedStatus()
   {
-    // If an external handling callback is provided, just notify through it.
-    if (mCallback) {
-      mCallback->IsVisited(mURI, mIsVisited);
-      return NS_OK;
-    }
-
     if (mIsVisited) {
       History* history = History::GetService();
       NS_ENSURE_STATE(history);
@@ -438,17 +425,13 @@ public:
   }
 
 private:
-  VisitedQuery(nsIURI* aURI,
-               mozIVisitedStatusCallback *aCallback=nsnull,
-               bool aIsVisited=false)
+  VisitedQuery(nsIURI* aURI, bool aIsVisited=false)
   : mURI(aURI)
-  , mCallback(aCallback)
   , mIsVisited(aIsVisited)
   {
   }
 
   nsCOMPtr<nsIURI> mURI;
-  nsCOMPtr<mozIVisitedStatusCallback> mCallback;
   bool mIsVisited;
 };
 
@@ -462,7 +445,6 @@ public:
                        VisitData& aReferrer)
   : mPlace(aPlace)
   , mReferrer(aReferrer)
-  , mHistory(History::GetService())
   {
   }
 
@@ -470,11 +452,6 @@ public:
   {
     NS_PRECONDITION(NS_IsMainThread(),
                     "This should be called on the main thread");
-    // We are in the main thread, no need to lock.
-    if (mHistory->IsShuttingDown()) {
-      // If we are shutting down, we cannot notify the observers.
-      return NS_OK;
-    }
 
     nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
     if (!navHistory) {
@@ -512,7 +489,6 @@ public:
 private:
   VisitData mPlace;
   VisitData mReferrer;
-  nsRefPtr<History> mHistory;
 };
 
 /**
@@ -743,13 +719,6 @@ public:
   {
     NS_PRECONDITION(!NS_IsMainThread(),
                     "This should not be called on the main thread");
-
-    // Prevent the main thread from shutting down while this is running.
-    MutexAutoLock lockedScope(mHistory->GetShutdownMutex());
-    if(mHistory->IsShuttingDown()) {
-      // If we were already shutting down, we cannot insert the URIs.
-      return NS_OK;
-    }
 
     mozStorageTransaction transaction(mDBConn, false,
                                       mozIStorageConnection::TRANSACTION_IMMEDIATE);
@@ -1276,109 +1245,6 @@ private:
 };
 
 /**
- * Adds download-specific annotations to a download page.
- */
-class SetDownloadAnnotations : public mozIVisitInfoCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  SetDownloadAnnotations(nsIURI* aDestination)
-  : mDestination(aDestination)
-  , mHistory(History::GetService())
-  {
-    MOZ_ASSERT(mDestination);
-    MOZ_ASSERT(NS_IsMainThread());
-  }
-
-  NS_IMETHOD HandleError(nsresult aResultCode, mozIPlaceInfo *aPlaceInfo)
-  {
-    // Just don't add the annotations in case the visit isn't added.
-    return NS_OK;
-  }
-
-  NS_IMETHOD HandleResult(mozIPlaceInfo *aPlaceInfo)
-  {
-    // Exit silently if the download destination is not a local file.
-    nsCOMPtr<nsIFileURL> destinationFileURL = do_QueryInterface(mDestination);
-    if (!destinationFileURL) {
-      return NS_OK;
-    }
-
-    nsCOMPtr<nsIURI> source;
-    nsresult rv = aPlaceInfo->GetUri(getter_AddRefs(source));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIFile> destinationFile;
-    rv = destinationFileURL->GetFile(getter_AddRefs(destinationFile));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsAutoString destinationFileName;
-    rv = destinationFile->GetLeafName(destinationFileName);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCAutoString destinationURISpec;
-    rv = destinationFileURL->GetSpec(destinationURISpec);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Use annotations for storing the additional download metadata.
-    nsAnnotationService* annosvc = nsAnnotationService::GetAnnotationService();
-    NS_ENSURE_TRUE(annosvc, NS_ERROR_OUT_OF_MEMORY);
-
-    rv = annosvc->SetPageAnnotationString(
-      source,
-      DESTINATIONFILEURI_ANNO,
-      NS_ConvertUTF8toUTF16(destinationURISpec),
-      0,
-      nsIAnnotationService::EXPIRE_WITH_HISTORY
-    );
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = annosvc->SetPageAnnotationString(
-      source,
-      DESTINATIONFILENAME_ANNO,
-      destinationFileName,
-      0,
-      nsIAnnotationService::EXPIRE_WITH_HISTORY
-    );
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsAutoString title;
-    rv = aPlaceInfo->GetTitle(title);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // In case we are downloading a file that does not correspond to a web
-    // page for which the title is present, we populate the otherwise empty
-    // history title with the name of the destination file, to allow it to be
-    // visible and searchable in history results.
-    if (title.IsEmpty()) {
-      rv = mHistory->SetURITitle(source, destinationFileName);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    return NS_OK;
-  }
-
-  NS_IMETHOD HandleCompletion()
-  {
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIURI> mDestination;
-
-  /**
-   * Strong reference to the History object because we do not want it to
-   * disappear out from under us.
-   */
-  nsRefPtr<History> mHistory;
-};
-NS_IMPL_ISUPPORTS1(
-  SetDownloadAnnotations,
-  mozIVisitInfoCallback
-)
-
-/**
  * Stores an embed visit, and notifies observers.
  *
  * @param aPlace
@@ -1424,15 +1290,12 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   (void)NS_DispatchToMainThread(event);
 }
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf,
-                                     "history-links-hashtable")
-
 PRInt64 GetHistoryObserversSize()
 {
   History* history = History::GetService();
   if (!history)
     return 0;
-  return history->SizeOfIncludingThis(HistoryLinksHashtableMallocSizeOf);
+  return history->SizeOfIncludingThis(MemoryReporterMallocSizeOf);
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(HistoryService,
@@ -1452,7 +1315,6 @@ History* History::gService = NULL;
 
 History::History()
   : mShuttingDown(false)
-  , mShutdownMutex("History::mShutdownMutex")
 {
   NS_ASSERTION(!gService, "Ruh-roh!  This service has already been created!");
   gService = this;
@@ -1542,10 +1404,10 @@ History::GetIsVisitedStatement()
 
   // Now we can create our cached statement.
   nsresult rv = mReadOnlyDBConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
-    "SELECT 1 "
+    "SELECT h.id "
     "FROM moz_places h "
     "WHERE url = ?1 "
-      "AND last_visit_date NOTNULL "
+      "AND EXISTS(SELECT id FROM moz_historyvisits WHERE place_id = h.id LIMIT 1) "
   ),  getter_AddRefs(mIsVisitedStatement));
   NS_ENSURE_SUCCESS(rv, nsnull);
   return mIsVisitedStatement;
@@ -1711,17 +1573,26 @@ History::FetchPageInfo(VisitData& _place)
   return true;
 }
 
-/* static */ size_t
-History::SizeOfEntryExcludingThis(KeyClass* aEntry, nsMallocSizeOfFun aMallocSizeOf, void *)
+PLDHashOperator
+History::SizeOfEnumerator(KeyClass* aEntry, void* aArg)
 {
-  return aEntry->array.SizeOfExcludingThis(aMallocSizeOf);
+  PRInt64 *size = reinterpret_cast<PRInt64*>(aArg);
+
+  // Don't add in sizeof(*aEntry); that's already accounted for in
+  // mObservers.SizeOf().
+  *size += aEntry->array.SizeOf();
+  return PL_DHASH_NEXT;
 }
 
-size_t
+PRInt64
 History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
 {
-  return aMallocSizeOfThis(this) +
-         mObservers.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOfThis);
+  PRInt64 size = aMallocSizeOfThis(this, sizeof(History)) +
+                 mObservers.ShallowSizeOfExcludingThis(aMallocSizeOfThis);
+  if (mObservers.IsInitialized()) {
+    mObservers.EnumerateEntries(SizeOfEnumerator, &size);
+  }
+  return size;
 }
 
 /* static */
@@ -1765,12 +1636,7 @@ History::GetDBConn()
 void
 History::Shutdown()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // Prevent other threads from scheduling uses of the DB while we mark
-  // ourselves as shutting down.
-  MutexAutoLock lockedScope(mShutdownMutex);
-  MOZ_ASSERT(!mShuttingDown && "Shutdown was called more than once!");
+  NS_ASSERTION(!mShuttingDown, "Shutdown was called more than once!");
 
   mShuttingDown = true;
 
@@ -2035,65 +1901,6 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// nsIDownloadHistory
-
-NS_IMETHODIMP
-History::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
-                     PRTime aStartTime, nsIURI* aDestination)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  NS_ENSURE_ARG(aSource);
-
-  if (mShuttingDown) {
-    return NS_OK;
-  }
-
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("Cannot add downloads to history from content process!");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
-  NS_ENSURE_TRUE(navHistory, NS_ERROR_OUT_OF_MEMORY);
-
-  // Silently return if URI is something we shouldn't add to DB.
-  bool canAdd;
-  nsresult rv = navHistory->CanAddURI(aSource, &canAdd);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!canAdd) {
-    return NS_OK;
-  }
-
-  nsTArray<VisitData> placeArray(1);
-  NS_ENSURE_TRUE(placeArray.AppendElement(VisitData(aSource, aReferrer)),
-                 NS_ERROR_OUT_OF_MEMORY);
-  VisitData& place = placeArray.ElementAt(0);
-  NS_ENSURE_FALSE(place.spec.IsEmpty(), NS_ERROR_INVALID_ARG);
-
-  place.visitTime = aStartTime;
-  place.SetTransitionType(nsINavHistoryService::TRANSITION_DOWNLOAD);
-
-  mozIStorageConnection* dbConn = GetDBConn();
-  NS_ENSURE_STATE(dbConn);
-
-  nsCOMPtr<mozIVisitInfoCallback> callback = aDestination
-                                  ? new SetDownloadAnnotations(aDestination)
-                                  : nsnull;
-
-  rv = InsertVisitedURIs::Start(dbConn, placeArray, callback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Finally, notify that we've been visited.
-  nsCOMPtr<nsIObserverService> obsService =
-    mozilla::services::GetObserverService();
-  if (obsService) {
-    obsService->NotifyObservers(aSource, NS_LINK_VISITED_EVENT_TOPIC, nsnull);
-  }
-
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 //// mozIAsyncHistory
 
 NS_IMETHODIMP
@@ -2104,7 +1911,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
   NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_UNEXPECTED);
   NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(aPlaceInfos), NS_ERROR_INVALID_ARG);
 
-  uint32_t infosLength = 1;
+  jsuint infosLength = 1;
   JSObject* infos;
   if (JS_IsArrayObject(aCtx, JSVAL_TO_OBJECT(aPlaceInfos))) {
     infos = JSVAL_TO_OBJECT(aPlaceInfos);
@@ -2122,7 +1929,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
   }
 
   nsTArray<VisitData> visitData;
-  for (uint32_t i = 0; i < infosLength; i++) {
+  for (jsuint i = 0; i < infosLength; i++) {
     JSObject* info;
     nsresult rv = GetJSObjectFromArray(aCtx, infos, i, &info);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2168,7 +1975,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
     }
     NS_ENSURE_ARG(visits);
 
-    uint32_t visitsLength = 0;
+    jsuint visitsLength = 0;
     if (visits) {
       (void)JS_GetArrayLength(aCtx, visits, &visitsLength);
     }
@@ -2176,7 +1983,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
 
     // Check each visit, and build our array of VisitData objects.
     visitData.SetCapacity(visitData.Length() + visitsLength);
-    for (uint32_t j = 0; j < visitsLength; j++) {
+    for (jsuint j = 0; j < visitsLength; j++) {
       JSObject* visit;
       rv = GetJSObjectFromArray(aCtx, visits, j, &visit);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -2253,20 +2060,6 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-History::IsURIVisited(nsIURI* aURI,
-                      mozIVisitedStatusCallback* aCallback)
-{
-  NS_ENSURE_STATE(NS_IsMainThread());
-  NS_ENSURE_ARG(aURI);
-  NS_ENSURE_ARG(aCallback);
-
-  nsresult rv = VisitedQuery::Start(aURI, aCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIObserver
 
@@ -2289,10 +2082,9 @@ History::Observe(nsISupports* aSubject, const char* aTopic,
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_THREADSAFE_ISUPPORTS4(
+NS_IMPL_THREADSAFE_ISUPPORTS3(
   History
 , IHistory
-, nsIDownloadHistory
 , mozIAsyncHistory
 , nsIObserver
 )

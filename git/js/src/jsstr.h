@@ -46,7 +46,6 @@
 #include "jsprvtd.h"
 #include "jslock.h"
 #include "jscell.h"
-#include "jsutil.h"
 
 #include "js/HashTable.h"
 #include "vm/Unicode.h"
@@ -97,7 +96,7 @@ extern JSSubString js_EmptySubString;
 #define JS7_ISDEC(c)    ((((unsigned)(c)) - '0') <= 9)
 #define JS7_UNDEC(c)    ((c) - '0')
 #define JS7_ISHEX(c)    ((c) < 128 && isxdigit(c))
-#define JS7_UNHEX(c)    (unsigned)(JS7_ISDEC(c) ? (c) - '0' : 10 + tolower(c) - 'a')
+#define JS7_UNHEX(c)    (uintN)(JS7_ISDEC(c) ? (c) - '0' : 10 + tolower(c) - 'a')
 #define JS7_ISLET(c)    ((c) < 128 && isalpha(c))
 
 /* Initialize the String class, returning its prototype object. */
@@ -140,26 +139,26 @@ extern const char *
 js_ValueToPrintable(JSContext *cx, const js::Value &,
                     JSAutoByteString *bytes, bool asSource = false);
 
+/*
+ * Convert a value to a string, returning null after reporting an error,
+ * otherwise returning a new string reference.
+ */
+extern JSString *
+js_ValueToString(JSContext *cx, const js::Value &v);
+
 namespace js {
 
 /*
- * Convert a non-string value to a string, returning null after reporting an
- * error, otherwise returning a new string reference.
- */
-extern JSString *
-ToStringSlow(JSContext *cx, const Value &v);
-
-/*
- * Convert the given value to a string.  This method includes an inline
- * fast-path for the case where the value is already a string; if the value is
- * known not to be a string, use ToStringSlow instead.
+ * Most code that calls js_ValueToString knows the value is (probably) not a
+ * string, so it does not make sense to put this inline fast path into
+ * js_ValueToString.
  */
 static JS_ALWAYS_INLINE JSString *
-ToString(JSContext *cx, const js::Value &v)
+ValueToString_TestForStringInline(JSContext *cx, const Value &v)
 {
     if (v.isString())
         return v.toString();
-    return ToStringSlow(cx, v);
+    return js_ValueToString(cx, v);
 }
 
 /*
@@ -186,11 +185,7 @@ namespace js {
  * or str2 are not GC-allocated things.
  */
 extern bool
-EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result);
-
-/* Use the infallible method instead! */
-extern bool
-EqualStrings(JSContext *cx, JSLinearString *str1, JSLinearString *str2, bool *result) MOZ_DELETE;
+EqualStrings(JSContext *cx, JSString *str1, JSString *str2, JSBool *result);
 
 /* EqualStrings is infallible on linear strings. */
 extern bool
@@ -201,7 +196,7 @@ EqualStrings(JSLinearString *str1, JSLinearString *str2);
  * str1 is less than, equal to, or greater than str2.
  */
 extern bool
-CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32_t *result);
+CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32 *result);
 
 /*
  * Return true if the string matches the given sequence of ASCII bytes.
@@ -220,11 +215,7 @@ js_strchr(const jschar *s, jschar c);
 extern jschar *
 js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 
-static JS_ALWAYS_INLINE void
-js_strncpy(jschar *dst, const jschar *src, size_t nelem)
-{
-    return js::PodCopy(dst, src, nelem);
-}
+#define js_strncpy(t, s, n)     memcpy((t), (s), (n) * sizeof(jschar))
 
 namespace js {
 
@@ -289,33 +280,33 @@ DeflateStringToUTF8Buffer(JSContext *cx, const jschar *chars,
  * function optimization in js{interp,tracer}.cpp.
  */
 extern JSBool
-str_replace(JSContext *cx, unsigned argc, js::Value *vp);
+str_replace(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-str_fromCharCode(JSContext *cx, unsigned argc, Value *vp);
+str_fromCharCode(JSContext *cx, uintN argc, Value *vp);
 
 } /* namespace js */
 
 extern JSBool
-js_str_toString(JSContext *cx, unsigned argc, js::Value *vp);
+js_str_toString(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_str_charAt(JSContext *cx, unsigned argc, js::Value *vp);
+js_str_charAt(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_str_charCodeAt(JSContext *cx, unsigned argc, js::Value *vp);
+js_str_charCodeAt(JSContext *cx, uintN argc, js::Value *vp);
 
 /*
  * Convert one UCS-4 char and write it into a UTF-8 buffer, which must be at
  * least 6 bytes long.  Return the number of UTF-8 bytes of data written.
  */
 extern int
-js_OneUcs4ToUtf8Char(uint8_t *utf8Buffer, uint32_t ucs4Char);
+js_OneUcs4ToUtf8Char(uint8 *utf8Buffer, uint32 ucs4Char);
 
 namespace js {
 
 extern size_t
-PutEscapedStringImpl(char *buffer, size_t size, FILE *fp, JSLinearString *str, uint32_t quote);
+PutEscapedStringImpl(char *buffer, size_t size, FILE *fp, JSLinearString *str, uint32 quote);
 
 /*
  * Write str into buffer escaping any non-printable or non-ASCII character
@@ -327,7 +318,7 @@ PutEscapedStringImpl(char *buffer, size_t size, FILE *fp, JSLinearString *str, u
  * be a single or double quote character that will quote the output.
 */
 inline size_t
-PutEscapedString(char *buffer, size_t size, JSLinearString *str, uint32_t quote)
+PutEscapedString(char *buffer, size_t size, JSLinearString *str, uint32 quote)
 {
     size_t n = PutEscapedStringImpl(buffer, size, NULL, str, quote);
 
@@ -342,23 +333,23 @@ PutEscapedString(char *buffer, size_t size, JSLinearString *str, uint32_t quote)
  * will quote the output.
 */
 inline bool
-FileEscapedString(FILE *fp, JSLinearString *str, uint32_t quote)
+FileEscapedString(FILE *fp, JSLinearString *str, uint32 quote)
 {
     return PutEscapedStringImpl(NULL, 0, fp, str, quote) != size_t(-1);
 }
 
 JSBool
-str_match(JSContext *cx, unsigned argc, Value *vp);
+str_match(JSContext *cx, uintN argc, Value *vp);
 
 JSBool
-str_search(JSContext *cx, unsigned argc, Value *vp);
+str_search(JSContext *cx, uintN argc, Value *vp);
 
 JSBool
-str_split(JSContext *cx, unsigned argc, Value *vp);
+str_split(JSContext *cx, uintN argc, Value *vp);
 
 } /* namespace js */
 
 extern JSBool
-js_String(JSContext *cx, unsigned argc, js::Value *vp);
+js_String(JSContext *cx, uintN argc, js::Value *vp);
 
 #endif /* jsstr_h___ */

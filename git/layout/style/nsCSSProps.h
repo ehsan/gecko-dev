@@ -105,9 +105,8 @@
 
 // See CSSParserImpl::ParseSingleValueProperty
 #define CSS_PROPERTY_VALUE_PARSER_FUNCTION        (1<<12)
-MOZ_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
-                   CSS_PROPERTY_VALUE_PARSER_FUNCTION) == 0,
-                  "didn't leave enough room for the parse property constants");
+PR_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
+                  CSS_PROPERTY_VALUE_PARSER_FUNCTION) == 0);
 
 #define CSS_PROPERTY_VALUE_RESTRICTION_MASK       (3<<13)
 // The parser (in particular, CSSParserImpl::ParseSingleValueProperty)
@@ -341,12 +340,10 @@ public:
   static const PRInt32 kBackgroundOriginKTable[];
   static const PRInt32 kBackgroundPositionKTable[];
   static const PRInt32 kBackgroundRepeatKTable[];
-  static const PRInt32 kBackgroundRepeatPartKTable[];
   static const PRInt32 kBackgroundSizeKTable[];
   static const PRInt32 kBorderCollapseKTable[];
   static const PRInt32 kBorderColorKTable[];
-  static const PRInt32 kBorderImageRepeatKTable[];
-  static const PRInt32 kBorderImageSliceKTable[];
+  static const PRInt32 kBorderImageKTable[];
   static const PRInt32 kBorderStyleKTable[];
   static const PRInt32 kBorderWidthKTable[];
   static const PRInt32 kBoxAlignKTable[];
@@ -362,7 +359,6 @@ public:
   static const PRInt32 kTextAnchorKTable[];
   static const PRInt32 kTextRenderingKTable[];
   static const PRInt32 kColorInterpolationKTable[];
-  static const PRInt32 kColumnFillKTable[];
   static const PRInt32 kBoxPropSourceKTable[];
   static const PRInt32 kBoxShadowTypeKTable[];
   static const PRInt32 kBoxSizingKTable[];
@@ -410,7 +406,6 @@ public:
   static const PRInt32 kStackSizingKTable[];
   static const PRInt32 kTableLayoutKTable[];
   static const PRInt32 kTextAlignKTable[];
-  static const PRInt32 kTextAlignLastKTable[];
   static const PRInt32 kTextBlinkKTable[];
   static const PRInt32 kTextDecorationLineKTable[];
   static const PRInt32 kTextDecorationStyleKTable[];

@@ -66,7 +66,9 @@
 using namespace mozilla::dom;
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
+
+nsIAtom* SVGDocumentWrapper::kSVGAtom = nsnull; // lazily initialized
 
 NS_IMPL_ISUPPORTS4(SVGDocumentWrapper,
                    nsIStreamListener,
@@ -78,6 +80,12 @@ SVGDocumentWrapper::SVGDocumentWrapper()
   : mIgnoreInvalidation(false),
     mRegisteredForXPCOMShutdown(false)
 {
+  // Lazy-initialize our "svg" atom.  (It'd be nicer to just use nsGkAtoms::svg
+  // directly, but we can't access it from here in non-libxul builds.)
+  if (!SVGDocumentWrapper::kSVGAtom) {
+    SVGDocumentWrapper::kSVGAtom =
+      NS_NewPermanentAtom(NS_LITERAL_STRING("svg"));
+  }
 }
 
 SVGDocumentWrapper::~SVGDocumentWrapper()
@@ -457,12 +465,14 @@ SVGDocumentWrapper::GetRootSVGElem()
     return nsnull; // Can happen during destruction
 
   Element* rootElem = mViewer->GetDocument()->GetRootElement();
-  if (!rootElem || !rootElem->IsSVG(nsGkAtoms::svg)) {
+  if (!rootElem ||
+      rootElem->GetNameSpaceID() != kNameSpaceID_SVG ||
+      rootElem->Tag() != SVGDocumentWrapper::kSVGAtom) {
     return nsnull;
   }
 
   return static_cast<nsSVGSVGElement*>(rootElem);
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

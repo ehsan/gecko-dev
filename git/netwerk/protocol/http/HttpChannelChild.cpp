@@ -92,9 +92,9 @@ NS_IMETHODIMP_(nsrefcnt) HttpChannelChild::Release()
 
   // Normally we Send_delete in OnStopRequest, but when we need to retain the
   // remote channel for security info IPDL itself holds 1 reference, so we
-  // Send_delete when refCnt==1.  But if !mIPCOpen, then there's nobody to send
-  // to, so we fall through.
-  if (mKeptAlive && mRefCnt == 1 && mIPCOpen) {
+  // Send_delete when refCnt==1.
+  if (mKeptAlive && mRefCnt == 1) {
+    NS_ASSERTION(mIPCOpen, "mIPCOpen false!");
     mKeptAlive = false;
     // Send_delete calls NeckoChild::DeallocPHttpChannel, which will release
     // again to refcount==0
@@ -196,7 +196,7 @@ class StartRequestEvent : public ChannelEvent
   StartRequestEvent(HttpChannelChild* child,
                     const nsHttpResponseHead& responseHead,
                     const bool& useResponseHead,
-                    const nsHttpHeaderArray& requestHeaders,
+                    const RequestHeaderTuples& requestHeaders,
                     const bool& isFromCache,
                     const bool& cacheEntryAvailable,
                     const PRUint32& cacheExpirationTime,
@@ -227,7 +227,7 @@ class StartRequestEvent : public ChannelEvent
  private:
   HttpChannelChild* mChild;
   nsHttpResponseHead mResponseHead;
-  nsHttpHeaderArray mRequestHeaders;
+  RequestHeaderTuples mRequestHeaders;
   bool mUseResponseHead;
   bool mIsFromCache;
   bool mCacheEntryAvailable;
@@ -241,7 +241,7 @@ class StartRequestEvent : public ChannelEvent
 bool 
 HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                                      const bool& useResponseHead,
-                                     const nsHttpHeaderArray& requestHeaders,
+                                     const RequestHeaderTuples& requestHeaders,
                                      const bool& isFromCache,
                                      const bool& cacheEntryAvailable,
                                      const PRUint32& cacheExpirationTime,
@@ -268,7 +268,7 @@ HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
 void 
 HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
                                  const bool& useResponseHead,
-                                 const nsHttpHeaderArray& requestHeaders,
+                                 const RequestHeaderTuples& requestHeaders,
                                  const bool& isFromCache,
                                  const bool& cacheEntryAvailable,
                                  const PRUint32& cacheExpirationTime,
@@ -295,7 +295,11 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
   AutoEventEnqueuer ensureSerialDispatch(mEventQ);
 
   // replace our request headers with what actually got sent in the parent
-  mRequestHead.Headers() = requestHeaders;
+  mRequestHead.ClearHeaders();
+  for (PRUint32 i = 0; i < requestHeaders.Length(); i++) {
+    mRequestHead.Headers().SetHeader(nsHttp::ResolveAtom(requestHeaders[i].mHeader),
+                                     requestHeaders[i].mValue);
+  }
 
   // notify "http-on-examine-response" observers
   gHttpHandler->OnExamineResponse(this);
@@ -756,7 +760,7 @@ HttpChannelChild::Redirect1Begin(const PRUint32& newChannelId,
   bool rewriteToGET = ShouldRewriteRedirectToGET(mResponseHead->Status(), 
                                                  mRequestHead.Method());
   
-  rv = SetupReplacementChannel(uri, newChannel, !rewriteToGET, false);
+  rv = SetupReplacementChannel(uri, newChannel, !rewriteToGET);
   if (NS_FAILED(rv)) {
     // Veto redirect.  nsHttpChannel decides to cancel or continue.
     OnRedirectVerifyCallback(rv);
@@ -898,7 +902,7 @@ HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
       do_QueryInterface(mRedirectChannelChild);
   if (newHttpChannelChild && NS_SUCCEEDED(result)) {
     newHttpChannelChild->AddCookiesToRequest();
-    newHttpChannelChild->GetClientSetRequestHeaders(&headerTuples);
+    newHttpChannelChild->GetHeaderTuples(&headerTuples);
   }
 
   // After we verify redirect, nsHttpChannel may hit the network: must give
@@ -1070,12 +1074,12 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
 
   SendAsyncOpen(IPC::URI(mURI), IPC::URI(mOriginalURI),
                 IPC::URI(mDocumentURI), IPC::URI(mReferrer), mLoadFlags,
-                mClientSetRequestHeaders, mRequestHead.Method(),
+                mRequestHeaders, mRequestHead.Method(),
                 IPC::InputStream(mUploadStream), mUploadStreamHasHeaders,
                 mPriority, mRedirectionLimit, mAllowPipelining,
                 mForceAllowThirdPartyCookie, mSendResumeAt,
                 mStartPos, mEntityID, mChooseApplicationCache, 
-                appCacheClientId, mAllowSpdy);
+                appCacheClientId);
 
   return NS_OK;
 }
@@ -1093,7 +1097,7 @@ HttpChannelChild::SetRequestHeader(const nsACString& aHeader,
   if (NS_FAILED(rv))
     return rv;
 
-  RequestHeaderTuple* tuple = mClientSetRequestHeaders.AppendElement();
+  RequestHeaderTuple* tuple = mRequestHeaders.AppendElement();
   if (!tuple)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1213,7 +1217,7 @@ HttpChannelChild::ResumeAt(PRUint64 startPos, const nsACString& entityID)
 NS_IMETHODIMP
 HttpChannelChild::SetPriority(PRInt32 aPriority)
 {
-  PRInt16 newValue = clamped(aPriority, PR_INT16_MIN, PR_INT16_MAX);
+  PRInt16 newValue = CLAMP(aPriority, PR_INT16_MIN, PR_INT16_MAX);
   if (mPriority == newValue)
     return NS_OK;
   mPriority = newValue;
@@ -1438,9 +1442,9 @@ NS_IMETHODIMP HttpChannelChild::AddCookiesToRequest()
   return NS_OK;
 }
 
-NS_IMETHODIMP HttpChannelChild::GetClientSetRequestHeaders(RequestHeaderTuples **aRequestHeaders)
+NS_IMETHODIMP HttpChannelChild::GetHeaderTuples(RequestHeaderTuples **aHeaderTuples)
 {
-  *aRequestHeaders = &mClientSetRequestHeaders;
+  *aHeaderTuples = &mRequestHeaders;
   return NS_OK;
 }
 

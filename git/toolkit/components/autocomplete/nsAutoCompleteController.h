@@ -74,11 +74,9 @@ protected:
   nsresult OpenPopup();
   nsresult ClosePopup();
 
-  nsresult StartSearch(PRUint16 aSearchType);
-
-  nsresult BeforeSearches();
-  nsresult StartSearches();
-  void AfterSearches();
+  nsresult StartSearch();
+  
+  nsresult StartSearchTimer();
   nsresult ClearSearchTimer();
 
   nsresult ProcessResult(PRInt32 aSearchIndex, nsIAutoCompleteResult *aResult);
@@ -87,7 +85,7 @@ protected:
   nsresult EnterMatch(bool aIsPopupSelection);
   nsresult RevertTextValue();
 
-  nsresult CompleteDefaultIndex(PRInt32 aResultIndex);
+  nsresult CompleteDefaultIndex(PRInt32 aSearchIndex);
   nsresult CompleteValue(nsString &aValue);
 
   nsresult GetResultAt(PRInt32 aIndex, nsIAutoCompleteResult** aResult,
@@ -100,7 +98,7 @@ private:
   nsresult GetResultValueLabelAt(PRInt32 aIndex, bool aValueOnly,
                                  bool aGetValue, nsAString & _retval);
 protected:
-  nsresult GetDefaultCompleteValue(PRInt32 aResultIndex, bool aPreserveCasing,
+  nsresult GetDefaultCompleteValue(PRInt32 aSearchIndex, bool aPreserveCasing,
                                    nsAString &_retval);
   nsresult ClearResults();
   
@@ -113,14 +111,8 @@ protected:
 
   nsCOMArray<nsIAutoCompleteSearch> mSearches;
   nsCOMArray<nsIAutoCompleteResult> mResults;
-  // Caches the match counts for the current ongoing results to allow
-  // incremental results to keep the rowcount up to date.
   nsTArray<PRUint32> mMatchCounts;
-  // Temporarily keeps the results alive while invoking startSearch() for each
-  // search.  This is needed to allow the searches to reuse the previous result,
-  // since otherwise the first search clears mResults.
-  nsCOMArray<nsIAutoCompleteResult> mResultCache;
-
+  
   nsCOMPtr<nsITimer> mTimer;
   nsCOMPtr<nsITreeSelection> mSelection;
   nsCOMPtr<nsITreeBoxObject> mTree;
@@ -129,18 +121,12 @@ protected:
   bool mDefaultIndexCompleted;
   bool mBackspaced;
   bool mPopupClosedByCompositionStart;
-  enum CompositionState {
-    eCompositionState_None,
-    eCompositionState_Composing,
-    eCompositionState_Committing
-  };
-  CompositionState mCompositionState;
+  bool mIsIMEComposing;
+  bool mIgnoreHandleText;
   PRUint16 mSearchStatus;
   PRUint32 mRowCount;
   PRUint32 mSearchesOngoing;
-  PRUint32 mSearchesFailed;
   bool mFirstSearchResult;
-  PRUint32 mImmediateSearchesCount;
 };
 
 #endif /* __nsAutoCompleteController__ */

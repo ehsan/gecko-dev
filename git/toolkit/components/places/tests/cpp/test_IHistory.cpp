@@ -193,6 +193,7 @@ test_visited_notifies()
   nsresult rv = history->RegisterVisitedCallback(testURI, link);
   do_check_success(rv);
 
+  link.forget(); // It will release itself when notified.
   // Note: test will continue upon notification.
 }
 
@@ -235,6 +236,8 @@ test_same_uri_notifies_both()
   rv = history->RegisterVisitedCallback(testURI, link2);
   do_check_success(rv);
 
+  link1.forget(); // It will release itself when notified.
+  link2.forget(); // It will release itself when notified.
   // Note: test will continue upon notification.
 }
 
@@ -285,6 +288,7 @@ test_new_visit_notifies_waiting_Link()
   // Add ourselves to history.
   addURI(testURI);
 
+  link.forget(); // It will release itself when notified.
   // Note: test will continue upon notification.
 }
 
@@ -398,6 +402,7 @@ test_observer_topic_dispatched()
   // Need two Link objects as well - one for each URI.
   nsRefPtr<Link> visitedLink = new mock_Link(expect_visit, false);
   nsRefPtr<Link> visitedLinkCopy = visitedLink;
+  visitedLinkCopy.forget(); // It will release itself when notified.
   nsRefPtr<Link> notVisitedLink = new mock_Link(expect_no_visit);
 
   // Add the right observers for the URIs to check results.

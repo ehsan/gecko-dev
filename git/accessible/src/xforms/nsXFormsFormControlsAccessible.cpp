@@ -38,9 +38,8 @@
 
 #include "nsXFormsFormControlsAccessible.h"
 
-#include "nsTextEquivUtils.h"
-#include "Role.h"
 #include "States.h"
+#include "nsTextEquivUtils.h"
 
 using namespace mozilla::a11y;
 
@@ -49,15 +48,15 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsLabelAccessible::
-  nsXFormsLabelAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsLabelAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsLabelAccessible::NativeRole()
 {
-  return roles::LABEL;
+  return nsIAccessibleRole::ROLE_LABEL;
 }
 
 nsresult
@@ -81,15 +80,15 @@ nsXFormsLabelAccessible::Description(nsString& aDescription)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsOutputAccessible::
-  nsXFormsOutputAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsOutputAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsOutputAccessible::NativeRole()
 {
-  return roles::STATICTEXT;
+  return nsIAccessibleRole::ROLE_STATICTEXT;
 }
 
 
@@ -98,15 +97,15 @@ nsXFormsOutputAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsTriggerAccessible::
-  nsXFormsTriggerAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsTriggerAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsTriggerAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 NS_IMETHODIMP
@@ -148,17 +147,17 @@ nsXFormsTriggerAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsInputAccessible::
-  nsXFormsInputAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsEditableAccessible(aContent, aDoc)
+  nsXFormsInputAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsEditableAccessible(aContent, aShell)
 {
 }
 
 NS_IMPL_ISUPPORTS_INHERITED3(nsXFormsInputAccessible, nsAccessible, nsHyperTextAccessible, nsIAccessibleText, nsIAccessibleEditableText)
 
-role
+PRUint32
 nsXFormsInputAccessible::NativeRole()
 {
-  return roles::ENTRY;
+  return nsIAccessibleRole::ROLE_ENTRY;
 }
 
 PRUint8
@@ -193,15 +192,15 @@ nsXFormsInputAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsInputBooleanAccessible::
-  nsXFormsInputBooleanAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsInputBooleanAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsInputBooleanAccessible::NativeRole()
 {
-  return roles::CHECKBUTTON;
+  return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
 PRUint64
@@ -261,15 +260,15 @@ nsXFormsInputBooleanAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsInputDateAccessible::
-  nsXFormsInputDateAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsContainerAccessible(aContent, aDoc)
+  nsXFormsInputDateAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsContainerAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsInputDateAccessible::NativeRole()
 {
-  return roles::DROPLIST;
+  return nsIAccessibleRole::ROLE_DROPLIST;
 }
 
 
@@ -278,15 +277,15 @@ nsXFormsInputDateAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsSecretAccessible::
-  nsXFormsSecretAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsInputAccessible(aContent, aDoc)
+  nsXFormsSecretAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsInputAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsSecretAccessible::NativeRole()
 {
-  return roles::PASSWORD_TEXT;
+  return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
 }
 
 PRUint64
@@ -307,15 +306,15 @@ nsXFormsSecretAccessible::GetValue(nsAString& aValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsRangeAccessible::
-  nsXFormsRangeAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsRangeAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsRangeAccessible::NativeRole()
 {
-  return roles::SLIDER;
+  return nsIAccessibleRole::ROLE_SLIDER;
 }
 
 PRUint64
@@ -400,8 +399,8 @@ nsXFormsRangeAccessible::GetCurrentValue(double *aCurrentValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsSelectAccessible::
-  nsXFormsSelectAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsContainerAccessible(aContent, aDoc)
+  nsXFormsSelectAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsContainerAccessible(aContent, aShell)
 {
 }
 
@@ -427,15 +426,15 @@ nsXFormsSelectAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsChoicesAccessible::
-  nsXFormsChoicesAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsChoicesAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsChoicesAccessible::NativeRole()
 {
-  return roles::GROUPING;
+  return nsIAccessibleRole::ROLE_GROUPING;
 }
 
 NS_IMETHODIMP
@@ -457,15 +456,15 @@ nsXFormsChoicesAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsSelectFullAccessible::
-  nsXFormsSelectFullAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsSelectableAccessible(aContent, aDoc)
+  nsXFormsSelectFullAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsSelectableAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsSelectFullAccessible::NativeRole()
 {
-  return roles::GROUPING;
+  return nsIAccessibleRole::ROLE_GROUPING;
 }
 
 void
@@ -480,15 +479,15 @@ nsXFormsSelectFullAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsItemCheckgroupAccessible::
-  nsXFormsItemCheckgroupAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsSelectableItemAccessible(aContent, aDoc)
+  nsXFormsItemCheckgroupAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsSelectableItemAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsItemCheckgroupAccessible::NativeRole()
 {
-  return roles::CHECKBUTTON;
+  return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
 PRUint64
@@ -522,15 +521,15 @@ nsXFormsItemCheckgroupAccessible::GetActionName(PRUint8 aIndex, nsAString& aName
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsItemRadiogroupAccessible::
-  nsXFormsItemRadiogroupAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsSelectableItemAccessible(aContent, aDoc)
+  nsXFormsItemRadiogroupAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsSelectableItemAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsItemRadiogroupAccessible::NativeRole()
 {
-  return roles::RADIOBUTTON;
+  return nsIAccessibleRole::ROLE_RADIOBUTTON;
 }
 
 PRUint64
@@ -560,15 +559,15 @@ nsXFormsItemRadiogroupAccessible::GetActionName(PRUint8 aIndex, nsAString& aName
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsSelectComboboxAccessible::
-  nsXFormsSelectComboboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsSelectableAccessible(aContent, aDoc)
+  nsXFormsSelectComboboxAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsSelectableAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsSelectComboboxAccessible::NativeRole()
 {
-  return roles::COMBOBOX;
+  return nsIAccessibleRole::ROLE_COMBOBOX;
 }
 
 PRUint64
@@ -590,7 +589,7 @@ nsXFormsSelectComboboxAccessible::NativeState()
 }
 
 bool
-nsXFormsSelectComboboxAccessible::CanHaveAnonChildren()
+nsXFormsSelectComboboxAccessible::GetAllowsAnonChildAccessibles()
 {
   return true;
 }
@@ -601,15 +600,15 @@ nsXFormsSelectComboboxAccessible::CanHaveAnonChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsItemComboboxAccessible::
-  nsXFormsItemComboboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXFormsSelectableItemAccessible(aContent, aDoc)
+  nsXFormsItemComboboxAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXFormsSelectableItemAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsItemComboboxAccessible::NativeRole()
 {
-  return roles::LISTITEM;
+  return nsIAccessibleRole::ROLE_LISTITEM;
 }
 
 PRUint64

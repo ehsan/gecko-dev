@@ -43,14 +43,14 @@ interface nsISelection;
 interface nsIEditor;
 interface nsIEditorSpellCheck;
 
-[scriptable, uuid(df635540-d073-47b8-8678-18776130691d)]
+[scriptable, uuid(f456dda1-965d-470c-8c55-e51b38e45212)]
 
 interface nsIInlineSpellChecker : nsISupports
 {
   readonly attribute nsIEditorSpellCheck spellChecker;
 
-  void init(in nsIEditor aEditor);
-  void cleanup(in boolean aDestroyingFrames);
+  [noscript] void init(in nsIEditor aEditor);
+  [noscript] void cleanup(in boolean aDestroyingFrames);
 
   attribute boolean enableRealTimeSpell;
 
@@ -68,7 +68,6 @@ interface nsIInlineSpellChecker : nsISupports
   nsIDOMRange getMisspelledWord(in nsIDOMNode aNode, in long aOffset);
   void replaceWord(in nsIDOMNode aNode, in long aOffset, in AString aNewword);
   void addWordToDictionary(in AString aWord);
-  void removeWordFromDictionary(in AString aWord);
   
   void ignoreWord(in AString aWord);
   void ignoreWords([array, size_is(aCount)] in wstring aWordsToIgnore, in unsigned long aCount);

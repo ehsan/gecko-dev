@@ -35,7 +35,7 @@ Version
 
 Number
 
-    OpenGL ES Extension #108
+    XXX - not assigned yet
 
 Dependencies
 

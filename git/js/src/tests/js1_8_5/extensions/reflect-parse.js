@@ -312,10 +312,10 @@ assertExpr("[1,,,2,,,3]", arrExpr([lit(1),,,lit(2),,,lit(3)]));
 assertExpr("[,1,2,3]", arrExpr([,lit(1),lit(2),lit(3)]));
 assertExpr("[,,1,2,3]", arrExpr([,,lit(1),lit(2),lit(3)]));
 assertExpr("[,,,1,2,3]", arrExpr([,,,lit(1),lit(2),lit(3)]));
-assertExpr("[,,,1,2,3,]", arrExpr([,,,lit(1),lit(2),lit(3),]));
-assertExpr("[,,,1,2,3,,]", arrExpr([,,,lit(1),lit(2),lit(3),,]));
-assertExpr("[,,,1,2,3,,,]", arrExpr([,,,lit(1),lit(2),lit(3),,,]));
-assertExpr("[,,,,,]", arrExpr([,,,,,]));
+assertExpr("[,,,1,2,3,]", arrExpr([,,,lit(1),lit(2),lit(3)]));
+assertExpr("[,,,1,2,3,,]", arrExpr([,,,lit(1),lit(2),lit(3),]));
+assertExpr("[,,,1,2,3,,,]", arrExpr([,,,lit(1),lit(2),lit(3),,]));
+assertExpr("[,,,,,]", arrExpr([,,,,]));
 assertExpr("({})", objExpr([]));
 assertExpr("({x:1})", objExpr([{ key: ident("x"), value: lit(1) }]));
 assertExpr("({x:1, y:2})", objExpr([{ key: ident("x"), value: lit(1) },
@@ -436,10 +436,9 @@ assertStmt("function f() { function g() { } function g() { } }",
            funDecl(ident("f"), [], blockStmt([funDecl(ident("g"), [], blockStmt([])),
                                               funDecl(ident("g"), [], blockStmt([]))])));
 
-// Fails due to parser quirks (bug 638577)
-//assertStmt("function f() { function g() { } function g() { return 42 } }",
-//           funDecl(ident("f"), [], blockStmt([funDecl(ident("g"), [], blockStmt([])),
-//                                              funDecl(ident("g"), [], blockStmt([returnStmt(lit(42))]))])));
+assertStmt("function f() { function g() { } function g() { return 42 } }",
+           funDecl(ident("f"), [], blockStmt([funDecl(ident("g"), [], blockStmt([])),
+                                              funDecl(ident("g"), [], blockStmt([returnStmt(lit(42))]))])));
 
 assertStmt("function f() { var x = 42; var x = 43; }",
            funDecl(ident("f"), [], blockStmt([varDecl([{ id: ident("x"), init: lit(42) }]),
@@ -576,7 +575,7 @@ function testVarPatternCombinations(makePattSrc, makePattPatt) {
         assertStmt("for (var " + pattSrcs[i].join(",") + "; foo; bar);",
                    forStmt(varDecl(pattPatts[i]), ident("foo"), ident("bar"), emptyStmt));
         assertStmt("for (let " + pattSrcs[i].join(",") + "; foo; bar);",
-                   letStmt(pattPatts[i], forStmt(null, ident("foo"), ident("bar"), emptyStmt)));
+                   forStmt(letDecl(pattPatts[i]), ident("foo"), ident("bar"), emptyStmt));
         assertStmt("for (const " + pattSrcs[i].join(",") + "; foo; bar);",
                    forStmt(constDecl(pattPatts[i]), ident("foo"), ident("bar"), emptyStmt));
     }
@@ -762,6 +761,10 @@ assertExpr("( [x,y,z] for each (x in foo) for each (y in bar) for each (z in baz
 
 // NOTE: it would be good to test generator expressions both with and without upvars, just like functions above.
 
+
+// sharp variables
+
+assertExpr("#1={me:#1#}", graphExpr(1, objExpr([{ key: ident("me"), value: idxExpr(1) }])));
 
 // let expressions
 
@@ -1003,6 +1006,8 @@ assertGlobalExpr("(function() { })", 11, { functionExpression: function() 11 });
 assertGlobalExpr("[1,2,3]", 12, { arrayExpression: function() 12 });
 assertGlobalExpr("({ x: y })", 13, { objectExpression: function() 13 });
 assertGlobalExpr("this", 14, { thisExpression: function() 14 });
+assertGlobalExpr("#1={ }", 15, { graphExpression: function() 15 });
+assertGlobalExpr("#1={ self: #1# }", graphExpr(1, objExpr([{ key: ident("self"), value: 16 }])), { graphIndexExpression: function() 16 });
 assertGlobalExpr("[x for (x in y)]", 17, { comprehensionExpression: function() 17 });
 assertGlobalExpr("(x for (x in y))", 18, { generatorExpression: function() 18 });
 assertGlobalExpr("(function() { yield 42 })", genFunExpr(null, [], blockStmt([exprStmt(19)])), { yieldExpression: function() 19 });

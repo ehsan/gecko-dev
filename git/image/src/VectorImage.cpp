@@ -59,7 +59,7 @@ namespace mozilla {
 
 using namespace dom;
 
-namespace image {
+namespace imagelib {
 
 // Helper-class: SVGRootRenderingObserver
 class SVGRootRenderingObserver : public nsSVGRenderingObserver {
@@ -248,31 +248,31 @@ VectorImage::GetCurrentFrameRect(nsIntRect& aRect)
   aRect = nsIntRect::GetMaxSizedIntRect();
 }
 
-size_t
-VectorImage::HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
+PRUint32
+VectorImage::GetDecodedHeapSize()
+{
+  // XXXdholbert TODO: return num bytes used by helper SVG doc. (bug 590790)
+  return sizeof(*this);
+}
+
+PRUint32
+VectorImage::GetDecodedNonheapSize()
+{
+  return 0;
+}
+
+PRUint32
+VectorImage::GetDecodedOutOfProcessSize()
+{
+  return 0;
+}
+
+PRUint32
+VectorImage::GetSourceHeapSize()
 {
   // We're not storing the source data -- we just feed that directly to
   // our helper SVG document as we receive it, for it to parse.
   // So 0 is an appropriate return value here.
-  return 0;
-}
-
-size_t
-VectorImage::HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  // XXXdholbert TODO: return num bytes used by helper SVG doc. (bug 590790)
-  return 0;
-}
-
-size_t
-VectorImage::NonHeapSizeOfDecoded() const
-{
-  return 0;
-}
-
-size_t
-VectorImage::OutOfProcessSizeOfDecoded() const
-{
   return 0;
 }
 
@@ -627,15 +627,6 @@ VectorImage::UnlockImage()
 }
 
 //******************************************************************************
-/* void requestDiscard() */
-NS_IMETHODIMP
-VectorImage::RequestDiscard()
-{
-  // This method is for image-discarding, which only applies to RasterImages.
-  return NS_OK;
-}
-
-//******************************************************************************
 /* void resetAnimation (); */
 NS_IMETHODIMP
 VectorImage::ResetAnimation()
@@ -708,7 +699,7 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
     // NOTE: This signals that width/height are available.
     observer->OnStartContainer(nsnull, this);
 
-    observer->FrameChanged(nsnull, this, &nsIntRect::GetMaxSizedIntRect());
+    observer->FrameChanged(this, &nsIntRect::GetMaxSizedIntRect());
     observer->OnStopFrame(nsnull, 0);
     observer->OnStopDecode(nsnull, NS_OK, nsnull);
   }
@@ -747,7 +738,7 @@ VectorImage::InvalidateObserver()
 
   nsCOMPtr<imgIContainerObserver> containerObs(do_QueryReferent(mObserver));
   if (containerObs) {
-    containerObs->FrameChanged(nsnull, this, &nsIntRect::GetMaxSizedIntRect());
+    containerObs->FrameChanged(this, &nsIntRect::GetMaxSizedIntRect());
   }
 
   nsCOMPtr<imgIDecoderObserver> decoderObs(do_QueryReferent(mObserver));
@@ -756,5 +747,5 @@ VectorImage::InvalidateObserver()
   }
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

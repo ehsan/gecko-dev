@@ -170,7 +170,7 @@ nsGridRowLeafLayout::PopulateBoxSizes(nsIBox* aBox, nsBoxLayoutState& aState, ns
       nscoord bottomMargin = column->mBottomMargin;
 
       if (box) 
-        collapsed = box->IsCollapsed();
+        collapsed = box->IsCollapsed(aState);
 
       pref = pref - (left + right);
       if (pref < 0)
@@ -262,7 +262,7 @@ nsGridRowLeafLayout::ComputeChildSizes(nsIBox* aBox,
     // go up the parent chain looking for scrollframes
     nscoord diff = 0;
     nsIBox* parentBox;
-    (void)GetParentGridPart(aBox, &parentBox);
+    nsIGridPart* parent = GetParentGridPart(aBox, &parentBox);
     while (parentBox) {
       nsIBox* scrollbox = nsGrid::GetScrollBox(parentBox);
       nsIScrollableFrame *scrollable = do_QueryFrame(scrollbox);
@@ -280,7 +280,7 @@ nsGridRowLeafLayout::ComputeChildSizes(nsIBox* aBox,
         }
       }
 
-      (void)GetParentGridPart(parentBox, &parentBox);
+      parent = GetParentGridPart(parentBox, &parentBox);
     }
 
     if (diff > 0) {

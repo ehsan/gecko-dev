@@ -124,18 +124,6 @@ public:
   virtual bool ReflowFinished();
   virtual void ReflowCallbackCanceled();
 
-  bool ShouldClipSubdocument()
-  {
-    nsFrameLoader* frameLoader = FrameLoader();
-    return !frameLoader || frameLoader->ShouldClipSubdocument();
-  }
-
-  bool ShouldClampScrollPosition()
-  {
-    nsFrameLoader* frameLoader = FrameLoader();
-    return !frameLoader || frameLoader->ShouldClampScrollPosition();
-  }
-
 protected:
   friend class AsyncFrameInit;
 

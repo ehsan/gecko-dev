@@ -75,17 +75,6 @@ WindowOpenListener.prototype = {
   }
 };
 
-var gSawInstallNotification = false;
-var gInstallNotificationObserver = {
-  observe: function(aSubject, aTopic, aData) {
-    var installInfo = aSubject.QueryInterface(Ci.amIWebInstallInfo);
-    isnot(installInfo.originatingWindow, null, "Notification should have non-null originatingWindow");
-    gSawInstallNotification = true;
-    Services.obs.removeObserver(this, "addon-install-started");
-  }
-};
-
-
 function test() {
   waitForExplicitFinish();
 
@@ -124,15 +113,9 @@ function test_confirmation(aWindow, aExpectedURLs) {
 add_test(function() {
   var url = TESTROOT + "addons/browser_dragdrop1.xpi";
 
-  Services.obs.addObserver(gInstallNotificationObserver,
-                           "addon-install-started", false);
-
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [url]);
-  }, function() {
-    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
-    run_next_test();
-  });
+  }, run_next_test);
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
   var effect = chromeUtils.synthesizeDrop(viewContainer, viewContainer,
@@ -145,15 +128,9 @@ add_test(function() {
 add_test(function() {
   var fileurl = get_addon_file_url("browser_dragdrop1.xpi");
 
-  Services.obs.addObserver(gInstallNotificationObserver,
-                           "addon-install-started", false);
-
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [fileurl.spec]);
-  }, function() {
-    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
-    run_next_test();
-  });
+  }, run_next_test);
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
   var effect = chromeUtils.synthesizeDrop(viewContainer, viewContainer,
@@ -167,15 +144,9 @@ add_test(function() {
   var url1 = TESTROOT + "addons/browser_dragdrop1.xpi";
   var url2 = TESTROOT2 + "addons/browser_dragdrop2.xpi";
 
-  Services.obs.addObserver(gInstallNotificationObserver,
-                           "addon-install-started", false);
-
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [url1, url2]);
-  }, function() {
-    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
-    run_next_test();
-  });
+  }, run_next_test);
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
   var effect = chromeUtils.synthesizeDrop(viewContainer, viewContainer,
@@ -190,15 +161,9 @@ add_test(function() {
   var fileurl1 = get_addon_file_url("browser_dragdrop1.xpi");
   var fileurl2 = get_addon_file_url("browser_dragdrop2.xpi");
 
-  Services.obs.addObserver(gInstallNotificationObserver,
-                           "addon-install-started", false);
-
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [fileurl1.spec, fileurl2.spec]);
-  }, function() {
-    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
-    run_next_test();
-  });
+  }, run_next_test);
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
   var effect = chromeUtils.synthesizeDrop(viewContainer, viewContainer,
@@ -213,15 +178,9 @@ add_test(function() {
   var url = TESTROOT + "addons/browser_dragdrop1.xpi";
   var fileurl = get_addon_file_url("browser_dragdrop2.xpi");
 
-  Services.obs.addObserver(gInstallNotificationObserver,
-                           "addon-install-started", false);
-
   new WindowOpenListener(INSTALL_URI, function(aWindow) {
     test_confirmation(aWindow, [url, fileurl.spec]);
-  }, function() {
-    is(gSawInstallNotification, true, "Should have seen addon-install-started notification.");
-    run_next_test();
-  });
+  }, run_next_test);
 
   var viewContainer = gManagerWindow.document.getElementById("view-port");
   var effect = chromeUtils.synthesizeDrop(viewContainer, viewContainer,

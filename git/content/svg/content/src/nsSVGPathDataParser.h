@@ -39,8 +39,14 @@
 #ifndef __NS_SVGPATHDATAPARSER_H__
 #define __NS_SVGPATHDATAPARSER_H__
 
-#include "gfxPoint.h"
 #include "nsSVGDataParser.h"
+#include "nsCOMPtr.h"
+#include "nsCOMArray.h"
+#include "nsIDOMSVGPathSeg.h"
+#include "nsTArray.h"
+#include "gfxPoint.h"
+
+class nsSVGPathList;
 
 namespace mozilla {
 class SVGPathData;

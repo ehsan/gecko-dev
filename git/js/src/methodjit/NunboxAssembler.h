@@ -52,7 +52,7 @@ namespace mjit {
 struct ImmTag : JSC::MacroAssembler::Imm32
 {
     ImmTag(JSValueTag mask)
-      : Imm32(int32_t(mask))
+      : Imm32(int32(mask))
     { }
 };
 
@@ -67,7 +67,7 @@ struct ImmType : ImmTag
 
 struct ImmPayload : JSC::MacroAssembler::Imm32
 {
-    ImmPayload(uint32_t payload)
+    ImmPayload(uint32 payload)
       : Imm32(payload)
     { }
 };
@@ -76,11 +76,11 @@ class NunboxAssembler : public JSC::MacroAssembler
 {
   public:
 #ifdef IS_BIG_ENDIAN
-    static const uint32_t PAYLOAD_OFFSET = 4;
-    static const uint32_t TAG_OFFSET     = 0;
+    static const uint32 PAYLOAD_OFFSET = 4;
+    static const uint32 TAG_OFFSET     = 0;
 #else
-    static const uint32_t PAYLOAD_OFFSET = 0;
-    static const uint32_t TAG_OFFSET     = 4;
+    static const uint32 PAYLOAD_OFFSET = 0;
+    static const uint32 TAG_OFFSET     = 4;
 #endif
 
   public:
@@ -102,7 +102,7 @@ class NunboxAssembler : public JSC::MacroAssembler
         return BaseIndex(address.base, address.index, address.scale, address.offset + TAG_OFFSET);
     }
 
-    void loadInlineSlot(RegisterID objReg, uint32_t slot,
+    void loadInlineSlot(RegisterID objReg, uint32 slot,
                         RegisterID typeReg, RegisterID dataReg) {
         Address address(objReg, JSObject::getFixedSlotOffset(slot));
         if (objReg == typeReg) {
@@ -163,13 +163,17 @@ class NunboxAssembler : public JSC::MacroAssembler
     }
 
     void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        jsval_layout jv = JSVAL_TO_IMPL(val);
+        jsval_layout jv;
+        jv.asBits = val.asRawBits();
+
         move(ImmTag(jv.s.tag), type);
         move(Imm32(jv.s.payload.u32), payload);
     }
 
     void loadValuePayload(const Value &val, RegisterID payload) {
-        jsval_layout jv = JSVAL_TO_IMPL(val);
+        jsval_layout jv;
+        jv.asBits = val.asRawBits();
+
         move(Imm32(jv.s.payload.u32), payload);
     }
 
@@ -207,12 +211,6 @@ class NunboxAssembler : public JSC::MacroAssembler
         JS_ASSERT(differenceBetween(start, load) == 0);
         (void) load;
         return start;
-#elif defined JS_CPU_MIPS
-        /*
-         * On MIPS there are LUI/ORI to patch.
-         */
-        load64WithPatch(address, treg, dreg, TAG_OFFSET, PAYLOAD_OFFSET);
-        return start;
 #endif
     }
 
@@ -238,12 +236,6 @@ class NunboxAssembler : public JSC::MacroAssembler
         return start;
 #elif defined JS_CPU_ARM || defined JS_CPU_SPARC
         return store64WithAddressOffsetPatch(treg, dreg, address);
-#elif defined JS_CPU_MIPS
-        /*
-         * On MIPS there are LUI/ORI to patch.
-         */
-        store64WithPatch(address, treg, dreg, TAG_OFFSET, PAYLOAD_OFFSET);
-        return start;
 #endif
     }
 
@@ -260,18 +252,13 @@ class NunboxAssembler : public JSC::MacroAssembler
         return start;
 #elif defined JS_CPU_ARM || defined JS_CPU_SPARC
         return store64WithAddressOffsetPatch(type, dreg, address);
-#elif defined JS_CPU_MIPS
-        /*
-         * On MIPS there are LUI/ORI to patch.
-         */
-        store64WithPatch(address, type, dreg, TAG_OFFSET, PAYLOAD_OFFSET);
-        return start;
 #endif
     }
 
     /* Overloaded for storing constant type and data. */
     DataLabel32 storeValueWithAddressOffsetPatch(const Value &v, Address address) {
-        jsval_layout jv = JSVAL_TO_IMPL(v);
+        jsval_layout jv;
+        jv.asBits = v.asRawBits();
         ImmTag type(jv.s.tag);
         Imm32 payload(jv.s.payload.u32);
         DataLabel32 start = dataLabel32();
@@ -285,12 +272,6 @@ class NunboxAssembler : public JSC::MacroAssembler
         return start;
 #elif defined JS_CPU_ARM || defined JS_CPU_SPARC
         return store64WithAddressOffsetPatch(type, payload, address);
-#elif defined JS_CPU_MIPS
-        /*
-         * On MIPS there are LUI/ORI to patch.
-         */
-        store64WithPatch(address, type, payload, TAG_OFFSET, PAYLOAD_OFFSET);
-        return start;
 #endif
     }
 
@@ -315,7 +296,9 @@ class NunboxAssembler : public JSC::MacroAssembler
      */
     template <typename T>
     Label storeValue(const Value &v, T address) {
-        jsval_layout jv = JSVAL_TO_IMPL(v);
+        jsval_layout jv;
+        jv.asBits = v.asRawBits();
+
         store32(ImmTag(jv.s.tag), tagOf(address));
         Label l = label();
         store32(Imm32(jv.s.payload.u32), payloadOf(address));
@@ -362,8 +345,8 @@ class NunboxAssembler : public JSC::MacroAssembler
         loadPtr(payloadOf(privAddr), to);
     }
 
-    void loadObjPrivate(RegisterID base, RegisterID to, uint32_t nfixed) {
-        Address priv(base, JSObject::getPrivateDataOffset(nfixed));
+    void loadObjPrivate(RegisterID base, RegisterID to) {
+        Address priv(base, offsetof(JSObject, privateData));
         loadPtr(priv, to);
     }
 
@@ -494,12 +477,6 @@ class NunboxAssembler : public JSC::MacroAssembler
 #elif defined JS_CPU_ARM
         // Yes, we are backwards from SPARC.
         fastStoreDouble(srcDest, dataReg, typeReg);
-#elif defined JS_CPU_MIPS
-#if defined(IS_LITTLE_ENDIAN)
-        fastStoreDouble(srcDest, dataReg, typeReg);
-#else
-        fastStoreDouble(srcDest, typeReg, dataReg);
-#endif
 #else
         JS_NOT_REACHED("implement this - push double, pop pop is easiest");
 #endif

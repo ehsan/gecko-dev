@@ -59,7 +59,7 @@
 #include "nsTextNode.h"
 #include "mozAutoDocUpdate.h"
 #include "nsMutationEvent.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 #include "nsWrapperCacheInlines.h"
 
 using namespace mozilla::dom;
@@ -210,11 +210,11 @@ nsDOMAttribute::GetNameAtom(nsIContent* aContent)
       mNodeInfo->NamespaceID() == kNameSpaceID_None &&
       aContent->IsInHTMLDocument() &&
       aContent->IsHTML()) {
-    nsString name;
-    mNodeInfo->GetName(name);
-    nsAutoString lowercaseName;
-    nsContentUtils::ASCIIToLower(name, lowercaseName);
-    nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(lowercaseName);
+    nsAutoString name;
+    mNodeInfo->NameAtom()->ToString(name);
+    nsAutoString lower;
+    ToLowerCase(name, lower);
+    nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(lower);
     nameAtom.swap(result);
   } else {
     nsCOMPtr<nsIAtom> nameAtom = mNodeInfo->NameAtom();
@@ -480,13 +480,9 @@ nsDOMAttribute::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 NS_IMETHODIMP
-nsDOMAttribute::CloneNode(bool aDeep, PRUint8 aOptionalArgc, nsIDOMNode** aResult)
+nsDOMAttribute::CloneNode(bool aDeep, nsIDOMNode** aResult)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eCloneNode);
-
-  if (!aOptionalArgc) {
-    aDeep = true;
-  }
 
   return nsNodeUtils::CloneNodeImpl(this, aDeep, true, aResult);
 }
@@ -704,7 +700,13 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, bool aNotify)
     return NS_OK;
   }
 
-  doRemoveChild(aNotify);
+  {
+    nsCOMPtr<nsIContent> child = mChild;
+    nsMutationGuard::DidMutate();
+    mozAutoDocUpdate updateBatch(OwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
+
+    doRemoveChild(aNotify);
+  }
 
   nsString nullString;
   SetDOMStringToNull(nullString);
@@ -782,20 +784,12 @@ nsDOMAttribute::Shutdown()
 void
 nsDOMAttribute::doRemoveChild(bool aNotify)
 {
-  NS_ASSERTION(mChild && mFirstChild, "Why are we here?");
-  NS_ASSERTION(mChild == mFirstChild, "Something got out of sync!");
-
-  nsRefPtr<nsTextNode> child = static_cast<nsTextNode*>(mChild);
-  nsMutationGuard::DidMutate();
-  mozAutoDocUpdate updateBatch(OwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
-
-  NS_RELEASE(mChild);
-  mFirstChild = nsnull;
-
   if (aNotify) {
-    nsNodeUtils::AttributeChildRemoved(this, child);
+    nsNodeUtils::AttributeChildRemoved(this, mChild);
   }
 
-  child->UnbindFromAttribute();
+  static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
+  NS_RELEASE(mChild);
+  mFirstChild = nsnull;
 }
 

@@ -94,8 +94,7 @@ nsSMILAnimationFunction::nsSMILAnimationFunction()
     mLastValue(false),
     mHasChanged(true),
     mValueNeedsReparsingEverySample(false),
-    mPrevSampleWasSingleValueAnimation(false),
-    mWasSkippedInPrevSample(false)
+    mPrevSampleWasSingleValueAnimation(false)
 {
 }
 
@@ -234,7 +233,6 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
 {
   mHasChanged = false;
   mPrevSampleWasSingleValueAnimation = false;
-  mWasSkippedInPrevSample = false;
 
   // Skip animations that are inactive or in error
   if (!IsActiveOrFrozen() || mErrorFlags != 0)
@@ -757,7 +755,7 @@ nsSMILAnimationFunction::ParseAttr(nsIAtom* aAttName,
 {
   nsAutoString attValue;
   if (GetAttr(aAttName, attValue)) {
-    bool preventCachingOfSandwich = false;
+    bool preventCachingOfSandwich;
     nsresult rv = aSMILAttr.ValueFromString(attValue, mAnimationElement,
                                             aResult, preventCachingOfSandwich);
     if (NS_FAILED(rv))
@@ -798,7 +796,7 @@ nsSMILAnimationFunction::GetValues(const nsISMILAttr& aSMILAttr,
   if (HasAttr(nsGkAtoms::values)) {
     nsAutoString attValue;
     GetAttr(nsGkAtoms::values, attValue);
-    bool preventCachingOfSandwich = false;
+    bool preventCachingOfSandwich;
     nsresult rv = nsSMILParserUtils::ParseValues(attValue, mAnimationElement,
                                                  aSMILAttr, result,
                                                  preventCachingOfSandwich);

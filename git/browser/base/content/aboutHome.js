@@ -180,9 +180,6 @@ function setupSearchEngine()
 {
   gSearchEngine = JSON.parse(localStorage["search-engine"]);
 
-  if (!gSearchEngine)
-    return;
-
   // Look for extended information, like logo and links.
   let searchEngineInfo = SEARCH_ENGINES[gSearchEngine.name];
   if (searchEngineInfo) {

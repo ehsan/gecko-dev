@@ -70,7 +70,6 @@ struct nsListenerStruct
   nsCOMPtr<nsIAtom>             mTypeAtom;
   PRUint16                      mFlags;
   bool                          mHandlerIsString;
-  bool                          mWrappedJS;
 
   nsIJSEventListener* GetJSListener() const {
     return (mFlags & NS_PRIV_EVENT_FLAG_SCRIPT) ?
@@ -243,11 +242,7 @@ public:
 
   bool MayHaveMouseEnterLeaveEventListener() { return mMayHaveMouseEnterLeaveEventListener; }
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
-  void UnmarkGrayJSListeners();
-
-  nsISupports* GetTarget() { return mTarget; }
+  PRInt64 SizeOf() const;
 protected:
   nsresult HandleEventSubType(nsListenerStruct* aListenerStruct,
                               nsIDOMEventListener* aListener,

@@ -38,7 +38,6 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -52,13 +51,11 @@ const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis",
 // under the "accessibility.*" branch.
 const PREFS_WHITELIST = [
   "accessibility.",
-  "browser.cache.",
   "browser.display.",
   "browser.fixup.",
   "browser.history_expire_",
   "browser.link.open_newwindow",
   "browser.places.",
-  "browser.sessionstore.",
   "browser.startup.homepage",
   "browser.tabs.",
   "browser.zoom.",
@@ -70,12 +67,10 @@ const PREFS_WHITELIST = [
   "general.useragent.",
   "gfx.",
   "html5.",
-  "image.mem.",
+  "layers.",
   "javascript.",
   "keyword.",
-  "layers.",
   "layout.css.dpi",
-  "media.",
   "mousewheel.",
   "network.",
   "permissions.default.image",
@@ -85,8 +80,6 @@ const PREFS_WHITELIST = [
   "print.",
   "privacy.",
   "security.",
-  "svg.",
-  "toolkit.startup.recent_crashes",
   "webgl."
 ];
 
@@ -114,12 +107,9 @@ window.onload = function () {
   document.getElementById("version-box").textContent = version;
 
   // Update the other sections.
-  populateResetBox();
   populatePreferencesSection();
   populateExtensionsSection();
   populateGraphicsSection();
-  populateJavaScriptSection();
-  populateLibVersionsSection();
 }
 
 function populateExtensionsSection() {
@@ -171,41 +161,6 @@ function populatePreferencesSection() {
   });
 
   appendChildren(document.getElementById("prefs-tbody"), trPrefs);
-}
-
-function populateLibVersionsSection() {
-  function pushInfoRow(table, name, value, value2)
-  {
-    table.push(createParentElement("tr", [
-      createElement("td", name),
-      createElement("td", value),
-      createElement("td", value2),
-    ]));
-  }
-    
-  var v = null;
-  try { // just to be safe
-    v = Cc["@mozilla.org/security/nssversion;1"].getService(Ci.nsINSSVersion);
-  } catch(e) {}
-  if (!v)
-    return;
-    
-  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
-  let libversions_tbody = document.getElementById("libversions-tbody");
-
-  let trLibs = [];
-  trLibs.push(createParentElement("tr", [
-    createElement("th", ""),
-    createElement("th", bundle.GetStringFromName("minLibVersions")),
-    createElement("th", bundle.GetStringFromName("loadedLibVersions")),
-  ]));
-  pushInfoRow(trLibs, "NSPR", v.NSPR_MinVersion, v.NSPR_Version);
-  pushInfoRow(trLibs, "NSS", v.NSS_MinVersion, v.NSS_Version);
-  pushInfoRow(trLibs, "NSS Util", v.NSSUTIL_MinVersion, v.NSSUTIL_Version);
-  pushInfoRow(trLibs, "NSS SSL", v.NSSSSL_MinVersion, v.NSSSSL_Version);
-  pushInfoRow(trLibs, "NSS S/MIME", v.NSSSMIME_MinVersion, v.NSSSMIME_Version);
-
-  appendChildren(libversions_tbody, trLibs);
 }
 
 function populateGraphicsSection() {
@@ -294,8 +249,8 @@ function populateGraphicsSection() {
   if (gfxInfo) {
     let trGraphics = [];
     pushInfoRow(trGraphics, "adapterDescription", gfxInfo.adapterDescription);
-    pushInfoRow(trGraphics, "adapterVendorID", gfxInfo.adapterVendorID);
-    pushInfoRow(trGraphics, "adapterDeviceID", gfxInfo.adapterDeviceID);
+    pushInfoRow(trGraphics, "adapterVendorID", hexValueToString(gfxInfo.adapterVendorID));
+    pushInfoRow(trGraphics, "adapterDeviceID", hexValueToString(gfxInfo.adapterDeviceID));
     pushInfoRow(trGraphics, "adapterRAM", gfxInfo.adapterRAM);
     pushInfoRow(trGraphics, "adapterDrivers", gfxInfo.adapterDriver);
     pushInfoRow(trGraphics, "driverVersion", gfxInfo.adapterDriverVersion);
@@ -303,8 +258,8 @@ function populateGraphicsSection() {
 
 #ifdef XP_WIN
     pushInfoRow(trGraphics, "adapterDescription2", gfxInfo.adapterDescription2);
-    pushInfoRow(trGraphics, "adapterVendorID2", gfxInfo.adapterVendorID2);
-    pushInfoRow(trGraphics, "adapterDeviceID2", gfxInfo.adapterDeviceID2);
+    pushInfoRow(trGraphics, "adapterVendorID2", hexValueToString(gfxInfo.adapterVendorID2));
+    pushInfoRow(trGraphics, "adapterDeviceID2", hexValueToString(gfxInfo.adapterDeviceID2));
     pushInfoRow(trGraphics, "adapterRAM2", gfxInfo.adapterRAM2);
     pushInfoRow(trGraphics, "adapterDrivers2", gfxInfo.adapterDriver2);
     pushInfoRow(trGraphics, "driverVersion2", gfxInfo.adapterDriverVersion2);
@@ -399,9 +354,9 @@ function populateGraphicsSection() {
     }
   }
 
-  let msg = acceleratedWindows;
+  let msg = acceleratedWindows + "/" + totalWindows;
   if (acceleratedWindows) {
-    msg += "/" + totalWindows + " " + mgrType;
+    msg += " " + mgrType;
   } else {
 #ifdef XP_WIN
     var feature = gfxInfo.FEATURE_DIRECT3D_9_LAYERS;
@@ -421,24 +376,17 @@ function populateGraphicsSection() {
   ]);
 }
 
-function populateJavaScriptSection() {
-  let enabled = window.QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindowUtils)
-        .isIncrementalGCEnabled();
-  document.getElementById("javascript-incremental-gc").textContent = enabled ? "1" : "0";
-}
-
 function getPrefValue(aName) {
   let value = "";
   let type = Services.prefs.getPrefType(aName);
   switch (type) {
-    case Ci.nsIPrefBranch.PREF_STRING:
+    case Ci.nsIPrefBranch2.PREF_STRING:
       value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
       break;
-    case Ci.nsIPrefBranch.PREF_BOOL:
+    case Ci.nsIPrefBranch2.PREF_BOOL:
       value = Services.prefs.getBoolPref(aName);
       break;
-    case Ci.nsIPrefBranch.PREF_INT:
+    case Ci.nsIPrefBranch2.PREF_INT:
       value = Services.prefs.getIntPref(aName);
       break;
   }
@@ -598,52 +546,4 @@ function openProfileDirectory() {
   let nsLocalFile = Components.Constructor("@mozilla.org/file/local;1",
                                            "nsILocalFile", "initWithPath");
   new nsLocalFile(profileDir).reveal();
-}
-
-/**
- * Profile reset is only supported for the default profile if the appropriate migrator exists.
- */
-function populateResetBox() {
-  let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
-                         .getService(Ci.nsIToolkitProfileService);
-  let currentProfileDir = Services.dirsvc.get("ProfD", Ci.nsIFile);
-
-#expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
-#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
-
-  // Only show the reset box for the default profile if the self-migrator used for reset exists.
-  try {
-    if (!currentProfileDir.equals(profileService.selectedProfile.rootDir) ||
-        !("@mozilla.org/profile/migrator;1?app=" + MOZ_BUILD_APP + "&type=" + MOZ_APP_NAME in Cc))
-      return;
-    document.getElementById("reset-box").style.visibility = "visible";
-  } catch (e) {
-    // Catch exception when there is no selected profile.
-    Cu.reportError(e);
-  }
-}
-
-/**
- * Restart the application to reset the profile.
- */
-function resetProfileAndRestart() {
-  let branding = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-  let brandShortName = branding.GetStringFromName("brandShortName");
-
-  // Prompt the user to confirm.
-  let retVals = {
-    reset: false,
-  };
-  window.openDialog("chrome://global/content/resetProfile.xul", null,
-                    "chrome,modal,centerscreen,titlebar,dialog=yes", retVals);
-  if (!retVals.reset)
-    return;
-
-  // Set the reset profile environment variable.
-  let env = Cc["@mozilla.org/process/environment;1"]
-              .getService(Ci.nsIEnvironment);
-  env.set("MOZ_RESET_PROFILE_RESTART", "1");
-
-  let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
-  appStartup.quit(Ci.nsIAppStartup.eForceQuit | Ci.nsIAppStartup.eRestart);
 }

@@ -69,12 +69,24 @@ interface nsIProfileStartup : nsISupports
  * @client   Toolkit (Startup code)
  * @obtainable service, contractid("@mozilla.org/toolkit/profile-migrator;1")
  */
-[scriptable, uuid(3df284a5-2258-4d46-a664-761ecdc04c22)]
+[scriptable, uuid(24ce8b9d-b7ff-4279-aef4-26e158f03e34)]
 interface nsIProfileMigrator : nsISupports 
 {
   /**
-   * Migrate data from an outside source, if possible.  Does nothing
-   * otherwise.
+   * Import existing profile paths.  When the app is started the first
+   * time, if there are no INI-style profiles, appstartup will call
+   * this method to import any registry- style profiles that may
+   * exist. When this method is called, there is no event queue
+   * service and this method should not attempt to use the network or
+   * show any GUI.
+   *
+   * @note You don't actually have to move the profile data. Just call
+   *       nsIToolkitProfileService.create on the existing profile path(s).
+   */
+  void import();
+
+  /**
+   * Do profile migration.
    *
    * When this method is called, a default profile has been created;
    * XPCOM has been initialized such that compreg.dat is in the
@@ -86,13 +98,10 @@ interface nsIProfileMigrator : nsISupports
    * If your migrator needs to access services that use the profile (to
    * set profile prefs or bookmarks, for example), use aStartup.doStartup.
    *
-   * @param  aStartup nsIProfileStartup object to use during migration.
-   * @param  aKey     optional key of a migrator to use to skip source selection.
-   *
-   * @note The startup code ignores COM exceptions thrown from this method.
+   * The startup code ignores COM exceptions thrown from this method.
    */
-  void migrate(in nsIProfileStartup aStartup, in ACString aKey);
-};
+  void migrate(in nsIProfileStartup aStartup);
+};  
 
 %{C++
 #define NS_PROFILEMIGRATOR_CONTRACTID "@mozilla.org/toolkit/profile-migrator;1"

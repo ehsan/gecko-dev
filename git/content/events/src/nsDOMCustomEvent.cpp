@@ -37,7 +37,6 @@
 
 #include "nsDOMCustomEvent.h"
 #include "nsContentUtils.h"
-#include "DictionaryHelpers.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMCustomEvent)
 
@@ -77,16 +76,6 @@ nsDOMCustomEvent::InitCustomEvent(const nsAString& aType,
 
   mDetail = aDetail;
   return NS_OK;
-}
-
-nsresult
-nsDOMCustomEvent::InitFromCtor(const nsAString& aType,
-                               JSContext* aCx, jsval* aVal)
-{
-  mozilla::dom::CustomEventInit d;
-  nsresult rv = d.Init(aCx, aVal);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return InitCustomEvent(aType, d.bubbles, d.cancelable, d.detail);
 }
 
 nsresult

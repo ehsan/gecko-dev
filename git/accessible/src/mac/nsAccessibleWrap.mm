@@ -41,49 +41,49 @@
 
 #import "nsRoleMap.h"
 
-#include "Role.h"
-
+#import "mozAccessibleWrapper.h"
 #import "mozAccessible.h"
 #import "mozActionElements.h"
-#import "mozHTMLAccessible.h"
 #import "mozTextAccessible.h"
 
-using namespace mozilla::a11y;
-
 nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessible(aContent, aDoc), mNativeObject(nil),  
-  mNativeInited(false)
+  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessible(aContent, aShell), mNativeWrapper(nsnull)
 {
 }
 
 nsAccessibleWrap::~nsAccessibleWrap()
 {
+  if (mNativeWrapper) {
+    delete mNativeWrapper;
+    mNativeWrapper = nsnull;
+  }
 }
 
-mozAccessible* 
-nsAccessibleWrap::GetNativeObject()
+bool
+nsAccessibleWrap::Init () 
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-  
-  if (!mNativeInited && !mNativeObject && !IsDefunct() && !AncestorIsFlat())
-    mNativeObject = [[GetNativeType() alloc] initWithAccessible:this];
-  
-  mNativeInited = true;
-  
-  return mNativeObject;
-  
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+  if (!nsAccessible::Init())
+    return false;
+
+  if (!mNativeWrapper && !AncestorIsFlat()) {
+    // Create our native object using the class type specified in GetNativeType().
+    mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
+    if (!mNativeWrapper)
+      return false;
+  }
+
+  return true;
 }
 
 NS_IMETHODIMP
 nsAccessibleWrap::GetNativeInterface (void **aOutInterface) 
 {
-  NS_ENSURE_ARG_POINTER(aOutInterface);
-
-  *aOutInterface = static_cast<void*>(GetNativeObject());
-    
-  return *aOutInterface ? NS_OK : NS_ERROR_FAILURE;
+  if (mNativeWrapper) {
+    *aOutInterface = (void**)mNativeWrapper->getNativeObject();
+    return NS_OK;
+  }
+  return NS_ERROR_FAILURE;
 }
 
 // overridden in subclasses to create the right kind of object. by default we create a generic
@@ -93,45 +93,37 @@ nsAccessibleWrap::GetNativeType ()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  roles::Role role = Role();
+  PRUint32 role = Role();
   switch (role) {
-    case roles::PUSHBUTTON:
-    case roles::SPLITBUTTON:
-    case roles::TOGGLE_BUTTON:
+    case nsIAccessibleRole::ROLE_PUSHBUTTON:
+    case nsIAccessibleRole::ROLE_SPLITBUTTON:
+    case nsIAccessibleRole::ROLE_TOGGLE_BUTTON:
     {
       // if this button may show a popup, let's make it of the popupbutton type.
-      return HasPopup() ? [mozPopupButtonAccessible class] : 
-             [mozButtonAccessible class];
+      if (HasPopup())
+        return [mozPopupButtonAccessible class];
+        
+      // regular button
+      return [mozButtonAccessible class];
     }
     
-    case roles::PAGETAB:
-      return [mozButtonAccessible class];
-
-    case roles::CHECKBUTTON:
+    case nsIAccessibleRole::ROLE_CHECKBUTTON:
       return [mozCheckboxAccessible class];
       
-    case roles::AUTOCOMPLETE:
+    case nsIAccessibleRole::ROLE_AUTOCOMPLETE:
       return [mozComboboxAccessible class];
-
-    case roles::HEADING:
-      return [mozHeadingAccessible class];
-
-    case roles::PAGETABLIST:
-      return [mozTabsAccessible class];
       
-    case roles::ENTRY:
-    case roles::STATICTEXT:
-    case roles::LABEL:
-    case roles::CAPTION:
-    case roles::ACCEL_LABEL:
-    case roles::TEXT_LEAF:
+    case nsIAccessibleRole::ROLE_ENTRY:
+    case nsIAccessibleRole::ROLE_STATICTEXT:
+    case nsIAccessibleRole::ROLE_HEADING:
+    case nsIAccessibleRole::ROLE_LABEL:
+    case nsIAccessibleRole::ROLE_CAPTION:
+    case nsIAccessibleRole::ROLE_ACCEL_LABEL:
+    case nsIAccessibleRole::ROLE_TEXT_LEAF:
       // normal textfield (static or editable)
       return [mozTextAccessible class]; 
-
-    case roles::LINK:
-      return [mozLinkAccessible class];
-
-    case roles::COMBOBOX:
+      
+    case nsIAccessibleRole::ROLE_COMBOBOX:
       return [mozPopupButtonAccessible class];
       
     default:
@@ -149,16 +141,11 @@ nsAccessibleWrap::GetNativeType ()
 void
 nsAccessibleWrap::Shutdown ()
 {
-  // this ensure we will not try to re-create the native object.
-  mNativeInited = true;
-
-  // we really intend to access the member directly.
-  if (mNativeObject) {
-    [mNativeObject expire];
-    [mNativeObject release];
-    mNativeObject = nil;
+  if (mNativeWrapper) {
+    delete mNativeWrapper;
+    mNativeWrapper = nsnull;
   }
-
+  
   nsAccessible::Shutdown();
 }
 
@@ -214,33 +201,49 @@ nsAccessibleWrap::InvalidateChildren()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [GetNativeObject() invalidateChildren];
-
+  if (mNativeWrapper) {
+    mozAccessible *object = mNativeWrapper->getNativeObject();
+    [object invalidateChildren];
+  }
   nsAccessible::InvalidateChildren();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-bool
-nsAccessibleWrap::AppendChild(nsAccessible *aAccessible)
+PRInt32
+nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
 {
-  bool appended = nsAccessible::AppendChild(aAccessible);
+  // if we're flat, we have no children.
+  if (nsAccUtils::MustPrune(this))
+    return 0;
+
+  PRInt32 resultChildCount = 0;
+
+  PRInt32 childCount = GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessibleWrap *childAcc =
+      static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
+
+    // if the current child is not ignored, count it.
+    if (!childAcc->IsIgnored())
+      ++resultChildCount;
+
+    // if it's flat, we don't care to inspect its children.
+    if (nsAccUtils::MustPrune(childAcc))
+      continue;
+
+    if (aDeepCount) {
+      // recursively count the unignored children of our children since it's a deep count.
+      resultChildCount += childAcc->GetUnignoredChildCount(true);
+    } else {
+      // no deep counting, but if the child is ignored, we want to substitute it for its
+      // children.
+      if (childAcc->IsIgnored()) 
+        resultChildCount += childAcc->GetUnignoredChildCount(false);
+    }
+  } 
   
-  if (appended && mNativeObject)
-    [mNativeObject appendChild:aAccessible];
-
-  return appended;
-}
-
-bool
-nsAccessibleWrap::RemoveChild(nsAccessible *aAccessible)
-{
-  bool removed = nsAccessible::RemoveChild(aAccessible);
-
-  if (removed && mNativeObject)
-    [mNativeObject invalidateChildren];
-
-  return removed;
+  return resultChildCount;
 }
 
 // if we for some reason have no native accessible, we should be skipped over (and traversed)
@@ -248,12 +251,7 @@ nsAccessibleWrap::RemoveChild(nsAccessible *aAccessible)
 bool 
 nsAccessibleWrap::IsIgnored() 
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-  
-  mozAccessible* nativeObject = GetNativeObject();
-  return (!nativeObject) || [nativeObject accessibilityIsIgnored];
-  
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+  return (mNativeWrapper == nsnull) || mNativeWrapper->isIgnored();
 }
 
 void

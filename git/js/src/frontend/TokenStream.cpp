@@ -53,6 +53,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -153,20 +154,16 @@ js::IsIdentifier(JSLinearString *str)
 #endif
 
 /* Initialize members that aren't initialized in |init|. */
-TokenStream::TokenStream(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin)
-  : tokens(), cursor(), lookahead(), flags(), listenerTSData(), tokenbuf(cx),
-    cx(cx), originPrincipals(JSScript::normalizeOriginPrincipals(prin, originPrin))
-{
-    if (originPrincipals)
-        JS_HoldPrincipals(originPrincipals);
-}
+TokenStream::TokenStream(JSContext *cx)
+  : cx(cx), tokens(), cursor(), lookahead(), flags(), listenerTSData(), tokenbuf(cx)
+{}
 
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
 
 bool
-TokenStream::init(const jschar *base, size_t length, const char *fn, unsigned ln, JSVersion v)
+TokenStream::init(const jschar *base, size_t length, const char *fn, uintN ln, JSVersion v)
 {
     filename = fn;
     lineno = ln;
@@ -178,8 +175,8 @@ TokenStream::init(const jschar *base, size_t length, const char *fn, unsigned ln
     prevLinebase = NULL;
     sourceMap = NULL;
 
-    JSSourceHandler listener = cx->runtime->debugHooks.sourceHandler;
-    void *listenerData = cx->runtime->debugHooks.sourceHandlerData;
+    JSSourceHandler listener = cx->debugHooks->sourceHandler;
+    void *listenerData = cx->debugHooks->sourceHandlerData;
 
     if (listener)
         listener(fn, ln, base, length, &listenerTSData, listenerData);
@@ -247,8 +244,6 @@ TokenStream::~TokenStream()
         cx->free_((void *) filename);
     if (sourceMap)
         cx->free_(sourceMap);
-    if (originPrincipals)
-        JS_DropPrincipals(cx->runtime, originPrincipals);
 }
 
 /* Use the fastest available getc. */
@@ -276,10 +271,10 @@ TokenStream::updateFlagsForEOL()
 }
 
 /* This gets the next char, normalizing all EOL sequences to '\n' as it goes. */
-int32_t
+int32
 TokenStream::getChar()
 {
-    int32_t c;
+    int32 c;
     if (JS_LIKELY(userbuf.hasRawChars())) {
         c = userbuf.getRawChar();
 
@@ -328,7 +323,7 @@ TokenStream::getChar()
  * it's an EOL, and (b) the line-related state (lineno, linebase) is not used
  * before it's ungotten.
  */
-int32_t
+int32
 TokenStream::getCharIgnoreEOL()
 {
     if (JS_LIKELY(userbuf.hasRawChars()))
@@ -339,7 +334,7 @@ TokenStream::getCharIgnoreEOL()
 }
 
 void
-TokenStream::ungetChar(int32_t c)
+TokenStream::ungetChar(int32 c)
 {
     if (c == EOF)
         return;
@@ -347,7 +342,7 @@ TokenStream::ungetChar(int32_t c)
     userbuf.ungetRawChar();
     if (c == '\n') {
 #ifdef DEBUG
-        int32_t c2 = userbuf.peekRawChar();
+        int32 c2 = userbuf.peekRawChar();
         JS_ASSERT(TokenBuf::isRawEOLChar(c2));
 #endif
 
@@ -365,7 +360,7 @@ TokenStream::ungetChar(int32_t c)
 }
 
 void
-TokenStream::ungetCharIgnoreEOL(int32_t c)
+TokenStream::ungetCharIgnoreEOL(int32 c)
 {
     if (c == EOF)
         return;
@@ -380,10 +375,10 @@ TokenStream::ungetCharIgnoreEOL(int32_t c)
  * characters had appropriate values.
  */
 bool
-TokenStream::peekChars(int n, jschar *cp)
+TokenStream::peekChars(intN n, jschar *cp)
 {
-    int i, j;
-    int32_t c;
+    intN i, j;
+    int32 c;
 
     for (i = 0; i < n; i++) {
         c = getCharIgnoreEOL();
@@ -424,7 +419,7 @@ TokenStream::TokenBuf::findEOL()
 }
 
 bool
-TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned errorNumber, va_list ap)
+TokenStream::reportCompileErrorNumberVA(ParseNode *pn, uintN flags, uintN errorNumber, va_list ap)
 {
     JSErrorReport report;
     char *message;
@@ -433,7 +428,7 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
     bool warning;
     JSBool ok;
     const TokenPos *tp;
-    unsigned i;
+    uintN i;
 
     if (JSREPORT_IS_STRICT(flags) && !cx->hasStrictOption())
         return true;
@@ -461,7 +456,6 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
     }
 
     report.filename = filename;
-    report.originPrincipals = originPrincipals;
 
     tp = pn ? &pn->pn_pos : &currentToken().pos;
     report.lineno = tp->begin.lineno;
@@ -484,7 +478,7 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
             warning = false;
             goto out;
         }
-        PodCopy(linechars, linebase, linelength);
+        memcpy(linechars, linebase, linelength * sizeof(jschar));
         linechars[linelength] = 0;
         linebytes = DeflateString(cx, linechars, linelength);
         if (!linebytes) {
@@ -521,8 +515,8 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
          * sending the error on to the regular error reporter.
          */
         bool reportError = true;
-        if (JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook)
-            reportError = hook(cx, message, &report, cx->runtime->debugHooks.debugErrorHookData);
+        if (JSDebugErrorHook hook = cx->debugHooks->debugErrorHook)
+            reportError = hook(cx, message, &report, cx->debugHooks->debugErrorHookData);
 
         /* Report the error */
         if (reportError && cx->errorReporter)
@@ -553,13 +547,13 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
 
 bool
 js::ReportStrictModeError(JSContext *cx, TokenStream *ts, TreeContext *tc, ParseNode *pn,
-                          unsigned errorNumber, ...)
+                          uintN errorNumber, ...)
 {
     JS_ASSERT(ts || tc);
     JS_ASSERT(cx == ts->getContext());
 
     /* In strict mode code, this is an error, not merely a warning. */
-    unsigned flags;
+    uintN flags;
     if ((ts && ts->isStrictMode()) || (tc && (tc->flags & TCF_STRICT_MODE_CODE))) {
         flags = JSREPORT_ERROR;
     } else {
@@ -577,8 +571,8 @@ js::ReportStrictModeError(JSContext *cx, TokenStream *ts, TreeContext *tc, Parse
 }
 
 bool
-js::ReportCompileErrorNumber(JSContext *cx, TokenStream *ts, ParseNode *pn, unsigned flags,
-                             unsigned errorNumber, ...)
+js::ReportCompileErrorNumber(JSContext *cx, TokenStream *ts, ParseNode *pn, uintN flags,
+                             uintN errorNumber, ...)
 {
     va_list ap;
 
@@ -1092,7 +1086,7 @@ TokenStream::peekUnicodeEscape(int *result)
 }
 
 bool
-TokenStream::matchUnicodeEscapeIdStart(int32_t *cp)
+TokenStream::matchUnicodeEscapeIdStart(int32 *cp)
 {
     if (peekUnicodeEscape(cp) && IsIdentifierStart(*cp)) {
         skipChars(5);
@@ -1102,7 +1096,7 @@ TokenStream::matchUnicodeEscapeIdStart(int32_t *cp)
 }
 
 bool
-TokenStream::matchUnicodeEscapeIdent(int32_t *cp)
+TokenStream::matchUnicodeEscapeIdent(int32 *cp)
 {
     if (peekUnicodeEscape(cp) && IsIdentifierPart(*cp)) {
         skipChars(5);
@@ -1129,7 +1123,7 @@ TokenStream::getAtLine()
 {
     int c;
     jschar cp[5];
-    unsigned i, line, temp;
+    uintN i, line, temp;
     char filenameBuf[1024];
 
     /*
@@ -1275,7 +1269,7 @@ IsTokenSane(Token *tp)
 bool
 TokenStream::putIdentInTokenbuf(const jschar *identStart)
 {
-    int32_t c, qc;
+    int32 c, qc;
     const jschar *tmp = userbuf.addressOfNextRawChar();
     userbuf.setAddressOfNextRawChar(identStart);
 
@@ -1322,18 +1316,12 @@ TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSO
                                             JSMSG_RESERVED_ID, kw->chars);
         }
 
-        /* The let keyword is reserved on <1.7 */
-        if (kw->tokentype == TOK_LET) {
-            return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                            JSMSG_RESERVED_ID, kw->chars);
-        }
-
         /*
          * The keyword is not in this version. Treat it as an identifier,
-         * unless it is yield which we treat as TOK_STRICT_RESERVED by
-         * falling through to the code below (ES5 forbids it in strict mode).
+         * unless it is let or yield which we treat as TOK_STRICT_RESERVED by
+         * falling through to the code below (ES5 forbids them in strict mode).
          */
-        if (kw->tokentype != TOK_YIELD)
+        if (kw->tokentype != TOK_LET && kw->tokentype != TOK_YIELD)
             return true;
     }
 
@@ -1376,7 +1364,7 @@ enum FirstCharKind {
  * Space:   9, 11, 12: '\t', '\v', '\f'
  * EOL:     10, 13: '\n', '\r'
  */
-static const uint8_t firstCharKinds[] = {
+static const uint8 firstCharKinds[] = {
 /*         0        1        2        3        4        5        6        7        8        9    */
 /*   0+ */ _______, _______, _______, _______, _______, _______, _______, _______, _______,   Space,
 /*  10+ */     EOL,   Space,   Space,     EOL, _______, _______, _______, _______, _______, _______,
@@ -1613,7 +1601,7 @@ TokenStream::getTokenInternal()
 
                       default:
                         if ('0' <= c && c < '8') {
-                            int32_t val = JS7_UNDEC(c);
+                            int32 val = JS7_UNDEC(c);
 
                             c = peekChar();
                             /* Strict mode code allows only \0, then a non-digit. */
@@ -1629,7 +1617,7 @@ TokenStream::getTokenInternal()
                                 getChar();
                                 c = peekChar();
                                 if ('0' <= c && c < '8') {
-                                    int32_t save = val;
+                                    int32 save = val;
                                     val = 8 * val + JS7_UNDEC(c);
                                     if (val <= 0377)
                                         getChar();
@@ -1738,7 +1726,7 @@ TokenStream::getTokenInternal()
          * chars, so we don't need to use tokenbuf.  Instead we can just
          * convert the jschars in userbuf directly to the numeric value.
          */
-        double dval;
+        jsdouble dval;
         const jschar *dummy;
         if (!hasFracOrExp) {
             if (!GetPrefixInteger(cx, numStart, userbuf.addressOfNextRawChar(), 10, &dummy, &dval))
@@ -1829,7 +1817,7 @@ TokenStream::getTokenInternal()
             goto error;
         }
 
-        double dval;
+        jsdouble dval;
         const jschar *dummy;
         if (!GetPrefixInteger(cx, numStart, userbuf.addressOfNextRawChar(), radix, &dummy, &dval))
             goto error;
@@ -1846,6 +1834,7 @@ TokenStream::getTokenInternal()
       case '\\':
         hadUnicodeEscape = matchUnicodeEscapeIdStart(&qc);
         if (hadUnicodeEscape) {
+            c = qc;
             identStart = userbuf.addressOfNextRawChar() - 6;
             goto identifier;
         }
@@ -1993,7 +1982,7 @@ TokenStream::getTokenInternal()
          * Look for a multi-line comment.
          */
         if (matchChar('*')) {
-            unsigned linenoBefore = lineno;
+            uintN linenoBefore = lineno;
             while ((c = getChar()) != EOF &&
                    !(c == '*' && matchChar('/'))) {
                 /* Ignore all characters until comment close. */
@@ -2041,7 +2030,7 @@ TokenStream::getTokenInternal()
             }
 
             RegExpFlag reflags = NoFlags;
-            unsigned length = tokenbuf.length() + 1;
+            uintN length = tokenbuf.length() + 1;
             while (true) {
                 c = peekChar();
                 if (c == 'g' && !(reflags & GlobalFlag))
@@ -2102,6 +2091,46 @@ TokenStream::getTokenInternal()
             tt = TOK_MINUS;
         }
         break;
+
+#if JS_HAS_SHARP_VARS
+      case '#':
+      {
+        uint32 n;
+
+        c = getCharIgnoreEOL();
+        if (!JS7_ISDEC(c)) {
+            ungetCharIgnoreEOL(c);
+            goto badchar;
+        }
+        n = (uint32)JS7_UNDEC(c);
+        for (;;) {
+            c = getChar();
+            if (!JS7_ISDEC(c))
+                break;
+            n = 10 * n + JS7_UNDEC(c);
+            if (n >= UINT16_LIMIT) {
+                ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, JSMSG_SHARPVAR_TOO_BIG);
+                goto error;
+            }
+        }
+        tp->setSharpNumber(uint16(n));
+        if (cx->hasStrictOption() && (c == '=' || c == '#')) {
+            char buf[20];
+            JS_snprintf(buf, sizeof buf, "#%u%c", n, c);
+            if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_WARNING | JSREPORT_STRICT,
+                                          JSMSG_DEPRECATED_USAGE, buf)) {
+                goto error;
+            }
+        }
+        if (c == '=')
+            tt = TOK_DEFSHARP;
+        else if (c == '#')
+            tt = TOK_USESHARP;
+        else
+            goto badchar;
+        break;
+      }
+#endif /* JS_HAS_SHARP_VARS */
 
       badchar:
       default:
@@ -2227,6 +2256,8 @@ TokenKindToString(TokenKind tt)
       case TOK_RETURN:          return "TOK_RETURN";
       case TOK_NEW:             return "TOK_NEW";
       case TOK_DELETE:          return "TOK_DELETE";
+      case TOK_DEFSHARP:        return "TOK_DEFSHARP";
+      case TOK_USESHARP:        return "TOK_USESHARP";
       case TOK_TRY:             return "TOK_TRY";
       case TOK_CATCH:           return "TOK_CATCH";
       case TOK_FINALLY:         return "TOK_FINALLY";
@@ -2246,6 +2277,7 @@ TokenKindToString(TokenKind tt)
       case TOK_XMLPI:           return "TOK_XMLPI";
       case TOK_AT:              return "TOK_AT";
       case TOK_DBLCOLON:        return "TOK_DBLCOLON";
+      case TOK_ANYNAME:         return "TOK_ANYNAME";
       case TOK_DBLDOT:          return "TOK_DBLDOT";
       case TOK_FILTER:          return "TOK_FILTER";
       case TOK_XMLELEM:         return "TOK_XMLELEM";

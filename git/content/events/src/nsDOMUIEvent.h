@@ -64,12 +64,10 @@ public:
 
   NS_FORWARD_NSIDOMNSEVENT(nsDOMEvent::)
 
-  virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, jsval* aVal);
 protected:
   // Internal helper functions
-  nsIntPoint GetScreenPoint();
   nsIntPoint GetClientPoint();
+  nsIntPoint GetScreenPoint();
   nsIntPoint GetLayerPoint();
   nsIntPoint GetPagePoint();
 

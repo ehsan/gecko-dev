@@ -830,6 +830,11 @@ nsOfflineCacheDevice::nsOfflineCacheDevice()
 {
 }
 
+nsOfflineCacheDevice::~nsOfflineCacheDevice()
+{
+  Shutdown();
+}
+
 /* static */
 bool
 nsOfflineCacheDevice::GetStrictFileOriginPolicy()
@@ -1218,7 +1223,7 @@ nsOfflineCacheDevice::InitActiveCaches()
     nsCString clientID;
     statement->GetUTF8String(1, clientID);
 
-    mActiveCaches.PutEntry(clientID);
+    mActiveCaches.Put(clientID);
     mActiveCachesByGroup.Put(group, new nsCString(clientID));
 
     rv = statement->ExecuteStep(&hasRows);
@@ -2182,7 +2187,7 @@ nsOfflineCacheDevice::DeactivateGroup(const nsACString &group)
 
   if (mActiveCachesByGroup.Get(group, &active))
   {
-    mActiveCaches.RemoveEntry(*active);
+    mActiveCaches.Remove(*active);
     mActiveCachesByGroup.Remove(group);
     active = nsnull;
   }
@@ -2323,14 +2328,14 @@ nsOfflineCacheDevice::ActivateCache(const nsCSubstring &group,
   nsCString *active;
   if (mActiveCachesByGroup.Get(group, &active))
   {
-    mActiveCaches.RemoveEntry(*active);
+    mActiveCaches.Remove(*active);
     mActiveCachesByGroup.Remove(group);
     active = nsnull;
   }
 
   if (!clientID.IsEmpty())
   {
-    mActiveCaches.PutEntry(clientID);
+    mActiveCaches.Put(clientID);
     mActiveCachesByGroup.Put(group, new nsCString(clientID));
   }
 

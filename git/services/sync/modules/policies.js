@@ -221,12 +221,10 @@ let SyncScheduler = {
         }
         break;
       case "weave:engine:sync:applied":
-        let numItems = subject.succeeded;
-        this._log.trace("Engine " + data + " successfully applied " + numItems +
-                        " items.");
-        if (numItems) {
+        let numItems = subject.applied;
+        this._log.trace("Engine " + data + " applied " + numItems + " items.");
+        if (numItems)
           this.hasIncomingItems = true;
-        }
         break;
       case "weave:service:setup-complete":
          Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));

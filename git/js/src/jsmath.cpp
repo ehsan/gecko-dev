@@ -42,6 +42,7 @@
  */
 #include <stdlib.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "prmjtime.h"
 #include "jsapi.h"
 #include "jsatom.h"
@@ -117,9 +118,9 @@ Class js::MathClass = {
 };
 
 JSBool
-js_math_abs(JSContext *cx, unsigned argc, Value *vp)
+js_math_abs(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -133,9 +134,9 @@ js_math_abs(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-math_acos(JSContext *cx, unsigned argc, Value *vp)
+math_acos(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -158,9 +159,9 @@ math_acos(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-math_asin(JSContext *cx, unsigned argc, Value *vp)
+math_asin(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -183,9 +184,9 @@ math_asin(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-math_atan(JSContext *cx, unsigned argc, Value *vp)
+math_atan(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -201,8 +202,8 @@ math_atan(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-static inline double JS_FASTCALL
-math_atan2_kernel(double x, double y)
+static inline jsdouble JS_FASTCALL
+math_atan2_kernel(jsdouble x, jsdouble y)
 {
 #if defined(_MSC_VER)
     /*
@@ -213,7 +214,7 @@ math_atan2_kernel(double x, double y)
      * - The sign of y determines the multiplicator, 1 or 3.
      */
     if (JSDOUBLE_IS_INFINITE(x) && JSDOUBLE_IS_INFINITE(y)) {
-        double z = js_copysign(M_PI / 4, x);
+        jsdouble z = js_copysign(M_PI / 4, x);
         if (y < 0)
             z *= 3;
         return z;
@@ -232,9 +233,9 @@ math_atan2_kernel(double x, double y)
 }
 
 static JSBool
-math_atan2(JSContext *cx, unsigned argc, Value *vp)
+math_atan2(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, y, z;
+    jsdouble x, y, z;
 
     if (argc <= 1) {
         vp->setDouble(js_NaN);
@@ -247,8 +248,8 @@ math_atan2(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js_math_ceil_impl(double x)
+jsdouble
+js_math_ceil_impl(jsdouble x)
 {
 #ifdef __APPLE__
     if (x < 0 && x > -1.0)
@@ -258,9 +259,9 @@ js_math_ceil_impl(double x)
 }
 
 JSBool
-js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
+js_math_ceil(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -274,9 +275,9 @@ js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-math_cos(JSContext *cx, unsigned argc, Value *vp)
+math_cos(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -307,9 +308,9 @@ math_exp_body(double d)
 }
 
 static JSBool
-math_exp(JSContext *cx, unsigned argc, Value *vp)
+math_exp(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -325,16 +326,16 @@ math_exp(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js_math_floor_impl(double x)
+jsdouble
+js_math_floor_impl(jsdouble x)
 {
     return floor(x);
 }
 
 JSBool
-js_math_floor(JSContext *cx, unsigned argc, Value *vp)
+js_math_floor(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -348,9 +349,9 @@ js_math_floor(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-math_log(JSContext *cx, unsigned argc, Value *vp)
+math_log(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -373,11 +374,11 @@ math_log(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSBool
-js_math_max(JSContext *cx, unsigned argc, Value *vp)
+js_math_max(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z = js_NegativeInfinity;
+    jsdouble x, z = js_NegativeInfinity;
     Value *argv;
-    unsigned i;
+    uintN i;
 
     if (argc == 0) {
         vp->setDouble(js_NegativeInfinity);
@@ -403,11 +404,11 @@ js_math_max(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSBool
-js_math_min(JSContext *cx, unsigned argc, Value *vp)
+js_math_min(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z = js_PositiveInfinity;
+    jsdouble x, z = js_PositiveInfinity;
     Value *argv;
-    unsigned i;
+    uintN i;
 
     if (argc == 0) {
         vp->setDouble(js_PositiveInfinity);
@@ -432,12 +433,12 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-static double
-powi(double x, int y)
+static jsdouble
+powi(jsdouble x, jsint y)
 {
-    unsigned n = (y < 0) ? -y : y;
-    double m = x;
-    double p = 1;
+    jsuint n = (y < 0) ? -y : y;
+    jsdouble m = x;
+    jsdouble p = 1;
     while (true) {
         if ((n & 1) != 0) p *= m;
         n >>= 1;
@@ -448,9 +449,9 @@ powi(double x, int y)
                 // internal precision in the pow() implementation would have
                 // given us a finite p. This happens very rarely.
                 
-                double result = 1.0 / p;
+                jsdouble result = 1.0 / p;
                 return (result == 0 && JSDOUBLE_IS_INFINITE(p))
-                       ? pow(x, static_cast<double>(y))  // Avoid pow(double, int).
+                       ? pow(x, static_cast<jsdouble>(y))  // Avoid pow(double, int).
                        : result;
             }
 
@@ -461,9 +462,9 @@ powi(double x, int y)
 }
 
 JSBool
-js_math_pow(JSContext *cx, unsigned argc, Value *vp)
+js_math_pow(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, y, z;
+    jsdouble x, y, z;
 
     if (argc <= 1) {
         vp->setDouble(js_NaN);
@@ -508,18 +509,18 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-static const int64_t RNG_MULTIPLIER = 0x5DEECE66DLL;
-static const int64_t RNG_ADDEND = 0xBLL;
-static const int64_t RNG_MASK = (1LL << 48) - 1;
-static const double RNG_DSCALE = double(1LL << 53);
+static const int64 RNG_MULTIPLIER = 0x5DEECE66DLL;
+static const int64 RNG_ADDEND = 0xBLL;
+static const int64 RNG_MASK = (1LL << 48) - 1;
+static const jsdouble RNG_DSCALE = jsdouble(1LL << 53);
 
 /*
  * Math.random() support, lifted from java.util.Random.java.
  */
-extern void
-random_setSeed(int64_t *rngSeed, int64_t seed)
+static inline void
+random_setSeed(JSContext *cx, int64 seed)
 {
-    *rngSeed = (seed ^ RNG_MULTIPLIER) & RNG_MASK;
+    cx->rngSeed = (seed ^ RNG_MULTIPLIER) & RNG_MASK;
 }
 
 void
@@ -531,30 +532,32 @@ js_InitRandom(JSContext *cx)
      * the context and its successor. We don't just use the context because it might be
      * possible to reverse engineer the context pointer if one guesses the time right.
      */
-    random_setSeed(&cx->rngSeed, (PRMJ_Now() / 1000) ^ int64_t(cx) ^ int64_t(cx->link.next));
+    random_setSeed(cx,
+                   (PRMJ_Now() / 1000) ^
+                   int64(cx) ^
+                   int64(cx->link.next));
 }
 
-extern uint64_t
-random_next(int64_t *rngSeed, int bits)
+static inline uint64
+random_next(JSContext *cx, int bits)
 {
-    uint64_t nextseed = *rngSeed * RNG_MULTIPLIER;
+    uint64 nextseed = cx->rngSeed * RNG_MULTIPLIER;
     nextseed += RNG_ADDEND;
     nextseed &= RNG_MASK;
-    *rngSeed = nextseed;
+    cx->rngSeed = nextseed;
     return nextseed >> (48 - bits);
 }
 
-static inline double
+static inline jsdouble
 random_nextDouble(JSContext *cx)
 {
-    return double((random_next(&cx->rngSeed, 26) << 27) + random_next(&cx->rngSeed, 27)) /
-           RNG_DSCALE;
+    return jsdouble((random_next(cx, 26) << 27) + random_next(cx, 27)) / RNG_DSCALE;
 }
 
 static JSBool
-math_random(JSContext *cx, unsigned argc, Value *vp)
+math_random(JSContext *cx, uintN argc, Value *vp)
 {
-    double z = random_nextDouble(cx);
+    jsdouble z = random_nextDouble(cx);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -574,45 +577,32 @@ js_copysign(double x, double y)
 }
 #endif
 
-
-JSBool /* ES5 15.8.2.15. */
-js_math_round(JSContext *cx, unsigned argc, Value *vp)
+jsdouble
+js_math_round_impl(jsdouble x)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    return js_copysign(floor(x + 0.5), x);
+}
 
-    if (args.length() == 0) {
-        args.rval().setDouble(js_NaN);
-        return true;
+JSBool
+js_math_round(JSContext *cx, uintN argc, Value *vp)
+{
+    jsdouble x, z;
+
+    if (argc == 0) {
+        vp->setDouble(js_NaN);
+        return JS_TRUE;
     }
-
-    double x;
-    if (!ToNumber(cx, args[0], &x))
-        return false;
-
-    int32_t i;
-    if (JSDOUBLE_IS_INT32(x, &i)) { 
-        args.rval().setInt32(i);
-        return true;
-    }
-
-    jsdpun u;
-    u.d = x;
-
-    /* Some numbers are so big that adding 0.5 would give the wrong number */
-    int exponent = ((u.s.hi & JSDOUBLE_HI32_EXPMASK) >> JSDOUBLE_HI32_EXPSHIFT) - JSDOUBLE_EXPBIAS;
-    if (exponent >= 52) {
-        args.rval().setNumber(x);
-        return true;
-    }
-
-    args.rval().setNumber(js_copysign(floor(x + 0.5), x));
-    return true;
+    if (!ToNumber(cx, vp[2], &x))
+        return JS_FALSE;
+    z = js_copysign(floor(x + 0.5), x);
+    vp->setNumber(z);
+    return JS_TRUE;
 }
 
 static JSBool
-math_sin(JSContext *cx, unsigned argc, Value *vp)
+math_sin(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -629,9 +619,9 @@ math_sin(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSBool
-js_math_sqrt(JSContext *cx, unsigned argc, Value *vp)
+js_math_sqrt(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -648,9 +638,9 @@ js_math_sqrt(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-math_tan(JSContext *cx, unsigned argc, Value *vp)
+math_tan(JSContext *cx, uintN argc, Value *vp)
 {
-    double x, z;
+    jsdouble x, z;
 
     if (argc == 0) {
         vp->setDouble(js_NaN);
@@ -668,7 +658,7 @@ math_tan(JSContext *cx, unsigned argc, Value *vp)
 
 #if JS_HAS_TOSOURCE
 static JSBool
-math_toSource(JSContext *cx, unsigned argc, Value *vp)
+math_toSource(JSContext *cx, uintN argc, Value *vp)
 {
     vp->setString(CLASS_ATOM(cx, Math));
     return JS_TRUE;
@@ -713,7 +703,7 @@ js_IsMathFunction(Native native)
 JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *Math = NewObjectWithClassProto(cx, &MathClass, NULL, obj);
+    JSObject *Math = NewNonFunction<WithProto::Class>(cx, &MathClass, NULL, obj);
     if (!Math || !Math->setSingletonType(cx))
         return NULL;
 

@@ -51,8 +51,6 @@
 #if defined(XP_OS2)
 #include "nsIRandomGenerator.h"
 #endif
-#include "mozilla/Telemetry.h"
-
 using namespace mozilla::storage;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -469,8 +467,6 @@ namespace places {
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ASSERTION(numEntries > 0, "unexpected number of arguments");
 
-    Telemetry::AutoTimer<Telemetry::PLACES_FRECENCY_CALC_TIME_MS> timer;
-
     PRInt64 pageId = aArguments->AsInt64(0);
     PRInt32 typed = numEntries > 1 ? aArguments->AsInt32(1) : 0;
     PRInt32 fullVisitCount = numEntries > 2 ? aArguments->AsInt32(2) : 0;
@@ -492,7 +488,17 @@ namespace places {
       nsRefPtr<mozIStorageStatement> getPageInfo = DB->GetStatement(
         "SELECT typed, hidden, visit_count, "
           "(SELECT count(*) FROM moz_historyvisits WHERE place_id = :page_id), "
-          "EXISTS (SELECT 1 FROM moz_bookmarks WHERE fk = :page_id), "
+          "EXISTS ( "
+            "SELECT 1 FROM moz_bookmarks "
+            "WHERE fk = :page_id "
+            "AND NOT EXISTS( "
+              "SELECT 1 "
+              "FROM moz_items_annos a "
+              "JOIN moz_anno_attributes n ON a.anno_attribute_id = n.id "
+              "WHERE n.name = :anno_name "
+                "AND a.item_id = parent "
+            ") "
+          "), "
           "(url > 'place:' AND url < 'place;') "
         "FROM moz_places "
         "WHERE id = :page_id "
@@ -501,6 +507,9 @@ namespace places {
       mozStorageStatementScoper infoScoper(getPageInfo);
 
       rv = getPageInfo->BindInt64ByName(NS_LITERAL_CSTRING("page_id"), pageId);
+      NS_ENSURE_SUCCESS(rv, rv);
+      rv = getPageInfo->BindUTF8StringByName(NS_LITERAL_CSTRING("anno_name"),
+                                             NS_LITERAL_CSTRING("livemark/feedURI"));
       NS_ENSURE_SUCCESS(rv, rv);
 
       bool hasResult;
@@ -723,57 +732,6 @@ namespace places {
     else {
       result->SetAsAString(EmptyString());
     }
-    NS_ADDREF(*_result = result);
-    return NS_OK;
-  }
-
-////////////////////////////////////////////////////////////////////////////////
-//// Fixup URL Function
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// FixupURLFunction
-
-  /* static */
-  nsresult
-  FixupURLFunction::create(mozIStorageConnection *aDBConn)
-  {
-    nsRefPtr<FixupURLFunction> function = new FixupURLFunction();
-    nsresult rv = aDBConn->CreateFunction(
-      NS_LITERAL_CSTRING("fixup_url"), 1, function
-    );
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-
-  NS_IMPL_THREADSAFE_ISUPPORTS1(
-    FixupURLFunction,
-    mozIStorageFunction
-  )
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// mozIStorageFunction
-
-  NS_IMETHODIMP
-  FixupURLFunction::OnFunctionCall(mozIStorageValueArray *aArguments,
-                                   nsIVariant **_result)
-  {
-    // Must have non-null function arguments.
-    MOZ_ASSERT(aArguments);
-
-    nsAutoString src;
-    aArguments->GetString(0, src);
-
-    nsCOMPtr<nsIWritableVariant> result =
-      do_CreateInstance("@mozilla.org/variant;1");
-    NS_ENSURE_STATE(result);
-
-    // Remove common URL hostname prefixes
-    if (StringBeginsWith(src, NS_LITERAL_STRING("www."))) {
-      src.Cut(0, 4);
-    }
-
-    result->SetAsAString(src);
     NS_ADDREF(*_result = result);
     return NS_OK;
   }

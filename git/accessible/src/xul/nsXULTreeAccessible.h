@@ -67,7 +67,7 @@ public:
   using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
 
-  nsXULTreeAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -82,7 +82,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);
@@ -106,7 +106,6 @@ public:
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
   virtual nsAccessible* CurrentItem();
-  virtual void SetCurrentItem(nsAccessible* aItem);
 
   virtual nsAccessible* ContainerWidget() const;
 
@@ -180,9 +179,9 @@ class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 public:
   using nsAccessible::GetParent;
 
-  nsXULTreeItemAccessibleBase(nsIContent* aContent, nsDocAccessible* aDoc,
-                              nsAccessible* aParent, nsITreeBoxObject* aTree,
-                              nsITreeView* aTreeView, PRInt32 aRow);
+  nsXULTreeItemAccessibleBase(nsIContent *aContent, nsIWeakReference *aShell,
+                              nsAccessible *aParent, nsITreeBoxObject *aTree,
+                              nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -275,9 +274,9 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeItemAccessibleBase,
 class nsXULTreeItemAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
-  nsXULTreeItemAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
-                          nsAccessible* aParent, nsITreeBoxObject* aTree,
-                          nsITreeView* aTreeView, PRInt32 aRow);
+  nsXULTreeItemAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                          nsAccessible *aParent, nsITreeBoxObject *aTree,
+                          nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -292,7 +291,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // nsXULTreeItemAccessibleBase
   virtual void RowInvalidated(PRInt32 aStartColIdx, PRInt32 aEndColIdx);
@@ -314,7 +313,7 @@ protected:
 class nsXULTreeColumnsAccessible : public nsXULColumnsAccessible
 {
 public:
-  nsXULTreeColumnsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTreeColumnsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
 protected:
 

@@ -51,6 +51,16 @@ let Keys = { meta: false };
 // Class: UI
 // Singleton top-level UI manager.
 let UI = {
+  // Constant: DBLCLICK_INTERVAL
+  // Defines the maximum time (in ms) between two clicks for it to count as
+  // a double click.
+  DBLCLICK_INTERVAL: 500,
+
+  // Constant: DBLCLICK_OFFSET
+  // Defines the maximum offset (in pixels) between two clicks for it to count as
+  // a double click.
+  DBLCLICK_OFFSET: 5,
+
   // Variable: _frameInitialized
   // True if the Tab View UI frame has been initialized.
   _frameInitialized: false,
@@ -89,6 +99,11 @@ let UI = {
   // Keeps track of which xul:tab we are currently on.
   // Used to facilitate zooming down from a previous tab.
   _currentTab: null,
+
+  // Variable: _lastClick
+  // Keeps track of the time of last click event to detect double click.
+  // Used to create tabs on double-click since we cannot attach 'dblclick'
+  _lastClick: 0,
 
   // Variable: _eventListeners
   // Keeps track of event listeners added to the AllTabs object.
@@ -137,10 +152,6 @@ let UI = {
   // Used to keep track of the last opened tab.
   _lastOpenedTab: null,
 
-  // Variable: _originalSmoothScroll
-  // Used to keep track of the tab strip smooth scroll value.
-  _originalSmoothScroll: null,
-
   // ----------
   // Function: toString
   // Prints [UI] for debug use
@@ -184,8 +195,7 @@ let UI = {
       iQ("#exit-button").click(function() {
         self.exit();
         self.blurAll();
-      })
-      .attr("title", tabviewString("button.exitTabGroups"));
+      });
 
       // When you click on the background/empty part of TabView,
       // we create a new groupItem.
@@ -197,29 +207,38 @@ let UI = {
               element.blur();
           });
         }
-        if (e.originalTarget.id == "content" &&
-            Utils.isLeftClick(e) &&
-            e.detail == 1) {
-          self._createGroupItemOnDrag(e);
+        if (e.originalTarget.id == "content") {
+          if (!Utils.isLeftClick(e)) {
+            self._lastClick = 0;
+            self._lastClickPositions = null;
+          } else {
+            // Create a group with one tab on double click
+            if (Date.now() - self._lastClick <= self.DBLCLICK_INTERVAL && 
+                (self._lastClickPositions.x - self.DBLCLICK_OFFSET) <= e.clientX &&
+                (self._lastClickPositions.x + self.DBLCLICK_OFFSET) >= e.clientX &&
+                (self._lastClickPositions.y - self.DBLCLICK_OFFSET) <= e.clientY &&
+                (self._lastClickPositions.y + self.DBLCLICK_OFFSET) >= e.clientY) {
+
+              let box =
+                new Rect(e.clientX - Math.floor(TabItems.tabWidth/2),
+                         e.clientY - Math.floor(TabItems.tabHeight/2),
+                         TabItems.tabWidth, TabItems.tabHeight);
+              box.inset(-30, -30);
+
+              let opts = {immediately: true, bounds: box};
+              let groupItem = new GroupItem([], opts);
+              groupItem.newTab();
+
+              self._lastClick = 0;
+              self._lastClickPositions = null;
+              gTabView.firstUseExperienced = true;
+            } else {
+              self._lastClick = Date.now();
+              self._lastClickPositions = new Point(e.clientX, e.clientY);
+              self._createGroupItemOnDrag(e);
+            }
+          }
         }
-      });
-
-      iQ(gTabViewFrame.contentDocument).dblclick(function(e) {
-        if (e.originalTarget.id != "content")
-          return;
-
-        // Create a group with one tab on double click
-        let box =
-          new Rect(e.clientX - Math.floor(TabItems.tabWidth/2),
-                   e.clientY - Math.floor(TabItems.tabHeight/2),
-                   TabItems.tabWidth, TabItems.tabHeight);
-        box.inset(-30, -30);
-
-        let opts = {immediately: true, bounds: box};
-        let groupItem = new GroupItem([], opts);
-        groupItem.newTab();
-
-        gTabView.firstUseExperienced = true;
       });
 
       iQ(window).bind("unload", function() {
@@ -446,12 +465,11 @@ let UI = {
     if (item.isATabItem) {
       if (item.parent)
         GroupItems.setActiveGroupItem(item.parent);
-      if (!options || !options.dontSetActiveTabInGroup)
-        this._setActiveTab(item);
+      this._setActiveTab(item);
     } else {
       GroupItems.setActiveGroupItem(item);
       if (!options || !options.dontSetActiveTabInGroup) {
-        let activeTab = item.getActiveTab();
+        let activeTab = item.getActiveTab()
         if (activeTab)
           this._setActiveTab(activeTab);
       }
@@ -493,11 +511,6 @@ let UI = {
       return;
 
     this._isChangingVisibility = true;
-
-    // store tab strip smooth scroll value and disable it.
-    let tabStrip = gBrowser.tabContainer.mTabstrip;
-    this._originalSmoothScroll = tabStrip.smoothScroll;
-    tabStrip.smoothScroll = false;
 
     // initialize the direction of the page
     this._initPageDirection();
@@ -550,8 +563,7 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
-      if (!currentTab || !currentTab._tabViewTabItem)
-        self.clearActiveTab();
+      self.clearActiveTab();
       self._isChangingVisibility = false;
       dispatchEvent(event);
 
@@ -595,7 +607,6 @@ let UI = {
     gBrowser.selectedBrowser.focus();
 
     gBrowser.updateTitlebar();
-    gBrowser.tabContainer.mTabstrip.smoothScroll = this._originalSmoothScroll;
 #ifdef XP_MACOSX
     this.setTitlebarColors(false);
 #endif
@@ -773,7 +784,7 @@ let UI = {
               return;
           }
 
-          let groupItem = GroupItems.getActiveGroupItem();
+          var groupItem = GroupItems.getActiveGroupItem();
 
           // 1) Only go back to the TabView tab when there you close the last
           // tab of a groupItem.

@@ -192,7 +192,7 @@ nsPlaceholderFrame::CanContinueTextRun() const
 }
 
 nsIFrame*
-nsPlaceholderFrame::GetParentStyleContextFrame() const
+nsPlaceholderFrame::GetParentStyleContextFrame()
 {
   NS_PRECONDITION(GetParent(), "How can we not have a parent here?");
 
@@ -260,7 +260,7 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", (unsigned long long)mState);
+    fprintf(out, " [state=%016llx]", mState);
   }
   nsIFrame* prevInFlow = GetPrevInFlow();
   nsIFrame* nextInFlow = GetNextInFlow();

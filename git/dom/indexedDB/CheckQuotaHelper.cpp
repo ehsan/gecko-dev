@@ -98,9 +98,11 @@ GetQuotaPermissions(const nsACString& aASCIIOrigin,
 
 } // anonymous namespace
 
-CheckQuotaHelper::CheckQuotaHelper(nsPIDOMWindow* aWindow,
+CheckQuotaHelper::CheckQuotaHelper(IDBDatabase* aDatabase,
                                    mozilla::Mutex& aMutex)
-: mWindow(aWindow),
+: mWindow(aDatabase->Owner()),
+  mWindowSerial(mWindow->GetSerial()),
+  mOrigin(aDatabase->Origin()),
   mMutex(aMutex),
   mCondVar(mMutex, "CheckQuotaHelper::mCondVar"),
   mPromptResult(0),
@@ -173,59 +175,51 @@ CheckQuotaHelper::Run()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsresult rv = NS_OK;
-
-  if (mASCIIOrigin.IsEmpty()) {
-    rv = IndexedDatabaseManager::GetASCIIOriginFromWindow(mWindow,
-                                                          mASCIIOrigin);
+  if (!mHasPrompted) {
+    mPromptResult = GetQuotaPermissions(mOrigin, mWindow);
   }
 
-  if (NS_SUCCEEDED(rv)) {
-    if (!mHasPrompted) {
-      mPromptResult = GetQuotaPermissions(mASCIIOrigin, mWindow);
-    }
-
-    if (mHasPrompted) {
-      // Add permissions to the database, but only if we are in the parent
-      // process (if we are in the child process, we have already
-      // set the permission when the prompt was shown in the parent, as
-      // we cannot set the permission from the child).
-      if (mPromptResult != nsIPermissionManager::UNKNOWN_ACTION &&
-          XRE_GetProcessType() == GeckoProcessType_Default) {
-        nsCOMPtr<nsIURI> uri;
-        rv = NS_NewURI(getter_AddRefs(uri), mASCIIOrigin);
-        NS_ENSURE_SUCCESS(rv, rv);
-    
-        nsCOMPtr<nsIPermissionManager> permissionManager =
-          do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-        NS_ENSURE_STATE(permissionManager);
-    
-        rv = permissionManager->Add(uri, PERMISSION_INDEXEDDB_UNLIMITED,
-                                    mPromptResult,
-                                    nsIPermissionManager::EXPIRE_NEVER, 0);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-    else if (mPromptResult == nsIPermissionManager::UNKNOWN_ACTION) {
-      PRUint32 quota = IndexedDatabaseManager::GetIndexedDBQuotaMB();
-
-      nsString quotaString;
-      quotaString.AppendInt(quota);
-
-      nsCOMPtr<nsIObserverService> obs = GetObserverService();
-      NS_ENSURE_STATE(obs);
-
-      // We have to watch to make sure that the window doesn't go away without
-      // responding to us. Otherwise our database threads will hang.
-      rv = obs->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, false);
+  nsresult rv;
+  if (mHasPrompted) {
+    // Add permissions to the database, but only if we are in the parent
+    // process (if we are in the child process, we have already
+    // set the permission when the prompt was shown in the parent, as
+    // we cannot set the permission from the child).
+    if (mPromptResult != nsIPermissionManager::UNKNOWN_ACTION &&
+        XRE_GetProcessType() == GeckoProcessType_Default) {
+      nsCOMPtr<nsIURI> uri;
+      rv = NS_NewURI(getter_AddRefs(uri), mOrigin);
       NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = obs->NotifyObservers(static_cast<nsIRunnable*>(this),
-                                TOPIC_QUOTA_PROMPT, quotaString.get());
+  
+      nsCOMPtr<nsIPermissionManager> permissionManager =
+        do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+      NS_ENSURE_STATE(permissionManager);
+  
+      rv = permissionManager->Add(uri, PERMISSION_INDEXEDDB_UNLIMITED,
+                                  mPromptResult,
+                                  nsIPermissionManager::EXPIRE_NEVER, 0);
       NS_ENSURE_SUCCESS(rv, rv);
-
-      return NS_OK;
     }
+  }
+  else if (mPromptResult == nsIPermissionManager::UNKNOWN_ACTION) {
+    PRUint32 quota = IndexedDatabaseManager::GetIndexedDBQuotaMB();
+
+    nsString quotaString;
+    quotaString.AppendInt(quota);
+
+    nsCOMPtr<nsIObserverService> obs = GetObserverService();
+    NS_ENSURE_STATE(obs);
+
+    // We have to watch to make sure that the window doesn't go away without
+    // responding to us. Otherwise our database threads will hang.
+    rv = obs->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, false);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = obs->NotifyObservers(static_cast<nsIRunnable*>(this),
+                              TOPIC_QUOTA_PROMPT, quotaString.get());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
   }
 
   MutexAutoLock lock(mMutex);

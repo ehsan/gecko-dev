@@ -43,23 +43,21 @@ public:
 
     // overrides from SkXfermode
     virtual void xfer32(SkPMColor dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) SK_OVERRIDE;
+                        const SkAlpha aa[]);
     virtual void xfer16(uint16_t dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) SK_OVERRIDE;
+                        const SkAlpha aa[]);
     virtual void xfer4444(uint16_t dst[], const SkPMColor src[], int count,
-                          const SkAlpha aa[]) SK_OVERRIDE;
+                          const SkAlpha aa[]);
     virtual void xferA8(SkAlpha dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) SK_OVERRIDE;
+                        const SkAlpha aa[]);
 
     // overrides from SkFlattenable
-    virtual Factory getFactory() SK_OVERRIDE;
-    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
+    virtual Factory getFactory();
+    virtual void flatten(SkFlattenableWriteBuffer&);
 
     static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
         return SkNEW_ARGS(SkAvoidXfermode, (buffer));
     }
-
-    SK_DECLARE_FLATTENABLE_REGISTRAR()
 
 protected:
     SkAvoidXfermode(SkFlattenableReadBuffer&);

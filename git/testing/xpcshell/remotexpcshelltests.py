@@ -37,7 +37,6 @@
 # ***** END LICENSE BLOCK ***** */
 
 import re, sys, os
-import subprocess
 import runxpcshelltests as xpcshell
 from automationutils import *
 import devicemanager, devicemanagerADB, devicemanagerSUT
@@ -67,22 +66,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.remoteAPK = self.remoteJoin(self.remoteBinDir, os.path.basename(options.localAPK))
         self.remoteDebugger = options.debugger
         self.remoteDebuggerArgs = options.debuggerArgs  
-        self.setAppRoot()
-
-    def setAppRoot(self):
-        # Determine the application root directory associated with the package 
-        # name used by the Fennec APK.
-        self.appRoot = None
-        packageName = None
-        if self.options.localAPK:
-          try:
-            packageName = subprocess.check_output(["unzip", "-p", self.options.localAPK, "package-name.txt"])
-            if packageName:
-              self.appRoot = self.device.getAppRoot(packageName.strip())
-          except Exception as detail:
-            print "unable to determine app root: " + detail
-            pass
-        return None
 
     def remoteJoin(self, path1, path2):
         joined = os.path.join(path1, path2)
@@ -117,6 +100,9 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         local = os.path.join(localBin, "xpcshell")
         self.device.pushFile(local, self.remoteBinDir)
 
+        local = os.path.join(localBin, "plugin-container")
+        self.device.pushFile(local, self.remoteBinDir)
+
         local = os.path.join(localBin, "components/httpd.js")
         self.device.pushFile(local, self.remoteComponentsDir)
 
@@ -139,14 +125,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
           if (file.endswith(".so")):
             self.device.pushFile(os.path.join(localLib, file), self.remoteBinDir)
 
-        # Additional libraries may be found in a sub-directory such as "lib/armeabi-v7a"
-        localArmLib = os.path.join(localLib, "lib")
-        if os.path.exists(localArmLib):
-          for root, dirs, files in os.walk(localArmLib):
-            for file in files:
-              if (file.endswith(".so")):
-                self.device.pushFile(os.path.join(root, file), self.remoteBinDir)
-
     def setupTestDir(self):
         xpcDir = os.path.join(self.options.objdir, "_tests/xpcshell")
         self.device.pushDir(xpcDir, self.remoteScriptsDir)
@@ -167,7 +145,7 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
            self.remoteJoin(self.remoteBinDir, "xpcshell"),
            '-r', self.remoteJoin(self.remoteComponentsDir, 'httpd.manifest'),
            '--greomni', self.remoteAPK,
-           '-s',
+           '-j', '-s',
            '-e', 'const _HTTPD_JS_PATH = "%s";' % self.remoteJoin(self.remoteComponentsDir, 'httpd.js'),
            '-e', 'const _HEAD_JS_PATH = "%s";' % self.remoteJoin(self.remoteScriptsDir, 'head.js'),
            '-f', self.remoteScriptsDir+'/head.js']
@@ -203,40 +181,46 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         return self.profileDir
 
     def launchProcess(self, cmd, stdout, stderr, env, cwd):
-        cmd[0] = self.remoteJoin(self.remoteBinDir, "xpcshell")
-        env = dict()
-        env["LD_LIBRARY_PATH"]=self.remoteBinDir
-        env["MOZ_LINKER_CACHE"]=self.remoteBinDir
-        if (self.appRoot):
-          env["GRE_HOME"]=self.appRoot
-        env["XPCSHELL_TEST_PROFILE_DIR"]=self.profileDir
-        outputFile = "xpcshelloutput"
-        f = open(outputFile, "w+")
-        self.shellReturnCode = self.device.shell(cmd, f, cwd=self.remoteHere, env=env)
-        f.close()
-        # The device manager may have timed out waiting for xpcshell. 
-        # Guard against an accumulation of hung processes by killing
-        # them here. Note also that IPC tests may spawn new instances
-        # of xpcshell.
-        self.device.killProcess(cmd[0]);
-        self.device.killProcess("xpcshell");
-        return outputFile
+        # Some xpcshell arguments contain characters that are interpretted
+        # by the adb shell; enclose these arguments in quotes.
+        index = 0
+        for part in cmd:
+          if (part.find(" ")>=0 or part.find("(")>=0 or part.find(")")>=0 or part.find("\"")>=0):
+            part = '\''+part+'\''
+            cmd[index] = part
+          index = index + 1
+
+        xpcshell = self.remoteJoin(self.remoteBinDir, "xpcshell")
+
+        shellArgs = "cd "+self.remoteHere
+        shellArgs += "; LD_LIBRARY_PATH="+self.remoteBinDir
+        shellArgs += "; export CACHE_PATH="+self.remoteBinDir
+        if (self.device.getAppRoot()):
+          # xpcshell still runs without GRE_HOME; it may not be necessary
+          shellArgs += "; export GRE_HOME="+self.device.getAppRoot()
+        shellArgs += "; export XPCSHELL_TEST_PROFILE_DIR="+self.profileDir
+        shellArgs += "; "+xpcshell+" "
+        shellArgs += " ".join(cmd[1:])
+
+        if self.verbose:
+          self.log.info(shellArgs)
+
+        # If the adb version of devicemanager is used and the arguments passed
+        # to adb exceed ~1024 characters, the command may not execute.
+        if len(shellArgs) > 1000:
+          self.log.info("adb command length is excessive and may cause failure")
+
+        proc = self.device.runCmd(["shell", shellArgs])
+        return proc
 
     def communicate(self, proc):
-        f = open(proc, "r")
-        contents = f.read()
-        f.close()
-        os.remove(proc)
-        return contents, ""
-
-    def getReturnCode(self, proc):
-        if self.shellReturnCode is not None:
-          return int(self.shellReturnCode)
-        else:
-          return -1
+        return proc.communicate()
 
     def removeDir(self, dirname):
         self.device.removeDir(dirname)
+
+    def getReturnCode(self, proc):
+        return proc.returncode
 
     #TODO: consider creating a separate log dir.  We don't have the test file structure,
     #      so we use filename.log.  Would rather see ./logs/filename.log

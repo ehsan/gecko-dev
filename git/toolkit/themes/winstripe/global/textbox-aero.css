@@ -1,8 +1,6 @@
 %include textbox.css
 
-@media (-moz-windows-default-theme) {
-  textbox html|*.textbox-input:-moz-placeholder {
-    font-style: italic;
-  }
+textbox html|*.textbox-input:-moz-placeholder:-moz-system-metric(windows-default-theme) {
+  font-style: italic;
 }
 

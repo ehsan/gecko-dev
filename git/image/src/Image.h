@@ -43,7 +43,7 @@
 #include "prtypes.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 class Image : public imgIContainer
 {
@@ -97,15 +97,15 @@ public:
    * The size, in bytes, occupied by the significant data portions of the image.
    * This includes both compressed source data and decoded frames.
    */
-  PRUint32 SizeOfData();
+  PRUint32 GetDataSize();
 
   /**
-   * The components that make up SizeOfData().
+   * The components that make up GetDataSize().
    */      
-  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const = 0;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const = 0;
-  virtual size_t NonHeapSizeOfDecoded() const = 0;
-  virtual size_t OutOfProcessSizeOfDecoded() const = 0;
+  virtual PRUint32 GetDecodedHeapSize() = 0;
+  virtual PRUint32 GetDecodedNonheapSize() = 0;
+  virtual PRUint32 GetDecodedOutOfProcessSize() = 0;
+  virtual PRUint32 GetSourceHeapSize() = 0;
 
   // Mimetype translation
   enum eDecoderType {
@@ -163,7 +163,7 @@ protected:
   }
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif // MOZILLA_IMAGELIB_IMAGE_H_

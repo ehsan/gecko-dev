@@ -41,33 +41,29 @@
 #include "nsRenderingContext.h"
 #include "nsDeviceContext.h"
 #include "nsStyleConsts.h"
+#include "gfxTextRunCache.h"
 
 namespace {
 
-class AutoTextRun {
+class AutoTextRun : public gfxTextRunCache::AutoTextRun {
 public:
     AutoTextRun(nsFontMetrics* aMetrics, nsRenderingContext* aRC,
                 const char* aString, PRInt32 aLength)
-    {
-        mTextRun = aMetrics->GetThebesFontGroup()->MakeTextRun(
+        : gfxTextRunCache::AutoTextRun(gfxTextRunCache::MakeTextRun(
             reinterpret_cast<const PRUint8*>(aString), aLength,
-            aRC->ThebesContext(),
+            aMetrics->GetThebesFontGroup(), aRC->ThebesContext(),
             aMetrics->AppUnitsPerDevPixel(),
-            ComputeFlags(aMetrics));
-    }
+            ComputeFlags(aMetrics)))
+    {}
 
     AutoTextRun(nsFontMetrics* aMetrics, nsRenderingContext* aRC,
                 const PRUnichar* aString, PRInt32 aLength)
-    {
-        mTextRun = aMetrics->GetThebesFontGroup()->MakeTextRun(
-            aString, aLength,
+        : gfxTextRunCache::AutoTextRun(gfxTextRunCache::MakeTextRun(
+            aString, aLength, aMetrics->GetThebesFontGroup(),
             aRC->ThebesContext(),
             aMetrics->AppUnitsPerDevPixel(),
-            ComputeFlags(aMetrics));
-    }
-
-    gfxTextRun *get() { return mTextRun; }
-    gfxTextRun *operator->() { return mTextRun; }
+            ComputeFlags(aMetrics)))
+    {}
 
 private:
     static PRUint32 ComputeFlags(nsFontMetrics* aMetrics) {
@@ -77,8 +73,6 @@ private:
         }
         return flags;
     }
-
-    nsAutoPtr<gfxTextRun> mTextRun;
 };
 
 class StubPropertyProvider : public gfxTextRun::PropertyProvider {
@@ -300,8 +294,7 @@ nsFontMetrics::GetWidth(const char* aString, PRUint32 aLength,
 
     StubPropertyProvider provider;
     AutoTextRun textRun(this, aContext, aString, aLength);
-    return textRun.get() ?
-        NSToCoordRound(textRun->GetAdvanceWidth(0, aLength, &provider)) : 0;
+    return NSToCoordRound(textRun->GetAdvanceWidth(0, aLength, &provider));
 }
 
 nscoord
@@ -316,8 +309,7 @@ nsFontMetrics::GetWidth(const PRUnichar* aString, PRUint32 aLength,
 
     StubPropertyProvider provider;
     AutoTextRun textRun(this, aContext, aString, aLength);
-    return textRun.get() ?
-        NSToCoordRound(textRun->GetAdvanceWidth(0, aLength, &provider)) : 0;
+    return NSToCoordRound(textRun->GetAdvanceWidth(0, aLength, &provider));
 }
 
 // Draw a string using this font handle on the surface passed in.
@@ -331,15 +323,11 @@ nsFontMetrics::DrawString(const char *aString, PRUint32 aLength,
 
     StubPropertyProvider provider;
     AutoTextRun textRun(this, aContext, aString, aLength);
-    if (!textRun.get()) {
-        return;
-    }
     gfxPoint pt(aX, aY);
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
-                  &provider, nsnull, nsnull);
+    textRun->Draw(aContext->ThebesContext(), pt, 0, aLength, &provider, nsnull);
 }
 
 void
@@ -353,15 +341,11 @@ nsFontMetrics::DrawString(const PRUnichar* aString, PRUint32 aLength,
 
     StubPropertyProvider provider;
     AutoTextRun textRun(this, aTextRunConstructionContext, aString, aLength);
-    if (!textRun.get()) {
-        return;
-    }
     gfxPoint pt(aX, aY);
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
-                  &provider, nsnull, nsnull);
+    textRun->Draw(aContext->ThebesContext(), pt, 0, aLength, &provider, nsnull);
 }
 
 nsBoundingMetrics
@@ -373,18 +357,16 @@ nsFontMetrics::GetBoundingMetrics(const PRUnichar *aString, PRUint32 aLength,
 
     StubPropertyProvider provider;
     AutoTextRun textRun(this, aContext, aString, aLength);
-    nsBoundingMetrics m;
-    if (textRun.get()) {
-        gfxTextRun::Metrics theMetrics =
-            textRun->MeasureText(0, aLength,
-                                 gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS,
-                                 aContext->ThebesContext(), &provider);
+    gfxTextRun::Metrics theMetrics =
+        textRun->MeasureText(0, aLength,
+                             gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS,
+                             aContext->ThebesContext(), &provider);
 
-        m.leftBearing  = NSToCoordFloor( theMetrics.mBoundingBox.X());
-        m.rightBearing = NSToCoordCeil(  theMetrics.mBoundingBox.XMost());
-        m.ascent       = NSToCoordCeil( -theMetrics.mBoundingBox.Y());
-        m.descent      = NSToCoordCeil(  theMetrics.mBoundingBox.YMost());
-        m.width        = NSToCoordRound( theMetrics.mAdvanceWidth);
-    }
+    nsBoundingMetrics m;
+    m.leftBearing  = NSToCoordFloor( theMetrics.mBoundingBox.X());
+    m.rightBearing = NSToCoordCeil(  theMetrics.mBoundingBox.XMost());
+    m.ascent       = NSToCoordCeil( -theMetrics.mBoundingBox.Y());
+    m.descent      = NSToCoordCeil(  theMetrics.mBoundingBox.YMost());
+    m.width        = NSToCoordRound( theMetrics.mAdvanceWidth);
     return m;
 }

@@ -40,9 +40,6 @@
 #define mozilla_dom_workers_workers_h__
 
 #include "jspubtd.h"
-#include "jsapi.h"
-#include "nsISupportsImpl.h"
-#include "mozilla/Mutex.h"
 
 #define BEGIN_WORKERS_NAMESPACE \
   namespace mozilla { namespace dom { namespace workers {
@@ -51,13 +48,9 @@
 #define USING_WORKERS_NAMESPACE \
   using namespace mozilla::dom::workers;
 
-#define WORKERS_SHUTDOWN_TOPIC "web-workers-shutdown"
-
 class nsPIDOMWindow;
 
 BEGIN_WORKERS_NAMESPACE
-
-class WorkerPrivate;
 
 struct PrivatizableBase
 { };
@@ -73,7 +66,7 @@ AssertIsOnMainThread()
 
 // All of these are implemented in RuntimeService.cpp
 JSBool
-ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, unsigned aFlags,
+ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, uintN aFlags,
                      JSObject** aObjp);
 
 void
@@ -84,47 +77,6 @@ SuspendWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
 ResumeWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
-
-class WorkerTask {
-public:
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerTask)
-
-    virtual ~WorkerTask() { }
-
-    virtual bool RunTask(JSContext* aCx) = 0;
-};
-
-class WorkerCrossThreadDispatcher {
-public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerCrossThreadDispatcher)
-
-  WorkerCrossThreadDispatcher(WorkerPrivate* aPrivate) :
-    mMutex("WorkerCrossThreadDispatcher"), mPrivate(aPrivate) {}
-  void Forget()
-  {
-    mozilla::MutexAutoLock lock(mMutex);
-    mPrivate = nsnull;
-  }
-
-  /**
-   * Generically useful function for running a bit of C++ code on the worker
-   * thread.
-   */
-  bool PostTask(WorkerTask* aTask);
-
-protected:
-  friend class WorkerPrivate;
-
-  // Must be acquired *before* the WorkerPrivate's mutex, when they're both held.
-  mozilla::Mutex mMutex;
-  WorkerPrivate* mPrivate;
-};
-
-WorkerCrossThreadDispatcher*
-GetWorkerCrossThreadDispatcher(JSContext* aCx, jsval aWorker);
-
-// Random unique constant to facilitate JSPrincipal debugging
-const uint32_t kJSPrincipalsDebugToken = 0x7e2df9d2;
 
 END_WORKERS_NAMESPACE
 

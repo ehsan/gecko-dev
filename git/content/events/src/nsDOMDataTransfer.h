@@ -67,11 +67,13 @@ struct TransferItem {
   nsCOMPtr<nsIVariant> mData;
 };
 
-class nsDOMDataTransfer : public nsIDOMDataTransfer
+class nsDOMDataTransfer : public nsIDOMDataTransfer,
+                          public nsIDOMNSDataTransfer
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMDATATRANSFER
+  NS_DECL_NSIDOMNSDATATRANSFER
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMDataTransfer, nsIDOMDataTransfer)
 
@@ -104,13 +106,6 @@ protected:
                     nsIDOMElement* aDragImage,
                     PRUint32 aDragImageX,
                     PRUint32 aDragImageY);
-
-  ~nsDOMDataTransfer()
-  {
-    if (mFiles) {
-      mFiles->Disconnect();
-    }
-  }
 
   static const char sEffects[8][9];
 

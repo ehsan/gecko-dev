@@ -13,16 +13,11 @@ tabbrowser {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabs");
 }
 
-#tabbrowser-tabs:not([overflow="true"]) ~ #alltabs-button,
 #tabbrowser-tabs:not([overflow="true"]) + #new-tab-button,
 #tabbrowser-tabs[overflow="true"] > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
 #TabsToolbar[currentset]:not([currentset*="tabbrowser-tabs,new-tab-button"]) > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
 #TabsToolbar[customizing="true"] > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button {
   visibility: collapse;
-}
-
-#tabbrowser-tabs:not([overflow="true"])[using-closing-tabs-spacer] ~ #alltabs-button {
-  visibility: hidden; /* temporary space to keep a tab's close button under the cursor */
 }
 
 .tabbrowser-tab {
@@ -45,14 +40,21 @@ tabbrowser {
   opacity: 0 !important;
   -moz-transition: min-width 200ms ease-out,
                    max-width 250ms ease-out,
-                   opacity 50ms ease-out 180ms /* hide the tab for the last 20ms of the max-width transition */;
+                   opacity 50ms ease-out 100ms /* hide the tab for the last 100ms of the max-width transition */;
 }
 
 .tab-throbber:not([fadein]):not([pinned]),
 .tab-label:not([fadein]):not([pinned]),
 .tab-icon-image:not([fadein]):not([pinned]),
 .tab-close-button:not([fadein]):not([pinned]) {
-  display: none;
+  opacity: 0 !important;
+}
+
+.tab-throbber,
+.tab-label,
+.tab-icon-image,
+.tab-close-button {
+  -moz-transition: opacity 250ms;
 }
 
 .tabbrowser-tabs[positionpinnedtabs] > .tabbrowser-tab[pinned] {
@@ -105,13 +107,8 @@ toolbar[printpreview="true"] {
 }
 %endif
 
-.bookmarks-toolbar-customize,
-#wrapper-personal-bookmarks > #personal-bookmarks > #PlacesToolbar > hbox > #PlacesToolbarItems {
+toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
   display: none;
-}
-
-#wrapper-personal-bookmarks[place="toolbar"] > #personal-bookmarks > #PlacesToolbar > .bookmarks-toolbar-customize {
-  display: -moz-box;
 }
 
 #main-window[disablechrome] #navigator-toolbox[tabsontop="true"] > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
@@ -246,6 +243,11 @@ panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .a
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#urlbar-rich-result-popup");
 }
 
+#urlbar-throbber:not([busy="true"]),
+#urlbar-throbber[busy="true"] + #page-proxy-favicon {
+  display: none;
+}
+
 #urlbar-container[combined] > #urlbar > #urlbar-icons > #go-button,
 #urlbar[pageproxystate="invalid"] > #urlbar-icons > .urlbar-icon:not(#go-button),
 #urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button,
@@ -329,12 +331,12 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 %ifdef MOZ_SERVICES_SYNC
 /* Sync notification UI */
 #sync-notifications {
-  -moz-binding: url("chrome://browser/content/sync/notification.xml#notificationbox");
+  -moz-binding: url("chrome://browser/content/syncNotification.xml#notificationbox");
   overflow-y: visible !important;
 }
 
 #sync-notifications notification {
-  -moz-binding: url("chrome://browser/content/sync/notification.xml#notification");
+  -moz-binding: url("chrome://browser/content/syncNotification.xml#notification");
 }
 %endif
 
@@ -440,8 +442,7 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 #notification-popup-box[anchorid="geo-notification-icon"] > #geo-notification-icon,
 #notification-popup-box[anchorid="indexedDB-notification-icon"] > #indexedDB-notification-icon,
 #notification-popup-box[anchorid="addons-notification-icon"] > #addons-notification-icon,
-#notification-popup-box[anchorid="password-notification-icon"] > #password-notification-icon,
-#notification-popup-box[anchorid="webapps-notification-icon"] > #webapps-notification-icon {
+#notification-popup-box[anchorid="password-notification-icon"] > #password-notification-icon {
   display: -moz-box;
 }
 
@@ -480,7 +481,6 @@ statuspanel {
   margin-top: -3em;
   left: 0;
   max-width: 50%;
-  pointer-events: none;
 }
 
 statuspanel:-moz-locale-dir(ltr)[mirror],
@@ -507,6 +507,7 @@ statuspanel[type=overLink] {
 statuspanel[inactive] {
   -moz-transition: none;
   opacity: 0;
+  pointer-events: none;
 }
 
 statuspanel[inactive][previoustype=overLink] {

@@ -56,7 +56,6 @@
 #include <math.h>
 #include "gfxMatrix.h"
 #include "gfxQuaternion.h"
-#include "nsPrintfCString.h"
 
 using namespace mozilla;
 
@@ -464,7 +463,6 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
             break;
           }
           case eCSSUnit_Null:
-            diffsquared = 0;
             break;
           default:
             NS_ABORT_IF_FALSE(false, "unexpected unit");
@@ -630,59 +628,6 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
     }
     case eUnit_Transform: {
       return false;
-    }
-    case eUnit_BackgroundPosition: {
-      const nsCSSValueList *position1 = aStartValue.GetCSSValueListValue();
-      const nsCSSValueList *position2 = aEndValue.GetCSSValueListValue();
-
-      double squareDistance = 0.0;
-      NS_ABORT_IF_FALSE(!position1 == !position2, "lists should be same length");
-
-      while (position1 && position2) {
-        NS_ASSERTION(position1->mValue.GetUnit() == eCSSUnit_Array &&
-                     position2->mValue.GetUnit() == eCSSUnit_Array,
-                     "Expected two arrays");
-
-        CalcValue calcVal[4];
-
-        nsCSSValue::Array* bgArray = position1->mValue.GetArrayValue();
-        NS_ABORT_IF_FALSE(bgArray->Count() == 4, "Invalid background-position");
-        NS_ASSERTION(bgArray->Item(0).GetUnit() == eCSSUnit_Null &&
-                     bgArray->Item(2).GetUnit() == eCSSUnit_Null,
-                     "Invalid list used");
-        for (int i = 0; i < 2; ++i) {
-          NS_ABORT_IF_FALSE(bgArray->Item(i*2+1).GetUnit() != eCSSUnit_Null,
-                            "Invalid background-position");
-          calcVal[i] = ExtractCalcValue(bgArray->Item(i*2+1));
-        }
-
-        bgArray = position2->mValue.GetArrayValue();
-        NS_ABORT_IF_FALSE(bgArray->Count() == 4, "Invalid background-position");
-        NS_ASSERTION(bgArray->Item(0).GetUnit() == eCSSUnit_Null &&
-                     bgArray->Item(2).GetUnit() == eCSSUnit_Null,
-                     "Invalid list used");
-        for (int i = 0; i < 2; ++i) {
-          NS_ABORT_IF_FALSE(bgArray->Item(i*2+1).GetUnit() != eCSSUnit_Null,
-                            "Invalid background-position");
-          calcVal[i+2] = ExtractCalcValue(bgArray->Item(i*2+1));
-        }
-
-        for (int i = 0; i < 2; ++i) {
-          float difflen = calcVal[i+2].mLength - calcVal[i].mLength;
-          float diffpct = calcVal[i+2].mPercent - calcVal[i].mPercent;
-          squareDistance += difflen * difflen + diffpct * diffpct;
-        }
-
-        position1 = position1->mNext;
-        position2 = position2->mNext;
-      }
-      // fail if lists differ in length.
-      if (position1 || position2) {
-        return false;
-      }
-
-      aDistance = sqrt(squareDistance);
-      return true;
     }
     case eUnit_CSSValuePairList: {
       const nsCSSValuePairList *list1 = aStartValue.GetCSSValuePairListValue();
@@ -854,36 +799,6 @@ AddCSSValueAngle(const nsCSSValue &aValue1, double aCoeff1,
   aResult.SetFloatValue(aCoeff1 * aValue1.GetAngleValueInRadians() +
                         aCoeff2 * aValue2.GetAngleValueInRadians(),
                         eCSSUnit_Radian);
-}
-
-static bool
-AddCSSValuePixelPercentCalc(const PRUint32 aValueRestrictions,
-                            const nsCSSUnit aCommonUnit,
-                            double aCoeff1, const nsCSSValue &aValue1,
-                            double aCoeff2, const nsCSSValue &aValue2,
-                            nsCSSValue &aResult)
-{
-  switch (aCommonUnit) {
-    case eCSSUnit_Pixel:
-      AddCSSValuePixel(aCoeff1, aValue1,
-                       aCoeff2, aValue2,
-                       aResult, aValueRestrictions);
-      break;
-    case eCSSUnit_Percent:
-      AddCSSValuePercent(aCoeff1, aValue1,
-                         aCoeff2, aValue2,
-                         aResult, aValueRestrictions);
-      break;
-    case eCSSUnit_Calc:
-      AddCSSValueCanonicalCalc(aCoeff1, aValue1,
-                               aCoeff2, aValue2,
-                               aResult);
-      break;
-    default:
-      return false;
-  }
-
-  return true;
 }
 
 static bool
@@ -1812,12 +1727,24 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
       PRUint32 restrictions = nsCSSProps::ValueRestrictions(aProperty);
       for (PRUint32 i = 0; i < 2; ++i) {
         nsCSSValue nsCSSValuePair::*member = pairValues[i];
-        if (!AddCSSValuePixelPercentCalc(restrictions, unit[i],
-                                         aCoeff1, pair1->*member,
-                                         aCoeff2, pair2->*member,
-                                         result->*member) ) {
-          NS_ABORT_IF_FALSE(false, "unexpected unit");
-          return false;
+        switch (unit[i]) {
+          case eCSSUnit_Pixel:
+            AddCSSValuePixel(aCoeff1, pair1->*member, aCoeff2, pair2->*member,
+                             result->*member, restrictions);
+            break;
+          case eCSSUnit_Percent:
+            AddCSSValuePercent(aCoeff1, pair1->*member,
+                               aCoeff2, pair2->*member,
+                               result->*member, restrictions);
+            break;
+          case eCSSUnit_Calc:
+            AddCSSValueCanonicalCalc(aCoeff1, pair1->*member,
+                                     aCoeff2, pair2->*member,
+                                     result->*member);
+            break;
+          default:
+            NS_ABORT_IF_FALSE(false, "unexpected unit");
+            return false;
         }
       }
 
@@ -1855,12 +1782,24 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
       PRUint32 restrictions = nsCSSProps::ValueRestrictions(aProperty);
       for (PRUint32 i = 0; i < 3; ++i) {
         nsCSSValue nsCSSValueTriplet::*member = tripletValues[i];
-        if (!AddCSSValuePixelPercentCalc(restrictions, unit[i],
-                                         aCoeff1, &triplet1->*member,
-                                         aCoeff2, &triplet2->*member,
-                                         result->*member) ) {
-          NS_ABORT_IF_FALSE(false, "unexpected unit");
-          return false;
+        switch (unit[i]) {
+          case eCSSUnit_Pixel:
+            AddCSSValuePixel(aCoeff1, &triplet1->*member, aCoeff2, &triplet2->*member,
+                             result->*member, restrictions);
+            break;
+          case eCSSUnit_Percent:
+            AddCSSValuePercent(aCoeff1, &triplet1->*member,
+                               aCoeff2, &triplet2->*member,
+                               result->*member, restrictions);
+            break;
+          case eCSSUnit_Calc:
+            AddCSSValueCanonicalCalc(aCoeff1, &triplet1->*member,
+                                     aCoeff2, &triplet2->*member,
+                                     result->*member);
+            break;
+          default:
+            NS_ABORT_IF_FALSE(false, "unexpected unit");
+            return false;
         }
       }
 
@@ -2084,58 +2023,6 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
                                                 eUnit_Transform);
       return true;
     }
-    case eUnit_BackgroundPosition: {
-      const nsCSSValueList *position1 = aValue1.GetCSSValueListValue();
-      const nsCSSValueList *position2 = aValue2.GetCSSValueListValue();
-      nsAutoPtr<nsCSSValueList> result;
-      nsCSSValueList **resultTail = getter_Transfers(result);
-      while (position1 && position2) {
-        nsCSSValueList *item = new nsCSSValueList;
-        if (!item) {
-          return false;
-        }
-        *resultTail = item;
-        resultTail = &item->mNext;
-
-        nsCSSValue::Array* bgPos1 = position1->mValue.GetArrayValue();
-        nsCSSValue::Array* bgPos2 = position2->mValue.GetArrayValue();
-        nsCSSValue::Array* bgPosRes = nsCSSValue::Array::Create(4);
-        item->mValue.SetArrayValue(bgPosRes, eCSSUnit_Array);
-
-        PRUint32 restrictions = nsCSSProps::ValueRestrictions(aProperty);
-
-        /* Only iterate over elements 1 and 3. The background position is
-         * 'uncomputed' to only those elements.
-         */
-        for (int i = 1; i < 4; i+=2) {
-          const nsCSSValue& v1 = bgPos1->Item(i);
-          const nsCSSValue& v2 = bgPos2->Item(i);
-          nsCSSValue& vr = bgPosRes->Item(i);
-
-          nsCSSUnit unit = GetCommonUnit(aProperty, v1.GetUnit(), v2.GetUnit());
-
-          if (!AddCSSValuePixelPercentCalc(restrictions, unit, aCoeff1, v1,
-                                           aCoeff2, v2, vr) ) {
-            if (v1 != v2) {
-              return false;
-            }
-            vr = v1;
-          }
-        }
-
-        position1 = position1->mNext;
-        position2 = position2->mNext;
-      }
-
-      // Check for different lengths
-      if (position1 || position2) {
-        return false;
-      }
-
-      aResultValue.SetAndAdoptCSSValueListValue(result.forget(),
-                                                eUnit_BackgroundPosition);
-      return true;
-    }
     case eUnit_CSSValuePairList: {
       const nsCSSValuePairList *list1 = aValue1.GetCSSValuePairListValue();
       const nsCSSValuePairList *list2 = aValue2.GetCSSValuePairListValue();
@@ -2163,12 +2050,22 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
           if (unit == eCSSUnit_Null) {
             return false;
           }
-          if (!AddCSSValuePixelPercentCalc(restrictions, unit, aCoeff1, v1,
-                                           aCoeff2, v2, vr) ) {
-            if (v1 != v2) {
-              return false;
-            }
-            vr = v1;
+          switch (unit) {
+            case eCSSUnit_Pixel:
+              AddCSSValuePixel(aCoeff1, v1, aCoeff2, v2, vr, restrictions);
+              break;
+            case eCSSUnit_Percent:
+              AddCSSValuePercent(aCoeff1, v1, aCoeff2, v2, vr, restrictions);
+              break;
+            case eCSSUnit_Calc:
+              AddCSSValueCanonicalCalc(aCoeff1, v1, aCoeff2, v2, vr);
+              break;
+            default:
+              if (v1 != v2) {
+                return false;
+              }
+              vr = v1;
+              break;
           }
         }
         list1 = list1->mNext;
@@ -2403,7 +2300,6 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
     case eUnit_Dasharray:
     case eUnit_Shadow:
     case eUnit_Transform:
-    case eUnit_BackgroundPosition:
       aSpecifiedValue.
         SetDependentListValue(aComputedValue.GetCSSValueListValue());
       break;
@@ -2632,8 +2528,14 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
           const nsStyleOutline *styleOutline =
             static_cast<const nsStyleOutline*>(styleStruct);
           nscolor color;
+        #ifdef GFX_HAS_INVERT
+          // This isn't right.  And note that outline drawing itself
+          // goes through this codepath via GetVisitedDependentColor.
+          styleOutline->GetOutlineColor(color);
+        #else
           if (!styleOutline->GetOutlineColor(color))
             color = aStyleContext->GetStyleColor()->mColor;
+        #endif
           aComputedValue.SetColorValue(color);
           break;
         }
@@ -2793,9 +2695,8 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         case eCSSProperty_font_stretch: {
           PRInt16 stretch =
             static_cast<const nsStyleFont*>(styleStruct)->mFont.stretch;
-          MOZ_STATIC_ASSERT(NS_STYLE_FONT_STRETCH_ULTRA_CONDENSED == -4 &&
-                            NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED == 4,
-                            "font stretch constants not as expected");
+          PR_STATIC_ASSERT(NS_STYLE_FONT_STRETCH_ULTRA_CONDENSED == -4);
+          PR_STATIC_ASSERT(NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED == 4);
           if (stretch < NS_STYLE_FONT_STRETCH_ULTRA_CONDENSED ||
               stretch > NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED) {
             return false;
@@ -2868,44 +2769,38 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         case eCSSProperty_background_position: {
           const nsStyleBackground *bg =
             static_cast<const nsStyleBackground*>(styleStruct);
-          nsAutoPtr<nsCSSValueList> result;
-          nsCSSValueList **resultTail = getter_Transfers(result);
+          nsAutoPtr<nsCSSValuePairList> result;
+          nsCSSValuePairList **resultTail = getter_Transfers(result);
           NS_ABORT_IF_FALSE(bg->mPositionCount > 0, "unexpected count");
           for (PRUint32 i = 0, i_end = bg->mPositionCount; i != i_end; ++i) {
-            nsCSSValueList *item = new nsCSSValueList;
+            nsCSSValuePairList *item = new nsCSSValuePairList;
             *resultTail = item;
             resultTail = &item->mNext;
-            nsRefPtr<nsCSSValue::Array> bgArray = nsCSSValue::Array::Create(4);
-            item->mValue.SetArrayValue(bgArray.get(), eCSSUnit_Array);
 
             const nsStyleBackground::Position &pos = bg->mLayers[i].mPosition;
             // XXXbz is there a good reason we can't just
             // SetCalcValue(&pos.mXPosition, item->mXValue) here?
-            nsCSSValue &xValue = bgArray->Item(1),
-                       &yValue = bgArray->Item(3);
             if (!pos.mXPosition.mHasPercent) {
               NS_ABORT_IF_FALSE(pos.mXPosition.mPercent == 0.0f,
                                 "Shouldn't have mPercent!");
-              nscoordToCSSValue(pos.mXPosition.mLength, xValue);
+              nscoordToCSSValue(pos.mXPosition.mLength, item->mXValue);
             } else if (pos.mXPosition.mLength == 0) {
-              xValue.SetPercentValue(pos.mXPosition.mPercent);
+              item->mXValue.SetPercentValue(pos.mXPosition.mPercent);
             } else {
-              SetCalcValue(&pos.mXPosition, xValue);
+              SetCalcValue(&pos.mXPosition, item->mXValue);
             }
-
             if (!pos.mYPosition.mHasPercent) {
               NS_ABORT_IF_FALSE(pos.mYPosition.mPercent == 0.0f,
                                 "Shouldn't have mPercent!");
-              nscoordToCSSValue(pos.mYPosition.mLength, yValue);
+              nscoordToCSSValue(pos.mYPosition.mLength, item->mYValue);
             } else if (pos.mYPosition.mLength == 0) {
-              yValue.SetPercentValue(pos.mYPosition.mPercent);
+              item->mYValue.SetPercentValue(pos.mYPosition.mPercent);
             } else {
-              SetCalcValue(&pos.mYPosition, yValue);
+              SetCalcValue(&pos.mYPosition, item->mYValue);
             }
           }
 
-          aComputedValue.SetAndAdoptCSSValueListValue(result.forget(),
-                                                      eUnit_BackgroundPosition);
+          aComputedValue.SetAndAdoptCSSValuePairListValue(result.forget());
           break;
         }
 
@@ -3018,13 +2913,13 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_Sides_Right:
     case eStyleAnimType_Sides_Bottom:
     case eStyleAnimType_Sides_Left: {
-      MOZ_STATIC_ASSERT(
-       NS_SIDE_TOP    == eStyleAnimType_Sides_Top   -eStyleAnimType_Sides_Top &&
-       NS_SIDE_RIGHT  == eStyleAnimType_Sides_Right -eStyleAnimType_Sides_Top &&
-       NS_SIDE_BOTTOM == eStyleAnimType_Sides_Bottom-eStyleAnimType_Sides_Top &&
-       NS_SIDE_LEFT   == eStyleAnimType_Sides_Left  -eStyleAnimType_Sides_Top,
-       "box side constants out of sync with animation side constants");
-
+      PR_STATIC_ASSERT(0 == NS_SIDE_TOP);
+      PR_STATIC_ASSERT(eStyleAnimType_Sides_Right - eStyleAnimType_Sides_Top
+                         == NS_SIDE_RIGHT);
+      PR_STATIC_ASSERT(eStyleAnimType_Sides_Bottom - eStyleAnimType_Sides_Top
+                         == NS_SIDE_BOTTOM);
+      PR_STATIC_ASSERT(eStyleAnimType_Sides_Left - eStyleAnimType_Sides_Top
+                         == NS_SIDE_LEFT);
       const nsStyleCoord &coord = static_cast<const nsStyleSides*>(
         StyleDataAtOffset(styleStruct, ssOffset))->
           Get(mozilla::css::Side(animType - eStyleAnimType_Sides_Top));
@@ -3034,17 +2929,16 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_Corner_TopRight:
     case eStyleAnimType_Corner_BottomRight:
     case eStyleAnimType_Corner_BottomLeft: {
-      MOZ_STATIC_ASSERT(
-       NS_CORNER_TOP_LEFT     == eStyleAnimType_Corner_TopLeft -
-                                 eStyleAnimType_Corner_TopLeft        &&
-       NS_CORNER_TOP_RIGHT    == eStyleAnimType_Corner_TopRight -
-                                 eStyleAnimType_Corner_TopLeft        &&
-       NS_CORNER_BOTTOM_RIGHT == eStyleAnimType_Corner_BottomRight -
-                                 eStyleAnimType_Corner_TopLeft        &&
-       NS_CORNER_BOTTOM_LEFT  == eStyleAnimType_Corner_BottomLeft -
-                                 eStyleAnimType_Corner_TopLeft,
-       "box corner constants out of sync with animation corner constants");
-
+      PR_STATIC_ASSERT(0 == NS_CORNER_TOP_LEFT);
+      PR_STATIC_ASSERT(eStyleAnimType_Corner_TopRight -
+                         eStyleAnimType_Corner_TopLeft
+                       == NS_CORNER_TOP_RIGHT);
+      PR_STATIC_ASSERT(eStyleAnimType_Corner_BottomRight -
+                         eStyleAnimType_Corner_TopLeft
+                       == NS_CORNER_BOTTOM_RIGHT);
+      PR_STATIC_ASSERT(eStyleAnimType_Corner_BottomLeft -
+                         eStyleAnimType_Corner_TopLeft
+                       == NS_CORNER_BOTTOM_LEFT);
       const nsStyleCorners *corners = static_cast<const nsStyleCorners*>(
         StyleDataAtOffset(styleStruct, ssOffset));
       PRUint8 fullCorner = animType - eStyleAnimType_Corner_TopLeft;
@@ -3257,7 +3151,6 @@ nsStyleAnimation::Value::operator=(const Value& aOther)
     case eUnit_Dasharray:
     case eUnit_Shadow:
     case eUnit_Transform:
-    case eUnit_BackgroundPosition:
       NS_ABORT_IF_FALSE(mUnit == eUnit_Shadow || aOther.mValue.mCSSValueList,
                         "value lists other than shadows may not be null");
       if (aOther.mValue.mCSSValueList) {
@@ -3483,7 +3376,6 @@ nsStyleAnimation::Value::operator==(const Value& aOther) const
     case eUnit_Dasharray:
     case eUnit_Shadow:
     case eUnit_Transform:
-    case eUnit_BackgroundPosition:
       return *mValue.mCSSValueList == *aOther.mValue.mCSSValueList;
     case eUnit_CSSValuePairList:
       return *mValue.mCSSValuePairList == *aOther.mValue.mCSSValuePairList;

@@ -417,7 +417,7 @@ nsHTMLMenuItemElement::GetText(nsAString& aText)
 
 nsresult
 nsHTMLMenuItemElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                    const nsAttrValue* aValue, bool aNotify)
+                                    const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if ((aName == nsGkAtoms::radiogroup || aName == nsGkAtoms::type) &&
@@ -471,7 +471,7 @@ nsHTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
     bool info2Empty = !info2.mValue || info2.mValue->IsEmptyString();
 
     if (info1Empty != info2Empty ||
-        (info1.mValue && info2.mValue && !info1.mValue->Equals(*info2.mValue))) {
+        info1.mValue && info2.mValue && !info1.mValue->Equals(*info2.mValue)) {
       continue;
     }
 

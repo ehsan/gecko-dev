@@ -4,9 +4,7 @@
 
 "use strict";
 
-let tempScope = {};
-Cu.import("resource:///modules/source-editor.jsm", tempScope);
-let SourceEditor = tempScope.SourceEditor;
+Cu.import("resource:///modules/source-editor.jsm");
 
 function test()
 {
@@ -15,7 +13,9 @@ function test()
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
     gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-    openScratchpad(runTests);
+
+    gScratchpadWindow = Scratchpad.openScratchpad();
+    gScratchpadWindow.addEventListener("load", runTests, false);
   }, true);
 
   content.location = "data:text/html,test Edit menu updates Scratchpad - bug 699130";
@@ -23,11 +23,13 @@ function test()
 
 function runTests()
 {
+  gScratchpadWindow.removeEventListener("load", runTests, false);
+
   let sp = gScratchpadWindow.Scratchpad;
   let doc = gScratchpadWindow.document;
   let winUtils = gScratchpadWindow.QueryInterface(Ci.nsIInterfaceRequestor).
                  getInterface(Ci.nsIDOMWindowUtils);
-  let OS = Services.appinfo.OS;
+  let OS = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 
   info("will test the Edit menu");
 
@@ -51,9 +53,9 @@ function runTests()
 
   let menuPopup = editMenu.menupopup;
   ok(menuPopup, "the Edit menupopup");
-  let cutItem = doc.getElementById("se-menu-cut");
+  let cutItem = doc.getElementById("sp-menu-cut");
   ok(cutItem, "the Cut menuitem");
-  let pasteItem = doc.getElementById("se-menu-paste");
+  let pasteItem = doc.getElementById("sp-menu-paste");
   ok(pasteItem, "the Paste menuitem");
 
   let anchor = doc.documentElement;
@@ -174,9 +176,9 @@ function runTests()
 
     menuPopup = doc.getElementById("scratchpad-text-popup");
     ok(menuPopup, "the context menupopup");
-    cutItem = doc.getElementById("se-cMenu-cut");
+    cutItem = doc.getElementById("menu_cut");
     ok(cutItem, "the Cut menuitem");
-    pasteItem = doc.getElementById("se-cMenu-paste");
+    pasteItem = doc.getElementById("menu_paste");
     ok(pasteItem, "the Paste menuitem");
 
     sp.setText("bug 699130: hello world! (context menu)");

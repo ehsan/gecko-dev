@@ -87,13 +87,6 @@ using namespace mozilla;
 #define NSCONTEXTMENUISMOUSEUP 1
 #endif
 
-static void
-AssertNotCalled(void* aPropertyValue)
-{
-  NS_ERROR("popup list should never be destroyed by the FramePropertyTable");
-}
-NS_DECLARE_FRAME_PROPERTY(PopupListProperty, AssertNotCalled)
-
 static PRInt32 gEatMouseMove = false;
 
 const PRInt32 kBlinkDelay = 67; // milliseconds
@@ -214,6 +207,9 @@ NS_QUERYFRAME_HEAD(nsMenuFrame)
   NS_QUERYFRAME_ENTRY(nsMenuFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
+//
+// nsMenuFrame cntr
+//
 nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext),
     mIsMenu(false),
@@ -221,9 +217,11 @@ nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
     mIgnoreAccelTextChange(false),
     mType(eMenuType_Normal),
     mMenuParent(nsnull),
+    mPopupFrame(nsnull),
     mBlinkState(0)
 {
-}
+
+} // cntr
 
 void
 nsMenuFrame::SetParent(nsIFrame* aParent)
@@ -300,12 +298,11 @@ nsMenuFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
-const nsFrameList&
+nsFrameList
 nsMenuFrame::GetChildList(ChildListID aListID) const
 {
   if (kPopupList == aListID) {
-    nsFrameList* list = GetPopupList();
-    return list ? *list : nsFrameList::EmptyList();
+    return nsFrameList(mPopupFrame, mPopupFrame);
   }
   return nsBoxFrame::GetChildList(aListID);
 }
@@ -314,44 +311,8 @@ void
 nsMenuFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 {
   nsBoxFrame::GetChildLists(aLists);
-  nsFrameList* list = GetPopupList();
-  if (list) {
-    list->AppendIfNonempty(aLists, kPopupList);
-  }
-}
-
-nsMenuPopupFrame*
-nsMenuFrame::GetPopup()
-{
-  nsFrameList* popupList = GetPopupList();
-  return popupList ? static_cast<nsMenuPopupFrame*>(popupList->FirstChild()) :
-                     nsnull;
-}
-
-nsFrameList*
-nsMenuFrame::GetPopupList() const
-{
-  if (!HasPopup()) {
-    return nsnull;
-  }
-  nsFrameList* prop =
-    static_cast<nsFrameList*>(Properties().Get(PopupListProperty()));
-  NS_ASSERTION(prop && prop->GetLength() == 1 &&
-               prop->FirstChild()->GetType() == nsGkAtoms::menuPopupFrame,
-               "popup list should have exactly one nsMenuPopupFrame");
-  return prop;
-}
-
-void
-nsMenuFrame::DestroyPopupList()
-{
-  NS_ASSERTION(HasPopup(), "huh?");
-  nsFrameList* prop =
-    static_cast<nsFrameList*>(Properties().Remove(PopupListProperty()));
-  NS_ASSERTION(prop && prop->IsEmpty(),
-               "popup list must exist and be empty when destroying");
-  RemoveStateBits(NS_STATE_MENU_HAS_POPUP_LIST);
-  delete prop;
+  nsFrameList popupList(mPopupFrame, mPopupFrame);
+  popupList.AppendIfNonempty(aLists, kPopupList);
 }
 
 void
@@ -359,12 +320,9 @@ nsMenuFrame::SetPopupFrame(nsFrameList& aFrameList)
 {
   for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
     if (e.get()->GetType() == nsGkAtoms::menuPopupFrame) {
-      // Remove the frame from the list and store it in a nsFrameList* property.
-      nsIFrame* popupFrame = e.get();
-      aFrameList.RemoveFrame(popupFrame);
-      nsFrameList* popupList = new nsFrameList(popupFrame, popupFrame);
-      Properties().Set(PopupListProperty(), popupList);
-      AddStateBits(NS_STATE_MENU_HAS_POPUP_LIST);
+      // Remove this frame from the list and set it as mPopupFrame
+      mPopupFrame = (nsMenuPopupFrame *)e.get();
+      aFrameList.RemoveFrame(e.get());
       break;
     }
   }
@@ -374,7 +332,7 @@ NS_IMETHODIMP
 nsMenuFrame::SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList)
 {
-  NS_ASSERTION(!HasPopup(), "SetInitialChildList called twice?");
+  NS_ASSERTION(!mPopupFrame, "already have a popup frame set");
   if (aListID == kPrincipalList || aListID == kPopupList) {
     SetPopupFrame(aChildList);
   }
@@ -407,11 +365,8 @@ nsMenuFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mMenuParent->CurrentMenuIsBeingDestroyed();
   }
 
-  nsFrameList* popupList = GetPopupList();
-  if (popupList) {
-    popupList->DestroyFramesFrom(aDestructRoot);
-    DestroyPopupList();
-  }
+  if (mPopupFrame)
+    mPopupFrame->DestroyFrom(aDestructRoot);
 
   nsBoxFrame::DestroyFrom(aDestructRoot);
 }
@@ -720,8 +675,8 @@ nsMenuFrame::CloseMenu(bool aDeselectMenu)
 
   // Close the menu asynchronously
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && HasPopup())
-    pm->HidePopup(GetPopup()->GetContent(), false, aDeselectMenu, true);
+  if (pm && mPopupFrame)
+    pm->HidePopup(mPopupFrame->GetContent(), false, aDeselectMenu, true);
 }
 
 bool
@@ -758,10 +713,9 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
   // lay us out
   nsresult rv = nsBoxFrame::DoLayout(aState);
 
-  nsMenuPopupFrame* popupFrame = GetPopup();
-  if (popupFrame) {
+  if (mPopupFrame) {
     bool sizeToPopup = IsSizedToPopup(mContent, false);
-    popupFrame->LayoutPopup(aState, this, sizeToPopup);
+    mPopupFrame->LayoutPopup(aState, this, sizeToPopup);
   }
 
   return rv;
@@ -779,9 +733,8 @@ nsMenuFrame::SetDebug(nsBoxLayoutState& aState, bool aDebug)
   if (debugChanged)
   {
       nsBoxFrame::SetDebug(aState, aDebug);
-      nsMenuPopupFrame* popupFrame = GetPopup();
-      if (popupFrame)
-        SetDebug(aState, popupFrame, aDebug);
+      if (mPopupFrame)
+        SetDebug(aState, mPopupFrame, aDebug);
   }
 
   return NS_OK;
@@ -844,8 +797,7 @@ nsMenuFrame::Enter(nsGUIEvent *aEvent)
 bool
 nsMenuFrame::IsOpen()
 {
-  nsMenuPopupFrame* popupFrame = GetPopup();
-  return popupFrame && popupFrame->IsOpen();
+  return mPopupFrame && mPopupFrame->IsOpen();
 }
 
 bool
@@ -1296,15 +1248,21 @@ NS_IMETHODIMP
 nsMenuFrame::RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame)
 {
-  nsFrameList* popupList = GetPopupList();
-  if (popupList && popupList->DestroyFrameIfPresent(aOldFrame)) {
-    DestroyPopupList();
+  nsresult rv =  NS_OK;
+
+  if (mPopupFrame == aOldFrame) {
+    // Go ahead and remove this frame.
+    mPopupFrame->Destroy();
+    mPopupFrame = nsnull;
     PresContext()->PresShell()->
       FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                        NS_FRAME_HAS_DIRTY_CHILDREN);
-    return NS_OK;
+    rv = NS_OK;
+  } else {
+    rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
   }
-  return nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1312,9 +1270,9 @@ nsMenuFrame::InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList)
 {
-  if (!HasPopup() && (aListID == kPrincipalList || aListID == kPopupList)) {
+  if (!mPopupFrame && (aListID == kPrincipalList || aListID == kPopupList)) {
     SetPopupFrame(aFrameList);
-    if (HasPopup()) {
+    if (mPopupFrame) {
 #ifdef DEBUG_LAYOUT
       nsBoxLayoutState state(PresContext());
       SetDebug(state, aFrameList, mState & NS_STATE_CURRENTLY_IN_DEBUG);
@@ -1329,7 +1287,7 @@ nsMenuFrame::InsertFrames(ChildListID     aListID,
   if (aFrameList.IsEmpty())
     return NS_OK;
 
-  if (NS_UNLIKELY(aPrevFrame && aPrevFrame == GetPopup())) {
+  if (NS_UNLIKELY(aPrevFrame == mPopupFrame)) {
     aPrevFrame = nsnull;
   }
 
@@ -1340,9 +1298,9 @@ NS_IMETHODIMP
 nsMenuFrame::AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList)
 {
-  if (!HasPopup() && (aListID == kPrincipalList || aListID == kPopupList)) {
+  if (!mPopupFrame && (aListID == kPrincipalList || aListID == kPopupList)) {
     SetPopupFrame(aFrameList);
-    if (HasPopup()) {
+    if (mPopupFrame) {
 
 #ifdef DEBUG_LAYOUT
       nsBoxLayoutState state(PresContext());
@@ -1363,15 +1321,14 @@ nsMenuFrame::AppendFrames(ChildListID     aListID,
 bool
 nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
 {
-  if (!IsCollapsed()) {
+  if (!IsCollapsed(aState)) {
     bool widthSet, heightSet;
     nsSize tmpSize(-1, 0);
     nsIBox::AddCSSPrefSize(this, tmpSize, widthSet, heightSet);
     if (!widthSet && GetFlex(aState) == 0) {
-      nsMenuPopupFrame* popupFrame = GetPopup();
-      if (!popupFrame)
+      if (!mPopupFrame)
         return false;
-      tmpSize = popupFrame->GetPrefSize(aState);
+      tmpSize = mPopupFrame->GetPrefSize(aState);
 
       // Produce a size such that:
       //  (1) the menu and its popup can be the same width
@@ -1383,7 +1340,7 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
       GetBorderAndPadding(borderPadding);
 
       // if there is a scroll frame, add the desired width of the scrollbar as well
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(popupFrame->GetFirstPrincipalChild());
+      nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstPrincipalChild());
       nscoord scrollbarWidth = 0;
       if (scrollFrame) {
         scrollbarWidth =
@@ -1423,11 +1380,10 @@ nsMenuFrame::GetPrefSize(nsBoxLayoutState& aState)
 NS_IMETHODIMP
 nsMenuFrame::GetActiveChild(nsIDOMElement** aResult)
 {
-  nsMenuPopupFrame* popupFrame = GetPopup();
-  if (!popupFrame)
+  if (!mPopupFrame)
     return NS_ERROR_FAILURE;
 
-  nsMenuFrame* menuFrame = popupFrame->GetCurrentMenuItem();
+  nsMenuFrame* menuFrame = mPopupFrame->GetCurrentMenuItem();
   if (!menuFrame) {
     *aResult = nsnull;
   }
@@ -1443,13 +1399,12 @@ nsMenuFrame::GetActiveChild(nsIDOMElement** aResult)
 NS_IMETHODIMP
 nsMenuFrame::SetActiveChild(nsIDOMElement* aChild)
 {
-  nsMenuPopupFrame* popupFrame = GetPopup();
-  if (!popupFrame)
+  if (!mPopupFrame)
     return NS_ERROR_FAILURE;
 
   if (!aChild) {
     // Remove the current selection
-    popupFrame->ChangeMenuItem(nsnull, false);
+    mPopupFrame->ChangeMenuItem(nsnull, false);
     return NS_OK;
   }
 
@@ -1457,18 +1412,17 @@ nsMenuFrame::SetActiveChild(nsIDOMElement* aChild)
 
   nsIFrame* kid = child->GetPrimaryFrame();
   if (kid && kid->GetType() == nsGkAtoms::menuFrame)
-    popupFrame->ChangeMenuItem(static_cast<nsMenuFrame *>(kid), false);
+    mPopupFrame->ChangeMenuItem(static_cast<nsMenuFrame *>(kid), false);
   return NS_OK;
 }
 
 nsIScrollableFrame* nsMenuFrame::GetScrollTargetFrame()
 {
-  nsMenuPopupFrame* popupFrame = GetPopup();
-  if (!popupFrame)
+  if (!mPopupFrame)
     return nsnull;
-  nsIFrame* childFrame = popupFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = mPopupFrame->GetFirstPrincipalChild();
   if (childFrame)
-    return popupFrame->GetScrollFrame(childFrame);
+    return mPopupFrame->GetScrollFrame(childFrame);
   return nsnull;
 }
 

@@ -78,12 +78,6 @@ public:
                       nsIPrincipal* aRequestingPrincipal,
                       nsIChannel* aChannel,
                       bool aWithCredentials,
-                      bool aAllowDataURI,
-                      nsresult* aResult);
-  nsCORSListenerProxy(nsIStreamListener* aOuter,
-                      nsIPrincipal* aRequestingPrincipal,
-                      nsIChannel* aChannel,
-                      bool aWithCredentials,
                       const nsCString& aPreflightMethod,
                       const nsTArray<nsCString>& aPreflightHeaders,
                       nsresult* aResult);
@@ -101,7 +95,7 @@ public:
   static void Shutdown();
 
 private:
-  nsresult UpdateChannel(nsIChannel* aChannel, bool aAllowDataURI = false);
+  nsresult UpdateChannel(nsIChannel* aChannel);
   nsresult CheckRequestApproved(nsIRequest* aRequest);
 
   nsCOMPtr<nsIStreamListener> mOuterListener;

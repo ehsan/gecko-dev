@@ -67,7 +67,7 @@
 #include "nsILocaleService.h"
 #include "nsILocalFile.h"
 #include "nsIObserverService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
 #include "nsIResProtocolHandler.h"
 #include "nsIScriptError.h"
@@ -190,9 +190,12 @@ nsChromeRegistryChrome::Init()
 
     SelectLocaleFromPref(prefs);
 
-    rv = prefs->AddObserver(MATCH_OS_LOCALE_PREF, this, true);
-    rv = prefs->AddObserver(SELECTED_LOCALE_PREF, this, true);
-    rv = prefs->AddObserver(SELECTED_SKIN_PREF, this, true);
+    nsCOMPtr<nsIPrefBranch2> prefs2 (do_QueryInterface(prefs));
+    if (prefs2) {
+      rv = prefs2->AddObserver(MATCH_OS_LOCALE_PREF, this, true);
+      rv = prefs2->AddObserver(SELECTED_LOCALE_PREF, this, true);
+      rv = prefs2->AddObserver(SELECTED_SKIN_PREF, this, true);
+    }
   }
 
   nsCOMPtr<nsIObserverService> obsService = mozilla::services::GetObserverService();
@@ -217,7 +220,7 @@ nsChromeRegistryChrome::CheckForOSAccessibility()
       RefreshSkins();
     }
 
-    nsCOMPtr<nsIPrefBranch> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
+    nsCOMPtr<nsIPrefBranch2> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) {
       prefs->RemoveObserver(SELECTED_SKIN_PREF, this);
     }
@@ -384,7 +387,7 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
                                         false, uiLocale);
       if (NS_SUCCEEDED(rv) && !uiLocale.IsEmpty()) {
         CopyUTF16toUTF8(uiLocale, mSelectedLocale);
-        nsCOMPtr<nsIPrefBranch> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
+        nsCOMPtr<nsIPrefBranch2> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
         if (prefs) {
           prefs->RemoveObserver(SELECTED_LOCALE_PREF, this);
         }
@@ -785,9 +788,27 @@ nsIURI*
 nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
 {
   if (!mManifestURI) {
-    nsCString uri;
-    mFile.GetURIString(uri);
-    NS_NewURI(getter_AddRefs(mManifestURI), uri);
+    nsCOMPtr<nsIIOService> io = mozilla::services::GetIOService();
+    if (!io) {
+      NS_WARNING("No IO service trying to process chrome manifests");
+      return NULL;
+    }
+
+    if (mPath) {
+      nsCOMPtr<nsIURI> fileURI;
+      io->NewFileURI(mFile, getter_AddRefs(fileURI));
+
+      nsCAutoString spec;
+      fileURI->GetSpec(spec);
+      spec.Insert(NS_LITERAL_CSTRING("jar:"), 0);
+      spec.AppendLiteral("!/");
+      spec.Append(mPath);
+
+      NS_NewURI(getter_AddRefs(mManifestURI), spec, NULL, NULL, io);
+    }
+    else {
+      io->NewFileURI(mFile, getter_AddRefs(mManifestURI));
+    }
   }
   return mManifestURI;
 }

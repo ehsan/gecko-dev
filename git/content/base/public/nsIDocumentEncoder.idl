@@ -172,8 +172,7 @@ interface nsIDocumentEncoder : nsISupports
 
   /**
    * Output the content of noframes elements (only for serializing
-   * to plaintext). (Used only internally in the plain text serializer;
-   * ignored if passed by the caller.)
+   * to plaintext).
    */
   const unsigned long OutputNoFramesContent = (1 << 12);
 

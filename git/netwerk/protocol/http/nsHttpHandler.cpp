@@ -62,7 +62,7 @@
 #include "nsCategoryManagerUtils.h"
 #include "nsICacheService.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
@@ -77,7 +77,6 @@
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsSocketTransportService2.h"
 #include "nsAlgorithm.h"
-#include "SpdySession.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -128,8 +127,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define NETWORK_ENABLEIDN       "network.enableIDN"
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
-#define TELEMETRY_ENABLED        "toolkit.telemetry.enabled"
-#define ALLOW_EXPERIMENTS        "network.allow-experiments"
 
 #define UA_PREF(_pref) UA_PREF_PREFIX _pref
 #define HTTP_PREF(_pref) HTTP_PREF_PREFIX _pref
@@ -176,8 +173,7 @@ nsHttpHandler::nsHttpHandler()
     , mProxyCapabilities(NS_HTTP_ALLOW_KEEPALIVE)
     , mReferrerLevel(0xff) // by default we always send a referrer
     , mFastFallbackToIPv4(false)
-    , mIdleTimeout(PR_SecondsToInterval(10))
-    , mSpdyTimeout(PR_SecondsToInterval(180))
+    , mIdleTimeout(10)
     , mMaxRequestAttempts(10)
     , mMaxRequestDelay(10)
     , mIdleSynTimeout(250)
@@ -202,14 +198,6 @@ nsHttpHandler::nsHttpHandler()
     , mSendSecureXSiteReferrer(true)
     , mEnablePersistentHttpsCaching(false)
     , mDoNotTrackEnabled(false)
-    , mTelemetryEnabled(false)
-    , mAllowExperiments(true)
-    , mEnableSpdy(false)
-    , mCoalesceSpdy(true)
-    , mUseAlternateProtocol(false)
-    , mSpdySendingChunkSize(SpdySession::kSendingChunkSize)
-    , mSpdyPingThreshold(PR_SecondsToInterval(44))
-    , mSpdyPingTimeout(PR_SecondsToInterval(8))
 {
 #if defined(PR_LOGGING)
     gHttpLog = PR_NewLogModule("nsHttp");
@@ -264,7 +252,7 @@ nsHttpHandler::Init()
     InitUserAgentComponents();
 
     // monitor some preference changes
-    nsCOMPtr<nsIPrefBranch> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefBranch) {
         prefBranch->AddObserver(HTTP_PREF_PREFIX, this, true);
         prefBranch->AddObserver(UA_PREF_PREFIX, this, true);
@@ -272,12 +260,11 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(NETWORK_ENABLEIDN, this, true);
         prefBranch->AddObserver(BROWSER_PREF("disk_cache_ssl"), this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_ENABLED, this, true);
-        prefBranch->AddObserver(TELEMETRY_ENABLED, this, true);
 
         PrefsChanged(prefBranch, nsnull);
     }
 
-    mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
+    mMisc.AssignLiteral("rv:" MOZILLA_VERSION);
 
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
@@ -314,11 +301,7 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
-#ifdef ANDROID
-    mProductSub.AssignLiteral(MOZILLA_UAVERSION);
-#else
     mProductSub.AssignLiteral(MOZ_UA_BUILDID);
-#endif
     if (mProductSub.IsEmpty() && appInfo)
         appInfo->GetPlatformBuildID(mProductSub);
     if (mProductSub.Length() > 8)
@@ -541,27 +524,6 @@ nsHttpHandler::GetIOService(nsIIOService** result)
     return NS_OK;
 }
 
-PRUint32
-nsHttpHandler::Get32BitsOfPseudoRandom()
-{
-    // only confirm rand seeding on socket thread
-    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-
-    // rand() provides different amounts of PRNG on different platforms.
-    // 15 or 31 bits are common amounts.
-
-    PR_STATIC_ASSERT(RAND_MAX >= 0xfff);
-    
-#if RAND_MAX < 0xffffU
-    return ((PRUint16) rand() << 20) |
-            (((PRUint16) rand() & 0xfff) << 8) |
-            ((PRUint16) rand() & 0xff);
-#elif RAND_MAX < 0xffffffffU
-    return ((PRUint16) rand() << 16) | ((PRUint16) rand() & 0xffff);
-#else
-    return (PRUint32) rand();
-#endif
-}
 
 void
 nsHttpHandler::NotifyObservers(nsIHttpChannel *chan, const char *event)
@@ -586,7 +548,26 @@ nsHttpHandler::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
 nsHttpHandler::GenerateHostPort(const nsCString& host, PRInt32 port,
                                 nsCString& hostLine)
 {
-    return NS_GenerateHostPort(host, port, hostLine);
+    if (strchr(host.get(), ':')) {
+        // host is an IPv6 address literal and must be encapsulated in []'s
+        hostLine.Assign('[');
+        // scope id is not needed for Host header.
+        int scopeIdPos = host.FindChar('%');
+        if (scopeIdPos == kNotFound)
+            hostLine.Append(host);
+        else if (scopeIdPos > 0)
+            hostLine.Append(Substring(host, 0, scopeIdPos));
+        else
+          return NS_ERROR_MALFORMED_URI;
+        hostLine.Append(']');
+    }
+    else
+        hostLine.Assign(host);
+    if (port != -1) {
+        hostLine.Append(':');
+        hostLine.AppendInt(port);
+    }
+    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -634,7 +615,6 @@ nsHttpHandler::BuildUserAgent()
                            mAppName.Length() +
                            mAppVersion.Length() +
                            mCompatFirefox.Length() +
-                           mCompatDevice.Length() +
                            13);
 
     // Application portion
@@ -649,15 +629,8 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mPlatform;
     mUserAgent.AppendLiteral("; ");
 #endif
-#ifdef ANDROID
-    if (!mCompatDevice.IsEmpty()) {
-        mUserAgent += mCompatDevice;
-        mUserAgent.AppendLiteral("; ");
-    }
-#else
     mUserAgent += mOscpu;
     mUserAgent.AppendLiteral("; ");
-#endif
     mUserAgent += mMisc;
     mUserAgent += ')';
 
@@ -681,6 +654,8 @@ nsHttpHandler::BuildUserAgent()
 }
 
 #ifdef XP_WIN
+typedef BOOL (WINAPI *IsWow64ProcessP) (HANDLE, PBOOL);
+
 #define WNT_BASE "Windows NT %ld.%ld"
 #define W64_PREFIX "; Win64"
 #endif
@@ -688,7 +663,8 @@ nsHttpHandler::BuildUserAgent()
 void
 nsHttpHandler::InitUserAgentComponents()
 {
-    // Gather platform.
+
+      // Gather platform.
     mPlatform.AssignLiteral(
 #if defined(ANDROID)
     "Android"
@@ -706,18 +682,6 @@ nsHttpHandler::InitUserAgentComponents()
     "?"
 #endif
     );
-
-#if defined(ANDROID)
-    nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
-    NS_ASSERTION(infoService, "Could not find a system info service");
-
-    bool isTablet = false;
-    infoService->GetPropertyAsBool(NS_LITERAL_STRING("tablet"), &isTablet);
-    if (isTablet)
-        mCompatDevice.AssignLiteral("Tablet");
-    else
-        mCompatDevice.AssignLiteral("Mobile");
-#endif
 
     // Gather OS/CPU.
 #if defined(XP_OS2)
@@ -743,7 +707,10 @@ nsHttpHandler::InitUserAgentComponents()
         format = WNT_BASE W64_PREFIX "; x64";
 #else
         BOOL isWow64 = FALSE;
-        if (!IsWow64Process(GetCurrentProcess(), &isWow64)) {
+        IsWow64ProcessP fnIsWow64Process = (IsWow64ProcessP)
+          GetProcAddress(GetModuleHandleW(L"kernel32"), "IsWow64Process");
+        if (fnIsWow64Process &&
+            !fnIsWow64Process(GetCurrentProcess(), &isWow64)) {
             isWow64 = FALSE;
         }
         format = isWow64
@@ -868,7 +835,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("keep-alive.timeout"))) {
         rv = prefs->GetIntPref(HTTP_PREF("keep-alive.timeout"), &val);
         if (NS_SUCCEEDED(rv))
-            mIdleTimeout = PR_SecondsToInterval(clamped(val, 1, 0xffff));
+            mIdleTimeout = (PRUint16) clamped(val, 1, 0xffff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("request.max-attempts"))) {
@@ -1117,55 +1084,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mPhishyUserPassLength = (PRUint8) clamped(val, 0, 0xff);
     }
 
-    if (PREF_CHANGED(HTTP_PREF("spdy.enabled"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mEnableSpdy = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.coalesce-hostnames"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.coalesce-hostnames"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mCoalesceSpdy = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.use-alternate-protocol"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.use-alternate-protocol"),
-                                &cVar);
-        if (NS_SUCCEEDED(rv))
-            mUseAlternateProtocol = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.timeout"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("spdy.timeout"), &val);
-        if (NS_SUCCEEDED(rv))
-            mSpdyTimeout = PR_SecondsToInterval(clamped(val, 1, 0xffff));
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.chunk-size"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("spdy.chunk-size"), &val);
-        if (NS_SUCCEEDED(rv))
-            mSpdySendingChunkSize = (PRUint32) clamped(val, 1, 0x7fffffff);
-    }
-
-    // The amount of idle seconds on a spdy connection before initiating a
-    // server ping. 0 will disable.
-    if (PREF_CHANGED(HTTP_PREF("spdy.ping-threshold"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("spdy.ping-threshold"), &val);
-        if (NS_SUCCEEDED(rv))
-            mSpdyPingThreshold =
-                PR_SecondsToInterval((PRUint16) clamped(val, 0, 0x7fffffff));
-    }
-
-    // The amount of seconds to wait for a spdy ping response before
-    // closing the session.
-    if (PREF_CHANGED(HTTP_PREF("spdy.ping-timeout"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("spdy.ping-timeout"), &val);
-        if (NS_SUCCEEDED(rv))
-            mSpdyPingTimeout =
-                PR_SecondsToInterval((PRUint16) clamped(val, 0, 0x7fffffff));
-    }
-
     //
     // INTL options
     //
@@ -1210,30 +1128,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         rv = prefs->GetBoolPref(DONOTTRACK_HEADER_ENABLED, &cVar);
         if (NS_SUCCEEDED(rv)) {
             mDoNotTrackEnabled = cVar;
-        }
-    }
-
-    //
-    // Telemetry
-    //
-
-    if (PREF_CHANGED(TELEMETRY_ENABLED)) {
-        cVar = false;
-        rv = prefs->GetBoolPref(TELEMETRY_ENABLED, &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mTelemetryEnabled = cVar;
-        }
-    }
-
-    //
-    // network.allow-experiments
-    //
-
-    if (PREF_CHANGED(ALLOW_EXPERIMENTS)) {
-        cVar = true;
-        rv = prefs->GetBoolPref(ALLOW_EXPERIMENTS, &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mAllowExperiments = cVar;
         }
     }
 

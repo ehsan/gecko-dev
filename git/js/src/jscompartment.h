@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -40,16 +40,13 @@
 #ifndef jscompartment_h___
 #define jscompartment_h___
 
-#include "mozilla/Attributes.h"
-
 #include "jsclist.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsgcstats.h"
 #include "jsobj.h"
-#include "jsscope.h"
 #include "vm/GlobalObject.h"
-#include "vm/RegExpObject.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -87,7 +84,7 @@ class NativeIterCache {
     /* Cached native iterators. */
     JSObject            *data[SIZE];
 
-    static size_t getIndex(uint32_t key) {
+    static size_t getIndex(uint32 key) {
         return size_t(key) % SIZE;
     }
 
@@ -105,11 +102,11 @@ class NativeIterCache {
         last = NULL;
     }
 
-    JSObject *get(uint32_t key) const {
+    JSObject *get(uint32 key) const {
         return data[getIndex(key)];
     }
 
-    void set(uint32_t key, JSObject *iterobj) {
+    void set(uint32 key, JSObject *iterobj) {
         data[getIndex(key)] = iterobj;
     }
 };
@@ -125,17 +122,17 @@ class MathCache;
  */
 class DtoaCache {
     double        d;
-    int         base;
+    jsint         base;
     JSFixedString *s;      // if s==NULL, d and base are not valid
   public:
     DtoaCache() : s(NULL) {}
     void purge() { s = NULL; }
 
-    JSFixedString *lookup(int base, double d) {
+    JSFixedString *lookup(jsint base, double d) {
         return this->s && base == this->base && d == this->d ? this->s : NULL;
     }
 
-    void cache(int base, double d, JSFixedString *s) {
+    void cache(jsint base, double d, JSFixedString *s) {
         this->base = base;
         this->d = d;
         this->s = s;
@@ -162,37 +159,16 @@ typedef HashSet<ScriptFilenameEntry *,
                 ScriptFilenameHasher,
                 SystemAllocPolicy> ScriptFilenameTable;
 
-/* If HashNumber grows, need to change WrapperHasher. */
-JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
-
-struct WrapperHasher
-{
-    typedef Value Lookup;
-
-    static HashNumber hash(Value key) {
-        uint64_t bits = JSVAL_TO_IMPL(key).asBits;
-        return uint32_t(bits) ^ uint32_t(bits >> 32);
-    }
-
-    static bool match(const Value &l, const Value &k) { return l == k; }
-};
-
-typedef HashMap<Value, ReadBarrieredValue, WrapperHasher, SystemAllocPolicy> WrapperMap;
-
 } /* namespace js */
 
-namespace JS {
-struct TypeInferenceSizes;
-}
-
-struct JSCompartment
-{
+struct JS_FRIEND_API(JSCompartment) {
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
 
     js::gc::ArenaLists           arenas;
 
     bool                         needsBarrier_;
+    js::GCMarker                 *gcIncrementalTracer;
 
     bool needsBarrier() {
         return needsBarrier_;
@@ -200,12 +176,14 @@ struct JSCompartment
 
     js::GCMarker *barrierTracer() {
         JS_ASSERT(needsBarrier_);
-        return &rt->gcMarker;
+        if (gcIncrementalTracer)
+            return gcIncrementalTracer;
+        return createBarrierTracer();
     }
 
-    size_t                       gcBytes;
-    size_t                       gcTriggerBytes;
-    size_t                       gcMaxMallocBytes;
+    uint32                       gcBytes;
+    uint32                       gcTriggerBytes;
+    size_t                       gcLastBytes;
 
     bool                         hold;
     bool                         isSystemCompartment;
@@ -229,6 +207,7 @@ struct JSCompartment
 
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
+    bool                         hasDebugModeCodeToDrop;
     js::WrapperMap               crossCompartmentWrappers;
 
 #ifdef JS_METHODJIT
@@ -253,62 +232,58 @@ struct JSCompartment
 
     bool ensureJaegerCompartmentExists(JSContext *cx);
 
-    size_t sizeOfMjitCode() const;
+    void getMjitCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
 #endif
-
-    js::RegExpCompartment        regExps;
-
-    size_t sizeOfShapeTable(JSMallocSizeOfFun mallocSizeOf);
-    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, JSMallocSizeOfFun mallocSizeOf);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
      */
     js::PropertyTree             propertyTree;
 
-    /* Set of all unowned base shapes in the compartment. */
-    js::BaseShapeSet             baseShapes;
-    void sweepBaseShapeTable(JSContext *cx);
+#ifdef DEBUG
+    /* Property metering. */
+    jsrefcount                   livePropTreeNodes;
+    jsrefcount                   totalPropTreeNodes;
+    jsrefcount                   propTreeKidsChunks;
+    jsrefcount                   liveDictModeNodes;
+#endif
 
-    /* Set of initial shapes in the compartment. */
-    js::InitialShapeSet          initialShapes;
-    void sweepInitialShapeTable(JSContext *cx);
-
-    /* Set of default 'new' or lazy types in the compartment. */
-    js::types::TypeObjectSet     newTypeObjects;
-    js::types::TypeObjectSet     lazyTypeObjects;
-    void sweepNewTypeObjectTable(JSContext *cx, js::types::TypeObjectSet &table);
-
-    js::types::TypeObject        *emptyTypeObject;
-
-    /* Get the default 'new' type for objects with a NULL prototype. */
-    inline js::types::TypeObject *getEmptyType(JSContext *cx);
-
-    js::types::TypeObject *getLazyType(JSContext *cx, JSObject *proto);
-
-    /* Cache to speed up object creation. */
-    js::NewObjectCache           newObjectCache;
+    typedef js::ReadBarriered<js::EmptyShape> BarrieredEmptyShape;
+    typedef js::ReadBarriered<const js::Shape> BarrieredShape;
 
     /*
-     * Keeps track of the total number of malloc bytes connected to a
-     * compartment's GC things. This counter should be used in preference to
-     * gcMallocBytes. These counters affect collection in the same way as
-     * gcBytes and gcTriggerBytes.
+     * Runtime-shared empty scopes for well-known built-in objects that lack
+     * class prototypes (the usual locus of an emptyShape). Mnemonic: ABCDEW
      */
-    size_t                       gcMallocAndFreeBytes;
-    size_t                       gcTriggerMallocAndFreeBytes;
+    BarrieredEmptyShape          emptyArgumentsShape;
+    BarrieredEmptyShape          emptyBlockShape;
+    BarrieredEmptyShape          emptyCallShape;
+    BarrieredEmptyShape          emptyDeclEnvShape;
+    BarrieredEmptyShape          emptyEnumeratorShape;
+    BarrieredEmptyShape          emptyWithShape;
+
+    typedef js::HashSet<js::EmptyShape *,
+                        js::DefaultHasher<js::EmptyShape *>,
+                        js::SystemAllocPolicy> EmptyShapeSet;
+
+    EmptyShapeSet                emptyShapes;
+
+    /*
+     * Initial shapes given to RegExp and String objects, encoding the initial
+     * sets of built-in instance properties and the fixed slots where they must
+     * be stored (see JSObject::JSSLOT_(REGEXP|STRING)_*). Later property
+     * additions may cause these shapes to not be used by a RegExp or String
+     * (even along the entire shape parent chain, should the object go into
+     * dictionary mode). But because all the initial properties are
+     * non-configurable, they will always map to fixed slots.
+     */
+    BarrieredShape               initialRegExpShape;
+    BarrieredShape               initialStringShape;
 
   private:
-    /*
-     * Malloc counter to measure memory pressure for GC scheduling. It runs from
-     * gcMaxMallocBytes down to zero. This counter should be used only when it's
-     * not possible to know the size of a free.
-     */
-    ptrdiff_t                    gcMallocBytes;
-
     enum { DebugFromC = 1, DebugFromJS = 2 };
 
-    unsigned                     debugModeBits;  // see debugMode() below
+    uintN                        debugModeBits;  // see debugMode() below
 
   public:
     js::NativeIterCache          nativeIterCache;
@@ -337,33 +312,11 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
     void markTypes(JSTracer *trc);
-    void discardJitCode(JSContext *cx);
     void sweep(JSContext *cx, bool releaseTypes);
-    void purge();
+    void purge(JSContext *cx);
 
-    void setGCLastBytes(size_t lastBytes, size_t lastMallocBytes, js::JSGCInvocationKind gckind);
-    void reduceGCTriggerBytes(size_t amount);
-
-    void resetGCMallocBytes();
-    void setGCMaxMallocBytes(size_t value);
-    void updateMallocCounter(size_t nbytes) {
-        ptrdiff_t oldCount = gcMallocBytes;
-        ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
-        gcMallocBytes = newCount;
-        if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
-            onTooMuchMalloc();
-    }
-
-    void onTooMuchMalloc();
-
-    void mallocInCompartment(size_t nbytes) {
-        gcMallocAndFreeBytes += nbytes;
-    }
-
-    void freeInCompartment(size_t nbytes) {
-        JS_ASSERT(gcMallocAndFreeBytes >= nbytes);
-        gcMallocAndFreeBytes -= nbytes;
-    }
+    void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
+    void reduceGCTriggerBytes(uint32 amount);
 
     js::DtoaCache dtoaCache;
 
@@ -377,6 +330,9 @@ struct JSCompartment
      * Each global has its own list of debuggers.
      */
     js::GlobalObjectSet              debuggees;
+
+  public:
+    js::BreakpointSiteMap            breakpointSites;
 
   private:
     JSCompartment *thisForCtor() { return this; }
@@ -395,8 +351,12 @@ struct JSCompartment
      */
     bool debugMode() const { return !!debugModeBits; }
 
-    /* True if any scripts from this compartment are on the JS stack. */
-    bool hasScriptsOnStack();
+    /*
+     * True if any scripts from this compartment are on the JS stack in the
+     * calling thread. cx is a context in the calling thread, and it is assumed
+     * that no other thread is using this compartment.
+     */
+    bool hasScriptsOnStack(JSContext *cx);
 
   private:
     /* This is called only when debugMode() has just toggled. */
@@ -409,11 +369,17 @@ struct JSCompartment
                         js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
     bool setDebugModeFromC(JSContext *cx, bool b);
 
-    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
-    void clearTraps(JSContext *cx);
+    js::BreakpointSite *getBreakpointSite(jsbytecode *pc);
+    js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, JSScript *script, jsbytecode *pc,
+                                                  js::GlobalObject *scriptGlobal);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSScript *script, JSObject *handler);
+    void clearTraps(JSContext *cx, JSScript *script);
+    bool markTrapClosuresIteratively(JSTracer *trc);
 
   private:
     void sweepBreakpoints(JSContext *cx);
+
+    js::GCMarker *createBarrierTracer();
 
   public:
     js::WatchpointMap *watchpointMap;
@@ -518,8 +484,9 @@ class AutoCompartment
     void leave();
 
   private:
-    AutoCompartment(const AutoCompartment &) MOZ_DELETE;
-    AutoCompartment & operator=(const AutoCompartment &) MOZ_DELETE;
+    // Prohibit copying.
+    AutoCompartment(const AutoCompartment &);
+    AutoCompartment & operator=(const AutoCompartment &);
 };
 
 /*

@@ -48,7 +48,7 @@
 
 #include "nsIEventSource.h"
 #include "nsIJSNativeInitializer.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 #include "nsIObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
@@ -69,7 +69,7 @@
 class AsyncVerifyRedirectCallbackFwr;
 class nsAutoClearFields;
 
-class nsEventSource: public nsDOMEventTargetHelper,
+class nsEventSource: public nsDOMEventTargetWrapperCache,
                      public nsIEventSource,
                      public nsIJSNativeInitializer,
                      public nsIObserver,
@@ -84,8 +84,8 @@ public:
   nsEventSource();
   virtual ~nsEventSource();
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_INHERITED(nsEventSource,
-                                                                   nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsEventSource,
+                                           nsDOMEventTargetWrapperCache)
 
   NS_DECL_NSIEVENTSOURCE
 
@@ -102,7 +102,6 @@ public:
   // Determine if preferences allow EventSource
   static bool PrefEnabled();
 
-  virtual void DisconnectFromOwner();
 protected:
   nsresult GetBaseURI(nsIURI **aBaseURI);
 
@@ -216,8 +215,6 @@ protected:
   bool mFrozen;
   bool mErrorLoadOnRedirect;
   bool mGoingToDispatchAllMessages;
-  bool mWithCredentials;
-  bool mWaitingForOnStopRequest;
 
   // used while reading the input streams
   nsCOMPtr<nsIUnicodeDecoder> mUnicodeDecoder;
@@ -246,7 +243,7 @@ protected:
   nsString mOriginalURL;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsString mOrigin;
+  nsCString mOrigin;
 
   PRUint32 mRedirectFlags;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;

@@ -122,7 +122,7 @@ nsSVGMarkerFrame::GetCanvasTM()
 
 
 nsresult
-nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
+nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
                             nsSVGPathGeometryFrame *aMarkedFrame,
                             nsSVGMark *aMark, float aStrokeWidth)
 {
@@ -148,7 +148,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
   mY = aMark->y;
   mAutoAngle = aMark->angle;
 
-  gfxContext *gfx = aContext->ThebesContext();
+  gfxContext *gfx = aContext->GetGfxContext();
 
   if (GetStyleDisplay()->IsScrollableOverflow()) {
     gfx->Save();
@@ -163,9 +163,8 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       // The CTM of each frame referencing us may be different.
-      SVGFrame->NotifySVGChanged(
-                          nsISVGChildFrame::DO_NOT_NOTIFY_RENDERING_OBSERVERS |
-                          nsISVGChildFrame::TRANSFORM_CHANGED);
+      SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                 nsISVGChildFrame::TRANSFORM_CHANGED);
       nsSVGUtils::PaintFrameWithEffects(aContext, nsnull, kid);
     }
   }
@@ -204,14 +203,13 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   mY = aMark->y;
   mAutoAngle = aMark->angle;
 
+  gfxRect bbox;
+
   gfxMatrix markerTM =
     content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
   gfxMatrix viewBoxTM = content->GetViewBoxTransform();
 
   gfxMatrix tm = viewBoxTM * markerTM * aToBBoxUserspace;
-
-  gfxRect bbox;
-  bool firstChild = true;
 
   for (nsIFrame* kid = mFrames.FirstChild();
        kid;
@@ -221,17 +219,7 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       // When we're being called to obtain the invalidation area, we need to
       // pass down all the flags so that stroke is included. However, once DOM
       // getBBox() accepts flags, maybe we should strip some of those here?
-
-      // We need to include zero width/height vertical/horizontal lines, so we have
-      // to use UnionEdges, but we must special case the first bbox so that we don't
-      // include the initial gfxRect(0,0,0,0).
-      gfxRect childBBox = child->GetBBoxContribution(tm, aFlags);
-      if (firstChild) {
-        bbox = childBBox;
-        firstChild = false;
-        continue;
-      }
-      bbox = bbox.UnionEdges(childBBox);
+      bbox.UnionRect(bbox, child->GetBBoxContribution(tm, aFlags));
     }
   }
 

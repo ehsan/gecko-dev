@@ -70,7 +70,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static bool BaseTypeAndSizeFromUniformType(WebGLenum uType, WebGLenum *baseType, WebGLint *unitSize);
 static WebGLenum InternalFormatForFormatAndType(WebGLenum format, WebGLenum type, bool isGLES2);
@@ -82,44 +81,61 @@ static WebGLenum InternalFormatForFormatAndType(WebGLenum format, WebGLenum type
 
 #define GL_SAME_METHOD_0(glname, name)                          \
 NS_IMETHODIMP WebGLContext::name() {                            \
-    if (!IsContextStable()) { return NS_OK; }                         \
+    if (mContextLost) { return NS_OK; }                         \
     MakeContextCurrent(); gl->f##glname(); return NS_OK;        \
 }
 
 #define GL_SAME_METHOD_1(glname, name, t1)          \
 NS_IMETHODIMP WebGLContext::name(t1 a1) {           \
-    if (!IsContextStable()) { return NS_OK; }             \
+    if (mContextLost) { return NS_OK; }             \
     MakeContextCurrent(); gl->f##glname(a1); return NS_OK;  \
 }
 
 #define GL_SAME_METHOD_2(glname, name, t1, t2)        \
 NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2) {      \
-    if (!IsContextStable()) { return NS_OK; }               \
+    if (mContextLost) { return NS_OK; }               \
     MakeContextCurrent(); gl->f##glname(a1,a2); return NS_OK;           \
 }
 
 #define GL_SAME_METHOD_3(glname, name, t1, t2, t3)      \
 NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2, t3 a3) { \
-    if (!IsContextStable()) { return NS_OK; }                 \
+    if (mContextLost) { return NS_OK; }                 \
     MakeContextCurrent(); gl->f##glname(a1,a2,a3); return NS_OK;        \
 }
 
 #define GL_SAME_METHOD_4(glname, name, t1, t2, t3, t4)         \
 NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2, t3 a3, t4 a4) { \
-    if (!IsContextStable()) { return NS_OK; }                        \
+    if (mContextLost) { return NS_OK; }                        \
     MakeContextCurrent(); gl->f##glname(a1,a2,a3,a4); return NS_OK;     \
 }
 
 #define GL_SAME_METHOD_5(glname, name, t1, t2, t3, t4, t5)            \
 NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5) { \
-    if (!IsContextStable()) { return NS_OK; }                               \
+    if (mContextLost) { return NS_OK; }                               \
     MakeContextCurrent(); gl->f##glname(a1,a2,a3,a4,a5); return NS_OK;  \
 }
 
 #define GL_SAME_METHOD_6(glname, name, t1, t2, t3, t4, t5, t6)          \
 NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6) { \
-    if (!IsContextStable()) { return NS_OK; }                                 \
+    if (mContextLost) { return NS_OK; }                                 \
     MakeContextCurrent(); gl->f##glname(a1,a2,a3,a4,a5,a6); return NS_OK; \
+}
+
+already_AddRefed<WebGLUniformLocation>
+WebGLProgram::GetUniformLocationObject(GLint glLocation)
+{
+    WebGLUniformLocation *existingLocationObject;
+    if (mMapUniformLocations.Get(glLocation, &existingLocationObject)) {
+        return existingLocationObject;
+    }
+
+    if (glLocation < 0) {
+        return nsnull;
+    }
+
+    nsRefPtr<WebGLUniformLocation> loc = new WebGLUniformLocation(mContext, this, glLocation);
+    mMapUniformLocations.Put(glLocation, loc);
+    return loc.forget();
 }
 
 //
@@ -131,10 +147,10 @@ NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6) { \
 NS_IMETHODIMP
 WebGLContext::ActiveTexture(WebGLenum texture)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
-    if (texture < LOCAL_GL_TEXTURE0 || texture >= LOCAL_GL_TEXTURE0 + mBound2DTextures.Length())
+    if (texture < LOCAL_GL_TEXTURE0 || texture >= LOCAL_GL_TEXTURE0+mBound2DTextures.Length())
         return ErrorInvalidEnum("ActiveTexture: texture unit %d out of range (0..%d)",
                                 texture, mBound2DTextures.Length()-1);
 
@@ -147,7 +163,7 @@ WebGLContext::ActiveTexture(WebGLenum texture)
 NS_IMETHODIMP
 WebGLContext::AttachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     // if pobj or shobj are null/not specified, it's an error
@@ -170,6 +186,10 @@ WebGLContext::AttachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
     if (!program->AttachShader(shader))
         return ErrorInvalidOperation("AttachShader: shader is already attached");
 
+    MakeContextCurrent();
+
+    gl->fAttachShader(progname, shadername);
+
     return NS_OK;
 }
 
@@ -177,12 +197,11 @@ WebGLContext::AttachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
 NS_IMETHODIMP
 WebGLContext::BindAttribLocation(nsIWebGLProgram *pobj, WebGLuint location, const nsAString& name)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLuint progname;
-    WebGLProgram *prog;
-    if (!GetConcreteObjectAndGLName("bindAttribLocation: program", pobj, &prog, &progname))
+    if (!GetGLName<WebGLProgram>("bindAttribLocation: program", pobj, &progname))
         return NS_OK;
 
     if (!ValidateGLSLVariableName(name, "bindAttribLocation"))
@@ -191,12 +210,10 @@ WebGLContext::BindAttribLocation(nsIWebGLProgram *pobj, WebGLuint location, cons
     if (!ValidateAttribIndex(location, "bindAttribLocation"))
         return NS_OK;
 
-    NS_LossyConvertUTF16toASCII cname(name);
-    nsCString mappedName;
-    prog->MapIdentifier(cname, &mappedName);
-    
     MakeContextCurrent();
-    gl->fBindAttribLocation(progname, location, mappedName.get());
+
+    gl->fBindAttribLocation(progname, location, NS_LossyConvertUTF16toASCII(name).get());
+
     return NS_OK;
 }
 
@@ -340,7 +357,7 @@ GL_SAME_METHOD_4(BlendColor, BlendColor, WebGLfloat, WebGLfloat, WebGLfloat, Web
 
 NS_IMETHODIMP WebGLContext::BlendEquation(WebGLenum mode)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateBlendEquationEnum(mode, "blendEquation: mode"))
@@ -353,7 +370,7 @@ NS_IMETHODIMP WebGLContext::BlendEquation(WebGLenum mode)
 
 NS_IMETHODIMP WebGLContext::BlendEquationSeparate(WebGLenum modeRGB, WebGLenum modeAlpha)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateBlendEquationEnum(modeRGB, "blendEquationSeparate: modeRGB") ||
@@ -367,7 +384,7 @@ NS_IMETHODIMP WebGLContext::BlendEquationSeparate(WebGLenum modeRGB, WebGLenum m
 
 NS_IMETHODIMP WebGLContext::BlendFunc(WebGLenum sfactor, WebGLenum dfactor)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateBlendFuncSrcEnum(sfactor, "blendFunc: sfactor") ||
@@ -386,7 +403,7 @@ NS_IMETHODIMP
 WebGLContext::BlendFuncSeparate(WebGLenum srcRGB, WebGLenum dstRGB,
                                 WebGLenum srcAlpha, WebGLenum dstAlpha)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateBlendFuncSrcEnum(srcRGB, "blendFuncSeparate: srcRGB") ||
@@ -434,7 +451,7 @@ GLenum WebGLContext::CheckedBufferData(GLenum target,
 NS_IMETHODIMP
 WebGLContext::BufferData(PRInt32 dummy)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     // this should never be called
@@ -445,7 +462,7 @@ WebGLContext::BufferData(PRInt32 dummy)
 NS_IMETHODIMP
 WebGLContext::BufferData_null()
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     // see http://www.khronos.org/bugzilla/show_bug.cgi?id=386
@@ -456,7 +473,7 @@ WebGLContext::BufferData_null()
 NS_IMETHODIMP
 WebGLContext::BufferData_size(WebGLenum target, WebGLsizei size, WebGLenum usage)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLBuffer *boundBuffer = NULL;
@@ -497,7 +514,7 @@ WebGLContext::BufferData_size(WebGLenum target, WebGLsizei size, WebGLenum usage
 NS_IMETHODIMP
 WebGLContext::BufferData_buf(WebGLenum target, JSObject *wb, WebGLenum usage)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLBuffer *boundBuffer = NULL;
@@ -538,7 +555,7 @@ WebGLContext::BufferData_buf(WebGLenum target, JSObject *wb, WebGLenum usage)
 NS_IMETHODIMP
 WebGLContext::BufferData_array(WebGLenum target, JSObject *wa, WebGLenum usage)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLBuffer *boundBuffer = NULL;
@@ -579,7 +596,7 @@ WebGLContext::BufferData_array(WebGLenum target, JSObject *wa, WebGLenum usage)
 NS_IMETHODIMP
 WebGLContext::BufferSubData(PRInt32)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return NS_ERROR_FAILURE;
@@ -588,7 +605,7 @@ WebGLContext::BufferSubData(PRInt32)
 NS_IMETHODIMP
 WebGLContext::BufferSubData_null()
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return NS_OK; // see http://www.khronos.org/bugzilla/show_bug.cgi?id=386
@@ -597,7 +614,7 @@ WebGLContext::BufferSubData_null()
 NS_IMETHODIMP
 WebGLContext::BufferSubData_buf(GLenum target, WebGLsizei byteOffset, JSObject *wb)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLBuffer *boundBuffer = NULL;
@@ -637,7 +654,7 @@ WebGLContext::BufferSubData_buf(GLenum target, WebGLsizei byteOffset, JSObject *
 NS_IMETHODIMP
 WebGLContext::BufferSubData_array(WebGLenum target, WebGLsizei byteOffset, JSObject *wa)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLBuffer *boundBuffer = NULL;
@@ -677,7 +694,7 @@ WebGLContext::BufferSubData_array(WebGLenum target, WebGLsizei byteOffset, JSObj
 NS_IMETHODIMP
 WebGLContext::CheckFramebufferStatus(WebGLenum target, WebGLenum *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = LOCAL_GL_FRAMEBUFFER_UNSUPPORTED;
         return NS_OK;
@@ -689,16 +706,8 @@ WebGLContext::CheckFramebufferStatus(WebGLenum target, WebGLenum *retval)
     if (target != LOCAL_GL_FRAMEBUFFER)
         return ErrorInvalidEnum("checkFramebufferStatus: target must be FRAMEBUFFER");
 
-    if (!mBoundFramebuffer)
-        *retval = LOCAL_GL_FRAMEBUFFER_COMPLETE;
-    else if(mBoundFramebuffer->HasDepthStencilConflict())
+    if (mBoundFramebuffer && mBoundFramebuffer->HasBadAttachments())
         *retval = LOCAL_GL_FRAMEBUFFER_UNSUPPORTED;
-    else if(!mBoundFramebuffer->ColorAttachment().IsDefined())
-        *retval = LOCAL_GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
-    else if(mBoundFramebuffer->HasIncompleteAttachment())
-        *retval = LOCAL_GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
-    else if(mBoundFramebuffer->HasAttachmentsOfMismatchedDimensions())
-        *retval = LOCAL_GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS;
     else
         *retval = gl->fCheckFramebufferStatus(target);
 
@@ -708,7 +717,7 @@ WebGLContext::CheckFramebufferStatus(WebGLenum target, WebGLenum *retval)
 NS_IMETHODIMP
 WebGLContext::Clear(PRUint32 mask)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -721,7 +730,7 @@ WebGLContext::Clear(PRUint32 mask)
 
     if (mBoundFramebuffer) {
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
-            return ErrorInvalidFramebufferOperation("clear: incomplete framebuffer");
+            return NS_OK;
     } else {
         // no FBO is bound, so we are clearing the backbuffer here
         EnsureBackbufferClearedAsNeeded();
@@ -750,7 +759,7 @@ WebGLContext::Clear(PRUint32 mask)
 NS_IMETHODIMP
 WebGLContext::ClearColor(WebGLfloat r, WebGLfloat g, WebGLfloat b, WebGLfloat a)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -765,7 +774,7 @@ WebGLContext::ClearColor(WebGLfloat r, WebGLfloat g, WebGLfloat b, WebGLfloat a)
 NS_IMETHODIMP
 WebGLContext::ClearDepth(WebGLfloat v)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -777,7 +786,7 @@ WebGLContext::ClearDepth(WebGLfloat v)
 NS_IMETHODIMP
 WebGLContext::ClearStencil(WebGLint v)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -789,7 +798,7 @@ WebGLContext::ClearStencil(WebGLint v)
 NS_IMETHODIMP
 WebGLContext::ColorMask(WebGLboolean r, WebGLboolean g, WebGLboolean b, WebGLboolean a)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -813,9 +822,9 @@ WebGLContext::CopyTexSubImage2D_base(WebGLenum target,
                                      WebGLsizei height,
                                      bool sub)
 {
-    const WebGLRectangleObject *framebufferRect = FramebufferRectangleObject();
-    WebGLsizei framebufferWidth = framebufferRect ? framebufferRect->Width() : 0;
-    WebGLsizei framebufferHeight = framebufferRect ? framebufferRect->Height() : 0;
+
+    WebGLsizei framebufferWidth =  mBoundFramebuffer ? mBoundFramebuffer->width() : mWidth;
+    WebGLsizei framebufferHeight = mBoundFramebuffer ? mBoundFramebuffer->height() : mHeight;
 
     const char *info = sub ? "copyTexSubImage2D" : "copyTexImage2D";
 
@@ -872,7 +881,7 @@ WebGLContext::CopyTexSubImage2D_base(WebGLenum target,
             || y+height <= 0)
         {
             // we are completely outside of range, can exit now with buffer filled with zeros
-            return DummyFramebufferOperation(info);
+            return NS_OK;
         }
 
         GLint   actual_x             = clamped(x, 0, framebufferWidth);
@@ -901,7 +910,7 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
                              WebGLsizei height,
                              WebGLint border)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     switch (target) {
@@ -957,9 +966,8 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
         return ErrorInvalidOperation("copyTexImage2D: texture format requires an alpha channel "
                                      "but the framebuffer doesn't have one");
 
-    if (mBoundFramebuffer)
-        if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
-            return ErrorInvalidFramebufferOperation("copyTexImage2D: incomplete framebuffer");
+    if (mBoundFramebuffer && !mBoundFramebuffer->CheckAndInitializeRenderbuffers())
+        return NS_OK;
 
     WebGLTexture *tex = activeBoundTextureForTarget(target);
     if (!tex)
@@ -974,10 +982,10 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
     if (tex->HasImageInfoAt(level, face)) {
         const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, face);
 
-        sizeMayChange = width != imageInfo.Width() ||
-                        height != imageInfo.Height() ||
-                        internalformat != imageInfo.Format() ||
-                        type != imageInfo.Type();
+        sizeMayChange = width != imageInfo.mWidth ||
+                        height != imageInfo.mHeight ||
+                        internalformat != imageInfo.mFormat ||
+                        type != imageInfo.mType;
     }
 
     if (sizeMayChange) {
@@ -1007,7 +1015,7 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
                                 WebGLsizei width,
                                 WebGLsizei height)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     switch (target) {
@@ -1044,9 +1052,8 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
     if (!tex->HasImageInfoAt(level, face))
         return ErrorInvalidOperation("copyTexSubImage2D: no texture image previously defined for this level and face");
 
-    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(level, face);
-    WebGLsizei texWidth = imageInfo.Width();
-    WebGLsizei texHeight = imageInfo.Height();
+    WebGLsizei texWidth = tex->ImageInfoAt(level, face).mWidth;
+    WebGLsizei texHeight = tex->ImageInfoAt(level, face).mHeight;
 
     if (xoffset + width > texWidth || xoffset + width < 0)
       return ErrorInvalidValue("copyTexSubImage2D: xoffset+width is too large");
@@ -1054,10 +1061,10 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
     if (yoffset + height > texHeight || yoffset + height < 0)
       return ErrorInvalidValue("copyTexSubImage2D: yoffset+height is too large");
 
-    WebGLenum format = imageInfo.Format();
+    WebGLenum format = tex->ImageInfoAt(level, face).mFormat;
     bool texFormatRequiresAlpha = format == LOCAL_GL_RGBA ||
-                                  format == LOCAL_GL_ALPHA ||
-                                  format == LOCAL_GL_LUMINANCE_ALPHA;
+                                    format == LOCAL_GL_ALPHA ||
+                                    format == LOCAL_GL_LUMINANCE_ALPHA;
     bool fboFormatHasAlpha = mBoundFramebuffer ? mBoundFramebuffer->ColorAttachment().HasAlpha()
                                                  : bool(gl->ActualFormat().alpha > 0);
 
@@ -1065,9 +1072,8 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
         return ErrorInvalidOperation("copyTexSubImage2D: texture format requires an alpha channel "
                                      "but the framebuffer doesn't have one");
 
-    if (mBoundFramebuffer)
-        if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
-            return ErrorInvalidFramebufferOperation("copyTexSubImage2D: incomplete framebuffer");
+    if (mBoundFramebuffer && !mBoundFramebuffer->CheckAndInitializeRenderbuffers())
+        return NS_OK;
 
     return CopyTexSubImage2D_base(target, level, format, xoffset, yoffset, x, y, width, height, true);
 }
@@ -1076,13 +1082,18 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
 NS_IMETHODIMP
 WebGLContext::CreateProgram(nsIWebGLProgram **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
 
-    WebGLProgram *prog = new WebGLProgram(this);
+    MakeContextCurrent();
+
+    WebGLuint name = gl->fCreateProgram();
+
+    WebGLProgram *prog = new WebGLProgram(this, name);
     NS_ADDREF(*retval = prog);
+    mMapPrograms.Put(name, prog);
 
     return NS_OK;
 }
@@ -1090,7 +1101,7 @@ WebGLContext::CreateProgram(nsIWebGLProgram **retval)
 NS_IMETHODIMP
 WebGLContext::CreateShader(WebGLenum type, nsIWebGLShader **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -1101,8 +1112,13 @@ WebGLContext::CreateShader(WebGLenum type, nsIWebGLShader **retval)
         return ErrorInvalidEnumInfo("createShader: type", type);
     }
 
-    WebGLShader *shader = new WebGLShader(this, type);
+    MakeContextCurrent();
+
+    WebGLuint name = gl->fCreateShader(type);
+
+    WebGLShader *shader = new WebGLShader(this, name, type);
     NS_ADDREF(*retval = shader);
+    mMapShaders.Put(name, shader);
 
     return NS_OK;
 }
@@ -1110,7 +1126,7 @@ WebGLContext::CreateShader(WebGLenum type, nsIWebGLShader **retval)
 NS_IMETHODIMP
 WebGLContext::CullFace(WebGLenum face)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateFaceEnum(face, "cullFace"))
@@ -1124,7 +1140,7 @@ WebGLContext::CullFace(WebGLenum face)
 NS_IMETHODIMP
 WebGLContext::DeleteBuffer(nsIWebGLBuffer *bobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLuint bufname;
@@ -1136,17 +1152,11 @@ WebGLContext::DeleteBuffer(nsIWebGLBuffer *bobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    if (mBoundArrayBuffer == buf)
-        BindBuffer(LOCAL_GL_ARRAY_BUFFER, nsnull);
-    if (mBoundElementArrayBuffer == buf)
-        BindBuffer(LOCAL_GL_ELEMENT_ARRAY_BUFFER, nsnull);
+    MakeContextCurrent();
 
-    for (int i = 0; i < mGLMaxVertexAttribs; i++) {
-        if (mAttribBuffers[i].buf == buf)
-            mAttribBuffers[i].buf = nsnull;
-    }
-
-    buf->RequestDelete();
+    gl->fDeleteBuffers(1, &bufname);
+    buf->Delete();
+    mMapBuffers.Remove(bufname);
 
     return NS_OK;
 }
@@ -1154,11 +1164,11 @@ WebGLContext::DeleteBuffer(nsIWebGLBuffer *bobj)
 NS_IMETHODIMP
 WebGLContext::DeleteFramebuffer(nsIWebGLFramebuffer *fbobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
-    WebGLFramebuffer *fbuf;
     WebGLuint fbufname;
+    WebGLFramebuffer *fbuf;
     bool isNull, isDeleted;
     if (!GetConcreteObjectAndGLName("deleteFramebuffer", fbobj, &fbuf, &fbufname, &isNull, &isDeleted))
         return NS_OK;
@@ -1166,10 +1176,14 @@ WebGLContext::DeleteFramebuffer(nsIWebGLFramebuffer *fbobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    fbuf->RequestDelete();
+    MakeContextCurrent();
 
-    if (mBoundFramebuffer == fbuf)
-        BindFramebuffer(LOCAL_GL_FRAMEBUFFER, nsnull);
+    gl->fDeleteFramebuffers(1, &fbufname);
+    fbuf->Delete();
+    mMapFramebuffers.Remove(fbufname);
+
+    if (mBoundFramebuffer && mBoundFramebuffer->GLName() == fbufname)
+        mBoundFramebuffer = NULL;
 
     return NS_OK;
 }
@@ -1177,11 +1191,11 @@ WebGLContext::DeleteFramebuffer(nsIWebGLFramebuffer *fbobj)
 NS_IMETHODIMP
 WebGLContext::DeleteRenderbuffer(nsIWebGLRenderbuffer *rbobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
-    WebGLRenderbuffer *rbuf;
     WebGLuint rbufname;
+    WebGLRenderbuffer *rbuf;
     bool isNull, isDeleted;
     if (!GetConcreteObjectAndGLName("deleteRenderbuffer", rbobj, &rbuf, &rbufname, &isNull, &isDeleted))
         return NS_OK;
@@ -1189,13 +1203,26 @@ WebGLContext::DeleteRenderbuffer(nsIWebGLRenderbuffer *rbobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    if (mBoundFramebuffer)
-        mBoundFramebuffer->DetachRenderbuffer(rbuf);
+    MakeContextCurrent();
 
-    if (mBoundRenderbuffer == rbuf)
-        BindRenderbuffer(LOCAL_GL_RENDERBUFFER, nsnull);
+    // XXX we need to track renderbuffer attachments; from glDeleteRenderbuffers man page:
 
-    rbuf->RequestDelete();
+    /*
+            If a renderbuffer object that is currently bound is deleted, the binding reverts
+            to 0 (the absence of any renderbuffer object). Additionally, special care
+            must be taken when deleting a renderbuffer object if the image of the renderbuffer
+            is attached to a framebuffer object. In this case, if the deleted renderbuffer object is
+            attached to the currently bound framebuffer object, it is 
+            automatically detached.  However, attachments to any other framebuffer objects are the
+            responsibility of the application.
+    */
+
+    gl->fDeleteRenderbuffers(1, &rbufname);
+    rbuf->Delete();
+    mMapRenderbuffers.Remove(rbufname);
+
+    if (mBoundRenderbuffer && mBoundRenderbuffer->GLName() == rbufname)
+        mBoundRenderbuffer = NULL;
 
     return NS_OK;
 }
@@ -1203,11 +1230,11 @@ WebGLContext::DeleteRenderbuffer(nsIWebGLRenderbuffer *rbobj)
 NS_IMETHODIMP
 WebGLContext::DeleteTexture(nsIWebGLTexture *tobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
-    WebGLTexture *tex;
     WebGLuint texname;
+    WebGLTexture *tex;
     bool isNull, isDeleted;
     if (!GetConcreteObjectAndGLName("deleteTexture", tobj, &tex, &texname, &isNull, &isDeleted))
         return NS_OK;
@@ -1215,20 +1242,11 @@ WebGLContext::DeleteTexture(nsIWebGLTexture *tobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    if (mBoundFramebuffer)
-        mBoundFramebuffer->DetachTexture(tex);
+    MakeContextCurrent();
 
-    for (int i = 0; i < mGLMaxTextureUnits; i++) {
-        if ((tex->Target() == LOCAL_GL_TEXTURE_2D && mBound2DTextures[i] == tex) ||
-            (tex->Target() == LOCAL_GL_TEXTURE_CUBE_MAP && mBoundCubeMapTextures[i] == tex))
-        {
-            ActiveTexture(LOCAL_GL_TEXTURE0 + i);
-            BindTexture(tex->Target(), nsnull);
-        }
-    }
-    ActiveTexture(LOCAL_GL_TEXTURE0 + mActiveTexture);
-
-    tex->RequestDelete();
+    gl->fDeleteTextures(1, &texname);
+    tex->Delete();
+    mMapTextures.Remove(texname);
 
     return NS_OK;
 }
@@ -1236,7 +1254,7 @@ WebGLContext::DeleteTexture(nsIWebGLTexture *tobj)
 NS_IMETHODIMP
 WebGLContext::DeleteProgram(nsIWebGLProgram *pobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLuint progname;
@@ -1248,7 +1266,12 @@ WebGLContext::DeleteProgram(nsIWebGLProgram *pobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    prog->RequestDelete();
+    MakeContextCurrent();
+
+    gl->fDeleteProgram(progname);
+
+    prog->DeleteWhenNotCurrent();
+    mMapPrograms.Remove(progname);
 
     return NS_OK;
 }
@@ -1256,7 +1279,7 @@ WebGLContext::DeleteProgram(nsIWebGLProgram *pobj)
 NS_IMETHODIMP
 WebGLContext::DeleteShader(nsIWebGLShader *sobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLuint shadername;
@@ -1268,7 +1291,11 @@ WebGLContext::DeleteShader(nsIWebGLShader *sobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    shader->RequestDelete();
+    MakeContextCurrent();
+
+    gl->fDeleteShader(shadername);
+    shader->DeleteWhenNotAttached();
+    mMapShaders.Remove(shadername);
 
     return NS_OK;
 }
@@ -1276,7 +1303,7 @@ WebGLContext::DeleteShader(nsIWebGLShader *sobj)
 NS_IMETHODIMP
 WebGLContext::DetachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLuint progname, shadername;
@@ -1292,13 +1319,19 @@ WebGLContext::DetachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
     if (!program->DetachShader(shader))
         return ErrorInvalidOperation("DetachShader: shader is not attached");
 
+    MakeContextCurrent();
+
+    gl->fDetachShader(progname, shadername);
+
+    shader->DetachedFromProgram();
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::DepthFunc(WebGLenum func)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateComparisonEnum(func, "depthFunc"))
@@ -1312,7 +1345,7 @@ WebGLContext::DepthFunc(WebGLenum func)
 NS_IMETHODIMP
 WebGLContext::DepthMask(WebGLboolean b)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -1324,7 +1357,7 @@ WebGLContext::DepthMask(WebGLboolean b)
 NS_IMETHODIMP
 WebGLContext::DepthRange(WebGLfloat zNear, WebGLfloat zFar)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (zNear > zFar)
@@ -1338,7 +1371,7 @@ WebGLContext::DepthRange(WebGLfloat zNear, WebGLfloat zFar)
 NS_IMETHODIMP
 WebGLContext::DisableVertexAttribArray(WebGLuint index)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateAttribIndex(index, "disableVertexAttribArray"))
@@ -1463,7 +1496,7 @@ WebGLContext::UndoFakeVertexAttrib0()
                              mAttribBuffers[0].type,
                              mAttribBuffers[0].normalized,
                              mAttribBuffers[0].stride,
-                             reinterpret_cast<const GLvoid *>(mAttribBuffers[0].byteOffset));
+                             (const GLvoid *) mAttribBuffers[0].byteOffset);
 
     gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->GLName() : 0);
 }
@@ -1564,7 +1597,7 @@ WebGLContext::UnbindFakeBlackTextures()
 NS_IMETHODIMP
 WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateDrawModeEnum(mode, "drawArrays: mode"))
@@ -1601,7 +1634,7 @@ WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
 
     if (mBoundFramebuffer) {
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
-            return ErrorInvalidFramebufferOperation("drawArrays: incomplete framebuffer");
+            return NS_OK;
     } else {
         EnsureBackbufferClearedAsNeeded();
     }
@@ -1625,7 +1658,7 @@ WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
 NS_IMETHODIMP
 WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type, WebGLint byteOffset)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateDrawModeEnum(mode, "drawElements: mode"))
@@ -1712,7 +1745,7 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type, Web
 
     if (mBoundFramebuffer) {
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
-            return ErrorInvalidFramebufferOperation("drawElements: incomplete framebuffer");
+            return NS_OK;
     } else {
         EnsureBackbufferClearedAsNeeded();
     }
@@ -1722,7 +1755,7 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type, Web
         return NS_OK;
 
     SetupRobustnessTimer();
-    gl->fDrawElements(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset));
+    gl->fDrawElements(mode, count, type, (GLvoid*) (byteOffset));
 
     UndoFakeVertexAttrib0();
     UnbindFakeBlackTextures();
@@ -1735,7 +1768,7 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type, Web
 
 NS_IMETHODIMP WebGLContext::Enable(WebGLenum cap)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateCapabilityEnum(cap, "enable"))
@@ -1757,7 +1790,7 @@ NS_IMETHODIMP WebGLContext::Enable(WebGLenum cap)
 
 NS_IMETHODIMP WebGLContext::Disable(WebGLenum cap)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateCapabilityEnum(cap, "disable"))
@@ -1780,7 +1813,7 @@ NS_IMETHODIMP WebGLContext::Disable(WebGLenum cap)
 NS_IMETHODIMP
 WebGLContext::EnableVertexAttribArray(WebGLuint index)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateAttribIndex(index, "enableVertexAttribArray"))
@@ -1797,7 +1830,7 @@ WebGLContext::EnableVertexAttribArray(WebGLuint index)
 NS_IMETHODIMP
 WebGLContext::FramebufferRenderbuffer(WebGLenum target, WebGLenum attachment, WebGLenum rbtarget, nsIWebGLRenderbuffer *rbobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!mBoundFramebuffer)
@@ -1813,7 +1846,7 @@ WebGLContext::FramebufferTexture2D(WebGLenum target,
                                    nsIWebGLTexture *tobj,
                                    WebGLint level)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (mBoundFramebuffer)
@@ -1829,7 +1862,7 @@ GL_SAME_METHOD_0(Finish, Finish)
 NS_IMETHODIMP
 WebGLContext::FrontFace(WebGLenum mode)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     switch (mode) {
@@ -1849,14 +1882,13 @@ WebGLContext::FrontFace(WebGLenum mode)
 NS_IMETHODIMP
 WebGLContext::GetActiveAttrib(nsIWebGLProgram *pobj, PRUint32 index, nsIWebGLActiveInfo **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
 
     WebGLuint progname;
-    WebGLProgram *prog;
-    if (!GetConcreteObjectAndGLName("getActiveAttrib: program", pobj, &prog, &progname))
+    if (!GetGLName<WebGLProgram>("getActiveAttrib: program", pobj, &progname))
         return NS_OK;
 
     MakeContextCurrent();
@@ -1876,10 +1908,7 @@ WebGLContext::GetActiveAttrib(nsIWebGLProgram *pobj, PRUint32 index, nsIWebGLAct
         return NS_OK;
     }
 
-    nsCString reverseMappedName;
-    prog->ReverseMapIdentifier(nsDependentCString(name), &reverseMappedName);
-
-    WebGLActiveInfo *retActiveInfo = new WebGLActiveInfo(attrsize, attrtype, reverseMappedName);
+    WebGLActiveInfo *retActiveInfo = new WebGLActiveInfo(attrsize, attrtype, name.get(), len);
     NS_ADDREF(*retval = retActiveInfo);
 
     return NS_OK;
@@ -1888,7 +1917,7 @@ WebGLContext::GetActiveAttrib(nsIWebGLProgram *pobj, PRUint32 index, nsIWebGLAct
 NS_IMETHODIMP
 WebGLContext::GenerateMipmap(WebGLenum target)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateTextureTargetEnum(target, "generateMipmap"))
@@ -1917,14 +1946,13 @@ WebGLContext::GenerateMipmap(WebGLenum target)
 NS_IMETHODIMP
 WebGLContext::GetActiveUniform(nsIWebGLProgram *pobj, PRUint32 index, nsIWebGLActiveInfo **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
 
     WebGLuint progname;
-    WebGLProgram *prog;
-    if (!GetConcreteObjectAndGLName("getActiveUniform: program", pobj, &prog, &progname))
+    if (!GetGLName<WebGLProgram>("getActiveUniform: program", pobj, &progname))
         return NS_OK;
 
     MakeContextCurrent();
@@ -1934,19 +1962,16 @@ WebGLContext::GetActiveUniform(nsIWebGLProgram *pobj, PRUint32 index, nsIWebGLAc
     if (len == 0)
         *retval = nsnull;
 
-    nsAutoArrayPtr<char> name(new char[len]);
+    nsAutoArrayPtr<char> name(new char[len + 3]); // +3 because we might have to append "[0]", see below
 
-    GLint usize = 0;
-    GLuint utype = 0;
+    GLint attrsize = 0;
+    GLuint attrtype = 0;
 
-    gl->fGetActiveUniform(progname, index, len, &len, &usize, &utype, name);
-    if (len == 0 || usize == 0 || utype == 0) {
+    gl->fGetActiveUniform(progname, index, len, &len, &attrsize, &attrtype, name);
+    if (len == 0 || attrsize == 0 || attrtype == 0) {
         *retval = nsnull;
         return NS_OK;
     }
-
-    nsCString reverseMappedName;
-    prog->ReverseMapIdentifier(nsDependentCString(name), &reverseMappedName);
 
     // OpenGL ES 2.0 specifies that if foo is a uniform array, GetActiveUniform returns its name as "foo[0]".
     // See section 2.10 page 35 in the OpenGL ES 2.0.24 specification:
@@ -1961,18 +1986,23 @@ WebGLContext::GetActiveUniform(nsIWebGLProgram *pobj, PRUint32 index, nsIWebGLAc
     // In principle we don't need to do that on OpenGL ES, but this is such a tricky difference between the ES and non-ES
     // specs that it seems probable that some ES implementers will overlook it. Since the work-around is quite cheap,
     // we do it unconditionally.
-    if (usize > 1 && reverseMappedName.CharAt(reverseMappedName.Length()-1) != ']')
-        reverseMappedName.AppendLiteral("[0]");
+    if (attrsize > 1 && name[len-1] != ']') {
+        name[len++] = '[';
+        name[len++] = '0';
+        name[len++] = ']';
+    }
 
-    WebGLActiveInfo *retActiveInfo = new WebGLActiveInfo(usize, utype, reverseMappedName);
+    WebGLActiveInfo *retActiveInfo = new WebGLActiveInfo(attrsize, attrtype, name.get(), len);
+
     NS_ADDREF(*retval = retActiveInfo);
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::GetAttachedShaders(nsIWebGLProgram *pobj, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2015,32 +2045,30 @@ WebGLContext::GetAttribLocation(nsIWebGLProgram *pobj,
                                 const nsAString& name,
                                 PRInt32 *retval)
 {
-    *retval = -1;
-
-    if (!IsContextStable())
+    if (mContextLost)
+    {
+        *retval = -1;
         return NS_OK;
+    }
+
+    *retval = 0;
 
     WebGLuint progname;
-    WebGLProgram *prog;
-    if (!GetConcreteObjectAndGLName("getAttribLocation: program", pobj, &prog, &progname))
+    if (!GetGLName<WebGLProgram>("getAttribLocation: program", pobj, &progname))
         return NS_OK;
 
     if (!ValidateGLSLVariableName(name, "getAttribLocation"))
         return NS_OK; 
 
-    NS_LossyConvertUTF16toASCII cname(name);
-    nsCString mappedName;
-    prog->MapIdentifier(cname, &mappedName);
-
     MakeContextCurrent();
-    *retval = gl->fGetAttribLocation(progname, mappedName.get());
+    *retval = gl->fGetAttribLocation(progname, NS_LossyConvertUTF16toASCII(name).get());
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2199,7 +2227,7 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
             wrval->SetAsInt32(0);
             break;
         case LOCAL_GL_COMPRESSED_TEXTURE_FORMATS:
-            wrval->SetAsEmptyArray();
+            wrval->SetAsEmpty(); // the spec says we must return null
             break;
 
 // unsigned int. here we may have to return very large values like 2^32-1 that can't be represented as
@@ -2218,15 +2246,6 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
             break;
 
 // float
-        case LOCAL_GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT:
-            if (mEnabledExtensions[WebGL_EXT_texture_filter_anisotropic]) {
-                GLfloat f = 0.f;
-                gl->fGetFloatv(pname, &f);
-                wrval->SetAsFloat(f);
-            } else {
-                return ErrorInvalidEnum("getParameter: parameter", pname);
-            }
-            break;
         case LOCAL_GL_DEPTH_CLEAR_VALUE:
         case LOCAL_GL_LINE_WIDTH:
         case LOCAL_GL_POLYGON_OFFSET_FACTOR:
@@ -2362,7 +2381,7 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
 NS_IMETHODIMP
 WebGLContext::GetBufferParameter(WebGLenum target, WebGLenum pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2399,7 +2418,7 @@ WebGLContext::GetBufferParameter(WebGLenum target, WebGLenum pname, nsIVariant *
 NS_IMETHODIMP
 WebGLContext::GetFramebufferAttachmentParameter(WebGLenum target, WebGLenum attachment, WebGLenum pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2434,7 +2453,7 @@ WebGLContext::GetFramebufferAttachmentParameter(WebGLenum target, WebGLenum atta
                 break;
 
             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
-                wrval->SetAsISupports(const_cast<WebGLRenderbuffer*>(fba.Renderbuffer()));
+                wrval->SetAsISupports(fba.Renderbuffer());
                 break;
 
             default:
@@ -2447,7 +2466,7 @@ WebGLContext::GetFramebufferAttachmentParameter(WebGLenum target, WebGLenum atta
                 break;
 
             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
-                wrval->SetAsISupports(const_cast<WebGLTexture*>(fba.Texture()));
+                wrval->SetAsISupports(fba.Texture());
                 break;
 
             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
@@ -2480,7 +2499,7 @@ WebGLContext::GetFramebufferAttachmentParameter(WebGLenum target, WebGLenum atta
 NS_IMETHODIMP
 WebGLContext::GetRenderbufferParameter(WebGLenum target, WebGLenum pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2531,13 +2550,19 @@ WebGLContext::GetRenderbufferParameter(WebGLenum target, WebGLenum pname, nsIVar
 NS_IMETHODIMP
 WebGLContext::CreateBuffer(nsIWebGLBuffer **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
 
-    WebGLBuffer *globj = new WebGLBuffer(this);
+    MakeContextCurrent();
+
+    WebGLuint name;
+    gl->fGenBuffers(1, &name);
+
+    WebGLBuffer *globj = new WebGLBuffer(this, name);
     NS_ADDREF(*retval = globj);
+    mMapBuffers.Put(name, globj);
 
     return NS_OK;
 }
@@ -2545,15 +2570,19 @@ WebGLContext::CreateBuffer(nsIWebGLBuffer **retval)
 NS_IMETHODIMP
 WebGLContext::CreateTexture(nsIWebGLTexture **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
 
     MakeContextCurrent();
 
-    WebGLTexture *globj = new WebGLTexture(this);
+    WebGLuint name;
+    gl->fGenTextures(1, &name);
+
+    WebGLTexture *globj = new WebGLTexture(this, name);
     NS_ADDREF(*retval = globj);
+    mMapTextures.Put(name, globj);
 
     return NS_OK;
 }
@@ -2561,12 +2590,9 @@ WebGLContext::CreateTexture(nsIWebGLTexture **retval)
 NS_IMETHODIMP
 WebGLContext::GetError(WebGLenum *_retval)
 {
-    if (mContextStatus == ContextStable) {
+    if (!mContextLost) {
         MakeContextCurrent();
         UpdateWebGLErrorAndClearGLError();
-    } else if (!mContextLostErrorSet) {
-        mWebGLError = LOCAL_GL_CONTEXT_LOST;
-        mContextLostErrorSet = true;
     }
 
     *_retval = mWebGLError;
@@ -2578,15 +2604,14 @@ WebGLContext::GetError(WebGLenum *_retval)
 NS_IMETHODIMP
 WebGLContext::GetProgramParameter(nsIWebGLProgram *pobj, PRUint32 pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
 
     WebGLuint progname;
     bool isDeleted;
-    WebGLProgram *prog;
-    if (!GetConcreteObjectAndGLName("getProgramParameter: program", pobj, &prog, &progname, nsnull, &isDeleted))
+    if (!GetGLName<WebGLProgram>("getProgramParameter: program", pobj, &progname, nsnull, &isDeleted))
         return NS_OK;
 
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
@@ -2609,8 +2634,6 @@ WebGLContext::GetProgramParameter(nsIWebGLProgram *pobj, PRUint32 pname, nsIVari
         }
             break;
         case LOCAL_GL_DELETE_STATUS:
-            wrval->SetAsBool(prog->IsDeleteRequested());
-            break;
         case LOCAL_GL_LINK_STATUS:
         {
             GLint i = 0;
@@ -2643,7 +2666,7 @@ WebGLContext::GetProgramParameter(nsIWebGLProgram *pobj, PRUint32 pname, nsIVari
 NS_IMETHODIMP
 WebGLContext::GetProgramInfoLog(nsIWebGLProgram *pobj, nsAString& retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         retval.SetIsVoid(true);
         return NS_OK;
@@ -2696,7 +2719,6 @@ nsresult WebGLContext::TexParameter_base(WebGLenum target, WebGLenum pname,
         return ErrorInvalidOperation("texParameter: no texture is bound to this target");
 
     bool pnameAndParamAreIncompatible = false;
-    bool paramValueInvalid = false;
 
     switch (pname) {
         case LOCAL_GL_TEXTURE_MIN_FILTER:
@@ -2745,33 +2767,18 @@ nsresult WebGLContext::TexParameter_base(WebGLenum target, WebGLenum pname,
                     pnameAndParamAreIncompatible = true;
             }
             break;
-        case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
-            if (mEnabledExtensions[WebGL_EXT_texture_filter_anisotropic]) {
-                if (floatParamPtr && floatParam < 1.f)
-                    paramValueInvalid = true;
-                else if (intParamPtr && intParam < 1)
-                    paramValueInvalid = true;
-            }
-            else
-                pnameAndParamAreIncompatible = true;
-            break;
         default:
             return ErrorInvalidEnumInfo("texParameter: pname", pname);
     }
 
     if (pnameAndParamAreIncompatible) {
+        // note that currently all params are enums, and the tex-input-validation test wants INVALID_ENUM errors
+        // even for texParameterf. why not.
         if (intParamPtr)
             return ErrorInvalidEnum("texParameteri: pname %x and param %x (decimal %d) are mutually incompatible",
                                     pname, intParam, intParam);
         else
-            return ErrorInvalidEnum("texParameterf: pname %x and param %g are mutually incompatible",
-                                    pname, floatParam);
-    } else if (paramValueInvalid) {
-        if (intParamPtr)
-            return ErrorInvalidValue("texParameteri: pname %x and param %x (decimal %d) is invalid",
-                                    pname, intParam, intParam);
-        else
-            return ErrorInvalidValue("texParameterf: pname %x and param %g is invalid",
+            return ErrorInvalidEnum("texParameterf: pname %x and floating-point param %e are mutually incompatible",
                                     pname, floatParam);
     }
 
@@ -2787,7 +2794,7 @@ nsresult WebGLContext::TexParameter_base(WebGLenum target, WebGLenum pname,
 NS_IMETHODIMP
 WebGLContext::TexParameterf(WebGLenum target, WebGLenum pname, WebGLfloat param)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return TexParameter_base(target, pname, nsnull, &param);
@@ -2796,7 +2803,7 @@ WebGLContext::TexParameterf(WebGLenum target, WebGLenum pname, WebGLfloat param)
 NS_IMETHODIMP
 WebGLContext::TexParameteri(WebGLenum target, WebGLenum pname, WebGLint param)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return TexParameter_base(target, pname, &param, nsnull);
@@ -2805,7 +2812,7 @@ WebGLContext::TexParameteri(WebGLenum target, WebGLenum pname, WebGLint param)
 NS_IMETHODIMP
 WebGLContext::GetTexParameter(WebGLenum target, WebGLenum pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2832,15 +2839,6 @@ WebGLContext::GetTexParameter(WebGLenum target, WebGLenum pname, nsIVariant **re
             wrval->SetAsInt32(i);
         }
             break;
-        case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
-            if (mEnabledExtensions[WebGL_EXT_texture_filter_anisotropic]) {
-                GLfloat f = 0.f;
-                gl->fGetTexParameterfv(target, pname, &f);
-                wrval->SetAsFloat(f);
-            }
-            else
-                return ErrorInvalidEnumInfo("getTexParameter: parameter", pname);
-            break;
 
         default:
             return ErrorInvalidEnumInfo("getTexParameter: parameter", pname);
@@ -2855,7 +2853,7 @@ WebGLContext::GetTexParameter(WebGLenum target, WebGLenum pname, nsIVariant **re
 NS_IMETHODIMP
 WebGLContext::GetUniform(nsIWebGLProgram *pobj, nsIWebGLUniformLocation *ploc, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2977,7 +2975,7 @@ WebGLContext::GetUniform(nsIWebGLProgram *pobj, nsIWebGLUniformLocation *ploc, n
 NS_IMETHODIMP
 WebGLContext::GetUniformLocation(nsIWebGLProgram *pobj, const nsAString& name, nsIWebGLUniformLocation **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -2988,26 +2986,22 @@ WebGLContext::GetUniformLocation(nsIWebGLProgram *pobj, const nsAString& name, n
         return NS_OK;
 
     if (!ValidateGLSLVariableName(name, "getUniformLocation"))
-        return NS_OK;
-
-    NS_LossyConvertUTF16toASCII cname(name);
-    nsCString mappedName;
-    prog->MapIdentifier(cname, &mappedName);
+        return NS_OK; 
 
     MakeContextCurrent();
-    GLint intlocation = gl->fGetUniformLocation(progname, mappedName.get());
 
-    WebGLUniformLocation *loc = nsnull;
-    if (intlocation >= 0)
-        NS_ADDREF(loc = new WebGLUniformLocation(this, prog, intlocation));
-    *retval = loc;
+    GLint intlocation = gl->fGetUniformLocation(progname, NS_LossyConvertUTF16toASCII(name).get());
+
+    nsRefPtr<nsIWebGLUniformLocation> loc = prog->GetUniformLocationObject(intlocation);
+    *retval = loc.forget().get();
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -3081,7 +3075,7 @@ NS_IMETHODIMP
 WebGLContext::GetVertexAttribOffset(WebGLuint index, WebGLenum pname, WebGLuint *retval)
 {
     *retval = 0;
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateAttribIndex(index, "getVertexAttribOffset"))
@@ -3097,7 +3091,7 @@ WebGLContext::GetVertexAttribOffset(WebGLuint index, WebGLenum pname, WebGLuint 
 NS_IMETHODIMP
 WebGLContext::Hint(WebGLenum target, WebGLenum mode)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     bool isValid = false;
@@ -3120,7 +3114,7 @@ WebGLContext::Hint(WebGLenum target, WebGLenum mode)
 NS_IMETHODIMP
 WebGLContext::IsBuffer(nsIWebGLBuffer *bobj, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3129,16 +3123,22 @@ WebGLContext::IsBuffer(nsIWebGLBuffer *bobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint buffername;
     WebGLBuffer *buffer;
-    *retval = GetConcreteObjectAndGLName("isBuffer", bobj, &buffer, &buffername, nsnull, &isDeleted) && 
-              !isDeleted &&
-              buffer->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isBuffer", bobj, &buffer, &buffername, nsnull, &isDeleted) && 
+                !isDeleted &&
+                buffer->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsBuffer(buffername);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::IsFramebuffer(nsIWebGLFramebuffer *fbobj, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3147,16 +3147,22 @@ WebGLContext::IsFramebuffer(nsIWebGLFramebuffer *fbobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint fbname;
     WebGLFramebuffer *fb;
-    *retval = GetConcreteObjectAndGLName("isFramebuffer", fbobj, &fb, &fbname, nsnull, &isDeleted) &&
-              !isDeleted &&
-              fb->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isFramebuffer", fbobj, &fb, &fbname, nsnull, &isDeleted) &&
+                !isDeleted &&
+                fb->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsFramebuffer(fbname);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::IsProgram(nsIWebGLProgram *pobj, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3164,15 +3170,17 @@ WebGLContext::IsProgram(nsIWebGLProgram *pobj, WebGLboolean *retval)
 
     bool isDeleted;
     WebGLProgram *prog = nsnull;
-    *retval = GetConcreteObject("isProgram", pobj, &prog, nsnull, &isDeleted, false) &&
-              !isDeleted;
+    bool ok = GetConcreteObject("isProgram", pobj, &prog, nsnull, &isDeleted, false) &&
+                !isDeleted;
+
+    *retval = ok;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::IsRenderbuffer(nsIWebGLRenderbuffer *rbobj, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3181,16 +3189,22 @@ WebGLContext::IsRenderbuffer(nsIWebGLRenderbuffer *rbobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint rbname;
     WebGLRenderbuffer *rb;
-    *retval = GetConcreteObjectAndGLName("isRenderBuffer", rbobj, &rb, &rbname, nsnull, &isDeleted) &&
-              !isDeleted &&
-              rb->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isRenderBuffer", rbobj, &rb, &rbname, nsnull, &isDeleted) &&
+                !isDeleted &&
+                rb->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsRenderbuffer(rbname);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::IsShader(nsIWebGLShader *sobj, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3198,15 +3212,17 @@ WebGLContext::IsShader(nsIWebGLShader *sobj, WebGLboolean *retval)
 
     bool isDeleted;
     WebGLShader *shader = nsnull;
-    *retval = GetConcreteObject("isShader", sobj, &shader, nsnull, &isDeleted, false) &&
-              !isDeleted;
+    bool ok = GetConcreteObject("isShader", sobj, &shader, nsnull, &isDeleted, false) &&
+                !isDeleted;
+
+    *retval = ok;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::IsTexture(nsIWebGLTexture *tobj, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3215,16 +3231,22 @@ WebGLContext::IsTexture(nsIWebGLTexture *tobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint texname;
     WebGLTexture *tex;
-    *retval = GetConcreteObjectAndGLName("isTexture", tobj, &tex, &texname, nsnull, &isDeleted) &&
-              !isDeleted &&
-              tex->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isTexture", tobj, &tex, &texname, nsnull, &isDeleted) &&
+                !isDeleted &&
+                tex->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsTexture(texname);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::IsEnabled(WebGLenum cap, WebGLboolean *retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         *retval = false;
         return NS_OK;
@@ -3245,7 +3267,7 @@ GL_SAME_METHOD_1(LineWidth, LineWidth, WebGLfloat)
 NS_IMETHODIMP
 WebGLContext::LinkProgram(nsIWebGLProgram *pobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     GLuint progname;
@@ -3262,23 +3284,25 @@ WebGLContext::LinkProgram(nsIWebGLProgram *pobj)
     }
 
     MakeContextCurrent();
+
     gl->fLinkProgram(progname);
 
     GLint ok;
     gl->fGetProgramiv(progname, LOCAL_GL_LINK_STATUS, &ok);
     if (ok) {
-        bool updateInfoSucceeded = program->UpdateInfo();
-        program->SetLinkStatus(updateInfoSucceeded);
+        program->SetLinkStatus(true);
+        program->UpdateInfo(gl);
     } else {
         program->SetLinkStatus(false);
     }
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 WebGLContext::PixelStorei(WebGLenum pname, WebGLint param)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     switch (pname) {
@@ -3321,7 +3345,7 @@ GL_SAME_METHOD_2(PolygonOffset, PolygonOffset, WebGLfloat, WebGLfloat)
 NS_IMETHODIMP
 WebGLContext::ReadPixels(PRInt32)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return NS_ERROR_FAILURE;
@@ -3342,9 +3366,8 @@ WebGLContext::ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsiz
     if (!pixels)
         return ErrorInvalidValue("ReadPixels: null array passed");
 
-    const WebGLRectangleObject *framebufferRect = FramebufferRectangleObject();
-    WebGLsizei framebufferWidth = framebufferRect ? framebufferRect->Width() : 0;
-    WebGLsizei framebufferHeight = framebufferRect ? framebufferRect->Height() : 0;
+    WebGLsizei boundWidth = mBoundFramebuffer ? mBoundFramebuffer->width() : mWidth;
+    WebGLsizei boundHeight = mBoundFramebuffer ? mBoundFramebuffer->height() : mHeight;
 
     void* data = JS_GetTypedArrayData(pixels);
     PRUint32 dataByteLen = JS_GetTypedArrayByteLength(pixels);
@@ -3425,7 +3448,7 @@ WebGLContext::ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsiz
     if (mBoundFramebuffer) {
         // prevent readback of arbitrary video memory through uninitialized renderbuffers!
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
-            return ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
+            return NS_OK;
     } else {
         EnsureBackbufferClearedAsNeeded();
     }
@@ -3433,9 +3456,9 @@ WebGLContext::ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsiz
 
     // If we won't be reading any pixels anyways, just skip the actual reading
     if (width == 0 || height == 0)
-        return DummyFramebufferOperation("readPixels");
+        return NS_OK;
 
-    if (CanvasUtils::CheckSaneSubrectSize(x, y, width, height, framebufferWidth, framebufferHeight)) {
+    if (CanvasUtils::CheckSaneSubrectSize(x, y, width, height, boundWidth, boundHeight)) {
         // the easy case: we're not reading out-of-range pixels
         gl->fReadPixels(x, y, width, height, format, type, data);
     } else {
@@ -3450,22 +3473,22 @@ WebGLContext::ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsiz
         // 100% efficient here, but in practice this is a quite rare case anyway.
         memset(data, 0, dataByteLen);
 
-        if (   x >= framebufferWidth
+        if (   x >= boundWidth
             || x+width <= 0
-            || y >= framebufferHeight
+            || y >= boundHeight
             || y+height <= 0)
         {
             // we are completely outside of range, can exit now with buffer filled with zeros
-            return DummyFramebufferOperation("readPixels");
+            return NS_OK;
         }
 
         // compute the parameters of the subrect we're actually going to call glReadPixels on
         GLint   subrect_x      = NS_MAX(x, 0);
-        GLint   subrect_end_x  = NS_MIN(x+width, framebufferWidth);
+        GLint   subrect_end_x  = NS_MIN(x+width, boundWidth);
         GLsizei subrect_width  = subrect_end_x - subrect_x;
 
         GLint   subrect_y      = NS_MAX(y, 0);
-        GLint   subrect_end_y  = NS_MIN(y+height, framebufferHeight);
+        GLint   subrect_end_y  = NS_MIN(y+height, boundHeight);
         GLsizei subrect_height = subrect_end_y - subrect_y;
 
         if (subrect_width < 0 || subrect_height < 0 ||
@@ -3551,7 +3574,7 @@ NS_IMETHODIMP
 WebGLContext::ReadPixels_array(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
                                WebGLenum format, WebGLenum type, JSObject *pixels)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return ReadPixels_base(x, y, width, height, format, type, pixels);
@@ -3560,7 +3583,7 @@ WebGLContext::ReadPixels_array(WebGLint x, WebGLint y, WebGLsizei width, WebGLsi
 NS_IMETHODIMP
 WebGLContext::RenderbufferStorage(WebGLenum target, WebGLenum internalformat, WebGLsizei width, WebGLsizei height)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!mBoundRenderbuffer || !mBoundRenderbuffer->GLName())
@@ -3612,8 +3635,8 @@ WebGLContext::RenderbufferStorage(WebGLenum target, WebGLenum internalformat, We
 
     MakeContextCurrent();
 
-    bool sizeChanges = width != mBoundRenderbuffer->Width() ||
-                       height != mBoundRenderbuffer->Height() ||
+    bool sizeChanges = width != mBoundRenderbuffer->width() ||
+                       height != mBoundRenderbuffer->height() ||
                        internalformat != mBoundRenderbuffer->InternalFormat();
     if (sizeChanges) {
         UpdateWebGLErrorAndClearGLError();
@@ -3621,7 +3644,7 @@ WebGLContext::RenderbufferStorage(WebGLenum target, WebGLenum internalformat, We
         GLenum error = LOCAL_GL_NO_ERROR;
         UpdateWebGLErrorAndClearGLError(&error);
         if (error) {
-            LogMessageIfVerbose("renderbufferStorage generated error %s", ErrorName(error));
+            LogMessageIfVerbose("bufferData generated error %s", ErrorName(error));
             return NS_OK;
         }
     } else {
@@ -3641,7 +3664,7 @@ GL_SAME_METHOD_2(SampleCoverage, SampleCoverage, WebGLfloat, WebGLboolean)
 NS_IMETHODIMP
 WebGLContext::Scissor(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (width < 0 || height < 0)
@@ -3655,7 +3678,7 @@ WebGLContext::Scissor(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei heigh
 NS_IMETHODIMP
 WebGLContext::StencilFunc(WebGLenum func, WebGLint ref, WebGLuint mask)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateComparisonEnum(func, "stencilFunc: func"))
@@ -3674,7 +3697,7 @@ WebGLContext::StencilFunc(WebGLenum func, WebGLint ref, WebGLuint mask)
 NS_IMETHODIMP
 WebGLContext::StencilFuncSeparate(WebGLenum face, WebGLenum func, WebGLint ref, WebGLuint mask)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateFaceEnum(face, "stencilFuncSeparate: face") ||
@@ -3706,7 +3729,7 @@ WebGLContext::StencilFuncSeparate(WebGLenum face, WebGLenum func, WebGLint ref, 
 NS_IMETHODIMP
 WebGLContext::StencilMask(WebGLuint mask)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     mStencilWriteMaskFront = mask;
@@ -3720,7 +3743,7 @@ WebGLContext::StencilMask(WebGLuint mask)
 NS_IMETHODIMP
 WebGLContext::StencilMaskSeparate(WebGLenum face, WebGLuint mask)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateFaceEnum(face, "stencilMaskSeparate: face"))
@@ -3747,7 +3770,7 @@ WebGLContext::StencilMaskSeparate(WebGLenum face, WebGLuint mask)
 NS_IMETHODIMP
 WebGLContext::StencilOp(WebGLenum sfail, WebGLenum dpfail, WebGLenum dppass)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateStencilOpEnum(sfail, "stencilOp: sfail") ||
@@ -3763,7 +3786,7 @@ WebGLContext::StencilOp(WebGLenum sfail, WebGLenum dpfail, WebGLenum dppass)
 NS_IMETHODIMP
 WebGLContext::StencilOpSeparate(WebGLenum face, WebGLenum sfail, WebGLenum dpfail, WebGLenum dppass)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!ValidateFaceEnum(face, "stencilOpSeparate: face") ||
@@ -3967,12 +3990,10 @@ WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t
 }
 
 nsresult
-WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
+WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                        gfxImageSurface **imageOut, int *format)
 {
-    if (!imageOrCanvas) {
-        return NS_ERROR_FAILURE;
-    }        
+    gfxImageSurface *surf = nsnull;
 
     PRUint32 flags =
         nsLayoutUtils::SFE_WANT_NEW_SURFACE |
@@ -3992,7 +4013,7 @@ WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
         return NS_ERROR_FAILURE;
     }
 
-    // We disallow loading cross-domain images and videos that have not been validated
+    // We disallow loading cross-domain images that have not been validated
     // with CORS as WebGL textures. The reason for doing that is that timing
     // attacks on WebGL shaders are able to retrieve approximations of the
     // pixel values in WebGL textures; see bug 655987.
@@ -4013,10 +4034,11 @@ WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
         }
     }
 
-    // part 2: if the DOM element is a canvas, check that it's not write-only.
-    // That would indicate a tainted canvas, i.e. a canvas that could contain
-    // cross-domain image data.
-    if (nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(imageOrCanvas)) {
+    // part 2: if the DOM element is a canvas, check that it's not write-only. That would indicate a tainted canvas,
+    // i.e. a canvas that could contain cross-domain image data.
+    nsCOMPtr<nsIContent> maybeDOMCanvas = do_QueryInterface(imageOrCanvas);
+    if (maybeDOMCanvas && maybeDOMCanvas->IsHTML(nsGkAtoms::canvas)) {
+        nsHTMLCanvasElement *canvas = static_cast<nsHTMLCanvasElement*>(maybeDOMCanvas.get());
         if (canvas->IsWriteOnly()) {
             LogMessageIfVerbose("The canvas used as source for texImage2D here is tainted (write-only). It is forbidden "
                                 "to load a WebGL texture from a tainted canvas. A Canvas becomes tainted for example "
@@ -4030,7 +4052,7 @@ WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
     // Notice that there is never a need to mark the WebGL canvas as write-only, since we reject write-only/cross-domain
     // texture sources in the first place.
 
-    gfxImageSurface* surf = static_cast<gfxImageSurface*>(res.mSurface.get());
+    surf = static_cast<gfxImageSurface*>(res.mSurface.get());
 
     res.mSurface.forget();
     *imageOut = surf;
@@ -4080,7 +4102,7 @@ WebGLContext::name(PRInt32) {                                     \
 NS_IMETHODIMP                                                           \
 WebGLContext::name##_array(nsIWebGLUniformLocation *ploc, JSObject *wa) \
 {                                                                       \
-    if (!IsContextStable())                                                   \
+    if (mContextLost)                                                   \
         return NS_OK;                                                   \
     OBTAIN_UNIFORM_LOCATION(#name ": location")                         \
     if (!wa || JS_GetTypedArrayType(wa) != js::TypedArray::arrayType)   \
@@ -4100,7 +4122,7 @@ WebGLContext::name(PRInt32) {                                     \
 NS_IMETHODIMP                                                           \
 WebGLContext::name##_array(nsIWebGLUniformLocation *ploc, WebGLboolean transpose, JSObject *wa)  \
 {                                                                       \
-    if (!IsContextStable())                                                   \
+    if (mContextLost)                                                   \
         return NS_OK;                                                   \
     OBTAIN_UNIFORM_LOCATION(#name ": location")                         \
     if (!wa || JS_GetTypedArrayType(wa) != js::TypedArray::arrayType)                   \
@@ -4116,7 +4138,7 @@ WebGLContext::name##_array(nsIWebGLUniformLocation *ploc, WebGLboolean transpose
 
 #define SIMPLE_METHOD_UNIFORM_1(glname, name, t1)        \
 NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1) {      \
-    if (!IsContextStable())                                    \
+    if (mContextLost)                                    \
         return NS_OK;                                    \
     OBTAIN_UNIFORM_LOCATION(#name ": location") \
     MakeContextCurrent(); gl->f##glname(location, a1); return NS_OK; \
@@ -4124,7 +4146,7 @@ NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1) {      \
 
 #define SIMPLE_METHOD_UNIFORM_2(glname, name, t1, t2)        \
 NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1, t2 a2) {      \
-    if (!IsContextStable())                                        \
+    if (mContextLost)                                        \
         return NS_OK;                                        \
     OBTAIN_UNIFORM_LOCATION(#name ": location") \
     MakeContextCurrent(); gl->f##glname(location, a1, a2); return NS_OK; \
@@ -4132,7 +4154,7 @@ NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1, t2 a2) { 
 
 #define SIMPLE_METHOD_UNIFORM_3(glname, name, t1, t2, t3)        \
 NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1, t2 a2, t3 a3) {      \
-    if (!IsContextStable())                                            \
+    if (mContextLost)                                            \
         return NS_OK;                                            \
     OBTAIN_UNIFORM_LOCATION(#name ": location") \
     MakeContextCurrent(); gl->f##glname(location, a1, a2, a3); return NS_OK; \
@@ -4140,7 +4162,7 @@ NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1, t2 a2, t3
 
 #define SIMPLE_METHOD_UNIFORM_4(glname, name, t1, t2, t3, t4)        \
 NS_IMETHODIMP WebGLContext::name(nsIWebGLUniformLocation *ploc, t1 a1, t2 a2, t3 a3, t4 a4) {      \
-    if (!IsContextStable())                                                \
+    if (mContextLost)                                                \
         return NS_OK;                                                \
     OBTAIN_UNIFORM_LOCATION(#name ": location") \
     MakeContextCurrent(); gl->f##glname(location, a1, a2, a3, a4); return NS_OK; \
@@ -4173,7 +4195,7 @@ SIMPLE_MATRIX_METHOD_UNIFORM(UniformMatrix4fv, 4, TYPE_FLOAT32, WebGLfloat)
 NS_IMETHODIMP
 WebGLContext::VertexAttrib1f(PRUint32 index, WebGLfloat x0)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -4195,7 +4217,7 @@ WebGLContext::VertexAttrib1f(PRUint32 index, WebGLfloat x0)
 NS_IMETHODIMP
 WebGLContext::VertexAttrib2f(PRUint32 index, WebGLfloat x0, WebGLfloat x1)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -4217,7 +4239,7 @@ WebGLContext::VertexAttrib2f(PRUint32 index, WebGLfloat x0, WebGLfloat x1)
 NS_IMETHODIMP
 WebGLContext::VertexAttrib3f(PRUint32 index, WebGLfloat x0, WebGLfloat x1, WebGLfloat x2)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -4240,7 +4262,7 @@ NS_IMETHODIMP
 WebGLContext::VertexAttrib4f(PRUint32 index, WebGLfloat x0, WebGLfloat x1,
                                              WebGLfloat x2, WebGLfloat x3)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     MakeContextCurrent();
@@ -4267,7 +4289,7 @@ WebGLContext::name(PRInt32) {                                     \
 NS_IMETHODIMP                                                           \
 WebGLContext::name##_array(WebGLuint idx, JSObject *wa)           \
 {                                                                       \
-    if (!IsContextStable())                                                   \
+    if (mContextLost)                                                   \
         return NS_OK;                                                   \
     if (!wa || JS_GetTypedArrayType(wa) != js::TypedArray::arrayType)                   \
         return ErrorInvalidOperation(#name ": array must be " #arrayType); \
@@ -4296,7 +4318,7 @@ SIMPLE_ARRAY_METHOD_NO_COUNT(VertexAttrib4fv, 4, TYPE_FLOAT32, WebGLfloat)
 NS_IMETHODIMP
 WebGLContext::UseProgram(nsIWebGLProgram *pobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLProgram *prog;
@@ -4312,7 +4334,11 @@ WebGLContext::UseProgram(nsIWebGLProgram *pobj)
 
     gl->fUseProgram(progname);
 
+    WebGLProgram* previous = mCurrentProgram;
     mCurrentProgram = prog;
+
+    if (previous)
+        previous->NoLongerCurrent();
 
     return NS_OK;
 }
@@ -4320,7 +4346,7 @@ WebGLContext::UseProgram(nsIWebGLProgram *pobj)
 NS_IMETHODIMP
 WebGLContext::ValidateProgram(nsIWebGLProgram *pobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLuint progname;
@@ -4343,13 +4369,19 @@ WebGLContext::ValidateProgram(nsIWebGLProgram *pobj)
 NS_IMETHODIMP
 WebGLContext::CreateFramebuffer(nsIWebGLFramebuffer **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = 0;
 
-    WebGLFramebuffer *globj = new WebGLFramebuffer(this);
+    MakeContextCurrent();
+
+    GLuint name;
+    gl->fGenFramebuffers(1, &name);
+
+    WebGLFramebuffer *globj = new WebGLFramebuffer(this, name);
     NS_ADDREF(*retval = globj);
+    mMapFramebuffers.Put(name, globj);
 
     return NS_OK;
 }
@@ -4357,13 +4389,19 @@ WebGLContext::CreateFramebuffer(nsIWebGLFramebuffer **retval)
 NS_IMETHODIMP
 WebGLContext::CreateRenderbuffer(nsIWebGLRenderbuffer **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = 0;
 
-    WebGLRenderbuffer *globj = new WebGLRenderbuffer(this);
+    MakeContextCurrent();
+
+    GLuint name;
+    gl->fGenRenderbuffers(1, &name);
+
+    WebGLRenderbuffer *globj = new WebGLRenderbuffer(this, name);
     NS_ADDREF(*retval = globj);
+    mMapRenderbuffers.Put(name, globj);
 
     return NS_OK;
 }
@@ -4371,7 +4409,7 @@ WebGLContext::CreateRenderbuffer(nsIWebGLRenderbuffer **retval)
 NS_IMETHODIMP
 WebGLContext::Viewport(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (width < 0 || height < 0)
@@ -4385,7 +4423,7 @@ WebGLContext::Viewport(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei heig
 NS_IMETHODIMP
 WebGLContext::CompileShader(nsIWebGLShader *sobj)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLShader *shader;
@@ -4394,20 +4432,6 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         return NS_OK;
 
     MakeContextCurrent();
-
-    ShShaderOutput targetShaderSourceLanguage = gl->IsGLES2() ? SH_ESSL_OUTPUT : SH_GLSL_OUTPUT;
-    bool useShaderSourceTranslation = true;
-
-#ifdef ANDROID
-    // see bug 709947. On Android, we can't use the ESSL backend because of strange crashes (might be
-    // an allocator mismatch). So we use the GLSL backend, and discard the output, instead just passing
-    // the original WebGL shader source to the GL (since that's ESSL already). The problem is that means
-    // we can't use shader translations on Android, in particular we can't use long identifier shortening,
-    // which means we can't reach 100% conformance. We need to fix that by debugging the ESSL backend
-    // memory crashes.
-    targetShaderSourceLanguage = SH_GLSL_OUTPUT;
-    useShaderSourceTranslation = false;
-#endif
 
 #if defined(USE_ANGLE)
     if (shader->NeedsTranslation() && mShaderValidation) {
@@ -4426,6 +4450,11 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         if (mEnabledExtensions[WebGL_OES_standard_derivatives])
             resources.OES_standard_derivatives = 1;
 
+        compiler = ShConstructCompiler((ShShaderType) shader->ShaderType(),
+                                       SH_WEBGL_SPEC,
+                                       gl->IsGLES2() ? SH_ESSL_OUTPUT : SH_GLSL_OUTPUT,
+                                       &resources);
+
         // We're storing an actual instance of StripComments because, if we don't, the 
         // cleanSource nsAString instance will be destroyed before the reference is
         // actually used.
@@ -4439,29 +4468,20 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         // shaderSource() already checks that the source stripped of comments is in the
         // 7-bit ASCII range, so we can skip the NS_IsAscii() check.
         const nsCString& sourceCString = NS_LossyConvertUTF16toASCII(flatSource);
-
+    
         const PRUint32 maxSourceLength = (PRUint32(1)<<18) - 1;
         if (sourceCString.Length() > maxSourceLength)
             return ErrorInvalidValue("compileShader: source has more than %d characters", maxSourceLength);
 
         const char *s = sourceCString.get();
-
-        compiler = ShConstructCompiler((ShShaderType) shader->ShaderType(),
-                                       SH_WEBGL_SPEC,
-                                       targetShaderSourceLanguage,
-                                       &resources);
-
-        int compileOptions = 0;
-        if (useShaderSourceTranslation) {
-            compileOptions |= SH_OBJECT_CODE
-                            | SH_MAP_LONG_VARIABLE_NAMES
-                            | SH_ATTRIBUTES_UNIFORMS;
+        
+        int compileOptions = SH_OBJECT_CODE;
+        
 #ifdef XP_MACOSX
-            // work around bug 665578
-            if (!nsCocoaFeatures::OnLionOrLater() && gl->Vendor() == gl::GLContext::VendorATI)
-                compileOptions |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+        // work around bug 665578
+        if (!nsCocoaFeatures::OnLionOrLater() && gl->Vendor() == gl::GLContext::VendorATI)
+            compileOptions |= SH_EMULATE_BUILT_IN_FUNCTIONS;
 #endif
-        }
 
         if (!ShCompile(compiler, &s, 1, compileOptions)) {
             int len = 0;
@@ -4479,50 +4499,11 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
             return NS_OK;
         }
 
-        int num_attributes = 0;
-        ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTES, &num_attributes);
-        int num_uniforms = 0;
-        ShGetInfo(compiler, SH_ACTIVE_UNIFORMS, &num_uniforms);
-        int attrib_max_length = 0;
-        ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTE_MAX_LENGTH, &attrib_max_length);
-        int uniform_max_length = 0;
-        ShGetInfo(compiler, SH_ACTIVE_UNIFORM_MAX_LENGTH, &uniform_max_length);
-        int mapped_max_length = 0;
-        ShGetInfo(compiler, SH_MAPPED_NAME_MAX_LENGTH, &mapped_max_length);
-
-        shader->mAttribMaxNameLength = attrib_max_length;
-
-        shader->mAttributes.Clear();
-        shader->mUniforms.Clear();
-        nsAutoArrayPtr<char> attribute_name(new char[attrib_max_length+1]);
-        nsAutoArrayPtr<char> uniform_name(new char[uniform_max_length+1]);
-        nsAutoArrayPtr<char> mapped_name(new char[mapped_max_length+1]);
-
-        if (useShaderSourceTranslation) {
-            for (int i = 0; i < num_attributes; i++) {
-                int length, size;
-                ShDataType type;
-                ShGetActiveAttrib(compiler, i,
-                                  &length, &size, &type,
-                                  attribute_name,
-                                  mapped_name);
-                shader->mAttributes.AppendElement(WebGLMappedIdentifier(
-                                                    nsDependentCString(attribute_name),
-                                                    nsDependentCString(mapped_name)));
-            }
-
-            for (int i = 0; i < num_uniforms; i++) {
-                int length, size;
-                ShDataType type;
-                ShGetActiveUniform(compiler, i,
-                                   &length, &size, &type,
-                                   uniform_name,
-                                   mapped_name);
-                shader->mUniforms.AppendElement(WebGLMappedIdentifier(
-                                                  nsDependentCString(uniform_name),
-                                                  nsDependentCString(mapped_name)));
-            }
-
+        /* If the GL context is really GLES2, we want to use the original provided code,
+         * since it's actually GLES2.  We still need to validate it however, which is
+         * why we ran it through the above, but we don't want the desktop GLSL.
+         */
+        if (!gl->IsGLES2()) {
             int len = 0;
             ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &len);
 
@@ -4534,10 +4515,7 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
             const char *ts = translatedSrc2.get();
 
             gl->fShaderSource(shadername, 1, &ts, NULL);
-        } else { // not useShaderSourceTranslation
-            // we just pass the raw untranslated shader source. We then can't use ANGLE idenfier mapping.
-            // that's really bad, as that means we can't be 100% conformant. We should work towards always
-            // using ANGLE identifier mapping.
+        } else {
             gl->fShaderSource(shadername, 1, &s, NULL);
         }
 
@@ -4552,56 +4530,11 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-WebGLContext::CompressedTexImage2D(PRInt32)
-{
-    NS_RUNTIMEABORT("CompressedTexImage2D(PRInt32) should never be called");
-
-    return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-WebGLContext::CompressedTexImage2D_array(WebGLenum target, WebGLint level, WebGLenum internalformat,
-                                         WebGLsizei width, WebGLsizei height, WebGLint border,
-                                         JSObject *pixels)
-{
-    if (!IsContextStable())
-        return NS_OK;
-
-    WebGLTexture *tex = activeBoundTextureForTarget(target);
-    if (!tex)
-        return ErrorInvalidOperation("compressedTexImage2D: no texture is bound to this target");
-
-    return ErrorInvalidEnum("compressedTexImage2D: compressed textures are not supported");
-}
-
-NS_IMETHODIMP
-WebGLContext::CompressedTexSubImage2D(PRInt32)
-{
-    NS_RUNTIMEABORT("CompressedTexSubImage2D(PRInt32) should never be called");
-
-    return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-WebGLContext::CompressedTexSubImage2D_array(WebGLenum target, WebGLint level, WebGLint xoffset,
-                                            WebGLint yoffset, WebGLsizei width, WebGLsizei height,
-                                            WebGLenum format, JSObject *pixels)
-{
-    if (!IsContextStable())
-        return NS_OK;
-
-    WebGLTexture *tex = activeBoundTextureForTarget(target);
-    if (!tex)
-        return ErrorInvalidOperation("compressedTexSubImage2D: no texture is bound to this target");
-
-    return ErrorInvalidEnum("compressedTexSubImage2D: compressed textures are not supported");
-}
 
 NS_IMETHODIMP
 WebGLContext::GetShaderParameter(nsIWebGLShader *sobj, WebGLenum pname, nsIVariant **retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     *retval = nsnull;
@@ -4631,8 +4564,6 @@ WebGLContext::GetShaderParameter(nsIWebGLShader *sobj, WebGLenum pname, nsIVaria
         }
             break;
         case LOCAL_GL_DELETE_STATUS:
-            wrval->SetAsBool(shader->IsDeleteRequested());
-            break;
         case LOCAL_GL_COMPILE_STATUS:
         {
             GLint i = 0;
@@ -4652,7 +4583,7 @@ WebGLContext::GetShaderParameter(nsIWebGLShader *sobj, WebGLenum pname, nsIVaria
 NS_IMETHODIMP
 WebGLContext::GetShaderInfoLog(nsIWebGLShader *sobj, nsAString& retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         retval.SetIsVoid(true);
         return NS_OK;
@@ -4694,48 +4625,9 @@ WebGLContext::GetShaderInfoLog(nsIWebGLShader *sobj, nsAString& retval)
 }
 
 NS_IMETHODIMP
-WebGLContext::GetShaderPrecisionFormat(WebGLenum shadertype, WebGLenum precisiontype, nsIWebGLShaderPrecisionFormat **retval)
-{
-    *retval = nsnull;
-    if (!IsContextStable())
-        return NS_OK;
-
-    switch (shadertype) {
-        case LOCAL_GL_FRAGMENT_SHADER:
-        case LOCAL_GL_VERTEX_SHADER:
-            break;
-        default:
-            return ErrorInvalidEnumInfo("getShaderPrecisionFormat: shadertype", shadertype);
-    }
-
-    switch (precisiontype) {
-        case LOCAL_GL_LOW_FLOAT:
-        case LOCAL_GL_MEDIUM_FLOAT:
-        case LOCAL_GL_HIGH_FLOAT:
-        case LOCAL_GL_LOW_INT:
-        case LOCAL_GL_MEDIUM_INT:
-        case LOCAL_GL_HIGH_INT:
-            break;
-        default:
-            return ErrorInvalidEnumInfo("getShaderPrecisionFormat: precisiontype", precisiontype);
-    }
-
-    MakeContextCurrent();
-
-    GLint range[2], precision;
-    gl->fGetShaderPrecisionFormat(shadertype, precisiontype, range, &precision);
-
-    WebGLShaderPrecisionFormat *retShaderPrecisionFormat
-        = new WebGLShaderPrecisionFormat(range[0], range[1], precision);
-    NS_ADDREF(*retval = retShaderPrecisionFormat);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 WebGLContext::GetShaderSource(nsIWebGLShader *sobj, nsAString& retval)
 {
-    if (!IsContextStable())
+    if (mContextLost)
     {
         retval.SetIsVoid(true);
         return NS_OK;
@@ -4754,7 +4646,7 @@ WebGLContext::GetShaderSource(nsIWebGLShader *sobj, nsAString& retval)
 NS_IMETHODIMP
 WebGLContext::ShaderSource(nsIWebGLShader *sobj, const nsAString& source)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     WebGLShader *shader;
@@ -4782,7 +4674,7 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
                                   WebGLboolean normalized, WebGLsizei stride,
                                   WebGLsizeiptr byteOffset)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (mBoundArrayBuffer == nsnull)
@@ -4850,7 +4742,7 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
 
     gl->fVertexAttribPointer(index, size, type, normalized,
                              stride,
-                             reinterpret_cast<void*>(byteOffset));
+                             (void*) (byteOffset));
 
     return NS_OK;
 }
@@ -4858,7 +4750,7 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
 NS_IMETHODIMP
 WebGLContext::TexImage2D(PRInt32)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return NS_ERROR_FAILURE;
@@ -4882,10 +4774,10 @@ GLenum WebGLContext::CheckedTexImage2D(GLenum target,
     
     if (tex->HasImageInfoAt(level, face)) {
         const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, face);
-        sizeMayChange = width != imageInfo.Width() ||
-                        height != imageInfo.Height() ||
-                        format != imageInfo.Format() ||
-                        type != imageInfo.Type();
+        sizeMayChange = width != imageInfo.mWidth ||
+                        height != imageInfo.mHeight ||
+                        format != imageInfo.mFormat ||
+                        type != imageInfo.mType;
     }
     
     if (sizeMayChange) {
@@ -5054,7 +4946,7 @@ WebGLContext::TexImage2D_array(WebGLenum target, WebGLint level, WebGLenum inter
                                WebGLenum format, WebGLenum type,
                                JSObject *pixels)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return TexImage2D_base(target, level, internalformat, width, height, 0, border, format, type,
@@ -5070,7 +4962,7 @@ WebGLContext::TexImage2D_imageData(WebGLenum target, WebGLint level, WebGLenum i
                                WebGLenum format, WebGLenum type,
                                JSObject *pixels)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return TexImage2D_base(target, level, internalformat, width, height, 4*width, border, format, type,
@@ -5082,9 +4974,9 @@ WebGLContext::TexImage2D_imageData(WebGLenum target, WebGLint level, WebGLenum i
 
 NS_IMETHODIMP
 WebGLContext::TexImage2D_dom(WebGLenum target, WebGLint level, WebGLenum internalformat,
-                             WebGLenum format, GLenum type, Element* elt)
+                             WebGLenum format, GLenum type, nsIDOMElement *elt)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     nsRefPtr<gfxImageSurface> isurf;
@@ -5107,7 +4999,7 @@ WebGLContext::TexImage2D_dom(WebGLenum target, WebGLint level, WebGLenum interna
 NS_IMETHODIMP
 WebGLContext::TexSubImage2D(PRInt32)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     return NS_ERROR_FAILURE;
@@ -5189,11 +5081,11 @@ WebGLContext::TexSubImage2D_base(WebGLenum target, WebGLint level,
         return ErrorInvalidOperation("texSubImage2D: no texture image previously defined for this level and face");
     
     const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(level, face);
-    if (!CanvasUtils::CheckSaneSubrectSize(xoffset, yoffset, width, height, imageInfo.Width(), imageInfo.Height()))
+    if (!CanvasUtils::CheckSaneSubrectSize(xoffset, yoffset, width, height, imageInfo.mWidth, imageInfo.mHeight))
         return ErrorInvalidValue("texSubImage2D: subtexture rectangle out of bounds");
     
     // Require the format and type in texSubImage2D to match that of the existing texture as created by texImage2D
-    if (imageInfo.Format() != format || imageInfo.Type() != type)
+    if (imageInfo.mFormat != format || imageInfo.mType != type)
         return ErrorInvalidOperation("texSubImage2D: format or type doesn't match the existing texture");
 
     MakeContextCurrent();
@@ -5235,7 +5127,7 @@ WebGLContext::TexSubImage2D_array(WebGLenum target, WebGLint level,
                                   WebGLenum format, WebGLenum type,
                                   JSObject *pixels)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!pixels)
@@ -5255,7 +5147,7 @@ WebGLContext::TexSubImage2D_imageData(WebGLenum target, WebGLint level,
                                       WebGLenum format, WebGLenum type,
                                       JSObject *pixels)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     if (!pixels)
@@ -5272,9 +5164,9 @@ NS_IMETHODIMP
 WebGLContext::TexSubImage2D_dom(WebGLenum target, WebGLint level,
                                 WebGLint xoffset, WebGLint yoffset,
                                 WebGLenum format, WebGLenum type,
-                                Element *elt)
+                                nsIDOMElement *elt)
 {
-    if (!IsContextStable())
+    if (mContextLost)
         return NS_OK;
 
     nsRefPtr<gfxImageSurface> isurf;
@@ -5292,16 +5184,17 @@ WebGLContext::TexSubImage2D_dom(WebGLenum target, WebGLint level,
                               format, type,
                               isurf->Data(), byteLength,
                               -1,
-                              srcFormat, mPixelStorePremultiplyAlpha);
+                              srcFormat, true);
 }
 
 bool
 WebGLContext::LoseContext()
 {
-    if (!IsContextStable())
+    if (mContextLost) {
         return false;
+    }
 
-    mContextLostDueToTest = true;
+    mAllowRestore = true;
     ForceLoseContext();
 
     return true;
@@ -5310,7 +5203,7 @@ WebGLContext::LoseContext()
 bool
 WebGLContext::RestoreContext()
 {
-    if (IsContextStable() || !mAllowRestore) {
+    if (!mContextLost || !mAllowRestore) {
         return false;
     }
 

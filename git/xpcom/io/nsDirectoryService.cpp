@@ -307,7 +307,7 @@ nsDirectoryService::RealInit()
     if (NS_FAILED(rv))
         return rv;
 
-    NS_RegisterStaticAtoms(directory_atoms);
+    NS_RegisterStaticAtoms(directory_atoms, ArrayLength(directory_atoms));
     
     // Let the list hold the only reference to the provider.
     nsAppFileLocationProvider *defaultProvider = new nsAppFileLocationProvider;
@@ -856,10 +856,6 @@ nsDirectoryService::GetFile(const char *prop, bool *persistent, nsIFile **_retva
     else if (inAtom == nsDirectoryService::sCommon_Desktopdirectory)
     {
         rv = GetSpecialSystemDirectory(Win_Common_Desktopdirectory, getter_AddRefs(localFile)); 
-    }
-    else if (inAtom == nsDirectoryService::sCommon_AppData)
-    {
-        rv = GetSpecialSystemDirectory(Win_Common_AppData, getter_AddRefs(localFile)); 
     }
     else if (inAtom == nsDirectoryService::sAppdata)
     {

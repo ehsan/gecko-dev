@@ -59,6 +59,7 @@ tier_platform_dirs += modules/zlib
 endif
 
 tier_platform_dirs += \
+		modules/libreg \
 		modules/libpref \
 		intl \
 		netwerk \
@@ -80,6 +81,7 @@ ifdef MOZ_UPDATER
 ifndef MOZ_NATIVE_BZ2
 tier_platform_dirs += modules/libbz2
 endif
+tier_platform_dirs += modules/libmar
 tier_platform_dirs += other-licenses/bsdiff
 endif
 
@@ -89,7 +91,7 @@ tier_platform_dirs	+= gfx/qcms
 # "gecko" - core components
 #
 
-tier_platform_dirs += ipc js/ipc
+tier_platform_dirs += ipc js/ipc js/jetpack
 
 tier_platform_dirs += \
 		hal \
@@ -99,7 +101,7 @@ tier_platform_dirs += \
 
 ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
-tier_platform_dirs     += widget/gtkxtbin
+tier_platform_dirs     += widget/src/gtkxtbin
 endif
 endif
 
@@ -153,12 +155,6 @@ tier_platform_dirs += \
 		$(NULL)
 endif
 
-ifdef MOZ_CUBEB
-tier_platform_dirs += \
-		media/libcubeb \
-		$(NULL)
-endif
-
 ifndef MOZ_NATIVE_PNG
 tier_platform_dirs += media/libpng
 endif
@@ -204,24 +200,20 @@ tier_platform_dirs  += tools/profiler
 tier_platform_dirs	+= xpfe/components
 
 ifdef MOZ_ENABLE_XREMOTE
-tier_platform_dirs += widget/xremoteclient
+tier_platform_dirs += widget/src/xremoteclient
 endif
 
 ifdef MOZ_SPELLCHECK
 tier_platform_dirs	+= extensions/spellcheck
 endif
 
+tier_platform_dirs	+= toolkit
+
 ifdef MOZ_PSM
 tier_platform_dirs	+= security/manager
 else
 tier_platform_dirs	+= security/manager/boot/public security/manager/ssl/public
 endif
-
-ifdef MOZ_UPDATER
-tier_platform_dirs += modules/libmar
-endif
-
-tier_platform_dirs	+= toolkit
 
 ifdef MOZ_PREF_EXTENSIONS
 tier_platform_dirs += extensions/pref
@@ -232,8 +224,6 @@ tier_platform_dirs += services/crypto/component
 tier_platform_dirs += startupcache
 
 tier_platform_dirs += js/ductwork/debugger
-
-tier_platform_dirs += other-licenses/snappy
 
 ifdef APP_LIBXUL_STATICDIRS
 # Applications can cheat and ask for code to be
@@ -278,5 +268,5 @@ tier_platform_dirs += testing/mochitest
 tier_platform_dirs += testing/xpcshell
 tier_platform_dirs += testing/tools/screenshot
 tier_platform_dirs += testing/peptest
-tier_platform_dirs += testing/mozbase
 endif
+

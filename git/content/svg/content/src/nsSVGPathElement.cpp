@@ -44,7 +44,6 @@
 #include "DOMSVGPathSegList.h"
 #include "nsCOMPtr.h"
 #include "nsIFrame.h"
-#include "nsContentUtils.h"
 #include "nsSVGPathDataParser.h"
 #include "nsSVGPathElement.h"
 #include "nsSVGUtils.h"
@@ -68,9 +67,9 @@ NS_IMPL_RELEASE_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 DOMCI_NODE_DATA(SVGPathElement, nsSVGPathElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGPathElement)
-  NS_NODE_INTERFACE_TABLE6(nsSVGPathElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGPathElement, nsIDOMSVGAnimatedPathData)
+  NS_NODE_INTERFACE_TABLE5(nsSVGPathElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGPathElement,
+                           nsIDOMSVGAnimatedPathData)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPathElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPathElementBase)
 
@@ -341,12 +340,6 @@ nsSVGPathElement::CreateSVGPathSegCurvetoQuadraticSmoothRel(float x, float y, ns
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
-/* virtual */ bool
-nsSVGPathElement::HasValidDimensions() const
-{
-  return !mD.GetAnimValue().IsEmpty();
-}
-
 nsSVGElement::NumberAttributesInfo
 nsSVGPathElement::GetNumberInfo()
 {
@@ -395,7 +388,7 @@ nsSVGPathElement::IsAttributeMapped(const nsIAtom* name) const
     sMarkersMap
   };
 
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGPathElementBase::IsAttributeMapped(name);
 }
 
@@ -446,7 +439,7 @@ nsSVGPathElement::GetPathLengthScale(PathLengthScaleForType aFor)
         // For textPath, a transform on the referenced path affects the
         // textPath layout, so when calculating the actual path length
         // we need to take that into account.
-        matrix = PrependLocalTransformsTo(matrix);
+        matrix = PrependLocalTransformTo(gfxMatrix());
       }
       nsRefPtr<gfxFlattenedPath> path = GetFlattenedPath(matrix);
       if (path) {

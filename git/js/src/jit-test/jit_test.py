@@ -50,8 +50,8 @@ class Test:
         self.slow = False      # True means the test is slow-running
         self.allow_oom = False # True means that OOM is not considered a failure
         self.valgrind = False  # True means run under valgrind
-        self.expect_error = '' # Errors to expect and consider passing
-        self.expect_status = 0 # Exit status to expect from shell
+        self.tmflags = ''      # Value of TMFLAGS env var to pass
+        self.error = ''        # Errors to expect and consider passing
 
     def copy(self):
         t = Test(self.path)
@@ -59,8 +59,8 @@ class Test:
         t.slow = self.slow
         t.allow_oom = self.allow_oom
         t.valgrind = self.valgrind
-        t.expect_error = self.expect_error
-        t.expect_status = self.expect_status
+        t.tmflags = self.tmflags
+        t.error = self.error
         return t
 
     COOKIE = '|jit-test|'
@@ -81,13 +81,10 @@ class Test:
                 name, _, value = part.partition(':')
                 if value:
                     value = value.strip()
-                    if name == 'error':
-                        test.expect_error = value
-                    elif name == 'exitstatus':
-                        try:
-                            test.expect_status = int(value, 0);
-                        except ValueError:
-                            print("warning: couldn't parse exit status %s"%value)
+                    if name == 'TMFLAGS':
+                        test.tmflags = value
+                    elif name == 'error':
+                        test.error = value
                     else:
                         print('warning: unrecognized |jit-test| attribute %s'%part)
                 else:
@@ -204,6 +201,9 @@ def run_cmd_avoid_stdio(cmdline, env, timeout):
     return read_and_unlink(stdoutPath), read_and_unlink(stderrPath), code
 
 def run_test(test, lib_dir, shell_args):
+    env = os.environ.copy()
+    if test.tmflags:
+        env['TMFLAGS'] = test.tmflags
     cmd = get_test_cmd(test.path, test.jitflags, lib_dir, shell_args)
 
     if (test.valgrind and
@@ -225,7 +225,7 @@ def run_test(test, lib_dir, shell_args):
         run = run_cmd_avoid_stdio
     else:
         run = run_cmd
-    out, err, code, timed_out = run(cmd, os.environ, OPTIONS.timeout)
+    out, err, code, timed_out = run(cmd, env, OPTIONS.timeout)
 
     if OPTIONS.show_output:
         sys.stdout.write(out)
@@ -233,12 +233,12 @@ def run_test(test, lib_dir, shell_args):
         sys.stdout.write('Exit code: %s\n' % code)
     if test.valgrind:
         sys.stdout.write(err)
-    return (check_output(out, err, code, test),
+    return (check_output(out, err, code, test.allow_oom, test.error), 
             out, err, code, timed_out)
 
-def check_output(out, err, rc, test):
-    if test.expect_error:
-        return test.expect_error in err
+def check_output(out, err, rc, allow_oom, expectedError):
+    if expectedError:
+        return expectedError in err
 
     for line in out.split('\n'):
         if line.startswith('Trace stats check failed'):
@@ -248,10 +248,10 @@ def check_output(out, err, rc, test):
         if 'Assertion failed:' in line:
             return False
 
-    if rc != test.expect_status:
+    if rc != 0:
         # Allow a non-zero exit code if we want to allow OOM, but only if we
         # actually got OOM.
-        return test.allow_oom and ': out of memory' in err
+        return allow_oom and ': out of memory' in err
 
     return True
 

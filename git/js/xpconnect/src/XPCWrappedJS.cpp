@@ -75,27 +75,21 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
 
     // nsXPCWrappedJS keeps its own refcount artificially at or above 1, see the
     // comment above nsXPCWrappedJS::AddRef.
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "self");
     cb.NoteXPCOMChild(s);
 
-    if (refcnt > 1) {
+    if (refcnt > 1)
         // nsXPCWrappedJS roots its mJSObj when its refcount is > 1, see
         // the comment above nsXPCWrappedJS::AddRef.
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mJSObj");
         cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
                            tmp->GetJSObjectPreserveColor());
-    }
 
     nsXPCWrappedJS* root = tmp->GetRootWrapper();
-    if (root == tmp) {
+    if (root == tmp)
         // The root wrapper keeps the aggregated native object alive.
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "aggregated native");
         cb.NoteXPCOMChild(tmp->GetAggregatedNativeObject());
-    } else {
+    else
         // Non-root wrappers keep their root alive.
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "root");
         cb.NoteXPCOMChild(static_cast<nsIXPConnectWrappedJS*>(root));
-    }
 
     return NS_OK;
 }
@@ -668,8 +662,15 @@ nsXPCWrappedJS::GetProperty(const nsAString & name, nsIVariant **_retval)
     if (!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 
+    nsStringBuffer* buf;
+    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name, &buf);
+    if (JSVAL_IS_NULL(jsstr))
+        return NS_ERROR_OUT_OF_MEMORY;
+    if (buf)
+        buf->AddRef();
+
     return nsXPCWrappedJSClass::
-        GetNamedPropertyAsVariant(ccx, GetJSObject(), name, _retval);
+        GetNamedPropertyAsVariant(ccx, GetJSObject(), jsstr, _retval);
 }
 
 /***************************************************************************/

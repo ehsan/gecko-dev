@@ -193,25 +193,41 @@ NS_IMPL_STRING_ATTR_WITH_FALLBACK(nsHTMLOptionElement, Label, label, GetText)
 NS_IMPL_STRING_ATTR_WITH_FALLBACK(nsHTMLOptionElement, Value, value, GetText)
 NS_IMPL_BOOL_ATTR(nsHTMLOptionElement, Disabled, disabled)
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsHTMLOptionElement::GetIndex(PRInt32* aIndex)
 {
-  // When the element is not in a list of options, the index is 0.
-  *aIndex = 0;
+  NS_ENSURE_ARG_POINTER(aIndex);
 
-  // Only select elements can contain a list of options.
+  *aIndex = -1; // -1 indicates the index was not found
+
+  // Get our containing select content object.
   nsHTMLSelectElement* selectElement = GetSelect();
-  if (!selectElement) {
-    return NS_OK;
+
+  if (selectElement) {
+    // Get the options from the select object.
+    nsCOMPtr<nsIDOMHTMLOptionsCollection> options;
+    selectElement->GetOptions(getter_AddRefs(options));
+
+    if (options) {
+      // Walk the options to find out where we are in the list (ick, O(n))
+      PRUint32 length = 0;
+      options->GetLength(&length);
+
+      nsCOMPtr<nsIDOMNode> thisOption;
+
+      for (PRUint32 i = 0; i < length; i++) {
+        options->Item(i, getter_AddRefs(thisOption));
+
+        if (thisOption.get() == static_cast<nsIDOMNode *>(this)) {
+          *aIndex = i;
+
+          break;
+        }
+      }
+    }
   }
 
-  nsHTMLOptionCollection* options = selectElement->GetOptions();
-  if (!options) {
-    return NS_OK;
-  }
-
-  // aIndex will not be set if GetOptionsIndex fails.
-  return options->GetOptionIndex(this, 0, true, aIndex);
+  return NS_OK;
 }
 
 bool
@@ -247,8 +263,7 @@ nsHTMLOptionElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 
 nsresult
 nsHTMLOptionElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                   const nsAttrValueOrString* aValue,
-                                   bool aNotify)
+                                   const nsAString* aValue, bool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::BeforeSetAttr(aNamespaceID, aName,
                                                     aValue, aNotify);

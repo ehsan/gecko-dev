@@ -43,8 +43,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = layout_debug
-DIRS = src ui
-TEST_DIRS = tests
+MODULE		= layout_debug
+DIRS		= src ui tests
 
 include $(topsrcdir)/config/rules.mk

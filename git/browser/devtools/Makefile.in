@@ -52,9 +52,7 @@ DIRS = \
   sourceeditor \
   styleeditor \
   styleinspector \
-  tilt \
   scratchpad \
-  debugger \
   shared \
   $(NULL)
 

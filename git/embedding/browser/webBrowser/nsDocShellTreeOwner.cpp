@@ -55,7 +55,6 @@
 #include "nsUnicharUtils.h"
 #include "nsISimpleEnumerator.h"
 #include "nsGUIEvent.h"
-#include "mozilla/LookAndFeel.h"
 
 // Interfaces needed to be included
 #include "nsPresContext.h"
@@ -104,8 +103,6 @@
 #include "nsEventListenerManager.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIConstraintValidation.h"
-
-using namespace mozilla;
 
 //
 // GetEventReceiver
@@ -950,7 +947,7 @@ nsDocShellTreeOwner::HandleEvent(nsIDOMEvent* aEvent)
       nsIWebNavigation* webnav = static_cast<nsIWebNavigation *>(mWebBrowser);
 
       nsAutoString link, name;
-      if (webnav && NS_SUCCEEDED(handler->DropLink(dragEvent, link, false, name))) {
+      if (webnav && NS_SUCCEEDED(handler->DropLink(dragEvent, link, name))) {
         if (!link.IsEmpty()) {
           webnav->LoadURI(link.get(), 0, nsnull, nsnull, nsnull);
         }
@@ -1356,10 +1353,8 @@ ChromeTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
     if ( eventTarget )
       mPossibleTooltipNode = do_QueryInterface(eventTarget);
     if ( mPossibleTooltipNode ) {
-      nsresult rv =
-        mTooltipTimer->InitWithFuncCallback(sTooltipCallback, this,
-          LookAndFeel::GetInt(LookAndFeel::eIntID_TooltipDelay, 500),
-          nsITimer::TYPE_ONE_SHOT);
+      nsresult rv = mTooltipTimer->InitWithFuncCallback(sTooltipCallback, this, kTooltipShowTime, 
+                                                        nsITimer::TYPE_ONE_SHOT);
       if (NS_FAILED(rv))
         mPossibleTooltipNode = nsnull;
     }

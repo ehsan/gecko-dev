@@ -6,7 +6,6 @@
  * here must be in strict JSON format, as it will get parsed by the Python
  * testrunner (no single quotes, extra comma's, etc).
  */
-EnableEngines(["prefs"]);
 
 var phases = { "phase1": "profile1",
                "phase2": "profile2",
@@ -48,7 +47,7 @@ var prefs2 = [
 Phase('phase1', [
   [Prefs.modify, prefs1],
   [Prefs.verify, prefs1],
-  [Sync]
+  [Sync, SYNC_WIPE_SERVER],
 ]);
 
 // Sync profile2 and verify same prefs are present.

@@ -40,7 +40,7 @@
 #include "nsRect.h"
 #include "nsSVGContainerFrame.h"
 
-class nsRenderingContext;
+class nsSVGRenderState;
 class nsSVGFilterPaintCallback;
 
 typedef nsSVGContainerFrame nsSVGFilterFrameBase;
@@ -49,11 +49,7 @@ class nsSVGFilterFrame : public nsSVGFilterFrameBase
   friend nsIFrame*
   NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGFilterFrame(nsStyleContext* aContext)
-    : nsSVGFilterFrameBase(aContext)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  nsSVGFilterFrame(nsStyleContext* aContext) : nsSVGFilterFrameBase(aContext) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -62,7 +58,7 @@ public:
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
 
-  nsresult FilterPaint(nsRenderingContext *aContext,
+  nsresult FilterPaint(nsSVGRenderState *aContext,
                        nsIFrame *aTarget, nsSVGFilterPaintCallback *aPaintCallback,
                        const nsIntRect* aDirtyRect);
 

@@ -47,19 +47,16 @@ interface nsIIDBRequest;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-IDBIndex for more
  * information.
  */
-[scriptable, builtinclass, uuid(a859747a-0f05-4dfb-8f42-05c61415d4e4)]
+[scriptable, builtinclass, uuid(1da60889-3db4-4f66-9fd7-b78c1e7969b7)]
 interface nsIIDBIndex : nsISupports
 {
   readonly attribute DOMString name;
 
   readonly attribute DOMString storeName;
 
-  [implicit_jscontext]
-  readonly attribute jsval keyPath;
+  readonly attribute DOMString keyPath;
 
   readonly attribute boolean unique;
-
-  readonly attribute boolean multiEntry;
 
   readonly attribute nsIIDBObjectStore objectStore;
 
@@ -81,17 +78,15 @@ interface nsIIDBIndex : nsISupports
   getAllKeys([optional /* null */] in jsval key,
              [optional /* unlimited */] in unsigned long limit);
 
-  // direction can be "next", "nextunique", "prev" or "prevunique"
   [implicit_jscontext, optional_argc]
   nsIIDBRequest
   openCursor([optional /* null */] in jsval key,
-             [optional /* "next" */] in DOMString direction);
+             [optional /* nsIIDBCursor::NEXT */] in unsigned short direction);
 
-  // direction can be "next", "nextunique", "prev" or "prevunique"
   [implicit_jscontext, optional_argc]
   nsIIDBRequest
   openKeyCursor([optional /* null */] in jsval key,
-                [optional /* "next" */] in DOMString direction);
+                [optional /* nsIIDBCursor::NEXT */] in unsigned short direction);
 
   // Accepts null, a key value, or a nsIIDBKeyRange object.
   [implicit_jscontext, optional_argc]

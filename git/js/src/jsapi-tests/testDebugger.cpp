@@ -110,7 +110,6 @@ bool called = false;
 static JSTrapStatus
 ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
 {
-    JS_ASSERT(!closure);
     called = true;
 
     JSObject *global = JS_GetGlobalForScopeChain(cx);
@@ -124,10 +123,12 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
 
 BEGIN_TEST(testDebugger_throwHook)
 {
-    uint32_t newopts = JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
-    uint32_t oldopts = JS_SetOptions(cx, newopts);
+    uint32 newopts = JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
+    uint32 oldopts = JS_SetOptions(cx, newopts);
 
-    CHECK(JS_SetThrowHook(rt, ThrowHook, NULL));
+    JSDebugHooks hooks = { 0 };
+    hooks.throwHook = ThrowHook;
+    JSDebugHooks *old = JS_SetContextDebugHooks(cx, &hooks);
     EXEC("function foo() { throw 3 };\n"
          "for (var i = 0; i < 10; ++i) { \n"
          "  var x = <tag></tag>;\n"
@@ -136,7 +137,8 @@ BEGIN_TEST(testDebugger_throwHook)
          "  } catch(e) {}\n"
          "}\n");
     CHECK(called);
-    CHECK(JS_SetThrowHook(rt, NULL, NULL));
+
+    JS_SetContextDebugHooks(cx, old);
     JS_SetOptions(cx, oldopts);
     return true;
 }
@@ -257,7 +259,7 @@ BEGIN_TEST(testDebugger_singleStepThrow)
         CHECK(JS_SetDebugModeForCompartment(cx, cx->compartment, true));
         CHECK(JS_SetInterrupt(rt, onStep, NULL));
 
-        uint32_t opts = JS_GetOptions(cx);
+        uint32 opts = JS_GetOptions(cx);
         opts |= JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
         JS_SetOptions(cx, opts);
 
@@ -271,12 +273,12 @@ BEGIN_TEST(testDebugger_singleStepThrow)
     }
 
     static JSBool
-    setStepMode(JSContext *cx, unsigned argc, jsval *vp)
+    setStepMode(JSContext *cx, uintN argc, jsval *vp)
     {
-        JSScript *script;
-        JS_DescribeScriptedCaller(cx, &script, NULL);
+        JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
+        JS_ASSERT(fp);
+        JSScript *script = JS_GetFrameScript(cx, fp);
         JS_ASSERT(script);
-
         if (!JS_SetSingleStepMode(cx, script, true))
             return false;
         JS_SET_RVAL(cx, vp, JSVAL_VOID);

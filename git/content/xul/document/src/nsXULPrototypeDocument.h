@@ -147,11 +147,6 @@ public:
     // nsIScriptGlobalObjectOwner methods
     virtual nsIScriptGlobalObject* GetScriptGlobalObject();
 
-    void MarkInCCGeneration(PRUint32 aCCGeneration)
-    {
-        mCCGeneration = aCCGeneration;
-    }
-
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULPrototypeDocument,
                                              nsIScriptGlobalObjectOwner)
 
@@ -167,8 +162,6 @@ protected:
     nsTArray< nsRefPtr<nsXULDocument> > mPrototypeWaiters;
 
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
-
-    PRUint32 mCCGeneration;
 
     nsXULPrototypeDocument();
     virtual ~nsXULPrototypeDocument();

@@ -47,6 +47,7 @@
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jshash.h"
 #include "jsprf.h"
@@ -154,7 +155,6 @@ const char *const js_common_atom_names[] = {
     js_noSuchMethod_str,        /* noSuchMethodAtom             */
     "[object Null]",            /* objectNullAtom               */
     "[object Undefined]",       /* objectUndefinedAtom          */
-    "of",                       /* ofAtom                       */
     js_proto_str,               /* protoAtom                    */
     js_set_str,                 /* setAtom                      */
     js_source_str,              /* sourceAtom                   */
@@ -333,8 +333,11 @@ js_InitAtomState(JSRuntime *rt)
     if (!state->atoms.init(JS_STRING_HASH_COUNT))
         return false;
 
+#ifdef JS_THREADSAFE
+    js_InitLock(&state->lock);
+#endif
     JS_ASSERT(state->atoms.initialized());
-    return true;
+    return JS_TRUE;
 }
 
 void
@@ -352,6 +355,10 @@ js_FinishAtomState(JSRuntime *rt)
 
     for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront())
         r.front().asPtr()->finalize(rt);
+
+#ifdef JS_THREADSAFE
+    js_FinishLock(&state->lock);
+#endif
 }
 
 bool
@@ -385,11 +392,14 @@ js_TraceAtomState(JSTracer *trc)
     JSRuntime *rt = trc->runtime;
     JSAtomState *state = &rt->atomState;
 
+#ifdef DEBUG
+    size_t number = 0;
+#endif
+
     if (rt->gcKeepAtoms) {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
-            JSAtom *tmp = r.front().asPtr();
-            MarkStringRoot(trc, &tmp, "locked_atom");
-            JS_ASSERT(tmp == r.front().asPtr());
+            JS_SET_TRACING_INDEX(trc, "locked_atom", number++);
+            MarkAtom(trc, r.front().asPtr());
         }
     } else {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
@@ -397,28 +407,27 @@ js_TraceAtomState(JSTracer *trc)
             if (!entry.isTagged())
                 continue;
 
-            JSAtom *tmp = entry.asPtr();
-            MarkStringRoot(trc, &tmp, "interned_atom");
-            JS_ASSERT(tmp == entry.asPtr());
+            JS_SET_TRACING_INDEX(trc, "interned_atom", number++);
+            MarkAtom(trc, entry.asPtr());
         }
     }
 }
 
 void
-js_SweepAtomState(JSRuntime *rt)
+js_SweepAtomState(JSContext *cx)
 {
-    JSAtomState *state = &rt->atomState;
+    JSAtomState *state = &cx->runtime->atomState;
 
     for (AtomSet::Enum e(state->atoms); !e.empty(); e.popFront()) {
         AtomStateEntry entry = e.front();
 
         if (entry.isTagged()) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(entry.asPtr()));
+            JS_ASSERT(!IsAboutToBeFinalized(cx, entry.asPtr()));
             continue;
         }
 
-        if (IsAboutToBeFinalized(entry.asPtr()))
+        if (IsAboutToBeFinalized(cx, entry.asPtr()))
             e.removeFront();
     }
 }
@@ -430,6 +439,7 @@ AtomIsInterned(JSContext *cx, JSAtom *atom)
     if (StaticStrings::isStatic(atom))
         return true;
 
+    AutoLockAtomsCompartment lock(cx);
     AtomSet::Ptr p = cx->runtime->atomState.atoms.lookup(atom);
     if (!p)
         return false;
@@ -458,6 +468,8 @@ AtomizeInline(JSContext *cx, const jschar **pchars, size_t length,
     if (JSAtom *s = cx->runtime->staticStrings.lookup(chars, length))
         return s;
 
+    AutoLockAtomsCompartment lock(cx);
+
     AtomSet &atoms = cx->runtime->atomState.atoms;
     AtomSet::AddPtr p = atoms.lookupForAdd(AtomHasher::Lookup(chars, length));
 
@@ -485,7 +497,7 @@ AtomizeInline(JSContext *cx, const jschar **pchars, size_t length,
 
     /*
      * We have to relookup the key as the last ditch GC invoked from the
-     * string allocation or OOM handling unlocks the atomsCompartment.
+     * string allocation or OOM handling may unlock the atomsCompartment.
      *
      * N.B. this avoids recomputing the hash but still has a potential
      * (# collisions * # chars) comparison cost in the case of a hash
@@ -515,6 +527,9 @@ js_AtomizeString(JSContext *cx, JSString *str, InternBehavior ib)
         /* N.B. static atoms are effectively always interned. */
         if (ib != InternAtom || js::StaticStrings::isStatic(&atom))
             return &atom;
+
+        /* Here we have to check whether the atom is already interned. */
+        AutoLockAtomsCompartment lock(cx);
 
         AtomSet &atoms = cx->runtime->atomState.atoms;
         AtomSet::Ptr p = atoms.lookup(AtomHasher::Lookup(&atom));
@@ -595,9 +610,9 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
 {
     if (JSAtom *atom = cx->runtime->staticStrings.lookup(chars, length))
         return atom;
-    if (AtomSet::Ptr p = cx->runtime->atomState.atoms.lookup(AtomHasher::Lookup(chars, length)))
-        return p->asPtr();
-    return NULL;
+    AutoLockAtomsCompartment lock(cx);
+    AtomSet::Ptr p = cx->runtime->atomState.atoms.lookup(AtomHasher::Lookup(chars, length));
+    return p ? p->asPtr() : NULL;
 }
 
 #ifdef DEBUG
@@ -660,7 +675,7 @@ js_InitAtomMap(JSContext *cx, AtomIndexMap *indices, JSAtom **atoms)
 namespace js {
 
 bool
-IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp)
+IndexToIdSlow(JSContext *cx, uint32 index, jsid *idp)
 {
     JS_ASSERT(index > JSID_INT_MAX);
 
@@ -712,9 +727,9 @@ js_CheckForStringIndex(jsid id)
     const jschar *cp = s;
     const jschar *end = s + n;
 
-    uint32_t index = JS7_UNDEC(*cp++);
-    uint32_t oldIndex = 0;
-    uint32_t c = 0;
+    jsuint index = JS7_UNDEC(*cp++);
+    jsuint oldIndex = 0;
+    jsuint c = 0;
 
     if (index != 0) {
         while (JS7_ISDEC(*cp)) {
@@ -736,13 +751,13 @@ js_CheckForStringIndex(jsid id)
         if (oldIndex < -(JSID_INT_MIN / 10) ||
             (oldIndex == -(JSID_INT_MIN / 10) && c <= (-JSID_INT_MIN % 10)))
         {
-            id = INT_TO_JSID(-int32_t(index));
+            id = INT_TO_JSID(-jsint(index));
         }
     } else {
         if (oldIndex < JSID_INT_MAX / 10 ||
             (oldIndex == JSID_INT_MAX / 10 && c <= (JSID_INT_MAX % 10)))
         {
-            id = INT_TO_JSID(int32_t(index));
+            id = INT_TO_JSID(jsint(index));
         }
     }
 

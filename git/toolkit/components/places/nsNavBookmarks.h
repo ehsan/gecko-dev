@@ -255,17 +255,6 @@ public:
    */
   void NotifyItemChanged(const ItemChangeData& aData);
 
-  /**
-   * Recursively builds an array of descendant folders inside a given folder.
-   *
-   * @param aFolderId
-   *        The folder to fetch descendants from.
-   * @param aDescendantFoldersArray
-   *        Output array to put descendant folders id.
-   */
-  nsresult GetDescendantFolders(PRInt64 aFolderId,
-                                nsTArray<PRInt64>& aDescendantFoldersArray);
-
 private:
   static nsNavBookmarks* gBookmarksService;
 
@@ -274,8 +263,35 @@ private:
   /**
    * Locates the root items in the bookmarks folder hierarchy assigning folder
    * ids to the root properties that are exposed through the service interface.
+   * 
+   * @param aForceCreate
+   *        Whether the method should try creating the roots.  It should be set
+   *        to true if the database has just been created or upgraded.
+   *
+   * @note The creation of roots skips already existing entries.
    */
-  nsresult ReadRoots();
+  nsresult InitRoots(bool aForceCreate);
+
+  /**
+   * Tries to create a root folder with the given name.
+   *
+   * @param name
+   *        Name associated to the root.
+   * @param _itemId
+   *        if set CreateRoot will skip creation, otherwise will return the
+   *        newly created folder id.
+   * @param aParentId
+   *        Id of the parent that should cotain this root.
+   * @param aBundle
+   *        Stringbundle used to get the visible title of the root.
+   * @param aTitleStringId
+   *        Id of the title string in the stringbundle.
+   */
+  nsresult CreateRoot(const nsCString& name,
+                      PRInt64* _itemId,
+                      PRInt64 aParentId,
+                      nsIStringBundle* aBundle,
+                      const PRUnichar* aTitleStringId);
 
   nsresult AdjustIndices(PRInt64 aFolder,
                          PRInt32 aStartIndex,
@@ -373,9 +389,6 @@ private:
                               const nsACString& aTitle,
                               PRTime aDateAdded,
                               PRTime aLastModified,
-                              const nsACString& aParentGuid,
-                              PRInt64 aGrandParentId,
-                              nsIURI* aURI,
                               PRInt64* _itemId,
                               nsACString& _guid);
 
@@ -484,12 +497,6 @@ private:
    * This is used to speed up repeated requests to the same item id.
    */
   nsTHashtable<BookmarkKeyClass> mRecentBookmarksCache;
-
-  /**
-   * Tracks bookmarks in the cache critical path.  Items should not be
-   * added to the cache till they are removed from this hash.
-   */
-  nsTHashtable<nsTrimInt64HashKey> mUncachableBookmarks;
 };
 
 #endif // nsNavBookmarks_h_

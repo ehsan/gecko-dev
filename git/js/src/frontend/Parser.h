@@ -60,11 +60,7 @@ typedef struct BindData BindData;
 
 namespace js {
 
-class StaticBlockObject;
-
 enum FunctionSyntaxKind { Expression, Statement };
-enum LetContext { LetExpresion, LetStatement };
-enum VarContext { HoistVars, DontHoistVars };
 
 struct Parser : private AutoGCRooter
 {
@@ -73,11 +69,10 @@ struct Parser : private AutoGCRooter
     TokenStream         tokenStream;
     void                *tempPoolMark;  /* initial JSContext.tempLifoAlloc mark */
     JSPrincipals        *principals;    /* principals associated with source */
-    JSPrincipals        *originPrincipals;   /* see jsapi.h 'originPrincipals' comment */
     StackFrame          *const callerFrame;  /* scripted caller frame for eval and dbgapi */
     JSObject            *const callerVarObj; /* callerFrame's varObj */
     ParseNodeAllocator  allocator;
-    uint32_t            functionCount;  /* number of functions in current unit */
+    uint32              functionCount;  /* number of functions in current unit */
     ObjectBox           *traceListHead; /* list of parsed object for GC tracing */
     TreeContext         *tc;            /* innermost tree context (stack-allocated) */
 
@@ -87,8 +82,7 @@ struct Parser : private AutoGCRooter
     /* Perform constant-folding; must be true when interfacing with the emitter. */
     bool                foldConstants;
 
-    Parser(JSContext *cx, JSPrincipals *prin = NULL, JSPrincipals *originPrin = NULL,
-           StackFrame *cfp = NULL, bool fold = true);
+    Parser(JSContext *cx, JSPrincipals *prin = NULL, StackFrame *cfp = NULL, bool fold = true);
     ~Parser();
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -101,10 +95,10 @@ struct Parser : private AutoGCRooter
      * tempLifoAlloc and save the pointer beyond the next Parser destructor
      * invocation.
      */
-    bool init(const jschar *base, size_t length, const char *filename, unsigned lineno,
+    bool init(const jschar *base, size_t length, const char *filename, uintN lineno,
               JSVersion version);
 
-    void setPrincipals(JSPrincipals *prin, JSPrincipals *originPrin);
+    void setPrincipals(JSPrincipals *prin);
 
     const char *getFilename() const { return tokenStream.getFilename(); }
     JSVersion versionWithFlags() const { return tokenStream.versionWithFlags(); }
@@ -139,12 +133,12 @@ struct Parser : private AutoGCRooter
     /*
      * Report a parse (compile) error.
      */
-    inline bool reportErrorNumber(ParseNode *pn, unsigned flags, unsigned errorNumber, ...);
+    inline bool reportErrorNumber(ParseNode *pn, uintN flags, uintN errorNumber, ...);
 
   private:
-    ParseNode *allocParseNode(size_t size) {
+    void *allocParseNode(size_t size) {
         JS_ASSERT(size == sizeof(ParseNode));
-        return static_cast<ParseNode *>(allocator.allocNode());
+        return allocator.allocNode();
     }
 
     /*
@@ -159,14 +153,6 @@ struct Parser : private AutoGCRooter
 
     /* new_ methods for creating parse nodes. These report OOM on context. */
     JS_DECLARE_NEW_METHODS(allocParseNode, inline)
-
-    ParseNode *cloneNode(const ParseNode &other) {
-        ParseNode *node = allocParseNode(sizeof(ParseNode));
-        if (!node)
-            return NULL;
-        PodAssign(node, &other);
-        return node;
-    }
 
     /* Public entry points for parsing. */
     ParseNode *statement();
@@ -208,8 +194,7 @@ struct Parser : private AutoGCRooter
     ParseNode *letStatement();
 #endif
     ParseNode *expressionStatement();
-    ParseNode *variables(ParseNodeKind kind, StaticBlockObject *blockObj = NULL,
-                         VarContext varContext = HoistVars);
+    ParseNode *variables(ParseNodeKind kind, bool inLetHead);
     ParseNode *expr();
     ParseNode *assignExpr();
     ParseNode *condExpr1();
@@ -234,7 +219,7 @@ struct Parser : private AutoGCRooter
     ParseNode *mulExpr1n();
     ParseNode *unaryExpr();
     ParseNode *memberExpr(JSBool allowCallSyntax);
-    ParseNode *primaryExpr(TokenKind tt, bool afterDoubleDot);
+    ParseNode *primaryExpr(TokenKind tt, JSBool afterDot);
     ParseNode *parenExpr(JSBool *genexp = NULL);
 
     /*
@@ -248,18 +233,14 @@ struct Parser : private AutoGCRooter
     ParseNode *unaryOpExpr(ParseNodeKind kind, JSOp op);
 
     ParseNode *condition();
-    ParseNode *comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
+    ParseNode *comprehensionTail(ParseNode *kid, uintN blockid, bool isGenexp,
                                  ParseNodeKind kind = PNK_SEMI, JSOp op = JSOP_NOP);
     ParseNode *generatorExpr(ParseNode *kid);
     JSBool argumentList(ParseNode *listNode);
     ParseNode *bracketedExpr();
-    ParseNode *letBlock(LetContext letContext);
+    ParseNode *letBlock(JSBool statement);
     ParseNode *returnOrYield(bool useAssignExpr);
     ParseNode *destructuringExpr(BindData *data, TokenKind tt);
-
-    bool checkForFunctionNode(PropertyName *name, ParseNode *node);
-
-    ParseNode *identifierName(bool afterDoubleDot);
 
 #if JS_HAS_XML_SUPPORT
     ParseNode *endBracketedExpr();
@@ -274,17 +255,13 @@ struct Parser : private AutoGCRooter
     JSBool xmlElementContent(ParseNode *pn);
     ParseNode *xmlElementOrList(JSBool allowList);
     ParseNode *xmlElementOrListRoot(JSBool allowList);
-
-    ParseNode *starOrAtPropertyIdentifier(TokenKind tt);
-    ParseNode *propertyQualifiedIdentifier();
 #endif /* JS_HAS_XML_SUPPORT */
 
     bool setAssignmentLhsOps(ParseNode *pn, JSOp op);
-    bool matchInOrOf(bool *isForOfp);
 };
 
 inline bool
-Parser::reportErrorNumber(ParseNode *pn, unsigned flags, unsigned errorNumber, ...)
+Parser::reportErrorNumber(ParseNode *pn, uintN flags, uintN errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
@@ -297,7 +274,7 @@ bool
 CheckStrictParameters(JSContext *cx, TreeContext *tc);
 
 bool
-DefineArg(ParseNode *pn, JSAtom *atom, unsigned i, TreeContext *tc);
+DefineArg(ParseNode *pn, JSAtom *atom, uintN i, TreeContext *tc);
 
 } /* namespace js */
 

@@ -96,10 +96,6 @@ public:
 #ifdef MOZ_XUL
   virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // nsARefreshObserver
   virtual void WillRefresh(mozilla::TimeStamp aTime);
@@ -131,12 +127,7 @@ public:
    * accumulate animationstart events at other points when style
    * contexts are created.
    */
-  void DispatchEvents() {
-    // Fast-path the common case: no events
-    if (!mPendingEvents.IsEmpty()) {
-      DoDispatchEvents();
-    }
-  }
+  void DispatchEvents();
 
 private:
   ElementAnimations* GetElementAnimations(mozilla::dom::Element *aElement,
@@ -153,9 +144,6 @@ private:
                                  nsCSSPseudoElements::Type aPseudoType);
 
   nsCSSKeyframesRule* KeyframesRuleFor(const nsSubstring& aName);
-
-  // The guts of DispatchEvents
-  void DoDispatchEvents();
 
   bool mKeyframesListIsDirty;
   nsDataHashtable<nsStringHashKey, nsCSSKeyframesRule*> mKeyframesRules;

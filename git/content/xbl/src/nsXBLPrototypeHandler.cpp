@@ -307,7 +307,7 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   if (!boundContext)
     return NS_OK;
 
-  nsScriptObjectHolder<JSObject> handler(boundContext);
+  nsScriptObjectHolder handler(boundContext);
   nsISupports *scriptTarget;
 
   if (winRoot) {
@@ -321,16 +321,16 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
 
   // Bind it to the bound element
   JSObject* scope = boundGlobal->GetGlobalJSObject();
-  nsScriptObjectHolder<JSObject> boundHandler(boundContext);
+  nsScriptObjectHolder boundHandler(boundContext);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
-                                              handler.get(), boundHandler);
+                                              handler.getObject(), boundHandler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Execute it.
   nsCOMPtr<nsIJSEventListener> eventListener;
   rv = NS_NewJSEventListener(boundContext, scope,
                              scriptTarget, onEventAtom,
-                             boundHandler.get(),
+                             boundHandler.getObject(),
                              getter_AddRefs(eventListener));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -344,14 +344,14 @@ nsresult
 nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                                           nsIScriptContext *aBoundContext,
                                           nsIAtom *aName,
-                                          nsScriptObjectHolder<JSObject>& aHandler)
+                                          nsScriptObjectHolder &aHandler)
 {
   // Check to see if we've already compiled this
   nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(aGlobal);
   if (pWindow) {
     JSObject* cachedHandler = pWindow->GetCachedXBLPrototypeHandler(this);
     if (cachedHandler) {
-      aHandler.set(cachedHandler);
+      aHandler.setObject(cachedHandler);
       return aHandler ? NS_OK : NS_ERROR_FAILURE;
     }
   }
@@ -932,18 +932,21 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
   if (!key.IsEmpty()) {
     if (mKeyMask == 0)
       mKeyMask = cAllModifiers;
-    nsContentUtils::ASCIIToLower(key);
+    ToLowerCase(key);
 
     // We have a charcode.
     mMisc = 1;
     mDetail = key[0];
     const PRUint8 GTK2Modifiers = cShift | cControl | cShiftMask | cControlMask;
     if ((mKeyMask & GTK2Modifiers) == GTK2Modifiers &&
-        modifiers.First() != PRUnichar(',') && mDetail == 'u')
+        modifiers.First() != PRUnichar(',') &&
+        (mDetail == 'u' || mDetail == 'U'))
       ReportKeyConflict(key.get(), modifiers.get(), aKeyElement, "GTK2Conflict");
     const PRUint8 WinModifiers = cControl | cAlt | cControlMask | cAltMask;
     if ((mKeyMask & WinModifiers) == WinModifiers &&
-        modifiers.First() != PRUnichar(',') && ('a' <= mDetail && mDetail <= 'z'))
+        modifiers.First() != PRUnichar(',') &&
+        (('A' <= mDetail && mDetail <= 'Z') ||
+         ('a' <= mDetail && mDetail <= 'z')))
       ReportKeyConflict(key.get(), modifiers.get(), aKeyElement, "WinConflict");
   }
   else {
@@ -989,12 +992,12 @@ nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar*
   }
 
   const PRUnichar* params[] = { aKey, aModifiers };
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "XBL Prototype Handler", doc,
-                                  nsContentUtils::eXBL_PROPERTIES,
+  nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                   aMessageName,
                                   params, ArrayLength(params),
-                                  nsnull, EmptyString(), mLineNumber);
+                                  nsnull, EmptyString(), mLineNumber, 0,
+                                  nsIScriptError::warningFlag,
+                                  "XBL Prototype Handler", doc);
 }
 
 bool
@@ -1071,7 +1074,7 @@ nsXBLPrototypeHandler::Write(nsIScriptContext* aContext, nsIObjectOutputStream* 
 {
   // Make sure we don't write out NS_HANDLER_TYPE_XUL types, as they are used
   // for <keyset> elements.
-  if ((mType & NS_HANDLER_TYPE_XUL) || !mEventName)
+  if (mType & NS_HANDLER_TYPE_XUL)
     return NS_OK;
 
   XBLBindingSerializeDetails type = XBLBinding_Serialize_Handler;

@@ -60,11 +60,7 @@ RequestExecutionLevel user
 ; prevents compiling of the reg write logging.
 !define NO_LOG
 
-!define MaintUninstallKey \
- "Software\Microsoft\Windows\CurrentVersion\Uninstall\MozillaMaintenanceService"
-
 Var TmpVal
-Var MaintCertKey
 
 ; Other included files may depend upon these includes!
 ; The following includes are provided by NSIS.
@@ -100,7 +96,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro InitHashAppModelId
 !insertmacro IsHandlerForInstallDir
 !insertmacro IsPinnedToTaskBar
-!insertmacro IsUserAdmin
 !insertmacro LogDesktopShortcut
 !insertmacro LogQuickLaunchShortcut
 !insertmacro LogStartMenuShortcut
@@ -202,47 +197,6 @@ UninstPage custom un.preConfirm un.leaveConfirm
 
 ; Use the default dialog for IDD_VERIFY for a simple Banner
 ChangeUI IDD_VERIFY "${NSISDIR}\Contrib\UIs\default.exe"
-
-; This function is used to uninstall the maintenance service if the
-; application currently being uninstalled is the last application to use the 
-; maintenance service.
-Function un.UninstallServiceIfNotUsed
-  ; $0 will store if a subkey exists
-  ; $1 will store the first subkey if it exists or an empty string if it doesn't
-  ; Backup the old values
-  Push $0
-  Push $1
-
-  ; The maintenance service always uses the 64-bit registry on x64 systems
-  SetRegView 64
-
-  ; Figure out the number of subkeys
-  StrCpy $0 0
-loop:
-  EnumRegKey $1 HKLM "Software\Mozilla\MaintenanceService" $0
-  StrCmp $1 "" doneCount
-  IntOp $0 $0 + 1
-  goto loop
-doneCount:
-  ; Restore back the registry view
-  SetRegView lastUsed
-  ${If} $0 == 0
-    ; Get the path of the maintenance service uninstaller
-    ReadRegStr $1 HKLM ${MaintUninstallKey} "UninstallString"
-
-    ; If the uninstall string does not exist, skip executing it
-    StrCmp $1 "" doneUninstall
-
-    ; $1 is already a quoted string pointing to the install path
-    ; so we're already protected against paths with spaces
-    nsExec::Exec "$1 /S"
-doneUninstall:
-  ${EndIf}
-
-  ; Restore the old value of $1 and $0
-  Pop $1
-  Pop $0
-FunctionEnd
 
 ################################################################################
 # Install Sections
@@ -426,22 +380,6 @@ Section "Uninstall"
   ; removed and other ugly things will happen like recreation of the app's
   ; clients registry key by the OS under some conditions.
   System::Call "shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)"
-
-!ifdef MOZ_MAINTENANCE_SERVICE
-  ; Get the path the allowed cert is at and remove it
-  ; Keep this block of code last since it modfies the reg view
-  ServicesHelper::PathToUniqueRegistryPath "$INSTDIR"
-  Pop $MaintCertKey
-  ${If} $MaintCertKey != ""
-    ; We always use the 64bit registry for certs
-    ; This call is ignored on 32-bit systems.
-    SetRegView 64
-    DeleteRegKey HKLM "$MaintCertKey\"
-    SetRegView lastused
-  ${EndIf}
-  Call un.UninstallServiceIfNotUsed
-!endif
-
 SectionEnd
 
 ################################################################################

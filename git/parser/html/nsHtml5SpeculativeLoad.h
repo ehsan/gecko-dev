@@ -72,20 +72,18 @@ class nsHtml5SpeculativeLoad {
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadImage;
       mUrl.Assign(aUrl);
-      mCrossOrigin.Assign(aCrossOrigin);
+      mCharsetOrCrossOrigin.Assign(aCrossOrigin);
     }
 
     inline void InitScript(const nsAString& aUrl,
-                           const nsAString& aCharset,
-                           const nsAString& aType,
-                           const nsAString& aCrossOrigin) {
+                      const nsAString& aCharset,
+                      const nsAString& aType) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadScript;
       mUrl.Assign(aUrl);
-      mCharset.Assign(aCharset);
+      mCharsetOrCrossOrigin.Assign(aCharset);
       mTypeOrCharsetSource.Assign(aType);
-      mCrossOrigin.Assign(aCrossOrigin);
     }
     
     inline void InitStyle(const nsAString& aUrl, const nsAString& aCharset) {
@@ -93,7 +91,7 @@ class nsHtml5SpeculativeLoad {
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadStyle;
       mUrl.Assign(aUrl);
-      mCharset.Assign(aCharset);
+      mCharsetOrCrossOrigin.Assign(aCharset);
     }
 
     /**
@@ -129,7 +127,7 @@ class nsHtml5SpeculativeLoad {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadSetDocumentCharset;
-      CopyUTF8toUTF16(aCharset, mCharset);
+      CopyUTF8toUTF16(aCharset, mCharsetOrCrossOrigin);
       mTypeOrCharsetSource.Assign((PRUnichar)aCharsetSource);
     }
 
@@ -139,12 +137,14 @@ class nsHtml5SpeculativeLoad {
     eHtml5SpeculativeLoad mOpCode;
     nsString mUrl;
     /**
-     * If mOpCode is eSpeculativeLoadStyle or eSpeculativeLoadScript
-     * then this is the value of the "charset" attribute. For
-     * eSpeculativeLoadSetDocumentCharset it is the charset that the
-     * document's charset is being set to. Otherwise it's empty.
+     * If mOpCode is eSpeculativeLoadImage, this is the value of the
+     * "crossorigin" attribute.  If mOpCode is eSpeculativeLoadStyle
+     * or eSpeculativeLoadScript then this is the value of the
+     * "charset" attribute. For eSpeculativeLoadSetDocumentCharset it is
+     * the charset that the document's charset is being set to. Otherwise
+     * it's empty.
      */
-    nsString mCharset;
+    nsString mCharsetOrCrossOrigin;
     /**
      * If mOpCode is eSpeculativeLoadSetDocumentCharset, this is a
      * one-character string whose single character's code point is to be
@@ -152,12 +152,6 @@ class nsHtml5SpeculativeLoad {
      * the value of the type attribute.
      */
     nsString mTypeOrCharsetSource;
-    /**
-     * If mOpCode is eSpeculativeLoadImage or eSpeculativeLoadScript,
-     * this is the value of the "crossorigin" attribute.  If the
-     * attribute is not set, this will be a void string.
-     */
-    nsString mCrossOrigin;
 };
 
 #endif // nsHtml5SpeculativeLoad_h_

@@ -108,8 +108,7 @@ public:
     * @param aProperty      [IN] an atom containing a HTML tag name
     * @param aAttribute     [IN] a string containing the name of a HTML attribute carried by the element above
     */
-  bool IsCSSEditableProperty(nsIContent* aNode, nsIAtom* aProperty, const nsAString* aAttribute);
-  bool IsCSSEditableProperty(nsIDOMNode* aNode, nsIAtom* aProperty, const nsAString* aAttribute);
+  bool        IsCSSEditableProperty(nsIDOMNode * aNode, nsIAtom * aProperty, const nsAString * aAttribute);
 
   /** adds/remove a CSS declaration to the STYLE atrribute carried by a given element
     *
@@ -140,6 +139,8 @@ public:
   nsresult    SetCSSPropertyPixels(nsIDOMElement * aElement,
                                    const nsAString & aProperty,
                                    PRInt32 aIntValue);
+  nsresult    RemoveCSSProperty(nsIDOMElement * aElement,
+                                const nsAString & aProperty);
 
   /** gets the specified/computed style value of a CSS property for a given node (or its element
     * ancestor if it is not an element)
@@ -184,6 +185,13 @@ public:
     */
   void        GetDefaultLengthUnit(nsAString & aLengthUnit);
 
+  /** asnwers true if the element aElement carries an ID or a class
+    *
+    * @param aElement       [IN] a DOM element
+    * @param aReturn        [OUT] the boolean answer
+    */
+  nsresult    HasClassOrID(nsIDOMElement * aElement, bool & aReturn);
+
   /** returns the list of values for the CSS equivalences to
     * the passed HTML style for the passed node
     *
@@ -194,7 +202,7 @@ public:
     * @param aStyleType     [IN] SPECIFIED_STYLE_TYPE to query the specified style values
                                  COMPUTED_STYLE_TYPE  to query the computed style values
     */
-  nsresult    GetCSSEquivalentToHTMLInlineStyleSet(nsINode* aNode,
+  nsresult    GetCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode * aNode,
                                                    nsIAtom * aHTMLProperty,
                                                    const nsAString * aAttribute,
                                                    nsAString & aValueString,
@@ -300,8 +308,7 @@ public:
     * @param aNode           [IN] a node
     * @param aElement        [OUT] the deepest element node containing aNode (possibly aNode itself)
     */
-  mozilla::dom::Element* GetElementContainerOrSelf(nsINode* aNode);
-  already_AddRefed<nsIDOMElement> GetElementContainerOrSelf(nsIDOMNode* aNode);
+  nsresult GetElementContainerOrSelf(nsIDOMNode * aNode, nsIDOMElement ** aElement);
 
   /**
    * Gets the default Window for a given node.
@@ -309,8 +316,7 @@ public:
    * @param aNode    the node we want the default Window for
    * @param aWindow  [OUT] the default Window
    */
-  nsresult GetDefaultViewCSS(nsINode* aNode, nsIDOMWindow** aWindow);
-  nsresult GetDefaultViewCSS(nsIDOMNode* aNode, nsIDOMWindow** aWindow);
+  nsresult        GetDefaultViewCSS(nsIDOMNode* aNode, nsIDOMWindow** aWindow);
 
 
 private:
@@ -353,12 +359,12 @@ private:
     *                                 is made for GetCSSEquivalentToHTMLInlineStyleSet or
     *                                 RemoveCSSEquivalentToHTMLInlineStyleSet
     */
-  void      GenerateCSSDeclarationsFromHTMLStyle(mozilla::dom::Element* aNode,
-                                                 nsIAtom* aHTMLProperty,
-                                                 const nsAString* aAttribute,
-                                                 const nsAString* aValue,
-                                                 nsTArray<nsIAtom*>& aPropertyArray,
-                                                 nsTArray<nsString>& aValueArray,
+  void      GenerateCSSDeclarationsFromHTMLStyle(nsIDOMNode * aNode,
+                                                 nsIAtom * aHTMLProperty,
+                                                 const nsAString *aAttribute,
+                                                 const nsAString *aValue,
+                                                 nsTArray<nsIAtom*> & aPropertyArray,
+                                                 nsTArray<nsString> & aValueArray,
                                                  bool aGetOrRemoveRequest);
 
   /** creates a Transaction for setting or removing a css property
@@ -384,12 +390,10 @@ private:
    * @param aStyleType          [IN] SPECIFIED_STYLE_TYPE to query the specified style values
    *                                 COMPUTED_STYLE_TYPE  to query the computed style values
    */
-  nsresult GetCSSInlinePropertyBase(nsINode* aNode, nsIAtom* aProperty,
-                                    nsAString& aValue, nsIDOMWindow* aWindow,
-                                    PRUint8 aStyleType);
-  nsresult GetCSSInlinePropertyBase(nsIDOMNode* aNode, nsIAtom* aProperty,
-                                    nsAString& aValue, nsIDOMWindow* aWindow,
-                                    PRUint8 aStyleType);
+  nsresult    GetCSSInlinePropertyBase(nsIDOMNode * aNode, nsIAtom * aProperty,
+                                       nsAString & aValue,
+                                       nsIDOMWindow* aWindow,
+                                       PRUint8 aStyleType);
 
 
 private:

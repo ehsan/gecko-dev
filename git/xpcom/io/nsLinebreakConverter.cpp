@@ -41,6 +41,14 @@
 #include "nsCRT.h"
 
 
+#if defined(XP_WIN) && defined(_MSC_VER) && (_MSC_VER <= 1100)
+#define LOSER_CHAR_CAST(t)       (char *)(t)
+#define LOSER_UNICHAR_CAST(t)    (PRUnichar *)(t)
+#else
+#define LOSER_CHAR_CAST(t)       (t)
+#define LOSER_UNICHAR_CAST(t)    (t)
+#endif
+
 /*----------------------------------------------------------------------------
 	GetLinebreakString 
 	
@@ -334,9 +342,9 @@ char* nsLinebreakConverter::ConvertLineBreaks(const char* aSrc,
 
   char* resultString;
   if (aSrcBreaks == eLinebreakAny)
-    resultString = ConvertUnknownBreaks(aSrc, sourceLen, GetLinebreakString(aDestBreaks));
+    resultString = ConvertUnknownBreaks(LOSER_CHAR_CAST(aSrc), sourceLen, GetLinebreakString(aDestBreaks));
   else
-    resultString = ConvertBreaks(aSrc, sourceLen, GetLinebreakString(aSrcBreaks), GetLinebreakString(aDestBreaks));
+    resultString = ConvertBreaks(LOSER_CHAR_CAST(aSrc), sourceLen, GetLinebreakString(aSrcBreaks), GetLinebreakString(aDestBreaks));
   
   if (outLen)
     *outLen = sourceLen;
@@ -405,9 +413,9 @@ PRUnichar* nsLinebreakConverter::ConvertUnicharLineBreaks(const PRUnichar* aSrc,
 
   PRUnichar* resultString;
   if (aSrcBreaks == eLinebreakAny)
-    resultString = ConvertUnknownBreaks(aSrc, bufLen, GetLinebreakString(aDestBreaks));
+    resultString = ConvertUnknownBreaks(LOSER_UNICHAR_CAST(aSrc), bufLen, GetLinebreakString(aDestBreaks));
   else
-    resultString = ConvertBreaks(aSrc, bufLen, GetLinebreakString(aSrcBreaks), GetLinebreakString(aDestBreaks));
+    resultString = ConvertBreaks(LOSER_UNICHAR_CAST(aSrc), bufLen, GetLinebreakString(aSrcBreaks), GetLinebreakString(aDestBreaks));
   
   if (outLen)
     *outLen = bufLen;

@@ -44,57 +44,15 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "methodjit/MethodJIT.h"
-#include "vm/Stack.h"
+#include "Stack.h"
 
 #include "jsscriptinlines.h"
-
 #include "ArgumentsObject-inl.h"
-#include "ScopeObject-inl.h"
+#include "CallObject-inl.h"
 
+#include "methodjit/MethodJIT.h"
 
 namespace js {
-
-/*
- * We cache name lookup results only for the global object or for native
- * non-global objects without prototype or with prototype that never mutates,
- * see bug 462734 and bug 487039.
- */
-static inline bool
-IsCacheableNonGlobalScope(JSObject *obj)
-{
-    bool cacheable = (obj->isCall() || obj->isBlock() || obj->isDeclEnv());
-
-    JS_ASSERT_IF(cacheable, !obj->getOps()->lookupProperty);
-    return cacheable;
-}
-
-inline JSObject &
-StackFrame::scopeChain() const
-{
-    JS_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
-    if (!(flags_ & HAS_SCOPECHAIN)) {
-        scopeChain_ = callee().toFunction()->environment();
-        flags_ |= HAS_SCOPECHAIN;
-    }
-    return *scopeChain_;
-}
-
-inline JSObject &
-StackFrame::varObj()
-{
-    JSObject *obj = &scopeChain();
-    while (!obj->isVarObj())
-        obj = obj->enclosingScope();
-    return *obj;
-}
-
-inline JSCompartment *
-StackFrame::compartment() const
-{
-    JS_ASSERT_IF(isScriptFrame(), scopeChain().compartment() == script()->compartment());
-    return scopeChain().compartment();
-}
 
 inline void
 StackFrame::initPrev(JSContext *cx)
@@ -105,7 +63,7 @@ StackFrame::initPrev(JSContext *cx)
         prevpc_ = regs->pc;
         prevInline_ = regs->inlined();
         JS_ASSERT_IF(!prev_->isDummyFrame(),
-                     uint32_t(prevpc_ - prev_->script()->code) < prev_->script()->length);
+                     uint32(prevpc_ - prev_->script()->code) < prev_->script()->length);
     } else {
         prev_ = NULL;
 #ifdef DEBUG
@@ -145,24 +103,23 @@ StackFrame::resetInlinePrev(StackFrame *prevfp, jsbytecode *prevpc)
 }
 
 inline void
-StackFrame::initCallFrame(JSContext *cx, JSFunction &callee,
-                          JSScript *script, uint32_t nactual, StackFrame::Flags flagsArg)
+StackFrame::initCallFrame(JSContext *cx, JSObject &callee, JSFunction *fun,
+                          JSScript *script, uint32 nactual, StackFrame::Flags flagsArg)
 {
     JS_ASSERT((flagsArg & ~(CONSTRUCTING |
                             LOWERED_CALL_APPLY |
                             OVERFLOW_ARGS |
                             UNDERFLOW_ARGS)) == 0);
-    JS_ASSERT(script == callee.script());
+    JS_ASSERT(fun == callee.getFunctionPrivate());
+    JS_ASSERT(script == fun->script());
 
     /* Initialize stack frame members. */
-    flags_ = FUNCTION | HAS_PREVPC | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | flagsArg;
-    exec.fun = &callee;
-    u.nactual = nactual;
-    scopeChain_ = callee.environment();
+    flags_ = FUNCTION | HAS_PREVPC | HAS_SCOPECHAIN | flagsArg;
+    exec.fun = fun;
+    args.nactual = nactual;
+    scopeChain_ = callee.getParent();
     ncode_ = NULL;
     initPrev(cx);
-    blockChain_= NULL;
-    JS_ASSERT(!hasBlockChain());
     JS_ASSERT(!hasHookData());
     JS_ASSERT(annotation() == NULL);
     JS_ASSERT(!hasCallObj());
@@ -170,12 +127,39 @@ StackFrame::initCallFrame(JSContext *cx, JSFunction &callee,
     SetValueRangeToUndefined(slots(), script->nfixed);
 }
 
-/*
- * Reinitialize the StackFrame fields that have been initialized up to the
- * point of FixupArity in the function prologue.
- */
 inline void
-StackFrame::initFixupFrame(StackFrame *prev, StackFrame::Flags flags, void *ncode, unsigned nactual)
+StackFrame::resetCallFrame(JSScript *script)
+{
+    JS_ASSERT(script == this->script());
+
+    if (flags_ & UNDERFLOW_ARGS)
+        SetValueRangeToUndefined(formalArgs() + numActualArgs(), formalArgsEnd());
+
+    JS_ASSERT(!(flags_ & ~(FUNCTION |
+                           OVERFLOW_ARGS |
+                           UNDERFLOW_ARGS |
+                           OVERRIDE_ARGS |
+                           HAS_PREVPC |
+                           HAS_RVAL |
+                           HAS_SCOPECHAIN |
+                           HAS_ANNOTATION |
+                           HAS_HOOK_DATA |
+                           FINISHED_IN_INTERP |
+                           DOWN_FRAMES_EXPANDED)));
+
+    flags_ &= FUNCTION |
+              OVERFLOW_ARGS |
+              HAS_PREVPC |
+              UNDERFLOW_ARGS;
+
+    JS_ASSERT(exec.fun == callee().getFunctionPrivate());
+    scopeChain_ = callee().getParent();
+
+    SetValueRangeToUndefined(slots(), script->nfixed);
+}
+
+inline void
+StackFrame::initJitFrameCallerHalf(StackFrame *prev, StackFrame::Flags flags, void *ncode)
 {
     JS_ASSERT((flags & ~(CONSTRUCTING |
                          LOWERED_CALL_APPLY |
@@ -186,18 +170,40 @@ StackFrame::initFixupFrame(StackFrame *prev, StackFrame::Flags flags, void *ncod
     flags_ = FUNCTION | flags;
     prev_ = prev;
     ncode_ = ncode;
-    u.nactual = nactual;
 }
 
+/*
+ * The "early prologue" refers to either the fast path or arity check path up
+ * to the "late prologue".
+ */
 inline void
-StackFrame::overwriteCallee(JSObject &newCallee)
+StackFrame::initJitFrameEarlyPrologue(JSFunction *fun, uint32 nactual)
 {
-    JS_ASSERT(callee().toFunction()->script() == newCallee.toFunction()->script());
-    mutableCalleev().setObject(newCallee);
+    exec.fun = fun;
+    args.nactual = nactual;
+}
+
+/*
+ * The "late prologue" (in generatePrologue) extends from the join point of the
+ * fast path and arity check to where the call object is (possibly) created.
+ */
+inline bool
+StackFrame::initJitFrameLatePrologue(JSContext *cx, Value **limit)
+{
+    *limit = cx->stack.space().getStackLimit(cx, DONT_REPORT_ERROR);
+    if (!*limit) {
+        cx->stack.popFrameAfterOverflow();
+        js_ReportOverRecursed(cx);
+        return false;
+    }
+
+    scopeChain();
+    SetValueRangeToUndefined(slots(), script()->nfixed);
+    return true;
 }
 
 inline Value &
-StackFrame::canonicalActualArg(unsigned i) const
+StackFrame::canonicalActualArg(uintN i) const
 {
     if (i < numFormalArgs())
         return formalArg(i);
@@ -207,17 +213,17 @@ StackFrame::canonicalActualArg(unsigned i) const
 
 template <class Op>
 inline bool
-StackFrame::forEachCanonicalActualArg(Op op, unsigned start /* = 0 */, unsigned count /* = unsigned(-1) */)
+StackFrame::forEachCanonicalActualArg(Op op, uintN start /* = 0 */, uintN count /* = uintN(-1) */)
 {
-    unsigned nformal = fun()->nargs;
+    uintN nformal = fun()->nargs;
     JS_ASSERT(start <= nformal);
 
     Value *formals = formalArgsEnd() - nformal;
-    unsigned nactual = numActualArgs();
-    if (count == unsigned(-1))
+    uintN nactual = numActualArgs();
+    if (count == uintN(-1))
         count = nactual - start;
 
-    unsigned end = start + count;
+    uintN end = start + count;
     JS_ASSERT(end >= start);
     JS_ASSERT(end <= nactual);
 
@@ -248,7 +254,7 @@ StackFrame::forEachFormalArg(Op op)
 {
     Value *formals = formalArgsEnd() - fun()->nargs;
     Value *formalsEnd = formalArgsEnd();
-    unsigned i = 0;
+    uintN i = 0;
     for (Value *p = formals; p != formalsEnd; ++p, ++i) {
         if (!op(i, p))
             return false;
@@ -260,26 +266,26 @@ struct CopyTo
 {
     Value *dst;
     CopyTo(Value *dst) : dst(dst) {}
-    bool operator()(unsigned, Value *src) {
+    bool operator()(uintN, Value *src) {
         *dst++ = *src;
         return true;
     }
 };
 
-inline unsigned
+inline uintN
 StackFrame::numActualArgs() const
 {
     /*
-     * u.nactual is always coherent, except for method JIT frames where the
+     * args.nactual is always coherent, except for method JIT frames where the
      * callee does not access its arguments and the number of actual arguments
      * matches the number of formal arguments. The JIT requires that all frames
      * which do not have an arguments object and use their arguments have a
-     * coherent u.nactual (even though the below code may not use it), as
+     * coherent args.nactual (even though the below code may not use it), as
      * JIT code may access the field directly.
      */
     JS_ASSERT(hasArgs());
     if (JS_UNLIKELY(flags_ & (OVERFLOW_ARGS | UNDERFLOW_ARGS)))
-        return u.nactual;
+        return hasArgsObj() ? argsObj().initialLength() : args.nactual;
     return numFormalArgs();
 }
 
@@ -288,8 +294,10 @@ StackFrame::actualArgs() const
 {
     JS_ASSERT(hasArgs());
     Value *argv = formalArgs();
-    if (JS_UNLIKELY(flags_ & OVERFLOW_ARGS))
-        return argv - (2 + u.nactual);
+    if (JS_UNLIKELY(flags_ & OVERFLOW_ARGS)) {
+        uintN nactual = hasArgsObj() ? argsObj().initialLength() : args.nactual;
+        return argv - (2 + nactual);
+    }
     return argv;
 }
 
@@ -305,9 +313,9 @@ StackFrame::actualArgsEnd() const
 inline void
 StackFrame::setArgsObj(ArgumentsObject &obj)
 {
-    JS_ASSERT_IF(hasArgsObj(), &obj == argsObj_);
+    JS_ASSERT_IF(hasArgsObj(), &obj == args.obj);
     JS_ASSERT_IF(!hasArgsObj(), numActualArgs() == obj.initialLength());
-    argsObj_ = &obj;
+    args.obj = &obj;
     flags_ |= HAS_ARGS_OBJ;
 }
 
@@ -320,10 +328,10 @@ StackFrame::setScopeChainNoCallObj(JSObject &obj)
         if (hasCallObj()) {
             JSObject *pobj = &obj;
             while (pobj && pobj->getPrivate() != this)
-                pobj = pobj->enclosingScope();
+                pobj = pobj->getParent();
             JS_ASSERT(pobj);
         } else {
-            for (JSObject *pobj = &obj; pobj->isScope(); pobj = pobj->enclosingScope())
+            for (JSObject *pobj = &obj; pobj; pobj = pobj->getParent())
                 JS_ASSERT_IF(pobj->isCall(), pobj->getPrivate() != this);
         }
     }
@@ -348,7 +356,7 @@ StackFrame::callObj() const
 
     JSObject *pobj = &scopeChain();
     while (JS_UNLIKELY(!pobj->isCall()))
-        pobj = pobj->enclosingScope();
+        pobj = pobj->getParent();
     return pobj->asCall();
 }
 
@@ -370,7 +378,7 @@ StackFrame::functionPrologue(JSContext *cx)
     JSFunction *fun = this->fun();
 
     if (fun->isHeavyweight()) {
-        if (!CallObject::createForFunction(cx, this))
+        if (!CreateFunCallObject(cx, this))
             return false;
     } else {
         /* Force instantiation of the scope chain, for JIT frames. */
@@ -403,22 +411,24 @@ StackFrame::functionEpilogue()
 }
 
 inline void
-StackFrame::updateEpilogueFlags()
+StackFrame::markFunctionEpilogueDone()
 {
     if (flags_ & (HAS_ARGS_OBJ | HAS_CALL_OBJ)) {
-        if (hasArgsObj() && !argsObj().maybeStackFrame())
+        if (hasArgsObj() && !argsObj().maybeStackFrame()) {
+            args.nactual = args.obj->initialLength();
             flags_ &= ~HAS_ARGS_OBJ;
+        }
         if (hasCallObj() && !callObj().maybeStackFrame()) {
             /*
              * For function frames, the call object may or may not have have an
              * enclosing DeclEnv object, so we use the callee's parent, since
              * it was the initial scope chain. For global (strict) eval frames,
-             * there is no callee, but the call object's parent is the initial
+             * there is no calle, but the call object's parent is the initial
              * scope chain.
              */
             scopeChain_ = isFunctionFrame()
-                          ? callee().toFunction()->environment()
-                          : &scopeChain_->asScope().enclosingScope();
+                          ? callee().getParent()
+                          : scopeChain_->getParent();
             flags_ &= ~HAS_CALL_OBJ;
         }
     }
@@ -453,7 +463,7 @@ inline Value *
 StackSpace::getStackLimit(JSContext *cx, MaybeReportError report)
 {
     FrameRegs &regs = cx->regs();
-    unsigned nvals = regs.fp()->numSlots() + STACK_JIT_EXTRA;
+    uintN nvals = regs.fp()->numSlots() + STACK_JIT_EXTRA;
     return ensureSpace(cx, report, regs.sp, nvals)
            ? conservativeEnd_
            : NULL;
@@ -463,16 +473,16 @@ StackSpace::getStackLimit(JSContext *cx, MaybeReportError report)
 
 JS_ALWAYS_INLINE StackFrame *
 ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
-                           JSFunction *fun, JSScript *script, StackFrame::Flags *flags) const
+                           JSFunction *fun, JSScript *script, /*StackFrame::Flags*/ uint32 *flags) const
 {
     JS_ASSERT(fun->script() == script);
-    unsigned nformal = fun->nargs;
+    uintN nformal = fun->nargs;
 
     Value *firstUnused = args.end();
     JS_ASSERT(firstUnused == space().firstUnused());
 
     /* Include extra space to satisfy the method-jit stackLimit invariant. */
-    unsigned nvals = VALUES_PER_STACK_FRAME + script->nslots + StackSpace::STACK_JIT_EXTRA;
+    uintN nvals = VALUES_PER_STACK_FRAME + script->nslots + StackSpace::STACK_JIT_EXTRA;
 
     /* Maintain layout invariant: &formalArgs[0] == ((Value *)fp) - nformal. */
 
@@ -484,7 +494,7 @@ ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArg
 
     if (args.length() < nformal) {
         *flags = StackFrame::Flags(*flags | StackFrame::UNDERFLOW_ARGS);
-        unsigned nmissing = nformal - args.length();
+        uintN nmissing = nformal - args.length();
         if (!space().ensureSpace(cx, report, firstUnused, nmissing + nvals))
             return NULL;
         SetValueRangeToUndefined(firstUnused, nmissing);
@@ -492,7 +502,7 @@ ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArg
     }
 
     *flags = StackFrame::Flags(*flags | StackFrame::OVERFLOW_ARGS);
-    unsigned ncopy = 2 + nformal;
+    uintN ncopy = 2 + nformal;
     if (!space().ensureSpace(cx, report, firstUnused, ncopy + nvals))
         return NULL;
     Value *dst = firstUnused;
@@ -503,21 +513,22 @@ ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArg
 
 JS_ALWAYS_INLINE bool
 ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                              JSFunction &callee, JSScript *script,
+                              JSObject &callee, JSFunction *fun, JSScript *script,
                               InitialFrameFlags initial)
 {
     JS_ASSERT(onTop());
     JS_ASSERT(regs.sp == args.end());
     /* Cannot assert callee == args.callee() since this is called from LeaveTree. */
-    JS_ASSERT(script == callee.script());
+    JS_ASSERT(callee.getFunctionPrivate() == fun);
+    JS_ASSERT(fun->script() == script);
 
-    StackFrame::Flags flags = ToFrameFlags(initial);
-    StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, &callee, script, &flags);
+    /*StackFrame::Flags*/ uint32 flags = ToFrameFlags(initial);
+    StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, fun, script, &flags);
     if (!fp)
         return false;
 
     /* Initialize frame, locals, regs. */
-    fp->initCallFrame(cx, callee, script, args.length(), flags);
+    fp->initCallFrame(cx, callee, fun, script, args.length(), (StackFrame::Flags) flags);
 
     /*
      * N.B. regs may differ from the active registers, if the parent is about
@@ -529,10 +540,10 @@ ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &ar
 
 JS_ALWAYS_INLINE bool
 ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                              JSFunction &callee, JSScript *script,
+                              JSObject &callee, JSFunction *fun, JSScript *script,
                               InitialFrameFlags initial, Value **stackLimit)
 {
-    if (!pushInlineFrame(cx, regs, args, callee, script, initial))
+    if (!pushInlineFrame(cx, regs, args, callee, fun, script, initial))
         return false;
     *stackLimit = space().conservativeEnd_;
     return true;
@@ -544,16 +555,17 @@ ContextStack::getFixupFrame(JSContext *cx, MaybeReportError report,
                             void *ncode, InitialFrameFlags initial, Value **stackLimit)
 {
     JS_ASSERT(onTop());
-    JS_ASSERT(fun->script() == args.callee().toFunction()->script());
+    JS_ASSERT(args.callee().getFunctionPrivate() == fun);
     JS_ASSERT(fun->script() == script);
 
-    StackFrame::Flags flags = ToFrameFlags(initial);
+    /*StackFrame::Flags*/ uint32 flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, report, args, fun, script, &flags);
     if (!fp)
         return NULL;
 
     /* Do not init late prologue or regs; this is done by jit code. */
-    fp->initFixupFrame(cx->fp(), flags, ncode, args.length());
+    fp->initJitFrameCallerHalf(cx->fp(), (StackFrame::Flags) flags, ncode);
+    fp->initJitFrameEarlyPrologue(fun, args.length());
 
     *stackLimit = space().conservativeEnd_;
     return fp;
@@ -600,9 +612,8 @@ ContextStack::currentScript(jsbytecode **ppc) const
 #ifdef JS_METHODJIT
     mjit::CallSite *inlined = regs->inlined();
     if (inlined) {
-        mjit::JITChunk *chunk = fp->jit()->chunk(regs->pc);
-        JS_ASSERT(inlined->inlineIndex < chunk->nInlineFrames);
-        mjit::InlineFrame *frame = &chunk->inlineFrames()[inlined->inlineIndex];
+        JS_ASSERT(inlined->inlineIndex < fp->jit()->nInlineFrames);
+        mjit::InlineFrame *frame = &fp->jit()->inlineFrames()[inlined->inlineIndex];
         JSScript *script = frame->fun->script();
         if (script->compartment() != cx_->compartment)
             return NULL;
@@ -625,6 +636,81 @@ inline JSObject *
 ContextStack::currentScriptedScopeChain() const
 {
     return &fp()->scopeChain();
+}
+
+/*****************************************************************************/
+
+namespace detail {
+
+struct STATIC_SKIP_INFERENCE CopyNonHoleArgsTo
+{
+    CopyNonHoleArgsTo(ArgumentsObject *argsobj, Value *dst) : argsobj(*argsobj), dst(dst) {}
+    ArgumentsObject &argsobj;
+    Value *dst;
+    bool operator()(uint32 argi, Value *src) {
+        if (argsobj.element(argi).isMagic(JS_ARGS_HOLE))
+            return false;
+        *dst++ = *src;
+        return true;
+    }
+};
+
+} /* namespace detail */
+
+inline bool
+ArgumentsObject::getElement(uint32 i, Value *vp)
+{
+    if (i >= initialLength())
+        return false;
+
+    *vp = element(i);
+
+    /*
+     * If the argument was overwritten, it could be in any object slot, so we
+     * can't optimize.
+     */
+    if (vp->isMagic(JS_ARGS_HOLE))
+        return false;
+
+    /*
+     * If this arguments object has an associated stack frame, that contains
+     * the canonical argument value.  Note that strict arguments objects do not
+     * alias named arguments and never have a stack frame.
+     */
+    StackFrame *fp = maybeStackFrame();
+    JS_ASSERT_IF(isStrictArguments(), !fp);
+    if (fp)
+        *vp = fp->canonicalActualArg(i);
+    return true;
+}
+
+inline bool
+ArgumentsObject::getElements(uint32 start, uint32 count, Value *vp)
+{
+    JS_ASSERT(start + count >= start);
+
+    uint32 length = initialLength();
+    if (start > length || start + count > length)
+        return false;
+
+    StackFrame *fp = maybeStackFrame();
+
+    /* If there's no stack frame for this, argument values are in elements(). */
+    if (!fp) {
+        const Value *srcbeg = elements() + start;
+        const Value *srcend = srcbeg + count;
+        const Value *src = srcbeg;
+        for (Value *dst = vp; src < srcend; ++dst, ++src) {
+            if (src->isMagic(JS_ARGS_HOLE))
+                return false;
+            *dst = *src;
+        }
+        return true;
+    }
+
+    /* Otherwise, element values are on the stack. */
+    JS_ASSERT(fp->numActualArgs() <= StackSpace::ARGS_LENGTH_MAX);
+    return fp->forEachCanonicalActualArg(detail::CopyNonHoleArgsTo(this, vp), start, count);
 }
 
 } /* namespace js */

@@ -47,6 +47,7 @@ include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES =\
 		docload_wnd.html \
+		docload_wnd.xul \
 		focus.html \
 		scroll.html \
 		test_aria_alert.html \
@@ -65,7 +66,6 @@ _TEST_FILES =\
 		test_focus_aria_activedescendant.html \
 		test_focus_autocomplete.xul \
 		test_focus_browserui.xul \
-		test_focus_canvas.html \
 		test_focus_contextmenu.xul \
 		test_focus_controls.html \
 		test_focus_dialog.html \

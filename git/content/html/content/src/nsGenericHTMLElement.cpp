@@ -118,7 +118,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsHTMLFieldSetElement.h"
 #include "nsHTMLMenuElement.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 #include "nsIScriptError.h"
 
 #include "mozilla/Preferences.h"
@@ -503,8 +503,7 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
   nsIFrame* parent = frame->GetParent();
   nsPoint origin(0, 0);
 
-  if (parent && parent->GetType() == nsGkAtoms::tableOuterFrame &&
-      frame->GetType() == nsGkAtoms::tableFrame) {
+  if (parent && parent->GetType() == nsGkAtoms::tableOuterFrame) {
     origin = parent->GetPositionIgnoringScrolling();
     parent = parent->GetParent();
   }
@@ -833,7 +832,7 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
                                       namespaceID,
                                       OwnerDoc()->GetCompatibilityMode() ==
                                         eCompatibility_NavQuirks,
-                                      true);
+                                      PR_TRUE);
     parent->ReplaceChild(fragment, this, &rv);
     return rv;
   }
@@ -855,7 +854,7 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
   nsCOMPtr<nsIDOMDocumentFragment> df;
   nsresult rv = nsContentUtils::CreateContextualFragment(context,
                                                          aOuterHTML,
-                                                         true,
+                                                         PR_TRUE,
                                                          getter_AddRefs(df));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
@@ -959,6 +958,9 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
       break;
     case eAfterEnd:
       destination->InsertBefore(fragment, GetNextSibling(), &rv);
+      break;
+    default:
+      NS_NOTREACHED("Bad position.");
       break;
   }
   return rv;
@@ -1280,14 +1282,11 @@ nsGenericHTMLElement::GetHrefURIForAnchors() const
 
 nsresult
 nsGenericHTMLElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                   const nsAttrValue* aValue, bool aNotify)
+                                   const nsAString* aValue, bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None) {
-    if (nsContentUtils::IsEventAttributeName(aName, EventNameType_HTML) &&
-        aValue) {
-      NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eString,
-        "Expected string value for script body");
-      nsresult rv = AddScriptEventListener(aName, aValue->GetStringValue());
+    if (nsContentUtils::IsEventAttributeName(aName, EventNameType_HTML) && aValue) {
+      nsresult rv = AddScriptEventListener(aName, *aValue);
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else if (aNotify && aName == nsGkAtoms::spellcheck) {
@@ -1504,7 +1503,7 @@ nsGenericHTMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sCommonAttributeMap
   };
   
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -1551,8 +1550,9 @@ nsGenericHTMLElement::GetPrimaryPresState(nsGenericHTMLElement* aContent,
 
   nsresult result = NS_OK;
 
+  nsCOMPtr<nsILayoutHistoryState> history;
   nsCAutoString key;
-  nsCOMPtr<nsILayoutHistoryState> history = GetLayoutHistoryAndKey(aContent, false, key);
+  GetLayoutHistoryAndKey(aContent, false, getter_AddRefs(history), key);
 
   if (history) {
     // Get the pres state for this key, if it doesn't exist, create one
@@ -1567,9 +1567,10 @@ nsGenericHTMLElement::GetPrimaryPresState(nsGenericHTMLElement* aContent,
 }
 
 
-already_AddRefed<nsILayoutHistoryState>
+nsresult
 nsGenericHTMLElement::GetLayoutHistoryAndKey(nsGenericHTMLElement* aContent,
                                              bool aRead,
+                                             nsILayoutHistoryState** aHistory,
                                              nsACString& aKey)
 {
   //
@@ -1577,19 +1578,20 @@ nsGenericHTMLElement::GetLayoutHistoryAndKey(nsGenericHTMLElement* aContent,
   //
   nsCOMPtr<nsIDocument> doc = aContent->GetDocument();
   if (!doc) {
-    return nsnull;
+    return NS_OK;
   }
 
   //
   // Get the history (don't bother with the key if the history is not there)
   //
-  nsCOMPtr<nsILayoutHistoryState> history = doc->GetLayoutHistoryState();
-  if (!history) {
-    return nsnull;
+  *aHistory = doc->GetLayoutHistoryState().get();
+  if (!*aHistory) {
+    return NS_OK;
   }
 
-  if (aRead && !history->HasStates()) {
-    return nsnull;
+  if (aRead && !(*aHistory)->HasStates()) {
+    NS_RELEASE(*aHistory);
+    return NS_OK;
   }
 
   //
@@ -1599,35 +1601,39 @@ nsGenericHTMLElement::GetLayoutHistoryAndKey(nsGenericHTMLElement* aContent,
                                                  nsIStatefulFrame::eNoID,
                                                  aKey);
   if (NS_FAILED(rv)) {
-    return nsnull;
+    NS_RELEASE(*aHistory);
+    return rv;
   }
 
   // If the state key is blank, this is anonymous content or for
   // whatever reason we are not supposed to save/restore state.
   if (aKey.IsEmpty()) {
-    return nsnull;
+    NS_RELEASE(*aHistory);
+    return NS_OK;
   }
 
   // Add something unique to content so layout doesn't muck us up
   aKey += "-C";
 
-  return history.forget();
+  return rv;
 }
 
 bool
 nsGenericHTMLElement::RestoreFormControlState(nsGenericHTMLElement* aContent,
                                               nsIFormControl* aControl)
 {
+  nsCOMPtr<nsILayoutHistoryState> history;
   nsCAutoString key;
-  nsCOMPtr<nsILayoutHistoryState> history = GetLayoutHistoryAndKey(aContent, true, key);
+  nsresult rv = GetLayoutHistoryAndKey(aContent, true,
+                                       getter_AddRefs(history), key);
   if (!history) {
     return false;
   }
 
   nsPresState *state;
   // Get the pres state for this key
-  nsresult rv = history->GetState(key, &state);
-  if (NS_SUCCEEDED(rv) && state) {
+  rv = history->GetState(key, &state);
+  if (state) {
     bool result = aControl->RestoreState(state);
     history->RemoveState(key);
     return result;
@@ -1826,7 +1832,7 @@ nsGenericHTMLElement::MapCommonAttributesExceptHiddenInto(const nsMappedAttribut
     }
   }
 
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
+  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Visibility)) {
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::lang);
     if (value && value->Type() == nsAttrValue::eString) {
       aData->ValueForLang()->SetStringValue(value->GetStringValue(),
@@ -2488,25 +2494,24 @@ nsGenericHTMLElement::GetContentEditable(nsAString& aContentEditable)
 nsresult
 nsGenericHTMLElement::SetContentEditable(const nsAString& aContentEditable)
 {
-  if (nsContentUtils::EqualsLiteralIgnoreASCIICase(aContentEditable, "inherit")) {
+  nsString contentEditable;
+  ToLowerCase(aContentEditable, contentEditable);
+
+  if (contentEditable.EqualsLiteral("inherit")) {
     UnsetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, true);
 
     return NS_OK;
   }
 
-  if (nsContentUtils::EqualsLiteralIgnoreASCIICase(aContentEditable, "true")) {
-    SetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, NS_LITERAL_STRING("true"), true);
-    
-    return NS_OK;
-  }
-  
-  if (nsContentUtils::EqualsLiteralIgnoreASCIICase(aContentEditable, "false")) {
-    SetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, NS_LITERAL_STRING("false"), true);
-
-    return NS_OK;
+  if (!contentEditable.EqualsLiteral("true") &&
+      !contentEditable.EqualsLiteral("false")) {
+    return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
-  return NS_ERROR_DOM_SYNTAX_ERR;
+  SetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, contentEditable,
+          true);
+
+  return NS_OK;
 }
 
 nsresult
@@ -2552,6 +2557,8 @@ nsGenericHTMLElement::GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu)
 }
 
 //----------------------------------------------------------------------
+
+NS_IMPL_INT_ATTR(nsGenericHTMLFrameElement, TabIndex, tabindex)
 
 nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
@@ -2663,6 +2670,24 @@ nsGenericHTMLFormElement::GetDesiredIMEState()
   return state;
 }
 
+bool
+nsGenericHTMLFrameElement::IsHTMLFocusable(bool aWithMouse,
+                                           bool *aIsFocusable,
+                                           PRInt32 *aTabIndex)
+{
+  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
+    return true;
+  }
+
+  *aIsFocusable = nsContentUtils::IsSubDocumentTabbable(this);
+
+  if (!*aIsFocusable && aTabIndex) {
+    *aTabIndex = -1;
+  }
+
+  return false;
+}
+
 nsresult
 nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
                                      nsIContent* aParent,
@@ -2744,8 +2769,7 @@ nsGenericHTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                        const nsAttrValueOrString* aValue,
-                                        bool aNotify)
+                                        const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     nsAutoString tmp;
@@ -2801,17 +2825,16 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                       const nsAttrValue* aValue, bool aNotify)
+                                       const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     // add the control to the hashtable as needed
 
     if (mForm && (aName == nsGkAtoms::name || aName == nsGkAtoms::id) &&
-        aValue && !aValue->IsEmptyString()) {
-      NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eAtom,
-        "Expected atom value for name/id");
-      mForm->AddElementToTable(this,
-        nsDependentAtomString(aValue->GetAtomValue()));
+        aValue) {
+      if (!aValue->IsEmpty()) {
+        mForm->AddElementToTable(this, *aValue);
+      }
     }
 
     if (mForm && aName == nsGkAtoms::type) {
@@ -2843,7 +2866,7 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         Element* formIdElement = nsnull;
-        if (aValue && !aValue->IsEmptyString()) {
+        if (aValue && !aValue->IsEmpty()) {
           formIdElement = AddFormIdObserver();
         }
 
@@ -3190,6 +3213,230 @@ nsGenericHTMLFormElement::FieldSetDisabledChanged(bool aNotify)
 
 //----------------------------------------------------------------------
 
+nsGenericHTMLFrameElement::~nsGenericHTMLFrameElement()
+{
+  if (mFrameLoader) {
+    mFrameLoader->Destroy();
+  }
+}
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericHTMLFrameElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGenericHTMLFrameElement,
+                                                  nsGenericHTMLElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mFrameLoader, nsIFrameLoader)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsGenericHTMLFrameElement,
+                                nsIFrameLoaderOwner)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
+NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
+
+nsresult
+nsGenericHTMLFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
+{
+  NS_PRECONDITION(aContentDocument, "Null out param");
+  *aContentDocument = nsnull;
+
+  nsCOMPtr<nsIDOMWindow> win;
+  GetContentWindow(getter_AddRefs(win));
+
+  if (!win) {
+    return NS_OK;
+  }
+
+  return win->GetDocument(aContentDocument);
+}
+
+nsresult
+nsGenericHTMLFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
+{
+  NS_PRECONDITION(aContentWindow, "Null out param");
+  *aContentWindow = nsnull;
+
+  nsresult rv = EnsureFrameLoader();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mFrameLoader) {
+    return NS_OK;
+  }
+
+  bool depthTooGreat = false;
+  mFrameLoader->GetDepthTooGreat(&depthTooGreat);
+  if (depthTooGreat) {
+    // Claim to have no contentWindow
+    return NS_OK;
+  }
+  
+  nsCOMPtr<nsIDocShell> doc_shell;
+  mFrameLoader->GetDocShell(getter_AddRefs(doc_shell));
+
+  nsCOMPtr<nsPIDOMWindow> win(do_GetInterface(doc_shell));
+
+  if (!win) {
+    return NS_OK;
+  }
+
+  NS_ASSERTION(win->IsOuterWindow(),
+               "Uh, this window should always be an outer window!");
+
+  return CallQueryInterface(win, aContentWindow);
+}
+
+nsresult
+nsGenericHTMLFrameElement::EnsureFrameLoader()
+{
+  if (!GetParent() || !IsInDoc() || mFrameLoader) {
+    // If frame loader is there, we just keep it around, cached
+    return NS_OK;
+  }
+
+  mFrameLoader = nsFrameLoader::Create(this, mNetworkCreated);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGenericHTMLFrameElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
+{
+  NS_IF_ADDREF(*aFrameLoader = mFrameLoader);
+  return NS_OK;
+}
+
+NS_IMETHODIMP_(already_AddRefed<nsFrameLoader>)
+nsGenericHTMLFrameElement::GetFrameLoader()
+{
+  nsRefPtr<nsFrameLoader> loader = mFrameLoader;
+  return loader.forget();
+}
+
+NS_IMETHODIMP
+nsGenericHTMLFrameElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
+{
+  // We don't support this yet
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsresult
+nsGenericHTMLFrameElement::LoadSrc()
+{
+  nsresult rv = EnsureFrameLoader();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mFrameLoader) {
+    return NS_OK;
+  }
+
+  rv = mFrameLoader->LoadFrame();
+#ifdef DEBUG
+  if (NS_FAILED(rv)) {
+    NS_WARNING("failed to load URL");
+  }
+#endif
+
+  return rv;
+}
+
+nsresult
+nsGenericHTMLFrameElement::BindToTree(nsIDocument* aDocument,
+                                      nsIContent* aParent,
+                                      nsIContent* aBindingParent,
+                                      bool aCompileEventHandlers)
+{
+  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
+                                                 aBindingParent,
+                                                 aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aDocument) {
+    NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
+                 "Missing a script blocker!");
+    // We're in a document now.  Kick off the frame load.
+    LoadSrc();
+  }
+
+  // We're now in document and scripts may move us, so clear
+  // the mNetworkCreated flag.
+  mNetworkCreated = false;
+  return rv;
+}
+
+void
+nsGenericHTMLFrameElement::UnbindFromTree(bool aDeep, bool aNullParent)
+{
+  if (mFrameLoader) {
+    // This iframe is being taken out of the document, destroy the
+    // iframe's frame loader (doing that will tear down the window in
+    // this iframe).
+    // XXXbz we really want to only partially destroy the frame
+    // loader... we don't want to tear down the docshell.  Food for
+    // later bug.
+    mFrameLoader->Destroy();
+    mFrameLoader = nsnull;
+  }
+
+  nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
+}
+
+nsresult
+nsGenericHTMLFrameElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                   nsIAtom* aPrefix, const nsAString& aValue,
+                                   bool aNotify)
+{
+  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
+                                              aValue, aNotify);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src) {
+    // Don't propagate error here. The attribute was successfully set, that's
+    // what we should reflect.
+    LoadSrc();
+  }
+
+  return NS_OK;
+}
+
+void
+nsGenericHTMLFrameElement::DestroyContent()
+{
+  if (mFrameLoader) {
+    mFrameLoader->Destroy();
+    mFrameLoader = nsnull;
+  }
+
+  nsGenericHTMLElement::DestroyContent();
+}
+
+nsresult
+nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest) const
+{
+  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsIDocument* doc = aDest->OwnerDoc();
+  if (doc->IsStaticDocument() && mFrameLoader) {
+    nsGenericHTMLFrameElement* dest =
+      static_cast<nsGenericHTMLFrameElement*>(aDest);
+    nsFrameLoader* fl = nsFrameLoader::Create(dest, false);
+    NS_ENSURE_STATE(fl);
+    dest->mFrameLoader = fl;
+    static_cast<nsFrameLoader*>(mFrameLoader.get())->CreateStaticClone(fl);
+  }
+
+  return rv;
+}
+
+PRInt64
+nsGenericHTMLFrameElement::SizeOf() const
+{
+  PRInt64 size = MemoryReporter::GetBasicSize<nsGenericHTMLFrameElement,
+                                              nsGenericHTMLElement>(this);
+  // TODO: need to implement SizeOf() in nsFrameLoader, bug 672539.
+  size += mFrameLoader ? sizeof(*mFrameLoader.get()) : 0;
+  return size;
+}
+
+//----------------------------------------------------------------------
+
 nsresult
 nsGenericHTMLElement::Blur()
 {
@@ -3223,15 +3470,17 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
   // and it also makes it harder for bad guys' script to go full-screen and
   // spoof the browser chrome/window and phish logins etc.
   if (!nsContentUtils::IsRequestFullScreenAllowed()) {
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    "DOM", OwnerDoc(),
-                                    nsContentUtils::eDOM_PROPERTIES,
-                                    "FullScreenDeniedNotInputDriven");
-    nsRefPtr<nsAsyncDOMEvent> e =
-      new nsAsyncDOMEvent(OwnerDoc(),
-                          NS_LITERAL_STRING("mozfullscreenerror"),
-                          true,
-                          false);
+    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                    "FullScreenDeniedNotInputDriven",
+                                    nsnull, 0, nsnull,
+                                    EmptyString(), 0, 0,
+                                    nsIScriptError::warningFlag,
+                                    "DOM", OwnerDoc());
+    nsRefPtr<nsPLDOMEvent> e =
+      new nsPLDOMEvent(OwnerDoc(),
+                       NS_LITERAL_STRING("mozfullscreenerror"),
+                       true,
+                       false);
     e->PostDOMEvent();
     return NS_OK;
   }

@@ -64,7 +64,7 @@
 #include "nsIDocumentTransformer.h"
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/Element.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsIHTMLContentSink.h"
 #include "nsContentUtils.h"
 #include "txXMLUtils.h"
@@ -160,7 +160,7 @@ txMozillaXMLOutput::attribute(nsIAtom* aPrefix,
 
     if (mOpenedElementIsHTML && aNsID == kNameSpaceID_None) {
         nsAutoString lnameStr;
-        nsContentUtils::ASCIIToLower(aLocalName, lnameStr);
+        ToLowerCase(aLocalName, lnameStr);
         lname = do_GetAtom(lnameStr);
     }
     else {
@@ -338,15 +338,9 @@ txMozillaXMLOutput::endElement()
         } else if (ns == kNameSpaceID_XHTML &&
                    (localName == nsGkAtoms::input ||
                     localName == nsGkAtoms::button ||
-                    localName == nsGkAtoms::menuitem
-#ifdef MOZ_MEDIA
-                     ||
-                    localName == nsGkAtoms::audio ||
-                    localName == nsGkAtoms::video
-#endif
-                  )) {
+                    localName == nsGkAtoms::menuitem)) {
           element->DoneCreatingElement();
-        }   
+        }
     }
 
     if (mCreatingNewDocument) {
@@ -499,7 +493,7 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix,
         nsId = kNameSpaceID_XHTML;
 
         nsAutoString lnameStr;
-        nsContentUtils::ASCIIToLower(aLocalName, lnameStr);
+        ToLowerCase(aLocalName, lnameStr);
         lname = do_GetAtom(lnameStr);
     }
     else {
@@ -802,7 +796,7 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
             nsAutoString value;
             aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
             if (!value.IsEmpty()) {
-                nsContentUtils::ASCIIToLower(httpEquiv);
+                ToLowerCase(httpEquiv);
                 nsCOMPtr<nsIAtom> header = do_GetAtom(httpEquiv);
                 processHTTPEquiv(header, value);
             }
@@ -857,7 +851,11 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
     if (!mOutputFormat.mEncoding.IsEmpty()) {
         NS_LossyConvertUTF16toASCII charset(mOutputFormat.mEncoding);
         nsCAutoString canonicalCharset;
-        if (NS_SUCCEEDED(nsCharsetAlias::GetPreferred(charset, canonicalCharset))) {
+        nsCOMPtr<nsICharsetAlias> calias =
+            do_GetService("@mozilla.org/intl/charsetalias;1");
+
+        if (calias &&
+            NS_SUCCEEDED(calias->GetPreferred(charset, canonicalCharset))) {
             mDocument->SetDocumentCharacterSetSource(kCharsetFromOtherComponent);
             mDocument->SetDocumentCharacterSet(canonicalCharset);
         }
@@ -936,12 +934,14 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
             }
 
             // Indicate that there is no internal subset (not just an empty one)
+            nsAutoString voidString;
+            voidString.SetIsVoid(true);
             rv = NS_NewDOMDocumentType(getter_AddRefs(documentType),
                                        mNodeInfoManager,
                                        doctypeName,
                                        mOutputFormat.mPublicId,
                                        mOutputFormat.mSystemId,
-                                       NullString());
+                                       voidString);
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsCOMPtr<nsIContent> docType = do_QueryInterface(documentType);

@@ -41,15 +41,12 @@
 #ifndef MOZILLA_DOMSVGTRANSFORMLIST_H__
 #define MOZILLA_DOMSVGTRANSFORMLIST_H__
 
-#include "DOMSVGAnimatedTransformList.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGTransformList.h"
-#include "nsTArray.h"
 #include "SVGTransformList.h"
+#include "DOMSVGAnimatedTransformList.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
-class nsIDOMSVGTransform;
 class nsSVGElement;
 
 namespace mozilla {
@@ -64,22 +61,19 @@ class DOMSVGTransform;
  *
  * See the architecture comment in DOMSVGAnimatedTransformList.h.
  */
-class DOMSVGTransformList : public nsIDOMSVGTransformList,
-                            public nsWrapperCache
+class DOMSVGTransformList : public nsIDOMSVGTransformList
 {
   friend class DOMSVGTransform;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGTransformList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGTransformList)
   NS_DECL_NSIDOMSVGTRANSFORMLIST
 
   DOMSVGTransformList(DOMSVGAnimatedTransformList *aAList,
                       const SVGTransformList &aInternalList)
     : mAList(aAList)
   {
-    SetIsProxy();
-
     // aInternalList must be passed in explicitly because we can't use
     // InternalList() here. (Because it depends on IsAnimValList, which depends
     // on this object having been assigned to aAList's mBaseVal or mAnimVal,
@@ -97,14 +91,6 @@ public:
     }
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap);
-
-  nsISupports* GetParentObject()
-  {
-    return static_cast<nsIContent*>(Element());
-  }
-
   /**
    * This will normally be the same as InternalList().Length(), except if we've
    * hit OOM in which case our length will be zero.
@@ -115,6 +101,8 @@ public:
       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
+
+  nsIDOMSVGTransform* GetItemWithoutAddRef(PRUint32 aIndex);
 
   /// Called to notify us to synchronize our length and detach excess items.
   void InternalListLengthWillChange(PRUint32 aNewLength);

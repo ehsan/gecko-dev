@@ -65,7 +65,6 @@ var MigrationWizard = {
       this._source = window.arguments[0];
       this._migrator = window.arguments[1].QueryInterface(kIMig);
       this._autoMigrate = window.arguments[2].QueryInterface(kIPStartup);
-      this._skipImportSourcePage = window.arguments[3];
 
       if (this._autoMigrate) {
         // Show the "nothing" option in the automigrate case to provide an
@@ -95,7 +94,7 @@ var MigrationWizard = {
     // Reference to the "From File" radio button 
     var fromfile = null;
 
-    // init is not called when openDialog opens the wizard, so check for bookmarks here.
+    //XXXquark This function is called before init, so check for bookmarks here
     if ("arguments" in window && window.arguments[0] == "bookmarks") {
       this._bookmarks = true;
 
@@ -152,12 +151,6 @@ var MigrationWizard = {
       document.getElementById("importBookmarks").hidden = true;
       document.getElementById("importAll").hidden = true;
     }
-
-    // Advance to the next page if the caller told us to.
-    if (this._migrator && this._skipImportSourcePage) {
-      this._wiz.advance();
-      this._wiz.canRewind = false;
-    }
   },
   
   onImportSourcePageAdvanced: function ()
@@ -193,8 +186,8 @@ var MigrationWizard = {
         this._wiz.currentPage.next = "importItems";
 
       var sourceProfiles = this._migrator.sourceProfiles;
-      if (sourceProfiles && sourceProfiles.length == 1) {
-        var profileName = sourceProfiles.queryElementAt(0, Ci.nsISupportsString);
+      if (sourceProfiles && sourceProfiles.Count() == 1) {
+        var profileName = sourceProfiles.QueryElementAt(0, Components.interfaces.nsISupportsString);
         this._selectedProfile = profileName.data;
       }
       else
@@ -218,9 +211,10 @@ var MigrationWizard = {
     // and we canceled the dialog.  When that happens, _migrator will be null.
     if (this._migrator) {
       var sourceProfiles = this._migrator.sourceProfiles;
-      for (var i = 0; i < sourceProfiles.length; ++i) {
+      var count = sourceProfiles.Count();
+      for (var i = 0; i < count; ++i) {
         var item = document.createElement("radio");
-        var str = sourceProfiles.queryElementAt(i, Ci.nsISupportsString);
+        var str = sourceProfiles.QueryElementAt(i, Components.interfaces.nsISupportsString);
         item.id = str.data;
         item.setAttribute("label", str.data);
         profiles.appendChild(item);
@@ -340,14 +334,14 @@ var MigrationWizard = {
       case "ie":
         source = "sourceNameIE";
         break;
+      case "opera":
+        source = "sourceNameOpera";
+        break;
       case "safari":
         source = "sourceNameSafari";
         break;
       case "chrome":
         source = "sourceNameChrome";
-        break;
-      case "firefox":
-        source = "sourceNameFirefox";
         break;
     }
 

@@ -35,26 +35,57 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsDOMBlobBuilder.h"
 #include "jstypedarray.h"
 #include "nsAutoPtr.h"
 #include "nsDOMClassInfoID.h"
+#include "nsDOMFile.h"
 #include "nsIMultiplexInputStream.h"
 #include "nsStringStream.h"
 #include "nsTArray.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
-#include "DictionaryHelpers.h"
+#include "CheckedInt.h"
+
+// XXXkhuey shamelessly stolen from VideoUtils.h.  We should patch NSPR.
+#define PR_INT64_MAX (~((PRInt64)(1) << 63))
+#define PR_INT64_MIN (-PR_INT64_MAX - 1)
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsDOMMultipartFile, nsDOMFileBase,
-                             nsIJSNativeInitializer)
+class nsDOMMultipartFile : public nsDOMFileBase
+{
+public:
+  // Create as a file
+  nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
+                     const nsAString& aName,
+                     const nsAString& aContentType)
+    : nsDOMFileBase(aName, aContentType, PR_UINT64_MAX),
+      mBlobs(aBlobs)
+  {
+  }
+
+  // Create as a blob
+  nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
+                     const nsAString& aContentType)
+    : nsDOMFileBase(aContentType, PR_UINT64_MAX),
+      mBlobs(aBlobs)
+  {
+  }
+
+  already_AddRefed<nsIDOMBlob>
+  CreateSlice(PRUint64 aStart, PRUint64 aLength, const nsAString& aContentType);
+
+  NS_IMETHOD GetSize(PRUint64*);
+  NS_IMETHOD GetInternalStream(nsIInputStream**);
+
+protected:
+  nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;
+};
 
 NS_IMETHODIMP
 nsDOMMultipartFile::GetSize(PRUint64* aLength)
 {
-  if (mLength == UINT64_MAX) {
+  if (mLength == PR_UINT64_MAX) {
     CheckedUint64 length = 0;
   
     PRUint32 i;
@@ -126,9 +157,9 @@ nsDOMMultipartFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
       PRUint64 upperBound = NS_MIN<PRUint64>(l - skipStart, length);
 
       nsCOMPtr<nsIDOMBlob> firstBlob;
-      rv = blob->Slice(skipStart, skipStart + upperBound,
-                       aContentType, 3,
-                       getter_AddRefs(firstBlob));
+      rv = blob->MozSlice(skipStart, skipStart + upperBound,
+                          aContentType, 3,
+                          getter_AddRefs(firstBlob));
       NS_ENSURE_SUCCESS(rv, nsnull);
 
       // Avoid wrapping a single blob inside an nsDOMMultipartFile
@@ -154,8 +185,8 @@ nsDOMMultipartFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
 
     if (length < l) {
       nsCOMPtr<nsIDOMBlob> lastBlob;
-      rv = blob->Slice(0, length, aContentType, 3,
-                       getter_AddRefs(lastBlob));
+      rv = blob->MozSlice(0, length, aContentType, 3,
+                          getter_AddRefs(lastBlob));
       NS_ENSURE_SUCCESS(rv, nsnull);
 
       blobs.AppendElement(lastBlob);
@@ -170,94 +201,79 @@ nsDOMMultipartFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
   return blob.forget();
 }
 
-/* static */ nsresult
-nsDOMMultipartFile::NewBlob(nsISupports* *aNewObject)
+class nsDOMBlobBuilder : public nsIDOMMozBlobBuilder
 {
-  nsCOMPtr<nsISupports> file = do_QueryObject(new nsDOMMultipartFile());
-  file.forget(aNewObject);
-  return NS_OK;
-}
+public:
+  nsDOMBlobBuilder()
+    : mData(nsnull), mDataLen(0), mDataBufferLen(0)
+  {}
 
-NS_IMETHODIMP
-nsDOMMultipartFile::Initialize(nsISupports* aOwner,
-                               JSContext* aCx,
-                               JSObject* aObj,
-                               PRUint32 aArgc,
-                               jsval* aArgv)
-{
-  bool nativeEOL = false;
-  if (aArgc > 1) {
-    mozilla::dom::BlobPropertyBag d;
-    nsresult rv = d.Init(aCx, &aArgv[1]);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mContentType = d.type;
-    if (d.endings.EqualsLiteral("native")) {
-      nativeEOL = true;
-    } else if (!d.endings.EqualsLiteral("transparent")) {
-      return NS_ERROR_DOM_INVALID_STATE_ERR;
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMMOZBLOBBUILDER
+protected:
+  nsresult AppendVoidPtr(void* aData, PRUint32 aLength);
+  nsresult AppendString(JSString* aString, JSContext* aCx);
+  nsresult AppendBlob(nsIDOMBlob* aBlob);
+  nsresult AppendArrayBuffer(JSObject* aBuffer);
+
+  bool ExpandBufferSize(PRUint64 aSize)
+  {
+    if (mDataBufferLen >= mDataLen + aSize) {
+      mDataLen += aSize;
+      return true;
+    }
+
+    // Start at 1 or we'll loop forever.
+    CheckedUint32 bufferLen = NS_MAX<PRUint32>(mDataBufferLen, 1);
+    while (bufferLen.valid() && bufferLen.value() < mDataLen + aSize)
+      bufferLen *= 2;
+
+    if (!bufferLen.valid())
+      return false;
+
+    // PR_ memory functions are still fallible
+    void* data = PR_Realloc(mData, bufferLen.value());
+    if (!data)
+      return false;
+
+    mData = data;
+    mDataBufferLen = bufferLen.value();
+    mDataLen += aSize;
+    return true;
+  }
+
+  void Flush() {
+    if (mData) {
+      // If we have some data, create a blob for it
+      // and put it on the stack
+
+      nsCOMPtr<nsIDOMBlob> blob =
+        new nsDOMMemoryFile(mData, mDataLen, EmptyString(), EmptyString());
+      mBlobs.AppendElement(blob);
+      mData = nsnull; // The nsDOMMemoryFile takes ownership of the buffer
+      mDataLen = 0;
+      mDataBufferLen = 0;
     }
   }
 
-  if (aArgc > 0) {
-    if (!aArgv[0].isObject()) {
-      return NS_ERROR_INVALID_ARG; // We're not interested
-    }
+  nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;
+  void* mData;
+  PRUint64 mDataLen;
+  PRUint64 mDataBufferLen;
+};
 
-    JSObject& obj = aArgv[0].toObject();
+DOMCI_DATA(MozBlobBuilder, nsDOMBlobBuilder)
 
-    if (!JS_IsArrayObject(aCx, &obj)) {
-      return NS_ERROR_INVALID_ARG; // We're not interested
-    }
-
-    BlobSet blobSet;
-
-    uint32_t length;
-    JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, &obj, &length));
-    for (uint32_t i = 0; i < length; ++i) {
-      jsval element;
-      if (!JS_GetElement(aCx, &obj, i, &element))
-        return NS_ERROR_INVALID_ARG;
-
-      if (element.isObject()) {
-        JSObject& obj = element.toObject();
-        nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
-          nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, &obj));
-        if (blob) {
-          // Flatten so that multipart blobs will never nest
-          nsDOMFileBase* file = static_cast<nsDOMFileBase*>(
-              static_cast<nsIDOMBlob*>(blob));
-          const nsTArray<nsCOMPtr<nsIDOMBlob> >*
-              subBlobs = file->GetSubBlobs();
-          if (subBlobs) {
-            blobSet.AppendBlobs(*subBlobs);
-          } else {
-            blobSet.AppendBlob(blob);
-          }
-        } else if (js_IsArrayBuffer(&obj)) {
-          JSObject* buffer = js::ArrayBuffer::getArrayBuffer(&obj);
-          if (!buffer)
-            return NS_ERROR_DOM_INVALID_STATE_ERR;
-          blobSet.AppendArrayBuffer(buffer);
-        } else {
-          // neither arraybuffer nor blob
-          return NS_ERROR_DOM_INVALID_STATE_ERR;
-        }
-      } else if (element.isString()) {
-        blobSet.AppendString(element.toString(), nativeEOL, aCx);
-      } else {
-        // neither object nor string
-        return NS_ERROR_DOM_INVALID_STATE_ERR;
-      }
-    }
-
-    mBlobs = blobSet.GetBlobs();
-  }
-
-  return NS_OK;
-}
+NS_IMPL_ADDREF(nsDOMBlobBuilder)
+NS_IMPL_RELEASE(nsDOMBlobBuilder)
+NS_INTERFACE_MAP_BEGIN(nsDOMBlobBuilder)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMozBlobBuilder)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozBlobBuilder)
+NS_INTERFACE_MAP_END
 
 nsresult
-BlobSet::AppendVoidPtr(const void* aData, PRUint32 aLength)
+nsDOMBlobBuilder::AppendVoidPtr(void* aData, PRUint32 aLength)
 {
   NS_ENSURE_ARG_POINTER(aData);
 
@@ -271,31 +287,21 @@ BlobSet::AppendVoidPtr(const void* aData, PRUint32 aLength)
 }
 
 nsresult
-BlobSet::AppendString(JSString* aString, bool nativeEOL, JSContext* aCx)
+nsDOMBlobBuilder::AppendString(JSString* aString, JSContext* aCx)
 {
   nsDependentJSString xpcomStr;
   if (!xpcomStr.init(aCx, aString)) {
     return NS_ERROR_XPC_BAD_CONVERT_JS;
   }
 
-  nsCString utf8Str = NS_ConvertUTF16toUTF8(xpcomStr);
-
-  if (nativeEOL) {
-    if (utf8Str.FindChar('\r') != kNotFound) {
-      utf8Str.ReplaceSubstring("\r\n", "\n");
-      utf8Str.ReplaceSubstring("\r", "\n");
-    }
-#ifdef XP_WIN
-    utf8Str.ReplaceSubstring("\n", "\r\n");
-#endif
-  }
+  NS_ConvertUTF16toUTF8 utf8Str(xpcomStr);
 
   return AppendVoidPtr((void*)utf8Str.Data(),
                        utf8Str.Length());
 }
 
 nsresult
-BlobSet::AppendBlob(nsIDOMBlob* aBlob)
+nsDOMBlobBuilder::AppendBlob(nsIDOMBlob* aBlob)
 {
   NS_ENSURE_ARG_POINTER(aBlob);
 
@@ -306,48 +312,21 @@ BlobSet::AppendBlob(nsIDOMBlob* aBlob)
 }
 
 nsresult
-BlobSet::AppendBlobs(const nsTArray<nsCOMPtr<nsIDOMBlob> >& aBlob)
-{
-  Flush();
-  mBlobs.AppendElements(aBlob);
-
-  return NS_OK;
-}
-
-nsresult
-BlobSet::AppendArrayBuffer(JSObject* aBuffer)
+nsDOMBlobBuilder::AppendArrayBuffer(JSObject* aBuffer)
 {
   return AppendVoidPtr(JS_GetArrayBufferData(aBuffer), JS_GetArrayBufferByteLength(aBuffer));
 }
-
-DOMCI_DATA(MozBlobBuilder, nsDOMBlobBuilder)
-
-NS_IMPL_ADDREF(nsDOMBlobBuilder)
-NS_IMPL_RELEASE(nsDOMBlobBuilder)
-NS_INTERFACE_MAP_BEGIN(nsDOMBlobBuilder)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMozBlobBuilder)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozBlobBuilder)
-NS_INTERFACE_MAP_END
 
 /* nsIDOMBlob getBlob ([optional] in DOMString contentType); */
 NS_IMETHODIMP
 nsDOMBlobBuilder::GetBlob(const nsAString& aContentType,
                           nsIDOMBlob** aBlob)
 {
-  return GetBlobInternal(aContentType, true, aBlob);
-}
-
-nsresult
-nsDOMBlobBuilder::GetBlobInternal(const nsAString& aContentType,
-                                  bool aClearBuffer,
-                                  nsIDOMBlob** aBlob)
-{
   NS_ENSURE_ARG(aBlob);
 
-  nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = mBlobSet.GetBlobs();
+  Flush();
 
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMMultipartFile(blobs,
+  nsCOMPtr<nsIDOMBlob> blob = new nsDOMMultipartFile(mBlobs,
                                                      aContentType);
   blob.forget(aBlob);
 
@@ -355,9 +334,7 @@ nsDOMBlobBuilder::GetBlobInternal(const nsAString& aContentType,
   // the existing contents of the BlobBuilder should be included
   // in the next blob produced.  This seems silly and has been raised
   // on the WHATWG listserv.
-  if (aClearBuffer) {
-    blobs.Clear();
-  }
+  mBlobs.Clear();
 
   return NS_OK;
 }
@@ -370,9 +347,9 @@ nsDOMBlobBuilder::GetFile(const nsAString& aName,
 {
   NS_ENSURE_ARG(aFile);
 
-  nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = mBlobSet.GetBlobs();
+  Flush();
 
-  nsCOMPtr<nsIDOMFile> file = new nsDOMMultipartFile(blobs,
+  nsCOMPtr<nsIDOMFile> file = new nsDOMMultipartFile(mBlobs,
                                                      aName,
                                                      aContentType);
   file.forget(aFile);
@@ -381,16 +358,14 @@ nsDOMBlobBuilder::GetFile(const nsAString& aName,
   // the existing contents of the BlobBuilder should be included
   // in the next blob produced.  This seems silly and has been raised
   // on the WHATWG listserv.
-  blobs.Clear();
+  mBlobs.Clear();
 
   return NS_OK;
 }
 
-/* [implicit_jscontext] void append (in jsval data,
-                                     [optional] in DOMString endings); */
+/* [implicit_jscontext] void append (in jsval data); */
 NS_IMETHODIMP
-nsDOMBlobBuilder::Append(const jsval& aData,
-                         const nsAString& aEndings, JSContext* aCx)
+nsDOMBlobBuilder::Append(const jsval& aData, JSContext* aCx)
 {
   // We need to figure out what our jsval is
 
@@ -406,23 +381,14 @@ nsDOMBlobBuilder::Append(const jsval& aData,
     nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
       nsContentUtils::XPConnect()->
         GetNativeOfWrapper(aCx, obj));
-    if (blob) {
-      // Flatten so that multipart blobs will never nest
-      nsDOMFileBase* file = static_cast<nsDOMFileBase*>(
-          static_cast<nsIDOMBlob*>(blob));
-      const nsTArray<nsCOMPtr<nsIDOMBlob> >* subBlobs = file->GetSubBlobs();
-      if (subBlobs) {
-        return mBlobSet.AppendBlobs(*subBlobs);
-      } else {
-        return mBlobSet.AppendBlob(blob);
-      }
-    }
+    if (blob)
+      return AppendBlob(blob);
 
     // Is it an array buffer?
     if (js_IsArrayBuffer(obj)) {
       JSObject* buffer = js::ArrayBuffer::getArrayBuffer(obj);
       if (buffer)
-        return mBlobSet.AppendArrayBuffer(buffer);
+        return AppendArrayBuffer(buffer);
     }
   }
 
@@ -430,7 +396,7 @@ nsDOMBlobBuilder::Append(const jsval& aData,
   JSString* str = JS_ValueToString(aCx, aData);
   NS_ENSURE_TRUE(str, NS_ERROR_FAILURE);
 
-  return mBlobSet.AppendString(str, aEndings.EqualsLiteral("native"), aCx);
+  return AppendString(str, aCx);
 }
 
 nsresult NS_NewBlobBuilder(nsISupports* *aSupports)

@@ -38,7 +38,6 @@
 
 #include "nsDOMPageTransitionEvent.h"
 #include "nsContentUtils.h"
-#include "DictionaryHelpers.h"
 
 DOMCI_DATA(PageTransitionEvent, nsDOMPageTransitionEvent)
 
@@ -68,16 +67,6 @@ nsDOMPageTransitionEvent::InitPageTransitionEvent(const nsAString &aTypeArg,
 
   mPersisted = aPersisted;
   return NS_OK;
-}
-
-nsresult
-nsDOMPageTransitionEvent::InitFromCtor(const nsAString& aType,
-                                       JSContext* aCx, jsval* aVal)
-{
-  mozilla::dom::PageTransitionEventInit d;
-  nsresult rv = d.Init(aCx, aVal);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return InitPageTransitionEvent(aType, d.bubbles, d.cancelable, d.persisted);
 }
 
 nsresult NS_NewDOMPageTransitionEvent(nsIDOMEvent** aInstancePtrResult,

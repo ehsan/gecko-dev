@@ -133,16 +133,6 @@ ContainerDestroy(Container* aContainer)
   }
 }
 
-template<class Container>
-static void
-ContainerCleanupResources(Container* aContainer)
-{
-  for (Layer* l = aContainer->GetFirstChild(); l; l = l->GetNextSibling()) {
-    LayerOGL* layerToRender = static_cast<LayerOGL*>(l->ImplData());
-    layerToRender->CleanupResources();
-  }
-}
-
 static inline LayerOGL*
 GetNextSibling(LayerOGL* aLayer)
 {
@@ -214,7 +204,6 @@ ContainerRender(Container* aContainer,
     framebufferRect -= childOffset; 
     aManager->CreateFBOWithTexture(framebufferRect,
                                    mode,
-                                   aPreviousFrameBuffer,
                                    &frameBuffer,
                                    &containerSurface);
     childOffset.x = visibleRect.x;
@@ -256,14 +245,6 @@ ContainerRender(Container* aContainer,
 
   if (needsFramebuffer) {
     // Unbind the current framebuffer and rebind the previous one.
-#ifdef MOZ_DUMP_PAINTING
-    if (gfxUtils::sDumpPainting) {
-      nsRefPtr<gfxImageSurface> surf = 
-        aContainer->gl()->GetTexImage(containerSurface, true, aManager->GetFBOLayerProgramType());
-
-      WriteSnapshotToDumpFile(aContainer, surf);
-    }
-#endif
     
     // Restore the viewport
     aContainer->gl()->PopViewportRect();
@@ -353,11 +334,6 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   ContainerRender(this, aPreviousFrameBuffer, aOffset, mOGLManager);
 }
 
-void
-ContainerLayerOGL::CleanupResources()
-{
-  ContainerCleanupResources(this);
-}
 
 ShadowContainerLayerOGL::ShadowContainerLayerOGL(LayerManagerOGL *aManager)
   : ShadowContainerLayer(aManager, NULL)
@@ -405,11 +381,6 @@ ShadowContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   ContainerRender(this, aPreviousFrameBuffer, aOffset, mOGLManager);
 }
 
-void
-ShadowContainerLayerOGL::CleanupResources()
-{
-  ContainerCleanupResources(this);
-}
 
 } /* layers */
 } /* mozilla */

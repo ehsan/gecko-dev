@@ -37,16 +37,15 @@
 #ifndef __NS_SVGNUMBERPAIR_H__
 #define __NS_SVGNUMBERPAIR_H__
 
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsError.h"
+#include "nsIDOMSVGNumber.h"
 #include "nsIDOMSVGAnimatedNumber.h"
-#include "nsISMILAttr.h"
-#include "nsMathUtils.h"
 #include "nsSVGElement.h"
+#include "nsDOMError.h"
+#include "nsMathUtils.h"
 
-class nsISMILAnimationElement;
+#include "nsISMILAttr.h"
 class nsSMILValue;
+class nsISMILType;
 
 class nsSVGNumberPair
 {
@@ -67,7 +66,7 @@ public:
 
   nsresult SetBaseValueString(const nsAString& aValue,
                               nsSVGElement *aSVGElement);
-  void GetBaseValueString(nsAString& aValue) const;
+  void GetBaseValueString(nsAString& aValue);
 
   void SetBaseValue(float aValue, PairIndex aIndex, nsSVGElement *aSVGElement);
   void SetBaseValues(float aValue1, float aValue2, nsSVGElement *aSVGElement);

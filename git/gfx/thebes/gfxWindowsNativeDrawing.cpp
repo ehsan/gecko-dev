@@ -69,13 +69,8 @@ HDC
 gfxWindowsNativeDrawing::BeginNativeDrawing()
 {
     if (mRenderState == RENDER_STATE_INIT) {
-        nsRefPtr<gfxASurface> surf;
-        
-        if (mContext->GetCairo()) {
-          surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
-        }
-
-        if (surf && surf->CairoStatus())
+        nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
+        if (!surf || surf->CairoStatus())
             return nsnull;
 
         gfxMatrix m = mContext->CurrentMatrix();
@@ -89,12 +84,11 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         // if this is a native win32 surface, we don't have to
         // redirect rendering to our own HDC; in some cases,
         // we may be able to use the HDC from the surface directly.
-        if (surf &&
-            ((surf->GetType() == gfxASurface::SurfaceTypeWin32 ||
-              surf->GetType() == gfxASurface::SurfaceTypeWin32Printing) &&
-              (surf->GetContentType() == gfxASurface::CONTENT_COLOR ||
-               (surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA &&
-               (mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA)))))
+        if ((surf->GetType() == gfxASurface::SurfaceTypeWin32 ||
+             surf->GetType() == gfxASurface::SurfaceTypeWin32Printing) &&
+            (surf->GetContentType() == gfxASurface::CONTENT_COLOR ||
+             (surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA &&
+              (mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA))))
         {
             // grab the DC. This can fail if there is a complex clipping path,
             // in which case we'll have to fall back.
@@ -214,15 +208,11 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
 bool
 gfxWindowsNativeDrawing::IsDoublePass()
 {
-    if (!mContext->IsCairo()) {
-      return true;
-    }
-
     nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
     if (!surf || surf->CairoStatus())
         return false;
     if (surf->GetType() != gfxASurface::SurfaceTypeWin32 &&
-        surf->GetType() != gfxASurface::SurfaceTypeWin32Printing) {
+	surf->GetType() != gfxASurface::SurfaceTypeWin32Printing) {
 	return true;
     }
     if ((surf->GetContentType() != gfxASurface::CONTENT_COLOR ||

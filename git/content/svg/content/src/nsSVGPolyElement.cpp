@@ -93,7 +93,7 @@ nsSVGPolyElement::IsAttributeMapped(const nsIAtom* name) const
     sMarkersMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGPolyElementBase::IsAttributeMapped(name);
 }
 

@@ -49,27 +49,14 @@
 #include "nsIDOMClientInformation.h"
 #include "nsIDOMNavigatorBattery.h"
 #include "nsIDOMNavigatorSms.h"
-#include "nsIDOMNavigatorNetwork.h"
 #include "nsAutoPtr.h"
-#include "nsWeakReference.h"
 
 class nsPluginArray;
 class nsMimeTypeArray;
 class nsGeolocation;
 class nsDesktopNotificationCenter;
-class nsPIDOMWindow;
-class nsIDOMMozConnection;
+class nsIDocShell;
 
-#ifdef MOZ_B2G_RIL
-#include "nsIDOMNavigatorTelephony.h"
-class nsIDOMTelephony;
-#endif
-
-#ifdef MOZ_B2G_BT
-#include "nsIDOMNavigatorBluetooth.h"
-#endif
-
-class nsIDOMAdapter;
 //*****************************************************************************
 // Navigator: Script "navigator" object
 //*****************************************************************************
@@ -85,30 +72,15 @@ namespace sms {
 class SmsManager;
 } // namespace sms
 
-namespace network {
-class Connection;
-} // namespace Connection;
-
-namespace power {
-class PowerManager;
-} // namespace power
-
-class Navigator : public nsIDOMNavigator
-                , public nsIDOMClientInformation
-                , public nsIDOMNavigatorGeolocation
-                , public nsIDOMNavigatorDesktopNotification
-                , public nsIDOMMozNavigatorBattery
-                , public nsIDOMMozNavigatorSms
-#ifdef MOZ_B2G_RIL
-                , public nsIDOMNavigatorTelephony
-#endif
-                , public nsIDOMMozNavigatorNetwork
-#ifdef MOZ_B2G_BT
-                , public nsIDOMNavigatorBluetooth
-#endif
+class Navigator : public nsIDOMNavigator,
+                  public nsIDOMClientInformation,
+                  public nsIDOMNavigatorGeolocation,
+                  public nsIDOMNavigatorDesktopNotification,
+                  public nsIDOMMozNavigatorBattery,
+                  public nsIDOMMozNavigatorSms
 {
 public:
-  Navigator(nsPIDOMWindow *aInnerWindow);
+  Navigator(nsIDocShell *aDocShell);
   virtual ~Navigator();
 
   NS_DECL_ISUPPORTS
@@ -118,50 +90,35 @@ public:
   NS_DECL_NSIDOMNAVIGATORDESKTOPNOTIFICATION
   NS_DECL_NSIDOMMOZNAVIGATORBATTERY
   NS_DECL_NSIDOMMOZNAVIGATORSMS
-#ifdef MOZ_B2G_RIL
-  NS_DECL_NSIDOMNAVIGATORTELEPHONY
-#endif
-  NS_DECL_NSIDOMMOZNAVIGATORNETWORK
-
-#ifdef MOZ_B2G_BT
-  NS_DECL_NSIDOMNAVIGATORBLUETOOTH
-#endif
 
   static void Init();
 
-  void Invalidate();
-  nsPIDOMWindow *GetWindow();
+  void SetDocShell(nsIDocShell *aDocShell);
+  nsIDocShell *GetDocShell()
+  {
+    return mDocShell;
+  }
 
-  void RefreshMIMEArray();
+  void LoadingNewDocument();
+  nsresult RefreshMIMEArray();
 
   static bool HasDesktopNotificationSupport();
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
-  /**
-   * For use during document.write where our inner window changes.
-   */
-  void SetWindow(nsPIDOMWindow *aInnerWindow);
+  PRInt64 SizeOf() const;
 
 private:
   bool IsSmsAllowed() const;
   bool IsSmsSupported() const;
+
+  static bool sDoNotTrackEnabled;
 
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
   nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;
-  nsRefPtr<power::PowerManager> mPowerManager;
   nsRefPtr<sms::SmsManager> mSmsManager;
-#ifdef MOZ_B2G_RIL
-  nsCOMPtr<nsIDOMTelephony> mTelephony;
-#endif
-  nsRefPtr<network::Connection> mConnection;
-#ifdef MOZ_B2G_BT
-  nsCOMPtr<nsIDOMBluetoothAdapter> mBluetooth;
-#endif
-  nsWeakPtr mWindow;
+  nsIDocShell* mDocShell; // weak reference
 };
 
 } // namespace dom

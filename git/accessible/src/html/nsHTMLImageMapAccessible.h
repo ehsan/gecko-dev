@@ -51,14 +51,14 @@
 class nsHTMLImageMapAccessible : public nsHTMLImageAccessibleWrap
 {
 public:
-  nsHTMLImageMapAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
-                           nsIDOMHTMLMapElement* aMapElm);
+  nsHTMLImageMapAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                           nsIDOMHTMLMapElement *aMapElm);
 
   // nsISupports and cycle collector
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // HyperLinkAccessible
   virtual PRUint32 AnchorCount();
@@ -83,7 +83,7 @@ class nsHTMLAreaAccessible : public nsHTMLLinkAccessible
 {
 public:
 
-  nsHTMLAreaAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLAreaAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
 

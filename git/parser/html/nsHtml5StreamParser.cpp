@@ -40,7 +40,7 @@
 
 #include "nsHtml5StreamParser.h"
 #include "nsICharsetConverterManager.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsServiceManagerUtils.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsContentUtils.h"
@@ -56,10 +56,10 @@
 #include "nsHtml5Highlighter.h"
 #include "expat_config.h"
 #include "expat.h"
-#include "nsINestedURI.h"
 
 using namespace mozilla;
 
+static NS_DEFINE_CID(kCharsetAliasCID, NS_CHARSETALIAS_CID);
 
 PRInt32 nsHtml5StreamParser::sTimerInitialDelay = 120;
 PRInt32 nsHtml5StreamParser::sTimerSubsequentDelay = 120;
@@ -289,31 +289,6 @@ nsHtml5StreamParser::Notify(const char* aCharset, nsDetectionConfident aConf)
     }
   }
   return NS_OK;
-}
-
-void
-nsHtml5StreamParser::SetViewSourceTitle(nsIURI* aURL)
-{
-  if (aURL) {
-    nsCOMPtr<nsIURI> temp;
-    bool isViewSource;
-    aURL->SchemeIs("view-source", &isViewSource);
-    if (isViewSource) {
-      nsCOMPtr<nsINestedURI> nested = do_QueryInterface(aURL);
-      nested->GetInnerURI(getter_AddRefs(temp));
-    } else {
-      temp = aURL;
-    }
-    bool isData;
-    temp->SchemeIs("data", &isData);
-    if (isData) {
-      // Avoid showing potentially huge data: URLs. The three last bytes are
-      // UTF-8 for an ellipsis.
-      mViewSourceTitle.AssignLiteral("data:\xE2\x80\xA6");
-    } else {
-      temp->GetSpec(mViewSourceTitle);
-    }
-  }
 }
 
 nsresult
@@ -905,9 +880,8 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   mStreamState = STREAM_BEING_READ;
 
   if (mMode == VIEW_SOURCE_HTML || mMode == VIEW_SOURCE_XML) {
-    mTokenizer->StartViewSource(NS_ConvertUTF8toUTF16(mViewSourceTitle));
+    mTokenizer->StartViewSource();
   }
-
   // For View Source, the parser should run with scripts "enabled" if a normal
   // load would have scripts enabled.
   bool scriptingEnabled = mMode == LOAD_AS_DATA ?
@@ -920,9 +894,6 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
 
   if (mMode == PLAIN_TEXT) {
     mTreeBuilder->StartPlainText();
-    mTokenizer->StartPlainText();
-  } else if (mMode == VIEW_SOURCE_PLAIN) {
-    mTreeBuilder->StartPlainTextViewSource(NS_ConvertUTF8toUTF16(mViewSourceTitle));
     mTokenizer->StartPlainText();
   }
 
@@ -1170,8 +1141,13 @@ nsHtml5StreamParser::PreferredForInternalEncodingDecl(nsACString& aEncoding)
   }
 
   nsresult rv = NS_OK;
+  nsCOMPtr<nsICharsetAlias> calias(do_GetService(kCharsetAliasCID, &rv));
+  if (NS_FAILED(rv)) {
+    NS_NOTREACHED("Charset alias service not available.");
+    return false;
+  }
   bool eq;
-  rv = nsCharsetAlias::Equals(newEncoding, mCharset, &eq);
+  rv = calias->Equals(newEncoding, mCharset, &eq);
   if (NS_FAILED(rv)) {
     NS_NOTREACHED("Charset name equality check failed.");
     return false;
@@ -1186,7 +1162,7 @@ nsHtml5StreamParser::PreferredForInternalEncodingDecl(nsACString& aEncoding)
   
   nsCAutoString preferred;
   
-  rv = nsCharsetAlias::GetPreferred(newEncoding, preferred);
+  rv = calias->GetPreferred(newEncoding, preferred);
   if (NS_FAILED(rv)) {
     // the encoding name is bogus
     return false;
@@ -1434,15 +1410,16 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mFirstBuffer->setStart(speculation->GetStart());
       mTokenizer->setLineNumber(speculation->GetStartLineNumber());
 
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "DOM Events",
-                                      mExecutor->GetDocument(),
-                                      nsContentUtils::eDOM_PROPERTIES,
+      nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                       "SpeculationFailed",
                                       nsnull, 0,
                                       nsnull,
                                       EmptyString(),
-                                      speculation->GetStartLineNumber());
+                                      speculation->GetStartLineNumber(),
+                                      0,
+                                      nsIScriptError::warningFlag,
+                                      "DOM Events",
+                                      mExecutor->GetDocument());
 
       nsHtml5OwningUTF16Buffer* buffer = mFirstBuffer->next;
       while (buffer) {

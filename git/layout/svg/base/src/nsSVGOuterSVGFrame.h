@@ -43,6 +43,7 @@
 #include "nsISVGSVGFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsIDOMSVGNumber.h"
+#include "nsSVGFeatures.h"
 #include "gfxMatrix.h"
 
 class nsSVGForeignObjectFrame;
@@ -110,7 +111,7 @@ public:
   virtual nsIAtom* GetType() const;
 
   void Paint(const nsDisplayListBuilder* aBuilder,
-             nsRenderingContext* aContext,
+             nsRenderingContext& aRenderingContext,
              const nsRect& aDirtyRect, nsPoint aPt);
 
 #ifdef DEBUG
@@ -124,10 +125,21 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
+  // nsSVGOuterSVGFrame methods:
+
+  void InvalidateCoveredRegion(nsIFrame *aFrame);
+  // Calls aSVG->UpdateCoveredRegion and returns true if the covered
+  // region actually changed. If it changed, invalidates the old and new
+  // covered regions, taking filters into account, like
+  // InvalidateCoveredRegion.
+  bool UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame);
+
+  bool IsRedrawSuspended();
+
   // nsISVGSVGFrame interface:
-  virtual void SuspendRedraw();
-  virtual void UnsuspendRedraw();
-  virtual void NotifyViewportChange();
+  NS_IMETHOD SuspendRedraw();
+  NS_IMETHOD UnsuspendRedraw();
+  NS_IMETHOD NotifyViewportChange();
 
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();
@@ -139,16 +151,6 @@ public:
    */
   void RegisterForeignObject(nsSVGForeignObjectFrame* aFrame);
   void UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame);
-
-#ifdef XP_MACOSX
-  bool BitmapFallbackEnabled() const {
-    return mEnableBitmapFallback;
-  }
-  void SetBitmapFallbackEnabled(bool aVal) {
-    NS_NOTREACHED("don't think me need this any more"); // comment in bug 732429 if we do
-    mEnableBitmapFallback = aVal;
-  }
-#endif
 
 protected:
 
@@ -168,9 +170,9 @@ protected:
   // subtree if we were to use a list (see bug 381285 comment 20).
   nsTHashtable<nsVoidPtrHashKey> mForeignObjectHash;
 
+  PRUint32 mRedrawSuspendCount;
   nsAutoPtr<gfxMatrix> mCanvasTM;
 
-  PRUint32 mRedrawSuspendCount;
   float mFullZoom;
 
   bool mViewportInitialized;

@@ -40,10 +40,11 @@
 #include "nsIDocument.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsIUGenCategory.h"
 
 //#define DEBUG_SPELLCHECK
 
-class nsRange;
+class nsIRange;
 class nsINode;
 
 /**
@@ -100,13 +101,13 @@ public:
   // before you actually generate the range you are interested in and iterate
   // the words in it.
   nsresult GetRangeForWord(nsIDOMNode* aWordNode, PRInt32 aWordOffset,
-                           nsRange** aRange);
+                           nsIRange** aRange);
 
   // Moves to the the next word in the range, and retrieves it's text and range.
   // An empty word and a NULL range are returned when we are done checking.
   // aSkipChecking will be set if the word is "special" and shouldn't be
   // checked (e.g., an email address).
-  nsresult GetNextWord(nsAString& aText, nsRange** aRange,
+  nsresult GetNextWord(nsAString& aText, nsIRange** aRange,
                        bool* aSkipChecking);
 
   // Call to normalize some punctuation. This function takes an autostring
@@ -116,12 +117,14 @@ public:
   nsIDOMDocument* GetDOMDocument() const { return mDOMDocument; }
   nsIDocument* GetDocument() const { return mDocument; }
   nsINode* GetRootNode() { return mRootNode; }
+  nsIUGenCategory* GetCategories() { return mCategories; }
   
 private:
 
   // cached stuff for the editor, set by Init
   nsCOMPtr<nsIDOMDocument> mDOMDocument;
   nsCOMPtr<nsIDocument>         mDocument;
+  nsCOMPtr<nsIUGenCategory>     mCategories;
 
   // range to check, see SetPosition and SetEnd
   nsINode*    mRootNode;
@@ -188,6 +191,6 @@ private:
   void SplitDOMWord(PRInt32 aStart, PRInt32 aEnd);
 
   // Convenience functions, object must be initialized
-  nsresult MakeRange(NodeOffset aBegin, NodeOffset aEnd, nsRange** aRange);
-  nsresult MakeRangeForWord(const RealWord& aWord, nsRange** aRange);
+  nsresult MakeRange(NodeOffset aBegin, NodeOffset aEnd, nsIRange** aRange);
+  nsresult MakeRangeForWord(const RealWord& aWord, nsIRange** aRange);
 };

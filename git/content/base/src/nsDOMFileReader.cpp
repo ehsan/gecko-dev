@@ -42,7 +42,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMFile.h"
 #include "nsDOMError.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsICharsetDetector.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
@@ -74,14 +74,13 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsFileDataProtocolHandler.h"
 #include "mozilla/Preferences.h"
+#include "xpcprivate.h"
 #include "xpcpublic.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsDOMJSUtils.h"
-#include "nsDOMEventTargetHelper.h"
-
+#include "XPCQuickStubs.h"
 #include "jstypedarray.h"
+#include "nsDOMJSUtils.h"
 
 using namespace mozilla;
 
@@ -115,7 +114,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsDOMFileReader,
-                                               nsDOMEventTargetHelper)
+                                               nsDOMEventTargetWrapperCache)
   if(tmp->mResultArrayBuffer) {
     NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(tmp->mResultArrayBuffer,
                                                "mResultArrayBuffer")
@@ -174,7 +173,7 @@ nsDOMFileReader::~nsDOMFileReader()
 nsresult
 nsDOMFileReader::Init()
 {
-  nsDOMEventTargetHelper::Init();
+  nsDOMEventTargetWrapperCache::Init();
 
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
@@ -199,19 +198,21 @@ NS_IMETHODIMP
 nsDOMFileReader::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
                             PRUint32 argc, jsval *argv)
 {
-  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aOwner);
-  if (!owner) {
+  mOwner = do_QueryInterface(aOwner);
+  if (!mOwner) {
     NS_WARNING("Unexpected nsIJSNativeInitializer owner");
     return NS_OK;
   }
 
-  BindToOwner(owner);
-
   // This object is bound to a |window|,
-  // so reset the principal.
+  // so reset the principal and script context.
   nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal = do_QueryInterface(aOwner);
   NS_ENSURE_STATE(scriptPrincipal);
   mPrincipal = scriptPrincipal->GetPrincipal();
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aOwner);
+  NS_ENSURE_STATE(sgo);
+  mScriptContext = sgo->GetContext();
+  NS_ENSURE_STATE(mScriptContext);
 
   return NS_OK; 
 }
@@ -246,14 +247,14 @@ nsDOMFileReader::GetResult(JSContext* aCx, jsval* aResult)
   }
  
   nsString tmpResult = mResult;
-  if (!xpc::StringToJsval(aCx, tmpResult, aResult)) {
+  if (!xpc_qsStringToJsval(aCx, tmpResult, aResult)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::GetError(nsIDOMDOMError** aError)
+nsDOMFileReader::GetError(nsIDOMFileError** aError)
 {
   return FileIOObject::GetError(aError);
 }
@@ -493,7 +494,10 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
   }
 
   nsCAutoString charset;
-  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  nsCOMPtr<nsICharsetAlias> alias = do_GetService(NS_CHARSETALIAS_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = alias->GetPreferred(charsetGuess, charset);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = ConvertStream(aFileData, aDataLen, charset.get(), aResult);

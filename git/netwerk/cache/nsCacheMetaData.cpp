@@ -141,7 +141,7 @@ nsCacheMetaData::UnflattenMetaData(const char * data, PRUint32 size)
         // Check that there are an even number of zero bytes
         // to match the pattern { key \0 value \0 }
         bool odd = false;
-        for (PRUint32 i = 0; i < size; i++) {
+        for (int i = 0; i < size; i++) {
             if (data[i] == '\0') 
                 odd = !odd;
         }
@@ -173,7 +173,7 @@ nsCacheMetaData::VisitElements(nsICacheMetaDataVisitor * visitor)
         bool keepGoing;
         nsresult rv = visitor->VisitMetaDataElement(key, data, &keepGoing);
         if (NS_FAILED(rv) || !keepGoing)
-            return NS_OK;
+            break;
 
         // Skip value part
         data += strlen(data) + 1;

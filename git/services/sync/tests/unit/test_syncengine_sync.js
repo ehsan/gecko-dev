@@ -13,37 +13,12 @@ function makeRotaryEngine() {
 
 function cleanAndGo(server) {
   Svc.Prefs.resetBranch("");
-  Svc.Prefs.set("log.logger.engine.rotary", "Trace");
   Records.clearCache();
   server.stop(run_next_test);
 }
 
-function createServerAndConfigureClient() {
-  let engine = new RotaryEngine();
-
-  let contents = {
-    meta: {global: {engines: {rotary: {version: engine.version,
-                                       syncID:  engine.syncID}}}},
-    crypto: {},
-    rotary: {}
-  };
-
-  const USER = "foo";
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
-  Svc.Prefs.set("username", USER);
-
-  let server = new SyncServer();
-  server.registerUser(USER, "password");
-  server.createContents(USER, contents);
-  server.start();
-
-  return [engine, server, USER];
-}
-
 function run_test() {
   generateNewKeys();
-  Svc.Prefs.set("log.logger.engine.rotary", "Trace");
   run_next_test();
 }
 
@@ -65,8 +40,7 @@ add_test(function test_syncStartup_emptyOrOutdatedGlobalsResetsSync() {
   _("SyncEngine._syncStartup resets sync and wipes server data if there's no or an outdated global record");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   // Some server side data that's going to be wiped
@@ -119,8 +93,7 @@ add_test(function test_syncStartup_serverHasNewerVersion() {
   _("SyncEngine._syncStartup ");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let global = new ServerWBO('global', {engines: {rotary: {version: 23456}}});
   let server = httpd_setup({
@@ -150,8 +123,7 @@ add_test(function test_syncStartup_syncIDMismatchResetsClient() {
   _("SyncEngine._syncStartup resets sync if syncIDs don't match");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let server = sync_httpd_setup({});
 
@@ -188,8 +160,7 @@ add_test(function test_processIncoming_emptyServer() {
   _("SyncEngine._processIncoming working with an empty server backend");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
 
@@ -214,8 +185,7 @@ add_test(function test_processIncoming_createFromServer() {
   _("SyncEngine._processIncoming creates new records from server data");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   
   generateNewKeys();
@@ -276,8 +246,7 @@ add_test(function test_processIncoming_reconcile() {
   _("SyncEngine._processIncoming updates local records");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
 
@@ -307,10 +276,17 @@ add_test(function test_processIncoming_reconcile() {
                     encryptPayload({id: 'updateclient',
                                     denomination: "Get this!"}));
 
-  // This is a dupe of 'original'.
+  // This is a dupe of 'original' but with a longer GUID, so we're
+  // expecting it to be marked for deletion from the server
   collection.insert('duplication',
                     encryptPayload({id: 'duplication',
                                     denomination: "Original Entry"}));
+
+  // This is a dupe of 'long_original' but with a shorter GUID, so we're
+  // expecting it to replace 'long_original'.
+  collection.insert('dupe',
+                    encryptPayload({id: 'dupe',
+                                    denomination: "Long Original Entry"}));
 
   // This record is marked as deleted, so we're expecting the client
   // record to be removed.
@@ -370,234 +346,26 @@ add_test(function test_processIncoming_reconcile() {
     // Updated with server data.
     do_check_eq(engine._store.items.updateclient, "Get this!");
 
-    // The incoming ID is preferred.
-    do_check_eq(engine._store.items.original, undefined);
-    do_check_eq(engine._store.items.duplication, "Original Entry");
-    do_check_neq(engine._delete.ids.indexOf("original"), -1);
+    // The dupe with the shorter ID is kept, the longer one is slated
+    // for deletion.
+    do_check_eq(engine._store.items.long_original, undefined);
+    do_check_eq(engine._store.items.dupe, "Long Original Entry");
+    do_check_neq(engine._delete.ids.indexOf('duplication'), -1);
 
     // The 'nukeme' record marked as deleted is removed.
     do_check_eq(engine._store.items.nukeme, undefined);
+
   } finally {
     cleanAndGo(server);
   }
 });
 
-add_test(function test_processIncoming_reconcile_local_deleted() {
-  _("Ensure local, duplicate ID is deleted on server.");
-
-  // When a duplicate is resolved, the local ID (which is never taken) should
-  // be deleted on the server.
-  let [engine, server, user] = createServerAndConfigureClient();
-
-  let now = Date.now() / 1000 - 10;
-  engine.lastSync = now;
-  engine.lastModified = now + 1;
-
-  let record = encryptPayload({id: "DUPE_INCOMING", denomination: "incoming"});
-  let wbo = new ServerWBO("DUPE_INCOMING", record, now + 2);
-  server.insertWBO(user, "rotary", wbo);
-
-  let record = encryptPayload({id: "DUPE_LOCAL", denomination: "local"});
-  let wbo = new ServerWBO("DUPE_LOCAL", record, now - 1);
-  server.insertWBO(user, "rotary", wbo);
-
-  engine._store.create({id: "DUPE_LOCAL", denomination: "local"});
-  do_check_true(engine._store.itemExists("DUPE_LOCAL"));
-  do_check_eq("DUPE_LOCAL", engine._findDupe({id: "DUPE_INCOMING"}));
-
-  engine._sync();
-
-  do_check_attribute_count(engine._store.items, 1);
-  do_check_true("DUPE_INCOMING" in engine._store.items);
-
-  let collection = server.getCollection(user, "rotary");
-  do_check_eq(1, collection.count());
-  do_check_neq(undefined, collection.wbo("DUPE_INCOMING"));
-
-  cleanAndGo(server);
-});
-
-add_test(function test_processIncoming_reconcile_equivalent() {
-  _("Ensure proper handling of incoming records that match local.");
-
-  let [engine, server, user] = createServerAndConfigureClient();
-
-  let now = Date.now() / 1000 - 10;
-  engine.lastSync = now;
-  engine.lastModified = now + 1;
-
-  let record = encryptPayload({id: "entry", denomination: "denomination"});
-  let wbo = new ServerWBO("entry", record, now + 2);
-  server.insertWBO(user, "rotary", wbo);
-
-  engine._store.items = {entry: "denomination"};
-  do_check_true(engine._store.itemExists("entry"));
-
-  engine._sync();
-
-  do_check_attribute_count(engine._store.items, 1);
-
-  cleanAndGo(server);
-});
-
-add_test(function test_processIncoming_reconcile_locally_deleted_dupe_new() {
-  _("Ensure locally deleted duplicate record newer than incoming is handled.");
-
-  // This is a somewhat complicated test. It ensures that if a client receives
-  // a modified record for an item that is deleted locally but with a different
-  // ID that the incoming record is ignored. This is a corner case for record
-  // handling, but it needs to be supported.
-  let [engine, server, user] = createServerAndConfigureClient();
-
-  let now = Date.now() / 1000 - 10;
-  engine.lastSync = now;
-  engine.lastModified = now + 1;
-
-  let record = encryptPayload({id: "DUPE_INCOMING", denomination: "incoming"});
-  let wbo = new ServerWBO("DUPE_INCOMING", record, now + 2);
-  server.insertWBO(user, "rotary", wbo);
-
-  // Simulate a locally-deleted item.
-  engine._store.items = {};
-  engine._tracker.addChangedID("DUPE_LOCAL", now + 3);
-  do_check_false(engine._store.itemExists("DUPE_LOCAL"));
-  do_check_false(engine._store.itemExists("DUPE_INCOMING"));
-  do_check_eq("DUPE_LOCAL", engine._findDupe({id: "DUPE_INCOMING"}));
-
-  engine._sync();
-
-  // After the sync, the server's payload for the original ID should be marked
-  // as deleted.
-  do_check_empty(engine._store.items);
-  let collection = server.getCollection(user, "rotary");
-  do_check_eq(1, collection.count());
-  let wbo = collection.wbo("DUPE_INCOMING");
-  do_check_neq(null, wbo);
-  let payload = JSON.parse(JSON.parse(wbo.payload).ciphertext);
-  do_check_true(payload.deleted);
-
-  cleanAndGo(server);
-});
-
-add_test(function test_processIncoming_reconcile_locally_deleted_dupe_old() {
-  _("Ensure locally deleted duplicate record older than incoming is restored.");
-
-  // This is similar to the above test except it tests the condition where the
-  // incoming record is newer than the local deletion, therefore overriding it.
-
-  let [engine, server, user] = createServerAndConfigureClient();
-
-  let now = Date.now() / 1000 - 10;
-  engine.lastSync = now;
-  engine.lastModified = now + 1;
-
-  let record = encryptPayload({id: "DUPE_INCOMING", denomination: "incoming"});
-  let wbo = new ServerWBO("DUPE_INCOMING", record, now + 2);
-  server.insertWBO(user, "rotary", wbo);
-
-  // Simulate a locally-deleted item.
-  engine._store.items = {};
-  engine._tracker.addChangedID("DUPE_LOCAL", now + 1);
-  do_check_false(engine._store.itemExists("DUPE_LOCAL"));
-  do_check_false(engine._store.itemExists("DUPE_INCOMING"));
-  do_check_eq("DUPE_LOCAL", engine._findDupe({id: "DUPE_INCOMING"}));
-
-  engine._sync();
-
-  // Since the remote change is newer, the incoming item should exist locally.
-  do_check_attribute_count(engine._store.items, 1);
-  do_check_true("DUPE_INCOMING" in engine._store.items);
-  do_check_eq("incoming", engine._store.items.DUPE_INCOMING);
-
-  let collection = server.getCollection(user, "rotary");
-  do_check_eq(1, collection.count());
-  let wbo = collection.wbo("DUPE_INCOMING");
-  let payload = JSON.parse(JSON.parse(wbo.payload).ciphertext);
-  do_check_eq("incoming", payload.denomination);
-
-  cleanAndGo(server);
-});
-
-add_test(function test_processIncoming_reconcile_changed_dupe() {
-  _("Ensure that locally changed duplicate record is handled properly.");
-
-  let [engine, server, user] = createServerAndConfigureClient();
-
-  let now = Date.now() / 1000 - 10;
-  engine.lastSync = now;
-  engine.lastModified = now + 1;
-
-  // The local record is newer than the incoming one, so it should be retained.
-  let record = encryptPayload({id: "DUPE_INCOMING", denomination: "incoming"});
-  let wbo = new ServerWBO("DUPE_INCOMING", record, now + 2);
-  server.insertWBO(user, "rotary", wbo);
-
-  engine._store.create({id: "DUPE_LOCAL", denomination: "local"});
-  engine._tracker.addChangedID("DUPE_LOCAL", now + 3);
-  do_check_true(engine._store.itemExists("DUPE_LOCAL"));
-  do_check_eq("DUPE_LOCAL", engine._findDupe({id: "DUPE_INCOMING"}));
-
-  engine._sync();
-
-  // The ID should have been changed to incoming.
-  do_check_attribute_count(engine._store.items, 1);
-  do_check_true("DUPE_INCOMING" in engine._store.items);
-
-  // On the server, the local ID should be deleted and the incoming ID should
-  // have its payload set to what was in the local record.
-  let collection = server.getCollection(user, "rotary");
-  do_check_eq(1, collection.count());
-  let wbo = collection.wbo("DUPE_INCOMING");
-  do_check_neq(undefined, wbo);
-  let payload = JSON.parse(JSON.parse(wbo.payload).ciphertext);
-  do_check_eq("local", payload.denomination);
-
-  cleanAndGo(server);
-});
-
-add_test(function test_processIncoming_reconcile_changed_dupe_new() {
-  _("Ensure locally changed duplicate record older than incoming is ignored.");
-
-  // This test is similar to the above except the incoming record is younger
-  // than the local record. The incoming record should be authoritative.
-  let [engine, server, user] = createServerAndConfigureClient();
-
-  let now = Date.now() / 1000 - 10;
-  engine.lastSync = now;
-  engine.lastModified = now + 1;
-
-  let record = encryptPayload({id: "DUPE_INCOMING", denomination: "incoming"});
-  let wbo = new ServerWBO("DUPE_INCOMING", record, now + 2);
-  server.insertWBO(user, "rotary", wbo);
-
-  engine._store.create({id: "DUPE_LOCAL", denomination: "local"});
-  engine._tracker.addChangedID("DUPE_LOCAL", now + 1);
-  do_check_true(engine._store.itemExists("DUPE_LOCAL"));
-  do_check_eq("DUPE_LOCAL", engine._findDupe({id: "DUPE_INCOMING"}));
-
-  engine._sync();
-
-  // The ID should have been changed to incoming.
-  do_check_attribute_count(engine._store.items, 1);
-  do_check_true("DUPE_INCOMING" in engine._store.items);
-
-  // On the server, the local ID should be deleted and the incoming ID should
-  // have its payload retained.
-  let collection = server.getCollection(user, "rotary");
-  do_check_eq(1, collection.count());
-  let wbo = collection.wbo("DUPE_INCOMING");
-  do_check_neq(undefined, wbo);
-  let payload = JSON.parse(JSON.parse(wbo.payload).ciphertext);
-  do_check_eq("incoming", payload.denomination);
-  cleanAndGo(server);
-});
 
 add_test(function test_processIncoming_mobile_batchSize() {
   _("SyncEngine._processIncoming doesn't fetch everything at once on mobile clients");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   Svc.Prefs.set("client.type", "mobile");
 
@@ -666,8 +434,7 @@ add_test(function test_processIncoming_mobile_batchSize() {
 add_test(function test_processIncoming_store_toFetch() {
   _("If processIncoming fails in the middle of a batch on mobile, state is saved in toFetch and lastSync.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   Svc.Prefs.set("client.type", "mobile");
 
@@ -734,8 +501,7 @@ add_test(function test_processIncoming_store_toFetch() {
 add_test(function test_processIncoming_resume_toFetch() {
   _("toFetch and previousFailed items left over from previous syncs are fetched on the next sync, along with new items.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   const LASTSYNC = Date.now() / 1000;
@@ -803,8 +569,7 @@ add_test(function test_processIncoming_resume_toFetch() {
 add_test(function test_processIncoming_applyIncomingBatchSize_smaller() {
   _("Ensure that a number of incoming items less than applyIncomingBatchSize is still applied.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   // Engine that doesn't like the first and last record it's given.
@@ -858,7 +623,7 @@ add_test(function test_processIncoming_applyIncomingBatchSize_smaller() {
 add_test(function test_processIncoming_applyIncomingBatchSize_multiple() {
   _("Ensure that incoming items are applied according to applyIncomingBatchSize.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   const APPLY_BATCH_SIZE = 10;
@@ -910,8 +675,7 @@ add_test(function test_processIncoming_applyIncomingBatchSize_multiple() {
 add_test(function test_processIncoming_notify_count() {
   _("Ensure that failed records are reported only once.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   
   const APPLY_BATCH_SIZE = 5;
@@ -973,7 +737,6 @@ add_test(function test_processIncoming_notify_count() {
     do_check_eq(counts.failed, 3);
     do_check_eq(counts.applied, 15);
     do_check_eq(counts.newFailed, 3);
-    do_check_eq(counts.succeeded, 12);
 
     // Sync again, 1 of the failed items are the same, the rest didn't fail.
     engine._processIncoming();
@@ -987,7 +750,6 @@ add_test(function test_processIncoming_notify_count() {
     do_check_eq(counts.failed, 1);
     do_check_eq(counts.applied, 3);
     do_check_eq(counts.newFailed, 0);
-    do_check_eq(counts.succeeded, 2);
 
     Svc.Obs.remove("weave:engine:sync:applied", onApplied);
   } finally {
@@ -999,8 +761,7 @@ add_test(function test_processIncoming_notify_count() {
 add_test(function test_processIncoming_previousFailed() {
   _("Ensure that failed records are retried.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   Svc.Prefs.set("client.type", "mobile");
   
@@ -1085,8 +846,7 @@ add_test(function test_processIncoming_previousFailed() {
 add_test(function test_processIncoming_failed_records() {
   _("Ensure that failed records from _reconcile and applyIncomingBatch are refetched.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   // Let's create three and a bit batches worth of server side records.
@@ -1220,8 +980,7 @@ add_test(function test_processIncoming_decrypt_failed() {
   _("Ensure that records failing to decrypt are either replaced or refetched.");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   // Some good and some bogus records. One doesn't contain valid JSON,
@@ -1298,8 +1057,7 @@ add_test(function test_uploadOutgoing_toEmptyServer() {
   _("SyncEngine._uploadOutgoing uploads new records to server");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
   collection._wbos.flying = new ServerWBO('flying');
@@ -1357,8 +1115,7 @@ add_test(function test_uploadOutgoing_failed() {
   _("SyncEngine._uploadOutgoing doesn't clear the tracker of objects that failed to upload.");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
   // We only define the "flying" WBO on the server, not the "scotsman"
@@ -1420,8 +1177,7 @@ add_test(function test_uploadOutgoing_MAX_UPLOAD_RECORDS() {
   _("SyncEngine._uploadOutgoing uploads in batches of MAX_UPLOAD_RECORDS");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
 
@@ -1492,8 +1248,7 @@ add_test(function test_syncFinish_deleteByIds() {
   _("SyncEngine._syncFinish deletes server records slated for deletion (list of record IDs).");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
   collection._wbos.flying = new ServerWBO(
@@ -1534,8 +1289,7 @@ add_test(function test_syncFinish_deleteLotsInBatches() {
   _("SyncEngine._syncFinish deletes server records in batches of 100 (list of record IDs).");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   let collection = new ServerCollection();
 
@@ -1606,8 +1360,7 @@ add_test(function test_sync_partialUpload() {
   _("SyncEngine.sync() keeps changedIDs that couldn't be uploaded.");
 
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   let collection = new ServerCollection();
@@ -1680,8 +1433,7 @@ add_test(function test_sync_partialUpload() {
 add_test(function test_canDecrypt_noCryptoKeys() {
   _("SyncEngine.canDecrypt returns false if the engine fails to decrypt items on the server, e.g. due to a missing crypto key collection.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   // Wipe CollectionKeys so we can test the desired scenario.
@@ -1709,8 +1461,7 @@ add_test(function test_canDecrypt_noCryptoKeys() {
 add_test(function test_canDecrypt_true() {
   _("SyncEngine.canDecrypt returns true if the engine can decrypt the items on the server.");
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   // Set up CollectionKeys, as service.js does.
@@ -1738,8 +1489,7 @@ add_test(function test_canDecrypt_true() {
 
 add_test(function test_syncapplied_observer() {
   let syncTesting = new SyncTestingInfrastructure();
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
 
   const NUMBER_OF_RECORDS = 10;

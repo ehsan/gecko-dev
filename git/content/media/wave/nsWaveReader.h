@@ -40,8 +40,7 @@
 
 #include "nsBuiltinDecoderReader.h"
 
-class nsBuiltinDecoder;
-class nsTimeRanges;
+class nsMediaDecoder;
 
 class nsWaveReader : public nsBuiltinDecoderReader
 {

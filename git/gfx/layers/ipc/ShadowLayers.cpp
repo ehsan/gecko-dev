@@ -49,7 +49,7 @@
 #include "mozilla/layers/PLayersParent.h"
 #include "ShadowLayers.h"
 #include "ShadowLayerChild.h"
-#include "gfxipc/ShadowLayerUtils.h"
+#include "ShadowLayerUtils.h"
 
 using namespace mozilla::ipc;
 

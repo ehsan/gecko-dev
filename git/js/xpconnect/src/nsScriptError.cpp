@@ -46,7 +46,8 @@
 #include "nsGlobalWindow.h"
 #include "nsPIDOMWindow.h"
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsScriptError, nsIConsoleMessage, nsIScriptError)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsScriptError, nsIConsoleMessage, nsIScriptError,
+                              nsIScriptError2)
 
 nsScriptError::nsScriptError()
     :  mMessage(),
@@ -154,7 +155,7 @@ nsScriptError::InitWithWindowID(const PRUnichar *message,
     mColumnNumber = columnNumber;
     mFlags = flags;
     mCategory.Assign(category);
-    mTimeStamp = JS_Now() / 1000;
+    mTimeStamp = PR_Now() / 1000;
     mInnerWindowID = aInnerWindowID;
 
     if (aInnerWindowID) {

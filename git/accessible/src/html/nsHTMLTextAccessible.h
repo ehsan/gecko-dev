@@ -50,7 +50,7 @@
 class nsHTMLTextAccessible : public nsTextAccessibleWrap
 {
 public:
-  nsHTMLTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -60,7 +60,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 };
 
@@ -70,10 +70,10 @@ public:
 class nsHTMLHRAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLHRAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLHRAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 /**
@@ -82,11 +82,11 @@ public:
 class nsHTMLBRAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLBRAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLBRAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 };
 
@@ -96,13 +96,13 @@ public:
 class nsHTMLLabelAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLabelAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLLabelAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 /**
@@ -111,12 +111,12 @@ public:
 class nsHTMLOutputAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLOutputAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLOutputAccessible(nsIContent* aContent, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties* aAttributes);
   virtual Relation RelationByType(PRUint32 aType);
 };
@@ -127,7 +127,7 @@ public:
 class nsHTMLListBulletAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLListBulletAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLListBulletAccessible(nsIContent* aContent, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
@@ -136,7 +136,7 @@ public:
   virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual void AppendTextTo(nsAString& aText, PRUint32 aStartOffset = 0,
                             PRUint32 aLength = PR_UINT32_MAX);
@@ -148,13 +148,13 @@ public:
 class nsHTMLListAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLListAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLListAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 };
 
@@ -164,7 +164,7 @@ public:
 class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLIAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLLIAccessible(nsIContent* aContent, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -176,7 +176,7 @@ public:
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // nsHTMLLIAccessible

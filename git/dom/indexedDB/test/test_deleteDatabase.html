@@ -13,6 +13,9 @@
 
   function testSteps()
   {
+    const READ_WRITE = Components.interfaces.nsIIDBTransaction.READ_WRITE;
+    const VERSION_CHANGE = Components.interfaces.nsIIDBTransaction.VERSION_CHANGE;
+
     const name = window.location.pathname;
 
     ok(mozIndexedDB.deleteDatabase, "deleteDatabase function should exist!");
@@ -97,13 +100,6 @@
 
     event = yield;
     ok(true, "deleteDatabase on a non-existent database succeeded");
-
-    let request = mozIndexedDB.open("thisDatabaseHadBetterNotExist");
-    request.onerror = errorHandler;
-    request.onsuccess = grabEventAndContinueHandler;
-
-    event = yield;
-    ok(true, "after deleting a non-existent database, open should work");
 
     finishTest();
     yield;

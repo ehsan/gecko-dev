@@ -44,7 +44,7 @@
 #ifndef downloadmanager___h___
 #define downloadmanager___h___
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && (MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN)
 #define DOWNLOAD_SCANNER
 #endif
 
@@ -58,7 +58,6 @@
 #include "nsIObserverService.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
-#include "nsWeakReference.h"
 #include "nsITimer.h"
 #include "nsString.h"
 
@@ -77,8 +76,7 @@ class nsDownload;
 
 class nsDownloadManager : public nsIDownloadManager,
                           public nsINavHistoryObserver,
-                          public nsIObserver,
-                          public nsSupportsWeakReference
+                          public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS

@@ -50,44 +50,58 @@
 #include "nsMemory.h"
 #include "nsStringBuffer.h"
 
-// for mozilla::dom::workers::kJSPrincipalsDebugToken
-#include "mozilla/dom/workers/Workers.h"
-
-/* static */ JSBool
-nsJSPrincipals::Subsume(JSPrincipals *jsprin, JSPrincipals *other)
+static void *
+nsGetPrincipalArray(JSContext *cx, JSPrincipals *prin)
 {
+    return nsnull;
+}
+
+static JSBool
+nsGlobalPrivilegesEnabled(JSContext *cx, JSPrincipals *jsprin)
+{
+    return JS_TRUE;
+}
+
+static JSBool
+nsJSPrincipalsSubsume(JSPrincipals *jsprin, JSPrincipals *other)
+{
+    nsJSPrincipals *nsjsprin = static_cast<nsJSPrincipals *>(jsprin);
+    nsJSPrincipals *nsother  = static_cast<nsJSPrincipals *>(other);
+
     bool result;
-    nsresult rv = nsJSPrincipals::get(jsprin)->Subsumes(nsJSPrincipals::get(other), &result);
+    nsresult rv = nsjsprin->nsIPrincipalPtr->Subsumes(nsother->nsIPrincipalPtr,
+                                                      &result);
     return NS_SUCCEEDED(rv) && result;
 }
 
-/* static */ void
-nsJSPrincipals::Destroy(JSPrincipals *jsprin)
+static void
+nsDestroyJSPrincipals(JSContext *cx, struct JSPrincipals *jsprin)
 {
-    // The JS runtime can call this method during the last GC when
-    // nsScriptSecurityManager is destroyed. So we must not assume here that
-    // the security manager still exists.
-
-    nsJSPrincipals *nsjsprin = nsJSPrincipals::get(jsprin);
+    nsJSPrincipals *nsjsprin = static_cast<nsJSPrincipals *>(jsprin);
 
     // We need to destroy the nsIPrincipal. We'll do this by adding
     // to the refcount and calling release
 
+    // Note that we don't want to use NS_IF_RELEASE because it will try
+    // to set nsjsprin->nsIPrincipalPtr to nsnull *after* nsjsprin has
+    // already been destroyed.
 #ifdef NS_BUILD_REFCNT_LOGGING
     // The refcount logging considers AddRef-to-1 to indicate creation,
     // so trick it into thinking it's otherwise, but balance the
     // Release() we do below.
     nsjsprin->refcount++;
-    nsjsprin->AddRef();
+    nsjsprin->nsIPrincipalPtr->AddRef();
     nsjsprin->refcount--;
 #else
     nsjsprin->refcount++;
 #endif
-    nsjsprin->Release();
+    nsjsprin->nsIPrincipalPtr->Release();
+    // The nsIPrincipal that we release owns the JSPrincipal struct,
+    // so we don't need to worry about "codebase"
 }
 
-/* static */ JSBool
-nsJSPrincipals::Transcode(JSXDRState *xdr, JSPrincipals **jsprinp)
+static JSBool
+nsTranscodeJSPrincipals(JSXDRState *xdr, JSPrincipals **jsprinp)
 {
     nsresult rv;
 
@@ -96,7 +110,7 @@ nsJSPrincipals::Transcode(JSXDRState *xdr, JSPrincipals **jsprinp)
             reinterpret_cast<nsIObjectOutputStream*>(xdr->userdata);
 
         // Flush xdr'ed data to the underlying object output stream.
-        uint32_t size;
+        uint32 size;
         char *data = (char*) ::JS_XDRMemGetData(xdr, &size);
 
         rv = stream->Write32(size);
@@ -105,7 +119,12 @@ nsJSPrincipals::Transcode(JSXDRState *xdr, JSPrincipals **jsprinp)
             if (NS_SUCCEEDED(rv)) {
                 ::JS_XDRMemResetData(xdr);
 
-                rv = stream->WriteObject(nsJSPrincipals::get(*jsprinp), true);
+                // Require that GetJSPrincipals has been called already by the
+                // code that compiled the script that owns the principals.
+                nsJSPrincipals *nsjsprin =
+                    static_cast<nsJSPrincipals*>(*jsprinp);
+
+                rv = stream->WriteObject(nsjsprin->nsIPrincipalPtr, true);
             }
         }
     } else {
@@ -124,7 +143,7 @@ nsJSPrincipals::Transcode(JSXDRState *xdr, JSPrincipals **jsprinp)
                     rv = stream->ReadBytes(size, &data);
                 if (NS_SUCCEEDED(rv)) {
                     char *olddata;
-                    uint32_t oldsize;
+                    uint32 oldsize;
 
                     // Any decode-mode JSXDRState whose userdata points to an
                     // nsIObjectInputStream instance must use nsMemory to Alloc
@@ -134,8 +153,7 @@ nsJSPrincipals::Transcode(JSXDRState *xdr, JSPrincipals **jsprinp)
                     nsMemory::Free(olddata);
                     ::JS_XDRMemSetData(xdr, data, size);
 
-                    *jsprinp = nsJSPrincipals::get(prin);
-                    JS_HoldPrincipals(*jsprinp);
+                    prin->GetJSPrincipals(xdr->cx, jsprinp);
                 }
             }
         }
@@ -150,22 +168,71 @@ nsJSPrincipals::Transcode(JSXDRState *xdr, JSPrincipals **jsprinp)
     return JS_TRUE;
 }
 
-#ifdef DEBUG
-
-// Defined here so one can do principals->dump() in the debugger
-JS_EXPORT_API(void)
-JSPrincipals::dump()
+nsresult
+nsJSPrincipals::Startup()
 {
-    if (debugToken == nsJSPrincipals::DEBUG_TOKEN) {
-        static_cast<nsJSPrincipals *>(this)->dumpImpl();
-    } else if (debugToken == mozilla::dom::workers::kJSPrincipalsDebugToken) {
-        fprintf(stderr, "Web Worker principal singleton (%p)\n", this);
-    } else {
-        fprintf(stderr,
-                "!!! JSPrincipals (%p) is not nsJSPrincipals instance - bad token: "
-                "actual=0x%x expected=0x%x\n",
-                this, unsigned(debugToken), unsigned(nsJSPrincipals::DEBUG_TOKEN));
-    }
+    nsCOMPtr<nsIJSRuntimeService> rtsvc = nsXPConnect::GetXPConnect();
+    if (!rtsvc)
+        return NS_ERROR_FAILURE;
+
+    JSRuntime *rt;
+    rtsvc->GetRuntime(&rt);
+    NS_ASSERTION(rt != nsnull, "no JSRuntime?!");
+
+    JSSecurityCallbacks *callbacks = JS_GetRuntimeSecurityCallbacks(rt);
+    NS_ASSERTION(callbacks, "Need a callbacks struct by now!");
+
+    NS_ASSERTION(!callbacks->principalsTranscoder,
+                 "oops, JS_SetPrincipalsTranscoder wars!");
+
+    callbacks->principalsTranscoder = nsTranscodeJSPrincipals;
+    return NS_OK;
 }
 
-#endif 
+nsJSPrincipals::nsJSPrincipals()
+{
+    codebase = nsnull;
+    getPrincipalArray = nsGetPrincipalArray;
+    globalPrivilegesEnabled = nsGlobalPrivilegesEnabled;
+    refcount = 0;
+    destroy = nsDestroyJSPrincipals;
+    subsume = nsJSPrincipalsSubsume;
+    nsIPrincipalPtr = nsnull;
+}
+
+nsresult
+nsJSPrincipals::Init(nsIPrincipal *aPrincipal, const nsCString& aCodebase)
+{
+    if (nsIPrincipalPtr) {
+        NS_ERROR("Init called twice!");
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    nsIPrincipalPtr = aPrincipal;
+    nsStringBuffer* buf = nsStringBuffer::FromString(aCodebase);
+    char* data;
+    if (buf) {
+        buf->AddRef();
+        data = static_cast<char*>(buf->Data());
+    } else {
+        PRUint32 len = aCodebase.Length();
+        buf = nsStringBuffer::Alloc(len + 1); // addrefs
+        if (!buf) {
+            return NS_ERROR_OUT_OF_MEMORY;
+        }
+        data = static_cast<char*>(buf->Data());
+        memcpy(data, aCodebase.get(), len);
+        data[len] = '\0';
+    }
+    
+    codebase = data;
+
+    return NS_OK;
+}
+
+nsJSPrincipals::~nsJSPrincipals()
+{
+    if (codebase) {
+        nsStringBuffer::FromData(codebase)->Release();
+    }
+}

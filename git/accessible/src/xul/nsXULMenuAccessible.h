@@ -41,7 +41,38 @@
 
 #include "nsAccessibleWrap.h"
 #include "nsIDOMXULSelectCntrlEl.h"
-#include "XULSelectControlAccessible.h"
+
+/**
+ * The basic implementation of SelectAccessible for XUL select controls.
+ */
+class nsXULSelectableAccessible : public nsAccessibleWrap
+{
+public:
+  nsXULSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  virtual ~nsXULSelectableAccessible() {}
+
+  // nsAccessNode
+  virtual void Shutdown();
+
+  // SelectAccessible
+  virtual bool IsSelect();
+  virtual already_AddRefed<nsIArray> SelectedItems();
+  virtual PRUint32 SelectedItemCount();
+  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
+  virtual bool IsItemSelected(PRUint32 aIndex);
+  virtual bool AddItemToSelection(PRUint32 aIndex);
+  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
+  virtual bool SelectAll();
+  virtual bool UnselectAll();
+
+  // Widgets
+  virtual nsAccessible* CurrentItem();
+
+protected:
+  // nsIDOMXULMultiSelectControlElement inherits from this, so we'll always have
+  // one of these if the widget is valid and not defunct
+  nsCOMPtr<nsIDOMXULSelectControlElement> mSelectControl;
+};
 
 /**
  * Used for XUL menu, menuitem elements.
@@ -51,7 +82,7 @@ class nsXULMenuitemAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Click = 0 };
 
-  nsXULMenuitemAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenuitemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);
@@ -60,11 +91,13 @@ public:
   // nsAccessible
   virtual void Description(nsString& aDescription);
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual PRInt32 GetLevelInternal();
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
 
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
@@ -83,7 +116,7 @@ public:
 class nsXULMenuSeparatorAccessible : public nsXULMenuitemAccessible
 {
 public:
-  nsXULMenuSeparatorAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenuSeparatorAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);
@@ -91,7 +124,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible
@@ -102,14 +135,14 @@ public:
 /**
  * Used for XUL menupopup and panel.
  */
-class nsXULMenupopupAccessible : public XULSelectControlAccessible
+class nsXULMenupopupAccessible : public nsXULSelectableAccessible
 {
 public:
-  nsXULMenupopupAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenupopupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // Widgets
@@ -126,18 +159,17 @@ public:
 class nsXULMenubarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULMenubarAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenubarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // Widget
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
   virtual nsAccessible* CurrentItem();
-  virtual void SetCurrentItem(nsAccessible* aItem);
 };
 
-#endif
+#endif  

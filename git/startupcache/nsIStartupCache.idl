@@ -42,7 +42,7 @@
 #include "nsIObserver.idl"
 #include "nsIObjectOutputStream.idl"
 
-[uuid(c1b3796b-33af-4ff0-b83d-8eb0ca2c080f)]
+[uuid(de798fab-af49-4a61-8144-81550986e1da)]
 interface nsIStartupCache : nsISupports
 {
 
@@ -52,7 +52,7 @@ interface nsIStartupCache : nsISupports
    *  in that file. */
 
   PRUint32 getBuffer(in string aID, out charPtr aBuffer);
-  void putBuffer(in string aID, in string aBuffer, 
+  void putBuffer(in string aID, in charPtr aBuffer, 
                             in PRUint32 aLength);
  
   void invalidateCache();
@@ -69,10 +69,6 @@ interface nsIStartupCache : nsISupports
    */
   boolean startupWriteComplete();
   void resetStartupWriteTimer();
-
-  /* Instruct clients to always post cache ages to Telemetry, even in
-     cases where it would not normally make sense.  */
-  void recordAgesAlways();
 
   /* Allows clients to simulate the behavior of ObserverService. */
   readonly attribute nsIObserver observer;

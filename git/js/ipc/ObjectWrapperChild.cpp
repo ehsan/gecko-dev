@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
+#include "jscntxt.h"
 
 #include "mozilla/jsipc/ContextWrapperChild.h"
 #include "mozilla/jsipc/ObjectWrapperChild.h"
@@ -414,11 +415,11 @@ static void
 CPOW_NewEnumerateState_Finalize(JSContext* cx, JSObject* state)
 {
     nsTArray<nsString>* strIds =
-        static_cast<nsTArray<nsString>*>(JS_GetPrivate(state));
+        static_cast<nsTArray<nsString>*>(JS_GetPrivate(cx, state));
 
     if (strIds) {
         delete strIds;
-        JS_SetPrivate(state, NULL);
+        JS_SetPrivate(cx, state, NULL);
     }
 }
 
@@ -452,10 +453,10 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
 
     for (JSObject* proto = mObj;
          proto;
-         proto = JS_GetPrototype(proto))
+         proto = JS_GetPrototype(cx, proto))
     {
         AutoIdArray ids(cx, JS_Enumerate(cx, proto));
-        for (size_t i = 0; i < ids.length(); ++i)
+        for (uint i = 0; i < ids.length(); ++i)
             JS_DefinePropertyById(cx, state, ids[i], JSVAL_VOID,
                                   NULL, NULL, JSPROP_ENUMERATE | JSPROP_SHARED);
     }
@@ -466,7 +467,7 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
         if (!ids)
             return false;
         strIds = new InfallibleTArray<nsString>(ids.length());
-        for (size_t i = 0; i < ids.length(); ++i)
+        for (uint i = 0; i < ids.length(); ++i)
             if (!jsid_to_nsString(cx, ids[i], strIds->AppendElement())) {
                 delete strIds;
                 return false;
@@ -474,10 +475,10 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
     }
     *idp = strIds->Length();
 
-    JS_SetPrivate(state, strIds);
-    JS_SetReservedSlot(state, sNextIdIndexSlot, JSVAL_ZERO);
-               
-    *status = JSObject_to_JSVariant(cx, state, statep);
+    *status = (JS_SetPrivate(cx, state, strIds) &&
+               JS_SetReservedSlot(cx, state, sNextIdIndexSlot,
+                                  JSVAL_ZERO) &&
+               JSObject_to_JSVariant(cx, state, statep));
 
     return true;
 }
@@ -487,6 +488,7 @@ ObjectWrapperChild::AnswerNewEnumerateNext(const JSVariant& in_state,
                                            OperationStatus* status, JSVariant* statep, nsString* idp)
 {
     JSObject* state;
+    jsval v;
 
     *statep = in_state;
     idp->Truncate();
@@ -499,25 +501,23 @@ ObjectWrapperChild::AnswerNewEnumerateNext(const JSVariant& in_state,
         return false;
 
     InfallibleTArray<nsString>* strIds =
-        static_cast<InfallibleTArray<nsString>*>(JS_GetPrivate(state));
+        static_cast<InfallibleTArray<nsString>*>(JS_GetPrivate(cx, state));
 
-    if (!strIds)
+    if (!strIds || !JS_GetReservedSlot(cx, state, sNextIdIndexSlot, &v))
         return false;
 
-    jsval v = JS_GetReservedSlot(state, sNextIdIndexSlot);
-
-    int32_t i = JSVAL_TO_INT(v);
+    jsuint i = JSVAL_TO_INT(v);
     NS_ASSERTION(i >= 0, "Index of next jsid negative?");
     NS_ASSERTION(i <= strIds->Length(), "Index of next jsid too large?");
 
-    if (size_t(i) == strIds->Length()) {
+    if (jsuint(i) == strIds->Length()) {
         *status = JS_TRUE;
         return JSObject_to_JSVariant(cx, NULL, statep);
     }
 
     *idp = strIds->ElementAt(i);
-    JS_SetReservedSlot(state, sNextIdIndexSlot, INT_TO_JSVAL(i + 1));
-    *status = JS_TRUE;
+    *status = JS_SetReservedSlot(cx, state, sNextIdIndexSlot,
+                                 INT_TO_JSVAL(i + 1));
     return true;
 }
     

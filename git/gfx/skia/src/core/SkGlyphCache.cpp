@@ -8,15 +8,13 @@
 
 
 #include "SkGlyphCache.h"
-#include "SkGraphics.h"
+#include "SkFontHost.h"
 #include "SkPaint.h"
 #include "SkTemplates.h"
 
 #define SPEW_PURGE_STATUS
 //#define USE_CACHE_HASH
 //#define RECORD_HASH_EFFICIENCY
-
-bool gSkSuppressFontCachePurgeSpew;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -387,6 +385,11 @@ void SkGlyphCache::invokeAndRemoveAuxProcs() {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+#include "SkGlobals.h"
+#include "SkThread.h"
+
+#define SkGlyphCache_GlobalsTag     SkSetFourByteTag('g', 'l', 'f', 'c')
+
 #ifdef USE_CACHE_HASH
     #define HASH_BITCOUNT   6
     #define HASH_COUNT      (1 << HASH_BITCOUNT)
@@ -406,18 +409,8 @@ void SkGlyphCache::invokeAndRemoveAuxProcs() {
     }
 #endif
 
-#include "SkThread.h"
-
-class SkGlyphCache_Globals {
+class SkGlyphCache_Globals : public SkGlobals::Rec {
 public:
-    SkGlyphCache_Globals() {
-        fHead = NULL;
-        fTotalMemoryUsed = 0;
-#ifdef USE_CACHE_HASH
-        sk_bzero(fHash, sizeof(fHash));
-#endif
-    }
-
     SkMutex         fMutex;
     SkGlyphCache*   fHead;
     size_t          fTotalMemoryUsed;
@@ -432,15 +425,28 @@ public:
 #endif
 };
 
-static SkGlyphCache_Globals& getGlobals() {
-    // we leak this, so we don't incur any shutdown cost of the destructor
-    static SkGlyphCache_Globals* gGlobals = new SkGlyphCache_Globals;
-    return *gGlobals;
-}
+#ifdef SK_USE_RUNTIME_GLOBALS
+    static SkGlobals::Rec* create_globals() {
+        SkGlyphCache_Globals* rec = SkNEW(SkGlyphCache_Globals);
+        rec->fHead = NULL;
+        rec->fTotalMemoryUsed = 0;
+#ifdef USE_CACHE_HASH
+        memset(rec->fHash, 0, sizeof(rec->fHash));
+#endif
+        return rec;
+    }
+
+    #define FIND_GC_GLOBALS()   *(SkGlyphCache_Globals*)SkGlobals::Find(SkGlyphCache_GlobalsTag, create_globals)
+    #define GET_GC_GLOBALS()    *(SkGlyphCache_Globals*)SkGlobals::Get(SkGlyphCache_GlobalsTag)
+#else
+    static SkGlyphCache_Globals gGCGlobals;
+    #define FIND_GC_GLOBALS()   gGCGlobals
+    #define GET_GC_GLOBALS()    gGCGlobals
+#endif
 
 void SkGlyphCache::VisitAllCaches(bool (*proc)(SkGlyphCache*, void*),
                                   void* context) {
-    SkGlyphCache_Globals& globals = getGlobals();
+    SkGlyphCache_Globals& globals = FIND_GC_GLOBALS();
     SkAutoMutexAcquire    ac(globals.fMutex);
     SkGlyphCache*         cache;
 
@@ -466,7 +472,7 @@ SkGlyphCache* SkGlyphCache::VisitCache(const SkDescriptor* desc,
                               void* context) {
     SkASSERT(desc);
 
-    SkGlyphCache_Globals& globals = getGlobals();
+    SkGlyphCache_Globals& globals = FIND_GC_GLOBALS();
     SkAutoMutexAcquire    ac(globals.fMutex);
     SkGlyphCache*         cache;
     bool                  insideMutex = true;
@@ -528,7 +534,7 @@ void SkGlyphCache::AttachCache(SkGlyphCache* cache) {
     SkASSERT(cache);
     SkASSERT(cache->fNext == NULL);
 
-    SkGlyphCache_Globals& globals = getGlobals();
+    SkGlyphCache_Globals& globals = GET_GC_GLOBALS();
     SkAutoMutexAcquire    ac(globals.fMutex);
 
     globals.validate();
@@ -537,10 +543,9 @@ void SkGlyphCache::AttachCache(SkGlyphCache* cache) {
     // if we have a fixed budget for our cache, do a purge here
     {
         size_t allocated = globals.fTotalMemoryUsed + cache->fMemoryUsed;
-        size_t budgeted = SkGraphics::GetFontCacheLimit();
-        if (allocated > budgeted) {
-            (void)InternalFreeCache(&globals, allocated - budgeted);
-        }
+        size_t amountToFree = SkFontHost::ShouldPurgeFontCache(allocated);
+        if (amountToFree)
+            (void)InternalFreeCache(&globals, amountToFree);
     }
 
     cache->attachToHead(&globals.fHead);
@@ -556,7 +561,7 @@ void SkGlyphCache::AttachCache(SkGlyphCache* cache) {
 }
 
 size_t SkGlyphCache::GetCacheUsed() {
-    SkGlyphCache_Globals& globals = getGlobals();
+    SkGlyphCache_Globals& globals = FIND_GC_GLOBALS();
     SkAutoMutexAcquire  ac(globals.fMutex);
 
     return SkGlyphCache::ComputeMemoryUsed(globals.fHead);
@@ -566,7 +571,7 @@ bool SkGlyphCache::SetCacheUsed(size_t bytesUsed) {
     size_t curr = SkGlyphCache::GetCacheUsed();
 
     if (curr > bytesUsed) {
-        SkGlyphCache_Globals& globals = getGlobals();
+        SkGlyphCache_Globals& globals = FIND_GC_GLOBALS();
         SkAutoMutexAcquire  ac(globals.fMutex);
 
         return InternalFreeCache(&globals, curr - bytesUsed) > 0;
@@ -640,7 +645,7 @@ size_t SkGlyphCache::InternalFreeCache(SkGlyphCache_Globals* globals,
     globals->validate();
 
 #ifdef SPEW_PURGE_STATUS
-    if (count && !gSkSuppressFontCachePurgeSpew) {
+    if (count) {
         SkDebugf("purging %dK from font cache [%d entries]\n",
                  (int)(bytesFreed >> 10), count);
     }

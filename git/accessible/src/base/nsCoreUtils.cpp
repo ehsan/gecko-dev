@@ -46,7 +46,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
-#include "nsRange.h"
+#include "nsIDOMRange.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
@@ -63,9 +63,12 @@
 #include "nsIView.h"
 #include "nsLayoutUtils.h"
 
+#include "nsContentCID.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "mozilla/dom/Element.h"
+
+static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsCoreUtils
@@ -314,7 +317,9 @@ nsCoreUtils::ScrollSubstringTo(nsIFrame *aFrame,
 
   nsPresContext *presContext = aFrame->PresContext();
 
-  nsRefPtr<nsIDOMRange> scrollToRange = new nsRange();
+  nsCOMPtr<nsIDOMRange> scrollToRange = do_CreateInstance(kRangeCID);
+  NS_ENSURE_TRUE(scrollToRange, NS_ERROR_FAILURE);
+
   nsCOMPtr<nsISelectionController> selCon;
   aFrame->GetSelectionController(presContext, getter_AddRefs(selCon));
   NS_ENSURE_TRUE(selCon, NS_ERROR_FAILURE);
@@ -503,6 +508,17 @@ nsCoreUtils::IsErrorPage(nsIDocument *aDocument)
   return StringBeginsWith(path, neterror) || StringBeginsWith(path, certerror);
 }
 
+bool
+nsCoreUtils::IsCorrectFrameType(nsIFrame *aFrame, nsIAtom *aAtom)
+{
+  NS_ASSERTION(aFrame != nsnull,
+               "aFrame is null in call to IsCorrectFrameType!");
+  NS_ASSERTION(aAtom != nsnull,
+               "aAtom is null in call to IsCorrectFrameType!");
+  
+  return aFrame->GetType() == aAtom;
+}
+
 already_AddRefed<nsIDOMNode>
 nsCoreUtils::GetDOMNodeForContainer(nsIDocShellTreeItem *aContainer)
 {
@@ -570,6 +586,26 @@ nsCoreUtils::GetLanguageFor(nsIContent *aContent, nsIContent *aRootContent,
     walkUp = walkUp->GetParent();
 }
 
+already_AddRefed<nsIDOMCSSStyleDeclaration>
+nsCoreUtils::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
+                                         nsIContent *aContent)
+{
+  nsIContent* content = GetDOMElementFor(aContent);
+  if (!content)
+    return nsnull;
+
+  // Returns number of items in style declaration
+  nsCOMPtr<nsIDOMWindow> window =
+    do_QueryInterface(content->OwnerDoc()->GetWindow());
+  if (!window)
+    return nsnull;
+
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
+  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(content));
+  window->GetComputedStyle(domElement, aPseudoElt, getter_AddRefs(cssDecl));
+  return cssDecl.forget();
+}
+
 already_AddRefed<nsIBoxObject>
 nsCoreUtils::GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj)
 {
@@ -620,6 +656,22 @@ nsCoreUtils::GetFirstSensibleColumn(nsITreeBoxObject *aTree)
   cols->GetFirstColumn(getter_AddRefs(column));
   if (column && IsColumnHidden(column))
     return GetNextSensibleColumn(column);
+
+  return column.forget();
+}
+
+already_AddRefed<nsITreeColumn>
+nsCoreUtils::GetLastSensibleColumn(nsITreeBoxObject *aTree)
+{
+  nsCOMPtr<nsITreeColumns> cols;
+  aTree->GetColumns(getter_AddRefs(cols));
+  if (!cols)
+    return nsnull;
+
+  nsCOMPtr<nsITreeColumn> column;
+  cols->GetLastColumn(getter_AddRefs(column));
+  if (column && IsColumnHidden(column))
+    return GetPreviousSensibleColumn(column);
 
   return column.forget();
 }

@@ -58,20 +58,7 @@
 
 using namespace mozilla;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDataTransfer)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMDataTransfer)
-  if (tmp->mFiles) {
-    tmp->mFiles->Disconnect();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFiles)
-  }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDragTarget)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDragImage)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMDataTransfer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFiles)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDragTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDragImage)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMDataTransfer)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMDataTransfer)
@@ -80,6 +67,7 @@ DOMCI_DATA(DataTransfer, nsDOMDataTransfer)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMDataTransfer)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataTransfer)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNSDataTransfer)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDataTransfer)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DataTransfer)
 NS_INTERFACE_MAP_END
@@ -248,7 +236,7 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
     return NS_OK;
 
   if (!mFiles) {
-    mFiles = new nsDOMFileList(static_cast<nsIDOMDataTransfer*>(this));
+    mFiles = new nsDOMFileList();
     NS_ENSURE_TRUE(mFiles, NS_ERROR_OUT_OF_MEMORY);
 
     PRUint32 count = mItems.Length();
@@ -464,11 +452,11 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
   nsTArray<TransferItem>& item = mItems[aIndex];
 
   // allow access to any data in the drop and dragdrop events, or if the
-  // UniversalXPConnect privilege is set, otherwise only allow access to
+  // UniversalBrowserRead privilege is set, otherwise only allow access to
   // data from the same principal.
   nsIPrincipal* principal = nsnull;
   if (mEventType != NS_DRAGDROP_DROP && mEventType != NS_DRAGDROP_DRAGDROP &&
-      !nsContentUtils::CallerHasUniversalXPConnect()) {
+      !nsContentUtils::IsCallerTrustedForCapability("UniversalBrowserRead")) {
     nsresult rv = NS_OK;
     principal = GetCurrentPrincipal(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -537,7 +525,7 @@ nsDOMDataTransfer::MozSetDataAt(const nsAString& aFormat,
   // XXX perhaps this should also limit any non-string type as well
   if ((aFormat.EqualsLiteral("application/x-moz-file-promise") ||
        aFormat.EqualsLiteral("application/x-moz-file")) &&
-       !nsContentUtils::CallerHasUniversalXPConnect()) {
+       !nsContentUtils::IsCallerTrustedForCapability("UniversalXPConnect")) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 

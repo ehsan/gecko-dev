@@ -55,6 +55,7 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsStaticNameTable.h"
+#include "prlog.h" // for PR_STATIC_ASSERT
 
 using namespace mozilla;
 
@@ -83,10 +84,16 @@ static nsStaticCaseInsensitiveNameTable* gFontDescTable;
   nsCSSProps::gShorthandsContainingTable[eCSSProperty_COUNT_no_shorthands];
 /* static */ nsCSSProperty* nsCSSProps::gShorthandsContainingPool = nsnull;
 
+// Keep in sync with enum nsCSSFontDesc in nsCSSProperty.h.
 static const char* const kCSSRawFontDescs[] = {
-#define CSS_FONT_DESC(name_, method_) #name_,
-#include "nsCSSFontDescList.h"
-#undef CSS_FONT_DESC
+  "font-family",
+  "font-style",
+  "font-weight",
+  "font-stretch",
+  "src",
+  "unicode-range",
+  "-moz-font-feature-settings",
+  "-moz-font-language-override"
 };
 
 struct PropertyAndCount {
@@ -316,47 +323,20 @@ nsCSSProps::ReleaseTable(void)
   }
 }
 
-// We need eCSSAliasCount so we can make gAliases nonzero size when there
-// are no aliases.
-enum {
-#define CSS_PROP_ALIAS(aliasname_, propid_, aliasmethod_)                     \
-  eCSSAliasCountBefore_##aliasmethod_,
-#include "nsCSSPropAliasList.h"
-#undef CSS_PROP_ALIAS
-
-  eCSSAliasCount
-};
-
-enum {
-  // We want the largest sizeof(#aliasname_).  To find that, we use the
-  // auto-incrementing behavior of C++ enums (a value without an
-  // initializer is one larger than the previous value, or 0 at the
-  // start of the enum), and for each alias we define two values:
-  //   eMaxCSSAliasNameSizeBefore_##aliasmethod_ is the largest
-  //     sizeof(#aliasname_) before that alias.  The first one is
-  //     conveniently zero.
-  //   eMaxCSSAliasNameSizeWith_##aliasmethod_ is **one less than** the
-  //     largest sizeof(#aliasname_) before or including that alias.
-#define CSS_PROP_ALIAS(aliasname_, propid_, aliasmethod_)                     \
-  eMaxCSSAliasNameSizeBefore_##aliasmethod_,                                  \
-  eMaxCSSAliasNameSizeWith_##aliasmethod_ =                                   \
-    PR_MAX(sizeof(#aliasname_), eMaxCSSAliasNameSizeBefore_##aliasmethod_) - 1,
-#include "nsCSSPropAliasList.h"
-#undef CSS_PROP_ALIAS
-
-  eMaxCSSAliasNameSize
-};
-
 struct CSSPropertyAlias {
-  char name[PR_MAX(eMaxCSSAliasNameSize, 1)];
+  char name[sizeof("-moz-border-radius-bottomright")];
   nsCSSProperty id;
 };
 
-static const CSSPropertyAlias gAliases[PR_MAX(eCSSAliasCount, 1)] = {
-#define CSS_PROP_ALIAS(aliasname_, propid_, aliasmethod_) \
-  { #aliasname_, eCSSProperty_##propid_ },
-#include "nsCSSPropAliasList.h"
-#undef CSS_PROP_ALIAS
+static const CSSPropertyAlias gAliases[] = {
+  { "-moz-border-radius", eCSSProperty_border_radius },
+  { "-moz-border-radius-bottomleft", eCSSProperty_border_bottom_left_radius },
+  { "-moz-border-radius-bottomright", eCSSProperty_border_bottom_right_radius },
+  { "-moz-border-radius-topleft", eCSSProperty_border_top_left_radius },
+  { "-moz-border-radius-topright", eCSSProperty_border_top_right_radius },
+  { "-moz-box-shadow", eCSSProperty_box_shadow },
+  // Don't forget to update the sizeof in CSSPropertyAlias above with the
+  // longest string when you add stuff here.
 };
 
 nsCSSProperty
@@ -365,9 +345,7 @@ nsCSSProps::LookupProperty(const nsACString& aProperty)
   NS_ABORT_IF_FALSE(gPropertyTable, "no lookup table, needs addref");
 
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
-  // Check eCSSAliasCount against 0 to make it easy for the
-  // compiler to optimize away the 0-aliases case.
-  if (eCSSAliasCount != 0 && res == eCSSProperty_UNKNOWN) {
+  if (res == eCSSProperty_UNKNOWN) {
     for (const CSSPropertyAlias *alias = gAliases,
                             *alias_end = ArrayEnd(gAliases);
          alias < alias_end; ++alias) {
@@ -388,9 +366,7 @@ nsCSSProps::LookupProperty(const nsAString& aProperty)
   // converting and avoid a PromiseFlatCString() call.
   NS_ABORT_IF_FALSE(gPropertyTable, "no lookup table, needs addref");
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
-  // Check eCSSAliasCount against 0 to make it easy for the
-  // compiler to optimize away the 0-aliases case.
-  if (eCSSAliasCount != 0 && res == eCSSProperty_UNKNOWN) {
+  if (res == eCSSProperty_UNKNOWN) {
     for (const CSSPropertyAlias *alias = gAliases,
                             *alias_end = ArrayEnd(gAliases);
          alias < alias_end; ++alias) {
@@ -634,10 +610,9 @@ const PRInt32 nsCSSProps::kBackgroundInlinePolicyKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-MOZ_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER == NS_STYLE_BG_ORIGIN_BORDER &&
-                  NS_STYLE_BG_CLIP_PADDING == NS_STYLE_BG_ORIGIN_PADDING &&
-                  NS_STYLE_BG_CLIP_CONTENT == NS_STYLE_BG_ORIGIN_CONTENT,
-                  "bg-clip and bg-origin style constants must agree");
+PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER == NS_STYLE_BG_ORIGIN_BORDER);
+PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING == NS_STYLE_BG_ORIGIN_PADDING);
+PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT == NS_STYLE_BG_ORIGIN_CONTENT);
 const PRInt32 nsCSSProps::kBackgroundOriginKTable[] = {
   eCSSKeyword_border_box, NS_STYLE_BG_ORIGIN_BORDER,
   eCSSKeyword_padding_box, NS_STYLE_BG_ORIGIN_PADDING,
@@ -658,16 +633,10 @@ const PRInt32 nsCSSProps::kBackgroundPositionKTable[] = {
 };
 
 const PRInt32 nsCSSProps::kBackgroundRepeatKTable[] = {
-  eCSSKeyword_no_repeat,  NS_STYLE_BG_REPEAT_NO_REPEAT,
-  eCSSKeyword_repeat,     NS_STYLE_BG_REPEAT_REPEAT,
-  eCSSKeyword_repeat_x,   NS_STYLE_BG_REPEAT_REPEAT_X,
-  eCSSKeyword_repeat_y,   NS_STYLE_BG_REPEAT_REPEAT_Y,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kBackgroundRepeatPartKTable[] = {
-  eCSSKeyword_no_repeat,  NS_STYLE_BG_REPEAT_NO_REPEAT,
-  eCSSKeyword_repeat,     NS_STYLE_BG_REPEAT_REPEAT,
+  eCSSKeyword_no_repeat,  NS_STYLE_BG_REPEAT_OFF,
+  eCSSKeyword_repeat,     NS_STYLE_BG_REPEAT_XY,
+  eCSSKeyword_repeat_x,   NS_STYLE_BG_REPEAT_X,
+  eCSSKeyword_repeat_y,   NS_STYLE_BG_REPEAT_Y,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -688,15 +657,10 @@ const PRInt32 nsCSSProps::kBorderColorKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kBorderImageRepeatKTable[] = {
-  eCSSKeyword_stretch, NS_STYLE_BORDER_IMAGE_REPEAT_STRETCH,
-  eCSSKeyword_repeat, NS_STYLE_BORDER_IMAGE_REPEAT_REPEAT,
-  eCSSKeyword_round, NS_STYLE_BORDER_IMAGE_REPEAT_ROUND,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kBorderImageSliceKTable[] = {
-  eCSSKeyword_fill, NS_STYLE_BORDER_IMAGE_SLICE_FILL,
+const PRInt32 nsCSSProps::kBorderImageKTable[] = {
+  eCSSKeyword_stretch, NS_STYLE_BORDER_IMAGE_STRETCH,
+  eCSSKeyword_repeat, NS_STYLE_BORDER_IMAGE_REPEAT,
+  eCSSKeyword_round, NS_STYLE_BORDER_IMAGE_ROUND,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1110,7 +1074,11 @@ const PRInt32 nsCSSProps::kOutlineStyleKTable[] = {
 };
 
 const PRInt32 nsCSSProps::kOutlineColorKTable[] = {
+#ifdef GFX_HAS_INVERT
+  eCSSKeyword_invert, NS_STYLE_COLOR_INVERT,
+#else
   eCSSKeyword__moz_use_text_color, NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR,
+#endif
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1232,17 +1200,6 @@ const PRInt32 nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword__moz_center, NS_STYLE_TEXT_ALIGN_MOZ_CENTER,
   eCSSKeyword__moz_right, NS_STYLE_TEXT_ALIGN_MOZ_RIGHT,
   eCSSKeyword__moz_left, NS_STYLE_TEXT_ALIGN_MOZ_LEFT,
-  eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
-  eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kTextAlignLastKTable[] = {
-  eCSSKeyword_auto, NS_STYLE_TEXT_ALIGN_AUTO,
-  eCSSKeyword_left, NS_STYLE_TEXT_ALIGN_LEFT,
-  eCSSKeyword_right, NS_STYLE_TEXT_ALIGN_RIGHT,
-  eCSSKeyword_center, NS_STYLE_TEXT_ALIGN_CENTER,
-  eCSSKeyword_justify, NS_STYLE_TEXT_ALIGN_JUSTIFY,
   eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
   eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
   eCSSKeyword_UNKNOWN,-1
@@ -1515,12 +1472,6 @@ const PRInt32 nsCSSProps::kColorInterpolationKTable[] = {
   eCSSKeyword_UNKNOWN, -1
 };
 
-const PRInt32 nsCSSProps::kColumnFillKTable[] = {
-  eCSSKeyword_auto, NS_STYLE_COLUMN_FILL_AUTO,
-  eCSSKeyword_balance, NS_STYLE_COLUMN_FILL_BALANCE,
-  eCSSKeyword_UNKNOWN, -1
-};
-
 bool
 nsCSSProps::FindKeyword(nsCSSKeyword aKeyword, const PRInt32 aTable[], PRInt32& aResult)
 {
@@ -1723,11 +1674,7 @@ static const nsCSSProperty gBorderSubpropTable[] = {
   eCSSProperty_border_right_colors,
   eCSSProperty_border_bottom_colors,
   eCSSProperty_border_left_colors,
-  eCSSProperty_border_image_source,
-  eCSSProperty_border_image_slice,
-  eCSSProperty_border_image_width,
-  eCSSProperty_border_image_outset,
-  eCSSProperty_border_image_repeat,
+  eCSSProperty_border_image,
   eCSSProperty_UNKNOWN
 };
 
@@ -1740,9 +1687,10 @@ static const nsCSSProperty gBorderBottomSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
-MOZ_STATIC_ASSERT(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
-                  NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
-                  "box side constants not top/right/bottom/left == 0/1/2/3");
+PR_STATIC_ASSERT(NS_SIDE_TOP == 0);
+PR_STATIC_ASSERT(NS_SIDE_RIGHT == 1);
+PR_STATIC_ASSERT(NS_SIDE_BOTTOM == 2);
+PR_STATIC_ASSERT(NS_SIDE_LEFT == 3);
 static const nsCSSProperty gBorderColorSubpropTable[] = {
   // Code relies on these being in top-right-bottom-left order.
   // Code relies on these matching the NS_SIDE_* constants.
@@ -2113,15 +2061,6 @@ static const nsCSSProperty gTransitionSubpropTable[] = {
   eCSSProperty_transition_duration,
   eCSSProperty_transition_timing_function,
   eCSSProperty_transition_delay,
-  eCSSProperty_UNKNOWN
-};
-
-static const nsCSSProperty gBorderImageSubpropTable[] = {
-  eCSSProperty_border_image_source,
-  eCSSProperty_border_image_slice,
-  eCSSProperty_border_image_width,
-  eCSSProperty_border_image_outset,
-  eCSSProperty_border_image_repeat,
   eCSSProperty_UNKNOWN
 };
 

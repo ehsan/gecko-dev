@@ -334,16 +334,7 @@ function _execute_test() {
     // possible that this will mask an NS_ERROR_ABORT that happens after a
     // do_check failure though.
     if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-      msg = "TEST-UNEXPECTED-FAIL | ";
-      if (e.fileName) {
-        msg += e.fileName;
-        if (e.lineNumber) {
-          msg += ":" + e.lineNumber;
-        }
-      } else {
-        msg += "xpcshell/head.js";
-      }
-      msg += " | " + e;
+      msg = "TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e;
       if (e.stack) {
         _dump(msg + " - See following stack:\n");
         _dump_exception_stack(e.stack);
@@ -778,13 +769,6 @@ function do_get_profile() {
   };
   dirSvc.QueryInterface(Components.interfaces.nsIDirectoryService)
         .registerProvider(provider);
-
-  // The methods of 'provider' will entrain this scope so null out everything
-  // to avoid spurious leak reports.
-  env = null;
-  profd = null;
-  dirSvc = null;
-  provider = null;
   return file.clone();
 }
 
@@ -850,9 +834,7 @@ function run_test_in_child(testFile, optionalCallback)
 
   var testPath = do_get_file(testFile).path.replace(/\\/g, "/");
   do_test_pending();
-  sendCommand("_dump('CHILD-TEST-STARTED'); "
-              + "const _TEST_FILE=['" + testPath + "']; _execute_test(); "
-              + "_dump('CHILD-TEST-COMPLETED');", 
+  sendCommand("const _TEST_FILE=['" + testPath + "']; _execute_test();", 
               callback);
 }
 

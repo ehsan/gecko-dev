@@ -60,15 +60,12 @@ const PREF_APP_UPDATE_NEVER_BRANCH       = "app.update.never.";
 const PREF_APP_UPDATE_TEST_LOOP          = "app.update.test.loop";
 const PREF_PLUGINS_UPDATEURL             = "plugins.update.url";
 
-const PREF_EM_HOTFIX_ID                  = "extensions.hotfix.id";
-
 const UPDATE_TEST_LOOP_INTERVAL     = 2000;
 
 const URI_UPDATES_PROPERTIES  = "chrome://mozapps/locale/update/updates.properties";
 
 const STATE_DOWNLOADING       = "downloading";
 const STATE_PENDING           = "pending";
-const STATE_PENDING_SVC       = "pending-service";
 const STATE_APPLYING          = "applying";
 const STATE_SUCCEEDED         = "succeeded";
 const STATE_DOWNLOAD_FAILED   = "download-failed";
@@ -444,7 +441,6 @@ var gUpdates = {
           // the Update.
           switch (state) {
           case STATE_PENDING:
-          case STATE_PENDING_SVC:
             this.sourceEvent = SRCEVT_BACKGROUND;
             aCallback("finishedBackground");
             return;
@@ -525,11 +521,6 @@ var gUpdates = {
       return;
     }
 
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     var self = this;
     AddonManager.getAllAddons(function(addons) {
       self.addons = [];
@@ -553,10 +544,9 @@ var gUpdates = {
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (addon.type != "plugin" && addon.id != hotfixID &&
+          if (addon.type != "plugin" &&
               !addon.appDisabled && !addon.userDisabled &&
               addon.scope != AddonManager.SCOPE_APPLICATION &&
               addon.isCompatible &&
@@ -1682,7 +1672,6 @@ var gErrorPatchingPage = {
   onWizardNext: function() {
     switch (gUpdates.update.selectedPatch.state) {
     case STATE_PENDING:
-    case STATE_PENDING_SVC: 
       gUpdates.wiz.goTo("finished");
       break;
     case STATE_DOWNLOADING:

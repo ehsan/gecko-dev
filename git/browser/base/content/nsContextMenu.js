@@ -97,12 +97,6 @@ nsContextMenu.prototype = {
     this.initItems();
   },
 
-  hiding: function CM_hiding() {
-    InlineSpellCheckerUI.clearSuggestionsFromMenu();
-    InlineSpellCheckerUI.clearDictionaryListFromMenu();
-    InlineSpellCheckerUI.uninit();
-  },
-
   initItems: function CM_initItems() {
     this.initPageMenuSeparator();
     this.initOpenItems();
@@ -289,14 +283,9 @@ nsContextMenu.prototype = {
     this.showItem("context-viewvideo", this.onVideo && (!this.inSyntheticDoc || this.inFrame));
     this.setItemAttr("context-viewvideo",  "disabled", !this.mediaURL);
 
-    // View background image depends on whether there is one, but don't make
-    // background images of a stand-alone media document available.
-    this.showItem("context-viewbgimage", shouldShow &&
-                                         !this._hasMultipleBGImages &&
-                                         !this.inSyntheticDoc);
-    this.showItem("context-sep-viewbgimage", shouldShow &&
-                                             !this._hasMultipleBGImages &&
-                                             !this.inSyntheticDoc);
+    // View background image depends on whether there is one.
+    this.showItem("context-viewbgimage", shouldShow && !this._hasMultipleBGImages);
+    this.showItem("context-sep-viewbgimage", shouldShow && !this._hasMultipleBGImages);
     document.getElementById("context-viewbgimage")
             .disabled = !this.hasBGImage;
 
@@ -336,17 +325,15 @@ nsContextMenu.prototype = {
   initSpellingItems: function() {
     var canSpell = InlineSpellCheckerUI.canSpellCheck;
     var onMisspelling = InlineSpellCheckerUI.overMisspelling;
-    var showUndo = canSpell && InlineSpellCheckerUI.canUndo();
     this.showItem("spell-check-enabled", canSpell);
     this.showItem("spell-separator", canSpell || this.onEditableArea);
     document.getElementById("spell-check-enabled")
             .setAttribute("checked", canSpell && InlineSpellCheckerUI.enabled);
 
     this.showItem("spell-add-to-dictionary", onMisspelling);
-    this.showItem("spell-undo-add-to-dictionary", showUndo);
 
     // suggestion list
-    this.showItem("spell-suggestions-separator", onMisspelling || showUndo);
+    this.showItem("spell-suggestions-separator", onMisspelling);
     if (onMisspelling) {
       var suggestionsSeparator =
         document.getElementById("spell-add-to-dictionary");
@@ -392,9 +379,7 @@ nsContextMenu.prototype = {
     this.showItem("context-delete", this.onTextInput);
     this.showItem("context-sep-paste", this.onTextInput);
     this.showItem("context-selectall", !(this.onLink || this.onImage ||
-                                         this.onVideo || this.onAudio ||
-                                         this.inSyntheticDoc) ||
-                                       this.isDesignMode);
+                  this.onVideo || this.onAudio) || this.isDesignMode);
     this.showItem("context-sep-selectall", this.isContentSelected );
 
     // XXX dr
@@ -502,6 +487,16 @@ nsContextMenu.prototype = {
     this.bgImageURL        = "";
     this.onEditableArea    = false;
     this.isDesignMode      = false;
+
+    // Clear any old spellchecking items from the menu, this used to
+    // be in the menu hiding code but wasn't getting called in all
+    // situations. Here, we can ensure it gets cleaned up any time the
+    // menu is shown. Note: must be before uninit because that clears the
+    // internal vars
+    InlineSpellCheckerUI.clearSuggestionsFromMenu();
+    InlineSpellCheckerUI.clearDictionaryListFromMenu();
+
+    InlineSpellCheckerUI.uninit();
 
     // Remember the node that was clicked.
     this.target = aNode;
@@ -850,7 +845,7 @@ nsContextMenu.prototype = {
       let uri = makeURI(this.mediaURL);
       let url = uri.QueryInterface(Ci.nsIURL);
       if (url.fileBaseName)
-        name = decodeURI(url.fileBaseName) + ".jpg";
+        name = url.fileBaseName + ".jpg";
     } catch (e) { }
     if (!name)
       name = "snapshot.jpg";
@@ -867,6 +862,12 @@ nsContextMenu.prototype = {
     let video = this.target;
     if (document.mozFullScreenEnabled)
       video.mozRequestFullScreen();
+    else {
+      // Fallback for the legacy full-screen video implementation.
+      video.pause();
+      openDialog("chrome://browser/content/fullscreen-video.xhtml",
+                  "", "chrome,centerscreen,dialog=no", video);
+    }
   },
 
   // Change current window to the URL of the background image.

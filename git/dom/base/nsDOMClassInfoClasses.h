@@ -197,6 +197,8 @@ DOMCI_CLASS(ChromeWindow)
 // RGBColor object used by getComputedStyle
 DOMCI_CLASS(CSSRGBColor)
 
+DOMCI_CLASS(RangeException)
+
 // CSSValueList object that represents an nsIDOMCSSValueList, used
 // by DOM CSS
 DOMCI_CLASS(CSSValueList)
@@ -291,7 +293,6 @@ DOMCI_CLASS(SVGTextElement)
 DOMCI_CLASS(SVGTextPathElement)
 DOMCI_CLASS(SVGTitleElement)
 DOMCI_CLASS(SVGTSpanElement)
-DOMCI_CLASS(SVGUnknownElement)
 DOMCI_CLASS(SVGUseElement)
 
 // other SVG classes
@@ -339,7 +340,6 @@ DOMCI_CLASS(SVGPoint)
 DOMCI_CLASS(SVGPointList)
 DOMCI_CLASS(SVGPreserveAspectRatio)
 DOMCI_CLASS(SVGRect)
-DOMCI_CLASS(SVGStringList)
 DOMCI_CLASS(SVGTransform)
 DOMCI_CLASS(SVGTransformList)
 DOMCI_CLASS(SVGZoomEvent)
@@ -402,6 +402,7 @@ DOMCI_CLASS(FileList)
 DOMCI_CLASS(Blob)
 DOMCI_CLASS(File)
 DOMCI_CLASS(FileException)
+DOMCI_CLASS(FileError)
 DOMCI_CLASS(FileReader)
 DOMCI_CLASS(MozURLProperty)
 DOMCI_CLASS(MozBlobBuilder)
@@ -422,21 +423,14 @@ DOMCI_CLASS(MessageEvent)
 DOMCI_CLASS(GeoGeolocation)
 DOMCI_CLASS(GeoPosition)
 DOMCI_CLASS(GeoPositionCoords)
+DOMCI_CLASS(GeoPositionAddress)
 DOMCI_CLASS(GeoPositionError)
 
 DOMCI_CLASS(MozBatteryManager)
 
-DOMCI_CLASS(MozPowerManager)
-DOMCI_CLASS(MozWakeLock)
-
 DOMCI_CLASS(MozSmsManager)
 DOMCI_CLASS(MozSmsMessage)
 DOMCI_CLASS(MozSmsEvent)
-DOMCI_CLASS(MozSmsRequest)
-DOMCI_CLASS(MozSmsFilter)
-DOMCI_CLASS(MozSmsCursor)
-
-DOMCI_CLASS(MozConnection)
 
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)
@@ -479,11 +473,9 @@ DOMCI_CLASS(WebGLShader)
 DOMCI_CLASS(WebGLFramebuffer)
 DOMCI_CLASS(WebGLRenderbuffer)
 DOMCI_CLASS(WebGLUniformLocation)
-DOMCI_CLASS(WebGLShaderPrecisionFormat)
 DOMCI_CLASS(WebGLActiveInfo)
 DOMCI_CLASS(WebGLExtension)
 DOMCI_CLASS(WebGLExtensionStandardDerivatives)
-DOMCI_CLASS(WebGLExtensionTextureFilterAnisotropic)
 DOMCI_CLASS(WebGLExtensionLoseContext)
 
 DOMCI_CLASS(PaintRequest)
@@ -506,7 +498,7 @@ DOMCI_CLASS(DesktopNotification)
 DOMCI_CLASS(DesktopNotificationCenter)
 
 // WebSocket
-DOMCI_CLASS(WebSocket)
+DOMCI_CLASS(MozWebSocket)
 DOMCI_CLASS(CloseEvent)
 
 DOMCI_CLASS(IDBFactory)
@@ -531,16 +523,3 @@ DOMCI_CLASS(MozCSSKeyframesRule)
 
 DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(CustomEvent)
-
-#ifdef MOZ_B2G_RIL
-DOMCI_CLASS(Telephony)
-DOMCI_CLASS(TelephonyCall)
-DOMCI_CLASS(CallEvent)
-#endif
-
-#ifdef MOZ_B2G_BT
-DOMCI_CLASS(BluetoothAdapter)
-#endif
-
-DOMCI_CLASS(DOMError)
-DOMCI_CLASS(DOMRequest)

@@ -51,10 +51,6 @@
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
 
-namespace JS {
-struct TypeInferenceSizes;
-}
-
 namespace js {
 namespace types {
 
@@ -71,12 +67,12 @@ struct TypeObjectKey {
  */
 class Type
 {
-    uintptr_t data;
-    Type(uintptr_t data) : data(data) {}
+    jsuword data;
+    Type(jsuword data) : data(data) {}
 
   public:
 
-    uintptr_t raw() const { return data; }
+    jsuword raw() const { return data; }
 
     bool isPrimitive() const {
         return data < JSVAL_TYPE_OBJECT;
@@ -84,7 +80,7 @@ class Type
 
     bool isPrimitive(JSValueType type) const {
         JS_ASSERT(type < JSVAL_TYPE_OBJECT);
-        return (uintptr_t) type == data;
+        return (jsuword) type == data;
     }
 
     JSValueType primitive() const {
@@ -273,7 +269,7 @@ enum {
     TYPE_FLAG_DEFINITE_MASK       = 0x0f000000,
     TYPE_FLAG_DEFINITE_SHIFT      = 24
 };
-typedef uint32_t TypeFlags;
+typedef uint32 TypeFlags;
 
 /* Flags and other state stored in TypeObject::flags */
 enum {
@@ -304,7 +300,7 @@ enum {
 
     /*
      * Some objects are not dense arrays, or are dense arrays whose length
-     * property does not fit in an int32_t.
+     * property does not fit in an int32.
      */
     OBJECT_FLAG_NON_DENSE_ARRAY       = 0x00010000,
 
@@ -347,7 +343,7 @@ enum {
       | OBJECT_FLAG_UNKNOWN_PROPERTIES
       | OBJECT_FLAG_SETS_MARKED_UNKNOWN
 };
-typedef uint32_t TypeObjectFlags;
+typedef uint32 TypeObjectFlags;
 
 /* Information about the set of types associated with an lvalue. */
 class TypeSet
@@ -370,7 +366,7 @@ class TypeSet
     void print(JSContext *cx);
 
     inline void sweep(JSContext *cx, JSCompartment *compartment);
-    inline size_t computedSizeOfExcludingThis();
+    inline size_t dynamicSize();
 
     /* Whether this set contains a specific type. */
     inline bool hasType(Type type);
@@ -523,10 +519,10 @@ class TypeSet
     bool propertyNeedsBarrier(JSContext *cx, jsid id);
 
   private:
-    uint32_t baseObjectCount() const {
+    uint32 baseObjectCount() const {
         return (flags & TYPE_FLAG_OBJECT_COUNT_MASK) >> TYPE_FLAG_OBJECT_COUNT_SHIFT;
     }
-    inline void setBaseObjectCount(uint32_t count);
+    inline void setBaseObjectCount(uint32 count);
 };
 
 /*
@@ -537,11 +533,11 @@ class TypeSet
  */
 struct TypeResult
 {
-    uint32_t offset;
+    uint32 offset;
     Type type;
     TypeResult *next;
 
-    TypeResult(uint32_t offset, Type type)
+    TypeResult(uint32 offset, Type type)
         : offset(offset), type(type), next(NULL)
     {}
 };
@@ -643,7 +639,7 @@ struct Property
     inline Property(jsid id);
     inline Property(const Property &o);
 
-    static uint32_t keyBits(jsid id) { return uint32_t(JSID_BITS(id)); }
+    static uint32 keyBits(jsid id) { return (uint32) JSID_BITS(id); }
     static jsid getKey(Property *p) { return p->id; }
 };
 
@@ -668,7 +664,7 @@ struct TypeNewScript
      * Shape to use for newly constructed objects. Reflects all definite
      * properties the object will have.
      */
-    HeapPtrShape  shape;
+    HeapPtr<const Shape> shape;
 
     /*
      * Order in which properties become initialized. We need this in case a
@@ -685,8 +681,8 @@ struct TypeNewScript
             FRAME_POP,
             DONE
         } kind;
-        uint32_t offset;
-        Initializer(Kind kind, uint32_t offset)
+        uint32 offset;
+        Initializer(Kind kind, uint32 offset)
           : kind(kind), offset(offset)
         {}
     };
@@ -735,15 +731,18 @@ struct TypeObject : gc::Cell
      */
     HeapPtrObject singleton;
 
-    /*
-     * Value held by singleton if this is a standin type for a singleton JS
-     * object whose type has not been constructed yet.
-     */
-    static const size_t LAZY_SINGLETON = 1;
-    bool lazy() const { return singleton == (JSObject *) LAZY_SINGLETON; }
+    /* Lazily filled array of empty shapes for each size of objects with this type. */
+    HeapPtr<EmptyShape> *emptyShapes;
 
     /* Flags for this object. */
     TypeObjectFlags flags;
+
+    /*
+     * If non-NULL, objects of this type have always been constructed using
+     * 'new' on the specified script, which adds some number of properties to
+     * the object in a definite order before the object escapes.
+     */
+    HeapPtr<TypeNewScript> newScript;
 
     /*
      * Estimate of the contribution of this object to the type sets it appears in.
@@ -756,15 +755,8 @@ struct TypeObject : gc::Cell
      * later, and we want to ensure in such cases that our time/space complexity
      * is linear, not worst-case cubic as it would otherwise be.
      */
-    uint32_t contribution;
-    static const uint32_t CONTRIBUTION_LIMIT = 2000;
-
-    /*
-     * If non-NULL, objects of this type have always been constructed using
-     * 'new' on the specified script, which adds some number of properties to
-     * the object in a definite order before the object escapes.
-     */
-    HeapPtr<TypeNewScript> newScript;
+    uint32 contribution;
+    static const uint32 CONTRIBUTION_LIMIT = 2000;
 
     /*
      * Properties of this object. This may contain JSID_VOID, representing the
@@ -801,10 +793,6 @@ struct TypeObject : gc::Cell
     /* If this is an interpreted function, the function object. */
     HeapPtrFunction interpretedFunction;
 
-#if JS_BITS_PER_WORD == 32
-    void *padding;
-#endif
-
     inline TypeObject(JSObject *proto, bool isFunction, bool unknown);
 
     bool isFunction() { return !!(flags & OBJECT_FLAG_FUNCTION); }
@@ -823,6 +811,16 @@ struct TypeObject : gc::Cell
                      hasAllFlags(OBJECT_FLAG_DYNAMIC_MASK));
         return !!(flags & OBJECT_FLAG_UNKNOWN_PROPERTIES);
     }
+
+    /*
+     * Return an immutable, shareable, empty shape with the same clasp as this
+     * and the same slotSpan as this had when empty.
+     *
+     * If |this| is the scope of an object |proto|, the resulting scope can be
+     * used as the scope of a new object whose prototype is |proto|.
+     */
+    inline bool canProvideEmptyShape(js::Class *clasp);
+    inline js::EmptyShape *getEmptyShape(JSContext *cx, js::Class *aclasp, gc::AllocKind kind);
 
     /*
      * Get or create a property of this object. Only call this for properties which
@@ -869,44 +867,29 @@ struct TypeObject : gc::Cell
     inline void clearProperties();
     inline void sweep(JSContext *cx);
 
-    inline size_t computedSizeOfExcludingThis();
-
-    void sizeOfExcludingThis(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf);
+    inline size_t dynamicSize();
 
     /*
      * Type objects don't have explicit finalizers. Memory owned by a type
      * object pending deletion is released when weak references are sweeped
      * from all the compartment's type objects.
      */
-    void finalize(JSContext *cx, bool background) {}
+    void finalize(JSContext *cx) {}
 
     static inline void writeBarrierPre(TypeObject *type);
     static inline void writeBarrierPost(TypeObject *type, void *addr);
-    static inline void readBarrier(TypeObject *type);
-
-    static inline ThingRootKind rootKind() { return THING_ROOT_TYPE_OBJECT; }
 
   private:
-    inline uint32_t basePropertyCount() const;
-    inline void setBasePropertyCount(uint32_t count);
+    inline uint32 basePropertyCount() const;
+    inline void setBasePropertyCount(uint32 count);
 
     static void staticAsserts() {
         JS_STATIC_ASSERT(offsetof(TypeObject, proto) == offsetof(js::shadow::TypeObject, proto));
     }
 };
 
-/*
- * Entries for the per-compartment set of type objects which are the default
- * 'new' or the lazy types of some prototype.
- */
-struct TypeObjectEntry
-{
-    typedef JSObject *Lookup;
-
-    static inline HashNumber hash(JSObject *base);
-    static inline bool match(TypeObject *key, JSObject *lookup);
-};
-typedef HashSet<ReadBarriered<TypeObject>, TypeObjectEntry, SystemAllocPolicy> TypeObjectSet;
+/* Global singleton for the generic type of objects with no prototype. */
+extern TypeObject emptyTypeObject;
 
 /*
  * Call to mark a script's arguments as having been created, recompile any
@@ -918,13 +901,6 @@ MarkArgumentsCreated(JSContext *cx, JSScript *script);
 /* Whether to use a new type object when calling 'new' at script/pc. */
 bool
 UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-/*
- * Whether Array.prototype, or an object on its proto chain, has an
- * indexed property.
- */
-bool
-ArrayPrototypeHasIndexedProperty(JSContext *cx, JSScript *script);
 
 /*
  * Type information about a callsite. this is separated from the bytecode
@@ -1023,7 +999,7 @@ struct TypeScriptNesting
     const Value *varArray;
 
     /* Number of frames for this function on the stack. */
-    uint32_t activeFrames;
+    uint32 activeFrames;
 
     TypeScriptNesting() { PodZero(this); }
     ~TypeScriptNesting();
@@ -1044,6 +1020,9 @@ class TypeScript
     /* Analysis information for the script, cleared on each GC. */
     analyze::ScriptAnalysis *analysis;
 
+    /* Function for the script, if it has one. */
+    HeapPtrFunction function;
+
     /*
      * Information about the scope in which a script executes. This information
      * is not set until the script has executed at least once and SetScope
@@ -1062,12 +1041,13 @@ class TypeScript
     /* Dynamic types generated at points within this script. */
     TypeResult *dynamicList;
 
-    inline TypeScript();
+    inline TypeScript(JSFunction *fun);
+    inline ~TypeScript();
 
     bool hasScope() { return size_t(global.get()) != GLOBAL_MISSING_SCOPE; }
 
     /* Array of type type sets for variables and JOF_TYPESET ops. */
-    TypeSet *typeArray() { return (TypeSet *) (uintptr_t(this) + sizeof(TypeScript)); }
+    TypeSet *typeArray() { return (TypeSet *) (jsuword(this) + sizeof(TypeScript)); }
 
     static inline unsigned NumTypeSets(JSScript *script);
 
@@ -1100,11 +1080,6 @@ class TypeScript
     static inline void MonitorString(JSContext *cx, JSScript *script, jsbytecode *pc);
     static inline void MonitorUnknown(JSContext *cx, JSScript *script, jsbytecode *pc);
 
-    static inline void GetPcScript(JSContext *cx, JSScript **script, jsbytecode **pc);
-    static inline void MonitorOverflow(JSContext *cx);
-    static inline void MonitorString(JSContext *cx);
-    static inline void MonitorUnknown(JSContext *cx);
-
     /*
      * Monitor a bytecode pushing any value. This must be called for any opcode
      * which is JOF_TYPESET, and where either the script has not been analyzed
@@ -1114,10 +1089,10 @@ class TypeScript
      */
     static inline void Monitor(JSContext *cx, JSScript *script, jsbytecode *pc,
                                const js::Value &val);
-    static inline void Monitor(JSContext *cx, const js::Value &rval);
 
     /* Monitor an assignment at a SETELEM on a non-integer identifier. */
-    static inline void MonitorAssign(JSContext *cx, JSObject *obj, jsid id);
+    static inline void MonitorAssign(JSContext *cx, JSScript *script, jsbytecode *pc,
+                                     JSObject *obj, jsid id, const js::Value &val);
 
     /* Add a type for a variable in a script. */
     static inline void SetThis(JSContext *cx, JSScript *script, Type type);
@@ -1133,25 +1108,14 @@ class TypeScript
 };
 
 struct ArrayTableKey;
-typedef HashMap<ArrayTableKey,ReadBarriered<TypeObject>,ArrayTableKey,SystemAllocPolicy> ArrayTypeTable;
+typedef HashMap<ArrayTableKey,TypeObject*,ArrayTableKey,SystemAllocPolicy> ArrayTypeTable;
 
 struct ObjectTableKey;
 struct ObjectTableEntry;
 typedef HashMap<ObjectTableKey,ObjectTableEntry,ObjectTableKey,SystemAllocPolicy> ObjectTypeTable;
 
 struct AllocationSiteKey;
-typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
-
-struct RecompileInfo
-{
-    JSScript *script;
-    bool constructing:1;
-    uint32_t chunkIndex:31;
-
-    bool operator == (const RecompileInfo &o) const {
-        return script == o.script && constructing == o.constructing && chunkIndex == o.chunkIndex;
-    }
-};
+typedef HashMap<AllocationSiteKey,TypeObject*,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
 
 /* Type information for a compartment. */
 struct TypeCompartment
@@ -1169,7 +1133,7 @@ struct TypeCompartment
     bool pendingNukeTypes;
 
     /* Pending recompilations to perform before execution of JIT code can resume. */
-    Vector<RecompileInfo> *pendingRecompiles;
+    Vector<JSScript*> *pendingRecompiles;
 
     /*
      * Number of recompilation events and inline frame expansions that have
@@ -1184,7 +1148,7 @@ struct TypeCompartment
      * changes inducing recompilation are keyed to this script. Note: script
      * compilation is not reentrant.
      */
-    RecompileInfo compiledInfo;
+    JSScript *compiledScript;
 
     /* Table for referencing types of objects keyed to an allocation site. */
     AllocationSiteTable *allocationSiteTable;
@@ -1257,11 +1221,10 @@ struct TypeCompartment
     void setPendingNukeTypes(JSContext *cx);
 
     /* Mark a script as needing recompilation once inference has finished. */
-    void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
-    void addPendingRecompile(JSContext *cx, JSScript *script, jsbytecode *pc);
+    void addPendingRecompile(JSContext *cx, JSScript *script);
 
     /* Monitor future effects on a bytecode. */
-    void monitorBytecode(JSContext *cx, JSScript *script, uint32_t offset,
+    void monitorBytecode(JSContext *cx, JSScript *script, uint32 offset,
                          bool returnOnly = false);
 
     /* Mark any type set containing obj as having a generic object type. */
@@ -1306,9 +1269,5 @@ void TypeFailure(JSContext *cx, const char *fmt, ...);
 
 } /* namespace types */
 } /* namespace js */
-
-namespace JS {
-    template<> class AnchorPermitted<js::types::TypeObject *> { };
-}
 
 #endif // jsinfer_h___

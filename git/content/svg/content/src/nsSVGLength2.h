@@ -37,22 +37,18 @@
 #ifndef __NS_SVGLENGTH2_H__
 #define __NS_SVGLENGTH2_H__
 
-#include "nsAutoPtr.h"
-#include "nsCoord.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDOMError.h"
-#include "nsError.h"
-#include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
-#include "nsISMILAttr.h"
-#include "nsMathUtils.h"
-#include "nsSVGElement.h"
+#include "nsIDOMSVGAnimatedLength.h"
 #include "nsSVGUtils.h"
+#include "nsSVGElement.h"
+#include "nsDOMError.h"
+#include "nsMathUtils.h"
+
+#include "nsISMILAttr.h"
+class nsSMILValue;
+class nsISMILType;
 
 class nsIFrame;
-class nsISMILAnimationElement;
-class nsSMILValue;
-class nsSVGSVGElement;
 
 class nsSVGLength2
 {
@@ -82,8 +78,8 @@ public:
   nsresult SetBaseValueString(const nsAString& aValue,
                               nsSVGElement *aSVGElement,
                               bool aDoSetAttr);
-  void GetBaseValueString(nsAString& aValue) const;
-  void GetAnimValueString(nsAString& aValue) const;
+  void GetBaseValueString(nsAString& aValue);
+  void GetAnimValueString(nsAString& aValue);
 
   float GetBaseValue(nsSVGElement* aSVGElement) const
     { return mBaseVal / GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType); }
@@ -104,9 +100,6 @@ public:
   float GetAnimValue(nsSVGSVGElement* aCtx) const
     { return mAnimVal / GetUnitScaleFactor(aCtx, mSpecifiedUnitType); }
 
-  bool HasBaseVal() const {
-    return mIsBaseSet;
-  }
   // Returns true if the animated value of this length has been explicitly
   // set (either by animation, or by taking on the base value which has been
   // explicitly set by markup or a DOM call), false otherwise.
@@ -148,9 +141,8 @@ private:
   float GetUnitScaleFactor(nsSVGSVGElement *aCtx, PRUint8 aUnitType) const;
 
   // SetBaseValue and SetAnimValue set the value in user units
-  void SetBaseValue(float aValue, nsSVGElement *aSVGElement, bool aDoSetAttr);
-  void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement,
-                                    bool aDoSetAttr);
+  void SetBaseValue(float aValue, nsSVGElement *aSVGElement);
+  void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValue(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
   nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
@@ -181,7 +173,7 @@ private:
         if (!NS_finite(aValue)) {
           return NS_ERROR_ILLEGAL_VALUE;
         }
-        mVal->SetBaseValue(aValue, mSVGElement, true);
+        mVal->SetBaseValue(aValue, mSVGElement);
         return NS_OK;
       }
 
@@ -192,7 +184,7 @@ private:
         if (!NS_finite(aValue)) {
           return NS_ERROR_ILLEGAL_VALUE;
         }
-        mVal->SetBaseValueInSpecifiedUnits(aValue, mSVGElement, true);
+        mVal->SetBaseValueInSpecifiedUnits(aValue, mSVGElement);
         return NS_OK;
       }
 

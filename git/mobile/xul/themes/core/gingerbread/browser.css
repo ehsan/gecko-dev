@@ -76,7 +76,7 @@ toolbarbutton.urlbar-button {
 
 #tool-app-switch:hover:active {
   background-color: @color_background_highlight@ !important;
-  border-bottom-right-radius: @border_radius_small@;
+  -moz-border-radius-bottomright: @border_radius_small@;
 }
 
 #toolbar-main[fullscreen="true"] #tool-app-switch:not(:-moz-system-metric(maemo-classic)) {
@@ -100,11 +100,11 @@ toolbarbutton.urlbar-button {
 }
 
 #tool-app-close:hover:active:-moz-locale-dir(ltr) {
-  border-bottom-left-radius: @border_radius_small@;
+  -moz-border-radius-bottomleft: @border_radius_small@;
 }
 
 #tool-app-close:hover:active:-moz-locale-dir(rtl) {
-  border-bottom-right-radius: @border_radius_small@;
+  -moz-border-radius-bottomright: @border_radius_small@;
 }
 
 %if MOZ_PLATFORM_MAEMO != 6
@@ -144,12 +144,12 @@ toolbarbutton.urlbar-button {
   -moz-box-flex: 1;
   -moz-box-align: center;
   -moz-box-pack: center;
-  background: @color_background_inverse@ url("chrome://browser/skin/images/endcap-default-bg.png") bottom center repeat-x;
+  background: @color_background_inverse@ url("chrome://browser/skin/images/endcap-default-bg.png") bottom center;
 }
 
 .urlbar-cap-button[open="true"],
 .urlbar-cap-button:not([disabled="true"]):hover:active {
-  background: #ddd url("chrome://browser/skin/images/endcap-active-bg.png") top center repeat-x;
+  background: #a5aab2 url("chrome://browser/skin/images/endcap-active-bg.png") bottom center;
 }
 
 /* left cap button --------------------------------------------------------- */
@@ -164,24 +164,22 @@ toolbarbutton.urlbar-button {
 
 /* add special color */
 #identity-box[mode="verifiedIdentity"] {
-  background-color: #c9ea80;
+  background-color: #89d715;
   background-image: url("chrome://browser/skin/images/endcap-ev-default-bg.png");
 }
 
 #identity-box[mode="verifiedIdentity"][open="true"],
 #identity-box[mode="verifiedIdentity"]:hover:active {
-  background-color: #b9d880;
   background-image: url("chrome://browser/skin/images/endcap-ev-active-bg.png");
 }
 
 #identity-box[mode="verifiedDomain"] {
-  background-color: #b2bcf1;
+  background-color: #6579e3;
   background-image: url("chrome://browser/skin/images/endcap-ssl-default-bg.png");
 }
 
 #identity-box[mode="verifiedDomain"][open="true"],
 #identity-box[mode="verifiedDomain"]:hover:active {
-  background-color: #a7b2ef;
   background-image: url("chrome://browser/skin/images/endcap-ssl-active-bg.png");
 }
 
@@ -364,7 +362,7 @@ toolbarbutton.urlbar-button {
 }
 
 .panel-close:hover:active:-moz-locale-dir(ltr) {
-  border-bottom-left-radius: @border_radius_small@;
+  -moz-border-radius-bottomleft: @border_radius_small@;
 }
 
 .panel-close:-moz-locale-dir(rtl) {
@@ -372,7 +370,7 @@ toolbarbutton.urlbar-button {
 }
 
 .panel-close:hover:active:-moz-locale-dir(rtl) {
-  border-bottom-right-radius: @border_radius_small@;
+  -moz-border-radius-bottomright: @border_radius_small@;
 }
 %endif
 
@@ -806,7 +804,7 @@ placeitem[src=""] .bookmark-item-container > image {
   -moz-transition: opacity 1s ease;
   background-color: #c90707;
   border: @border_width_tiny@ solid #951919;
-  border-radius: @border_radius_tiny@;
+  -moz-border-radius: @border_radius_tiny@;
   content: attr(badge);
   font-size: @font_xtiny@ !important;
   font-weight: bolder;
@@ -1264,12 +1262,8 @@ setting:hover:active {
   background-color: @color_background_highlight@;
 }
 
-setting > vbox {
+.setting-label {
   -moz-box-flex: 1;
-}
-
-.preferences-description:empty {
-  display: none;
 }
 
 .setting-group > setting {
@@ -1286,22 +1280,18 @@ setting > vbox {
 }
 
 /* Put setting textboxes on a separate row in portrait */
-@media (@orientation@: portrait) and (max-width: 600px) {
+@media (@orientation@: portrait) {
   setting[type="integer"],
   setting[type="string"] {
-    -moz-box-align: stretch;
+    -moz-box-align: start;
     -moz-box-orient: vertical;
   }
-}
 
-setting[type="integer"] > .preferences-alignment,
-setting[type="string"] > .preferences-alignment {
-  -moz-box-flex: 3;
-}
-
-setting[type="file"] > .preferences-alignment,
-setting[type="directory"] > .preferences-alignment {
-  -moz-box-align: center;
+  setting[type="integer"] > .setting-input > textbox,
+  setting[type="string"] > .setting-input > textbox {
+    width: 499px; /* textboxes seem to need a width in order to flex */
+    -moz-box-flex: 1;
+  }
 }
 
 .options-box {

@@ -2,6 +2,8 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+// Reference to the Scratchpad chrome window object.
+let gScratchpadWindow;
 let tab1;
 let tab2;
 let sp;
@@ -12,14 +14,15 @@ function test()
 
   tab1 = gBrowser.addTab();
   gBrowser.selectedTab = tab1;
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad1() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad1, true);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
 
     tab2 = gBrowser.addTab();
     gBrowser.selectedTab = tab2;
-    gBrowser.selectedBrowser.addEventListener("load", function onLoad2() {
-      gBrowser.selectedBrowser.removeEventListener("load", onLoad2, true);
-      openScratchpad(runTests);
+    gBrowser.selectedBrowser.addEventListener("load", function() {
+      gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+      gScratchpadWindow = Scratchpad.openScratchpad();
+      gScratchpadWindow.addEventListener("load", runTests, false);
     }, true);
     content.location = "data:text/html,test context switch in Scratchpad tab 2";
   }, true);
@@ -29,6 +32,8 @@ function test()
 
 function runTests()
 {
+  gScratchpadWindow.removeEventListener("load", runTests, true);
+
   sp = gScratchpadWindow.Scratchpad;
 
   let contentMenu = gScratchpadWindow.document.getElementById("sp-menu-content");
@@ -47,7 +52,7 @@ function runTests()
   is(contentMenu.getAttribute("checked"), "true",
      "content menuitem is checked");
 
-  isnot(browserMenu.getAttribute("checked"), "true",
+  ok(!browserMenu.hasAttribute("checked"),
      "chrome menuitem is not checked");
 
   is(notificationBox.currentNotification, null,

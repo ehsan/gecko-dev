@@ -49,8 +49,3 @@ interface nsIDOMCustomEvent : nsIDOMEvent
                        in boolean    cancelableArg, 
                        in nsIVariant detailArg);
 };
-
-dictionary CustomEventInit : EventInit
-{
-  nsIVariant detail;
-};

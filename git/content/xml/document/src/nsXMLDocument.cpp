@@ -59,6 +59,8 @@
 #include "nsIHttpChannel.h"
 #include "nsIURI.h"
 #include "nsIServiceManager.h"
+#include "nsICharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsNetUtil.h"
 #include "nsDOMError.h"
 #include "nsIScriptSecurityManager.h"
@@ -321,10 +323,13 @@ nsXMLDocument::SetAsync(bool aAsync)
 static void
 ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
 {
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "DOM3 Load", aDoc,
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning);
+  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning,
+                                  nsnull, 0,
+                                  nsnull,
+                                  EmptyString(), 0, 0,
+                                  nsIScriptError::warningFlag,
+                                  "DOM3 Load", aDoc);
 }
 
 NS_IMETHODIMP
@@ -399,7 +404,7 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
       nsAutoString error;
       error.AssignLiteral("Cross site loading using document.load is no "
                           "longer supported. Use XMLHttpRequest instead.");
-      nsCOMPtr<nsIScriptError> errorObject =
+      nsCOMPtr<nsIScriptError2> errorObject =
           do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -414,8 +419,9 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
 
       nsCOMPtr<nsIConsoleService> consoleService =
         do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      if (consoleService) {
-        consoleService->LogMessage(errorObject);
+      nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
+      if (consoleService && logError) {
+        consoleService->LogMessage(logError);
       }
 
       return NS_ERROR_DOM_SECURITY_ERR;
@@ -593,12 +599,6 @@ nsXMLDocument::EndLoad()
   }    
 }
  
-/* virtual */ void
-nsXMLDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
-{
-  nsDocument::DocSizeOfExcludingThis(aWindowSizes);
-}
-
 // nsIDOMDocument interface
 
 nsresult

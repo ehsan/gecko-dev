@@ -1,6 +1,40 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Benjamin Smedberg <benjamin@smedbergs.us>
+# Portions created by the Initial Developer are Copyright (C) 1998
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Shawn Wilsher <me@shawnwilsher.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 DEPTH     = ../..
 topsrcdir = @top_srcdir@
@@ -56,6 +90,7 @@ CPPSRCS += \
   $(NULL)
 
 ifeq ($(OS_ARCH),WINNT)
+REQUIRES += widget gfx
 CPPSRCS += \
   nsDllMain.cpp \
   $(NULL)
@@ -72,15 +107,17 @@ ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
 endif
 
-LOCAL_INCLUDES += -I$(topsrcdir)/widget/windows
+LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
+REQUIRES += libreg
 DEFINES += -DZLIB_DLL=1
 endif
 
 ifeq ($(OS_ARCH),OS2)
+REQUIRES += widget gfx
 
 CPPSRCS += \
   nsGFXDeps.cpp \
@@ -91,9 +128,9 @@ CPPSRCS += dlldeps-zlib.cpp
 endif
 
 RESFILE = xulrunos2.res
-RCFLAGS += -i $(topsrcdir)/widget/os2
+RCFLAGS += -i $(topsrcdir)/widget/src/os2
 
-LOCAL_INCLUDES += -I$(topsrcdir)/widget/os2
+LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/os2
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
@@ -110,10 +147,6 @@ STATIC_LIBS += \
   hal_s \
   $(NULL)
 
-ifdef MOZ_B2G_RIL #{
-STATIC_LIBS += mozril_s
-endif #}
-
 ifdef MOZ_IPDL_TESTS
 STATIC_LIBS += ipdlunittest_s
 endif
@@ -128,7 +161,7 @@ STATIC_LIBS += \
   xpcom_core \
   ucvutil_s \
   chromium_s \
-  snappy_s \
+  mozreg_s \
   $(NULL)
 
 # component libraries
@@ -156,8 +189,8 @@ COMPONENT_LIBS += \
   appcomps \
   jsreflect \
   composer \
+  jetpack_s \
   telemetry \
-  jsinspector \
   jsdebugger \
   storagecomps \
   rdf \
@@ -271,7 +304,6 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 COMPONENT_LIBS += widget_android
-STATIC_LIBS += skia_npapi
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
@@ -280,12 +312,12 @@ endif
 
 STATIC_LIBS += thebes gl ycbcr
 
-ifdef MOZ_ENABLE_PROFILER_SPS
 COMPONENT_LIBS += profiler
-endif
+
+STATIC_LIBS += angle
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-COMPONENT_LIBS += widget_windows
+COMPONENT_LIBS += gkwidget
 endif
 ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += wdgtos2
@@ -340,13 +372,10 @@ EXTRA_DSO_LDOPTS += \
   $(NSS_LIBS) \
   $(MOZ_CAIRO_LIBS) \
   $(MOZ_HARFBUZZ_LIBS) \
+  $(MOZ_OTS_LIBS) \
   $(MOZ_APP_EXTRA_LIBS) \
   $(SQLITE_LIBS) \
   $(NULL)
-
-ifdef MOZ_GRAPHITE
-EXTRA_DSO_LDOPTS += $(MOZ_GRAPHITE_LIBS)
-endif
 
 ifdef MOZ_NATIVE_ZLIB
 EXTRA_DSO_LDOPTS += $(ZLIB_LIBS)
@@ -366,8 +395,6 @@ ifdef MOZ_NATIVE_LIBVPX
 EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
-EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,gkmedias,$(DIST)/lib) 
-
 ifdef MOZ_SYDNEYAUDIO
 ifeq ($(OS_ARCH),Linux)
 EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
@@ -378,7 +405,7 @@ ifdef HAVE_CLOCK_MONOTONIC
 EXTRA_DSO_LDOPTS += $(REALTIME_LIBS)
 endif
 
-ifdef MOZ_ENABLE_SKIA
+ifeq (,$(filter-out cocoa android windows,$(MOZ_WIDGET_TOOLKIT)))
 EXTRA_DSO_LDOPTS += $(MOZ_SKIA_LIBS)
 endif
 
@@ -387,17 +414,7 @@ OS_LIBS += -lGLESv2
 endif
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-OS_LIBS += \
-  -lui \
-  -lmedia \
-  -lhardware_legacy \
-  -lhardware \
-  -lutils \
-  -lcutils \
-  -lcamera_client \
-  -lbinder \
-  -lsensorservice \
-  $(NULL)
+OS_LIBS += -lui
 endif
 
 EXTRA_DEPS += \
@@ -457,7 +474,7 @@ endif
 
 ifeq ($(OS_ARCH),Darwin)
 ifdef MOZ_SYDNEYAUDIO
-OS_LIBS += \
+EXTRA_DSO_LDOPTS += \
   -framework Carbon \
   -framework CoreAudio \
   -framework AudioToolbox \
@@ -495,7 +512,7 @@ endif
 ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
 EXTRA_DSO_LDOPTS += $(XLDFLAGS) $(XLIBS) $(XT_LIBS) $(MOZ_QT_LIBS) -lgthread-2.0
 EXTRA_DSO_LDOPTS += $(FT2_LIBS) $(MOZ_PANGO_LIBS)
-EXTRA_DSO_LDOPTS += $(LIBXUL_DIST)/../widget/qt/faststartupqt/$(LIB_PREFIX)faststartupqt.$(LIB_SUFFIX)
+EXTRA_DSO_LDOPTS += $(LIBXUL_DIST)/../widget/src/qt/faststartupqt/$(LIB_PREFIX)faststartupqt.$(LIB_SUFFIX)
 endif
 
 ifdef MOZ_TREE_FREETYPE
@@ -521,29 +538,12 @@ endif
 endif
 
 ifeq ($(OS_ARCH),WINNT)
-OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 version winspool comdlg32 imm32 msimg32 shlwapi psapi ws2_32 dbghelp rasapi32 rasdlg iphlpapi uxtheme setupapi t2embed secur32)
+OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version winspool comdlg32 imm32 winmm wsock32 msimg32 shlwapi psapi ws2_32 dbghelp)
+ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
+OS_LIBS += $(call EXPAND_LIBNAME,imagehlp)
+endif
 ifdef MOZ_CRASHREPORTER
 OS_LIBS += $(call EXPAND_LIBNAME,wininet)
-endif
-ifdef ACCESSIBILITY
-OS_LIBS += $(call EXPAND_LIBNAME,oleacc)
-endif
-ifdef _MSC_VER
-OS_LIBS += $(call EXPAND_LIBNAME,delayimp)
-EXTRA_DSO_LDOPTS += \
-  -DELAYLOAD:gkmedias.dll \
-  -DELAYLOAD:psapi.dll \
-  -DELAYLOAD:dbghelp.dll \
-  -DELAYLOAD:rasapi32.dll \
-  -DELAYLOAD:rasdlg.dll \
-  -DELAYLOAD:comdlg32.dll \
-  -DELAYLOAD:winspool.drv \
-  -DELAYLOAD:t2embed.dll \
-  -DELAYLOAD:secur32.dll \
-  $(NULL)
-ifdef ACCESSIBILITY
-EXTRA_DSO_LDOPTS += -DELAYLOAD:oleacc.dll
-endif
 endif
 endif # WINNT
 
@@ -560,10 +560,11 @@ include $(topsrcdir)/config/rules.mk
 export:: $(RDF_UTIL_SRC_CPPSRCS) $(INTL_UNICHARUTIL_UTIL_CPPSRCS)
 	$(INSTALL) $^ .
 
-# need widget/windows for resource.h (included from widget.rc)
+# need widget/src/windows for resource.h (included from widget.rc)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/config \
-  -I$(topsrcdir)/widget/windows \
+  -I$(topsrcdir)/widget/src/windows \
+  -I$(topsrcdir)/widget/src/build \
   $(NULL)
 
 OS_LIBS += $(LIBICONV)
@@ -590,9 +591,4 @@ ifdef MOZ_DEBUG
 ifdef ENABLE_TESTS
 DEFINES += -DENABLE_LAYOUTDEBUG
 endif
-endif
-
-ifeq (WINNT_1,$(OS_TARGET)_$(MOZ_PROFILE_USE))
-# Wrap linker to measure peak virtual memory usage.
-LD := $(PYTHON) $(topsrcdir)/build/link.py $(CURDIR)/linker-vsize $(LD)
 endif

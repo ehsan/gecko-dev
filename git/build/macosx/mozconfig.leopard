@@ -1,4 +1,10 @@
-. $topsrcdir/build/macosx/common
+if test -z "$CC" ; then
+   CC=gcc-4.2
+fi
+
+if test -z "$CXX" ; then
+   CXX=g++-4.2
+fi
 
 # Mac builds don't nomally have to be handled as cross
 # compilation, but some of the libraries on the bots
@@ -29,4 +35,4 @@ fi
 
 # Note, the version (10) is used by libffi's configure.
 ac_add_options --target=i386-apple-darwin10
-ac_add_options --with-macos-sdk=/Developer/SDKs/MacOSX10.6.sdk
+ac_add_options --with-macos-sdk=/Developer/SDKs/MacOSX10.5.sdk

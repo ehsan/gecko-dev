@@ -91,11 +91,9 @@ public:
         DoubleLessThanOrUnordered = X86Assembler::ConditionB,
         DoubleLessThanOrEqualOrUnordered = X86Assembler::ConditionBE
     };
-    static void staticAsserts() {
-        COMPILE_ASSERT(
-            !((X86Assembler::ConditionE | X86Assembler::ConditionNE | X86Assembler::ConditionA | X86Assembler::ConditionAE | X86Assembler::ConditionB | X86Assembler::ConditionBE) & DoubleConditionBits),
-            DoubleConditionBits_should_not_interfere_with_X86Assembler_Condition_codes);
-    }
+    COMPILE_ASSERT(
+        !((X86Assembler::ConditionE | X86Assembler::ConditionNE | X86Assembler::ConditionA | X86Assembler::ConditionAE | X86Assembler::ConditionB | X86Assembler::ConditionBE) & DoubleConditionBits),
+        DoubleConditionBits_should_not_interfere_with_X86Assembler_Condition_codes);
 
     static const RegisterID stackPointerRegister = X86Registers::esp;
 
@@ -547,7 +545,7 @@ public:
     {
         union {
             float f;
-            uint32_t u32;
+            uint32 u32;
         } u;
         u.f = imm.u.d;
         store32(Imm32(u.u32), address);
@@ -557,7 +555,7 @@ public:
     {
         union {
             float f;
-            uint32_t u32;
+            uint32 u32;
         } u;
         u.f = imm.u.d;
         store32(Imm32(u.u32), address);

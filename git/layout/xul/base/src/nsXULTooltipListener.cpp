@@ -48,8 +48,6 @@
 #include "nsIPopupBoxObject.h"
 #include "nsMenuPopupFrame.h"
 #include "nsIServiceManager.h"
-#include "nsIDragService.h"
-#include "nsIDragSession.h"
 #ifdef MOZ_XUL
 #include "nsITreeView.h"
 #endif
@@ -63,7 +61,6 @@
 #include "nsIRootBox.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 #include "mozilla/dom/Element.h"
 
 
@@ -239,10 +236,8 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aEvent)
     if (mTooltipTimer) {
       mTargetNode = do_GetWeakReference(eventTarget);
       if (mTargetNode) {
-        nsresult rv =
-          mTooltipTimer->InitWithFuncCallback(sTooltipCallback, this,
-            LookAndFeel::GetInt(LookAndFeel::eIntID_TooltipDelay, 500),
-            nsITimer::TYPE_ONE_SHOT);
+        nsresult rv = mTooltipTimer->InitWithFuncCallback(sTooltipCallback, this, 
+                                                          kTooltipShowTime, nsITimer::TYPE_ONE_SHOT);
         if (NS_FAILED(rv)) {
           mTargetNode = nsnull;
           mSourceNode = nsnull;
@@ -272,38 +267,14 @@ nsXULTooltipListener::HandleEvent(nsIDOMEvent* aEvent)
       type.EqualsLiteral("keydown") ||
       type.EqualsLiteral("mousedown") ||
       type.EqualsLiteral("mouseup") ||
-      type.EqualsLiteral("dragstart")) {
+      type.EqualsLiteral("dragstart"))
     HideTooltip();
-    return NS_OK;
-  }
-
-  if (type.EqualsLiteral("popuphiding")) {
-    DestroyTooltip();
-    return NS_OK;
-  }
-
-  // Note that mousemove, mouseover and mouseout might be
-  // fired even during dragging due to widget's bug.
-  nsCOMPtr<nsIDragService> dragService =
-    do_GetService("@mozilla.org/widget/dragservice;1");
-  NS_ENSURE_TRUE(dragService, NS_OK);
-  nsCOMPtr<nsIDragSession> dragSession;
-  dragService->GetCurrentSession(getter_AddRefs(dragSession));
-  if (dragSession) {
-    return NS_OK;
-  }
-
-  // Not dragging.
-
-  if (type.EqualsLiteral("mousemove")) {
+  else if (type.EqualsLiteral("mousemove"))
     MouseMove(aEvent);
-    return NS_OK;
-  }
-
-  if (type.EqualsLiteral("mouseout")) {
+  else if (type.EqualsLiteral("mouseout"))
     MouseOut(aEvent);
-    return NS_OK;
-  }
+  else if (type.EqualsLiteral("popuphiding"))
+    DestroyTooltip();
 
   return NS_OK;
 }

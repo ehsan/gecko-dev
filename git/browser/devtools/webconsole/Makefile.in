@@ -50,13 +50,16 @@ EXTRA_JS_MODULES = \
 		AutocompletePopup.jsm \
 		gcli.jsm \
 		GcliCommands.jsm \
-		GcliTiltCommands.jsm \
 		$(NULL)
 
 EXTRA_PP_JS_MODULES = \
 		HUDService.jsm \
 		$(NULL)
 
-TEST_DIRS = test
+ifdef ENABLE_TESTS
+ifneq (mobile,$(MOZ_BUILD_APP))
+DIRS += test/browser
+endif
+endif
 
 include $(topsrcdir)/config/rules.mk

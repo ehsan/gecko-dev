@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Tests for browser context menu</title>
-  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -19,7 +19,6 @@ Browser context menu tests.
 /** Test for Login Manager: multiple login autocomplete. **/
 
 netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -28,21 +27,29 @@ function openContextMenuFor(element, shiftkey, shouldWaitForFocus) {
     // Context menu should be closed before we open it again.
     is(contextMenu.state, "closed", "checking if popup is closed");
 
-    if (lastElement)
-      lastElement.blur();
-    element.focus();
-
-    // Some elements need time to focus and spellcheck before any tests are
-    // run on them.
-    function actuallyOpenContextMenuFor() {
+    //Some elements need time to focus and spellcheck before any tests are
+    //run on them.
+    if(shouldWaitForFocus)
+    {
+      if (lastElement)
+        lastElement.blur();
+      element.focus();
+      
+      SimpleTest.executeSoon(function() {
+        lastElement = element;
+        var eventDetails = { type : "contextmenu", button : 2, shiftKey : shiftkey };
+        synthesizeMouse(element, 2, 2, eventDetails, element.ownerDocument.defaultView);
+      });
+    }
+    else
+    {
+      if (lastElement)
+          lastElement.blur();
+      element.focus();
       lastElement = element;
       var eventDetails = { type : "contextmenu", button : 2, shiftKey : shiftkey };
       synthesizeMouse(element, 2, 2, eventDetails, element.ownerDocument.defaultView);
     }
-    if (shouldWaitForFocus)
-      SimpleTest.executeSoon(actuallyOpenContextMenuFor);
-    else
-      actuallyOpenContextMenuFor();
 }
 
 function closeContextMenu() {
@@ -69,7 +76,7 @@ function invokeItemAction(generatedItemId)
                                                 generatedItemId)[0];
   ok(item, "Got generated XUL menu item");
   item.doCommand();
-  ok(!pagemenu.hasAttribute("hopeless"), "attribute got removed");
+  is(pagemenu.hasAttribute("hopeless"), false, "attribute got removed");
 }
 
 function getVisibleMenuItems(aMenu, aData) {
@@ -170,7 +177,7 @@ function checkContextMenu(expectedItems) {
  *                   ["sub1", true,         // submenu contents
  *                    "sub2", false], null, // submenu contents
  *               "lol", false]              // item disabled
- *
+ * 
  */
 function checkMenu(menu, expectedItems, data) {
     var actualItems = getVisibleMenuItems(menu, data);
@@ -184,12 +191,8 @@ function checkMenu(menu, expectedItems, data) {
             ok(true, "Checking submenu...");
             var menuID = expectedItems[i - 2]; // The last item was the menu ID.
             var submenu = menu.getElementsByAttribute("id", menuID)[0];
-            ok(submenu, "got a submenu element of id='" + menuID + "'");
-            if (submenu) {
-              is(submenu.nodeName, "menu", "submenu element of id='" + menuID +
-                                           "' has expected nodeName");
-              checkMenu(submenu.menupopup, expectedItem, data);
-            }
+            ok(submenu && submenu.nodeName == "menu", "got expected submenu element");
+            checkMenu(submenu.menupopup, expectedItem, data);
         } else {
             is(actualItem, expectedItem,
                "checking item #" + i/2 + " (" + expectedItem + ") name");
@@ -258,7 +261,7 @@ function runTest(testNum) {
 
     case 2:
         // Context menu for plain text
-        plainTextItems = ["context-back",         false,
+        checkContextMenu(["context-back",         false,
                           "context-forward",      false,
                           "context-reload",       true,
                           "context-stop",         false,
@@ -272,8 +275,7 @@ function runTest(testNum) {
                           "---",                  null,
                           "context-viewsource",   true,
                           "context-viewinfo",     true
-                         ].concat(inspectItems);
-        checkContextMenu(plainTextItems);
+                         ].concat(inspectItems));
         closeContextMenu();
         openContextMenuFor(link); // Invoke context menu for next test.
         break;
@@ -510,46 +512,14 @@ function runTest(testNum) {
                           "spell-dictionaries",  true,
                               ["spell-check-dictionary-en-US", true,
                                "---",                          null,
-                               "spell-add-dictionaries",       true], null
+                               "spell-add-dictionaries",       true], null,
                          ].concat(inspectItems));
-        contextMenu.ownerDocument.getElementById("spell-add-to-dictionary").doCommand(); // Add to dictionary
+
         closeContextMenu();
-        openContextMenuFor(text); // Invoke context menu for next test.
+        openContextMenuFor(contenteditable); // Invoke context menu for next test.
         break;
 
     case 15:
-        // Re-check context menu for plain text to make sure it hasn't changed
-        checkContextMenu(plainTextItems);
-        closeContextMenu();
-        openContextMenuFor(textarea, false, true); // Invoke context menu for next test.
-        break;
-
-    case 16:
-        // Context menu for textarea after a word has been added
-        // to the dictionary
-        checkContextMenu(["spell-undo-add-to-dictionary", true,
-                          "---",                 null,
-                          "context-undo",        false,
-                          "---",                 null,
-                          "context-cut",         false,
-                          "context-copy",        false,
-                          "context-paste",       null, // ignore clipboard state
-                          "context-delete",      false,
-                          "---",                 null,
-                          "context-selectall",   true,
-                          "---",                 null,
-                          "spell-check-enabled", true,
-                          "spell-dictionaries",  true,
-                              ["spell-check-dictionary-en-US", true,
-                               "---",                          null,
-                               "spell-add-dictionaries",       true], null
-                         ].concat(inspectItems));
-        contextMenu.ownerDocument.getElementById("spell-undo-add-to-dictionary").doCommand(); // Undo add to dictionary
-        closeContextMenu();
-        openContextMenuFor(contenteditable);
-        break;
-
-    case 17:
         // Context menu for contenteditable
         checkContextMenu(["spell-no-suggestions", false,
                           "spell-add-to-dictionary", true,
@@ -574,7 +544,7 @@ function runTest(testNum) {
         openContextMenuFor(inputspell); // Invoke context menu for next test.
         break;
 
-    case 18:
+    case 16:
         // Context menu for spell-check input
         checkContextMenu(["*prodigality",        true, // spelling suggestion
                           "spell-add-to-dictionary", true,
@@ -599,13 +569,13 @@ function runTest(testNum) {
         openContextMenuFor(link); // Invoke context menu for next test.
         break;
 
-    case 19:
+    case 17:
         executeCopyCommand("cmd_copyLink", "http://mozilla.com/");
         closeContextMenu();
         openContextMenuFor(pagemenu); // Invoke context menu for next test.
         break;
 
-    case 20:
+    case 18:
         // Context menu for element with assigned content context menu
         checkContextMenu(["+Plain item",          {type: "", icon: "", checked: false, disabled: false},
                           "+Disabled item",       {type: "", icon: "", checked: false, disabled: true},
@@ -648,7 +618,7 @@ function runTest(testNum) {
         openContextMenuFor(pagemenu, true); // Invoke context menu for next test.
         break;
 
-    case 21:
+    case 19:
         // Context menu for element with assigned content context menu
         // The shift key should bypass content context menu processing
         checkContextMenu(["context-back",         false,
@@ -666,7 +636,6 @@ function runTest(testNum) {
                           "context-viewsource",   true,
                           "context-viewinfo",     true
                          ].concat(inspectItems));
-        closeContextMenu();
 
         subwindow.close();
         SimpleTest.finish();
@@ -693,7 +662,7 @@ function runTest(testNum) {
 var testNum = 1;
 var subwindow, chromeWin, contextMenu, lastElement;
 var text, link, mailto, input, img, canvas, video_ok, video_bad, video_bad2,
-    iframe, video_in_iframe, image_in_iframe, textarea, contenteditable, inputspell, pagemenu, plainTextItems;
+    iframe, video_in_iframe, image_in_iframe, textarea, contenteditable, inputspell, pagemenu;
 
 function startTest() {
     netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
@@ -709,7 +678,6 @@ function startTest() {
     ok(contextMenu, "Got context menu XUL");
 
     if (chromeWin.document.getElementById("Browser:Stop").getAttribute("disabled") != "true") {
-      todo(false, "Wait for subwindow to load... (This should usually happen once.)");
       SimpleTest.executeSoon(startTest);
       return;
     }

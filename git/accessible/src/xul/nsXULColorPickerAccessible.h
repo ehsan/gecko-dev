@@ -47,14 +47,14 @@
 class nsXULColorPickerTileAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULColorPickerTileAccessible(nsIContent* aContent,
-                                 nsDocAccessible* aDoc);
+  nsXULColorPickerTileAccessible(nsIContent *aContent,
+                                 nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& _retval);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // Widgets
@@ -68,10 +68,10 @@ public:
 class nsXULColorPickerAccessible : public nsXULColorPickerTileAccessible
 {
 public:
-  nsXULColorPickerAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // Widgets

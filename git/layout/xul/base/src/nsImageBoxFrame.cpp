@@ -56,17 +56,19 @@
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
+#include "nsStyleConsts.h"
 #include "nsImageMap.h"
 #include "nsILinkHandler.h"
 #include "nsIURL.h"
 #include "nsILoadGroup.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "prprf.h"
 #include "nsCSSRendering.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsIDOMHTMLMapElement.h"
+#include "nsBoxLayoutState.h"
 #include "nsIDOMDocument.h"
 #include "nsTransform2D.h"
 #include "nsITheme.h"
@@ -624,8 +626,7 @@ NS_IMETHODIMP nsImageBoxFrame::OnImageIsAnimated(imgIRequest *aRequest)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIRequest *aRequest,
-                                            imgIContainer *aContainer,
+NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *aContainer,
                                             const nsIntRect *aDirtyRect)
 {
   nsBoxLayoutState state(PresContext());
@@ -680,13 +681,12 @@ NS_IMETHODIMP nsImageBoxListener::OnImageIsAnimated(imgIRequest* aRequest)
   return mFrame->OnImageIsAnimated(aRequest);
 }
 
-NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIRequest *aRequest,
-                                               imgIContainer *aContainer,
+NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *aContainer,
                                                const nsIntRect *aDirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aRequest, aContainer, aDirtyRect);
+  return mFrame->FrameChanged(aContainer, aDirtyRect);
 }
 

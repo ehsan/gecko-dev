@@ -39,7 +39,7 @@
 DEPTH = ../..
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
-VPATH = @srcdir@
+VPATH  = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -56,20 +56,17 @@ CPPSRCS = \
   CheckPermissionsHelper.cpp \
   CheckQuotaHelper.cpp \
   DatabaseInfo.cpp \
-  FileInfo.cpp \
-  FileManager.cpp \
   IDBCursor.cpp \
   IDBDatabase.cpp \
   IDBEvents.cpp \
-  IDBFactory.cpp \
   IDBIndex.cpp \
   IDBKeyRange.cpp \
   IDBObjectStore.cpp \
   IDBRequest.cpp \
   IDBTransaction.cpp \
-  IDBWrapperCache.cpp \
+  IDBFactory.cpp \
   IndexedDatabaseManager.cpp \
-  Key.cpp \
+  LazyIdleThread.cpp \
   OpenDatabaseHelper.cpp \
   TransactionThreadPool.cpp \
   $(NULL)
@@ -83,22 +80,20 @@ EXPORTS_mozilla/dom/indexedDB = \
   IDBObjectStore.h \
   IDBRequest.h \
   IDBTransaction.h \
-  IDBWrapperCache.h \
   IndexedDatabase.h \
   IndexedDatabaseManager.h \
   IDBFactory.h \
   Key.h \
-  FileManager.h \
-  FileInfo.h \
+  LazyIdleThread.h \
   $(NULL)
 
 LOCAL_INCLUDES = \
-  -I$(topsrcdir)/db/sqlite3/src \
   -I$(topsrcdir)/xpcom/build \
   -I$(topsrcdir)/dom/base \
   -I$(topsrcdir)/dom/src/storage \
   -I$(topsrcdir)/content/base/src \
   -I$(topsrcdir)/content/events/src \
+  -I$(topsrcdir)/js/xpconnect/src \
   $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
@@ -121,7 +116,9 @@ XPIDLSRCS = \
   nsIIndexedDatabaseManager.idl \
   $(NULL)
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+DIRS += test
+endif
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

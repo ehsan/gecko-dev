@@ -44,8 +44,6 @@
 #include "VideoUtils.h"
 #include "nsBuiltinDecoderReader.h"
 
-#include "mozilla/StandardInteger.h"
-
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gBuiltinDecoderLog;
 #define LOG(type, msg) PR_LOG(gBuiltinDecoderLog, type, msg)
@@ -318,27 +316,33 @@ PRInt64 nsTheoraState::Time(th_info* aInfo, PRInt64 aGranulepos)
   if (aGranulepos < 0 || aInfo->fps_numerator == 0) {
     return -1;
   }
+  PRInt64 t = 0;
   // Implementation of th_granule_frame inlined here to operate
   // on the th_info structure instead of the theora_state.
   int shift = aInfo->keyframe_granule_shift; 
   ogg_int64_t iframe = aGranulepos >> shift;
   ogg_int64_t pframe = aGranulepos - (iframe << shift);
   PRInt64 frameno = iframe + pframe - TH_VERSION_CHECK(aInfo, 3, 2, 1);
-  CheckedInt64 t = ((CheckedInt64(frameno) + 1) * USECS_PER_S) * aInfo->fps_denominator;
-  if (!t.valid())
+  if (!AddOverflow(frameno, 1, t))
     return -1;
-  t /= aInfo->fps_numerator;
-  return t.valid() ? t.value() : -1;
+  if (!MulOverflow(t, USECS_PER_S, t))
+    return -1;
+  if (!MulOverflow(t, aInfo->fps_denominator, t))
+    return -1;
+  return t / aInfo->fps_numerator;
 }
 
 PRInt64 nsTheoraState::StartTime(PRInt64 granulepos) {
   if (granulepos < 0 || !mActive || mInfo.fps_numerator == 0) {
     return -1;
   }
-  CheckedInt64 t = (CheckedInt64(th_granule_frame(mCtx, granulepos)) * USECS_PER_S) * mInfo.fps_denominator;
-  if (!t.valid())
+  PRInt64 t = 0;
+  PRInt64 frameno = th_granule_frame(mCtx, granulepos);
+  if (!MulOverflow(frameno, USECS_PER_S, t))
     return -1;
-  return t.value() / mInfo.fps_numerator;
+  if (!MulOverflow(t, mInfo.fps_denominator, t))
+    return -1;
+  return t / mInfo.fps_numerator;
 }
 
 PRInt64
@@ -355,10 +359,9 @@ nsTheoraState::MaxKeyframeOffset()
   PRInt64 keyframeDiff = (1 << mInfo.keyframe_granule_shift) - 1;
 
   // Length of frame in usecs.
-  CheckedInt64 d = CheckedInt64(mInfo.fps_denominator) * USECS_PER_S;
-  if (!d.valid())
-    d = 0;
-  frameDuration = d.value() / mInfo.fps_numerator;
+  PRInt64 d = 0; // d will be 0 if multiplication overflows.
+  MulOverflow(USECS_PER_S, mInfo.fps_denominator, d);
+  frameDuration = d / mInfo.fps_numerator;
 
   // Total time in usecs keyframe can be offset from any given frame.
   return frameDuration * keyframeDiff;
@@ -596,10 +599,9 @@ PRInt64 nsVorbisState::Time(vorbis_info* aInfo, PRInt64 aGranulepos)
   if (aGranulepos == -1 || aInfo->rate == 0) {
     return -1;
   }
-  CheckedInt64 t = CheckedInt64(aGranulepos) * USECS_PER_S;
-  if (!t.valid())
-    t = 0;
-  return t.value() / aInfo->rate;
+  PRInt64 t = 0;
+  MulOverflow(USECS_PER_S, aGranulepos, t);
+  return t / aInfo->rate;
 }
 
 bool
@@ -868,6 +870,7 @@ bool nsSkeletonState::DecodeIndex(ogg_packet* aPacket)
   PRUint32 serialno = LEUint32(aPacket->packet + INDEX_SERIALNO_OFFSET);
   PRInt64 numKeyPoints = LEInt64(aPacket->packet + INDEX_NUM_KEYPOINTS_OFFSET);
 
+  PRInt64 n = 0;
   PRInt64 endTime = 0, startTime = 0;
   const unsigned char* p = aPacket->packet;
 
@@ -879,32 +882,34 @@ bool nsSkeletonState::DecodeIndex(ogg_packet* aPacket)
   }
 
   // Extract the start time.
-  CheckedInt64 t = CheckedInt64(LEInt64(p + INDEX_FIRST_NUMER_OFFSET)) * USECS_PER_S;
-  if (!t.valid()) {
+  n = LEInt64(p + INDEX_FIRST_NUMER_OFFSET);
+  PRInt64 t;
+  if (!MulOverflow(n, USECS_PER_S, t)) {
     return (mActive = false);
   } else {
-    startTime = t.value() / timeDenom;
+    startTime = t / timeDenom;
   }
 
   // Extract the end time.
-  t = LEInt64(p + INDEX_LAST_NUMER_OFFSET) * USECS_PER_S;
-  if (!t.valid()) {
+  n = LEInt64(p + INDEX_LAST_NUMER_OFFSET);
+  if (!MulOverflow(n, USECS_PER_S, t)) {
     return (mActive = false);
   } else {
-    endTime = t.value() / timeDenom;
+    endTime = t / timeDenom;
   }
 
   // Check the numKeyPoints value read, ensure we're not going to run out of
   // memory while trying to decode the index packet.
-  CheckedInt64 minPacketSize = (CheckedInt64(numKeyPoints) * MIN_KEY_POINT_SIZE) + INDEX_KEYPOINT_OFFSET;
-  if (!minPacketSize.valid())
+  PRInt64 minPacketSize;
+  if (!MulOverflow(numKeyPoints, MIN_KEY_POINT_SIZE, minPacketSize) ||
+      !AddOverflow(INDEX_KEYPOINT_OFFSET, minPacketSize, minPacketSize))
   {
     return (mActive = false);
   }
   
   PRInt64 sizeofIndex = aPacket->bytes - INDEX_KEYPOINT_OFFSET;
   PRInt64 maxNumKeyPoints = sizeofIndex / MIN_KEY_POINT_SIZE;
-  if (aPacket->bytes < minPacketSize.value() ||
+  if (aPacket->bytes < minPacketSize ||
       numKeyPoints > maxNumKeyPoints || 
       numKeyPoints < 0)
   {
@@ -926,34 +931,32 @@ bool nsSkeletonState::DecodeIndex(ogg_packet* aPacket)
   p = aPacket->packet + INDEX_KEYPOINT_OFFSET;
   const unsigned char* limit = aPacket->packet + aPacket->bytes;
   PRInt64 numKeyPointsRead = 0;
-  CheckedInt64 offset = 0;
-  CheckedInt64 time = 0;
+  PRInt64 offset = 0;
+  PRInt64 time = 0;
   while (p < limit &&
          numKeyPointsRead < numKeyPoints)
   {
     PRInt64 delta = 0;
     p = ReadVariableLengthInt(p, limit, delta);
-    offset += delta;
     if (p == limit ||
-        !offset.valid() ||
-        offset.value() > mLength ||
-        offset.value() < 0)
+        !AddOverflow(offset, delta, offset) ||
+        offset > mLength ||
+        offset < 0)
     {
       return (mActive = false);
     }
     p = ReadVariableLengthInt(p, limit, delta);
-    time += delta;
-    if (!time.valid() ||
-        time.value() > endTime ||
-        time.value() < startTime)
+    if (!AddOverflow(time, delta, time) ||
+        time > endTime ||
+        time < startTime)
     {
       return (mActive = false);
     }
-    CheckedInt64 timeUsecs = time * USECS_PER_S;
-    if (!timeUsecs.valid())
+    PRInt64 timeUsecs = 0;
+    if (!MulOverflow(time, USECS_PER_S, timeUsecs))
       return mActive = false;
     timeUsecs /= timeDenom;
-    keyPoints->Add(offset.value(), timeUsecs.value());
+    keyPoints->Add(offset, timeUsecs);
     numKeyPointsRead++;
   }
 
@@ -1042,8 +1045,8 @@ nsresult nsSkeletonState::GetDuration(const nsTArray<PRUint32>& aTracks,
   {
     return NS_ERROR_FAILURE;
   }
-  PRInt64 endTime = INT64_MIN;
-  PRInt64 startTime = INT64_MAX;
+  PRInt64 endTime = PR_INT64_MIN;
+  PRInt64 startTime = PR_INT64_MAX;
   for (PRUint32 i=0; i<aTracks.Length(); i++) {
     nsKeyFrameIndex* index = nsnull;
     mIndex.Get(aTracks[i], &index);
@@ -1059,9 +1062,7 @@ nsresult nsSkeletonState::GetDuration(const nsTArray<PRUint32>& aTracks,
     }
   }
   NS_ASSERTION(endTime > startTime, "Duration must be positive");
-  CheckedInt64 duration = CheckedInt64(endTime) - startTime;
-  aDuration = duration.valid() ? duration.value() : 0;
-  return duration.valid() ? NS_OK : NS_ERROR_FAILURE;
+  return AddOverflow(endTime, -startTime, aDuration) ? NS_OK : NS_ERROR_FAILURE;
 }
 
 bool nsSkeletonState::DecodeHeader(ogg_packet* aPacket)

@@ -51,6 +51,15 @@
 
 namespace js {
 
+extern JSObject *
+GetBlockChain(JSContext *cx, StackFrame *fp);
+
+extern JSObject *
+GetBlockChainFast(JSContext *cx, StackFrame *fp, JSOp op, size_t oplen);
+
+extern JSObject *
+GetScopeChain(JSContext *cx);
+
 /*
  * Refresh and return fp->scopeChain.  It may be stale if block scopes are
  * active but not yet reflected by objects in the scope chain.  If a block
@@ -58,12 +67,11 @@ namespace js {
  * dynamically scoped construct, then compile-time block scope at fp->blocks
  * must reflect at runtime.
  */
-
-extern JSObject *
-GetScopeChain(JSContext *cx);
-
 extern JSObject *
 GetScopeChain(JSContext *cx, StackFrame *fp);
+
+extern JSObject *
+GetScopeChainFast(JSContext *cx, StackFrame *fp, JSOp op, size_t oplen);
 
 /*
  * ScriptPrologue/ScriptEpilogue must be called in pairs. ScriptPrologue
@@ -92,41 +100,9 @@ ScriptEpilogueOrGeneratorYield(JSContext *cx, StackFrame *fp, bool ok);
 
 /* Implemented in jsdbgapi: */
 
-/*
- * Announce to the debugger that the thread has entered a new JavaScript frame,
- * |fp|. Call whatever hooks have been registered to observe new frames, and
- * return a JSTrapStatus code indication how execution should proceed:
- *
- * - JSTRAP_CONTINUE: Continue execution normally.
- * 
- * - JSTRAP_THROW: Throw an exception. ScriptDebugPrologue has set |cx|'s
- *   pending exception to the value to be thrown.
- *
- * - JSTRAP_ERROR: Terminate execution (as is done when a script is terminated
- *   for running too long). ScriptDebugPrologue has cleared |cx|'s pending
- *   exception.
- *
- * - JSTRAP_RETURN: Return from the new frame immediately. ScriptDebugPrologue
- *   has set |cx->fp()|'s return value appropriately.
- */
-extern JSTrapStatus
+extern void
 ScriptDebugPrologue(JSContext *cx, StackFrame *fp);
 
-/*
- * Announce to the debugger that the thread has exited a JavaScript frame, |fp|.
- * If |ok| is true, the frame is returning normally; if |ok| is false, the frame
- * is throwing an exception or terminating. 
- *
- * Call whatever hooks have been registered to observe frame exits. Change cx's
- * current exception and |fp|'s return value to reflect the changes in behavior
- * the hooks request, if any. Return the new error/success value.
- *
- * This function may be called twice for the same outgoing frame; only the
- * first call has any effect. (Permitting double calls simplifies some
- * cases where an onPop handler's resumption value changes a return to a
- * throw, or vice versa: we can redirect to a complete copy of the
- * alternative path, containing its own call to ScriptDebugEpilogue.)
- */
 extern bool
 ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool ok);
 
@@ -180,7 +156,7 @@ Invoke(JSContext *cx, InvokeArgsGuard &args, MaybeConstruct construct = NO_CONST
  * arguments onto the stack.
  */
 extern bool
-Invoke(JSContext *cx, const Value &thisv, const Value &fval, unsigned argc, Value *argv,
+Invoke(JSContext *cx, const Value &thisv, const Value &fval, uintN argc, Value *argv,
        Value *rval);
 
 /*
@@ -188,14 +164,14 @@ Invoke(JSContext *cx, const Value &thisv, const Value &fval, unsigned argc, Valu
  * getter/setter calls.
  */
 extern bool
-InvokeGetterOrSetter(JSContext *cx, JSObject *obj, const Value &fval, unsigned argc, Value *argv,
+InvokeGetterOrSetter(JSContext *cx, JSObject *obj, const Value &fval, uintN argc, Value *argv,
                      Value *rval);
 
 /*
  * InvokeConstructor* implement a function call from a constructor context
  * (e.g. 'new') handling the the creation of the new 'this' object.
  */
-extern bool
+extern JS_REQUIRES_STACK bool
 InvokeConstructorKernel(JSContext *cx, const CallArgs &args);
 
 /* See the InvokeArgsGuard overload of Invoke. */
@@ -210,7 +186,15 @@ InvokeConstructor(JSContext *cx, InvokeArgsGuard &args)
 
 /* See the fval overload of Invoke. */
 extern bool
-InvokeConstructor(JSContext *cx, const Value &fval, unsigned argc, Value *argv, Value *rval);
+InvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *argv, Value *rval);
+
+/*
+ * InvokeConstructorWithGivenThis directly calls the constructor with the given
+ * 'this'; the caller must choose the semantically correct 'this'.
+ */
+extern JS_REQUIRES_STACK bool
+InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fval,
+                               uintN argc, Value *argv, Value *rval);
 
 /*
  * Executes a script with the given scopeChain/this. The 'type' indicates
@@ -230,29 +214,34 @@ Execute(JSContext *cx, JSScript *script, JSObject &scopeChain, Value *rval);
 enum InterpMode
 {
     JSINTERP_NORMAL    = 0, /* interpreter is running normally */
-    JSINTERP_REJOIN    = 1, /* as normal, but the frame has already started */
-    JSINTERP_SKIP_TRAP = 2  /* as REJOIN, but skip trap at first opcode */
+    JSINTERP_RECORD    = 1, /* interpreter has been started to record/run traces */
+    JSINTERP_PROFILE   = 2, /* interpreter should profile a loop */
+    JSINTERP_REJOIN    = 3, /* as normal, but the frame has already started */
+    JSINTERP_SKIP_TRAP = 4  /* as REJOIN, but skip trap at first opcode */
 };
 
 /*
  * Execute the caller-initialized frame for a user-defined script or function
  * pointed to by cx->fp until completion or error.
  */
-extern JS_NEVER_INLINE bool
+extern JS_REQUIRES_STACK JS_NEVER_INLINE bool
 Interpret(JSContext *cx, StackFrame *stopFp, InterpMode mode = JSINTERP_NORMAL);
 
-extern bool
+extern JS_REQUIRES_STACK bool
 RunScript(JSContext *cx, JSScript *script, StackFrame *fp);
 
 extern bool
-StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
+CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs);
 
 extern bool
-LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
+StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, JSBool *equal);
+
+extern bool
+LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, JSBool *equal);
 
 /* === except that NaN is the same as NaN and -0 is not the same as +0. */
 extern bool
-SameValue(JSContext *cx, const Value &v1, const Value &v2, bool *same);
+SameValue(JSContext *cx, const Value &v1, const Value &v2, JSBool *same);
 
 extern JSType
 TypeOfValue(JSContext *cx, const Value &v);
@@ -271,11 +260,11 @@ ValueToId(JSContext *cx, const Value &v, jsid *idp);
  * @return  The value of the upvar.
  */
 extern const Value &
-GetUpvar(JSContext *cx, unsigned level, UpvarCookie cookie);
+GetUpvar(JSContext *cx, uintN level, UpvarCookie cookie);
 
 /* Search the call stack for the nearest frame with static level targetLevel. */
 extern StackFrame *
-FindUpvarFrame(JSContext *cx, unsigned targetLevel);
+FindUpvarFrame(JSContext *cx, uintN targetLevel);
 
 /*
  * A linked list of the |FrameRegs regs;| variables belonging to all
@@ -325,35 +314,14 @@ class InterpreterFrames {
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-extern void
-UnwindScope(JSContext *cx, uint32_t stackDepth);
-
-/*
- * Unwind for an uncatchable exception. This means not running finalizers, etc;
- * just preserving the basic engine stack invariants.
- */
-extern void
-UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs);
+extern bool
+UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
 
 extern bool
-OnUnknownMethod(JSContext *cx, JSObject *obj, Value idval, Value *vp);
+OnUnknownMethod(JSContext *cx, js::Value *vp);
 
 extern bool
-IsActiveWithOrBlock(JSContext *cx, JSObject &obj, uint32_t stackDepth);
-
-class TryNoteIter
-{
-    const FrameRegs &regs;
-    JSScript *script;
-    uint32_t pcOffset;
-    JSTryNote *tn, *tnEnd;
-    void settle();
-  public:
-    TryNoteIter(const FrameRegs &regs);
-    bool done() const;
-    void operator++();
-    JSTryNote *operator*() const { return tn; }
-};
+IsActiveWithOrBlock(JSContext *cx, JSObject &obj, int stackDepth);
 
 /************************************************************************/
 
@@ -377,30 +345,6 @@ Debug_SetValueRangeToCrashOnTouch(Value *vec, size_t len)
 {
 #ifdef DEBUG
     Debug_SetValueRangeToCrashOnTouch(vec, vec + len);
-#endif
-}
-
-static JS_ALWAYS_INLINE void
-Debug_SetValueRangeToCrashOnTouch(HeapValue *vec, size_t len)
-{
-#ifdef DEBUG
-    Debug_SetValueRangeToCrashOnTouch((Value *) vec, len);
-#endif
-}
-
-static JS_ALWAYS_INLINE void
-Debug_SetSlotRangeToCrashOnTouch(HeapSlot *vec, size_t len)
-{
-#ifdef DEBUG
-    Debug_SetValueRangeToCrashOnTouch((Value *) vec, len);
-#endif
-}
-
-static JS_ALWAYS_INLINE void
-Debug_SetSlotRangeToCrashOnTouch(HeapSlot *begin, HeapSlot *end)
-{
-#ifdef DEBUG
-    Debug_SetValueRangeToCrashOnTouch((Value *) begin, end - begin);
 #endif
 }
 

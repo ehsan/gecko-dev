@@ -43,8 +43,6 @@ class nsHTMLMenuItemElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLMenuItemElement
 {
 public:
-  using nsGenericElement::GetText;
-
   nsHTMLMenuItemElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                         mozilla::dom::FromParser aFromParser);
   virtual ~nsHTMLMenuItemElement();
@@ -106,7 +104,7 @@ public:
 
 protected:
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
 
   void WalkRadioGroup(Visitor* aVisitor);
 

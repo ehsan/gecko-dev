@@ -75,7 +75,6 @@ struct MacroAssemblerTypedefs {
     typedef JSC::RepatchBuffer RepatchBuffer;
     typedef JSC::CodeLocationLabel CodeLocationLabel;
     typedef JSC::CodeLocationDataLabel32 CodeLocationDataLabel32;
-    typedef JSC::CodeLocationDataLabelPtr CodeLocationDataLabelPtr;
     typedef JSC::CodeLocationJump CodeLocationJump;
     typedef JSC::CodeLocationCall CodeLocationCall;
     typedef JSC::CodeLocationInstruction CodeLocationInstruction;
@@ -99,20 +98,6 @@ class BaseCompiler : public MacroAssemblerTypedefs
     BaseCompiler(JSContext *cx) : cx(cx)
     { }
 };
-
-#ifdef JS_CPU_X64
-inline bool
-VerifyRange(void *start1, size_t size1, void *start2, size_t size2)
-{
-    uintptr_t end1 = uintptr_t(start1) + size1;
-    uintptr_t end2 = uintptr_t(start2) + size2;
-
-    uintptr_t lowest = JS_MIN(uintptr_t(start1), uintptr_t(start2));
-    uintptr_t highest = JS_MAX(end1, end2);
-
-    return (highest - lowest < INT_MAX);
-}
-#endif
 
 // This class wraps JSC::LinkBuffer for Mozilla-specific memory handling.
 // Every return |false| guarantees an OOM that has been correctly propagated,
@@ -142,15 +127,20 @@ class LinkerHelper : public JSC::LinkBuffer
         verifiedRange = true;
 #endif
 #ifdef JS_CPU_X64
-        return VerifyRange(m_code, m_size, other.start(), other.size());
+        uintptr_t lowest = JS_MIN(uintptr_t(m_code), uintptr_t(other.start()));
+
+        uintptr_t myEnd = uintptr_t(m_code) + m_size;
+        uintptr_t otherEnd = uintptr_t(other.start()) + other.size();
+        uintptr_t highest = JS_MAX(myEnd, otherEnd);
+
+        return (highest - lowest < INT_MAX);
 #else
         return true;
 #endif
     }
 
-    bool verifyRange(JITChunk *chunk) {
-        return verifyRange(JSC::JITCode(chunk->code.m_code.executableAddress(),
-                                        chunk->code.m_size));
+    bool verifyRange(JITScript *jit) {
+        return verifyRange(JSC::JITCode(jit->code.m_code.executableAddress(), jit->code.m_size));
     }
 
     JSC::ExecutablePool *init(JSContext *cx) {
@@ -197,8 +187,8 @@ class NativeStubLinker : public LinkerHelper
     typedef JSC::MacroAssembler::Jump FinalJump;
 #endif
 
-    NativeStubLinker(Assembler &masm, JITChunk *chunk, jsbytecode *pc, FinalJump done)
-        : LinkerHelper(masm, JSC::METHOD_CODE), chunk(chunk), pc(pc), done(done)
+    NativeStubLinker(Assembler &masm, JITScript *jit, jsbytecode *pc, FinalJump done)
+        : LinkerHelper(masm, JSC::METHOD_CODE), jit(jit), pc(pc), done(done)
     {}
 
     bool init(JSContext *cx);
@@ -212,14 +202,14 @@ class NativeStubLinker : public LinkerHelper
     }
 
   private:
-    JITChunk *chunk;
+    JITScript *jit;
     jsbytecode *pc;
     FinalJump done;
 };
 
 bool
 NativeStubEpilogue(VMFrame &f, Assembler &masm, NativeStubLinker::FinalJump *result,
-                   int32_t initialFrameDepth, int32_t vpOffset,
+                   int32 initialFrameDepth, int32 vpOffset,
                    MaybeRegisterID typeReg, MaybeRegisterID dataReg);
 
 /*

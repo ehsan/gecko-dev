@@ -65,7 +65,6 @@ public:
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
-  virtual void CleanupResources() {};
 };
 
 class ShadowColorLayerOGL : public ShadowColorLayer,
@@ -87,7 +86,6 @@ public:
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
-  virtual void CleanupResources() {};
 };
 
 } /* layers */

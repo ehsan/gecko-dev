@@ -52,6 +52,7 @@
 
 namespace js {
 
+class AutoIdVector;
 class PropertyName;
 class SpecialId;
 
@@ -60,7 +61,7 @@ SPECIALID_TO_JSID(const SpecialId &sid);
 
 /*
  * We partition the ways to refer to a property into three: by an index
- * (uint32_t); by a string whose characters do not represent an index
+ * (uint32); by a string whose characters do not represent an index
  * (PropertyName, see vm/String.h); and by various special values.
  *
  * Special values are encoded using SpecialId, which is layout-compatible but
@@ -183,31 +184,31 @@ typedef JSBool
 (* LookupPropOp)(JSContext *cx, JSObject *obj, PropertyName *name, JSObject **objp,
                  JSProperty **propp);
 typedef JSBool
-(* LookupElementOp)(JSContext *cx, JSObject *obj, uint32_t index, JSObject **objp,
+(* LookupElementOp)(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
                     JSProperty **propp);
 typedef JSBool
 (* LookupSpecialOp)(JSContext *cx, JSObject *obj, SpecialId sid, JSObject **objp,
                     JSProperty **propp);
 typedef JSBool
 (* DefineGenericOp)(JSContext *cx, JSObject *obj, jsid id, const Value *value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
 (* DefinePropOp)(JSContext *cx, JSObject *obj, PropertyName *name, const Value *value,
-                 PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+                 PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
-(* DefineElementOp)(JSContext *cx, JSObject *obj, uint32_t index, const Value *value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+(* DefineElementOp)(JSContext *cx, JSObject *obj, uint32 index, const Value *value,
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
 (* DefineSpecialOp)(JSContext *cx, JSObject *obj, SpecialId sid, const Value *value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
 (* GenericIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp);
 typedef JSBool
 (* PropertyIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp);
 typedef JSBool
-(* ElementIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t index, Value *vp);
+(* ElementIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp);
 typedef JSBool
-(* ElementIfPresentOp)(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t index, Value *vp, bool* present);
+(* ElementIfPresentOp)(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp, bool* present);
 typedef JSBool
 (* SpecialIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp);
 typedef JSBool
@@ -215,21 +216,23 @@ typedef JSBool
 typedef JSBool
 (* StrictPropertyIdOp)(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict);
 typedef JSBool
-(* StrictElementIdOp)(JSContext *cx, JSObject *obj, uint32_t index, Value *vp, JSBool strict);
+(* StrictElementIdOp)(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict);
 typedef JSBool
 (* StrictSpecialIdOp)(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict);
 typedef JSBool
-(* GenericAttributesOp)(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp);
+(* GenericAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 typedef JSBool
-(* PropertyAttributesOp)(JSContext *cx, JSObject *obj, PropertyName *name, unsigned *attrsp);
+(* PropertyAttributesOp)(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp);
 typedef JSBool
-(* ElementAttributesOp)(JSContext *cx, JSObject *obj, uint32_t index, unsigned *attrsp);
+(* ElementAttributesOp)(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp);
 typedef JSBool
-(* SpecialAttributesOp)(JSContext *cx, JSObject *obj, SpecialId sid, unsigned *attrsp);
+(* SpecialAttributesOp)(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
 typedef JSBool
-(* DeletePropertyOp)(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict);
+(* DeleteGenericOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
 typedef JSBool
-(* DeleteElementOp)(JSContext *cx, JSObject *obj, uint32_t index, Value *vp, JSBool strict);
+(* DeleteIdOp)(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict);
+typedef JSBool
+(* DeleteElementOp)(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict);
 typedef JSBool
 (* DeleteSpecialOp)(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict);
 typedef JSType
@@ -252,7 +255,7 @@ typedef void
 
 #define JS_CLASS_MEMBERS                                                      \
     const char          *name;                                                \
-    uint32_t            flags;                                                \
+    uint32              flags;                                                \
                                                                               \
     /* Mandatory non-null function pointer members. */                        \
     JSPropertyOp        addProperty;                                          \
@@ -265,9 +268,11 @@ typedef void
     JSFinalizeOp        finalize;                                             \
                                                                               \
     /* Optionally non-null members start here. */                             \
+    JSClassInternal     reserved0;                                            \
     JSCheckAccessOp     checkAccess;                                          \
     JSNative            call;                                                 \
     JSNative            construct;                                            \
+    JSXDRObjectOp       xdrObject;                                            \
     JSHasInstanceOp     hasInstance;                                          \
     JSTraceOp           trace
 
@@ -324,7 +329,8 @@ struct ObjectOps
     PropertyAttributesOp setPropertyAttributes;
     ElementAttributesOp setElementAttributes;
     SpecialAttributesOp setSpecialAttributes;
-    DeletePropertyOp    deleteProperty;
+    DeleteGenericOp     deleteGeneric;
+    DeleteIdOp          deleteProperty;
     DeleteElementOp     deleteElement;
     DeleteSpecialOp     deleteSpecial;
 
@@ -337,7 +343,7 @@ struct ObjectOps
 
 #define JS_NULL_OBJECT_OPS                                                    \
     {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
-     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,        \
+     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
      NULL,NULL,NULL,NULL,NULL,NULL}
 
 struct Class
@@ -345,18 +351,14 @@ struct Class
     JS_CLASS_MEMBERS;
     ClassExtension      ext;
     ObjectOps           ops;
-    uint8_t             pad[sizeof(JSClass) - sizeof(ClassSizeMeasurement) -
+    uint8               pad[sizeof(JSClass) - sizeof(ClassSizeMeasurement) -
                             sizeof(ClassExtension) - sizeof(ObjectOps)];
 
     /* Class is not native and its map is not a scope. */
-    static const uint32_t NON_NATIVE = JSCLASS_INTERNAL_FLAG2;
+    static const uint32 NON_NATIVE = JSCLASS_INTERNAL_FLAG2;
 
     bool isNative() const {
         return !(flags & NON_NATIVE);
-    }
-
-    bool hasPrivate() const {
-        return !!(flags & JSCLASS_HAS_PRIVATE);
     }
 };
 
@@ -370,9 +372,11 @@ JS_STATIC_ASSERT(offsetof(JSClass, enumerate) == offsetof(Class, enumerate));
 JS_STATIC_ASSERT(offsetof(JSClass, resolve) == offsetof(Class, resolve));
 JS_STATIC_ASSERT(offsetof(JSClass, convert) == offsetof(Class, convert));
 JS_STATIC_ASSERT(offsetof(JSClass, finalize) == offsetof(Class, finalize));
+JS_STATIC_ASSERT(offsetof(JSClass, reserved0) == offsetof(Class, reserved0));
 JS_STATIC_ASSERT(offsetof(JSClass, checkAccess) == offsetof(Class, checkAccess));
 JS_STATIC_ASSERT(offsetof(JSClass, call) == offsetof(Class, call));
 JS_STATIC_ASSERT(offsetof(JSClass, construct) == offsetof(Class, construct));
+JS_STATIC_ASSERT(offsetof(JSClass, xdrObject) == offsetof(Class, xdrObject));
 JS_STATIC_ASSERT(offsetof(JSClass, hasInstance) == offsetof(Class, hasInstance));
 JS_STATIC_ASSERT(offsetof(JSClass, trace) == offsetof(Class, trace));
 JS_STATIC_ASSERT(sizeof(JSClass) == sizeof(Class));
@@ -382,30 +386,18 @@ Jsvalify(Class *c)
 {
     return (JSClass *)c;
 }
-static JS_ALWAYS_INLINE const JSClass *
-Jsvalify(const Class *c)
-{
-    return (const JSClass *)c;
-}
 
 static JS_ALWAYS_INLINE Class *
 Valueify(JSClass *c)
 {
     return (Class *)c;
 }
-static JS_ALWAYS_INLINE const Class *
-Valueify(const JSClass *c)
-{
-    return (const Class *)c;
-}
 
 /*
  * Enumeration describing possible values of the [[Class]] internal property
  * value of objects.
  */
-enum ESClassValue {
-    ESClass_Array, ESClass_Number, ESClass_String, ESClass_Boolean, ESClass_RegExp
-};
+enum ESClassValue { ESClass_Array, ESClass_Number, ESClass_String, ESClass_Boolean };
 
 /*
  * Return whether the given object has the given [[Class]] internal property
@@ -415,10 +407,6 @@ enum ESClassValue {
  */
 inline bool
 ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx);
-
-/* Just a helper that checks v.isObject before calling ObjectClassIs. */
-inline bool
-IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx);
 
 }  /* namespace js */
 

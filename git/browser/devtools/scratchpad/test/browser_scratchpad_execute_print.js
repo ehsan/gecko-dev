@@ -7,9 +7,11 @@ function test()
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onTabLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onTabLoad, true);
-    openScratchpad(runTests);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+
+    gScratchpadWindow = Scratchpad.openScratchpad();
+    gScratchpadWindow.addEventListener("load", runTests, false);
   }, true);
 
   content.location = "data:text/html,<p>test run() and display() in Scratchpad";
@@ -17,6 +19,8 @@ function test()
 
 function runTests()
 {
+  gScratchpadWindow.removeEventListener("load", arguments.callee, false);
+
   let sp = gScratchpadWindow.Scratchpad;
 
   content.wrappedJSObject.foobarBug636725 = 1;
@@ -40,13 +44,13 @@ function runTests()
   is(content.wrappedJSObject.foobarBug636725, 3,
      "display() updated window.foobarBug636725");
 
-  is(sp.getText(), "++window.foobarBug636725\n/*\n3\n*/",
+  is(sp.getText(), "++window.foobarBug636725/*\n3\n*/",
      "display() shows evaluation result in the textbox");
 
-  is(sp.selectedText, "\n/*\n3\n*/", "selectedText is correct");
+  is(sp.selectedText, "/*\n3\n*/", "selectedText is correct");
   let selection = sp.getSelectionRange();
   is(selection.start, 24, "selection.start is correct");
-  is(selection.end, 32, "selection.end is correct");
+  is(selection.end, 31, "selection.end is correct");
 
   // Test selection run() and display().
 
@@ -94,16 +98,16 @@ function runTests()
      "display() worked for the selected range");
 
   is(sp.getText(), "window.foobarBug636725" +
-                   "\n/*\na\n*/" +
+                   "/*\na\n*/" +
                    " = 'c';\n" +
                    "window.foobarBug636725 = 'b';",
      "display() shows evaluation result in the textbox");
 
-  is(sp.selectedText, "\n/*\na\n*/", "selectedText is correct");
+  is(sp.selectedText, "/*\na\n*/", "selectedText is correct");
 
   selection = sp.getSelectionRange();
   is(selection.start, 22, "selection.start is correct");
-  is(selection.end, 30, "selection.end is correct");
+  is(selection.end, 29, "selection.end is correct");
 
   sp.deselect();
 

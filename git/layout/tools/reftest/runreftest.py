@@ -1,3 +1,4 @@
+#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -73,13 +74,8 @@ class RefTest(object):
           path = defaultManifestPath
     return path
 
-  def createReftestProfile(self, options, profileDir, manifest, server='localhost'):
-    """
-      Sets up a profile for reftest.
-      'manifest' is the path to the reftest.list file we want to test with.  This is used in
-      the remote subclass in remotereftest.py so we can write it to a preference for the 
-      bootstrap extension.
-    """
+  def createReftestProfile(self, options, profileDir, server='localhost'):
+    "Sets up a profile for reftest."
 
     self.automation.setupPermissionsDatabase(profileDir,
       {'allowXULXBL': [(server, True), ('<file>', True)]})
@@ -113,6 +109,25 @@ class RefTest(object):
                                                   profileDir,
                                                   "reftest@mozilla.org")
 
+
+  def registerExtension(self, browserEnv, options, profileDir, extraArgs = ['-silent']):
+    # run once with -silent to let the extension manager do its thing
+    # and then exit the app
+    self.automation.log.info("REFTEST INFO | runreftest.py | Performing extension manager registration: start.\n")
+    # Don't care about this |status|: |runApp()| reporting it should be enough.
+    status = self.automation.runApp(None, browserEnv, options.app, profileDir,
+                                 extraArgs,
+                                 utilityPath = options.utilityPath,
+                                 xrePath=options.xrePath,
+                                 symbolsPath=options.symbolsPath)
+    # We don't care to call |processLeakLog()| for this step.
+    self.automation.log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
+
+    # Remove the leak detection file so it can't "leak" to the tests run.
+    # The file is not there if leak logging was not enabled in the application build.
+    if os.path.exists(self.leakLogFile):
+      os.remove(self.leakLogFile)
+
   def buildBrowserEnv(self, options, profileDir):
     browserEnv = self.automation.environment(xrePath = options.xrePath)
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
@@ -126,26 +141,27 @@ class RefTest(object):
     if profileDir:
       shutil.rmtree(profileDir, True)
 
-  def runTests(self, testPath, options, cmdlineArgs = None):
+  def runTests(self, testPath, options):
     debuggerInfo = getDebuggerInfo(self.oldcwd, options.debugger, options.debuggerArgs,
         options.debuggerInteractive);
 
     profileDir = None
     try:
-      reftestlist = self.getManifestPath(testPath)
-      if cmdlineArgs == None:
-        cmdlineArgs = ['-reftest', reftestlist]
       profileDir = mkdtemp()
       self.copyExtraFilesToProfile(options, profileDir)
-      self.createReftestProfile(options, profileDir, reftestlist)
+      self.createReftestProfile(options, profileDir)
       self.installExtensionsToProfile(options, profileDir)
 
       # browser environment
       browserEnv = self.buildBrowserEnv(options, profileDir)
 
+      self.registerExtension(browserEnv, options, profileDir)
+
+      # then again to actually run reftest
       self.automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
+      reftestlist = self.getManifestPath(testPath)
       status = self.automation.runApp(None, browserEnv, options.app, profileDir,
-                                 cmdlineArgs,
+                                 ["-reftest", reftestlist],
                                  utilityPath = options.utilityPath,
                                  xrePath=options.xrePath,
                                  debuggerInfo=debuggerInfo,

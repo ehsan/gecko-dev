@@ -54,8 +54,8 @@ add_test(function test_bad_hmac() {
 
   try {
     let passphrase     = "abcdeabcdeabcdeabcdeabcdea";
-    Service.serverURL  = TEST_SERVER_URL;
-    Service.clusterURL = TEST_CLUSTER_URL;
+    Service.serverURL  = "http://localhost:8080/";
+    Service.clusterURL = "http://localhost:8080/";
     Service.login("foo", "ilovejane", passphrase);
 
     generateNewKeys();
@@ -63,7 +63,7 @@ add_test(function test_bad_hmac() {
     _("First sync, client record is uploaded");
     do_check_eq(Clients.lastRecordUpload, 0);
     check_clients_count(0);
-    Clients._sync();
+    Clients.sync();
     check_clients_count(1);
     do_check_true(Clients.lastRecordUpload > 0);
 
@@ -81,7 +81,7 @@ add_test(function test_bad_hmac() {
     do_check_true(serverKeys.upload(Weave.Service.cryptoKeysURL).success);
 
     _("Sync.");
-    Clients._sync();
+    Clients.sync();
 
     _("Old record " + oldLocalID + " was deleted, new one uploaded.");
     check_clients_count(1);
@@ -96,7 +96,7 @@ add_test(function test_bad_hmac() {
     deletedCollections = [];
     deletedItems       = [];
     check_clients_count(1);
-    Clients._sync();
+    Clients.sync();
 
     _("Old record was not deleted, new one uploaded.");
     do_check_eq(deletedCollections.length, 0);
@@ -116,7 +116,7 @@ add_test(function test_bad_hmac() {
     uploadNewKeys();
 
     // Sync once to upload a record.
-    Clients._sync();
+    Clients.sync();
     check_clients_count(1);
 
     // Generate and upload new keys, so the old client record is wrong.
@@ -133,7 +133,7 @@ add_test(function test_bad_hmac() {
 
     do_check_eq(deletedCollections.length, 0);
     do_check_eq(deletedItems.length, 0);
-    Clients._sync();
+    Clients.sync();
     do_check_eq(deletedItems.length, 1);
     check_client_deleted(oldLocalID);
     check_clients_count(1);
@@ -164,9 +164,7 @@ add_test(function test_properties() {
 
 add_test(function test_sync() {
   _("Ensure that Clients engine uploads a new client record once a week.");
-  
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   generateNewKeys();
 
@@ -188,7 +186,7 @@ add_test(function test_sync() {
     _("First sync. Client record is uploaded.");
     do_check_eq(clientWBO(), undefined);
     do_check_eq(Clients.lastRecordUpload, 0);
-    Clients._sync();
+    Clients.sync();
     do_check_true(!!clientWBO().payload);
     do_check_true(Clients.lastRecordUpload > 0);
 
@@ -196,7 +194,7 @@ add_test(function test_sync() {
     Clients.lastRecordUpload -= MORE_THAN_CLIENTS_TTL_REFRESH;
     let lastweek = Clients.lastRecordUpload;
     clientWBO().payload = undefined;
-    Clients._sync();
+    Clients.sync();
     do_check_true(!!clientWBO().payload);
     do_check_true(Clients.lastRecordUpload > lastweek);
 
@@ -207,7 +205,7 @@ add_test(function test_sync() {
     _("Time travel one day back, no record uploaded.");
     Clients.lastRecordUpload -= LESS_THAN_CLIENTS_TTL_REFRESH;
     let yesterday = Clients.lastRecordUpload;
-    Clients._sync();
+    Clients.sync();
     do_check_eq(clientWBO().payload, undefined);
     do_check_eq(Clients.lastRecordUpload, yesterday);
 
@@ -404,14 +402,9 @@ add_test(function test_process_incoming_commands() {
 
 add_test(function test_command_sync() {
   _("Ensure that commands are synced across clients.");
-
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
-
-  Clients._store.wipe();
   generateNewKeys();
-
   let contents = {
     meta: {global: {engines: {clients: {version: Clients.version,
                                         syncID: Clients.syncID}}}},
@@ -438,7 +431,7 @@ add_test(function test_command_sync() {
 
   try {
     _("Syncing.");
-    Clients._sync();
+    Clients.sync();
     _("Checking record was uploaded.");
     do_check_neq(clientWBO(Clients.localID).payload, undefined);
     do_check_true(Clients.lastRecordUpload > 0);
@@ -448,8 +441,7 @@ add_test(function test_command_sync() {
     Svc.Prefs.set("client.GUID", remoteId);
     Clients._resetClient();
     do_check_eq(Clients.localID, remoteId);
-    _("Performing sync on resetted client.");
-    Clients._sync();
+    Clients.sync();
     do_check_neq(Clients.localCommands, undefined);
     do_check_eq(Clients.localCommands.length, 1);
 

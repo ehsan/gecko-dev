@@ -39,8 +39,6 @@
 #ifndef nsCOMArray_h__
 #define nsCOMArray_h__
 
-#include "mozilla/Attributes.h"
-
 #include "nsVoidArray.h"
 #include "nsISupports.h"
 
@@ -121,23 +119,13 @@ public:
                            : true;
     }
 
-    // Measures the size of the array's element storage, and if
-    // |aSizeOfElement| is non-NULL, measures the size of things pointed to by
-    // elements.
-    size_t SizeOfExcludingThis(
-             nsVoidArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
-             nsMallocSizeOfFun aMallocSizeOf, void* aData = NULL) const {
-        return mArray.SizeOfExcludingThis(aSizeOfElementIncludingThis,
-                                          aMallocSizeOf, aData);
-    }
-    
 private:
     
     // the actual storage
     nsVoidArray mArray;
 
     // don't implement these, defaults will muck with refcounts!
-    nsCOMArray_base& operator=(const nsCOMArray_base& other) MOZ_DELETE;
+    nsCOMArray_base& operator=(const nsCOMArray_base& other);
 };
 
 // a non-XPCOM, refcounting array of XPCOM objects
@@ -286,24 +274,10 @@ class nsCOMArray : public nsCOMArray_base
         return nsCOMArray_base::RemoveObjectsAt(aIndex, aCount);
     }
 
-    // Each element in an nsCOMArray<T> is actually a T*, so this function is
-    // "IncludingThis" rather than "ExcludingThis" because it needs to measure
-    // the memory taken by the T itself as well as anything it points to.
-    typedef size_t (* nsCOMArraySizeOfElementIncludingThisFunc)
-        (T* aElement, nsMallocSizeOfFun aMallocSizeOf, void *aData);
-    
-    size_t SizeOfExcludingThis(
-             nsCOMArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis, 
-             nsMallocSizeOfFun aMallocSizeOf, void *aData = NULL) const {
-        return nsCOMArray_base::SizeOfExcludingThis(
-                 nsVoidArraySizeOfElementIncludingThisFunc(aSizeOfElementIncludingThis),
-                 aMallocSizeOf, aData);
-    }
-
 private:
 
     // don't implement these!
-    nsCOMArray<T>& operator=(const nsCOMArray<T>& other) MOZ_DELETE;
+    nsCOMArray<T>& operator=(const nsCOMArray<T>& other);
 };
 
 

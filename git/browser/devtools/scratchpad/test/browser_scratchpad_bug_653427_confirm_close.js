@@ -2,11 +2,9 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let tempScope = {};
-Cu.import("resource://gre/modules/NetUtil.jsm", tempScope);
-Cu.import("resource://gre/modules/FileUtils.jsm", tempScope);
-let NetUtil = tempScope.NetUtil;
-let FileUtils = tempScope.FileUtils;
+
+Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
 
 // only finish() when correct number of tests are done
 const expected = 5;
@@ -19,10 +17,10 @@ function done()
   }
 }
 
+var ScratchpadManager = Scratchpad.ScratchpadManager;
 var gFile;
 
 var oldPrompt = Services.prompt;
-var promptButton = -1;
 
 function test()
 {
@@ -30,12 +28,6 @@ function test()
 
   gFile = createTempFile("fileForBug653427.tmp");
   writeFile(gFile, "text", testUnsaved.call(this));
-
-  Services.prompt = {
-    confirmEx: function() {
-      return promptButton;
-    }
-  };
 
   testNew();
   testSavedFile();
@@ -45,24 +37,28 @@ function test()
 
 function testNew()
 {
-  openScratchpad(function(win) {
-    win.Scratchpad.close(function() {
-      ok(win.closed, "new scratchpad window should close without prompting")
-      done();
-    });
-  }, {noFocus: true});
+  let win = ScratchpadManager.openScratchpad();
+
+  win.addEventListener("load", function() {
+    win.Scratchpad.close();
+
+    ok(win.closed, "new scratchpad window should close without prompting")
+    done();
+  });
 }
 
 function testSavedFile()
 {
-  openScratchpad(function(win) {
+  let win = ScratchpadManager.openScratchpad();
+
+  win.addEventListener("load", function() {
     win.Scratchpad.filename = "test.js";
-    win.Scratchpad.editor.dirty = false;
-    win.Scratchpad.close(function() {
-      ok(win.closed, "scratchpad from file with no changes should close")
-      done();
-    });
-  }, {noFocus: true});
+    win.Scratchpad.saved = true;
+    win.Scratchpad.close();
+
+    ok(win.closed, "scratchpad from file with no changes should close")
+    done();
+  });
 }
 
 function testUnsaved()
@@ -74,55 +70,76 @@ function testUnsaved()
 
 function testUnsavedFileCancel()
 {
-  openScratchpad(function(win) {
-    win.Scratchpad.setFilename("test.js");
-    win.Scratchpad.editor.dirty = true;
+  let win = ScratchpadManager.openScratchpad();
 
-    promptButton = win.BUTTON_POSITION_CANCEL;
+  win.addEventListener("load", function() {
+    win.Scratchpad.filename = "test.js";
+    win.Scratchpad.saved = false;
 
-    win.Scratchpad.close(function() {
-      ok(!win.closed, "cancelling dialog shouldn't close scratchpad");
-      win.close();
-      done();
-    });
-  }, {noFocus: true});
+    Services.prompt = {
+      confirmEx: function() {
+        return win.BUTTON_POSITION_CANCEL;
+      }
+    }
+
+    win.Scratchpad.close();
+
+    ok(!win.closed, "cancelling dialog shouldn't close scratchpad");
+
+    win.close();
+    done();
+  });
 }
 
 function testUnsavedFileSave()
 {
-  openScratchpad(function(win) {
+  let win = ScratchpadManager.openScratchpad();
+
+  win.addEventListener("load", function() {
     win.Scratchpad.importFromFile(gFile, true, function(status, content) {
-      win.Scratchpad.setFilename(gFile.path);
+      win.Scratchpad.filename = gFile.path;
+      win.Scratchpad.onTextSaved();
 
       let text = "new text";
       win.Scratchpad.setText(text);
 
-      promptButton = win.BUTTON_POSITION_SAVE;
+      Services.prompt = {
+        confirmEx: function() {
+          return win.BUTTON_POSITION_SAVE;
+        }
+      }
 
       win.Scratchpad.close(function() {
-        ok(win.closed, 'pressing "Save" in dialog should close scratchpad');
         readFile(gFile, function(savedContent) {
           is(savedContent, text, 'prompted "Save" worked when closing scratchpad');
           done();
         });
       });
+
+      ok(win.closed, 'pressing "Save" in dialog should close scratchpad');
     });
-  }, {noFocus: true});
+  });
 }
 
 function testUnsavedFileDontSave()
 {
-  openScratchpad(function(win) {
-    win.Scratchpad.setFilename(gFile.path);
-    win.Scratchpad.editor.dirty = true;
+  let win = ScratchpadManager.openScratchpad();
 
-    promptButton = win.BUTTON_POSITION_DONT_SAVE;
+  win.addEventListener("load", function() {
+    win.Scratchpad.filename = gFile.path;
+    win.Scratchpad.saved = false;
 
-    win.Scratchpad.close(function() {
-      ok(win.closed, 'pressing "Don\'t Save" in dialog should close scratchpad');
-      done();
-    });
-  }, {noFocus: true});
+    Services.prompt = {
+      confirmEx: function() {
+        return win.BUTTON_POSITION_DONT_SAVE;
+      }
+    }
+
+    win.Scratchpad.close();
+
+    ok(win.closed, 'pressing "Don\'t Save" in dialog should close scratchpad');
+    done();
+  });
 }
 
 function cleanup()

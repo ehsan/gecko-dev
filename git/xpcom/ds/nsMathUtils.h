@@ -41,7 +41,7 @@
 #define _USE_MATH_DEFINES /* needed for M_ constants on Win32 */
 
 #include "nscore.h"
-#include <cmath>
+#include <math.h>
 #include <float.h>
 
 #ifdef SOLARIS
@@ -133,7 +133,7 @@ inline NS_HIDDEN_(bool) NS_finite(double d)
 #elif defined(XP_DARWIN)
     // Darwin has deprecated |finite| and recommends |isfinite|. The former is
     // not present in the iOS SDK.
-    return std::isfinite(d);
+    return isfinite(d);
 #else
     return finite(d);
 #endif

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Roger B. Sidje <rbs@maths.uq.edu.au>
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
- *   Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -76,9 +75,6 @@ nsMathMLmstyleFrame::InheritAutomaticData(nsIFrame* aParent)
 
   // see if the displaystyle attribute is there
   nsMathMLFrame::FindAttrDisplaystyle(mContent, mPresentationData);
-
-  // see if the directionality attribute is there
-  nsMathMLFrame::FindAttrDirectionality(mContent, mPresentationData);
 
   return NS_OK;
 }

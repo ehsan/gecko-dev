@@ -40,6 +40,8 @@
 #define nsAccUtils_h_
 
 #include "nsIAccessible.h"
+#include "nsIAccessNode.h"
+#include "nsIAccessibleDocument.h"
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleTable.h"
@@ -116,6 +118,14 @@ public:
                                                         PRInt32 *aSetSize);
 
   /**
+   * Compute group position and group size (posinset and setsize) for
+   * nsIDOMXULContainerItemElement node.
+   */
+  static void GetPositionAndSizeForXULContainerItem(nsIContent *aContent,
+                                                    PRInt32 *aPosInSet,
+                                                    PRInt32 *aSetSize);
+
+  /**
    * Compute group level for nsIDOMXULContainerItemElement node.
    */
   static PRInt32 GetLevelForXULContainerItem(nsIContent *aContent);
@@ -148,10 +158,11 @@ public:
   /**
    * Return document accessible for the given presshell.
    */
-  static nsDocAccessible* GetDocAccessibleFor(const nsIPresShell* aPresShell)
+  static nsDocAccessible *GetDocAccessibleFor(nsIWeakReference *aWeakShell)
   {
-    return aPresShell ?
-      GetAccService()->GetDocAccessible(aPresShell->GetDocument()) : nsnull;
+    nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(aWeakShell));
+    return presShell ?
+      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
   }
 
   /**

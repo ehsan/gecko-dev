@@ -476,11 +476,7 @@ TestDataStructuresChild::RecvStart()
     Test15();
     Test16();
     Test17();
-    if (OtherProcess() != 0) {
-        //FIXME/bug 703317 allocation of nsIntRegion uses a global
-        //region pool which breaks threads
-        Test18();
-    }
+    Test18();
 
     for (uint32 i = 0; i < nactors; ++i)
         if (!PTestDataStructuresSubChild::Send__delete__(mKids[i]))

@@ -49,13 +49,13 @@ namespace js {
 namespace mjit {
 
 struct AdjustedFrame {
-    AdjustedFrame(uint32_t baseOffset)
+    AdjustedFrame(uint32 baseOffset)
      : baseOffset(baseOffset)
     { }
 
-    uint32_t baseOffset;
+    uint32 baseOffset;
 
-    JSC::MacroAssembler::Address addrOf(uint32_t offset) {
+    JSC::MacroAssembler::Address addrOf(uint32 offset) {
         return JSC::MacroAssembler::Address(JSFrameReg, baseOffset + offset);
     }
 };
@@ -76,7 +76,7 @@ class InlineFrameAssembler {
     Assembler &masm;
     FrameSize  frameSize;       // size of the caller's frame
     RegisterID funObjReg;       // register containing the function object (callee)
-    uint32_t   flags;           // frame flags
+    uint32     flags;           // frame flags
 
   public:
     /*
@@ -85,15 +85,16 @@ class InlineFrameAssembler {
      */
     Registers  tempRegs;
 
-    InlineFrameAssembler(Assembler &masm, ic::CallICInfo &ic, uint32_t flags)
+    InlineFrameAssembler(Assembler &masm, ic::CallICInfo &ic, uint32 flags)
       : masm(masm), flags(flags), tempRegs(Registers::AvailRegs)
     {
         frameSize = ic.frameSize;
         funObjReg = ic.funObjReg;
+        tempRegs.takeReg(ic.funPtrReg);
         tempRegs.takeReg(funObjReg);
     }
 
-    InlineFrameAssembler(Assembler &masm, Compiler::CallGenInfo &gen, uint32_t flags)
+    InlineFrameAssembler(Assembler &masm, Compiler::CallGenInfo &gen, uint32 flags)
       : masm(masm), flags(flags), tempRegs(Registers::AvailRegs)
     {
         frameSize = gen.frameSize;
@@ -109,13 +110,13 @@ class InlineFrameAssembler {
 
         /* Get the actual flags to write. */
         JS_ASSERT(!(flags & ~StackFrame::CONSTRUCTING));
-        uint32_t flags = this->flags | StackFrame::FUNCTION;
+        uint32 flags = this->flags | StackFrame::FUNCTION;
         if (frameSize.lowered(pc))
             flags |= StackFrame::LOWERED_CALL_APPLY;
 
         DataLabelPtr ncodePatch;
         if (frameSize.isStatic()) {
-            uint32_t frameDepth = frameSize.staticLocalSlots();
+            uint32 frameDepth = frameSize.staticLocalSlots();
             AdjustedFrame newfp(sizeof(StackFrame) + frameDepth * sizeof(Value));
 
             Address flagsAddr = newfp.addrOf(StackFrame::offsetOfFlags());

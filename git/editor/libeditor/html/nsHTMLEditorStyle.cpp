@@ -57,9 +57,6 @@
 #include "nsIContentIterator.h"
 #include "nsAttrName.h"
 
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla;
 
 NS_IMETHODIMP nsHTMLEditor::AddDefaultProperty(nsIAtom *aProperty, 
                                             const nsAString & aAttribute, 
@@ -115,7 +112,9 @@ NS_IMETHODIMP nsHTMLEditor::SetCSSInlineProperty(nsIAtom *aProperty,
                             const nsAString & aAttribute, 
                             const nsAString & aValue)
 {
-  if (IsCSSEnabled()) {
+  bool useCSS;
+  GetIsCSSEnabled(&useCSS);
+  if (useCSS) {
     return SetInlineProperty(aProperty, aAttribute, aValue);
   }
   return NS_OK;
@@ -308,7 +307,10 @@ nsHTMLEditor::SetInlinePropertyOnTextNode( nsIDOMCharacterData *aTextNode,
   
   // don't need to do anything if property already set on node
   bool bHasProp;
-  if (IsCSSEnabled() &&
+  bool useCSS;
+  GetIsCSSEnabled(&useCSS);
+
+  if (useCSS &&
       mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty, aAttribute)) {
     // the HTML styles defined by aProperty/aAttribute has a CSS equivalence
     // in this implementation for node; let's check if it carries those css styles
@@ -386,7 +388,10 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
   aProperty->ToString(tag);
   ToLowerCase(tag);
   
-  if (IsCSSEnabled())
+  bool useCSS;
+  GetIsCSSEnabled(&useCSS);
+
+  if (useCSS)
   {
     // we are in CSS mode
     if (mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty, aAttribute))
@@ -481,7 +486,7 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
     }
     else
     {
-      // ok, chuck it in its very own container
+      // ok, chuck it in it's very own container
       res = InsertContainerAbove(aNode, address_of(tmp), tag, aAttribute, aValue);
     }
     NS_ENSURE_SUCCESS(res, res);
@@ -534,8 +539,8 @@ nsresult nsHTMLEditor::SplitStyleAboveRange(nsIDOMRange *inRange,
   NS_ENSURE_TRUE(inRange, NS_ERROR_NULL_POINTER);
   nsresult res;
   nsCOMPtr<nsIDOMNode> startNode, endNode, origStartNode;
-  PRInt32 startOffset, endOffset;
-
+  PRInt32 startOffset, endOffset, origStartOffset;
+  
   res = inRange->GetStartContainer(getter_AddRefs(startNode));
   NS_ENSURE_SUCCESS(res, res);
   res = inRange->GetStartOffset(&startOffset);
@@ -544,9 +549,10 @@ nsresult nsHTMLEditor::SplitStyleAboveRange(nsIDOMRange *inRange,
   NS_ENSURE_SUCCESS(res, res);
   res = inRange->GetEndOffset(&endOffset);
   NS_ENSURE_SUCCESS(res, res);
-
+  
   origStartNode = startNode;
-
+  origStartOffset = startOffset;
+  
   // split any matching style nodes above the start of range
   {
     nsAutoTrackDOMPoint tracker(mRangeUpdater, address_of(endNode), &endOffset);
@@ -557,7 +563,7 @@ nsresult nsHTMLEditor::SplitStyleAboveRange(nsIDOMRange *inRange,
   // second verse, same as the first...
   res = SplitStyleAbovePoint(address_of(endNode), &endOffset, aProperty, aAttribute);
   NS_ENSURE_SUCCESS(res, res);
-
+  
   // reset the range
   res = inRange->SetStart(startNode, startOffset);
   NS_ENSURE_SUCCESS(res, res);
@@ -579,7 +585,8 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
   nsCOMPtr<nsIDOMNode> parent, tmp = *aNode;
   PRInt32 offset;
 
-  bool useCSS = IsCSSEnabled();
+  bool useCSS;
+  GetIsCSSEnabled(&useCSS);
 
   bool isSet;
   while (tmp && !IsBlockNode(tmp))
@@ -638,9 +645,9 @@ nsresult nsHTMLEditor::ApplyDefaultProperties()
 }
 
 nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode, 
-                                         nsIAtom *aProperty,   // null here means remove all properties
-                                         const nsAString *aAttribute,
-                                         bool aChildrenOnly)
+                                   nsIAtom *aProperty,   // null here means remove all properties
+                                   const nsAString *aAttribute, 
+                                   bool aChildrenOnly)
 {
   NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
   if (IsTextNode(aNode)) return NS_OK;
@@ -659,10 +666,10 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
   }
 
   // then process the node itself
-  if ((!aChildrenOnly &&
-        ((aProperty && NodeIsType(aNode, aProperty)) || // node is prop we asked for
+  if ( !aChildrenOnly && 
+        (aProperty && NodeIsType(aNode, aProperty) || // node is prop we asked for
         (aProperty == nsEditProperty::href && nsHTMLEditUtils::IsLink(aNode)) || // but check for link (<a href=...)
-        (aProperty == nsEditProperty::name && nsHTMLEditUtils::IsNamedAnchor(aNode)))) || // and for named anchors
+        (aProperty == nsEditProperty::name && nsHTMLEditUtils::IsNamedAnchor(aNode))) || // and for named anchors
         (!aProperty && NodeIsProperty(aNode)))  // or node is any prop and we asked for that
   {
     // if we weren't passed an attribute, then we want to 
@@ -698,7 +705,8 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
                                                         &propertyValue,
                                                         false);
           // remove the span if it's useless
-          RemoveElementIfNoStyleOrIdOrClass(spanNode);
+          nsCOMPtr<nsIDOMElement> element = do_QueryInterface(spanNode);
+          res = RemoveElementIfNoStyleOrIdOrClass(element, nsEditProperty::span);
         }
       }
       res = RemoveContainer(aNode);
@@ -724,8 +732,11 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
     }
   }
   else {
-    if (!aChildrenOnly && IsCSSEnabled() &&
-        mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty, aAttribute)) {
+    bool useCSS;
+    GetIsCSSEnabled(&useCSS);
+
+    if (!aChildrenOnly
+        && useCSS && mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty, aAttribute)) {
       // the HTML style defined by aProperty/aAttribute has a CSS equivalence
       // in this implementation for the node aNode; let's check if it carries those css styles
       nsAutoString propertyValue;
@@ -743,8 +754,8 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
                                                       false);
         // remove the node if it is a span, if its style attribute is empty or absent,
         // and if it does not have a class nor an id
-        RemoveElementIfNoStyleOrIdOrClass(aNode);
-        res = NS_OK;
+        nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode);
+        res = RemoveElementIfNoStyleOrIdOrClass(element, nsEditProperty::span);
       }
     }
   }  
@@ -784,44 +795,53 @@ bool nsHTMLEditor::IsOnlyAttribute(nsIDOMNode *aNode,
   return true;
 }
 
-bool nsHTMLEditor::HasAttr(nsIDOMNode* aNode,
-                           const nsAString* aAttribute)
+bool nsHTMLEditor::HasAttr(nsIDOMNode *aNode, 
+                             const nsAString *aAttribute)
 {
   NS_ENSURE_TRUE(aNode, false);
-  if (!aAttribute || aAttribute->IsEmpty()) {
-    // everybody has the 'null' attribute
-    return true;
-  }
-
+  if (!aAttribute || aAttribute->IsEmpty()) return true;  // everybody has the 'null' attribute
+  
   // get element
-  nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(element, false);
-
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(*aAttribute);
-  NS_ENSURE_TRUE(atom, false);
-
-  return element->HasAttr(kNameSpaceID_None, atom);
+  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
+  NS_ENSURE_TRUE(elem, false);
+  
+  // get attribute node
+  nsCOMPtr<nsIDOMAttr> attNode;
+  nsresult res = elem->GetAttributeNode(*aAttribute, getter_AddRefs(attNode));
+  if ((NS_FAILED(res)) || !attNode) return false;
+  return true;
 }
 
 
-bool nsHTMLEditor::HasAttrVal(nsIDOMNode* aNode,
-                              const nsAString* aAttribute,
-                              const nsAString* aValue)
+bool nsHTMLEditor::HasAttrVal(nsIDOMNode *aNode, 
+                                const nsAString *aAttribute, 
+                                const nsAString *aValue)
 {
   NS_ENSURE_TRUE(aNode, false);
-  if (!aAttribute || aAttribute->IsEmpty()) {
-    // everybody has the 'null' attribute
-    return true;
-  }
-
+  if (!aAttribute || aAttribute->IsEmpty()) return true;  // everybody has the 'null' attribute
+  
   // get element
-  nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(element, false);
-
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(*aAttribute);
-  NS_ENSURE_TRUE(atom, false);
-
-  return element->AttrValueIs(kNameSpaceID_None, atom, *aValue, eIgnoreCase);
+  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
+  NS_ENSURE_TRUE(elem, false);
+  
+  // get attribute node
+  nsCOMPtr<nsIDOMAttr> attNode;
+  nsresult res = elem->GetAttributeNode(*aAttribute, getter_AddRefs(attNode));
+  if ((NS_FAILED(res)) || !attNode) return false;
+  
+  // check if attribute has a value
+  bool isSet;
+  attNode->GetSpecified(&isSet);
+  // if no value, and that's what we wanted, then return true
+  if (!isSet && (!aValue || aValue->IsEmpty())) return true; 
+  
+  // get attribute value
+  nsAutoString attrVal;
+  attNode->GetValue(attrVal);
+  
+  // do values match?
+  if (attrVal.Equals(*aValue,nsCaseInsensitiveStringComparator())) return true;
+  return false;
 }
 
 nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRange)
@@ -992,7 +1012,8 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
   *aFirst=false;
   bool first=true;
 
-  bool useCSS = IsCSSEnabled();
+  bool useCSS;
+  GetIsCSSEnabled(&useCSS);
 
   nsCOMPtr<nsISelection>selection;
   result = GetSelection(getter_AddRefs(selection));
@@ -1027,13 +1048,16 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
       {
         nsString tString(*aAttribute); //MJUDGE SCC NEED HELP
         nsString tOutString;//MJUDGE SCC NEED HELP
+        nsString *tPassString=nsnull;
+        if (outValue)
+            tPassString = &tOutString;
         mTypeInState->GetTypingState(isSet, theSetting, aProperty, tString, &tOutString);
         if (outValue)
           outValue->Assign(tOutString);
       }
       else
         mTypeInState->GetTypingState(isSet, theSetting, aProperty);
-      if (isSet)
+      if (isSet) 
       {
         *aFirst = *aAny = *aAll = theSetting;
         return NS_OK;
@@ -1043,7 +1067,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
         IsTextPropertySetByContent(collapsedNode, aProperty, aAttribute, aValue,
                                    isSet, getter_AddRefs(resultNode), outValue);
         *aFirst = *aAny = *aAll = isSet;
-
+        
         if (!isSet && aCheckDefaults) 
         {
           // style not set, but if it is a default then it will appear if 
@@ -1248,7 +1272,9 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
   bool isCollapsed;
   selection->GetIsCollapsed(&isCollapsed);
 
-  bool useCSS = IsCSSEnabled();
+  bool useCSS;
+  GetIsCSSEnabled(&useCSS);
+
   if (isCollapsed)
   {
     // manipulating text attributes on a collapsed selection only sets state for the next text insertion
@@ -1879,41 +1905,51 @@ nsHTMLEditor::GetFontColorState(bool *aMixed, nsAString &aOutColor)
 nsresult
 nsHTMLEditor::GetIsCSSEnabled(bool *aIsCSSEnabled)
 {
-  *aIsCSSEnabled = IsCSSEnabled();
+  *aIsCSSEnabled = false;
+  if (mCSSAware) {
+    // TBD later : removal of mCSSAware and use only the presence of mHTMLCSSUtils
+    if (mHTMLCSSUtils) {
+      *aIsCSSEnabled = mHTMLCSSUtils->IsCSSPrefChecked();
+    }
+  }
   return NS_OK;
 }
 
-static bool
-HasNonEmptyAttribute(dom::Element* aElement, nsIAtom* aName)
+nsresult
+nsHTMLEditor::HasStyleOrIdOrClass(nsIDOMElement * aElement, bool *aHasStyleOrIdOrClass)
 {
-  MOZ_ASSERT(aElement);
+  NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMNode> node  = do_QueryInterface(aElement);
 
-  nsAutoString value;
-  return aElement->GetAttr(kNameSpaceID_None, aName, value) && !value.IsEmpty();
-}
-
-bool
-nsHTMLEditor::HasStyleOrIdOrClass(dom::Element* aElement)
-{
-  MOZ_ASSERT(aElement);
 
   // remove the node if its style attribute is empty or absent,
   // and if it does not have a class nor an id
-  return HasNonEmptyAttribute(aElement, nsGkAtoms::style) ||
-         HasNonEmptyAttribute(aElement, nsGkAtoms::_class) ||
-         HasNonEmptyAttribute(aElement, nsGkAtoms::id);
+  nsAutoString styleVal;
+  bool isStyleSet;
+  *aHasStyleOrIdOrClass = true;
+  nsresult res = GetAttributeValue(aElement,  NS_LITERAL_STRING("style"), styleVal, &isStyleSet);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!isStyleSet || styleVal.IsEmpty()) {
+    res = mHTMLCSSUtils->HasClassOrID(aElement, *aHasStyleOrIdOrClass);
+    NS_ENSURE_SUCCESS(res, res);
+  }
+  return res;
 }
 
 nsresult
-nsHTMLEditor::RemoveElementIfNoStyleOrIdOrClass(nsIDOMNode* aElement)
+nsHTMLEditor::RemoveElementIfNoStyleOrIdOrClass(nsIDOMElement * aElement, nsIAtom * aTag)
 {
-  nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
-  NS_ENSURE_TRUE(element, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMNode> node  = do_QueryInterface(aElement);
 
   // early way out if node is not the right kind of element
-  if (!element->IsHTML(nsGkAtoms::span) || HasStyleOrIdOrClass(element)) {
+  if (!NodeIsType(node, aTag)) {
     return NS_OK;
   }
-
-  return RemoveContainer(element);
+  bool hasStyleOrIdOrClass;
+  nsresult res = HasStyleOrIdOrClass(aElement, &hasStyleOrIdOrClass);
+  if (!hasStyleOrIdOrClass) {
+    res = RemoveContainer(node);
+  }
+  return res;
 }

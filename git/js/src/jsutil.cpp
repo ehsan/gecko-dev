@@ -38,13 +38,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* Various JS utility functions. */
-
-#include "mozilla/Attributes.h"
-
+/*
+ * PR assertion checker.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 
 #ifdef WIN32
@@ -53,14 +53,12 @@
 #    include <signal.h>
 #endif
 
-#include "js/TemplateLib.h"
-
 using namespace js;
 
 #ifdef DEBUG
 /* For JS_OOM_POSSIBLY_FAIL in jsutil.h. */
-JS_PUBLIC_DATA(uint32_t) OOM_maxAllocations = UINT32_MAX;
-JS_PUBLIC_DATA(uint32_t) OOM_counter = 0;
+JS_PUBLIC_DATA(JSUint32) OOM_maxAllocations = (JSUint32)-1;
+JS_PUBLIC_DATA(JSUint32) OOM_counter = 0;
 #endif
 
 /*
@@ -98,8 +96,7 @@ CrashInJS()
 #endif
 }
 
-JS_PUBLIC_API(void)
-JS_Assert(const char *s, const char *file, int ln)
+JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
     fflush(stderr);
@@ -110,6 +107,7 @@ JS_Assert(const char *s, const char *file, int ln)
 
 #include <math.h>
 #include <string.h>
+#include "jscompat.h"
 
 /*
  * Histogram bins count occurrences of values <= the bin label, as follows:
@@ -120,8 +118,8 @@ JS_Assert(const char *s, const char *file, int ln)
  *
  * We wish to count occurrences of 0 and 1 values separately, always.
  */
-static uint32_t
-BinToVal(unsigned logscale, unsigned bin)
+static uint32
+BinToVal(uintN logscale, uintN bin)
 {
     JS_ASSERT(bin <= 10);
     if (bin <= 1 || logscale == 0)
@@ -130,28 +128,28 @@ BinToVal(unsigned logscale, unsigned bin)
     if (logscale == 2)
         return JS_BIT(bin);
     JS_ASSERT(logscale == 10);
-    return uint32_t(pow(10.0, (double) bin));
+    return (uint32) pow(10.0, (double) bin);
 }
 
-static unsigned
-ValToBin(unsigned logscale, uint32_t val)
+static uintN
+ValToBin(uintN logscale, uint32 val)
 {
-    unsigned bin;
+    uintN bin;
 
     if (val <= 1)
         return val;
     bin = (logscale == 10)
-          ? (unsigned) ceil(log10((double) val))
+          ? (uintN) ceil(log10((double) val))
           : (logscale == 2)
-          ? (unsigned) JS_CEILING_LOG2W(val)
+          ? (uintN) JS_CEILING_LOG2W(val)
           : val;
     return JS_MIN(bin, 10);
 }
 
 void
-JS_BasicStatsAccum(JSBasicStats *bs, uint32_t val)
+JS_BasicStatsAccum(JSBasicStats *bs, uint32 val)
 {
-    unsigned oldscale, newscale, bin;
+    uintN oldscale, newscale, bin;
     double mean;
 
     ++bs->num;
@@ -166,14 +164,14 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32_t val)
         if (bs->max > 16 && mean > 8) {
             newscale = (bs->max > 1e6 && mean > 1000) ? 10 : 2;
             if (newscale != oldscale) {
-                uint32_t newhist[11], newbin;
+                uint32 newhist[11], newbin;
 
                 PodArrayZero(newhist);
                 for (bin = 0; bin <= 10; bin++) {
                     newbin = ValToBin(newscale, BinToVal(oldscale, bin));
                     newhist[newbin] += bs->hist[bin];
                 }
-                js_memcpy(bs->hist, newhist, sizeof bs->hist);
+                memcpy(bs->hist, newhist, sizeof bs->hist);
                 bs->logscale = newscale;
             }
         }
@@ -184,7 +182,7 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32_t val)
 }
 
 double
-JS_MeanAndStdDev(uint32_t num, double sum, double sqsum, double *sigma)
+JS_MeanAndStdDev(uint32 num, double sum, double sqsum, double *sigma)
 {
     double var;
 
@@ -218,8 +216,8 @@ JS_DumpBasicStats(JSBasicStats *bs, const char *title, FILE *fp)
 void
 JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 {
-    unsigned bin;
-    uint32_t cnt, max;
+    uintN bin;
+    uint32 cnt, max;
     double sum, mean;
 
     for (bin = 0, max = 0, sum = 0; bin <= 10; bin++) {
@@ -230,8 +228,8 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
     }
     mean = sum / cnt;
     for (bin = 0; bin <= 10; bin++) {
-        unsigned val = BinToVal(bs->logscale, bin);
-        unsigned end = (bin == 10) ? 0 : BinToVal(bs->logscale, bin + 1);
+        uintN val = BinToVal(bs->logscale, bin);
+        uintN end = (bin == 10) ? 0 : BinToVal(bs->logscale, bin + 1);
         cnt = bs->hist[bin];
         if (val + 1 == end)
             fprintf(fp, "        [%6u]", val);
@@ -242,10 +240,10 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
         fprintf(fp, ": %8u ", cnt);
         if (cnt != 0) {
             if (max > 1e6 && mean > 1e3)
-                cnt = uint32_t(ceil(log10((double) cnt)));
+                cnt = (uint32) ceil(log10((double) cnt));
             else if (max > 16 && mean > 8)
                 cnt = JS_CEILING_LOG2W(cnt);
-            for (unsigned i = 0; i < cnt; i++)
+            for (uintN i = 0; i < cnt; i++)
                 putc('*', fp);
         }
         putc('\n', fp);

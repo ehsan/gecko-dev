@@ -6,7 +6,6 @@
  * here must be in strict JSON format, as it will get parsed by the Python
  * testrunner (no single quotes, extra comma's, etc).
  */
-EnableEngines(["bookmarks"]);
 
 var phases = { "phase1": "profile1",
                "phase2": "profile2",
@@ -79,7 +78,7 @@ var bookmarks_to_delete = {
 Phase('phase1', [
   [Bookmarks.add, bookmarks_initial],
   [Bookmarks.verify, bookmarks_initial],
-  [Sync],
+  [Sync, SYNC_WIPE_SERVER],
 ]);
 
 // Sync to profile2 and verify that the bookmarks are present.  Delete 
@@ -94,7 +93,7 @@ Phase('phase2', [
 // Using profile1, sync again with wipe-server set to true.  Verify our
 // initial bookmarks are still all present.
 Phase('phase3', [
-  [Sync, SYNC_WIPE_REMOTE],
+  [Sync, SYNC_WIPE_SERVER],
   [Bookmarks.verify, bookmarks_initial]
 ]);
 

@@ -516,7 +516,7 @@ public:
         m_alternative = m_alternative->m_parent->addNewAlternative();
     }
 
-    ErrorCode setupAlternativeOffsets(PatternAlternative* alternative, unsigned currentCallFrameSize, unsigned initialInputPosition, unsigned *callFrameSizeOut)
+    unsigned setupAlternativeOffsets(PatternAlternative* alternative, unsigned currentCallFrameSize, unsigned initialInputPosition)
     {
         alternative->m_hasFixedSize = true;
         unsigned currentInputPosition = initialInputPosition;
@@ -567,22 +567,18 @@ public:
                 if (term.quantityCount == 1 && !term.parentheses.isCopy) {
                     if (term.quantityType != QuantifierFixedCount)
                         currentCallFrameSize += YarrStackSpaceForBackTrackInfoParenthesesOnce;
-                    if (ErrorCode error = setupDisjunctionOffsets(term.parentheses.disjunction, currentCallFrameSize, currentInputPosition, &currentCallFrameSize))
-                        return error;
+                    currentCallFrameSize = setupDisjunctionOffsets(term.parentheses.disjunction, currentCallFrameSize, currentInputPosition);
                     // If quantity is fixed, then pre-check its minimum size.
                     if (term.quantityType == QuantifierFixedCount)
                         currentInputPosition += term.parentheses.disjunction->m_minimumSize;
                     term.inputPosition = currentInputPosition;
                 } else if (term.parentheses.isTerminal) {
                     currentCallFrameSize += YarrStackSpaceForBackTrackInfoParenthesesTerminal;
-                    if (ErrorCode error = setupDisjunctionOffsets(term.parentheses.disjunction, currentCallFrameSize, currentInputPosition, &currentCallFrameSize))
-                        return error;
+                    currentCallFrameSize = setupDisjunctionOffsets(term.parentheses.disjunction, currentCallFrameSize, currentInputPosition);
                     term.inputPosition = currentInputPosition;
                 } else {
                     term.inputPosition = currentInputPosition;
-                    unsigned dummy;
-                    if (ErrorCode error = setupDisjunctionOffsets(term.parentheses.disjunction, BASE_FRAME_SIZE, currentInputPosition, &dummy))
-                        return error;
+                    setupDisjunctionOffsets(term.parentheses.disjunction, BASE_FRAME_SIZE, currentInputPosition);
                     currentCallFrameSize += YarrStackSpaceForBackTrackInfoParentheses;
                 }
                 // Fixed count of 1 could be accepted, if they have a fixed size *AND* if all alternatives are of the same length.
@@ -592,18 +588,16 @@ public:
             case PatternTerm::TypeParentheticalAssertion:
                 term.inputPosition = currentInputPosition;
                 term.frameLocation = currentCallFrameSize;
-                if (ErrorCode error = setupDisjunctionOffsets(term.parentheses.disjunction, currentCallFrameSize + YarrStackSpaceForBackTrackInfoParentheticalAssertion, currentInputPosition, &currentCallFrameSize))
-                    return error;
+                currentCallFrameSize = setupDisjunctionOffsets(term.parentheses.disjunction, currentCallFrameSize + YarrStackSpaceForBackTrackInfoParentheticalAssertion, currentInputPosition);
                 break;
             }
         }
 
         alternative->m_minimumSize = currentInputPosition - initialInputPosition;
-        *callFrameSizeOut = currentCallFrameSize;
-        return NoError;
+        return currentCallFrameSize;
     }
 
-    ErrorCode setupDisjunctionOffsets(PatternDisjunction* disjunction, unsigned initialCallFrameSize, unsigned initialInputPosition, unsigned *maximumCallFrameSizeOut)
+    unsigned setupDisjunctionOffsets(PatternDisjunction* disjunction, unsigned initialCallFrameSize, unsigned initialInputPosition)
     {
         if ((disjunction != m_pattern.m_body) && (disjunction->m_alternatives.size() > 1))
             initialCallFrameSize += YarrStackSpaceForBackTrackInfoAlternative;
@@ -614,30 +608,24 @@ public:
 
         for (unsigned alt = 0; alt < disjunction->m_alternatives.size(); ++alt) {
             PatternAlternative* alternative = disjunction->m_alternatives[alt];
-            unsigned currentAlternativeCallFrameSize;
-            if (ErrorCode error = setupAlternativeOffsets(alternative, initialCallFrameSize, initialInputPosition, &currentAlternativeCallFrameSize))
-                return error;
+            unsigned currentAlternativeCallFrameSize = setupAlternativeOffsets(alternative, initialCallFrameSize, initialInputPosition);
             minimumInputSize = std::min(minimumInputSize, alternative->m_minimumSize);
             maximumCallFrameSize = std::max(maximumCallFrameSize, currentAlternativeCallFrameSize);
             hasFixedSize &= alternative->m_hasFixedSize;
         }
         
-        if (minimumInputSize == UINT_MAX)
-            return PatternTooLarge;
-
+        ASSERT(minimumInputSize != UINT_MAX);
         ASSERT(maximumCallFrameSize >= initialCallFrameSize);
 
         disjunction->m_hasFixedSize = hasFixedSize;
         disjunction->m_minimumSize = minimumInputSize;
         disjunction->m_callFrameSize = maximumCallFrameSize;
-        *maximumCallFrameSizeOut = maximumCallFrameSize;
-        return NoError;
+        return maximumCallFrameSize;
     }
 
-    ErrorCode setupOffsets()
+    void setupOffsets()
     {
-        unsigned dummy;
-        return setupDisjunctionOffsets(m_pattern.m_body, BASE_FRAME_SIZE, 0, &dummy);
+        setupDisjunctionOffsets(m_pattern.m_body, BASE_FRAME_SIZE, 0);
     }
 
     // This optimization identifies sets of parentheses that we will never need to backtrack.
@@ -730,8 +718,7 @@ ErrorCode YarrPattern::compile(const UString& patternString)
     constructor.checkForTerminalParentheses();
     constructor.optimizeBOL();
         
-    if (ErrorCode error = constructor.setupOffsets())
-        return error;
+    constructor.setupOffsets();
 
     return NoError;
 }

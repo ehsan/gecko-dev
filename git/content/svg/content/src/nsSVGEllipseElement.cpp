@@ -68,9 +68,6 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGEllipseElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGEllipseElementBase::)
 
-  // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const;
-
   // nsSVGPathGeometryElement methods:
   virtual void ConstructPath(gfxContext *aCtx);
 
@@ -105,9 +102,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGEllipseElement,nsSVGEllipseElementBase)
 DOMCI_NODE_DATA(SVGEllipseElement, nsSVGEllipseElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGEllipseElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGEllipseElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGEllipseElement)
+  NS_NODE_INTERFACE_TABLE4(nsSVGEllipseElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGEllipseElement)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGEllipseElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGEllipseElementBase)
 
@@ -153,15 +149,6 @@ NS_IMETHODIMP nsSVGEllipseElement::GetRy(nsIDOMSVGAnimatedLength * *aRy)
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ bool
-nsSVGEllipseElement::HasValidDimensions() const
-{
-  return mLengthAttributes[RX].IsExplicitlySet() &&
-         mLengthAttributes[RX].GetAnimValInSpecifiedUnits() > 0 &&
-         mLengthAttributes[RY].IsExplicitlySet() &&
-         mLengthAttributes[RY].GetAnimValInSpecifiedUnits() > 0;
-}
 
 nsSVGElement::LengthAttributesInfo
 nsSVGEllipseElement::GetLengthInfo()

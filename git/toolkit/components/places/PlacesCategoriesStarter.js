@@ -42,7 +42,6 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
 
 // Fired by TelemetryPing when async telemetry data should be collected.
 const TOPIC_GATHER_TELEMETRY = "gather-telemetry";
@@ -76,8 +75,7 @@ function PlacesCategoriesStarter()
       Cc["@mozilla.org/categorymanager;1"]
         .getService(Ci.nsICategoryManager)
         .deleteCategoryEntry("bookmarks-observer", this, false);
-      // Directly notify PlacesUtils, to ensure it catches the notification.
-      PlacesUtils.observe(null, "bookmarks-service-ready", null);
+      Services.obs.notifyObservers(null, "bookmarks-service-ready", null);
     }
   }).bind(this);
   [ "onItemAdded", "onItemRemoved", "onItemChanged", "onBeginUpdateBatch",
@@ -97,13 +95,6 @@ PlacesCategoriesStarter.prototype = {
       case PlacesUtils.TOPIC_SHUTDOWN:
         Services.obs.removeObserver(this, PlacesUtils.TOPIC_SHUTDOWN);
         Services.obs.removeObserver(this, TOPIC_GATHER_TELEMETRY);
-        let globalObj =
-          Cu.getGlobalForObject(PlacesCategoriesStarter.prototype);
-        let descriptor =
-          Object.getOwnPropertyDescriptor(globalObj, "PlacesDBUtils");
-        if (descriptor.value !== undefined) {
-          PlacesDBUtils.shutdown();
-        }
         break;
       case TOPIC_GATHER_TELEMETRY:
         PlacesDBUtils.telemetry();
@@ -129,8 +120,6 @@ PlacesCategoriesStarter.prototype = {
   //// nsISupports
 
   classID: Components.ID("803938d5-e26d-4453-bf46-ad4b26e41114"),
-
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(PlacesCategoriesStarter),
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIObserver

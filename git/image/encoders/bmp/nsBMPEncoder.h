@@ -35,11 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/ReentrantMonitor.h"
-
 #include "imgIEncoder.h"
 #include "BMPFileHeaders.h"
+
+#include "mozilla/ReentrantMonitor.h"
 
 #include "nsCOMPtr.h"
 
@@ -54,7 +53,7 @@
 // Provides BMP encoding functionality. Use InitFromData() to do the
 // encoding. See that function definition for encoding options.
 
-class nsBMPEncoder MOZ_FINAL : public imgIEncoder
+class nsBMPEncoder : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:
@@ -98,8 +97,8 @@ protected:
 
   // These headers will always contain endian independent stuff 
   // They store the BMP headers which will be encoded
-  mozilla::image::BMPFILEHEADER mBMPFileHeader;
-  mozilla::image::BMPINFOHEADER mBMPInfoHeader;
+  mozilla::imagelib::BMPFILEHEADER mBMPFileHeader;
+  mozilla::imagelib::BMPINFOHEADER mBMPInfoHeader;
 
   // Keeps track of the start of the image buffer
   PRUint8* mImageBufferStart;

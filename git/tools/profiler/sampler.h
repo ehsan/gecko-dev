@@ -66,15 +66,10 @@
  * 'c' - Continue Sample tag gives remaining tag element. If a 'c' tag is seen without
  *         a preceding 's' tag it should be ignored. This is to support the behavior
  *         of circular buffers.
- *         If the 'stackwalk' feature is enabled this tag will have the format
- *         'l-<library name>@<hex address>' and will expect an external tool to translate
- *         the tag into something readable through a symbolication processing step.
  * 'm' - Timeline marker. Zero or more may appear before a 's' tag.
  * 'l' - Information about the program counter library and address. Post processing
  *         can include function and source line. If built with leaf data enabled
  *         this tag will describe the last 'c' tag.
- * 'r' - Responsiveness tag following an 's' tag. Gives an indication on how well the
- *          application is responding to the event loop. Lower is better.
  *
  * NOTE: File format is planned to be extended to include a dictionary to reduce size.
  */
@@ -82,31 +77,27 @@
 #ifndef SAMPLER_H
 #define SAMPLER_H
 
-// Redefine the macros for platforms where SPS is supported.
-#ifdef MOZ_ENABLE_PROFILER_SPS
-
-#include "sps_sampler.h"
-
+#if defined(_MSC_VER)
+#define FULLFUNCTION __FUNCSIG__
+#elif (__GNUC__ >= 4)
+#define FULLFUNCTION __PRETTY_FUNCTION__
 #else
+#define FULLFUNCTION __FUNCTION__
+#endif
 
 // Initialize the sampler. Any other calls will be silently discarded
 // before the sampler has been initialized (i.e. early start-up code)
 #define SAMPLER_INIT()
 #define SAMPLER_DEINIT()
-#define SAMPLER_START(entries, interval, features, featureCount)
-#define SAMPLER_STOP()
-#define SAMPLER_IS_ACTIVE() false
-#define SAMPLER_SAVE()
-// Returned string must be free'ed
-#define SAMPLER_GET_PROFILE() NULL
-#define SAMPLER_GET_PROFILE_DATA(ctx) NULL
-#define SAMPLER_RESPONSIVENESS(time) NULL
-#define SAMPLER_GET_RESPONSIVENESS() NULL
-#define SAMPLER_GET_FEATURES() NULL
-#define SAMPLE_LABEL(name_space, info)
-#define SAMPLE_LABEL_FN(name_space, info)
+#define SAMPLER_RESPONSIVENESS(time)
+#define SAMPLE_CHECKPOINT(name_space, info)
 #define SAMPLE_MARKER(info)
+
+// Redefine the macros for platforms where SPS is supported.
+#ifdef ANDROID
+
+#include "sps_sampler.h"
 
 #endif
 
-#endif // ifndef SAMPLER_H
+#endif

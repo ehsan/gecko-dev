@@ -14,7 +14,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is JavaScript heap tools.
+ * The Original Code is JavaScript shell workers.
  *
  * The Initial Developer of the Original Code is
  * Mozilla Corporation.
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jim Blandy <jimb@mozilla.com>
+ *   Jason Orendorff <jorendorff@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -49,8 +49,6 @@
 #include "jsobj.h"
 #include "jsprf.h"
 #include "jsutil.h"
-
-#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -133,7 +131,7 @@ class HeapReverser : public JSTracer {
     struct Edge {
       public:
         Edge(char *name, void *origin) : name(name), origin(origin) { }
-        ~Edge() { js_free(name); }
+        ~Edge() { free(name); }
 
         /*
          * Move constructor and move assignment. These allow us to live in
@@ -166,12 +164,12 @@ class HeapReverser : public JSTracer {
      * The result of a reversal is a map from Cells' addresses to Node
      * structures describing their incoming edges.
      */
-    typedef HashMap<void *, Node, DefaultHasher<void *>, SystemAllocPolicy> Map;
+    typedef HashMap<void *, Node> Map;
     Map map;
 
     /* Construct a HeapReverser for |context|'s heap. */
-    HeapReverser(JSContext *cx) : rooter(cx, 0, NULL), parent(NULL) {
-        JS_TracerInit(this, JS_GetRuntime(cx), traverseEdgeWithThis);
+    HeapReverser(JSContext *cx) : map(cx), roots(cx), rooter(cx, 0, NULL), work(cx), parent(NULL) {
+        JS_TRACER_INIT(this, cx, traverseEdgeWithThis);
     }
 
     bool init() { return map.init(); }
@@ -193,7 +191,7 @@ class HeapReverser : public JSTracer {
      * rule. This is kind of dumb, but JSAPI doesn't provide any less restricted
      * way to register arrays of roots.
      */
-    Vector<jsval, 0, SystemAllocPolicy> roots;
+    Vector<jsval> roots;
     AutoArrayRooter rooter;
 
     /*
@@ -232,7 +230,7 @@ class HeapReverser : public JSTracer {
      * A stack of work items. We represent the stack explicitly to avoid
      * overflowing the C++ stack when traversing long chains of objects.
      */
-    Vector<Child, 0, SystemAllocPolicy> work;
+    Vector<Child> work; 
 
     /* When traverseEdge is called, the Cell and kind at which the edge originated. */
     void *parent;
@@ -249,17 +247,19 @@ class HeapReverser : public JSTracer {
     bool traversalStatus;
 
     /* Static member function wrapping 'traverseEdge'. */
-    static void traverseEdgeWithThis(JSTracer *tracer, void **thingp, JSGCTraceKind kind) {
+    static void traverseEdgeWithThis(JSTracer *tracer, void *cell, JSGCTraceKind kind) {
         HeapReverser *reverser = static_cast<HeapReverser *>(tracer);
-        reverser->traversalStatus = reverser->traverseEdge(*thingp, kind);
+        reverser->traversalStatus = reverser->traverseEdge(cell, kind);
     }
 
     /* Return a jsval representing a node, if possible; otherwise, return JSVAL_VOID. */
     jsval nodeToValue(void *cell, int kind) {
-        if (kind != JSTRACE_OBJECT)
+        if (kind == JSTRACE_OBJECT) {
+            JSObject *object = static_cast<JSObject *>(cell);
+            return OBJECT_TO_JSVAL(object);
+        } else {
             return JSVAL_VOID;
-        JSObject *object = static_cast<JSObject *>(cell);
-        return OBJECT_TO_JSVAL(object);
+        }
     }
 };
 
@@ -286,7 +286,7 @@ HeapReverser::traverseEdge(void *cell, JSGCTraceKind kind) {
          * visited from the main loop.
          */
         Node n(kind);
-        uint32_t generation = map.generation();
+        uint32 generation = map.generation();
         if (!map.add(a, cell, Move(n)) ||
             !work.append(Child(cell, kind)))
             return false;
@@ -323,7 +323,7 @@ HeapReverser::getEdgeDescription()
 {
     if (!debugPrinter && debugPrintIndex == (size_t) -1) {
         const char *arg = static_cast<const char *>(debugPrintArg);
-        char *name = static_cast<char *>(js_malloc(strlen(arg) + 1));
+        char *name = static_cast<char *>(context->malloc_(strlen(arg) + 1));
         if (!name)
             return NULL;
         strcpy(name, arg);
@@ -332,7 +332,7 @@ HeapReverser::getEdgeDescription()
 
     /* Lovely; but a fixed size is required by JSTraceNamePrinter. */
     static const int nameSize = 200;
-    char *name = static_cast<char *>(js_malloc(nameSize));
+    char *name = static_cast<char *>(context->malloc_(nameSize));
     if (!name)
         return NULL;
     if (debugPrinter)
@@ -342,7 +342,7 @@ HeapReverser::getEdgeDescription()
                     static_cast<const char *>(debugPrintArg), debugPrintIndex);
 
     /* Shrink storage to fit. */
-    return static_cast<char *>(js_realloc(name, strlen(name) + 1));
+    return static_cast<char *>(context->realloc_(name, strlen(name) + 1));
 }
 
 
@@ -532,7 +532,7 @@ ReferenceFinder::addReferrer(jsval referrer, Path *path)
     JS_ASSERT(JS_IsArrayObject(context, array));
 
     /* Append our referrer to this array. */
-    uint32_t length;
+    jsuint length;
     return JS_GetArrayLength(context, array, &length) &&
            JS_SetElement(context, array, length, &referrer);
 }
@@ -549,9 +549,34 @@ ReferenceFinder::findReferences(JSObject *target)
     return result;
 }
 
-/* See help(findReferences). */
+/*
+ * findReferences(thing)
+ *
+ * Walk the entire heap, looking for references to |thing|, and return a
+ * "references object" describing what we found.
+ *
+ * Each property of the references object describes one kind of reference. The
+ * property's name is the label supplied to MarkObject, JS_CALL_TRACER, or what
+ * have you, prefixed with "edge: " to avoid collisions with system properties
+ * (like "toString" and "__proto__"). The property's value is an array of things
+ * that refer to |thing| via that kind of reference. Ordinary references from
+ * one object to another are named after the property name (with the "edge: "
+ * prefix).
+ *
+ * Garbage collection roots appear as references from 'null'. We use the name
+ * given to the root (with the "edge: " prefix) as the name of the reference.
+ *
+ * Note that the references object does record references from objects that are
+ * only reachable via |thing| itself, not just the references reachable
+ * themselves from roots that keep |thing| from being collected. (We could make
+ * this distinction if it is useful.)
+ *
+ * If any references are found by the conservative scanner, the references
+ * object will have a property named "edge: machine stack"; the referrers will
+ * be 'null', because they are roots.
+ */
 JSBool
-FindReferences(JSContext *cx, unsigned argc, jsval *vp)
+FindReferences(JSContext *cx, uintN argc, jsval *vp)
 {
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,

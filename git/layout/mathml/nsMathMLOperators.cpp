@@ -54,16 +54,16 @@
 struct OperatorData {
   OperatorData(void)
     : mFlags(0),
-      mLeadingSpace(0.0f),
-      mTrailingSpace(0.0f)
+      mLeftSpace(0.0f),
+      mRightSpace(0.0f)
   {
   }
 
   // member data
   nsString        mStr;
   nsOperatorFlags mFlags;
-  float           mLeadingSpace;   // unit is em
-  float           mTrailingSpace;  // unit is em
+  float           mLeftSpace;   // unit is em
+  float           mRightSpace;  // unit is em
 };
 
 static PRInt32         gTableRefCount = 0;
@@ -117,8 +117,6 @@ SetBooleanProperty(OperatorData* aOperatorData,
     aOperatorData->mFlags |= NS_MATHML_OPERATOR_SYMMETRIC;
   else if (aName.EqualsLiteral("integral"))
     aOperatorData->mFlags |= NS_MATHML_OPERATOR_INTEGRAL;
-  else if (aName.EqualsLiteral("mirrorable"))
-    aOperatorData->mFlags |= NS_MATHML_OPERATOR_MIRRORABLE;
 }
 
 static void
@@ -141,11 +139,11 @@ SetProperty(OperatorData* aOperatorData,
       aOperatorData->mFlags |= NS_MATHML_OPERATOR_DIRECTION_HORIZONTAL;
     else return; // invalid value
   } else {
-    bool isLeadingSpace;
+    bool isLeftSpace;
     if (aName.EqualsLiteral("lspace"))
-      isLeadingSpace = true;
+      isLeftSpace = true;
     else if (aName.EqualsLiteral("rspace"))
-      isLeadingSpace = false;
+      isLeftSpace = false;
     else return;  // input is not applicable
 
     // aValue is assumed to be a digit from 0 to 7
@@ -153,10 +151,10 @@ SetProperty(OperatorData* aOperatorData,
     float space = aValue.ToFloat(&error) / 18.0;
     if (error) return;
 
-    if (isLeadingSpace)
-      aOperatorData->mLeadingSpace = space;
+    if (isLeftSpace)
+      aOperatorData->mLeftSpace = space;
     else
-      aOperatorData->mTrailingSpace = space;
+      aOperatorData->mRightSpace = space;
   }
 }
 
@@ -411,14 +409,14 @@ bool
 nsMathMLOperators::LookupOperator(const nsString&       aOperator,
                                   const nsOperatorFlags aForm,
                                   nsOperatorFlags*      aFlags,
-                                  float*                aLeadingSpace,
-                                  float*                aTrailingSpace)
+                                  float*                aLeftSpace,
+                                  float*                aRightSpace)
 {
   if (!gInitialized) {
     InitGlobals();
   }
   if (gOperatorTable) {
-    NS_ASSERTION(aFlags && aLeadingSpace && aTrailingSpace, "bad usage");
+    NS_ASSERTION(aFlags && aLeftSpace && aRightSpace, "bad usage");
     NS_ASSERTION(aForm > 0 && aForm < 4, "*** invalid call ***");
 
     // The MathML REC says:
@@ -443,8 +441,8 @@ nsMathMLOperators::LookupOperator(const nsString&       aOperator,
     }
     if (found) {
       NS_ASSERTION(found->mStr.Equals(aOperator), "bad setup");
-      *aLeadingSpace = found->mLeadingSpace;
-      *aTrailingSpace = found->mTrailingSpace;
+      *aLeftSpace = found->mLeftSpace;
+      *aRightSpace = found->mRightSpace;
       *aFlags &= ~NS_MATHML_OPERATOR_FORM; // clear the form bits
       *aFlags |= found->mFlags; // just add bits without overwriting
       return true;
@@ -456,44 +454,44 @@ nsMathMLOperators::LookupOperator(const nsString&       aOperator,
 void
 nsMathMLOperators::LookupOperators(const nsString&       aOperator,
                                    nsOperatorFlags*      aFlags,
-                                   float*                aLeadingSpace,
-                                   float*                aTrailingSpace)
+                                   float*                aLeftSpace,
+                                   float*                aRightSpace)
 {
   if (!gInitialized) {
     InitGlobals();
   }
 
   aFlags[NS_MATHML_OPERATOR_FORM_INFIX] = 0;
-  aLeadingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
-  aTrailingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
+  aLeftSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
+  aRightSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
 
   aFlags[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0;
-  aLeadingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
-  aTrailingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
+  aLeftSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
+  aRightSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
 
   aFlags[NS_MATHML_OPERATOR_FORM_PREFIX] = 0;
-  aLeadingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
-  aTrailingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
+  aLeftSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
+  aRightSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
 
   if (gOperatorTable) {
     OperatorData* found;
     found = GetOperatorData(aOperator, NS_MATHML_OPERATOR_FORM_INFIX);
     if (found) {
       aFlags[NS_MATHML_OPERATOR_FORM_INFIX] = found->mFlags;
-      aLeadingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mLeadingSpace;
-      aTrailingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mTrailingSpace;
+      aLeftSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mLeftSpace;
+      aRightSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mRightSpace;
     }
     found = GetOperatorData(aOperator, NS_MATHML_OPERATOR_FORM_POSTFIX);
     if (found) {
       aFlags[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mFlags;
-      aLeadingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mLeadingSpace;
-      aTrailingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mTrailingSpace;
+      aLeftSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mLeftSpace;
+      aRightSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mRightSpace;
     }
     found = GetOperatorData(aOperator, NS_MATHML_OPERATOR_FORM_PREFIX);
     if (found) {
       aFlags[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mFlags;
-      aLeadingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mLeadingSpace;
-      aTrailingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mTrailingSpace;
+      aLeftSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mLeftSpace;
+      aRightSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mRightSpace;
     }
   }
 }
@@ -515,20 +513,6 @@ nsMathMLOperators::IsMutableOperator(const nsString& aOperator)
     flags[NS_MATHML_OPERATOR_FORM_PREFIX];
   return NS_MATHML_OPERATOR_IS_STRETCHY(allFlags) ||
          NS_MATHML_OPERATOR_IS_LARGEOP(allFlags);
-}
-
-/* static */ bool
-nsMathMLOperators::IsMirrorableOperator(const nsString& aOperator)
-{
-  // LookupOperator will search infix, postfix and prefix forms of aOperator and
-  // return the first form found. It is assumed that all these forms have same
-  // mirrorability.
-  nsOperatorFlags flags = 0;
-  float dummy;
-  nsMathMLOperators::LookupOperator(aOperator,
-                                    NS_MATHML_OPERATOR_FORM_INFIX,
-                                    &flags, &dummy, &dummy);
-  return NS_MATHML_OPERATOR_IS_MIRRORABLE(flags);
 }
 
 /* static */ nsStretchDirection

@@ -52,9 +52,21 @@
 #include "nsIClassInfoImpl.h"
 
 #include "windows.h"
+
+// For older version (<6.0) of the VC Compiler
+#if (_MSC_VER == 1100)
+#include <objbase.h>
+DEFINE_OLEGUID(IID_IPersistFile, 0x0000010BL, 0, 0);
+#endif
+
 #include "shlobj.h"
 
 #include <sys/stat.h>
+
+typedef LPITEMIDLIST (WINAPI *ILCreateFromPathWPtr)(PCWSTR);
+typedef HRESULT (WINAPI *SHOpenFolderAndSelectItemsPtr)(PCIDLIST_ABSOLUTE, UINT, 
+                                                        PCUITEMID_CHILD_ARRAY,
+                                                        DWORD);
 
 class nsLocalFile : public nsILocalFileWin,
                     public nsIHashable
@@ -90,7 +102,6 @@ private:
     ~nsLocalFile() {}
 
     bool mDirty;            // cached information can only be used when this is false
-    bool mResolveDirty;
     bool mFollowSymlinks;   // should we follow symlinks when working on this file
     
     // this string will always be in native format!
@@ -106,15 +117,9 @@ private:
 
     PRFileInfo64 mFileInfo64;
 
-    void MakeDirty() 
-    { 
-      mDirty = true;
-      mResolveDirty = true;
-      mShortWorkingPath.Truncate();
-    }
+    void MakeDirty() { mDirty = true; mShortWorkingPath.Truncate(); }
 
     nsresult ResolveAndStat();
-    nsresult Resolve();
     nsresult ResolveShortcut();
 
     void EnsureShortPath();
@@ -130,6 +135,12 @@ private:
     nsresult HasFileAttribute(DWORD fileAttrib, bool *_retval);
     nsresult AppendInternal(const nsAFlatString &node,
                             bool multipleComponents);
+    nsresult RevealClassic(); // Reveals the path using explorer.exe cmdline
+    nsresult RevealUsingShell(); // Uses newer shell API to reveal the path
+
+    static ILCreateFromPathWPtr sILCreateFromPathW;
+    static SHOpenFolderAndSelectItemsPtr sSHOpenFolderAndSelectItems;
+    static PRLibrary *sLibShell;
 };
 
 #endif

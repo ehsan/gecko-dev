@@ -91,16 +91,17 @@ HasFileExtention(const char* name, const char* ext)
 static JSDScript*
 _newJSDScript(JSDContext*  jsdc,
               JSContext    *cx,
-              JSScript     *script)
+              JSScript     *script,
+              JSFunction*  function)
 {
     JSDScript*  jsdscript;
-    unsigned     lineno;
+    uintN     lineno;
     const char* raw_filename;
 
     JS_ASSERT(JSD_SCRIPTS_LOCKED(jsdc));
 
     /* these are inlined javascript: urls and we can't handle them now */
-    lineno = (unsigned) JS_GetScriptBaseLineNumber(cx, script);
+    lineno = (uintN) JS_GetScriptBaseLineNumber(cx, script);
     if( lineno == 0 )
         return NULL;
 
@@ -113,9 +114,10 @@ _newJSDScript(JSDContext*  jsdc,
     JS_HashTableAdd(jsdc->scriptsTable, (void *)script, (void *)jsdscript);
     JS_APPEND_LINK(&jsdscript->links, &jsdc->scripts);
     jsdscript->jsdc         = jsdc;
-    jsdscript->script       = script;  
+    jsdscript->script       = script;        
+    jsdscript->function     = function;
     jsdscript->lineBase     = lineno;
-    jsdscript->lineExtent   = (unsigned)NOT_SET_YET;
+    jsdscript->lineExtent   = (uintN)NOT_SET_YET;
     jsdscript->data         = NULL;
 #ifndef LIVEWIRE
     jsdscript->url          = (char*) jsd_BuildNormalizedURL(raw_filename);
@@ -197,8 +199,8 @@ _dumpJSDScript(JSDContext* jsdc, JSDScript* jsdscript, const char* leadingtext)
 {
     const char* name;
     JSString* fun;
-    unsigned base;
-    unsigned extent;
+    uintN base;
+    uintN extent;
     char Buf[256];
     size_t n;
 
@@ -261,7 +263,7 @@ jsd_alloc_script_entry(void *priv, const void *item)
 }
 
 static void
-jsd_free_script_entry(void *priv, JSHashEntry *he, unsigned flag)
+jsd_free_script_entry(void *priv, JSHashEntry *he, uintN flag)
 {
     if (flag == HT_FREE_ENTRY)
     {
@@ -323,7 +325,7 @@ jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
     if (!fp)
         JS_FrameIterator(cx, &fp);
     if (fp)
-        jsdscript = _newJSDScript(jsdc, cx, script);
+        jsdscript = _newJSDScript(jsdc, cx, script, JS_GetFrameFunction(cx, fp));
 
     return jsdscript;
 }
@@ -337,19 +339,19 @@ jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script)
     return script->profileData;
 }
 
-uint32_t
+uint32
 jsd_GetScriptFlags(JSDContext *jsdc, JSDScript *script)
 {
     return script->flags;
 }
 
 void
-jsd_SetScriptFlags(JSDContext *jsdc, JSDScript *script, uint32_t flags)
+jsd_SetScriptFlags(JSDContext *jsdc, JSDScript *script, uint32 flags)
 {
     script->flags = flags;
 }
 
-unsigned
+uintN
 jsd_GetScriptCallCount(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -358,7 +360,7 @@ jsd_GetScriptCallCount(JSDContext* jsdc, JSDScript *script)
     return 0;
 }
 
-unsigned
+uintN
 jsd_GetScriptMaxRecurseDepth(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -367,7 +369,7 @@ jsd_GetScriptMaxRecurseDepth(JSDContext* jsdc, JSDScript *script)
     return 0;
 }
 
-double
+jsdouble
 jsd_GetScriptMinExecutionTime(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -376,7 +378,7 @@ jsd_GetScriptMinExecutionTime(JSDContext* jsdc, JSDScript *script)
     return 0.0;
 }
 
-double
+jsdouble
 jsd_GetScriptMaxExecutionTime(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -385,7 +387,7 @@ jsd_GetScriptMaxExecutionTime(JSDContext* jsdc, JSDScript *script)
     return 0.0;
 }
 
-double
+jsdouble
 jsd_GetScriptTotalExecutionTime(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -394,7 +396,7 @@ jsd_GetScriptTotalExecutionTime(JSDContext* jsdc, JSDScript *script)
     return 0.0;
 }
 
-double
+jsdouble
 jsd_GetScriptMinOwnExecutionTime(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -403,7 +405,7 @@ jsd_GetScriptMinOwnExecutionTime(JSDContext* jsdc, JSDScript *script)
     return 0.0;
 }
 
-double
+jsdouble
 jsd_GetScriptMaxOwnExecutionTime(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -412,7 +414,7 @@ jsd_GetScriptMaxOwnExecutionTime(JSDContext* jsdc, JSDScript *script)
     return 0.0;
 }
 
-double
+jsdouble
 jsd_GetScriptTotalOwnExecutionTime(JSDContext* jsdc, JSDScript *script)
 {
     if (script->profileData)
@@ -440,7 +442,7 @@ jsd_GetJSScript (JSDContext *jsdc, JSDScript *script)
 JSFunction *
 jsd_GetJSFunction (JSDContext *jsdc, JSDScript *script)
 {
-    return JS_GetScriptFunction(jsdc->dumbContext, script->script);
+    return script->function;
 }
 
 JSDScript*
@@ -499,23 +501,22 @@ JSString*
 jsd_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript)
 {
     JSString* str;
-    JSFunction *fun = jsd_GetJSFunction(jsdc, jsdscript);
 
-    if( ! fun )
+    if( ! jsdscript->function )
         return NULL;
-    str = JS_GetFunctionId(fun);
+    str = JS_GetFunctionId(jsdscript->function);
 
     /* For compatibility we return "anonymous", not an empty string here. */
     return str ? str : JS_GetAnonymousString(jsdc->jsrt);
 }
 
-unsigned
+uintN
 jsd_GetScriptBaseLineNumber(JSDContext* jsdc, JSDScript *jsdscript)
 {
     return jsdscript->lineBase;
 }
 
-unsigned
+uintN
 jsd_GetScriptLineExtent(JSDContext* jsdc, JSDScript *jsdscript)
 {
     if( NOT_SET_YET == (int)jsdscript->lineExtent )
@@ -523,10 +524,10 @@ jsd_GetScriptLineExtent(JSDContext* jsdc, JSDScript *jsdscript)
     return jsdscript->lineExtent;
 }
 
-uintptr_t
-jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, unsigned line)
+jsuword
+jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, uintN line)
 {
-    uintptr_t pc;
+    jsuword pc;
     JSCrossCompartmentCall *call;
 
     if( !jsdscript )
@@ -534,7 +535,7 @@ jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, unsigned line)
 #ifdef LIVEWIRE
     if( jsdscript->lwscript )
     {
-        unsigned newline;
+        uintN newline;
         jsdlw_RawToProcessedLineNumber(jsdc, jsdscript, line, &newline);
         if( line != newline )
             line = newline;
@@ -544,18 +545,18 @@ jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, unsigned line)
     call = JS_EnterCrossCompartmentCallScript(jsdc->dumbContext, jsdscript->script);
     if(!call)
         return 0;
-    pc = (uintptr_t) JS_LineNumberToPC(jsdc->dumbContext, jsdscript->script, line );
+    pc = (jsuword) JS_LineNumberToPC(jsdc->dumbContext, jsdscript->script, line );
     JS_LeaveCrossCompartmentCall(call);
     return pc;
 }
 
-unsigned
-jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc)
+uintN
+jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, jsuword pc)
 {
     JSCrossCompartmentCall *call;
-    unsigned first = jsdscript->lineBase;
-    unsigned last = first + jsd_GetScriptLineExtent(jsdc, jsdscript) - 1;
-    unsigned line = 0;
+    uintN first = jsdscript->lineBase;
+    uintN last = first + jsd_GetScriptLineExtent(jsdc, jsdscript) - 1;
+    uintN line = 0;
 
     call = JS_EnterCrossCompartmentCallScript(jsdc->dumbContext, jsdscript->script);
     if(!call)
@@ -572,7 +573,7 @@ jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc)
 #ifdef LIVEWIRE
     if( jsdscript && jsdscript->lwscript )
     {
-        unsigned newline;
+        uintN newline;
         jsdlw_ProcessedToRawLineNumber(jsdc, jsdscript, line, &newline);
         line = newline;
     }
@@ -583,16 +584,16 @@ jsd_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc)
 
 JSBool
 jsd_GetLinePCs(JSDContext* jsdc, JSDScript* jsdscript,
-               unsigned startLine, unsigned maxLines,
-               unsigned* count, unsigned** retLines, uintptr_t** retPCs)
+               uintN startLine, uintN maxLines,
+               uintN* count, uintN** retLines, jsuword** retPCs)
 {
     JSCrossCompartmentCall *call;
-    unsigned first = jsdscript->lineBase;
-    unsigned last = first + jsd_GetScriptLineExtent(jsdc, jsdscript) - 1;
+    uintN first = jsdscript->lineBase;
+    uintN last = first + jsd_GetScriptLineExtent(jsdc, jsdscript) - 1;
     JSBool ok;
-    unsigned *lines;
+    uintN *lines;
     jsbytecode **pcs;
-    unsigned i;
+    uintN i;
 
     if (last < startLine)
         return JS_TRUE;
@@ -663,7 +664,7 @@ void
 jsd_NewScriptHookProc( 
                 JSContext   *cx,
                 const char  *filename,      /* URL this script loads from */
-                unsigned       lineno,         /* line where this script starts */
+                uintN       lineno,         /* line where this script starts */
                 JSScript    *script,
                 JSFunction  *fun,                
                 void*       callerdata )
@@ -679,7 +680,7 @@ jsd_NewScriptHookProc(
         return;
     
     JSD_LOCK_SCRIPTS(jsdc);
-    jsdscript = _newJSDScript(jsdc, cx, script);
+    jsdscript = _newJSDScript(jsdc, cx, script, fun);
     JSD_UNLOCK_SCRIPTS(jsdc);
     if( ! jsdscript )
         return;
@@ -754,7 +755,7 @@ jsd_DestroyScriptHookProc(
 /***************************************************************************/
 
 static JSDExecHook*
-_findHook(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc)
+_findHook(JSDContext* jsdc, JSDScript* jsdscript, jsuword pc)
 {
     JSDExecHook* jsdhook;
     JSCList* list = &jsdscript->hooks;
@@ -821,7 +822,7 @@ jsd_TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
     }
 
     JSD_ASSERT_VALID_EXEC_HOOK(jsdhook);
-    JS_ASSERT(!jsdhook->pc || jsdhook->pc == (uintptr_t)pc);
+    JS_ASSERT(!jsdhook->pc || jsdhook->pc == (jsuword)pc);
     JS_ASSERT(jsdhook->jsdscript->script == script);
     JS_ASSERT(jsdhook->jsdscript->jsdc == jsdc);
 
@@ -839,7 +840,7 @@ jsd_TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
         return JSTRAP_CONTINUE;
 
 #ifdef LIVEWIRE
-    if( ! jsdlw_UserCodeAtPC(jsdc, jsdscript, (uintptr_t)pc) )
+    if( ! jsdlw_UserCodeAtPC(jsdc, jsdscript, (jsuword)pc) )
         return JSTRAP_CONTINUE;
 #endif
 
@@ -852,7 +853,7 @@ jsd_TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
 JSBool
 jsd_SetExecutionHook(JSDContext*           jsdc, 
                      JSDScript*            jsdscript,
-                     uintptr_t             pc,
+                     jsuword               pc,
                      JSD_ExecutionHookProc hook,
                      void*                 callerdata)
 {
@@ -916,7 +917,7 @@ jsd_SetExecutionHook(JSDContext*           jsdc,
 JSBool
 jsd_ClearExecutionHook(JSDContext*           jsdc, 
                        JSDScript*            jsdscript,
-                       uintptr_t             pc)
+                       jsuword               pc)
 {
     JSCrossCompartmentCall *call;
     JSDExecHook* jsdhook;
@@ -986,7 +987,7 @@ void
 jsd_ScriptCreated(JSDContext* jsdc,
                   JSContext   *cx,
                   const char  *filename,    /* URL this script loads from */
-                  unsigned       lineno,       /* line where this script starts */
+                  uintN       lineno,       /* line where this script starts */
                   JSScript    *script,
                   JSFunction  *fun)
 {

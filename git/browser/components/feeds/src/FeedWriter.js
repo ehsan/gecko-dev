@@ -765,7 +765,7 @@ FeedWriter.prototype = {
 #expand           if (fp.file.leafName != "__MOZ_APP_NAME__.exe") {
 #else
 #ifdef XP_MACOSX
-#expand           if (fp.file.leafName != "__MOZ_MACBUNDLE_NAME__") {
+#expand           if (fp.file.leafName != "__MOZ_APP_DISPLAYNAME__.app") {
 #else
 #expand           if (fp.file.leafName != "__MOZ_APP_NAME__-bin") {
 #endif
@@ -1164,7 +1164,7 @@ FeedWriter.prototype = {
     // Set up the subscription UI
     this._initSubscriptionUI();
     var prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
+                getService(Ci.nsIPrefBranch2);
     prefs.addObserver(PREF_SELECTED_ACTION, this, false);
     prefs.addObserver(PREF_SELECTED_READER, this, false);
     prefs.addObserver(PREF_SELECTED_WEB, this, false);
@@ -1207,7 +1207,7 @@ FeedWriter.prototype = {
     this._document = null;
     this._window = null;
     var prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
+                getService(Ci.nsIPrefBranch2);
     prefs.removeObserver(PREF_SELECTED_ACTION, this);
     prefs.removeObserver(PREF_SELECTED_READER, this);
     prefs.removeObserver(PREF_SELECTED_WEB, this);

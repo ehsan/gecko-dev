@@ -8,7 +8,7 @@ function foo(x) {
   var n = 0;
   bar();
   assertEq(x, 5);
-  assertEq(a.length, 1);
+  assertEq(a.length, 10);
 }
 
 foo(5);

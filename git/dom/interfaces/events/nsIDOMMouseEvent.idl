@@ -113,18 +113,3 @@ interface nsIDOMMouseEvent : nsIDOMUIEvent
                                        in float pressure,
                                        in unsigned short inputSourceArg);
 };
-
-dictionary MouseEventInit : UIEventInit
-{
-  long screenX;
-  long screenY;
-  long clientX;
-  long clientY;
-  boolean ctrlKey;
-  boolean shiftKey;
-  boolean altKey;
-  boolean metaKey;
-  unsigned short button;
-  // unsigned short buttons; is not supported yet.
-  nsIDOMEventTarget relatedTarget;
-};

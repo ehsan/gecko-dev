@@ -41,6 +41,7 @@
 #include "nsCaretAccessible.h"
 #include "nsDocAccessibleWrap.h"
 
+#include "nsIAccessibleDocument.h"
 #ifdef MOZ_XUL
 #include "nsXULTreeAccessible.h"
 #endif
@@ -68,8 +69,8 @@ class nsRootAccessible : public nsDocAccessibleWrap,
   NS_DECL_ISUPPORTS_INHERITED
 
 public:
-  nsRootAccessible(nsIDocument* aDocument, nsIContent* aRootContent,
-                   nsIPresShell* aPresShell);
+  nsRootAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
+                   nsIWeakReference *aShell);
   virtual ~nsRootAccessible();
 
   // nsIAccessible
@@ -83,7 +84,7 @@ public:
 
   // nsAccessible
   virtual Relation RelationByType(PRUint32 aType);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // nsRootAccessible
@@ -127,7 +128,8 @@ protected:
 
     PRUint32 GetChromeFlags();
 #endif
-
+    already_AddRefed<nsIDocShellTreeItem>
+           GetContentDocShell(nsIDocShellTreeItem *aStart);
     nsRefPtr<nsCaretAccessible> mCaretAccessible;
 };
 

@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 sw=4 et tw=99 ft=cpp: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -17,12 +18,10 @@
  * June 24, 2010.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
+ *    The Mozilla Foundation
  *
  * Contributor(s):
- *   Andreas Gal <gal@mozilla.com>
+ *    Andreas Gal <gal@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -46,14 +45,12 @@
 
 #include "XPCWrapper.h"
 
-#include "jsapi.h"
-
 using namespace js;
 
 namespace xpc {
 
 template <typename Base, typename Policy>
-FilteringWrapper<Base, Policy>::FilteringWrapper(unsigned flags) : Base(flags)
+FilteringWrapper<Base, Policy>::FilteringWrapper(uintN flags) : Base(flags)
 {
 }
 
@@ -111,7 +108,7 @@ FilteringWrapper<Base, Policy>::keys(JSContext *cx, JSObject *wrapper, AutoIdVec
 
 template <typename Base, typename Policy>
 bool
-FilteringWrapper<Base, Policy>::iterate(JSContext *cx, JSObject *wrapper, unsigned flags, Value *vp)
+FilteringWrapper<Base, Policy>::iterate(JSContext *cx, JSObject *wrapper, uintN flags, Value *vp)
 {
     // We refuse to trigger the iterator hook across chrome wrappers because
     // we don't know how to censor custom iterator objects. Instead we trigger

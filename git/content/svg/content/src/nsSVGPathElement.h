@@ -39,11 +39,12 @@
 #ifndef __NS_SVGPATHELEMENT_H__
 #define __NS_SVGPATHELEMENT_H__
 
-#include "nsIDOMSVGAnimatedPathData.h"
-#include "nsIDOMSVGPathElement.h"
-#include "nsSVGNumber2.h"
 #include "nsSVGPathGeometryElement.h"
+#include "nsIDOMSVGPathElement.h"
+#include "nsIDOMSVGAnimatedPathData.h"
+#include "nsSVGNumber2.h"
 #include "SVGAnimatedPathSegList.h"
+#include "gfxPath.h"
 
 class gfxContext;
 
@@ -75,9 +76,6 @@ public:
 
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
-
-  // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const;
 
   // nsSVGPathGeometryElement methods:
   virtual bool AttributeDefinesGeometry(const nsIAtom *aName);

@@ -52,6 +52,7 @@
 #include "nsILocaleService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsICurrentCharsetListener.h"
 #include "nsQuickSort.h"
@@ -88,6 +89,7 @@ static const char kURINC_ComposerCharsetMenuRoot[] = "NC:ComposerCharsetMenuRoot
 static const char kURINC_DecodersRoot[] = "NC:DecodersRoot";
 static const char kURINC_EncodersRoot[] = "NC:EncodersRoot";
 DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, Name);
+DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, Checked);
 DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, BookmarkSeparator);
 DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, CharsetDetector);
 DEFINE_RDF_VOCAB(RDF_NAMESPACE_URI, NC, type);
@@ -161,6 +163,7 @@ private:
   static nsIRDFResource * kNC_DecodersRoot;
   static nsIRDFResource * kNC_EncodersRoot;
   static nsIRDFResource * kNC_Name;
+  static nsIRDFResource * kNC_Checked;
   static nsIRDFResource * kNC_CharsetDetector;
   static nsIRDFResource * kNC_BookmarkSeparator;
   static nsIRDFResource * kRDF_type;
@@ -198,6 +201,7 @@ private:
   nsTArray<nsCString>                   mDecoderList;
 
   nsresult Done();
+  nsresult SetCharsetCheckmark(nsString * aCharset, bool aValue);
 
   nsresult FreeResources();
 
@@ -496,6 +500,7 @@ nsIRDFResource * nsCharsetMenu::kNC_ComposerCharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_DecodersRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_EncodersRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_Name = NULL;
+nsIRDFResource * nsCharsetMenu::kNC_Checked = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_CharsetDetector = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_BookmarkSeparator = NULL;
 nsIRDFResource * nsCharsetMenu::kRDF_type = NULL;
@@ -745,6 +750,8 @@ nsresult nsCharsetMenu::Init()
                              &kNC_EncodersRoot);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_Name),
                              &kNC_Name);
+    mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_Checked),
+                             &kNC_Checked);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_CharsetDetector),
                              &kNC_CharsetDetector);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_BookmarkSeparator),
@@ -812,10 +819,36 @@ nsresult nsCharsetMenu::Done()
   NS_IF_RELEASE(kNC_DecodersRoot);
   NS_IF_RELEASE(kNC_EncodersRoot);
   NS_IF_RELEASE(kNC_Name);
+  NS_IF_RELEASE(kNC_Checked);
   NS_IF_RELEASE(kNC_CharsetDetector);
   NS_IF_RELEASE(kNC_BookmarkSeparator);
   NS_IF_RELEASE(kRDF_type);
   NS_IF_RELEASE(mInner);
+
+  return res;
+}
+
+nsresult nsCharsetMenu::SetCharsetCheckmark(nsString * aCharset, 
+                                            bool aValue)
+{
+  nsresult res = NS_OK;
+  nsCOMPtr<nsIRDFContainer> container;
+  nsCOMPtr<nsIRDFResource> node;
+
+  res = NewRDFContainer(mInner, kNC_BrowserCharsetMenuRoot, getter_AddRefs(container));
+  if (NS_FAILED(res)) return res;
+
+  // find RDF node for given charset
+  res = mRDFService->GetUnicodeResource(*aCharset, getter_AddRefs(node));
+  if (NS_FAILED(res)) return res;
+
+  // set checkmark value
+  nsCOMPtr<nsIRDFLiteral> checkedLiteral;
+  nsAutoString checked; checked.AssignWithConversion((aValue == true) ? "true" : "false");
+  res = mRDFService->GetLiteral(checked.get(), getter_AddRefs(checkedLiteral));
+  if (NS_FAILED(res)) return res;
+  res = Assert(node, kNC_Checked, checkedLiteral, true);
+  if (NS_FAILED(res)) return res;
 
   return res;
 }
@@ -828,8 +861,11 @@ nsresult nsCharsetMenu::FreeResources()
   nsresult res = NS_OK;
 
   if (mCharsetMenuObserver) {
-    mPrefs->RemoveObserver(kBrowserStaticPrefKey, mCharsetMenuObserver);
-    mPrefs->RemoveObserver(kMaileditPrefKey, mCharsetMenuObserver);
+    nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
+    if (pbi) {
+      pbi->RemoveObserver(kBrowserStaticPrefKey, mCharsetMenuObserver);
+      pbi->RemoveObserver(kMaileditPrefKey, mCharsetMenuObserver);
+    }
     /* nsIObserverService has to have released nsCharsetMenu already */
   }
 
@@ -877,7 +913,9 @@ nsresult nsCharsetMenu::InitBrowserMenu()
     NS_ASSERTION(NS_SUCCEEDED(res), "error initializing browser cache charset menu");
 
     // register prefs callback
-    mPrefs->AddObserver(kBrowserStaticPrefKey, mCharsetMenuObserver, false);
+    nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
+    if (pbi)
+      res = pbi->AddObserver(kBrowserStaticPrefKey, mCharsetMenuObserver, false);
   }
 
   mBrowserMenuInitialized = NS_SUCCEEDED(res);
@@ -910,7 +948,9 @@ nsresult nsCharsetMenu::InitMaileditMenu()
     NS_ASSERTION(NS_SUCCEEDED(res), "error initializing mailedit charset menu from prefs");
 
     // register prefs callback
-    mPrefs->AddObserver(kMaileditPrefKey, mCharsetMenuObserver, false);
+    nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
+    if (pbi)
+      res = pbi->AddObserver(kMaileditPrefKey, mCharsetMenuObserver, false);
   }
 
   mMaileditMenuInitialized = NS_SUCCEEDED(res);

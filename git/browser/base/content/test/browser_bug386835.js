@@ -54,10 +54,12 @@ function thirdPageLoaded() {
 
 function imageLoaded() {
   zoomTest(gTab1, 1, "Zoom should be 1 when image was loaded in the background");
-  gBrowser.selectedTab = gTab1;
-  zoomTest(gTab1, 1, "Zoom should still be 1 when tab with image is selected");
+  afterZoom(function() {
+    zoomTest(gTab1, 1, "Zoom should still be 1 when tab with image is selected");
 
-  executeSoon(imageZoomSwitch);
+    executeSoon(imageZoomSwitch);
+  });
+  gBrowser.selectedTab = gTab1;
 }
 
 function imageZoomSwitch() {
@@ -134,10 +136,12 @@ function navigate(direction, cb) {
 }
 
 function afterZoom(cb) {
-  let oldSZFB = ZoomManager.setZoomForBrowser;
-  ZoomManager.setZoomForBrowser = function(browser, value) {
-    oldSZFB.call(ZoomManager, browser, value);
-    ZoomManager.setZoomForBrowser = oldSZFB;
+  let oldAPTS = FullZoom._applyPrefToSetting;
+  FullZoom._applyPrefToSetting = function(value, browser) {
+    if (!value)
+      value = undefined;
+    oldAPTS.call(FullZoom, value, browser);
+    FullZoom._applyPrefToSetting = oldAPTS;
     executeSoon(cb);
   };
 }

@@ -35,10 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/ReentrantMonitor.h"
-
 #include "imgIEncoder.h"
+
+#include "mozilla/ReentrantMonitor.h"
 
 #include "nsCOMPtr.h"
 
@@ -55,7 +54,7 @@
 // Provides PNG encoding functionality. Use InitFromData() to do the
 // encoding. See that function definition for encoding options.
 
-class nsPNGEncoder MOZ_FINAL : public imgIEncoder
+class nsPNGEncoder : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:
@@ -82,8 +81,7 @@ protected:
                           PRUint32 aPixelWidth, bool aUseTransparency);
   void StripAlpha(const PRUint8* aSrc, PRUint8* aDest,
                   PRUint32 aPixelWidth);
-  static void WarningCallback(png_structp png_ptr, png_const_charp warning_msg);
-  static void ErrorCallback(png_structp png_ptr, png_const_charp error_msg);
+  static void ErrorCallback(png_structp png_ptr, png_const_charp warning_msg);
   static void WriteCallback(png_structp png, png_bytep data, png_size_t size);
   void NotifyListener();
 

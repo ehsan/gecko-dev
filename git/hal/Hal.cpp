@@ -1,25 +1,60 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et ft=cpp : */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at:
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Code.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Jones <jones.chris.g@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "Hal.h"
-#include "HalImpl.h"
-#include "HalSandbox.h"
+#include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/TabChild.h"
 #include "mozilla/Util.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/Observer.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
+#include "nsIObserver.h"
+#include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "nsIWebNavigation.h"
 #include "nsITabChild.h"
 #include "nsIDocShell.h"
-#include "mozilla/ClearOnShutdown.h"
-#include "WindowIdentifier.h"
 
+using namespace mozilla::dom;
 using namespace mozilla::services;
 
 #define PROXY_IF_SANDBOXED(_call)                 \
@@ -28,15 +63,6 @@ using namespace mozilla::services;
       hal_sandbox::_call;                         \
     } else {                                      \
       hal_impl::_call;                            \
-    }                                             \
-  } while (0)
-
-#define RETURN_PROXY_IF_SANDBOXED(_call)          \
-  do {                                            \
-    if (InSandbox()) {                            \
-      return hal_sandbox::_call;                  \
-    } else {                                      \
-      return hal_impl::_call;                     \
     }                                             \
   } while (0)
 
@@ -75,18 +101,115 @@ WindowIsActive(nsIDOMWindow *window)
 
 nsAutoPtr<WindowIdentifier::IDArrayType> gLastIDToVibrate;
 
+// This observer makes sure we delete gLastIDToVibrate, so we don't
+// leak.
+class ShutdownObserver : public nsIObserver
+{
+public:
+  ShutdownObserver() {}
+  virtual ~ShutdownObserver() {}
+
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD Observe(nsISupports *subject, const char *aTopic,
+                     const PRUnichar *aData)
+  {
+    MOZ_ASSERT(strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0);
+    gLastIDToVibrate = nsnull;
+    return NS_OK;
+  }
+};
+
+NS_IMPL_ISUPPORTS1(ShutdownObserver, nsIObserver);
+
 void InitLastIDToVibrate()
 {
   gLastIDToVibrate = new WindowIdentifier::IDArrayType();
-  ClearOnShutdown(&gLastIDToVibrate);
+
+  nsCOMPtr<nsIObserverService> observerService = GetObserverService();
+  if (!observerService) {
+    NS_WARNING("Could not get observer service!");
+    return;
+  }
+
+  ShutdownObserver *obs = new ShutdownObserver();
+  observerService->AddObserver(obs, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 }
 
 } // anonymous namespace
 
-void
-Vibrate(const nsTArray<uint32>& pattern, nsIDOMWindow* window)
+WindowIdentifier::WindowIdentifier()
+  : mWindow(nsnull)
+  , mIsEmpty(true)
 {
-  Vibrate(pattern, WindowIdentifier(window));
+}
+
+WindowIdentifier::WindowIdentifier(nsIDOMWindow *window)
+  : mWindow(window)
+  , mIsEmpty(false)
+{
+  mID.AppendElement(GetWindowID());
+}
+
+WindowIdentifier::WindowIdentifier(nsCOMPtr<nsIDOMWindow> &window)
+  : mWindow(window)
+  , mIsEmpty(false)
+{
+  mID.AppendElement(GetWindowID());
+}
+
+WindowIdentifier::WindowIdentifier(const nsTArray<uint64> &id, nsIDOMWindow *window)
+  : mID(id)
+  , mWindow(window)
+  , mIsEmpty(false)
+{
+  mID.AppendElement(GetWindowID());
+}
+
+WindowIdentifier::WindowIdentifier(const WindowIdentifier &other)
+  : mID(other.mID)
+  , mWindow(other.mWindow)
+  , mIsEmpty(other.mIsEmpty)
+{
+}
+
+const InfallibleTArray<uint64>&
+WindowIdentifier::AsArray() const
+{
+  MOZ_ASSERT(!mIsEmpty);
+  return mID;
+}
+
+bool
+WindowIdentifier::HasTraveledThroughIPC() const
+{
+  MOZ_ASSERT(!mIsEmpty);
+  return mID.Length() >= 2;
+}
+
+void
+WindowIdentifier::AppendProcessID()
+{
+  MOZ_ASSERT(!mIsEmpty);
+  mID.AppendElement(ContentChild::GetSingleton()->GetID());
+}
+
+uint64
+WindowIdentifier::GetWindowID() const
+{
+  MOZ_ASSERT(!mIsEmpty);
+  nsCOMPtr<nsPIDOMWindow> pidomWindow = do_QueryInterface(mWindow);
+  if (!pidomWindow) {
+    return uint64(-1);
+  }
+  return pidomWindow->WindowID();
+}
+
+nsIDOMWindow*
+WindowIdentifier::GetWindow() const
+{
+  MOZ_ASSERT(!mIsEmpty);
+  return mWindow;
 }
 
 void
@@ -122,12 +245,6 @@ Vibrate(const nsTArray<uint32>& pattern, const WindowIdentifier &id)
 }
 
 void
-CancelVibrate(nsIDOMWindow* window)
-{
-  CancelVibrate(WindowIdentifier(window));
-}
-
-void
 CancelVibrate(const WindowIdentifier &id)
 {
   AssertMainThread();
@@ -160,347 +277,99 @@ CancelVibrate(const WindowIdentifier &id)
     hal_impl::CancelVibrate(WindowIdentifier());
   }
 }
-
-template <class InfoType>
-class ObserversManager
+ 
+class BatteryObserversManager
 {
 public:
-  void AddObserver(Observer<InfoType>* aObserver) {
+  void AddObserver(BatteryObserver* aObserver) {
     if (!mObservers) {
-      mObservers = new mozilla::ObserverList<InfoType>();
+      mObservers = new ObserverList<BatteryInformation>();
     }
 
     mObservers->AddObserver(aObserver);
 
     if (mObservers->Length() == 1) {
-      EnableNotifications();
+      PROXY_IF_SANDBOXED(EnableBatteryNotifications());
     }
   }
 
-  void RemoveObserver(Observer<InfoType>* aObserver) {
-    MOZ_ASSERT(mObservers);
+  void RemoveObserver(BatteryObserver* aObserver) {
     mObservers->RemoveObserver(aObserver);
 
     if (mObservers->Length() == 0) {
-      DisableNotifications();
-
-      OnNotificationsDisabled();
+      PROXY_IF_SANDBOXED(DisableBatteryNotifications());
 
       delete mObservers;
       mObservers = 0;
+
+      delete mBatteryInfo;
+      mBatteryInfo = 0;
     }
   }
 
-  void BroadcastInformation(const InfoType& aInfo) {
+  void CacheBatteryInformation(const BatteryInformation& aBatteryInfo) {
+    if (mBatteryInfo) {
+      delete mBatteryInfo;
+    }
+    mBatteryInfo = new BatteryInformation(aBatteryInfo);
+  }
+
+  bool HasCachedBatteryInformation() const {
+    return mBatteryInfo;
+  }
+
+  void GetCachedBatteryInformation(BatteryInformation* aBatteryInfo) const {
+    *aBatteryInfo = *mBatteryInfo;
+  }
+
+  void Broadcast(const BatteryInformation& aBatteryInfo) {
     MOZ_ASSERT(mObservers);
-    mObservers->Broadcast(aInfo);
-  }
-
-protected:
-  virtual void EnableNotifications() = 0;
-  virtual void DisableNotifications() = 0;
-  virtual void OnNotificationsDisabled() {}
-
-private:
-  mozilla::ObserverList<InfoType>* mObservers;
-};
-
-template <class InfoType>
-class CachingObserversManager : public ObserversManager<InfoType>
-{
-public:
-  InfoType GetCurrentInformation() {
-    if (mHasValidCache) {
-      return mInfo;
-    }
-
-    GetCurrentInformationInternal(&mInfo);
-    return mInfo;
-  }
-
-  void CacheInformation(const InfoType& aInfo) {
-    mHasValidCache = true;
-    mInfo = aInfo;
-  }
-
-  void BroadcastCachedInformation() {
-    this->BroadcastInformation(mInfo);
-  }
-
-protected:
-  virtual void GetCurrentInformationInternal(InfoType*) = 0;
-
-  virtual void OnNotificationsDisabled() {
-    mHasValidCache = false;
+    mObservers->Broadcast(aBatteryInfo);
   }
 
 private:
-  InfoType                mInfo;
-  bool                    mHasValidCache;
-};
-
-class BatteryObserversManager : public CachingObserversManager<BatteryInformation>
-{
-protected:
-  void EnableNotifications() {
-    PROXY_IF_SANDBOXED(EnableBatteryNotifications());
-  }
-
-  void DisableNotifications() {
-    PROXY_IF_SANDBOXED(DisableBatteryNotifications());
-  }
-
-  void GetCurrentInformationInternal(BatteryInformation* aInfo) {
-    PROXY_IF_SANDBOXED(GetCurrentBatteryInformation(aInfo));
-  }
+  ObserverList<BatteryInformation>* mObservers;
+  BatteryInformation*               mBatteryInfo;
 };
 
 static BatteryObserversManager sBatteryObservers;
 
-class NetworkObserversManager : public CachingObserversManager<NetworkInformation>
-{
-protected:
-  void EnableNotifications() {
-    PROXY_IF_SANDBOXED(EnableNetworkNotifications());
-  }
-
-  void DisableNotifications() {
-    PROXY_IF_SANDBOXED(DisableNetworkNotifications());
-  }
-
-  void GetCurrentInformationInternal(NetworkInformation* aInfo) {
-    PROXY_IF_SANDBOXED(GetCurrentNetworkInformation(aInfo));
-  }
-};
-
-static NetworkObserversManager sNetworkObservers;
-
-class WakeLockObserversManager : public ObserversManager<WakeLockInformation>
-{
-protected:
-  void EnableNotifications() {
-    PROXY_IF_SANDBOXED(EnableWakeLockNotifications());
-  }
-
-  void DisableNotifications() {
-    PROXY_IF_SANDBOXED(DisableWakeLockNotifications());
-  }
-};
-
-static WakeLockObserversManager sWakeLockObservers;
-
 void
-RegisterBatteryObserver(BatteryObserver* aObserver)
+RegisterBatteryObserver(BatteryObserver* aBatteryObserver)
 {
   AssertMainThread();
-  sBatteryObservers.AddObserver(aObserver);
+  sBatteryObservers.AddObserver(aBatteryObserver);
 }
 
 void
-UnregisterBatteryObserver(BatteryObserver* aObserver)
+UnregisterBatteryObserver(BatteryObserver* aBatteryObserver)
 {
   AssertMainThread();
-  sBatteryObservers.RemoveObserver(aObserver);
+  sBatteryObservers.RemoveObserver(aBatteryObserver);
 }
+
+// EnableBatteryNotifications isn't defined on purpose.
+// DisableBatteryNotifications isn't defined on purpose.
 
 void
-GetCurrentBatteryInformation(BatteryInformation* aInfo)
+GetCurrentBatteryInformation(BatteryInformation* aBatteryInfo)
 {
   AssertMainThread();
-  *aInfo = sBatteryObservers.GetCurrentInformation();
-}
 
-void
-NotifyBatteryChange(const BatteryInformation& aInfo)
-{
-  AssertMainThread();
-  sBatteryObservers.CacheInformation(aInfo);
-  sBatteryObservers.BroadcastCachedInformation();
-}
-
-bool GetScreenEnabled()
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetScreenEnabled());
-}
-
-void SetScreenEnabled(bool enabled)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(SetScreenEnabled(enabled));
-}
-
-double GetScreenBrightness()
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetScreenBrightness());
-}
-
-void SetScreenBrightness(double brightness)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(SetScreenBrightness(clamped(brightness, 0.0, 1.0)));
-}
-
-bool SetLight(LightType light, const hal::LightConfiguration& aConfig)
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(SetLight(light, aConfig));
-}
-
-bool GetLight(LightType light, hal::LightConfiguration* aConfig)
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetLight(light, aConfig));
-}
-
-
-void 
-AdjustSystemClock(int32_t aDeltaMilliseconds)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(AdjustSystemClock(aDeltaMilliseconds));
-}
-
-void 
-SetTimezone(const nsCString& aTimezoneSpec)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(SetTimezone(aTimezoneSpec));
-}
-
-void
-EnableSensorNotifications(SensorType aSensor) {
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(EnableSensorNotifications(aSensor));
-}
-
-void
-DisableSensorNotifications(SensorType aSensor) {
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(DisableSensorNotifications(aSensor));
-}
-
-typedef mozilla::ObserverList<SensorData> SensorObserverList;
-static SensorObserverList *gSensorObservers = NULL;
-
-static SensorObserverList &
-GetSensorObservers(SensorType sensor_type) {
-  MOZ_ASSERT(sensor_type < NUM_SENSOR_TYPE);
-  
-  if(gSensorObservers == NULL)
-    gSensorObservers = new SensorObserverList[NUM_SENSOR_TYPE];
-  return gSensorObservers[sensor_type];
-}
-
-void
-RegisterSensorObserver(SensorType aSensor, ISensorObserver *aObserver) {
-  SensorObserverList &observers = GetSensorObservers(aSensor);
-
-  AssertMainThread();
-  
-  observers.AddObserver(aObserver);
-  if(observers.Length() == 1) {
-    EnableSensorNotifications(aSensor);
+  if (sBatteryObservers.HasCachedBatteryInformation()) {
+    sBatteryObservers.GetCachedBatteryInformation(aBatteryInfo);
+  } else {
+    PROXY_IF_SANDBOXED(GetCurrentBatteryInformation(aBatteryInfo));
+    sBatteryObservers.CacheBatteryInformation(*aBatteryInfo);
   }
 }
 
-void
-UnregisterSensorObserver(SensorType aSensor, ISensorObserver *aObserver) {
-  SensorObserverList &observers = GetSensorObservers(aSensor);
-
-  AssertMainThread();
-  
-  observers.RemoveObserver(aObserver);
-  if(observers.Length() == 0) {
-    DisableSensorNotifications(aSensor);
-  }
-}
-
-void
-NotifySensorChange(const SensorData &aSensorData) {
-  SensorObserverList &observers = GetSensorObservers(aSensorData.sensor());
-
-  AssertMainThread();
-  
-  observers.Broadcast(aSensorData);
-}
-
-void
-RegisterNetworkObserver(NetworkObserver* aObserver)
+void NotifyBatteryChange(const BatteryInformation& aBatteryInfo)
 {
   AssertMainThread();
-  sNetworkObservers.AddObserver(aObserver);
-}
 
-void
-UnregisterNetworkObserver(NetworkObserver* aObserver)
-{
-  AssertMainThread();
-  sNetworkObservers.RemoveObserver(aObserver);
-}
-
-void
-GetCurrentNetworkInformation(NetworkInformation* aInfo)
-{
-  AssertMainThread();
-  *aInfo = sNetworkObservers.GetCurrentInformation();
-}
-
-void
-NotifyNetworkChange(const NetworkInformation& aInfo)
-{
-  sNetworkObservers.CacheInformation(aInfo);
-  sNetworkObservers.BroadcastCachedInformation();
-}
-
-void Reboot()
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(Reboot());
-}
-
-void PowerOff()
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(PowerOff());
-}
-
-void
-RegisterWakeLockObserver(WakeLockObserver* aObserver)
-{
-  AssertMainThread();
-  sWakeLockObservers.AddObserver(aObserver);
-}
-
-void
-UnregisterWakeLockObserver(WakeLockObserver* aObserver)
-{
-  AssertMainThread();
-  sWakeLockObservers.RemoveObserver(aObserver);
-}
-
-void
-ModifyWakeLock(const nsAString &aTopic,
-               hal::WakeLockControl aLockAdjust,
-               hal::WakeLockControl aHiddenAdjust)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust));
-}
-
-void
-GetWakeLockInfo(const nsAString &aTopic, WakeLockInformation *aWakeLockInfo)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(GetWakeLockInfo(aTopic, aWakeLockInfo));
-}
-
-void
-NotifyWakeLockChange(const WakeLockInformation& aInfo)
-{
-  AssertMainThread();
-  sWakeLockObservers.BroadcastInformation(aInfo);
+  sBatteryObservers.CacheBatteryInformation(aBatteryInfo);
+  sBatteryObservers.Broadcast(aBatteryInfo);
 }
 
 } // namespace hal

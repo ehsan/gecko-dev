@@ -51,6 +51,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIIDNService.h"
 #include "nsNetUtil.h"
 #include "prlog.h"
@@ -341,7 +342,7 @@ DumpLeakedURLs::~DumpLeakedURLs()
 void
 nsStandardURL::InitGlobalObjects()
 {
-    nsCOMPtr<nsIPrefBranch> prefBranch( do_GetService(NS_PREFSERVICE_CONTRACTID) );
+    nsCOMPtr<nsIPrefBranch2> prefBranch( do_GetService(NS_PREFSERVICE_CONTRACTID) );
     if (prefBranch) {
         nsCOMPtr<nsIObserver> obs( new nsPrefObserver() );
         prefBranch->AddObserver(NS_NET_PREF_ESCAPEUTF8, obs.get(), false);
@@ -520,7 +521,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
 
     // the scheme is already ASCII
     if (mScheme.mLen > 0)
-        approxLen += mScheme.mLen + 3; // includes room for "://", which we insert always
+        approxLen += mScheme.mLen + 3; // includes room for "://";
 
     // encode URL segments; convert UTF-8 to origin charset and possibly escape.
     // results written to encXXX variables only if |spec| is not already in the
@@ -531,9 +532,8 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
         // Items using an extraLen of 1 don't add anything unless mLen > 0
         // Username@
         approxLen += encoder.EncodeSegmentCount(spec, mUsername,  esc_Username,      encUsername,  useEncUsername, 1);
-        // :password - we insert the ':' even if there's no actual password if "user:@" was in the spec
-        if (mPassword.mLen >= 0)
-            approxLen += 1 + encoder.EncodeSegmentCount(spec, mPassword,  esc_Password,      encPassword,  useEncPassword);
+        // :Password
+        approxLen += encoder.EncodeSegmentCount(spec, mPassword,  esc_Password,      encPassword,  useEncPassword, 1);
         // mHost is handled differently below due to encoding differences
         NS_ABORT_IF_FALSE(mPort > 0 || mPort == -1, "Invalid negative mPort");
         if (mPort != -1 && mPort != mDefaultPort)
@@ -563,7 +563,6 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
     // already point to a [ ] delimited IPv6 address literal.
     // However, perform Unicode normalization on it, as IDN does.
     mHostEncoding = eEncoding_ASCII;
-    // Note that we don't disallow URLs without a host - file:, etc
     if (mHost.mLen > 0) {
         const nsCSubstring& tempHost =
             Substring(spec + mHost.mPos, spec + mHost.mPos + mHost.mLen);
@@ -978,7 +977,6 @@ NS_INTERFACE_MAP_BEGIN(nsStandardURL)
     if (aIID.Equals(kThisImplCID))
         foundInterface = static_cast<nsIURI *>(this);
     else
-    NS_INTERFACE_MAP_ENTRY(nsISizeOf)
 NS_INTERFACE_MAP_END
 
 //----------------------------------------------------------------------------
@@ -3069,26 +3067,3 @@ nsStandardURL::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
     *aClassIDNoAlloc = kStandardURLCID;
     return NS_OK;
 }
-
-//----------------------------------------------------------------------------
-// nsStandardURL::nsISizeOf
-//----------------------------------------------------------------------------
-
-size_t
-nsStandardURL::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  return mSpec.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-         mOriginCharset.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-         aMallocSizeOf(mHostA);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mParser
-  // - mFile
-}
-
-size_t
-nsStandardURL::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
-

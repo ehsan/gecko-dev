@@ -29,7 +29,7 @@ function test()
     }
 
     var elem = doc.getElementById(test.elem);
-    // Skip the first callback as it's the same callback that the browser
+    // Skip the first BeforePaint event as it's the same event that the browser
     // uses to kick off the scrolling.
     var skipFrames = 1;
     var checkScroll = function () {
@@ -80,7 +80,7 @@ function test()
     <select id="f" style="width: 100px; height: 100px;"><option>a</option><option>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</option><option>a</option>\
     <option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option>\
     <option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option></select>\
-    <div id="g" style="width: 99px; height: 99px; padding: 10px; border: 10px solid black; margin: 10px; overflow: auto;"><div style="width: 100px; height: 100px; margin: 10px;"></div></div>\
+    <div id="g" style="width: 99px; height: 99px; padding: 10px; border: 10px solid black; margin: 10px; overflow: auto;"><div style="width: 100px; height: 100px;"></div></div>\
     <div id="h" style="width: 100px; height: 100px; overflow: -moz-hidden-unscrollable;"><div style="width: 200px; height: 200px;"></div></div>\
     <iframe id="iframe" style="display: none;"></iframe>\
     </body>';

@@ -55,7 +55,6 @@
 #include "nsString.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Util.h"
-#include "nsCharSeparatedTokenizer.h"
 
 using namespace mozilla;
 
@@ -234,7 +233,7 @@ const PRUint8 nsSMILTimedElement::sMaxNumInstanceTimes = 100;
 
 // Detect if we arrive in some sort of undetected recursive syncbase dependency
 // relationship
-const PRUint8 nsSMILTimedElement::sMaxUpdateIntervalRecursionDepth = 20;
+const PRUint16 nsSMILTimedElement::sMaxUpdateIntervalRecursionDepth = 20;
 
 //----------------------------------------------------------------------
 // Ctor, dtor
@@ -253,7 +252,6 @@ nsSMILTimedElement::nsSMILTimedElement()
   mSeekState(SEEK_NOT_SEEKING),
   mDeferIntervalUpdates(false),
   mDoDeferredUpdate(false),
-  mDeleteCount(0),
   mUpdateIntervalRecursionDepth(0)
 {
   mSimpleDur.SetIndefinite();
@@ -1272,6 +1270,10 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
                                       bool aIsBegin,
                                       RemovalTestFunction aRemove)
 {
+  PRInt32 start;
+  PRInt32 end = -1;
+  PRInt32 length;
+  nsresult rv = NS_OK;
   TimeValueSpecList& timeSpecsList = aIsBegin ? mBeginSpecs : mEndSpecs;
   InstanceTimeList& instances = aIsBegin ? mBeginInstances : mEndInstances;
 
@@ -1279,20 +1281,17 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
 
   AutoIntervalUpdateBatcher updateBatcher(*this);
 
-  nsCharSeparatedTokenizer tokenizer(aSpec, ';');
-  if (!tokenizer.hasMoreTokens()) { // Empty list
-    return NS_ERROR_FAILURE;
-  }
-
-  nsresult rv = NS_OK;
-  while (tokenizer.hasMoreTokens() && NS_SUCCEEDED(rv)) {
+  do {
+    start = end + 1;
+    end = aSpec.FindChar(';', start);
+    length = (end == -1) ? -1 : end - start;
     nsAutoPtr<nsSMILTimeValueSpec>
       spec(new nsSMILTimeValueSpec(*this, aIsBegin));
-    rv = spec->SetSpec(tokenizer.nextToken(), aContextNode);
+    rv = spec->SetSpec(Substring(aSpec, start, length), aContextNode);
     if (NS_SUCCEEDED(rv)) {
       timeSpecsList.AppendElement(spec.forget());
     }
-  }
+  } while (end != -1 && NS_SUCCEEDED(rv));
 
   if (NS_FAILED(rv)) {
     ClearSpecs(timeSpecsList, instances, aRemove);
@@ -1961,29 +1960,12 @@ nsSMILTimedElement::UpdateCurrentInterval(bool aForceChangeNotice)
   if (mElementState == STATE_STARTUP)
     return;
 
-  // Although SMIL gives rules for detecting cycles in change notifications,
-  // some configurations can lead to create-delete-create-delete-etc. cycles
-  // which SMIL does not consider.
-  //
-  // In order to provide consistent behavior in such cases, we detect two
-  // deletes in a row and then refuse to create any further intervals. That is,
-  // we say the configuration is invalid.
-  if (mDeleteCount > 1) {
-    // When we update the delete count we also set the state to post active, so
-    // if we're not post active here then something other than
-    // UpdateCurrentInterval has updated the element state in between and all
-    // bets are off.
-    NS_ABORT_IF_FALSE(mElementState == STATE_POSTACTIVE,
-      "Expected to be in post-active state after performing double delete");
-    return;
-  }
-
   // Check that we aren't stuck in infinite recursion updating some syncbase
   // dependencies. Generally such situations should be detected in advance and
   // the chain broken in a sensible and predictable manner, so if we're hitting
   // this assertion we need to work out how to detect the case that's causing
   // it. In release builds, just bail out before we overflow the stack.
-  AutoRestore<PRUint8> depthRestorer(mUpdateIntervalRecursionDepth);
+  AutoRestore<PRUint16> depthRestorer(mUpdateIntervalRecursionDepth);
   if (++mUpdateIntervalRecursionDepth > sMaxUpdateIntervalRecursionDepth) {
     NS_ABORT_IF_FALSE(false,
         "Update current interval recursion depth exceeded threshold");
@@ -2044,8 +2026,6 @@ nsSMILTimedElement::UpdateCurrentInterval(bool aForceChangeNotice)
       // sample (along with firing end events, clearing intervals etc.)
       RegisterMilestone();
     } else if (mElementState == STATE_WAITING) {
-      AutoRestore<PRUint8> deleteCountRestorer(mDeleteCount);
-      ++mDeleteCount;
       mElementState = STATE_POSTACTIVE;
       ResetCurrentInterval();
     }
@@ -2200,8 +2180,11 @@ nsSMILTimedElement::GetNextMilestone(nsSMILMilestone& aNextMilestone) const
 
   case STATE_POSTACTIVE:
     return false;
+
+  default:
+    NS_ABORT_IF_FALSE(false, "Invalid element state");
+    return false;
   }
-  MOZ_NOT_REACHED("Invalid element state");
 }
 
 void
@@ -2216,7 +2199,7 @@ nsSMILTimedElement::NotifyNewInterval()
     container->SyncPauseTime();
   }
 
-  NotifyTimeDependentsParams params = { this, container };
+  NotifyTimeDependentsParams params = { mCurrentInterval, container };
   mTimeDependents.EnumerateEntries(NotifyNewIntervalCallback, &params);
 }
 
@@ -2272,8 +2255,11 @@ nsSMILTimedElement::GetEffectiveBeginInstance() const
       const nsSMILInterval* prevInterval = GetPreviousInterval();
       return prevInterval ? prevInterval->Begin() : nsnull;
     }
+
+  default:
+    NS_NOTREACHED("Invalid element state");
+    return nsnull;
   }
-  MOZ_NOT_REACHED("Invalid element state");
 }
 
 const nsSMILInterval*
@@ -2323,14 +2309,9 @@ nsSMILTimedElement::NotifyNewIntervalCallback(TimeValueSpecPtrKey* aKey,
   NotifyTimeDependentsParams* params =
     static_cast<NotifyTimeDependentsParams*>(aData);
   NS_ABORT_IF_FALSE(params, "null data ptr while enumerating hashtable");
-  nsSMILInterval* interval = params->mTimedElement->mCurrentInterval;
-  // It's possible that in notifying one new time dependent of a new interval
-  // that a chain reaction is triggered which results in the original interval
-  // disappearing. If that's the case we can skip sending further notifications.
-  if (!interval)
-    return PL_DHASH_STOP;
+  NS_ABORT_IF_FALSE(params->mCurrentInterval, "null current-interval ptr");
 
   nsSMILTimeValueSpec* spec = aKey->GetKey();
-  spec->HandleNewInterval(*interval, params->mTimeContainer);
+  spec->HandleNewInterval(*params->mCurrentInterval, params->mTimeContainer);
   return PL_DHASH_NEXT;
 }

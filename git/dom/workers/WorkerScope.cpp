@@ -42,10 +42,10 @@
 #include "WorkerScope.h"
 
 #include "jsapi.h"
-#include "jsdbgapi.h"
+#include "jscntxt.h"
 
 #include "nsTraceRefcnt.h"
-#include "xpcpublic.h"
+#include "xpcprivate.h"
 
 #include "ChromeWorkerScope.h"
 #include "Events.h"
@@ -61,14 +61,11 @@
 #include "Worker.h"
 #include "WorkerPrivate.h"
 #include "XMLHttpRequest.h"
-#ifdef ANDROID
-#include <android/log.h>
-#endif
 
 #include "WorkerInlines.h"
 
 #define PROPERTY_FLAGS \
-  (JSPROP_ENUMERATE | JSPROP_SHARED)
+  JSPROP_ENUMERATE | JSPROP_SHARED
 
 #define FUNCTION_FLAGS \
   JSPROP_ENUMERATE
@@ -195,7 +192,7 @@ private:
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName);
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
                          sClass.name);
@@ -265,7 +262,7 @@ private:
   }
 
   static JSBool
-  UnwrapErrorEvent(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  UnwrapErrorEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ASSERT(JSVAL_IS_OBJECT(JS_CALLEE(aCx, aVp)));
     JS_ASSERT(aArgc == 1);
@@ -274,8 +271,11 @@ private:
     JSObject* wrapper = JSVAL_TO_OBJECT(JS_CALLEE(aCx, aVp));
     JS_ASSERT(JS_ObjectIsFunction(aCx, wrapper));
 
-    jsval scope = js::GetFunctionNativeReserved(wrapper, SLOT_wrappedScope);
-    jsval listener = js::GetFunctionNativeReserved(wrapper, SLOT_wrappedFunction);
+    jsval scope, listener;
+    if (!JS_GetReservedSlot(aCx, wrapper, SLOT_wrappedScope, &scope) ||
+        !JS_GetReservedSlot(aCx, wrapper, SLOT_wrappedFunction, &listener)) {
+      return false;
+    }
 
     JS_ASSERT(JSVAL_IS_OBJECT(scope));
 
@@ -317,15 +317,13 @@ private:
       return false;
     }
 
-    if (JSVAL_IS_VOID(adaptor)) {
-      *aVp = JSVAL_NULL;
-      return true;
-    }
-
     JS_ASSERT(JSVAL_IS_OBJECT(adaptor));
 
-    jsval listener = js::GetFunctionNativeReserved(JSVAL_TO_OBJECT(adaptor),
-                                                   SLOT_wrappedFunction);
+    jsval listener;
+    if (!JS_GetReservedSlot(aCx, JSVAL_TO_OBJECT(adaptor), SLOT_wrappedFunction,
+                            &listener)) {
+      return false;
+    }
 
     *aVp = listener;
     return true;
@@ -341,8 +339,8 @@ private:
       return false;
     }
 
-    JSFunction* adaptor = js::NewFunctionWithReserved(aCx, UnwrapErrorEvent, 1, 0,
-                                                      JS_GetGlobalObject(aCx), "unwrap");
+    JSFunction* adaptor = JS_NewFunction(aCx, UnwrapErrorEvent, 1, 0,
+                                         JS_GetGlobalObject(aCx), "unwrap");
     if (!adaptor) {
       return false;
     }
@@ -352,9 +350,11 @@ private:
       return false;
     }
 
-    js::SetFunctionNativeReserved(listener, SLOT_wrappedScope,
-                                  OBJECT_TO_JSVAL(aObj));
-    js::SetFunctionNativeReserved(listener, SLOT_wrappedFunction, *aVp);
+    if (!JS_SetReservedSlot(aCx, listener, SLOT_wrappedScope,
+                            OBJECT_TO_JSVAL(aObj)) ||
+        !JS_SetReservedSlot(aCx, listener, SLOT_wrappedFunction, *aVp)) {
+      return false;
+    }
 
     jsval val = OBJECT_TO_JSVAL(listener);
     return scope->SetEventListenerOnEventTarget(aCx, name + 2, &val);
@@ -383,12 +383,9 @@ private:
   }
 
   static JSBool
-  Close(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Close(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[0].name);
     if (!scope) {
@@ -399,12 +396,9 @@ private:
   }
 
   static JSBool
-  ImportScripts(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ImportScripts(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[1].name);
     if (!scope) {
@@ -419,12 +413,9 @@ private:
   }
 
   static JSBool
-  SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[2].name);
     if (!scope) {
@@ -440,19 +431,16 @@ private:
   }
 
   static JSBool
-  ClearTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ClearTimeout(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[3].name);
     if (!scope) {
       return false;
     }
 
-    uint32_t id;
+    uint32 id;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "u", &id)) {
       return false;
     }
@@ -461,12 +449,9 @@ private:
   }
 
   static JSBool
-  SetInterval(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  SetInterval(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[4].name);
     if (!scope) {
@@ -482,19 +467,16 @@ private:
   }
 
   static JSBool
-  ClearInterval(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ClearInterval(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[5].name);
     if (!scope) {
       return false;
     }
 
-    uint32_t id;
+    uint32 id;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "u", &id)) {
       return false;
     }
@@ -503,14 +485,10 @@ private:
   }
 
   static JSBool
-  Dump(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Dump(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
-
-    if (!GetInstancePrivate(aCx, obj, sFunctions[6].name)) {
+    if (!GetInstancePrivate(aCx, JS_THIS_OBJECT(aCx, aVp),
+                            sFunctions[6].name)) {
       return false;
     }
 
@@ -525,25 +503,18 @@ private:
         return false;
       }
 
-#ifdef ANDROID
-      __android_log_print(ANDROID_LOG_INFO, "Gecko", buffer.ptr());
-#endif
-      fputs(buffer.ptr(), stdout);
-      fflush(stdout);
+      fputs(buffer.ptr(), stderr);
+      fflush(stderr);
     }
 
     return true;
   }
 
   static JSBool
-  AtoB(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  AtoB(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
-
-    if (!GetInstancePrivate(aCx, obj, sFunctions[7].name)) {
+    if (!GetInstancePrivate(aCx, JS_THIS_OBJECT(aCx, aVp),
+                            sFunctions[7].name)) {
       return false;
     }
 
@@ -553,7 +524,7 @@ private:
     }
 
     jsval result;
-    if (!xpc::Base64Decode(aCx, string, &result)) {
+    if (!nsXPConnect::Base64Decode(aCx, string, &result)) {
       return false;
     }
 
@@ -562,14 +533,10 @@ private:
   }
 
   static JSBool
-  BtoA(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  BtoA(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
-
-    if (!GetInstancePrivate(aCx, obj, sFunctions[8].name)) {
+    if (!GetInstancePrivate(aCx, JS_THIS_OBJECT(aCx, aVp),
+                            sFunctions[8].name)) {
       return false;
     }
 
@@ -579,7 +546,7 @@ private:
     }
 
     jsval result;
-    if (!xpc::Base64Encode(aCx, binary, &result)) {
+    if (!nsXPConnect::Base64Encode(aCx, binary, &result)) {
       return false;
     }
 
@@ -659,12 +626,15 @@ public:
   static JSBool
   InitPrivate(JSContext* aCx, JSObject* aObj, WorkerPrivate* aWorkerPrivate)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
-    JS_ASSERT(!GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj));
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    JS_ASSERT(!GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj));
 
     DedicatedWorkerGlobalScope* priv =
       new DedicatedWorkerGlobalScope(aWorkerPrivate);
-    SetJSPrivateSafeish(aObj, priv);
+    if (!SetJSPrivateSafeish(aCx, aObj, priv)) {
+      delete priv;
+      return false;
+    }
 
     return true;
   }
@@ -719,19 +689,25 @@ private:
   static DedicatedWorkerGlobalScope*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (classPtr == &sClass) {
-      return GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj);
+    // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+    // be too.
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      classPtr = JS_GET_CLASS(aCx, aObj);
+      if (classPtr == &sClass) {
+        return GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj);
+      }
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         classPtr->name);
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
                          sClass.name);
@@ -739,7 +715,7 @@ private:
   }
 
   static JSBool
-  Resolve(JSContext* aCx, JSObject* aObj, jsid aId, unsigned aFlags,
+  Resolve(JSContext* aCx, JSObject* aObj, jsid aId, uintN aFlags,
           JSObject** aObjp)
   {
     JSBool resolved;
@@ -754,9 +730,9 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     DedicatedWorkerGlobalScope* scope =
-      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj);
+      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj);
     if (scope) {
       scope->FinalizeInstance(aCx);
       delete scope;
@@ -766,21 +742,18 @@ private:
   static void
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aTrc->context, aObj) == &sClass);
     DedicatedWorkerGlobalScope* scope =
-      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj);
+      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aTrc->context, aObj);
     if (scope) {
       scope->TraceInstance(aTrc);
     }
   }
 
   static JSBool
-  PostMessage(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  PostMessage(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     const char*& name = sFunctions[0].name;
     DedicatedWorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, name);
@@ -799,10 +772,10 @@ private:
 
 JSClass DedicatedWorkerGlobalScope::sClass = {
   "DedicatedWorkerGlobalScope",
-  JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE,
+  JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, reinterpret_cast<JSResolveOp>(Resolve), JS_ConvertStub,
-  Finalize, NULL, NULL, NULL, NULL, Trace
+  Finalize, NULL, NULL, NULL, NULL, NULL, NULL, Trace, NULL
 };
 
 JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
@@ -824,13 +797,21 @@ WorkerGlobalScope*
 WorkerGlobalScope::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
                                       const char* aFunctionName)
 {
-  JSClass* classPtr = JS_GetClass(aObj);
-  if (classPtr == &sClass || classPtr == DedicatedWorkerGlobalScope::Class()) {
-    return GetJSPrivateSafeish<WorkerGlobalScope>(aObj);
+  // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+  // be too.
+  JSClass* classPtr = NULL;
+
+  if (aObj) {
+    classPtr = JS_GET_CLASS(aCx, aObj);
+    if (classPtr == &sClass ||
+        classPtr == DedicatedWorkerGlobalScope::Class()) {
+      return GetJSPrivateSafeish<WorkerGlobalScope>(aCx, aObj);
+    }
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                       sClass.name, aFunctionName, classPtr->name);
+                       sClass.name, aFunctionName,
+                       classPtr ? classPtr->name : "object");
   return NULL;
 }
 
@@ -918,13 +899,6 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   }
 
   return global;
-}
-
-bool
-ClassIsWorkerGlobalScope(JSClass* aClass)
-{
-  return WorkerGlobalScope::Class() == aClass ||
-         DedicatedWorkerGlobalScope::Class() == aClass;
 }
 
 END_WORKERS_NAMESPACE

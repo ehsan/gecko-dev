@@ -56,9 +56,7 @@ function test()
 
   if (typeof gcparam != 'undefined')
   {
-    gc();
-    gc();
-    gcparam("maxBytes", gcparam("gcBytes") + 4*1024);
+    gcparam("maxBytes", 22000);
     expectExitCode(5);
   }
 

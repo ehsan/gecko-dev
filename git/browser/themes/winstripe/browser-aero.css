@@ -37,7 +37,7 @@
   }
 }
 
-@media (-moz-windows-default-theme) {
+@media all and (-moz-windows-default-theme) {
   #navigator-toolbox > toolbar:not(:-moz-lwtheme),
   #browser-bottombox:not(:-moz-lwtheme) {
     background-color: @customToolbarColor@;
@@ -66,21 +66,6 @@
                       -moz-linear-gradient(@customToolbarColor@, @customToolbarColor@);
   }
 
-  #navigator-toolbox[tabsontop=true] #urlbar:not(:-moz-lwtheme),
-  #navigator-toolbox[tabsontop=true] .searchbar-textbox:not(:-moz-lwtheme) {
-    border-color: hsla(210,54%,20%,.25) hsla(210,54%,20%,.27) hsla(210,54%,20%,.3);
-  }
-
-  #navigator-toolbox[tabsontop=true] #urlbar:not(:-moz-lwtheme):not([focused]):hover,
-  #navigator-toolbox[tabsontop=true] .searchbar-textbox:not(:-moz-lwtheme):not([focused]):hover {
-    border-color: hsla(210,54%,20%,.35) hsla(210,54%,20%,.37) hsla(210,54%,20%,.4);
-  }
-
-  #navigator-toolbox[tabsontop=true] #urlbar:not(:-moz-lwtheme)[focused],
-  #navigator-toolbox[tabsontop=true] .searchbar-textbox:not(:-moz-lwtheme)[focused] {
-    border-color: hsla(206,100%,60%,.65) hsla(206,100%,55%,.65) hsla(206,100%,50%,.65);
-  }
-
   #sidebar-splitter {
     border: 0;
     -moz-border-end: 1px solid #A9B7C9;
@@ -90,14 +75,9 @@
     -moz-margin-start: -3px;
     position: relative;
   }
-
-  .menu-accel,
-  .menu-iconic-accel {
-    color: graytext;
-  }
 }
 
-@media (-moz-windows-compositor) {
+@media all and (-moz-windows-compositor) {
   /* These should be hidden w/ glass enabled. Windows draws its own buttons. */
   .titlebar-button {
     display: none;
@@ -189,20 +169,20 @@
   }
 
   #main-window[sizemode=normal][tabsontop=false] #PersonalToolbar:not(:-moz-lwtheme) {
-    border-top-left-radius: 2.5px;
-    border-top-right-radius: 2.5px;
+    border-top-left-radius: 3.5px;
+    border-top-right-radius: 3.5px;
   }
 
   /* Toolbar shadow behind tabs */
   /* This code is only needed for restored windows (i.e. sizemode=normal)
      because of the border radius on the toolbar below the tab bar. */
-  #main-window[sizemode=normal] #navigator-toolbox[tabsontop=true] > #nav-bar:not(:-moz-lwtheme),
-  #main-window[sizemode=normal] #navigator-toolbox[tabsontop=true] > #nav-bar[collapsed=true]:not([customizing]) + toolbar:not(:-moz-lwtheme),
-  #main-window[sizemode=normal] #navigator-toolbox[tabsontop=true] > #nav-bar[collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme),
+  #main-window[sizemode=normal][tabsontop=true] #nav-bar:not(:-moz-lwtheme),
+  #main-window[sizemode=normal][tabsontop=true] > #nav-bar[collapsed=true]:not([customizing]) + toolbar:not(:-moz-lwtheme),
+  #main-window[sizemode=normal][tabsontop=true] > #nav-bar[collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme),
   #main-window[sizemode=normal][tabsontop=true][disablechrome] #navigator-toolbox:not(:-moz-lwtheme)::after {
     border-top: 1px solid @toolbarShadowColor@;
-    border-top-left-radius: 2.5px;
-    border-top-right-radius: 2.5px;
+    border-top-left-radius: 3.5px;
+    border-top-right-radius: 3.5px;
     background-clip: padding-box;
   }
   #main-window[sizemode=normal] #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme) {
@@ -309,23 +289,21 @@
 }
 
 @media not all and (-moz-windows-compositor) {
-  @media (-moz-windows-default-theme) {
-    #main-window {
-      background-color: rgb(185,209,234);
-    }
-    #main-window:-moz-window-inactive {
-      background-color: rgb(215,228,242);
-    }
+  #main-window:-moz-system-metric(windows-default-theme) {
+    background-color: rgb(185,209,234);
+  }
+  #main-window:-moz-system-metric(windows-default-theme):-moz-window-inactive {
+    background-color: rgb(215,228,242);
+  }
 
-    #toolbar-menubar:not([autohide=true]):not(:-moz-lwtheme),
-    #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
-    #navigator-toolbox[tabsontop=false] > toolbar:not(#toolbar-menubar):not(:-moz-lwtheme) {
-      -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-drag");
-      background-color: transparent;
-    }
-    #toolbar-menubar[autohide=true] {
-      background-color: transparent !important;
-    }
+  #toolbar-menubar:not([autohide=true]):not(:-moz-lwtheme):-moz-system-metric(windows-default-theme),
+  #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme):-moz-system-metric(windows-default-theme),
+  #navigator-toolbox[tabsontop=false] > toolbar:not(#toolbar-menubar):not(:-moz-lwtheme):-moz-system-metric(windows-default-theme) {
+    -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-drag");
+    background-color: transparent;
+  }
+  #toolbar-menubar[autohide=true]:-moz-system-metric(windows-default-theme) {
+    background-color: transparent;
   }
 
   #print-preview-toolbar:not(:-moz-lwtheme) {
@@ -363,7 +341,7 @@
 }
 
 /* ::::: splitmenu highlight style that imitates Windows 7 start menu ::::: */
-@media (-moz-windows-default-theme) {
+@media all and (-moz-windows-default-theme) {
   .splitmenu-menuitem,
   .splitmenu-menu {
     -moz-appearance: none;

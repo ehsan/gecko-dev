@@ -46,8 +46,13 @@ MODULE		= dom
 XPIDL_MODULE	= dom_range
 GRE_MODULE	= 1
 
-SDK_XPIDLSRCS =		\
-	nsIDOMRange.idl	\
+SDK_XPIDLSRCS = 				\
+	nsIDOMRange.idl				\
+	$(NULL)
+
+XPIDLSRCS =					\
+	nsIDOMNSRange.idl			\
+	nsIDOMRangeException.idl	\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

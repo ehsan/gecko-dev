@@ -40,8 +40,6 @@
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-const PREF_EM_HOTFIX_ID = "extensions.hotfix.id";
-
 function init(aEvent)
 {
   if (aEvent.target != document)
@@ -67,15 +65,24 @@ function init(aEvent)
     // Pref is unset
   }
 
-  // Include the build ID and display warning if this is an "a#" (nightly or aurora) build
+  // Include the build ID if this is an "a#" (nightly or aurora) build
   let version = Services.appinfo.version;
   if (/a\d+$/.test(version)) {
     let buildID = Services.appinfo.appBuildID;
     let buildDate = buildID.slice(0,4) + "-" + buildID.slice(4,6) + "-" + buildID.slice(6,8);
     document.getElementById("version").textContent += " (" + buildDate + ")";
-    document.getElementById("experimental").hidden = false;
-    document.getElementById("communityDesc").hidden = true;
   }
+
+#ifdef MOZ_OFFICIAL_BRANDING
+  // Hide the Charlton trademark attribution for non-en-US/en-GB
+  // DO NOT REMOVE without consulting people involved with bug 616193
+  let chromeRegistry = Components.classes["@mozilla.org/chrome/chrome-registry;1"].
+                       getService(Components.interfaces.nsIXULChromeRegistry);
+  let currentLocale = chromeRegistry.getSelectedLocale("global");
+  if (currentLocale != "en-US" && currentLocale != "en-GB") {
+    document.getElementById("extra-trademark").hidden = true;
+  }
+#endif
 
 #ifdef MOZ_UPDATER
   gAppUpdater = new appUpdater();
@@ -177,13 +184,9 @@ appUpdater.prototype =
 
   // true when there is an update already staged / ready to be applied.
   get isPending() {
-    if (this.update) {
-      return this.update.state == "pending" || 
-             this.update.state == "pending-service";
-    }
-    return this.um.activeUpdate &&
-           (this.um.activeUpdate.state == "pending" ||
-            this.um.activeUpdate.state == "pending-service");
+    if (this.update)
+      return this.update.state == "pending";
+    return this.um.activeUpdate && this.um.activeUpdate.state == "pending";
   },
 
   // true when there is an update download in progress.
@@ -265,17 +268,17 @@ appUpdater.prototype =
       if (cancelQuit.data)
         return;
 
-      let appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"].
-                       getService(Components.interfaces.nsIAppStartup);
-
       // If already in safe mode restart in safe mode (bug 327119)
       if (Services.appinfo.inSafeMode) {
-        appStartup.restartInSafeMode(Components.interfaces.nsIAppStartup.eAttemptQuit);
-        return;
+        let env = Components.classes["@mozilla.org/process/environment;1"].
+                  getService(Components.interfaces.nsIEnvironment);
+        env.set("MOZ_SAFE_MODE_RESTART", "1");
       }
 
-      appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                      Components.interfaces.nsIAppStartup.eRestart);
+      Components.classes["@mozilla.org/toolkit/app-startup;1"].
+      getService(Components.interfaces.nsIAppStartup).
+      quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
+           Components.interfaces.nsIAppStartup.eRestart);
       return;
     }
 
@@ -375,11 +378,6 @@ appUpdater.prototype =
    * Checks the compatibility of add-ons for the application update.
    */
   checkAddonCompatibility: function() {
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     var self = this;
     AddonManager.getAllAddons(function(aAddons) {
       self.addons = [];
@@ -404,10 +402,9 @@ appUpdater.prototype =
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (aAddon.type != "plugin" && aAddon.id != hotfixID &&
+          if (aAddon.type != "plugin" &&
               !aAddon.appDisabled && !aAddon.userDisabled &&
               aAddon.scope != AddonManager.SCOPE_APPLICATION &&
               aAddon.isCompatible &&

@@ -41,11 +41,10 @@
 #ifndef String_inl_h__
 #define String_inl_h__
 
+#include "String.h"
+
 #include "jscntxt.h"
 #include "jsgcmark.h"
-#include "jsprobes.h"
-
-#include "String.h"
 
 #include "jsgcinlines.h"
 
@@ -57,11 +56,8 @@ JSString::writeBarrierPre(JSString *str)
         return;
 
     JSCompartment *comp = str->compartment();
-    if (comp->needsBarrier()) {
-        JSString *tmp = str;
-        MarkStringUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
-        JS_ASSERT(tmp == str);
-    }
+    if (comp->needsBarrier())
+        MarkStringUnbarriered(comp->barrierTracer(), str, "write barrier");
 #endif
 }
 
@@ -77,19 +73,6 @@ JSString::needWriteBarrierPre(JSCompartment *comp)
     return comp->needsBarrier();
 #else
     return false;
-#endif
-}
-
-inline void
-JSString::readBarrier(JSString *str)
-{
-#ifdef JSGC_INCREMENTAL
-    JSCompartment *comp = str->compartment();
-    if (comp->needsBarrier()) {
-        JSString *tmp = str;
-        MarkStringUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
-        JS_ASSERT(tmp == str);
-    }
 #endif
 }
 
@@ -110,8 +93,6 @@ JSRope::init(JSString *left, JSString *right, size_t length)
     d.lengthAndFlags = buildLengthAndFlags(length, ROPE_BIT);
     d.u1.left = left;
     d.s.u2.right = right;
-    JSString::writeBarrierPost(d.u1.left, &d.u1.left);
-    JSString::writeBarrierPost(d.s.u2.right, &d.s.u2.right);
 }
 
 JS_ALWAYS_INLINE JSRope *
@@ -126,20 +107,12 @@ JSRope::new_(JSContext *cx, JSString *left, JSString *right, size_t length)
     return str;
 }
 
-inline void
-JSRope::markChildren(JSTracer *trc)
-{
-    js::gc::MarkStringUnbarriered(trc, &d.u1.left, "left child");
-    js::gc::MarkStringUnbarriered(trc, &d.s.u2.right, "right child");
-}
-
 JS_ALWAYS_INLINE void
 JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length)
 {
     d.lengthAndFlags = buildLengthAndFlags(length, DEPENDENT_BIT);
     d.u1.chars = chars;
     d.s.u2.base = base;
-    JSString::writeBarrierPost(d.s.u2.base, &d.s.u2.base);
 }
 
 JS_ALWAYS_INLINE JSDependentString *
@@ -160,17 +133,11 @@ JSDependentString::new_(JSContext *cx, JSLinearString *base, const jschar *chars
     return str;
 }
 
-inline void
-JSDependentString::markChildren(JSTracer *trc)
-{
-    js::gc::MarkStringUnbarriered(trc, &d.s.u2.base, "base");
-}
-
 inline js::PropertyName *
 JSFlatString::toPropertyName(JSContext *cx)
 {
 #ifdef DEBUG
-    uint32_t dummy;
+    uint32 dummy;
     JS_ASSERT(!isIndex(&dummy));
 #endif
     if (isAtom())
@@ -249,19 +216,18 @@ JSShortString::initAtOffsetInBuffer(const jschar *chars, size_t length)
 }
 
 JS_ALWAYS_INLINE void
-JSExternalString::init(const jschar *chars, size_t length, const JSStringFinalizer *fin)
+JSExternalString::init(const jschar *chars, size_t length, intN type, void *closure)
 {
-    JS_ASSERT(fin);
-    JS_ASSERT(fin->finalize);
     d.lengthAndFlags = buildLengthAndFlags(length, FIXED_FLAGS);
     d.u1.chars = chars;
-    d.s.u2.externalFinalizer = fin;
+    d.s.u2.externalType = type;
+    d.s.u3.externalClosure = closure;
 }
 
 JS_ALWAYS_INLINE JSExternalString *
-JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length,
-                       const JSStringFinalizer *fin)
+JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length, intN type, void *closure)
 {
+    JS_ASSERT(uintN(type) < JSExternalString::TYPE_LIMIT);
     JS_ASSERT(chars[length] == 0);
 
     if (!validateLength(cx, length))
@@ -269,8 +235,8 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length,
     JSExternalString *str = js_NewGCExternalString(cx);
     if (!str)
         return NULL;
-    str->init(chars, length, fin);
-    cx->runtime->updateMallocCounter(cx, (length + 1) * sizeof(jschar));
+    str->init(chars, length, type, closure);
+    cx->runtime->updateMallocCounter((length + 1) * sizeof(jschar));
     return str;
 }
 
@@ -294,29 +260,29 @@ js::StaticStrings::getUnit(jschar c)
 }
 
 inline bool
-js::StaticStrings::hasUint(uint32_t u)
+js::StaticStrings::hasUint(uint32 u)
 {
     return u < INT_STATIC_LIMIT;
 }
 
 inline JSAtom *
-js::StaticStrings::getUint(uint32_t u)
+js::StaticStrings::getUint(uint32 u)
 {
     JS_ASSERT(hasUint(u));
     return intStaticTable[u];
 }
 
 inline bool
-js::StaticStrings::hasInt(int32_t i)
+js::StaticStrings::hasInt(int32 i)
 {
-    return uint32_t(i) < INT_STATIC_LIMIT;
+    return uint32(i) < INT_STATIC_LIMIT;
 }
 
 inline JSAtom *
-js::StaticStrings::getInt(int32_t i)
+js::StaticStrings::getInt(jsint i)
 {
     JS_ASSERT(hasInt(i));
-    return getUint(uint32_t(i));
+    return getUint(uint32(i));
 }
 
 inline JSLinearString *
@@ -342,7 +308,7 @@ js::StaticStrings::getLength2(jschar c1, jschar c2)
 }
 
 inline JSAtom *
-js::StaticStrings::getLength2(uint32_t i)
+js::StaticStrings::getLength2(uint32 i)
 {
     JS_ASSERT(i < 100);
     return getLength2('0' + i / 10, '0' + i % 10);
@@ -372,11 +338,11 @@ js::StaticStrings::lookup(const jschar *chars, size_t length)
         if ('1' <= chars[0] && chars[0] <= '9' &&
             '0' <= chars[1] && chars[1] <= '9' &&
             '0' <= chars[2] && chars[2] <= '9') {
-            int i = (chars[0] - '0') * 100 +
+            jsint i = (chars[0] - '0') * 100 +
                       (chars[1] - '0') * 10 +
                       (chars[2] - '0');
 
-            if (unsigned(i) < INT_STATIC_LIMIT)
+            if (jsuint(i) < INT_STATIC_LIMIT)
                 return getInt(i);
         }
         return NULL;
@@ -386,7 +352,7 @@ js::StaticStrings::lookup(const jschar *chars, size_t length)
 }
 
 JS_ALWAYS_INLINE void
-JSString::finalize(JSContext *cx, bool background)
+JSString::finalize(JSContext *cx)
 {
     /* Shorts are in a different arena. */
     JS_ASSERT(!isShort());
@@ -411,7 +377,7 @@ JSFlatString::finalize(JSRuntime *rt)
 }
 
 inline void
-JSShortString::finalize(JSContext *cx, bool background)
+JSShortString::finalize(JSContext *cx)
 {
     JS_ASSERT(JSString::isShort());
 }
@@ -427,41 +393,23 @@ JSAtom::finalize(JSRuntime *rt)
 }
 
 inline void
-JSExternalString::finalize(JSContext *cx, bool background)
+JSExternalString::finalize(JSContext *cx)
 {
-    finalize();
+    if (JSStringFinalizeOp finalizer = str_finalizers[externalType()])
+        finalizer(cx, this);
 }
 
 inline void
 JSExternalString::finalize()
 {
-    const JSStringFinalizer *fin = externalFinalizer();
-    fin->finalize(fin, const_cast<jschar *>(chars()));
+    JSStringFinalizeOp finalizer = str_finalizers[externalType()];
+    if (finalizer) {
+        /*
+         * Assume that the finalizer for the permanently interned
+         * string knows how to deal with null context.
+         */
+        finalizer(NULL, this);
+    }
 }
-
-namespace js {
-
-static JS_ALWAYS_INLINE JSFixedString *
-NewShortString(JSContext *cx, const jschar *chars, size_t length)
-{
-    /*
-     * Don't bother trying to find a static atom; measurement shows that not
-     * many get here (for one, Atomize is catching them).
-     */
-    JS_ASSERT(JSShortString::lengthFits(length));
-    JSInlineString *str = JSInlineString::lengthFits(length)
-                          ? JSInlineString::new_(cx)
-                          : JSShortString::new_(cx);
-    if (!str)
-        return NULL;
-
-    jschar *storage = str->init(length);
-    PodCopy(storage, chars, length);
-    storage[length] = 0;
-    Probes::createString(cx, str, length);
-    return str;
-}
-
-} /* namespace js */
 
 #endif

@@ -45,18 +45,12 @@ interface nsIIDBTransaction;
 interface nsIDOMDOMStringList;
 interface nsIDOMEventListener;
 
-dictionary IDBObjectStoreParameters
-{
-  jsval keyPath;
-  boolean autoIncrement;
-};
-
 /**
  * IDBDatabase interface.  See
  * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBDatabase
  * for more information.
  */
-[scriptable, builtinclass, uuid(bedee48a-f47f-44f2-ba1e-d8fe595bbfee)]
+[scriptable, builtinclass, uuid(bb877dff-ab5b-4ebb-9b3c-a7fa97cd4b51)]
 interface nsIIDBDatabase : nsISupports
 {
   readonly attribute DOMString name;
@@ -65,20 +59,26 @@ interface nsIIDBDatabase : nsISupports
 
   readonly attribute nsIDOMDOMStringList objectStoreNames;
 
+  /**
+   * Optional arguments:
+   *   - keyPath (string):
+   *       Specifies key path on objects in the objectStore. Defaults to no key
+   *       path.
+   *   - autoIncrement (boolean):
+   *       Specifies if the objectStore has a key generator. Defaults to false.
+   */
   [implicit_jscontext]
   nsIIDBObjectStore
   createObjectStore([Null(Stringify)] in DOMString name,
-                    /* nsIIDBObjectStoreParameters */
                     [optional /* none */] in jsval options);
 
   void
   deleteObjectStore([Null(Stringify)] in DOMString name);
 
-  // mode can be either "readonly" or "readwrite"
   [optional_argc, implicit_jscontext]
   nsIIDBTransaction
   transaction(in jsval storeNames, // js array of strings
-              [optional /* "readonly" */] in DOMString mode);
+              [optional /* READ_ONLY */] in unsigned short mode);
 
   void
   close();

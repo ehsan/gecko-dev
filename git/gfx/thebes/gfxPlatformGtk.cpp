@@ -45,7 +45,6 @@
 #include "gfxPlatformGtk.h"
 
 #include "nsUnicharUtils.h"
-#include "nsUnicodeProperties.h"
 #include "gfxFontconfigUtils.h"
 #ifdef MOZ_PANGO
 #include "gfxPangoFonts.h"
@@ -56,8 +55,6 @@
 #include FT_FREETYPE_H
 #include "gfxFT2Fonts.h"
 #endif
-
-#include "mozilla/gfx/2D.h"
 
 #include "cairo.h"
 #include <gtk/gtk.h>
@@ -75,15 +72,24 @@
 
 #endif /* MOZ_X11 */
 
+#ifdef MOZ_DFB
+#include "gfxDirectFBSurface.h"
+#endif
+
+#ifdef MOZ_DFB
+#include "gfxDirectFBSurface.h"
+#endif
+
 #include <fontconfig/fontconfig.h>
 
 #include "nsMathUtils.h"
 
 #define GDK_PIXMAP_SIZE_MAX 32767
 
-using namespace mozilla;
-using namespace mozilla::gfx;
-using namespace mozilla::unicode;
+#ifndef MOZ_PANGO
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#endif
 
 gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nsnull;
 
@@ -197,6 +203,13 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
         }
     }
 #endif
+
+#ifdef MOZ_DFB
+    if (size.width < GDK_PIXMAP_SIZE_MAX && size.height < GDK_PIXMAP_SIZE_MAX) {
+        newSurface = new gfxDirectFBSurface(size, imageFormat);
+    }
+#endif
+
 
     if (!newSurface) {
         // We couldn't create a native surface for whatever reason;
@@ -670,7 +683,7 @@ FindFontForCharProc(nsStringHashKey::KeyType aKey,
                     nsRefPtr<FontFamily>& aFontFamily,
                     void* aUserArg)
 {
-    GlobalFontMatch *data = (GlobalFontMatch*)aUserArg;
+    FontSearch *data = (FontSearch*)aUserArg;
     aFontFamily->FindFontForChar(data);
     return PL_DHASH_NEXT;
 }
@@ -686,8 +699,7 @@ gfxPlatformGtk::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
         return nsnull;
     }
 
-    GlobalFontMatch data(aCh, GetScriptCode(aCh),
-                         (aFont ? aFont->GetStyle() : nsnull));
+    FontSearch data(aCh, aFont);
 
     // find fonts that support the character
     gPlatformFonts->Enumerate(FindFontForCharProc, &data);
@@ -764,23 +776,3 @@ gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
 
     return NULL;
 }
-
-RefPtr<ScaledFont>
-gfxPlatformGtk::GetScaledFontForFont(gfxFont *aFont)
-{
-  NativeFont nativeFont;
-  nativeFont.mType = NATIVE_FONT_SKIA_FONT_FACE;
-  nativeFont.mFont = aFont;
-  RefPtr<ScaledFont> scaledFont =
-    Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
-
-  return scaledFont;
-}
-
-bool
-gfxPlatformGtk::SupportsAzure(BackendType& aBackend)
-{
-  aBackend = BACKEND_SKIA;
-  return true;
-}
-

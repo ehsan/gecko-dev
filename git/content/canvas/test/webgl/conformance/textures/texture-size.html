@@ -14,7 +14,7 @@ found in the LICENSE file.
 <script src="../resources/webgl-test-utils.js"></script>
 </head>
 <body>
-<canvas id="example" width="32" height="32" style="width: 40px; height: 40px;"></canvas>
+<canvas id="example" width="256" height="256" style="width: 40px; height: 40px;"></canvas>
 <div id="description"></div>
 <div id="console"></div>
 <script id="vshader" type="x-shader/x-vertex">
@@ -96,7 +96,7 @@ function runTest() {
         return false;
       }
     }
-    return true;
+	return true;
   }
 
   if (doTest()) {
@@ -120,11 +120,10 @@ function checkTexture(width, height, cubeMap) {
   fillLevel(0, width, height, color.rgba, cubeMap);
   var err = gl.getError();
   if (err == gl.OUT_OF_MEMORY) {
-    debug("out of memory");
-    return false;
+	return false;
   }
   if (err != gl.NO_ERROR) {
-    testFailed("unexpected gl error: " + wtu.glEnumToString(gl, err));
+	testFailed("unexpected gl error: " + wtu.glEnumToString(gl, err));
   }
   wtu.drawQuad(gl);
   wtu.checkCanvas(gl, color.rgba,
@@ -135,7 +134,6 @@ function checkTexture(width, height, cubeMap) {
   gl.generateMipmap(target);
   var err = gl.getError();
   if (err == gl.OUT_OF_MEMORY) {
-    debug("out of memory");
     return false;
   }
   if (err != gl.NO_ERROR) {
@@ -151,29 +149,14 @@ function checkTexture(width, height, cubeMap) {
 
 function fillLevel(level, width, height, color, opt_cubemap) {
   var numPixels = width * height;
-  var pixels = null;
-  var largeDim = Math.max(width, height);
-  var smallDim = Math.min(width, height);
-
-  var pixelRow = new Uint8Array(largeDim * 4);
-  for (var jj = 0; jj < largeDim; ++jj) {
+  var pixels = new Uint8Array(numPixels * 4);
+  for (var jj = 0; jj < numPixels; ++jj) {
     var off = jj * 4;
-    pixelRow[off + 0] = color[0];
-    pixelRow[off + 1] = color[1];
-    pixelRow[off + 2] = color[2];
-    pixelRow[off + 3] = color[3];
+    pixels[off + 0] = color[0];
+    pixels[off + 1] = color[1];
+    pixels[off + 2] = color[2];
+    pixels[off + 3] = color[3];
   }
-
-  if (largeDim == numPixels) {
-    pixels = pixelRow;
-  } else {
-    var pixels = new Uint8Array(numPixels * 4);
-    for (var jj = 0; jj < smallDim; ++jj) {
-      var off = jj * largeDim * 4;
-      pixels.set(pixelRow, off);
-    }
-  }
- 
   var targets = opt_cubemap ? [
     gl.TEXTURE_CUBE_MAP_POSITIVE_X,
     gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
@@ -184,7 +167,7 @@ function fillLevel(level, width, height, color, opt_cubemap) {
     [gl.TEXTURE_2D];
 
   for (var ii = 0; ii < targets.length; ++ii) {
-    // debug(wtu.glEnumToString(gl, targets[ii]));
+	// debug(wtu.glEnumToString(gl, targets[ii]));
     gl.texImage2D(
         targets[ii], level, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE,
         pixels);

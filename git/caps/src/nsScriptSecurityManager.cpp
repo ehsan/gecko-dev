@@ -517,13 +517,6 @@ NS_IMPL_ISUPPORTS4(nsScriptSecurityManager,
 ///////////////////////////////////////////////////
 
 ///////////////// Security Checks /////////////////
-
-/* static */ JSPrincipals *
-nsScriptSecurityManager::ObjectPrincipalFinder(JSObject *aObj)
-{
-    return nsJSPrincipals::get(doGetObjectPrincipal(aObj));
-}
-
 JSBool
 nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 {
@@ -544,7 +537,7 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
     if (!subjectPrincipal) {
         // See bug 553448 for discussion of this case.
-        NS_ASSERTION(!JS_GetSecurityCallbacks(js::GetRuntime(cx))->findObjectPrincipals,
+        NS_ASSERTION(!JS_GetSecurityCallbacks(cx)->findObjectPrincipals,
                      "CSP: Should have been able to find subject principal. "
                      "Reluctantly granting access.");
         return JS_TRUE;
@@ -1096,6 +1089,19 @@ nsScriptSecurityManager::CheckSameOriginDOMProp(nsIPrincipal* aSubject,
         return NS_ERROR_DOM_PROP_ACCESS_DENIED;
 
     /*
+    * If we failed the origin tests it still might be the case that we
+    * are a signed script and have permissions to do this operation.
+    * Check for that here.
+    */
+    bool capabilityEnabled = false;
+    const char* cap = aAction == nsIXPCSecurityManager::ACCESS_SET_PROPERTY ?
+                      "UniversalBrowserWrite" : "UniversalBrowserRead";
+    rv = IsCapabilityEnabled(cap, &capabilityEnabled);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (capabilityEnabled)
+        return NS_OK;
+
+    /*
     ** Access tests failed, so now report error.
     */
     return NS_ERROR_DOM_PROP_ACCESS_DENIED;
@@ -1315,7 +1321,7 @@ nsScriptSecurityManager::CheckLoadURIFromScript(JSContext *cx, nsIURI *aURI)
     }
 
     // See if we're attempting to load a file: URI. If so, let a
-    // UniversalXPConnect capability trump the above check.
+    // UniversalFileRead capability trump the above check.
     bool isFile = false;
     bool isRes = false;
     if (NS_FAILED(aURI->SchemeIs("file", &isFile)) ||
@@ -1324,7 +1330,7 @@ nsScriptSecurityManager::CheckLoadURIFromScript(JSContext *cx, nsIURI *aURI)
     if (isFile || isRes)
     {
         bool enabled;
-        if (NS_FAILED(IsCapabilityEnabled("UniversalXPConnect", &enabled)))
+        if (NS_FAILED(IsCapabilityEnabled("UniversalFileRead", &enabled)))
             return NS_ERROR_FAILURE;
         if (enabled)
             return NS_OK;
@@ -1732,7 +1738,7 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
 #ifdef DEBUG
         {
             JS_ASSERT(JS_ObjectIsFunction(aCx, (JSObject *)aFunObj));
-            JSFunction *fun = JS_GetObjectFunction((JSObject *)aFunObj);
+            JSFunction *fun = (JSFunction *)JS_GetPrivate(aCx, (JSObject *)aFunObj);
             JSScript *script = JS_GetFunctionScript(aCx, fun);
 
             NS_ASSERTION(!script, "Null principal for non-native function!");
@@ -2186,7 +2192,11 @@ nsScriptSecurityManager::GetScriptPrincipal(JSContext *cx,
         NS_ERROR("Script compiled without principals!");
         return nsnull;
     }
-    return nsJSPrincipals::get(jsp);
+    nsJSPrincipals *nsJSPrin = static_cast<nsJSPrincipals *>(jsp);
+    nsIPrincipal* result = nsJSPrin->nsIPrincipalPtr;
+    if (!result)
+        *rv = NS_ERROR_FAILURE;
+    return result;
 }
 
 // static
@@ -2209,7 +2219,7 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
         return result;
     }
 
-    JSFunction *fun = JS_GetObjectFunction(obj);
+    JSFunction *fun = (JSFunction *)JS_GetPrivate(cx, obj);
     JSScript *script = JS_GetFunctionScript(cx, fun);
 
     if (!script)
@@ -2233,7 +2243,7 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
 
         script = frameScript;
     }
-    else if (!js::IsOriginalScriptFunction(fun))
+    else if (JS_GetFunctionObject(fun) != obj)
     {
         // Here, obj is a cloned function object.  In this case, the
         // clone's prototype may have been precompiled from brutally
@@ -2275,7 +2285,7 @@ nsScriptSecurityManager::GetFramePrincipal(JSContext *cx,
 #ifdef DEBUG
     if (NS_SUCCEEDED(*rv) && !result)
     {
-        JSFunction *fun = JS_GetObjectFunction(obj);
+        JSFunction *fun = (JSFunction *)JS_GetPrivate(cx, obj);
         JSScript *script = JS_GetFunctionScript(cx, fun);
 
         NS_ASSERTION(!script, "Null principal for non-native function!");
@@ -2422,7 +2432,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
         jsClass = js::GetObjectClass(aObj);
 
         if (jsClass == &js::CallClass) {
-            aObj = js::GetObjectParentMaybeScope(aObj);
+            aObj = js::GetObjectParent(aObj);
 
             if (!aObj)
                 return nsnull;
@@ -2474,7 +2484,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
             }
         }
 
-        aObj = js::GetObjectParentMaybeScope(aObj);
+        aObj = js::GetObjectParent(aObj);
 
         if (!aObj)
             break;
@@ -2486,10 +2496,11 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     if (aAllowShortCircuit) {
         nsIPrincipal *principal = doGetObjectPrincipal(origObj, false);
 
-        // Because of inner window reuse, we can have objects with one principal
-        // living in a scope with a different (but same-origin) principal. So
-        // just check same-origin here.
-        NS_ASSERTION(NS_SUCCEEDED(CheckSameOriginPrincipal(result, principal)),
+        // Location is always wrapped (even for same-compartment), so we can
+        // loosen the check to same-origin instead of same-principal.
+        NS_ASSERTION(strcmp(jsClass->name, "Location") == 0 ?
+                     NS_SUCCEEDED(CheckSameOriginPrincipal(result, principal)) :
+                     result == principal,
                      "Principal mismatch.  Not good");
     }
 #endif
@@ -3333,6 +3344,7 @@ nsScriptSecurityManager::nsScriptSecurityManager(void)
     mPrincipals.Init(31);
 }
 
+
 nsresult nsScriptSecurityManager::Init()
 {
     nsXPConnect* xpconnect = nsXPConnect::GetXPConnect();
@@ -3367,6 +3379,10 @@ nsresult nsScriptSecurityManager::Init()
     nsRefPtr<nsSystemPrincipal> system = new nsSystemPrincipal();
     NS_ENSURE_TRUE(system, NS_ERROR_OUT_OF_MEMORY);
 
+    JSPrincipals *jsprin;
+    rv = system->Init(&jsprin);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     mSystemPrincipal = system;
 
     //-- Register security check callback in the JS engine
@@ -3378,19 +3394,20 @@ nsresult nsScriptSecurityManager::Init()
     rv = runtimeService->GetRuntime(&sRuntime);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    static const JSSecurityCallbacks securityCallbacks = {
+    static JSSecurityCallbacks securityCallbacks = {
         CheckObjectAccess,
-        nsJSPrincipals::Subsume,
-        nsJSPrincipals::Transcode,
-        ObjectPrincipalFinder,
+        NULL,
+        NULL,
         ContentSecurityPolicyPermitsJSAction
     };
 
-    MOZ_ASSERT(!JS_GetSecurityCallbacks(sRuntime));
-    JS_SetSecurityCallbacks(sRuntime, &securityCallbacks);
-    JS_InitDestroyPrincipalsCallback(sRuntime, nsJSPrincipals::Destroy);
+#ifdef DEBUG
+    JSSecurityCallbacks *oldcallbacks =
+#endif
+    JS_SetRuntimeSecurityCallbacks(sRuntime, &securityCallbacks);
+    NS_ASSERTION(!oldcallbacks, "Someone else set security callbacks!");
 
-    JS_SetTrustedPrincipals(sRuntime, system);
+    JS_SetTrustedPrincipals(sRuntime, jsprin);
 
     return NS_OK;
 }
@@ -3414,7 +3431,7 @@ void
 nsScriptSecurityManager::Shutdown()
 {
     if (sRuntime) {
-        JS_SetSecurityCallbacks(sRuntime, NULL);
+        JS_SetRuntimeSecurityCallbacks(sRuntime, NULL);
         JS_SetTrustedPrincipals(sRuntime, NULL);
         sRuntime = nsnull;
     }
@@ -3438,6 +3455,13 @@ nsScriptSecurityManager::GetScriptSecurityManager()
         rv = ssManager->Init();
         NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to initialize nsScriptSecurityManager");
         if (NS_FAILED(rv)) {
+            delete ssManager;
+            return nsnull;
+        }
+ 
+        rv = nsJSPrincipals::Startup();
+        if (NS_FAILED(rv)) {
+            NS_WARNING("can't initialize JS engine security protocol glue!");
             delete ssManager;
             return nsnull;
         }

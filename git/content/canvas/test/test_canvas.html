@@ -18,23 +18,6 @@ function IsD2DEnabled() {
     return enabled;
 }
 
-function IsMacOSX10_5orOlder() {
-    var is105orOlder = false;
-
-    if (navigator.platform.indexOf("Mac") == 0) {
-        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-        var version = Components.classes["@mozilla.org/system-info;1"]
-                            .getService(Components.interfaces.nsIPropertyBag2)
-                            .getProperty("version");
-        // the next line is correct: Mac OS 10.6 corresponds to Darwin version 10 !
-        // Mac OS 10.5 would be Darwin version 9. the |version| string we've got here
-        // is the Darwin version.
-        is105orOlder = (parseFloat(version) < 10.0);
-    }
-    return is105orOlder;
-}
-
-
 function IsAzureEnabled() {
   var enabled = false;
 
@@ -5795,12 +5778,10 @@ function test_2d_gradient_interpolate_overlap() {
 var canvas = document.getElementById('c215');
 var ctx = canvas.getContext('2d');
 
-if (!IsD2DEnabled() && !IsMacOSX10_5orOlder()) {
-    // On D2D the different nature of how gradients
+if (!IsD2DEnabled()) {
+    // Only run this on non-D2D. On D2D the different nature of how gradients
     // are drawn makes it so we cannot guarantee these stops are completely
     // hard.
-
-    // On OS X 10.5 quartz is confused by the overlapping stops: Bug #715235
     canvas.width = 200;
     var g = ctx.createLinearGradient(0, 0, 200, 0);
     g.addColorStop(0, '#f00');
@@ -5854,15 +5835,12 @@ for (var p = 0; p < ps.length; ++p)
 }
 ctx.fillStyle = g;
 ctx.fillRect(0, 0, 100, 50);
+isPixel(ctx, 1,25, 0,255,0,255, 0);
+isPixel(ctx, 30,25, 0,255,0,255, 0);
+isPixel(ctx, 40,25, 0,255,0,255, 0);
+isPixel(ctx, 60,25, 0,255,0,255, 0);
+isPixel(ctx, 80,25, 0,255,0,255, 0);
 
-if (!IsMacOSX10_5orOlder()) {
-    // On OS X 10.5 quartz is confused by the overlapping stops: Bug #715235
-    isPixel(ctx, 1,25, 0,255,0,255, 0);
-    isPixel(ctx, 30,25, 0,255,0,255, 0);
-    isPixel(ctx, 40,25, 0,255,0,255, 0);
-    isPixel(ctx, 60,25, 0,255,0,255, 0);
-    isPixel(ctx, 80,25, 0,255,0,255, 0);
-}
 
 }
 </script>
@@ -7591,7 +7569,7 @@ ok(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 <!-- [[[ test_2d.imageData.create.type.html ]]] -->
 
 <p>Canvas test: 2d.imageData.create.type - bug 433004</p>
-<!-- Testing: createImageData() returns an ImageData object containing a Uint8ClampedArray object -->
+<!-- Testing: createImageData() returns an ImageData object containing a CanvasPixelArray object -->
 <canvas id="c261" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -7604,12 +7582,12 @@ var _thrown_outer = false;
 try {
 
 todo(window.ImageData !== undefined, "window.ImageData !== undefined");
-ok(window.Uint8ClampedArray !== undefined, "window.Uint8ClampedArray !== undefined");
+todo(window.CanvasPixelArray !== undefined, "window.CanvasPixelArray !== undefined");
 window.ImageData.prototype.thisImplementsImageData = true;
-window.Uint8ClampedArray.prototype.thisImplementsUint8ClampedArray = true;
+window.CanvasPixelArray.prototype.thisImplementsCanvasPixelArray = true;
 var imgdata = ctx.createImageData(1, 1);
 ok(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
-ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUint8ClampedArray");
+ok(imgdata.data.thisImplementsCanvasPixelArray, "imgdata.data.thisImplementsCanvasPixelArray");
 
 } catch (e) {
     _thrown_outer = true;
@@ -7623,7 +7601,7 @@ todo(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 <!-- [[[ test_2d.imageData.create1.type.html ]]] -->
 
 <p>Canvas test: 2d.imageData.create1.type - bug 630040</p>
-<!-- Testing: createImageData(imgdata) returns an ImageData object containing a Uint8ClampedArray object -->
+<!-- Testing: createImageData(imgdata) returns an ImageData object containing a CanvasPixelArray object -->
 <canvas id="c261a" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -7636,12 +7614,12 @@ var _thrown_outer = false;
 try {
 
 todo(window.ImageData !== undefined, "window.ImageData !== undefined");
-ok(window.Uint8ClampedArray !== undefined, "window.Uint8ClampedArray !== undefined");
+todo(window.CanvasPixelArray !== undefined, "window.CanvasPixelArray !== undefined");
 window.ImageData.prototype.thisImplementsImageData = true;
-window.Uint8ClampedArray.prototype.thisImplementsUint8ClampedArray = true;
+window.CanvasPixelArray.prototype.thisImplementsCanvasPixelArray = true;
 var imgdata = ctx.createImageData(ctx.createImageData(1, 1));
 todo(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
-ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUint8ClampedArray");
+todo(imgdata.data.thisImplementsCanvasPixelArray, "imgdata.data.thisImplementsCanvasPixelArray");
 
 } catch (e) {
     _thrown_outer = true;
@@ -8229,7 +8207,7 @@ ok(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 <!-- [[[ test_2d.imageData.get.type.html ]]] -->
 
 <p>Canvas test: 2d.imageData.get.type</p>
-<!-- Testing: getImageData() returns an ImageData object containing a Uint8ClampedArray object -->
+<!-- Testing: getImageData() returns an ImageData object containing a CanvasPixelArray object -->
 <canvas id="c276" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -8242,12 +8220,12 @@ var _thrown_outer = false;
 try {
 
 todo(window.ImageData !== undefined, "window.ImageData !== undefined");
-ok(window.Uint8ClampedArray !== undefined, "window.Uint8ClampedArray !== undefined");
+todo(window.CanvasPixelArray !== undefined, "window.CanvasPixelArray !== undefined");
 window.ImageData.prototype.thisImplementsImageData = true;
-window.Uint8ClampedArray.prototype.thisImplementsUint8ClampedArray = true;
+window.CanvasPixelArray.prototype.thisImplementsCanvasPixelArray = true;
 var imgdata = ctx.getImageData(0, 0, 1, 1);
 ok(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
-ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUint8ClampedArray");
+ok(imgdata.data.thisImplementsCanvasPixelArray, "imgdata.data.thisImplementsCanvasPixelArray");
 
 } catch (e) {
     _thrown_outer = true;
@@ -19702,7 +19680,7 @@ function test_bug397524() {
   try {
     $("canvas2").toDataURL("image/png");
     gotData = true;
-  } catch (ex if (ex.code == 18 && ex.name == "SecurityError")) {
+  } catch (ex if (ex.code == 1000 && ex.name == "NS_ERROR_DOM_SECURITY_ERR")) {
   }
   is(gotData, false, "Shouldn't be able to read images cross-site!");
 
@@ -19711,7 +19689,7 @@ function test_bug397524() {
   try {
     $("canvas3").toDataURL("image/png");
     gotData = true;
-  } catch (ex if (ex.code == 18 && ex.name == "SecurityError")) {
+  } catch (ex if (ex.code == 1000 && ex.name == "NS_ERROR_DOM_SECURITY_ERR")) {
   }
   is(gotData, false, "Shouldn't be able to read images redirected cross-site!");
 
@@ -21046,7 +21024,7 @@ img.onload = wrapFunction(function ()
     ctx667.drawImage(img, 0, 25);
     // (The alpha values do not really survive float->int conversion, so just
     // do approximate comparisons)
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalBrowserRead');
     isPixel(ctx667, 12,40, 1,3,254,255, 0);
     isPixel(ctx667, 37,40, 8,252,248,191, 2);
     isPixel(ctx667, 62,40, 6,10,250,127, 4);
@@ -21173,7 +21151,7 @@ deferTest();
 img.onload = wrapFunction(function ()
 {
     ctx672.drawImage(img, 0, 0);
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalBrowserRead');
     isPixel(ctx672, 12,20, 255,255,0,255, 0);
     isPixel(ctx672, 50,20, 0,255,255,255, 0);
     isPixel(ctx672, 87,20, 0,0,255,255, 0);

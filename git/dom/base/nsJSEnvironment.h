@@ -41,24 +41,20 @@
 #include "nsIScriptRuntime.h"
 #include "nsCOMPtr.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsIObserver.h"
 #include "nsIXPCScriptNotify.h"
 #include "prtime.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIXPConnect.h"
-#include "nsIArray.h"
 
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
 class nsScriptNameSpaceManager;
+namespace js {
+class AutoArrayRooter;
+}
 namespace mozilla {
 template <class> class Maybe;
 }
-
-// The amount of time we wait between a request to GC (due to leaving
-// a page) and doing the actual GC.
-#define NS_GC_DELAY                 4000 // ms
 
 class nsJSContext : public nsIScriptContext,
                     public nsIXPCScriptNotify
@@ -79,7 +75,6 @@ public:
   virtual nsresult EvaluateString(const nsAString& aScript,
                                   JSObject* aScopeObject,
                                   nsIPrincipal *principal,
-                                  nsIPrincipal *originPrincipal,
                                   const char *aURL,
                                   PRUint32 aLineNo,
                                   PRUint32 aVersion,
@@ -100,7 +95,7 @@ public:
                                  const char *aURL,
                                  PRUint32 aLineNo,
                                  PRUint32 aVersion,
-                                 nsScriptObjectHolder<JSScript>& aScriptObject);
+                                 nsScriptObjectHolder &aScriptObject);
   virtual nsresult ExecuteScript(JSScript* aScriptObject,
                                  JSObject* aScopeObject,
                                  nsAString* aRetValue,
@@ -112,14 +107,14 @@ public:
                                        const nsAString& aBody,
                                        const char *aURL, PRUint32 aLineNo,
                                        PRUint32 aVersion,
-                                       nsScriptObjectHolder<JSObject>& aHandler);
+                                       nsScriptObjectHolder &aHandler);
   virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
                                     JSObject* aHandler,
                                     nsIArray *argv, nsIVariant **rv);
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             JSObject *aScope,
                                             JSObject* aHandler,
-                                            nsScriptObjectHolder<JSObject>& aBoundHandler);
+                                            nsScriptObjectHolder& aBoundHandler);
   virtual nsresult CompileFunction(JSObject* aTarget,
                                    const nsACString& aName,
                                    PRUint32 aArgCount,
@@ -131,6 +126,7 @@ public:
                                    bool aShared,
                                    JSObject** aFunctionObject);
 
+  virtual void SetDefaultLanguageVersion(PRUint32 aVersion);
   virtual nsIScriptGlobalObject *GetGlobalObject();
   virtual JSContext* GetNativeContext();
   virtual JSObject* GetNativeGlobal();
@@ -148,14 +144,15 @@ public:
   virtual nsresult SetOuterObject(JSObject* aOuterObject);
   virtual nsresult InitOuterWindow();
   virtual bool IsContextInitialized();
+  virtual void FinalizeContext();
 
   virtual void ScriptEvaluated(bool aTerminated);
-  virtual void SetTerminationFunction(nsScriptTerminationFunc aFunc,
-                                      nsIDOMWindow* aRef);
+  virtual nsresult SetTerminationFunction(nsScriptTerminationFunc aFunc,
+                                          nsISupports* aRef);
   virtual bool GetScriptsEnabled();
   virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
-  virtual nsresult SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aVal);
+  virtual nsresult SetProperty(void *aTarget, const char *aPropName, nsISupports *aVal);
 
   virtual bool GetProcessingScriptTag();
   virtual void SetProcessingScriptTag(bool aResult);
@@ -165,13 +162,14 @@ public:
   virtual void SetGCOnDestruction(bool aGCOnDestruction);
 
   virtual nsresult InitClasses(JSObject* aGlobalObj);
+  virtual void ClearScope(void* aGlobalObj, bool bClearPolluters);
 
   virtual void WillInitializeContext();
   virtual void DidInitializeContext();
 
   virtual nsresult Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject);
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                               nsScriptObjectHolder<JSScript>& aResult);
+                               nsScriptObjectHolder &aResult);
 
   virtual nsresult DropScriptObject(void *object);
   virtual nsresult HoldScriptObject(void *object);
@@ -184,33 +182,18 @@ public:
   static void LoadStart();
   static void LoadEnd();
 
-  static void GarbageCollectNow(js::gcreason::Reason reason, PRUint32 gckind = nsGCNormal);
-  static void ShrinkGCBuffersNow();
-  // If aExtraForgetSkippableCalls is -1, forgetSkippable won't be
-  // called even if the previous collection was GC.
-  static void CycleCollectNow(nsICycleCollectorListener *aListener = nsnull,
-                              PRInt32 aExtraForgetSkippableCalls = 0);
+  static void GarbageCollectNow(bool shrinkingGC = false);
+  static void CycleCollectNow(nsICycleCollectorListener *aListener = nsnull);
 
-  static void PokeGC(js::gcreason::Reason aReason, int aDelay = 0);
+  static void PokeGC();
   static void KillGCTimer();
 
-  static void PokeShrinkGCBuffers();
-  static void KillShrinkGCBuffersTimer();
-
+  static void PokeCC();
   static void MaybePokeCC();
   static void KillCCTimer();
 
-  virtual void GC(js::gcreason::Reason aReason);
+  virtual void GC();
 
-  static bool CleanupSinceLastGC();
-
-  nsIScriptGlobalObject* GetCachedGlobalObject()
-  {
-    // Verify that we have a global so that this
-    // does always return a null when GetGlobalObject() is null.
-    JSObject* global = JS_GetGlobalObject(mContext);
-    return global ? mGlobalObjectRef.get() : nsnull;
-  }
 protected:
   nsresult InitializeExternalClasses();
 
@@ -352,10 +335,11 @@ public:
 // nsISupports conversion. If this interface is not supported, the object will
 // be queried for nsIArray, and everything converted via xpcom objects.
 #define NS_IJSARGARRAY_IID \
-{ 0xb6acdac8, 0xf5c6, 0x432c, \
-  { 0xa8, 0x6e, 0x33, 0xee, 0xb1, 0xb0, 0xcd, 0xdc } }
+ { /*{E96FB2AE-CB4F-44a0-81F8-D91C80AFE9A3} */ \
+ 0xe96fb2ae, 0xcb4f, 0x44a0, \
+ { 0x81, 0xf8, 0xd9, 0x1c, 0x80, 0xaf, 0xe9, 0xa3 } }
 
-class nsIJSArgArray : public nsIArray
+class nsIJSArgArray: public nsISupports
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IJSARGARRAY_IID)
@@ -374,13 +358,13 @@ nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime);
 void NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);
 
 JSObject* NS_DOMReadStructuredClone(JSContext* cx,
-                                    JSStructuredCloneReader* reader, uint32_t tag,
-                                    uint32_t data, void* closure);
+                                    JSStructuredCloneReader* reader, uint32 tag,
+                                    uint32 data, void* closure);
 
 JSBool NS_DOMWriteStructuredClone(JSContext* cx,
                                   JSStructuredCloneWriter* writer,
                                   JSObject* obj, void *closure);
 
-void NS_DOMStructuredCloneError(JSContext* cx, uint32_t errorid);
+void NS_DOMStructuredCloneError(JSContext* cx, uint32 errorid);
 
 #endif /* nsJSEnvironment_h */

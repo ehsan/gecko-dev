@@ -57,11 +57,6 @@
 #include "jsapi.h"
 #include "jsutil.h"
 
-#ifdef __cplusplus
-#include "js/HashTable.h"
-#include "js/Vector.h"
-#endif
-
 JS_BEGIN_EXTERN_C
 
 /*
@@ -71,12 +66,12 @@ JS_BEGIN_EXTERN_C
 #define JS_BITS_PER_UINT32      32
 
 /* The alignment required of objects stored in GC arenas. */
-static const unsigned JS_GCTHING_ALIGN = 8;
-static const unsigned JS_GCTHING_ZEROBITS = 3;
+static const uintN JS_GCTHING_ALIGN = 8;
+static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
-typedef uint8_t     jsbytecode;
-typedef uint8_t     jssrcnote;
+typedef uint8       jsbytecode;
+typedef uint8       jssrcnote;
 typedef uintptr_t   jsatomid;
 
 /* Struct typedefs. */
@@ -86,6 +81,7 @@ typedef struct JSGenerator          JSGenerator;
 typedef struct JSNativeEnumerator   JSNativeEnumerator;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
+typedef struct JSThread             JSThread;
 typedef struct JSTryNote            JSTryNote;
 
 /* Friend "Advanced API" typedefs. */
@@ -121,16 +117,21 @@ class JSWrapper;
 namespace js {
 
 struct ArgumentsData;
+struct FlatClosureData;
 struct Class;
 
-class RegExpGuard;
 class RegExpObject;
+class RegExpMatcher;
 class RegExpObjectBuilder;
-class RegExpShared;
 class RegExpStatics;
 class MatchPairs;
 
-namespace detail { class RegExpCode; }
+namespace detail {
+
+class RegExpPrivate;
+class RegExpPrivateCode;
+
+} /* namespace detail */
 
 enum RegExpFlag
 {
@@ -149,6 +150,7 @@ enum RegExpExecType
     RegExpTest
 };
 
+class AutoStringRooter;
 class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
@@ -186,6 +188,25 @@ class RuntimeAllocPolicy;
 
 class GlobalObject;
 
+template <class T,
+          size_t MinInlineCapacity = 0,
+          class AllocPolicy = TempAllocPolicy>
+class Vector;
+
+template <class>
+struct DefaultHasher;
+
+template <class Key,
+          class Value,
+          class HashPolicy = DefaultHasher<Key>,
+          class AllocPolicy = TempAllocPolicy>
+class HashMap;
+
+template <class T,
+          class HashPolicy = DefaultHasher<T>,
+          class AllocPolicy = TempAllocPolicy>
+class HashSet;
+
 template <typename K,
           typename V,
           size_t InlineElems>
@@ -193,15 +214,12 @@ class InlineMap;
 
 class LifoAlloc;
 
-class BaseShape;
-class UnownedBaseShape;
+class PropertyCache;
+struct PropertyCacheEntry;
+
 struct Shape;
 struct EmptyShape;
-class ShapeKindArray;
 class Bindings;
-
-struct StackBaseShape;
-struct StackShape;
 
 class MultiDeclRange;
 class ParseMapPool;
@@ -213,16 +231,13 @@ typedef Vector<UpvarCookie, 8> UpvarCookies;
 
 class Breakpoint;
 class BreakpointSite;
+typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, RuntimeAllocPolicy>
+    BreakpointSiteMap;
 class Debugger;
 class WatchpointMap;
 
-/*
- * Env is the type of what ES5 calls "lexical environments" (runtime
- * activations of lexical scopes). This is currently just JSObject, and is
- * implemented by Call, Block, With, and DeclEnv objects, among others--but
- * environments and objects are really two different concepts.
- */
-typedef JSObject Env;
+typedef HashMap<JSAtom *, detail::RegExpPrivate *, DefaultHasher<JSAtom *>, RuntimeAllocPolicy>
+    RegExpPrivateCache;
 
 typedef JSNative             Native;
 typedef JSPropertyOp         PropertyOp;
@@ -248,73 +263,6 @@ struct TypeObject;
 struct TypeCompartment;
 
 } /* namespace types */
-
-enum ThingRootKind
-{
-    THING_ROOT_OBJECT,
-    THING_ROOT_SHAPE,
-    THING_ROOT_BASE_SHAPE,
-    THING_ROOT_TYPE_OBJECT,
-    THING_ROOT_STRING,
-    THING_ROOT_SCRIPT,
-    THING_ROOT_ID,
-    THING_ROOT_VALUE,
-    THING_ROOT_LIMIT
-};
-
-template <typename T> class Root;
-template <typename T> class RootedVar;
-
-template <typename T>
-struct RootMethods { };
-
-/*
- * Reference to a stack location rooted for GC. See "Moving GC Stack Rooting"
- * comment in jscntxt.h.
- */
-template <typename T>
-class Handle
-{
-  public:
-    /* Copy handles of different types, with implicit coercion. */
-    template <typename S> Handle(Handle<S> handle) {
-        testAssign<S>();
-        ptr = reinterpret_cast<const T *>(handle.address());
-    }
-
-    /* Get a handle from a rooted stack location, with implicit coercion. */
-    template <typename S> inline Handle(const Root<S> &root);
-    template <typename S> inline Handle(const RootedVar<S> &root);
-
-    const T *address() { return ptr; }
-
-    operator T () { return value(); }
-    T operator ->() { return value(); }
-
-  private:
-    const T *ptr;
-    T value() { return *ptr; }
-
-    template <typename S>
-    void testAssign() {
-#ifdef DEBUG
-        T a = RootMethods<T>::initial();
-        S b = RootMethods<S>::initial();
-        a = b;
-        (void)a;
-#endif
-    }
-};
-
-typedef Handle<JSObject*>          HandleObject;
-typedef Handle<JSFunction*>        HandleFunction;
-typedef Handle<Shape*>             HandleShape;
-typedef Handle<BaseShape*>         HandleBaseShape;
-typedef Handle<types::TypeObject*> HandleTypeObject;
-typedef Handle<JSString*>          HandleString;
-typedef Handle<JSAtom*>            HandleAtom;
-typedef Handle<jsid>               HandleId;
-typedef Handle<Value>              HandleValue;
 
 } /* namespace js */
 
@@ -371,7 +319,7 @@ typedef JSBool
 typedef void
 (* JSNewScriptHook)(JSContext  *cx,
                     const char *filename,  /* URL of script */
-                    unsigned      lineno,     /* first line */
+                    uintN      lineno,     /* first line */
                     JSScript   *script,
                     JSFunction *fun,
                     void       *callerdata);
@@ -383,7 +331,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, unsigned lineno, const jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*
@@ -462,7 +410,7 @@ typedef JSBool
  * exception, true with current attributes in *attrsp.
  */
 typedef JSBool
-(* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp);
+(* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 
 /*
  * A generic type for functions mapping an object to another object, or null

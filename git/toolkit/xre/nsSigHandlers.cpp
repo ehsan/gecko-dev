@@ -111,7 +111,7 @@ ah_crap_handler(int signum)
          signum);
 
   printf("Stack:\n");
-  NS_StackWalk(PrintStackFrame, 2, nsnull, 0);
+  NS_StackWalk(PrintStackFrame, 2, nsnull);
 
   printf("Sleeping for %d seconds.\n",_gdb_sleep_duration);
   printf("Type 'gdb %s %d' to attach your debugger to this thread.\n",

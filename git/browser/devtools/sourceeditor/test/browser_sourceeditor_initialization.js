@@ -4,9 +4,7 @@
 
 "use strict";
 
-let tempScope = {};
-Cu.import("resource:///modules/source-editor.jsm", tempScope);
-let SourceEditor = tempScope.SourceEditor;
+Cu.import("resource:///modules/source-editor.jsm");
 
 let testWin;
 let testDoc;
@@ -37,7 +35,7 @@ function initEditor()
   editor = new SourceEditor();
   let config = {
     showLineNumbers: true,
-    initialText: "foobarbaz",
+    placeholderText: "foobarbaz",
     tabSize: 7,
     expandTab: true,
   };
@@ -54,7 +52,7 @@ function editorLoaded()
 
   editor.focus();
 
-  is(editor.getMode(), SourceEditor.DEFAULTS.mode, "default editor mode");
+  is(editor.getMode(), SourceEditor.DEFAULTS.MODE, "default editor mode");
 
   // Test general editing methods.
 
@@ -89,14 +87,6 @@ function editorLoaded()
   editor.redo();
 
   is(editor.getText(), "code-editor", "redo() works");
-
-  EventUtils.synthesizeKey("VK_Z", {accelKey: true}, testWin);
-
-  is(editor.getText(), "source-editor", "Ctrl-Z (undo) works");
-
-  EventUtils.synthesizeKey("VK_Z", {accelKey: true, shiftKey: true}, testWin);
-
-  is(editor.getText(), "code-editor", "Ctrl-Shift-Z (redo) works");
 
   // Test selection methods.
 
@@ -201,21 +191,11 @@ function editorLoaded()
   editor.setText("foobar");
   is(editor.getText(), "foobar", "editor allows programmatic changes (setText)");
 
-  EventUtils.synthesizeKey("VK_RETURN", {}, testWin);
-  is(editor.getText(), "foobar", "Enter key does nothing");
-
-  EventUtils.synthesizeKey("VK_TAB", {}, testWin);
-  is(editor.getText(), "foobar", "Tab does nothing");
-
-  editor.setText("      foobar");
-  EventUtils.synthesizeKey("VK_TAB", {shiftKey: true}, testWin);
-  is(editor.getText(), "      foobar", "Shift+Tab does nothing");
-
   editor.readOnly = false;
 
   editor.setCaretOffset(editor.getCharCount());
   EventUtils.synthesizeKey("-", {}, testWin);
-  is(editor.getText(), "      foobar-", "editor is now editable again");
+  is(editor.getText(), "foobar-", "editor is now editable again");
 
   // Test the Selection event.
 
@@ -334,9 +314,6 @@ function testReturnKey()
   let lineDelimiter = editor.getLineDelimiter();
   ok(lineDelimiter, "we have the line delimiter");
 
-  let indentationString = editor.getIndentationString();
-  is("       ", indentationString, "we have an indentation string of 7 spaces");
-
   is(editor.getText(), "       a" + lineDelimiter + "       x\n  b\n c",
      "return maintains indentation");
 
@@ -435,16 +412,16 @@ function testEclipseBug362107()
   editor.setCaretOffset(16);
 
   EventUtils.synthesizeKey("VK_UP", {ctrlKey: true}, testWin);
-  is(editor.getCaretOffset(), 9, "Ctrl-Up works");
+  is(editor.getCaretOffset(), 7, "Ctrl-Up works");
 
   EventUtils.synthesizeKey("VK_UP", {ctrlKey: true}, testWin);
-  is(editor.getCaretOffset(), 2, "Ctrl-Up works twice");
+  is(editor.getCaretOffset(), 0, "Ctrl-Up works twice");
 
   EventUtils.synthesizeKey("VK_DOWN", {ctrlKey: true}, testWin);
-  is(editor.getCaretOffset(), 9, "Ctrl-Down works");
+  is(editor.getCaretOffset(), 13, "Ctrl-Down works");
 
   EventUtils.synthesizeKey("VK_DOWN", {ctrlKey: true}, testWin);
-  is(editor.getCaretOffset(), 16, "Ctrl-Down works twice");
+  is(editor.getCaretOffset(), 20, "Ctrl-Down works twice");
 }
 
 function testBug687577()

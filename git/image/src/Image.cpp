@@ -38,7 +38,7 @@
 #include "Image.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 // Constructor
 Image::Image(imgStatusTracker* aStatusTracker) :
@@ -58,18 +58,13 @@ Image::Image(imgStatusTracker* aStatusTracker) :
 }
 
 PRUint32
-Image::SizeOfData()
+Image::GetDataSize()
 {
   if (mError)
     return 0;
   
-  // This is not used by memory reporters, but for sizing the cache, which is
-  // why it uses |moz_malloc_size_of| rather than an
-  // |NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN|.
-  return PRUint32(HeapSizeOfSourceWithComputedFallback(moz_malloc_size_of) +
-                  HeapSizeOfDecodedWithComputedFallback(moz_malloc_size_of) +
-                  NonHeapSizeOfDecoded() +
-                  OutOfProcessSizeOfDecoded());
+  return GetSourceHeapSize() + GetDecodedHeapSize() +
+         GetDecodedNonheapSize() + GetDecodedOutOfProcessSize();
 }
 
 // Translates a mimetype into a concrete decoder
@@ -179,5 +174,5 @@ Image::EvaluateAnimation()
   }
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

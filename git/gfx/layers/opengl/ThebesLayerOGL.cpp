@@ -145,15 +145,6 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     mTexImageOnWhite->EndUpdate();
   }
 
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    nsRefPtr<gfxImageSurface> surf = 
-      gl()->GetTexImage(mTexImage->GetTextureID(), false, mTexImage->GetShaderProgramType());
-    
-    WriteSnapshotToDumpFile(mLayer, surf);
-  }
-#endif
-
   PRInt32 passes = mTexImageOnWhite ? 2 : 1;
   for (PRInt32 pass = 1; pass <= passes; ++pass) {
     LayerProgram *program;
@@ -600,59 +591,15 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
         nsIntRect srcRect(overlap), dstRect(overlap);
         srcRect.MoveBy(- mBufferRect.TopLeft() + mBufferRotation);
         dstRect.MoveBy(- destBufferRect.TopLeft());
-        
-        if (mBufferRotation != nsIntPoint(0, 0)) {
-          // If mBuffer is rotated, then BlitTextureImage will only be copying the bottom-right section
-          // of the buffer. We need to invalidate the remaining sections so that they get redrawn too.
-          // Alternatively we could teach BlitTextureImage to rearrange the rotated segments onto
-          // the new buffer.
-          
-          // When the rotated buffer is reorganised, the bottom-right section will be drawn in the top left.
-          // Find the point where this content ends.
-          nsIntPoint rotationPoint(mBufferRect.x + mBufferRect.width - mBufferRotation.x, 
-                                   mBufferRect.y + mBufferRect.height - mBufferRotation.y);
-
-          // The buffer looks like:
-          //  ______
-          // |1  |2 |  Where the center point is offset by mBufferRotation from the top-left corner.
-          // |___|__|
-          // |3  |4 |
-          // |___|__|
-          //
-          // This is drawn to the screen as:
-          //  ______
-          // |4  |3 |  Where the center point is { width - mBufferRotation.x, height - mBufferRotation.y } from
-          // |___|__|  from the top left corner - rotationPoint. Since only quadrant 4 will actually be copied, 
-          // |2  |1 |  we need to invalidate the others.
-          // |___|__|
-          //
-          // Quadrants 2 and 1
-          nsIntRect bottom(mBufferRect.x, rotationPoint.y, mBufferRect.width, mBufferRotation.y);
-          // Quadrant 3
-          nsIntRect topright(rotationPoint.x, mBufferRect.y, mBufferRotation.x, rotationPoint.y - mBufferRect.y);
-
-          if (!bottom.IsEmpty()) {
-            nsIntRegion temp;
-            temp.And(destBufferRect, bottom);
-            result.mRegionToDraw.Or(result.mRegionToDraw, temp);
-          }
-          if (!topright.IsEmpty()) {
-            nsIntRegion temp;
-            temp.And(destBufferRect, topright);
-            result.mRegionToDraw.Or(result.mRegionToDraw, temp);
-          }
-        }
 
         destBuffer->Resize(destBufferRect.Size());
 
         gl()->BlitTextureImage(mTexImage, srcRect,
                                destBuffer, dstRect);
-        destBuffer->MarkValid();
         if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
           destBufferOnWhite->Resize(destBufferRect.Size());
           gl()->BlitTextureImage(mTexImageOnWhite, srcRect,
                                  destBufferOnWhite, dstRect);
-          destBufferOnWhite->MarkValid();
         }
       } else {
         // can't blit, just draw everything
@@ -872,11 +819,6 @@ ThebesLayerOGL::IsEmpty()
   return !mBuffer;
 }
 
-void
-ThebesLayerOGL::CleanupResources()
-{
-  mBuffer = nsnull;
-}
 
 class ShadowBufferOGL : public ThebesLayerBufferOGL
 {
@@ -1021,12 +963,6 @@ ShadowThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
   gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
   mBuffer->RenderTo(aOffset, mOGLManager, 0);
-}
-
-void
-ShadowThebesLayerOGL::CleanupResources()
-{
-  DestroyFrontBuffer();
 }
 
 } /* layers */

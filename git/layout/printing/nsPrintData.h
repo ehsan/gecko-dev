@@ -34,11 +34,8 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
 #ifndef nsPrintData_h___
 #define nsPrintData_h___
-
-#include "mozilla/Attributes.h"
 
 // Interfaces
 #include "nsIDOMWindow.h"
@@ -126,8 +123,8 @@ public:
   PRUnichar*            mBrandName; //  needed as a substitute name for a document
 
 private:
-  nsPrintData() MOZ_DELETE;
-  nsPrintData& operator=(const nsPrintData& aOther) MOZ_DELETE;
+  nsPrintData(); //not implemented
+  nsPrintData& operator=(const nsPrintData& aOther); // not implemented
 
 };
 

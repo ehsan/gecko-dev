@@ -60,7 +60,7 @@
 #include "nsNetUtil.h"
 #include "nsLinebreakConverter.h"
 #include "nsICharsetConverterManager.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsEscape.h"
 #include "nsUnicharUtils.h"
 #include "nsIMultiplexInputStream.h"
@@ -80,11 +80,13 @@ SendJSWarning(nsIDocument* aDocument,
               const char* aWarningName,
               const PRUnichar** aWarningArgs, PRUint32 aWarningArgsLen)
 {
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "HTML", aDocument,
-                                  nsContentUtils::eFORMS_PROPERTIES,
+  nsContentUtils::ReportToConsole(nsContentUtils::eFORMS_PROPERTIES,
                                   aWarningName,
-                                  aWarningArgs, aWarningArgsLen);
+                                  aWarningArgs, aWarningArgsLen,
+                                  nsnull,
+                                  EmptyString(), 0, 0,
+                                  nsIScriptError::warningFlag,
+                                  "HTML", aDocument);
 }
 
 // --------------------------------------------------------------------------
@@ -269,6 +271,7 @@ HandleMailtoSubject(nsCString& aPath) {
                                            nsContentUtils::eFORMS_PROPERTIES,
                                            "DefaultFormSubject",
                                            formatStrings,
+                                           ArrayLength(formatStrings),
                                            subjectStr);
     if (NS_FAILED(rv))
       return;
@@ -717,14 +720,10 @@ nsEncodingFormSubmission::nsEncodingFormSubmission(const nsACString& aCharset,
     charset.AssignLiteral("windows-1252");
   }
 
-  if (!(charset.EqualsLiteral("UTF-8") || charset.EqualsLiteral("gb18030"))) {
-    NS_ConvertUTF8toUTF16 charsetUtf16(charset);
-    const PRUnichar* charsetPtr = charsetUtf16.get();
-    SendJSWarning(aOriginatingElement ? aOriginatingElement->GetOwnerDocument()
-                                      : nsnull,
-                  "CannotEncodeAllUnicode",
-                  &charsetPtr,
-                  1);
+  // use UTF-8 for UTF-16* (per WHATWG and existing practice of
+  // MS IE/Opera). 
+  if (StringBeginsWith(charset, NS_LITERAL_CSTRING("UTF-16"))) {
+    charset.AssignLiteral("UTF-8");
   }
 
   mEncoder = do_CreateInstance(NS_SAVEASCHARSET_CONTRACTID);
@@ -781,6 +780,7 @@ GetSubmitCharset(nsGenericHTMLElement* aForm,
 {
   oCharset.AssignLiteral("UTF-8"); // default to utf-8
 
+  nsresult rv = NS_OK;
   nsAutoString acceptCharsetValue;
   aForm->GetAttr(kNameSpaceID_None, nsGkAtoms::acceptcharset,
                  acceptCharsetValue);
@@ -790,19 +790,26 @@ GetSubmitCharset(nsGenericHTMLElement* aForm,
     PRInt32 offset=0;
     PRInt32 spPos=0;
     // get charset from charsets one by one
-    do {
-      spPos = acceptCharsetValue.FindChar(PRUnichar(' '), offset);
-      PRInt32 cnt = ((-1==spPos)?(charsetLen-offset):(spPos-offset));
-      if (cnt > 0) {
-        nsAutoString uCharset;
-        acceptCharsetValue.Mid(uCharset, offset, cnt);
+    nsCOMPtr<nsICharsetAlias> calias(do_GetService(NS_CHARSETALIAS_CONTRACTID, &rv));
+    if (NS_FAILED(rv)) {
+      return;
+    }
+    if (calias) {
+      do {
+        spPos = acceptCharsetValue.FindChar(PRUnichar(' '), offset);
+        PRInt32 cnt = ((-1==spPos)?(charsetLen-offset):(spPos-offset));
+        if (cnt > 0) {
+          nsAutoString uCharset;
+          acceptCharsetValue.Mid(uCharset, offset, cnt);
 
-        if (NS_SUCCEEDED(nsCharsetAlias::GetPreferred(NS_LossyConvertUTF16toASCII(uCharset),
-                                                      oCharset)))
-          return;
-      }
-      offset = spPos + 1;
-    } while (spPos != -1);
+          if (NS_SUCCEEDED(calias->
+                           GetPreferred(NS_LossyConvertUTF16toASCII(uCharset),
+                                        oCharset)))
+            return;
+        }
+        offset = spPos + 1;
+      } while (spPos != -1);
+    }
   }
   // if there are no accept-charset or all the charset are not supported
   // Get the charset from document
@@ -852,15 +859,6 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
   // Get charset
   nsCAutoString charset;
   GetSubmitCharset(aForm, charset);
-
-  // We now have a canonical charset name, so we only have to check it
-  // against canonical names.
-
-  // use UTF-8 for UTF-16* (per WHATWG and existing practice of
-  // MS IE/Opera).
-  if (StringBeginsWith(charset, NS_LITERAL_CSTRING("UTF-16"))) {
-    charset.AssignLiteral("UTF-8");
-  }
 
   // Choose encoder
   if (method == NS_FORM_METHOD_POST &&

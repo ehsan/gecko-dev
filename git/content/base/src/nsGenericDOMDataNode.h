@@ -50,6 +50,7 @@
 #include "nsEventListenerManager.h"
 #include "nsGenericElement.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMMemoryReporter.h"
 
 #include "nsISMILAttr.h"
 
@@ -62,8 +63,11 @@
 // whitespace, we may need to reframe it (or its ancestors).
 #define NS_REFRAME_IF_WHITESPACE (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET + 1))
 
+// This bit is set to indicate that the text may be part of a selection.
+#define NS_TEXT_IN_SELECTION (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET + 2))
+
 // Make sure we have enough space for those bits
-PR_STATIC_ASSERT(NODE_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
+PR_STATIC_ASSERT(NODE_TYPE_SPECIFIC_BITS_OFFSET + 2 < 32);
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -78,7 +82,7 @@ class nsGenericDOMDataNode : public nsIContent
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_SIZEOF_EXCLUDING_THIS
+  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
 
   nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsGenericDOMDataNode();
@@ -142,12 +146,8 @@ public:
   nsresult IsSupported(const nsAString& aFeature,
                        const nsAString& aVersion,
                        bool* aReturn);
-  nsresult CloneNode(bool aDeep, PRUint8 aOptionalArgc, nsIDOMNode** aReturn)
+  nsresult CloneNode(bool aDeep, nsIDOMNode** aReturn)
   {
-    if (!aOptionalArgc) {
-      aDeep = true;
-    }
-    
     return nsNodeUtils::CloneNodeImpl(this, aDeep, true, aReturn);
   }
 
@@ -275,7 +275,7 @@ public:
   void ToCString(nsAString& aBuf, PRInt32 aOffset, PRInt32 aLen) const;
 #endif
 
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(nsGenericDOMDataNode)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsGenericDOMDataNode)
 
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
@@ -351,16 +351,6 @@ protected:
 
   nsTextFragment mText;
 
-public:
-  virtual bool IsPurple()
-  {
-    return mRefCnt.IsPurple();
-  }
-  virtual void RemovePurple()
-  {
-    mRefCnt.RemovePurple();
-  }
-  
 private:
   already_AddRefed<nsIAtom> GetCurrentValueAtom();
 };

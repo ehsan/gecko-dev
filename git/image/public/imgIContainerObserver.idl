@@ -44,7 +44,6 @@
 %}
 
 interface imgIContainer;
-interface imgIRequest;
 [ptr] native nsIntRect(nsIntRect);
 
 /**
@@ -53,10 +52,9 @@ interface imgIRequest;
  * @author Stuart Parmenter <pavlov@netscape.com>
  * @version 0.1
  */
-[scriptable, uuid(f01efdb3-4b20-4313-a636-a2aa01a4ef5d)]
+[scriptable, uuid(aa2068c1-6b91-4f52-8603-487b14ac5f04)]
 interface imgIContainerObserver : nsISupports
 {
-  [noscript] void frameChanged(in imgIRequest aRequest,
-                               in imgIContainer aContainer,
+  [noscript] void frameChanged(in imgIContainer aContainer,
                                [const] in nsIntRect aDirtyRect);
 };

@@ -100,8 +100,7 @@ public:
     PRUint8        ReferrerLevel()           { return mReferrerLevel; }
     bool           SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
     PRUint8        RedirectionLimit()        { return mRedirectionLimit; }
-    PRIntervalTime IdleTimeout()             { return mIdleTimeout; }
-    PRIntervalTime SpdyTimeout()             { return mSpdyTimeout; }
+    PRUint16       IdleTimeout()             { return mIdleTimeout; }
     PRUint16       MaxRequestAttempts()      { return mMaxRequestAttempts; }
     const char    *DefaultSocketType()       { return mDefaultSocketType.get(); /* ok to return null */ }
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
@@ -112,15 +111,6 @@ public:
     PRUint32       MaxSocketCount();
 
     bool           IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
-    bool           IsTelemetryEnabled() { return mTelemetryEnabled; }
-    bool           AllowExperiments() { return mTelemetryEnabled && mAllowExperiments; }
-
-    bool           IsSpdyEnabled() { return mEnableSpdy; }
-    bool           CoalesceSpdy() { return mCoalesceSpdy; }
-    bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
-    PRUint32       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
-    PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
-    PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
@@ -192,9 +182,6 @@ public:
     nsresult GetIOService(nsIIOService** service);
     nsICookieService * GetCookieService(); // not addrefed
     nsIStrictTransportSecurityService * GetSTSService();
-
-    // callable from socket thread only
-    PRUint32 Get32BitsOfPseudoRandom();
 
     // Called by the channel before writing a request
     void OnModifyRequest(nsIHttpChannel *chan)
@@ -276,9 +263,7 @@ private:
 
     bool mFastFallbackToIPv4;
 
-    PRIntervalTime mIdleTimeout;
-    PRIntervalTime mSpdyTimeout;
-
+    PRUint16 mIdleTimeout;
     PRUint16 mMaxRequestAttempts;
     PRUint16 mMaxRequestDelay;
     PRUint16 mIdleSynTimeout;
@@ -329,7 +314,6 @@ private:
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
     nsCString      mCompatFirefox;
-    nsXPIDLCString mCompatDevice;
 
     nsCString      mUserAgent;
     nsXPIDLCString mUserAgentOverride;
@@ -347,20 +331,6 @@ private:
 
     // For broadcasting the preference to not be tracked
     bool           mDoNotTrackEnabled;
-    
-    // Whether telemetry is reported or not
-    bool           mTelemetryEnabled;
-
-    // The value of network.allow-experiments
-    bool           mAllowExperiments;
-
-    // Try to use SPDY features instead of HTTP/1.1 over SSL
-    bool           mEnableSpdy;
-    bool           mCoalesceSpdy;
-    bool           mUseAlternateProtocol;
-    PRUint32       mSpdySendingChunkSize;
-    PRIntervalTime mSpdyPingThreshold;
-    PRIntervalTime mSpdyPingTimeout;
 };
 
 //-----------------------------------------------------------------------------

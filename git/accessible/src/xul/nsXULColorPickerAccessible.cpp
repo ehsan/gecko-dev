@@ -38,12 +38,11 @@
 
 #include "nsXULColorPickerAccessible.h"
 
+#include "States.h"
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIDOMElement.h"
 #include "nsMenuPopupFrame.h"
@@ -55,8 +54,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColorPickerTileAccessible::
-  nsXULColorPickerTileAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsXULColorPickerTileAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -78,10 +77,10 @@ nsXULColorPickerTileAccessible::GetValue(nsAString& aValue)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerTileAccessible: nsAccessible
 
-role
+PRUint32
 nsXULColorPickerTileAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 PRUint64
@@ -117,8 +116,8 @@ nsXULColorPickerTileAccessible::ContainerWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColorPickerAccessible::
-  nsXULColorPickerAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsXULColorPickerTileAccessible(aContent, aDoc)
+  nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXULColorPickerTileAccessible(aContent, aShell)
 {
   mFlags |= eMenuButtonAccessible;
 }
@@ -139,10 +138,10 @@ nsXULColorPickerAccessible::NativeState()
   return states;
 }
 
-role
+PRUint32
 nsXULColorPickerAccessible::NativeRole()
 {
-  return roles::BUTTONDROPDOWNGRID;
+  return nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,21 +176,19 @@ nsXULColorPickerAccessible::AreItemsOperable() const
 void
 nsXULColorPickerAccessible::CacheChildren()
 {
-  NS_ENSURE_TRUE(mDoc,);
-
-  nsAccTreeWalker walker(mDoc, mContent, true);
+  nsAccTreeWalker walker(mWeakShell, mContent, true);
 
   nsAccessible* child = nsnull;
   while ((child = walker.NextChild())) {
     PRUint32 role = child->Role();
 
     // Get an accessible for menupopup or panel elements.
-    if (role == roles::ALERT) {
+    if (role == nsIAccessibleRole::ROLE_ALERT) {
       AppendChild(child);
       return;
     }
 
     // Unbind rejected accessibles from the document.
-    Document()->UnbindFromDocument(child);
+    GetDocAccessible()->UnbindFromDocument(child);
   }
 }

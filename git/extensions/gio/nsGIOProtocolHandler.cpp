@@ -43,7 +43,7 @@
 */
 #include "mozilla/ModuleUtils.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIObserver.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
@@ -238,7 +238,7 @@ class nsGIOInputStream : public nsIInputStream
 void
 nsGIOInputStream::SetMountResult(MountOperationResult result, gint error_code)
 {
-  mozilla::MonitorAutoLock mon(mMonitorMountInProgress);
+  mozilla::MonitorAutoEnter mon(mMonitorMountInProgress);
   mMountRes = result;
   mMountErrorCode = error_code;
   mon.Notify();
@@ -263,7 +263,7 @@ nsGIOInputStream::MountVolume() {
                                 NULL,
                                 mount_enclosing_volume_finished,
                                 this);
-  mozilla::MonitorAutoLock mon(mMonitorMountInProgress);
+  mozilla::MonitorAutoEnter mon(mMonitorMountInProgress);
   /* Waiting for finish of mount operation thread */  
   while (mMountRes == MOUNT_OPERATION_IN_PROGRESS)
     mon.Wait();
@@ -944,7 +944,7 @@ nsGIOProtocolHandler::Init()
   sGIOLog = PR_NewLogModule("gio");
 #endif
 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs)
   {
     InitSupportedProtocolsPref(prefs);

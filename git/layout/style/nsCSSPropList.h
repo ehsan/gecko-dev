@@ -546,7 +546,7 @@ CSS_PROP_BACKGROUND(
     background-repeat,
     background_repeat,
     BackgroundRepeat,
-    CSS_PROPERTY_PARSE_FUNCTION |
+    CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     VARIANT_KEYWORD, // used by list parsing
@@ -699,60 +699,16 @@ CSS_PROP_BORDER(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 #endif
-CSS_PROP_SHORTHAND(
+CSS_PROP_BORDER(
     -moz-border-image,
     border_image,
     CSS_PROP_DOMPROP_PREFIXED(BorderImage),
-    CSS_PROPERTY_PARSE_FUNCTION)
-CSS_PROP_BORDER(
-    -moz-border-image-source,
-    border_image_source,
-    CSS_PROP_DOMPROP_PREFIXED(BorderImageSource),
-    CSS_PROPERTY_PARSE_VALUE |
+    CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_START_IMAGE_LOADS,
-    VARIANT_HUO,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_BORDER(
-    -moz-border-image-slice,
-    border_image_slice,
-    CSS_PROP_DOMPROP_PREFIXED(BorderImageSlice),
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+        CSS_PROPERTY_START_IMAGE_LOADS |
+        CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
     0,
-    kBorderImageSliceKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_BORDER(
-    -moz-border-image-width,
-    border_image_width,
-    CSS_PROP_DOMPROP_PREFIXED(BorderImageWidth),
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    0,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_BORDER(
-    -moz-border-image-outset,
-    border_image_outset,
-    CSS_PROP_DOMPROP_PREFIXED(BorderImageOutset),
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    0,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_BORDER(
-    -moz-border-image-repeat,
-    border_image_repeat,
-    CSS_PROP_DOMPROP_PREFIXED(BorderImageRepeat),
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    0,
-    kBorderImageRepeatKTable,
+    kBorderImageKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_SHORTHAND(
@@ -1300,15 +1256,6 @@ CSS_PROP_COLUMN(
     nsnull,
     offsetof(nsStyleColumn, mColumnCount),
     eStyleAnimType_Custom)
-CSS_PROP_COLUMN(
-    -moz-column-fill,
-    _moz_column_fill,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnFill),
-    CSS_PROPERTY_PARSE_VALUE,
-    VARIANT_HK,
-    kColumnFillKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
 CSS_PROP_COLUMN(
     -moz-column-width,
     _moz_column_width,
@@ -2208,15 +2155,6 @@ CSS_PROP_TEXT(
     kTextAlignKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_TEXT(
-    -moz-text-align-last,
-    text_align_last,
-    CSS_PROP_DOMPROP_PREFIXED(TextAlignLast),
-    CSS_PROPERTY_PARSE_VALUE,
-    VARIANT_HK,
-    kTextAlignLastKTable,
-    offsetof(nsStyleText, mTextAlignLast),
-    eStyleAnimType_None)
 CSS_PROP_SHORTHAND(
     text-decoration,
     text_decoration,
@@ -2350,7 +2288,7 @@ CSS_PROP_DISPLAY(
     perspective,
     CSS_PROP_DOMPROP_PREFIXED(Perspective),
     CSS_PROPERTY_PARSE_VALUE,
-    VARIANT_NONE | VARIANT_INHERIT | VARIANT_LENGTH | VARIANT_POSITIVE_LENGTH,
+    VARIANT_NONE | VARIANT_INHERIT | VARIANT_LENGTH,
     nsnull,
     offsetof(nsStyleDisplay, mChildPerspective),
     eStyleAnimType_Coord)
@@ -2965,7 +2903,7 @@ CSS_PROP_STUB_NOT_CSS
 CSS_PROP_STUB_NOT_CSS
 CSS_PROP_STUB_NOT_CSS
 #else
-CSS_PROP_FONT(
+CSS_PROP_VISIBILITY(
     -x-lang,
     _x_lang,
     Lang,

@@ -45,9 +45,6 @@
 #include "nsCacheService.h"
 #include "mozilla/FileUtils.h"
 #include "nsIDiskCacheStreamInternal.h"
-#include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
-#include "mozilla/TimeStamp.h"
 
 
 
@@ -234,47 +231,23 @@ nsDiskCacheOutputStream::~nsDiskCacheOutputStream()
 NS_IMETHODIMP
 nsDiskCacheOutputStream::Close()
 {
-    nsresult rv = NS_OK;
-    mozilla::TimeStamp start = mozilla::TimeStamp::Now();
-
     if (!mClosed) {
         mClosed = true;
         // tell parent streamIO we are closing
-        rv = mStreamIO->CloseOutputStream(this);
+        mStreamIO->CloseOutputStream(this);
     }
-
-    mozilla::Telemetry::ID id;
-    if (NS_IsMainThread())
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_OUTPUT_STREAM_CLOSE_MAIN_THREAD;
-    else
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_OUTPUT_STREAM_CLOSE;
-
-    mozilla::Telemetry::AccumulateTimeDelta(id, start);
-
-    return rv;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDiskCacheOutputStream::CloseInternal()
 {
-    nsresult rv = NS_OK;
-    mozilla::TimeStamp start = mozilla::TimeStamp::Now();
-
     if (!mClosed) {
         mClosed = true;
         // tell parent streamIO we are closing
-        rv = mStreamIO->CloseOutputStreamInternal(this);
+        mStreamIO->CloseOutputStreamInternal(this);
     }
-
-    mozilla::Telemetry::ID id;
-    if (NS_IsMainThread())
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_OUTPUT_STREAM_CLOSE_INTERNAL_MAIN_THREAD;
-    else
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_OUTPUT_STREAM_CLOSE_INTERNAL;
-
-    mozilla::Telemetry::AccumulateTimeDelta(id, start);
-
-    return rv;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -461,14 +434,12 @@ nsDiskCacheStreamIO::GetOutputStream(PRUint32 offset, nsIOutputStream ** outputS
     return NS_OK;
 }
 
-nsresult
+void
 nsDiskCacheStreamIO::ClearBinding()
 {
-    nsresult rv = NS_OK;
     if (mBinding && mOutStream)
-        rv = Flush();
+        Flush();
     mBinding = nsnull;
-    return rv;
 }
 
 nsresult
@@ -539,6 +510,7 @@ nsDiskCacheStreamIO::Flush()
             rv = cacheMap->DeleteStorage(record, nsDiskCache::kData);
             if (NS_FAILED(rv)) {
                 NS_WARNING("cacheMap->DeleteStorage() failed.");
+                cacheMap->DeleteRecord(record);
                 return rv;
             }
         }

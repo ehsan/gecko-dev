@@ -169,7 +169,7 @@ public:
     NS_IMETHOD DidBuildModel(bool aTerminated);
     NS_IMETHOD WillInterrupt(void);
     NS_IMETHOD WillResume(void);
-    NS_IMETHOD SetParser(nsParserBase* aParser);
+    NS_IMETHOD SetParser(nsIParser* aParser);  
     virtual void FlushPendingNotifications(mozFlushType aType) { }
     NS_IMETHOD SetDocumentCharset(nsACString& aCharset) { return NS_OK; }
     virtual nsISupports *GetTarget() { return nsnull; }
@@ -337,7 +337,7 @@ RDFContentSinkImpl::RDFContentSinkImpl()
 
         rv = CallGetService(kRDFContainerUtilsCID, &gRDFContainerUtils);
 
-        NS_RegisterStaticAtoms(rdf_atoms);
+        NS_RegisterStaticAtoms(rdf_atoms, ArrayLength(rdf_atoms));
     }
 
     mNodeIDMap.Init();
@@ -643,7 +643,7 @@ RDFContentSinkImpl::WillResume(void)
 }
 
 NS_IMETHODIMP 
-RDFContentSinkImpl::SetParser(nsParserBase* aParser)
+RDFContentSinkImpl::SetParser(nsIParser* aParser)
 {
     return NS_OK;
 }

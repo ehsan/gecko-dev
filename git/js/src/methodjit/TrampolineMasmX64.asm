@@ -37,6 +37,7 @@
 
 
 extern js_InternalThrow:PROC
+extern SetVMFrameRegs:PROC
 extern PushActiveVMFrame:PROC
 extern PopActiveVMFrame:PROC
 extern js_InternalInterpret:PROC
@@ -94,6 +95,8 @@ JaegerTrampoline PROC FRAME
     push    r8
     mov     rcx, rsp
     sub     rsp, 20h
+    call    SetVMFrameRegs
+    lea     rcx, [rsp+20h]
     call    PushActiveVMFrame
     add     rsp, 20h
 

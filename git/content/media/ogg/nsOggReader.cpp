@@ -77,9 +77,9 @@ enum PageSyncResult {
   PAGE_SYNC_OK = 3
 };
 
-// Reads a page from the media resource.
+// Reads a page from the media stream.
 static PageSyncResult
-PageSync(MediaResource* aResource,
+PageSync(nsMediaStream* aStream,
          ogg_sync_state* aState,
          bool aCachedDataOnly,
          PRInt64 aOffset,
@@ -266,12 +266,9 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
       mInfo.mDisplay = displaySize;
       mPicture = picture;
 
-      VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
-      if (container) {
-        container->SetCurrentFrame(gfxIntSize(displaySize.width, displaySize.height),
-                                   nsnull,
-                                   TimeStamp::Now());
-      }
+      mDecoder->SetVideoData(gfxIntSize(displaySize.width, displaySize.height),
+                             nsnull,
+                             TimeStamp::Now());
 
       // Copy Theora info data for time computations on other threads.
       memcpy(&mTheoraInfo, &mTheoraState->mInfo, sizeof(mTheoraInfo));
@@ -298,7 +295,7 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
       mSkeletonState->Deactivate();
     } else if (ReadHeaders(mSkeletonState) && mSkeletonState->HasIndex()) {
       // Extract the duration info out of the index, so we don't need to seek to
-      // the end of resource to get it.
+      // the end of stream to get it.
       nsAutoTArray<PRUint32, 2> tracks;
       if (HasVideo()) {
         tracks.AppendElement(mTheoraState->mSerial);
@@ -318,15 +315,15 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
-    MediaResource* resource = mDecoder->GetResource();
+    nsMediaStream* stream = mDecoder->GetStream();
     if (mDecoder->GetStateMachine()->GetDuration() == -1 &&
         mDecoder->GetStateMachine()->GetState() != nsDecoderStateMachine::DECODER_STATE_SHUTDOWN &&
-        resource->GetLength() >= 0 &&
+        stream->GetLength() >= 0 &&
         mDecoder->GetStateMachine()->IsSeekable())
     {
       // We didn't get a duration from the index or a Content-Duration header.
       // Seek to the end of file to find the end time.
-      PRInt64 length = resource->GetLength();
+      PRInt64 length = stream->GetLength();
       NS_ASSERTION(length > 0, "Must have a content length to get end time");
 
       PRInt64 endTime = 0;
@@ -552,10 +549,10 @@ PRInt64 nsOggReader::ReadOggPage(ogg_page* aPage)
     char* buffer = ogg_sync_buffer(&mOggState, 4096);
     NS_ASSERTION(buffer, "ogg_sync_buffer failed");
 
-    // Read from the resource into the buffer
+    // Read from the stream into the buffer
     PRUint32 bytesRead = 0;
 
-    nsresult rv = mDecoder->GetResource()->Read(buffer, 4096, &bytesRead);
+    nsresult rv = mDecoder->GetStream()->Read(buffer, 4096, &bytesRead);
     if (NS_FAILED(rv) || (bytesRead == 0 && ret == 0)) {
       // End of file.
       return -1;
@@ -619,9 +616,9 @@ GetChecksum(ogg_page* page)
 PRInt64 nsOggReader::RangeStartTime(PRInt64 aOffset)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-  MediaResource* resource = mDecoder->GetResource();
-  NS_ENSURE_TRUE(resource != nsnull, nsnull);
-  nsresult res = resource->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
+  nsMediaStream* stream = mDecoder->GetStream();
+  NS_ENSURE_TRUE(stream != nsnull, nsnull);
+  nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
   NS_ENSURE_SUCCESS(res, nsnull);
   PRInt64 startTime = 0;
   nsBuiltinDecoderReader::FindStartTime(startTime);
@@ -643,11 +640,11 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aEndOffset)
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
-  MediaResource* resource = mDecoder->GetResource();
-  NS_ENSURE_TRUE(resource != nsnull, -1);
-  PRInt64 position = resource->Tell();
+  nsMediaStream* stream = mDecoder->GetStream();
+  NS_ENSURE_TRUE(stream != nsnull, -1);
+  PRInt64 position = stream->Tell();
   PRInt64 endTime = RangeEndTime(0, aEndOffset, false);
-  nsresult res = resource->Seek(nsISeekableStream::NS_SEEK_SET, position);
+  nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET, position);
   NS_ENSURE_SUCCESS(res, -1);
   return endTime;
 }
@@ -656,7 +653,7 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
                                   PRInt64 aEndOffset,
                                   bool aCachedDataOnly)
 {
-  MediaResource* resource = mDecoder->GetResource();
+  nsMediaStream* stream = mDecoder->GetStream();
   nsAutoOggSyncState sync;
 
   // We need to find the last page which ends before aEndOffset that
@@ -701,15 +698,15 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
       NS_ASSERTION(buffer, "Must have buffer");
       nsresult res;
       if (aCachedDataOnly) {
-        res = resource->ReadFromCache(buffer, readHead, bytesToRead);
+        res = stream->ReadFromCache(buffer, readHead, bytesToRead);
         NS_ENSURE_SUCCESS(res, -1);
         bytesRead = bytesToRead;
       } else {
         NS_ASSERTION(readHead < aEndOffset,
-                     "resource pos must be before range end");
-        res = resource->Seek(nsISeekableStream::NS_SEEK_SET, readHead);
+                     "Stream pos must be before range end");
+        res = stream->Seek(nsISeekableStream::NS_SEEK_SET, readHead);
         NS_ENSURE_SUCCESS(res, -1);
-        res = resource->Read(buffer, bytesToRead, &bytesRead);
+        res = stream->Read(buffer, bytesToRead, &bytesRead);
         NS_ENSURE_SUCCESS(res, -1);
       }
       readHead += bytesRead;
@@ -772,12 +769,12 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
 nsresult nsOggReader::GetSeekRanges(nsTArray<SeekRange>& aRanges)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-  nsTArray<MediaByteRange> cached;
-  nsresult res = mDecoder->GetResource()->GetCachedRanges(cached);
+  nsTArray<nsByteRange> cached;
+  nsresult res = mDecoder->GetStream()->GetCachedRanges(cached);
   NS_ENSURE_SUCCESS(res, res);
 
   for (PRUint32 index = 0; index < cached.Length(); index++) {
-    MediaByteRange& range = cached[index];
+    nsByteRange& range = cached[index];
     PRInt64 startTime = -1;
     PRInt64 endTime = -1;
     if (NS_FAILED(ResetDecode())) {
@@ -812,7 +809,7 @@ nsOggReader::SelectSeekRange(const nsTArray<SeekRange>& ranges,
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   PRInt64 so = 0;
-  PRInt64 eo = mDecoder->GetResource()->GetLength();
+  PRInt64 eo = mDecoder->GetStream()->GetLength();
   PRInt64 st = aStartTime;
   PRInt64 et = aEndTime;
   for (PRUint32 i = 0; i < ranges.Length(); i++) {
@@ -840,17 +837,17 @@ nsOggReader::SelectSeekRange(const nsTArray<SeekRange>& ranges,
 nsOggReader::IndexedSeekResult nsOggReader::RollbackIndexedSeek(PRInt64 aOffset)
 {
   mSkeletonState->Deactivate();
-  MediaResource* resource = mDecoder->GetResource();
-  NS_ENSURE_TRUE(resource != nsnull, SEEK_FATAL_ERROR);
-  nsresult res = resource->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
+  nsMediaStream* stream = mDecoder->GetStream();
+  NS_ENSURE_TRUE(stream != nsnull, SEEK_FATAL_ERROR);
+  nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
   NS_ENSURE_SUCCESS(res, SEEK_FATAL_ERROR);
   return SEEK_INDEX_FAIL;
 }
  
 nsOggReader::IndexedSeekResult nsOggReader::SeekToKeyframeUsingIndex(PRInt64 aTarget)
 {
-  MediaResource* resource = mDecoder->GetResource();
-  NS_ENSURE_TRUE(resource != nsnull, SEEK_FATAL_ERROR);
+  nsMediaStream* stream = mDecoder->GetStream();
+  NS_ENSURE_TRUE(stream != nsnull, SEEK_FATAL_ERROR);
   if (!HasSkeleton() || !mSkeletonState->HasIndex()) {
     return SEEK_INDEX_FAIL;
   }
@@ -871,11 +868,11 @@ nsOggReader::IndexedSeekResult nsOggReader::SeekToKeyframeUsingIndex(PRInt64 aTa
     return SEEK_INDEX_FAIL;
   }
 
-  // Remember original resource read cursor position so we can rollback on failure.
-  PRInt64 tell = resource->Tell();
+  // Remember original stream read cursor position so we can rollback on failure.
+  PRInt64 tell = stream->Tell();
 
   // Seek to the keypoint returned by the index.
-  if (keyframe.mKeyPoint.mOffset > resource->GetLength() ||
+  if (keyframe.mKeyPoint.mOffset > stream->GetLength() ||
       keyframe.mKeyPoint.mOffset < 0)
   {
     // Index must be invalid.
@@ -883,7 +880,7 @@ nsOggReader::IndexedSeekResult nsOggReader::SeekToKeyframeUsingIndex(PRInt64 aTa
   }
   LOG(PR_LOG_DEBUG, ("Seeking using index to keyframe at offset %lld\n",
                      keyframe.mKeyPoint.mOffset));
-  nsresult res = resource->Seek(nsISeekableStream::NS_SEEK_SET,
+  nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET,
                               keyframe.mKeyPoint.mOffset);
   NS_ENSURE_SUCCESS(res, SEEK_FATAL_ERROR);
   mPageOffset = keyframe.mKeyPoint.mOffset;
@@ -896,11 +893,11 @@ nsOggReader::IndexedSeekResult nsOggReader::SeekToKeyframeUsingIndex(PRInt64 aTa
   // here. If not, the index is invalid.
   ogg_page page;
   int skippedBytes = 0;
-  PageSyncResult syncres = PageSync(resource,
+  PageSyncResult syncres = PageSync(stream,
                                     &mOggState,
                                     false,
                                     mPageOffset,
-                                    resource->GetLength(),
+                                    stream->GetLength(),
                                     &page,
                                     skippedBytes);
   NS_ENSURE_TRUE(syncres != PAGE_SYNC_ERROR, SEEK_FATAL_ERROR);
@@ -921,7 +918,7 @@ nsOggReader::IndexedSeekResult nsOggReader::SeekToKeyframeUsingIndex(PRInt64 aTa
       codecState->mActive &&
       ogg_stream_pagein(&codecState->mState, &page) != 0)
   {
-    // Couldn't insert page into the ogg resource, or somehow the resource
+    // Couldn't insert page into the ogg stream, or somehow the stream
     // is no longer active.
     return RollbackIndexedSeek(tell);
   }      
@@ -1017,13 +1014,13 @@ nsresult nsOggReader::Seek(PRInt64 aTarget,
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lld", mDecoder, aTarget));
   nsresult res;
-  MediaResource* resource = mDecoder->GetResource();
-  NS_ENSURE_TRUE(resource != nsnull, NS_ERROR_FAILURE);
+  nsMediaStream* stream = mDecoder->GetStream();
+  NS_ENSURE_TRUE(stream != nsnull, NS_ERROR_FAILURE);
 
   if (aTarget == aStartTime) {
     // We've seeked to the media start. Just seek to the offset of the first
     // content page.
-    res = resource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+    res = stream->Seek(nsISeekableStream::NS_SEEK_SET, 0);
     NS_ENSURE_SUCCESS(res,res);
 
     mPageOffset = 0;
@@ -1070,9 +1067,9 @@ nsresult nsOggReader::Seek(PRInt64 aTarget,
   return DecodeToTarget(aTarget);
 }
 
-// Reads a page from the media resource.
+// Reads a page from the media stream.
 static PageSyncResult
-PageSync(MediaResource* aResource,
+PageSync(nsMediaStream* aStream,
          ogg_sync_state* aState,
          bool aCachedDataOnly,
          PRInt64 aOffset,
@@ -1100,16 +1097,16 @@ PageSync(MediaResource* aResource,
       }
       nsresult rv = NS_OK;
       if (aCachedDataOnly) {
-        rv = aResource->ReadFromCache(buffer, readHead,
-                                      static_cast<PRUint32>(bytesToRead));
+        rv = aStream->ReadFromCache(buffer, readHead,
+                                    static_cast<PRUint32>(bytesToRead));
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
         bytesRead = static_cast<PRUint32>(bytesToRead);
       } else {
-        rv = aResource->Seek(nsISeekableStream::NS_SEEK_SET, readHead);
+        rv = aStream->Seek(nsISeekableStream::NS_SEEK_SET, readHead);
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
-        rv = aResource->Read(buffer,
-                             static_cast<PRUint32>(bytesToRead),
-                             &bytesRead);
+        rv = aStream->Read(buffer,
+                           static_cast<PRUint32>(bytesToRead),
+                           &bytesRead);
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
       }
       if (bytesRead == 0 && NS_SUCCEEDED(rv)) {
@@ -1142,13 +1139,13 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   nsresult res;
-  MediaResource* resource = mDecoder->GetResource();
+  nsMediaStream* stream = mDecoder->GetStream();
 
   if (aTarget == aRange.mTimeStart) {
     if (NS_FAILED(ResetDecode())) {
       return NS_ERROR_FAILURE;
     }
-    res = resource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+    res = stream->Seek(nsISeekableStream::NS_SEEK_SET, 0);
     NS_ENSURE_SUCCESS(res,res);
     mPageOffset = 0;
     return NS_OK;
@@ -1255,7 +1252,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
       // Locate the next page after our seek guess, and then figure out the
       // granule time of the audio and video bitstreams there. We can then
       // make a bisection decision based on our location in the media.
-      PageSyncResult res = PageSync(resource,
+      PageSyncResult res = PageSync(stream,
                                     &mOggState,
                                     false,
                                     guess,
@@ -1355,7 +1352,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
       // last page before the target, and the first page after the target.
       SEEK_LOG(PR_LOG_DEBUG, ("Terminating seek at offset=%lld", startOffset));
       NS_ASSERTION(startTime < aTarget, "Start time must always be less than target");
-      res = resource->Seek(nsISeekableStream::NS_SEEK_SET, startOffset);
+      res = stream->Seek(nsISeekableStream::NS_SEEK_SET, startOffset);
       NS_ENSURE_SUCCESS(res,res);
       mPageOffset = startOffset;
       if (NS_FAILED(ResetDecode())) {
@@ -1367,7 +1364,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
     SEEK_LOG(PR_LOG_DEBUG, ("Time at offset %lld is %lld", guess, granuleTime));
     if (granuleTime < seekTarget && granuleTime > seekLowerBound) {
       // We're within the fuzzy region in which we want to terminate the search.
-      res = resource->Seek(nsISeekableStream::NS_SEEK_SET, pageOffset);
+      res = stream->Seek(nsISeekableStream::NS_SEEK_SET, pageOffset);
       NS_ENSURE_SUCCESS(res,res);
       mPageOffset = pageOffset;
       if (NS_FAILED(ResetDecode())) {
@@ -1410,14 +1407,14 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     return NS_OK;
   }
 
-  MediaResource* resource = mDecoder->GetResource();
-  nsTArray<MediaByteRange> ranges;
-  nsresult res = resource->GetCachedRanges(ranges);
+  nsMediaStream* stream = mDecoder->GetStream();
+  nsTArray<nsByteRange> ranges;
+  nsresult res = stream->GetCachedRanges(ranges);
   NS_ENSURE_SUCCESS(res, res);
 
   // Traverse across the buffered byte ranges, determining the time ranges
-  // they contain. MediaResource::GetNextCachedData(offset) returns -1 when
-  // offset is after the end of the media resource, or there's no more cached
+  // they contain. nsMediaStream::GetNextCachedData(offset) returns -1 when
+  // offset is after the end of the media stream, or there's no more cached
   // data after the offset. This loop will run until we've checked every
   // buffered range in the media, in increasing order of offset.
   nsAutoOggSyncState sync;
@@ -1439,7 +1436,7 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     while (startTime == -1) {
       ogg_page page;
       PRInt32 discard;
-      PageSyncResult res = PageSync(resource,
+      PageSyncResult res = PageSync(stream,
                                     &sync.mState,
                                     true,
                                     startOffset,

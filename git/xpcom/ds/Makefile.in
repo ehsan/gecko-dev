@@ -54,15 +54,18 @@ CPPSRCS		= \
 		nsAtomTable.cpp \
 		nsAtomService.cpp \
 		nsByteBuffer.cpp \
+		nsCheapSets.cpp \
 		nsCRT.cpp \
 		nsFixedSizeAllocator.cpp \
 		nsHashPropertyBag.cpp \
+		nsHashSets.cpp \
 		nsHashtable.cpp \
 		nsINIParserImpl.cpp \
 		nsObserverList.cpp \
 		nsObserverService.cpp \
 		nsProperties.cpp \
 		nsPersistentProperties.cpp \
+		nsRecyclingAllocator.cpp \
 		nsStaticNameTable.cpp \
 		nsStringEnumerator.cpp \
 		nsSupportsArray.cpp \
@@ -76,8 +79,6 @@ ifdef HAVE_CLOCK_MONOTONIC
 CPPSRCS += TimeStamp_posix.cpp
 else ifeq ($(OS_ARCH),Darwin)
 CPPSRCS += TimeStamp_darwin.cpp
-else ifeq ($(OS_ARCH),WINNT)
-CPPSRCS += TimeStamp_windows.cpp
 else
 CPPSRCS += TimeStamp.cpp
 endif
@@ -87,7 +88,6 @@ EXPORTS_NAMESPACES = mozilla
 EXPORTS_mozilla = \
   CharTokenizer.h \
   TimeStamp.h \
-  StringBuilder.h \
   $(NULL)
 
 EXPORTS		= \
@@ -95,13 +95,16 @@ EXPORTS		= \
 		nsCheapSets.h \
 		nsCppSharedAllocator.h \
 		nsCRT.h \
+		nsDoubleHashtable.h \
 		nsExpirationTracker.h \
 		nsFixedSizeAllocator.h \
+		nsHashSets.h \
 		nsHashtable.h \
 		nsIByteBuffer.h \
 		nsIUnicharBuffer.h \
 		nsMathUtils.h \
 		nsObserverService.h \
+		nsRecyclingAllocator.h \
 		nsStaticNameTable.h \
 		nsStaticAtom.h \
 		nsSupportsArray.h \
@@ -126,6 +129,7 @@ XPIDLSRCS	= \
 		nsIPropertyBag2.idl \
 		nsIWritablePropertyBag.idl \
 		nsIWritablePropertyBag2.idl \
+		nsIRecyclingAllocator.idl \
 		nsIVariant.idl \
 		nsISerializable.idl \
 		nsIStringEnumerator.idl \

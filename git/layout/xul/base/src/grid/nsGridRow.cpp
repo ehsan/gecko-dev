@@ -82,8 +82,8 @@ nsGridRow::~nsGridRow()
 }
 
 bool 
-nsGridRow::IsCollapsed()
+nsGridRow::IsCollapsed(nsBoxLayoutState& aState)
 {
-  return mBox && mBox->IsCollapsed();
+  return mBox && mBox->IsCollapsed(aState);
 }
 

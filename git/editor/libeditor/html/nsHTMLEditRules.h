@@ -50,7 +50,6 @@
 #include "TypeInState.h"
 #include "nsReadableUtils.h"
 #include "nsTArray.h"
-#include "nsRange.h"
 
 class nsIDOMElement;
 class nsIEditor;
@@ -119,6 +118,8 @@ public:
   NS_IMETHOD DidInsertText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset, const nsAString &aString, nsresult aResult);
   NS_IMETHOD WillDeleteText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset, PRInt32 aLength);
   NS_IMETHOD DidDeleteText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset, PRInt32 aLength, nsresult aResult);
+  NS_IMETHOD WillDeleteRange(nsIDOMRange *aRange);
+  NS_IMETHOD DidDeleteRange(nsIDOMRange *aRange);
   NS_IMETHOD WillDeleteSelection(nsISelection *aSelection);
   NS_IMETHOD DidDeleteSelection(nsISelection *aSelection);
 
@@ -186,8 +187,7 @@ protected:
                                   nsIDOMNode *aNode);
   nsresult GetFormatString(nsIDOMNode *aNode, nsAString &outFormat);
   nsresult GetInnerContent(nsIDOMNode *aNode, nsCOMArray<nsIDOMNode>& outArrayOfNodes, PRInt32 *aIndex, bool aList = true, bool aTble = true);
-  already_AddRefed<nsIDOMNode> IsInListItem(nsIDOMNode* aNode);
-  nsINode* IsInListItem(nsINode* aNode);
+  nsCOMPtr<nsIDOMNode> IsInListItem(nsIDOMNode *aNode);
   nsresult ReturnInHeader(nsISelection *aSelection, nsIDOMNode *aHeader, nsIDOMNode *aTextNode, PRInt32 aOffset);
   nsresult ReturnInParagraph(nsISelection *aSelection, nsIDOMNode *aHeader, nsIDOMNode *aTextNode, PRInt32 aOffset, bool *aCancel, bool *aHandled);
   nsresult SplitParagraph(nsIDOMNode *aPara,
@@ -305,13 +305,13 @@ protected:
 // data members
 protected:
   nsHTMLEditor           *mHTMLEditor;
-  nsRefPtr<nsRange>       mDocChangeRange;
+  nsCOMPtr<nsIDOMRange>   mDocChangeRange;
   bool                    mListenerEnabled;
   bool                    mReturnInEmptyLIKillsList;
   bool                    mDidDeleteSelection;
   bool                    mDidRangedDelete;
   bool                    mRestoreContentEditableCount;
-  nsRefPtr<nsRange>       mUtilRange;
+  nsCOMPtr<nsIDOMRange>   mUtilRange;
   PRUint32                mJoinOffset;  // need to remember an int across willJoin/didJoin...
   nsCOMPtr<nsIDOMNode>    mNewBlock;
   nsRangeStore            mRangeItem;

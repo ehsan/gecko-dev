@@ -39,9 +39,7 @@
 #ifndef Unicode_h__
 #define Unicode_h__
 
-#include "mozilla/StandardInteger.h"
-
-#include "jspubtd.h"
+#include "jsstr.h"
 
 #ifdef DEBUG
 #include <stdio.h> /* For EOF */
@@ -135,9 +133,9 @@ class CharacterInfo {
      * -32.
      */
   public:
-    uint16_t upperCase;
-    uint16_t lowerCase;
-    uint8_t flags;
+    uint16 upperCase;
+    uint16 lowerCase;
+    uint8 flags;
 
     inline bool isSpace() const {
         return flags & CharFlag::SPACE;
@@ -160,14 +158,14 @@ class CharacterInfo {
     }
 };
 
-extern const uint8_t index1[];
-extern const uint8_t index2[];
+extern const uint16 index1[];
+extern const uint16 index2[];
 extern const CharacterInfo js_charinfo[];
 
 inline const CharacterInfo&
 CharInfo(jschar code)
 {
-    size_t index = index1[code >> 6];
+    uint16 index = index1[code >> 6];
     index = index2[(index << 6) + (code & 0x3f)];
 
     return js_charinfo[index];
@@ -257,7 +255,7 @@ ToUpperCase(jschar ch)
     if (info.flags & CharFlag::NO_DELTA)
         return info.upperCase;
 
-    return uint16_t(ch) + info.upperCase;
+    return uint16(ch) + info.upperCase;
 }
 
 inline jschar
@@ -268,7 +266,7 @@ ToLowerCase(jschar ch)
     if (info.flags & CharFlag::NO_DELTA)
         return info.lowerCase;
 
-    return uint16_t(ch) + info.lowerCase;
+    return uint16(ch) + info.lowerCase;
 }
 
 /* XML support functions */

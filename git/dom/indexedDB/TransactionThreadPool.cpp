@@ -275,14 +275,14 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
       const nsTArray<nsString>& objectStores = transaction->mObjectStoreNames;
 
       bool dummy;
-      if (transaction->mMode == IDBTransaction::READ_WRITE) {
+      if (transaction->mMode == nsIIDBTransaction::READ_WRITE) {
         if (NS_FAILED(CheckOverlapAndMergeObjectStores(storesWriting,
                                                        objectStores,
                                                        true, &dummy))) {
           NS_WARNING("Out of memory!");
         }
       }
-      else if (transaction->mMode == IDBTransaction::READ_ONLY) {
+      else if (transaction->mMode == nsIIDBTransaction::READ_ONLY) {
         if (NS_FAILED(CheckOverlapAndMergeObjectStores(storesReading,
                                                        objectStores,
                                                        true, &dummy))) {
@@ -358,19 +358,19 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
   nsresult rv =
     CheckOverlapAndMergeObjectStores(dbTransactionInfo->storesWriting,
                                      objectStoreNames,
-                                     mode == IDBTransaction::READ_WRITE,
+                                     mode == nsIIDBTransaction::READ_WRITE,
                                      &writeOverlap);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool readOverlap;
   rv = CheckOverlapAndMergeObjectStores(dbTransactionInfo->storesReading,
                                         objectStoreNames,
-                                        mode == IDBTransaction::READ_ONLY,
+                                        mode == nsIIDBTransaction::READ_ONLY,
                                         &readOverlap);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (writeOverlap ||
-      (readOverlap && mode == IDBTransaction::READ_WRITE)) {
+      (readOverlap && mode == nsIIDBTransaction::READ_WRITE)) {
     *aCanRun = false;
     *aExistingQueue = nsnull;
     return NS_OK;
@@ -441,7 +441,7 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
 
   nsTArray<nsString>& storesInUse =
-    aTransaction->mMode == IDBTransaction::READ_WRITE ?
+    aTransaction->mMode == nsIIDBTransaction::READ_WRITE ?
     dbTransactionInfo->storesWriting :
     dbTransactionInfo->storesReading;
 

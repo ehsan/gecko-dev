@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init();
+MockFilePicker.reset();
 
 /**
  * Test for bug 471962 <https://bugzilla.mozilla.org/show_bug.cgi?id=471962>:
@@ -100,7 +100,7 @@ function test() {
 
     registerCleanupFunction(function () {
       mockTransferRegisterer.unregister();
-      MockFilePicker.cleanup();
+      MockFilePicker.reset();
       destDir.remove(true);
     });
 

@@ -320,7 +320,13 @@ nsCopyCommand::IsCommandEnabled(const char * aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
-    return editor->CanCopy(outCmdEnabled);
+  {
+    bool isEditable = false;
+    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (isEditable)
+      return editor->CanCopy(outCmdEnabled);
+  }
 
   *outCmdEnabled = false;
   return NS_OK;
@@ -657,14 +663,19 @@ nsSelectAllCommand::IsCommandEnabled(const char * aCommandName,
 
   nsresult rv = NS_OK;
   *outCmdEnabled = false;
-  bool docIsEmpty;
+  bool docIsEmpty, selectionIsEditable;
  
   // you can select all if there is an editor which is non-empty
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor) {
-    rv = editor->GetDocumentIsEmpty(&docIsEmpty);
+    rv = editor->GetIsSelectionEditable(&selectionIsEditable);
     NS_ENSURE_SUCCESS(rv, rv);
-    *outCmdEnabled = !docIsEmpty;
+
+    if (selectionIsEditable) {
+      rv = editor->GetDocumentIsEmpty(&docIsEmpty);
+      NS_ENSURE_SUCCESS(rv, rv);
+      *outCmdEnabled = !docIsEmpty;
+    }
   } 
 
   return rv;

@@ -63,11 +63,11 @@ class nsStructuredCloneContainer : public nsIStructuredCloneContainer
     NS_DECL_NSISTRUCTUREDCLONECONTAINER
 
   private:
-    uint64_t* mData;
+    PRUint64* mData;
 
     // This needs to be size_t rather than a PR-type so it matches the JS API.
     size_t mSize;
-    uint32_t mVersion;
+    PRUint32 mVersion;
 };
 
 #endif

@@ -77,7 +77,7 @@ SmsEvent::Init(const nsAString& aEventTypeArg, bool aCanBubbleArg,
 }
 
 NS_IMETHODIMP
-SmsEvent::GetMessageMoz(nsIDOMMozSmsMessage** aMessage)
+SmsEvent::GetMessage(nsIDOMMozSmsMessage** aMessage)
 {
   NS_IF_ADDREF(*aMessage = mMessage);
   return NS_OK;

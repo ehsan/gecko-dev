@@ -60,13 +60,13 @@ CPPSRCS = 				\
 	nsRecentBadCerts.cpp \
         nsClientAuthRemember.cpp        \
 	nsPSMBackgroundThread.cpp       \
+	nsSSLThread.cpp                 \
 	nsCertVerificationThread.cpp    \
 	nsProtectedAuthThread.cpp \
 	nsNSSCallbacks.cpp		\
 	nsNSSComponent.cpp		\
 	nsNSSErrors.cpp			\
 	nsNSSIOLayer.cpp		\
-	SSLServerCertVerification.cpp   \
 	nsSSLStatus.cpp		\
 	nsNSSModule.cpp			\
 	nsSSLSocketProvider.cpp		\
@@ -104,7 +104,6 @@ CPPSRCS = 				\
   NSSErrorsService.cpp \
   nsNSSCertificateFakeTransport.cpp \
   PSMRunnable.cpp \
-  nsNSSVersion.cpp \
   $(NULL)
 
 ifdef MOZ_XUL
@@ -116,11 +115,7 @@ CSRCS += md4.c
 
 EXTRA_DEPS = $(NSS_DEP_LIBS)
 
-DEFINES += \
-  -DNSS_ENABLE_ECC \
-  -DDLL_PREFIX=\"$(DLL_PREFIX)\" \
-  -DDLL_SUFFIX=\"$(DLL_SUFFIX)\" \
-  $(NULL)
+DEFINES += -DNSS_ENABLE_ECC
 
 # Use local includes because they are inserted before INCLUDES
 # so that Mozilla's nss.h is used, not glibc's

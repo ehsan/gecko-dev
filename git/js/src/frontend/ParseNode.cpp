@@ -133,6 +133,20 @@ FunctionBox::scopeIsExtensible() const
     return tcflags & TCF_FUN_EXTENSIBLE_SCOPE;
 }
 
+bool
+FunctionBox::shouldUnbrand(uintN methods, uintN slowMethods) const
+{
+    if (slowMethods != 0) {
+        for (const FunctionBox *funbox = this; funbox; funbox = funbox->parent) {
+            if (!(funbox->tcflags & TCF_FUN_MODULE_PATTERN))
+                return true;
+            if (funbox->inLoop)
+                return true;
+        }
+    }
+    return false;
+}
+
 /* Add |node| to |parser|'s free node list. */
 void
 ParseNodeAllocator::freeNode(ParseNode *pn)
@@ -535,6 +549,7 @@ CloneParseTree(ParseNode *opn, TreeContext *tc)
 
       case PN_UNARY:
         NULLCHECK(pn->pn_kid = CloneParseTree(opn->pn_kid, tc));
+        pn->pn_num = opn->pn_num;
         pn->pn_hidden = opn->pn_hidden;
         break;
 
@@ -660,14 +675,3 @@ js::CloneLeftHandSide(ParseNode *opn, TreeContext *tc)
     }
     return pn;
 }
-
-#ifdef DEBUG
-void
-js::DumpParseTree(ParseNode *pn, int indent)
-{
-    if (pn == NULL) 
-        fprintf(stderr, "()");
-    else
-        pn->dump(indent);
-}
-#endif

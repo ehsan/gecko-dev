@@ -44,17 +44,23 @@
 #include "nsRect.h"
 #include "nsIThreadManager.h"
 
-#include "CheckedInt.h"
-
-using mozilla::CheckedInt64;
-using mozilla::CheckedUint64;
-using mozilla::CheckedInt32;
-using mozilla::CheckedUint32;
-
 // This file contains stuff we'd rather put elsewhere, but which is
 // dependent on other changes which we don't want to wait for. We plan to
 // remove this file in the near future.
 
+
+// This belongs in prtypes.h
+/************************************************************************
+ * MACROS:      PR_INT64_MAX
+ *              PR_INT64_MIN
+ *              PR_UINT64_MAX
+ * DESCRIPTION:
+ *  The maximum and minimum values of a PRInt64 or PRUint64.
+************************************************************************/
+
+#define PR_INT64_MAX (~((PRInt64)(1) << 63))
+#define PR_INT64_MIN (-PR_INT64_MAX - 1)
+#define PR_UINT64_MAX (~(PRUint64)(0))
 
 // This belongs in xpcom/monitor/Monitor.h, once we've made
 // mozilla::Monitor non-reentrant.
@@ -104,17 +110,35 @@ private:
 
 } // namespace mozilla
 
+// Adds two 32bit unsigned numbers, retuns true if addition succeeded,
+// or false the if addition would result in an overflow.
+bool AddOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult);
+ 
+// 32 bit integer multiplication with overflow checking. Returns true
+// if the multiplication was successful, or false if the operation resulted
+// in an integer overflow.
+bool MulOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult);
+
+// Adds two 64bit numbers, retuns true if addition succeeded, or false
+// if addition would result in an overflow.
+bool AddOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
+
+// 64 bit integer multiplication with overflow checking. Returns true
+// if the multiplication was successful, or false if the operation resulted
+// in an integer overflow.
+bool MulOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
+
 // Converts from number of audio frames (aFrames) to microseconds, given
 // the specified audio rate (aRate). Stores result in aOutUsecs. Returns true
 // if the operation succeeded, or false if there was an integer overflow
 // while calulating the conversion.
-CheckedInt64 FramesToUsecs(PRInt64 aFrames, PRUint32 aRate);
+bool FramesToUsecs(PRInt64 aFrames, PRUint32 aRate, PRInt64& aOutUsecs);
 
 // Converts from microseconds (aUsecs) to number of audio frames, given the
 // specified audio rate (aRate). Stores the result in aOutFrames. Returns
 // true if the operation succeeded, or false if there was an integer
 // overflow while calulating the conversion.
-CheckedInt64 UsecsToFrames(PRInt64 aUsecs, PRUint32 aRate);
+bool UsecsToFrames(PRInt64 aUsecs, PRUint32 aRate, PRInt64& aOutFrames);
 
 // Number of microseconds per second. 1e6.
 static const PRInt64 USECS_PER_S = 1000000;

@@ -74,8 +74,7 @@ gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSr
              PRUint32 aLanguageOverride,
              gfxSparseBitSet *aUnicodeRanges)
     : gfxFontEntry(NS_LITERAL_STRING("Proxy"), aFamily),
-      mLoadingState(NOT_LOADING),
-      mUnsupportedFormat(false)
+      mLoadingState(NOT_LOADING)
 {
     mIsProxy = true;
     mSrcList = aFontFaceSrcList;
@@ -364,12 +363,7 @@ SanitizeOpenTypeData(const PRUint8* aData, PRUint32 aLength,
     // limit output/expansion to 256MB
     ExpandingMemoryStream output(aIsCompressed ? aLength * 2 : aLength,
                                  1024 * 1024 * 256);
-#ifdef MOZ_GRAPHITE
-#define PRESERVE_GRAPHITE true
-#else
-#define PRESERVE_GRAPHITE false
-#endif
-    if (ots::Process(&output, aData, aLength, PRESERVE_GRAPHITE)) {
+    if (ots::Process(&output, aData, aLength)) {
         aSaneLength = output.Tell();
         return static_cast<PRUint8*>(output.forget());
     } else {
@@ -402,27 +396,9 @@ StoreUserFontData(gfxFontEntry* aFontEntry, gfxProxyFontEntry* aProxy,
     }
 }
 
-struct WOFFHeader {
-    AutoSwap_PRUint32 signature;
-    AutoSwap_PRUint32 flavor;
-    AutoSwap_PRUint32 length;
-    AutoSwap_PRUint16 numTables;
-    AutoSwap_PRUint16 reserved;
-    AutoSwap_PRUint32 totalSfntSize;
-    AutoSwap_PRUint16 majorVersion;
-    AutoSwap_PRUint16 minorVersion;
-    AutoSwap_PRUint32 metaOffset;
-    AutoSwap_PRUint32 metaCompLen;
-    AutoSwap_PRUint32 metaOrigLen;
-    AutoSwap_PRUint32 privOffset;
-    AutoSwap_PRUint32 privLen;
-};
-
-void
-gfxUserFontSet::CopyWOFFMetadata(const PRUint8* aFontData,
-                                 PRUint32 aLength,
-                                 nsTArray<PRUint8>* aMetadata,
-                                 PRUint32* aMetaOrigLen)
+static void
+CopyWOFFMetadata(const PRUint8* aFontData, PRUint32 aLength,
+                 nsTArray<PRUint8>* aMetadata, PRUint32* aMetaOrigLen)
 {
     // This function may be called with arbitrary, unvalidated "font" data
     // from @font-face, so it needs to be careful to bounds-check, etc.,
@@ -430,6 +406,21 @@ gfxUserFontSet::CopyWOFFMetadata(const PRUint8* aFontData,
     // This just saves a copy of the compressed data block; it does NOT check
     // that the block can be successfully decompressed, or that it contains
     // well-formed/valid XML metadata.
+    struct WOFFHeader {
+        AutoSwap_PRUint32 signature;
+        AutoSwap_PRUint32 flavor;
+        AutoSwap_PRUint32 length;
+        AutoSwap_PRUint16 numTables;
+        AutoSwap_PRUint16 reserved;
+        AutoSwap_PRUint32 totalSfntSize;
+        AutoSwap_PRUint16 majorVersion;
+        AutoSwap_PRUint16 minorVersion;
+        AutoSwap_PRUint32 metaOffset;
+        AutoSwap_PRUint32 metaCompLen;
+        AutoSwap_PRUint32 metaOrigLen;
+        AutoSwap_PRUint32 privOffset;
+        AutoSwap_PRUint32 privLen;
+    };
     if (aLength < sizeof(WOFFHeader)) {
         return;
     }
@@ -609,7 +600,6 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
 
     if (aProxyEntry->mLoadingState == gfxProxyFontEntry::NOT_LOADING) {
         aProxyEntry->mLoadingState = gfxProxyFontEntry::LOADING_STARTED;
-        aProxyEntry->mUnsupportedFormat = false;
     } else {
         // we were already loading; move to the next source,
         // but don't reset state - if we've already timed out,
@@ -669,18 +659,12 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
                                nsIScriptError::errorFlag, rv);
                 }
             } else {
-                // We don't log a warning to the web console yet,
-                // as another source may load successfully
-                aProxyEntry->mUnsupportedFormat = true;
+                LogMessage(aProxyEntry, "format not supported",
+                           nsIScriptError::warningFlag);
             }
         }
 
         aProxyEntry->mSrcIndex++;
-    }
-
-    if (aProxyEntry->mUnsupportedFormat) {
-        LogMessage(aProxyEntry, "no supported format found",
-                   nsIScriptError::warningFlag);
     }
 
     // all src's failed; mark this entry as unusable (so fallback will occur)

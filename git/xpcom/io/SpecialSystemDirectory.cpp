@@ -101,6 +101,8 @@ typedef HRESULT (WINAPI* nsGetKnownFolderPath)(GUID& rfid,
                                                PWSTR *ppszPath);
 
 static nsGetKnownFolderPath gGetKnownFolderPath = NULL;
+
+static HINSTANCE gShell32DLLInst = NULL;
 #endif
 
 void StartupSpecialSystemDirectory()
@@ -108,11 +110,23 @@ void StartupSpecialSystemDirectory()
 #if defined (XP_WIN)
     // SHGetKnownFolderPath is only available on Windows Vista
     // so that we need to use GetProcAddress to get the pointer.
-    HMODULE hShell32DLLInst = GetModuleHandleW(L"shell32.dll");
-    if(hShell32DLLInst)
+    gShell32DLLInst = LoadLibraryW(L"shell32.dll");
+    if(gShell32DLLInst)
     {
         gGetKnownFolderPath = (nsGetKnownFolderPath)
-            GetProcAddress(hShell32DLLInst, "SHGetKnownFolderPath");
+            GetProcAddress(gShell32DLLInst, "SHGetKnownFolderPath");
+    }
+#endif
+}
+
+void ShutdownSpecialSystemDirectory()
+{
+#if defined (XP_WIN)
+    if (gShell32DLLInst)
+    {
+        FreeLibrary(gShell32DLLInst);
+        gShell32DLLInst = NULL;
+        gGetKnownFolderPath = NULL;
     }
 #endif
 }
@@ -673,7 +687,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             GUID folderid_downloads = {0x374de290, 0x123f, 0x4565, {0x91, 0x64,
                                        0x39, 0xc4, 0x92, 0x5e, 0x46, 0x7b}};
             nsresult rv = GetKnownFolder(&folderid_downloads, aFile);
-            // On WinXP, there is no downloads folder, default
+            // On WinXP and 2k, there is no downloads folder, default
             // to 'Desktop'.
             if(NS_ERROR_FAILURE == rv)
             {
@@ -757,10 +771,6 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
         case Win_Common_Desktopdirectory:
         {
             return GetWindowsFolder(CSIDL_COMMON_DESKTOPDIRECTORY, aFile);
-        }
-        case Win_Common_AppData:
-        {
-            return GetWindowsFolder(CSIDL_COMMON_APPDATA, aFile);
         }
         case Win_Printhood:
         {

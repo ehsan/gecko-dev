@@ -40,18 +40,14 @@
 
 /* Call context. */
 
-#include "mozilla/Util.h"
-
 #include "xpcprivate.h"
-
-using namespace mozilla;
 
 XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                JSContext* cx    /* = nsnull    */,
                                JSObject* obj    /* = nsnull    */,
                                JSObject* funobj /* = nsnull    */,
                                jsid name        /* = JSID_VOID */,
-                               unsigned argc       /* = NO_ARGS   */,
+                               uintN argc       /* = NO_ARGS   */,
                                jsval *argv      /* = nsnull    */,
                                jsval *rval      /* = nsnull    */)
     :   mState(INIT_FAILED),
@@ -98,7 +94,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
                      JSObject* funobj,
                      WrapperInitOptions wrapperInitOptions,
                      jsid name,
-                     unsigned argc,
+                     uintN argc,
                      jsval *argv,
                      jsval *rval)
 {
@@ -111,14 +107,14 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
         return;
 
     XPCJSContextStack* stack = mThreadData->GetJSContextStack();
+    JSContext* topJSContext;
 
-    if (!stack) {
+    if (!stack || NS_FAILED(stack->Peek(&topJSContext))) {
         // If we don't have a stack we're probably in shutdown.
+        NS_ASSERTION(!stack, "Bad, Peek failed!");
         mJSContext = nsnull;
         return;
     }
-
-    JSContext *topJSContext = stack->Peek();
 
     if (!mJSContext) {
         // This is slightly questionable. If called without an explicit
@@ -129,17 +125,14 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
         // have JS stack 'continuity' for purposes of stack traces etc.
         // Note: this *is* what the pre-XPCCallContext xpconnect did too.
 
-        if (topJSContext) {
+        if (topJSContext)
             mJSContext = topJSContext;
-        } else {
-            mJSContext = stack->GetSafeJSContext();
-            if (!mJSContext)
-                return;
-        }
+        else if (NS_FAILED(stack->GetSafeJSContext(&mJSContext)) || !mJSContext)
+            return;
     }
 
     if (topJSContext != mJSContext) {
-        if (!stack->Push(mJSContext)) {
+        if (NS_FAILED(stack->Push(mJSContext))) {
             NS_ERROR("bad!");
             return;
         }
@@ -267,7 +260,7 @@ XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
 }
 
 void
-XPCCallContext::SetArgsAndResultPtr(unsigned argc,
+XPCCallContext::SetArgsAndResultPtr(uintN argc,
                                     jsval *argv,
                                     jsval *rval)
 {
@@ -284,6 +277,7 @@ XPCCallContext::SetArgsAndResultPtr(unsigned argc,
     mArgv   = argv;
     mRetVal = rval;
 
+    mReturnValueWasSet = false;
     mState = HAVE_ARGS;
 }
 
@@ -353,8 +347,13 @@ XPCCallContext::~XPCCallContext()
         XPCJSContextStack* stack = mThreadData->GetJSContextStack();
         NS_ASSERTION(stack, "bad!");
         if (stack) {
-            DebugOnly<JSContext*> poppedCX = stack->Pop();
-            NS_ASSERTION(poppedCX == mJSContext, "bad pop");
+#ifdef DEBUG
+            JSContext* poppedCX;
+            nsresult rv = stack->Pop(&poppedCX);
+            NS_ASSERTION(NS_SUCCEEDED(rv) && poppedCX == mJSContext, "bad pop");
+#else
+            (void) stack->Pop(nsnull);
+#endif
         }
     }
 
@@ -497,6 +496,28 @@ XPCCallContext::GetArgvPtr(jsval * *aArgvPtr)
     return NS_OK;
 }
 
+/* readonly attribute JSValPtr RetValPtr; */
+NS_IMETHODIMP
+XPCCallContext::GetRetValPtr(jsval * *aRetValPtr)
+{
+    *aRetValPtr = mRetVal;
+    return NS_OK;
+}
+
+/* attribute bool ReturnValueWasSet; */
+NS_IMETHODIMP
+XPCCallContext::GetReturnValueWasSet(bool *aReturnValueWasSet)
+{
+    *aReturnValueWasSet = mReturnValueWasSet;
+    return NS_OK;
+}
+NS_IMETHODIMP
+XPCCallContext::SetReturnValueWasSet(bool aReturnValueWasSet)
+{
+    mReturnValueWasSet = aReturnValueWasSet;
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 XPCCallContext::GetPreviousCallContext(nsAXPCNativeCallContext **aResult)
 {
@@ -521,7 +542,10 @@ XPCLazyCallContext::AssertContextIsTopOfStack(JSContext* cx)
     XPCPerThreadData* tls = XPCPerThreadData::GetData(cx);
     XPCJSContextStack* stack = tls->GetJSContextStack();
 
-    JSContext *topJSContext = stack->Peek();
+    JSContext* topJSContext;
+    nsresult rv = stack->Peek(&topJSContext);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "XPCJSContextStack::Peek failed");
+
     NS_ASSERTION(cx == topJSContext, "wrong context on XPCJSContextStack!");
 }
 #endif

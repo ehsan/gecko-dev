@@ -74,14 +74,14 @@ class nsIContent;
 class nsIDocument;
 class nsIScriptTimeoutHandler;
 struct nsTimeout;
-template <class> class nsScriptObjectHolder;
+class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;
 class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x9aef58e9, 0x5225, 0x4e58, \
-  { 0x9a, 0xfb, 0xe6, 0x63, 0x97, 0x1d, 0x86, 0x88 } }
+{ 0x29e6cc54, 0x10da, 0x4a68, \
+  { 0xb7, 0x68, 0xfe, 0xa7, 0x71, 0x17, 0x93, 0x81 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -458,13 +458,6 @@ public:
   }
 
   /**
-   * Moves the top-level window into fullscreen mode if aIsFullScreen is true,
-   * otherwise exits fullscreen. If aRequireTrust is true, this method only
-   * changes window state in a context trusted for write.
-   */
-  virtual nsresult SetFullScreenInternal(bool aIsFullScreen, bool aRequireTrust) = 0;
-
-  /**
    * Call this to indicate that some node (this window, its document,
    * or content in that document) has a "MozAudioAvailable" event listener.
    */
@@ -495,7 +488,7 @@ public:
 
   virtual JSObject* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
   virtual void CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
-                                        nsScriptObjectHolder<JSObject>& aHandler) = 0;
+                                        nsScriptObjectHolder& aHandler) = 0;
 
   /*
    * Get and set the currently focused element within the document. If

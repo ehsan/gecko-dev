@@ -46,12 +46,9 @@ nsRuleData::GetPoisonOffset()
   // Fill in mValueOffsets such that mValueStorage + mValueOffsets[i]
   // will yield the frame poison value for all uninitialized value
   // offsets.
-  MOZ_STATIC_ASSERT(sizeof(PRUword) == sizeof(size_t),
-                    "expect PRUword and size_t to be the same size");
-  MOZ_STATIC_ASSERT(PRUword(-1) > PRUword(0),
-                    "expect PRUword to be unsigned");
-  MOZ_STATIC_ASSERT(size_t(-1) > size_t(0),
-                    "expect size_t to be unsigned");
+  PR_STATIC_ASSERT(sizeof(PRUword) == sizeof(size_t));
+  PR_STATIC_ASSERT(PRUword(-1) > PRUword(0));
+  PR_STATIC_ASSERT(size_t(-1) > size_t(0));
   PRUword framePoisonValue = nsPresArena::GetPoisonValue();
   return size_t(framePoisonValue - PRUword(mValueStorage)) /
          sizeof(nsCSSValue);

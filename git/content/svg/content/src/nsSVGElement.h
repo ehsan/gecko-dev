@@ -44,30 +44,29 @@
   It implements all the common DOM interfaces and handles attributes.
 */
 
-#include "mozilla/css/StyleRule.h"
-#include "nsAutoPtr.h"
-#include "nsChangeHint.h"
+#include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsError.h"
+#include "nsIDOMSVGElement.h"
 #include "nsGenericElement.h"
-#include "nsISupportsImpl.h"
 #include "nsStyledElement.h"
+#include "mozilla/css/StyleRule.h"
 
-class nsIDOMSVGElement;
-class nsIDOMSVGSVGElement;
-class nsSVGAngle;
-class nsSVGBoolean;
-class nsSVGEnum;
-class nsSVGInteger;
-class nsSVGIntegerPair;
+#include "nsISMILAttr.h"
+#include "nsSMILAnimationController.h"
+
+class nsSVGSVGElement;
 class nsSVGLength2;
 class nsSVGNumber2;
 class nsSVGNumberPair;
-class nsSVGString;
-class nsSVGSVGElement;
+class nsSVGInteger;
+class nsSVGIntegerPair;
+class nsSVGAngle;
+class nsSVGBoolean;
+class nsSVGEnum;
+struct nsSVGEnumMapping;
 class nsSVGViewBox;
-
+class nsSVGString;
+struct gfxMatrix;
 namespace mozilla {
 class SVGAnimatedNumberList;
 class SVGNumberList;
@@ -77,12 +76,7 @@ class SVGAnimatedPointList;
 class SVGAnimatedPathSegList;
 class SVGAnimatedPreserveAspectRatio;
 class SVGAnimatedTransformList;
-class SVGStringList;
-class DOMSVGStringList;
 }
-
-struct gfxMatrix;
-struct nsSVGEnumMapping;
 
 typedef nsStyledElementNotElementCSSInlineStyle nsSVGElementBase;
 
@@ -102,7 +96,6 @@ public:
   typedef mozilla::SVGAnimatedPathSegList SVGAnimatedPathSegList;
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
   typedef mozilla::SVGAnimatedTransformList SVGAnimatedTransformList;
-  typedef mozilla::SVGStringList SVGStringList;
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -122,8 +115,6 @@ public:
   virtual bool IsNodeOfType(PRUint32 aFlags) const;
 
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
-
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   static const MappedAttributeEntry sFillStrokeMap[];
   static const MappedAttributeEntry sGraphicsMap[];
@@ -152,36 +143,11 @@ public:
   // nsnull for outer <svg> or SVG without an <svg> parent (invalid SVG).
   nsSVGSVGElement* GetCtx() const;
 
-  enum TransformTypes {
-     eAllTransforms
-    ,eUserSpaceToParent
-    ,eChildToUserSpace
-  };
   /**
-   * Returns aMatrix pre-multiplied by (explicit or implicit) transforms that
-   * are introduced by attributes on this element.
-   *
-   * If aWhich is eAllTransforms, then all the transforms from the coordinate
-   * space established by this element for its children to the coordinate
-   * space established by this element's parent element for this element, are
-   * included.
-   *
-   * If aWhich is eUserSpaceToParent, then only the transforms from this
-   * element's userspace to the coordinate space established by its parent is
-   * included. This includes any transforms introduced by the 'transform'
-   * attribute, transform animations and animateMotion, but not any offsets
-   * due to e.g. 'x'/'y' attributes, or any transform due to a 'viewBox'
-   * attribute. (SVG userspace is defined to be the coordinate space in which
-   * coordinates on an element apply.)
-   *
-   * If aWhich is eChildToUserSpace, then only the transforms from the
-   * coordinate space established by this element for its childre to this
-   * elements userspace are included. This includes any offsets due to e.g.
-   * 'x'/'y' attributes, and any transform due to a 'viewBox' attribute, but
-   * does not include any transforms due to the 'transform' attribute.
+   * Returns aMatrix post-multiplied by the transform from the userspace
+   * established by this element to the userspace established by its parent.
    */
-  virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                      TransformTypes aWhich = eAllTransforms) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
 
   // Setter for to set the current <animateMotion> transformation
   // Only visible for nsSVGGraphicElement, so it's a no-op here, and that
@@ -194,67 +160,41 @@ public:
   bool NumberAttrAllowsPercentage(PRUint8 aAttrEnum) {
     return GetNumberInfo().mNumberInfo[aAttrEnum].mPercentagesAllowed;
   }
-  virtual bool HasValidDimensions() const {
-    return true;
-  }
   void SetLength(nsIAtom* aName, const nsSVGLength2 &aLength);
+  virtual void DidChangeLength(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeNumber(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeNumberPair(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeInteger(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeIntegerPair(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeAngle(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeBoolean(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeEnum(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeViewBox(bool aDoSetAttr);
+  virtual void DidChangePreserveAspectRatio(bool aDoSetAttr);
+  virtual void DidChangeNumberList(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangeLengthList(PRUint8 aAttrEnum, bool aDoSetAttr);
+  virtual void DidChangePointList(bool aDoSetAttr);
+  virtual void DidChangePathSegList(bool aDoSetAttr);
+  virtual void DidChangeTransformList(bool aDoSetAttr);
+  virtual void DidChangeString(PRUint8 aAttrEnum) {}
 
-  nsAttrValue WillChangeLength(PRUint8 aAttrEnum);
-  nsAttrValue WillChangeNumberPair(PRUint8 aAttrEnum);
-  nsAttrValue WillChangeIntegerPair(PRUint8 aAttrEnum);
-  nsAttrValue WillChangeAngle(PRUint8 aAttrEnum);
-  nsAttrValue WillChangeViewBox();
-  nsAttrValue WillChangePreserveAspectRatio();
-  nsAttrValue WillChangeNumberList(PRUint8 aAttrEnum);
-  nsAttrValue WillChangeLengthList(PRUint8 aAttrEnum);
-  nsAttrValue WillChangePointList();
-  nsAttrValue WillChangePathSegList();
-  nsAttrValue WillChangeTransformList();
-  nsAttrValue WillChangeStringList(bool aIsConditionalProcessingAttribute,
-                                   PRUint8 aAttrEnum);
+  virtual void DidAnimateLength(PRUint8 aAttrEnum);
+  virtual void DidAnimateNumber(PRUint8 aAttrEnum);
+  virtual void DidAnimateNumberPair(PRUint8 aAttrEnum);
+  virtual void DidAnimateInteger(PRUint8 aAttrEnum);
+  virtual void DidAnimateIntegerPair(PRUint8 aAttrEnum);
+  virtual void DidAnimateAngle(PRUint8 aAttrEnum);
+  virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
+  virtual void DidAnimateEnum(PRUint8 aAttrEnum);
+  virtual void DidAnimateViewBox();
+  virtual void DidAnimatePreserveAspectRatio();
+  virtual void DidAnimateNumberList(PRUint8 aAttrEnum);
+  virtual void DidAnimateLengthList(PRUint8 aAttrEnum);
+  virtual void DidAnimatePointList();
+  virtual void DidAnimatePathSegList();
+  virtual void DidAnimateTransformList();
+  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
-  void DidChangeLength(PRUint8 aAttrEnum, const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeNumber(PRUint8 aAttrEnum);
-  void DidChangeNumberPair(PRUint8 aAttrEnum,
-                           const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeInteger(PRUint8 aAttrEnum);
-  void DidChangeIntegerPair(PRUint8 aAttrEnum,
-                            const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeAngle(PRUint8 aAttrEnum, const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeBoolean(PRUint8 aAttrEnum);
-  void DidChangeEnum(PRUint8 aAttrEnum);
-  void DidChangeViewBox(const nsAttrValue& aEmptyOrOldValue);
-  void DidChangePreserveAspectRatio(const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeNumberList(PRUint8 aAttrEnum,
-                           const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeLengthList(PRUint8 aAttrEnum,
-                           const nsAttrValue& aEmptyOrOldValue);
-  void DidChangePointList(const nsAttrValue& aEmptyOrOldValue);
-  void DidChangePathSegList(const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeTransformList(const nsAttrValue& aEmptyOrOldValue);
-  void DidChangeString(PRUint8 aAttrEnum) {}
-  void DidChangeStringList(bool aIsConditionalProcessingAttribute,
-                           PRUint8 aAttrEnum,
-                           const nsAttrValue& aEmptyOrOldValue);
-
-  void DidAnimateLength(PRUint8 aAttrEnum);
-  void DidAnimateNumber(PRUint8 aAttrEnum);
-  void DidAnimateNumberPair(PRUint8 aAttrEnum);
-  void DidAnimateInteger(PRUint8 aAttrEnum);
-  void DidAnimateIntegerPair(PRUint8 aAttrEnum);
-  void DidAnimateAngle(PRUint8 aAttrEnum);
-  void DidAnimateBoolean(PRUint8 aAttrEnum);
-  void DidAnimateEnum(PRUint8 aAttrEnum);
-  void DidAnimateViewBox();
-  void DidAnimatePreserveAspectRatio();
-  void DidAnimateNumberList(PRUint8 aAttrEnum);
-  void DidAnimateLengthList(PRUint8 aAttrEnum);
-  void DidAnimatePointList();
-  void DidAnimatePathSegList();
-  void DidAnimateTransformList();
-  void DidAnimateString(PRUint8 aAttrEnum);
-
-  nsSVGLength2* GetAnimatedLength(const nsIAtom *aAttrName);
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
@@ -298,18 +238,8 @@ public:
   }
 
 protected:
-#ifdef DEBUG
-  // We define BeforeSetAttr here and mark it MOZ_FINAL to ensure it is NOT used
-  // by SVG elements.
-  // This is because we're not currently passing the correct value for aValue to
-  // BeforeSetAttr since it would involve allocating extra SVG value types.
-  // See the comment in nsSVGElement::WillChangeValue.
-  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                 const nsAttrValueOrString* aValue,
-                                 bool aNotify) MOZ_FINAL { return NS_OK; }
-#endif // DEBUG
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
   virtual bool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);
   static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
@@ -322,11 +252,6 @@ protected:
   void UpdateContentStyleRule();
   void UpdateAnimatedContentStyleRule();
   mozilla::css::StyleRule* GetAnimatedContentStyleRule();
-
-  nsAttrValue WillChangeValue(nsIAtom* aName);
-  void DidChangeValue(nsIAtom* aName, const nsAttrValue& aEmptyOrOldValue,
-                      nsAttrValue& aNewValue);
-  void MaybeSerializeAttrBeforeRemoval(nsIAtom* aName, bool aNotify);
 
   static nsIAtom* GetEventNameForAttr(nsIAtom* aAttr);
 
@@ -563,27 +488,6 @@ protected:
     void Reset(PRUint8 aAttrEnum);
   };
 
-  friend class mozilla::DOMSVGStringList;
-
-  struct StringListInfo {
-    nsIAtom**    mName;
-  };
-
-  struct StringListAttributesInfo {
-    SVGStringList*    mStringLists;
-    StringListInfo*   mStringListInfo;
-    PRUint32          mStringListCount;
-
-    StringListAttributesInfo(SVGStringList  *aStringLists,
-                             StringListInfo *aStringListInfo,
-                             PRUint32 aStringListCount) :
-      mStringLists(aStringLists), mStringListInfo(aStringListInfo),
-      mStringListCount(aStringListCount)
-      {}
-
-    void Reset(PRUint8 aAttrEnum);
-  };
-
   virtual LengthAttributesInfo GetLengthInfo();
   virtual NumberAttributesInfo GetNumberInfo();
   virtual NumberPairAttributesInfo GetNumberPairInfo();
@@ -599,7 +503,6 @@ protected:
   virtual NumberListAttributesInfo GetNumberListInfo();
   virtual LengthListAttributesInfo GetLengthListInfo();
   virtual StringAttributesInfo GetStringInfo();
-  virtual StringListAttributesInfo GetStringListInfo();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 

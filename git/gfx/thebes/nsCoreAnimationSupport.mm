@@ -41,7 +41,6 @@
 #include "nsDebug.h"
 
 #import <QuartzCore/QuartzCore.h>
-#import <AppKit/NSOpenGL.h>
 #include <dlfcn.h>
 
 #define IOSURFACE_FRAMEWORK_PATH \
@@ -203,7 +202,7 @@ CGLError nsIOSurfaceLib::CGLTexImageIOSurface2D(CGLContextObj ctxt,
                              GLsizei width, GLsizei height,
                              GLenum format, GLenum type,
                              IOSurfacePtr ioSurface, GLuint plane) {
-  return sTexImage(ctxt, target, internalFormat, width, height,
+  return sTexImage(ctxt, target, internalFormat, width, height, 
                    format, type, ioSurface, plane);
 }
 
@@ -266,10 +265,6 @@ void nsIOSurfaceLib::CloseLibrary() {
   }
   sIOSurfaceFramework = nsnull;
   sOpenGLFramework = nsnull;
-}
-
-nsIOSurface::~nsIOSurface() {
-  CFRelease(mIOSurfacePtr);
 }
 
 already_AddRefed<nsIOSurface> nsIOSurface::CreateIOSurface(int aWidth, int aHeight) { 
@@ -359,38 +354,13 @@ void nsIOSurface::Unlock() {
   nsIOSurfaceLib::IOSurfaceUnlock(mIOSurfacePtr, READ_ONLY, NULL);
 }
 
-#include "gfxImageSurface.h"
-
-already_AddRefed<gfxASurface>
-nsIOSurface::GetAsSurface() {
-  Lock();
-  size_t bytesPerRow = GetBytesPerRow();
-  size_t ioWidth = GetWidth();
-  size_t ioHeight = GetHeight();
-
-  unsigned char* ioData = (unsigned char*)GetBaseAddress();
-
-  nsRefPtr<gfxImageSurface> imgSurface =
-    new gfxImageSurface(gfxIntSize(ioWidth, ioHeight), gfxASurface::ImageFormatARGB32);
-
-  for (int i = 0; i < ioHeight; i++) {
-    memcpy(imgSurface->Data() + i * imgSurface->Stride(),
-           ioData + i * bytesPerRow, ioWidth * 4);
-  }
-
-  Unlock();
-
-  return imgSurface.forget();
-}
-
 CGLError 
-nsIOSurface::CGLTexImageIOSurface2D(void *c,
+nsIOSurface::CGLTexImageIOSurface2D(CGLContextObj ctxt,
                                     GLenum internalFormat, GLenum format, 
                                     GLenum type, GLuint plane)
 {
-  NSOpenGLContext *ctxt = static_cast<NSOpenGLContext*>(c);
-  return nsIOSurfaceLib::CGLTexImageIOSurface2D((CGLContextObj)[ctxt CGLContextObj],
-                                                GL_TEXTURE_RECTANGLE_ARB,
+  return nsIOSurfaceLib::CGLTexImageIOSurface2D(ctxt,
+                                                GL_TEXTURE_RECTANGLE_ARB, 
                                                 internalFormat,
                                                 GetWidth(), GetHeight(),
                                                 format, type,
@@ -810,6 +780,14 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
   size_t bytesPerRow = surf->GetBytesPerRow();
   size_t ioWidth = surf->GetWidth();
   size_t ioHeight = surf->GetHeight();
+  void* ioData = surf->GetBaseAddress();
+  CGDataProviderRef dataProvider = ::CGDataProviderCreateWithData(ioData,
+                                      ioData, ioHeight*(bytesPerRow)*4, 
+                                      NULL); //No release callback 
+  if (!dataProvider) {
+    surf->Unlock();
+    return NS_ERROR_FAILURE;
+  }
 
   // We get rendering glitches if we use a width/height that falls
   // outside of the IOSurface.
@@ -820,16 +798,6 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
 
   if (aX < 0 || aX >= ioWidth ||
       aY < 0 || aY >= ioHeight) {
-    surf->Unlock();
-    return NS_ERROR_FAILURE;
-  }
-
-  void* ioData = surf->GetBaseAddress();
-  CGDataProviderRef dataProvider = ::CGDataProviderCreateWithData(ioData,
-                                      ioData, ioHeight*(bytesPerRow)*4, 
-                                      NULL); //No release callback 
-  if (!dataProvider) {
-    surf->Unlock();
     return NS_ERROR_FAILURE;
   }
 
@@ -891,12 +859,10 @@ void nsCARenderer::SaveToDisk(nsIOSurface *surf) {
     return;
   }
 
-  CGColorSpaceRef colorSpace = CreateSystemColorSpace();
   CGImageRef cgImage = ::CGImageCreate(ioWidth, ioHeight, 8, 32, bytesPerRow,
-              colorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
+              CreateSystemColorSpace(), kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
               dataProvider, NULL, true, kCGRenderingIntentDefault);
   ::CGDataProviderRelease(dataProvider);
-  ::CGColorSpaceRelease(colorSpace);
   if (!cgImage) {
     surf->Unlock();
     return;
@@ -910,19 +876,16 @@ void nsCARenderer::SaveToDisk(nsIOSurface *surf) {
 
   printf("Exporting: %s\n", cstr);
   CFURLRef url = ::CFURLCreateWithString( NULL, cfStr, NULL);
-  ::CFRelease(cfStr);
 
   CFStringRef type = kUTTypePNG;
   size_t count = 1;
   CFDictionaryRef options = NULL;
   CGImageDestinationRef dest = ::CGImageDestinationCreateWithURL(url, type, count, options);
-  ::CFRelease(url);
 
   ::CGImageDestinationAddImage(dest, cgImage, NULL);
 
   ::CGImageDestinationFinalize(dest);
   ::CFRelease(dest);
-  ::CGImageRelease(cgImage);
 
   surf->Unlock();
 

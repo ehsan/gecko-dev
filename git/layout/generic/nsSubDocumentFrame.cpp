@@ -340,10 +340,17 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     aBuilder->EnterPresShell(subdocRootFrame, dirty);
   }
 
+  // The subdocView's bounds are in appunits of the subdocument, so adjust
+  // them.
   nsRect subdocBoundsInParentUnits =
-    mInnerView->GetBounds() + GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+    subdocView->GetBounds().ConvertAppUnitsRoundOut(subdocAPD, parentAPD);
 
-  if (subdocRootFrame) {
+  // Get the bounds of subdocView relative to the reference frame.
+  subdocBoundsInParentUnits = subdocBoundsInParentUnits +
+                              mInnerView->GetPosition() +
+                              GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+
+  if (subdocRootFrame && NS_SUCCEEDED(rv)) {
     rv = subdocRootFrame->
            BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);
   }
@@ -355,7 +362,10 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // for the canvas background color item.
     nsRect bounds;
     if (subdocRootFrame) {
-      bounds = subdocBoundsInParentUnits.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
+      nsPoint offset = mInnerView->GetPosition() +
+                       GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+      offset = offset.ConvertAppUnits(parentAPD, subdocAPD);
+      bounds = subdocView->GetBounds() + offset;
     } else {
       bounds = subdocBoundsInParentUnits;
     }
@@ -378,47 +388,47 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
   }
 
-  bool addedLayer = false;
+  if (NS_SUCCEEDED(rv)) {
 
-  if (subdocRootFrame && parentAPD != subdocAPD) {
-    NS_WARN_IF_FALSE(!addedLayer,
-                     "Two container layers have been added. "
-                      "Performance may suffer.");
-    addedLayer = true;
+    bool addedLayer = false;
 
-    nsDisplayZoom* zoomItem =
-      new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
-                                   subdocAPD, parentAPD);
-    childItems.AppendToTop(zoomItem);
+    if (subdocRootFrame && parentAPD != subdocAPD) {
+      NS_WARN_IF_FALSE(!addedLayer,
+                       "Two container layers have been added. "
+                       "Performance may suffer.");
+      addedLayer = true;
+
+      nsDisplayZoom* zoomItem =
+        new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
+                                     subdocAPD, parentAPD);
+      childItems.AppendToTop(zoomItem);
+    }
+    
+    if (!addedLayer && presContext->IsRootContentDocument()) {
+      // We always want top level content documents to be in their own layer.
+      nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
+        aBuilder, subdocRootFrame ? subdocRootFrame : this, &childItems);
+      childItems.AppendToTop(layerItem);
+    }
+
+    nsDisplayList list;
+    // Clip children to the child root frame's rectangle
+    rv = list.AppendNewToTop(
+        new (aBuilder) nsDisplayClip(aBuilder, this, &childItems,
+                                     subdocBoundsInParentUnits));
+
+    if (mIsInline) {
+      WrapReplacedContentForBorderRadius(aBuilder, &list, aLists);
+    } else {
+      aLists.Content()->AppendToTop(&list);
+    }
   }
-
-  if (!addedLayer && presContext->IsRootContentDocument()) {
-    // We always want top level content documents to be in their own layer.
-    nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
-      aBuilder, subdocRootFrame ? subdocRootFrame : this, &childItems);
-    childItems.AppendToTop(layerItem);
-  }
+  // delete childItems in case of OOM
+  childItems.DeleteAll();
 
   if (subdocRootFrame) {
     aBuilder->LeavePresShell(subdocRootFrame, dirty);
   }
-
-  if (ShouldClipSubdocument()) {
-    nsDisplayClip* item =
-      new (aBuilder) nsDisplayClip(aBuilder, this, &childItems,
-                                   subdocBoundsInParentUnits);
-    // Clip children to the child root frame's rectangle
-    childItems.AppendToTop(item);
-  }
-
-  if (mIsInline) {
-    WrapReplacedContentForBorderRadius(aBuilder, &childItems, aLists);
-  } else {
-    aLists.Content()->AppendToTop(&childItems);
-  }
-
-  // delete childItems in case of OOM
-  childItems.DeleteAll();
 
   return rv;
 }
@@ -605,14 +615,6 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
     nsIViewManager* vm = mInnerView->GetViewManager();
     vm->MoveViewTo(mInnerView, offset.x, offset.y);
     vm->ResizeView(mInnerView, nsRect(nsPoint(0, 0), innerSize), true);
-  }
-
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
-  if (!ShouldClipSubdocument()) {
-    nsIFrame* subdocRootFrame = GetSubdocumentRootFrame();
-    if (subdocRootFrame) {
-      aDesiredSize.mOverflowAreas.UnionWith(subdocRootFrame->GetOverflowAreas() + offset);
-    }
   }
 
   // Determine if we need to repaint our border, background or outline

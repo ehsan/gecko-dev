@@ -306,7 +306,7 @@ let Content = {
             metaKey: aEvent.metaKey,
             keyCode: aEvent.keyCode,
             charCode: aEvent.charCode,
-            preventDefault: aEvent.defaultPrevented
+            preventDefault: aEvent.getPreventDefault()
           };
           sendAsyncMessage("Browser:KeyPress", eventData);
         });
@@ -595,7 +595,8 @@ let Content = {
       }
 
       case "Browser:SetCharset": {
-        docShell.charset = json.charset;
+        let docCharset = docShell.QueryInterface(Ci.nsIDocCharset);
+        docCharset.charset = json.charset;
 
         let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
         webNav.reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
@@ -853,7 +854,7 @@ var ContextHandler = {
   },
 
   onContextMenu: function ch_onContextMenu(aEvent) {
-    if (aEvent.defaultPrevented)
+    if (aEvent.getPreventDefault())
       return;
 
     let state = {
@@ -1453,7 +1454,7 @@ var SelectionHandler = {
         if (selection.rangeCount == 0)
           return;
 
-        let range = selection.getRangeAt(0);
+        let range = selection.getRangeAt(0).QueryInterface(Ci.nsIDOMNSRange);
         if (!range)
           return;
 
@@ -1533,7 +1534,7 @@ var SelectionHandler = {
         this.selectedText = selection.toString().trim();
 
         // Update the rect we use to test when finishing the clipboard operation
-        let range = selection.getRangeAt(0)
+        let range = selection.getRangeAt(0).QueryInterface(Ci.nsIDOMNSRange);
         this.cache.rect = this._extractFromRange(range, this.cache.offset).rect;
         break;
       }

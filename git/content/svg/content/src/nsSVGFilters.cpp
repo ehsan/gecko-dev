@@ -144,12 +144,12 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
     return result;
   }
 
-  gfxFloat kernelX = aInstance->GetPrimitiveNumber(nsSVGUtils::X,
-                                                   aKernelUnitLength,
-                                                   nsSVGNumberPair::eFirst);
-  gfxFloat kernelY = aInstance->GetPrimitiveNumber(nsSVGUtils::Y,
-                                                   aKernelUnitLength,
-                                                   nsSVGNumberPair::eSecond);
+  float kernelX = aInstance->GetPrimitiveNumber(nsSVGUtils::X,
+                                                aKernelUnitLength,
+                                                nsSVGNumberPair::eFirst);
+  float kernelY = aInstance->GetPrimitiveNumber(nsSVGUtils::Y,
+                                                aKernelUnitLength,
+                                                nsSVGNumberPair::eSecond);
   if (kernelX <= 0 || kernelY <= 0)
     return result;
 
@@ -303,21 +303,12 @@ nsSVGFE::IsAttributeMapped(const nsIAtom* name) const
     sFiltersMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFEBase::IsAttributeMapped(name);
 }
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ bool
-nsSVGFE::HasValidDimensions() const
-{
-  return (!mLengthAttributes[WIDTH].IsExplicitlySet() ||
-           mLengthAttributes[WIDTH].GetAnimValInSpecifiedUnits() > 0) &&
-         (!mLengthAttributes[HEIGHT].IsExplicitlySet() || 
-           mLengthAttributes[HEIGHT].GetAnimValInSpecifiedUnits() > 0);
-}
 
 nsSVGElement::LengthAttributesInfo
 nsSVGFE::GetLengthInfo()
@@ -2809,7 +2800,7 @@ nsSVGFEFloodElement::IsAttributeMapped(const nsIAtom* name) const
     sFEFloodMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFEFloodElementBase::IsAttributeMapped(name);
 }
 
@@ -4879,7 +4870,7 @@ nsSVGFELightingElement::IsAttributeMapped(const nsIAtom* name) const
     sLightingEffectsMap
   };
 
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFELightingElementBase::IsAttributeMapped(name);
 }
 
@@ -4936,7 +4927,7 @@ GenerateNormal(float *N, const PRUint8 *data, PRInt32 stride,
                PRInt32 x, PRInt32 y, float surfaceScale)
 {
   // See this for source of constants:
-  //   http://www.w3.org/TR/SVG11/filters.html#feDiffuseLightingElement
+  //   http://www.w3.org/TR/SVG11/filters.html#feDiffuseLighting
   static const PRInt8 Kx[3][3][3][3] =
     { { { {  0,  0,  0}, { 0, -2,  2}, { 0, -1,  1} },
         { {  0,  0,  0}, {-2,  0,  2}, {-1,  0,  1} },
@@ -4965,15 +4956,6 @@ GenerateNormal(float *N, const PRUint8 *data, PRInt32 stride,
     { { 2.0 / 3.0, 1.0 / 2.0, 2.0 / 3.0 },
       { 1.0 / 3.0, 1.0 / 4.0, 1.0 / 3.0 },
       { 2.0 / 3.0, 1.0 / 2.0, 2.0 / 3.0 } };
-
-  // degenerate cases
-  if (surfaceWidth == 1 || surfaceHeight == 1) {
-    // just return a unit vector pointing towards the viewer
-    N[0] = 0;
-    N[1] = 0;
-    N[2] = 255;
-    return;
-  }
 
   PRInt8 xflag, yflag;
   if (x == 0) {
@@ -5564,13 +5546,13 @@ nsSVGFEImageElement::IsAttributeMapped(const nsIAtom* name) const
     sGraphicsMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFEImageElementBase::IsAttributeMapped(name);
 }
 
 nsresult
 nsSVGFEImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+                                  const nsAString* aValue, bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_XLink && aName == nsGkAtoms::href) {
 
@@ -5760,12 +5742,11 @@ nsSVGFEImageElement::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP
-nsSVGFEImageElement::FrameChanged(imgIRequest* aRequest,
-                                  imgIContainer *aContainer,
+nsSVGFEImageElement::FrameChanged(imgIContainer *aContainer,
                                   const nsIntRect *aDirtyRect)
 {
   nsresult rv =
-    nsImageLoadingContent::FrameChanged(aRequest, aContainer, aDirtyRect);
+    nsImageLoadingContent::FrameChanged(aContainer, aDirtyRect);
   Invalidate();
   return rv;
 }

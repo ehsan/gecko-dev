@@ -107,8 +107,8 @@
 #define JSD_AUTOREG_ENTRY "JSDebugger Startup Observer"
 #define JSD_STARTUP_ENTRY "JSDebugger Startup Observer"
 
-static void
-jsds_GCSliceCallbackProc (JSRuntime *rt, js::GCProgress progress, const js::GCDescription &desc);
+static JSBool
+jsds_GCCallbackProc (JSContext *cx, JSGCStatus status);
 
 /*******************************************************************************
  * global vars
@@ -128,9 +128,9 @@ PRUint32 gContextCount  = 0;
 PRUint32 gFrameCount  = 0;
 #endif
 
-static jsdService          *gJsds               = 0;
-static js::GCSliceCallback gPrevGCSliceCallback = jsds_GCSliceCallbackProc;
-static bool                gGCRunning           = false;
+static jsdService   *gJsds       = 0;
+static JSGCCallback  gLastGCProc = jsds_GCCallbackProc;
+static JSGCStatus    gGCStatus   = JSGC_END;
 
 static struct DeadScript {
     PRCList     links;
@@ -376,7 +376,7 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
     if (!script)
         return true;
 
-    uintptr_t pc = JSD_GetPCForStackFrame (jsdc, state, frame);
+    jsuword pc = JSD_GetPCForStackFrame (jsdc, state, frame);
 
     nsCString url(JSD_GetScriptFilename (jsdc, script));
     if (url.IsEmpty()) {
@@ -460,8 +460,11 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
  *******************************************************************************/
 
 static void
-jsds_NotifyPendingDeadScripts (JSRuntime *rt)
+jsds_NotifyPendingDeadScripts (JSContext *cx)
 {
+#ifdef CAUTIOUS_SCRIPTHOOK
+    JSRuntime *rt = JS_GetRuntime(cx);
+#endif
     jsdService *jsds = gJsds;
 
     nsCOMPtr<jsdIScriptHook> hook;
@@ -508,26 +511,34 @@ jsds_NotifyPendingDeadScripts (JSRuntime *rt)
     }
 }
 
-static void
-jsds_GCSliceCallbackProc (JSRuntime *rt, js::GCProgress progress, const js::GCDescription &desc)
+static JSBool
+jsds_GCCallbackProc (JSContext *cx, JSGCStatus status)
 {
-    if (progress == js::GC_CYCLE_END || progress == js::GC_SLICE_END) {
-        NS_ASSERTION(gGCRunning, "GC slice callback was missed");
-
+#ifdef DEBUG_verbose
+    printf ("new gc status is %i\n", status);
+#endif
+    if (status == JSGC_END) {
+        /* just to guard against reentering. */
+        gGCStatus = JSGC_BEGIN;
         while (gDeadScripts)
-            jsds_NotifyPendingDeadScripts (rt);
-
-        gGCRunning = false;
-    } else {
-        NS_ASSERTION(!gGCRunning, "should not re-enter GC");
-        gGCRunning = true;
+            jsds_NotifyPendingDeadScripts (cx);
     }
 
-    if (gPrevGCSliceCallback)
-        (*gPrevGCSliceCallback)(rt, progress, desc);
+    gGCStatus = status;
+    if (gLastGCProc && !gLastGCProc (cx, status)) {
+        /*
+         * If gLastGCProc returns false, then the GC will abort without making
+         * another callback with status=JSGC_END, so set the status to JSGC_END
+         * here.
+         */
+        gGCStatus = JSGC_END;
+        return JS_FALSE;
+    }
+    
+    return JS_TRUE;
 }
 
-static unsigned
+static uintN
 jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
                     JSErrorReport *report, void *callerdata)
 {
@@ -585,7 +596,7 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
 
 static JSBool
 jsds_CallHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
-                   unsigned type, void* callerdata)
+                   uintN type, void* callerdata)
 {
     nsCOMPtr<jsdICallHook> hook;
 
@@ -625,7 +636,7 @@ jsds_CallHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
 
 static PRUint32
 jsds_ExecutionHookProc (JSDContext* jsdc, JSDThreadState* jsdthreadstate,
-                        unsigned type, void* callerdata, jsval* rval)
+                        uintN type, void* callerdata, jsval* rval)
 {
     nsCOMPtr<jsdIExecutionHook> hook(0);
     PRUint32 hook_rv = JSD_HOOK_RETURN_CONTINUE;
@@ -740,7 +751,7 @@ jsds_ScriptHookProc (JSDContext* jsdc, JSDScript* jsdscript, JSBool creating,
 
         jsdis->Invalidate();
 
-        if (!gGCRunning) {
+        if (gGCStatus == JSGC_END) {
             nsCOMPtr<jsdIScriptHook> hook;
             gJsds->GetScriptHook(getter_AddRefs(hook));
             if (!hook)
@@ -1036,7 +1047,7 @@ jsdScript::CreatePPLineMap()
     const jschar *chars;
     
     if (fun) {
-        unsigned nargs;
+        uintN nargs;
 
         {
             JSAutoEnterCompartment ac;
@@ -1281,7 +1292,7 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
     if (!ac.enter(cx, JS_GetFunctionObject(fun)))
         return NS_ERROR_FAILURE;
 
-    unsigned nargs;
+    uintN nargs;
     if (!JS_FunctionHasLocalNames(cx, fun) ||
         (nargs = JS_GetFunctionArgumentCount(cx, fun)) == 0) {
         *count = 0;
@@ -1295,14 +1306,14 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
         return NS_ERROR_OUT_OF_MEMORY;
 
     void *mark;
-    uintptr_t *names = JS_GetFunctionLocalNameArray(cx, fun, &mark);
+    jsuword *names = JS_GetFunctionLocalNameArray(cx, fun, &mark);
     if (!names) {
         NS_Free(ret);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     nsresult rv = NS_OK;
-    for (unsigned i = 0; i < nargs; ++i) {
+    for (uintN i = 0; i < nargs; ++i) {
         JSAtom *atom = JS_LocalNameToAtom(names[i]);
         if (!atom) {
             ret[i] = 0;
@@ -1496,7 +1507,7 @@ jsdScript::LineToPc(PRUint32 aLine, PRUint32 aPcmap, PRUint32 *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
     if (aPcmap == PCMAP_SOURCETEXT) {
-        uintptr_t pc = JSD_GetClosestPC (mCx, mScript, aLine);
+        jsuword pc = JSD_GetClosestPC (mCx, mScript, aLine);
         *_rval = pc - mFirstPC;
     } else if (aPcmap == PCMAP_PRETTYPRINT) {
         *_rval = PPLineToPc(aLine);
@@ -1525,10 +1536,10 @@ jsdScript::GetExecutableLines(PRUint32 aPcmap, PRUint32 aStartLine, PRUint32 aMa
 {
     ASSERT_VALID_EPHEMERAL;
     if (aPcmap == PCMAP_SOURCETEXT) {
-        uintptr_t start = JSD_GetClosestPC(mCx, mScript, 0);
-        unsigned lastLine = JSD_GetScriptBaseLineNumber(mCx, mScript)
+        jsuword start = JSD_GetClosestPC(mCx, mScript, 0);
+        uintN lastLine = JSD_GetScriptBaseLineNumber(mCx, mScript)
                        + JSD_GetScriptLineExtent(mCx, mScript) - 1;
-        uintptr_t end = JSD_GetClosestPC(mCx, mScript, lastLine + 1);
+        jsuword end = JSD_GetClosestPC(mCx, mScript, lastLine + 1);
 
         *aExecutableLines = static_cast<PRUint32*>(NS_Alloc((end - start + 1) * sizeof(PRUint32)));
         if (!JSD_GetLinePCs(mCx, mScript, aStartLine, aMaxLines, aCount, aExecutableLines, NULL))
@@ -1576,7 +1587,7 @@ jsdScript::IsLineExecutable(PRUint32 aLine, PRUint32 aPcmap, bool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
     if (aPcmap == PCMAP_SOURCETEXT) {    
-        uintptr_t pc = JSD_GetClosestPC (mCx, mScript, aLine);
+        jsuword pc = JSD_GetClosestPC (mCx, mScript, aLine);
         *_rval = (aLine == JSD_GetClosestLine (mCx, mScript, pc));
     } else if (aPcmap == PCMAP_PRETTYPRINT) {
         if (!mPPLineMap && !CreatePPLineMap())
@@ -1599,7 +1610,7 @@ NS_IMETHODIMP
 jsdScript::SetBreakpoint(PRUint32 aPC)
 {
     ASSERT_VALID_EPHEMERAL;
-    uintptr_t pc = mFirstPC + aPC;
+    jsuword pc = mFirstPC + aPC;
     JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc, NULL);
     return NS_OK;
 }
@@ -1608,7 +1619,7 @@ NS_IMETHODIMP
 jsdScript::ClearBreakpoint(PRUint32 aPC)
 {
     ASSERT_VALID_EPHEMERAL;    
-    uintptr_t pc = mFirstPC + aPC;
+    jsuword pc = mFirstPC + aPC;
     JSD_ClearExecutionHook (mCx, mScript, pc);
     return NS_OK;
 }
@@ -1998,9 +2009,9 @@ jsdStackFrame::GetPc(PRUint32 *_rval)
                                                     mStackFrameInfo);
     if (!script)
         return NS_ERROR_FAILURE;
-    uintptr_t pcbase = JSD_GetClosestPC(mCx, script, 0);
+    jsuword pcbase = JSD_GetClosestPC(mCx, script, 0);
     
-    uintptr_t pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
+    jsuword pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
     if (pc)
         *_rval = pc - pcbase;
     else
@@ -2015,7 +2026,7 @@ jsdStackFrame::GetLine(PRUint32 *_rval)
     JSDScript *script = JSD_GetScriptForStackFrame (mCx, mThreadState,
                                                     mStackFrameInfo);
     if (script) {
-        uintptr_t pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
+        jsuword pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
         *_rval = JSD_GetClosestLine (mCx, script, pc);
     } else {
         return NS_ERROR_FAILURE;
@@ -2426,13 +2437,34 @@ jsdValue::Refresh()
 }
 
 NS_IMETHODIMP
-jsdValue::GetWrappedValue(JSContext* aCx, JS::Value* aRetval)
+jsdValue::GetWrappedValue()
 {
     ASSERT_VALID_EPHEMERAL;
+    nsresult rv;
+    nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID(), &rv);
+    if (NS_FAILED(rv))
+        return rv;
 
-    *aRetval = JSD_GetValueWrappedJSVal(mCx, mValue);
-    if (!JS_WrapValue(aCx, aRetval)) {
-        return NS_ERROR_FAILURE;
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext(&cc);
+    if (NS_FAILED(rv))
+        return rv;
+
+    jsval *result;
+    rv = cc->GetRetValPtr(&result);
+    if (NS_FAILED(rv))
+        return rv;
+
+    if (result)
+    {
+        JSContext *cx;
+        rv = cc->GetJSContext(&cx);
+        if (NS_FAILED(rv))
+            return rv;
+        *result = JSD_GetValueWrappedJSVal (mCx, mValue);
+        if (!JS_WrapValue(cx, result))
+            return NS_ERROR_FAILURE;
+        cc->SetReturnValueWasSet(true);
     }
 
     return NS_OK;
@@ -2569,9 +2601,9 @@ jsdService::ActivateDebugger (JSRuntime *rt)
 
     mRuntime = rt;
 
-    if (gPrevGCSliceCallback == jsds_GCSliceCallbackProc)
+    if (gLastGCProc == jsds_GCCallbackProc)
         /* condition indicates that the callback proc has not been set yet */
-        gPrevGCSliceCallback = js::SetGCSliceCallback (rt, jsds_GCSliceCallbackProc);
+        gLastGCProc = JS_SetGCCallbackRT (rt, jsds_GCCallbackProc);
 
     mCx = JSD_DebuggerOnForUser (rt, NULL, NULL);
     if (!mCx)
@@ -2641,13 +2673,18 @@ jsdService::Off (void)
         return NS_ERROR_NOT_INITIALIZED;
     
     if (gDeadScripts) {
-        if (gGCRunning)
+        if (gGCStatus != JSGC_END)
             return NS_ERROR_NOT_AVAILABLE;
 
         JSContext *cx = JSD_GetDefaultJSContext(mCx);
         while (gDeadScripts)
-            jsds_NotifyPendingDeadScripts (JS_GetRuntime(cx));
+            jsds_NotifyPendingDeadScripts (cx);
     }
+
+    /*
+    if (gLastGCProc != jsds_GCCallbackProc)
+        JS_SetGCCallbackRT (mRuntime, gLastGCProc);
+    */
 
     DeactivateDebugger();
 
@@ -2835,7 +2872,7 @@ jsdService::DumpHeap(const nsACString &fileName)
         rv = NS_ERROR_FAILURE;
     } else {
         JSContext *cx = JSD_GetDefaultJSContext (mCx);
-        if (!JS_DumpHeap(JS_GetRuntime(cx), file, NULL, JSTRACE_OBJECT, NULL, (size_t)-1, NULL))
+        if (!JS_DumpHeap(cx, file, NULL, JSTRACE_OBJECT, NULL, (size_t)-1, NULL))
             rv = NS_ERROR_FAILURE;
         if (file != stdout)
             fclose(file);
@@ -3036,9 +3073,38 @@ jsdService::ClearAllBreakpoints (void)
 }
 
 NS_IMETHODIMP
-jsdService::WrapValue(const JS::Value &value, jsdIValue **_rval)
+jsdService::WrapValue(jsdIValue **_rval)
 {
     ASSERT_VALID_CONTEXT;
+
+    nsresult rv;
+    nsCOMPtr<nsIXPConnect> xpc = do_GetService (nsIXPConnect::GetCID(), &rv);
+    if (NS_FAILED(rv))
+        return rv;
+
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext (&cc);
+    if (NS_FAILED(rv))
+        return rv;
+
+    PRUint32 argc;
+    rv = cc->GetArgc (&argc);
+    if (NS_FAILED(rv))
+        return rv;
+    if (argc < 1)
+        return NS_ERROR_INVALID_ARG;
+    
+    jsval    *argv;
+    rv = cc->GetArgvPtr (&argv);
+    if (NS_FAILED(rv))
+        return rv;
+
+    return WrapJSValue(argv[0], _rval);
+}
+
+NS_IMETHODIMP
+jsdService::WrapJSValue(const jsval &value, jsdIValue** _rval)
+{
     JSDValue *jsdv = JSD_NewValue(mCx, value);
     if (!jsdv)
         return NS_ERROR_FAILURE;
@@ -3358,7 +3424,7 @@ jsdService::~jsdService()
     mThrowHook = nsnull;
     mTopLevelHook = nsnull;
     mFunctionHook = nsnull;
-    gGCRunning = false;
+    gGCStatus = JSGC_END;
     Off();
     gJsds = nsnull;
 }

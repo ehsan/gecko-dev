@@ -62,36 +62,9 @@ struct nsCycleCollectionLanguageRuntime
 #endif
 };
 
-// Contains various stats about the cycle collection.
-class nsCycleCollectorResults
-{
-public:
-    nsCycleCollectorResults() :
-        mForcedGC(false), mVisitedRefCounted(0), mVisitedGCed(0),
-        mFreedRefCounted(0), mFreedGCed(0) {}
-    bool mForcedGC;
-    PRUint32 mVisitedRefCounted;
-    PRUint32 mVisitedGCed;
-    PRUint32 mFreedRefCounted;
-    PRUint32 mFreedGCed;
-};
-
 nsresult nsCycleCollector_startup();
-
-typedef void (*CC_BeforeUnlinkCallback)(void);
-void nsCycleCollector_setBeforeUnlinkCallback(CC_BeforeUnlinkCallback aCB);
-
-typedef void (*CC_ForgetSkippableCallback)(void);
-void nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB);
-
-void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false);
-
-#ifdef DEBUG_CC
-void nsCycleCollector_logPurpleRemoval(void* aObject);
-#endif
-
-void nsCycleCollector_collect(nsCycleCollectorResults *aResults,
-                              nsICycleCollectorListener *aListener);
+// Returns the number of collected nodes.
+PRUint32 nsCycleCollector_collect(nsICycleCollectorListener *aListener);
 PRUint32 nsCycleCollector_suspectedCount();
 void nsCycleCollector_shutdownThreads();
 void nsCycleCollector_shutdown();
@@ -105,11 +78,8 @@ struct nsCycleCollectionJSRuntime : public nsCycleCollectionLanguageRuntime
 {
     /**
      * Called before/after transitioning to/from the main thread.
-     *
-     * NotifyLeaveMainThread may return 'false' to prevent the cycle collector
-     * from leaving the main thread.
      */
-    virtual bool NotifyLeaveMainThread() = 0;
+    virtual void NotifyLeaveMainThread() = 0;
     virtual void NotifyEnterCycleCollectionThread() = 0;
     virtual void NotifyLeaveCycleCollectionThread() = 0;
     virtual void NotifyEnterMainThread() = 0;
@@ -120,10 +90,9 @@ struct nsCycleCollectionJSRuntime : public nsCycleCollectionLanguageRuntime
     virtual bool NeedCollect() = 0;
 
     /**
-     * Runs the JavaScript GC. |reason| is a gcreason::Reason from jsfriendapi.h.
-     * |kind| is a nsGCType from nsIXPConnect.idl.
+     * Runs the JavaScript GC.
      */
-    virtual void Collect(PRUint32 reason, PRUint32 kind) = 0;
+    virtual void Collect(bool shrinkingGC = false) = 0;
 };
 
 #ifdef DEBUG

@@ -60,7 +60,7 @@ static JSDStackFrameInfo*
 _addNewFrame(JSDContext*        jsdc,
              JSDThreadState*    jsdthreadstate,
              JSScript*          script,
-             uintptr_t          pc,
+             jsuword            pc,
              JSStackFrame*      fp)
 {
     JSDStackFrameInfo* jsdframe;
@@ -125,7 +125,7 @@ jsd_NewThreadState(JSDContext* jsdc, JSContext *cx )
     while( NULL != (fp = JS_FrameIterator(cx, &iter)) )
     {
         JSScript* script = JS_GetFrameScript(cx, fp);
-        uintptr_t  pc = (uintptr_t) JS_GetFramePC(cx, fp);
+        jsuword  pc = (jsuword) JS_GetFramePC(cx, fp);
         jsval dummyThis;
 
         /*
@@ -193,10 +193,10 @@ jsd_DestroyThreadState(JSDContext* jsdc, JSDThreadState* jsdthreadstate)
     free(jsdthreadstate);
 }
 
-unsigned
+uintN
 jsd_GetCountOfStackFrames(JSDContext* jsdc, JSDThreadState* jsdthreadstate)
 {
-    unsigned count = 0;
+    uintN count = 0;
 
     JSD_LOCK_THREADSTATES(jsdc);
 
@@ -270,12 +270,12 @@ jsd_GetScriptForStackFrame(JSDContext* jsdc,
     return jsdscript;
 }
 
-uintptr_t
+jsuword
 jsd_GetPCForStackFrame(JSDContext* jsdc, 
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe)
 {
-    uintptr_t pc = 0;
+    jsuword pc = 0;
 
     JSD_LOCK_THREADSTATES(jsdc);
 
@@ -425,8 +425,8 @@ JSBool
 jsd_EvaluateUCScriptInStackFrame(JSDContext* jsdc, 
                                  JSDThreadState* jsdthreadstate,
                                  JSDStackFrameInfo* jsdframe,
-                                 const jschar *bytes, unsigned length,
-                                 const char *filename, unsigned lineno,
+                                 const jschar *bytes, uintN length,
+                                 const char *filename, uintN lineno,
                                  JSBool eatExceptions, jsval *rval)
 {
     JSBool retval;
@@ -463,8 +463,8 @@ JSBool
 jsd_EvaluateScriptInStackFrame(JSDContext* jsdc, 
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe,
-                               const char *bytes, unsigned length,
-                               const char *filename, unsigned lineno,
+                               const char *bytes, uintN length,
+                               const char *filename, uintN lineno,
                                JSBool eatExceptions, jsval *rval)
 {
     JSBool retval;

@@ -38,12 +38,12 @@
 
 #include "ContentChild.h"
 #include "ContentParent.h"
+#include "jscntxt.h"
 #include "nsFrameMessageManager.h"
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "nsJSUtils.h"
-#include "nsJSPrincipals.h"
 #include "nsNetUtil.h"
 #include "nsScriptLoader.h"
 #include "nsIJSContextStack.h"
@@ -51,9 +51,6 @@
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
 #include "nsIProtocolHandler.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsIJSRuntimeService.h"
-#include "xpcpublic.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -346,29 +343,6 @@ nsFrameMessageManager::Atob(const nsAString& aAsciiString,
   return NS_OK;
 }
 
-class MMListenerRemover
-{
-public:
-  MMListenerRemover(nsFrameMessageManager* aMM)
-    : mWasHandlingMessage(aMM->mHandlingMessage)
-    , mMM(aMM)
-  {
-    mMM->mHandlingMessage = true;
-  }
-  ~MMListenerRemover()
-  {
-    if (!mWasHandlingMessage) {
-      mMM->mHandlingMessage = false;
-      if (mMM->mDisconnected) {
-        mMM->mListeners.Clear();
-      }
-    }
-  }
-
-  bool mWasHandlingMessage;
-  nsRefPtr<nsFrameMessageManager> mMM;
-};
-
 nsresult
 nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
@@ -383,7 +357,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
   }
   if (mListeners.Length()) {
     nsCOMPtr<nsIAtom> name = do_GetAtom(aMessage);
-    MMListenerRemover lr(this);
+    nsRefPtr<nsFrameMessageManager> kungfuDeathGrip(this);
 
     for (PRUint32 i = 0; i < mListeners.Length(); ++i) {
       if (mListeners[i].mMessage == name) {
@@ -426,7 +400,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           }
         }
 
-        JS::AutoValueRooter objectsv(ctx);
+        js::AutoValueRooter objectsv(ctx);
         objectsv.set(OBJECT_TO_JSVAL(aObjectsArray));
         if (!JS_WrapValue(ctx, objectsv.jsval_addr()))
             return NS_ERROR_UNEXPECTED;
@@ -482,7 +456,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         jsval rval = JSVAL_VOID;
 
-        JS::AutoValueRooter argv(ctx);
+        js::AutoValueRooter argv(ctx);
         argv.set(OBJECT_TO_JSVAL(param));
 
         {
@@ -554,29 +528,14 @@ nsFrameMessageManager::SetCallbackData(void* aData, bool aLoadScripts)
 }
 
 void
-nsFrameMessageManager::RemoveFromParent()
-{
-  if (mParentManager) {
-    mParentManager->RemoveChildManager(this);
-  }
-  mParentManager = nsnull;
-  mCallbackData = nsnull;
-  mContext = nsnull;
-}
-
-void
 nsFrameMessageManager::Disconnect(bool aRemoveFromParent)
 {
   if (mParentManager && aRemoveFromParent) {
     mParentManager->RemoveChildManager(this);
   }
-  mDisconnected = true;
   mParentManager = nsnull;
   mCallbackData = nsnull;
   mContext = nsnull;
-  if (!mHandlingMessage) {
-    mListeners.Clear();
-  }
 }
 
 nsresult
@@ -812,13 +771,15 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       JSObject* global = nsnull;
       mGlobal->GetJSObject(&global);
       if (global) {
+        JSPrincipals* jsprin = nsnull;
+        mPrincipal->GetJSPrincipals(mCx, &jsprin);
+
         uint32 oldopts = JS_GetOptions(mCx);
         JS_SetOptions(mCx, oldopts | JSOPTION_NO_SCRIPT_RVAL);
 
         JSScript* script =
-          JS_CompileUCScriptForPrincipals(mCx, nsnull,
-                                          nsJSPrincipals::get(mPrincipal),
-                                          static_cast<const jschar*>(dataString.get()),
+          JS_CompileUCScriptForPrincipals(mCx, nsnull, jsprin,
+                                         (jschar*)dataString.get(),
                                           dataString.Length(),
                                           url.get(), 1);
 
@@ -838,59 +799,13 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
           }
           (void) JS_ExecuteScript(mCx, global, script, nsnull);
         }
+        //XXX Argh, JSPrincipals are manually refcounted!
+        JSPRINCIPALS_DROP(mCx, jsprin);
       }
     } 
     JSContext* unused;
     nsContentUtils::ThreadJSContextStack()->Pop(&unused);
   }
-}
-
-bool
-nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope)
-{
-  
-  nsCOMPtr<nsIJSRuntimeService> runtimeSvc = 
-    do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
-  NS_ENSURE_TRUE(runtimeSvc, false);
-
-  JSRuntime* rt = nsnull;
-  runtimeSvc->GetRuntime(&rt);
-  NS_ENSURE_TRUE(rt, false);
-
-  JSContext* cx = JS_NewContext(rt, 8192);
-  NS_ENSURE_TRUE(cx, false);
-
-  mCx = cx;
-
-  nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
-
-  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_PRIVATE_IS_NSISUPPORTS);
-  JS_SetVersion(cx, JSVERSION_LATEST);
-  JS_SetErrorReporter(cx, ContentScriptErrorReporter);
-
-  xpc_LocalizeContext(cx);
-
-  JSAutoRequest ar(cx);
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  const PRUint32 flags = nsIXPConnect::INIT_JS_STANDARD_CLASSES |
-                         nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT;
-
-  
-  JS_SetContextPrivate(cx, aScope);
-
-  nsresult rv =
-    xpc->InitClassesWithNewWrappedGlobal(cx, aScope, mPrincipal,
-                                         flags, getter_AddRefs(mGlobal));
-  NS_ENSURE_SUCCESS(rv, false);
-
-    
-  JSObject* global = nsnull;
-  rv = mGlobal->GetJSObject(&global);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  JS_SetGlobalObject(cx, global);
-  DidCreateCx();
-  return true;
 }
 
 // static
@@ -1088,7 +1003,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sChildProcessManager,
                "Re-creating sChildProcessManager");
-  bool isChrome = IsChromeProcess();
+  PRBool isChrome = IsChromeProcess();
   nsFrameMessageManager* mm = new nsFrameMessageManager(false,
                                                         isChrome ? SendSyncMessageToSameProcessParent
                                                                  : SendSyncMessageToParentProcess,
@@ -1103,16 +1018,4 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   nsFrameMessageManager::sChildProcessManager = mm;
   return CallQueryInterface(mm, aResult);
-}
-
-bool
-nsFrameMessageManager::MarkForCC()
-{
-  PRUint32 len = mListeners.Length();
-  for (PRUint32 i = 0; i < len; ++i) {
-    nsCOMPtr<nsIXPConnectWrappedJS> wjs =
-      do_QueryInterface(mListeners[i].mListener);
-    xpc_UnmarkGrayObject(wjs);
-  }
-  return true;
 }

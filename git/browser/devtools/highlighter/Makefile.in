@@ -49,9 +49,10 @@ EXTRA_JS_MODULES = \
 	domplate.jsm \
 	InsideOutBox.jsm \
 	TreePanel.jsm \
-	highlighter.jsm \
 	$(NULL)
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+ 	DIRS += test
+endif
 
 include $(topsrcdir)/config/rules.mk

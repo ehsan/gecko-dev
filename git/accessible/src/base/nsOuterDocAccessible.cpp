@@ -38,10 +38,9 @@
 
 #include "nsOuterDocAccessible.h"
 
+#include "States.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
-#include "Role.h"
-#include "States.h"
 
 using namespace mozilla::a11y;
 
@@ -50,8 +49,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsOuterDocAccessible::
-  nsOuterDocAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsOuterDocAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -64,10 +63,10 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsOuterDocAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public (DON'T add methods here)
 
-role
+PRUint32
 nsOuterDocAccessible::NativeRole()
 {
-  return roles::INTERNAL_FRAME;
+  return nsIAccessibleRole::ROLE_INTERNAL_FRAME;
 }
 
 nsAccessible*
@@ -188,7 +187,7 @@ nsOuterDocAccessible::AppendChild(nsAccessible *aAccessible)
   if (mChildren.Length())
     mChildren[0]->Shutdown();
 
-  if (!nsAccessibleWrap::AppendChild(aAccessible))
+  if (!nsAccessible::AppendChild(aAccessible))
     return false;
 
   NS_LOG_ACCDOCCREATE("append document to outerdoc",
@@ -211,7 +210,7 @@ nsOuterDocAccessible::RemoveChild(nsAccessible *aAccessible)
                            child->GetDocumentNode(), child)
   NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
 
-  bool wasRemoved = nsAccessibleWrap::RemoveChild(child);
+  bool wasRemoved = nsAccessible::RemoveChild(child);
 
   NS_ASSERTION(!mChildren.Length(),
                "This child document of outerdoc accessible wasn't removed!");

@@ -281,8 +281,8 @@ PRInt32 nsAccessibleWrap::mAccWrapDeleted = 0;
 #endif
 
 nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessible(aContent, aDoc), mAtkObject(nsnull)
+    nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
+    nsAccessible(aContent, aShell), mAtkObject(nsnull)
 {
 #ifdef MAI_LOGGING
     ++mAccWrapCreated;
@@ -362,7 +362,7 @@ NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
     *aOutAccessible = nsnull;
 
     if (!mAtkObject) {
-        if (IsDefunct() || !nsAccUtils::IsEmbeddedObject(this)) {
+        if (!mWeakShell || !nsAccUtils::IsEmbeddedObject(this)) {
             // We don't create ATK objects for node which has been shutdown, or
             // nsIAccessible plain text leaves
             return NS_ERROR_FAILURE;
@@ -441,12 +441,21 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
        interfacesBits |= 1 << MAI_INTERFACE_VALUE; 
     }
 
-    // document accessible
-    if (IsDoc())
+    //nsIAccessibleDocument
+    nsCOMPtr<nsIAccessibleDocument> accessInterfaceDocument;
+    QueryInterface(NS_GET_IID(nsIAccessibleDocument),
+                              getter_AddRefs(accessInterfaceDocument));
+    if (accessInterfaceDocument) {
         interfacesBits |= 1 << MAI_INTERFACE_DOCUMENT;
+    }
 
-    if (IsImageAccessible())
+    //nsIAccessibleImage
+    nsCOMPtr<nsIAccessibleImage> accessInterfaceImage;
+    QueryInterface(NS_GET_IID(nsIAccessibleImage),
+                              getter_AddRefs(accessInterfaceImage));
+    if (accessInterfaceImage) {
         interfacesBits |= 1 << MAI_INTERFACE_IMAGE;
+    }
 
   // HyperLinkAccessible
   if (IsLink())
@@ -871,11 +880,10 @@ refChildCB(AtkObject *aAtkObj, gint aChildIndex)
     if (!childAtkObj)
         return nsnull;
     g_object_ref(childAtkObj);
-
-  if (aAtkObj != childAtkObj->accessible_parent)
+    
+    //this will addref parent
     atk_object_set_parent(childAtkObj, aAtkObj);
-
-  return childAtkObj;
+    return childAtkObj;
 }
 
 gint
@@ -1367,9 +1375,8 @@ nsAccessibleWrap::FireAtkTextChangedEvent(AccEvent* aEvent,
     char* signal_name = nsnull;
 
   if (gAvailableAtkSignals == eUnknown)
-    gAvailableAtkSignals =
-      g_signal_lookup("text-insert", G_OBJECT_TYPE(aObject)) ?
-        eHaveNewAtkTextSignals : eNoNewAtkSignals;
+    gAvailableAtkSignals = g_signal_lookup("text-insert", ATK_TYPE_TEXT) ?
+      eHaveNewAtkTextSignals : eNoNewAtkSignals;
 
   if (gAvailableAtkSignals == eNoNewAtkSignals) {
     // XXX remove this code and the gHaveNewTextSignals check when we can

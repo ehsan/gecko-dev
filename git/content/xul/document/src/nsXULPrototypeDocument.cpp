@@ -119,7 +119,7 @@ PRUint32 nsXULPrototypeDocument::gRefCnt;
 void
 nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
-    nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(obj);
+    nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(cx, obj);
 
     nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeThis));
 
@@ -146,7 +146,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, nsXULPDGlobalObject_resolve,  JS_ConvertStub,
-    nsXULPDGlobalObject_finalize, NULL, NULL, NULL, NULL,
+    nsXULPDGlobalObject_finalize, NULL, NULL, NULL, NULL, NULL, NULL,
     TraceXPCGlobal
 };
 
@@ -159,8 +159,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 
 nsXULPrototypeDocument::nsXULPrototypeDocument()
     : mRoot(nsnull),
-      mLoaded(false),
-      mCCGeneration(0)
+      mLoaded(false)
 {
     ++gRefCnt;
 }
@@ -196,9 +195,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
-    if (nsCCUncollectableMarker::InGeneration(cb, tmp->mCCGeneration)) {
-        return NS_SUCCESS_INTERRUPTED_TRAVERSE;
-    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mRoot,
                                                     nsXULPrototypeElement)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mGlobalObject");
@@ -747,7 +743,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
 
     // Add an owning reference from JS back to us. This'll be
     // released when the JSObject is finalized.
-    ::JS_SetPrivate(newGlob, this);
+    ::JS_SetPrivate(cx, newGlob, this);
     NS_ADDREF(this);
   }
 
@@ -788,7 +784,11 @@ nsXULPDGlobalObject::ClearGlobalObjectOwner()
   if (this != nsXULPrototypeDocument::gSystemGlobal)
     mCachedPrincipal = mGlobalObjectOwner->DocumentPrincipal();
 
-  mContext = NULL;
+  if (mContext) {
+    mContext->FinalizeContext();
+    mContext = NULL;
+  }
+
   mGlobalObjectOwner = NULL;
 }
 

@@ -44,9 +44,6 @@
 #include "txKey.h"
 #include "txXSLTPatterns.h"
 #include "txNamespaceMap.h"
-#include "mozilla/HashFunctions.h"
-
-using namespace mozilla;
 
 /*
  * txKeyFunctionCall
@@ -155,41 +152,51 @@ txKeyFunctionCall::getNameAtom(nsIAtom** aAtom)
  * Hash functions
  */
 
-bool
-txKeyValueHashEntry::KeyEquals(KeyTypePointer aKey) const
-{
-    return mKey.mKeyName == aKey->mKeyName &&
-           mKey.mRootIdentifier == aKey->mRootIdentifier &&
-           mKey.mKeyValue.Equals(aKey->mKeyValue);
-}
+DHASH_WRAPPER(txKeyValueHash, txKeyValueHashEntry, txKeyValueHashKey&)
+DHASH_WRAPPER(txIndexedKeyHash, txIndexedKeyHashEntry, txIndexedKeyHashKey&)
 
-PLDHashNumber
-txKeyValueHashEntry::HashKey(KeyTypePointer aKey)
+bool
+txKeyValueHashEntry::MatchEntry(const void* aKey) const
 {
     const txKeyValueHashKey* key =
         static_cast<const txKeyValueHashKey*>(aKey);
 
-    return AddToHash(HashString(key->mKeyValue),
-                     key->mKeyName.mNamespaceID,
-                     key->mRootIdentifier,
-                     key->mKeyName.mLocalName.get());
-}
-
-bool
-txIndexedKeyHashEntry::KeyEquals(KeyTypePointer aKey) const
-{
-    return mKey.mKeyName == aKey->mKeyName &&
-           mKey.mRootIdentifier == aKey->mRootIdentifier;
+    return mKey.mKeyName == key->mKeyName &&
+           mKey.mRootIdentifier == key->mRootIdentifier &&
+           mKey.mKeyValue.Equals(key->mKeyValue);
 }
 
 PLDHashNumber
-txIndexedKeyHashEntry::HashKey(KeyTypePointer aKey)
+txKeyValueHashEntry::HashKey(const void* aKey)
+{
+    const txKeyValueHashKey* key =
+        static_cast<const txKeyValueHashKey*>(aKey);
+
+    return key->mKeyName.mNamespaceID ^
+           NS_PTR_TO_INT32(key->mKeyName.mLocalName.get()) ^
+           key->mRootIdentifier ^
+           HashString(key->mKeyValue);
+}
+
+bool
+txIndexedKeyHashEntry::MatchEntry(const void* aKey) const
 {
     const txIndexedKeyHashKey* key =
         static_cast<const txIndexedKeyHashKey*>(aKey);
-    return HashGeneric(key->mKeyName.mNamespaceID,
-                       key->mRootIdentifier,
-                       key->mKeyName.mLocalName.get());
+
+    return mKey.mKeyName == key->mKeyName &&
+           mKey.mRootIdentifier == key->mRootIdentifier;
+}
+
+PLDHashNumber
+txIndexedKeyHashEntry::HashKey(const void* aKey)
+{
+    const txIndexedKeyHashKey* key =
+        static_cast<const txIndexedKeyHashKey*>(aKey);
+
+    return key->mKeyName.mNamespaceID ^
+           NS_PTR_TO_INT32(key->mKeyName.mLocalName.get()) ^
+           key->mRootIdentifier;
 }
 
 /*
@@ -204,6 +211,9 @@ txKeyHash::getKeyNodes(const txExpandedName& aKeyName,
                        txExecutionState& aEs,
                        txNodeSet** aResult)
 {
+    NS_ENSURE_TRUE(mKeyValues.mHashTable.ops && mIndexedKeys.mHashTable.ops,
+                   NS_ERROR_OUT_OF_MEMORY);
+
     *aResult = nsnull;
 
     PRInt32 identifier = txXPathNodeUtils::getUniqueIdentifier(aRoot);
@@ -231,7 +241,7 @@ txKeyHash::getKeyNodes(const txExpandedName& aKeyName,
     }
 
     txIndexedKeyHashKey indexKey(aKeyName, identifier);
-    txIndexedKeyHashEntry* indexEntry = mIndexedKeys.PutEntry(indexKey);
+    txIndexedKeyHashEntry* indexEntry = mIndexedKeys.AddEntry(indexKey);
     NS_ENSURE_TRUE(indexEntry, NS_ERROR_OUT_OF_MEMORY);
 
     if (indexEntry->mIndexed) {
@@ -402,7 +412,7 @@ nsresult txXSLKey::testNode(const txXPathNode& aNode,
                     txXPathNodeUtils::appendNodeValue(res->get(i), val);
 
                     aKey.mKeyValue.Assign(val);
-                    txKeyValueHashEntry* entry = aKeyValueHash.PutEntry(aKey);
+                    txKeyValueHashEntry* entry = aKeyValueHash.AddEntry(aKey);
                     NS_ENSURE_TRUE(entry && entry->mNodeSet,
                                    NS_ERROR_OUT_OF_MEMORY);
 
@@ -417,7 +427,7 @@ nsresult txXSLKey::testNode(const txXPathNode& aNode,
                 exprResult->stringValue(val);
 
                 aKey.mKeyValue.Assign(val);
-                txKeyValueHashEntry* entry = aKeyValueHash.PutEntry(aKey);
+                txKeyValueHashEntry* entry = aKeyValueHash.AddEntry(aKey);
                 NS_ENSURE_TRUE(entry && entry->mNodeSet,
                                NS_ERROR_OUT_OF_MEMORY);
 

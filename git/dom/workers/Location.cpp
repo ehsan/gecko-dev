@@ -39,12 +39,13 @@
 #include "Location.h"
 
 #include "jsapi.h"
+#include "jscntxt.h"
 #include "jsfriendapi.h"
 
 #include "nsTraceRefcnt.h"
 
 #define PROPERTY_FLAGS \
-  (JSPROP_ENUMERATE | JSPROP_SHARED)
+  JSPROP_ENUMERATE | JSPROP_SHARED
 
 USING_WORKERS_NAMESPACE
 
@@ -89,25 +90,31 @@ public:
 
     jsval empty = JS_GetEmptyStringValue(aCx);
 
-    JS_SetReservedSlot(obj, SLOT_href,
-                       aHref ? STRING_TO_JSVAL(aHref) : empty);
-    JS_SetReservedSlot(obj, SLOT_protocol,
-                       aProtocol ? STRING_TO_JSVAL(aProtocol) : empty);
-    JS_SetReservedSlot(obj, SLOT_host,
-                       aHost ? STRING_TO_JSVAL(aHost) : empty);
-    JS_SetReservedSlot(obj, SLOT_hostname,
-                       aHostname ? STRING_TO_JSVAL(aHostname) : empty);
-    JS_SetReservedSlot(obj, SLOT_port,
-                       aPort ? STRING_TO_JSVAL(aPort) : empty);
-    JS_SetReservedSlot(obj, SLOT_pathname,
-                       aPathname ? STRING_TO_JSVAL(aPathname) : empty);
-    JS_SetReservedSlot(obj, SLOT_search,
-                       aSearch ? STRING_TO_JSVAL(aSearch) : empty);
-    JS_SetReservedSlot(obj, SLOT_hash,
-                       aHash ? STRING_TO_JSVAL(aHash) : empty);
+    if (!JS_SetReservedSlot(aCx, obj, SLOT_href,
+                            aHref ? STRING_TO_JSVAL(aHref) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_protocol,
+                            aProtocol ? STRING_TO_JSVAL(aProtocol) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_host,
+                            aHost ? STRING_TO_JSVAL(aHost) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_hostname,
+                            aHostname ? STRING_TO_JSVAL(aHostname) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_port,
+                            aPort ? STRING_TO_JSVAL(aPort) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_pathname,
+                            aPathname ? STRING_TO_JSVAL(aPathname) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_search,
+                            aSearch ? STRING_TO_JSVAL(aSearch) : empty) ||
+        !JS_SetReservedSlot(aCx, obj, SLOT_hash,
+                            aHash ? STRING_TO_JSVAL(aHash) : empty)) {
+      return NULL;
+    }
 
     Location* priv = new Location();
-    JS_SetPrivate(obj, priv);
+
+    if (!JS_SetPrivate(aCx, obj, priv)) {
+      delete priv;
+      return NULL;
+    }
 
     return obj;
   }
@@ -124,7 +131,7 @@ private:
   }
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
                          sClass.name);
@@ -134,27 +141,28 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
-    delete static_cast<Location*>(JS_GetPrivate(aObj));
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    delete static_cast<Location*>(JS_GetPrivate(aCx, aObj));
   }
 
   static JSBool
-  ToString(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ToString(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
-    JSClass* classPtr = JS_GetClass(obj);
-    if (classPtr != &sClass) {
+    JSClass* classPtr;
+    if (!obj || ((classPtr = JS_GET_CLASS(aCx, obj)) != &sClass)) {
       JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                            JSMSG_INCOMPATIBLE_PROTO, sClass.name, "toString",
-                           classPtr);
+                           classPtr ? classPtr->name : "object");
       return false;
     }
 
-    jsval href = JS_GetReservedSlot(obj, SLOT_href);
+
+    jsval href;
+    if (!JS_GetReservedSlot(aCx, obj, SLOT_href, &href)) {
+      return false;
+    }
 
     JS_SET_RVAL(aCx, aVp, href);
     return true;
@@ -163,19 +171,18 @@ private:
   static JSBool
   GetProperty(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (classPtr != &sClass) {
+    JSClass* classPtr;
+    if (!aObj || ((classPtr = JS_GET_CLASS(aCx, aObj)) != &sClass)) {
       JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                            JSMSG_INCOMPATIBLE_PROTO, sClass.name, "GetProperty",
-                           classPtr->name);
+                           classPtr ? classPtr->name : "object");
       return false;
     }
 
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < SLOT_COUNT);
 
-    *aVp = JS_GetReservedSlot(aObj, JSID_TO_INT(aIdval));
-    return true;
+    return JS_GetReservedSlot(aCx, aObj, JSID_TO_INT(aIdval), aVp);
   }
 };
 

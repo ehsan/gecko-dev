@@ -55,7 +55,7 @@
 
 #include "nspr.h"
 
-using namespace mozilla::image;
+using namespace mozilla::imagelib;
 
 NS_IMPL_ADDREF(imgRequestProxy)
 NS_IMPL_RELEASE(imgRequestProxy)
@@ -370,16 +370,6 @@ imgRequestProxy::UnlockImage()
   return NS_OK;
 }
 
-/* void requestDiscard (); */
-NS_IMETHODIMP
-imgRequestProxy::RequestDiscard()
-{
-  if (mImage) {
-    return mImage->RequestDiscard();
-  }
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 imgRequestProxy::IncrementAnimationConsumers()
 {
@@ -624,7 +614,7 @@ void imgRequestProxy::FrameChanged(imgIContainer *container,
   if (mListener && !mCanceled) {
     // Hold a ref to the listener while we call it, just in case.
     nsCOMPtr<imgIDecoderObserver> kungFuDeathGrip(mListener);
-    mListener->FrameChanged(this, container, dirtyRect);
+    mListener->FrameChanged(container, dirtyRect);
   }
 }
 

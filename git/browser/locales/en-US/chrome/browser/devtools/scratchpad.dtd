@@ -43,6 +43,30 @@
 <!ENTITY editMenu.label               "Edit">
 <!ENTITY editMenu.accesskey           "E">
 
+<!ENTITY undoCmd.label                "Undo">
+<!ENTITY undoCmd.key                  "Z">
+<!ENTITY undoCmd.accesskey            "U">
+
+<!ENTITY redoCmd.label                "Redo">
+<!ENTITY redoCmd.key                  "Y">
+<!ENTITY redoCmd.accesskey            "R">
+
+<!ENTITY cutCmd.label                 "Cut">
+<!ENTITY cutCmd.key                   "X">
+<!ENTITY cutCmd.accesskey             "t">
+
+<!ENTITY copyCmd.label                "Copy">
+<!ENTITY copyCmd.key                  "C">
+<!ENTITY copyCmd.accesskey            "C">
+
+<!ENTITY pasteCmd.label               "Paste">
+<!ENTITY pasteCmd.key                 "V">
+<!ENTITY pasteCmd.accesskey           "P">
+
+<!ENTITY selectAllCmd.label           "Select All">
+<!ENTITY selectAllCmd.key             "A">
+<!ENTITY selectAllCmd.accesskey       "A">
+
 <!ENTITY run.label                    "Run">
 <!ENTITY run.accesskey                "R">
 <!ENTITY run.key                      "r">
@@ -76,18 +100,6 @@
   -->
 <!ENTITY browserContext.label         "Browser">
 <!ENTITY browserContext.accesskey     "B">
-
-<!-- LOCALIZATION NOTE some localizations of Windows (ex:french, german) use "?"
-  -  for the help button in the menubar but Gnome does not.
-  -->
-<!ENTITY helpMenu.label               "Help">
-<!ENTITY helpMenu.accesskey           "H">
-<!ENTITY helpMenuWin.label            "Help">
-<!ENTITY helpMenuWin.accesskey        "H">
-
-<!ENTITY documentationLink.label      "Scratchpad Help on MDN">
-<!ENTITY documentationLink.accesskey  "D">
-
 
 <!-- LOCALIZATION NOTE (resetContext2.label): This command allows the developer
   -  to reset/clear the global object of the environment where the code executes.

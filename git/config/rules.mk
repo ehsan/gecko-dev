@@ -64,8 +64,6 @@ ifdef SDK_HEADERS
 EXPORTS += $(SDK_HEADERS)
 endif
 
-REPORT_BUILD = @echo $(notdir $<)
-
 ifeq ($(OS_ARCH),OS2)
 EXEC			=
 else
@@ -91,6 +89,24 @@ VPATH += $(DIST)/lib
 ifdef LIBXUL_SDK
 VPATH += $(LIBXUL_SDK)/lib
 endif
+
+# EXPAND_LIBNAME - $(call EXPAND_LIBNAME,foo)
+# expands to $(LIB_PREFIX)foo.$(LIB_SUFFIX) or -lfoo, depending on linker
+# arguments syntax. Should only be used for system libraries
+
+# EXPAND_LIBNAME_PATH - $(call EXPAND_LIBNAME_PATH,foo,dir)
+# expands to dir/$(LIB_PREFIX)foo.$(LIB_SUFFIX)
+
+# EXPAND_MOZLIBNAME - $(call EXPAND_MOZLIBNAME,foo)
+# expands to $(DIST)/lib/$(LIB_PREFIX)foo.$(LIB_SUFFIX)
+
+ifdef GNU_CC
+EXPAND_LIBNAME = $(addprefix -l,$(1))
+else
+EXPAND_LIBNAME = $(foreach lib,$(1),$(LIB_PREFIX)$(lib).$(LIB_SUFFIX))
+endif
+EXPAND_LIBNAME_PATH = $(foreach lib,$(1),$(2)/$(LIB_PREFIX)$(lib).$(LIB_SUFFIX))
+EXPAND_MOZLIBNAME = $(foreach lib,$(1),$(DIST)/lib/$(LIB_PREFIX)$(lib).$(LIB_SUFFIX))
 
 ifdef EXTRA_DSO_LIBS
 EXTRA_DSO_LIBS	:= $(call EXPAND_MOZLIBNAME,$(EXTRA_DSO_LIBS))
@@ -131,12 +147,10 @@ SOLO_FILE ?= $(error Specify a test filename in SOLO_FILE when using check-inter
 
 libs::
 	$(foreach dir,$(XPCSHELL_TESTS),$(_INSTALL_TESTS))
-ifndef NO_XPCSHELL_MANIFEST_CHECK
 	$(PYTHON) $(MOZILLA_DIR)/build/xpccheck.py \
 	  $(topsrcdir) \
 	  $(topsrcdir)/testing/xpcshell/xpcshell.ini \
 	  $(addprefix $(MOZILLA_DIR)/$(relativesrcdir)/,$(XPCSHELL_TESTS))
-endif
 
 testxpcsrcdir = $(topsrcdir)/testing/xpcshell
 
@@ -148,9 +162,6 @@ xpcshell-tests:
 	  $(testxpcsrcdir)/runxpcshelltests.py \
 	  --symbols-path=$(DIST)/crashreporter-symbols \
 	  --build-info-json=$(DEPTH)/mozinfo.json \
-	  --tests-root-dir=$(testxpcobjdir) \
-	  --xunit-file=$(testxpcobjdir)/$(relativesrcdir)/results.xml \
-	  --xunit-suite-name=xpcshell \
 	  $(EXTRA_TEST_ARGS) \
 	  $(LIBXUL_DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
@@ -360,13 +371,6 @@ ifdef MAPFILE
 OS_LDFLAGS += -MAP:$(MAPFILE)
 endif
 
-else #!GNU_CC
-
-ifdef DEFFILE
-OS_LDFLAGS += $(call normalizepath,$(DEFFILE))
-EXTRA_DEPS += $(DEFFILE)
-endif
-
 endif # !GNU_CC
 
 endif # WINNT
@@ -441,7 +445,6 @@ ALL_TRASH_DIRS = \
 
 ifdef QTDIR
 GARBAGE                 += $(MOCSRCS)
-GARBAGE                 += $(RCCSRCS)
 endif
 
 ifdef SIMPLE_PROGRAMS
@@ -779,7 +782,7 @@ endif
 
 # Create dependencies on static (and shared EXTRA_DSO_LIBS) libraries
 DO_EXPAND_LIBS = $(foreach f,$(1),$(if $(filter %.$(LIB_SUFFIX),$(f)),$(if $(wildcard $(f).$(LIBS_DESC_SUFFIX)),$(f).$(LIBS_DESC_SUFFIX),$(if $(wildcard $(f)),$(f)))))
-LIBS_DEPS = $(call DO_EXPAND_LIBS,$(filter %.$(LIB_SUFFIX),$(LIBS) $(if $(PROGRAM)$(SIMPLE_PROGRAMS),$(MOZ_GLUE_PROGRAM_LDFLAGS))))
+LIBS_DEPS = $(call DO_EXPAND_LIBS,$(filter %.$(LIB_SUFFIX),$(LIBS) $(if $(PROGRAM)$(SIMPLE_PROGRAMS),$(MOZ_UTILS_PROGRAM_LDFLAGS))))
 SHARED_LIBRARY_LIBS_DEPS = $(call DO_EXPAND_LIBS,$(SHARED_LIBRARY_LIBS))
 HOST_LIBS_DEPS = $(filter %.$(LIB_SUFFIX),$(HOST_LIBS))
 DSO_LDOPTS_DEPS = $(call DO_EXPAND_LIBS,$(EXTRA_DSO_LIBS) $(filter %.$(LIB_SUFFIX), $(EXTRA_DSO_LDOPTS)))
@@ -880,7 +883,7 @@ alltags:
 $(PROGRAM): $(PROGOBJS) $(LIBS_DEPS) $(EXTRA_DEPS) $(EXE_DEF_FILE) $(RESFILE) $(GLOBAL_DEPS)
 	@$(RM) $@.manifest
 ifeq (_WINNT,$(GNU_CC)_$(OS_ARCH))
-	$(EXPAND_LD) -NOLOGO -OUT:$@ -PDB:$(LINK_PDBFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(PROGOBJS) $(RESFILE) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
+	$(EXPAND_LD) -NOLOGO -OUT:$@ -PDB:$(LINK_PDBFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_UTILS_PROGRAM_LDFLAGS) $(PROGOBJS) $(RESFILE) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		if test -f "$(srcdir)/$@.manifest"; then \
@@ -902,10 +905,10 @@ ifdef MOZ_PROFILE_GENERATE
 endif
 else # !WINNT || GNU_CC
 ifeq ($(CPP_PROG_LINK),1)
-	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE)
+	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(MOZ_UTILS_PROGRAM_LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE)
 	@$(call CHECK_STDCXX,$@)
 else # ! CPP_PROG_LINK
-	$(EXPAND_CC) -o $@ $(CFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE)
+	$(EXPAND_CC) -o $@ $(CFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_UTILS_PROGRAM_LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE)
 endif # CPP_PROG_LINK
 endif # WINNT && !GNU_CC
 
@@ -918,7 +921,7 @@ endif
 
 $(HOST_PROGRAM): $(HOST_PROGOBJS) $(HOST_LIBS_DEPS) $(HOST_EXTRA_DEPS) $(GLOBAL_DEPS)
 ifeq (_WINNT,$(GNU_CC)_$(HOST_OS_ARCH))
-	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		if test -f "$(srcdir)/$@.manifest"; then \
@@ -951,7 +954,7 @@ endif
 #
 $(SIMPLE_PROGRAMS): %$(BIN_SUFFIX): %.$(OBJ_SUFFIX) $(LIBS_DEPS) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 ifeq (_WINNT,$(GNU_CC)_$(OS_ARCH))
-	$(EXPAND_LD) -nologo -out:$@ -pdb:$(LINK_PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
+	$(EXPAND_LD) -nologo -out:$@ -pdb:$(LINK_PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_UTILS_PROGRAM_LDFLAGS) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		mt.exe -NOLOGO -MANIFEST $@.manifest -OUTPUTRESOURCE:$@\;1; \
@@ -960,10 +963,10 @@ ifdef MSMANIFEST_TOOL
 endif	# MSVC with manifest tool
 else
 ifeq ($(CPP_PROG_LINK),1)
-	$(EXPAND_CCC) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS)
+	$(EXPAND_CCC) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_UTILS_PROGRAM_LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS)
 	@$(call CHECK_STDCXX,$@)
 else
-	$(EXPAND_CC) $(CFLAGS) $(OUTOPTION)$@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(MOZ_GLUE_PROGRAM_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS)
+	$(EXPAND_CC) $(CFLAGS) $(OUTOPTION)$@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(MOZ_UTILS_PROGRAM_LDFLAGS) $(WRAP_LDFLAGS) $(LIBS_DIR) $(LIBS) $(OS_LIBS) $(EXTRA_LIBS) $(BIN_FLAGS)
 endif # CPP_PROG_LINK
 endif # WINNT && !GNU_CC
 
@@ -1076,10 +1079,10 @@ ifdef DTRACE_LIB_DEPENDENT
 ifndef XP_MACOSX
 	dtrace -G -C -s $(MOZILLA_DTRACE_SRC) -o  $(DTRACE_PROBE_OBJ) $(shell $(EXPAND_LIBS) $(MOZILLA_PROBE_LIBS))
 endif
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(LOBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(LOBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(MOZ_UTILS_LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
 	@$(RM) $(DTRACE_PROBE_OBJ)
 else # ! DTRACE_LIB_DEPENDENT
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(LOBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(LOBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(MOZ_UTILS_LDFLAGS) $(WRAP_LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
 endif # DTRACE_LIB_DEPENDENT
 	@$(call CHECK_STDCXX,$@)
 
@@ -1145,32 +1148,25 @@ endif # MOZ_AUTO_DEPS
 
 # Rules for building native targets must come first because of the host_ prefix
 host_%.$(OBJ_SUFFIX): %.c $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	$(ELOG) $(HOST_CC) $(HOST_OUTOPTION)$@ -c $(HOST_CFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 host_%.$(OBJ_SUFFIX): %.cpp $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	$(ELOG) $(HOST_CXX) $(HOST_OUTOPTION)$@ -c $(HOST_CXXFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 host_%.$(OBJ_SUFFIX): %.cc $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	$(ELOG) $(HOST_CXX) $(HOST_OUTOPTION)$@ -c $(HOST_CXXFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 host_%.$(OBJ_SUFFIX): %.m $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	$(ELOG) $(HOST_CC) $(HOST_OUTOPTION)$@ -c $(HOST_CFLAGS) $(HOST_CMFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 host_%.$(OBJ_SUFFIX): %.mm $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	$(ELOG) $(HOST_CXX) $(HOST_OUTOPTION)$@ -c $(HOST_CXXFLAGS) $(HOST_CMMFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 %:: %.c $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) $(CFLAGS) $(LDFLAGS) $(OUTOPTION)$@ $(_VPATH_SRCS)
 
 %.$(OBJ_SUFFIX): %.c $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(_VPATH_SRCS)
 
@@ -1178,13 +1174,10 @@ host_%.$(OBJ_SUFFIX): %.mm $(GLOBAL_DEPS)
 # 'moc' only knows about #defines it gets on the command line (-D...), not in
 # included headers like mozilla-config.h
 moc_%.cpp: %.h $(GLOBAL_DEPS)
-	$(ELOG) $(MOC) $(DEFINES) $(ACDEFINES) $< $(OUTOPTION)$@
+	$(MOC) $(DEFINES) $(ACDEFINES) $< $(OUTOPTION)$@
 
 moc_%.cc: %.cc $(GLOBAL_DEPS)
 	$(ELOG) $(MOC) $(DEFINES) $(ACDEFINES) $(_VPATH_SRCS:.cc=.h) $(OUTOPTION)$@
-
-qrc_%.cpp: %.qrc $(GLOBAL_DEPS)
-	$(ELOG) $(RCC) -name $* $< $(OUTOPTION)$@
 
 ifdef ASFILES
 # The AS_DASH_C_FLAG is needed cause not all assemblers (Solaris) accept
@@ -1204,12 +1197,10 @@ endif
 # Please keep the next two rules in sync.
 #
 %.$(OBJ_SUFFIX): %.cc $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
 
 %.$(OBJ_SUFFIX): %.cpp $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 ifdef STRICT_CPLUSPLUS_SUFFIX
 	echo "#line 1 \"$*.cpp\"" | cat - $*.cpp > t_$*.cc
@@ -1220,12 +1211,10 @@ else
 endif #STRICT_CPLUSPLUS_SUFFIX
 
 $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.mm $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(ELOG) $(CCC) -o $@ -c $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(_VPATH_SRCS)
 
 $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.m $(GLOBAL_DEPS)
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) -o $@ -c $(COMPILE_CFLAGS) $(COMPILE_CMFLAGS) $(_VPATH_SRCS)
 
@@ -1475,7 +1464,6 @@ XPIDL_DEPS = \
   $(NULL)
 
 $(XPIDL_GEN_DIR)/%.h: %.idl $(XPIDL_DEPS) $(XPIDL_GEN_DIR)/.done
-	$(REPORT_BUILD)
 	$(PYTHON_PATH) \
 	  -I$(topsrcdir)/other-licenses/ply \
 	  -I$(topsrcdir)/xpcom/idl-parser \
@@ -1487,7 +1475,6 @@ ifndef NO_GEN_XPT
 # generate intermediate .xpt files into $(XPIDL_GEN_DIR), then link
 # into $(XPIDL_MODULE).xpt and export it to $(FINAL_TARGET)/components.
 $(XPIDL_GEN_DIR)/%.xpt: %.idl $(XPIDL_DEPS) $(XPIDL_GEN_DIR)/.done
-	$(REPORT_BUILD)
 	$(PYTHON_PATH) \
 	  -I$(topsrcdir)/other-licenses/ply \
 	  -I$(topsrcdir)/xpcom/idl-parser \
@@ -1776,15 +1763,12 @@ define MAKE_DEPS_NOAUTO
 endef
 
 $(MDDEPDIR)/%.pp: %.c
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_NOAUTO)
 
 $(MDDEPDIR)/%.pp: %.cpp
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_NOAUTO)
 
 $(MDDEPDIR)/%.pp: %.s
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_NOAUTO)
 
 ifneq (,$(OBJS)$(XPIDLSRCS)$(SIMPLE_PROGRAMS))
@@ -1911,6 +1895,9 @@ echo-dirs:
 echo-module:
 	@echo $(MODULE)
 
+echo-requires:
+	@echo $(REQUIRES)
+
 echo-depth-path:
 	@$(topsrcdir)/build/unix/print-depth-path.sh
 
@@ -2017,6 +2004,7 @@ FREEZE_VARIABLES = \
   DIRS \
   LIBRARY \
   MODULE \
+  REQUIRES \
   SHORT_LIBNAME \
   TIERS \
   EXTRA_COMPONENTS \

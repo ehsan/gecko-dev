@@ -43,7 +43,6 @@
 #include "nsIImageToPixbuf.h"
 #include "nsIStringBundle.h"
 #include "nsIObserverService.h"
-#include "nsCRT.h"
 
 #include <gdk/gdk.h>
 
@@ -145,8 +144,7 @@ nsAlertsIconListener::OnStopDecode(imgIRequest* aRequest,
 }
 
 NS_IMETHODIMP
-nsAlertsIconListener::FrameChanged(imgIRequest* aRequest, 
-                                   imgIContainer* aContainer,
+nsAlertsIconListener::FrameChanged(imgIContainer* aContainer,
                                    const nsIntRect* aDirtyRect)
 {
   return NS_OK;

@@ -54,9 +54,6 @@
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 
-using namespace mozilla;
-using namespace mozilla::layout;
-
 /* ----------- nsTableCaptionFrame ---------- */
 
 #define NS_TABLE_FRAME_CAPTION_LIST_INDEX 1
@@ -86,7 +83,7 @@ nsTableOuterFrame::GetBaseline() const
   nsIFrame* kid = mFrames.FirstChild();
   if (!kid) {
     NS_NOTREACHED("no inner table");
-    return nsContainerFrame::GetBaseline();
+    return nsHTMLContainerFrame::GetBaseline();
   }
 
   return kid->GetBaseline() + kid->GetPosition().y;
@@ -100,11 +97,6 @@ nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 {
   nsSize result = nsBlockFrame::ComputeAutoSize(aRenderingContext, aCBSize,
                     aAvailableWidth, aMargin, aBorder, aPadding, aShrinkWrap);
-
-  // If we're a container for font size inflation, then shrink
-  // wrapping inside of us should not apply font size inflation.
-  AutoMaybeNullInflationContainer an(this);
-
   PRUint8 captionSide = GetStyleTableBorder()->mCaptionSide;
   if (captionSide == NS_STYLE_CAPTION_SIDE_LEFT ||
       captionSide == NS_STYLE_CAPTION_SIDE_RIGHT) {
@@ -126,7 +118,7 @@ nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nsIFrame*
-nsTableCaptionFrame::GetParentStyleContextFrame() const
+nsTableCaptionFrame::GetParentStyleContextFrame()
 {
   NS_PRECONDITION(mContent->GetParent(),
                   "How could we not have a parent here?");
@@ -181,7 +173,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsTableCaptionFrame)
 /* ----------- nsTableOuterFrame ---------- */
 
 nsTableOuterFrame::nsTableOuterFrame(nsStyleContext* aContext):
-  nsContainerFrame(aContext)
+  nsHTMLContainerFrame(aContext)
 {
 }
 
@@ -191,7 +183,7 @@ nsTableOuterFrame::~nsTableOuterFrame()
 
 NS_QUERYFRAME_HEAD(nsTableOuterFrame)
   NS_QUERYFRAME_ENTRY(nsITableLayout)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
 already_AddRefed<nsAccessible>
@@ -212,23 +204,23 @@ nsTableOuterFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   DestroyAbsoluteFrames(aDestructRoot);
   mCaptionFrames.DestroyFramesFrom(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-const nsFrameList&
+nsFrameList
 nsTableOuterFrame::GetChildList(ChildListID aListID) const
 {
   if (aListID == kCaptionList) {
     return mCaptionFrames;
   }
 
-  return nsContainerFrame::GetChildList(aListID);
+  return nsHTMLContainerFrame::GetChildList(aListID);
 }
 
 void
 nsTableOuterFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 {
-  nsContainerFrame::GetChildLists(aLists);
+  nsHTMLContainerFrame::GetChildLists(aLists);
   mCaptionFrames.AppendIfNonempty(aLists, kCaptionList);
 }
 
@@ -379,8 +371,16 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
   return NS_OK;
 }
 
+void
+nsTableOuterFrame::SetSelected(bool          aSelected,
+                               SelectionType aType)
+{
+  nsFrame::SetSelected(aSelected, aType);
+  InnerTableFrame()->SetSelected(aSelected, aType);
+}
+
 nsIFrame*
-nsTableOuterFrame::GetParentStyleContextFrame() const
+nsTableOuterFrame::GetParentStyleContextFrame()
 {
   // The table outer frame and the (inner) table frame split the style
   // data by giving the table frame the style context associated with
@@ -535,8 +535,6 @@ ChildShrinkWrapWidth(nsRenderingContext *aRenderingContext,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nscoord *aMarginResult = nsnull)
 {
-  AutoMaybeNullInflationContainer an(aChildFrame);
-
   nsCSSOffsetState offsets(aChildFrame, aRenderingContext, aCBSize.width);
   nsSize size = aChildFrame->ComputeSize(aRenderingContext, aCBSize,
                   aAvailableWidth,

@@ -64,7 +64,7 @@ js_InitDateClass(JSContext *cx, JSObject *obj);
  * since the epoch.
  */
 extern JS_FRIEND_API(JSObject*)
-js_NewDateObjectMsec(JSContext* cx, double msec_time);
+js_NewDateObjectMsec(JSContext* cx, jsdouble msec_time);
 
 /*
  * Construct a new Date Object from an exploded local time value.
@@ -76,6 +76,13 @@ js_NewDateObjectMsec(JSContext* cx, double msec_time);
 extern JS_FRIEND_API(JSObject*)
 js_NewDateObject(JSContext* cx, int year, int mon, int mday,
                  int hour, int min, int sec);
+
+/*
+ * Detect whether the internal date value is NaN.  (Because failure is
+ * out-of-band for js_DateGet*)
+ */
+extern JS_FRIEND_API(JSBool)
+js_DateIsValid(JSContext *cx, JSObject* obj);
 
 extern JS_FRIEND_API(int)
 js_DateGetYear(JSContext *cx, JSObject* obj);
@@ -95,13 +102,16 @@ js_DateGetMinutes(JSContext *cx, JSObject* obj);
 extern JS_FRIEND_API(int)
 js_DateGetSeconds(JSContext *cx, JSObject* obj);
 
-typedef uint32_t JSIntervalTime;
+extern JS_FRIEND_API(jsdouble)
+js_DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj);
+
+typedef uint32 JSIntervalTime;
 
 extern JS_FRIEND_API(JSIntervalTime)
 js_IntervalNow();
 
 /* Date constructor native. Exposed only so the JIT can know its address. */
 JSBool
-js_Date(JSContext *cx, unsigned argc, js::Value *vp);
+js_Date(JSContext *cx, uintN argc, js::Value *vp);
 
 #endif /* jsdate_h___ */

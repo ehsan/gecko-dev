@@ -41,9 +41,6 @@
 #include "gfxTypes.h"
 #include "gfxRect.h"
 #include "nsAutoPtr.h"
-#include "nsAutoRef.h"
-#include "nsThreadUtils.h"
-
 
 typedef struct _cairo_surface cairo_surface_t;
 typedef struct _cairo_user_data_key cairo_user_data_key_t;
@@ -60,23 +57,8 @@ struct nsIntRect;
  */
 class THEBES_API gfxASurface {
 public:
-#ifdef MOZILLA_INTERNAL_API
     nsrefcnt AddRef(void);
     nsrefcnt Release(void);
-
-    // These functions exist so that browsercomps can refcount a gfxASurface
-    virtual nsresult AddRefExternal(void)
-    {
-      return AddRef();
-    }
-    virtual nsresult ReleaseExternal(void)
-    {
-      return Release();
-    }
-#else
-    virtual nsresult AddRef(void);
-    virtual nsresult Release(void);
-#endif
 
 public:
     /**
@@ -98,11 +80,11 @@ public:
         SurfaceTypePS,
         SurfaceTypeXlib,
         SurfaceTypeXcb,
-        SurfaceTypeGlitz,           // unused, but needed for cairo parity
+        SurfaceTypeGlitz,
         SurfaceTypeQuartz,
         SurfaceTypeWin32,
         SurfaceTypeBeOS,
-        SurfaceTypeDirectFB,        // unused, but needed for cairo parity
+        SurfaceTypeDirectFB,
         SurfaceTypeSVG,
         SurfaceTypeOS2,
         SurfaceTypeWin32Printing,
@@ -258,14 +240,9 @@ public:
     void WriteAsPNG(const char* aFile);
 
     /**
-     * Write as a PNG encoded Data URL to a file.
-     */
-    void DumpAsDataURL(FILE* aOutput = stdout);
-
-    /**
      * Write as a PNG encoded Data URL to stdout.
      */
-    void PrintAsDataURL();
+    void DumpAsDataURL();
 
     /**
      * Copy a PNG encoded Data URL to the clipboard.
@@ -366,56 +343,4 @@ public:
     virtual ~gfxUnknownSurface() { }
 };
 
-#ifndef XPCOM_GLUE_AVOID_NSPR
-/**
- * We need to be able to hold a reference to a gfxASurface from Image
- * subclasses. This is potentially a problem since Images can be addrefed
- * or released off the main thread. We can ensure that we never AddRef
- * a gfxASurface off the main thread, but we might want to Release due
- * to an Image being destroyed off the main thread.
- * 
- * We use nsCountedRef<nsMainThreadSurfaceRef> to reference the
- * gfxASurface. When AddRefing, we assert that we're on the main thread.
- * When Releasing, if we're not on the main thread, we post an event to
- * the main thread to do the actual release.
- */
-class nsMainThreadSurfaceRef;
-
-template <>
-class nsAutoRefTraits<nsMainThreadSurfaceRef> {
-public:
-  typedef gfxASurface* RawRef;
-
-  /**
-   * The XPCOM event that will do the actual release on the main thread.
-   */
-  class SurfaceReleaser : public nsRunnable {
-  public:
-    SurfaceReleaser(RawRef aRef) : mRef(aRef) {}
-    NS_IMETHOD Run() {
-      mRef->Release();
-      return NS_OK;
-    }
-    RawRef mRef;
-  };
-
-  static RawRef Void() { return nsnull; }
-  static void Release(RawRef aRawRef)
-  {
-    if (NS_IsMainThread()) {
-      aRawRef->Release();
-      return;
-    }
-    nsCOMPtr<nsIRunnable> runnable = new SurfaceReleaser(aRawRef);
-    NS_DispatchToMainThread(runnable);
-  }
-  static void AddRef(RawRef aRawRef)
-  {
-    NS_ASSERTION(NS_IsMainThread(),
-                 "Can only add a reference on the main thread");
-    aRawRef->AddRef();
-  }
-};
-
-#endif
 #endif /* GFX_ASURFACE_H */

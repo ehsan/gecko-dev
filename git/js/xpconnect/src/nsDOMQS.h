@@ -40,10 +40,11 @@
 #include "nsDOMClassInfoID.h"
 
 #define DEFINE_UNWRAP_CAST(_interface, _base, _bit)                           \
-template <>                                                                   \
+NS_SPECIALIZE_TEMPLATE                                                        \
 inline JSBool                                                                 \
 xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
                              JSObject *obj,                                   \
+                             JSObject *callee,                                \
                              _interface **ppThis,                             \
                              nsISupports **pThisRef,                          \
                              jsval *pThisVal,                                 \
@@ -51,7 +52,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
                              bool failureFatal)                               \
 {                                                                             \
     nsresult rv;                                                              \
-    nsISupports *native = castNativeFromWrapper(cx, obj, _bit,                \
+    nsISupports *native = castNativeFromWrapper(cx, obj, callee, _bit,        \
                                                 pThisRef, pThisVal, lccx,     \
                                                 &rv);                         \
     *ppThis = NULL;  /* avoids uninitialized warnings in callers */           \
@@ -61,7 +62,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
     return true;                                                              \
 }                                                                             \
                                                                               \
-template <>                                                                   \
+NS_SPECIALIZE_TEMPLATE                                                        \
 inline nsresult                                                               \
 xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
                             jsval v,                                          \
@@ -103,10 +104,11 @@ castToElement(nsIContent *content, jsval val, nsGenericElement **ppInterface,
     return true;
 }
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 inline JSBool
 xpc_qsUnwrapThis<nsGenericElement>(JSContext *cx,
                                    JSObject *obj,
+                                   JSObject *callee,
                                    nsGenericElement **ppThis,
                                    nsISupports **pThisRef,
                                    jsval *pThisVal,
@@ -115,7 +117,7 @@ xpc_qsUnwrapThis<nsGenericElement>(JSContext *cx,
 {
     nsIContent *content;
     jsval val;
-    JSBool ok = xpc_qsUnwrapThis<nsIContent>(cx, obj, &content,
+    JSBool ok = xpc_qsUnwrapThis<nsIContent>(cx, obj, callee, &content,
                                              pThisRef, &val, lccx,
                                              failureFatal);
     if (ok) {
@@ -133,7 +135,7 @@ xpc_qsUnwrapThis<nsGenericElement>(JSContext *cx,
     return ok;
 }
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 inline nsresult
 xpc_qsUnwrapArg<nsGenericElement>(JSContext *cx,
                                   jsval v,

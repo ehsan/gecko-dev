@@ -111,12 +111,11 @@ static const PRInt64 gUpdateInterval = 400 * PR_USEC_PER_MSEC;
 ////////////////////////////////////////////////////////////////////////////////
 //// nsDownloadManager
 
-NS_IMPL_ISUPPORTS4(
+NS_IMPL_ISUPPORTS3(
   nsDownloadManager
 , nsIDownloadManager
 , nsINavHistoryObserver
 , nsIObserver
-, nsISupportsWeakReference
 )
 
 nsDownloadManager *nsDownloadManager::gDownloadManagerService = nsnull;
@@ -887,19 +886,22 @@ nsDownloadManager::Init()
   // completely initialized), but the observerservice would still keep a reference
   // to us and notify us about shutdown, which may cause crashes.
   // failure to add an observer is not critical
-  (void)mObserverService->AddObserver(this, "quit-application", true);
-  (void)mObserverService->AddObserver(this, "quit-application-requested", true);
-  (void)mObserverService->AddObserver(this, "offline-requested", true);
-  (void)mObserverService->AddObserver(this, "sleep_notification", true);
-  (void)mObserverService->AddObserver(this, "wake_notification", true);
-  (void)mObserverService->AddObserver(this, "profile-before-change", true);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, true);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, true);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, true);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
+  //
+  // These observers will be cleaned up automatically at app shutdown.  We do
+  // not bother explicitly breaking the observers because we are a singleton
+  // that lives for the duration of the app.
+  (void)mObserverService->AddObserver(this, "quit-application", false);
+  (void)mObserverService->AddObserver(this, "quit-application-requested", false);
+  (void)mObserverService->AddObserver(this, "offline-requested", false);
+  (void)mObserverService->AddObserver(this, "sleep_notification", false);
+  (void)mObserverService->AddObserver(this, "wake_notification", false);
+  (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, false);
+  (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, false);
+  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, false);
+  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, false);
 
   if (history)
-    (void)history->AddObserver(this, true);
+    (void)history->AddObserver(this, false);
 
   return NS_OK;
 }
@@ -1684,9 +1686,6 @@ nsDownloadManager::CleanUp()
 NS_IMETHODIMP
 nsDownloadManager::GetCanCleanUp(bool *aResult)
 {
-  // This method should never return anything but NS_OK for the benefit of
-  // unwitting consumers.
-  
   *aResult = false;
 
   DownloadState states[] = { nsIDownloadManager::DOWNLOAD_FINISHED,
@@ -1706,24 +1705,23 @@ nsDownloadManager::GetCanCleanUp(bool *aResult)
       "OR state = ? "
       "OR state = ? "
       "OR state = ?"), getter_AddRefs(stmt));
-  NS_ENSURE_SUCCESS(rv, NS_OK);
+  NS_ENSURE_SUCCESS(rv, rv);
   for (PRUint32 i = 0; i < ArrayLength(states); ++i) {
     rv = stmt->BindInt32ByIndex(i, states[i]);
-    NS_ENSURE_SUCCESS(rv, NS_OK);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   bool moreResults; // We don't really care...
   rv = stmt->ExecuteStep(&moreResults);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt32 count;
   rv = stmt->GetInt32(0, &count);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
 
   if (count > 0)
     *aResult = true;
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1939,11 +1937,6 @@ nsDownloadManager::Observe(nsISupports *aSubject,
     nsDownload *dl2 = FindDownload(id);
     if (dl2)
       return CancelDownload(id);
-  } else if (strcmp(aTopic, "profile-before-change") == 0) {
-    mGetIdsForURIStatement->Finalize();
-    mUpdateDownloadStatement->Finalize();
-    mozilla::DebugOnly<nsresult> rv = mDBConn->Close();
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
   } else if (strcmp(aTopic, "quit-application") == 0) {
     // Try to pause all downloads and, if appropriate, mark them as auto-resume
     // unless user has specified that downloads should be canceled

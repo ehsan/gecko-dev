@@ -49,9 +49,8 @@
 #include "nsDOMError.h"
 #include "nsDOMString.h"
 #include "jspubtd.h"
-#include "nsWindowMemoryReporter.h"
+#include "nsDOMMemoryReporter.h"
 #include "nsIVariant.h"
-#include "nsGkAtoms.h"
 
 // Including 'windows.h' will #define GetClassInfo to something else.
 #ifdef XP_WIN
@@ -89,7 +88,8 @@ class Element;
 } // namespace mozilla
 
 enum {
-  // This bit will be set if the node has a listener manager.
+  // This bit will be set if the node has a listener manager in the listener
+  // manager hash
   NODE_HAS_LISTENERMANAGER =     0x00000001U,
 
   // Whether this node has had any properties set on it
@@ -175,14 +175,11 @@ enum {
   // Set if the node is handling a click.
   NODE_HANDLING_CLICK          = 0x00040000U,
 
-  // Set if the node has had :hover selectors matched against it
-  NODE_HAS_RELEVANT_HOVER_RULES = 0x00080000U,
-
   // Two bits for the script-type ID.  Not enough to represent all
   // nsIProgrammingLanguage values, but we don't care.  In practice,
   // we can represent the ones we want, and we can fail the others at
   // runtime.
-  NODE_SCRIPT_TYPE_OFFSET =               20,
+  NODE_SCRIPT_TYPE_OFFSET =               19,
 
   NODE_SCRIPT_TYPE_SIZE =                  2,
 
@@ -291,8 +288,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xfcd3b0d1, 0x75db, 0x46c4, \
-  { 0xa1, 0xf5, 0x07, 0xc2, 0x09, 0xf8, 0x1f, 0x44 } }
+{ 0xd026d280, 0x5b25, 0x41c0, \
+  { 0x92, 0xcf, 0x6, 0xf6, 0xf, 0xb, 0x9a, 0xfe } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -305,39 +302,7 @@ class nsINode : public nsIDOMEventTarget,
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
 
-  // Among the sub-classes that inherit (directly or indirectly) from nsINode,
-  // measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - nsGenericHTMLElement:  mForm, mFieldSet
-  // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539), mTitleChangedListener
-  // - nsHTMLBodyElement:     mContentStyleRule
-  // - nsHTMLDataListElement: mOptions
-  // - nsHTMLFieldSetElement: mElements, mDependentElements, mFirstLegend
-  // - nsHTMLFormElement:     many!
-  // - nsHTMLFrameSetElement: mRowSpecs, mColSpecs
-  // - nsHTMLInputElement:    mInputData, mFiles, mFileList, mStaticDocfileList
-  // - nsHTMLMapElement:      mAreas
-  // - nsHTMLMediaElement:    many!
-  // - nsHTMLOutputElement:   mDefaultValue, mTokenList
-  // - nsHTMLRowElement:      mCells
-  // - nsHTMLSelectElement:   mOptions, mRestoreState
-  // - nsHTMLTableElement:    mTBodies, mRows, mTableInheritedAttributes
-  // - nsHTMLTableSectionElement: mRows
-  // - nsHTMLTextAreaElement: mControllers, mState
-  //
-  // The following members don't need to be measured:
-  // - nsIContent: mPrimaryFrame, because it's non-owning and measured elsewhere
-  //
-  NS_DECL_SIZEOF_EXCLUDING_THIS
-
-  // SizeOfIncludingThis doesn't need to be overridden by sub-classes because
-  // sub-classes of nsINode are guaranteed to be laid out in memory in such a
-  // way that |this| points to the start of the allocated object, even in
-  // methods of nsINode's sub-classes, and so |aMallocSizeOf(this)| is always
-  // safe to call no matter which object it was invoked on.
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
+  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
 
   friend class nsNodeUtils;
   friend class nsNodeWeakReference;
@@ -379,15 +344,17 @@ public:
     eCOMMENT             = 1 << 5,
     /** form control elements */
     eHTML_FORM_CONTROL   = 1 << 6,
+    /** svg elements */
+    eSVG                 = 1 << 7,
     /** document fragments */
-    eDOCUMENT_FRAGMENT   = 1 << 7,
+    eDOCUMENT_FRAGMENT   = 1 << 8,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 8,
+    eDATA_NODE           = 1 << 19,
     /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 9,
+    eMEDIA               = 1 << 10,
     /** animation elements */
-    eANIMATION           = 1 << 10
+    eANIMATION           = 1 << 11
   };
 
   /**
@@ -412,11 +379,6 @@ public:
    * for which IsElement() is true.
    */
   mozilla::dom::Element* AsElement();
-
-  /**
-   * Return if this node has any children.
-   */
-  bool HasChildren() const { return !!mFirstChild; }
 
   /**
    * Get the number of children
@@ -957,18 +919,6 @@ public:
   }
 
   /**
-   * Returns true if |this| node is the common ancestor of the start/end
-   * nodes of a Range in a Selection or a descendant of such a common ancestor.
-   * This node is definitely not selected when |false| is returned, but it may
-   * or may not be selected when |true| is returned.
-   */
-  bool IsSelectionDescendant() const
-  {
-    return IsDescendantOfCommonAncestorForRangeInSelection() ||
-           IsCommonAncestorForRangeInSelection();
-  }
-
-  /**
    * Get the root content of an editor. So, this node must be a descendant of
    * an editor. Note that this should be only used for getting input or textarea
    * editor's root content. This method doesn't support HTML editors.
@@ -1029,22 +979,6 @@ public:
    */
   virtual already_AddRefed<nsIURI> GetBaseURI() const = 0;
 
-  /**
-   * Facility for explicitly setting a base URI on a node.
-   */
-  nsresult SetExplicitBaseURI(nsIURI* aURI);
-  /**
-   * The explicit base URI, if set, otherwise null
-   */
-protected:
-  nsIURI* GetExplicitBaseURI() const {
-    if (HasExplicitBaseURI()) {
-      return static_cast<nsIURI*>(GetProperty(nsGkAtoms::baseURIProperty));
-    }
-    return nsnull;
-  }
-  
-public:
   nsresult GetDOMBaseURI(nsAString &aURI) const;
 
   // Note! This function must never fail. It only return an nsresult so that
@@ -1269,22 +1203,6 @@ private:
     ElementHasName,
     // Set if the element might have a contenteditable attribute set.
     ElementMayHaveContentEditableAttr,
-    // Set if the node is the common ancestor of the start/end nodes of a Range
-    // that is in a Selection.
-    NodeIsCommonAncestorForRangeInSelection,
-    // Set if the node is a descendant of a node with the above bit set.
-    NodeIsDescendantOfCommonAncestorForRangeInSelection,
-    // Set if CanSkipInCC check has been done for this subtree root.
-    NodeIsCCMarkedRoot,
-    // Maybe set if this node is in black subtree.
-    NodeIsCCBlackTree,
-    // Maybe set if the node is a root of a subtree 
-    // which needs to be kept in the purple buffer.
-    NodeIsPurpleRoot,
-    // Set if the node has an explicit base URI stored
-    NodeHasExplicitBaseURI,
-    // Set if the element has some style states locked
-    ElementHasLockedStyleStates,
     // Guard value
     BooleanFlagCount
   };
@@ -1319,30 +1237,7 @@ public:
   bool HasName() const { return GetBoolFlag(ElementHasName); }
   bool MayHaveContentEditableAttr() const
     { return GetBoolFlag(ElementMayHaveContentEditableAttr); }
-  bool IsCommonAncestorForRangeInSelection() const
-    { return GetBoolFlag(NodeIsCommonAncestorForRangeInSelection); }
-  void SetCommonAncestorForRangeInSelection()
-    { SetBoolFlag(NodeIsCommonAncestorForRangeInSelection); }
-  void ClearCommonAncestorForRangeInSelection()
-    { ClearBoolFlag(NodeIsCommonAncestorForRangeInSelection); }
-  bool IsDescendantOfCommonAncestorForRangeInSelection() const
-    { return GetBoolFlag(NodeIsDescendantOfCommonAncestorForRangeInSelection); }
-  void SetDescendantOfCommonAncestorForRangeInSelection()
-    { SetBoolFlag(NodeIsDescendantOfCommonAncestorForRangeInSelection); }
-  void ClearDescendantOfCommonAncestorForRangeInSelection()
-    { ClearBoolFlag(NodeIsDescendantOfCommonAncestorForRangeInSelection); }
 
-  void SetCCMarkedRoot(bool aValue)
-    { SetBoolFlag(NodeIsCCMarkedRoot, aValue); }
-  bool CCMarkedRoot() const { return GetBoolFlag(NodeIsCCMarkedRoot); }
-  void SetInCCBlackTree(bool aValue)
-    { SetBoolFlag(NodeIsCCBlackTree, aValue); }
-  bool InCCBlackTree() const { return GetBoolFlag(NodeIsCCBlackTree); }
-  void SetIsPurpleRoot(bool aValue)
-    { SetBoolFlag(NodeIsPurpleRoot, aValue); }
-  bool IsPurpleRoot() const { return GetBoolFlag(NodeIsPurpleRoot); }
-
-  bool HasListenerManager() { return HasFlag(NODE_HAS_LISTENERMANAGER); }
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
@@ -1356,17 +1251,10 @@ protected:
   void ClearHasName() { ClearBoolFlag(ElementHasName); }
   void SetMayHaveContentEditableAttr()
     { SetBoolFlag(ElementMayHaveContentEditableAttr); }
-  bool HasExplicitBaseURI() const { return GetBoolFlag(NodeHasExplicitBaseURI); }
-  void SetHasExplicitBaseURI() { SetBoolFlag(NodeHasExplicitBaseURI); }
-  void SetHasLockedStyleStates() { SetBoolFlag(ElementHasLockedStyleStates); }
-  void ClearHasLockedStyleStates() { ClearBoolFlag(ElementHasLockedStyleStates); }
-  bool HasLockedStyleStates() const
-    { return GetBoolFlag(ElementHasLockedStyleStates); }
 
 public:
   // Optimized way to get classinfo.
   virtual nsXPCClassInfo* GetClassInfo() = 0;
-
 protected:
 
   // Override this function to create a custom slots class.

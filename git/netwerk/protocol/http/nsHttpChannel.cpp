@@ -69,7 +69,6 @@
 #include "mozilla/Telemetry.h"
 #include "nsDOMError.h"
 #include "nsAlgorithm.h"
-#include "sampler.h"
 
 using namespace mozilla;
 
@@ -210,18 +209,6 @@ nsHttpChannel::Connect(bool firstTime)
             LOG(("nsHttpChannel::Connect() STS permissions found\n"));
             return AsyncCall(&nsHttpChannel::HandleAsyncRedirectChannelToHttps);
         }
-
-        // Check for a previous SPDY Alternate-Protocol directive
-        if (gHttpHandler->IsSpdyEnabled() && mAllowSpdy) {
-            nsCAutoString hostPort;
-
-            if (NS_SUCCEEDED(mURI->GetHostPort(hostPort)) &&
-                gHttpHandler->ConnMgr()->GetSpdyAlternateProtocol(hostPort)) {
-                LOG(("nsHttpChannel::Connect() Alternate-Protocol found\n"));
-                return AsyncCall(
-                    &nsHttpChannel::HandleAsyncRedirectChannelToHttps);
-            }
-        }
     }
 
     // ensure that we are using a valid hostname
@@ -328,6 +315,9 @@ nsHttpChannel::Connect(bool firstTime)
         }
         return NS_ERROR_DOCUMENT_NOT_CACHED;
     }
+
+    // check to see if authorization headers should be included
+    mAuthProvider->AddAuthorizationHeaders();
 
     if (mLoadFlags & LOAD_NO_NETWORK_IO) {
         return NS_ERROR_DOCUMENT_NOT_CACHED;
@@ -517,9 +507,6 @@ nsHttpChannel::SetupTransaction()
         }
     }
 
-    if (!mAllowSpdy)
-        mCaps |= NS_HTTP_DISALLOW_SPDY;
-
     // use the URI path if not proxying (transparent proxying such as SSL proxy
     // does not count here). also, figure out what version we should be speaking.
     nsCAutoString buf, path;
@@ -647,7 +634,6 @@ nsHttpChannel::SetupTransaction()
         mCaps |=  NS_HTTP_STICKY_CONNECTION;
         mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
         mCaps &= ~NS_HTTP_ALLOW_KEEPALIVE;
-        mCaps |=  NS_HTTP_DISALLOW_SPDY;
     }
 
     nsCOMPtr<nsIAsyncInputStream> responseStream;
@@ -977,8 +963,6 @@ nsHttpChannel::ProcessResponse()
 
     LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n",
         this, httpStatus));
-
-    UpdateInhibitPersistentCachingFlag();
 
     if (mTransaction->SSLConnectFailed()) {
         if (!ShouldSSLProxyResponseContinue(httpStatus))
@@ -1425,7 +1409,7 @@ nsHttpChannel::AsyncRedirectChannelToHttps()
     rv = ioService->NewChannelFromURI(upgradedURI, getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = SetupReplacementChannel(upgradedURI, newChannel, true, false);
+    rv = SetupReplacementChannel(upgradedURI, newChannel, true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Inform consumers about this fake redirect
@@ -1522,7 +1506,7 @@ nsHttpChannel::AsyncDoReplaceWithProxy(nsIProxyInfo* pi)
     if (NS_FAILED(rv))
         return rv;
 
-    rv = SetupReplacementChannel(mURI, newChannel, true, true);
+    rv = SetupReplacementChannel(mURI, newChannel, true);
     if (NS_FAILED(rv))
         return rv;
 
@@ -1785,8 +1769,6 @@ nsHttpChannel::ProcessPartialContent()
     // make the cached response be the current response
     mResponseHead = mCachedResponseHead;
 
-    UpdateInhibitPersistentCachingFlag();
-
     rv = UpdateExpirationTime();
     if (NS_FAILED(rv)) return rv;
 
@@ -1868,8 +1850,6 @@ nsHttpChannel::ProcessNotModified()
     // make the cached response be the current response
     mResponseHead = mCachedResponseHead;
 
-    UpdateInhibitPersistentCachingFlag();
-
     rv = UpdateExpirationTime();
     if (NS_FAILED(rv)) return rv;
 
@@ -1944,7 +1924,7 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
     rv = gHttpHandler->NewChannel(mURI, getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = SetupReplacementChannel(mURI, newChannel, true, false);
+    rv = SetupReplacementChannel(mURI, newChannel, true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Make sure the new channel loads from the fallback key.
@@ -2854,8 +2834,6 @@ nsHttpChannel::ReadFromCache()
     if (mCachedResponseHead)
         mResponseHead = mCachedResponseHead;
 
-    UpdateInhibitPersistentCachingFlag();
-
     // if we don't already have security info, try to get it from the cache 
     // entry. there are two cases to consider here: 1) we are just reading
     // from the cache, or 2) this may be due to a 304 not modified response,
@@ -3010,6 +2988,16 @@ nsHttpChannel::InitCacheEntry()
     LOG(("nsHttpChannel::InitCacheEntry [this=%p entry=%p]\n",
         this, mCacheEntry.get()));
 
+    // The no-store directive within the 'Cache-Control:' header indicates
+    // that we must not store the response in a persistent cache.
+    if (mResponseHead->NoStore())
+        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+
+    // Only cache SSL content on disk if the pref is set
+    if (!gHttpHandler->IsPersistentHttpsCachingEnabled() &&
+        mConnectionInfo->UsingSSL())
+        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+
     if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
         rv = mCacheEntry->SetStoragePolicy(nsICache::STORE_IN_MEMORY);
         if (NS_FAILED(rv)) return rv;
@@ -3026,19 +3014,6 @@ nsHttpChannel::InitCacheEntry()
     return NS_OK;
 }
 
-void
-nsHttpChannel::UpdateInhibitPersistentCachingFlag()
-{
-    // The no-store directive within the 'Cache-Control:' header indicates
-    // that we must not store the response in a persistent cache.
-    if (mResponseHead->NoStore())
-        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
-
-    // Only cache SSL content on disk if the pref is set
-    if (!gHttpHandler->IsPersistentHttpsCachingEnabled() &&
-        mConnectionInfo->UsingSSL())
-        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
-}
 
 nsresult
 nsHttpChannel::InitOfflineCacheEntry()
@@ -3212,32 +3187,6 @@ nsHttpChannel::InstallCacheListener(PRUint32 offset)
     NS_ASSERTION(mCacheEntry, "no cache entry");
     NS_ASSERTION(mListener, "no listener");
 
-    nsCacheStoragePolicy policy;
-    rv = mCacheEntry->GetStoragePolicy(&policy);
-    if (NS_FAILED(rv)) {
-        policy = nsICache::STORE_ON_DISK_AS_FILE;
-    }
-
-    // If the content is compressible and the server has not compressed it,
-    // mark the cache entry for compression.
-    if ((mResponseHead->PeekHeader(nsHttp::Content_Encoding) == nsnull) && (
-         policy != nsICache::STORE_ON_DISK_AS_FILE) && (
-         mResponseHead->ContentType().EqualsLiteral(TEXT_HTML) ||
-         mResponseHead->ContentType().EqualsLiteral(TEXT_PLAIN) ||
-         mResponseHead->ContentType().EqualsLiteral(TEXT_CSS) ||
-         mResponseHead->ContentType().EqualsLiteral(TEXT_JAVASCRIPT) ||
-         mResponseHead->ContentType().EqualsLiteral(TEXT_ECMASCRIPT) ||
-         mResponseHead->ContentType().EqualsLiteral(TEXT_XML) ||
-         mResponseHead->ContentType().EqualsLiteral(APPLICATION_JAVASCRIPT) ||
-         mResponseHead->ContentType().EqualsLiteral(APPLICATION_ECMASCRIPT) ||
-         mResponseHead->ContentType().EqualsLiteral(APPLICATION_XJAVASCRIPT) ||
-         mResponseHead->ContentType().EqualsLiteral(APPLICATION_XHTML_XML))) {
-        rv = mCacheEntry->SetMetaDataElement("uncompressed-len", "0"); 
-        if (NS_FAILED(rv)) {
-            LOG(("unable to mark cache entry for compression"));
-        }
-    } 
-      
     nsCOMPtr<nsIOutputStream> out;
     rv = mCacheEntry->OpenOutputStream(offset, getter_AddRefs(out));
     if (NS_FAILED(rv)) return rv;
@@ -3260,7 +3209,10 @@ nsHttpChannel::InstallCacheListener(PRUint32 offset)
     nsCOMPtr<nsIEventTarget> cacheIOTarget;
     serv->GetCacheIOTarget(getter_AddRefs(cacheIOTarget));
 
-    if (policy == nsICache::STORE_ON_DISK_AS_FILE ||
+    nsCacheStoragePolicy policy;
+    rv = mCacheEntry->GetStoragePolicy(&policy);
+
+    if (NS_FAILED(rv) || policy == nsICache::STORE_ON_DISK_AS_FILE ||
         !cacheIOTarget) {
         LOG(("nsHttpChannel::InstallCacheListener sync tee %p rv=%x policy=%d "
              "cacheIOTarget=%p", tee.get(), rv, policy, cacheIOTarget.get()));
@@ -3333,15 +3285,13 @@ nsHttpChannel::ClearBogusContentEncodingIfNeeded()
 nsresult
 nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI, 
                                        nsIChannel   *newChannel,
-                                       bool          preserveMethod,
-                                       bool          forProxy)
+                                       bool          preserveMethod)
 {
     LOG(("nsHttpChannel::SetupReplacementChannel "
          "[this=%p newChannel=%p preserveMethod=%d]",
          this, newChannel, preserveMethod));
 
-    nsresult rv = HttpBaseChannel::SetupReplacementChannel(newURI, newChannel,
-                                                           preserveMethod, forProxy);
+    nsresult rv = HttpBaseChannel::SetupReplacementChannel(newURI, newChannel, preserveMethod);
     if (NS_FAILED(rv))
         return rv;
 
@@ -3362,26 +3312,6 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
             return NS_ERROR_NOT_RESUMABLE;
         }
         resumableChannel->ResumeAt(mStartPos, mEntityID);
-    }
-
-    if (forProxy) {
-        // Transfer the cache info to the new channel, if needed.
-        nsCOMPtr<nsICachingChannel> cachingChannel = do_QueryInterface(newChannel);
-        if (cachingChannel) {
-            // cacheKey is just mPostID wrapped in an nsISupportsPRUint32,
-            // we don't need to transfer it if it's 0.
-            if (mPostID) {
-                nsCOMPtr<nsISupports> cacheKey;
-                GetCacheKey(getter_AddRefs(cacheKey));
-                if (cacheKey) {
-                    cachingChannel->SetCacheKey(cacheKey);
-                }
-            }
-
-            // cacheClientID, cacheForOfflineUse
-            cachingChannel->SetOfflineCacheClientID(mOfflineCacheClientID);
-            cachingChannel->SetCacheForOfflineUse(mCacheForOfflineUse);
-        }
     }
 
     return NS_OK;
@@ -3506,7 +3436,7 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
     rv = ioService->NewChannelFromURI(mRedirectURI, getter_AddRefs(newChannel));
     if (NS_FAILED(rv)) return rv;
 
-    rv = SetupReplacementChannel(mRedirectURI, newChannel, !rewriteToGET, false);
+    rv = SetupReplacementChannel(mRedirectURI, newChannel, !rewriteToGET);
     if (NS_FAILED(rv)) return rv;
 
     PRUint32 redirectFlags;
@@ -3773,9 +3703,6 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     }
 
     AddCookiesToRequest();
- 
-    // check to see if authorization headers should be included
-    mAuthProvider->AddAuthorizationHeaders();
 
     // notify "http-on-modify-request" observers
     gHttpHandler->OnModifyRequest(this);
@@ -4142,7 +4069,6 @@ nsHttpChannel::GetRequestMethod(nsACString& aMethod)
 NS_IMETHODIMP
 nsHttpChannel::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 {
-    SAMPLE_LABEL("nsHttpChannel", "OnStartRequest");
     if (!(mCanceled || NS_FAILED(mStatus))) {
         // capture the request's status, so our consumers will know ASAP of any
         // connection failures, etc - bug 93581
@@ -4162,16 +4088,6 @@ nsHttpChannel::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
         // grab the security info from the connection object; the transaction
         // is guaranteed to own a reference to the connection.
         mSecurityInfo = mTransaction->SecurityInfo();
-    }
-
-    if (!mCachePump && NS_FAILED(mStatus) &&
-        (mLoadFlags & LOAD_REPLACE) && mOriginalURI && mAllowSpdy) {
-        // For sanity's sake we may want to cancel an alternate protocol
-        // redirection involving the original host name
-
-        nsCAutoString hostPort;
-        if (NS_SUCCEEDED(mOriginalURI->GetHostPort(hostPort)))
-            gHttpHandler->ConnMgr()->RemoveSpdyAlternateProtocol(hostPort);
     }
 
     // don't enter this block if we're reading from the cache...
@@ -4248,7 +4164,6 @@ nsHttpChannel::ContinueOnStartRequest3(nsresult result)
 NS_IMETHODIMP
 nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult status)
 {
-    SAMPLE_LABEL("network", "nsHttpChannel::OnStopRequest");
     LOG(("nsHttpChannel::OnStopRequest [this=%p request=%p status=%x]\n",
         this, request, status));
 
@@ -4424,7 +4339,6 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
                                nsIInputStream *input,
                                PRUint32 offset, PRUint32 count)
 {
-    SAMPLE_LABEL("network", "nsHttpChannel::OnDataAvailable");
     LOG(("nsHttpChannel::OnDataAvailable [this=%p request=%p offset=%u count=%u]\n",
         this, request, offset, count));
 

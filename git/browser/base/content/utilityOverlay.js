@@ -41,38 +41,10 @@
 
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
-  const PREF = "browser.newtab.url";
-
-  function getNewTabPageURL() {
-    return Services.prefs.getCharPref(PREF) || "about:blank";
-  }
-
-  function update() {
-    BROWSER_NEW_TAB_URL = getNewTabPageURL();
-  }
-
-  Services.prefs.addObserver(PREF, update, false);
-  addEventListener("unload", function onUnload() {
-    removeEventListener("unload", onUnload);
-    Services.prefs.removeObserver(PREF, update);
-  });
-
-  return getNewTabPageURL();
-});
 
 var TAB_DROP_TYPE = "application/x-moz-tabbrowser-tab";
 
 var gBidiUI = false;
-
-/**
- * Determines whether the given url is considered a special URL for new tabs.
- */
-function isBlankPageURL(aURL) {
-  return aURL == "about:blank" || aURL == BROWSER_NEW_TAB_URL;
-}
 
 function getBrowserURL()
 {
@@ -84,7 +56,7 @@ function getTopWin(skipPopups) {
   // whether it's the frontmost window, since commands can be executed in
   // background windows (bug 626148).
   if (top.document.documentElement.getAttribute("windowtype") == "navigator:browser" &&
-      (!skipPopups || top.toolbar.visible))
+      (!skipPopups || !top.document.documentElement.getAttribute("chromehidden")))
     return top;
 
   if (skipPopups) {
@@ -128,7 +100,12 @@ function openUILink( url, e, ignoreButton, ignoreAlt, allowKeywordFixup, postDat
  * Ctrl+Shift  new tab, in background
  * Alt         save
  *
- * Middle-clicking is the same as Ctrl+clicking (it opens a new tab).
+ * You can swap Ctrl and Ctrl+shift by toggling the hidden pref
+ * browser.tabs.loadBookmarksInBackground (not browser.tabs.loadInBackground, which
+ * is for content area links).
+ *
+ * Middle-clicking is the same as Ctrl+clicking (it opens a new tab) and it is
+ * subject to the shift modifier and pref in the same way.
  *
  * Exceptions: 
  * - Alt is ignored for menu items selected using the keyboard so you don't accidentally save stuff.  
@@ -163,7 +140,7 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
 #endif
     return shift ? "tabshifted" : "tab";
 
-  if (alt && getBoolPref("browser.altClickSave", false))
+  if (alt)
     return "save";
 
   if (shift || (middle && !middleUsesTabs))
@@ -234,7 +211,7 @@ function openLinkIn(url, where, params) {
 
   var w = getTopWin();
   if ((where == "tab" || where == "tabshifted") &&
-      w && !w.toolbar.visible) {
+      w && w.document.documentElement.getAttribute("chromehidden")) {
     w = getTopWin(true);
     aRelatedToCurrent = false;
   }
@@ -269,10 +246,10 @@ function openLinkIn(url, where, params) {
     return;
   }
 
-  let loadInBackground = where == "current" ? false : aInBackground;
+  let loadInBackground = aInBackground;
   if (loadInBackground == null) {
     loadInBackground = aFromChrome ?
-                         false :
+                         getBoolPref("browser.tabs.loadBookmarksInBackground") :
                          getBoolPref("browser.tabs.loadInBackground");
   }
 
@@ -326,9 +303,6 @@ function openLinkIn(url, where, params) {
     w.content.focus();
   else
     w.gBrowser.selectedBrowser.focus();
-
-  if (!loadInBackground && isBlankPageURL(url))
-    w.focusAndSelectUrlBar();
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.
@@ -394,13 +368,13 @@ function gatherTextUnder ( root )
       node = node.firstChild;
       depth++;
     } else {
-      // No children, try next sibling (or parent next sibling).
-      while ( depth > 0 && !node.nextSibling ) {
-        node = node.parentNode;
-        depth--;
-      }
+      // No children, try next sibling.
       if ( node.nextSibling ) {
         node = node.nextSibling;
+      } else {
+        // Last resort is our next oldest uncle/aunt.
+        node = node.parentNode.nextSibling;
+        depth--;
       }
     }
   }
@@ -419,8 +393,7 @@ function getShellService()
   try {
     shell = Components.classes["@mozilla.org/browser/shell-service;1"]
       .getService(Components.interfaces.nsIShellService);
-  } catch (e) {
-  }
+  } catch (e) {dump("*** e = " + e + "\n");}
   return shell;
 }
 

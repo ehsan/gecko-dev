@@ -57,17 +57,20 @@
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMDOMImplementation.h"
+#include "nsIDOMRange.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIFactory.h"
 #include "nsIFrameUtil.h"
 #include "nsHTMLStyleSheet.h"
+#include "nsIHTMLToTextSink.h"
 #include "nsILayoutDebugger.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIPresShell.h"
+#include "nsIRangeUtils.h"
 #include "nsIScriptNameSpaceManager.h"
 #include "nsISelection.h"
 #include "nsIXBLService.h"
@@ -112,7 +115,7 @@
 #include "nsDOMException.h"
 #include "nsDOMFileReader.h"
 #include "nsFormData.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsFileDataProtocolHandler.h"
 #include "nsGlobalWindowCommands.h"
 #include "nsIControllerCommandTable.h"
 #include "nsJSProtocolHandler.h"
@@ -122,30 +125,17 @@
 #include "nsDOMStorage.h"
 #include "nsJSON.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
-#include "mozilla/dom/DOMRequest.h"
 
 using mozilla::dom::indexedDB::IndexedDatabaseManager;
-using mozilla::dom::DOMRequestService;
-
-#ifdef MOZ_B2G_RIL
-#include "SystemWorkerManager.h"
-using mozilla::dom::telephony::SystemWorkerManager;
-#define SYSTEMWORKERMANAGER_CID \
-  {0xd53b6524, 0x6ac3, 0x42b0, {0xae, 0xca, 0x62, 0xb3, 0xc4, 0xe5, 0x2b, 0x04}}
-#define SYSTEMWORKERMANAGER_CONTRACTID \
-  "@mozilla.org/telephony/system-worker-manager;1"
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-#include "AudioManager.h"
-using mozilla::dom::telephony::AudioManager;
-#endif
 
 // Editor stuff
 #include "nsEditorCID.h"
 #include "nsEditor.h"
 #include "nsPlaintextEditor.h"
 #include "nsEditorController.h" //CID
+#include "nsIController.h"
+#include "nsIControllerContext.h"
+#include "nsIControllerCommandTable.h"
 
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
@@ -156,24 +146,67 @@ using mozilla::dom::telephony::AudioManager;
 #include "nsSystemPrincipal.h"
 #include "nsNullPrincipal.h"
 #include "nsNetCID.h"
+#include "nsINodeInfo.h"
 #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsHapticFeedback.h"
 #endif
-#include "nsParserUtils.h"
 
 #define NS_EDITORCOMMANDTABLE_CID \
 { 0x4f5e62b8, 0xd659, 0x4156, { 0x84, 0xfc, 0x2f, 0x60, 0x99, 0x40, 0x03, 0x69 }}
-
-#define NS_EDITINGCOMMANDTABLE_CID \
-{ 0xcb38a746, 0xbeb8, 0x43f3, { 0x94, 0x29, 0x77, 0x96, 0xe1, 0xa9, 0x3f, 0xb4 }}
 
 #define NS_HAPTICFEEDBACK_CID \
 { 0x1f15dbc8, 0xbfaa, 0x45de, \
 { 0x8a, 0x46, 0x08, 0xe2, 0xe2, 0x63, 0x26, 0xb0 } }
 
+static NS_DEFINE_CID(kEditorCommandTableCID, NS_EDITORCOMMANDTABLE_CID);
+
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlaintextEditor)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsParserUtils)
+// Constructor of a controller which is set up to use, internally, a
+// singleton command-table pre-filled with editor commands.
+static nsresult
+nsEditorControllerConstructor(nsISupports *aOuter, REFNSIID aIID,
+                                            void **aResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsIController> controller = do_CreateInstance("@mozilla.org/embedcomp/base-command-controller;1", &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  nsCOMPtr<nsIControllerCommandTable> editorCommandTable = do_GetService(kEditorCommandTableCID, &rv);
+  if (NS_FAILED(rv)) return rv;
+  
+  // this guy is a singleton, so make it immutable
+  editorCommandTable->MakeImmutable();
+  
+  nsCOMPtr<nsIControllerContext> controllerContext = do_QueryInterface(controller, &rv);
+  if (NS_FAILED(rv)) return rv;
+  
+  rv = controllerContext->Init(editorCommandTable);
+  if (NS_FAILED(rv)) return rv;
+  
+  return controller->QueryInterface(aIID, aResult);
+}
+
+
+// Constructor for a command-table pref-filled with editor commands
+static nsresult
+nsEditorCommandTableConstructor(nsISupports *aOuter, REFNSIID aIID,
+                                            void **aResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsIControllerCommandTable> commandTable =
+      do_CreateInstance(NS_CONTROLLERCOMMANDTABLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return rv;
+  
+  rv = nsEditorController::RegisterEditorCommands(commandTable);
+  if (NS_FAILED(rv)) return rv;
+  
+  // we don't know here whether we're being created as an instance,
+  // or a service, so we can't become immutable
+
+  return commandTable->QueryInterface(aIID, aResult);
+}
+
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTextServicesDocument)
 #ifdef ENABLE_EDITOR_API_LOG
@@ -210,6 +243,8 @@ class nsIDocumentLoaderFactory;
 #define NS_WINDOWCOMMANDTABLE_CID \
  { /* 0DE2FBFA-6B7F-11D7-BBBA-0003938A9D96 */        \
   0x0DE2FBFA, 0x6B7F, 0x11D7, {0xBB, 0xBA, 0x00, 0x03, 0x93, 0x8A, 0x9D, 0x96} }
+
+static NS_DEFINE_CID(kWindowCommandTableCID, NS_WINDOWCOMMANDTABLE_CID);
 
 #include "nsIBoxObject.h"
 
@@ -251,16 +286,9 @@ static void Shutdown();
 #endif
 #include "nsCSPService.h"
 #include "nsISmsService.h"
-#include "nsISmsDatabaseService.h"
-#include "mozilla/dom/sms/SmsRequestManager.h"
-#include "mozilla/dom/sms/SmsServicesFactory.h"
-#include "nsIPowerManagerService.h"
+#include "mozilla/dom/sms/SmsServiceFactory.h"
 
 using namespace mozilla::dom::sms;
-
-#include "mozilla/dom/power/PowerManagerService.h"
-
-using mozilla::dom::power::PowerManagerService;
 
 // Transformiix
 /* 5d5d92cd-6bf8-11d9-bf4a-000a95dc234c */
@@ -280,23 +308,14 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsEventSource)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocket)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDOMFileReader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormData)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsBlobProtocolHandler)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileDataProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(IndexedDatabaseManager,
                                          IndexedDatabaseManager::FactoryCreate)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(DOMRequestService,
-                                         DOMRequestService::FactoryCreate)
-#ifdef MOZ_B2G_RIL
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(SystemWorkerManager,
-                                         SystemWorkerManager::FactoryCreate)
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-NS_GENERIC_FACTORY_CONSTRUCTOR(AudioManager)
-#else
+#ifndef MOZ_WIDGET_GONK
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
@@ -308,11 +327,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsHapticFeedback)
 #endif
 #endif
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(ThirdPartyUtil, Init)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsISmsService, SmsServicesFactory::CreateSmsService)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsISmsDatabaseService, SmsServicesFactory::CreateSmsDatabaseService)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIPowerManagerService,
-                                         PowerManagerService::GetInstance)
-NS_GENERIC_FACTORY_CONSTRUCTOR(SmsRequestManager)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsISmsService, SmsServiceFactory::Create)
 
 //-----------------------------------------------------------------------------
 
@@ -435,6 +450,8 @@ nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult);
 
 nsresult NS_NewDomSelection(nsISelection** aResult);
 nsresult NS_NewContentViewer(nsIContentViewer** aResult);
+nsresult NS_NewRange(nsIDOMRange** aResult);
+nsresult NS_NewRangeUtils(nsIRangeUtils** aResult);
 nsresult NS_NewContentIterator(nsIContentIterator** aResult);
 nsresult NS_NewPreContentIterator(nsIContentIterator** aResult);
 nsresult NS_NewGenRegularIterator(nsIContentIterator** aResult);
@@ -502,6 +519,8 @@ MAKE_CTOR(CreateXMLDocument,              nsIDocument,                 NS_NewXML
 MAKE_CTOR(CreateSVGDocument,              nsIDocument,                 NS_NewSVGDocument)
 MAKE_CTOR(CreateImageDocument,            nsIDocument,                 NS_NewImageDocument)
 MAKE_CTOR(CreateDOMSelection,             nsISelection,                NS_NewDomSelection)
+MAKE_CTOR(CreateRange,                    nsIDOMRange,                 NS_NewRange)
+MAKE_CTOR(CreateRangeUtils,               nsIRangeUtils,               NS_NewRangeUtils)
 MAKE_CTOR(CreateContentIterator,          nsIContentIterator,          NS_NewContentIterator)
 MAKE_CTOR(CreatePreContentIterator,       nsIContentIterator,          NS_NewPreContentIterator)
 MAKE_CTOR(CreateSubtreeIterator,          nsIContentIterator,          NS_NewContentSubtreeIterator)
@@ -626,6 +645,46 @@ CreateHTMLAudioElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 }
 #endif
 
+static nsresult
+CreateWindowCommandTableConstructor(nsISupports *aOuter,
+                                    REFNSIID aIID, void **aResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsIControllerCommandTable> commandTable =
+      do_CreateInstance(NS_CONTROLLERCOMMANDTABLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  rv = nsWindowCommandRegistration::RegisterWindowCommands(commandTable);
+  if (NS_FAILED(rv)) return rv;
+
+  return commandTable->QueryInterface(aIID, aResult);
+}
+
+static nsresult
+CreateWindowControllerWithSingletonCommandTable(nsISupports *aOuter,
+                                      REFNSIID aIID, void **aResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsIController> controller =
+       do_CreateInstance("@mozilla.org/embedcomp/base-command-controller;1", &rv);
+
+ if (NS_FAILED(rv)) return rv;
+
+  nsCOMPtr<nsIControllerCommandTable> windowCommandTable = do_GetService(kWindowCommandTableCID, &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  // this is a singleton; make it immutable
+  windowCommandTable->MakeImmutable();
+
+  nsCOMPtr<nsIControllerContext> controllerContext = do_QueryInterface(controller, &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  controllerContext->Init(windowCommandTable);
+  if (NS_FAILED(rv)) return rv;
+
+  return controller->QueryInterface(aIID, aResult);
+}
+
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMScriptObjectFactory)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBaseDOMException)
 
@@ -694,6 +753,8 @@ NS_DEFINE_NAMED_CID(NS_XMLDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_SVGDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_IMAGEDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_DOMSELECTION_CID);
+NS_DEFINE_NAMED_CID(NS_RANGE_CID);
+NS_DEFINE_NAMED_CID(NS_RANGEUTILS_CID);
 NS_DEFINE_NAMED_CID(NS_CONTENTITERATOR_CID);
 NS_DEFINE_NAMED_CID(NS_PRECONTENTITERATOR_CID);
 NS_DEFINE_NAMED_CID(NS_SUBTREEITERATOR_CID);
@@ -704,6 +765,7 @@ NS_DEFINE_NAMED_CID(NS_HTMLAUDIOELEMENT_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXT2D_CID);
 NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXT2DTHEBES_CID);
+NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXT2DAZURE_CID);
 NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXTWEBGL_CID);
 NS_DEFINE_NAMED_CID(NS_TEXT_ENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLCOPY_TEXT_ENCODER_CID);
@@ -712,8 +774,6 @@ NS_DEFINE_NAMED_CID(NS_XHTMLCONTENTSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLCONTENTSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_PLAINTEXTSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(MOZ_SANITIZINGHTMLSERIALIZER_CID);
-NS_DEFINE_NAMED_CID(NS_PARSERUTILS_CID);
-NS_DEFINE_NAMED_CID(NS_SCRIPTABLEUNESCAPEHTML_CID);
 NS_DEFINE_NAMED_CID(NS_XBLSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_CONTENTPOLICY_CID);
 NS_DEFINE_NAMED_CID(NS_DATADOCUMENTCONTENTPOLICY_CID);
@@ -749,7 +809,7 @@ NS_DEFINE_NAMED_CID(TRANSFORMIIX_NODESET_CID);
 NS_DEFINE_NAMED_CID(NS_XMLSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_FILEREADER_CID);
 NS_DEFINE_NAMED_CID(NS_FORMDATA_CID);
-NS_DEFINE_NAMED_CID(NS_BLOBPROTOCOLHANDLER_CID);
+NS_DEFINE_NAMED_CID(NS_FILEDATAPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_XMLHTTPREQUEST_CID);
 NS_DEFINE_NAMED_CID(NS_EVENTSOURCE_CID);
 NS_DEFINE_NAMED_CID(NS_WEBSOCKET_CID);
@@ -759,23 +819,14 @@ NS_DEFINE_NAMED_CID(NS_DOMSTORAGE2_CID);
 NS_DEFINE_NAMED_CID(NS_DOMSTORAGEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_DOMJSON_CID);
 NS_DEFINE_NAMED_CID(NS_TEXTEDITOR_CID);
-NS_DEFINE_NAMED_CID(INDEXEDDB_MANAGER_CID);
-NS_DEFINE_NAMED_CID(DOMREQUEST_SERVICE_CID);
-#ifdef MOZ_B2G_RIL
-NS_DEFINE_NAMED_CID(SYSTEMWORKERMANAGER_CID);
-#endif
-#ifdef MOZ_WIDGET_GONK
-NS_DEFINE_NAMED_CID(NS_AUDIOMANAGER_CID);
-#endif
+NS_DEFINE_NAMED_CID(INDEXEDDB_MANAGER_CID );
 #ifdef ENABLE_EDITOR_API_LOG
 NS_DEFINE_NAMED_CID(NS_HTMLEDITOR_CID);
 #else
 NS_DEFINE_NAMED_CID(NS_HTMLEDITOR_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_EDITORCONTROLLER_CID);
-NS_DEFINE_NAMED_CID(NS_EDITINGCONTROLLER_CID);
 NS_DEFINE_NAMED_CID(NS_EDITORCOMMANDTABLE_CID);
-NS_DEFINE_NAMED_CID(NS_EDITINGCOMMANDTABLE_CID);
 NS_DEFINE_NAMED_CID(NS_TEXTSERVICESDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_GEOLOCATION_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_GEOLOCATION_CID);
@@ -805,139 +856,7 @@ NS_DEFINE_NAMED_CID(NS_DEVICE_MOTION_CID);
 NS_DEFINE_NAMED_CID(NS_HAPTICFEEDBACK_CID);
 #endif
 #endif
-NS_DEFINE_NAMED_CID(SMS_SERVICE_CID);
-NS_DEFINE_NAMED_CID(SMS_DATABASE_SERVICE_CID);
-NS_DEFINE_NAMED_CID(SMS_REQUEST_MANAGER_CID);
-NS_DEFINE_NAMED_CID(NS_POWERMANAGERSERVICE_CID);
-
-static nsresult
-CreateWindowCommandTableConstructor(nsISupports *aOuter,
-                                    REFNSIID aIID, void **aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIControllerCommandTable> commandTable =
-      do_CreateInstance(NS_CONTROLLERCOMMANDTABLE_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  rv = nsWindowCommandRegistration::RegisterWindowCommands(commandTable);
-  if (NS_FAILED(rv)) return rv;
-
-  return commandTable->QueryInterface(aIID, aResult);
-}
-
-static nsresult
-CreateWindowControllerWithSingletonCommandTable(nsISupports *aOuter,
-                                      REFNSIID aIID, void **aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIController> controller =
-       do_CreateInstance("@mozilla.org/embedcomp/base-command-controller;1", &rv);
-
- if (NS_FAILED(rv)) return rv;
-
-  nsCOMPtr<nsIControllerCommandTable> windowCommandTable = do_GetService(kNS_WINDOWCOMMANDTABLE_CID, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  // this is a singleton; make it immutable
-  windowCommandTable->MakeImmutable();
-
-  nsCOMPtr<nsIControllerContext> controllerContext = do_QueryInterface(controller, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  controllerContext->Init(windowCommandTable);
-  if (NS_FAILED(rv)) return rv;
-
-  return controller->QueryInterface(aIID, aResult);
-}
-
-// Constructor of a controller which is set up to use, internally, a
-// singleton command-table pre-filled with editor commands.
-static nsresult
-nsEditorControllerConstructor(nsISupports *aOuter, REFNSIID aIID,
-                              void **aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIController> controller = do_CreateInstance("@mozilla.org/embedcomp/base-command-controller;1", &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  nsCOMPtr<nsIControllerCommandTable> editorCommandTable = do_GetService(kNS_EDITORCOMMANDTABLE_CID, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  // this guy is a singleton, so make it immutable
-  editorCommandTable->MakeImmutable();
-
-  nsCOMPtr<nsIControllerContext> controllerContext = do_QueryInterface(controller, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  rv = controllerContext->Init(editorCommandTable);
-  if (NS_FAILED(rv)) return rv;
-
-  return controller->QueryInterface(aIID, aResult);
-}
-
-// Constructor of a controller which is set up to use, internally, a
-// singleton command-table pre-filled with editing commands.
-static nsresult
-nsEditingControllerConstructor(nsISupports *aOuter, REFNSIID aIID,
-                                void **aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIController> controller = do_CreateInstance("@mozilla.org/embedcomp/base-command-controller;1", &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  nsCOMPtr<nsIControllerCommandTable> editingCommandTable = do_GetService(kNS_EDITINGCOMMANDTABLE_CID, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  // this guy is a singleton, so make it immutable
-  editingCommandTable->MakeImmutable();
-
-  nsCOMPtr<nsIControllerContext> controllerContext = do_QueryInterface(controller, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  rv = controllerContext->Init(editingCommandTable);
-  if (NS_FAILED(rv)) return rv;
-
-  return controller->QueryInterface(aIID, aResult);
-}
-
-// Constructor for a command-table pre-filled with editor commands
-static nsresult
-nsEditorCommandTableConstructor(nsISupports *aOuter, REFNSIID aIID,
-                                            void **aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIControllerCommandTable> commandTable =
-      do_CreateInstance(NS_CONTROLLERCOMMANDTABLE_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  rv = nsEditorController::RegisterEditorCommands(commandTable);
-  if (NS_FAILED(rv)) return rv;
-
-  // we don't know here whether we're being created as an instance,
-  // or a service, so we can't become immutable
-
-  return commandTable->QueryInterface(aIID, aResult);
-}
-
-// Constructor for a command-table pre-filled with editing commands
-static nsresult
-nsEditingCommandTableConstructor(nsISupports *aOuter, REFNSIID aIID,
-                                              void **aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIControllerCommandTable> commandTable =
-      do_CreateInstance(NS_CONTROLLERCOMMANDTABLE_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  rv = nsEditorController::RegisterEditingCommands(commandTable);
-  if (NS_FAILED(rv)) return rv;
-
-  // we don't know here whether we're being created as an instance,
-  // or a service, so we can't become immutable
-
-  return commandTable->QueryInterface(aIID, aResult);
-}
-
+NS_DEFINE_NAMED_CID(NS_SMSSERVICE_CID);
 
 static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   XPCONNECT_CIDENTRIES
@@ -970,6 +889,8 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_SVGDOCUMENT_CID, false, NULL, CreateSVGDocument },
   { &kNS_IMAGEDOCUMENT_CID, false, NULL, CreateImageDocument },
   { &kNS_DOMSELECTION_CID, false, NULL, CreateDOMSelection },
+  { &kNS_RANGE_CID, false, NULL, CreateRange },
+  { &kNS_RANGEUTILS_CID, false, NULL, CreateRangeUtils },
   { &kNS_CONTENTITERATOR_CID, false, NULL, CreateContentIterator },
   { &kNS_PRECONTENTITERATOR_CID, false, NULL, CreatePreContentIterator },
   { &kNS_SUBTREEITERATOR_CID, false, NULL, CreateSubtreeIterator },
@@ -988,8 +909,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_XHTMLCONTENTSERIALIZER_CID, false, NULL, CreateXHTMLContentSerializer },
   { &kNS_PLAINTEXTSERIALIZER_CID, false, NULL, CreatePlainTextSerializer },
   { &kMOZ_SANITIZINGHTMLSERIALIZER_CID, false, NULL, CreateSanitizingHTMLSerializer },
-  { &kNS_PARSERUTILS_CID, false, NULL, nsParserUtilsConstructor },
-  { &kNS_SCRIPTABLEUNESCAPEHTML_CID, false, NULL, nsParserUtilsConstructor },
   { &kNS_XBLSERVICE_CID, false, NULL, CreateXBLService },
   { &kNS_CONTENTPOLICY_CID, false, NULL, CreateContentPolicy },
   { &kNS_DATADOCUMENTCONTENTPOLICY_CID, false, NULL, nsDataDocumentContentPolicyConstructor },
@@ -1025,7 +944,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_XMLSERIALIZER_CID, false, NULL, nsDOMSerializerConstructor },
   { &kNS_FILEREADER_CID, false, NULL, nsDOMFileReaderConstructor },
   { &kNS_FORMDATA_CID, false, NULL, nsFormDataConstructor },
-  { &kNS_BLOBPROTOCOLHANDLER_CID, false, NULL, nsBlobProtocolHandlerConstructor },
+  { &kNS_FILEDATAPROTOCOLHANDLER_CID, false, NULL, nsFileDataProtocolHandlerConstructor },
   { &kNS_XMLHTTPREQUEST_CID, false, NULL, nsXMLHttpRequestConstructor },
   { &kNS_EVENTSOURCE_CID, false, NULL, nsEventSourceConstructor },
   { &kNS_WEBSOCKET_CID, false, NULL, nsWebSocketConstructor },
@@ -1036,22 +955,13 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_DOMJSON_CID, false, NULL, NS_NewJSON },
   { &kNS_TEXTEDITOR_CID, false, NULL, nsPlaintextEditorConstructor },
   { &kINDEXEDDB_MANAGER_CID, false, NULL, IndexedDatabaseManagerConstructor },
-  { &kDOMREQUEST_SERVICE_CID, false, NULL, DOMRequestServiceConstructor },
-#ifdef MOZ_B2G_RIL
-  { &kSYSTEMWORKERMANAGER_CID, true, NULL, SystemWorkerManagerConstructor },
-#endif
-#ifdef MOZ_WIDGET_GONK
-  { &kNS_AUDIOMANAGER_CID, true, NULL, AudioManagerConstructor },
-#endif
 #ifdef ENABLE_EDITOR_API_LOG
   { &kNS_HTMLEDITOR_CID, false, NULL, nsHTMLEditorLogConstructor },
 #else
   { &kNS_HTMLEDITOR_CID, false, NULL, nsHTMLEditorConstructor },
 #endif
   { &kNS_EDITORCONTROLLER_CID, false, NULL, nsEditorControllerConstructor },
-  { &kNS_EDITINGCONTROLLER_CID, false, NULL, nsEditingControllerConstructor },
   { &kNS_EDITORCOMMANDTABLE_CID, false, NULL, nsEditorCommandTableConstructor },
-  { &kNS_EDITINGCOMMANDTABLE_CID, false, NULL, nsEditingCommandTableConstructor },
   { &kNS_TEXTSERVICESDOCUMENT_CID, false, NULL, nsTextServicesDocumentConstructor },
   { &kNS_GEOLOCATION_SERVICE_CID, false, NULL, nsGeolocationServiceConstructor },
   { &kNS_GEOLOCATION_CID, false, NULL, nsGeolocationConstructor },
@@ -1080,10 +990,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #endif
   { &kTHIRDPARTYUTIL_CID, false, NULL, ThirdPartyUtilConstructor },
   { &kNS_STRUCTUREDCLONECONTAINER_CID, false, NULL, nsStructuredCloneContainerConstructor },
-  { &kSMS_SERVICE_CID, false, NULL, nsISmsServiceConstructor },
-  { &kSMS_DATABASE_SERVICE_CID, false, NULL, nsISmsDatabaseServiceConstructor },
-  { &kSMS_REQUEST_MANAGER_CID, false, NULL, SmsRequestManagerConstructor },
-  { &kNS_POWERMANAGERSERVICE_CID, false, NULL, nsIPowerManagerServiceConstructor },
+  { &kNS_SMSSERVICE_CID, false, NULL, nsISmsServiceConstructor },
   { NULL }
 };
 
@@ -1109,6 +1016,8 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/xml/xml-document;1", &kNS_XMLDOCUMENT_CID },
   { "@mozilla.org/svg/svg-document;1", &kNS_SVGDOCUMENT_CID },
   { "@mozilla.org/content/dom-selection;1", &kNS_DOMSELECTION_CID },
+  { "@mozilla.org/content/range;1", &kNS_RANGE_CID },
+  { "@mozilla.org/content/range-utils;1", &kNS_RANGEUTILS_CID },
   { "@mozilla.org/content/post-content-iterator;1", &kNS_CONTENTITERATOR_CID },
   { "@mozilla.org/content/pre-content-iterator;1", &kNS_PRECONTENTITERATOR_CID },
   { "@mozilla.org/content/subtree-content-iterator;1", &kNS_SUBTREEITERATOR_CID },
@@ -1135,9 +1044,8 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_CONTENTSERIALIZER_CONTRACTID_PREFIX "text/html", &kNS_HTMLCONTENTSERIALIZER_CID },
   { NS_CONTENTSERIALIZER_CONTRACTID_PREFIX "application/vnd.mozilla.xul+xml", &kNS_XMLCONTENTSERIALIZER_CID },
   { NS_CONTENTSERIALIZER_CONTRACTID_PREFIX "text/plain", &kNS_PLAINTEXTSERIALIZER_CID },
+  { NS_PLAINTEXTSINK_CONTRACTID, &kNS_PLAINTEXTSERIALIZER_CID },
   { MOZ_SANITIZINGHTMLSERIALIZER_CONTRACTID, &kMOZ_SANITIZINGHTMLSERIALIZER_CID },
-  { NS_PARSERUTILS_CONTRACTID, &kNS_PARSERUTILS_CID },
-  { NS_SCRIPTABLEUNESCAPEHTML_CONTRACTID, &kNS_SCRIPTABLEUNESCAPEHTML_CID },
   { "@mozilla.org/xbl;1", &kNS_XBLSERVICE_CID },
   { NS_CONTENTPOLICY_CONTRACTID, &kNS_CONTENTPOLICY_CID },
   { NS_DATADOCUMENTCONTENTPOLICY_CONTRACTID, &kNS_DATADOCUMENTCONTENTPOLICY_CID },
@@ -1165,7 +1073,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_XMLSERIALIZER_CONTRACTID, &kNS_XMLSERIALIZER_CID },
   { NS_FILEREADER_CONTRACTID, &kNS_FILEREADER_CID },
   { NS_FORMDATA_CONTRACTID, &kNS_FORMDATA_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX BLOBURI_SCHEME, &kNS_BLOBPROTOCOLHANDLER_CID },
+  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX FILEDATA_SCHEME, &kNS_FILEDATAPROTOCOLHANDLER_CID },
   { NS_XMLHTTPREQUEST_CONTRACTID, &kNS_XMLHTTPREQUEST_CID },
   { NS_EVENTSOURCE_CONTRACTID, &kNS_EVENTSOURCE_CID },
   { NS_WEBSOCKET_CONTRACTID, &kNS_WEBSOCKET_CID },
@@ -1176,20 +1084,13 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/dom/json;1", &kNS_DOMJSON_CID },
   { "@mozilla.org/editor/texteditor;1", &kNS_TEXTEDITOR_CID },
   { INDEXEDDB_MANAGER_CONTRACTID, &kINDEXEDDB_MANAGER_CID },
-  { DOMREQUEST_SERVICE_CONTRACTID, &kDOMREQUEST_SERVICE_CID },
-#ifdef MOZ_B2G_RIL  
-  { SYSTEMWORKERMANAGER_CONTRACTID, &kSYSTEMWORKERMANAGER_CID },
-#endif
-#ifdef MOZ_WIDGET_GONK
-  { NS_AUDIOMANAGER_CONTRACTID, &kNS_AUDIOMANAGER_CID },
-#endif
 #ifdef ENABLE_EDITOR_API_LOG
   { "@mozilla.org/editor/htmleditor;1", &kNS_HTMLEDITOR_CID },
 #else
   { "@mozilla.org/editor/htmleditor;1", &kNS_HTMLEDITOR_CID },
 #endif
   { "@mozilla.org/editor/editorcontroller;1", &kNS_EDITORCONTROLLER_CID },
-  { "@mozilla.org/editor/editingcontroller;1", &kNS_EDITINGCONTROLLER_CID },
+  { "", &kNS_EDITORCOMMANDTABLE_CID },
   { "@mozilla.org/textservices/textservicesdocument;1", &kNS_TEXTSERVICESDOCUMENT_CID },
   { "@mozilla.org/geolocation/service;1", &kNS_GEOLOCATION_SERVICE_CID },
   { "@mozilla.org/geolocation;1", &kNS_GEOLOCATION_CID },
@@ -1219,10 +1120,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
 #endif
   { THIRDPARTYUTIL_CONTRACTID, &kTHIRDPARTYUTIL_CID },
   { NS_STRUCTUREDCLONECONTAINER_CONTRACTID, &kNS_STRUCTUREDCLONECONTAINER_CID },
-  { SMS_SERVICE_CONTRACTID, &kSMS_SERVICE_CID },
-  { SMS_DATABASE_SERVICE_CONTRACTID, &kSMS_DATABASE_SERVICE_CID },
-  { SMS_REQUEST_MANAGER_CONTRACTID, &kSMS_REQUEST_MANAGER_CID },
-  { POWERMANAGERSERVICE_CONTRACTID, &kNS_POWERMANAGERSERVICE_CID },
+  { SMSSERVICE_CONTRACTID, &kNS_SMSSERVICE_CID },
   { NULL }
 };
 
@@ -1243,9 +1141,6 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
   { JAVASCRIPT_GLOBAL_STATIC_NAMESET_CATEGORY, "PrivilegeManager", NS_SECURITYNAMESET_CONTRACTID },
   { "app-startup", "Script Security Manager", "service," NS_SCRIPTSECURITYMANAGER_CONTRACTID },
   CONTENTDLF_CATEGORIES
-#ifdef MOZ_B2G_RIL
-  { "profile-after-change", "Telephony System Worker Manager", SYSTEMWORKERMANAGER_CONTRACTID },
-#endif
   { NULL }
 };
 

@@ -120,6 +120,10 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
 nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
 {
   NS_ASSERTION(!mCx, "Couldn't release JSContext?!?");
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
 }
 
 nsresult
@@ -144,13 +148,13 @@ nsInProcessTabChildGlobal::Init()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsInProcessTabChildGlobal)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                                nsDOMEventTargetHelper)
+                                                nsDOMEventTargetWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMessageManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobal)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                                  nsDOMEventTargetHelper)
+                                                  nsDOMEventTargetWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMessageManager)
   nsFrameScriptExecutor::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -163,7 +167,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsInProcessTabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ContentFrameMessageManager)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
 
 NS_IMPL_ADDREF_INHERITED(nsInProcessTabChildGlobal, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsInProcessTabChildGlobal, nsDOMEventTargetHelper)
@@ -250,8 +254,6 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
   }
   
   if (!mLoadingScript) {
-    nsContentUtils::ReleaseWrapper(static_cast<nsIDOMEventTarget*>(this),
-                                   this);
     if (mCx) {
       DestroyCx();
     }
@@ -291,10 +293,53 @@ nsInProcessTabChildGlobal::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 nsresult
 nsInProcessTabChildGlobal::InitTabChildGlobal()
 {
+  nsCOMPtr<nsIJSRuntimeService> runtimeSvc = 
+    do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
+  NS_ENSURE_STATE(runtimeSvc);
+
+  JSRuntime* rt = nsnull;
+  runtimeSvc->GetRuntime(&rt);
+  NS_ENSURE_STATE(rt);
+
+  JSContext* cx = JS_NewContext(rt, 8192);
+  NS_ENSURE_STATE(cx);
+
+  mCx = cx;
+
+  nsContentUtils::XPConnect()->SetSecurityManagerForJSContext(cx, nsContentUtils::GetSecurityManager(), 0);
+  nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
+
+  JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+
+  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_PRIVATE_IS_NSISUPPORTS);
+  JS_SetVersion(cx, JSVERSION_LATEST);
+  JS_SetErrorReporter(cx, ContentScriptErrorReporter);
+
+  xpc_LocalizeContext(cx);
+
+  JSAutoRequest ar(cx);
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  const PRUint32 flags = nsIXPConnect::INIT_JS_STANDARD_CLASSES |
+                         /*nsIXPConnect::OMIT_COMPONENTS_OBJECT ?  |*/
+                         nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT;
 
   nsISupports* scopeSupports =
     NS_ISUPPORTS_CAST(nsIDOMEventTarget*, this);
-  NS_ENSURE_STATE(InitTabChildGlobalInternal(scopeSupports));
+  JS_SetContextPrivate(cx, scopeSupports);
+
+  nsresult rv =
+    xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
+                                         NS_GET_IID(nsISupports),
+                                         GetPrincipal(), nsnull,
+                                         flags, getter_AddRefs(mGlobal));
+  NS_ENSURE_SUCCESS(rv, false);
+
+  JSObject* global = nsnull;
+  rv = mGlobal->GetJSObject(&global);
+  NS_ENSURE_SUCCESS(rv, false);
+
+  JS_SetGlobalObject(cx, global);
+  DidCreateCx();
   return NS_OK;
 }
 

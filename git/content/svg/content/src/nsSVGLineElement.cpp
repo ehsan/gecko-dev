@@ -106,9 +106,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGLineElement,nsSVGLineElementBase)
 DOMCI_NODE_DATA(SVGLineElement, nsSVGLineElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGLineElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGLineElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGLineElement)
+  NS_NODE_INTERFACE_TABLE4(nsSVGLineElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGLineElement)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLineElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGLineElementBase)
 
@@ -162,7 +161,7 @@ nsSVGLineElement::IsAttributeMapped(const nsIAtom* name) const
     sMarkersMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGLineElementBase::IsAttributeMapped(name);
 }
 

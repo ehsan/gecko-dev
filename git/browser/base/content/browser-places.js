@@ -101,25 +101,25 @@ var StarUI = {
           this._restoreCommandsState();
           this._itemId = -1;
           if (this._batching) {
-            PlacesUtils.transactionManager.endBatch();
+            PlacesUIUtils.ptm.endBatch();
             this._batching = false;
           }
 
           switch (this._actionOnHide) {
             case "cancel": {
-              PlacesUtils.transactionManager.undoTransaction();
+              PlacesUIUtils.ptm.undoTransaction();
               break;
             }
             case "remove": {
               // Remove all bookmarks for the bookmark's url, this also removes
               // the tags for the url.
-              PlacesUtils.transactionManager.beginBatch();
+              PlacesUIUtils.ptm.beginBatch();
               let itemIds = PlacesUtils.getBookmarksForURI(this._uriForRemoval);
               for (let i = 0; i < itemIds.length; i++) {
-                let txn = new PlacesRemoveItemTransaction(itemIds[i]);
-                PlacesUtils.transactionManager.doTransaction(txn);
+                let txn = PlacesUIUtils.ptm.removeItem(itemIds[i]);
+                PlacesUIUtils.ptm.doTransaction(txn);
               }
-              PlacesUtils.transactionManager.endBatch();
+              PlacesUIUtils.ptm.endBatch();
               break;
             }
           }
@@ -127,7 +127,7 @@ var StarUI = {
         }
         break;
       case "keypress":
-        if (aEvent.defaultPrevented) {
+        if (aEvent.getPreventDefault()) {
           // The event has already been consumed inside of the panel.
           break;
         }
@@ -140,7 +140,7 @@ var StarUI = {
             if (aEvent.target.className == "expander-up" ||
                 aEvent.target.className == "expander-down" ||
                 aEvent.target.id == "editBMPanel_newFolderButton") {
-              //XXX Why is this necessary? The defaultPrevented check should
+              //XXX Why is this necessary? The getPreventDefault() check should
               //    be enough.
               break;
             }
@@ -165,25 +165,24 @@ var StarUI = {
       return;
     }
 
-    this._overlayLoading = true;
-    document.loadOverlay(
-      "chrome://browser/content/places/editBookmarkOverlay.xul",
-      (function (aSubject, aTopic, aData) {
+    var loadObserver = {
+      _self: this,
+      _itemId: aItemId,
+      _anchorElement: aAnchorElement,
+      _position: aPosition,
+      observe: function (aSubject, aTopic, aData) {
         //XXX We just caused localstore.rdf to be re-applied (bug 640158)
         retrieveToolbarIconsizesFromTheme();
 
-        // Move the header (star, title, button) into the grid,
-        // so that it aligns nicely with the other items (bug 484022).
-        let header = this._element("editBookmarkPanelHeader");
-        let rows = this._element("editBookmarkPanelGrid").lastChild;
-        rows.insertBefore(header, rows.firstChild);
-        header.hidden = false;
-
-        this._overlayLoading = false;
-        this._overlayLoaded = true;
-        this._doShowEditBookmarkPanel(aItemId, aAnchorElement, aPosition);
-      }).bind(this)
-    );
+        this._self._overlayLoading = false;
+        this._self._overlayLoaded = true;
+        this._self._doShowEditBookmarkPanel(this._itemId, this._anchorElement,
+                                            this._position);
+      }
+    };
+    this._overlayLoading = true;
+    document.loadOverlay("chrome://browser/content/places/editBookmarkOverlay.xul",
+                         loadObserver);
   },
 
   _doShowEditBookmarkPanel:
@@ -192,6 +191,13 @@ var StarUI = {
       return;
 
     this._blockCommands(); // un-done in the popuphiding handler
+
+    // Move the header (star, title, possibly a button) into the grid,
+    // so that it aligns nicely with the other items (bug 484022).
+    var rows = this._element("editBookmarkPanelGrid").lastChild;
+    var header = this._element("editBookmarkPanelHeader");
+    rows.insertBefore(header, rows.firstChild);
+    header.hidden = false;
 
     // Set panel title:
     // if we are batching, i.e. the bookmark has been added now,
@@ -275,7 +281,7 @@ var StarUI = {
 
   beginBatch: function SU_beginBatch() {
     if (!this._batching) {
-      PlacesUtils.transactionManager.beginBatch();
+      PlacesUIUtils.ptm.beginBatch();
       this._batching = true;
     }
   }
@@ -325,10 +331,9 @@ var PlacesCommandHook = {
       var parent = aParent != undefined ?
                    aParent : PlacesUtils.unfiledBookmarksFolderId;
       var descAnno = { name: PlacesUIUtils.DESCRIPTION_ANNO, value: description };
-      var txn = new PlacesCreateBookmarkTransaction(uri, parent, 
-                                                    PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                    title, null, [descAnno]);
-      PlacesUtils.transactionManager.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.createItem(uri, parent, -1,
+                                             title, null, [descAnno]);
+      PlacesUIUtils.ptm.doTransaction(txn);
       // Set the character-set
       if (charset)
         PlacesUtils.history.setCharsetForURI(uri, charset);
@@ -557,7 +562,7 @@ HistoryMenu.prototype = {
     undoMenu.removeAttribute("disabled");
 
     // populate menu
-    var undoItems = JSON.parse(this._ss.getClosedTabData(window));
+    var undoItems = eval("(" + this._ss.getClosedTabData(window) + ")");
     for (var i = 0; i < undoItems.length; i++) {
       var m = document.createElement("menuitem");
       m.setAttribute("label", undoItems[i].title);
@@ -1007,7 +1012,7 @@ var PlacesStarButton = {
     }
 
     // We can load about:blank before the actual page, but there is no point in handling that page.
-    if (isBlankPageURL(this._uri.spec)) {
+    if (this._uri.spec == "about:blank") {
       return;
     }
 

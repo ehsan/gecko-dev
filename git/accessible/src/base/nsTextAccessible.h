@@ -47,10 +47,10 @@
 class nsTextAccessible : public nsLinkableAccessible
 {
 public:
-  nsTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual void AppendTextTo(nsAString& aText, PRUint32 aStartOffset = 0,
                             PRUint32 aLength = PR_UINT32_MAX);
 

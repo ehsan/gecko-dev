@@ -72,6 +72,7 @@ NS_New##domname(nsresult aNSResult, nsIException* aDefaultException,         \
 
 
 DECL_INTERNAL_DOM_EXCEPTION(DOMException)
+DECL_INTERNAL_DOM_EXCEPTION(RangeException)
 DECL_INTERNAL_DOM_EXCEPTION(SVGException)
 DECL_INTERNAL_DOM_EXCEPTION(XPathException)
 DECL_INTERNAL_DOM_EXCEPTION(FileException)

@@ -14,8 +14,6 @@
   </style>
 <script type="text/javascript">
 
-SimpleTest.waitForExplicitFinish();
-
 var canvases = [];
 function callbackTestCanvas(canvas)
 {
@@ -65,7 +63,7 @@ function createIframe(url,next) {
     if (docEl.className.indexOf("reftest-wait") >= 0) {
       if (currentIteration++ > MAX_ITERATIONS) {
         ok(false, "iframe load for " + url + " timed out");
-        endTest();
+        SimpleTest.finish();
       } else {
         setTimeout(iframeLoadCompleted, 10);
       }
@@ -84,7 +82,9 @@ function refTest(test,ref) {
 
 var caretBlinkTime = null;
 function endTest() {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  SimpleTest.finish();
+  netscape.security.PrivilegeManager.enablePrivilege(
+   'UniversalPreferencesRead UniversalPreferencesWrite UniversalXPConnect');
   var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                         .getService(Components.interfaces.nsIPrefBranch);
   if (caretBlinkTime !== null) {
@@ -92,9 +92,6 @@ function endTest() {
   } else {
     prefs.clearUserPref("ui.caretBlinkTime");
   }
-
-  // finish(), yet let the test actually end first, to be safe.
-  SimpleTest.executeSoon(SimpleTest.finish);
 }
 
 var isWindows = /WINNT/.test(SpecialPowers.OS);
@@ -104,6 +101,7 @@ var tests = [
     [ 'bug389321-3.html' , 'bug389321-3-ref.html' ] ,
     [ 'bug482484.html'   , 'bug482484-ref.html'   ] ,
     [ 'bug585922.html'   , 'bug585922-ref.html'   ] ,
+    [ 'bug602141-3.html' , 'bug602141-3-ref.html' ] ,
     [ 'bug632215-1.html' , 'bug632215-ref.html'   ] ,
     [ 'bug632215-2.html' , 'bug632215-ref.html'   ] ,
     [ 'bug633044-1.html' , 'bug633044-1-ref.html' ] ,
@@ -121,7 +119,6 @@ if (!isWindows) {
   tests.push([ 'bug597519-1.html' , 'bug597519-1-ref.html' ]); // bug 680579
   tests.push([ 'bug602141-1.html' , 'bug602141-1-ref.html' ]); // bug 681334
   tests.push([ 'bug602141-2.html' , 'bug602141-2-ref.html' ]); // bug 682836
-  tests.push([ 'bug602141-3.html' , 'bug602141-3-ref.html' ]); // bug 683048
   tests.push([ 'bug602141-4.html' , 'bug602141-4-ref.html' ]); // bug 681167
   tests.push([ 'bug612271-1.html' , 'bug612271-ref.html' ]);   // bug 681032
   tests.push([ 'bug612271-2.html' , 'bug612271-ref.html' ]);   // bug 680581
@@ -162,7 +159,10 @@ function nextTest() {
 }
 function runTests() {
   try {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    SimpleTest.waitForExplicitFinish();
+
+    netscape.security.PrivilegeManager.enablePrivilege(
+      'UniversalPreferencesRead UniversalPreferencesWrite UniversalXPConnect');
     var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(Components.interfaces.nsIPrefBranch);
     try {

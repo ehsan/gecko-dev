@@ -648,7 +648,7 @@ RenderFrameParent::AllocPLayers(LayerManager::LayersBackend* aBackendType)
      return nsnull;
   }
   *aBackendType = lm->GetBackendType();
-  return new ShadowLayersParent(slm, this);
+  return new ShadowLayersParent(slm);
 }
 
 bool

@@ -73,7 +73,6 @@
 #include "nsCOMArray.h"
 #include "nsWeakReference.h"
 #include "nsIPrompt.h"
-#include "nsAutoPtr.h"
 
 class nsExternalAppHandler;
 class nsIMIMEInfo;
@@ -261,14 +260,12 @@ public:
    * @param aFileExtension The extension we need to append to our temp file,
    *                       INCLUDING the ".". e.g. .mp3
    * @param aWindowContext Window context, as passed to DoContent
-   * @param mExtProtSvc    nsExternalHelperAppService on creation
    * @param aFileName      The filename to use
    * @param aReason        A constant from nsIHelperAppLauncherDialog indicating
    *                       why the request is handled by a helper app.
    */
   nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo, const nsCSubstring& aFileExtension,
                        nsIInterfaceRequestor * aWindowContext,
-                       nsExternalHelperAppService * aExtProtSvc,
                        const nsAString& aFilename,
                        PRUint32 aReason, bool aForceSave);
 
@@ -450,8 +447,8 @@ protected:
    * with the data, whichever happens later.
    */
   nsCOMPtr<nsIRequest> mRequest;
-
-  nsRefPtr<nsExternalHelperAppService> mExtProtSvc;
 };
+
+extern NS_HIDDEN_(nsExternalHelperAppService*) gExtProtSvc;
 
 #endif // nsExternalHelperAppService_h__

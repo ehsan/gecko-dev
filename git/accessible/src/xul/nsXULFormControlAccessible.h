@@ -43,8 +43,8 @@
 // NOTE: alphabetically ordered
 #include "nsAccessibleWrap.h"
 #include "nsFormControlAccessible.h"
+#include "nsXULMenuAccessible.h"
 #include "nsHyperTextAccessibleWrap.h"
-#include "XULSelectControlAccessible.h"
 
 /**
  * Used for XUL progressmeter element.
@@ -61,7 +61,7 @@ class nsXULButtonAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
-  nsXULButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -71,7 +71,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible
@@ -100,14 +100,14 @@ class nsXULCheckboxAccessible : public nsFormControlAccessible
 {
 public:
   enum { eAction_Click = 0 };
-  nsXULCheckboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULCheckboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible
@@ -121,14 +121,14 @@ class nsXULDropmarkerAccessible : public nsFormControlAccessible
 {
 public:
   enum { eAction_Click = 0 };
-  nsXULDropmarkerAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULDropmarkerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible
@@ -144,10 +144,10 @@ private:
 class nsXULGroupboxAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULGroupboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULGroupboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual Relation RelationByType(PRUint32 aRelationType);
 };
@@ -159,7 +159,7 @@ class nsXULRadioButtonAccessible : public nsRadioButtonAccessible
 {
 
 public:
-  nsXULRadioButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULRadioButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
@@ -173,13 +173,13 @@ public:
 /**
  * Used for XUL radiogroup element.
  */
-class nsXULRadioGroupAccessible : public XULSelectControlAccessible
+class nsXULRadioGroupAccessible : public nsXULSelectableAccessible
 {
 public:
-  nsXULRadioGroupAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULRadioGroupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // Widgets
@@ -194,10 +194,10 @@ public:
 class nsXULStatusBarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULStatusBarAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULStatusBarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 /**
@@ -206,7 +206,7 @@ public:
 class nsXULToolbarButtonAccessible : public nsXULButtonAccessible
 {
 public:
-  nsXULToolbarButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULToolbarButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
@@ -222,10 +222,10 @@ public:
 class nsXULToolbarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULToolbarAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULToolbarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual nsresult GetNameInternal(nsAString& aName);
 };
 
@@ -236,10 +236,10 @@ class nsXULToolbarSeparatorAccessible : public nsLeafAccessible
 {
 public:
   nsXULToolbarSeparatorAccessible(nsIContent* aContent,
-                                  nsDocAccessible* aDoc);
+                                  nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 };
 
@@ -251,7 +251,7 @@ class nsXULTextFieldAccessible : public nsHyperTextAccessibleWrap
 public:
   enum { eAction_Click = 0 };
 
-  nsXULTextFieldAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTextFieldAccessible(nsIContent* aContent, nsIWeakReference *aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -260,14 +260,14 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // nsHyperTextAccessible
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
+  // nsIAccessibleEditableText
+  NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsAccessible
   virtual void ApplyARIAState(PRUint64* aState);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
@@ -284,5 +284,5 @@ protected:
 };
 
 
-#endif
+#endif  
 

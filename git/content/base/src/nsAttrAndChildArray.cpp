@@ -367,6 +367,31 @@ nsAttrAndChildArray::AttrAt(PRUint32 aPos) const
 }
 
 nsresult
+nsAttrAndChildArray::SetAttr(nsIAtom* aLocalName, const nsAString& aValue)
+{
+  PRUint32 i, slotCount = AttrSlotCount();
+  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+    if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
+      ATTRS(mImpl)[i].mValue.SetTo(aValue);
+
+      return NS_OK;
+    }
+  }
+
+  NS_ENSURE_TRUE(slotCount < ATTRCHILD_ARRAY_MAX_ATTR_COUNT,
+                 NS_ERROR_FAILURE);
+
+  if (i == slotCount && !AddAttrSlot()) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  new (&ATTRS(mImpl)[i].mName) nsAttrName(aLocalName);
+  new (&ATTRS(mImpl)[i].mValue) nsAttrValue(aValue);
+
+  return NS_OK;
+}
+
+nsresult
 nsAttrAndChildArray::SetAndTakeAttr(nsIAtom* aLocalName, nsAttrValue& aValue)
 {
   PRUint32 i, slotCount = AttrSlotCount();
@@ -839,22 +864,26 @@ nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
   }
 }
 
-size_t
-nsAttrAndChildArray::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+PRInt64
+nsAttrAndChildArray::SizeOf() const
 {
-  size_t n = 0;
+  PRInt64 size = sizeof(*this);
+
   if (mImpl) {
     // Don't add the size taken by *mMappedAttrs because it's shared.
 
-    n += aMallocSizeOf(mImpl);
+    // mBuffer cointains InternalAttr and nsIContent* (even if it's void**)
+    // so, we just have to compute the size of *mBuffer given that this object
+    // doesn't own the children list.
+    size += mImpl->mBufferSize * sizeof(*(mImpl->mBuffer)) + NS_IMPL_EXTRA_SIZE;
 
     PRUint32 slotCount = AttrSlotCount();
     for (PRUint32 i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
       nsAttrValue* value = &ATTRS(mImpl)[i].mValue;
-      n += value->SizeOfExcludingThis(aMallocSizeOf);
+      size += value->SizeOf() - sizeof(*value);
     }
   }
 
-  return n;
+  return size;
 }
 

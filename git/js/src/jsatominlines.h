@@ -40,28 +40,18 @@
 #ifndef jsatominlines_h___
 #define jsatominlines_h___
 
+#include "mozilla/RangedPtr.h"
+
 #include "jsatom.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
 
-#include "mozilla/RangedPtr.h"
-#include "vm/String.h"
-
-inline JSAtom *
-js::AtomStateEntry::asPtr() const
-{
-    JS_ASSERT(bits != 0);
-    JSAtom *atom = reinterpret_cast<JSAtom *>(bits & NO_TAG_MASK);
-    JSString::readBarrier(atom);
-    return atom;
-}
-
 inline bool
 js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp)
 {
     if (!v.isString()) {
-        JSString *str = js::ToStringSlow(cx, v);
+        JSString *str = js_ValueToString(cx, v);
         if (!str)
             return false;
         JS::Anchor<JSString *> anchor(str);
@@ -130,7 +120,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
 }
 
 inline bool
-js_Int32ToId(JSContext* cx, int32_t index, jsid* id)
+js_Int32ToId(JSContext* cx, int32 index, jsid* id)
 {
     if (INT_FITS_IN_JSID(index)) {
         *id = INT_TO_JSID(index);
@@ -155,7 +145,7 @@ namespace js {
  */
 template <typename T>
 inline mozilla::RangedPtr<T>
-BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
+BackfillIndexInCharBuffer(uint32 index, mozilla::RangedPtr<T> end)
 {
 #ifdef DEBUG
     /*
@@ -167,7 +157,7 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
 #endif
 
     do {
-        uint32_t next = index / 10, digit = index % 10;
+        uint32 next = index / 10, digit = index % 10;
         *--end = '0' + digit;
         index = next;
     } while (index > 0);
@@ -176,48 +166,25 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
 }
 
 inline bool
-IndexToId(JSContext *cx, uint32_t index, jsid *idp)
+IndexToId(JSContext *cx, uint32 index, jsid *idp)
 {
     if (index <= JSID_INT_MAX) {
         *idp = INT_TO_JSID(index);
         return true;
     }
 
-    extern bool IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp);
+    extern bool IndexToIdSlow(JSContext *cx, uint32 index, jsid *idp);
     return IndexToIdSlow(cx, index, idp);
 }
 
-static JS_ALWAYS_INLINE JSFlatString *
+static JS_ALWAYS_INLINE JSString *
 IdToString(JSContext *cx, jsid id)
 {
     if (JSID_IS_STRING(id))
-        return JSID_TO_ATOM(id);
-
-    JSString *str;
-     if (JS_LIKELY(JSID_IS_INT(id)))
-        str = js_IntToString(cx, JSID_TO_INT(id));
-    else
-        str = ToStringSlow(cx, IdToValue(id));    
-
-    if (!str)
-        return NULL;
-    return str->ensureFlat(cx);
-}
-
-inline
-AtomHasher::Lookup::Lookup(const JSAtom *atom)
-  : chars(atom->chars()), length(atom->length()), atom(atom)
-{}
-
-inline bool
-AtomHasher::match(const AtomStateEntry &entry, const Lookup &lookup)
-{
-    JSAtom *key = entry.asPtr();
-    if (lookup.atom)
-        return lookup.atom == key;
-    if (key->length() != lookup.length)
-        return false;
-    return PodEqual(key->chars(), lookup.chars, lookup.length);
+        return JSID_TO_STRING(id);
+    if (JS_LIKELY(JSID_IS_INT(id)))
+        return js_IntToString(cx, JSID_TO_INT(id));
+    return js_ValueToString(cx, IdToValue(id));
 }
 
 } // namespace js

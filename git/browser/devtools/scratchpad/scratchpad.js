@@ -24,7 +24,6 @@
  *   Erik Vold <erikvvold@gmail.com>
  *   David Dahl <ddahl@mozilla.com>
  *   Mihai Sucan <mihai.sucan@gmail.com>
- *   Kenny Heaton <kennyheaton@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -75,8 +74,6 @@ const BUTTON_POSITION_DONT_SAVE = 2;
  * The scratchpad object handles the Scratchpad window functionality.
  */
 var Scratchpad = {
-  _initialWindowTitle: document.title,
-
   /**
    * The script execution context. This tells Scratchpad in which context the
    * script shall execute.
@@ -88,13 +85,6 @@ var Scratchpad = {
    *   currently active chrome window object.
    */
   executionContext: SCRATCHPAD_CONTEXT_CONTENT,
-
-  /**
-   * Tells if this Scratchpad is initialized and ready for use.
-   * @boolean
-   * @see addObserver
-   */
-  initialized: false,
 
   /**
    * Retrieve the xul:notificationbox DOM element. It notifies the user when
@@ -153,22 +143,7 @@ var Scratchpad = {
    */
   setFilename: function SP_setFilename(aFilename)
   {
-    this.filename = aFilename;
-    this._updateTitle();
-  },
-
-  /**
-   * Update the Scratchpad window title based on the current state.
-   * @private
-   */
-  _updateTitle: function SP__updateTitle()
-  {
-    if (this.filename) {
-      document.title = (this.editor && this.editor.dirty ? "*" : "") +
-                       this.filename;
-    } else {
-      document.title = this._initialWindowTitle;
-    }
+    document.title = this.filename = aFilename;
   },
 
   /**
@@ -185,7 +160,7 @@ var Scratchpad = {
       filename: this.filename,
       text: this.getText(),
       executionContext: this.executionContext,
-      saved: !this.editor.dirty,
+      saved: this.saved
     };
   },
 
@@ -201,9 +176,7 @@ var Scratchpad = {
     if (aState.filename) {
       this.setFilename(aState.filename);
     }
-    if (this.editor) {
-      this.editor.dirty = !aState.saved;
-    }
+    this.saved = aState.saved;
 
     if (aState.executionContext == SCRATCHPAD_CONTEXT_BROWSER) {
       this.setBrowserContext();
@@ -351,7 +324,21 @@ var Scratchpad = {
                                 "Scratchpad", 1);
     }
     catch (ex) {
-      error = ex;
+      this.openWebConsole();
+
+      let contentWindow = this.gBrowser.selectedBrowser.contentWindow;
+
+      let scriptError = Cc["@mozilla.org/scripterror;1"].
+                        createInstance(Ci.nsIScriptError2);
+
+      scriptError.initWithWindowID(ex.message + "\n" + ex.stack, ex.fileName,
+                                   "", ex.lineNumber, 0, scriptError.errorFlag,
+                                   "content javascript",
+                                   this.getInnerWindowId(contentWindow));
+
+      Services.console.logMessage(scriptError);
+
+      error = true;
     }
 
     return [error, result];
@@ -373,7 +360,11 @@ var Scratchpad = {
                                 "Scratchpad", 1);
     }
     catch (ex) {
-      error = ex;
+      Cu.reportError(ex);
+      Cu.reportError(ex.stack);
+      this.openErrorConsole();
+
+      error = true;
     }
 
     return [error, result];
@@ -398,30 +389,12 @@ var Scratchpad = {
   /**
    * Execute the selected text (if any) or the entire editor content in the
    * current context.
-   * @return mixed
-   *         The script evaluation result.
-   */
-  execute: function SP_execute()
-  {
-    let selection = this.selectedText || this.getText();
-    let [error, result] = this.evalForContext(selection);
-    return [selection, error, result];
-  },
-
-  /**
-   * Execute the selected text (if any) or the entire editor content in the
-   * current context.
    */
   run: function SP_run()
   {
-    let [selection, error, result] = this.execute();
-
-    if (!error) {
-      this.deselect();
-    } else {
-      this.writeAsErrorComment(error);
-    }
-
+    let selection = this.selectedText || this.getText();
+    let [error, result] = this.evalForContext(selection);
+    this.deselect();
     return [selection, error, result];
   },
 
@@ -432,13 +405,10 @@ var Scratchpad = {
    */
   inspect: function SP_inspect()
   {
-    let [selection, error, result] = this.execute();
+    let [selection, error, result] = this.run();
 
     if (!error) {
-      this.deselect();
       this.openPropertyPanel(selection, result);
-    } else {
-      this.writeAsErrorComment(error);
     }
   },
 
@@ -450,46 +420,22 @@ var Scratchpad = {
    */
   display: function SP_display()
   {
-    let [selectedText, error, result] = this.execute();
-
-    if (!error) {
-      this.writeAsComment(result);
-    } else {
-      this.writeAsErrorComment(error);
-    }
-  },
-
-  /**
-   * Write out a value at the next line from the current insertion point.
-   * The comment block will always be preceded by a newline character.
-   * @param object aValue
-   *        The Object to write out as a string
-   */
-  writeAsComment: function SP_writeAsComment(aValue)
-  {
     let selection = this.getSelectionRange();
     let insertionPoint = selection.start != selection.end ?
                          selection.end : // after selected text
                          this.editor.getCharCount(); // after text end
-                         
-    let newComment = "\n/*\n" + aValue + "\n*/";
-    
+
+    let [selectedText, error, result] = this.run();
+    if (error) {
+      return;
+    }
+
+    let newComment = "/*\n" + result + "\n*/";
+
     this.setText(newComment, insertionPoint, insertionPoint);
 
     // Select the new comment.
     this.selectRange(insertionPoint, insertionPoint + newComment.length);
-  },
-
-  /**
-   * Write out an error at the current insertion point as a block comment
-   * @param object aValue
-   *        The Error object to write out the message and stack trace
-   */
-  writeAsErrorComment: function SP_writeAsErrorComment(aError)
-  {
-    let newComment = "Exception: " + aError.message + "\n" + aError.stack.substring(0, aError.stack.length - 1);
-    
-    this.writeAsComment(newComment);
   },
 
   /**
@@ -627,14 +573,9 @@ var Scratchpad = {
       let content = null;
 
       if (Components.isSuccessCode(aStatus)) {
-        let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                        createInstance(Ci.nsIScriptableUnicodeConverter);
-        converter.charset = "UTF-8";
         content = NetUtil.readInputStreamToString(aInputStream,
                                                   aInputStream.available());
-        content = converter.ConvertToUnicode(content);
         self.setText(content);
-        self.editor.resetUndo();
       }
       else if (!aSilentError) {
         window.alert(self.strings.GetStringFromName("openFile.failed"));
@@ -657,7 +598,7 @@ var Scratchpad = {
     fp.defaultString = "";
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
       this.setFilename(fp.file.path);
-      this.importFromFile(fp.file, false);
+      this.importFromFile(fp.file, false, this.onTextSaved.bind(this));
     }
   },
 
@@ -677,9 +618,7 @@ var Scratchpad = {
     file.initWithPath(this.filename);
 
     this.exportToFile(file, true, false, function(aStatus) {
-      if (Components.isSuccessCode(aStatus)) {
-        this.editor.dirty = false;
-      }
+      this.onTextSaved();
       if (aCallback) {
         aCallback(aStatus);
       }
@@ -702,9 +641,7 @@ var Scratchpad = {
       this.setFilename(fp.file.path);
 
       this.exportToFile(fp.file, true, false, function(aStatus) {
-        if (Components.isSuccessCode(aStatus)) {
-          this.editor.dirty = false;
-        }
+        this.onTextSaved();
         if (aCallback) {
           aCallback(aStatus);
         }
@@ -796,7 +733,7 @@ var Scratchpad = {
   },
 
   /**
-   * The Scratchpad window load event handler. This method
+   * The Scratchpad window DOMContentLoaded event handler. This method
    * initializes the Scratchpad window and source editor.
    *
    * @param nsIDOMEvent aEvent
@@ -806,6 +743,7 @@ var Scratchpad = {
     if (aEvent.target != document) {
       return;
     }
+
     let chrome = Services.prefs.getBoolPref(DEVTOOLS_CHROME_ENABLED);
     if (chrome) {
       let environmentMenu = document.getElementById("sp-environment-menu");
@@ -816,11 +754,10 @@ var Scratchpad = {
       errorConsoleCommand.removeAttribute("disabled");
     }
 
-    let state = null;
     let initialText = this.strings.GetStringFromName("scratchpadIntro");
     if ("arguments" in window &&
          window.arguments[0] instanceof Ci.nsIDialogParamBlock) {
-      state = JSON.parse(window.arguments[0].GetString(0));
+      let state = JSON.parse(window.arguments[0].GetString(0));
       this.setState(state);
       initialText = state.text;
     }
@@ -830,34 +767,30 @@ var Scratchpad = {
     let config = {
       mode: SourceEditor.MODES.JAVASCRIPT,
       showLineNumbers: true,
-      initialText: initialText,
-      contextMenu: "scratchpad-text-popup",
+      placeholderText: initialText
     };
 
     let editorPlaceholder = document.getElementById("scratchpad-editor");
-    this.editor.init(editorPlaceholder, config,
-                     this._onEditorLoad.bind(this, state));
+    this.editor.init(editorPlaceholder, config, this.onEditorLoad.bind(this));
   },
 
   /**
    * The load event handler for the source editor. This method does post-load
    * editor initialization.
-   *
-   * @private
-   * @param object aState
-   *        The initial Scratchpad state object.
    */
-  _onEditorLoad: function SP__onEditorLoad(aState)
+  onEditorLoad: function SP_onEditorLoad()
   {
-    this.editor.addEventListener(SourceEditor.EVENTS.DIRTY_CHANGED,
-                                 this._onDirtyChanged);
+    this.editor.addEventListener(SourceEditor.EVENTS.CONTEXT_MENU,
+                                 this.onContextMenu);
     this.editor.focus();
     this.editor.setCaretOffset(this.editor.getCharCount());
-    if (aState) {
-      this.editor.dirty = !aState.saved;
+    
+    if (this.filename && !this.saved) {
+      this.onTextChanged();
     }
-
-    this.initialized = true;
+    else if (this.filename && this.saved) {
+      this.onTextSaved();
+    }
 
     this._triggerObservers("Ready");
   },
@@ -876,17 +809,36 @@ var Scratchpad = {
   },
 
   /**
-   * The Source Editor DirtyChanged event handler. This function updates the
-   * Scratchpad window title to show an asterisk when there are unsaved changes.
+   * The contextmenu event handler for the source editor. This method opens the
+   * Scratchpad context menu popup at the pointer location.
    *
-   * @private
-   * @see SourceEditor.EVENTS.DIRTY_CHANGED
    * @param object aEvent
-   *        The DirtyChanged event object.
+   *        An event object coming from the SourceEditor. This object needs to
+   *        hold the screenX and screenY properties.
    */
-  _onDirtyChanged: function SP__onDirtyChanged(aEvent)
+  onContextMenu: function SP_onContextMenu(aEvent)
   {
-    Scratchpad._updateTitle();
+    let menu = document.getElementById("scratchpad-text-popup");
+    if (menu.state == "closed") {
+      menu.openPopupAtScreen(aEvent.screenX, aEvent.screenY, true);
+    }
+  },
+
+  /**
+   * The popupshowing event handler for the Edit menu. This method updates the
+   * enabled/disabled state of the Undo and Redo commands, based on the editor
+   * state such that the menu items render correctly for the user when the menu
+   * shows.
+   */
+  onEditPopupShowing: function SP_onEditPopupShowing()
+  {
+    goUpdateGlobalEditMenuItems();
+
+    let undo = document.getElementById("sp-cmd-undo");
+    undo.setAttribute("disabled", !this.editor.canUndo());
+
+    let redo = document.getElementById("sp-cmd-redo");
+    redo.setAttribute("disabled", !this.editor.canRedo());
   },
 
   /**
@@ -906,6 +858,36 @@ var Scratchpad = {
   },
 
   /**
+   * This method adds a listener to the editor for text changes. Called when
+   * a scratchpad is saved, opened from file, or restored from a saved file.
+   */
+  onTextSaved: function SP_onTextSaved(aStatus)
+  {
+    if (aStatus && !Components.isSuccessCode(aStatus)) {
+      return;
+    }
+    if (!document) {
+      return;  // file saved to disk after window has closed
+    }
+    document.title = document.title.replace(/^\*/, "");
+    this.saved = true;
+    this.editor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
+                                 this.onTextChanged);
+  },
+
+  /**
+   * The scratchpad handler for editor text change events. This handler
+   * indicates that there are unsaved changes in the UI.
+   */
+  onTextChanged: function SP_onTextChanged()
+  {
+    document.title = "*" + document.title;
+    Scratchpad.saved = false;
+    Scratchpad.editor.removeEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
+                                          Scratchpad.onTextChanged);
+  },
+
+  /**
    * The Scratchpad window unload event handler. This method unloads/destroys
    * the source editor.
    *
@@ -918,29 +900,23 @@ var Scratchpad = {
     }
 
     this.resetContext();
-    this.editor.removeEventListener(SourceEditor.EVENTS.DIRTY_CHANGED,
-                                    this._onDirtyChanged);
+    this.editor.removeEventListener(SourceEditor.EVENTS.CONTEXT_MENU,
+                                    this.onContextMenu);
     this.editor.destroy();
     this.editor = null;
-    this.initialized = false;
   },
 
   /**
    * Prompt to save scratchpad if it has unsaved changes.
    *
    * @param function aCallback
-   *        Optional function you want to call when file is saved. The callback
-   *        receives three arguments:
-   *          - toClose (boolean) - tells if the window should be closed.
-   *          - saved (boolen) - tells if the file has been saved.
-   *          - status (number) - the file save status result (if the file was
-   *          saved).
+   *        Optional function you want to call when file is saved
    * @return boolean
    *         Whether the window should be closed
    */
   promptSave: function SP_promptSave(aCallback)
   {
-    if (this.filename && this.editor.dirty) {
+    if (this.filename && !this.saved) {
       let ps = Services.prompt;
       let flags = ps.BUTTON_POS_0 * ps.BUTTON_TITLE_SAVE +
                   ps.BUTTON_POS_1 * ps.BUTTON_TITLE_CANCEL +
@@ -952,24 +928,11 @@ var Scratchpad = {
                           flags, null, null, null, null, {});
 
       if (button == BUTTON_POSITION_CANCEL) {
-        if (aCallback) {
-          aCallback(false, false);
-        }
         return false;
       }
-
       if (button == BUTTON_POSITION_SAVE) {
-        this.saveFile(function(aStatus) {
-          if (aCallback) {
-            aCallback(true, true, aStatus);
-          }
-        });
-        return true;
+        this.saveFile(aCallback);
       }
-    }
-
-    if (aCallback) {
-      aCallback(true, false);
     }
     return true;
   },
@@ -982,22 +945,10 @@ var Scratchpad = {
    */
   onClose: function SP_onClose(aEvent)
   {
-    if (this._skipClosePrompt) {
-      return;
+    let toClose = this.promptSave();
+    if (!toClose) {
+      aEvent.preventDefault();
     }
-
-    this.promptSave(function(aShouldClose, aSaved, aStatus) {
-      let shouldClose = aShouldClose;
-      if (aSaved && !Components.isSuccessCode(aStatus)) {
-        shouldClose = false;
-      }
-
-      if (shouldClose) {
-        this._skipClosePrompt = true;
-        window.close();
-      }
-    }.bind(this));
-    aEvent.preventDefault();
   },
 
   /**
@@ -1009,20 +960,10 @@ var Scratchpad = {
    */
   close: function SP_close(aCallback)
   {
-    this.promptSave(function(aShouldClose, aSaved, aStatus) {
-      let shouldClose = aShouldClose;
-      if (aSaved && !Components.isSuccessCode(aStatus)) {
-        shouldClose = false;
-      }
-
-      if (shouldClose) {
-        this._skipClosePrompt = true;
-        window.close();
-      }
-      if (aCallback) {
-        aCallback();
-      }
-    }.bind(this));
+    let toClose = this.promptSave(aCallback);
+    if (toClose) {
+      window.close();
+    }
   },
 
   _observers: [],
@@ -1085,21 +1026,13 @@ var Scratchpad = {
         handler.apply(observer, aArgs);
       }
     }
-  },
-
-  openDocumentationPage: function SP_openDocumentationPage()
-  {
-    let url = this.strings.GetStringFromName("help.openDocumentationPage");
-    let newTab = this.gBrowser.addTab(url);
-    this.browserWindow.focus();
-    this.gBrowser.selectedTab = newTab;
-  },
+  }
 };
 
 XPCOMUtils.defineLazyGetter(Scratchpad, "strings", function () {
   return Services.strings.createBundle(SCRATCHPAD_L10N);
 });
 
-addEventListener("load", Scratchpad.onLoad.bind(Scratchpad), false);
+addEventListener("DOMContentLoaded", Scratchpad.onLoad.bind(Scratchpad), false);
 addEventListener("unload", Scratchpad.onUnload.bind(Scratchpad), false);
 addEventListener("close", Scratchpad.onClose.bind(Scratchpad), false);

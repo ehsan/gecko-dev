@@ -5,8 +5,6 @@
 #include "tests.h"
 #include "jsfun.h"  // for js::IsInternalFunctionObject
 
-#include "jsobjinlines.h"
-
 BEGIN_TEST(testLookup_bug522590)
 {
     // Define a function that makes method-bearing objects.
@@ -28,14 +26,14 @@ BEGIN_TEST(testLookup_bug522590)
     JSObject *funobj = JSVAL_TO_OBJECT(r);
     CHECK(funobj->isFunction());
     CHECK(!js::IsInternalFunctionObject(funobj));
-    CHECK(funobj->toFunction()->isClonedMethod());
+    CHECK(funobj->getFunctionPrivate() != (JSFunction *) funobj);
 
     return true;
 }
 END_TEST(testLookup_bug522590)
 
 JSBool
-document_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags, JSObject **objp)
+document_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **objp)
 {
     // If id is "all", and we're not detecting, resolve document.all=true.
     jsvalRoot v(cx);

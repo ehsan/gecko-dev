@@ -96,6 +96,8 @@ static const MimeTypeAssociation appTypes[] = {
   { "application/xhtml+xml", "xhtml xht"      }
 };
 
+static const char kDocumentIconPath[] = "firefox-document.png";
+
 // GConf registry key constants
 #define DG_BACKGROUND "/desktop/gnome/background"
 
@@ -315,9 +317,11 @@ nsGNOMEShellService::SetDefaultBrowser(bool aClaimAllTypes,
     rv = bundleService->CreateBundle(BRAND_PROPERTIES, getter_AddRefs(brandBundle));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsString brandShortName;
+    nsString brandShortName, brandFullName;
     brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                    getter_Copies(brandShortName));
+    brandBundle->GetStringFromName(NS_LITERAL_STRING("brandFullName").get(),
+                                   getter_Copies(brandFullName));
 
     // use brandShortName as the application id.
     NS_ConvertUTF16toUTF8 id(brandShortName);
@@ -427,10 +431,6 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
     options.Assign("wallpaper");
   else if (aPosition == BACKGROUND_STRETCH)
     options.Assign("stretched");
-  else if (aPosition == BACKGROUND_FILL)
-    options.Assign("zoom");
-  else if (aPosition == BACKGROUND_FIT)
-    options.Assign("scaled");
   else
     options.Assign("centered");
 

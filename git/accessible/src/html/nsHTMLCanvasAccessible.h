@@ -46,11 +46,11 @@
 class nsHTMLCanvasAccessible : public nsHyperTextAccessible
 {
 public:
-  nsHTMLCanvasAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLCanvasAccessible(nsIContent* aContent, nsIWeakReference* aShell);
   virtual ~nsHTMLCanvasAccessible() { }
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 #endif

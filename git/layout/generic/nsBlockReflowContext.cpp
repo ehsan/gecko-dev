@@ -46,7 +46,7 @@
 #include "nsFrameManager.h"
 #include "nsIContent.h"
 #include "nsStyleContext.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsBlockFrame.h"
 #include "nsLineBox.h"
 #include "nsIDOMHTMLTableCellElement.h"
@@ -124,8 +124,7 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
         nsBlockFrame::line_iterator line_end;
         bool anyLines = true;
         if (overflowLines) {
-          nsBlockFrame::FrameLines* frames = block->GetOverflowLines();
-          nsLineList* lines = frames ? &frames->mLines : nsnull;
+          nsLineList* lines = block->GetOverflowLines();
           if (!lines) {
             anyLines = false;
           } else {
@@ -331,7 +330,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // which detaches the placeholder from the float.
 /* XXX promote DeleteChildsNextInFlow to nsIFrame to elminate this cast */
         aState.mOverflowTracker->Finish(mFrame);
-        static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
+        static_cast<nsHTMLContainerFrame*>(kidNextInFlow->GetParent())
           ->DeleteNextInFlowChild(mPresContext, kidNextInFlow, true);
       }
     }

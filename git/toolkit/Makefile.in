@@ -48,7 +48,6 @@ include $(DEPTH)/config/autoconf.mk
 PARALLEL_DIRS = \
   components \
   content \
-  devtools \
   locales \
   mozapps/downloads \
   mozapps/extensions \
@@ -56,20 +55,12 @@ PARALLEL_DIRS = \
   mozapps/preferences \
   mozapps/plugins \
   mozapps/shared \
+  mozapps/update \
+  mozapps/webapps \
   obsolete \
   profile \
   themes \
   $(NULL)
-
-DIRS += \
-  mozapps/update \
-  $(NULL)
-
-ifdef MOZ_MAINTENANCE_SERVICE
-DIRS += \
-  components/maintenanceservice \
-  $(NULL)
-endif
 
 ifneq (,$(filter gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
 PARALLEL_DIRS += system/unixproxy

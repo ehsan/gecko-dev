@@ -16,11 +16,7 @@
 
 var SimpleTest = { };
 var parentRunner = null;
-
-// In normal test runs, the window that has a TestRunner in its parent is
-// the primary window.  In single test runs, if there is no parent and there
-// is no opener then it is the primary window.
-var isPrimaryTestWindow = !!parent.TestRunner || (parent == window && !opener);
+var isPrimaryTestWindow = !!parent.TestRunner;
 
 // Finds the TestRunner for this test run and the SpecialPowers object (in
 // case it is not defined) from a parent/opener window.
@@ -274,7 +270,6 @@ SimpleTest._logResult = function(test, passString, failString) {
     var msg = [resultString, url, diagnostic].join(" | ");
     if (parentRunner) {
         if (isError) {
-            parentRunner.addFailedTest(url);
             parentRunner.error(msg);
         } else {
             parentRunner.log(msg);
@@ -285,7 +280,7 @@ SimpleTest._logResult = function(test, passString, failString) {
 };
 
 SimpleTest.info = function(name, message) {
-    SimpleTest._logResult({result:true, name:name, diag:message}, "TEST-INFO");
+    this._logResult({result:true, name:name, diag:message}, "TEST-INFO");
 };
 
 /**
@@ -612,7 +607,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
             return;
         }
 
-        var data = SpecialPowers.getClipboardData(flavor);
+        data = SpecialPowers.getClipboardData(flavor);
 
         if (validatorFn(data)) {
             // Don't show the success message when waiting for preExpectedVal
@@ -698,16 +693,8 @@ SimpleTest.expectChildProcessCrash = function () {
  * Indicates to the test framework that the next uncaught exception during
  * the test is expected, and should not cause a test failure.
  */
-SimpleTest.expectUncaughtException = function (aExpecting) {
-    SimpleTest._expectingUncaughtException = aExpecting === void 0 || !!aExpecting;
-};
-
-/**
- * Returns whether the test has indicated that it expects an uncaught exception
- * to occur.
- */
-SimpleTest.isExpectingUncaughtException = function () {
-    return SimpleTest._expectingUncaughtException;
+SimpleTest.expectUncaughtException = function () {
+    SimpleTest._expectingUncaughtException = true;
 };
 
 /**
@@ -715,26 +702,8 @@ SimpleTest.isExpectingUncaughtException = function () {
  * during the test are known problems that should be fixed in the future,
  * but which should not cause the test to fail currently.
  */
-SimpleTest.ignoreAllUncaughtExceptions = function (aIgnoring) {
-    SimpleTest._ignoringAllUncaughtExceptions = aIgnoring === void 0 || !!aIgnoring;
-};
-
-/**
- * Returns whether the test has indicated that all uncaught exceptions should be
- * ignored.
- */
-SimpleTest.isIgnoringAllUncaughtExceptions = function () {
-    return SimpleTest._ignoringAllUncaughtExceptions;
-};
-
-/**
- * Resets any state this SimpleTest object has.  This is important for
- * browser chrome mochitests, which reuse the same SimpleTest object
- * across a run.
- */
-SimpleTest.reset = function () {
-    SimpleTest._ignoringAllUncaughtExceptions = false;
-    SimpleTest._expectingUncaughtException = false;
+SimpleTest.ignoreAllUncaughtExceptions = function () {
+    SimpleTest._ignoringAllUncaughtExceptions = true;
 };
 
 if (isPrimaryTestWindow) {
@@ -955,21 +924,22 @@ var info = SimpleTest.info;
 
 var gOldOnError = window.onerror;
 window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
+    var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror]";
+
     // Log the message.
     // XXX Chrome mochitests sometimes trigger this window.onerror handler,
     // but there are a number of uncaught JS exceptions from those tests.
     // For now, for tests that self identify as having unintentional uncaught
     // exceptions, just dump it so that the error is visible but doesn't cause
     // a test failure.  See bug 652494.
+    var message = "An error occurred: " + errorMsg + " at " + url + ":" + lineNumber;
     var href = SpecialPowers.getPrivilegedProps(window, 'location.href');
     var isExpected = !!SimpleTest._expectingUncaughtException;
-    var message = "an " + (isExpected ? "" : "un") + "expected uncaught JS exception reported through window.onerror";
-    var error = errorMsg + " at " + url + ":" + lineNumber;
     if (!SimpleTest._ignoringAllUncaughtExceptions) {
-        SimpleTest.ok(isExpected, message, error);
+        SimpleTest.ok(isExpected, funcIdentifier, message);
         SimpleTest._expectingUncaughtException = false;
     } else {
-        SimpleTest.todo(false, message + ": " + error);
+        SimpleTest.todo(false, funcIdentifier, message);
     }
     // There is no Components.stack.caller to log. (See bug 511888.)
 

@@ -42,9 +42,6 @@
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/StartupTimeline.h"
-#include "nsTArray.h"
-#include "nsStringGlue.h"
-#include "shared-libraries.h"
 
 namespace base {
   class Histogram;
@@ -61,11 +58,6 @@ enum ID {
 #undef HISTOGRAM
 HistogramCount
 };
-
-/**
- * Initialize the Telemetry service on the main thread at startup.
- */
-void Init();
 
 /**
  * Adds sample to a histogram defined in TelemetryHistograms.h
@@ -92,10 +84,10 @@ base::Histogram* GetHistogramById(ID id);
 template<ID id>
 class AutoTimer {
 public:
-  AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
      : start(aStart)
   {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   }
 
   ~AutoTimer() {
@@ -104,77 +96,8 @@ public:
 
 private:
   const TimeStamp start;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
-
-template<ID id>
-class AutoCounter {
-public:
-  AutoCounter(PRUint32 counterStart = 0 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : counter(counterStart)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-  }
-
-  ~AutoCounter() {
-    Accumulate(id, counter);
-  }
-
-  // Prefix increment only, to encourage good habits.
-  void operator++() {
-    ++counter;
-  }
-
-  // Chaining doesn't make any sense, don't return anything.
-  void operator+=(int increment) {
-    counter += increment;
-  }
-
-private:
-  PRUint32 counter;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-/**
- * Indicates whether Telemetry recording is turned on.  This is intended
- * to guard calls to Accumulate when the statistic being recorded is
- * expensive to compute.
- */
-bool CanRecord();
-
-/**
- * Records slow SQL statements for Telemetry reporting.
- * For privacy reasons, only prepared statements are reported.
- *
- * @param statement - offending SQL statement to record
- * @param dbName - DB filename; reporting is only done for whitelisted DBs
- * @param delay - execution time in milliseconds
- */
-void RecordSlowSQLStatement(const nsACString &statement,
-                            const nsACString &dbName,
-                            PRUint32 delay);
-
-/**
- * Threshold for a statement to be considered slow, in milliseconds
- */
-const PRUint32 kSlowStatementThreshold = 100;
-
-/**
- * nsTArray of pointers representing PCs on a call stack
- */
-typedef nsTArray<uintptr_t> HangStack;
-
-/**
- * Record the main thread's call stack after it hangs.
- *
- * @param duration - Approximate duration of main thread hang in seconds
- * @param callStack - Array of PCs from the hung call stack
- * @param moduleMap - Array of info about modules in memory (for symbolication)
- */
-void RecordChromeHang(PRUint32 duration,
-                      const HangStack &callStack,
-                      SharedLibraryInfo &moduleMap);
-
 } // namespace Telemetry
 } // namespace mozilla
 #endif // Telemetry_h__

@@ -37,15 +37,15 @@
 #ifndef __NS_SVGMARKERELEMENT_H__
 #define __NS_SVGMARKERELEMENT_H__
 
-#include "gfxMatrix.h"
-#include "nsIDOMSVGFitToViewBox.h"
-#include "nsIDOMSVGMarkerElement.h"
-#include "nsSVGAngle.h"
-#include "nsSVGEnum.h"
 #include "nsSVGGraphicElement.h"
+#include "nsIDOMSVGMarkerElement.h"
+#include "nsIDOMSVGFitToViewBox.h"
 #include "nsSVGLength2.h"
+#include "nsSVGEnum.h"
+#include "nsSVGAngle.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
+#include "gfxMatrix.h"
 
 class nsSVGOrientType
 {
@@ -132,9 +132,6 @@ public:
                          nsAString& aResult) const;
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
-
-  // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const;
 
   // public helpers
   gfxMatrix GetMarkerTransform(float aStrokeWidth,

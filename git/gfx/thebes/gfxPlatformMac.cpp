@@ -92,6 +92,13 @@ DisableFontActivation()
         CTFontManagerSetAutoActivationSettingPtr(mainBundleID,
                                                  kAutoActivationDisabled);
     }
+
+    if (mainBundleID) {
+        ::CFRelease(mainBundleID);
+    }
+    if (mainBundle) {
+        ::CFRelease(mainBundle);
+    }
 }
 
 gfxPlatformMac::gfxPlatformMac()
@@ -131,7 +138,7 @@ gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
     NS_IF_ADDREF(newSurface);
     return newSurface;
 }
-
+    
 already_AddRefed<gfxASurface>
 gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
                               gfxASurface::gfxImageFormat format)
@@ -162,12 +169,7 @@ gfxPlatformMac::GetScaledFontForFont(gfxFont *aFont)
 bool
 gfxPlatformMac::SupportsAzure(BackendType& aBackend)
 {
-  if (mPreferredDrawTargetBackend != BACKEND_NONE) {
-    aBackend = mPreferredDrawTargetBackend;
-  } else {
-    aBackend = BACKEND_COREGRAPHICS;
-  }
-
+  aBackend = BACKEND_SKIA;
   return true;
 }
 
@@ -263,108 +265,6 @@ gfxPlatformMac::UpdateFontList()
     return NS_OK;
 }
 
-static const char kFontArialUnicodeMS[] = "Arial Unicode MS";
-static const char kFontAppleBraille[] = "Apple Braille";
-static const char kFontAppleSymbols[] = "Apple Symbols";
-static const char kFontAppleMyungjo[] = "AppleMyungjo";
-static const char kFontGeneva[] = "Geneva";
-static const char kFontGeezaPro[] = "Geeza Pro";
-static const char kFontHiraginoKakuGothic[] = "Hiragino Kaku Gothic ProN";
-static const char kFontLucidaGrande[] = "Lucida Grande";
-static const char kFontMenlo[] = "Menlo";
-static const char kFontPlantagenetCherokee[] = "Plantagenet Cherokee";
-static const char kFontSTHeiti[] = "STHeiti";
-
-void
-gfxPlatformMac::GetCommonFallbackFonts(const PRUint32 aCh,
-                                       PRInt32 aRunScript,
-                                       nsTArray<const char*>& aFontList)
-{
-    aFontList.AppendElement(kFontLucidaGrande);
-
-    if (!IS_IN_BMP(aCh)) {
-        PRUint32 p = aCh >> 16;
-        if (p == 1) {
-            aFontList.AppendElement(kFontAppleSymbols);
-            aFontList.AppendElement(kFontGeneva);
-        }
-    } else {
-        PRUint32 b = (aCh >> 8) & 0xff;
-
-        switch (b) {
-        case 0x03:
-        case 0x05:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x07:
-            aFontList.AppendElement(kFontGeezaPro);
-            break;
-        case 0x10:
-            aFontList.AppendElement(kFontMenlo);
-            break;
-        case 0x13:  // Cherokee
-            aFontList.AppendElement(kFontPlantagenetCherokee);
-            break;
-        case 0x18:  // Mongolian
-            aFontList.AppendElement(kFontSTHeiti);
-            break;
-        case 0x1d:
-        case 0x1e:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x20:  // Symbol ranges
-        case 0x21:
-        case 0x22:
-        case 0x23:
-        case 0x24:
-        case 0x25:
-        case 0x26:
-        case 0x27:
-        case 0x29:
-        case 0x2a:
-        case 0x2b:
-        case 0x2e:
-            aFontList.AppendElement(kFontAppleSymbols);
-            aFontList.AppendElement(kFontMenlo);
-            aFontList.AppendElement(kFontGeneva);
-            aFontList.AppendElement(kFontHiraginoKakuGothic);
-            break;
-        case 0x2c:
-        case 0x2d:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x28:  // Braille
-            aFontList.AppendElement(kFontAppleBraille);
-            break;
-        case 0x4d:
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        case 0xa0:  // Yi
-        case 0xa1:
-        case 0xa2:
-        case 0xa3:
-        case 0xa4:
-            aFontList.AppendElement(kFontSTHeiti);
-            break;
-        case 0xa6:
-        case 0xa7:
-            aFontList.AppendElement(kFontGeneva);
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        case 0xfc:
-        case 0xff:
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        default:
-            break;
-        }
-    }
-
-    // Arial Unicode MS has lots of glyphs for obscure, use it as a last resort
-    aFontList.AppendElement(kFontArialUnicodeMS);
-}
-
-
 PRInt32 
 gfxPlatformMac::OSXVersion()
 {
@@ -404,36 +304,6 @@ gfxPlatformMac::ReadAntiAliasingThreshold()
 
     return threshold;
 }
-
-already_AddRefed<gfxASurface>
-gfxPlatformMac::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
-{
-  if (aTarget->GetType() == BACKEND_COREGRAPHICS) {
-    void *surface = aTarget->GetUserData(&kThebesSurfaceKey);
-    if (surface) {
-      nsRefPtr<gfxASurface> surf = static_cast<gfxQuartzSurface*>(surface);
-      return surf.forget();
-    } else {
-      CGContextRef cg = static_cast<CGContextRef>(aTarget->GetNativeSurface(NATIVE_SURFACE_CGCONTEXT));
-
-      //XXX: it would be nice to have an implicit conversion from IntSize to gfxIntSize
-      IntSize intSize = aTarget->GetSize();
-      gfxIntSize size(intSize.width, intSize.height);
-
-      nsRefPtr<gfxASurface> surf =
-        new gfxQuartzSurface(cg, size);
-
-      // add a reference to be held by the drawTarget
-      surf->AddRef();
-      aTarget->AddUserData(&kThebesSurfaceKey, surf.get(), DestroyThebesSurface);
-
-      return surf.forget();
-    }
-  }
-
-  return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
-}
-
 
 qcms_profile *
 gfxPlatformMac::GetPlatformCMSOutputProfile()

@@ -69,14 +69,22 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessible
+  // nsIAccessNode
   NS_SCRIPTABLE NS_IMETHOD GetDOMNode(nsIDOMNode** aDOMNode);
   NS_SCRIPTABLE NS_IMETHOD GetDocument(nsIAccessibleDocument** aDocument);
   NS_SCRIPTABLE NS_IMETHOD GetRootDocument(nsIAccessibleDocument** aRootDocument);
   NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
   NS_SCRIPTABLE NS_IMETHOD ScrollTo(PRUint32 aScrollType);
   NS_SCRIPTABLE NS_IMETHOD ScrollToPoint(PRUint32 aCoordinateType, PRInt32 aX, PRInt32 aY);
+  NS_SCRIPTABLE NS_IMETHOD GetComputedStyleValue(const nsAString& aPseudoElt,
+                                                 const nsAString& aPropertyName,
+                                                 nsAString& aValue NS_OUTPARAM);
+  NS_SCRIPTABLE NS_IMETHOD GetComputedStyleCSSValue(const nsAString& aPseudoElt,
+                                                    const nsAString& aPropertyName,
+                                                    nsIDOMCSSPrimitiveValue** aValue NS_OUTPARAM);
   NS_SCRIPTABLE NS_IMETHOD GetLanguage(nsAString& aLanguage);
+
+  // nsIAccessible
   NS_IMETHOD GetParent(nsIAccessible **aParent);
   NS_IMETHOD GetNextSibling(nsIAccessible **aNextSibling);
   NS_IMETHOD GetPreviousSibling(nsIAccessible **aPreviousSibling);
@@ -106,7 +114,7 @@ public:
   // nsAccessible
   virtual void ApplyARIAState(PRUint64* aState);
   virtual void Description(nsString& aDescription);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 State();
   virtual PRUint64 NativeState();
   virtual Relation RelationByType(PRUint32 aRelType);

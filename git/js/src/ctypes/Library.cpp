@@ -55,8 +55,8 @@ namespace Library
 {
   static void Finalize(JSContext* cx, JSObject* obj);
 
-  static JSBool Close(JSContext* cx, unsigned argc, jsval* vp);
-  static JSBool Declare(JSContext* cx, unsigned argc, jsval* vp);
+  static JSBool Close(JSContext* cx, uintN argc, jsval* vp);
+  static JSBool Declare(JSContext* cx, uintN argc, jsval* vp);
 }
 
 /*******************************************************************************
@@ -81,7 +81,7 @@ static JSFunctionSpec sLibraryFunctions[] = {
 };
 
 JSBool
-Library::Name(JSContext* cx, unsigned argc, jsval *vp)
+Library::Name(JSContext* cx, uintN argc, jsval *vp)
 {
   if (argc != 1) {
     JS_ReportError(cx, "libraryName takes one argument");
@@ -121,7 +121,8 @@ Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
   js::AutoObjectRooter root(cx, libraryObj);
 
   // initialize the library
-  JS_SetReservedSlot(libraryObj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(NULL));
+  if (!JS_SetReservedSlot(cx, libraryObj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(NULL)))
+    return NULL;
 
   // attach API functions
   if (!JS_DefineFunctions(cx, libraryObj, sLibraryFunctions))
@@ -186,23 +187,26 @@ Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
   }
 
   // stash the library
-  JS_SetReservedSlot(libraryObj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(library));
+  if (!JS_SetReservedSlot(cx, libraryObj, SLOT_LIBRARY,
+         PRIVATE_TO_JSVAL(library)))
+    return NULL;
 
   return libraryObj;
 }
 
 bool
-Library::IsLibrary(JSObject* obj)
+Library::IsLibrary(JSContext* cx, JSObject* obj)
 {
-  return JS_GetClass(obj) == &sLibraryClass;
+  return JS_GET_CLASS(cx, obj) == &sLibraryClass;
 }
 
 PRLibrary*
-Library::GetLibrary(JSObject* obj)
+Library::GetLibrary(JSContext* cx, JSObject* obj)
 {
-  JS_ASSERT(IsLibrary(obj));
+  JS_ASSERT(IsLibrary(cx, obj));
 
-  jsval slot = JS_GetReservedSlot(obj, SLOT_LIBRARY);
+  jsval slot;
+  JS_GetReservedSlot(cx, obj, SLOT_LIBRARY, &slot);
   return static_cast<PRLibrary*>(JSVAL_TO_PRIVATE(slot));
 }
 
@@ -210,16 +214,16 @@ void
 Library::Finalize(JSContext* cx, JSObject* obj)
 {
   // unload the library
-  PRLibrary* library = GetLibrary(obj);
+  PRLibrary* library = GetLibrary(cx, obj);
   if (library)
     PR_UnloadLibrary(library);
 }
 
 JSBool
-Library::Open(JSContext* cx, unsigned argc, jsval *vp)
+Library::Open(JSContext* cx, uintN argc, jsval *vp)
 {
   JSObject* ctypesObj = JS_THIS_OBJECT(cx, vp);
-  if (!ctypesObj || !IsCTypesGlobal(ctypesObj)) {
+  if (!ctypesObj || !IsCTypesGlobal(cx, ctypesObj)) {
     JS_ReportError(cx, "not a ctypes object");
     return JS_FALSE;
   }
@@ -229,7 +233,7 @@ Library::Open(JSContext* cx, unsigned argc, jsval *vp)
     return JS_FALSE;
   }
 
-  JSObject* library = Create(cx, JS_ARGV(cx, vp)[0], GetCallbacks(ctypesObj));
+  JSObject* library = Create(cx, JS_ARGV(cx, vp)[0], GetCallbacks(cx, ctypesObj));
   if (!library)
     return JS_FALSE;
 
@@ -238,10 +242,10 @@ Library::Open(JSContext* cx, unsigned argc, jsval *vp)
 }
 
 JSBool
-Library::Close(JSContext* cx, unsigned argc, jsval* vp)
+Library::Close(JSContext* cx, uintN argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj || !IsLibrary(obj)) {
+  if (!obj || !IsLibrary(cx, obj)) {
     JS_ReportError(cx, "not a library");
     return JS_FALSE;
   }
@@ -253,22 +257,22 @@ Library::Close(JSContext* cx, unsigned argc, jsval* vp)
 
   // delete our internal objects
   Finalize(cx, obj);
-  JS_SetReservedSlot(obj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(NULL));
+  JS_SetReservedSlot(cx, obj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(NULL));
 
   JS_SET_RVAL(cx, vp, JSVAL_VOID);
   return JS_TRUE;
 }
 
 JSBool
-Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
+Library::Declare(JSContext* cx, uintN argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj || !IsLibrary(obj)) {
+  if (!obj || !IsLibrary(cx, obj)) {
     JS_ReportError(cx, "not a library");
     return JS_FALSE;
   }
 
-  PRLibrary* library = GetLibrary(obj);
+  PRLibrary* library = GetLibrary(cx, obj);
   if (!library) {
     JS_ReportError(cx, "library not open");
     return JS_FALSE;
@@ -317,16 +321,16 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
   } else {
     // Case 2).
     if (JSVAL_IS_PRIMITIVE(argv[1]) ||
-        !CType::IsCType(JSVAL_TO_OBJECT(argv[1])) ||
-        !CType::IsSizeDefined(JSVAL_TO_OBJECT(argv[1]))) {
+        !CType::IsCType(cx, JSVAL_TO_OBJECT(argv[1])) ||
+        !CType::IsSizeDefined(cx, JSVAL_TO_OBJECT(argv[1]))) {
       JS_ReportError(cx, "second argument must be a type of defined size");
       return JS_FALSE;
     }
 
     typeObj = JSVAL_TO_OBJECT(argv[1]);
-    if (CType::GetTypeCode(typeObj) == TYPE_pointer) {
-      fnObj = PointerType::GetBaseType(typeObj);
-      isFunction = fnObj && CType::GetTypeCode(fnObj) == TYPE_function;
+    if (CType::GetTypeCode(cx, typeObj) == TYPE_pointer) {
+      fnObj = PointerType::GetBaseType(cx, typeObj);
+      isFunction = fnObj && CType::GetTypeCode(cx, fnObj) == TYPE_function;
     }
   }
 
@@ -336,7 +340,7 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
   AutoCString symbol;
   if (isFunction) {
     // Build the symbol, with mangling if necessary.
-    FunctionType::BuildSymbolName(nameStr, fnObj, symbol);
+    FunctionType::BuildSymbolName(cx, nameStr, fnObj, symbol);
     AppendString(symbol, "\0");
 
     // Look up the function symbol.

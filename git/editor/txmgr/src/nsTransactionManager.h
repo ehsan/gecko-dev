@@ -38,6 +38,7 @@
 #ifndef nsTransactionManager_h__
 #define nsTransactionManager_h__
 
+#include "prmon.h"
 #include "nsWeakReference.h"
 #include "nsITransactionManager.h"
 #include "nsCOMArray.h"
@@ -48,6 +49,7 @@ class nsITransaction;
 class nsITransactionListener;
 class nsTransactionItem;
 class nsTransactionStack;
+class nsTransactionRedoStack;
 
 /** implementation of a transaction manager object.
  *
@@ -60,8 +62,10 @@ private:
   PRInt32                mMaxTransactionCount;
   nsTransactionStack     mDoStack;
   nsTransactionStack     mUndoStack;
-  nsTransactionStack     mRedoStack;
+  nsTransactionRedoStack mRedoStack;
   nsCOMArray<nsITransactionListener> mListeners;
+
+  PRMonitor              *mMonitor;
 
 public:
 
@@ -108,6 +112,8 @@ private:
   /* nsTransactionManager specific private methods. */
   virtual nsresult BeginTransaction(nsITransaction *aTransaction);
   virtual nsresult EndTransaction(void);
+  virtual nsresult Lock(void);
+  virtual nsresult Unlock(void);
 };
 
 #endif // nsTransactionManager_h__

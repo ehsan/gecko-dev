@@ -248,11 +248,6 @@ class MochitestOptions(optparse.OptionParser):
                     help = "JSON list of tests that we want to not run, cannot be specified with --run-only-tests.")
     defaults["excludeTests"] = None
 
-    self.add_option("--failure-file",
-                    action = "store", type="string", dest = "failureFile",
-                    help = "Filename of the output file where we can store a .json list of failures to be run in the future with --run-only-tests.")
-    defaults["failureFile"] = None
-
     # -h, --help are automatically handled by OptionParser
 
     self.set_defaults(**defaults)
@@ -319,13 +314,13 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
     if options.runOnlyTests != None and options.excludeTests != None:
       self.error("We can only support --run-only-tests OR --exclude-tests, not both.")
       
-    if options.runOnlyTests:
-      if not os.path.exists(os.path.abspath(options.runOnlyTests)):
-        self.error("unable to find --run-only-tests file '%s'" % options.runOnlyTests);
+    if (options.runOnlyTests):
+      if (not os.path.exists(os.path.join(os.path.dirname(__file__), options.runOnlyTests))):
+        self.error("unable to find --run-only-tests file '%s'" % (options.runOnlyTests));
         
-    if options.excludeTests:
-      if not os.path.exists(os.path.abspath(options.excludeTests)):
-        self.error("unable to find --exclude-tests file '%s'" % options.excludeTests);
+    if (options.excludeTests):
+      if (not os.path.exists(os.path.join(os.path.dirname(__file__), options.excludeTests))):
+        self.error("unable to find --exclude-tests file '%s'" % (options.excludeTests));
 
     return options
 
@@ -421,9 +416,7 @@ class WebSocketServer(object):
     cmd = [sys.executable, script]
     if self.debuggerInfo and self.debuggerInfo['interactive']:
         cmd += ['--interactive']
-    cmd += ['-p', str(self.port), '-w', self._scriptdir, '-l',      \
-           os.path.join(self._scriptdir, "websock.log"),            \
-           '--log-level=debug', '--allow-handlers-outside-root-dir']
+    cmd += ['-p', str(self.port), '-w', self._scriptdir, '-l', os.path.join(self._scriptdir, "websock.log"), '--log-level=debug']
 
     self._process = self._automation.Process(cmd)
     pid = self._process.pid
@@ -599,8 +592,6 @@ class Mochitest(object):
         self.urlOpts.append("testname=%s" % ("/").join([self.TEST_PATH, options.testPath]))
       if options.runOnlyTests:
         self.urlOpts.append("runOnlyTests=%s" % options.runOnlyTests)
-      if options.failureFile:
-        self.urlOpts.append("failureFile=%s" % options.failureFile)
       elif options.excludeTests:
         self.urlOpts.append("excludeTests=%s" % options.excludeTests)
 
@@ -675,12 +666,6 @@ class Mochitest(object):
     else:
       timeout = 330.0 # default JS harness timeout is 300 seconds
 
-    # it's a debug build, we can parse leaked DOMWindows and docShells
-    if Automation.IS_DEBUG_BUILD:
-      logger = ShutdownLeakLogger(self.automation.log)
-    else:
-      logger = None
-
     if options.vmwareRecording:
       self.startVMwareRecording(options);
 
@@ -694,7 +679,6 @@ class Mochitest(object):
                                   certPath=options.certPath,
                                   debuggerInfo=debuggerInfo,
                                   symbolsPath=options.symbolsPath,
-                                  logger = logger,
                                   timeout = timeout)
     except KeyboardInterrupt:
       self.automation.log.info("INFO | runtests.py | Received keyboard interrupt.\n");
@@ -709,10 +693,6 @@ class Mochitest(object):
     self.stopWebServer(options)
     self.stopWebSocketServer(options)
     processLeakLog(self.leak_report_file, options.leakThreshold)
-
-    if logger:
-      logger.parse()
-
     self.automation.log.info("\nINFO | runtests.py | Running tests: end.")
 
     if manifest is not None:
@@ -816,12 +796,11 @@ toolbar#nav-bar {
       self.automation.log.warning("TEST-UNEXPECTED-FAIL | invalid setup: missing mochikit extension")
       return None
 
-    # Support Firefox (browser), B2G (shell) and SeaMonkey (navigator).
+    # Support Firefox (browser) and SeaMonkey (navigator).
     chrome = ""
     if options.browserChrome or options.chrome or options.a11y:
       chrome += """
 overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-test-overlay.xul
-overlay chrome://browser/content/shell.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 """
 

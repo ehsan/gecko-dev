@@ -99,30 +99,30 @@ def findIDL(includePath, irregularFilenames, interfaceName):
 
 argumentUnboxingTemplates = {
     'octet':
-        "    uint32_t ${name}_u32;\n"
+        "    uint32 ${name}_u32;\n"
         "    if (!JS_ValueToECMAUint32(cx, ${argVal}, &${name}_u32))\n"
         "        return JS_FALSE;\n"
-        "    uint8_t ${name} = uint8_t(${name}_u32);\n",
+        "    uint8 ${name} = (uint8) ${name}_u32;\n",
 
     'short':
-        "    int32_t ${name}_i32;\n"
+        "    int32 ${name}_i32;\n"
         "    if (!JS_ValueToECMAInt32(cx, ${argVal}, &${name}_i32))\n"
         "        return JS_FALSE;\n"
-        "    int16_t ${name} = int16_t(${name}_i32);\n",
+        "    int16 ${name} = (int16) ${name}_i32;\n",
 
     'unsigned short':
-        "    uint32_t ${name}_u32;\n"
+        "    uint32 ${name}_u32;\n"
         "    if (!JS_ValueToECMAUint32(cx, ${argVal}, &${name}_u32))\n"
         "        return JS_FALSE;\n"
-        "    uint16_t ${name} = uint16_t(${name}_u32);\n",
+        "    uint16 ${name} = (uint16) ${name}_u32;\n",
 
     'long':
-        "    int32_t ${name};\n"
+        "    int32 ${name};\n"
         "    if (!JS_ValueToECMAInt32(cx, ${argVal}, &${name}))\n"
         "        return JS_FALSE;\n",
 
     'unsigned long':
-        "    uint32_t ${name};\n"
+        "    uint32 ${name};\n"
         "    if (!JS_ValueToECMAUint32(cx, ${argVal}, &${name}))\n"
         "        return JS_FALSE;\n",
 
@@ -137,13 +137,13 @@ argumentUnboxingTemplates = {
         "        return JS_FALSE;\n",
 
     'float':
-        "    double ${name}_dbl;\n"
+        "    jsdouble ${name}_dbl;\n"
         "    if (!JS_ValueToNumber(cx, ${argVal}, &${name}_dbl))\n"
         "        return JS_FALSE;\n"
         "    float ${name} = (float) ${name}_dbl;\n",
 
     'double':
-        "    double ${name};\n"
+        "    jsdouble ${name};\n"
         "    if (!JS_ValueToNumber(cx, ${argVal}, &${name}))\n"
         "        return JS_FALSE;\n",
 
@@ -269,7 +269,7 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
             elif haveCcx:
                 f.write("        xpc_qsThrowBadArgWithCcx(ccx, rv, %d);\n" % i)
             else:
-                f.write("        xpc_qsThrowBadArgWithDetails(cx, rv, %d, %s, %s);\n" % (i, "\"\"", "\"\""))
+                f.write("        xpc_qsThrowBadArg(cx, rv, vp, %d);\n" % i)
             f.write("        return JS_FALSE;\n"
                     "    }\n")
             return True
@@ -339,27 +339,25 @@ resultConvTemplates = {
             "    return JS_TRUE;\n",
 
     'octet':
-        "    ${jsvalRef} = INT_TO_JSVAL(int32_t(result));\n"
+        "    ${jsvalRef} = INT_TO_JSVAL((int32) result);\n"
         "    return JS_TRUE;\n",
 
     'short':
-        "    ${jsvalRef} = INT_TO_JSVAL(int32_t(result));\n"
+        "    ${jsvalRef} = INT_TO_JSVAL((int32) result);\n"
         "    return JS_TRUE;\n",
 
     'long':
-        "    ${jsvalRef} = INT_TO_JSVAL(result);\n"
-        "    return JS_TRUE;\n",
+        "    return xpc_qsInt32ToJsval(cx, result, ${jsvalPtr});\n",
 
     'long long':
         "    return xpc_qsInt64ToJsval(cx, result, ${jsvalPtr};\n",
 
     'unsigned short':
-        "    ${jsvalRef} = INT_TO_JSVAL(int32_t(result));\n"
+        "    ${jsvalRef} = INT_TO_JSVAL((int32) result);\n"
         "    return JS_TRUE;\n",
 
     'unsigned long':
-        "    ${jsvalRef} = UINT_TO_JSVAL(result);\n"
-        "    return JS_TRUE;\n",
+        "    return xpc_qsUint32ToJsval(cx, result, ${jsvalPtr});\n",
 
     'unsigned long long':
         "    return xpc_qsUint64ToJsval(cx, result, ${jsvalPtr});\n",
@@ -375,10 +373,10 @@ resultConvTemplates = {
         "    return JS_TRUE;\n",
 
     '[astring]':
-        "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
+        "    return xpc_qsStringToJsval(cx, result, ${jsvalPtr});\n",
 
     '[domstring]':
-        "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
+        "    return xpc_qsStringToJsval(cx, result, ${jsvalPtr});\n",
 
     '[jsval]':
         # Here there's nothing to convert, because the result has already been
@@ -478,7 +476,7 @@ def writeStub(f, customMethodCalls, member, stubName, writeThisUnwrapping, write
             signature += "%s(JSContext *cx, JSObject *obj, jsid id,%s jsval *vp)\n"
     else:
         # JSFastNative.
-        signature += "%s(JSContext *cx, unsigned argc,%s jsval *vp)\n"
+        signature += "%s(JSContext *cx, uintN argc,%s jsval *vp)\n"
 
     customMethodCall = customMethodCalls.get(stubName, None)
 

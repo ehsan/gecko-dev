@@ -46,7 +46,6 @@
 #include "nsArrayEnumerator.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsDirectoryService.h"
-#include "mozilla/FileUtils.h"
 
 using namespace mozilla;
 
@@ -97,25 +96,131 @@ xptiInterfaceInfoManager::~xptiInterfaceInfoManager()
 #endif
 }
 
-void
-xptiInterfaceInfoManager::RegisterBuffer(char *buf, PRUint32 length)
+namespace {
+
+struct AutoCloseFD
 {
-    XPTState *state = XPT_NewXDRState(XPT_DECODE, buf, length);
-    if (!state)
-        return;
+    AutoCloseFD()
+        : mFD(NULL)
+    { }
+    ~AutoCloseFD() {
+        if (mFD)
+            PR_Close(mFD);
+    }
+    operator PRFileDesc*() {
+        return mFD;
+    }
+
+    PRFileDesc** operator&() {
+        NS_ASSERTION(!mFD, "Re-opening a file");
+        return &mFD;
+    }
+
+    PRFileDesc* mFD;
+};
+
+} // anonymous namespace
+
+XPTHeader* 
+xptiInterfaceInfoManager::ReadXPTFile(nsILocalFile* aFile)
+{
+    AutoCloseFD fd;
+    if (NS_FAILED(aFile->OpenNSPRFileDesc(PR_RDONLY, 0444, &fd)) || !fd)
+        return NULL;
+
+    PRFileInfo64 fileInfo;
+    if (PR_SUCCESS != PR_GetOpenFileInfo64(fd, &fileInfo))
+        return NULL;
+
+    if (fileInfo.size > PRInt64(PR_INT32_MAX))
+        return NULL;
+
+    nsAutoArrayPtr<char> whole(new char[PRInt32(fileInfo.size)]);
+    if (!whole)
+        return nsnull;
+
+    for (PRInt32 totalRead = 0; totalRead < fileInfo.size; ) {
+        PRInt32 read = PR_Read(fd, whole + totalRead, PRInt32(fileInfo.size));
+        if (read < 0)
+            return NULL;
+        totalRead += read;
+    }
+
+    XPTState* state = XPT_NewXDRState(XPT_DECODE, whole,
+                                      PRInt32(fileInfo.size));
 
     XPTCursor cursor;
     if (!XPT_MakeCursor(state, XPT_HEADER, 0, &cursor)) {
         XPT_DestroyXDRState(state);
-        return;
+        return NULL;
     }
-
+    
     XPTHeader *header = nsnull;
-    if (XPT_DoHeader(gXPTIStructArena, &cursor, &header)) {
-        RegisterXPTHeader(header);
+    if (!XPT_DoHeader(gXPTIStructArena, &cursor, &header)) {
+        XPT_DestroyXDRState(state);
+        return NULL;
     }
 
     XPT_DestroyXDRState(state);
+
+    return header;
+}
+
+XPTHeader*
+xptiInterfaceInfoManager::ReadXPTFileFromInputStream(nsIInputStream *stream)
+{
+    PRUint32 flen;
+    stream->Available(&flen);
+    
+    nsAutoArrayPtr<char> whole(new char[flen]);
+    if (!whole)
+        return nsnull;
+
+    for (PRUint32 totalRead = 0; totalRead < flen; ) {
+        PRUint32 avail;
+        PRUint32 read;
+
+        if (NS_FAILED(stream->Available(&avail)))
+            return NULL;
+
+        if (avail > flen)
+            return NULL;
+
+        if (NS_FAILED(stream->Read(whole+totalRead, avail, &read)))
+            return NULL;
+
+        totalRead += read;
+    }
+    
+    XPTState *state = XPT_NewXDRState(XPT_DECODE, whole, flen);
+    if (!state)
+        return NULL;
+    
+    XPTCursor cursor;
+    if (!XPT_MakeCursor(state, XPT_HEADER, 0, &cursor)) {
+        XPT_DestroyXDRState(state);
+        return NULL;
+    }
+    
+    XPTHeader *header = nsnull;
+    if (!XPT_DoHeader(gXPTIStructArena, &cursor, &header)) {
+        XPT_DestroyXDRState(state);
+        return NULL;
+    }
+
+    XPT_DestroyXDRState(state);
+
+    return header;
+}
+
+void
+xptiInterfaceInfoManager::RegisterFile(nsILocalFile* aFile)
+{
+    XPTHeader* header = ReadXPTFile(aFile);
+    if (!header)
+        return;
+
+    RegisterXPTHeader(header);
 }
 
 void
@@ -131,6 +236,14 @@ xptiInterfaceInfoManager::RegisterXPTHeader(XPTHeader* aHeader)
     ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     for(PRUint16 k = 0; k < aHeader->num_interfaces; k++)
         VerifyAndAddEntryIfNew(aHeader->interface_directory + k, k, typelib);
+}
+
+void
+xptiInterfaceInfoManager::RegisterInputStream(nsIInputStream* aStream)
+{
+    XPTHeader* header = ReadXPTFileFromInputStream(aStream);
+    if (header)
+        RegisterXPTHeader(header);
 }
 
 void

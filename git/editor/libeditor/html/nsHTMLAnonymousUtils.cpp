@@ -102,7 +102,7 @@ static PRInt32 GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
   return (PRInt32) f;
 }
 
-class nsElementDeletionObserver MOZ_FINAL : public nsIMutationObserver
+class nsElementDeletionObserver : public nsIMutationObserver
 {
 public:
   nsElementDeletionObserver(nsINode* aNativeAnonNode, nsINode* aObservedNode)

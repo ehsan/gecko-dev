@@ -1,9 +1,10 @@
 # HG changeset patch
-# Parent efec656cc42addae5aa96c6691031d54d46436fe
+# Parent 041265c6ac29c43856a8df4d4581cb6a04b95a68
+
 diff --git a/content/canvas/test/webgl/conformance/extensions/oes-standard-derivatives.html b/content/canvas/test/webgl/conformance/extensions/oes-standard-derivatives.html
 --- a/content/canvas/test/webgl/conformance/extensions/oes-standard-derivatives.html
 +++ b/content/canvas/test/webgl/conformance/extensions/oes-standard-derivatives.html
-@@ -115,17 +115,18 @@ if (!gl) {
+@@ -107,17 +107,18 @@ if (!gl) {
      } else {
          testPassed("Successfully enabled OES_standard_derivatives extension");
  

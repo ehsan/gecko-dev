@@ -61,9 +61,11 @@
 // Drag & Drop, Clipboard
 #include "nsIServiceManager.h"
 #include "nsIClipboard.h"
+#include "nsIDragService.h"
+#include "nsIDragSession.h"
 #include "nsIContent.h"
 #include "nsISupportsPrimitives.h"
-#include "nsIDOMRange.h"
+#include "nsIDOMNSRange.h"
 #include "nsEditorUtils.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMDragEvent.h"
@@ -154,6 +156,12 @@ nsEditorEventListener::InstallToEditor()
 #endif
   elmP->AddEventListenerByType(this,
                                NS_LITERAL_STRING("keypress"),
+                               NS_EVENT_FLAG_BUBBLE |
+                               NS_PRIV_EVENT_UNTRUSTED_PERMITTED |
+                               NS_EVENT_FLAG_SYSTEM_EVENT);
+  // See bug 455215, we cannot use the standard dragstart event yet
+  elmP->AddEventListenerByType(this,
+                               NS_LITERAL_STRING("draggesture"),
                                NS_EVENT_FLAG_BUBBLE |
                                NS_EVENT_FLAG_SYSTEM_EVENT);
   elmP->AddEventListenerByType(this,
@@ -249,6 +257,10 @@ nsEditorEventListener::UninstallFromEditor()
                                   NS_EVENT_FLAG_BUBBLE |
                                   NS_EVENT_FLAG_SYSTEM_EVENT);
   elmP->RemoveEventListenerByType(this,
+                                  NS_LITERAL_STRING("draggesture"),
+                                  NS_EVENT_FLAG_BUBBLE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT);
+  elmP->RemoveEventListenerByType(this,
                                   NS_LITERAL_STRING("dragenter"),
                                   NS_EVENT_FLAG_BUBBLE |
                                   NS_EVENT_FLAG_SYSTEM_EVENT);
@@ -321,6 +333,8 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
 
   nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
   if (dragEvent) {
+    if (eventType.EqualsLiteral("draggesture"))
+      return DragGesture(dragEvent);
     if (eventType.EqualsLiteral("dragenter"))
       return DragEnter(dragEvent);
     if (eventType.EqualsLiteral("dragover"))
@@ -489,10 +503,12 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
   // If the client pass cancelled the event, defaultPrevented will be true
   // below.
 
-  bool defaultPrevented;
-  aKeyEvent->GetDefaultPrevented(&defaultPrevented);
-  if (defaultPrevented) {
-    return NS_OK;
+  if (NSEvent) {
+    bool defaultPrevented;
+    NSEvent->GetPreventDefault(&defaultPrevented);
+    if (defaultPrevented) {
+      return NS_OK;
+    }
   }
 
   nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
@@ -533,8 +549,10 @@ nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
     }
   }
 
+  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aMouseEvent);
+  NS_ASSERTION(nsevent, "nsevent must not be NULL here");
   bool preventDefault;
-  nsresult rv = aMouseEvent->GetDefaultPrevented(&preventDefault);
+  nsresult rv = nsevent->GetPreventDefault(&preventDefault);
   if (NS_FAILED(rv) || preventDefault) {
     // We're done if 'preventdefault' is true (see for example bug 70698).
     return rv;
@@ -572,16 +590,13 @@ nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
       if (ctrlKey)
         mailEditor = do_QueryObject(mEditor);
 
-      PRInt32 clipboard = nsIClipboard::kGlobalClipboard;
-      nsCOMPtr<nsIClipboard> clipboardService =
-        do_GetService("@mozilla.org/widget/clipboard;1", &rv);
-      if (NS_SUCCEEDED(rv)) {
-        bool selectionSupported;
-        rv = clipboardService->SupportsSelectionClipboard(&selectionSupported);
-        if (NS_SUCCEEDED(rv) && selectionSupported) {
-          clipboard = nsIClipboard::kSelectionClipboard;
-        }
-      }
+      PRInt32 clipboard;
+
+#if defined(XP_OS2) || defined(XP_WIN32)
+      clipboard = nsIClipboard::kGlobalClipboard;
+#else
+      clipboard = nsIClipboard::kSelectionClipboard;
+#endif
 
       if (mailEditor)
         mailEditor->PasteAsQuotation(clipboard);
@@ -634,16 +649,24 @@ nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
     return NS_OK;
   }
 
-  // Transfer the event's trusted-ness to our editor
-  nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aTextEvent);
-  nsAutoEditorKeypressOperation operation(mEditor, NSEvent);
-
   return mEditor->UpdateIMEComposition(composedText, textRangeList);
 }
 
 /**
  * Drag event implementation
  */
+
+nsresult
+nsEditorEventListener::DragGesture(nsIDOMDragEvent* aDragEvent)
+{
+  // ...figure out if a drag should be started...
+  bool canDrag;
+  nsresult rv = mEditor->CanDrag(aDragEvent, &canDrag);
+  if ( NS_SUCCEEDED(rv) && canDrag )
+    rv = mEditor->DoDrag(aDragEvent);
+
+  return rv;
+}
 
 nsresult
 nsEditorEventListener::DragEnter(nsIDOMDragEvent* aDragEvent)
@@ -666,10 +689,12 @@ nsresult
 nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
 {
   nsCOMPtr<nsIDOMNode> parent;
-  bool defaultPrevented;
-  aDragEvent->GetDefaultPrevented(&defaultPrevented);
-  if (defaultPrevented) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aDragEvent);
+  if (domNSEvent) {
+    bool defaultPrevented;
+    domNSEvent->GetPreventDefault(&defaultPrevented);
+    if (defaultPrevented)
+      return NS_OK;
   }
 
   aDragEvent->GetRangeParent(getter_AddRefs(parent));
@@ -698,10 +723,6 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
   }
   else
   {
-    // This is needed when dropping on an input, to prevent the editor for
-    // the editable parent from receiving the event.
-    aDragEvent->StopPropagation();
-
     if (mCaret)
     {
       mCaret->EraseCaret();
@@ -743,10 +764,12 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
 {
   CleanupDragDropCaret();
 
-  bool defaultPrevented;
-  aMouseEvent->GetDefaultPrevented(&defaultPrevented);
-  if (defaultPrevented) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aMouseEvent);
+  if (domNSEvent) {
+    bool defaultPrevented;
+    domNSEvent->GetPreventDefault(&defaultPrevented);
+    if (defaultPrevented)
+      return NS_OK;
   }
 
   nsCOMPtr<nsIDOMNode> parent;
@@ -773,6 +796,8 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
 
   aMouseEvent->StopPropagation();
   aMouseEvent->PreventDefault();
+  // Beware! This may flush notifications via synchronous
+  // ScrollSelectionIntoView.
   return mEditor->InsertFromDrop(aMouseEvent);
 }
 
@@ -808,11 +833,14 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 
   NS_ENSURE_TRUE(typeSupported, false);
 
+  nsCOMPtr<nsIDOMNSDataTransfer> dataTransferNS(do_QueryInterface(dataTransfer));
+  NS_ENSURE_TRUE(dataTransferNS, false);
+
   // If there is no source node, this is probably an external drag and the
   // drop is allowed. The later checks rely on checking if the drag target
   // is the same as the drag source.
   nsCOMPtr<nsIDOMNode> sourceNode;
-  dataTransfer->GetMozSourceNode(getter_AddRefs(sourceNode));
+  dataTransferNS->GetMozSourceNode(getter_AddRefs(sourceNode));
   if (!sourceNode)
     return true;
 
@@ -856,11 +884,12 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
       {
         nsCOMPtr<nsIDOMRange> range;
         rv = selection->GetRangeAt(i, getter_AddRefs(range));
-        if (NS_FAILED(rv) || !range) 
+        nsCOMPtr<nsIDOMNSRange> nsrange(do_QueryInterface(range));
+        if (NS_FAILED(rv) || !nsrange) 
           continue; //don't bail yet, iterate through them all
 
         bool inRange = true;
-        (void)range->IsPointInRange(parent, offset, &inRange);
+        (void)nsrange->IsPointInRange(parent, offset, &inRange);
         if (inRange)
           return false;  //okay, now you can bail, we are over the orginal selection
       }

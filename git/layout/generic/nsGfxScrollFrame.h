@@ -40,7 +40,7 @@
 #ifndef nsGfxScrollFrame_h___
 #define nsGfxScrollFrame_h___
 
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsBoxFrame.h"
 #include "nsDisplayList.h"
@@ -98,11 +98,11 @@ public:
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
 
-  void AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
-                           const nsRect&           aDirtyRect,
-                           const nsDisplayListSet& aLists,
-                           bool&                   aCreateLayer,
-                           bool                    aPositioned);
+  nsresult AppendScrollPartsTo(nsDisplayListBuilder*          aBuilder,
+                               const nsRect&                  aDirtyRect,
+                               const nsDisplayListSet&        aLists,
+                               const nsDisplayListCollection& aDest,
+                               bool&                        aCreateLayer);
 
   bool GetBorderRadii(nscoord aRadii[8]) const;
 
@@ -177,14 +177,12 @@ public:
   }
   nsRect GetScrollRange() const;
 
-  nsPoint RestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx, bool aShouldClamp) const;
+  nsPoint ClampAndRestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx) const;
   nsPoint ClampScrollPosition(const nsPoint& aPt) const;
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
-  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode) {
-    ScrollToWithSmoothnessProfile(aScrollPosition, aMode, nsGkAtoms::other);
-  };
+  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
   void ScrollToImpl(nsPoint aScrollPosition);
-  void ScrollVisual(nsPoint aOldScrolledFramePosition);
+  void ScrollVisual();
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow);
   void ScrollToRestoredPosition();
@@ -247,9 +245,6 @@ public:
   bool IsLTR() const;
   bool IsScrollbarOnRight() const;
   bool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
-
-  bool UpdateOverflow();
-
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
   // will also check if a widget resizer is present as well.
@@ -261,17 +256,10 @@ public:
                         const nsRect& aContentArea,
                         const nsRect& aOldScrollArea);
 
-  bool IsIgnoringViewportClipping() const;
-
-  bool ShouldClampScrollPosition() const;
-
   bool IsAlwaysActive() const;
   void MarkActive();
   void MarkInactive();
   nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
-
-  void ScheduleSyntheticMouseMove();
-  static void ScrollActivityCallback(nsITimer *aTimer, void* anInstance);
 
   // owning references to the nsIAnonymousContentCreator-built content
   nsCOMPtr<nsIContent> mHScrollbarContent;
@@ -302,8 +290,6 @@ public:
   nsPoint mLastPos;
 
   nsExpirationState mActivityExpirationState;
-
-  nsCOMPtr<nsITimer> mScrollActivityTimer;
 
   bool mNeverHasVerticalScrollbar:1;
   bool mNeverHasHorizontalScrollbar:1;
@@ -336,18 +322,15 @@ public:
   // If true, we should be prepared to scroll using this scrollframe
   // by placing descendant content into its own layer(s)
   bool mScrollingActive:1;
+  // If true, scrollbars are stacked on the top of the display list and can
+  // float above the content as a result
+  bool mScrollbarsCanOverlapContent:1;
   // If true, the resizer is collapsed and not displayed
   bool mCollapsedResizer:1;
 
   // If true, the layer should always be active because we always build a layer.
   // Used for asynchronous scrolling.
   bool mShouldBuildLayer:1;
-
-protected:
-  void ScrollToWithSmoothnessProfile(nsPoint aScrollPosition,
-                                     nsIScrollableFrame::ScrollMode aMode,
-                                     nsIAtom *aProfile); // nsnull indicates no smooth scroll
-
 };
 
 /**
@@ -359,7 +342,7 @@ protected:
  * Scroll frames don't support incremental changes, i.e. you can't replace
  * or remove the scrolled frame
  */
-class nsHTMLScrollFrame : public nsContainerFrame,
+class nsHTMLScrollFrame : public nsHTMLContainerFrame,
                           public nsIScrollableFrame,
                           public nsIAnonymousContentCreator,
                           public nsIStatefulFrame {
@@ -403,7 +386,7 @@ public:
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
-  virtual bool IsCollapsed();
+  virtual bool IsCollapsed(nsBoxLayoutState& aBoxLayoutState);
   
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -514,9 +497,6 @@ public:
   }
   virtual bool IsScrollingActive() {
     return mInner.IsScrollingActive();
-  }
-  virtual bool UpdateOverflow() {
-    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
@@ -752,9 +732,6 @@ public:
   }
   virtual bool IsScrollingActive() {
     return mInner.IsScrollingActive();
-  }
-  virtual bool UpdateOverflow() {
-    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame

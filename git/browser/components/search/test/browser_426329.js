@@ -8,9 +8,6 @@ this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/Chr
 function test() {
   waitForExplicitFinish();
 
-  const ENGINE_HTML_BASE = "http://mochi.test:8888/browser/browser/components/search/test/test.html";
-
-  var searchEntries = ["test", "More Text", "Some Text"];
   var searchBar = BrowserSearch.searchBar;
   var searchButton = document.getAnonymousElementByAttribute(searchBar,
                      "anonid", "search-go-button");
@@ -59,7 +56,6 @@ function test() {
       is(gBrowser.tabs.length, preTabNo, "Return key did not open new tab");
       is(event.originalTarget, preSelectedBrowser.contentDocument,
          "Return key loaded results in current tab");
-      is(event.originalTarget.URL, expectedURL(searchBar.value), "Check URL of search page opened");
 
       testAltReturn();
     });
@@ -75,7 +71,6 @@ function test() {
             "Alt+Return key loaded results in new tab");
       is(event.originalTarget, gBrowser.contentDocument,
          "Alt+Return key loaded results in foreground tab");
-      is(event.originalTarget.URL, expectedURL(searchBar.value), "Check URL of search page opened");
 
       //Shift key has no effect for now, so skip it
       //testShiftAltReturn();
@@ -93,7 +88,6 @@ function test() {
             "Shift+Alt+Return key loaded results in new tab");
       isnot(event.originalTarget, gBrowser.contentDocument,
             "Shift+Alt+Return key loaded results in background tab");
-      is(event.originalTarget.URL, expectedURL(searchBar.value), "Check URL of search page opened");
 
       testLeftClick();
     });
@@ -107,7 +101,6 @@ function test() {
       is(gBrowser.tabs.length, preTabNo, "LeftClick did not open new tab");
       is(event.originalTarget, preSelectedBrowser.contentDocument,
          "LeftClick loaded results in current tab");
-      is(event.originalTarget.URL, expectedURL(searchBar.value), "Check URL of search page opened");
 
       testMiddleClick();
     });
@@ -123,7 +116,6 @@ function test() {
             "MiddleClick loaded results in new tab");
       is(event.originalTarget, gBrowser.contentDocument,
          "MiddleClick loaded results in foreground tab");
-      is(event.originalTarget.URL, expectedURL(searchBar.value), "Check URL of search page opened");
 
       testShiftMiddleClick();
     });
@@ -139,7 +131,6 @@ function test() {
             "Shift+MiddleClick loaded results in new tab");
       isnot(event.originalTarget, gBrowser.contentDocument,
             "Shift+MiddleClick loaded results in background tab");
-      is(event.originalTarget.URL, expectedURL(searchBar.value), "Check URL of search page opened");
 
       testDropText();
      });
@@ -175,7 +166,7 @@ function test() {
     is(searchBar.value, "More Text", "drop text/uri-list on searchbar");
     SimpleTest.executeSoon(testRightClick);
   }
-
+  
   function testRightClick() {
     init();
     searchBar.removeEventListener("popupshowing", stopPopup, true);
@@ -186,27 +177,8 @@ function test() {
       is(gBrowser.tabs.length, preTabNo, "RightClick did not open new tab");
       is(gBrowser.currentURI.spec, "about:blank", "RightClick did nothing");
 
-      testSearchHistory();
-    }, 5000);
-  }
-
-  function testSearchHistory() {
-    var textbox = searchBar._textbox;
-    for (var i = 0; i < searchEntries.length; i++) {
-      let exists = textbox._formHistSvc.entryExists(textbox.searchParam, searchEntries[i]);
-      ok(exists, "form history entry '" + searchEntries[i] + "' should exist");
-    }
-    testAutocomplete();
-  }
-
-  function testAutocomplete() {
-    var popup = searchBar.textbox.popup;
-    popup.addEventListener("popupshowing", function() {
-      checkMenuEntries(searchEntries);
       finalize();
-      popup.removeEventListener("popupshowing", this, false);
-    }, false);
-    searchBar.textbox.showHistoryPopup();
+    }, 5000);
   }
 
   function finalize() {
@@ -238,34 +210,6 @@ function test() {
                           ctrlKeyArg, altKeyArg, shiftKeyArg, metaKeyArg,
                           buttonArg, null); 
     aTarget.dispatchEvent(event);
-  }
-
-  function expectedURL(aSearchTerms) {
-    var textToSubURI = Cc["@mozilla.org/intl/texttosuburi;1"].
-                       getService(Ci.nsITextToSubURI);
-    var searchArg = textToSubURI.ConvertAndEscape("utf-8", aSearchTerms);
-    return ENGINE_HTML_BASE + "?test=" + searchArg;
-  }
-
-  // modified from toolkit/components/satchel/test/test_form_autocomplete.html
-  function checkMenuEntries(expectedValues) {
-    var actualValues = getMenuEntries();
-    is(actualValues.length, expectedValues.length, "Checking length of expected menu");
-    for (var i = 0; i < expectedValues.length; i++)
-      is(actualValues[i], expectedValues[i], "Checking menu entry #"+i);
-  }
-
-  function getMenuEntries() {
-    var entries = [];
-    var autocompleteMenu = searchBar.textbox.popup;
-    // Could perhaps pull values directly from the controller, but it seems
-    // more reliable to test the values that are actually in the tree?
-    var column = autocompleteMenu.tree.columns[0];
-    var numRows = autocompleteMenu.tree.view.rowCount;
-    for (var i = 0; i < numRows; i++) {
-      entries.push(autocompleteMenu.tree.view.getValueAt(i, column));
-    }
-    return entries;
   }
 }
 

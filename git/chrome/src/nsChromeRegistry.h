@@ -62,7 +62,6 @@
 #include "nsIXPConnect.h"
 
 #include "mozilla/Omnijar.h"
-#include "mozilla/FileLocation.h"
 
 class nsIDOMWindow;
 class nsIURL;
@@ -140,9 +139,16 @@ public:
 
   struct ManifestProcessingContext
   {
-    ManifestProcessingContext(NSLocationType aType, mozilla::FileLocation &aFile)
+    ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile)
       : mType(aType)
       , mFile(aFile)
+      , mPath(NULL)
+    { }
+
+    ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile, const char* aPath)
+      : mType(aType)
+      , mFile(aFile)
+      , mPath(aPath)
     { }
 
     ~ManifestProcessingContext()
@@ -154,7 +160,8 @@ public:
     already_AddRefed<nsIURI> ResolveURI(const char* uri);
 
     NSLocationType mType;
-    mozilla::FileLocation mFile;
+    nsILocalFile* mFile;
+    const char* mPath;
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIXPConnect> mXPConnect;
   };

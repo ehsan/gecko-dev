@@ -61,7 +61,6 @@ SyncChannel::SyncChannel(SyncListener* aListener)
   , mPendingReply(0)
   , mProcessingSyncMessage(false)
   , mNextSeqno(0)
-  , mInTimeoutSecondHalf(false)
   , mTimeoutMs(kNoTimeout)
 #ifdef OS_WIN
   , mTopFrame(NULL)
@@ -89,19 +88,17 @@ bool
 SyncChannel::EventOccurred()
 {
     AssertWorkerThread();
-    mMonitor->AssertCurrentThreadOwns();
+    mMonitor.AssertCurrentThreadOwns();
     NS_ABORT_IF_FALSE(AwaitingSyncReply(), "not in wait loop");
 
     return (!Connected() || 0 != mRecvd.type() || mRecvd.is_reply_error());
 }
 
 bool
-SyncChannel::Send(Message* _msg, Message* reply)
+SyncChannel::Send(Message* msg, Message* reply)
 {
-    nsAutoPtr<Message> msg(_msg);
-
     AssertWorkerThread();
-    mMonitor->AssertNotCurrentThreadOwns();
+    mMonitor.AssertNotCurrentThreadOwns();
     NS_ABORT_IF_FALSE(!ProcessingSyncMessage(),
                       "violation of sync handler invariant");
     NS_ABORT_IF_FALSE(msg->is_sync(), "can only Send() sync messages here");
@@ -112,7 +109,7 @@ SyncChannel::Send(Message* _msg, Message* reply)
 
     msg->set_seqno(NextSeqno());
 
-    MonitorAutoLock lock(*mMonitor);
+    MonitorAutoLock lock(mMonitor);
 
     if (!Connected()) {
         ReportConnectionError("SyncChannel");
@@ -121,7 +118,7 @@ SyncChannel::Send(Message* _msg, Message* reply)
 
     mPendingReply = msg->type() + 1;
     int32 msgSeqno = msg->seqno();
-    mLink->SendMessage(msg.forget());
+    SendThroughTransport(msg);
 
     while (1) {
         bool maybeTimedOut = !SyncChannel::WaitForNotify();
@@ -187,27 +184,26 @@ SyncChannel::OnDispatchMessage(const Message& msg)
     reply->set_seqno(msg.seqno());
 
     {
-        MonitorAutoLock lock(*mMonitor);
+        MonitorAutoLock lock(mMonitor);
         if (ChannelConnected == mChannelState)
-            mLink->SendMessage(reply);
+            SendThroughTransport(reply);
     }
 }
 
 //
-// The methods below run in the context of the link thread, and can proxy
+// The methods below run in the context of the IO thread, and can proxy
 // back to the methods above
 //
 
 void
-SyncChannel::OnMessageReceivedFromLink(const Message& msg)
+SyncChannel::OnMessageReceived(const Message& msg)
 {
-    AssertLinkThread();
-    mMonitor->AssertCurrentThreadOwns();
-
+    AssertIOThread();
     if (!msg.is_sync()) {
-        AsyncChannel::OnMessageReceivedFromLink(msg);
-        return;
+        return AsyncChannel::OnMessageReceived(msg);
     }
+
+    MonitorAutoLock lock(mMonitor);
 
     if (MaybeInterceptSpecialIOMessage(msg))
         return;
@@ -226,15 +222,19 @@ SyncChannel::OnMessageReceivedFromLink(const Message& msg)
 }
 
 void
-SyncChannel::OnChannelErrorFromLink()
+SyncChannel::OnChannelError()
 {
-    AssertLinkThread();
-    mMonitor->AssertCurrentThreadOwns();
+    AssertIOThread();
+
+    MonitorAutoLock lock(mMonitor);
+
+    if (ChannelClosing != mChannelState)
+        mChannelState = ChannelError;
 
     if (AwaitingSyncReply())
         NotifyWorkerThread();
 
-    AsyncChannel::OnChannelErrorFromLink();
+    PostErrorNotifyTask();
 }
 
 //
@@ -256,11 +256,11 @@ bool
 SyncChannel::ShouldContinueFromTimeout()
 {
     AssertWorkerThread();
-    mMonitor->AssertCurrentThreadOwns();
+    mMonitor.AssertCurrentThreadOwns();
 
     bool cont;
     {
-        MonitorAutoUnlock unlock(*mMonitor);
+        MonitorAutoUnlock unlock(mMonitor);
         cont = static_cast<SyncListener*>(mListener)->OnReplyTimeout();
     }
 
@@ -284,23 +284,6 @@ SyncChannel::ShouldContinueFromTimeout()
     return cont;
 }
 
-bool
-SyncChannel::WaitResponse(bool aWaitTimedOut)
-{
-  if (aWaitTimedOut) {
-    if (mInTimeoutSecondHalf) {
-      // We've really timed out this time
-      return false;
-    }
-    // Try a second time
-    mInTimeoutSecondHalf = true;
-  } else {
-    mInTimeoutSecondHalf = false;
-  }
-  return true;
-}
-
-
 // Windows versions of the following two functions live in
 // WindowsMessageLoop.cpp.
 
@@ -315,17 +298,17 @@ SyncChannel::WaitForNotify()
     // XXX could optimize away this syscall for "no timeout" case if desired
     PRIntervalTime waitStart = PR_IntervalNow();
 
-    mMonitor->Wait(timeout);
+    mMonitor.Wait(timeout);
 
     // if the timeout didn't expire, we know we received an event.
     // The converse is not true.
-    return WaitResponse(IsTimeoutExpired(waitStart, timeout));
+    return !IsTimeoutExpired(waitStart, timeout);
 }
 
 void
 SyncChannel::NotifyWorkerThread()
 {
-    mMonitor->Notify();
+    mMonitor.Notify();
 }
 
 #endif  // ifndef OS_WIN

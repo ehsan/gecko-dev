@@ -39,14 +39,13 @@
 
 #include "nsHTMLTableAccessible.h"
 
+#include "Relation.h"
+#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
 #include "nsTextEquivUtils.h"
-#include "Relation.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIAccessibleRelation.h"
 #include "nsIDOMElement.h"
@@ -76,8 +75,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLTableCellAccessible::
-  nsHTMLTableCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsHTMLTableCellAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -91,10 +90,10 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLTableCellAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableCellAccessible: nsAccessible implementation
 
-role
+PRUint32
 nsHTMLTableCellAccessible::NativeRole()
 {
-  return roles::CELL;
+  return nsIAccessibleRole::ROLE_CELL;
 }
 
 PRUint64
@@ -107,7 +106,9 @@ nsHTMLTableCellAccessible::NativeState()
 
   if (frame) {
     state |= states::SELECTABLE;
-    if (frame->IsSelected())
+    bool isSelected = false;
+    frame->GetSelected(&isSelected);
+    if (isSelected)
       state |= states::SELECTED;
   }
 
@@ -296,8 +297,9 @@ nsHTMLTableCellAccessible::GetTableAccessible()
 {
   nsAccessible* parent = this;
   while ((parent = parent->Parent())) {
-    roles::Role role = parent->Role();
-    if (role == roles::TABLE || role == roles::TREE_TABLE) {
+    PRUint32 role = parent->Role();
+    if (role == nsIAccessibleRole::ROLE_TABLE ||
+        role == nsIAccessibleRole::ROLE_TREE_TABLE) {
       nsIAccessibleTable* tableAcc = nsnull;
       CallQueryInterface(parent, &tableAcc);
       return tableAcc;
@@ -341,14 +343,15 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
     nsCOMPtr<nsIMutableArray> headerCells =
       do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    roles::Role desiredRole = static_cast<roles::Role>(-1) ;
+    PRUint32 desiredRole = -1;
     if (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells)
-      desiredRole = roles::ROWHEADER;
+      desiredRole = nsIAccessibleRole::ROLE_ROWHEADER;
     else if (aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells)
-      desiredRole = roles::COLUMNHEADER;
+      desiredRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
 
     do {
-      nsAccessible* headerCell = mDoc->GetAccessible(headerCellElm);
+      nsAccessible* headerCell =
+        GetAccService()->GetAccessibleInWeakShell(headerCellElm, mWeakShell);
 
       if (headerCell && headerCell->Role() == desiredRole)
         headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
@@ -375,16 +378,16 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLTableHeaderCellAccessible::
-  nsHTMLTableHeaderCellAccessible(nsIContent* aContent,
-                                  nsDocAccessible* aDoc) :
-  nsHTMLTableCellAccessible(aContent, aDoc)
+  nsHTMLTableHeaderCellAccessible(nsIContent *aContent,
+                                  nsIWeakReference *aShell) :
+  nsHTMLTableCellAccessible(aContent, aShell)
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableHeaderAccessible: nsAccessible implementation
 
-role
+PRUint32
 nsHTMLTableHeaderCellAccessible::NativeRole()
 {
   // Check value of @scope attribute.
@@ -396,38 +399,43 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 
   switch (valueIdx) {
     case 0:
-      return roles::COLUMNHEADER;
+      return nsIAccessibleRole::ROLE_COLUMNHEADER;
     case 1:
-      return roles::ROWHEADER;
+      return nsIAccessibleRole::ROLE_ROWHEADER;
   }
 
   // Assume it's columnheader if there are headers in siblings, oterwise
   // rowheader.
-  nsIContent* parentContent = mContent->GetParent();
-  if (!parentContent) {
+  nsIContent *parent = mContent->GetParent();
+  if (!parent) {
     NS_ERROR("Deattached content on alive accessible?");
-    return roles::NOTHING;
+    return nsIAccessibleRole::ROLE_NOTHING;
   }
 
-  for (nsIContent* siblingContent = mContent->GetPreviousSibling(); siblingContent;
-       siblingContent = siblingContent->GetPreviousSibling()) {
-    if (siblingContent->IsElement()) {
-      return nsCoreUtils::IsHTMLTableHeader(siblingContent) ? 
-	     roles::COLUMNHEADER : roles::ROWHEADER;
+  PRInt32 indexInParent = parent->IndexOf(mContent);
+
+  for (PRInt32 idx = indexInParent - 1; idx >= 0; idx--) {
+    nsIContent* sibling = parent->GetChildAt(idx);
+    if (sibling && sibling->IsElement()) {
+      if (nsCoreUtils::IsHTMLTableHeader(sibling))
+        return nsIAccessibleRole::ROLE_COLUMNHEADER;
+      return nsIAccessibleRole::ROLE_ROWHEADER;
     }
   }
 
-  for (nsIContent* siblingContent = mContent->GetNextSibling(); siblingContent;
-       siblingContent = siblingContent->GetNextSibling()) {
-    if (siblingContent->IsElement()) {
-      return nsCoreUtils::IsHTMLTableHeader(siblingContent) ? 
-	     roles::COLUMNHEADER : roles::ROWHEADER;
+  PRInt32 childCount = parent->GetChildCount();
+  for (PRInt32 idx = indexInParent + 1; idx < childCount; idx++) {
+    nsIContent* sibling = parent->GetChildAt(idx);
+    if (sibling && sibling->IsElement()) {
+      if (nsCoreUtils::IsHTMLTableHeader(sibling))
+        return nsIAccessibleRole::ROLE_COLUMNHEADER;
+      return nsIAccessibleRole::ROLE_ROWHEADER;
     }
   }
 
   // No elements in siblings what means the table has one column only. Therefore
   // it should be column header.
-  return roles::COLUMNHEADER;
+  return nsIAccessibleRole::ROLE_COLUMNHEADER;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -435,8 +443,8 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLTableAccessible::
-  nsHTMLTableAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsHTMLTableAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -457,11 +465,11 @@ nsHTMLTableAccessible::CacheChildren()
   // caption only, because nsAccessibilityService ensures we don't create
   // accessibles for the other captions, since only the first is actually
   // visible.
-  nsAccTreeWalker walker(mDoc, mContent, CanHaveAnonChildren());
+  nsAccTreeWalker walker(mWeakShell, mContent, GetAllowsAnonChildAccessibles());
 
   nsAccessible* child = nsnull;
   while ((child = walker.NextChild())) {
-    if (child->Role() == roles::CAPTION) {
+    if (child->Role() == nsIAccessibleRole::ROLE_CAPTION) {
       InsertChildAt(0, child);
       while ((child = walker.NextChild()) && AppendChild(child));
       break;
@@ -470,10 +478,10 @@ nsHTMLTableAccessible::CacheChildren()
   }
 }
 
-role
+PRUint32
 nsHTMLTableAccessible::NativeRole()
 {
-  return roles::TABLE;
+  return nsIAccessibleRole::ROLE_TABLE;
 }
 
 PRUint64
@@ -717,7 +725,8 @@ nsHTMLTableAccessible::GetSelectedCells(nsIArray **aCells)
       if (NS_SUCCEEDED(rv) && startRowIndex == rowIndex &&
           startColIndex == columnIndex && isSelected) {
         nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
-        nsAccessible *cell = mDoc->GetAccessible(cellContent);
+        nsAccessible *cell =
+          GetAccService()->GetAccessibleInWeakShell(cellContent, mWeakShell);
         selCells->AppendElement(static_cast<nsIAccessible*>(cell), false);
       }
     }
@@ -890,7 +899,8 @@ nsHTMLTableAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
-  nsAccessible* cell = mDoc->GetAccessible(cellContent);
+  nsAccessible *cell =
+    GetAccService()->GetAccessibleInWeakShell(cellContent, mWeakShell);
 
   if (!cell) {
     return NS_ERROR_INVALID_ARG;
@@ -1191,7 +1201,7 @@ nsHTMLTableAccessible::AddRowOrColumnToSelection(PRInt32 aIndex,
 
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIPresShell* presShell(mDoc->PresShell());
+  nsCOMPtr<nsIPresShell> presShell(GetPresShell());
   nsRefPtr<nsFrameSelection> tableSelection =
     const_cast<nsFrameSelection*>(presShell->ConstFrameSelection());
 
@@ -1223,7 +1233,7 @@ nsHTMLTableAccessible::RemoveRowsOrColumnsFromSelection(PRInt32 aIndex,
   nsITableLayout *tableLayout = GetTableLayout();
   NS_ENSURE_STATE(tableLayout);
 
-  nsIPresShell* presShell(mDoc->PresShell());
+  nsCOMPtr<nsIPresShell> presShell(GetPresShell());
   nsRefPtr<nsFrameSelection> tableSelection =
     const_cast<nsFrameSelection*>(presShell->ConstFrameSelection());
 
@@ -1342,7 +1352,7 @@ nsHTMLTableAccessible::HasDescendant(const nsAString& aTagName,
   if (foundItemContent->GetChildCount() > 1)
     return true; // Treat multiple child nodes as non-empty
 
-  nsIContent *innerItemContent = foundItemContent->GetFirstChild();
+  nsIContent *innerItemContent = foundItemContent->GetChildAt(0);
   if (innerItemContent && !innerItemContent->TextIsOnlyWhitespace())
     return true;
 
@@ -1382,7 +1392,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsDocAccessible* docAccessible = Document();
+  nsDocAccessible *docAccessible = GetDocAccessible();
   if (docAccessible) {
     PRUint64 docState = docAccessible->State();
     if (docState & states::EDITABLE) {  // Need to see all elements while document is being edited
@@ -1392,8 +1402,10 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
 
   // Check to see if an ARIA role overrides the role from native markup,
   // but for which we still expose table semantics (treegrid, for example).
-  if (Role() != roles::TABLE) 
+  bool hasNonTableRole = (Role() != nsIAccessibleRole::ROLE_TABLE);
+  if (hasNonTableRole) {
     RETURN_LAYOUT_ANSWER(false, "Has role attribute");
+  }
 
   if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::role)) {
     // Role attribute is present, but overridden roles have already been dealt with.
@@ -1401,9 +1413,6 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
     // markup are left to deal with here.
     RETURN_LAYOUT_ANSWER(false, "Has role attribute, weak role, and role is table");
   }
-
-  if (mContent->Tag() != nsGkAtoms::table)
-    RETURN_LAYOUT_ANSWER(true, "table built by CSS display:table style");
 
   // Check if datatable attribute has "0" value.
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::datatable,
@@ -1419,8 +1428,11 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
 
   // Check for legitimate data table elements.
   nsAccessible* caption = FirstChild();
-  if (caption && caption->Role() == roles::CAPTION && caption->HasChildren()) 
-    RETURN_LAYOUT_ANSWER(false, "Not empty caption -- legitimate table structures");
+  if (caption && caption->Role() == nsIAccessibleRole::ROLE_CAPTION &&
+      caption->HasChildren()) {
+    RETURN_LAYOUT_ANSWER(false,
+                               "Not empty caption -- legitimate table structures");
+  }
 
   for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
        childElm = childElm->GetNextSibling()) {
@@ -1441,26 +1453,9 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
         if (rowElm->IsHTML() && rowElm->Tag() == nsGkAtoms::tr) {
           for (nsIContent* cellElm = rowElm->GetFirstChild(); cellElm;
                cellElm = cellElm->GetNextSibling()) {
-            if (cellElm->IsHTML()) {
-              
-              if (cellElm->NodeInfo()->Equals(nsGkAtoms::th)) {
-                RETURN_LAYOUT_ANSWER(false,
-                                     "Has th -- legitimate table structures");
-              }
-
-              if (cellElm->HasAttr(kNameSpaceID_None, nsGkAtoms::headers) ||
-                  cellElm->HasAttr(kNameSpaceID_None, nsGkAtoms::scope) ||
-                  cellElm->HasAttr(kNameSpaceID_None, nsGkAtoms::abbr)) {
-                RETURN_LAYOUT_ANSWER(false,
-                                     "Has headers, scope, or abbr attribute -- legitimate table structures");
-              }
-
-              nsAccessible* cell = mDoc->GetAccessible(cellElm);
-              if (cell && cell->GetChildCount() == 1 &&
-                  cell->FirstChild()->IsAbbreviation()) {
-                RETURN_LAYOUT_ANSWER(false,
-                                     "has abbr -- legitimate table structures");
-              }
+            if (cellElm->IsHTML() && cellElm->Tag() == nsGkAtoms::th) {
+              RETURN_LAYOUT_ANSWER(false,
+                                   "Has th -- legitimate table structures");
             }
           }
         }
@@ -1471,7 +1466,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
   if (HasDescendant(NS_LITERAL_STRING("table"))) {
     RETURN_LAYOUT_ANSWER(true, "Has a nested table within it");
   }
-
+  
   // If only 1 column or only 1 row, it's for layout
   PRInt32 columns, rows;
   GetColumnCount(&columns);
@@ -1487,7 +1482,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
   if (columns >= 5) {
     RETURN_LAYOUT_ANSWER(false, ">=5 columns");
   }
-
+  
   // Now we know there are 2-4 columns and 2 or more rows
   // Check to see if there are visible borders on the cells
   // XXX currently, we just check the first cell -- do we really need to do more?
@@ -1511,19 +1506,28 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
    * Rules for non-bordered tables with 2-4 columns and 2+ rows from here on forward
    */
 
-  // Check for styled background color across rows (alternating background
-  // color is a common feature for data tables).
-  PRUint32 childCount = GetChildCount();
-  nscolor rowColor, prevRowColor;
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = GetChildAt(childIdx);
-    if (child->Role() == roles::ROW) {
-      prevRowColor = rowColor;
-      nsIFrame* rowFrame = child->GetFrame();
-      rowColor = rowFrame->GetStyleBackground()->mBackgroundColor;
+  // Check for styled background color across the row
+  // Alternating background color is a common way 
+  nsCOMPtr<nsIDOMNodeList> nodeList;
+  nsCOMPtr<nsIDOMElement> tableElt(do_QueryInterface(mContent));    
+  tableElt->GetElementsByTagName(NS_LITERAL_STRING("tr"), getter_AddRefs(nodeList));
+  NS_ENSURE_TRUE(nodeList, NS_ERROR_FAILURE);
+  PRUint32 length;
+  nodeList->GetLength(&length);
+  nsAutoString color, lastRowColor;
+  for (PRUint32 rowCount = 0; rowCount < length; rowCount ++) {
+    nsCOMPtr<nsIDOMNode> rowNode;
+    nodeList->Item(rowCount, getter_AddRefs(rowNode));
+    nsCOMPtr<nsIContent> rowContent(do_QueryInterface(rowNode));
 
-      if (childIdx > 0 && prevRowColor != rowColor)
-        RETURN_LAYOUT_ANSWER(false, "2 styles of row background color, non-bordered");
+    nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl =
+      nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), rowContent);
+    NS_ENSURE_TRUE(styleDecl, NS_ERROR_FAILURE);
+
+    lastRowColor = color;
+    styleDecl->GetPropertyValue(NS_LITERAL_STRING("background-color"), color);
+    if (rowCount > 0 && false == lastRowColor.Equals(color)) {
+      RETURN_LAYOUT_ANSWER(false, "2 styles of row background color, non-bordered");
     }
   }
 
@@ -1533,17 +1537,30 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
     RETURN_LAYOUT_ANSWER(false, ">= kMaxLayoutRows (20) and non-bordered");
   }
 
-  // Check for very wide table.
-  nsIFrame* documentFrame = Document()->GetFrame();
-  nsSize documentSize = documentFrame->GetSize();
-  if (documentSize.width > 0) {
-    nsSize tableSize = GetFrame()->GetSize();
-    PRInt32 percentageOfDocWidth = (100 * tableSize.width) / documentSize.width;
-    if (percentageOfDocWidth > 95) {
-      // 3-4 columns, no borders, not a lot of rows, and 95% of the doc's width
-      // Probably for layout
-      RETURN_LAYOUT_ANSWER(true,
-                           "<= 4 columns, table width is 95% of document width");
+  // Check for very wide table
+  nsAutoString styledWidth;
+  GetComputedStyleValue(EmptyString(), NS_LITERAL_STRING("width"), styledWidth);
+  if (styledWidth.EqualsLiteral("100%")) {
+    RETURN_LAYOUT_ANSWER(true, "<=4 columns and 100% width");
+  }
+  if (styledWidth.Find(NS_LITERAL_STRING("px"))) { // Hardcoded in pixels
+    nsIFrame *tableFrame = GetFrame();
+    NS_ENSURE_TRUE(tableFrame , NS_ERROR_FAILURE);
+    nsSize tableSize  = tableFrame->GetSize();
+
+    nsDocAccessible *docAccessible = GetDocAccessible();
+    NS_ENSURE_TRUE(docAccessible, NS_ERROR_FAILURE);
+    nsIFrame *docFrame = docAccessible->GetFrame();
+    NS_ENSURE_TRUE(docFrame , NS_ERROR_FAILURE);
+
+    nsSize docSize = docFrame->GetSize();
+    if (docSize.width > 0) {
+      PRInt32 percentageOfDocWidth = (100 * tableSize.width) / docSize.width;
+      if (percentageOfDocWidth > 95) {
+        // 3-4 columns, no borders, not a lot of rows, and 95% of the doc's width
+        // Probably for layout
+        RETURN_LAYOUT_ANSWER(true, "<=4 columns, width hardcoded in pixels and 95% of document width");
+      }
     }
   }
 
@@ -1577,8 +1594,8 @@ nsHTMLCaptionAccessible::RelationByType(PRUint32 aType)
   return rel;
 }
 
-role
+PRUint32
 nsHTMLCaptionAccessible::NativeRole()
 {
-  return roles::CAPTION;
+  return nsIAccessibleRole::ROLE_CAPTION;
 }

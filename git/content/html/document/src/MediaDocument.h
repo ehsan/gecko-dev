@@ -64,8 +64,6 @@ public:
                                      bool                aReset = true,
                                      nsIContentSink*     aSink = nsnull);
 
-  virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aGlobalObject);
-
 protected:
   virtual nsresult CreateSyntheticDocument();
 
@@ -95,10 +93,9 @@ protected:
 
   nsCOMPtr<nsIStringBundle>     mStringBundle;
   static const char* const      sFormatNames[4];
-  
+
 private:
   enum                          {eWithNoInfo, eWithFile, eWithDim, eWithDimAndFile};
-  bool                          mDocumentElementInserted;   
 };
 
 

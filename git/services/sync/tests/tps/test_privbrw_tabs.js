@@ -6,7 +6,6 @@
  * here must be in strict JSON format, as it will get parsed by the Python
  * testrunner (no single quotes, extra comma's, etc).
  */
-EnableEngines(["tabs"]);
 
 var phases = { "phase1": "profile1",
                "phase2": "profile2",
@@ -65,7 +64,7 @@ var tabs3 = [
 
 Phase('phase1', [
   [Tabs.add, tabs1],
-  [Sync]
+  [Sync, SYNC_WIPE_SERVER]
 ]);
 
 Phase('phase2', [

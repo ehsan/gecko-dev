@@ -45,7 +45,6 @@
 #include "nsCOMPtr.h"
 #include "nsXULMenuAccessible.h"
 #include "nsBaseWidgetAccessible.h"
-#include "XULSelectControlAccessible.h"
 
 class nsIWeakReference;
 
@@ -56,10 +55,10 @@ class nsIWeakReference;
 class nsXULColumnsAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULColumnsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULColumnsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 };
 
@@ -70,14 +69,14 @@ public:
 class nsXULColumnItemAccessible : public nsLeafAccessible
 {
 public:
-  nsXULColumnItemAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULColumnItemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // ActionAccessible
@@ -89,11 +88,11 @@ public:
 /*
  * A class the represents the XUL Listbox widget.
  */
-class nsXULListboxAccessible : public XULSelectControlAccessible,
+class nsXULListboxAccessible : public nsXULSelectableAccessible,
                                public nsIAccessibleTable
 {
 public:
-  nsXULListboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULListboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsXULListboxAccessible() {}
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -103,7 +102,7 @@ public:
   NS_IMETHOD GetValue(nsAString& aValue);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // Widgets
@@ -127,7 +126,7 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
   
-  nsXULListitemAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULListitemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsXULListitemAccessible() {}
 
   // nsIAccessible
@@ -137,11 +136,11 @@ public:
   // nsAccessible
   virtual void Description(nsString& aDesc);
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   // Widgets
   virtual nsAccessible* ContainerWidget() const;
@@ -163,7 +162,7 @@ class nsXULListCellAccessible : public nsHyperTextAccessibleWrap,
                                 public nsIAccessibleTableCell
 {
 public:
-  nsXULListCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULListCellAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -173,7 +172,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 };
 
 #endif

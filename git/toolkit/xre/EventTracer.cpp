@@ -123,7 +123,6 @@ void TracerThread(void *arg)
   // This is the sampling interval.
   PRIntervalTime interval = PR_MillisecondsToInterval(10);
 
-  sExit = false;
   FILE* log = NULL;
   char* envfile = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_OUTPUT");
   if (envfile) {
@@ -194,9 +193,6 @@ namespace mozilla {
 
 bool InitEventTracing()
 {
-  if (sTracerThread)
-    return true;
-
   // Initialize the widget backend.
   if (!InitWidgetTracing())
     return false;
@@ -216,9 +212,6 @@ bool InitEventTracing()
 
 void ShutdownEventTracing()
 {
-  if (!sTracerThread)
-    return;
-
   sExit = true;
   // Ensure that the tracer thread doesn't hang.
   SignalTracerThread();

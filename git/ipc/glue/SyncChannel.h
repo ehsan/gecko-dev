@@ -81,14 +81,14 @@ public:
     // Synchronously send |msg| (i.e., wait for |reply|)
     virtual bool Send(Message* msg, Message* reply);
 
-    // Set channel timeout value. Since this is broken up into
-    // two period, the minimum timeout value is 2ms.
     void SetReplyTimeoutMs(int32 aTimeoutMs) {
         AssertWorkerThread();
-        mTimeoutMs = (aTimeoutMs <= 0) ? kNoTimeout :
-          // timeouts are broken up into two periods
-          (int32)ceil((double)aTimeoutMs/2.0);
+        mTimeoutMs = (aTimeoutMs <= 0) ? kNoTimeout : aTimeoutMs;
     }
+
+    // Override the AsyncChannel handler so we can dispatch sync messages
+    NS_OVERRIDE virtual void OnMessageReceived(const Message& msg);
+    NS_OVERRIDE virtual void OnChannelError();
 
     static bool IsPumpingMessages() {
         return sIsPumpingMessages;
@@ -98,7 +98,6 @@ public:
     }
 
 #ifdef OS_WIN
-public:
     struct NS_STACK_CLASS SyncStackFrame
     {
         SyncStackFrame(SyncChannel* channel, bool rpc);
@@ -136,17 +135,19 @@ protected:
 #endif // OS_WIN
 
 protected:
-    // Executed on the link thread
-    // Override the AsyncChannel handler so we can dispatch sync messages
-    NS_OVERRIDE virtual void OnMessageReceivedFromLink(const Message& msg);
-    NS_OVERRIDE virtual void OnChannelErrorFromLink();
-
     // Executed on the worker thread
     bool ProcessingSyncMessage() const {
         return mProcessingSyncMessage;
     }
 
     void OnDispatchMessage(const Message& aMsg);
+
+    NS_OVERRIDE
+    bool OnSpecialMessage(uint16 id, const Message& msg)
+    {
+        // SyncChannel doesn't care about any special messages yet
+        return AsyncChannel::OnSpecialMessage(id, msg);
+    }
 
     //
     // Return true if the wait ended because a notification was
@@ -171,7 +172,7 @@ protected:
 
     // On both
     bool AwaitingSyncReply() const {
-        mMonitor->AssertCurrentThreadOwns();
+        mMonitor.AssertCurrentThreadOwns();
         return mPendingReply != 0;
     }
 
@@ -189,12 +190,6 @@ protected:
 
     static bool sIsPumpingMessages;
 
-    // Timeout periods are broken up in two to prevent system suspension from
-    // triggering an abort. This method (called by WaitForNotify with a 'did
-    // timeout' flag) decides if we should wait again for half of mTimeoutMs
-    // or give up.
-    bool WaitResponse(bool aWaitTimedOut);
-    bool mInTimeoutSecondHalf;
     int32 mTimeoutMs;
 
 #ifdef OS_WIN

@@ -31,7 +31,8 @@ function HTML_TAG(aTagName, aImplClass) {
   allTags.push(aTagName);
   classInfos[aTagName] = aImplClass;
   interfaces[aTagName] =
-    [ "nsIDOMEventTarget",
+    [ "nsIDOMNSElement",
+      "nsIDOMEventTarget",
       "nsIDOMElementCSSInlineStyle",
       "nsIDOMNodeSelector",
       "nsITouchEventReceiver",
@@ -143,7 +144,7 @@ HTML_TAG("figure", "")
 HTML_TAG("font", "Font");
 HTML_TAG("footer", "")
 HTML_TAG("form", "Form", [], [ "nsIWebProgressListener" ]);
-HTML_TAG("frame", "Frame", [ "nsIDOMMozBrowserFrame" ], [ "nsIFrameLoaderOwner" ]);
+HTML_TAG("frame", "Frame", [], [ "nsIFrameLoaderOwner" ]);
 HTML_TAG("frameset", "FrameSet");
 HTML_TAG("h1", "Heading");
 HTML_TAG("h2", "Heading");
@@ -157,7 +158,7 @@ HTML_TAG("hgroup", "")
 HTML_TAG("hr", "HR");
 HTML_TAG("html", "Html");
 HTML_TAG("i", "");
-HTML_TAG("iframe", "IFrame", [ "nsIDOMGetSVGDocument", "nsIDOMMozBrowserFrame" ],
+HTML_TAG("iframe", "IFrame", [ "nsIDOMGetSVGDocument" ],
                              [ "nsIFrameLoaderOwner" ]);
 HTML_TAG("image", "Span");
 HTML_TAG("img", "Image", [], [ "imgIDecoderObserver",

@@ -52,6 +52,7 @@
 #define READTYPE  PRInt32
 #include "zlib.h"
 #include "nsISupportsUtils.h"
+#include "nsRecyclingAllocator.h"
 #include "prio.h"
 #include "plstr.h"
 #include "prlog.h"
@@ -64,6 +65,12 @@
 #if defined(XP_WIN)
 #include <windows.h>
 #endif
+
+/**
+ * Global allocator used with zlib. Destroyed in module shutdown.
+ */
+#define NBUCKETS 6
+nsRecyclingAllocator *gZlibAllocator = NULL;
 
 // For placement new used for arena allocations of zip file list
 #include NEW_H
@@ -111,14 +118,46 @@ static nsresult ResolveSymlink(const char *path);
 #endif
 
 //***********************************************************
+// Allocators for use with zlib
+//
+// Use a recycling allocator, for re-use of of the zlib buffers.
 // For every inflation the following allocations are done:
-// malloc(1 * 9520)
-// malloc(32768 * 1)
+// zlibAlloc(1, 9520)
+// zlibAlloc(32768, 1)
 //***********************************************************
+
+static void *
+zlibAlloc(void *opaque, uInt items, uInt size)
+{
+  nsRecyclingAllocator *zallocator = (nsRecyclingAllocator *)opaque;
+  if (zallocator) {
+    return gZlibAllocator->Malloc(items * size);
+  }
+  return malloc(items * size);
+}
+
+static void
+zlibFree(void *opaque, void *ptr)
+{
+  nsRecyclingAllocator *zallocator = (nsRecyclingAllocator *)opaque;
+  if (zallocator)
+    zallocator->Free(ptr);
+  else
+    free(ptr);
+}
 
 nsresult gZlibInit(z_stream *zs)
 {
   memset(zs, 0, sizeof(z_stream));
+  //-- ensure we have our zlib allocator for better performance
+  if (!gZlibAllocator) {
+    gZlibAllocator = new nsRecyclingAllocator(NBUCKETS, NS_DEFAULT_RECYCLE_TIMEOUT, "libjar");
+  }
+  if (gZlibAllocator) {
+    zs->zalloc = zlibAlloc;
+    zs->zfree = zlibFree;
+    zs->opaque = gZlibAllocator;
+  }
   int zerr = inflateInit2(zs, -MAX_WBITS);
   if (zerr != Z_OK) return NS_ERROR_OUT_OF_MEMORY;
 
@@ -167,7 +206,7 @@ nsresult nsZipHandle::Init(nsILocalFile *file, nsZipHandle **ret)
   }
 
   handle->mMap = map;
-  handle->mFile.Init(file);
+  handle->mFile = file;
   handle->mLen = (PRUint32) size;
   handle->mFileData = buf;
   *ret = handle.forget().get();
@@ -189,7 +228,6 @@ nsresult nsZipHandle::Init(nsZipArchive *zip, const char *entry,
     return NS_ERROR_UNEXPECTED;
 
   handle->mMap = nsnull;
-  handle->mFile.Init(zip, entry);
   handle->mLen = handle->mBuf->Length();
   handle->mFileData = handle->mBuf->Buffer();
   *ret = handle.forget().get();
@@ -241,8 +279,7 @@ nsresult nsZipArchive::OpenArchive(nsZipHandle *aZipHandle)
     logFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
 
     nsAutoString name;
-    nsCOMPtr<nsILocalFile> file = aZipHandle->mFile.GetBaseFile();
-    file->GetLeafName(name);
+    aZipHandle->mFile->GetLeafName(name);
     name.Append(NS_LITERAL_STRING(".log"));
     logFile->Append(name);
 
@@ -627,18 +664,6 @@ MOZ_WIN_MEM_TRY_BEGIN
   if (sig != ENDSIG)
     return NS_ERROR_FILE_CORRUPTED;
 
-  // Make the comment available for consumers.
-  if (endp - buf >= ZIPEND_SIZE) {
-    ZipEnd *zipend = (ZipEnd *)buf;
-
-    buf += ZIPEND_SIZE;
-    PRUint16 commentlen = xtoint(zipend->commentfield_len);
-    if (endp - buf >= commentlen) {
-      mCommentPtr = (const char *)buf;
-      mCommentLen = commentlen;
-    }
-  }
-
 MOZ_WIN_MEM_TRY_CATCH(return NS_ERROR_FAILURE)
   return NS_OK;
 }
@@ -755,15 +780,6 @@ MOZ_WIN_MEM_TRY_BEGIN
 MOZ_WIN_MEM_TRY_CATCH(return nsnull)
 }
 
-// nsZipArchive::GetComment
-bool nsZipArchive::GetComment(nsACString &aComment)
-{
-MOZ_WIN_MEM_TRY_BEGIN
-  aComment.Assign(mCommentPtr, mCommentLen);
-MOZ_WIN_MEM_TRY_CATCH(return false)
-  return true;
-}
-
 //---------------------------------------------
 // nsZipArchive::SizeOfMapping
 //---------------------------------------------
@@ -776,18 +792,14 @@ PRInt64 nsZipArchive::SizeOfMapping()
 // nsZipArchive constructor and destructor
 //------------------------------------------
 
-nsZipArchive::nsZipArchive()
-  : mRefCnt(0)
-  , mBuiltSynthetics(false)
+nsZipArchive::nsZipArchive() :
+  mBuiltSynthetics(false)
 {
   MOZ_COUNT_CTOR(nsZipArchive);
 
   // initialize the table to NULL
   memset(mFiles, 0, sizeof(mFiles));
 }
-
-NS_IMPL_THREADSAFE_ADDREF(nsZipArchive)
-NS_IMPL_THREADSAFE_RELEASE(nsZipArchive)
 
 nsZipArchive::~nsZipArchive()
 {
@@ -1022,7 +1034,7 @@ nsZipCursor::~nsZipCursor()
   }
 }
 
-PRUint8* nsZipCursor::ReadOrCopy(PRUint32 *aBytesRead, bool aCopy) {
+PRUint8* nsZipCursor::Read(PRUint32 *aBytesRead) {
   int zerr;
   PRUint8 *buf = nsnull;
   bool verifyCRC = true;
@@ -1032,17 +1044,10 @@ PRUint8* nsZipCursor::ReadOrCopy(PRUint32 *aBytesRead, bool aCopy) {
 MOZ_WIN_MEM_TRY_BEGIN
   switch (mItem->Compression()) {
   case STORED:
-    if (!aCopy) {
-      *aBytesRead = mZs.avail_in;
-      buf = mZs.next_in;
-      mZs.next_in += mZs.avail_in;
-      mZs.avail_in = 0;
-    } else {
-      *aBytesRead = mZs.avail_in > mBufSize ? mBufSize : mZs.avail_in;
-      memcpy(mBuf, mZs.next_in, *aBytesRead);
-      mZs.avail_in -= *aBytesRead;
-      mZs.next_in += *aBytesRead;
-    }
+    *aBytesRead = mZs.avail_in;
+    buf = mZs.next_in;
+    mZs.next_in += mZs.avail_in;
+    mZs.avail_in = 0;
     break;
   case DEFLATED:
     buf = mBuf;

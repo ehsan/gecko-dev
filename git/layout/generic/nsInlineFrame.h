@@ -40,8 +40,12 @@
 #ifndef nsInlineFrame_h___
 #define nsInlineFrame_h___
 
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsLineLayout.h"
+
+class nsAnonymousBlockFrame;
+
+#define nsInlineFrameSuper nsHTMLContainerFrame
 
 /**  In Bidi left (or right) margin/padding/border should be applied to left
  *  (or right) most frame (or a continuation frame).
@@ -60,7 +64,7 @@
  * This class manages a list of child frames that are inline frames. Working with
  * nsLineLayout, the class will reflow and place inline frames on a line.
  */
-class nsInlineFrame : public nsContainerFrame
+class nsInlineFrame : public nsInlineFrameSuper
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsInlineFrame)
@@ -68,13 +72,6 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-
-  /** sets defaults for inline-specific style.
-    * @see nsIFrame::Init
-    */
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
 
   // nsIFrame overrides
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -92,7 +89,7 @@ public:
 
   virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsContainerFrame::IsFrameOfType(aFlags &
+    return nsInlineFrameSuper::IsFrameOfType(aFlags &
       ~(nsIFrame::eBidiInlineContainer | nsIFrame::eLineParticipant));
   }
 
@@ -165,7 +162,7 @@ protected:
     }
   };
 
-  nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
+  nsInlineFrame(nsStyleContext* aContext) : nsInlineFrameSuper(aContext) {}
 
   virtual PRIntn GetSkipSides() const;
 

@@ -98,7 +98,7 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
         printf("%s this: ", JS_IsConstructorFrame(cx, fp) ? "constructing":"");
 
         if (JS_GetFrameThis(cx, fp, &thisVal))
-            printf("0x%0llx", (uintptr_t) thisVal);
+            printf("0x%0llx", (JSUword) thisVal);
         else
             puts("<unavailable>");
     }
@@ -109,7 +109,7 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
 
 JSBool
 _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
-          unsigned type, JSD_CallHookProc hook, void *hookData)
+          uintN type, JSD_CallHookProc hook, void *hookData)
 {
     JSDScript*        jsdscript;
     JSScript*         jsscript;
@@ -152,7 +152,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                     {
                         if (!pdata->lastCallStart)
                         {
-                            int64_t now;
+                            int64 now;
                             JSDProfileData *callerpdata;
                             
                             /* Get the time just the once, for consistency. */
@@ -162,7 +162,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                             callerpdata = jsdc->callingFunctionPData;
                             if (callerpdata)
                             {
-                                int64_t ll_delta;
+                                int64 ll_delta;
                                 pdata->caller = callerpdata;
                                 /* We need to 'stop' the timer for the caller.
                                  * Use time since last return if appropriate. */
@@ -186,8 +186,8 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
                         /* make sure we're called for the return too. */
                         hookresult = JS_TRUE;
                     } else if (!pdata->recurseDepth && pdata->lastCallStart) {
-                        int64_t now, ll_delta;
-                        double delta;
+                        int64 now, ll_delta;
+                        jsdouble delta;
                         now = JS_Now();
                         ll_delta = now - pdata->lastCallStart;
                         delta = ll_delta;

@@ -40,7 +40,6 @@
 #include "Logging.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/assembler/RepatchBuffer.h"
-#include "js/MemoryMetrics.h"
 #include "jsgcmark.h"
 #include "BaseAssembler.h"
 #include "Compiler.h"
@@ -50,6 +49,7 @@
 #include "jscntxtinlines.h"
 #include "jscompartment.h"
 #include "jsscope.h"
+#include "jsgcmark.h"
 
 #include "jsgcinlines.h"
 #include "jsinterpinlines.h"
@@ -136,26 +136,30 @@ StackFrame::methodjitStaticAsserts()
 
 #ifdef JS_METHODJIT_PROFILE_STUBS
 static const size_t STUB_CALLS_FOR_OP_COUNT = 255;
-static uint32_t StubCallsForOp[STUB_CALLS_FOR_OP_COUNT];
+static uint32 StubCallsForOp[STUB_CALLS_FOR_OP_COUNT];
 #endif
 
-// Called from JaegerTrampoline only
 extern "C" void JS_FASTCALL
 PushActiveVMFrame(VMFrame &f)
 {
-    f.oldregs = &f.cx->stack.regs();
-    f.cx->stack.repointRegs(&f.regs);
     f.entryfp->script()->compartment()->jaegerCompartment()->pushActiveFrame(&f);
     f.entryfp->setNativeReturnAddress(JS_FUNC_TO_DATA_PTR(void*, JaegerTrampolineReturn));
     f.regs.clearInlined();
 }
 
-// Called from JaegerTrampolineReturn, JaegerThrowpoline, JaegerInterpoline
 extern "C" void JS_FASTCALL
 PopActiveVMFrame(VMFrame &f)
 {
     f.entryfp->script()->compartment()->jaegerCompartment()->popActiveFrame();
-    f.cx->stack.repointRegs(f.oldregs);
+}
+
+extern "C" void JS_FASTCALL
+SetVMFrameRegs(VMFrame &f)
+{
+    f.oldregs = &f.cx->stack.regs();
+
+    /* Restored on exit from EnterMethodJIT. */
+    f.cx->stack.repointRegs(&f.regs);
 }
 
 #if defined(__APPLE__) || (defined(XP_WIN) && !defined(JS_CPU_X64)) || defined(XP_OS2)
@@ -252,7 +256,7 @@ JS_STATIC_ASSERT(offsetof(FrameRegs, sp) == 0);
 #if defined(__GNUC__) && !defined(_WIN64)
 
 /* If this assert fails, you need to realign VMFrame to 16 bytes. */
-#if defined(JS_CPU_ARM) || defined(JS_CPU_MIPS) || defined(JS_CPU_SPARC)
+#ifdef JS_CPU_ARM
 JS_STATIC_ASSERT(sizeof(VMFrame) % 8 == 0);
 #else
 JS_STATIC_ASSERT(sizeof(VMFrame) % 16 == 0);
@@ -322,6 +326,8 @@ SYMBOL_STRING(JaegerTrampoline) ":"       "\n"
 
     /* Set cx->regs and set the active frame. Save rdx and align frame in one. */
     "pushq %rdx"                         "\n"
+    "movq  %rsp, %rdi"                   "\n"
+    "call " SYMBOL_STRING_VMFRAME(SetVMFrameRegs) "\n"
     "movq  %rsp, %rdi"                   "\n"
     "call " SYMBOL_STRING_VMFRAME(PushActiveVMFrame) "\n"
 
@@ -506,6 +512,8 @@ SYMBOL_STRING(JaegerTrampoline) ":"       "\n"
     "subl $0x1C, %esp"                   "\n"
 
     /* Jump into the JIT'd code. */
+    "movl  %esp, %ecx"                   "\n"
+    "call " SYMBOL_STRING_VMFRAME(SetVMFrameRegs) "\n"
     "movl  %esp, %ecx"                   "\n"
     "call " SYMBOL_STRING_VMFRAME(PushActiveVMFrame) "\n"
 
@@ -722,6 +730,8 @@ SYMBOL_STRING(JaegerTrampoline) ":"         "\n"
 "   mov     r10, r1"                            "\n"
 
 "   mov     r0, sp"                             "\n"
+"   blx  " SYMBOL_STRING_VMFRAME(SetVMFrameRegs)   "\n"
+"   mov     r0, sp"                             "\n"
 "   blx  " SYMBOL_STRING_VMFRAME(PushActiveVMFrame)"\n"
 
     /* Call the compiled JavaScript function. */
@@ -821,7 +831,6 @@ SYMBOL_STRING(JaegerStubVeneer) ":"         "\n"
 );
 
 # elif defined(JS_CPU_SPARC)
-# elif defined(JS_CPU_MIPS)
 # else
 #  error "Unsupported CPU!"
 # endif
@@ -866,6 +875,8 @@ extern "C" {
             sub  esp, 0x1C;
 
             /* Jump into into the JIT'd code. */
+            mov  ecx, esp;
+            call SetVMFrameRegs;
             mov  ecx, esp;
             call PushActiveVMFrame;
 
@@ -988,10 +999,9 @@ JaegerCompartment::JaegerCompartment()
 {}
 
 bool
-JaegerCompartment::Initialize(JSContext *cx)
+JaegerCompartment::Initialize()
 {
-    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>(
-        cx->runtime->getJitHardening() ? JSC::AllocationCanRandomize : JSC::AllocationDeterministic);
+    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>();
     if (!execAlloc_)
         return false;
     
@@ -1044,6 +1054,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
 #endif
 
     JS_ASSERT(cx->fp() == fp);
+    FrameRegs &oldRegs = cx->regs();
 
     JSBool ok;
     {
@@ -1056,6 +1067,9 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
     prof.stop();
     JaegerSpew(JSpew_Prof, "script run took %d ms\n", prof.time_ms());
 #endif
+
+    /* Undo repointRegs in SetVMFrameRegs. */
+    cx->stack.repointRegs(&oldRegs);
 
     JaegerStatus status = cx->compartment->jaegerCompartment()->lastUnfinished();
     if (status) {
@@ -1091,7 +1105,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
 
     /* See comment in mjit::Compiler::emitReturn. */
     if (fp->isFunctionFrame())
-        fp->updateEpilogueFlags();
+        fp->markFunctionEpilogueDone();
 
     return ok ? Jaeger_Returned : Jaeger_Throwing;
 }
@@ -1102,7 +1116,6 @@ CheckStackAndEnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, bool part
     JS_CHECK_RECURSION(cx, return Jaeger_Throwing);
 
     JS_ASSERT(!cx->compartment->activeAnalysis);
-    JS_ASSERT(code);
 
     Value *stackLimit = cx->stack.space().getStackLimit(cx, REPORT_ERROR);
     if (!stackLimit)
@@ -1130,63 +1143,63 @@ js::mjit::JaegerShotAtSafePoint(JSContext *cx, void *safePoint, bool partial)
 }
 
 NativeMapEntry *
-JITChunk::nmap() const
+JITScript::nmap() const
 {
-    return (NativeMapEntry *)((char*)this + sizeof(*this));
+    return (NativeMapEntry *)((char*)this + sizeof(JITScript));
 }
 
 js::mjit::InlineFrame *
-JITChunk::inlineFrames() const
+JITScript::inlineFrames() const
 {
     return (js::mjit::InlineFrame *)((char *)nmap() + sizeof(NativeMapEntry) * nNmapPairs);
 }
 
 js::mjit::CallSite *
-JITChunk::callSites() const
+JITScript::callSites() const
 {
     return (js::mjit::CallSite *)&inlineFrames()[nInlineFrames];
 }
 
 char *
-JITChunk::commonSectionLimit() const
+JITScript::commonSectionLimit() const
 {
     return (char *)&callSites()[nCallSites];
 }
 
 #ifdef JS_MONOIC
 ic::GetGlobalNameIC *
-JITChunk::getGlobalNames() const
+JITScript::getGlobalNames() const
 {
     return (ic::GetGlobalNameIC *) commonSectionLimit();
 }
 
 ic::SetGlobalNameIC *
-JITChunk::setGlobalNames() const
+JITScript::setGlobalNames() const
 {
     return (ic::SetGlobalNameIC *)((char *)getGlobalNames() +
             sizeof(ic::GetGlobalNameIC) * nGetGlobalNames);
 }
 
 ic::CallICInfo *
-JITChunk::callICs() const
+JITScript::callICs() const
 {
     return (ic::CallICInfo *)&setGlobalNames()[nSetGlobalNames];
 }
 
 ic::EqualityICInfo *
-JITChunk::equalityICs() const
+JITScript::equalityICs() const
 {
     return (ic::EqualityICInfo *)&callICs()[nCallICs];
 }
 
 char *
-JITChunk::monoICSectionsLimit() const
+JITScript::monoICSectionsLimit() const
 {
     return (char *)&equalityICs()[nEqualityICs];
 }
 #else   // JS_MONOIC
 char *
-JITChunk::monoICSectionsLimit() const
+JITScript::monoICSectionsLimit() const
 {
     return commonSectionLimit();
 }
@@ -1194,75 +1207,35 @@ JITChunk::monoICSectionsLimit() const
 
 #ifdef JS_POLYIC
 ic::GetElementIC *
-JITChunk::getElems() const
+JITScript::getElems() const
 {
     return (ic::GetElementIC *)monoICSectionsLimit();
 }
 
 ic::SetElementIC *
-JITChunk::setElems() const
+JITScript::setElems() const
 {
     return (ic::SetElementIC *)((char *)getElems() + sizeof(ic::GetElementIC) * nGetElems);
 }
 
 ic::PICInfo *
-JITChunk::pics() const
+JITScript::pics() const
 {
     return (ic::PICInfo *)((char *)setElems() + sizeof(ic::SetElementIC) * nSetElems);
 }
 
 char *
-JITChunk::polyICSectionsLimit() const
+JITScript::polyICSectionsLimit() const
 {
     return (char *)pics() + sizeof(ic::PICInfo) * nPICs;
 }
 #else   // JS_POLYIC
 char *
-JITChunk::polyICSectionsLimit() const
+JITScript::polyICSectionsLimit() const
 {
     return monoICSectionsLimit();
 }
 #endif  // JS_POLYIC
-
-void
-JITScript::patchEdge(const CrossChunkEdge &edge, void *label)
-{
-    if (edge.sourceJump1 || edge.sourceJump2) {
-        JITChunk *sourceChunk = chunk(script->code + edge.source);
-        ic::Repatcher repatch(sourceChunk);
-
-#ifdef JS_CPU_X64
-        JS_ASSERT(edge.sourceTrampoline);
-
-        static const uint32_t JUMP_LENGTH = 10;
-
-        if (edge.sourceJump1) {
-            JSC::CodeLocationLabel targetLabel(VerifyRange(edge.sourceJump1, JUMP_LENGTH, label, 0)
-                                               ? label
-                                               : edge.sourceTrampoline);
-            repatch.relink(JSC::CodeLocationJump(edge.sourceJump1), targetLabel);
-        }
-        if (edge.sourceJump2) {
-            JSC::CodeLocationLabel targetLabel(VerifyRange(edge.sourceJump2, JUMP_LENGTH, label, 0)
-                                               ? label
-                                               : edge.sourceTrampoline);
-            repatch.relink(JSC::CodeLocationJump(edge.sourceJump2), targetLabel);
-        }
-        JSC::CodeLocationDataLabelPtr sourcePatch((char*)edge.sourceTrampoline + JUMP_LENGTH);
-        repatch.repatch(sourcePatch, label);
-#else
-        JSC::CodeLocationLabel targetLabel(label);
-        if (edge.sourceJump1)
-            repatch.relink(JSC::CodeLocationJump(edge.sourceJump1), targetLabel);
-        if (edge.sourceJump2)
-            repatch.relink(JSC::CodeLocationJump(edge.sourceJump2), targetLabel);
-#endif
-    }
-    if (edge.jumpTableEntries) {
-        for (unsigned i = 0; i < edge.jumpTableEntries->length(); i++)
-            *(*edge.jumpTableEntries)[i] = label;
-    }
-}
 
 template <typename T>
 static inline void Destroy(T &t)
@@ -1270,7 +1243,7 @@ static inline void Destroy(T &t)
     t.~T();
 }
 
-JITChunk::~JITChunk()
+mjit::JITScript::~JITScript()
 {
     code.release();
 
@@ -1281,15 +1254,18 @@ JITChunk::~JITChunk()
     ic::GetElementIC *getElems_ = getElems();
     ic::SetElementIC *setElems_ = setElems();
     ic::PICInfo *pics_ = pics();
-    for (uint32_t i = 0; i < nGetElems; i++)
+    for (uint32 i = 0; i < nGetElems; i++)
         Destroy(getElems_[i]);
-    for (uint32_t i = 0; i < nSetElems; i++)
+    for (uint32 i = 0; i < nSetElems; i++)
         Destroy(setElems_[i]);
-    for (uint32_t i = 0; i < nPICs; i++)
+    for (uint32 i = 0; i < nPICs; i++)
         Destroy(pics_[i]);
 #endif
 
 #if defined JS_MONOIC
+    if (argsCheckPool)
+        argsCheckPool->release();
+
     for (JSC::ExecutablePool **pExecPool = execPools.begin();
          pExecPool != execPools.end();
          ++pExecPool)
@@ -1304,137 +1280,61 @@ JITChunk::~JITChunk()
     }
 
     ic::CallICInfo *callICs_ = callICs();
-    for (uint32_t i = 0; i < nCallICs; i++) {
+    for (uint32 i = 0; i < nCallICs; i++) {
         callICs_[i].releasePools();
         if (callICs_[i].fastGuardedObject)
             callICs_[i].purgeGuardedObject();
     }
-#endif
-}
 
-void
-JITScript::destroy(JSContext *cx)
-{
-    for (unsigned i = 0; i < nchunks; i++)
-        destroyChunk(cx, i);
+    // Fixup any ICs still referring to this JIT.
+    while (!JS_CLIST_IS_EMPTY(&callers)) {
+        JS_STATIC_ASSERT(offsetof(ic::CallICInfo, links) == 0);
+        ic::CallICInfo *ic = (ic::CallICInfo *) callers.next;
 
-    if (shimPool)
-        shimPool->release();
-}
+        uint8 *start = (uint8 *)ic->funGuard.executableAddress();
+        JSC::RepatchBuffer repatch(JSC::JITCode(start - 32, 64));
 
-void
-JITScript::destroyChunk(JSContext *cx, unsigned chunkIndex, bool resetUses)
-{
-    ChunkDescriptor &desc = chunkDescriptor(chunkIndex);
-
-    if (desc.chunk) {
-        Probes::discardMJITCode(cx, this, script, desc.chunk->code.m_code.executableAddress());
-        cx->delete_(desc.chunk);
-        desc.chunk = NULL;
-
-        CrossChunkEdge *edges = this->edges();
-        for (unsigned i = 0; i < nedges; i++) {
-            CrossChunkEdge &edge = edges[i];
-            if (edge.source >= desc.begin && edge.source < desc.end) {
-                edge.sourceJump1 = edge.sourceJump2 = NULL;
-#ifdef JS_CPU_X64
-                edge.sourceTrampoline = NULL;
-#endif
-                if (edge.jumpTableEntries) {
-                    cx->delete_(edge.jumpTableEntries);
-                    edge.jumpTableEntries = NULL;
-                }
-            } else if (edge.target >= desc.begin && edge.target < desc.end) {
-                edge.targetLabel = NULL;
-                patchEdge(edge, edge.shimLabel);
-            }
-        }
+        repatch.repatch(ic->funGuard, NULL);
+        repatch.relink(ic->funJump, ic->slowPathStart);
+        ic->purgeGuardedObject();
     }
-
-    if (resetUses)
-        desc.counter = 0;
-
-    if (chunkIndex == 0) {
-        if (argsCheckPool) {
-            argsCheckPool->release();
-            argsCheckPool = NULL;
-        }
-
-        invokeEntry = NULL;
-        fastEntry = NULL;
-        arityCheckEntry = NULL;
-        argsCheckEntry = NULL;
-
-        if (script->jitNormal == this)
-            script->jitArityCheckNormal = NULL;
-        else
-            script->jitArityCheckCtor = NULL;
-
-        // Fixup any ICs still referring to this chunk.
-        while (!JS_CLIST_IS_EMPTY(&callers)) {
-            JS_STATIC_ASSERT(offsetof(ic::CallICInfo, links) == 0);
-            ic::CallICInfo *ic = (ic::CallICInfo *) callers.next;
-
-            uint8_t *start = (uint8_t *)ic->funGuard.executableAddress();
-            JSC::RepatchBuffer repatch(JSC::JITCode(start - 32, 64));
-
-            repatch.repatch(ic->funGuard, NULL);
-            repatch.relink(ic->funJump, ic->slowPathStart);
-            ic->purgeGuardedObject();
-        }
-    }
+#endif
 }
 
 size_t
-JSScript::sizeOfJitScripts(JSMallocSizeOfFun mallocSizeOf)
+JSScript::jitDataSize(JSMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     if (jitNormal)
-        n += jitNormal->sizeOfIncludingThis(mallocSizeOf); 
+        n += jitNormal->scriptDataSize(mallocSizeOf); 
     if (jitCtor)
-        n += jitCtor->sizeOfIncludingThis(mallocSizeOf); 
-    return n;
-}
-
-size_t
-mjit::JITScript::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
-{
-    size_t n = mallocSizeOf(this);
-    for (unsigned i = 0; i < nchunks; i++) {
-        const ChunkDescriptor &desc = chunkDescriptor(i);
-        if (desc.chunk)
-            n += desc.chunk->sizeOfIncludingThis(mallocSizeOf);
-    }
+        n += jitCtor->scriptDataSize(mallocSizeOf); 
     return n;
 }
 
 /* Please keep in sync with Compiler::finishThisUp! */
 size_t
-mjit::JITChunk::computedSizeOfIncludingThis()
+mjit::JITScript::scriptDataSize(JSMallocSizeOfFun mallocSizeOf)
 {
-    return sizeof(JITChunk) +
-           sizeof(NativeMapEntry) * nNmapPairs +
-           sizeof(InlineFrame) * nInlineFrames +
-           sizeof(CallSite) * nCallSites +
+    size_t computedSize =
+        sizeof(JITScript) +
+        sizeof(NativeMapEntry) * nNmapPairs +
+        sizeof(InlineFrame) * nInlineFrames +
+        sizeof(CallSite) * nCallSites +
 #if defined JS_MONOIC
-           sizeof(ic::GetGlobalNameIC) * nGetGlobalNames +
-           sizeof(ic::SetGlobalNameIC) * nSetGlobalNames +
-           sizeof(ic::CallICInfo) * nCallICs +
-           sizeof(ic::EqualityICInfo) * nEqualityICs +
+        sizeof(ic::GetGlobalNameIC) * nGetGlobalNames +
+        sizeof(ic::SetGlobalNameIC) * nSetGlobalNames +
+        sizeof(ic::CallICInfo) * nCallICs +
+        sizeof(ic::EqualityICInfo) * nEqualityICs +
 #endif
 #if defined JS_POLYIC
-           sizeof(ic::PICInfo) * nPICs +
-           sizeof(ic::GetElementIC) * nGetElems +
-           sizeof(ic::SetElementIC) * nSetElems +
+        sizeof(ic::PICInfo) * nPICs +
+        sizeof(ic::GetElementIC) * nGetElems +
+        sizeof(ic::SetElementIC) * nSetElems +
 #endif
-           0;
-}
-
-/* Please keep in sync with Compiler::finishThisUp! */
-size_t
-mjit::JITChunk::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
-{
-    return mallocSizeOf(this);
+        0;
+    /* |mallocSizeOf| can be null here. */
+    return mallocSizeOf ? mallocSizeOf(this, computedSize) : computedSize;
 }
 
 void
@@ -1448,7 +1348,8 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script, bool construct)
     void **parity = construct ? &script->jitArityCheckCtor : &script->jitArityCheckNormal;
 
     if (*pjit) {
-        (*pjit)->destroy(cx);
+        Probes::discardMJITCode(cx, *pjit, script, (*pjit)->code.m_code.executableAddress());
+        (*pjit)->~JITScript();
         cx->free_(*pjit);
         *pjit = NULL;
         *parity = NULL;
@@ -1464,26 +1365,65 @@ mjit::ProfileStubCall(VMFrame &f)
 }
 #endif
 
-JITChunk *
-JITScript::findCodeChunk(void *addr)
+#ifdef JS_POLYIC
+static int
+PICPCComparator(const void *key, const void *entry)
 {
-    for (unsigned i = 0; i < nchunks; i++) {
-        ChunkDescriptor &desc = chunkDescriptor(i);
-        if (desc.chunk && desc.chunk->isValidCode(addr))
-            return desc.chunk;
-    }
-    return NULL;
+    const jsbytecode *pc = (const jsbytecode *)key;
+    const ic::PICInfo *pic = (const ic::PICInfo *)entry;
+
+    if (ic::PICInfo::CALL != pic->kind)
+        return ic::PICInfo::CALL - pic->kind;
+
+    /*
+     * We can't just return |pc - pic->pc| because the pointers may be
+     * far apart and an int (or even a ptrdiff_t) may not be large
+     * enough to hold the difference. C says that pointer subtraction
+     * is only guaranteed to work for two pointers into the same array.
+     */
+    if (pc < pic->pc)
+        return -1;
+    else if (pc == pic->pc)
+        return 0;
+    else
+        return 1;
 }
 
-jsbytecode *
-JITScript::nativeToPC(void *returnAddress, CallSite **pinline)
+uintN
+mjit::GetCallTargetCount(JSScript *script, jsbytecode *pc)
 {
-    JITChunk *chunk = findCodeChunk(returnAddress);
-    JS_ASSERT(chunk);
+    ic::PICInfo *pic;
+    
+    if (mjit::JITScript *jit = script->getJIT(false)) {
+        pic = (ic::PICInfo *)bsearch(pc, jit->pics(), jit->nPICs, sizeof(ic::PICInfo),
+                                     PICPCComparator);
+        if (pic)
+            return pic->stubsGenerated + 1; /* Add 1 for the inline path. */
+    }
+    
+    if (mjit::JITScript *jit = script->getJIT(true)) {
+        pic = (ic::PICInfo *)bsearch(pc, jit->pics(), jit->nPICs, sizeof(ic::PICInfo),
+                                     PICPCComparator);
+        if (pic)
+            return pic->stubsGenerated + 1; /* Add 1 for the inline path. */
+    }
 
+    return 1;
+}
+#else
+uintN
+mjit::GetCallTargetCount(JSScript *script, jsbytecode *pc)
+{
+    return 1;
+}
+#endif
+
+jsbytecode *
+JITScript::nativeToPC(void *returnAddress, CallSite **pinline) const
+{
     size_t low = 0;
-    size_t high = chunk->nCallICs;
-    js::mjit::ic::CallICInfo *callICs_ = chunk->callICs();
+    size_t high = nCallICs;
+    js::mjit::ic::CallICInfo *callICs_ = callICs();
     while (high > low + 1) {
         /* Could overflow here on a script with 2 billion calls. Oh well. */
         size_t mid = (high + low) / 2;
@@ -1500,12 +1440,12 @@ JITScript::nativeToPC(void *returnAddress, CallSite **pinline)
     }
 
     js::mjit::ic::CallICInfo &ic = callICs_[low];
-    JS_ASSERT((uint8_t*)ic.funGuard.executableAddress() + ic.joinPointOffset == returnAddress);
+    JS_ASSERT((uint8*)ic.funGuard.executableAddress() + ic.joinPointOffset == returnAddress);
 
-    if (ic.call->inlineIndex != UINT32_MAX) {
+    if (ic.call->inlineIndex != uint32(-1)) {
         if (pinline)
             *pinline = ic.call;
-        InlineFrame *frame = &chunk->inlineFrames()[ic.call->inlineIndex];
+        InlineFrame *frame = &inlineFrames()[ic.call->inlineIndex];
         while (frame && frame->parent)
             frame = frame->parent;
         return frame->parentpc;

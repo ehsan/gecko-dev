@@ -71,9 +71,6 @@ class gfxTextRun;
 class nsIURI;
 class nsIAtom;
 
-extern mozilla::gfx::UserDataKey kThebesSurfaceKey;
-void DestroyThebesSurface(void *data);
-
 extern cairo_user_data_key_t kDrawTarget;
 
 // pref lang id's for font prefs
@@ -136,9 +133,7 @@ enum eGfxLog {
     // dump text runs, font matching, system fallback for content
     eGfxLog_textrun          = 2,
     // dump text runs, font matching, system fallback for chrome
-    eGfxLog_textrunui        = 3,
-    // dump cmap coverage data as they are loaded
-    eGfxLog_cmapdata         = 4
+    eGfxLog_textrunui        = 3
 };
 
 // when searching through pref langs, max number of pref langs
@@ -160,10 +155,10 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
         return "cairo";
       case mozilla::gfx::BACKEND_SKIA:
         return "skia";
-      case mozilla::gfx::BACKEND_NONE:
-        return "none";
+      default:
+        NS_ERROR("Invalid backend type!");
+        return "";
   }
-  MOZ_NOT_REACHED("Incomplet switch");
 }
 
 class THEBES_API gfxPlatform {
@@ -311,28 +306,6 @@ public:
     bool SanitizeDownloadedFonts();
 
     /**
-     * True when hinting should be enabled.  This setting shouldn't
-     * change per gecko process, while the process is live.  If so the
-     * results are not defined.
-     *
-     * NB: this bit is only honored by the FT2 backend, currently.
-     */
-    virtual bool FontHintingEnabled() { return true; }
-
-    /**
-     * Whether to check all font cmaps during system font fallback
-     */
-    bool UseCmapsDuringSystemFallback();
-
-#ifdef MOZ_GRAPHITE
-    /**
-     * Whether to use the SIL Graphite rendering engine
-     * (for fonts that include Graphite tables)
-     */
-    bool UseGraphiteShaping();
-#endif
-
-    /**
      * Whether to use the harfbuzz shaper (depending on script complexity).
      *
      * This allows harfbuzz to be enabled selectively via the preferences.
@@ -375,18 +348,6 @@ public:
     
     // helper method to add a pref lang to an array, if not already in array
     static void AppendPrefLang(eFontPrefLang aPrefLangs[], PRUint32& aLen, eFontPrefLang aAddLang);
-
-    // returns a list of commonly used fonts for a given character
-    // these are *possible* matches, no cmap-checking is done at this level
-    virtual void GetCommonFallbackFonts(const PRUint32 /*aCh*/,
-                                        PRInt32 /*aRunScript*/,
-                                        nsTArray<const char*>& /*aFontList*/)
-    {
-        // platform-specific override, by default do nothing
-    }
-
-    // helper method to indicate if we want to use Azure content drawing
-    static bool UseAzureContentDrawing();
     
     /**
      * Are we going to try color management?
@@ -439,8 +400,6 @@ public:
 
     virtual void FontsPrefsChanged(const char *aPref);
 
-    PRInt32 GetBidiNumeralOption();
-
     /**
      * Returns a 1x1 surface that can be used to create graphics contexts
      * for measuring text etc as if they will be rendered to the screen
@@ -464,21 +423,9 @@ protected:
                                                
     PRInt8  mAllowDownloadableFonts;
     PRInt8  mDownloadableFontsSanitize;
-#ifdef MOZ_GRAPHITE
-    PRInt8  mGraphiteShapingEnabled;
-#endif
-
-    PRInt8  mBidiNumeralOption;
-
-    // whether to always search font cmaps globally 
-    // when doing system font fallback
-    PRInt8  mFallbackUsesCmaps;
 
     // which scripts should be shaped with harfbuzz
     PRInt32 mUseHarfBuzzScripts;
-
-    // The preferred draw target backend to use
-    mozilla::gfx::BackendType mPreferredDrawTargetBackend;
 
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();

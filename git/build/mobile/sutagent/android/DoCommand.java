@@ -67,7 +67,6 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.util.zip.Adler32;
 import java.util.zip.CheckedInputStream;
@@ -88,6 +87,7 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 
+import com.mozilla.SUTAgentAndroid.NtpMessage;
 import com.mozilla.SUTAgentAndroid.R;
 import com.mozilla.SUTAgentAndroid.SUTAgentAndroid;
 
@@ -137,13 +137,12 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.07";
+    private final String prgVersion = "SUTAgentAndroid Version 1.02";
 
     public enum Command
         {
         RUN ("run"),
         EXEC ("exec"),
-        EXECCWD ("execcwd"),
         ENVRUN ("envrun"),
         KILL ("kill"),
         PS ("ps"),
@@ -694,25 +693,7 @@ public class DoCommand {
                         theArgs[lcv - 1] = Argv[lcv];
                         }
 
-                    strReturn = StartPrg2(theArgs, cmdOut, null);
-                    }
-                else
-                    {
-                    strReturn = sErrorPrefix + "Wrong number of arguments for " + Argv[0] + " command!";
-                    }
-                break;
-
-            case EXECCWD:
-                if (Argc >= 3)
-                    {
-                    String [] theArgs = new String [Argc - 2];
-
-                    for (int lcv = 2; lcv < Argc; lcv++)
-                        {
-                        theArgs[lcv - 2] = Argv[lcv];
-                        }
-
-                    strReturn = StartPrg2(theArgs, cmdOut, Argv[1]);
+                    strReturn = StartPrg2(theArgs, cmdOut);
                     }
                 else
                     {
@@ -1282,11 +1263,6 @@ private void CancelNotification()
         {
         String    sRet = null;
 
-        File tmpFile = new java.io.File("/data/local/tests");
-        if (tmpFile.exists() && tmpFile.isDirectory()) 
-            {
-            return("/data/local");
-            }
         if (Environment.getExternalStorageState().equalsIgnoreCase(Environment.MEDIA_MOUNTED))
             {
             sRet = Environment.getExternalStorageDirectory().getAbsolutePath();
@@ -1309,7 +1285,7 @@ private void CancelNotification()
             try {
                 Context appCtx = ctx.createPackageContext(AppName, 0);
                 ContextWrapper appCtxW = new ContextWrapper(appCtx);
-                sRet = appCtxW.getApplicationInfo().dataDir;
+                sRet = appCtxW.getPackageResourcePath();
                 appCtxW = null;
                 appCtx = null;
                 ctx = null;
@@ -2450,48 +2426,6 @@ private void CancelNotification()
                     }
                 }
             }
-        else
-            {
-            // To kill processes other than Java applications - processes
-            // like xpcshell - a different strategy is necessary: use ps
-            // to find the process' PID.
-            try
-                {
-                pProc = Runtime.getRuntime().exec("ps");
-                RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-                outThrd.start();
-                outThrd.join(10000);
-                sTmp = outThrd.strOutput;
-                StringTokenizer stokLines = new StringTokenizer(sTmp, "\n");
-                while(stokLines.hasMoreTokens())
-                    {
-                    String sLine = stokLines.nextToken();
-                    StringTokenizer stokColumns = new StringTokenizer(sLine, " \t\n");
-                    stokColumns.nextToken();
-                    String sPid = stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    String sName = null;
-                    if (stokColumns.hasMoreTokens())
-                        {
-                        sName = stokColumns.nextToken();
-                        if (sName.contains(sProcName))
-                            {
-                            NewKillProc(sPid, out);
-                            sRet = "Successfully killed " + sPid + " " + sName + "\n";
-                            }
-                        }
-                    }
-                }
-            catch (Exception e)
-                {
-                e.printStackTrace();
-                }
-            }
 
         return (sRet);
         }
@@ -2849,6 +2783,68 @@ private void CancelNotification()
             sM = Long.toString(lMillisecs);
             sMillis = sM.substring(0, sM.length() - 3) + "." + sM.substring(sM.length() - 3);
 
+        } else if ((sDate != null) && (sTime == null) && sDate.contains(".")) {
+            String serverName = sDate;
+//            String serverName = "us.pool.ntp.org";
+            sRet = "NTP Server: " + serverName + lineSep;
+            // Send request
+            DatagramSocket socket;
+
+            try {
+                socket = new DatagramSocket();
+                InetAddress address = InetAddress.getByName(serverName);
+                byte[] buf = new NtpMessage().toByteArray();
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 123);
+
+                // Set the transmit timestamp *just* before sending the packet
+                // ToDo: Does this actually improve performance or not?
+                NtpMessage.encodeTimestamp(packet.getData(), 40, (System.currentTimeMillis()/1000.0) + 2208988800.0);
+
+                socket.send(packet);
+
+                // Get response
+                System.out.println("NTP request sent, waiting for response...\n");
+                packet = new DatagramPacket(buf, buf.length);
+                socket.receive(packet);
+
+                // Immediately record the incoming timestamp since 00:00 1-JAN-1900 in secs.
+                double destinationTimestamp = (System.currentTimeMillis()/1000.0) + 2208988800.0;
+
+                // Process response
+                NtpMessage msg = new NtpMessage(packet.getData());
+
+                // Corrected, according to RFC2030 errata
+                double roundTripDelay = (destinationTimestamp-msg.originateTimestamp) - (msg.transmitTimestamp-msg.receiveTimestamp);
+
+                double localClockOffset = ((msg.receiveTimestamp - msg.originateTimestamp) + (msg.transmitTimestamp - destinationTimestamp)) / 2;
+
+                // convert base of timestamp from 00:00 1900/01/01 to 00:00:00 1970/01/01
+                double utc = msg.transmitTimestamp - (2208988800.0);
+
+                // convert from secs to ms
+                long lNewMillisecs = (long)(utc * 1000.0);
+
+                // create a date object using the timestamp this will take into account the timezone and daylight savings settings
+                Date dt = new Date(lNewMillisecs);
+
+                sRet += "  Time: " + new SimpleDateFormat("yyyy/MM/dd hh:mm:ss:SSS").format(dt) + lineSep;
+
+                // get the timestamp
+                long lMillisecs = dt.getTime();
+
+                // format the timestamp as required for the date command
+                sM = Long.toString(lMillisecs);
+                sMillis = sM.substring(0, sM.length() - 3) + "." + sM.substring(sM.length() - 3);
+
+                socket.close();
+            } catch (SocketException e) {
+                e.printStackTrace();
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+                sRet = sErrorPrefix + "Unknown host";
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         } else {
             sRet += "Invalid argument(s)";
         }
@@ -2915,10 +2911,15 @@ private void CancelNotification()
     public String NewKillProc(String sProcId, OutputStream out)
         {
         String sRet = "";
+        String [] theArgs = new String [3];
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
+        theArgs[2] = "kill " + sProcId;
 
         try
             {
-            pProc = Runtime.getRuntime().exec("kill "+sProcId);
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
             outThrd.join(5000);
@@ -3148,15 +3149,9 @@ private void CancelNotification()
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            try {
-                outThrd.join(60000);
-                int nRet = pProc.exitValue();
-                sRet = "\nuninst complete [" + nRet + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\nuninst command timed out";
-                }
+            outThrd.join(60000);
+            int nRet = pProc.exitValue();
+            sRet = "\nuninst complete [" + nRet + "]";
             }
         catch (IOException e)
             {
@@ -3197,15 +3192,9 @@ private void CancelNotification()
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            try {
-                outThrd.join(90000);
-                int nRet = pProc.exitValue();
-                sRet = "\nmove complete [" + nRet + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\nmove command timed out";
-            }
+            outThrd.join(90000);
+            int nRet = pProc.exitValue();
+            sRet = "\nmove complete [" + nRet + "]";
             try
                 {
                 out.write(sRet.getBytes());
@@ -3220,15 +3209,9 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd2 = new RedirOutputThread(pProc, out);
             outThrd2.start();
-            try {
-                outThrd2.join(10000);
-                int nRet2 = pProc.exitValue();
-                sRet = "\npermission change complete [" + nRet2 + "]\n";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\npermission change timed out";
-            }
+            outThrd2.join(10000);
+            int nRet2 = pProc.exitValue();
+            sRet = "\npermission change complete [" + nRet2 + "]\n";
             try {
                 out.write(sRet.getBytes());
                 out.flush();
@@ -3242,15 +3225,9 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd3 = new RedirOutputThread(pProc, out);
             outThrd3.start();
-            try {
-                outThrd3.join(60000);
-                int nRet3 = pProc.exitValue();
-                sRet = "\ninstallation complete [" + nRet3 + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\npm install command timed out";
-            }
+            outThrd3.join(60000);
+            int nRet3 = pProc.exitValue();
+            sRet = "\ninstallation complete [" + nRet3 + "]";
             try {
                 out.write(sRet.getBytes());
                 out.flush();
@@ -3264,15 +3241,9 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd4 = new RedirOutputThread(pProc, out);
             outThrd4.start();
-            try {
-                outThrd4.join(60000);
-                int nRet4 = pProc.exitValue();
-                sRet = "\ntmp file removed [" + nRet4 + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\nrm command timed out";
-            }
+            outThrd4.join(60000);
+            int nRet4 = pProc.exitValue();
+            sRet = "\ntmp file removed [" + nRet4 + "]";
             try {
                 out.write(sRet.getBytes());
                 out.flush();
@@ -3470,20 +3441,11 @@ private void CancelNotification()
         try
             {
             contextWrapper.startActivity(prgIntent);
-            FindProcThread findProcThrd = new FindProcThread(contextWrapper, sArgs[0]);
-            findProcThrd.start();
-            findProcThrd.join(7000);
-            if (!findProcThrd.bFoundIt && !findProcThrd.bStillRunning) {
-                sRet = "Unable to start " + sArgs[0] + "";
-                }
             }
         catch(ActivityNotFoundException anf)
             {
             anf.printStackTrace();
             }
-        catch (InterruptedException e) {
-            e.printStackTrace();
-        }
 
         ctx = null;
         return (sRet);
@@ -3492,25 +3454,15 @@ private void CancelNotification()
     public String StartPrg(String [] progArray, OutputStream out)
         {
         String sRet = "";
-        int    lcv = 0;
 
         try
             {
             pProc = Runtime.getRuntime().exec(progArray);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            while (lcv < 30) {
-                try {
-                    outThrd.join(10000);
-                    int nRetCode = pProc.exitValue();
-                    sRet = "return code [" + nRetCode + "]";
-                    break;
-                    }
-                catch (IllegalThreadStateException itse) {
-                    lcv++;
-                    itse.printStackTrace();
-                    }
-                }
+            outThrd.join(10000);
+            int nRetCode = pProc.exitValue();
+            sRet = "return code [" + nRetCode + "]";
             }
         catch (IOException e)
             {
@@ -3525,7 +3477,7 @@ private void CancelNotification()
         return (sRet);
         }
 
-    public String StartPrg2(String [] progArray, OutputStream out, String cwd)
+    public String StartPrg2(String [] progArray, OutputStream out)
         {
         String sRet = "";
 
@@ -3615,33 +3567,13 @@ private void CancelNotification()
 
             if (theArgs[0].contains("/") || theArgs[0].contains("\\") || !theArgs[0].contains("."))
                 {
-                if (cwd != null)
-                    {
-                    File f = new File(cwd);
-                    pProc = Runtime.getRuntime().exec(theArgs, envArray, f);
-                    }
-                else
-                    {
-                    pProc = Runtime.getRuntime().exec(theArgs, envArray);
-                    }
+                pProc = Runtime.getRuntime().exec(theArgs, envArray);
 
                 RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
                 outThrd.start();
-
-                lcv = 0;
-
-                while (lcv < 30) {
-                    try {
-                        outThrd.join(10000);
-                        int nRetCode = pProc.exitValue();
-                        sRet = "return code [" + nRetCode + "]";
-                        lcv = 30;
-                        }
-                    catch (IllegalThreadStateException itse) {
-                        lcv++;
-                        itse.printStackTrace();
-                        }
-                    }
+                outThrd.join(10000);
+                int nRetCode = pProc.exitValue();
+                sRet = "return code [" + nRetCode + "]";
                 }
             else
                 {
@@ -3740,7 +3672,6 @@ private void CancelNotification()
             "                               GMTxhh:mm x = +/- or a recognized Olsen string\n" +
             "tzget                        - returns the current timezone set on the device\n" +
             "rebt                         - reboot device\n" +
-            "adb ip|usb                   - set adb to use tcp/ip on port 5555 or usb\n" +
             "quit                         - disconnect SUTAgent\n" +
             "exit                         - close SUTAgent\n" +
             "ver                          - SUTAgent version\n" +

@@ -265,15 +265,6 @@ Elf::Elf(std::ifstream &file)
     file.seekg(ehdr->e_phoff);
     for (int i = 0; i < ehdr->e_phnum; i++) {
         Elf_Phdr phdr(file, e_ident[EI_CLASS], e_ident[EI_DATA]);
-        if (phdr.p_type == PT_LOAD) {
-            // Default alignment for PT_LOAD on x86-64 prevents elfhack from
-            // doing anything useful. However, the system doesn't actually
-            // require such a big alignment, so in order for elfhack to work
-            // efficiently, reduce alignment when it's originally the default
-            // one.
-            if ((ehdr->e_machine == EM_X86_64) && (phdr.p_align == 0x200000))
-              phdr.p_align = 0x1000;
-        }
         ElfSegment *segment = new ElfSegment(&phdr);
         // Some segments aren't entirely filled (if at all) by sections
         // For those, we use fake sections
@@ -512,17 +503,12 @@ unsigned int ElfSection::getOffset()
     if (previous->getType() != SHT_NOBITS)
         offset += previous->getSize();
 
-    Elf32_Word align = 0x1000;
-    for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++)
-        align = std::max(align, (*seg)->getAlign());
-
-    Elf32_Word mask = align - 1;
     // SHF_TLS is used for .tbss which is some kind of special case.
     if (((getType() != SHT_NOBITS) || (getFlags() & SHF_TLS)) && (getFlags() & SHF_ALLOC)) {
-        if ((getAddr() & mask) < (offset & mask))
-            offset = (offset | mask) + (getAddr() & mask) + 1;
+        if ((getAddr() & 4095) < (offset & 4095))
+            offset = (offset | 4095) + (getAddr() & 4095) + 1;
         else
-            offset = (offset & ~mask) + (getAddr() & mask);
+            offset = (offset & ~4095) + (getAddr() & 4095);
     }
     if ((getType() != SHT_NOBITS) && (offset & (getAddrAlign() - 1)))
         offset = (offset | (getAddrAlign() - 1)) + 1;
@@ -646,7 +632,7 @@ ElfSegment *ElfSegment::splitBefore(ElfSection *section)
     phdr.p_vaddr = 0;
     phdr.p_paddr = phdr.p_vaddr + v_p_diff;
     phdr.p_flags = flags;
-    phdr.p_align = getAlign();
+    phdr.p_align = 0x1000;
     phdr.p_filesz = (unsigned int)-1;
     phdr.p_memsz = (unsigned int)-1;
     ElfSegment *segment = new ElfSegment(&phdr);

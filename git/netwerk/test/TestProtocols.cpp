@@ -797,12 +797,6 @@ nsresult LoadURLsFromFile(char *aFileName)
                 if (urlString.Length()) {
                     LOG(("\t%s\n", urlString.get()));
                     rv = StartLoadingURL(urlString.get());
-                    if (NS_FAILED(rv)) {
-                        // No need to log an error -- StartLoadingURL already
-                        // did that for us, probably.
-                        PR_Close(fd);
-                        return rv;
-                    }
                 }
             }
         }

@@ -82,6 +82,7 @@
 #include "nsCrossSiteListenerProxy.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
@@ -123,12 +124,11 @@
 
 #include "nsHyphenationManager.h"
 #include "nsEditorSpellCheck.h"
-#include "nsWindowMemoryReporter.h"
+#include "nsDOMMemoryReporter.h"
 
 extern void NS_ShutdownChainItemPool();
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
@@ -161,7 +161,7 @@ nsLayoutStatics::Initialize()
   }
 
   nsGlobalWindow::Init();
-  Navigator::Init();
+  dom::Navigator::Init();
 
   rv = nsContentUtils::Init();
   if (NS_FAILED(rv)) {
@@ -268,7 +268,7 @@ nsLayoutStatics::Initialize()
 
   NS_SealStaticAtomTable();
 
-  nsWindowMemoryReporter::Init();
+  nsDOMMemoryReporter::Init();
 
   return NS_OK;
 }
@@ -276,8 +276,8 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-  // Don't need to shutdown nsWindowMemoryReporter, that will be done by the
-  // memory reporter manager.
+  // Don't need to shutdown nsDOMMemoryReporter, that will be done by the memory
+  // reporter manager.
 
   nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
@@ -337,6 +337,9 @@ nsLayoutStatics::Shutdown()
   nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
+
+  nsHTMLEditor::Shutdown();
+  nsTextServicesDocument::Shutdown();
 
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();

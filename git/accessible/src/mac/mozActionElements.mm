@@ -37,15 +37,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 #import "mozActionElements.h"
-
-#import "MacUtils.h"
-
 #import "nsIAccessible.h"
-#import "nsXULTabAccessible.h"
 
 #include "nsObjCExceptions.h"
 
 using namespace mozilla::a11y;
+
+extern const NSString *kInstanceDescriptionAttribute; // NSAccessibilityDescriptionAttribute
+extern const NSString *kTopLevelUIElementAttribute;   // NSAccessibilityTopLevelUIElementAttribute
 
 enum CheckboxValue {
   // these constants correspond to the values in the OS
@@ -64,20 +63,16 @@ enum CheckboxValue {
   if (!attributes) {
     attributes = [[NSArray alloc] initWithObjects:NSAccessibilityParentAttribute, // required
                                                   NSAccessibilityRoleAttribute, // required
-                                                  NSAccessibilityRoleDescriptionAttribute,
                                                   NSAccessibilityPositionAttribute, // required
                                                   NSAccessibilitySizeAttribute, // required
                                                   NSAccessibilityWindowAttribute, // required
                                                   NSAccessibilityPositionAttribute, // required
-                                                  NSAccessibilityTopLevelUIElementAttribute, // required
+                                                  kTopLevelUIElementAttribute, // required
                                                   NSAccessibilityHelpAttribute,
                                                   NSAccessibilityEnabledAttribute, // required
                                                   NSAccessibilityFocusedAttribute, // required
                                                   NSAccessibilityTitleAttribute, // required
-                                                  NSAccessibilityDescriptionAttribute,
-#if DEBUG
-                                                  @"AXMozDescription",
-#endif
+                                                  kInstanceDescriptionAttribute,
                                                   nil];
   }
   return attributes;
@@ -91,13 +86,6 @@ enum CheckboxValue {
 
   if ([attribute isEqualToString:NSAccessibilityChildrenAttribute])
     return nil;
-  if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute]) {
-    if ([self isTab])
-      return utils::LocalizedString(NS_LITERAL_STRING("tab"));
-    
-    return NSAccessibilityRoleDescription([self role], nil);
-  }
-  
   return [super accessibilityAttributeValue:attribute];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
@@ -124,13 +112,9 @@ enum CheckboxValue {
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if ([action isEqualToString:NSAccessibilityPressAction]) {
-    if ([self isTab])
-      return utils::LocalizedString(NS_LITERAL_STRING("switch"));
-  
+  if ([action isEqualToString:NSAccessibilityPressAction])
     return @"press button"; // XXX: localize this later?
-  }
-  
+    
   return nil;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
@@ -151,11 +135,6 @@ enum CheckboxValue {
   // both buttons and checkboxes have only one action. we should really stop using arbitrary
   // arrays with actions, and define constants for these actions.
   mGeckoAccessible->DoAction(0);
-}
-
-- (BOOL)isTab
-{
-  return (mGeckoAccessible && (mGeckoAccessible->Role() == roles::PAGETAB));
 }
 
 @end
@@ -215,16 +194,13 @@ enum CheckboxValue {
                                                   NSAccessibilityRoleAttribute, // required
                                                   NSAccessibilitySizeAttribute, // required
                                                   NSAccessibilityWindowAttribute, // required
-                                                  NSAccessibilityTopLevelUIElementAttribute, // required
+                                                  kTopLevelUIElementAttribute, // required
                                                   NSAccessibilityHelpAttribute,
                                                   NSAccessibilityEnabledAttribute, // required
                                                   NSAccessibilityFocusedAttribute, // required
                                                   NSAccessibilityTitleAttribute, // required for popupmenus, and for menubuttons with a title
                                                   NSAccessibilityChildrenAttribute, // required
-                                                  NSAccessibilityDescriptionAttribute, // required if it has no title attr
-#if DEBUG
-                                                  @"AXMozDescription",
-#endif
+                                                  kInstanceDescriptionAttribute, // required if it has no title attr
                                                   nil];
   }
   return attributes;
@@ -282,88 +258,6 @@ enum CheckboxValue {
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-@end
-
-@implementation mozTabsAccessible
-
-- (void)dealloc
-{
-  [mTabs release];
-
-  [super dealloc];
-}
-
-- (NSArray*)accessibilityAttributeNames
-{
-  // standard attributes that are shared and supported by root accessible (AXMain) elements.
-  static NSMutableArray* attributes = nil;
-  
-  if (!attributes) {
-    attributes = [[super accessibilityAttributeNames] mutableCopy];
-    [attributes addObject:NSAccessibilityContentsAttribute];
-    [attributes addObject:NSAccessibilityTabsAttribute];
-  }
-  
-  return attributes;  
-}
-
-- (id)accessibilityAttributeValue:(NSString *)attribute
-{  
-  if ([attribute isEqualToString:NSAccessibilityContentsAttribute])
-    return [super children];
-  if ([attribute isEqualToString:NSAccessibilityTabsAttribute])
-    return [self tabs];
-  
-  return [super accessibilityAttributeValue:attribute];  
-}
-
-/**
- * Returns the selected tab (the mozAccessible)
- */
-- (id)value
-{
-  if (!mGeckoAccessible)
-    return nil;
-    
-  nsAccessible* accessible = mGeckoAccessible->GetSelectedItem(0);
-  if (!accessible)
-    return nil;
-
-  mozAccessible* nativeAcc = nil;
-  nsresult rv = accessible->GetNativeInterface((void**)&nativeAcc);
-  NS_ENSURE_SUCCESS(rv, nil);
-  
-  return nativeAcc;
-}
-
-/**
- * Return the mozAccessibles that are the tabs.
- */
-- (id)tabs
-{
-  if (mTabs)
-    return mTabs;
-
-  NSArray* children = [self children];
-  NSEnumerator* enumerator = [children objectEnumerator];
-  mTabs = [[NSMutableArray alloc] init];
-  
-  id obj;
-  while ((obj = [enumerator nextObject]))
-    if ([obj isTab])
-      [mTabs addObject:obj];
-
-  return mTabs;
-}
-
-- (void)invalidateChildren
-{
-  [super invalidateChildren];
-
-  [mTabs release];
-  mTabs = nil;
 }
 
 @end

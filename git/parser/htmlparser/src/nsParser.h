@@ -84,13 +84,16 @@
 #include "nsDTDUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIContentSink.h"
+#include "nsIParserFilter.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWeakReference.h"
 
 class nsICharsetConverterManager;
+class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
+class nsSpeculativeScriptThread;
 class nsIThreadPool;
 
 #ifdef _MSC_VER
@@ -174,6 +177,9 @@ class nsParser : public nsIParser,
          aSource = mCharsetSource;
     }
 
+
+    NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter);
+
     /**
      * Cause parser to parse input from given URL 
      * @update	gess5/11/98
@@ -198,6 +204,8 @@ class nsParser : public nsIParser,
                      bool aLastCall,
                      nsDTDMode aMode = eDTDMode_autodetect);
 
+    NS_IMETHOD_(void *) GetRootContextKey();
+
     /**
      * This method needs documentation
      */
@@ -215,7 +223,6 @@ class nsParser : public nsIParser,
     NS_IMETHOD        ContinueInterruptedParsing();
     NS_IMETHOD_(void) BlockParser();
     NS_IMETHOD_(void) UnblockParser();
-    NS_IMETHOD_(void) ContinueInterruptedParsingAsync();
     NS_IMETHOD        Terminate(void);
 
     /**
@@ -308,6 +315,14 @@ class nsParser : public nsIParser,
 
     NS_IMETHODIMP CancelParsingEvents();
 
+    /**  
+     *  Indicates whether the parser is in a state where it
+     *  can be interrupted.
+     *  @return true if parser can be interrupted, false if it can not be interrupted.
+     *  @update  kmcclusk 5/18/98
+     */
+    virtual bool CanInterrupt();
+
     /**
      * Return true.
      */
@@ -356,6 +371,10 @@ class nsParser : public nsIParser,
      */
     void HandleParserContinueEvent(class nsParserContinueEvent *);
 
+    static nsICharsetAlias* GetCharsetAliasService() {
+      return sCharsetAliasService;
+    }
+
     static nsICharsetConverterManager* GetCharsetConverterManager() {
       return sCharsetConverterManager;
     }
@@ -363,6 +382,10 @@ class nsParser : public nsIParser,
     virtual void Reset() {
       Cleanup();
       Initialize();
+    }
+
+    nsIThreadPool* ThreadPool() {
+      return sSpeculativeThreadPool;
     }
 
     bool IsScriptExecuting() {
@@ -393,6 +416,8 @@ class nsParser : public nsIParser,
      * @return
      */
     nsresult DidBuildModel(nsresult anErrorCode);
+
+    void SpeculativelyParse();
 
 private:
 
@@ -444,7 +469,9 @@ protected:
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref
+    nsRefPtr<nsSpeculativeScriptThread> mSpeculativeScriptThread;
    
+    nsCOMPtr<nsIParserFilter> mParserFilter;
     nsTokenAllocator          mTokenAllocator;
     
     eParserCommands     mCommand;
@@ -460,7 +487,15 @@ protected:
 
     bool                mProcessingNetworkData;
 
+    static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;
+    static nsIThreadPool*              sSpeculativeThreadPool;
+
+    enum {
+      kSpeculativeThreadLimit = 15,
+      kIdleThreadLimit = 0,
+      kIdleThreadTimeout = 50
+    };
 };
 
 #endif 

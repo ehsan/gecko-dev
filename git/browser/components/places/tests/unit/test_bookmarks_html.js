@@ -42,7 +42,7 @@ let test_bookmarks = {
   menu: [
     { title: "Mozilla Firefox",
       children: [
-        { title: "Help and Tutorials",
+        { title: "Help and Tutorials", 
           url: "http://en-us.www.mozilla.com/en-US/firefox/help/",
           icon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAHWSURBVHjaYvz//z8DJQAggJiQOe/fv2fv7Oz8rays/N+VkfG/iYnJfyD/1+rVq7ffu3dPFpsBAAHEAHIBCJ85c8bN2Nj4vwsDw/8zQLwKiO8CcRoQu0DxqlWrdsHUwzBAAIGJmTNnPgYa9j8UqhFElwPxf2MIDeIrKSn9FwSJoRkAEEAM0DD4DzMAyPi/G+QKY4hh5WAXGf8PDQ0FGwJ22d27CjADAAIIrLmjo+MXA9R2kAHvGBA2wwx6B8W7od6CeQcggKCmCEL8bgwxYCbUIGTDVkHDBia+CuotgACCueD3TDQN75D4xmAvCoK9ARMHBzAw0AECiBHkAlC0Mdy7x9ABNA3obAZXIAa6iKEcGlMVQHwWyjYuL2d4v2cPg8vZswx7gHyAAAK7AOif7SAbOqCmn4Ha3AHFsIDtgPq/vLz8P4MSkJ2W9h8ggBjevXvHDo4FQUQg/kdypqCg4H8lUIACnQ/SOBMYI8bAsAJFPcj1AAEEjwVQqLpAbXmH5BJjqI0gi9DTAAgDBBCcAVLkgmQ7yKCZxpCQxqUZhAECCJ4XgMl493ug21ZD+aDAXH0WLM4A9MZPXJkJIIAwTAR5pQMalaCABQUULttBGCCAGCnNzgABBgAMJ5THwGvJLAAAAABJRU5ErkJggg=="
         },
@@ -57,8 +57,8 @@ let test_bookmarks = {
         { title: "About Us",
           url: "http://en-us.www.mozilla.com/en-US/about/",
           icon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAHWSURBVHjaYvz//z8DJQAggJiQOe/fv2fv7Oz8rays/N+VkfG/iYnJfyD/1+rVq7ffu3dPFpsBAAHEAHIBCJ85c8bN2Nj4vwsDw/8zQLwKiO8CcRoQu0DxqlWrdsHUwzBAAIGJmTNnPgYa9j8UqhFElwPxf2MIDeIrKSn9FwSJoRkAEEAM0DD4DzMAyPi/G+QKY4hh5WAXGf8PDQ0FGwJ22d27CjADAAIIrLmjo+MXA9R2kAHvGBA2wwx6B8W7od6CeQcggKCmCEL8bgwxYCbUIGTDVkHDBia+CuotgACCueD3TDQN75D4xmAvCoK9ARMHBzAw0AECiBHkAlC0Mdy7x9ABNA3obAZXIAa6iKEcGlMVQHwWyjYuL2d4v2cPg8vZswx7gHyAAAK7AOif7SAbOqCmn4Ha3AHFsIDtgPq/vLz8P4MSkJ2W9h8ggBjevXvHDo4FQUQg/kdypqCg4H8lUIACnQ/SOBMYI8bAsAJFPcj1AAEEjwVQqLpAbXmH5BJjqI0gi9DTAAgDBBCcAVLkgmQ7yKCZxpCQxqUZhAECCJ4XgMl493ug21ZD+aDAXH0WLM4A9MZPXJkJIIAwTAR5pQMalaCABQUULttBGCCAGCnNzgABBgAMJ5THwGvJLAAAAABJRU5ErkJggg=="
-        }
-      ]
+        },
+      ],
     },
     { title: "test",
       description: "folder test comment",
@@ -72,10 +72,10 @@ let test_bookmarks = {
           keyword: "test",
           sidebar: true,
           postData: "hidden1%3Dbar&text1%3D%25s",
-          charset: "ISO-8859-1"
-        }
+          charset: "ISO-8859-1",
+        },
       ]
-    }
+    },
   ],
   toolbar: [
     { title: "Getting Started",
@@ -83,15 +83,16 @@ let test_bookmarks = {
       icon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAHWSURBVHjaYvz//z8DJQAggJiQOe/fv2fv7Oz8rays/N+VkfG/iYnJfyD/1+rVq7ffu3dPFpsBAAHEAHIBCJ85c8bN2Nj4vwsDw/8zQLwKiO8CcRoQu0DxqlWrdsHUwzBAAIGJmTNnPgYa9j8UqhFElwPxf2MIDeIrKSn9FwSJoRkAEEAM0DD4DzMAyPi/G+QKY4hh5WAXGf8PDQ0FGwJ22d27CjADAAIIrLmjo+MXA9R2kAHvGBA2wwx6B8W7od6CeQcggKCmCEL8bgwxYCbUIGTDVkHDBia+CuotgACCueD3TDQN75D4xmAvCoK9ARMHBzAw0AECiBHkAlC0Mdy7x9ABNA3obAZXIAa6iKEcGlMVQHwWyjYuL2d4v2cPg8vZswx7gHyAAAK7AOif7SAbOqCmn4Ha3AHFsIDtgPq/vLz8P4MSkJ2W9h8ggBjevXvHDo4FQUQg/kdypqCg4H8lUIACnQ/SOBMYI8bAsAJFPcj1AAEEjwVQqLpAbXmH5BJjqI0gi9DTAAgDBBCcAVLkgmQ7yKCZxpCQxqUZhAECCJ4XgMl493ug21ZD+aDAXH0WLM4A9MZPXJkJIIAwTAR5pQMalaCABQUULttBGCCAGCnNzgABBgAMJ5THwGvJLAAAAABJRU5ErkJggg=="
     },
     { title: "Latest Headlines",
+      description: "Livemark test comment",
       url: "http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-      feedUrl: "http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml"
+      feedUrl: "http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
     }
   ],
   unfiled: [
     { title: "Example.tld",
-      url: "http://example.tld/"
-    }
-  ]
+      url: "http://example.tld/",
+    },
+  ],
 };
 
 // Pre-Places bookmarks.html file pointer.
@@ -104,10 +105,6 @@ let importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
 
 function run_test()
 {
-  run_next_test();
-}
-
-add_test(function setup() {
   // Avoid creating smart bookmarks during the test.
   Services.prefs.setIntPref("browser.places.smartBookmarksVersion", -1);
 
@@ -134,20 +131,16 @@ add_test(function setup() {
     importer.importHTMLFromFile(gBookmarksFileOld, true);
   } catch(ex) { do_throw("couldn't import legacy bookmarks file: " + ex); }
 
-  waitForAsyncUpdates(function () {
-    testImportedBookmarks();
+  testImportedBookmarks();
 
-    // Prepare for next tests.
-    try {
-      importer.exportHTMLToFile(gBookmarksFileNew);
-    } catch(ex) { do_throw("couldn't export to file: " + ex); }
+  // Prepare for next tests.
+  try {
+    importer.exportHTMLToFile(gBookmarksFileNew);
+  } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
-    waitForAsyncUpdates(function () {
-      remove_all_bookmarks();
-      run_next_test();
-    });
-  });
-});
+  remove_all_bookmarks();
+  run_next_test();
+}
 
 add_test(function test_import_new()
 {
@@ -159,14 +152,10 @@ add_test(function test_import_new()
     importer.importHTMLFromFile(gBookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 
-  waitForAsyncUpdates(function () {
-    testImportedBookmarks();
+  testImportedBookmarks();
 
-    waitForAsyncUpdates(function () {
-      remove_all_bookmarks();
-      run_next_test();
-    });
-  });
+  remove_all_bookmarks();
+  run_next_test();
 });
 
 add_test(function test_emptytitle_export()
@@ -200,22 +189,18 @@ add_test(function test_emptytitle_export()
     importer.importHTMLFromFile(gBookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 
-  waitForAsyncUpdates(function () {
-    testImportedBookmarks();
+  testImportedBookmarks();
 
-    // Cleanup.
-    test_bookmarks.unfiled.pop();
-    PlacesUtils.bookmarks.removeItem(id);
+  // Cleanup.
+  test_bookmarks.unfiled.pop();
+  PlacesUtils.bookmarks.removeItem(id);
 
-    try {
-      importer.exportHTMLToFile(gBookmarksFileNew);
-    } catch(ex) { do_throw("couldn't export to file: " + ex); }
+  try {
+    importer.exportHTMLToFile(gBookmarksFileNew);
+  } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
-    waitForAsyncUpdates(function () {
-      remove_all_bookmarks();
-      run_next_test();
-    });
-  });
+  remove_all_bookmarks();
+  run_next_test();
 });
 
 add_test(function test_import_preplaces_to_folder()
@@ -233,15 +218,11 @@ add_test(function test_import_preplaces_to_folder()
     importer.importHTMLFromFileToFolder(gBookmarksFileOld, testFolder, false);
   } catch(ex) { do_throw("couldn't import the exported file to folder: " + ex); }
 
-  waitForAsyncUpdates(function () {
-    // Import-to-folder creates subfolders for toolbar and unfiled.
-    testImportedBookmarksToFolder(testFolder);
+  // Import-to-folder creates subfolders for toolbar and unfiled.
+  testImportedBookmarksToFolder(testFolder);
 
-    waitForAsyncUpdates(function () {
-      remove_all_bookmarks();
-      run_next_test();
-    });
-  });
+  remove_all_bookmarks();
+  run_next_test();
 });
 
 add_test(function test_import_to_folder()
@@ -259,15 +240,11 @@ add_test(function test_import_to_folder()
     importer.importHTMLFromFileToFolder(gBookmarksFileNew, testFolder, false);
   } catch(ex) { do_throw("couldn't import the exported file to folder: " + ex); }
 
-  waitForAsyncUpdates(function () {
-    // Import-to-folder creates subfolders for toolbar and unfiled.
-    testImportedBookmarksToFolder(testFolder);
+  // Import-to-folder creates subfolders for toolbar and unfiled.
+  testImportedBookmarksToFolder(testFolder);
 
-    waitForAsyncUpdates(function () {
-      remove_all_bookmarks();
-      run_next_test();
-    });
-  });
+  remove_all_bookmarks();
+  run_next_test();
 });
 
 add_test(function test_import_ontop()
@@ -290,21 +267,15 @@ add_test(function test_import_ontop()
     importer.importHTMLFromFile(gBookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 
-  waitForAsyncUpdates(function () {
-    testImportedBookmarks();
+  testImportedBookmarks();
 
-    waitForAsyncUpdates(function () {
-      remove_all_bookmarks();
-      run_next_test();
-    });
-  });
+  remove_all_bookmarks();
+  run_next_test();
 });
 
 function testImportedBookmarks()
 {
   for (let group in test_bookmarks) {
-    do_print("[testImportedBookmarks()] Checking group '" + group + "'");
-
     let root;
     switch (group) {
       case "menu":
@@ -337,7 +308,6 @@ function testImportedBookmarksToFolder(aFolder)
 
   for (let i = 0; i < root.childCount; i++) {
     let child = root.getChild(i);
-    // This check depends on all "menu" bookmarks being listed first in the imported file :-|
     if (i < rootFolderCount) {
       checkItem(test_bookmarks.menu[i], child);
     }
@@ -346,8 +316,9 @@ function testImportedBookmarksToFolder(aFolder)
       let group = /Toolbar/.test(container.title) ? test_bookmarks.toolbar
                                                   : test_bookmarks.unfiled;
       container.containerOpen = true;
-      do_print("[testImportedBookmarksToFolder()] Checking container '" + container.title + "'");
+      print(container.title);
       for (let t = 0; t < container.childCount; t++) {
+        print(group[t].title + " " + container.getChild(t).title);
         checkItem(group[t], container.getChild(t));
       }
       container.containerOpen = false;
@@ -379,14 +350,8 @@ function checkItem(aExpected, aNode)
                       aExpected.lastModified);
         break;
       case "url":
-        PlacesUtils.livemarks.getLivemark(
-          { id: id },
-          function (aStatus, aLivemark) {
-            if (!Components.isSuccessCode(aStatus)) {
-              do_check_eq(aNode.uri, aExpected.url);
-            }
-          }
-        );
+        if (!PlacesUtils.livemarks.isLivemark(id))
+          do_check_eq(aNode.uri, aExpected.url);
         break;
       case "icon":
         let faviconURI = PlacesUtils.favicons.getFaviconForPage(
@@ -413,14 +378,11 @@ function checkItem(aExpected, aNode)
                     aExpected.charset);
         break;
       case "feedUrl":
-        PlacesUtils.livemarks.getLivemark(
-          { id: id },
-          function (aStatus, aLivemark) {
-            do_check_true(Components.isSuccessCode(aStatus));
-            do_check_eq(aLivemark.siteURI.spec, aExpected.url);
-            do_check_eq(aLivemark.feedURI.spec, Expected.feedUrl);
-          }
-        );
+        do_check_true(PlacesUtils.livemarks.isLivemark(id));
+        do_check_eq(PlacesUtils.livemarks.getSiteURI(id).spec,
+                    aExpected.url);
+        do_check_eq(PlacesUtils.livemarks.getFeedURI(id).spec,
+                    aExpected.feedUrl);
         break;
       case "children":
         let folder = aNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);

@@ -67,17 +67,14 @@ CPPSRCS = \
   testFuncCallback.cpp \
   testFunctionProperties.cpp \
   testGCOutOfMemory.cpp \
-  testOOM.cpp \
   testGetPropertyDefault.cpp \
   testIndexToString.cpp \
   testIntString.cpp \
-  testIntTypesABI.cpp \
   testIntern.cpp \
   testLookup.cpp \
   testLooselyEqual.cpp \
   testNewObject.cpp \
   testOps.cpp \
-  testOriginPrincipals.cpp \
   testParseJSON.cpp \
   testPropCache.cpp \
   testRegExp.cpp \
@@ -106,9 +103,6 @@ CSRCS = \
 #  $(NULL)
 
 DEFINES         += -DEXPORT_JS_API
-# Building against js_static requires that we declare mfbt sybols "exported"
-# on its behalf.
-DEFINES         += -DIMPL_MFBT
 
 LIBS      = $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX) $(NSPR_LIBS)
 

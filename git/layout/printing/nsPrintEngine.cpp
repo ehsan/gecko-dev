@@ -88,6 +88,7 @@ static const char sPrintSettingsServiceContractID[] = "@mozilla.org/gfx/printset
 // Print error dialog
 #include "nsIPrompt.h"
 #include "nsIWindowWatcher.h"
+#include "nsIStringBundle.h"
 
 // Printing Prompts
 #include "nsIPrintingPromptService.h"
@@ -105,6 +106,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 
 // Misc
 #include "nsISupportsUtils.h"
+#include "nsIFrame.h"
 #include "nsIScriptContext.h"
 #include "nsILinkHandler.h"
 #include "nsIDOMDocument.h"
@@ -139,6 +141,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIDocShellTreeNode.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIWebBrowserChrome.h"
+#include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
 #include "nsILayoutHistoryState.h"
 #include "nsFrameManager.h"
@@ -153,6 +156,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIContentViewer.h"
 #include "nsIDocumentViewerPrint.h"
 
+#include "nsPIDOMWindow.h"
 #include "nsFocusManager.h"
 #include "nsRange.h"
 #include "nsCDefaultURIFixup.h"
@@ -1351,9 +1355,9 @@ nsPrintEngine::MapContentForPO(nsPrintObject*   aPO,
   }
 
   // walk children content
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 count = aContent->GetChildCount();
+  for (PRUint32 i = 0; i < count; ++i) {
+    nsIContent *child = aContent->GetChildAt(i);
     MapContentForPO(aPO, child);
   }
 }
@@ -1684,6 +1688,9 @@ nsPrintEngine::SetupToPrintContent()
 
     // Only Shrink if we are smaller
     if (mPrt->mShrinkRatio < 0.998f) {
+      // Clamp Shrink to Fit to 60%
+      mPrt->mShrinkRatio = NS_MAX(mPrt->mShrinkRatio, 0.60f);
+
       for (PRUint32 i=0;i<mPrt->mPrintDocList.Length();i++) {
         nsPrintObject* po = mPrt->mPrintDocList.ElementAt(i);
         NS_ASSERTION(po, "nsPrintObject can't be null!");
@@ -2188,7 +2195,10 @@ static nsresult CloneRangeToSelection(nsIDOMRange* aRange,
   nsCOMPtr<nsIDOMNode> newEnd = GetEqualNodeInCloneTree(endContainer, aDoc);
   NS_ENSURE_STATE(newStart && newEnd);
 
-  nsRefPtr<nsRange> range = new nsRange();
+  nsCOMPtr<nsIDOMRange> range;
+  NS_NewRange(getter_AddRefs(range));
+  NS_ENSURE_TRUE(range, NS_ERROR_OUT_OF_MEMORY);
+
   nsresult rv = range->SetStart(newStart, startOffset);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = range->SetEnd(newEnd, endOffset);
@@ -2536,7 +2546,15 @@ nsPrintEngine::FindSelectionBoundsWithList(nsPresContext* aPresContext,
   aRect += aParentFrame->GetPosition();
   for (; !aChildFrames.AtEnd(); aChildFrames.Next()) {
     nsIFrame* child = aChildFrames.get();
-    if (child->IsSelected() && child->IsVisibleForPainting()) {
+    // only leaf frames have this bit flipped
+    // then check the hard way
+    bool isSelected = (child->GetStateBits() & NS_FRAME_SELECTED_CONTENT)
+      == NS_FRAME_SELECTED_CONTENT;
+    if (isSelected) {
+      isSelected = child->IsVisibleForPainting();
+    }
+
+    if (isSelected) {
       nsRect r = child->GetRect();
       if (aStartFrame == nsnull) {
         aStartFrame = child;
@@ -2756,11 +2774,13 @@ bool nsPrintEngine::HasFramesetChild(nsIContent* aContent)
     return false;
   }
 
+  PRUint32 numChildren = aContent->GetChildCount();
+
   // do a breadth search across all siblings
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsHTML(nsGkAtoms::frameset)) {
+  for (PRUint32 i = 0; i < numChildren; ++i) {
+    nsIContent *child = aContent->GetChildAt(i);
+    if (child->Tag() == nsGkAtoms::frameset &&
+        child->IsHTML()) {
       return true;
     }
   }

@@ -23,7 +23,6 @@
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Mark Steele <mwsteele@gmail.com>
  *   Bas Schouten <bschouten@mozilla.com>
- *   Jeff Gilbert <jgilbert@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -79,7 +78,7 @@ namespace mozilla {
   namespace layers {
     class LayerManagerOGL;
     class ColorTextureLayerProgram;
-  }
+  };
 
 namespace gl {
 class GLContext;
@@ -249,12 +248,6 @@ public:
     }
 
     /**
-     * Mark this texture as having valid contents. Call this after modifying
-     * the texture contents externally.
-     */
-    virtual void MarkValid() {}
-
-    /**
      * aSurf - the source surface to update from
      * aRegion - the region in this image to update
      * aFrom - offset in the source to update from
@@ -399,8 +392,6 @@ public:
     virtual already_AddRefed<gfxASurface>
       GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt);
 
-    virtual void MarkValid() { mTextureState = Valid; }
-
     // Call when drawing into the update surface is complete.
     // Returns true if textures should be upload with a relative 
     // offset - See UploadSurfaceToTexture.
@@ -536,21 +527,12 @@ struct THEBES_API ContextFormat
 class GLContext
     : public LibrarySymbolLoader
 {
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
+    THEBES_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
 public:
     GLContext(const ContextFormat& aFormat,
               bool aIsOffscreen = false,
               GLContext *aSharedContext = nsnull)
-      : mFlushGuaranteesResolve(false),
-        mUserBoundDrawFBO(0),
-        mUserBoundReadFBO(0),
-        mInternalBoundDrawFBO(0),
-        mInternalBoundReadFBO(0),
-#ifdef DEBUG
-        mInInternalBindingMode_DrawFBO(true),
-        mInInternalBindingMode_ReadFBO(true),
-#endif
-        mOffscreenFBOsDirty(false),
+      : mOffscreenFBOsDirty(false),
         mInitialized(false),
         mIsOffscreen(aIsOffscreen),
 #ifdef USE_GLES2
@@ -560,9 +542,8 @@ public:
 #endif
         mIsGlobalSharedContext(false),
         mHasRobustness(false),
-        mContextLost(false),
         mVendor(-1),
-        mRenderer(-1),
+        mDebugMode(0),
         mCreationFormat(aFormat),
         mSharedContext(aSharedContext),
         mOffscreenTexture(0),
@@ -607,20 +588,12 @@ public:
 
     virtual bool MakeCurrentImpl(bool aForce = false) = 0;
 
-#ifdef DEBUG
-    static void StaticInit() {
-        PR_NewThreadPrivateIndex(&sCurrentGLContextTLS, NULL);
-    }
-#endif
-
     bool MakeCurrent(bool aForce = false) {
 #ifdef DEBUG
-        PR_SetThreadPrivate(sCurrentGLContextTLS, this);
+        sCurrentGLContext = this;
 #endif
         return MakeCurrentImpl(aForce);
     }
-
-    bool IsContextLost() { return mContextLost; }
 
     virtual bool SetupLookupFunction() = 0;
 
@@ -690,14 +663,6 @@ public:
     }
 
     /**
-     * Returns true if the context is using ANGLE. This should only be overridden for an ANGLE
-     * implementation.
-     */
-    virtual bool IsANGLE() {
-        return false;
-    }
-
-    /**
      * The derived class is expected to provide information on whether or not it
      * supports robustness.
      */
@@ -711,20 +676,9 @@ public:
         VendorOther
     };
 
-    enum {
-        RendererAdreno200,
-        RendererOther
-    };
-
     int Vendor() const {
         return mVendor;
     }
-
-    int Renderer() const {
-        return mRenderer;
-    }
-
-    bool CanUploadSubTextures();
 
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -776,13 +730,13 @@ public:
           return false;
         }
 
-        if (!aOffscreen->mSharedContext ||
-            aOffscreen->mSharedContext != mSharedContext)
-        {
+        if (!aOffscreen->mOffscreenDrawFBO && !aOffscreen->mOffscreenReadFBO) {
             return false;
         }
 
-        if (!aOffscreen->mOffscreenTexture) {
+        if (!aOffscreen->mSharedContext ||
+            aOffscreen->mSharedContext != mSharedContext)
+        {
             return false;
         }
 
@@ -795,24 +749,6 @@ public:
 
     bool IsOffscreen() {
         return mIsOffscreen;
-    }
-
-private:
-    bool mFlushGuaranteesResolve;
-
-public:
-    void SetFlushGuaranteesResolve(bool aFlushGuaranteesResolve) {
-        mFlushGuaranteesResolve = aFlushGuaranteesResolve;
-    }
-    
-    // Before reads from offscreen texture
-    void GuaranteeResolve() {
-        if (mFlushGuaranteesResolve) {
-            BlitDirtyFBOs();
-            fFlush();
-        } else {
-            fFinish();
-        }
     }
 
     /*
@@ -872,261 +808,102 @@ public:
         return IsExtensionSupported(EXT_framebuffer_blit) || IsExtensionSupported(ANGLE_framebuffer_blit);
     }
 
-
-
-private:
-    GLuint mUserBoundDrawFBO;
-    GLuint mUserBoundReadFBO;
-    GLuint mInternalBoundDrawFBO;
-    GLuint mInternalBoundReadFBO;
-
-public:
-    void fBindFramebuffer(GLenum target, GLuint framebuffer) {
-        switch (target) {
-          case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
-            mUserBoundDrawFBO = framebuffer;
-
-            if (framebuffer == 0) {
-                mInternalBoundDrawFBO = mOffscreenDrawFBO;
-            } else {
-                mInternalBoundDrawFBO = mUserBoundDrawFBO;
-            }
-
-            raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT,
-                                 mInternalBoundDrawFBO);
-            break;
-
-          case LOCAL_GL_READ_FRAMEBUFFER_EXT:
-            mUserBoundReadFBO = framebuffer;
-
-            if (framebuffer == 0) {
-                mInternalBoundReadFBO = mOffscreenReadFBO;
-            } else {
-                mInternalBoundReadFBO = mUserBoundReadFBO;
-            }
-
-            raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT,
-                                 mInternalBoundReadFBO);
-            break;
-
-          case LOCAL_GL_FRAMEBUFFER:
-            mUserBoundDrawFBO = mUserBoundReadFBO = framebuffer;
-
-            if (framebuffer == 0) {
-                mInternalBoundDrawFBO = mOffscreenDrawFBO;
-                mInternalBoundReadFBO = mOffscreenReadFBO;
-            } else {
-                mInternalBoundDrawFBO = mUserBoundDrawFBO;
-                mInternalBoundReadFBO = mUserBoundReadFBO;
-            }
-
-            if (SupportsOffscreenSplit()) {
-                raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT,
-                                     mInternalBoundDrawFBO);
-                raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT,
-                                     mInternalBoundReadFBO);
-            } else {
-                raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
-                                     mInternalBoundDrawFBO);
-            }
-
-            break;
-
-          default:
-            raw_fBindFramebuffer(target, framebuffer);
-            break;
-        }
-    }
-
-#ifdef DEBUG
-    // See comment near BindInternalDrawFBO()
-    bool mInInternalBindingMode_DrawFBO;
-    bool mInInternalBindingMode_ReadFBO;
-#endif
-
-    GLuint GetUserBoundDrawFBO() {
-#ifdef DEBUG
+    GLuint GetBoundDrawFBO() {
         GLint ret = 0;
-        // Don't need a branch here, because:
-        // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT == LOCAL_GL_FRAMEBUFFER_BINDING == 0x8CA6
-        // We use raw_ here because this is debug code and we need to see what
-        // the driver thinks.
-        raw_fGetIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, &ret);
-
-        bool abort = false;
-
-        if (mInInternalBindingMode_DrawFBO) {
-            NS_ERROR("Draw FBO still bound internally!");
-            printf_stderr("Current internal draw FBO: %d, user: %d)\n", ret, mUserBoundDrawFBO);
-            abort = true;
-        }
-
-        if (mInternalBoundDrawFBO != (GLuint)ret) {
-            NS_ERROR("Draw FBO binding misprediction!");
-            printf_stderr("Bound draw FBO was: %d, Expected: %d\n", ret, mInternalBoundDrawFBO);
-            abort = true;
-        }
-
-        if (abort)
-            NS_ABORT();
-#endif
-
-        // We only ever expose the user's bound FBOs
-        return mUserBoundDrawFBO;
-    }
-
-    GLuint GetUserBoundReadFBO() {
-#ifdef DEBUG
-        GLint ret = 0;
-        // We use raw_ here because this is debug code and we need to see what
-        // the driver thinks.
         if (SupportsOffscreenSplit())
-            raw_fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, &ret);
+            fGetIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, &ret);
         else
-            raw_fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
-
-        bool abort = false;
-
-        if (mInInternalBindingMode_ReadFBO) {
-            NS_ERROR("Read FBO still bound internally!");
-            printf_stderr("Current internal read FBO: %d, user: %d)\n", ret, mUserBoundReadFBO);
-            abort = true;
-        }
-
-        if (mInternalBoundReadFBO != (GLuint)ret) {
-            NS_ERROR("Read FBO binding misprediction!");
-            printf_stderr("Bound read FBO was: %d, Expected: %d\n", ret, mInternalBoundReadFBO);
-            abort = true;
-        }
-
-        if (abort)
-            NS_ABORT();
-#endif
-
-        // We only ever expose the user's bound FBOs
-        return mUserBoundReadFBO;
+            fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
+        return ret;
     }
 
-    void BindUserDrawFBO(GLuint name) {
+    GLuint GetBoundReadFBO() {
+        GLint ret = 0;
+        if (SupportsOffscreenSplit())
+            fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, &ret);
+        else
+            fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
+        return ret;
+    }
+
+    void BindDrawFBO(GLuint name) {
         if (SupportsOffscreenSplit())
             fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, name);
         else
             fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, name);
-#ifdef DEBUG
-        mInInternalBindingMode_DrawFBO = false;
-#endif
     }
 
-    void BindUserReadFBO(GLuint name) {
+    void BindReadFBO(GLuint name) {
         if (SupportsOffscreenSplit())
             fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, name);
         else
             fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, name);
-#ifdef DEBUG
-        mInInternalBindingMode_ReadFBO = false;
-#endif
     }
 
-    // BindInternalDraw/ReadFBO() switch us over into 'internal binding mode'
-    //   for the corresponding Draw or Read binding.
-    // To exit internal binding mode, use BindUserDraw/ReadFBO().
-    // While in internal binding mode for Draw/Read, the corresponding
-    //   GetBoundUserDraw/ReadFBO() is undefined, and will trigger ABORT in DEBUG builds.
-    void BindInternalDrawFBO(GLuint name) {
-#ifdef DEBUG
-      mInInternalBindingMode_DrawFBO = true;
-#endif
-        if (SupportsOffscreenSplit())
-            raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, name);
-        else
-            raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, name);
-
-        mInternalBoundDrawFBO = name;
-    }
-
-    void BindInternalReadFBO(GLuint name) {
-#ifdef DEBUG
-      mInInternalBindingMode_ReadFBO = true;
-#endif
-        if (SupportsOffscreenSplit())
-            raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, name);
-        else
-            raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, name);
-
-        mInternalBoundReadFBO = name;
-    }
-
-    void BindInternalFBO(GLuint name) {
-        BindInternalDrawFBO(name);
-        BindInternalReadFBO(name);
-    }
-
-    void InitFramebuffers() {
-        MakeCurrent();
-        BindUserDrawFBO(0);
-        BindUserReadFBO(0);
-    }
-
-    GLuint SwapUserDrawFBO(GLuint name) {
-        GLuint prev = GetUserBoundDrawFBO();
-        BindUserDrawFBO(name);
+    GLuint SwapBoundDrawFBO(GLuint name) {
+        GLuint prev = GetBoundDrawFBO();
+        BindDrawFBO(name);
         return prev;
     }
 
-    GLuint SwapUserReadFBO(GLuint name) {
-        GLuint prev = GetUserBoundReadFBO();
-        BindUserReadFBO(name);
+    GLuint SwapBoundReadFBO(GLuint name) {
+        GLuint prev = GetBoundReadFBO();
+        BindReadFBO(name);
         return prev;
+    }
+
+    void BindOffscreenDrawBuffer() {
+        BindDrawFBO(mOffscreenDrawFBO);
+    }
+
+    void BindOffscreenReadBuffer() {
+        BindReadFBO(mOffscreenReadFBO);
+    }
+
+    void BindOffscreenBuffers() {
+        BindOffscreenDrawBuffer();
+        BindOffscreenReadBuffer();
     }
 
 private:
+    GLuint mPrevDrawFBOBinding;
+    GLuint mPrevReadFBOBinding;
     bool mOffscreenFBOsDirty;
 
-    void GetShaderPrecisionFormatNonES2(GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision) {
-        switch (precisiontype) {
-            case LOCAL_GL_LOW_FLOAT:
-            case LOCAL_GL_MEDIUM_FLOAT:
-            case LOCAL_GL_HIGH_FLOAT:
-                // Assume IEEE 754 precision
-                range[0] = 127;
-                range[1] = 127;
-                *precision = 0;
-                break;
-            case LOCAL_GL_LOW_INT:
-            case LOCAL_GL_MEDIUM_INT:
-            case LOCAL_GL_HIGH_INT:
-                // Some (most) hardware only supports single-precision floating-point numbers,
-                // which can accurately represent integers up to +/-16777216
-                range[0] = 24;
-                range[1] = 24;
-                *precision = 0;
-                break;
-        }
-    }
-
-    // Do whatever setup is necessary to draw to our offscreen FBO, if it's
-    // bound.
     void BeforeGLDrawCall() {
-        if (mInternalBoundDrawFBO != mOffscreenDrawFBO)
+        // Record and rebind if necessary
+        mPrevDrawFBOBinding = GetBoundDrawFBO();
+        if (mPrevDrawFBOBinding == 0) {
+            BindDrawFBO(mOffscreenDrawFBO);
+        } else if (mPrevDrawFBOBinding != mOffscreenDrawFBO)
             return;
 
+        // Must be after binding the proper FBO
         if (mOffscreenDrawFBO == mOffscreenReadFBO)
+            return;
+
+        // If we're already dirty, no need to set it again
+        if (mOffscreenFBOsDirty)
             return;
 
         mOffscreenFBOsDirty = true;
     }
 
-    // Do whatever tear-down is necessary after drawing to our offscreen FBO,
-    // if it's bound.
     void AfterGLDrawCall() {
+        if (mPrevDrawFBOBinding == 0) {
+            BindDrawFBO(0);
+        }
     }
 
-    // Do whatever setup is necessary to read from our offscreen FBO, if it's
-    // bound.
     void BeforeGLReadCall() {
-        if (mInternalBoundReadFBO != mOffscreenReadFBO)
+        // Record and rebind if necessary
+        mPrevReadFBOBinding = GetBoundReadFBO();
+        if (mPrevReadFBOBinding == 0) {
+            BindReadFBO(mOffscreenReadFBO);
+        } else if (mPrevReadFBOBinding != mOffscreenReadFBO)
             return;
 
+        // Must be after binding the proper FBO
         if (mOffscreenDrawFBO == mOffscreenReadFBO)
             return;
 
@@ -1138,16 +915,9 @@ private:
         if (scissor)
             fDisable(LOCAL_GL_SCISSOR_TEST);
 
-        // Store current bindings for restoring later
-        GLuint prevDraw = GetUserBoundDrawFBO();
-        GLuint prevRead = GetUserBoundReadFBO();
-
-        NS_ABORT_IF_FALSE(SupportsOffscreenSplit(), "Doesn't support offscreen split?");
-
-        // Manually setting internal bindings, entering internal mode
-        // Flip read/draw for blitting
-        BindInternalDrawFBO(mOffscreenReadFBO);
-        BindInternalReadFBO(mOffscreenDrawFBO);
+        // flip read/draw for blitting
+        GLuint prevDraw = SwapBoundDrawFBO(mOffscreenReadFBO);
+        BindReadFBO(mOffscreenDrawFBO); // We know that Read must already be mOffscreenRead, so no need to write that down
 
         GLint width = mOffscreenActualSize.width;
         GLint height = mOffscreenActualSize.height;
@@ -1156,9 +926,8 @@ private:
                              LOCAL_GL_COLOR_BUFFER_BIT,
                              LOCAL_GL_NEAREST);
 
-        // Reset to emulated user binding, exiting internal mode
-        BindUserDrawFBO(prevDraw);
-        BindUserReadFBO(prevRead);
+        BindDrawFBO(prevDraw);
+        BindReadFBO(mOffscreenReadFBO);
 
         if (scissor)
             fEnable(LOCAL_GL_SCISSOR_TEST);
@@ -1166,9 +935,10 @@ private:
         mOffscreenFBOsDirty = false;
     }
 
-    // Do whatever tear-down is necessary after reading from our offscreen FBO,
-    // if it's bound.
     void AfterGLReadCall() {
+        if (mPrevReadFBOBinding == 0) {
+            BindReadFBO(0);
+        }
     }
 
 public:
@@ -1213,25 +983,26 @@ public:
     }
 
     void ForceDirtyFBOs() {
-        GLuint draw = SwapUserDrawFBO(0);
+        GLuint draw = SwapBoundReadFBO(mOffscreenDrawFBO);
 
         BeforeGLDrawCall();
         // no-op; just pretend we did something
         AfterGLDrawCall();
 
-        BindUserDrawFBO(draw);
+        BindDrawFBO(draw);
     }
 
     void BlitDirtyFBOs() {
-        GLuint read = SwapUserReadFBO(0);
+        GLuint read = SwapBoundReadFBO(mOffscreenReadFBO);
 
         BeforeGLReadCall();
         // no-op; we just want to make sure the Read FBO is updated if it needs to be
         AfterGLReadCall();
 
-        BindUserReadFBO(read);
+        BindReadFBO(read);
     }
 
+    // Before reads from offscreen texture
     void fFinish() {
         BeforeGLReadCall();
         raw_fFinish();
@@ -1309,10 +1080,7 @@ public:
      */
     already_AddRefed<gfxImageSurface> ReadTextureImage(GLuint aTexture,
                                                        const gfxIntSize& aSize,
-                                                       GLenum aTextureFormat,
-                                                       bool aYInvert = false);
-
-    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader);
+                                                       GLenum aTextureFormat);
 
     /**
      * Call ReadPixels into an existing gfxImageSurface for the given bounds.
@@ -1493,14 +1261,12 @@ public:
         ARB_texture_float,
         EXT_unpack_subimage,
         OES_standard_derivatives,
-        EXT_texture_filter_anisotropic,
         EXT_framebuffer_blit,
         ANGLE_framebuffer_blit,
         EXT_framebuffer_multisample,
         ANGLE_framebuffer_multisample,
         OES_rgb8_rgba8,
         ARB_robustness,
-        EXT_robustness,
         Extensions_Max
     };
 
@@ -1547,7 +1313,7 @@ public:
         CONTEXT_NO_ERROR = 0,
         CONTEXT_GUILTY_CONTEXT_RESET_ARB = 0x8253,
         CONTEXT_INNOCENT_CONTEXT_RESET_ARB = 0x8254,
-        CONTEXT_UNKNOWN_CONTEXT_RESET_ARB = 0x8255
+        CONTEXT_UNKNOWN_CONTEXT_RESET_ARB = 0x8255,
     };
 
     bool HasRobustness() {
@@ -1560,29 +1326,16 @@ protected:
     bool mIsGLES2;
     bool mIsGlobalSharedContext;
     bool mHasRobustness;
-    bool mContextLost;
 
     PRInt32 mVendor;
-    PRInt32 mRenderer;
 
-public:
     enum {
         DebugEnabled = 1 << 0,
         DebugTrace = 1 << 1,
         DebugAbortOnError = 1 << 2
     };
 
-    static PRUint32 sDebugMode;
-
-    static PRUint32 DebugMode() {
-#ifdef DEBUG
-        return sDebugMode;
-#else
-        return 0;
-#endif
-    }
-
-protected:
+    PRUint32 mDebugMode;
 
     ContextFormat mCreationFormat;
     nsRefPtr<GLContext> mSharedContext;
@@ -1590,12 +1343,10 @@ protected:
     GLContextSymbols mSymbols;
 
 #ifdef DEBUG
-    // GLDebugMode will check that we don't send call
-    // to a GLContext that isn't current on the current
-    // thread.
-    // Store the current context when binding to thread local
-    // storage to support DebugMode on an arbitrary thread.
-    static PRUintn sCurrentGLContextTLS;
+    // this should be thread-local, but that is slightly annoying to implement because on Mac
+    // we don't have any __thread-like keyword. So for now, MOZ_GL_DEBUG assumes (and asserts)
+    // that only the main thread is doing OpenGL calls.
+    static THEBES_API GLContext* sCurrentGLContext;
 #endif
 
     void UpdateActualFormat();
@@ -1611,34 +1362,23 @@ protected:
     void UseBlitProgram();
     void SetBlitFramebufferForDestTexture(GLuint aTexture);
 
-    // Helper to create/resize an offscreen FBO,
+    // helper to create/resize an offscreen FBO,
     // for offscreen implementations that use FBOs.
-    // Note that it does -not- clear the resized buffers.
     bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, const bool aDisableAA);
     bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO) {
         if (ResizeOffscreenFBO(aSize, aUseReadFBO, false))
             return true;
 
-        if (!mCreationFormat.samples) {
-            NS_WARNING("ResizeOffscreenFBO failed to resize non-AA context!");
+        if (!mCreationFormat.samples)
             return false;
-        } else {
-            NS_WARNING("ResizeOffscreenFBO failed to resize AA context! Falling back to no AA...");
-        }
 
-        if (DebugMode()) {
+        if (mDebugMode) {
             printf_stderr("Requested level of multisampling is unavailable, continuing without multisampling\n");
         }
 
-        if (ResizeOffscreenFBO(aSize, aUseReadFBO, true))
-            return true;
-
-        NS_WARNING("ResizeOffscreenFBO failed to resize AA context even without AA!");
-        return false;
+        return ResizeOffscreenFBO(aSize, aUseReadFBO, true);
     }
-
     void DeleteOffscreenFBO();
-
     GLuint mOffscreenDrawFBO;
     GLuint mOffscreenReadFBO;
     GLuint mOffscreenColorRB;
@@ -1650,10 +1390,7 @@ protected:
     // Clear to transparent black, with 0 depth and stencil,
     // while preserving current ClearColor etc. values.
     // Useful for resizing offscreen buffers.
-public:
     void ClearSafely();
-
-protected:
 
     nsDataHashtable<nsVoidPtrHashKey, void*> mUserData;
 
@@ -1727,37 +1464,42 @@ protected:
 public:
 
     void BeforeGLCall(const char* glFunction) {
-        if (DebugMode()) {
-            GLContext *currentGLContext = NULL;
-
-            currentGLContext = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
-
-            if (DebugMode() & DebugTrace)
+        if (mDebugMode) {
+            // since the static member variable sCurrentGLContext is not thread-local as it should,
+            // we have to assert that we're in the main thread. Note that sCurrentGLContext is only used
+            // for the OpenGL debug mode.
+            if (!NS_IsMainThread()) {
+                NS_ERROR("OpenGL call from non-main thread. While this is fine in itself, "
+                         "the OpenGL debug mode, which is currently enabled, doesn't support this. "
+                         "It needs to be patched by making GLContext::sCurrentGLContext be thread-local.\n");
+                NS_ABORT();
+            }
+            if (mDebugMode & DebugTrace)
                 printf_stderr("[gl:%p] > %s\n", this, glFunction);
-            if (this != currentGLContext) {
+            if (this != sCurrentGLContext) {
                 printf_stderr("Fatal: %s called on non-current context %p. "
                               "The current context for this thread is %p.\n",
-                               glFunction, this, currentGLContext);
+                               glFunction, this, sCurrentGLContext);
                 NS_ABORT();
             }
         }
     }
 
     void AfterGLCall(const char* glFunction) {
-        if (DebugMode()) {
+        if (mDebugMode) {
             // calling fFinish() immediately after every GL call makes sure that if this GL command crashes,
             // the stack trace will actually point to it. Otherwise, OpenGL being an asynchronous API, stack traces
             // tend to be meaningless
             mSymbols.fFinish();
             mGLError = mSymbols.fGetError();
-            if (DebugMode() & DebugTrace)
+            if (mDebugMode & DebugTrace)
                 printf_stderr("[gl:%p] < %s [0x%04x]\n", this, glFunction, mGLError);
             if (mGLError != LOCAL_GL_NO_ERROR) {
                 printf_stderr("GL ERROR: %s generated GL error %s(0x%04x)\n", 
                               glFunction,
                               GLErrorToString(mGLError),
                               mGLError);
-                if (DebugMode() & DebugAbortOnError)
+                if (mDebugMode & DebugAbortOnError)
                     NS_ABORT();
             }
         }
@@ -1807,7 +1549,7 @@ public:
     GLenum fGetError() {
 #ifdef DEBUG
         // debug mode ends up eating the error in AFTER_GL_CALL
-        if (DebugMode()) {
+        if (mDebugMode) {
             GLenum err = mGLError;
             mGLError = LOCAL_GL_NO_ERROR;
             return err;
@@ -2127,32 +1869,10 @@ public:
         return retval;
     }
 
-private:
-    void raw_fGetIntegerv(GLenum pname, GLint *params) {
+    void fGetIntegerv(GLenum pname, GLint *params) {
         BEFORE_GL_CALL;
         mSymbols.fGetIntegerv(pname, params);
         AFTER_GL_CALL;
-    }
-
-public:
-    void fGetIntegerv(GLenum pname, GLint *params) {
-        switch (pname)
-        {
-            // LOCAL_GL_FRAMEBUFFER_BINDING is equal to
-            // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, so we don't need two
-            // cases.
-            case LOCAL_GL_FRAMEBUFFER_BINDING:
-                *params = GetUserBoundDrawFBO();
-                break;
-
-            case LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT:
-                *params = GetUserBoundReadFBO();
-                break;
-
-            default:
-                raw_fGetIntegerv(pname, params);
-                break;
-        }
     }
 
     void fGetFloatv(GLenum pname, GLfloat *params) {
@@ -2208,26 +1928,6 @@ public:
         const GLubyte *result = mSymbols.fGetString(name);
         AFTER_GL_CALL;
         return result;
-    }
-
-    void fGetTexImage(GLenum target, GLint level, GLenum format, GLenum type, GLvoid *img) {
-        if (!mSymbols.fGetTexImage) {
-          return;
-        }
-        BEFORE_GL_CALL;
-        mSymbols.fGetTexImage(target, level, format, type, img);
-        AFTER_GL_CALL;
-    };
-
-    void fGetTexLevelParameteriv(GLenum target, GLint level, GLenum pname, GLint *params)
-    {  
-        if (!mSymbols.fGetTexLevelParameteriv) {
-          *params = 0;
-          return;
-        }
-        BEFORE_GL_CALL;
-        mSymbols.fGetTexLevelParameteriv(target, level, pname, params);
-        AFTER_GL_CALL;
     }
 
     void fGetTexParameterfv(GLenum target, GLenum pname, const GLfloat *params) {
@@ -2618,17 +2318,6 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fGetShaderPrecisionFormat(GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision) {
-        BEFORE_GL_CALL;
-        if (mIsGLES2) {
-            mSymbols.fGetShaderPrecisionFormat(shadertype, precisiontype, range, precision);
-        } else {
-            // Fall back to automatic values because almost all desktop hardware supports the OpenGL standard precisions.
-            GetShaderPrecisionFormatNonES2(shadertype, precisiontype, range, precision);
-        }
-        AFTER_GL_CALL;
-    }
-
     void fGetShaderSource(GLint obj, GLsizei maxLength, GLsizei* length, GLchar* source) {
         BEFORE_GL_CALL;
         mSymbols.fGetShaderSource(obj, maxLength, length, source);
@@ -2641,14 +2330,12 @@ public:
         AFTER_GL_CALL;
     }
 
-private:
-    void raw_fBindFramebuffer(GLenum target, GLuint framebuffer) {
+    void fBindFramebuffer(GLenum target, GLuint framebuffer) {
         BEFORE_GL_CALL;
         mSymbols.fBindFramebuffer(target, framebuffer);
         AFTER_GL_CALL;
     }
 
-public:
     void fBindRenderbuffer(GLenum target, GLuint renderbuffer) {
         BEFORE_GL_CALL;
         mSymbols.fBindRenderbuffer(target, renderbuffer);
@@ -2919,23 +2606,23 @@ public:
 };
 
 inline bool
-DoesStringMatch(const char* aString, const char *aWantedString)
+DoesVendorStringMatch(const char* aVendorString, const char *aWantedVendor)
 {
-    if (!aString || !aWantedString)
+    if (!aVendorString || !aWantedVendor)
         return false;
 
-    const char *occurrence = strstr(aString, aWantedString);
+    const char *occurrence = strstr(aVendorString, aWantedVendor);
 
-    // aWanted not found
+    // aWantedVendor not found
     if (!occurrence)
         return false;
 
-    // aWantedString preceded by alpha character
-    if (occurrence != aString && isalpha(*(occurrence-1)))
+    // aWantedVendor preceded by alpha character
+    if (occurrence != aVendorString && isalpha(*(occurrence-1)))
         return false;
 
     // aWantedVendor followed by alpha character
-    const char *afterOccurrence = occurrence + strlen(aWantedString);
+    const char *afterOccurrence = occurrence + strlen(aWantedVendor);
     if (isalpha(*afterOccurrence))
         return false;
 

@@ -47,7 +47,6 @@ PARALLEL_DIRS = \
   components \
   fuel \
   locales \
-  modules \
   themes \
   $(NULL)
 
@@ -71,8 +70,6 @@ ifdef MOZ_INSTALLER
 # uninstaller is included with the application for mar file generation.
 libs::
 	$(MAKE) -C installer/windows uninstaller
-ifdef MOZ_MAINTENANCE_SERVICE
-	$(MAKE) -C installer/windows maintenanceservice_installer
-endif
+
 endif
 endif

@@ -233,7 +233,7 @@ jsd_GetObjectNewURL(JSDContext* jsdc, JSDObject* jsdobj)
     return NULL;
 }
 
-unsigned
+uintN
 jsd_GetObjectNewLineNumber(JSDContext* jsdc, JSDObject* jsdobj)
 {
     return jsdobj->newLineno;
@@ -247,7 +247,7 @@ jsd_GetObjectConstructorURL(JSDContext* jsdc, JSDObject* jsdobj)
     return NULL;
 }
 
-unsigned
+uintN
 jsd_GetObjectConstructorLineNumber(JSDContext* jsdc, JSDObject* jsdobj)
 {
     return jsdobj->ctorLineno;

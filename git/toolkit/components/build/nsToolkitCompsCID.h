@@ -96,6 +96,8 @@
 #define NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID \
     "@mozilla.org/url-classifier/hashcompleter;1"
 
+#define NS_SCRIPTABLEUNESCAPEHTML_CONTRACTID "@mozilla.org/feed-unescapehtml;1"
+
 #define NS_NAVHISTORYSERVICE_CONTRACTID \
   "@mozilla.org/browser/nav-history-service;1"
 
@@ -107,9 +109,6 @@
 
 #define NS_LIVEMARKSERVICE_CONTRACTID \
   "@mozilla.org/browser/livemark-service;2"
-
-#define NS_TAGGINGSERVICE_CONTRACTID \
-"@mozilla.org/browser/tagging-service;1"
 
 #define NS_FAVICONSERVICE_CONTRACTID \
   "@mozilla.org/browser/favicon-service;1"
@@ -161,9 +160,9 @@
 #define NS_TYPEAHEADFIND_CID \
 { 0xe7f70966, 0x9a37, 0x48d7, { 0x8a, 0xeb, 0x35, 0x99, 0x8f, 0x31, 0x09, 0x0e} }
 
-// {b21b0fa1-20d2-422a-b2cc-b289c9325811}
- #define NS_URLCLASSIFIERPREFIXSET_CID \
-{ 0xb21b0fa1, 0x20d2, 0x422a, { 0xb2, 0xcc, 0xb2, 0x89, 0xc9, 0x32, 0x58, 0x11} }
+// {51464459-4e46-4f31-8745-4acfa7c1e2f2}
+#define NS_URLCLASSIFIERPREFIXSET_CID \
+{ 0x51464459, 0x4e46, 0x4f31, { 0x87, 0x45, 0x4a, 0xcf, 0xa7, 0xc1, 0xe2, 0xf2} }
 
 // {5eb7c3c1-ec1f-4007-87cc-eefb37d68ce6}
 #define NS_URLCLASSIFIERDBSERVICE_CID \
@@ -176,6 +175,10 @@
 // {b7b2ccec-7912-4ea6-a548-b038447004bd}
 #define NS_URLCLASSIFIERUTILS_CID \
 { 0xb7b2ccec, 0x7912, 0x4ea6, { 0xa5, 0x48, 0xb0, 0x38, 0x44, 0x70, 0x04, 0xbd} }
+
+// {10f2f5f0-f103-4901-980f-ba11bd70d60d}
+#define NS_SCRIPTABLEUNESCAPEHTML_CID  \
+{ 0x10f2f5f0, 0xf103, 0x4901, { 0x98, 0x0f, 0xba, 0x11, 0xbd, 0x70, 0xd6, 0x0d} }
 
 #define NS_NAVHISTORYSERVICE_CID \
 { 0x88cecbb7, 0x6c63, 0x4b3b, { 0x8c, 0xd4, 0x84, 0xf3, 0xb8, 0x22, 0x8c, 0x69 } }

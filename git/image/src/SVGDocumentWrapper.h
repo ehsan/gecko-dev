@@ -41,8 +41,6 @@
 #ifndef mozilla_imagelib_SVGDocumentWrapper_h_
 #define mozilla_imagelib_SVGDocumentWrapper_h_
 
-#include "mozilla/Attributes.h"
-
 #include "nsCOMPtr.h"
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
@@ -62,11 +60,11 @@ class nsSVGSVGElement;
 
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
-class SVGDocumentWrapper MOZ_FINAL : public nsIStreamListener,
-                                     public nsIObserver,
-                                     nsSupportsWeakReference
+class SVGDocumentWrapper : public nsIStreamListener,
+                           public nsIObserver,
+                           nsSupportsWeakReference
 {
 public:
   SVGDocumentWrapper();
@@ -185,9 +183,13 @@ private:
   nsCOMPtr<nsIStreamListener> mListener;
   bool                        mIgnoreInvalidation;
   bool                        mRegisteredForXPCOMShutdown;
+
+  // Lazily-initialized pointer to nsGkAtoms::svg, to make life easier in
+  // non-libxul builds, which don't let us reference nsGkAtoms from imagelib.
+  static nsIAtom* kSVGAtom;
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif // mozilla_imagelib_SVGDocumentWrapper_h_

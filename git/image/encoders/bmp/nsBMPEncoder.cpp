@@ -174,9 +174,8 @@ NS_IMETHODIMP nsBMPEncoder::StartImageEncode(PRUint32 aWidth,
   return NS_OK;
 }
 
-// Returns the number of bytes in the image buffer used.
-// For a BMP file, this is all bytes in the buffer.
-NS_IMETHODIMP nsBMPEncoder::GetImageBufferUsed(PRUint32 *aOutputSize)
+// Returns the image buffer size
+NS_IMETHODIMP nsBMPEncoder::GetImageBufferSize(PRUint32 *aOutputSize)
 {
   NS_ENSURE_ARG_POINTER(aOutputSize);
   *aOutputSize = mImageBufferSize;
@@ -437,26 +436,17 @@ void
 nsBMPEncoder::ConvertHostARGBRow(const PRUint8* aSrc, PRUint8* aDest,
                                  PRUint32 aPixelWidth)
 {
-  int bytes = BytesPerPixel(mBMPInfoHeader.bpp);
+  for (PRUint32 x = 0; x < aPixelWidth; x ++) {
+    const PRUint32& pixelIn = ((const PRUint32*)(aSrc))[x];
+    PRUint8 *pixelOut = &aDest[x * BytesPerPixel(mBMPInfoHeader.bpp)];
 
-  if (mBMPInfoHeader.bpp == 32) {
-    for (PRUint32 x = 0; x < aPixelWidth; x++) {
-      const PRUint32& pixelIn = ((const PRUint32*)(aSrc))[x];
-      PRUint8 *pixelOut = &aDest[x * bytes];
+    PRUint8 alpha = (pixelIn & 0xff000000) >> 24;
+    pixelOut[0] = (((pixelIn & 0xff0000) >> 16));
+    pixelOut[1] = (((pixelIn & 0x00ff00) >>  8));
+    pixelOut[2] = (((pixelIn & 0x0000ff) >>  0));
 
-      pixelOut[0] = (pixelIn & 0x00ff0000) >> 16;
-      pixelOut[1] = (pixelIn & 0x0000ff00) >>  8;
-      pixelOut[2] = (pixelIn & 0x000000ff) >>  0;
-      pixelOut[3] = (pixelIn & 0xff000000) >> 24;
-    }
-  } else {
-    for (PRUint32 x = 0; x < aPixelWidth; x++) {
-      const PRUint32& pixelIn = ((const PRUint32*)(aSrc))[x];
-      PRUint8 *pixelOut = &aDest[x * bytes];
-
-      pixelOut[0] = (pixelIn & 0xff0000) >> 16;
-      pixelOut[1] = (pixelIn & 0x00ff00) >>  8;
-      pixelOut[2] = (pixelIn & 0x0000ff) >>  0;
+    if (mBMPInfoHeader.bpp == 32) {
+      pixelOut[3] = alpha;
     }
   }
 }
@@ -554,7 +544,7 @@ nsBMPEncoder::InitInfoHeader(PRUint32 aBPP, PRUint32 aWidth, PRUint32 aHeight)
 void 
 nsBMPEncoder::EncodeFileHeader() 
 {  
-  mozilla::image::BMPFILEHEADER littleEndianBFH = mBMPFileHeader;
+  mozilla::imagelib::BMPFILEHEADER littleEndianBFH = mBMPFileHeader;
   littleEndianBFH.filesize = NATIVE32_TO_LITTLE(littleEndianBFH.filesize);
   littleEndianBFH.reserved = NATIVE32_TO_LITTLE(littleEndianBFH.reserved);
   littleEndianBFH.dataoffset= NATIVE32_TO_LITTLE(littleEndianBFH.dataoffset);
@@ -581,7 +571,7 @@ nsBMPEncoder::EncodeFileHeader()
 void 
 nsBMPEncoder::EncodeInfoHeader()
 {
-  mozilla::image::BMPINFOHEADER littleEndianmBIH = mBMPInfoHeader;
+  mozilla::imagelib::BMPINFOHEADER littleEndianmBIH = mBMPInfoHeader;
   littleEndianmBIH.width =  NATIVE32_TO_LITTLE(littleEndianmBIH.width);
   littleEndianmBIH.height = NATIVE32_TO_LITTLE(littleEndianmBIH.height); 
   littleEndianmBIH.planes = NATIVE16_TO_LITTLE(littleEndianmBIH.planes);

@@ -41,7 +41,6 @@
 
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
-#include "Role.h"
 
 #include "nsIDOMHTMLCollection.h"
 #include "nsIServiceManager.h"
@@ -51,15 +50,14 @@
 #include "nsImageFrame.h"
 #include "nsImageMap.h"
 
-using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLImageMapAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLImageMapAccessible::
-  nsHTMLImageMapAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
-                           nsIDOMHTMLMapElement* aMapElm) :
-  nsHTMLImageAccessibleWrap(aContent, aDoc), mMapElement(aMapElm)
+  nsHTMLImageMapAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                           nsIDOMHTMLMapElement *aMapElm) :
+  nsHTMLImageAccessibleWrap(aContent, aShell), mMapElement(aMapElm)
 {
 }
 
@@ -71,10 +69,10 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLImageMapAccessible, nsHTMLImageAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLImageMapAccessible: nsAccessible public
 
-role
+PRUint32
 nsHTMLImageMapAccessible::NativeRole()
 {
-  return roles::IMAGE_MAP;
+  return nsIAccessibleRole::ROLE_IMAGE_MAP;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +115,7 @@ nsHTMLImageMapAccessible::CacheChildren()
   if (!mapAreas)
     return;
 
-  nsDocAccessible* document = Document();
+  nsDocAccessible* document = GetDocAccessible();
 
   PRUint32 areaCount = 0;
   mapAreas->GetLength(&areaCount);
@@ -130,7 +128,7 @@ nsHTMLImageMapAccessible::CacheChildren()
 
     nsCOMPtr<nsIContent> areaContent(do_QueryInterface(areaNode));
     nsRefPtr<nsAccessible> area =
-      new nsHTMLAreaAccessible(areaContent, mDoc);
+      new nsHTMLAreaAccessible(areaContent, mWeakShell);
 
     if (!document->BindToDocument(area, nsAccUtils::GetRoleMapEntry(areaContent)) ||
         !AppendChild(area)) {
@@ -145,8 +143,8 @@ nsHTMLImageMapAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLAreaAccessible::
-  nsHTMLAreaAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHTMLLinkAccessible(aContent, aDoc)
+  nsHTMLAreaAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHTMLLinkAccessible(aContent, aShell)
 {
 }
 
@@ -234,8 +232,8 @@ nsHTMLAreaAccessible::NativeState()
 {
   // Bypass the link states specialization for non links.
   if (mRoleMapEntry &&
-      mRoleMapEntry->role != roles::NOTHING &&
-      mRoleMapEntry->role != roles::LINK) {
+      mRoleMapEntry->role != nsIAccessibleRole::ROLE_NOTHING &&
+      mRoleMapEntry->role != nsIAccessibleRole::ROLE_LINK) {
     return nsAccessible::NativeState();
   }
 

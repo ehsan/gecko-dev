@@ -39,9 +39,8 @@
 #ifndef _nsAccessible_H_
 #define _nsAccessible_H_
 
-#include "mozilla/a11y/Role.h"
-#include "mozilla/a11y/States.h"
 #include "nsAccessNodeWrap.h"
+#include "mozilla/a11y/States.h"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
@@ -61,7 +60,6 @@ class EmbeddedObjCollector;
 class KeyBinding;
 class nsAccessible;
 class nsHyperTextAccessible;
-class nsHTMLImageAccessible;
 class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
 class Relation;
@@ -104,7 +102,7 @@ class nsAccessible : public nsAccessNodeWrap,
                      public nsIAccessibleValue
 {
 public:
-  nsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -128,17 +126,6 @@ public:
    * get the description of this accessible
    */
   virtual void Description(nsString& aDescription);
-
-  /**
-   * Return DOM node associated with this accessible.
-   */
-  inline already_AddRefed<nsIDOMNode> DOMNode() const
-  {
-    nsIDOMNode *DOMNode = nsnull;
-    if (GetNode())
-      CallQueryInterface(GetNode(), &DOMNode);
-    return DOMNode;
-  }
 
   /**
    * Returns the accessible name specified by ARIA.
@@ -167,9 +154,9 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
 
   /**
-   * Return enumerated accessible role (see constants in Role.h).
+   * Return enumerated accessible role (see constants in nsIAccessibleRole).
    */
-  inline mozilla::a11y::role Role()
+  inline PRUint32 Role()
   {
     if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
       return NativeRole();
@@ -178,30 +165,22 @@ public:
   }
 
   /**
-   * Return true if ARIA role is specified on the element.
-   */
-  inline bool HasARIARole() const
-  {
-    return mRoleMapEntry;
-  }
-
-  /**
    * Return accessible role specified by ARIA (see constants in
-   * roles).
+   * nsIAccessibleRole).
    */
-  inline mozilla::a11y::role ARIARole()
+  inline PRUint32 ARIARole()
   {
     if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
-      return mozilla::a11y::roles::NOTHING;
+      return nsIAccessibleRole::ROLE_NOTHING;
 
     return ARIARoleInternal();
   }
 
   /**
    * Returns enumerated accessible role from native markup (see constants in
-   * Role.h). Doesn't take into account ARIA roles.
+   * nsIAccessibleRole). Doesn't take into account ARIA roles.
    */
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   /**
    * Return all states of accessible (including ARIA states).
@@ -213,11 +192,6 @@ public:
    * Use State() to get complete set of states.
    */
   virtual PRUint64 NativeState();
-
-  /**
-   * Return bit set of invisible and offscreen states.
-   */
-  PRUint64 VisibilityState();
 
   /**
    * Returns attributes for accessible without explicitly setted ARIA
@@ -404,9 +378,9 @@ public:
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 
   /**
-   * Return true if this accessible allows accessible children from anonymous subtree.
+   * Return true if there are accessible children in anonymous content
    */
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   /**
    * Returns text of accessible if accessible has text role otherwise empty
@@ -450,13 +424,8 @@ public:
   inline bool IsHyperText() const { return mFlags & eHyperTextAccessible; }
   nsHyperTextAccessible* AsHyperText();
 
-  inline bool IsHTMLFileInput() const { return mFlags & eHTMLFileInputAccessible; }
-
   inline bool IsHTMLListItem() const { return mFlags & eHTMLListItemAccessible; }
   nsHTMLLIAccessible* AsHTMLListItem();
-  
-  inline bool IsImageAccessible() const { return mFlags & eImageAccessible; }
-  nsHTMLImageAccessible* AsImage();
 
   inline bool IsListControl() const { return mFlags & eListControlAccessible; }
 
@@ -618,19 +587,9 @@ public:
   virtual nsAccessible* CurrentItem();
 
   /**
-   * Set the current item of the widget.
-   */
-  virtual void SetCurrentItem(nsAccessible* aItem);
-
-  /**
    * Return container widget this accessible belongs to.
    */
   virtual nsAccessible* ContainerWidget() const;
-
-  /**
-   * Return the localized string for the given key.
-   */
-  static void TranslateString(const nsAString& aKey, nsAString& aStringOut);
 
 protected:
 
@@ -686,14 +645,12 @@ protected:
     eComboboxAccessible = 1 << 5,
     eDocAccessible = 1 << 6,
     eHyperTextAccessible = 1 << 7,
-    eHTMLFileInputAccessible = 1 << 8,
-    eHTMLListItemAccessible = 1 << 9,
-    eImageAccessible = 1 << 10,
-    eListControlAccessible = 1 << 11,
-    eMenuButtonAccessible = 1 << 12,
-    eMenuPopupAccessible = 1 << 13,
-    eRootAccessible = 1 << 14,
-    eTextLeafAccessible = 1 << 15
+    eHTMLListItemAccessible = 1 << 8,
+    eListControlAccessible = 1 << 9,
+    eMenuButtonAccessible = 1 << 10,
+    eMenuPopupAccessible = 1 << 11,
+    eRootAccessible = 1 << 12,
+    eTextLeafAccessible = 1 << 13
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -702,10 +659,11 @@ protected:
   /**
    * Return ARIA role (helper method).
    */
-  mozilla::a11y::role ARIARoleInternal();
+  PRUint32 ARIARoleInternal();
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
+  bool IsVisible(bool *aIsOffscreen); 
 
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers
@@ -722,6 +680,7 @@ protected:
 
   // helper method to verify frames
   static nsresult GetFullKeyName(const nsAString& aModifierName, const nsAString& aKeyName, nsAString& aStringOut);
+  static nsresult GetTranslatedString(const nsAString& aKey, nsAString& aStringOut);
 
   /**
    * Return an accessible for the given DOM node, or if that node isn't

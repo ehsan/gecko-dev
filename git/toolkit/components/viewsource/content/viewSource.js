@@ -47,8 +47,7 @@ var gGoToLine = 0;
 
 [
   ["gBrowser",          "content"],
-  ["gViewSourceBundle", "viewSourceBundle"],
-  ["gContextMenu",      "viewSourceContextMenu"]
+  ["gViewSourceBundle", "viewSourceBundle"]
 ].forEach(function ([name, id]) {
   window.__defineGetter__(name, function () {
     var element = document.getElementById(id);
@@ -165,7 +164,8 @@ function viewSource(url)
 
       try {
         if (arg === true) {
-          gBrowser.docShell.charset = charset;
+          var docCharset = gBrowser.docShell.QueryInterface(Ci.nsIDocCharset);
+          docCharset.charset = charset;
         }
       } catch (ex) {
         // Ignore the failure and keep processing arguments...
@@ -712,12 +712,12 @@ function highlightSyntax()
   gPageLoader.loadPage(gPageLoader.currentDescriptor, gPageLoader.DISPLAY_NORMAL);
 }
 
-// Reload after change to character encoding or autodetection
-//
 // Fix for bug 136322: this function overrides the function in
 // browser.js to call PageLoader.loadPage() instead of BrowserReloadWithFlags()
-function BrowserCharsetReload()
+function BrowserSetForcedCharacterSet(aCharset)
 {
+  var docCharset = gBrowser.docShell.QueryInterface(Ci.nsIDocCharset);
+  docCharset.charset = aCharset;
   if (isHistoryEnabled()) {
     gPageLoader.loadPage(gPageLoader.currentDescriptor,
                          gPageLoader.DISPLAY_NORMAL);
@@ -726,10 +726,23 @@ function BrowserCharsetReload()
   }
 }
 
-function BrowserSetForcedCharacterSet(aCharset)
+// fix for bug #229503
+// we need to define BrowserSetForcedDetector() so that we can
+// change auto-detect options in the "View | Character Encoding" menu.
+// As with BrowserSetForcedCharacterSet(), call PageLoader.loadPage() 
+// instead of BrowserReloadWithFlags()
+function BrowserSetForcedDetector(doReload)
 {
-  gBrowser.docShell.charset = aCharset;
-  BrowserCharsetReload();
+  gBrowser.documentCharsetInfo.forcedDetector = true; 
+  if (doReload)
+  {
+    if (isHistoryEnabled()) {
+      gPageLoader.loadPage(gPageLoader.currentDescriptor,
+                           gPageLoader.DISPLAY_NORMAL);
+    } else {
+      gBrowser.reloadWithFlags(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
+    }
+  }
 }
 
 function BrowserForward(aEvent) {
@@ -798,25 +811,3 @@ function FillInHTMLTooltip(tipElement)
   return retVal;
 }
 
-function contextMenuShowing() {
-  var isLink = false;
-  var isEmail = false;
-  if (gContextMenu.triggerNode && gContextMenu.triggerNode.localName == 'a') {
-    if (gContextMenu.triggerNode.href.indexOf('view-source:') == 0)
-      isLink = true;
-    if (gContextMenu.triggerNode.href.indexOf('mailto:') == 0)
-      isEmail = true;
-  }
-  document.getElementById('context-copyLink').hidden = !isLink;
-  document.getElementById('context-copyEmail').hidden = !isEmail;
-}
-
-function contextMenuCopyLinkOrEmail() {
-  if (!gContextMenu.triggerNode)
-    return;
-
-  var href = gContextMenu.triggerNode.href;
-  var clipboard = Cc['@mozilla.org/widget/clipboardhelper;1'].
-                  getService(Ci.nsIClipboardHelper);
-  clipboard.copyString(href.substring(href.indexOf(':') + 1));
-}

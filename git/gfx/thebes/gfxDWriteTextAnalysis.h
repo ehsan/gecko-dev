@@ -106,7 +106,8 @@ public:
     ~TextAnalysis();
 
     STDMETHODIMP GenerateResults(IDWriteTextAnalyzer* textAnalyzer,
-                                 Run **runHead);
+                                 Run **runHead,
+                                 DWRITE_LINE_BREAKPOINT **breakpoints);
 
     // IDWriteTextAnalysisSource implementation
 
@@ -171,8 +172,11 @@ protected:
     // Current processing state.
     Run *mCurrentRun;
 
-    // Output is a list of runs starting here
-    Run  mRunHead;
+    // Output
+    Run *mRunHead;
+
+    // We do not use this for now, store anyway
+    DWRITE_LINE_BREAKPOINT *mBreakpoints;
 };
 
 #endif /* GFX_DWRITETEXTANALYSIS_H */

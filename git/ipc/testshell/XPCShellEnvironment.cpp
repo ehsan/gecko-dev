@@ -67,7 +67,6 @@
 #include "nsIXPCScriptable.h"
 
 #include "nsJSUtils.h"
-#include "nsJSPrincipals.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
@@ -231,7 +230,7 @@ JSContextCallback gOldContextCallback = NULL;
 
 static JSBool
 ContextCallback(JSContext *cx,
-                unsigned contextOp)
+                uintN contextOp)
 {
     if (gOldContextCallback && !gOldContextCallback(cx, contextOp))
         return JS_FALSE;
@@ -245,10 +244,10 @@ ContextCallback(JSContext *cx,
 
 static JSBool
 Print(JSContext *cx,
-      unsigned argc,
+      uintN argc,
       jsval *vp)
 {
-    unsigned i, n;
+    uintN i, n;
     JSString *str;
 
     jsval *argv = JS_ARGV(cx, vp);
@@ -285,7 +284,7 @@ GetLine(char *bufp,
 
 static JSBool
 Dump(JSContext *cx,
-     unsigned argc,
+     uintN argc,
      jsval *vp)
 {
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -308,10 +307,10 @@ Dump(JSContext *cx,
 
 static JSBool
 Load(JSContext *cx,
-     unsigned argc,
+     uintN argc,
      jsval *vp)
 {
-    unsigned i;
+    uintN i;
     JSString *str;
     JSScript *script;
     jsval result;
@@ -335,8 +334,8 @@ Load(JSContext *cx,
             JS_ReportError(cx, "cannot open file '%s' for reading", filename.ptr());
             return JS_FALSE;
         }
-        script = JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename.ptr(), file,
-                                                       Environment(cx)->GetPrincipal());
+        script = JS_CompileFileHandleForPrincipals(cx, obj, filename.ptr(), file,
+                                                   Environment(cx)->GetPrincipal());
         fclose(file);
         if (!script)
             return JS_FALSE;
@@ -352,7 +351,7 @@ Load(JSContext *cx,
 
 static JSBool
 Version(JSContext *cx,
-        unsigned argc,
+        uintN argc,
         jsval *vp)
 {
     jsval *argv = JS_ARGV(cx, vp);
@@ -364,7 +363,7 @@ Version(JSContext *cx,
 }
 
 static JSBool
-BuildDate(JSContext *cx, unsigned argc, jsval *vp)
+BuildDate(JSContext *cx, uintN argc, jsval *vp)
 {
     fprintf(stdout, "built on %s at %s\n", __DATE__, __TIME__);
     return JS_TRUE;
@@ -372,7 +371,7 @@ BuildDate(JSContext *cx, unsigned argc, jsval *vp)
 
 static JSBool
 Quit(JSContext *cx,
-     unsigned argc,
+     uintN argc,
      jsval *vp)
 {
     int exitCode = 0;
@@ -387,10 +386,10 @@ Quit(JSContext *cx,
 
 static JSBool
 DumpXPC(JSContext *cx,
-        unsigned argc,
+        uintN argc,
         jsval *vp)
 {
-    int32_t depth = 2;
+    int32 depth = 2;
 
     if (argc > 0) {
         if (!JS_ValueToInt32(cx, JS_ARGV(cx, vp)[0], &depth))
@@ -399,14 +398,14 @@ DumpXPC(JSContext *cx,
 
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
     if(xpc)
-        xpc->DebugDump(int16_t(depth));
+        xpc->DebugDump((int16)depth);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
 GC(JSContext *cx,
-   unsigned argc,
+   uintN argc,
    jsval *vp)
 {
     JS_GC(cx);
@@ -421,12 +420,12 @@ GC(JSContext *cx,
 #ifdef JS_GC_ZEAL
 static JSBool
 GCZeal(JSContext *cx, 
-       unsigned argc,
+       uintN argc,
        jsval *vp)
 {
   jsval* argv = JS_ARGV(cx, vp);
 
-  uint32_t zeal;
+  uint32 zeal;
   if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
     return JS_FALSE;
 
@@ -439,7 +438,7 @@ GCZeal(JSContext *cx,
 
 static JSBool
 DumpHeap(JSContext *cx,
-         unsigned argc,
+         uintN argc,
          jsval *vp)
 {
     JSAutoByteString fileName;
@@ -483,7 +482,7 @@ DumpHeap(JSContext *cx,
 
     vp = argv + 3;
     if (argc > 3 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
-        uint32_t depth;
+        uint32 depth;
 
         if (!JS_ValueToECMAUint32(cx, *vp, &depth))
             return JS_FALSE;
@@ -508,12 +507,10 @@ DumpHeap(JSContext *cx,
         }
     }
 
-    ok = JS_DumpHeap(JS_GetRuntime(cx), dumpFile, startThing, startTraceKind, thingToFind,
+    ok = JS_DumpHeap(cx, dumpFile, startThing, startTraceKind, thingToFind,
                      maxDepth, thingToIgnore);
     if (dumpFile != stdout)
         fclose(dumpFile);
-    if (!ok)
-        JS_ReportOutOfMemory(cx);
     return ok;
 
   not_traceable_arg:
@@ -527,7 +524,7 @@ DumpHeap(JSContext *cx,
 
 static JSBool
 Clear(JSContext *cx,
-      unsigned argc,
+      uintN argc,
       jsval *vp)
 {
     jsval *argv = JS_ARGV(cx, vp);
@@ -622,8 +619,8 @@ ProcessFile(JSContext *cx,
         }
 
         JSScript* script =
-            JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename, file,
-                                                  env->GetPrincipal());
+            JS_CompileFileHandleForPrincipals(cx, obj, filename, file,
+                                              env->GetPrincipal());
         if (script && !env->ShouldCompileOnly())
             (void)JS_ExecuteScript(cx, obj, script, &result);
 
@@ -1059,12 +1056,11 @@ XPCShellEnvironment::~XPCShellEnvironment()
         mCxStack = nsnull;
 
         if (mJSPrincipals) {
-            JS_DropPrincipals(JS_GetRuntime(mCx), mJSPrincipals);
+            JSPRINCIPALS_DROP(mCx, mJSPrincipals);
         }
 
         JSRuntime* rt = gOldContextCallback ? JS_GetRuntime(mCx) : NULL;
 
-        JS_EndRequest(mCx);
         JS_DestroyContext(mCx);
 
         if (gOldContextCallback) {
@@ -1141,8 +1137,10 @@ XPCShellEnvironment::Init()
             fprintf(stderr, "+++ Failed to obtain SystemPrincipal from ScriptSecurityManager service.\n");
         } else {
             // fetch the JS principals and stick in a global
-            mJSPrincipals = nsJSPrincipals::get(principal);
-            JS_HoldPrincipals(mJSPrincipals);
+            rv = principal->GetJSPrincipals(cx, &mJSPrincipals);
+            if (NS_FAILED(rv)) {
+                fprintf(stderr, "+++ Failed to obtain JS principals from SystemPrincipal.\n");
+            }
             secman->SetSystemPrincipal(principal);
         }
     } else {
@@ -1168,7 +1166,9 @@ XPCShellEnvironment::Init()
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
+                                              NS_GET_IID(nsISupports),
                                               principal,
+                                              nsnull,
                                               nsIXPConnect::
                                                   FLAG_SYSTEM_GLOBAL_OBJECT,
                                               getter_AddRefs(holder));

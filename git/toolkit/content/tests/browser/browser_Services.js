@@ -46,7 +46,7 @@ function checkService(service, interface) {
 }
 
 function checkServices() {
-  checkService("prefs", Ci.nsIPrefBranch);
+  checkService("prefs", Ci.nsIPrefBranch2);
   checkService("prefs", Ci.nsIPrefService);
   checkService("contentPrefs", Ci.nsIContentPrefService);
   checkService("wm", Ci.nsIWindowMediator);
@@ -75,5 +75,4 @@ function checkServices() {
   checkService("logins", Ci.nsILoginManager);
   checkService("telemetry", Ci.nsITelemetry);
   checkService("sysinfo", Ci.nsIPropertyBag2);
-  checkService("clipboard", Ci.nsIClipboard);
 }

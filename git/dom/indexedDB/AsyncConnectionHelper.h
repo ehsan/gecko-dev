@@ -41,7 +41,6 @@
 #define mozilla_dom_indexeddb_asyncconnectionhelper_h__
 
 // Only meant to be included in IndexedDB source files, not exported.
-#include "DatabaseInfo.h"
 #include "IndexedDatabase.h"
 #include "IDBDatabase.h"
 #include "IDBRequest.h"
@@ -199,9 +198,9 @@ protected:
   /**
    * Helper to make a JS array object out of an array of clone buffers.
    */
-  static nsresult ConvertCloneReadInfosToArray(
+  static nsresult ConvertCloneBuffersToArray(
                                 JSContext* aCx,
-                                nsTArray<StructuredCloneReadInfo>& aReadInfos,
+                                nsTArray<JSAutoStructuredCloneBuffer>& aBuffers,
                                 jsval* aResult);
 
 protected:

@@ -65,7 +65,6 @@
 #include "nsIDirectoryService.h"
 #include "nsIFile.h"
 #include "nsIProperties.h"
-#include "nsIObserverService.h"
 #include "nsXULAppAPI.h"
 #include "jsdbgapi.h"
 #include <stdio.h>
@@ -94,21 +93,13 @@ void fail(const char* msg, ...)
 }
 
 /**
- * Prints the given success message and arguments using printf, prepending
- * "TEST-PASS " for the benefit of the test harness and
- * appending "\n" to eliminate having to type it at each call site.
+ * Prints the given string prepending "TEST-PASS | " for the benefit of
+ * the test harness and with "\n" at the end, to be used at the end of a
+ * successful test function.
  */
-void passed(const char* msg, ...)
+void passed(const char* test)
 {
-  va_list ap;
-
-  printf("TEST-PASS | ");
-
-  va_start(ap, msg);
-  vprintf(msg, ap);
-  va_end(ap);
-
-  putchar('\n');
+  printf("TEST-PASS | %s\n", test);
 }
 
 //-----------------------------------------------------------------------------
@@ -203,15 +194,6 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     {
       // If we created a profile directory, we need to remove it.
       if (mProfD) {
-        nsCOMPtr<nsIObserverService> os =
-          do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-        MOZ_ASSERT(os);
-        if (os) {
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nsnull, "profile-change-net-teardown", nsnull)));
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nsnull, "profile-change-teardown", nsnull)));
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nsnull, "profile-before-change", nsnull)));
-        }
-
         if (NS_FAILED(mProfD->Remove(true))) {
           NS_WARNING("Problem removing profile directory");
         }

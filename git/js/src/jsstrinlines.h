@@ -40,8 +40,6 @@
 #ifndef jsstrinlines_h___
 #define jsstrinlines_h___
 
-#include "mozilla/Attributes.h"
-
 #include "jsatom.h"
 #include "jsstr.h"
 
@@ -51,12 +49,192 @@
 
 namespace js {
 
+/*
+ * String builder that eagerly checks for over-allocation past the maximum
+ * string length.
+ *
+ * Note: over-allocation is not checked for when using the infallible
+ * |replaceRawBuffer|, so the implementation of |finishString| also must check
+ * for over-allocation.
+ */
+class StringBuffer
+{
+    /* cb's buffer is taken by the new string so use ContextAllocPolicy. */
+    typedef Vector<jschar, 32, ContextAllocPolicy> CharBuffer;
+
+    CharBuffer cb;
+
+    static inline bool checkLength(JSContext *cx, size_t length);
+    inline bool checkLength(size_t length);
+    JSContext *context() const { return cb.allocPolicy().context(); }
+    jschar *extractWellSized();
+
+  public:
+    explicit inline StringBuffer(JSContext *cx);
+    bool reserve(size_t len);
+    bool resize(size_t len);
+    bool append(const jschar c);
+    bool append(const jschar *chars, size_t len);
+    bool append(const jschar *begin, const jschar *end);
+    bool append(JSString *str);
+    bool append(JSLinearString *str);
+    bool appendN(const jschar c, size_t n);
+    bool appendInflated(const char *cstr, size_t len);
+
+    /* Infallible variants usable when the corresponding space is reserved. */
+    void infallibleAppend(const jschar c) {
+        cb.infallibleAppend(c);
+    }
+    void infallibleAppend(const jschar *chars, size_t len) {
+        cb.infallibleAppend(chars, len);
+    }
+    void infallibleAppend(const jschar *begin, const jschar *end) {
+        cb.infallibleAppend(begin, end);
+    }
+    void infallibleAppendN(const jschar c, size_t n) {
+        cb.infallibleAppendN(c, n);
+    }
+
+    JSAtom *atomize(uintN flags = 0);
+    static JSAtom *atomize(JSContext *cx, const CharBuffer &cb, uintN flags = 0);
+    static JSAtom *atomize(JSContext *cx, const jschar *begin, size_t length, uintN flags = 0);
+
+    void replaceRawBuffer(jschar *chars, size_t len) { cb.replaceRawBuffer(chars, len); }
+    jschar *begin() { return cb.begin(); }
+    jschar *end() { return cb.end(); }
+    const jschar *begin() const { return cb.begin(); }
+    const jschar *end() const { return cb.end(); }
+    bool empty() const { return cb.empty(); }
+    inline jsint length() const;
+
+    /*
+     * Creates a string from the characters in this buffer, then (regardless
+     * whether string creation succeeded or failed) empties the buffer.
+     */
+    JSFixedString *finishString();
+
+    /* Identical to finishString() except that an atom is created. */
+    JSAtom *finishAtom();
+
+    template <size_t ArrayLength>
+    bool append(const char (&array)[ArrayLength]) {
+        return cb.append(array, array + ArrayLength - 1); /* No trailing '\0'. */
+    }
+};
+
+inline
+StringBuffer::StringBuffer(JSContext *cx)
+  : cb(cx)
+{}
+
+inline bool
+StringBuffer::reserve(size_t len)
+{
+    if (!checkLength(len))
+        return false;
+    return cb.reserve(len);
+}
+
+inline bool
+StringBuffer::resize(size_t len)
+{
+    if (!checkLength(len))
+        return false;
+    return cb.resize(len);
+}
+
+inline bool
+StringBuffer::append(const jschar c)
+{
+    if (!checkLength(cb.length() + 1))
+        return false;
+    return cb.append(c);
+}
+
+inline bool
+StringBuffer::append(const jschar *chars, size_t len)
+{
+    if (!checkLength(cb.length() + len))
+        return false;
+    return cb.append(chars, len);
+}
+
+inline bool
+StringBuffer::append(const jschar *begin, const jschar *end)
+{
+    if (!checkLength(cb.length() + (end - begin)))
+        return false;
+    return cb.append(begin, end);
+}
+
+inline bool
+StringBuffer::append(JSString *str)
+{
+    JSLinearString *linear = str->ensureLinear(context());
+    if (!linear)
+        return false;
+    return append(linear);
+}
+
+inline bool
+StringBuffer::append(JSLinearString *str)
+{
+    JS::Anchor<JSString *> anch(str);
+    return cb.append(str->chars(), str->length());
+}
+
+inline bool
+StringBuffer::appendN(const jschar c, size_t n)
+{
+    if (!checkLength(cb.length() + n))
+        return false;
+    return cb.appendN(c, n);
+}
+
+inline bool
+StringBuffer::appendInflated(const char *cstr, size_t cstrlen)
+{
+    size_t lengthBefore = length();
+    if (!cb.growByUninitialized(cstrlen))
+        return false;
+#if DEBUG
+    size_t oldcstrlen = cstrlen;
+    bool ok = 
+#endif
+    InflateStringToBuffer(context(), cstr, cstrlen, begin() + lengthBefore, &cstrlen);
+    JS_ASSERT(ok && oldcstrlen == cstrlen);
+    return true;
+}
+
+inline jsint
+StringBuffer::length() const
+{
+    JS_STATIC_ASSERT(jsint(JSString::MAX_LENGTH) == JSString::MAX_LENGTH);
+    JS_ASSERT(cb.length() <= JSString::MAX_LENGTH);
+    return jsint(cb.length());
+}
+
+inline bool
+StringBuffer::checkLength(size_t length)
+{
+    return JSString::validateLength(context(), length);
+}
+
+extern bool
+ValueToStringBufferSlow(JSContext *cx, const Value &v, StringBuffer &sb);
+
+inline bool
+ValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
+{
+    if (v.isString())
+        return sb.append(v.toString());
+
+    return ValueToStringBufferSlow(cx, v, sb);
+}
+
 class RopeBuilder {
     JSContext *cx;
     JSString *res;
-
-    RopeBuilder(const RopeBuilder &other) MOZ_DELETE;
-    void operator=(const RopeBuilder &other) MOZ_DELETE;
 
   public:
     RopeBuilder(JSContext *cx)
@@ -134,25 +312,6 @@ SkipSpace(const jschar *s, const jschar *end)
         s++;
 
     return s;
-}
-
-/*
- * Return less than, equal to, or greater than zero depending on whether
- * s1 is less than, equal to, or greater than s2.
- */
-inline bool
-CompareChars(const jschar *s1, size_t l1, const jschar *s2, size_t l2, int32_t *result)
-{
-    size_t n = JS_MIN(l1, l2);
-    for (size_t i = 0; i < n; i++) {
-        if (int32_t cmp = s1[i] - s2[i]) {
-            *result = cmp;
-            return true;
-        }
-    }
-
-    *result = (int32_t)(l1 - l2);
-    return true;
 }
 
 }  /* namespace js */

@@ -61,8 +61,8 @@ struct JSXMLArrayCursor;
 template<class T>
 struct JSXMLArray
 {
-    uint32_t            length;
-    uint32_t            capacity;
+    uint32              length;
+    uint32              capacity;
     js::HeapPtr<T>      *vector;
     JSXMLArrayCursor<T> *cursors;
 
@@ -74,7 +74,7 @@ struct JSXMLArray
 
     void finish(JSContext *cx);
 
-    bool setCapacity(JSContext *cx, uint32_t capacity);
+    bool setCapacity(JSContext *cx, uint32 capacity);
     void trim();
 };
 
@@ -84,7 +84,7 @@ struct JSXMLArrayCursor
     typedef js::HeapPtr<T> HeapPtrT;
 
     JSXMLArray<T>       *array;
-    uint32_t            index;
+    uint32              index;
     JSXMLArrayCursor<T> *next;
     JSXMLArrayCursor<T> **prevp;
     HeapPtrT            root;
@@ -123,8 +123,9 @@ struct JSXMLArrayCursor
     }
 };
 
-void js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<JSXML> *cursor);
-void js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<JSObject> *cursor);
+template<class T>
+void
+js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<T> *cursor);
 
 #define JSXML_PRESET_CAPACITY   JS_BIT(31)
 #define JSXML_CAPACITY_MASK     JS_BITMASK(31)
@@ -147,8 +148,8 @@ typedef enum JSXMLClass {
 #define JSXML_CLASS_HAS_KIDS(class_)    ((class_) < JSXML_CLASS_ATTRIBUTE)
 #define JSXML_CLASS_HAS_VALUE(class_)   ((class_) >= JSXML_CLASS_ATTRIBUTE)
 #define JSXML_CLASS_HAS_NAME(class_)                                          \
-    ((unsigned)((class_) - JSXML_CLASS_ELEMENT) <=                               \
-     (unsigned)(JSXML_CLASS_PROCESSING_INSTRUCTION - JSXML_CLASS_ELEMENT))
+    ((uintN)((class_) - JSXML_CLASS_ELEMENT) <=                               \
+     (uintN)(JSXML_CLASS_PROCESSING_INSTRUCTION - JSXML_CLASS_ELEMENT))
 
 #ifdef DEBUG_notme
 #include "jsclist.h"
@@ -185,14 +186,14 @@ typedef struct JSXMLElemVar {
 struct JSXML : js::gc::Cell {
 #ifdef DEBUG_notme
     JSCList             links;
-    uint32_t            serial;
+    uint32              serial;
 #endif
     js::HeapPtrObject   object;
     void                *domnode;       /* DOM node if mapped info item */
     js::HeapPtrXML      parent;
     js::HeapPtrObject   name;
-    uint32_t            xml_class;      /* discriminates u, below */
-    uint32_t            xml_flags;      /* flags, see below */
+    uint32              xml_class;      /* discriminates u, below */
+    uint32              xml_flags;      /* flags, see below */
 
     JSXMLListVar        list;
     JSXMLElemVar        elem;
@@ -203,7 +204,7 @@ struct JSXML : js::gc::Cell {
     void *pad;
 #endif
 
-    void finalize(JSContext *cx, bool background);
+    void finalize(JSContext *cx);
 
     static void writeBarrierPre(JSXML *xml);
     static void writeBarrierPost(JSXML *xml, void *addr);
@@ -223,6 +224,18 @@ js_NewXMLObject(JSContext *cx, JSXMLClass xml_class);
 
 extern JSObject *
 js_GetXMLObject(JSContext *cx, JSXML *xml);
+
+/*
+ * Methods to test whether an object or a value is of type "xml" (per typeof).
+ */
+
+#define VALUE_IS_XML(v)      (!JSVAL_IS_PRIMITIVE(v) && JSVAL_TO_OBJECT(v)->isXML())
+
+static inline bool
+IsXML(const js::Value &v)
+{
+    return v.isObject() && v.toObject().isXML();
+}
 
 extern JSObject *
 js_InitNamespaceClass(JSContext *cx, JSObject *obj);

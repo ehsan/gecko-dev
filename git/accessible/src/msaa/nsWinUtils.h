@@ -49,18 +49,13 @@
 const LPCWSTR kClassNameRoot = L"MozillaUIWindowClass";
 const LPCWSTR kClassNameTabContent = L"MozillaContentWindowClass";
 
+const LPCWSTR kJAWSModuleHandle = L"jhook";
+const LPCWSTR kWEModuleHandle = L"gwm32inc";
+const LPCWSTR kDolphinModuleHandle = L"dolwinhk";
+
 class nsWinUtils
 {
 public:
-  /**
-   * Return computed styles declaration for the given node.
-   *
-   * @note Please use it carefully since it can shutdown the accessible tree
-   *       you operate on.
-   */
-  static already_AddRefed<nsIDOMCSSStyleDeclaration>
-    GetComputedStyleDeclaration(nsIContent* aContent);
-
   /**
    * Convert nsIArray array of accessible objects to an array of IUnknown*
    * objects used in IA2 methods.
@@ -104,6 +99,11 @@ public:
    * Helper to hide window.
    */
   static void HideNativeWindow(HWND aWnd);
+
+  /**
+   * Return true if window emulation is enabled.
+   */
+  static bool IsWindowEmulationFor(LPCWSTR kModuleHandle);
 };
 
 #endif

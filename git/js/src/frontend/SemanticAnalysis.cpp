@@ -156,14 +156,15 @@ CleanFunctionList(ParseNodeAllocator *allocator, FunctionBox **funboxHead)
  * the upvars contained by funbox and its peers. If there are no upvars, return
  * FREE_STATIC_LEVEL. Thus this function never returns 0.
  */
-static unsigned
+static uintN
 FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
 {
-    unsigned allskipmin = UpvarCookie::FREE_LEVEL;
+    uintN allskipmin = UpvarCookie::FREE_LEVEL;
 
     do {
         ParseNode *fn = funbox->node;
         JS_ASSERT(fn->isArity(PN_FUNC));
+        JSFunction *fun = funbox->function();
         int fnlevel = level;
 
         /*
@@ -191,7 +192,7 @@ FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
          * an upvar, whether used directly by fun, or indirectly by a function
          * nested in fun.
          */
-        unsigned skipmin = UpvarCookie::FREE_LEVEL;
+        uintN skipmin = UpvarCookie::FREE_LEVEL;
         ParseNode *pn = fn->pn_body;
 
         if (pn->isKind(PNK_UPVARS)) {
@@ -203,12 +204,12 @@ FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
                 Definition *lexdep = defn->resolve();
 
                 if (!lexdep->isFreeVar()) {
-                    unsigned upvarLevel = lexdep->frameLevel();
+                    uintN upvarLevel = lexdep->frameLevel();
 
                     if (int(upvarLevel) <= fnlevel)
                         fn->setFunArg();
 
-                    unsigned skip = (funbox->level + 1) - upvarLevel;
+                    uintN skip = (funbox->level + 1) - upvarLevel;
                     if (skip < skipmin)
                         skipmin = skip;
                 }
@@ -232,7 +233,7 @@ FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
          * cumulative skipmin to be relative to the current static level.
          */
         if (funbox->kids) {
-            unsigned kidskipmin = FindFunArgs(funbox->kids, fnlevel, queue);
+            uintN kidskipmin = FindFunArgs(funbox->kids, fnlevel, queue);
 
             JS_ASSERT(kidskipmin != 0);
             if (kidskipmin != UpvarCookie::FREE_LEVEL) {
@@ -244,10 +245,12 @@ FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
 
         /*
          * Finally, after we've traversed all of the current function's kids,
-         * minimize allskipmin against our accumulated skipmin. Minimize across
-         * funbox and all of its siblings, to compute our return value.
+         * minimize fun's skipmin against our accumulated skipmin. Do likewise
+         * with allskipmin, but minimize across funbox and all of its siblings,
+         * to compute our return value.
          */
         if (skipmin != UpvarCookie::FREE_LEVEL) {
+            fun->u.i.skipmin = skipmin;
             if (skipmin < allskipmin)
                 allskipmin = skipmin;
         }
@@ -257,7 +260,7 @@ FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
 }
 
 static bool
-MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32_t functionCount)
+MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32 functionCount)
 {
     FunctionBoxQueue queue;
     if (!queue.init(functionCount)) {
@@ -304,8 +307,8 @@ MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32_t functionCount)
                          * See bug 545980.
                          */
                         afunbox = funbox;
-                        unsigned calleeLevel = lexdep->pn_cookie.level();
-                        unsigned staticLevel = afunbox->level + 1U;
+                        uintN calleeLevel = lexdep->pn_cookie.level();
+                        uintN staticLevel = afunbox->level + 1U;
                         while (staticLevel != calleeLevel) {
                             afunbox = afunbox->parent;
                             --staticLevel;
@@ -331,8 +334,8 @@ MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32_t functionCount)
     return true;
 }
 
-static uint32_t
-MinBlockId(ParseNode *fn, uint32_t id)
+static uint32
+MinBlockId(ParseNode *fn, uint32 id)
 {
     if (fn->pn_blockid < id)
         return false;
@@ -346,7 +349,7 @@ MinBlockId(ParseNode *fn, uint32_t id)
 }
 
 static inline bool
-CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32_t tcflags)
+CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32 tcflags)
 {
     /*
      * Consider the current function (the lambda, innermost below) using a var
@@ -367,7 +370,7 @@ CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32_t tcflags)
      * unsafe (z could name a global setter that calls its argument).
      */
     FunctionBox *afunbox = funbox;
-    unsigned dnLevel = dn->frameLevel();
+    uintN dnLevel = dn->frameLevel();
 
     JS_ASSERT(dnLevel <= funbox->level);
     while (afunbox->level != dnLevel) {
@@ -487,9 +490,9 @@ CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32_t tcflags)
 }
 
 static void
-FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32_t *tcflags)
+FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32 *tcflags)
 {
-    unsigned dnLevel = dn->frameLevel();
+    uintN dnLevel = dn->frameLevel();
 
     while ((funbox = funbox->parent) != NULL) {
         /*
@@ -510,14 +513,56 @@ FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32_t *tcflags)
 }
 
 static void
-SetFunctionKinds(FunctionBox *funbox, uint32_t *tcflags, bool isDirectEval)
+ConsiderUnbranding(FunctionBox *funbox)
+{
+    /*
+     * We've already recursively set our kids' kinds, which also classifies
+     * enclosing functions holding upvars referenced in those descendants'
+     * bodies. So now we can check our "methods".
+     *
+     * Despecialize from branded method-identity-based shape to shape- or
+     * slot-based shape if this function smells like a constructor and too many
+     * of its methods are *not* joinable null closures (i.e., they have one or
+     * more upvars fetched via the display).
+     */
+    bool returnsExpr = !!(funbox->tcflags & TCF_RETURN_EXPR);
+#if JS_HAS_EXPR_CLOSURES
+    {
+        ParseNode *pn2 = funbox->node->pn_body;
+        if (pn2->isKind(PNK_UPVARS))
+            pn2 = pn2->pn_tree;
+        if (pn2->isKind(PNK_ARGSBODY))
+            pn2 = pn2->last();
+        if (!pn2->isKind(PNK_STATEMENTLIST))
+            returnsExpr = true;
+    }
+#endif
+    if (!returnsExpr) {
+        uintN methodSets = 0, slowMethodSets = 0;
+
+        for (ParseNode *method = funbox->methods; method; method = method->pn_link) {
+            JS_ASSERT(method->isOp(JSOP_LAMBDA) || method->isOp(JSOP_LAMBDA_FC));
+            ++methodSets;
+            if (!method->pn_funbox->joinable())
+                ++slowMethodSets;
+        }
+
+        if (funbox->shouldUnbrand(methodSets, slowMethodSets))
+            funbox->tcflags |= TCF_FUN_UNBRAND_THIS;
+    }
+}
+
+static void
+SetFunctionKinds(FunctionBox *funbox, uint32 *tcflags, bool isDirectEval)
 {
     for (; funbox; funbox = funbox->siblings) {
         ParseNode *fn = funbox->node;
         ParseNode *pn = fn->pn_body;
 
-        if (funbox->kids)
+        if (funbox->kids) {
             SetFunctionKinds(funbox->kids, tcflags, isDirectEval);
+            ConsiderUnbranding(funbox);
+        }
 
         JSFunction *fun = funbox->function();
 
@@ -570,20 +615,15 @@ SetFunctionKinds(FunctionBox *funbox, uint32_t *tcflags, bool isDirectEval)
                 }
             }
 
-            /*
-             * Top-level functions, and (extension) functions not at top level
-             * which are also not directly within other functions, aren't
-             * flattened.
-             */
-            if (fn->isOp(JSOP_DEFFUN))
-                canFlatten = false;
-
             if (!hasUpvars) {
                 /* No lexical dependencies => null closure, for best performance. */
                 fun->setKind(JSFUN_NULL_CLOSURE);
             } else if (canFlatten) {
                 fun->setKind(JSFUN_FLAT_CLOSURE);
                 switch (fn->getOp()) {
+                  case JSOP_DEFFUN:
+                    fn->setOp(JSOP_DEFFUN_FC);
+                    break;
                   case JSOP_DEFLOCALFUN:
                     fn->setOp(JSOP_DEFLOCALFUN_FC);
                     break;
@@ -634,8 +674,8 @@ SetFunctionKinds(FunctionBox *funbox, uint32_t *tcflags, bool isDirectEval)
  * must have their OWN_SHAPE flags set; the comments for
  * js::Bindings::extensibleParents explain why.
  */
-static bool
-MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool hasExtensibleParent) 
+static void
+MarkExtensibleScopeDescendants(FunctionBox *funbox, bool hasExtensibleParent) 
 {
     for (; funbox; funbox = funbox->siblings) {
         /*
@@ -645,20 +685,14 @@ MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool has
          */
 
         JS_ASSERT(!funbox->bindings.extensibleParents());
-        if (hasExtensibleParent) {
-            if (!funbox->bindings.setExtensibleParents(context))
-                return false;
-        }
+        if (hasExtensibleParent)
+            funbox->bindings.setExtensibleParents();
 
         if (funbox->kids) {
-            if (!MarkExtensibleScopeDescendants(context, funbox->kids,
-                                                hasExtensibleParent || funbox->scopeIsExtensible())) {
-                return false;
-            }
+            MarkExtensibleScopeDescendants(funbox->kids,
+                                           hasExtensibleParent || funbox->scopeIsExtensible());
         }
     }
-
-    return true;
 }
 
 bool
@@ -669,8 +703,7 @@ frontend::AnalyzeFunctions(TreeContext *tc)
         return true;
     if (!MarkFunArgs(tc->parser->context, tc->functionList, tc->parser->functionCount))
         return false;
-    if (!MarkExtensibleScopeDescendants(tc->parser->context, tc->functionList, false))
-        return false;
+    MarkExtensibleScopeDescendants(tc->functionList, false);
     bool isDirectEval = !!tc->parser->callerFrame;
     SetFunctionKinds(tc->functionList, &tc->flags, isDirectEval);
     return true;

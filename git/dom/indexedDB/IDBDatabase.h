@@ -42,11 +42,12 @@
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-#include "nsIDocument.h"
 #include "nsIIDBDatabase.h"
+
+#include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
-#include "mozilla/dom/indexedDB/IDBWrapperCache.h"
-#include "mozilla/dom/indexedDB/FileManager.h"
+#include "nsDOMLists.h"
+#include "nsIDocument.h"
 
 class nsIScriptContext;
 class nsPIDOMWindow;
@@ -60,7 +61,7 @@ class IDBObjectStore;
 class IDBTransaction;
 class IndexedDatabaseManager;
 
-class IDBDatabase : public IDBWrapperCache,
+class IDBDatabase : public nsDOMEventTargetHelper,
                     public nsIIDBDatabase
 {
   friend class AsyncConnectionHelper;
@@ -70,13 +71,14 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBDATABASE
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBDatabase, IDBWrapperCache)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBDatabase,
+                                           nsDOMEventTargetHelper)
 
   static already_AddRefed<IDBDatabase>
-  Create(IDBWrapperCache* aOwnerCache,
+  Create(nsIScriptContext* aScriptContext,
+         nsPIDOMWindow* aOwner,
          already_AddRefed<DatabaseInfo> aDatabaseInfo,
-         const nsACString& aASCIIOrigin,
-         FileManager* aFileManager);
+         const nsACString& aASCIIOrigin);
 
   // nsIDOMEventTarget
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -101,16 +103,26 @@ public:
     return mFilePath;
   }
 
+  nsIScriptContext* ScriptContext()
+  {
+    NS_ASSERTION(mScriptContext, "This should never be null!");
+    return mScriptContext;
+  }
+
+  nsPIDOMWindow* Owner()
+  {
+    NS_ASSERTION(mOwner, "This should never be null!");
+    return mOwner;
+  }
+
   already_AddRefed<nsIDocument> GetOwnerDocument()
   {
-    if (!GetOwner()) {
-      return nsnull;
-    }
-
-    nsCOMPtr<nsIDocument> doc =
-      do_QueryInterface(GetOwner()->GetExtantDocument());
+    NS_ASSERTION(mOwner, "This should never be null!");
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mOwner->GetExtantDocument());
     return doc.forget();
   }
+
+  bool IsQuotaDisabled();
 
   nsCString& Origin()
   {
@@ -131,11 +143,6 @@ public:
   void EnterSetVersionTransaction();
   void ExitSetVersionTransaction();
 
-  FileManager* Manager() const
-  {
-    return mFileManager;
-  }
-
 private:
   IDBDatabase();
   ~IDBDatabase();
@@ -153,12 +160,10 @@ private:
   bool mClosed;
   bool mRunningVersionChange;
 
-  nsRefPtr<FileManager> mFileManager;
-
   // Only touched on the main thread.
-  NS_DECL_EVENT_HANDLER(abort)
-  NS_DECL_EVENT_HANDLER(error)
-  NS_DECL_EVENT_HANDLER(versionchange)
+  nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnVersionChangeListener;
 };
 
 END_INDEXEDDB_NAMESPACE

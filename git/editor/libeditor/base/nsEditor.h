@@ -191,7 +191,6 @@ public:
                             const nsAString *aValue = nsnull,
                             bool aCloneAttributes = false);
 
-  nsresult RemoveContainer(nsINode* aNode);
   nsresult RemoveContainer(nsIDOMNode *inNode);
   nsresult InsertContainerAbove(nsIDOMNode *inNode, 
                                 nsCOMPtr<nsIDOMNode> *outNode, 
@@ -505,10 +504,6 @@ public:
                        nsCOMPtr<nsIDOMNode> *aResultNode,
                        bool         bNoBlockCrossing = false,
                        nsIContent  *aActiveEditorRoot = nsnull);
-  nsIContent* GetNextNode(nsINode* aCurrentNode,
-                          bool aEditableNode,
-                          bool bNoBlockCrossing = false,
-                          nsIContent* aActiveEditorRoot = nsnull);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetNextNode(nsIDOMNode  *aParentNode, 
@@ -579,13 +574,17 @@ public:
   virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
 
   /** returns true if aNode is a MozEditorBogus node */
+  bool IsMozEditorBogusNode(nsIDOMNode *aNode);
   bool IsMozEditorBogusNode(nsIContent *aNode);
 
   /** counts number of editable child nodes */
   nsresult CountEditableChildren(nsIDOMNode *aNode, PRUint32 &outCount);
   
-  /** Find the deep first and last children. */
-  nsINode* GetFirstEditableNode(nsINode* aRoot);
+  /** Find the deep first and last children. Returned nodes are AddReffed */
+  nsresult GetFirstEditableNode(nsIDOMNode *aRoot, nsCOMPtr<nsIDOMNode> *outFirstNode);
+#ifdef XXX_DEAD_CODE
+  nsresult GetLastEditableNode(nsIDOMNode *aRoot, nsCOMPtr<nsIDOMNode> *outLastNode);
+#endif
 
   nsresult GetIMEBufferLength(PRInt32* length);
   bool     IsIMEComposing();    /* test if IME is in composition state */
@@ -652,7 +651,7 @@ public:
   virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget() = 0;
 
   // Fast non-refcounting editor root element accessor
-  mozilla::dom::Element *GetRoot();
+  nsIDOMElement *GetRoot();
 
   // Accessor methods to flags
   bool IsPlaintextEditor() const
@@ -688,6 +687,11 @@ public:
   bool IsMailEditor() const
   {
     return (mFlags & nsIPlaintextEditor::eEditorMailMask) != 0;
+  }
+
+  bool UseAsyncUpdate() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) != 0;
   }
 
   bool IsWrapHackEnabled() const
@@ -757,27 +761,14 @@ public:
   // added here.
   void OnFocus(nsIDOMEventTarget* aFocusEventTarget);
 
-  // Used to insert content from a data transfer into the editable area.
-  // This is called for each item in the data transfer, with the index of
-  // each item passed as aIndex.
-  virtual nsresult InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
-                                          PRInt32 aIndex,
-                                          nsIDOMDocument *aSourceDoc,
-                                          nsIDOMNode *aDestinationNode,
-                                          PRInt32 aDestOffset,
-                                          bool aDoDeleteSelection) = 0;
-
-  virtual nsresult InsertFromDrop(nsIDOMEvent* aDropEvent) = 0;
-
-  virtual already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode) { return nsnull; }
-
 protected:
 
-  PRUint32        mModCount;     // number of modifications (for undo/redo stack)
-  PRUint32        mFlags;        // behavior flags. See nsIPlaintextEditor.idl for the flags we use.
+  PRUint32        mModCount;		// number of modifications (for undo/redo stack)
+  PRUint32        mFlags;		// behavior flags. See nsIPlaintextEditor.idl for the flags we use.
 
   nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
   PRInt32         mUpdateCount;
+  nsIViewManager::UpdateViewBatch mBatch;
 
   // Spellchecking
   enum Tristate {
@@ -794,7 +785,7 @@ protected:
   nsSelectionState *mSelState;           // saved selection state for placeholder txn batching
   nsSelectionState  mSavedSel;           // cached selection for nsAutoSelectionReset
   nsRangeUpdater    mRangeUpdater;       // utility class object for maintaining preserved ranges
-  nsCOMPtr<mozilla::dom::Element> mRootElement;   // cached root node
+  nsCOMPtr<nsIDOMElement> mRootElement;    // cached root node
   PRInt32           mAction;             // the current editor action
   EDirection        mDirection;          // the current direction of editor action
   

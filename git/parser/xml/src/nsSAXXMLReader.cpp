@@ -39,7 +39,7 @@
 #include "nsIInputStream.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsParserCIID.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
@@ -107,7 +107,7 @@ nsSAXXMLReader::DidBuildModel(bool aTerminated)
 }
 
 NS_IMETHODIMP
-nsSAXXMLReader::SetParser(nsParserBase *aParser)
+nsSAXXMLReader::SetParser(nsIParser *aParser)
 {
   return NS_OK;
 }
@@ -648,11 +648,17 @@ nsSAXXMLReader::TryChannelCharset(nsIChannel *aChannel,
     nsCAutoString charsetVal;
     nsresult rv = aChannel->GetContentCharset(charsetVal);
     if (NS_SUCCEEDED(rv)) {
-      if (NS_FAILED(nsCharsetAlias::GetPreferred(charsetVal, aCharset)))
-        return false;
-
-      aCharsetSource = kCharsetFromChannel;
-      return true;
+      nsCOMPtr<nsICharsetAlias>
+        calias(do_GetService(NS_CHARSETALIAS_CONTRACTID));
+      if (calias) {
+        nsCAutoString preferred;
+        rv = calias->GetPreferred(charsetVal, preferred);
+        if (NS_SUCCEEDED(rv)) {
+          aCharset = preferred;
+          aCharsetSource = kCharsetFromChannel;
+          return true;
+        }
+      }
     }
   }
 

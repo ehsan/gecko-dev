@@ -253,9 +253,6 @@ nsIAtom** const kAttributesHTML[] = {
   &nsGkAtoms::min,
   &nsGkAtoms::mozdonotsend,
   &nsGkAtoms::multiple,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::muted,
-#endif
   &nsGkAtoms::name,
   &nsGkAtoms::nohref,
   &nsGkAtoms::noshade,
@@ -738,8 +735,10 @@ nsIAtom** const kElementsMathML[] = {
    &nsGkAtoms::lowlimit_, // lowlimit
    &nsGkAtoms::lt_, // lt
    &nsGkAtoms::maction_, // maction
+   &nsGkAtoms::malign_, // malign
    &nsGkAtoms::maligngroup_, // maligngroup
    &nsGkAtoms::malignmark_, // malignmark
+   &nsGkAtoms::malignscope_, // malignscope
    &nsGkAtoms::math, // math
    &nsGkAtoms::matrix, // matrix
    &nsGkAtoms::matrixrow_, // matrixrow
@@ -750,6 +749,7 @@ nsIAtom** const kElementsMathML[] = {
    &nsGkAtoms::merror_, // merror
    &nsGkAtoms::mfenced_, // mfenced
    &nsGkAtoms::mfrac_, // mfrac
+   &nsGkAtoms::mfraction_, // mfraction
    &nsGkAtoms::mglyph_, // mglyph
    &nsGkAtoms::mi_, // mi
    &nsGkAtoms::min, // min
@@ -921,6 +921,7 @@ nsIAtom** const kAttributesMathML[] = {
    &nsGkAtoms::mediummathspace_, // mediummathspace
    &nsGkAtoms::minlabelspacing_, // minlabelspacing
    &nsGkAtoms::minsize_, // minsize
+   &nsGkAtoms::monospaced_, // monospaced
    &nsGkAtoms::movablelimits_, // movablelimits
    &nsGkAtoms::msgroup_, // msgroup
    &nsGkAtoms::name, // name

@@ -41,8 +41,6 @@
 #ifndef jsvector_h_
 #define jsvector_h_
 
-#include "mozilla/Attributes.h"
-
 #include "TemplateLib.h"
 #include "Utility.h"
 
@@ -54,11 +52,7 @@
 
 namespace js {
 
-class TempAllocPolicy;
-
-template <class T,
-          size_t MinInlineCapacity = 0,
-          class AllocPolicy = TempAllocPolicy>
+template <class T, size_t N, class AllocPolicy>
 class Vector;
 
 /*
@@ -280,8 +274,8 @@ class Vector : private AllocPolicy
     bool entered;
 #endif
 
-    Vector(const Vector &) MOZ_DELETE;
-    Vector &operator=(const Vector &) MOZ_DELETE;
+    Vector(const Vector &);
+    Vector &operator=(const Vector &);
 
     /* private accessors */
 
@@ -349,12 +343,7 @@ class Vector : private AllocPolicy
         return mCapacity;
     }
 
-    T *begin() {
-        JS_ASSERT(!entered);
-        return mBegin;
-    }
-
-    const T *begin() const {
+    T *begin() const {
         JS_ASSERT(!entered);
         return mBegin;
     }
@@ -387,23 +376,6 @@ class Vector : private AllocPolicy
     const T &back() const {
         JS_ASSERT(!entered && !empty());
         return *(end() - 1);
-    }
-
-    class Range {
-        friend class Vector;
-        T *cur, *end;
-        Range(T *cur, T *end) : cur(cur), end(end) {}
-      public:
-        Range() {}
-        bool empty() const { return cur == end; }
-        size_t remain() const { return end - cur; }
-        T &front() const { return *cur; }
-        void popFront() { JS_ASSERT(!empty()); ++cur; }
-        T popCopyFront() { JS_ASSERT(!empty()); return *cur++; }
-    };
-
-    Range all() {
-        return Range(begin(), end());
     }
 
     /* mutators */
@@ -499,17 +471,6 @@ class Vector : private AllocPolicy
      * shifting existing elements from |t + 1| onward one position lower.
      */
     void erase(T *t);
-
-    /*
-     * Measure the size of the Vector's heap-allocated storage.
-     */
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const;
-
-    /* 
-     * Like sizeOfExcludingThis, but also measures the size of the Vector
-     * object (which must be heap-allocated) itself.
-     */
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 };
 
 /* This does the re-entrancy check plus several other sanity checks. */
@@ -1005,20 +966,6 @@ Vector<T,N,AP>::replaceRawBuffer(T *p, size_t length)
 #ifdef DEBUG
     mReserved = length;
 #endif
-}
-
-template <class T, size_t N, class AP>
-inline size_t
-Vector<T,N,AP>::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const
-{
-    return usingInlineStorage() ? 0 : mallocSizeOf(beginNoCheck());
-}
-
-template <class T, size_t N, class AP>
-inline size_t
-Vector<T,N,AP>::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const
-{
-    return mallocSizeOf(this) + sizeOfExcludingThis(mallocSizeOf);
 }
 
 }  /* namespace js */

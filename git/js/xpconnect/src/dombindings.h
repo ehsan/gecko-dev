@@ -43,7 +43,6 @@
 #include "jsapi.h"
 #include "jsproxy.h"
 #include "xpcpublic.h"
-#include "nsString.h"
 
 namespace mozilla {
 namespace dom {
@@ -133,12 +132,12 @@ public:
         *shouldCache = true;
         return true;
     }
-    static bool resolveNativeName(JSContext *cx, JSObject *proxy, jsid id, JSPropertyDescriptor *desc)
+    static bool resolveNativeName(JSContext *cx, JSObject *proxy, jsid id, js::PropertyDescriptor *desc)
     {
         return true;
     }
     static bool nativeGet(JSContext *cx, JSObject *proxy, JSObject *proto, jsid id, bool *found,
-                          JS::Value *vp)
+                          js::Value *vp)
     {
         *found = false;
         return true;
@@ -180,23 +179,21 @@ private:
     struct Methods {
         jsid &id;
         JSNative native;
-        unsigned nargs;
+        uintN nargs;
     };
 
     static Properties sProtoProperties[];
-    static size_t sProtoPropertiesCount;
     static Methods sProtoMethods[];
-    static size_t sProtoMethodsCount;
 
     static JSObject *ensureExpandoObject(JSContext *cx, JSObject *obj);
 
-    static js::Shape *getProtoShape(JSObject *obj);
-    static void setProtoShape(JSObject *obj, js::Shape *shape);
+    static uint32 getProtoShape(JSObject *obj);
+    static void setProtoShape(JSObject *obj, uint32 shape);
 
     static JSBool length_getter(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
-    static inline bool getItemAt(ListType *list, uint32_t i, IndexGetterType &item);
-    static inline bool setItemAt(JSContext *cx, ListType *list, uint32_t i, IndexSetterType item);
+    static inline bool getItemAt(ListType *list, uint32 i, IndexGetterType &item);
+    static inline bool setItemAt(JSContext *cx, ListType *list, uint32 i, IndexSetterType item);
 
     static inline bool namedItem(JSContext *cx, JSObject *obj, jsval *name, NameGetterType &result,
                                  bool *hasResult);
@@ -206,42 +203,38 @@ private:
                                     NameSetterType item);
 
     static bool getPropertyOnPrototype(JSContext *cx, JSObject *proxy, jsid id, bool *found,
-                                       JS::Value *vp);
+                                       js::Value *vp);
     static bool hasPropertyOnPrototype(JSContext *cx, JSObject *proxy, jsid id);
 
 public:
     static JSObject *create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *list,
                             nsWrapperCache* cache, bool *triedToWrap);
 
-    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)
-    {
-        *enabled = true;
-        return getPrototype(cx, scope);
-    }
+    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);
 
     bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
-                               JSPropertyDescriptor *desc);
+                               js::PropertyDescriptor *desc);
     bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
-                                  JSPropertyDescriptor *desc);
+                                  js::PropertyDescriptor *desc);
     bool defineProperty(JSContext *cx, JSObject *proxy, jsid id,
-                        JSPropertyDescriptor *desc);
-    bool getOwnPropertyNames(JSContext *cx, JSObject *proxy, JS::AutoIdVector &props);
+                        js::PropertyDescriptor *desc);
+    bool getOwnPropertyNames(JSContext *cx, JSObject *proxy, js::AutoIdVector &props);
     bool delete_(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
-    bool enumerate(JSContext *cx, JSObject *proxy, JS::AutoIdVector &props);
-    bool fix(JSContext *cx, JSObject *proxy, JS::Value *vp);
+    bool enumerate(JSContext *cx, JSObject *proxy, js::AutoIdVector &props);
+    bool fix(JSContext *cx, JSObject *proxy, js::Value *vp);
 
     bool has(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
     bool hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
-    bool get(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, JS::Value *vp);
+    bool get(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, js::Value *vp);
     bool getElementIfPresent(JSContext *cx, JSObject *proxy, JSObject *receiver,
-                             uint32_t index, JS::Value *vp, bool *present);
+                             uint32 index, js::Value *vp, bool *present);
     bool set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, bool strict,
-             JS::Value *vp);
-    bool keys(JSContext *cx, JSObject *proxy, JS::AutoIdVector &props);
-    bool iterate(JSContext *cx, JSObject *proxy, unsigned flags, JS::Value *vp);
+             js::Value *vp);
+    bool keys(JSContext *cx, JSObject *proxy, js::AutoIdVector &props);
+    bool iterate(JSContext *cx, JSObject *proxy, uintN flags, js::Value *vp);
 
     /* Spidermonkey extensions. */
-    bool hasInstance(JSContext *cx, JSObject *proxy, const JS::Value *vp, bool *bp);
+    bool hasInstance(JSContext *cx, JSObject *proxy, const js::Value *vp, bool *bp);
     JSString *obj_toString(JSContext *cx, JSObject *proxy);
     void finalize(JSContext *cx, JSObject *proxy);
 
@@ -251,20 +244,19 @@ public:
     static bool objIsList(JSObject *obj) {
         return js::IsProxy(obj) && proxyHandlerIsList(js::GetProxyHandler(obj));
     }
-    static inline bool instanceIsListObject(JSContext *cx, JSObject *obj, JSObject *callee);
+    static bool instanceIsListObject(JSContext *cx, JSObject *obj, JSObject *callee);
     virtual bool isInstanceOf(JSObject *prototype)
     {
         return js::GetObjectClass(prototype) == &sInterfaceClass;
     }
-    static inline ListType *getListObject(JSObject *obj);
+    static ListType *getListObject(JSObject *obj);
 
     static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope);
-    static inline bool protoIsClean(JSContext *cx, JSObject *proto, bool *isClean);
     static bool shouldCacheProtoShape(JSContext *cx, JSObject *proto, bool *shouldCache);
     static bool resolveNativeName(JSContext *cx, JSObject *proxy, jsid id,
-                                  JSPropertyDescriptor *desc);
+                                  js::PropertyDescriptor *desc);
     static bool nativeGet(JSContext *cx, JSObject *proxy, JSObject *proto, jsid id, bool *found,
-                          JS::Value *vp);
+                          js::Value *vp);
     static ListType *getNative(JSObject *proxy);
 };
 

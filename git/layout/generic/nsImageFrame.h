@@ -85,8 +85,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIRequest *aRequest,
-                          imgIContainer *aContainer,
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
@@ -238,8 +237,7 @@ protected:
   nsresult OnStopDecode(imgIRequest *aRequest,
                         nsresult aStatus,
                         const PRUnichar *aStatusArg);
-  nsresult FrameChanged(imgIRequest *aRequest,
-                        imgIContainer *aContainer,
+  nsresult FrameChanged(imgIContainer *aContainer,
                         const nsIntRect *aDirtyRect);
 
 private:
@@ -386,12 +384,13 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
+  nsCOMPtr<imgIContainer> GetImage();
  
   /**
    * Returns an ImageContainer for this image if the image type
    * supports it (TYPE_RASTER only).
    */
-  already_AddRefed<ImageContainer> GetContainer();
+  nsRefPtr<ImageContainer> GetContainer(LayerManager* aManager);
   
   /**
    * Configure an ImageLayer for this display item.

@@ -212,8 +212,7 @@ public:
    * Called when an attribute is about to be changed
    */
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                 const nsAttrValueOrString* aValue,
-                                 bool aNotify);
+                                 const nsAString* aValue, bool aNotify);
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -285,7 +284,7 @@ protected:
   void ContentChanged(nsIContent* aContent);
 
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom *aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
 
   /**
    * Return if an element should have a specific validity UI
@@ -686,7 +685,7 @@ nsHTMLTextAreaElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sCommonAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -813,12 +812,6 @@ nsHTMLTextAreaElement::GetControllers(nsIControllers** aResult)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIController> controller = do_CreateInstance("@mozilla.org/editor/editorcontroller;1", &rv);
-    if (NS_FAILED(rv))
-      return rv;
-
-    mControllers->AppendController(controller);
-
-    controller = do_CreateInstance("@mozilla.org/editor/editingcontroller;1", &rv);
     if (NS_FAILED(rv))
       return rv;
 
@@ -1149,7 +1142,7 @@ nsHTMLTextAreaElement::IntrinsicState() const
       // error and never applies if novalidate is set on the form owner.
       if ((!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) &&
           (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR) ||
-           (mCanShowInvalidUI && ShouldShowValidityUI()))) {
+           mCanShowInvalidUI && ShouldShowValidityUI())) {
         state |= NS_EVENT_STATE_MOZ_UI_INVALID;
       }
     }
@@ -1216,8 +1209,7 @@ nsHTMLTextAreaElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 nsHTMLTextAreaElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                     const nsAttrValueOrString* aValue,
-                                     bool aNotify)
+                                     const nsAString* aValue, bool aNotify)
 {
   if (aNotify && aName == nsGkAtoms::disabled &&
       aNameSpaceID == kNameSpaceID_None) {
@@ -1278,7 +1270,7 @@ nsHTMLTextAreaElement::ContentChanged(nsIContent* aContent)
 
 nsresult
 nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                    const nsAttrValue* aValue, bool aNotify)
+                                    const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::required || aName == nsGkAtoms::disabled ||
@@ -1423,7 +1415,7 @@ nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
         const PRUnichar* params[] = { strMaxLength.get(), strTextLength.get() };
         rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                    "FormValidationTextTooLong",
-                                                   params, message);
+                                                   params, 2, message);
         aValidationMessage = message;
       }
       break;

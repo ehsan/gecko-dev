@@ -43,7 +43,7 @@
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsFrameManager.h"
@@ -435,7 +435,7 @@ nsBox::GetPrefSize(nsBoxLayoutState& aState)
   nsSize pref(0,0);
   DISPLAY_PREF_SIZE(this, pref);
 
-  if (IsCollapsed())
+  if (IsCollapsed(aState))
     return pref;
 
   AddBorderAndPadding(pref);
@@ -455,7 +455,7 @@ nsBox::GetMinSize(nsBoxLayoutState& aState)
   nsSize min(0,0);
   DISPLAY_MIN_SIZE(this, min);
 
-  if (IsCollapsed())
+  if (IsCollapsed(aState))
     return min;
 
   AddBorderAndPadding(min);
@@ -478,7 +478,7 @@ nsBox::GetMaxSize(nsBoxLayoutState& aState)
   nsSize maxSize(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
   DISPLAY_MAX_SIZE(this, maxSize);
 
-  if (IsCollapsed())
+  if (IsCollapsed(aState))
     return maxSize;
 
   AddBorderAndPadding(maxSize);
@@ -520,14 +520,14 @@ nsIFrame::GetOrdinal(nsBoxLayoutState& aState)
 nscoord
 nsBox::GetBoxAscent(nsBoxLayoutState& aState)
 {
-  if (IsCollapsed())
+  if (IsCollapsed(aState))
     return 0;
 
   return GetPrefSize(aState).height;
 }
 
 bool
-nsBox::IsCollapsed()
+nsBox::IsCollapsed(nsBoxLayoutState& aState)
 {
   return GetStyleVisibility()->mVisible == NS_STYLE_VISIBILITY_COLLAPSE;
 }
@@ -536,18 +536,6 @@ nsresult
 nsIFrame::Layout(nsBoxLayoutState& aState)
 {
   NS_ASSERTION(aState.GetRenderingContext(), "must have rendering context");
-
-  nsPresContext *presContext = aState.PresContext();
-  AutoRestore<nsIFrame*> restoreCurrentInflationContainer(presContext->
-                           mCurrentInflationContainer);
-  AutoRestore<nscoord> restoreCurrentInflationContainerWidth(presContext->
-                         mCurrentInflationContainerWidth);
-  if (nsLayoutUtils::IsContainerForFontSizeInflation(mParent) &&
-      mParent->IsBoxFrame()) {
-    presContext->mCurrentInflationContainer = mParent;
-    presContext->mCurrentInflationContainerWidth =
-      mParent->GetContentRect().width;
-  }
 
   nsBox *box = static_cast<nsBox*>(this);
   DISPLAY_LAYOUT(box);
@@ -575,7 +563,9 @@ nsresult
 nsBox::SyncLayout(nsBoxLayoutState& aState)
 {
   /*
-  if (IsCollapsed()) {
+  bool collapsed = false;
+  IsCollapsed(aState, collapsed);
+  if (collapsed) {
     CollapseChild(aState, this, true);
     return NS_OK;
   }
@@ -605,13 +595,17 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
   else {
     nsRect rect(nsPoint(0, 0), GetSize());
     nsOverflowAreas overflowAreas(rect, rect);
-    if (!DoesClipChildren() && !IsCollapsed()) {
+    if (!DoesClipChildren() && !IsCollapsed(aState)) {
       // See if our child frames caused us to overflow after being laid
       // out. If so, store the overflow area.  This normally can't happen
       // in XUL, but it can happen with the CSS 'outline' property and
       // possibly with other exotic stuff (e.g. relatively positioned
       // frames in HTML inside XUL).
-      nsLayoutUtils::UnionChildOverflow(this, overflowAreas);
+      for (nsIFrame* kid = GetChildBox(); kid; kid = kid->GetNextBox()) {
+        nsOverflowAreas kidOverflow =
+          kid->GetOverflowAreas() + kid->GetPosition();
+        overflowAreas.UnionWith(kidOverflow);
+      }
     }
 
     FinishAndStoreOverflow(overflowAreas, GetSize());
@@ -622,8 +616,12 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
   if (view) {
     // Make sure the frame's view is properly sized and positioned and has
     // things like opacity correct
-    nsContainerFrame::SyncFrameViewAfterReflow(presContext, this, view,
-                                               visualOverflow, flags);
+    nsHTMLContainerFrame::SyncFrameViewAfterReflow(
+                             presContext, 
+                             this,
+                             view,
+                             visualOverflow,
+                             flags);
   } 
 
   return NS_OK;

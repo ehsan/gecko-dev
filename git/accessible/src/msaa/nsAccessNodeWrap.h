@@ -67,6 +67,8 @@
 
 #include "nsRefPtrHashtable.h"
 
+typedef LRESULT (STDAPICALLTYPE *LPFNNOTIFYWINEVENT)(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
+typedef LRESULT (STDAPICALLTYPE *LPFNGETGUITHREADINFO)(DWORD idThread, GUITHREADINFO* pgui);
 
 class AccTextChangeEvent;
 
@@ -83,7 +85,7 @@ class nsAccessNodeWrap :  public nsAccessNode,
     STDMETHODIMP QueryService(REFGUID guidService, REFIID riid, void** ppv);
 
 public: // construction, destruction
-  nsAccessNodeWrap(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsAccessNodeWrap();
 
     // IUnknown
@@ -147,7 +149,23 @@ public: // construction, destruction
     static void InitAccessibility();
     static void ShutdownAccessibility();
 
+    /// the accessible library and cached methods
+    static HINSTANCE gmAccLib;
+    static HINSTANCE gmUserLib;
+    static LPFNACCESSIBLEOBJECTFROMWINDOW gmAccessibleObjectFromWindow;
+    static LPFNLRESULTFROMOBJECT gmLresultFromObject;
+    static LPFNNOTIFYWINEVENT gmNotifyWinEvent;
+    static LPFNGETGUITHREADINFO gmGetGUIThreadInfo;
+
     static int FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo);
+
+    static bool IsOnlyMsaaCompatibleJawsPresent();
+
+    static void TurnOffNewTabSwitchingForJawsAndWE();
+
+    static void DoATSpecificProcessing();
+
+  static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 
   static LRESULT CALLBACK WindowProc(HWND hWnd, UINT Msg,
                                      WPARAM WParam, LPARAM lParam);
@@ -163,6 +181,12 @@ protected:
    * @note ISimpleDOMNode is returned addrefed
    */
   ISimpleDOMNode *MakeAccessNode(nsINode *aNode);
+
+    /**
+     * Used to determine whether an IAccessible2 compatible screen reader is
+     * loaded. Currently used for JAWS versions older than 8.0.2173.
+     */
+     static bool gIsIA2Disabled;
 
     /**
      * It is used in nsHyperTextAccessibleWrap for IA2::newText/oldText

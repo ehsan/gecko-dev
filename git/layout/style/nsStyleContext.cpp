@@ -75,11 +75,8 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
     mBits(((PRUint32)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
     mRefCnt(0)
 {
-  // This check has to be done "backward", because if it were written the
-  // more natural way it wouldn't fail even when it needed to.
-  MOZ_STATIC_ASSERT((PR_UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
-                    nsCSSPseudoElements::ePseudo_MAX,
-                    "pseudo element bits no longer fit in a PRUint32");
+  PR_STATIC_ASSERT((PR_UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
+                   nsCSSPseudoElements::ePseudo_MAX);
 
   mNextSibling = this;
   mPrevSibling = this;
@@ -440,8 +437,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // FRAMECHANGE Structs: Display, XUL, Content, UserInterface,
   // Visibility, Outline, TableBorder, Table, Text, UIReset, Quotes
   nsChangeHint maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
-      nsChangeHint_UpdateTransformLayer | nsChangeHint_UpdateOpacityLayer |
-      nsChangeHint_UpdateOverflow);
+      nsChangeHint_UpdateTransformLayer | nsChangeHint_UpdateOpacityLayer);
   DO_STRUCT_DIFFERENCE(Display);
 
   maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |

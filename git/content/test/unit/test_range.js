@@ -43,7 +43,7 @@ const INVALID_STATE_ERR = 0x8053000b;     // NS_ERROR_DOM_INVALID_STATE_ERR
 const INDEX_SIZE_ERR = 0x80530001;        // NS_ERROR_DOM_INDEX_SIZE_ERR
 const INVALID_NODE_TYPE_ERR = 0x805c0002; // NS_ERROR_DOM_INVALID_NODE_TYPE_ERR
 const NOT_OBJECT_ERR = 0x805303eb;        // NS_ERROR_DOM_NOT_OBJECT_ERR
-const SECURITY_ERR = 0x80530012;          // NS_ERROR_DOM_SECURITY_ERR
+const SECURITY_ERR = 0x805303e8;          // NS_ERROR_DOM_SECURITY_ERR
 
 /**
  * Determine if the data node has only ignorable white-space.
@@ -503,6 +503,7 @@ function run_miscellaneous_tests() {
 
   /*
   // XXX ajvincent if rv == WRONG_DOCUMENT_ERR, return false?
+  do_check_true(baseRange instanceof C_i.nsIDOMNSRange);
   do_check_false(baseRange.isPointInRange(startContainer, startOffset));
   do_check_false(baseRange.isPointInRange(startContainer, startOffset + 1));
   do_check_false(baseRange.isPointInRange(endContainer, endOffset));

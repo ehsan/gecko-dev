@@ -38,7 +38,6 @@
 
 #include "nsXFormsWidgetsAccessible.h"
 
-#include "Role.h"
 #include "States.h"
 
 using namespace mozilla::a11y;
@@ -48,16 +47,16 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsDropmarkerWidgetAccessible::
-  nsXFormsDropmarkerWidgetAccessible(nsIContent* aContent,
-                                     nsDocAccessible* aDoc) :
-  nsLeafAccessible(aContent, aDoc)
+  nsXFormsDropmarkerWidgetAccessible(nsIContent *aContent,
+                                     nsIWeakReference *aShell) :
+  nsLeafAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsDropmarkerWidgetAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 PRUint64
@@ -113,15 +112,15 @@ nsXFormsDropmarkerWidgetAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsCalendarWidgetAccessible::
-  nsXFormsCalendarWidgetAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+nsXFormsCalendarWidgetAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsCalendarWidgetAccessible::NativeRole()
 {
-  return roles::CALENDAR;
+  return nsIAccessibleRole::ROLE_CALENDAR;
 }
 
 
@@ -130,16 +129,16 @@ nsXFormsCalendarWidgetAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsComboboxPopupWidgetAccessible::
-  nsXFormsComboboxPopupWidgetAccessible(nsIContent* aContent,
-                                        nsDocAccessible* aDoc) :
-  nsXFormsAccessible(aContent, aDoc)
+  nsXFormsComboboxPopupWidgetAccessible(nsIContent *aContent,
+                                        nsIWeakReference *aShell) :
+  nsXFormsAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsComboboxPopupWidgetAccessible::NativeRole()
 {
-  return roles::LIST;
+  return nsIAccessibleRole::ROLE_LIST;
 }
 
 PRUint64

@@ -60,6 +60,7 @@
 #include "nsIObserverService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsILocalFile.h"
 #include "nsIOService.h"
 #include "nsDirectoryServiceDefs.h"
@@ -74,7 +75,6 @@
 #include "mozilla/Util.h" // for DebugOnly
 #include "mozilla/Services.h"
 #include "mozilla/Telemetry.h"
-#include "nsITimer.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -105,12 +105,6 @@ using namespace mozilla;
 #define MEMORY_CACHE_CAPACITY_PREF  "browser.cache.memory.capacity"
 #define MEMORY_CACHE_MAX_ENTRY_SIZE_PREF "browser.cache.memory.max_entry_size"
 
-#define CACHE_COMPRESSION_LEVEL_PREF "browser.cache.compression_level"
-#define CACHE_COMPRESSION_LEVEL     1
-
-#define SANITIZE_ON_SHUTDOWN_PREF   "privacy.sanitize.sanitizeOnShutdown"
-#define CLEAR_ON_SHUTDOWN_PREF      "privacy.clearOnShutdown.cache"
-
 static const char * observerList[] = { 
     "profile-before-change",
     "profile-do-change",
@@ -128,10 +122,7 @@ static const char * prefList[] = {
     OFFLINE_CACHE_DIR_PREF,
     MEMORY_CACHE_ENABLE_PREF,
     MEMORY_CACHE_CAPACITY_PREF,
-    MEMORY_CACHE_MAX_ENTRY_SIZE_PREF,
-    CACHE_COMPRESSION_LEVEL_PREF,
-    SANITIZE_ON_SHUTDOWN_PREF,
-    CLEAR_ON_SHUTDOWN_PREF
+    MEMORY_CACHE_MAX_ENTRY_SIZE_PREF
 };
 
 // Cache sizes, in KB
@@ -152,16 +143,12 @@ public:
         , mDiskCacheEnabled(false)
         , mDiskCacheCapacity(0)
         , mDiskCacheMaxEntrySize(-1) // -1 means "no limit"
-        , mSmartSizeEnabled(false)
         , mOfflineCacheEnabled(false)
         , mOfflineCacheCapacity(0)
         , mMemoryCacheEnabled(true)
         , mMemoryCacheCapacity(-1)
         , mMemoryCacheMaxEntrySize(-1) // -1 means "no limit"
         , mInPrivateBrowsing(false)
-        , mCacheCompressionLevel(CACHE_COMPRESSION_LEVEL)
-        , mSanitizeOnShutdown(false)
-        , mClearCacheOnShutdown(false)
     {
     }
 
@@ -176,7 +163,6 @@ public:
     void            SetDiskCacheCapacity(PRInt32);
     PRInt32         DiskCacheMaxEntrySize()     { return mDiskCacheMaxEntrySize; }
     nsILocalFile *  DiskCacheParentDirectory()  { return mDiskCacheParentDirectory; }
-    bool            SmartSizeEnabled()          { return mSmartSizeEnabled; }
 
     bool            OfflineCacheEnabled();
     PRInt32         OfflineCacheCapacity()         { return mOfflineCacheCapacity; }
@@ -185,10 +171,6 @@ public:
     bool            MemoryCacheEnabled();
     PRInt32         MemoryCacheCapacity();
     PRInt32         MemoryCacheMaxEntrySize()     { return mMemoryCacheMaxEntrySize; }
-
-    PRInt32         CacheCompressionLevel();
-
-    bool            SanitizeAtShutdown() { return mSanitizeOnShutdown && mClearCacheOnShutdown; }
 
     static PRUint32 GetSmartCacheSize(const nsAString& cachePath,
                                       PRUint32 currentSize);
@@ -201,7 +183,6 @@ private:
     PRInt32                 mDiskCacheCapacity; // in kilobytes
     PRInt32                 mDiskCacheMaxEntrySize; // in kilobytes
     nsCOMPtr<nsILocalFile>  mDiskCacheParentDirectory;
-    bool                    mSmartSizeEnabled;
 
     bool                    mOfflineCacheEnabled;
     PRInt32                 mOfflineCacheCapacity; // in kilobytes
@@ -212,31 +193,9 @@ private:
     PRInt32                 mMemoryCacheMaxEntrySize; // in kilobytes
 
     bool                    mInPrivateBrowsing;
-
-    PRInt32                 mCacheCompressionLevel;
-
-    bool                    mSanitizeOnShutdown;
-    bool                    mClearCacheOnShutdown;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheProfilePrefObserver, nsIObserver)
-
-class nsSetDiskSmartSizeCallback : public nsITimerCallback
-{
-public:
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD Notify(nsITimer* aTimer) {
-        if (nsCacheService::gService) {
-            nsCacheServiceAutoLock autoLock;
-            nsCacheService::gService->SetDiskSmartSize_Locked();
-            nsCacheService::gService->mSmartSizeTimer = nsnull;
-        }
-        return NS_OK;
-    }
-};
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsSetDiskSmartSizeCallback, nsITimerCallback)
 
 // Runnable sent to main thread after the cache IO thread calculates available
 // disk space, so that there is no race in setting mDiskCacheCapacity.
@@ -248,27 +207,32 @@ public:
 
     NS_IMETHOD Run() 
     {
+        nsresult rv;
         NS_ASSERTION(NS_IsMainThread(), 
                      "Setting smart size data off the main thread");
 
         // Main thread may have already called nsCacheService::Shutdown
         if (!nsCacheService::gService || !nsCacheService::gService->mObserver)
             return NS_ERROR_NOT_AVAILABLE;
-
-        // Ensure smart sizing wasn't switched off while event was pending.
-        // It is safe to access the observer without the lock since we are
-        // on the main thread and the value changes only on the main thread.
-        if (!nsCacheService::gService->mObserver->SmartSizeEnabled())
-            return NS_OK;
-
-        nsCacheService::SetDiskCacheCapacity(mSmartSize);
-
-        nsCOMPtr<nsIPrefBranch> ps = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (!ps ||
-            NS_FAILED(ps->SetIntPref(DISK_CACHE_SMART_SIZE_PREF, mSmartSize)))
-            NS_WARNING("Failed to set smart size pref");
-
-        return NS_OK;
+    
+        bool smartSizeEnabled;
+        nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (!branch) {
+            NS_WARNING("Failed to get pref service!");
+            return NS_ERROR_NOT_AVAILABLE;
+        }
+        // ensure smart sizing wasn't switched off while event was pending
+        rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
+                                 &smartSizeEnabled);
+        if (NS_FAILED(rv)) 
+            smartSizeEnabled = false;
+        if (smartSizeEnabled) {
+            nsCacheService::SetDiskCacheCapacity(mSmartSize);
+            rv = branch->SetIntPref(DISK_CACHE_SMART_SIZE_PREF, mSmartSize);
+            if (NS_FAILED(rv)) 
+                NS_WARNING("Failed to set smart size pref");
+        }
+        return rv;
     }
 
 private:
@@ -335,7 +299,7 @@ nsCacheProfilePrefObserver::Install()
     }
     
     // install preferences observer
-    nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!branch) return NS_ERROR_FAILURE;
 
     for (unsigned int i=0; i<ArrayLength(prefList); i++) {
@@ -383,7 +347,7 @@ nsCacheProfilePrefObserver::Remove()
     }
 
     // remove Pref Service observers
-    nsCOMPtr<nsIPrefBranch> prefs =
+    nsCOMPtr<nsIPrefBranch2> prefs =
         do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
         return;
@@ -460,12 +424,13 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
         // Update the cache capacity when smart sizing is turned on/off 
         } else if (!strcmp(DISK_CACHE_SMART_SIZE_ENABLED_PREF, data.get())) {
             // Is the update because smartsizing was turned on, or off?
+            bool smartSizeEnabled;
             rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
-                                     &mSmartSizeEnabled);
+                                     &smartSizeEnabled);
             if (NS_FAILED(rv)) 
                 return rv;
             PRInt32 newCapacity = 0;
-            if (mSmartSizeEnabled) {
+            if (smartSizeEnabled) {
                 nsCacheService::SetDiskSmartSize();
             } else {
                 // Smart sizing switched off: use user specified size
@@ -543,24 +508,6 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
             
             mMemoryCacheMaxEntrySize = NS_MAX(-1, newMaxSize);
             nsCacheService::SetMemoryCacheMaxEntrySize(mMemoryCacheMaxEntrySize);
-        } else if (!strcmp(CACHE_COMPRESSION_LEVEL_PREF, data.get())) {
-            mCacheCompressionLevel = CACHE_COMPRESSION_LEVEL;
-            (void)branch->GetIntPref(CACHE_COMPRESSION_LEVEL_PREF,
-                                     &mCacheCompressionLevel);
-            mCacheCompressionLevel = NS_MAX(0, mCacheCompressionLevel);
-            mCacheCompressionLevel = NS_MIN(9, mCacheCompressionLevel);
-        } else if (!strcmp(SANITIZE_ON_SHUTDOWN_PREF, data.get())) {
-            rv = branch->GetBoolPref(SANITIZE_ON_SHUTDOWN_PREF,
-                                     &mSanitizeOnShutdown);
-            if (NS_FAILED(rv))
-                return rv;
-            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
-        } else if (!strcmp(CLEAR_ON_SHUTDOWN_PREF, data.get())) {
-            rv = branch->GetBoolPref(CLEAR_ON_SHUTDOWN_PREF,
-                                     &mClearCacheOnShutdown);
-            if (NS_FAILED(rv))
-                return rv;
-            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
         }
     } else if (!strcmp(NS_PRIVATE_BROWSING_SWITCH_TOPIC, topic)) {
         if (!strcmp(NS_PRIVATE_BROWSING_ENTER, data.get())) {
@@ -685,22 +632,21 @@ nsCacheProfilePrefObserver::PermittedToSmartSize(nsIPrefBranch* branch, bool
             // of 50 MB, then keep user's value. Otherwise use smart sizing.
             rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &oldCapacity);
             if (oldCapacity < PRE_GECKO_2_0_DEFAULT_CACHE_SIZE) {
-                mSmartSizeEnabled = false;
-                branch->SetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
-                                    mSmartSizeEnabled);
-                return mSmartSizeEnabled;
+                branch->SetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF, 
+                                    false);
+                return false;
             }
         }
         // Set manual setting to MAX cache size as starting val for any
         // adjustment by user: (bug 559942 comment 65)
         branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
     }
-
+    bool smartSizeEnabled; 
     rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
-                             &mSmartSizeEnabled);
-    if (NS_FAILED(rv))
-        mSmartSizeEnabled = false;
-    return mSmartSizeEnabled;
+                             &smartSizeEnabled);
+    if (NS_FAILED(rv)) 
+        return false;
+    return !!smartSizeEnabled;
 }
 
 
@@ -751,7 +697,7 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
                     if (NS_SUCCEEDED(rv)) {
                         bool exists;
                         if (NS_SUCCEEDED(profDir->Exists(&exists)) && exists)
-                            nsDeleteDir::DeleteDir(profDir, false);
+                            DeleteDir(profDir, false, false);
                     }
                 }
             }
@@ -773,12 +719,20 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
         if (PermittedToSmartSize(branch, firstSmartSizeRun)) {
             // Avoid evictions: use previous cache size until smart size event
             // updates mDiskCacheCapacity
-            rv = branch->GetIntPref(firstSmartSizeRun ?
-                                    DISK_CACHE_CAPACITY_PREF :
-                                    DISK_CACHE_SMART_SIZE_PREF,
-                                    &mDiskCacheCapacity);
-            if (NS_FAILED(rv))
-                mDiskCacheCapacity = DEFAULT_CACHE_SIZE;
+            if (!firstSmartSizeRun) {
+                PRInt32 oldSmartSize;
+                rv = branch->GetIntPref(DISK_CACHE_SMART_SIZE_PREF,
+                                        &oldSmartSize);
+                mDiskCacheCapacity = oldSmartSize;
+            } else {
+                PRInt32 oldCapacity;
+                rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &oldCapacity);
+                if (NS_SUCCEEDED(rv)) {
+                    mDiskCacheCapacity = oldCapacity;
+                } else {
+                    mDiskCacheCapacity = DEFAULT_CACHE_SIZE;
+                }
+            }
         }
 
         if (firstSmartSizeRun) {
@@ -843,20 +797,6 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
     (void) branch->GetIntPref(MEMORY_CACHE_MAX_ENTRY_SIZE_PREF,
                               &mMemoryCacheMaxEntrySize);
     mMemoryCacheMaxEntrySize = NS_MAX(-1, mMemoryCacheMaxEntrySize);
-
-    // read cache compression level pref
-    mCacheCompressionLevel = CACHE_COMPRESSION_LEVEL;
-    (void)branch->GetIntPref(CACHE_COMPRESSION_LEVEL_PREF,
-                             &mCacheCompressionLevel);
-    mCacheCompressionLevel = NS_MAX(0, mCacheCompressionLevel);
-    mCacheCompressionLevel = NS_MIN(9, mCacheCompressionLevel);
-
-    // read cache shutdown sanitization prefs
-    (void) branch->GetBoolPref(SANITIZE_ON_SHUTDOWN_PREF,
-                               &mSanitizeOnShutdown);
-    (void) branch->GetBoolPref(CLEAR_ON_SHUTDOWN_PREF,
-                               &mClearCacheOnShutdown);
-
     return rv;
 }
 
@@ -894,7 +834,7 @@ bool
 nsCacheProfilePrefObserver::DiskCacheEnabled()
 {
     if ((mDiskCacheCapacity == 0) || (!mDiskCacheParentDirectory))  return false;
-    return mDiskCacheEnabled && (!mSanitizeOnShutdown || !mClearCacheOnShutdown);
+    return mDiskCacheEnabled;
 }
 
 
@@ -990,11 +930,6 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
     return capacity;
 }
 
-PRInt32
-nsCacheProfilePrefObserver::CacheCompressionLevel()
-{
-    return mCacheCompressionLevel;
-}
 
 /******************************************************************************
  * nsProcessRequestEvent
@@ -1103,11 +1038,6 @@ nsCacheService::Init()
         NS_WARNING("Can't create cache IO thread");
     }
 
-    rv = nsDeleteDir::Init();
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Can't initialize nsDeleteDir");
-    }
-
     // initialize hashtable for active cache entries
     rv = mActiveEntries.Init();
     if (NS_FAILED(rv)) return rv;
@@ -1131,10 +1061,6 @@ void
 nsCacheService::Shutdown()
 {
     nsCOMPtr<nsIThread> cacheIOThread;
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN> totalTimer;
-
-    bool shouldSanitize = false;
-    nsCOMPtr<nsILocalFile> parentDir;
 
     {
     nsCacheServiceAutoLock lock;
@@ -1145,24 +1071,16 @@ nsCacheService::Shutdown()
 
         mInitialized = false;
 
+        mObserver->Remove();
+        NS_RELEASE(mObserver);
+        
         // Clear entries
         ClearDoomList();
         ClearActiveEntries();
 
-        if (mSmartSizeTimer) {
-            mSmartSizeTimer->Cancel();
-            mSmartSizeTimer = nsnull;
-        }
-
         // Make sure to wait for any pending cache-operations before
         // proceeding with destructive actions (bug #620660)
         (void) SyncWithCacheIOThread();
-
-        // obtain the disk cache directory in case we need to sanitize it
-        parentDir = mObserver->DiskCacheParentDirectory();
-        shouldSanitize = mObserver->SanitizeAtShutdown();
-        mObserver->Remove();
-        NS_RELEASE(mObserver);
         
         // unregister memory reporter, before deleting the memory device, just
         // to be safe
@@ -1176,9 +1094,6 @@ nsCacheService::Shutdown()
         delete mDiskDevice;
         mDiskDevice = nsnull;
 
-        if (mOfflineDevice)
-            mOfflineDevice->Shutdown();
-
         NS_IF_RELEASE(mOfflineDevice);
 
 #ifdef PR_LOGGING
@@ -1191,20 +1106,6 @@ nsCacheService::Shutdown()
 
     if (cacheIOThread)
         cacheIOThread->Shutdown();
-
-    if (shouldSanitize) {
-        nsresult rv = parentDir->AppendNative(NS_LITERAL_CSTRING("Cache"));
-        if (NS_SUCCEEDED(rv)) {
-            bool exists;
-            if (NS_SUCCEEDED(parentDir->Exists(&exists)) && exists)
-                nsDeleteDir::DeleteDir(parentDir, false);
-        }
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE> timer;
-        nsDeleteDir::Shutdown(shouldSanitize);
-    } else {
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_DELETEDIR_SHUTDOWN> timer;
-        nsDeleteDir::Shutdown(shouldSanitize);
-    }
 }
 
 
@@ -1460,30 +1361,11 @@ nsCacheService::CreateDiskDevice()
         mEnableDiskDevice = false;
         delete mDiskDevice;
         mDiskDevice = nsnull;
-        return rv;
     }
 
-    NS_ASSERTION(!mSmartSizeTimer, "Smartsize timer was already fired!");
+    SetDiskSmartSize_Locked(true);
 
-    // Disk device is usually created during the startup. Delay smart size
-    // calculation to avoid possible massive IO caused by eviction of entries
-    // in case the new smart size is smaller than current cache usage.
-    mSmartSizeTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
-    if (NS_SUCCEEDED(rv)) {
-        rv = mSmartSizeTimer->InitWithCallback(new nsSetDiskSmartSizeCallback(),
-                                               1000*60*3,
-                                               nsITimer::TYPE_ONE_SHOT);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("Failed to post smart size timer");
-            mSmartSizeTimer = nsnull;
-        }
-    } else {
-        NS_WARNING("Can't create smart size timer");
-    }
-    // Ignore state of the timer and return success since the purpose of the
-    // method (create the disk-device) has been fulfilled
-
-    return NS_OK;
+    return rv;
 }
 
 nsresult
@@ -2324,13 +2206,7 @@ nsCacheService::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
 void
 nsCacheService::Lock()
 {
-    if (NS_IsMainThread()) {
-        Telemetry::AutoTimer<Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD> timer;
-        gService->mLock.Lock();
-    } else {
-        Telemetry::AutoTimer<Telemetry::CACHE_SERVICE_LOCK_WAIT> timer;
-        gService->mLock.Lock();
-    }
+    gService->mLock.Lock();
 }
 
 void
@@ -2383,14 +2259,6 @@ nsCacheService::ValidateEntry(nsCacheEntry * entry)
     // XXX what else should be done?
 
     return rv;
-}
-
-
-PRInt32
-nsCacheService::CacheCompressionLevel()
-{
-    PRInt32 level = gService->mObserver->CacheCompressionLevel();
-    return level;
 }
 
 
@@ -2692,11 +2560,11 @@ nsCacheService::SetDiskSmartSize()
 
     if (!gService) return NS_ERROR_NOT_AVAILABLE;
 
-    return gService->SetDiskSmartSize_Locked();
+    return gService->SetDiskSmartSize_Locked(false);
 }
 
 nsresult
-nsCacheService::SetDiskSmartSize_Locked()
+nsCacheService::SetDiskSmartSize_Locked(bool checkPref)
 {
     nsresult rv;
 
@@ -2706,8 +2574,17 @@ nsCacheService::SetDiskSmartSize_Locked()
     if (!mDiskDevice)
         return NS_ERROR_NOT_AVAILABLE;
 
-    if (!mObserver->SmartSizeEnabled())
-        return NS_ERROR_NOT_AVAILABLE;
+    if (checkPref) {
+        nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (!branch) return NS_ERROR_FAILURE;
+
+        bool smartSizeEnabled;
+        rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
+                                 &smartSizeEnabled);
+
+        if (NS_FAILED(rv) || !smartSizeEnabled)
+            return NS_ERROR_NOT_AVAILABLE;
+    }
 
     nsAutoString cachePath;
     rv = mObserver->DiskCacheParentDirectory()->GetPath(cachePath);

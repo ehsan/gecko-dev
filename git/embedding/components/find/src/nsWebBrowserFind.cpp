@@ -739,21 +739,26 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
         NS_ENSURE_SUCCESS(rv, rv);
         if (!subsumes) {
             bool hasCap = false;
-            secMan->IsCapabilityEnabled("UniversalXPConnect", &hasCap);
+            secMan->IsCapabilityEnabled("UniversalBrowserWrite", &hasCap);
+            if (!hasCap) {
+                secMan->IsCapabilityEnabled("UniversalXPConnect", &hasCap);
+            }
             if (!hasCap) {
                 return NS_ERROR_DOM_PROP_ACCESS_DENIED;
             }
         }
     }
 
-    nsCOMPtr<nsIFind> find = do_CreateInstance(NS_FIND_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (!mFind) {
+        mFind = do_CreateInstance(NS_FIND_CONTRACTID, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
 
-    (void) find->SetCaseSensitive(mMatchCase);
-    (void) find->SetFindBackwards(mFindBackwards);
+    (void) mFind->SetCaseSensitive(mMatchCase);
+    (void) mFind->SetFindBackwards(mFindBackwards);
 
     // XXX Make and set a line breaker here, once that's implemented.
-    (void) find->SetWordBreaker(0);
+    (void) mFind->SetWordBreaker(0);
 
     // Now make sure the content (for actual finding) and frame (for
     // selection) models are up to date.
@@ -785,8 +790,8 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
 
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv =  find->Find(mSearchString.get(), searchRange, startPt, endPt,
-                     getter_AddRefs(foundRange));
+    rv =  mFind->Find(mSearchString.get(), searchRange, startPt, endPt,
+                      getter_AddRefs(foundRange));
 
     if (NS_SUCCEEDED(rv) && foundRange)
     {

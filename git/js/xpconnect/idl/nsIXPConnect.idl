@@ -180,14 +180,7 @@ interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
 
     void debugDump(in short depth);
 
-    /*
-     * This finishes initializing a wrapped global, doing the parts that we
-     * couldn't do while the global and window were being simultaneously
-     * bootstrapped. This should be called exactly once, and only for wrapped
-     * globals.
-     */
-    void finishInitForWrappedGlobal();
-
+    void refreshPrototype();
     /* 
      * This returns a pointer into the instance and care should be taken
      * to make sure the pointer is not kept past the life time of the
@@ -397,15 +390,9 @@ interface nsIXPCFunctionThisTranslator : nsISupports
 #define NS_XPCONNECT_CID \
 { 0xcb6593e0, 0xf9b2, 0x11d2, \
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
-
-enum nsGCType {
-    nsGCNormal,
-    nsGCShrinking,
-    nsGCIncremental
-};
 %}
 
-[uuid(0213cb40-2dd5-4ac8-a9d3-157bd53c3824)]
+[uuid(07661008-5505-4784-a612-89f7dc2144da)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
@@ -428,8 +415,12 @@ interface nsIXPConnect : nsISupports
      *
      * @param aJSContext the context to use while creating the global object.
      * @param aCOMObj the native object that represents the global object.
+     * @param aIID the IID used to wrap the global object.
      * @param aPrincipal the principal of the code that will run in this
      *                   compartment. Can be null if not on the main thread.
+     * @param aExtraPtr must be passed if aPrincipal is null. Used to separate
+     *                  code from the same principal into different
+     *                  compartments, as for sandboxes.
      * @param aFlags one of the flags below specifying what options this
      *               global object wants.
      */
@@ -437,7 +428,9 @@ interface nsIXPConnect : nsISupports
     initClassesWithNewWrappedGlobal(
                   in JSContextPtr aJSContext,
                   in nsISupports  aCOMObj,
+                  in nsIIDRef     aIID,
                   in nsIPrincipal aPrincipal,
+                  in nsISupports  aExtraPtr,
                   in PRUint32     aFlags);
 
     const PRUint32 INIT_JS_STANDARD_CLASSES  = 1 << 0;
@@ -666,6 +659,17 @@ interface nsIXPConnect : nsISupports
     nsIVariant JSToVariant(in JSContextPtr ctx, in jsval value);
 
     /**
+     * Restore an old prototype for wrapped natives of type
+     * aClassInfo. This should be used only when restoring an old
+     * scope into a state close to where it was prior to
+     * being reinitialized.
+     */
+    void restoreWrappedNativePrototype(in JSContextPtr aJSContext,
+                                       in JSObjectPtr  aScope,
+                                       in nsIClassInfo aClassInfo,
+                                       in nsIXPConnectJSObjectHolder aPrototype);
+
+    /**
      * Create a sandbox for evaluating code in isolation using
      * evalInSandboxObject().
      *
@@ -730,16 +734,8 @@ interface nsIXPConnect : nsISupports
 
     /**
      * Trigger a JS garbage collection.
-     * Use a js::gcreason::Reason from jsfriendapi.h for the kind.
-     * Use the nsGCType enum for the kind.
      */
-    void GarbageCollect(in PRUint32 reason, in PRUint32 kind);
-
-    /**
-     * Signals a good place to do an incremental GC slice, because the
-     * browser is drawing a frame.
-     */
-    void NotifyDidPaint();
+    void GarbageCollect(in boolean shrinkingGC);
 
     /**
      * Define quick stubs on the given object, @a proto.

@@ -385,7 +385,6 @@ TraverseBinding(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME((*cb), "proto mInterfaceTable data");
   cb->NoteXPCOMChild(static_cast<nsISupports*>(aData));
   return kHashEnumerateNext;
 }
@@ -393,12 +392,9 @@ TraverseBinding(nsHashKey *aKey, void *aData, void* aClosure)
 void
 nsXBLPrototypeBinding::Traverse(nsCycleCollectionTraversalCallback &cb) const
 {
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "proto mBinding");
   cb.NoteXPCOMChild(mBinding);
-  if (mResources) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "proto mResources mLoader");
+  if (mResources)
     cb.NoteXPCOMChild(mResources->mLoader);
-  }
   if (mInsertionPointTable)
     mInsertionPointTable->Enumerate(TraverseInsertionPoint, &cb);
   if (mInterfaceTable)
@@ -645,9 +641,9 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
       // xbl:text set on us.
 
       if ((dstAttr == nsGkAtoms::text && dstNs == kNameSpaceID_XBL) ||
-          (realElement->NodeInfo()->Equals(nsGkAtoms::html,
-                                           kNameSpaceID_XUL) &&
-           dstAttr == nsGkAtoms::value)) {
+          realElement->NodeInfo()->Equals(nsGkAtoms::html,
+                                          kNameSpaceID_XUL) &&
+          dstAttr == nsGkAtoms::value) {
         // Flush out all our kids.
         PRUint32 childCount = realElement->GetChildCount();
         for (PRUint32 i = 0; i < childCount; i++)
@@ -1470,28 +1466,6 @@ nsXBLPrototypeBinding::CreateKeyHandlers()
   }
 }
 
-class XBLPrototypeSetupCleanup
-{
-public:
-  XBLPrototypeSetupCleanup(nsXBLDocumentInfo* aDocInfo, const nsACString& aID)
-  : mDocInfo(aDocInfo), mID(aID) {}
-
-  ~XBLPrototypeSetupCleanup()
-  {
-    if (mDocInfo) {
-      mDocInfo->RemovePrototypeBinding(mID);
-    }
-  }
-
-  void Disconnect()
-  {
-    mDocInfo = nsnull;
-  }
-
-  nsXBLDocumentInfo* mDocInfo;
-  nsCAutoString mID;
-};
-
 nsresult
 nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
                             nsXBLDocumentInfo* aDocInfo,
@@ -1576,8 +1550,6 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
   rv = aDocInfo->SetPrototypeBinding(id, this);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  XBLPrototypeSetupCleanup cleanup(aDocInfo, id);  
-
   nsCAutoString className;
   rv = aStream->ReadCString(className);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1591,7 +1563,10 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     // occurs, the mapping should be removed again so that we don't keep an
     // invalid binding around.
     rv = mImplementation->Read(context, aStream, this, globalObject);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      aDocInfo->RemovePrototypeBinding(id);
+      return rv;
+    }
   }
 
   // Next read in the handlers.
@@ -1648,7 +1623,6 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     aDocInfo->SetFirstPrototypeBinding(this);
   }
 
-  cleanup.Disconnect();
   return NS_OK;
 }
 
@@ -2381,12 +2355,13 @@ nsXBLPrototypeBinding::ResolveBaseBinding()
       // Check the white list
       if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
         const PRUnichar* params[] = { display.get() };
-        nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                        "XBL", nsnull,
-                                        nsContentUtils::eXBL_PROPERTIES,
+        nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                        "InvalidExtendsBinding",
-                                        params, ArrayLength(params),
-                                        doc->GetDocumentURI());
+                                        params, NS_ARRAY_LENGTH(params),
+                                        doc->GetDocumentURI(),
+                                        EmptyString(), 0, 0,
+                                        nsIScriptError::errorFlag,
+                                        "XBL");
         NS_ASSERTION(!nsXBLService::IsChromeOrResourceURI(doc->GetDocumentURI()),
                      "Invalid extends value");
         return NS_ERROR_ILLEGAL_VALUE;

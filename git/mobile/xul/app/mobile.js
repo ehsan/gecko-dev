@@ -83,6 +83,8 @@ pref("layout.css.dpi", 160);
 pref("layout.css.dpi", 240);
 #endif
 #endif
+/* allow scrollbars to float above chrome ui */
+pref("ui.scrollbarsCanOverlapContent", 1);
 
 /* use long press to display a context menu */
 pref("ui.click_hold_context_menus", true);
@@ -105,9 +107,6 @@ pref("browser.cache.offline.enable", true);
 pref("browser.cache.offline.capacity", 5120); // kilobytes
 pref("offline-apps.quota.max", 2048); // kilobytes
 pref("offline-apps.quota.warn", 1024); // kilobytes
-
-// cache compression turned off for now - see bug #715198
-pref("browser.cache.compression_level", 0);
 
 /* protocol warning prefs */
 pref("network.protocol-handler.warn-external.tel", false);
@@ -212,22 +211,18 @@ pref("extensions.logging.enabled", false);
 pref("extensions.hideInstallButton", true);
 pref("extensions.showMismatchUI", false);
 pref("extensions.hideUpdateButton", false);
-pref("extensions.strictCompatibility", false);
-pref("extensions.minCompatibleAppVersion", "4.0");
 
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
-pref("extensions.update.background.url", "https://versioncheck-bg.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
+pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%");
 
 /* preferences for the Get Add-ons pane */
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
 pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/recommended/");
 pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/list/featured/all/%MAX_RESULTS%/%OS%/%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/search?q=%TERMS%&platform=%OS%&appver=%VERSION%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%/%COMPATIBILITY_MODE%");
+pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/search?q=%TERMS%");
+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%");
 pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/mobile/");
-pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/guid:%IDS%?src=mobile&appOS=%OS%&appVersion=%VERSION%");
-pref("extensions.getAddons.getWithPerformance.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/guid:%IDS%?src=mobile&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
+pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/guid:%IDS%?src=mobile&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
 
 /* preference for the locale picker */
 pref("extensions.getLocales.get.url", "");
@@ -242,9 +237,6 @@ pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blockl
 /* block popups by default, and notify the user about blocked popups */
 pref("dom.disable_open_during_load", true);
 pref("privacy.popups.showBrowserMessage", true);
-
-/* disable opening windows with the dialog feature */
-pref("dom.disable_window_open_dialog_feature", true);
 
 pref("keyword.enabled", true);
 pref("keyword.URL", "http://www.google.com/m?ie=UTF-8&oe=UTF-8&sourceid=navclient&gfns=1&q=");
@@ -427,7 +419,7 @@ pref("browser.ui.zoom.animationDuration", 200); // ms duration of double-tap zoo
 pref("browser.ui.zoom.reflow", false); // Change text wrapping on double-tap
 pref("browser.ui.zoom.reflow.fontSize", 720);
 
-pref("font.size.inflation.minTwips", 0);
+pref("font.size.inflation.minTwips", 120);
 
 // pinch gesture
 pref("browser.ui.pinch.maxGrowth", 150);     // max pinch distance growth
@@ -447,7 +439,7 @@ pref("browser.ui.touch.weight.visited", 120); // percentage
 pref("plugin.disable", false);
 pref("dom.ipc.plugins.enabled", true);
 #elifdef ANDROID
-pref("plugin.disable", true);
+pref("plugin.disable", false);
 pref("dom.ipc.plugins.enabled", false);
 #else
 pref("plugin.disable", true);
@@ -466,8 +458,8 @@ pref("dom.ipc.content.nice", 1);
 // The breakpad report server to link to in about:crashes
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 pref("app.releaseNotesURL", "http://www.mozilla.com/%LOCALE%/mobile/%VERSION%/releasenotes/");
-pref("app.sync.tutorialURL", "https://support.mozilla.org/kb/sync-firefox-between-desktop-and-mobile");
-pref("app.support.baseURL", "http://support.mozilla.org/mobile");
+pref("app.sync.tutorialURL", "https://support.mozilla.com/kb/sync-firefox-between-desktop-and-mobile");
+pref("app.support.baseURL", "http://support.mozilla.com/mobile");
 pref("app.feedbackURL", "http://input.mozilla.com/feedback/");
 pref("app.privacyURL", "http://www.mozilla.com/%LOCALE%/m/privacy.html");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
@@ -531,7 +523,7 @@ pref("app.update.auto", false);
 pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
 pref("app.update.mode", 1);
 pref("app.update.silent", false);
-pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%-xul/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
+pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
 pref("app.update.promptWaitTime", 43200);
 pref("app.update.idletime", 60);
 pref("app.update.showInstalledUI", false);
@@ -565,7 +557,7 @@ pref("font.default.x-western", "SwissA");
 #ifdef MOZ_SERVICES_SYNC
 // sync service
 pref("services.sync.client.type", "mobile");
-pref("services.sync.registerEngines", "Tab,Bookmarks,Form,History,Password,Prefs,Addons");
+pref("services.sync.registerEngines", "Tab,Bookmarks,Form,History,Password,Prefs");
 pref("services.sync.autoconnectDelay", 5);
 
 // prefs to sync by default
@@ -666,6 +658,9 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // a gethash request will be forced to check that the result is still in
 // the database.
 pref("urlclassifier.confirm-age", 2700);
+
+// Maximum size of the sqlite3 cache during an update, in bytes
+pref("urlclassifier.updatecachemax", 4194304);
 
 // URL for checking the reason for a malware warning.
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");

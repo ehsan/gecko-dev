@@ -104,7 +104,7 @@ class nsAccessibleWrap : public nsAccessible,
                          public IEnumVARIANT
 {
 public: // construction, destruction
-  nsAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsAccessibleWrap();
 
     // nsISupports
@@ -331,6 +331,11 @@ public: // construction, destruction
 
   NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 
+  // NT4 does not have the oleacc that defines these methods. So we define copies here that automatically
+  // load the library only if needed.
+  static STDMETHODIMP AccessibleObjectFromWindow(HWND hwnd,DWORD dwObjectID,REFIID riid,void **ppvObject);
+  static STDMETHODIMP NotifyWinEvent(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
+
   static IDispatch *NativeAccessible(nsIAccessible *aXPAccessible);
 
   /**
@@ -351,9 +356,9 @@ protected:
   /**
    * Creates ITypeInfo for LIBID_Accessibility if it's needed and returns it.
    */
-  static ITypeInfo* GetTI(LCID lcid);
+  ITypeInfo *GetTI(LCID lcid);
 
-  static ITypeInfo* gTypeInfo;
+  ITypeInfo *mTypeInfo;
 
 
   enum navRelations {

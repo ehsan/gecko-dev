@@ -3,7 +3,7 @@ function test() {
   ok(true, "ok called");
   executeSoon(function() {
     expectUncaughtException();
-    throw "this is a deliberately thrown exception";
+    throw "uncaught exception";
   });
   executeSoon(function() {
     finish();

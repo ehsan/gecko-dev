@@ -39,10 +39,9 @@
 #ifndef __NS_SVGTEXTCONTENTELEMENTBASE_H__
 #define __NS_SVGTEXTCONTENTELEMENTBASE_H__
 
-#include "DOMSVGTests.h"
 #include "nsIDOMSVGTextContentElement.h"
-#include "nsSVGStylableElement.h"
 #include "nsSVGTextContainerFrame.h"
+#include "nsSVGStylableElement.h"
 
 typedef nsSVGStylableElement nsSVGTextContentElementBase;
 
@@ -52,11 +51,9 @@ typedef nsSVGStylableElement nsSVGTextContentElementBase;
  * upshot is that any changes to this class also need to be made in
  * nsSVGTextElement.
  */
-class nsSVGTextContentElement : public nsSVGTextContentElementBase,
-                                public DOMSVGTests
+class nsSVGTextContentElement : public nsSVGTextContentElementBase
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGTEXTCONTENTELEMENT
 
 protected:

@@ -169,7 +169,8 @@ nsDiskCacheMap::Open(nsILocalFile *  cacheDirectory)
     {
         // extra scope so the compiler doesn't barf on the above gotos jumping
         // past this declaration down here
-        PRUint32 overhead = moz_malloc_size_of(mRecordArray);
+        PRUint32 overhead =
+            moz_malloc_size_of(mRecordArray, mHeader.mRecordCount * sizeof(nsDiskCacheRecord));
         mozilla::Telemetry::Accumulate(mozilla::Telemetry::HTTP_DISK_CACHE_OVERHEAD,
                 overhead);
     }

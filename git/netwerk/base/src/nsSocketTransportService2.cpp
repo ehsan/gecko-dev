@@ -48,19 +48,11 @@
 #include "prerror.h"
 #include "plstr.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIOService.h"
 
 #include "mozilla/FunctionTimer.h"
-
-// XXX: There is no good header file to put these in. :(
-namespace mozilla { namespace psm {
-
-void InitializeSSLServerCertVerificationThreads();
-void StopSSLServerCertVerificationThreads();
-
-} } // namespace mozilla::psm
 
 using namespace mozilla;
 
@@ -494,7 +486,7 @@ nsSocketTransportService::Init()
         thread.swap(mThread);
     }
 
-    nsCOMPtr<nsIPrefBranch> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (tmpPrefService) 
         tmpPrefService->AddObserver(SEND_BUFFER_PREF, this, false);
     UpdatePrefs();
@@ -539,7 +531,7 @@ nsSocketTransportService::Shutdown()
         mThread = nsnull;
     }
 
-    nsCOMPtr<nsIPrefBranch> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (tmpPrefService) 
         tmpPrefService->RemoveObserver(SEND_BUFFER_PREF, this);
 
@@ -617,8 +609,6 @@ nsSocketTransportService::Run()
 {
     SOCKET_LOG(("STS thread init\n"));
 
-    psm::InitializeSSLServerCertVerificationThreads();
-
     gSocketThread = PR_GetCurrentThread();
 
     // add thread event to poll list (mThreadEvent may be NULL)
@@ -631,9 +621,6 @@ nsSocketTransportService::Run()
     // hook ourselves up to observe event processing for this thread
     nsCOMPtr<nsIThreadInternal> threadInt = do_QueryInterface(thread);
     threadInt->SetObserver(this);
-
-    // make sure the pseudo random number generator is seeded on this thread
-    srand(PR_Now());
 
     for (;;) {
         bool pendingEvents = false;
@@ -677,8 +664,6 @@ nsSocketTransportService::Run()
     NS_ProcessPendingEvents(thread);
 
     gSocketThread = nsnull;
-
-    psm::StopSSLServerCertVerificationThreads();
 
     SOCKET_LOG(("STS thread exit\n"));
     return NS_OK;
@@ -821,7 +806,7 @@ nsSocketTransportService::UpdatePrefs()
 {
     mSendBufferSize = 0;
     
-    nsCOMPtr<nsIPrefBranch> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (tmpPrefService) {
         PRInt32 bufferSize;
         nsresult rv = tmpPrefService->GetIntPref(SEND_BUFFER_PREF, &bufferSize);
@@ -963,8 +948,18 @@ nsSocketTransportService::DiscoverMaxCount()
             gMaxCount = rlimitData.rlim_cur - 250;
 
 #elif defined(XP_WIN) && !defined(WIN_CE)
+    // win 95, 98, etc had a limit of 100 - so we will just
+    // use the historical 50 in every case older than XP (0x501).
     // >= XP is confirmed to have at least 1000
-    gMaxCount = SOCKET_LIMIT_TARGET;
+
+    OSVERSIONINFO osInfo = { sizeof(OSVERSIONINFO) };
+    if (GetVersionEx(&osInfo)) {
+        PRInt32 version = 
+            (osInfo.dwMajorVersion & 0xff) << 8 | 
+            (osInfo.dwMinorVersion & 0xff);
+        if (version >= 0x501)                    /* xp or later */
+            gMaxCount = SOCKET_LIMIT_TARGET;
+    }
 #else
     // other platforms are harder to test - so leave at safe legacy value
 #endif

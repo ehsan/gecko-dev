@@ -72,6 +72,10 @@ public:
 
   nsresult ImageUpdated(const nsIntRect &aUpdateRect);
 
+  PRInt32 GetX() const;
+  PRInt32 GetY() const;
+  PRInt32 GetWidth() const;
+  PRInt32 GetHeight() const;
   nsIntRect GetRect() const;
   gfxASurface::gfxImageFormat GetFormat() const;
   bool GetNeedsBackground() const;
@@ -130,9 +134,7 @@ public:
     return mImageSurface;
   }
 
-  size_t SizeOfExcludingThisWithComputedFallbackIfHeap(
-           gfxASurface::MemoryLocation aLocation,
-           nsMallocSizeOfFun aMallocSizeOf) const;
+  PRUint32 EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const;
 
   PRUint8 GetPaletteDepth() const { return mPaletteDepth; }
 
@@ -198,6 +200,7 @@ private: // data
 #ifdef XP_WIN
   bool mIsDDBSurface;
 #endif
+
 };
 
 #endif /* imgFrame_h */

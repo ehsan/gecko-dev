@@ -47,11 +47,10 @@
 #include "nsIParser.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIDOMHTMLScriptElement.h"
-#include "mozilla/CORSMode.h"
 
 #define NS_ISCRIPTELEMENT_IID \
-{ 0x24ab3ff2, 0xd75e, 0x4be4, \
-  { 0x8d, 0x50, 0xd6, 0x75, 0x31, 0x29, 0xab, 0x65 } }
+{ 0x5bb3b905, 0x5988, 0x476f, \
+  { 0x95, 0x4f, 0x99, 0x02, 0x59, 0x82, 0x24, 0x67 } }
 
 /**
  * Internal interface implemented by script elements
@@ -188,28 +187,6 @@ public:
   }
 
   /**
-   * Unblocks the creator parser
-   */
-  void UnblockParser()
-  {
-    nsCOMPtr<nsIParser> parser = do_QueryReferent(mCreatorParser);
-    if (parser) {
-      parser->UnblockParser();
-    }
-  }
-
-  /**
-   * Attempts to resume parsing asynchronously
-   */
-  void ContinueParserAsync()
-  {
-    nsCOMPtr<nsIParser> parser = do_QueryReferent(mCreatorParser);
-    if (parser) {
-      parser->ContinueInterruptedParsingAsync();
-    }
-  }
-
-  /**
    * Informs the creator parser that the evaluation of this script is starting
    */
   void BeginEvaluating()
@@ -257,15 +234,6 @@ public:
       LoseParserInsertedness();
     }
     return block;
-  }
-
-  /**
-   * Get the CORS mode of the script element
-   */
-  virtual mozilla::CORSMode GetCORSMode() const
-  {
-    /* Default to no CORS */
-    return mozilla::CORS_NONE;
   }
 
 protected:

@@ -54,8 +54,6 @@
 #include "LayerManagerOGLShaders.h"
 
 #include "gfxContext.h"
-#include "gfxUtils.h"
-#include "gfxPlatform.h"
 #include "nsIWidget.h"
 
 #include "GLContext.h"
@@ -65,8 +63,6 @@
 #include "nsIConsoleService.h"
 
 #include "gfxCrashReporterUtils.h"
-
-#include "sampler.h"
 
 namespace mozilla {
 namespace layers {
@@ -104,6 +100,14 @@ LayerManagerOGL::Destroy()
     }
     mRoot = nsnull;
 
+    // Make a copy, since SetLayerManager will cause mImageContainers
+    // to get mutated.
+    nsTArray<ImageContainer*> imageContainers(mImageContainers);
+    for (PRUint32 i = 0; i < imageContainers.Length(); ++i) {
+      ImageContainer *c = imageContainers[i];
+      c->SetLayerManager(nsnull);
+    }
+
     CleanupResources();
 
     mDestroyed = true;
@@ -115,10 +119,6 @@ LayerManagerOGL::CleanupResources()
 {
   if (!mGLContext)
     return;
-
-  if (mRoot) {
-    RootLayer()->CleanupResources();
-  }
 
   nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
   if (!ctx) {
@@ -173,9 +173,9 @@ LayerManagerOGL::CreateContext()
 }
 
 bool
-LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
+LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
 {
-  ScopedGfxFeatureReporter reporter("GL Layers", force);
+  ScopedGfxFeatureReporter reporter("GL Layers");
 
   // Do not allow double intiailization
   NS_ABORT_IF_FALSE(mGLContext == nsnull, "Don't reiniailize layer managers");
@@ -319,12 +319,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
       return false;
   }
 
-  // If we're double-buffered, we don't need this fbo anymore.
-  if (mGLContext->IsDoubleBuffered()) {
-    mGLContext->fDeleteFramebuffers(1, &mBackBufferFBO);
-    mBackBufferFBO = 0;
-  }
-
   // back to default framebuffer, to avoid confusion
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
@@ -367,20 +361,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
     console->LogStringMessage(msg.get());
   }
 
-  if (NS_IsMainThread()) {
-    Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-  } else {
-    // We have to dispatch an event to the main thread to read the pref.
-    class ReadDrawFPSPref : public nsRunnable {
-    public:
-      NS_IMETHOD Run()
-      {
-        Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-        return NS_OK;
-      }
-    };
-    NS_DispatchToMainThread(new ReadDrawFPSPref());
-  }
+  Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
 
   reporter.SetSuccessful();
   return true;
@@ -484,6 +465,19 @@ LayerManagerOGL::CreateContainerLayer()
   return layer.forget();
 }
 
+already_AddRefed<ImageContainer>
+LayerManagerOGL::CreateImageContainer()
+{
+  if (mDestroyed) {
+    NS_WARNING("Call on destroyed layer manager");
+    return nsnull;
+  }
+
+  nsRefPtr<ImageContainer> container = new ImageContainerOGL(this);
+  RememberImageContainer(container);
+  return container.forget();
+}
+
 already_AddRefed<ImageLayer>
 LayerManagerOGL::CreateImageLayer()
 {
@@ -518,6 +512,26 @@ LayerManagerOGL::CreateCanvasLayer()
 
   nsRefPtr<CanvasLayer> layer = new CanvasLayerOGL(this);
   return layer.forget();
+}
+
+void
+LayerManagerOGL::ForgetImageContainer(ImageContainer *aContainer)
+{
+  NS_ASSERTION(aContainer->Manager() == this,
+               "ForgetImageContainer called on non-owned container!");
+
+  if (!mImageContainers.RemoveElement(aContainer)) {
+    NS_WARNING("ForgetImageContainer couldn't find container it was supposed to forget!");
+    return;
+  }
+}
+
+void
+LayerManagerOGL::RememberImageContainer(ImageContainer *aContainer)
+{
+  NS_ASSERTION(aContainer->Manager() == this,
+               "RememberImageContainer called on non-owned container!");
+  mImageContainers.AppendElement(aContainer);
 }
 
 LayerOGL*
@@ -734,7 +748,6 @@ LayerManagerOGL::BindAndDrawQuadWithTextureRect(LayerProgram *aProg,
 void
 LayerManagerOGL::Render()
 {
-  SAMPLE_LABEL("LayerManagerOGL", "Render");
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
     return;
@@ -791,23 +804,11 @@ LayerManagerOGL::Render()
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
                            nsIntPoint(0, 0));
-
-  mWidget->DrawWindowOverlay(this, rect);
-
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    nsIntRect rect;
-    mWidget->GetBounds(rect);
-    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
-    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-    CopyToTarget(ctx);
-
-    WriteSnapshotToDumpFile(this, surf);
-  }
-#endif
+                           
+  mWidget->DrawOver(this, rect);
 
   if (mTarget) {
-    CopyToTarget(mTarget);
+    CopyToTarget();
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
   }
@@ -818,7 +819,6 @@ LayerManagerOGL::Render()
 
   if (mGLContext->IsDoubleBuffered()) {
     mGLContext->SwapBuffers();
-    LayerManager::PostPresent();
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
   }
@@ -1000,12 +1000,9 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
                                     mBackBufferTexture,
                                     0);
 
-  GLenum result = mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-  if (result != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
-    nsCAutoString msg;
-    msg.Append("Framebuffer not complete -- error 0x");
-    msg.AppendInt(result, 16);
-    NS_RUNTIMEABORT(msg.get());
+  if (mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
+      LOCAL_GL_FRAMEBUFFER_COMPLETE) {
+    NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete");
   }
 
   mBackBufferSize.width = aWidth;
@@ -1013,7 +1010,7 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
 }
 
 void
-LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
+LayerManagerOGL::CopyToTarget()
 {
   nsIntRect rect;
   mWidget->GetBounds(rect);
@@ -1043,16 +1040,47 @@ LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
   }
 #endif
 
+  GLenum format = LOCAL_GL_RGBA;
+  if (mHasBGRA)
+    format = LOCAL_GL_BGRA;
+
   NS_ASSERTION(imageSurface->Stride() == width * 4,
                "Image Surfaces being created with weird stride!");
 
-  mGLContext->ReadPixelsIntoImageSurface(0, 0, width, height, imageSurface);
+  PRUint32 currentPackAlignment = 0;
+  mGLContext->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, (GLint*)&currentPackAlignment);
+  if (currentPackAlignment != 4) {
+    mGLContext->fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
+  }
 
-  aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
-  aTarget->Scale(1.0, -1.0);
-  aTarget->Translate(-gfxPoint(0.0, height));
-  aTarget->SetSource(imageSurface);
-  aTarget->Paint();
+  mGLContext->fFinish();
+
+  mGLContext->fReadPixels(0, 0,
+                          width, height,
+                          format,
+                          LOCAL_GL_UNSIGNED_BYTE,
+                          imageSurface->Data());
+
+  if (currentPackAlignment != 4) {
+    mGLContext->fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
+  }
+
+  if (!mHasBGRA) {
+    // need to swap B and R bytes
+    for (int j = 0; j < height; ++j) {
+      PRUint32 *row = (PRUint32*) (imageSurface->Data() + imageSurface->Stride() * j);
+      for (int i = 0; i < width; ++i) {
+        *row = (*row & 0xff00ff00) | ((*row & 0xff) << 16) | ((*row & 0xff0000) >> 16);
+        row++;
+      }
+    }
+  }
+
+  mTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+  mTarget->Scale(1.0, -1.0);
+  mTarget->Translate(-gfxPoint(0.0, height));
+  mTarget->SetSource(imageSurface);
+  mTarget->Paint();
 }
 
 LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
@@ -1089,33 +1117,8 @@ LayerManagerOGL::SetLayerProgramProjectionMatrix(const gfx3DMatrix& aMatrix)
   } FOR_EACH_LAYER_PROGRAM_END
 }
 
-static GLenum
-GetFrameBufferInternalFormat(GLContext* gl,
-                             GLuint aCurrentFrameBuffer,
-                             nsIWidget* aWidget)
-{
-  if (aCurrentFrameBuffer == 0) { // default framebuffer
-    return aWidget->GetGLFrameBufferFormat();
-  }
-  return LOCAL_GL_RGBA;
-}
-
-static bool
-AreFormatsCompatibleForCopyTexImage2D(GLenum aF1, GLenum aF2)
-{
-  // GL requires that the implementation has to handle copies between
-  // different formats, so all are "compatible".  GLES does not
-  // require that.
-#ifdef USE_GLES2
-  return (aF1 == aF2);
-#else
-  return true;
-#endif
-}
-
 void
 LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
-                                      GLuint aCurrentFrameBuffer,
                                       GLuint *aFBO, GLuint *aTexture)
 {
   GLuint tex, fbo;
@@ -1124,40 +1127,12 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
   mGLContext->fGenTextures(1, &tex);
   mGLContext->fBindTexture(mFBOTextureTarget, tex);
   if (aInit == InitModeCopy) {
-    // We're going to create an RGBA temporary fbo.  But to
-    // CopyTexImage() from the current framebuffer, the framebuffer's
-    // format has to be compatible with the new texture's.  So we
-    // check the format of the framebuffer here and take a slow path
-    // if it's incompatible.
-    GLenum format =
-      GetFrameBufferInternalFormat(gl(), aCurrentFrameBuffer, mWidget);
-    if (AreFormatsCompatibleForCopyTexImage2D(format, LOCAL_GL_RGBA)) {
-      mGLContext->fCopyTexImage2D(mFBOTextureTarget,
-                                  0,
-                                  LOCAL_GL_RGBA,
-                                  aRect.x, aRect.y,
-                                  aRect.width, aRect.height,
-                                  0);
-    } else {
-      // Curses, incompatible formats.  Take a slow path.
-      //
-      // XXX Technically CopyTexSubImage2D also has the requirement of
-      // matching formats, but it doesn't seem to affect us in the
-      // real world.
-      mGLContext->fTexImage2D(mFBOTextureTarget,
-                              0,
-                              LOCAL_GL_RGBA,
-                              aRect.width, aRect.height,
-                              0,
-                              LOCAL_GL_RGBA,
-                              LOCAL_GL_UNSIGNED_BYTE,
-                              NULL);
-      mGLContext->fCopyTexSubImage2D(mFBOTextureTarget,
-                                     0,    // level
-                                     0, 0, // offset
-                                     aRect.x, aRect.y,
-                                     aRect.width, aRect.height);
-    }
+    mGLContext->fCopyTexImage2D(mFBOTextureTarget,
+                                0,
+                                LOCAL_GL_RGBA,
+                                aRect.x, aRect.y,
+                                aRect.width, aRect.height,
+                                0);
   } else {
     mGLContext->fTexImage2D(mFBOTextureTarget,
                             0,
@@ -1188,18 +1163,9 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
 
   // Making this call to fCheckFramebufferStatus prevents a crash on
   // PowerVR. See bug 695246.
-  GLenum result = mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-  if (result != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
-    nsCAutoString msg;
-    msg.Append("Framebuffer not complete -- error 0x");
-    msg.AppendInt(result, 16);
-    msg.Append(", mFBOTextureTarget 0x");
-    msg.AppendInt(mFBOTextureTarget, 16);
-    msg.Append(", aRect.width ");
-    msg.AppendInt(aRect.width);
-    msg.Append(", aRect.height ");
-    msg.AppendInt(aRect.height);
-    NS_RUNTIMEABORT(msg.get());
+  if (mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
+      LOCAL_GL_FRAMEBUFFER_COMPLETE) {
+    NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete");
   }
 
   SetupPipeline(aRect.width, aRect.height, DontApplyWorldTransform);

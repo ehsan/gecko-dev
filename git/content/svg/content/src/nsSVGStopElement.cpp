@@ -143,7 +143,7 @@ nsSVGStopElement::IsAttributeMapped(const nsIAtom* name) const
     sGradientStopMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGStopElementBase::IsAttributeMapped(name);
 }
 

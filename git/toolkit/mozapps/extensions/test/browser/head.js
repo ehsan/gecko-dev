@@ -4,11 +4,6 @@
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-let tmp = {};
-Components.utils.import("resource://gre/modules/AddonManager.jsm", tmp);
-let AddonManager = tmp.AddonManager;
-let AddonManagerPrivate = tmp.AddonManagerPrivate;
-
 var pathParts = gTestPath.split("/");
 // Drop the test filename
 pathParts.splice(pathParts.length - 1, pathParts.length);
@@ -26,7 +21,6 @@ const TESTROOT2 = "http://example.org/" + RELATIVE_DIR;
 const CHROMEROOT = pathParts.join("/") + "/";
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_UPDATEURL = "extensions.update.url";
-const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
 
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
@@ -34,70 +28,30 @@ const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
 const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
 const PREF_STRICT_COMPAT = "extensions.strictCompatibility";
 
-var PREF_CHECK_COMPATIBILITY;
-(function() {
-  var channel = "default";
-  try {
-    channel = Services.prefs.getCharPref("app.update.channel");
-  } catch (e) { }
-  if (channel != "aurora" &&
-    channel != "beta" &&
-    channel != "release") {
-    var version = "nightly";
-  } else {
-    version = Services.appinfo.version.replace(/^([^\.]+\.[0-9]+[a-z]*).*/gi, "$1");
-  }
-  PREF_CHECK_COMPATIBILITY = "extensions.checkCompatibility." + version;
-})();
-
 var gPendingTests = [];
 var gTestsRun = 0;
 var gTestStart = null;
 
 var gUseInContentUI = !gTestInWindow && ("switchToTabHavingURI" in window);
 
-var gRestorePrefs = [{name: PREF_LOGGING_ENABLED},
-                     {name: "extensions.webservice.discoverURL"},
-                     {name: "extensions.update.url"},
-                     {name: "extensions.update.background.url"},
-                     {name: "extensions.getAddons.get.url"},
-                     {name: "extensions.getAddons.getWithPerformance.url"},
-                     {name: "extensions.getAddons.search.browseURL"},
-                     {name: "extensions.getAddons.search.url"},
-                     {name: "extensions.getAddons.cache.enabled"},
-                     {name: PREF_SEARCH_MAXRESULTS},
-                     {name: PREF_STRICT_COMPAT},
-                     {name: PREF_CHECK_COMPATIBILITY}];
-
-gRestorePrefs.forEach(function(aPref) {
-  if (!Services.prefs.prefHasUserValue(aPref.name)) {
-    aPref.type = "clear";
-    return;
-  }
-  aPref.type = Services.prefs.getPrefType(aPref.name);
-  if (aPref.type == Services.prefs.PREF_BOOL)
-    aPref.value = Services.prefs.getBoolPref(aPref.name);
-  else if (aPref.type == Services.prefs.PREF_INT)
-    aPref.value = Services.prefs.getIntPref(aPref.name);
-  else if (aPref.type == Services.prefs.PREF_STRING)
-    aPref.value = Services.prefs.getCharPref(aPref.name);
-});
+var gDiscoveryURL = Services.prefs.getCharPref(PREF_DISCOVERURL);
+var gUpdateURL = Services.prefs.getCharPref(PREF_UPDATEURL);
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
-
+// Turn off remote results in searches
+Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 0);
 registerCleanupFunction(function() {
-  // Restore prefs
-  gRestorePrefs.forEach(function(aPref) {
-    if (aPref.type == "clear")
-      Services.prefs.clearUserPref(aPref.name);
-    else if (aPref.type == Services.prefs.PREF_BOOL)
-      Services.prefs.setBoolPref(aPref.name, aPref.value);
-    else if (aPref.type == Services.prefs.PREF_INT)
-      Services.prefs.setIntPref(aPref.name, aPref.value);
-    else if (aPref.type == Services.prefs.PREF_STRING)
-      Services.prefs.setCharPref(aPref.name, aPref.value);
-  });
+  Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
+  try {
+    Services.prefs.clearUserPref(PREF_SEARCH_MAXRESULTS);
+  } catch (e) {}
+  try {
+    Services.prefs.clearUserPref(PREF_STRICT_COMPAT);
+  } catch (e) {}
+
+  Services.prefs.setCharPref(PREF_DISCOVERURL, gDiscoveryURL);
+  Services.prefs.setCharPref(PREF_UPDATEURL, gUpdateURL);
 
   // Throw an error if the add-ons manager window is open anywhere
   var windows = Services.wm.getEnumerator("Addons:Manager");
@@ -674,10 +628,6 @@ MockProvider.prototype = {
           addon._applyBackgroundUpdates = aAddonProp[prop];
           continue;
         }
-        if (prop == "appDisabled") {
-          addon._appDisabled = aAddonProp[prop];
-          continue;
-        }
         addon[prop] = aAddonProp[prop];
       }
       if (!addon.optionsType && !!addon.optionsURL)
@@ -954,7 +904,7 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
   this.isCompatible = true;
   this.providesUpdatesSecurely = true;
   this.blocklistState = 0;
-  this._appDisabled = false;
+  this.appDisabled = false;
   this._userDisabled = false;
   this._applyBackgroundUpdates = AddonManager.AUTOUPDATE_ENABLE;
   this.scope = AddonManager.SCOPE_PROFILE;
@@ -975,24 +925,6 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
 MockAddon.prototype = {
   get shouldBeActive() {
     return !this.appDisabled && !this._userDisabled;
-  },
-
-  get appDisabled() {
-    return this._appDisabled;
-  },
-
-  set appDisabled(val) {
-    if (val == this._appDisabled)
-      return val;
-
-    AddonManagerPrivate.callAddonListeners("onPropertyChanged", this, ["appDisabled"]);
-
-    var currentActive = this.shouldBeActive;
-    this._appDisabled = val;
-    var newActive = this.shouldBeActive;
-    this._updateActiveState(currentActive, newActive);
-
-    return val;
   },
 
   get userDisabled() {

@@ -47,8 +47,6 @@ BEGIN_WORKERS_NAMESPACE
 
 namespace events {
 
-// If you inherit this class then you need to add some way to compare the
-// JSClass for your subclass in EnsureObjectIsEventTarget().
 class EventTarget : public PrivatizableBase
 {
   ListenerManager mListenerManager;
@@ -77,16 +75,16 @@ protected:
 
 public:
   static EventTarget*
-  FromJSObject(JSObject* aObj);
+  FromJSObject(JSContext* aCx, JSObject* aObj);
 
   static JSBool
-  AddEventListener(JSContext* aCx, unsigned aArgc, jsval* aVp);
+  AddEventListener(JSContext* aCx, uintN aArgc, jsval* aVp);
 
   static JSBool
-  RemoveEventListener(JSContext* aCx, unsigned aArgc, jsval* aVp);
+  RemoveEventListener(JSContext* aCx, uintN aArgc, jsval* aVp);
 
   static JSBool
-  DispatchEvent(JSContext* aCx, unsigned aArgc, jsval* aVp);
+  DispatchEvent(JSContext* aCx, uintN aArgc, jsval* aVp);
 
   bool
   HasListeners()

@@ -84,6 +84,7 @@
 #include "nsXULContentUtils.h"
 #include "nsIXULOverlayProvider.h"
 #include "nsNetUtil.h"
+#include "nsParserUtils.h"
 #include "nsParserCIID.h"
 #include "nsPIBoxObject.h"
 #include "nsRDFCID.h"
@@ -1380,7 +1381,7 @@ nsXULDocument::Persist(nsIContent* aElement, PRInt32 aNameSpaceID,
                        nsIAtom* aAttribute)
 {
     // For non-chrome documents, persistance is simply broken
-    if (!IsCapabilityEnabled("UniversalXPConnect"))
+    if (!IsCapabilityEnabled("UniversalBrowserWrite"))
         return NS_ERROR_NOT_AVAILABLE;
 
     // First make sure we _have_ a local store to stuff the persisted
@@ -2139,7 +2140,7 @@ nsresult
 nsXULDocument::ApplyPersistentAttributes()
 {
     // For non-chrome documents, persistance is simply broken
-    if (!IsCapabilityEnabled("UniversalXPConnect"))
+    if (!IsCapabilityEnabled("UniversalBrowserRead"))
         return NS_ERROR_NOT_AVAILABLE;
 
     // Add all of the 'persisted' attributes into the content
@@ -2363,6 +2364,23 @@ nsXULDocument::ContextStack::SetTopIndex(PRInt32 aIndex)
 }
 
 
+bool
+nsXULDocument::ContextStack::IsInsideXULTemplate()
+{
+    if (mDepth) {
+        for (nsIContent* element = mTop->mElement; element;
+             element = element->GetParent()) {
+
+            if (element->NodeInfo()->Equals(nsGkAtoms::_template,
+                                            kNameSpaceID_XUL)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
 //----------------------------------------------------------------------
 //
 // Content model walking routines
@@ -2544,9 +2562,9 @@ nsXULDocument::InsertXULOverlayPI(const nsXULPrototypePI* aProtoPI,
     }
 
     nsAutoString href;
-    nsContentUtils::GetPseudoAttributeValue(aProtoPI->mData,
-                                            nsGkAtoms::href,
-                                            href);
+    nsParserUtils::GetQuotedAttributeValue(aProtoPI->mData,
+                                           nsGkAtoms::href,
+                                           href);
 
     // If there was no href, we can't do anything with this PI
     if (href.IsEmpty()) {
@@ -3034,12 +3052,15 @@ nsXULDocument::ResumeWalk()
                     const PRUnichar* params[] = { piProto->mTarget.get() };
 
                     nsContentUtils::ReportToConsole(
-                                        nsIScriptError::warningFlag,
-                                        "XUL Document", nsnull,
                                         nsContentUtils::eXUL_PROPERTIES,
                                         "PINotInProlog",
                                         params, ArrayLength(params),
-                                        overlayURI);
+                                        overlayURI,
+                                        EmptyString(), /* source line */
+                                        0, /* line number */
+                                        0, /* column number */
+                                        nsIScriptError::warningFlag,
+                                        "XUL Document");
                 }
 
                 nsIContent* parent = processingOverlayHookupNodes ?
@@ -3328,11 +3349,15 @@ nsXULDocument::ReportMissingOverlay(nsIURI* aURI)
 
     NS_ConvertUTF8toUTF16 utfSpec(spec);
     const PRUnichar* params[] = { utfSpec.get() };
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    "XUL Document", this,
-                                    nsContentUtils::eXUL_PROPERTIES,
+    nsContentUtils::ReportToConsole(nsContentUtils::eXUL_PROPERTIES,
                                     "MissingOverlay",
-                                    params, ArrayLength(params));
+                                    params, ArrayLength(params),
+                                    nsnull,
+                                    EmptyString(), /* source line */
+                                    0, /* line number */
+                                    0, /* column number */
+                                    nsIScriptError::warningFlag,
+                                    "XUL Document", this);
 }
 
 nsresult

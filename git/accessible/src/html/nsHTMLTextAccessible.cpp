@@ -43,7 +43,6 @@
 #include "nsAccUtils.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 #include "nsIAccessibleRelation.h"
@@ -61,8 +60,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLTextAccessible::
-  nsHTMLTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsTextAccessibleWrap(aContent, aDoc)
+  nsHTMLTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -76,14 +75,15 @@ nsHTMLTextAccessible::GetName(nsAString& aName)
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTMLTextAccessible::NativeRole()
 {
   nsIFrame *frame = GetFrame();
   // Don't return on null frame -- we still return a role
   // after accessible is shutdown/DEFUNCT
-  if (frame && frame->IsGeneratedContentFrame()) 
-    return roles::STATICTEXT;
+  if (frame && frame->IsGeneratedContentFrame()) {
+    return nsIAccessibleRole::ROLE_STATICTEXT;
+  }
 
   return nsTextAccessible::NativeRole();
 }
@@ -93,7 +93,7 @@ nsHTMLTextAccessible::NativeState()
 {
   PRUint64 state = nsTextAccessible::NativeState();
 
-  nsDocAccessible* docAccessible = Document();
+  nsDocAccessible *docAccessible = GetDocAccessible();
   if (docAccessible) {
      PRUint64 docState = docAccessible->State();
      if (0 == (docState & states::EDITABLE)) {
@@ -107,7 +107,7 @@ nsHTMLTextAccessible::NativeState()
 nsresult
 nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  if (NativeRole() == roles::STATICTEXT) {
+  if (NativeRole() == nsIAccessibleRole::ROLE_STATICTEXT) {
     nsAutoString oldValueUnused;
     aAttributes->SetStringProperty(NS_LITERAL_CSTRING("auto-generated"),
                                   NS_LITERAL_STRING("true"), oldValueUnused);
@@ -122,15 +122,15 @@ nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLHRAccessible::
-  nsHTMLHRAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsLeafAccessible(aContent, aDoc)
+  nsHTMLHRAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsLeafAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsHTMLHRAccessible::NativeRole()
 {
-  return roles::SEPARATOR;
+  return nsIAccessibleRole::ROLE_SEPARATOR;
 }
 
 
@@ -139,15 +139,15 @@ nsHTMLHRAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLBRAccessible::
-  nsHTMLBRAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsLeafAccessible(aContent, aDoc)
+  nsHTMLBRAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsLeafAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsHTMLBRAccessible::NativeRole()
 {
-  return roles::WHITESPACE;
+  return nsIAccessibleRole::ROLE_WHITESPACE;
 }
 
 PRUint64
@@ -168,8 +168,8 @@ nsHTMLBRAccessible::GetNameInternal(nsAString& aName)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLLabelAccessible::
-  nsHTMLLabelAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsHTMLLabelAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -181,10 +181,10 @@ nsHTMLLabelAccessible::GetNameInternal(nsAString& aName)
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
-role
+PRUint32
 nsHTMLLabelAccessible::NativeRole()
 {
-  return roles::LABEL;
+  return nsIAccessibleRole::ROLE_LABEL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,8 +192,8 @@ nsHTMLLabelAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLOutputAccessible::
-  nsHTMLOutputAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsHTMLOutputAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -209,10 +209,10 @@ nsHTMLOutputAccessible::RelationByType(PRUint32 aType)
   return rel;
 }
 
-role
+PRUint32
 nsHTMLOutputAccessible::NativeRole()
 {
-  return roles::SECTION;
+  return nsIAccessibleRole::ROLE_SECTION;
 }
 
 nsresult
@@ -233,15 +233,15 @@ nsHTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLLIAccessible::
-  nsHTMLLIAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc), mBullet(nsnull)
+  nsHTMLLIAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell), mBullet(nsnull)
 {
   mFlags |= eHTMLListItemAccessible;
 
   nsBlockFrame* blockFrame = do_QueryFrame(GetFrame());
   if (blockFrame && blockFrame->HasBullet()) {
-    mBullet = new nsHTMLListBulletAccessible(mContent, mDoc);
-    if (!Document()->BindToDocument(mBullet, nsnull))
+    mBullet = new nsHTMLListBulletAccessible(mContent, mWeakShell);
+    if (!GetDocAccessible()->BindToDocument(mBullet, nsnull))
       mBullet = nsnull;
   }
 }
@@ -256,10 +256,10 @@ nsHTMLLIAccessible::Shutdown()
   nsHyperTextAccessibleWrap::Shutdown();
 }
 
-role
+PRUint32
 nsHTMLLIAccessible::NativeRole()
 {
-  return roles::LISTITEM;
+  return nsIAccessibleRole::ROLE_LISTITEM;
 }
 
 PRUint64
@@ -294,9 +294,9 @@ nsHTMLLIAccessible::UpdateBullet(bool aHasBullet)
     return;
   }
 
-  nsDocAccessible* document = Document();
+  nsDocAccessible* document = GetDocAccessible();
   if (aHasBullet) {
-    mBullet = new nsHTMLListBulletAccessible(mContent, mDoc);
+    mBullet = new nsHTMLListBulletAccessible(mContent, mWeakShell);
     if (document->BindToDocument(mBullet, nsnull)) {
       InsertChildAt(0, mBullet);
     }
@@ -328,8 +328,8 @@ nsHTMLLIAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLListBulletAccessible::
-  nsHTMLListBulletAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-    nsLeafAccessible(aContent, aDoc)
+  nsHTMLListBulletAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
+    nsLeafAccessible(aContent, aShell)
 {
 }
 
@@ -366,10 +366,10 @@ nsHTMLListBulletAccessible::GetName(nsAString &aName)
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTMLListBulletAccessible::NativeRole()
 {
-  return roles::STATICTEXT;
+  return nsIAccessibleRole::ROLE_STATICTEXT;
 }
 
 PRUint64
@@ -400,17 +400,17 @@ nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLListAccessible::
-  nsHTMLListAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsHTMLListAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
 {
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 
-role
+PRUint32
 nsHTMLListAccessible::NativeRole()
 {
-  return roles::LIST;
+  return nsIAccessibleRole::ROLE_LIST;
 }
 
 PRUint64

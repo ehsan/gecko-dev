@@ -44,7 +44,6 @@
 #include "nsContentUtils.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
-#include "nsWrapperCacheInlines.h"
 
 #include "IDBEvents.h"
 #include "IDBTransaction.h"
@@ -78,9 +77,9 @@ private:
 // something fails.
 inline
 nsresult
-ConvertCloneReadInfosToArrayInternal(
+ConvertCloneBuffersToArrayInternal(
                                 JSContext* aCx,
-                                nsTArray<StructuredCloneReadInfo>& aReadInfos,
+                                nsTArray<JSAutoStructuredCloneBuffer>& aBuffers,
                                 jsval* aResult)
 {
   JSObject* array = JS_NewArrayObject(aCx, 0, nsnull);
@@ -89,18 +88,17 @@ ConvertCloneReadInfosToArrayInternal(
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  if (!aReadInfos.IsEmpty()) {
-    if (!JS_SetArrayLength(aCx, array, uint32_t(aReadInfos.Length()))) {
+  if (!aBuffers.IsEmpty()) {
+    if (!JS_SetArrayLength(aCx, array, jsuint(aBuffers.Length()))) {
       NS_WARNING("Failed to set array length!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32_t index = 0, count = aReadInfos.Length(); index < count;
-         index++) {
-      StructuredCloneReadInfo& readInfo = aReadInfos[index];
+    for (uint32 index = 0, count = aBuffers.Length(); index < count; index++) {
+      JSAutoStructuredCloneBuffer& buffer = aBuffers[index];
 
       jsval val;
-      if (!IDBObjectStore::DeserializeValue(aCx, readInfo, &val)) {
+      if (!IDBObjectStore::DeserializeValue(aCx, buffer, &val)) {
         NS_WARNING("Failed to decode!");
         return NS_ERROR_DOM_DATA_CLONE_ERR;
       }
@@ -146,8 +144,8 @@ HelperBase::WrapNative(JSContext* aCx,
   NS_ASSERTION(aResult, "Null pointer!");
   NS_ASSERTION(mRequest, "Null request!");
 
-  JSObject* global = mRequest->GetParentObject();
-  NS_ASSERTION(global, "This should never be null!");
+  JSObject* global = mRequest->ScriptContext()->GetNativeGlobal();
+  NS_ENSURE_TRUE(global, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsresult rv =
     nsContentUtils::WrapNative(aCx, global, aNative, aResult);
@@ -281,7 +279,7 @@ AsyncConnectionHelper::Run()
   if (NS_SUCCEEDED(rv)) {
     bool hasSavepoint = false;
     if (mDatabase) {
-      IndexedDatabaseManager::SetCurrentWindow(mDatabase->GetOwner());
+      IndexedDatabaseManager::SetCurrentDatabase(mDatabase);
 
       // Make the first savepoint.
       if (mTransaction) {
@@ -294,7 +292,7 @@ AsyncConnectionHelper::Run()
     mResultCode = DoDatabaseWork(connection);
 
     if (mDatabase) {
-      IndexedDatabaseManager::SetCurrentWindow(nsnull);
+      IndexedDatabaseManager::SetCurrentDatabase(nsnull);
 
       // Release or roll back the savepoint depending on the error code.
       if (hasSavepoint) {
@@ -506,9 +504,9 @@ AsyncConnectionHelper::ReleaseMainThreadObjects()
 
 // static
 nsresult
-AsyncConnectionHelper::ConvertCloneReadInfosToArray(
+AsyncConnectionHelper::ConvertCloneBuffersToArray(
                                 JSContext* aCx,
-                                nsTArray<StructuredCloneReadInfo>& aReadInfos,
+                                nsTArray<JSAutoStructuredCloneBuffer>& aBuffers,
                                 jsval* aResult)
 {
   NS_ASSERTION(aCx, "Null context!");
@@ -516,12 +514,12 @@ AsyncConnectionHelper::ConvertCloneReadInfosToArray(
 
   JSAutoRequest ar(aCx);
 
-  nsresult rv = ConvertCloneReadInfosToArrayInternal(aCx, aReadInfos, aResult);
+  nsresult rv = ConvertCloneBuffersToArrayInternal(aCx, aBuffers, aResult);
 
-  for (PRUint32 index = 0; index < aReadInfos.Length(); index++) {
-    aReadInfos[index].mCloneBuffer.clear();
+  for (PRUint32 index = 0; index < aBuffers.Length(); index++) {
+    aBuffers[index].clear();
   }
-  aReadInfos.Clear();
+  aBuffers.Clear();
 
   return rv;
 }

@@ -135,14 +135,13 @@ public:
    * Called when an attribute is about to be changed
    */
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                 const nsAttrValueOrString* aValue,
-                                 bool aNotify);
+                                 const nsAString* aValue, bool aNotify);
   /**
    * Called when an attribute has just been changed
    */
   nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                        const nsAttrValue* aValue, bool aNotify);
-
+                        const nsAString* aValue, bool aNotify);
+  
   // nsIContent overrides...
   virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
   virtual bool ParseAttribute(PRInt32 aNamespaceID,
@@ -379,8 +378,8 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           nsKeyEvent * keyEvent = (nsKeyEvent *)aVisitor.mEvent;
           if ((keyEvent->keyCode == NS_VK_RETURN &&
                NS_KEY_PRESS == aVisitor.mEvent->message) ||
-              (keyEvent->keyCode == NS_VK_SPACE &&
-               NS_KEY_UP == aVisitor.mEvent->message)) {
+              keyEvent->keyCode == NS_VK_SPACE &&
+              NS_KEY_UP == aVisitor.mEvent->message) {
             nsEventStatus status = nsEventStatus_eIgnore;
 
             nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
@@ -599,8 +598,7 @@ nsHTMLButtonElement::DoneCreatingElement()
 
 nsresult
 nsHTMLButtonElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                   const nsAttrValueOrString* aValue,
-                                   bool aNotify)
+                                   const nsAString* aValue, bool aNotify)
 {
   if (aNotify && aName == nsGkAtoms::disabled &&
       aNameSpaceID == kNameSpaceID_None) {
@@ -613,7 +611,7 @@ nsHTMLButtonElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+                                  const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::type) {

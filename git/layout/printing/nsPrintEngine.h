@@ -37,8 +37,6 @@
 #ifndef nsPrintEngine_h___
 #define nsPrintEngine_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nsCOMPtr.h"
 
 #include "nsPrintObject.h"
@@ -300,7 +298,8 @@ protected:
   FILE* mDebugFile;
 
 private:
-  nsPrintEngine& operator=(const nsPrintEngine& aOther) MOZ_DELETE;
+  nsPrintEngine& operator=(const nsPrintEngine& aOther); // not implemented
+
 };
 
 #endif /* nsPrintEngine_h___ */

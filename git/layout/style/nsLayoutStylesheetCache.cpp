@@ -41,29 +41,11 @@
 #include "mozilla/css/Loader.h"
 #include "nsIFile.h"
 #include "nsLayoutCID.h"
-#include "nsIMemoryReporter.h"
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIXULRuntime.h"
 #include "nsCSSStyleSheet.h"
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(LayoutStyleSheetCacheMallocSizeOf,
-                                     "layout/style-sheet-cache")
-
-static PRInt64
-GetStylesheetCacheSize()
-{
-  return nsLayoutStylesheetCache::SizeOfIncludingThis(
-           LayoutStyleSheetCacheMallocSizeOf);
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(Sheets,
-                             "explicit/layout/style-sheet-cache",
-                             KIND_HEAP,
-                             nsIMemoryReporter::UNITS_BYTES,
-                             GetStylesheetCacheSize,
-                             "Memory used for some built-in style sheets.")
 
 NS_IMPL_ISUPPORTS1(nsLayoutStylesheetCache, nsIObserver)
 
@@ -173,53 +155,11 @@ nsLayoutStylesheetCache::QuirkSheet()
   return gStyleCache->mQuirkSheet;
 }
 
-nsCSSStyleSheet*
-nsLayoutStylesheetCache::FullScreenOverrideSheet()
-{
-  EnsureGlobal();
-  if (!gStyleCache)
-    return nsnull;
-
-  return gStyleCache->mFullScreenOverrideSheet;
-}
-
 void
 nsLayoutStylesheetCache::Shutdown()
 {
   NS_IF_RELEASE(gCSSLoader);
   NS_IF_RELEASE(gStyleCache);
-}
-
-size_t
-nsLayoutStylesheetCache::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  if (nsLayoutStylesheetCache::gStyleCache) {
-    return nsLayoutStylesheetCache::gStyleCache->
-      SizeOfIncludingThisHelper(aMallocSizeOf);
-  }
-  return 0;
-}
-
-size_t
-nsLayoutStylesheetCache::SizeOfIncludingThisHelper(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-
-  #define MEASURE(s) n += s ? s->SizeOfIncludingThis(aMallocSizeOf) : 0;
-
-  MEASURE(mScrollbarsSheet);
-  MEASURE(mFormsSheet);
-  MEASURE(mUserContentSheet);
-  MEASURE(mUserChromeSheet);
-  MEASURE(mUASheet);
-  MEASURE(mQuirkSheet);
-  MEASURE(mFullScreenOverrideSheet);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - gCSSLoader
-
-  return n;
 }
 
 nsLayoutStylesheetCache::nsLayoutStylesheetCache()
@@ -251,21 +191,6 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
     LoadSheet(uri, mQuirkSheet, true);
   }
   NS_ASSERTION(mQuirkSheet, "Could not load quirk.css");
-
-  NS_NewURI(getter_AddRefs(uri), "resource://gre-resources/full-screen-override.css");
-  if (uri) {
-    LoadSheet(uri, mFullScreenOverrideSheet, true);
-  }
-  NS_ASSERTION(mFullScreenOverrideSheet, "Could not load full-screen-override.css");
-
-  mSheetsReporter = new NS_MEMORY_REPORTER_NAME(Sheets);
-  (void)::NS_RegisterMemoryReporter(mSheetsReporter);
-}
-
-nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
-{
-  (void)::NS_UnregisterMemoryReporter(mSheetsReporter);
-  mSheetsReporter = nsnull;
 }
 
 void

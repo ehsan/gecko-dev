@@ -64,6 +64,10 @@
 #include "gfxQuartzImageSurface.h"
 #endif
 
+#ifdef MOZ_DFB
+#include "gfxDirectFBSurface.h"
+#endif
+
 #if defined(CAIRO_HAS_QT_SURFACE) && defined(MOZ_WIDGET_QT)
 #include "gfxQPainterSurface.h"
 #endif
@@ -73,6 +77,7 @@
 
 #include "imgIEncoder.h"
 #include "nsComponentManagerUtils.h"
+#include "gfxContext.h"
 #include "prmem.h"
 #include "nsISupportsUtils.h"
 #include "plbase64.h"
@@ -196,6 +201,11 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
     }
     else if (stype == CAIRO_SURFACE_TYPE_QUARTZ_IMAGE) {
         result = new gfxQuartzImageSurface(csurf);
+    }
+#endif
+#ifdef MOZ_DFB
+    else if (stype == CAIRO_SURFACE_TYPE_DIRECTFB) {
+        result = new gfxDirectFBSurface(csurf);
     }
 #endif
 #if defined(CAIRO_HAS_QT_SURFACE) && defined(MOZ_WIDGET_QT)
@@ -569,11 +579,11 @@ static const SurfaceMemoryReporterAttrs sSurfaceMemoryReporterAttrs[] = {
      "accounted for here aren't counted in vsize, resident, explicit, or any of "
      "the other measurements on this page."},
     {"gfx-surface-xcb", nsnull},
-    {"gfx-surface-glitz???", nsnull},       // should never be used
+    {"gfx-surface-glitz", nsnull},
     {"gfx-surface-quartz", nsnull},
     {"gfx-surface-win32", nsnull},
     {"gfx-surface-beos", nsnull},
-    {"gfx-surface-directfb???", nsnull},    // should never be used
+    {"gfx-surface-directfb", nsnull},
     {"gfx-surface-svg", nsnull},
     {"gfx-surface-os2", nsnull},
     {"gfx-surface-win32printing", nsnull},
@@ -716,16 +726,9 @@ gfxASurface::WriteAsPNG(const char* aFile)
 }
     
 void 
-gfxASurface::DumpAsDataURL(FILE* aOutput) 
+gfxASurface::DumpAsDataURL() 
 { 
-  WriteAsPNG_internal(aOutput, false);
-}
-
-void
-gfxASurface::PrintAsDataURL()
-{
   WriteAsPNG_internal(stdout, false);
-  fprintf(stdout, "\n");
 }
 
 void 
@@ -783,6 +786,7 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
       for (PRInt32 x = 0; x < w; ++x) {
         printf("%x ", reinterpret_cast<PRUint32*>(imgsurf->Data())[y*imgsurf->Stride()+ x]);
       }
+      printf("\n");
     }
     return;
   }
@@ -852,6 +856,7 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
 
   if (aFile) {
     fprintf(aFile, "%s", string.BeginReading());
+    fprintf(aFile, "\n");
   } else {
     nsCOMPtr<nsIClipboardHelper> clipboard(do_GetService("@mozilla.org/widget/clipboardhelper;1", &rv));
     if (clipboard) {
