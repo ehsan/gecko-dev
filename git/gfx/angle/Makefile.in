@@ -62,7 +62,6 @@ VPATH += $(srcdir)/src/compiler/preprocessor
 
 CPPSRCS = \
 	Compiler.cpp \
-        DetectRecursion.cpp \
         InfoSink.cpp \
         Initialize.cpp \
         InitializeDll.cpp \

@@ -39,6 +39,10 @@
 
 #include "nsIDOMDocument.idl"
 
+%{C++
+#include "jspubtd.h"
+%}
+
 /**
  * The nsIDOMHTMLDocument interface is the interface to a [X]HTML
  * document object.

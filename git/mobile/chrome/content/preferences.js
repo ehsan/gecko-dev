@@ -101,8 +101,6 @@ var PreferencesView = {
     this._loadLocales();
 
     this._loadHomePage();
-
-    MasterPasswordUI.updatePreference();
   },
 
   _loadLocales: function _loadLocales() {
