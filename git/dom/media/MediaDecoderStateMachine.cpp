@@ -202,6 +202,8 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mAmpleVideoFrames(2),
   mLowAudioThresholdUsecs(LOW_AUDIO_USECS),
   mAmpleAudioThresholdUsecs(AMPLE_AUDIO_USECS),
+  mIsAudioPrerolling(false),
+  mIsVideoPrerolling(false),
   mAudioRequestStatus(RequestStatus::Idle),
   mVideoRequestStatus(RequestStatus::Idle),
   mAudioCaptured(false),
@@ -537,6 +539,13 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
   }
 
   DecodedStreamData* stream = mDecoder->GetDecodedStream();
+
+  // Since stream is initialized in SendStreamData() which is called when
+  // audio/video samples are received, we need to keep decoding to ensure
+  // the stream is initialized.
+  if (stream && !stream->mStreamInitialized) {
+    return false;
+  }
   if (stream && stream->mStreamInitialized && !stream->mHaveSentFinishAudio) {
     if (!stream->mStream->HaveEnoughBuffered(TRACK_AUDIO)) {
       return false;
@@ -557,6 +566,11 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedVideo()
   }
 
   DecodedStreamData* stream = mDecoder->GetDecodedStream();
+
+  if (stream && !stream->mStreamInitialized) {
+    return false;
+  }
+
   if (stream && stream->mStreamInitialized && !stream->mHaveSentFinishVideo) {
     if (!stream->mStream->HaveEnoughBuffered(TRACK_VIDEO)) {
       return false;
@@ -581,6 +595,9 @@ bool
 MediaDecoderStateMachine::NeedToSkipToNextKeyframe()
 {
   AssertCurrentThreadInMonitor();
+  if (mState == DECODER_STATE_DECODING_FIRSTFRAME) {
+    return false;
+  }
   MOZ_ASSERT(mState == DECODER_STATE_DECODING ||
              mState == DECODER_STATE_BUFFERING ||
              mState == DECODER_STATE_SEEKING);
@@ -628,6 +645,7 @@ MediaDecoderStateMachine::DecodeVideo()
     NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
 
     if (mState != DECODER_STATE_DECODING &&
+        mState != DECODER_STATE_DECODING_FIRSTFRAME &&
         mState != DECODER_STATE_BUFFERING &&
         mState != DECODER_STATE_SEEKING) {
       mVideoRequestStatus = RequestStatus::Idle;
@@ -688,6 +706,7 @@ MediaDecoderStateMachine::DecodeAudio()
     NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
 
     if (mState != DECODER_STATE_DECODING &&
+        mState != DECODER_STATE_DECODING_FIRSTFRAME &&
         mState != DECODER_STATE_BUFFERING &&
         mState != DECODER_STATE_SEEKING) {
       mAudioRequestStatus = RequestStatus::Idle;
@@ -1739,6 +1758,7 @@ MediaDecoderStateMachine::DispatchDecodeTasksIfNeeded()
   AssertCurrentThreadInMonitor();
 
   if (mState != DECODER_STATE_DECODING &&
+      mState != DECODER_STATE_DECODING_FIRSTFRAME &&
       mState != DECODER_STATE_BUFFERING &&
       mState != DECODER_STATE_SEEKING) {
     return;
@@ -1854,7 +1874,7 @@ MediaDecoderStateMachine::EnsureAudioDecodeTaskQueued()
     return NS_OK;
   }
 
-  MOZ_ASSERT(mState > DECODER_STATE_DECODING_FIRSTFRAME);
+  MOZ_ASSERT(mState >= DECODER_STATE_DECODING_FIRSTFRAME);
 
   if (IsAudioDecoding() && mAudioRequestStatus == RequestStatus::Idle && !mWaitingForDecoderSeek) {
     RefPtr<nsIRunnable> task(
@@ -1899,7 +1919,7 @@ MediaDecoderStateMachine::EnsureVideoDecodeTaskQueued()
     return NS_OK;
   }
 
-  MOZ_ASSERT(mState > DECODER_STATE_DECODING_FIRSTFRAME);
+  MOZ_ASSERT(mState >= DECODER_STATE_DECODING_FIRSTFRAME);
 
   if (IsVideoDecoding() && mVideoRequestStatus == RequestStatus::Idle && !mWaitingForDecoderSeek) {
     RefPtr<nsIRunnable> task(
@@ -2359,7 +2379,7 @@ void MediaDecoderStateMachine::DecodeSeek()
 }
 
 void
-MediaDecoderStateMachine::OnSeekCompleted()
+MediaDecoderStateMachine::OnSeekCompleted(int64_t aTime)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mWaitingForDecoderSeek = false;
