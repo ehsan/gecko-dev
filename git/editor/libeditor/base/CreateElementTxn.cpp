@@ -11,13 +11,12 @@
 #include "nsIDOMElement.h"
 #include "nsReadableUtils.h"
 
-#include "mozilla/dom/Element.h"
+//included for new nsEditor::CreateContent()
+#include "nsIContent.h"
 
 #ifdef NS_DEBUG
 static bool gNoisy = false;
 #endif
-
-using namespace mozilla;
 
 CreateElementTxn::CreateElementTxn()
   : EditTxn()
@@ -54,6 +53,14 @@ NS_IMETHODIMP CreateElementTxn::Init(nsEditor      *aEditor,
   mTag = aTag;
   mParent = do_QueryInterface(aParent);
   mOffsetInParent = aOffsetInParent;
+#ifdef NS_DEBUG
+  {
+    nsCOMPtr<nsIDOMNodeList> testChildNodes;
+    nsresult testResult = mParent->GetChildNodes(getter_AddRefs(testChildNodes));
+    NS_ASSERTION(testChildNodes, "bad parent type, can't have children.");
+    NS_ASSERTION(NS_SUCCEEDED(testResult), "bad result.");
+  }
+#endif
   return NS_OK;
 }
 
@@ -73,16 +80,19 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 
-  nsCOMPtr<dom::Element> newContent;
+  nsCOMPtr<nsIContent> newContent;
  
   //new call to use instead to get proper HTML element, bug# 39919
   nsresult result = mEditor->CreateHTMLContent(mTag, getter_AddRefs(newContent));
   NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_STATE(newContent);
-
-  mNewNode = newContent->AsDOMNode();
+  nsCOMPtr<nsIDOMElement>newElement = do_QueryInterface(newContent);
+  NS_ENSURE_TRUE(newElement, NS_ERROR_NULL_POINTER);
+  mNewNode = do_QueryInterface(newElement);
   // Try to insert formatting whitespace for the new node:
   mEditor->MarkNodeDirty(mNewNode);
+ 
+  NS_ASSERTION(((NS_SUCCEEDED(result)) && (mNewNode)), "could not create element.");
+  NS_ENSURE_TRUE(mNewNode, NS_ERROR_NULL_POINTER);
 
 #ifdef NS_DEBUG
   if (gNoisy)
@@ -92,43 +102,50 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 #endif
 
   // insert the new node
-  if (CreateElementTxn::eAppend == PRInt32(mOffsetInParent)) {
-    nsCOMPtr<nsIDOMNode> resultNode;
-    return mParent->AppendChild(mNewNode, getter_AddRefs(resultNode));
-  }
-
-  nsCOMPtr<nsINode> parent = do_QueryInterface(mParent);
-  NS_ENSURE_STATE(parent);
-
-  mOffsetInParent = NS_MIN(mOffsetInParent, parent->GetChildCount());
-
-  // note, it's ok for mRefNode to be null.  that means append
-  nsIContent* refNode = parent->GetChildAt(mOffsetInParent);
-  mRefNode = refNode ? refNode->AsDOMNode() : nsnull;
-
   nsCOMPtr<nsIDOMNode> resultNode;
-  result = mParent->InsertBefore(mNewNode, mRefNode, getter_AddRefs(resultNode));
-  NS_ENSURE_SUCCESS(result, result); 
-
-  // only set selection to insertion point if editor gives permission
-  bool bAdjustSelection;
-  mEditor->ShouldTxnSetSelection(&bAdjustSelection);
-  if (!bAdjustSelection) {
-    // do nothing - dom range gravity will adjust selection
-    return NS_OK;
+  if (CreateElementTxn::eAppend==(PRInt32)mOffsetInParent)
+  {
+    result = mParent->AppendChild(mNewNode, getter_AddRefs(resultNode));
   }
+  else
+  {
+    nsCOMPtr<nsIDOMNodeList> childNodes;
+    result = mParent->GetChildNodes(getter_AddRefs(childNodes));
+    if ((NS_SUCCEEDED(result)) && (childNodes))
+    {
+      PRUint32 count;
+      childNodes->GetLength(&count);
+      if (mOffsetInParent>count)
+        mOffsetInParent = count;
+      result = childNodes->Item(mOffsetInParent, getter_AddRefs(mRefNode));
+      NS_ENSURE_SUCCESS(result, result); // note, it's ok for mRefNode to be null.  that means append
 
-  nsCOMPtr<nsISelection> selection;
-  result = mEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+      result = mParent->InsertBefore(mNewNode, mRefNode, getter_AddRefs(resultNode));
+      NS_ENSURE_SUCCESS(result, result); 
 
-  nsCOMPtr<nsIContent> parentContent = do_QueryInterface(mParent);
-  NS_ENSURE_STATE(parentContent);
+      // only set selection to insertion point if editor gives permission
+      bool bAdjustSelection;
+      mEditor->ShouldTxnSetSelection(&bAdjustSelection);
+      if (bAdjustSelection)
+      {
+        nsCOMPtr<nsISelection> selection;
+        result = mEditor->GetSelection(getter_AddRefs(selection));
+        NS_ENSURE_SUCCESS(result, result);
+        NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-  result = selection->CollapseNative(parentContent,
-                                     parentContent->IndexOf(newContent) + 1);
-  NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after insert.");
+        PRInt32 offset=0;
+        result = nsEditor::GetChildOffset(mNewNode, mParent, offset);
+        NS_ENSURE_SUCCESS(result, result);
+
+        result = selection->Collapse(mParent, offset+1);
+        NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after insert.");
+       }
+      else
+      {
+        // do nothing - dom range gravity will adjust selection
+      }
+    }
+  }
   return result;
 }
 

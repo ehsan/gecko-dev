@@ -141,7 +141,6 @@ public:
     nsMenuBarFrame_id,
     nsMenuFrame_id,
     nsMenuPopupFrame_id,
-    nsMeterFrame_id,
     nsObjectFrame_id,
     nsPageBreakFrame_id,
     nsPageContentFrame_id,

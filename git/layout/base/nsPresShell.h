@@ -378,15 +378,6 @@ protected:
   // Helper for ScrollContentIntoView
   void DoScrollContentIntoView();
 
-  /**
-   * Initialize cached font inflation preference values.
-   *
-   * @see nsLayoutUtils::sFontSizeInflationEmPerLine
-   * @see nsLayoutUtils::sFontSizeInflationMinTwips
-   * @see nsLayoutUtils::sFontSizeInflationLineThreshold
-   */
-  void SetupFontInflation();
-
   friend struct AutoRenderingStateSaveRestore;
   friend struct RenderingState;
 

@@ -63,7 +63,7 @@ typedef struct gif_struct {
     PRUint8 firstchar;
     int count;                  /* Remaining # bytes in sub-block */
     int bits;                   /* Number of unread bits in "datum" */
-    PRInt32 datum;              /* 32-bit input buffer */
+    int32 datum;                /* 32-bit input buffer */
 
     /* Output state machine */
     int ipass;                  /* Interlace pass; Ranges 1-4 if interlaced. */

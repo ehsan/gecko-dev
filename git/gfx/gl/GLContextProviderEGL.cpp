@@ -1949,7 +1949,7 @@ GLContextProviderEGL::CreateForNativePixmapSurface(gfxASurface* aSurface)
 GLContext *
 GLContextProviderEGL::GetGlobalContext(const ContextFlags)
 {
-#ifdef MOZ_JAVA_COMPOSITOR
+#ifdef ANDROID
     return nsnull;
 #endif
 

@@ -5,9 +5,8 @@
 
 #include "WebGLContext.h"
 
-#include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
+#include "mozilla/CheckedInt.h"
 
 #include "jsfriendapi.h"
 
@@ -598,7 +597,7 @@ WebGLContext::InitAndValidateGL()
         return false;
     }
 
-#ifdef MOZ_JAVA_COMPOSITOR
+#ifdef ANDROID
     // bug 736123, blacklist WebGL on Adreno
     bool forceEnabled = Preferences::GetBool("webgl.force-enabled", false);
     if (!forceEnabled) {

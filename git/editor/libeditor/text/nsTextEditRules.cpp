@@ -1116,7 +1116,7 @@ nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
   }
 
   // Create a br.
-  nsCOMPtr<dom::Element> newContent;
+  nsCOMPtr<nsIContent> newContent;
   nsresult rv = mEditor->CreateHTMLContent(NS_LITERAL_STRING("br"), getter_AddRefs(newContent));
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -14,6 +14,7 @@
 #include "nsString.h"
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
+#include "prbit.h"
 #include "nsIDOMNode.h"
 
 class nsIAtom;

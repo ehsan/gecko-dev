@@ -10,8 +10,11 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsINameSpaceManager.h"  // for kNameSpaceID_None
 #include "nsIFormControl.h"
+#include "nsFrameLoader.h"
 #include "nsGkAtoms.h"
 #include "nsContentCreatorFunctions.h"
+#include "nsDOMSettableTokenList.h"
+#include "nsIDOMHTMLPropertiesCollection.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -33,8 +36,6 @@ class nsHTMLFormElement;
 class nsIDOMDOMStringMap;
 class nsIDOMHTMLMenuElement;
 class nsIDOMHTMLCollection;
-class nsDOMSettableTokenList;
-class nsIDOMHTMLPropertiesCollection;
 
 typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
@@ -1544,7 +1545,6 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Map)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Menu)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(MenuItem)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Meta)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Meter)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Object)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(OptGroup)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Option)

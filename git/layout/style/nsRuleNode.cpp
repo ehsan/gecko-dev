@@ -13,6 +13,7 @@
 #include "nscore.h"
 #include "nsIServiceManager.h"
 #include "nsIWidget.h"
+#include "mozilla/LookAndFeel.h"
 #include "nsIPresShell.h"
 #include "nsFontMetrics.h"
 #include "gfxFont.h"
@@ -35,12 +36,9 @@
 #include "nsCSSProps.h"
 #include "nsTArray.h"
 #include "nsContentUtils.h"
+#include "mozilla/dom/Element.h"
 #include "CSSCalc.h"
 #include "nsPrintfCString.h"
-
-#include "mozilla/Assertions.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/LookAndFeel.h"
 #include "mozilla/Util.h"
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
@@ -735,52 +733,33 @@ static bool SetColor(const nsCSSValue& aValue, const nscolor aParentColor,
       }
     }
     else {
-      aResult = NS_RGB(0, 0, 0);
-      result = false;
       switch (intValue) {
         case NS_COLOR_MOZ_HYPERLINKTEXT:
-          if (aPresContext) {
-            aResult = aPresContext->DefaultLinkColor();
-            result = true;
-          }
+          aResult = aPresContext->DefaultLinkColor();
           break;
         case NS_COLOR_MOZ_VISITEDHYPERLINKTEXT:
-          if (aPresContext) {
-            aResult = aPresContext->DefaultVisitedLinkColor();
-            result = true;
-          }
+          aResult = aPresContext->DefaultVisitedLinkColor();
           break;
         case NS_COLOR_MOZ_ACTIVEHYPERLINKTEXT:
-          if (aPresContext) {
-            aResult = aPresContext->DefaultActiveLinkColor();
-            result = true;
-          }
+          aResult = aPresContext->DefaultActiveLinkColor();
           break;
         case NS_COLOR_CURRENTCOLOR:
           // The data computed from this can't be shared in the rule tree
           // because they could be used on a node with a different color
           aCanStoreInRuleTree = false;
-          if (aContext) {
-            aResult = aContext->GetStyleColor()->mColor;
-            result = true;
-          }
+          aResult = aContext->GetStyleColor()->mColor;
           break;
         case NS_COLOR_MOZ_DEFAULT_COLOR:
-          if (aPresContext) {
-            aResult = aPresContext->DefaultColor();
-            result = true;
-          }
+          aResult = aPresContext->DefaultColor();
           break;
         case NS_COLOR_MOZ_DEFAULT_BACKGROUND_COLOR:
-          if (aPresContext) {
-            aResult = aPresContext->DefaultBackgroundColor();
-            result = true;
-          }
+          aResult = aPresContext->DefaultBackgroundColor();
           break;
         default:
           NS_NOTREACHED("Should never have an unknown negative colorID.");
           break;
       }
+      result = true;
     }
   }
   else if (eCSSUnit_Inherit == unit) {
@@ -7734,21 +7713,4 @@ nsRuleNode::HasAuthorSpecifiedRules(nsStyleContext* aStyleContext,
   } while (haveExplicitUAInherit && styleContext);
 
   return false;
-}
-
-/* static */
-bool
-nsRuleNode::ComputeColor(const nsCSSValue& aValue, nsPresContext* aPresContext,
-                         nsStyleContext* aStyleContext, nscolor& aResult)
-{
-  MOZ_ASSERT(aValue.GetUnit() != eCSSUnit_Inherit,
-             "aValue shouldn't have eCSSUnit_Inherit");
-  MOZ_ASSERT(aValue.GetUnit() != eCSSUnit_Initial,
-             "aValue shouldn't have eCSSUnit_Initial");
-
-  bool canStoreInRuleTree;
-  bool ok = SetColor(aValue, NS_RGB(0, 0, 0), aPresContext, aStyleContext,
-                     aResult, canStoreInRuleTree);
-  MOZ_ASSERT(ok || !(aPresContext && aStyleContext));
-  return ok;
 }
