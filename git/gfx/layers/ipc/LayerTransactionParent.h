@@ -44,7 +44,7 @@ public:
   LayerManagerComposite* layer_manager() const { return mLayerManager; }
 
   uint64_t GetId() const { return mId; }
-  Layer* GetRoot() const { return mRoot; }
+  ContainerLayer* GetRoot() const { return mRoot; }
 
   // ISurfaceAllocator
   virtual bool AllocShmem(size_t aSize,
@@ -101,7 +101,7 @@ private:
   ShadowLayersManager* mShadowLayersManager;
   // Hold the root because it might be grafted under various
   // containers in the "real" layer tree
-  nsRefPtr<Layer> mRoot;
+  nsRefPtr<ContainerLayer> mRoot;
   // When this is nonzero, it refers to a layer tree owned by the
   // compositor thread.  It is always true that
   //   mId != 0 => mRoot == null

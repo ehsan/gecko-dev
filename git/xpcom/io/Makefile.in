@@ -28,7 +28,7 @@ DISABLED_CMMSRCS		+= \
 		$(NULL)
 endif
 
-DISABLED_SDK_HEADERS =  \
+SDK_HEADERS =  \
 		nsDirectoryServiceDefs.h \
 		nsDirectoryServiceUtils.h \
 		$(NULL)

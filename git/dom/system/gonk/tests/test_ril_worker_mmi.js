@@ -305,25 +305,25 @@ add_test(function test_parseMMI_erasure() {
  */
 
 add_test(function test_sendMMI_empty() {
-  testSendMMI("", MMI_ERROR_KS_ERROR);
+  testSendMMI("", "NO_VALID_MMI_STRING");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_undefined() {
-  testSendMMI({}, MMI_ERROR_KS_ERROR);
+  testSendMMI({}, "NO_VALID_MMI_STRING");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_invalid() {
-  testSendMMI("**", MMI_ERROR_KS_ERROR);
+  testSendMMI("**", "NO_VALID_MMI_STRING");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_dial_string() {
-  testSendMMI("123", MMI_ERROR_KS_ERROR);
+  testSendMMI("123", "NO_VALID_MMI_STRING");
 
   run_next_test();
 });
@@ -417,7 +417,8 @@ add_test(function test_sendMMI_call_forwarding_interrogation_no_rules() {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq(postedMessage.errorMsg, GECKO_ERROR_GENERIC_FAILURE);
+  do_check_eq(postedMessage.errorMsg,
+              "Invalid rule length while querying call forwarding status.");
   do_check_false(postedMessage.success);
 
   run_next_test();
@@ -487,25 +488,25 @@ add_test(function test_sendMMI_change_PIN() {
 });
 
 add_test(function test_sendMMI_change_PIN_no_new_PIN() {
-  testSendMMI("**04*1234**4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**04*1234**4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_change_PIN_no_old_PIN() {
-  testSendMMI("**04**1234*4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**04**1234*4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_change_PIN_wrong_procedure() {
-  testSendMMI("*04*1234*4567*4567#", MMI_ERROR_KS_INVALID_ACTION);
+  testSendMMI("*04*1234*4567*4567#", "WRONG_MMI_PROCEDURE");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_change_PIN_new_PIN_mismatch() {
-  testSendMMI("**04*4567*1234*4567#", MMI_ERROR_KS_MISMATCH_PIN);
+  testSendMMI("**04*4567*1234*4567#", "NEW_PIN_MISMATCH");
 
   run_next_test();
 });
@@ -531,25 +532,25 @@ add_test(function test_sendMMI_change_PIN2() {
 });
 
 add_test(function test_sendMMI_change_PIN2_no_new_PIN2() {
-  testSendMMI("**042*1234**4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**042*1234**4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_change_PIN2_no_old_PIN2() {
-  testSendMMI("**042**1234*4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**042**1234*4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_change_PIN2_wrong_procedure() {
-  testSendMMI("*042*1234*4567*4567#", MMI_ERROR_KS_INVALID_ACTION);
+  testSendMMI("*042*1234*4567*4567#", "WRONG_MMI_PROCEDURE");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_change_PIN2_new_PIN2_mismatch() {
-  testSendMMI("**042*4567*1234*4567#", MMI_ERROR_KS_MISMATCH_PIN);
+  testSendMMI("**042*4567*1234*4567#", "NEW_PIN_MISMATCH");
 
   run_next_test();
 });
@@ -575,25 +576,25 @@ add_test(function test_sendMMI_unblock_PIN() {
 });
 
 add_test(function test_sendMMI_unblock_PIN_no_new_PIN() {
-  testSendMMI("**05*1234**4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**05*1234**4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_unblock_PIN_no_PUK() {
-  testSendMMI("**05**1234*4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**05**1234*4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_unblock_PIN_wrong_procedure() {
-  testSendMMI("*05*1234*4567*4567#", MMI_ERROR_KS_INVALID_ACTION);
+  testSendMMI("*05*1234*4567*4567#", "WRONG_MMI_PROCEDURE");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_unblock_PIN_new_PIN_mismatch() {
-  testSendMMI("**05*4567*1234*4567#", MMI_ERROR_KS_MISMATCH_PIN);
+  testSendMMI("**05*4567*1234*4567#", "NEW_PIN_MISMATCH");
 
   run_next_test();
 });
@@ -619,25 +620,25 @@ add_test(function test_sendMMI_unblock_PIN2() {
 });
 
 add_test(function test_sendMMI_unblock_PIN2_no_new_PIN2() {
-  testSendMMI("**052*1234**4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**052*1234**4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_unblock_PIN2_no_PUK2() {
-  testSendMMI("**052**1234*4567#", MMI_ERROR_KS_ERROR);
+  testSendMMI("**052**1234*4567#", "MISSING_SUPPLEMENTARY_INFORMATION");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_unblock_PIN2_wrong_procedure() {
-  testSendMMI("*052*1234*4567*4567#", MMI_ERROR_KS_INVALID_ACTION);
+  testSendMMI("*052*1234*4567*4567#", "WRONG_MMI_PROCEDURE");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_unblock_PIN2_new_PIN_mismatch() {
-  testSendMMI("**052*4567*1234*4567#", MMI_ERROR_KS_MISMATCH_PIN);
+  testSendMMI("**052*4567*1234*4567#", "NEW_PIN_MISMATCH");
 
   run_next_test();
 });
@@ -689,13 +690,13 @@ add_test(function test_sendMMI_get_IMEI_error() {
 });
 
 add_test(function test_sendMMI_call_barring() {
-  testSendMMI("*33#", MMI_ERROR_KS_NOT_SUPPORTED);
+  testSendMMI("*33#", "CALL_BARRING_NOT_SUPPORTED_VIA_MMI");
 
   run_next_test();
 });
 
 add_test(function test_sendMMI_call_waiting() {
-  testSendMMI("*43#", MMI_ERROR_KS_NOT_SUPPORTED);
+  testSendMMI("*43#", "CALL_WAITING_NOT_SUPPORTED_VIA_MMI");
 
   run_next_test();
 });

@@ -322,12 +322,12 @@ GonkGPSGeolocationProvider::GetGPSInterface()
 int32_t
 GonkGPSGeolocationProvider::GetDataConnectionState()
 {
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return nsINetworkInterface::NETWORK_STATE_UNKNOWN;
   }
 
   int32_t state;
-  mRadioInterface->GetDataCallStateByType(NS_LITERAL_STRING("supl"), &state);
+  mRIL->GetDataCallStateByType(NS_LITERAL_STRING("supl"), &state);
   return state;
 }
 
@@ -375,7 +375,7 @@ GonkGPSGeolocationProvider::RequestDataConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
@@ -384,7 +384,7 @@ GonkGPSGeolocationProvider::RequestDataConnection()
     // We just get supl APN and make AGPS data connection state updated.
     RequestSettingValue("ril.supl.apn");
   } else {
-    mRadioInterface->SetupDataCallByType(NS_LITERAL_STRING("supl"));
+    mRIL->SetupDataCallByType(NS_LITERAL_STRING("supl"));
   }
 }
 
@@ -393,11 +393,11 @@ GonkGPSGeolocationProvider::ReleaseDataConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
-  mRadioInterface->DeactivateDataCallByType(NS_LITERAL_STRING("supl"));
+  mRIL->DeactivateDataCallByType(NS_LITERAL_STRING("supl"));
 }
 
 void
@@ -405,14 +405,14 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
   AGpsSetIDType type = AGPS_SETID_TYPE_NONE;
 
   nsCOMPtr<nsIRilContext> rilCtx;
-  mRadioInterface->GetRilContext(getter_AddRefs(rilCtx));
+  mRIL->GetRilContext(getter_AddRefs(rilCtx));
 
   if (rilCtx) {
     nsAutoString id;
@@ -440,12 +440,12 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
   nsCOMPtr<nsIRilContext> rilCtx;
-  mRadioInterface->GetRilContext(getter_AddRefs(rilCtx));
+  mRIL->GetRilContext(getter_AddRefs(rilCtx));
 
   AGpsRefLocation location;
 
@@ -572,14 +572,9 @@ GonkGPSGeolocationProvider::SetupAGPS()
   }
 
   // Setup network state listener
-  nsCOMPtr<nsIRadioInterfaceLayer> ril = do_GetService("@mozilla.org/ril;1");
-  if (ril) {
-    // TODO: Bug 878748 - B2G GPS: acquire correct RadioInterface instance in
-    // MultiSIM configuration
-    ril->GetRadioInterface(0 /* clientId */, getter_AddRefs(mRadioInterface));
-    if (mRadioInterface) {
-      mRadioInterface->RegisterDataCallCallback(this);
-    }
+  mRIL = do_GetService("@mozilla.org/ril;1");
+  if (mRIL) {
+    mRIL->RegisterDataCallCallback(this);
   }
 
   return;
@@ -625,8 +620,8 @@ GonkGPSGeolocationProvider::Shutdown()
   }
   mStarted = false;
 
-  if (mRadioInterface) {
-    mRadioInterface->UnregisterDataCallCallback(this);
+  if (mRIL) {
+    mRIL->UnregisterDataCallCallback(this);
   }
 
   mInitThread->Dispatch(NS_NewRunnableMethod(this, &GonkGPSGeolocationProvider::ShutdownGPS),

@@ -367,7 +367,6 @@ WebappsApplication.prototype = {
     this.initHelper(aWindow, ["Webapps:OfflineCache",
                               "Webapps:CheckForUpdate:Return:OK",
                               "Webapps:CheckForUpdate:Return:KO",
-                              "Webapps:Launch:Return:OK",
                               "Webapps:Launch:Return:KO",
                               "Webapps:PackageEvent",
                               "Webapps:ClearBrowserData:Return"]);
@@ -518,9 +517,6 @@ WebappsApplication.prototype = {
     switch (aMessage.name) {
       case "Webapps:Launch:Return:KO":
         Services.DOMRequest.fireError(req, "APP_INSTALL_PENDING");
-        break;
-      case "Webapps:Launch:Return:OK":
-        Services.DOMRequest.fireSuccess(req);
         break;
       case "Webapps:CheckForUpdate:Return:KO":
         Services.DOMRequest.fireError(req, msg.error);
