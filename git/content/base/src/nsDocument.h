@@ -750,9 +750,6 @@ public:
                                 nsIStyleRule* aStyleRule);
 
   virtual void FlushPendingNotifications(mozFlushType aType);
-  virtual void AddReference(void *aKey, nsISupports *aReference);
-  virtual nsISupports *GetReference(void *aKey);
-  virtual void RemoveReference(void *aKey);
   virtual nsIScriptEventManager* GetScriptEventManager();
   virtual void SetXMLDeclaration(const PRUnichar *aVersion,
                                  const PRUnichar *aEncoding,
@@ -921,12 +918,6 @@ public:
                                                    nsIDOMNodeList** aResult);
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
-
-  virtual NS_HIDDEN_(nsresult) ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
-                                                      PRBool aIgnoreRootScrollFrame,
-                                                      PRBool aFlushLayout,
-                                                      nsIDOMElement** aReturn);
-
   virtual NS_HIDDEN_(void) FlushSkinBindings();
 
   virtual NS_HIDDEN_(nsresult) InitializeFrameLoader(nsFrameLoader* aLoader);
@@ -1164,7 +1155,6 @@ protected:
   PRUint8 mIdMissCount;
 
   nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject> *mBoxObjectTable;
-  nsInterfaceHashtable<nsVoidPtrHashKey, nsISupports> *mContentWrapperHash;
 
   // The channel that got passed to StartDocumentLoad(), if any
   nsCOMPtr<nsIChannel> mChannel;

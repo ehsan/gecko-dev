@@ -129,17 +129,11 @@ protected:
    * Some data that is better calculated during reflow
    */
   struct ColumnBalanceData {
-    // The maximum "content height" of any column
     nscoord mMaxHeight;
-    // The sum of the "content heights" for all columns
     nscoord mSumHeight;
-    // The "content height" of the last column
     nscoord mLastHeight;
-    // The maximum "content height" of all columns that overflowed
-    // their available height
-    nscoord mMaxOverflowingHeight;
     void Reset() {
-      mMaxHeight = mSumHeight = mLastHeight = mMaxOverflowingHeight = 0;
+      mMaxHeight = mSumHeight = mLastHeight = 0;
     }
   };
   
@@ -675,10 +669,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       if (childContentBottom > aConfig.mColMaxHeight) {
         allFit = PR_FALSE;
       }
-      if (childContentBottom > availSize.height) {
-        aColData.mMaxOverflowingHeight = PR_MAX(childContentBottom,
-            aColData.mMaxOverflowingHeight);
-      }
     }
 
     contentRect.UnionRect(contentRect, child->GetRect());
@@ -918,11 +908,6 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
         }
       } else {
         knownInfeasibleHeight = PR_MAX(knownInfeasibleHeight, mLastBalanceHeight);
-        // If a column didn't fit in its available height, then its current
-        // height must be the minimum height for unbreakable content in
-        // the column, and therefore no smaller height can be feasible.
-        knownInfeasibleHeight = PR_MAX(knownInfeasibleHeight,
-                                       colData.mMaxOverflowingHeight - 1);
 
         if (unboundedLastColumn) {
           // The last column is unbounded, so all content got reflowed, so the

@@ -4721,11 +4721,11 @@ nsTableFrame::BCRecalcNeeded(nsStyleContext* aOldStyleContext,
 
   const nsStyleBorder* newStyleData = aNewStyleContext->GetStyleBorder();
   nsChangeHint change = newStyleData->CalcDifference(*oldStyleData);
-  if (!change)
+  if (change == NS_STYLE_HINT_NONE)
     return PR_FALSE;
-  if (change & nsChangeHint_ReflowFrame)
+  if ((change & NS_STYLE_HINT_REFLOW) == NS_STYLE_HINT_REFLOW)
     return PR_TRUE; // the caller only needs to mark the bc damage area
-  if (change & nsChangeHint_RepaintFrame) {
+  if ((change & NS_STYLE_HINT_VISUAL) == NS_STYLE_HINT_VISUAL) {
     // we need to recompute the borders and the caller needs to mark
     // the bc damage area
     // XXX In principle this should only be necessary for border style changes
