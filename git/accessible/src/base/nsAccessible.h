@@ -489,7 +489,7 @@ public:
   inline bool IsMenuPopup() const { return mFlags & eMenuPopupAccessible; }
 
   inline bool IsRoot() const { return mFlags & eRootAccessible; }
-  mozilla::a11y::RootAccessible* AsRoot();
+  nsRootAccessible* AsRoot();
 
   virtual mozilla::a11y::TableAccessible* AsTable() { return nsnull; }
 

@@ -69,7 +69,6 @@ class nsIScriptContext;
 class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
-class nsIXPCScriptNotify;
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -133,8 +132,6 @@ protected:
 
   virtual void
   PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult);
-
-  void NotifyScriptExecutedIfNeeded() const;
 
 private:
   NS_DECL_NSIRUNNABLE
@@ -210,7 +207,6 @@ private:
   // Main-thread things.
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIScriptContext> mScriptContext;
-  nsCOMPtr<nsIXPCScriptNotify> mScriptNotify;
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -388,13 +384,6 @@ public:
   {
     AssertIsOnMainThread();
     return mScriptContext;
-  }
-
-  nsIXPCScriptNotify*
-  GetScriptNotify() const
-  {
-    AssertIsOnMainThread();
-    return mScriptNotify;
   }
 
   JSObject*

@@ -68,6 +68,7 @@ CPPSRCS = \
   nsAccTreeWalker.cpp \
   nsBaseWidgetAccessible.cpp \
   nsEventShell.cpp \
+  nsRootAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
   nsTextEquivUtils.cpp \

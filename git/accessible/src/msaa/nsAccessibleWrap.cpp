@@ -54,7 +54,6 @@
 #include "Accessible2_i.c"
 #include "AccessibleRole.h"
 #include "AccessibleStates.h"
-#include "RootAccessible.h"
 
 #include "nsIMutableArray.h"
 #include "nsIDOMDocument.h"
@@ -62,6 +61,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
+#include "nsRootAccessible.h"
 #include "nsIServiceManager.h"
 #include "nsTextFormatter.h"
 #include "nsIView.h"
@@ -1880,7 +1880,7 @@ void nsAccessibleWrap::UpdateSystemCaret()
   // off-screen model can follow the caret
   ::DestroyCaret();
 
-  a11y::RootAccessible* rootAccessible = RootAccessible();
+  nsRootAccessible* rootAccessible = RootAccessible();
   if (!rootAccessible) {
     return;
   }

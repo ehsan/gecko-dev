@@ -9,7 +9,6 @@
 #include "base/message_loop.h"
 
 #include "Hal.h"
-#include "mozilla/Monitor.h"
 #include "nsXULAppAPI.h"
 #include "UeventPoller.h"
 
@@ -155,27 +154,18 @@ ReleaseResourceIfNeed()
 }
 
 static void
-EnableSwitchNotificationsIOThread(SwitchDevice aDevice, Monitor *aMonitor)
+EnableSwitchNotificationsIOThread(SwitchDevice aDevice)
 {
   InitializeResourceIfNeed();
   sSwitchObserver->EnableSwitch(aDevice);
-  {
-    MonitorAutoLock lock(*aMonitor);
-    lock.Notify();
-  }
 }
 
 void
 EnableSwitchNotifications(SwitchDevice aDevice)
 {
-  Monitor monitor("EnableSwitch.monitor");
-  {
-    MonitorAutoLock lock(monitor);
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        NewRunnableFunction(EnableSwitchNotificationsIOThread, aDevice, &monitor));
-    lock.Wait();
-  }
+  XRE_GetIOMessageLoop()->PostTask(
+      FROM_HERE,
+      NewRunnableFunction(EnableSwitchNotificationsIOThread, aDevice));
 }
 
 static void

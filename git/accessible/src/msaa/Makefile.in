@@ -55,6 +55,7 @@ CPPSRCS = \
   nsTextAccessibleWrap.cpp \
   nsDocAccessibleWrap.cpp \
   nsHTMLWin32ObjectAccessible.cpp \
+  nsRootAccessibleWrap.cpp \
   nsXULMenuAccessibleWrap.cpp \
   nsXULListboxAccessibleWrap.cpp \
   nsXULTreeGridAccessibleWrap.cpp \
@@ -74,7 +75,6 @@ CPPSRCS = \
   CAccessibleTableCell.cpp \
   CAccessibleValue.cpp \
   Compatibility.cpp \
-  RootAccessibleWrap.cpp \
   $(NULL)
 
 EXPORTS = \
@@ -83,6 +83,7 @@ EXPORTS = \
   nsAccessibleWrap.h \
   nsTextAccessibleWrap.h \
   nsDocAccessibleWrap.h \
+  nsRootAccessibleWrap.h \
   nsHTMLWin32ObjectAccessible.h \
   nsXULMenuAccessibleWrap.h \
   nsXULListboxAccessibleWrap.h \

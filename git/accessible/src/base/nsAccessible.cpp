@@ -50,10 +50,10 @@
 #include "nsAccTreeWalker.h"
 #include "nsIAccessibleRelation.h"
 #include "nsEventShell.h"
+#include "nsRootAccessible.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
 #include "Role.h"
-#include "RootAccessible.h"
 #include "States.h"
 #include "StyleInfo.h"
 
@@ -257,7 +257,8 @@ nsAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
 {
   NS_ENSURE_ARG_POINTER(aRootDocument);
 
-  NS_IF_ADDREF(*aRootDocument = RootAccessible());
+  nsRootAccessible* rootDocument = RootAccessible();
+  NS_IF_ADDREF(*aRootDocument = rootDocument);
   return NS_OK;
 }
 

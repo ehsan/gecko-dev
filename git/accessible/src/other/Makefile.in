@@ -50,6 +50,7 @@ LIBXUL_LIBRARY = 1
 CPPSRCS = \
   nsAccessNodeWrap.cpp \
   nsAccessibleWrap.cpp \
+  nsRootAccessibleWrap.cpp \
   $(NULL)
 
 EXPORTS = \
@@ -58,6 +59,7 @@ EXPORTS = \
   nsTextAccessibleWrap.h \
   nsAccessibleWrap.h \
   nsDocAccessibleWrap.h \
+  nsRootAccessibleWrap.h \
   nsXULMenuAccessibleWrap.h \
   nsXULListboxAccessibleWrap.h \
   nsXULTreeGridAccessibleWrap.h \

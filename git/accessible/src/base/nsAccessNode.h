@@ -57,12 +57,7 @@ class ApplicationAccessible;
 class nsAccessNode;
 class nsDocAccessible;
 class nsIAccessibleDocument;
-
-namespace mozilla {
-namespace a11y {
-class RootAccessible;
-}
-}
+class nsRootAccessible;
 
 class nsIPresShell;
 class nsPresContext;
@@ -98,7 +93,7 @@ public:
   /**
    * Return the root document accessible for this accessnode.
    */
-  mozilla::a11y::RootAccessible* RootAccessible() const;
+  nsRootAccessible* RootAccessible() const;
 
   /**
    * Initialize the access node object, add it to the cache.
