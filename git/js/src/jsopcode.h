@@ -48,6 +48,10 @@
 #include "jsutil.h"
 #include "jsarena.h"
 
+#ifdef __cplusplus
+# include "jsvalue.h"
+#endif
+
 JS_BEGIN_EXTERN_C
 
 /*
@@ -61,14 +65,13 @@ typedef enum JSOp {
     JSOP_LIMIT,
 
     /*
-     * These pseudo-ops help js_DecompileValueGenerator decompile JSOP_SETPROP,
-     * JSOP_SETELEM, and comprehension-tails, respectively.  They are never
-     * stored in bytecode, so they don't preempt valid opcodes.
+     * These pseudo-ops help js_DecompileValueGenerator decompile JSOP_SETNAME,
+     * JSOP_SETPROP, and JSOP_SETELEM, respectively.  They are never stored in
+     * bytecode, so they don't preempt valid opcodes.
      */
     JSOP_GETPROP2 = JSOP_LIMIT,
     JSOP_GETELEM2 = JSOP_LIMIT + 1,
-    JSOP_FORLOCAL = JSOP_LIMIT + 2,
-    JSOP_FAKE_LIMIT = JSOP_FORLOCAL
+    JSOP_FAKE_LIMIT = JSOP_GETELEM2
 } JSOp;
 
 /*
@@ -96,6 +99,7 @@ typedef enum JSOp {
 #define JOF_INT8          18      /* int8 immediate operand */
 #define JOF_ATOMOBJECT    19      /* uint16 constant index + object index */
 #define JOF_UINT16PAIR    20      /* pair of uint16 immediates */
+#define JOF_GLOBAL        21      /* uint16 global array index */
 #define JOF_TYPEMASK      0x001f  /* mask for above immediate types */
 
 #define JOF_NAME          (1U<<5) /* name operation */
@@ -137,9 +141,6 @@ typedef enum JSOp {
                                      that needs fixup when in global code (see
                                      Compiler::compileScript) */
 #define JOF_GNAME        (1U<<25) /* predicted global name */
-#define JOF_TYPESET      (1U<<26) /* has an entry in a script's type sets */
-#define JOF_DECOMPOSE    (1U<<27) /* followed by an equivalent decomposed
-                                   * version of the opcode */
 
 /* Shorthands for type from format and type from opcode. */
 #define JOF_TYPE(fmt)   ((fmt) & JOF_TYPEMASK)
@@ -219,8 +220,7 @@ typedef enum JSOp {
 #define GET_INDEX(pc)           GET_UINT16(pc)
 #define SET_INDEX(pc,i)         ((pc)[1] = INDEX_HI(i), (pc)[2] = INDEX_LO(i))
 
-#define GET_INDEXBASE(pc)       (JS_ASSERT(*(pc) == JSOP_INDEXBASE            \
-                                           || *(pc) == JSOP_TRAP),            \
+#define GET_INDEXBASE(pc)       (JS_ASSERT(*(pc) == JSOP_INDEXBASE),          \
                                  ((uintN)((pc)[1])) << 16)
 #define INDEXBASE_LEN           1
 
@@ -382,6 +382,12 @@ js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
     JS_END_MACRO
 
 /*
+ * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
+ */
+extern uintN
+js_GetVariableBytecodeLength(jsbytecode *pc);
+
+/*
  * Find the number of stack slots used by a variadic opcode such as JSOP_CALL
  * (for such ops, JSCodeSpec.nuses is -1).
  */
@@ -461,43 +467,17 @@ extern char *
 js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback);
 
-/*
- * Given bytecode address pc in script's main program code, return the operand
- * stack depth just before (JSOp) *pc executes.
- */
-extern uintN
-js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-
-JS_END_EXTERN_C
-
 #define JSDVG_IGNORE_STACK      0
 #define JSDVG_SEARCH_STACK      1
 
 #ifdef __cplusplus
-/*
- * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
- */
-extern size_t
-js_GetVariableBytecodeLength(JSOp op, jsbytecode *pc);
-
-inline size_t
-js_GetVariableBytecodeLength(jsbytecode *pc)
-{
-    JS_ASSERT(*pc != JSOP_TRAP);
-    return js_GetVariableBytecodeLength(JSOp(*pc), pc);
-}
-
 namespace js {
 
 static inline char *
 DecompileValueGenerator(JSContext *cx, intN spindex, const Value &v,
                         JSString *fallback)
 {
-    return js_DecompileValueGenerator(cx, spindex, v, fallback);
+    return js_DecompileValueGenerator(cx, spindex, Jsvalify(v), fallback);
 }
 
 /*
@@ -539,44 +519,35 @@ Sprint(Sprinter *sp, const char *format, ...);
 extern bool
 CallResultEscapes(jsbytecode *pc);
 
-static inline uintN
-GetDecomposeLength(jsbytecode *pc, size_t len)
-{
-    /*
-     * The last byte of a DECOMPOSE op stores the decomposed length. This can
-     * vary across different instances of an opcode due to INDEXBASE ops.
-     */
-    JS_ASSERT_IF(JSOp(*pc) != JSOP_TRAP, size_t(js_CodeSpec[*pc].length) == len);
-    return (uintN) pc[len - 1];
-}
-
-extern size_t
-GetBytecodeLength(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-extern bool
-IsValidBytecodeOffset(JSContext *cx, JSScript *script, size_t offset);
-
-inline bool
-FlowsIntoNext(JSOp op)
-{
-    /* JSOP_YIELD is considered to flow into the next instruction, like JSOP_CALL. */
-    return op != JSOP_STOP && op != JSOP_RETURN && op != JSOP_RETRVAL && op != JSOP_THROW &&
-           op != JSOP_GOTO && op != JSOP_GOTOX && op != JSOP_RETSUB;
-}
-
 }
 #endif
 
-#if defined(DEBUG) && defined(__cplusplus)
+#ifdef DEBUG
 /*
  * Disassemblers, for debugging only.
  */
+#include <stdio.h>
+#ifdef __cplusplus
 extern JS_FRIEND_API(JSBool)
-js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp);
+js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp, int *counts = NULL);
 
 extern JS_FRIEND_API(uintN)
 js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
-                JSBool lines, js::Sprinter *sp);
+                JSBool lines, js::Sprinter *sp, int *counts = NULL);
 #endif
+#endif /* DEBUG */
+
+/*
+ * Given bytecode address pc in script's main program code, return the operand
+ * stack depth just before (JSOp) *pc executes.
+ */
+extern uintN
+js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+JS_END_EXTERN_C
 
 #endif /* jsopcode_h___ */

@@ -53,6 +53,7 @@
 #include "nsIResumableChannel.h"
 #include "nsIApplicationCacheChannel.h"
 #include "nsEscape.h"
+#include "nsPrintfCString.h"
 
 #include "prnetdb.h"
 
@@ -80,17 +81,12 @@ HttpBaseChannel::HttpBaseChannel()
   , mChannelIsForDownload(PR_FALSE)
   , mTracingEnabled(PR_TRUE)
   , mTimingEnabled(PR_FALSE)
-  , mSuspendCount(0)
   , mRedirectedCachekeys(nsnull)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
   // grab a reference to the handler to ensure that it doesn't go away.
   NS_ADDREF(gHttpHandler);
-
-  // Subfields of unions cannot be targeted in an initializer list
-  mSelfAddr.raw.family = PR_AF_UNSPEC;
-  mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 HttpBaseChannel::~HttpBaseChannel()
@@ -377,51 +373,6 @@ HttpBaseChannel::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetContentDisposition(PRUint32 *aContentDisposition)
-{
-  nsresult rv;
-  nsCString header;
-
-  rv = GetContentDispositionHeader(header);
-  if (NS_FAILED(rv))
-    return rv;
-
-  *aContentDisposition = NS_GetContentDispositionFromHeader(header, this);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetContentDispositionFilename(nsAString& aContentDispositionFilename)
-{
-  aContentDispositionFilename.Truncate();
-
-  nsresult rv;
-  nsCString header;
-
-  rv = GetContentDispositionHeader(header);
-  if (NS_FAILED(rv))
-    return rv;
-
-  return NS_GetFilenameFromDisposition(aContentDispositionFilename,
-                                       header, mURI);
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetContentDispositionHeader(nsACString& aContentDispositionHeader)
-{
-  if (!mResponseHead)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  nsresult rv = mResponseHead->GetHeader(nsHttp::Content_Disposition,
-                                         aContentDispositionHeader);
-  if (NS_FAILED(rv) || aContentDispositionHeader.IsEmpty())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 HttpBaseChannel::GetContentLength(PRInt32 *aContentLength)
 {
   NS_ENSURE_ARG_POINTER(aContentLength);
@@ -544,15 +495,6 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
 
   mUploadStreamHasHeaders = aStreamHasHeaders;
   mUploadStream = aStream;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetUploadStreamHasHeaders(PRBool *hasHeaders)
-{
-  NS_ENSURE_ARG(hasHeaders);
-
-  *hasHeaders = mUploadStreamHasHeaders;
   return NS_OK;
 }
 
@@ -1074,7 +1016,7 @@ HttpBaseChannel::SetRedirectionLimit(PRUint32 value)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  mRedirectionLimit = NS_MIN<PRUint32>(value, 0xff);
+  mRedirectionLimit = PR_MIN(value, 0xff);
   return NS_OK;
 }
 
@@ -1340,20 +1282,20 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
     return NS_ERROR_NOT_RESUMABLE;
   }
 
+  // Don't return an entity if the server sent the following header:
+  // Accept-Ranges: none
+  // Not sending the Accept-Ranges header means we can still try
+  // sending range requests.
+  const char* acceptRanges =
+      mResponseHead->PeekHeader(nsHttp::Accept_Ranges);
+  if (acceptRanges &&
+      !nsHttp::FindToken(acceptRanges, "bytes", HTTP_HEADER_VALUE_SEPS)) {
+    return NS_ERROR_NOT_RESUMABLE;
+  }
+
   PRUint64 size = LL_MAXUINT;
   nsCAutoString etag, lastmod;
   if (mResponseHead) {
-    // Don't return an entity if the server sent the following header:
-    // Accept-Ranges: none
-    // Not sending the Accept-Ranges header means we can still try
-    // sending range requests.
-    const char* acceptRanges =
-        mResponseHead->PeekHeader(nsHttp::Accept_Ranges);
-    if (acceptRanges &&
-        !nsHttp::FindToken(acceptRanges, "bytes", HTTP_HEADER_VALUE_SEPS)) {
-      return NS_ERROR_NOT_RESUMABLE;
-    }
-
     size = mResponseHead->TotalEntitySize();
     const char* cLastMod = mResponseHead->PeekHeader(nsHttp::Last_Modified);
     if (cLastMod)
@@ -1428,28 +1370,6 @@ HttpBaseChannel::SetNewListener(nsIStreamListener *aListener, nsIStreamListener 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel helpers
 //-----------------------------------------------------------------------------
-
-void
-HttpBaseChannel::DoNotifyListener()
-{
-  // Make sure mIsPending is set to PR_FALSE. At this moment we are done from
-  // the point of view of our consumer and we have to report our self
-  // as not-pending.
-  if (mListener) {
-    mListener->OnStartRequest(this, mListenerContext);
-    mIsPending = PR_FALSE;
-    mListener->OnStopRequest(this, mListenerContext, mStatus);
-    mListener = 0;
-    mListenerContext = 0;
-  } else {
-    mIsPending = PR_FALSE;
-  }
-  // We have to make sure to drop the reference to the callbacks too
-  mCallbacks = nsnull;
-  mProgressSink = nsnull;
-
-  DoNotifyListenerCleanup();
-}
 
 void
 HttpBaseChannel::AddCookiesToRequest()

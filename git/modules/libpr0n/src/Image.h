@@ -102,10 +102,8 @@ public:
   /**
    * The components that make up GetDataSize().
    */      
-  virtual PRUint32 GetDecodedHeapSize() = 0;
-  virtual PRUint32 GetDecodedNonheapSize() = 0;
-  virtual PRUint32 GetDecodedOutOfProcessSize() = 0;
-  virtual PRUint32 GetSourceHeapSize() = 0;
+  virtual PRUint32 GetDecodedDataSize() = 0;
+  virtual PRUint32 GetSourceDataSize() = 0;
 
   // Mimetype translation
   enum eDecoderType {
@@ -125,12 +123,10 @@ public:
   PRUint32 GetAnimationConsumers() { return mAnimationConsumers; }
 #endif
 
-  void SetInnerWindowID(PRUint64 aInnerWindowId) {
-    mInnerWindowId = aInnerWindowId;
+  void SetWindowID(PRUint64 aWindowId) {
+    mWindowId = aWindowId;
   }
-  PRUint64 InnerWindowID() const { return mInnerWindowId; }
-
-  PRBool HasError() { return mError; }
+  PRUint64 WindowID() const { return mWindowId; }
 
 protected:
   Image(imgStatusTracker* aStatusTracker);
@@ -144,7 +140,7 @@ protected:
   virtual nsresult StartAnimation() = 0;
   virtual nsresult StopAnimation() = 0;
 
-  PRUint64 mInnerWindowId;
+  PRUint64 mWindowId;
 
   // Member data shared by all implementations of this abstract class
   nsAutoPtr<imgStatusTracker> mStatusTracker;
@@ -158,7 +154,7 @@ protected:
    * Extended by child classes, if they have additional
    * conditions for being able to animate
    */
-  virtual bool ShouldAnimate() {
+  virtual PRBool ShouldAnimate() {
     return mAnimationConsumers > 0 && mAnimationMode != kDontAnimMode;
   }
 };

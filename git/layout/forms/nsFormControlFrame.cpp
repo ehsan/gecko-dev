@@ -39,9 +39,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsEventStateManager.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
+#include "nsILookAndFeel.h"
 
 //#define FCF_NOISY
 
@@ -189,8 +187,10 @@ nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
   nsRect screen;
 
   nsDeviceContext *context = aPresContext->DeviceContext();
-  PRInt32 dropdownCanOverlapOSBar =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_MenusCanOverlapOSBar, 0);
+  PRBool dropdownCanOverlapOSBar = PR_FALSE;
+  nsILookAndFeel *lookAndFeel = aPresContext->LookAndFeel();
+  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar,
+                         dropdownCanOverlapOSBar);
   if ( dropdownCanOverlapOSBar )
     context->GetRect(screen);
   else

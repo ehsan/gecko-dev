@@ -22,42 +22,38 @@ function onTabViewLoadedAndShown() {
   ok(TabView.isVisible(), "Tab View is visible");
 
   // Establish initial state
-  contentWindow = TabView.getContentWindow();
+  contentWindow = document.getElementById("tab-view").contentWindow;  
   verifyCleanState("start");
-
+  
   // register a clean up for private browsing just in case
   registerCleanupFunction(function() {
     pb.privateBrowsingEnabled = false;
   });
-
+  
   // create a group
   let box = new contentWindow.Rect(20, 20, 180, 180);
   let groupItem = new contentWindow.GroupItem([], {bounds: box, title: "test1"});
-  let id = groupItem.id;
+  let id = groupItem.id; 
   is(contentWindow.GroupItems.groupItems.length, 2, "we now have two groups");
   registerCleanupFunction(function() {
     contentWindow.GroupItems.groupItem(id).close();
   });
-
+  
   // make it the active group so new tabs will be added to it
   contentWindow.UI.setActive(groupItem);
-
+  
   // collect the group titles
   let count = contentWindow.GroupItems.groupItems.length;
   for (let a = 0; a < count; a++) {
     let gi = contentWindow.GroupItems.groupItems[a];
     groupTitles[a] = gi.getTitle();
   }
-
-  contentWindow.gPrefBranch.setBoolPref("animate_zoom", false);
-
+  
   // Create a second tab
   gBrowser.addTab("about:robots");
   is(gBrowser.tabs.length, 2, "we now have 2 tabs");
-
   registerCleanupFunction(function() {
     gBrowser.removeTab(gBrowser.tabs[1]);
-    contentWindow.gPrefBranch.clearUserPref("animate_zoom");
   });
 
   afterAllTabsLoaded(function() {
@@ -69,20 +65,16 @@ function onTabViewLoadedAndShown() {
     verifyNormal();
 
     // go into private browsing and make sure Tab View becomes hidden
-    togglePrivateBrowsing(function() {
-      whenTabViewIsHidden(function() {
-        ok(!TabView.isVisible(), "Tab View is no longer visible");
-        verifyPB();
+    togglePBAndThen(function() {
+      ok(!TabView.isVisible(), "Tab View is no longer visible");
+      verifyPB();
+      
+      // exit private browsing and make sure Tab View is shown again
+      togglePBAndThen(function() {
+        ok(TabView.isVisible(), "Tab View is visible again");
+        verifyNormal();
 
-        // exit private browsing and make sure Tab View is shown again
-        togglePrivateBrowsing(function() {
-          whenTabViewIsShown(function() {
-            ok(TabView.isVisible(), "Tab View is visible again");
-            verifyNormal();
-
-            hideTabView(onTabViewHidden);
-          });
-        });
+        hideTabView(onTabViewHidden);
       });
     });
   });
@@ -93,19 +85,17 @@ function onTabViewHidden() {
   ok(!TabView.isVisible(), "Tab View is not visible");
   
   // go into private browsing and make sure Tab View remains hidden
-  togglePrivateBrowsing(function() {
+  togglePBAndThen(function() {
     ok(!TabView.isVisible(), "Tab View is still not visible");
     verifyPB();
     
     // turn private browsing back off
-    togglePrivateBrowsing(function() {
+    togglePBAndThen(function() {
       verifyNormal();
       
       // end game
       ok(!TabView.isVisible(), "we finish with Tab View not visible");
       registerCleanupFunction(verifyCleanState); // verify after all cleanups
-
-      gBrowser.selectedTab = gBrowser.tabs[0];
       finish();
     });
   });
@@ -156,4 +146,18 @@ function verifyNormal() {
     ok(tab._tabViewTabItem.parent == groupItem,
         prefix + "tab " + a + " is in group " + a);
   }
+}
+
+// ----------
+function togglePBAndThen(callback) {
+  function pbObserver(aSubject, aTopic, aData) {
+    if (aTopic != "private-browsing-transition-complete")
+      return;
+
+    Services.obs.removeObserver(pbObserver, "private-browsing-transition-complete");
+    afterAllTabsLoaded(callback);
+  }
+
+  Services.obs.addObserver(pbObserver, "private-browsing-transition-complete", false);
+  pb.privateBrowsingEnabled = !pb.privateBrowsingEnabled;
 }

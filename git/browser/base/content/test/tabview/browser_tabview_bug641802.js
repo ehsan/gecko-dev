@@ -29,11 +29,11 @@ function test() {
 
   registerCleanupFunction(function () {
     hideMoveToGroupPopup();
-    hideTabView();
+    hideTabView(function () {});
 
     let groupItems = TabView.getContentWindow().GroupItems.groupItems;
     if (groupItems.length > 1)
-      closeGroupItem(groupItems[0]);
+      closeGroupItem(groupItems[0], function () {});
   });
 
   showTabView(function () {

@@ -50,8 +50,8 @@
 #include "nsILocalFile.h"
 #include "nsIURI.h"
 #include "nsIInputStream.h"
-#include "nsIStreamListener.h"
 #include "nsIChannel.h"
+#include "nsTPtrArray.h"
 #include "nsCOMArray.h"
 #include "nsITimer.h"
 
@@ -285,28 +285,24 @@ class nsDataObj : public IDataObject,
     // CStream class implementation
     // this class is used in Drag and drop with download sample
     // called from IDataObject::GetData
-    class CStream : public IStream, public nsIStreamListener
+    class CStream : public IStream
     {
+      ULONG mRefCount;  // reference counting
+      nsCOMPtr<nsIInputStream> mInputStream;
       nsCOMPtr<nsIChannel> mChannel;
-      nsTArray<PRUint8> mChannelData;
-      bool mChannelRead;
-      nsresult mChannelResult;
-      PRUint32 mStreamRead;
 
     protected:
       virtual ~CStream();
-      nsresult WaitForCompletion();
+      // TODO: forbid copying and assignment
 
     public:
       CStream();
       nsresult Init(nsIURI *pSourceURI);
 
-      NS_DECL_ISUPPORTS
-      NS_DECL_NSIREQUESTOBSERVER
-      NS_DECL_NSISTREAMLISTENER
-
       // IUnknown
       STDMETHOD(QueryInterface)(REFIID refiid, void** ppvResult);
+      STDMETHOD_(ULONG, AddRef)(void);
+      STDMETHOD_(ULONG, Release)(void);
 
       // IStream  
       STDMETHOD(Clone)(IStream** ppStream);

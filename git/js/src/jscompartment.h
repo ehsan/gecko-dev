@@ -40,21 +40,25 @@
 #ifndef jscompartment_h___
 #define jscompartment_h___
 
-#include "jsclist.h"
 #include "jscntxt.h"
-#include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcstats.h"
+#include "jsmath.h"
 #include "jsobj.h"
-#include "vm/GlobalObject.h"
+#include "jsfun.h"
+#include "jsgcstats.h"
+#include "jsclist.h"
+#include "jsxml.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4251) /* Silence warning about JS_FRIEND_API and data members. */
 #endif
 
-namespace JSC { class ExecutableAllocator; }
-namespace WTF { class BumpPointerAllocator; }
+namespace JSC {
+
+class ExecutableAllocator;
+
+}
 
 namespace js {
 
@@ -101,6 +105,7 @@ struct TracerState
     void*          rpAtLastTreeCall;    // value of rp at innermost tree call guard
     VMSideExit*    outermostTreeExitGuard; // the last side exit returned by js_CallTree
     TreeFragment*  outermostTree;       // the outermost tree we initially invoked
+    uintN*         inlineCallCountp;    // inline call count counter
     VMSideExit**   innermostNestedGuardp;
     VMSideExit*    innermost;
     uint64         startTime;
@@ -119,7 +124,7 @@ struct TracerState
     js::Value*     nativeVp;
 
     TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
-                VMSideExit** innermostNestedGuardp);
+                uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
     ~TracerState();
 };
 
@@ -285,9 +290,8 @@ struct TraceMonitor {
     bool outOfMemory() const;
 
     JS_FRIEND_API(void) getCodeAllocStats(size_t &total, size_t &frag_size, size_t &free_size) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsMainSize(JSUsableSizeFun usf) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize(JSUsableSizeFun usf) const;
-    JS_FRIEND_API(size_t) getTraceMonitorSize(JSUsableSizeFun usf) const;
+    JS_FRIEND_API(size_t) getVMAllocatorsMainSize() const;
+    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize() const;
 };
 
 namespace mjit {
@@ -295,15 +299,22 @@ class JaegerCompartment;
 }
 }
 
-/* Defined in jsapi.cpp */
-extern JSClass js_dummy_class;
-
+/* Number of potentially reusable scriptsToGC to search for the eval cache. */
 #ifndef JS_EVAL_CACHE_SHIFT
 # define JS_EVAL_CACHE_SHIFT        6
 #endif
-
-/* Number of buckets in the hash of eval scripts. */
 #define JS_EVAL_CACHE_SIZE          JS_BIT(JS_EVAL_CACHE_SHIFT)
+
+#ifdef DEBUG
+# define EVAL_CACHE_METER_LIST(_)   _(probe), _(hit), _(step), _(noscope)
+# define identity(x)                x
+
+struct JSEvalCacheMeter {
+    uint64 EVAL_CACHE_METER_LIST(identity);
+};
+
+# undef identity
+#endif
 
 namespace js {
 
@@ -340,8 +351,6 @@ class NativeIterCache {
     }
 };
 
-class MathCache;
-
 /*
  * A single-entry cache for some base-10 double-to-string conversions. This
  * helps date-format-xparb.js.  It also avoids skewing the results for
@@ -369,95 +378,48 @@ class DtoaCache {
 
 };
 
-struct ScriptFilenameEntry
-{
-    bool marked;
-    char filename[1];
-};
-
-struct ScriptFilenameHasher
-{
-    typedef const char *Lookup;
-    static HashNumber hash(const char *l) { return JS_HashString(l); }
-    static bool match(const ScriptFilenameEntry *e, const char *l) {
-        return strcmp(e->filename, l) == 0;
-    }
-};
-
-typedef HashSet<ScriptFilenameEntry *,
-                ScriptFilenameHasher,
-                SystemAllocPolicy> ScriptFilenameTable;
-
 } /* namespace js */
 
 struct JS_FRIEND_API(JSCompartment) {
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
+    js::gc::Chunk                *chunk;
 
-    js::gc::ArenaLists           arenas;
+    js::gc::ArenaList            arenas[js::gc::FINALIZE_LIMIT];
+    js::gc::FreeLists            freeLists;
 
     uint32                       gcBytes;
     uint32                       gcTriggerBytes;
     size_t                       gcLastBytes;
 
     bool                         hold;
-    bool                         isSystemCompartment;
-
-    /*
-     * Pool for analysis and intermediate type information in this compartment.
-     * Cleared on every GC, unless the GC happens during analysis (indicated
-     * by activeAnalysis, which is implied by activeInference).
-     */
-    JSArenaPool                  pool;
-    bool                         activeAnalysis;
-    bool                         activeInference;
-
-    /* Type information about the scripts and objects in this compartment. */
-    js::types::TypeCompartment   types;
 
 #ifdef JS_TRACER
-  private:
-    /*
-     * Trace-tree JIT recorder/interpreter state.  It's created lazily because
-     * many compartments don't end up needing it.
-     */
-    js::TraceMonitor             *traceMonitor_;
+    /* Trace-tree JIT recorder/interpreter state. */
+    js::TraceMonitor             traceMonitor;
 #endif
 
-  public:
     /* Hashed lists of scripts created by eval to garbage-collect. */
-    JSScript                     *evalCache[JS_EVAL_CACHE_SIZE];
+    JSScript                     *scriptsToGC[JS_EVAL_CACHE_SIZE];
+
+#ifdef DEBUG
+    JSEvalCacheMeter             evalCacheMeter;
+#endif
 
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
-    bool                         hasDebugModeCodeToDrop;
     js::WrapperMap               crossCompartmentWrappers;
 
 #ifdef JS_METHODJIT
-  private:
-    /* This is created lazily because many compartments don't need it. */
-    js::mjit::JaegerCompartment  *jaegerCompartment_;
+    js::mjit::JaegerCompartment  *jaegerCompartment;
     /*
      * This function is here so that xpconnect/src/xpcjsruntime.cpp doesn't
      * need to see the declaration of JaegerCompartment, which would require
      * #including MethodJIT.h into xpconnect/src/xpcjsruntime.cpp, which is
      * difficult due to reasons explained in bug 483677.
      */
-  public:
-    bool hasJaegerCompartment() {
-        return !!jaegerCompartment_;
-    }
-
-    js::mjit::JaegerCompartment *jaegerCompartment() const {
-        JS_ASSERT(jaegerCompartment_);
-        return jaegerCompartment_;
-    }
-
-    bool ensureJaegerCompartmentExists(JSContext *cx);
-
-    void getMjitCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
+    size_t getMjitCodeSize() const;
 #endif
-    WTF::BumpPointerAllocator    *regExpAllocator;
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -501,23 +463,20 @@ struct JS_FRIEND_API(JSCompartment) {
     const js::Shape              *initialRegExpShape;
     const js::Shape              *initialStringShape;
 
-  private:
-    enum { DebugFromC = 1, DebugFromJS = 2 };
+    bool                         debugMode;  // true iff debug mode on
+    JSCList                      scripts;    // scripts in this compartment
 
-    uintN                        debugModeBits;  // see debugMode() below
+    JSC::ExecutableAllocator     *regExpAllocator;
 
-  public:
     js::NativeIterCache          nativeIterCache;
 
     typedef js::Maybe<js::ToSourceCache> LazyToSourceCache;
     LazyToSourceCache            toSourceCache;
 
-    js::ScriptFilenameTable      scriptFilenameTable;
-
     JSCompartment(JSRuntime *rt);
     ~JSCompartment();
 
-    bool init(JSContext *cx);
+    bool init();
 
     /* Mark cross-compartment wrappers. */
     void markCrossCompartmentWrappers(JSTracer *trc);
@@ -531,11 +490,15 @@ struct JS_FRIEND_API(JSCompartment) {
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
-    void markTypes(JSTracer *trc);
     void sweep(JSContext *cx, uint32 releaseInterval);
     void purge(JSContext *cx);
+    void finishArenaLists();
+    void finalizeObjectArenaLists(JSContext *cx);
+    void finalizeStringArenaLists(JSContext *cx);
+    void finalizeShapeArenaLists(JSContext *cx);
+    bool arenaListsAreEmpty();
 
-    void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
+    void setGCLastBytes(size_t lastBytes);
     void reduceGCTriggerBytes(uint32 amount);
 
     js::DtoaCache dtoaCache;
@@ -552,81 +515,24 @@ struct JS_FRIEND_API(JSCompartment) {
 
     BackEdgeMap                  backEdgeTable;
 
-    /*
-     * Weak reference to each global in this compartment that is a debuggee.
-     * Each global has its own list of debuggers.
-     */
-    js::GlobalObjectSet              debuggees;
-
-  public:
-    js::BreakpointSiteMap            breakpointSites;
-
-  private:
     JSCompartment *thisForCtor() { return this; }
-
   public:
     js::MathCache *getMathCache(JSContext *cx) {
         return mathCache ? mathCache : allocMathCache(cx);
     }
 
-#ifdef JS_TRACER
-    bool hasTraceMonitor() {
-        return !!traceMonitor_;
-    }
-
-    js::TraceMonitor *allocAndInitTraceMonitor(JSContext *cx);
-
-    js::TraceMonitor *traceMonitor() const {
-        JS_ASSERT(traceMonitor_);
-        return traceMonitor_;
-    }
-#endif
-
     size_t backEdgeCount(jsbytecode *pc) const;
     size_t incBackEdgeCount(jsbytecode *pc);
-
-    /*
-     * There are dueling APIs for debug mode. It can be enabled or disabled via
-     * JS_SetDebugModeForCompartment. It is automatically enabled and disabled
-     * by Debugger objects. Therefore debugModeBits has the DebugFromC bit set
-     * if the C API wants debug mode and the DebugFromJS bit set if debuggees
-     * is non-empty.
-     */
-    bool debugMode() const { return !!debugModeBits; }
-
-    /*
-     * True if any scripts from this compartment are on the JS stack in the
-     * calling thread. cx is a context in the calling thread, and it is assumed
-     * that no other thread is using this compartment.
-     */
-    bool hasScriptsOnStack(JSContext *cx);
-
-  private:
-    /* This is called only when debugMode() has just toggled. */
-    void updateForDebugMode(JSContext *cx);
-
-  public:
-    js::GlobalObjectSet &getDebuggees() { return debuggees; }
-    bool addDebuggee(JSContext *cx, js::GlobalObject *global);
-    void removeDebuggee(JSContext *cx, js::GlobalObject *global,
-                        js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
-    bool setDebugModeFromC(JSContext *cx, bool b);
-
-    js::BreakpointSite *getBreakpointSite(jsbytecode *pc);
-    js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, JSScript *script, jsbytecode *pc,
-                                                  JSObject *scriptObject);
-    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSScript *script, JSObject *handler);
-    void clearTraps(JSContext *cx, JSScript *script);
-    bool markTrapClosuresIteratively(JSTracer *trc);
-
-  private:
-    void sweepBreakpoints(JSContext *cx);
-
-  public:
-    js::WatchpointMap *watchpointMap;
 };
 
+#define JS_SCRIPTS_TO_GC(cx)    ((cx)->compartment->scriptsToGC)
 #define JS_PROPERTY_TREE(cx)    ((cx)->compartment->propertyTree)
+
+#ifdef DEBUG
+#define JS_COMPARTMENT_METER(x) x
+#else
+#define JS_COMPARTMENT_METER(x)
+#endif
 
 /*
  * N.B. JS_ON_TRACE(cx) is true if JIT code is on the stack in the current
@@ -634,11 +540,11 @@ struct JS_FRIEND_API(JSCompartment) {
  * executing. cx must be a context on the current thread.
  */
 static inline bool
-JS_ON_TRACE(const JSContext *cx)
+JS_ON_TRACE(JSContext *cx)
 {
 #ifdef JS_TRACER
     if (JS_THREAD_DATA(cx)->onTraceCompartment)
-        return JS_THREAD_DATA(cx)->onTraceCompartment->traceMonitor()->ontrace();
+        return JS_THREAD_DATA(cx)->onTraceCompartment->traceMonitor.ontrace();
 #endif
     return false;
 }
@@ -648,7 +554,7 @@ static inline js::TraceMonitor *
 JS_TRACE_MONITOR_ON_TRACE(JSContext *cx)
 {
     JS_ASSERT(JS_ON_TRACE(cx));
-    return JS_THREAD_DATA(cx)->onTraceCompartment->traceMonitor();
+    return &JS_THREAD_DATA(cx)->onTraceCompartment->traceMonitor;
 }
 
 /*
@@ -659,20 +565,7 @@ JS_TRACE_MONITOR_ON_TRACE(JSContext *cx)
 static inline js::TraceMonitor *
 JS_TRACE_MONITOR_FROM_CONTEXT(JSContext *cx)
 {
-    return cx->compartment->traceMonitor();
-}
-
-/*
- * This one also creates the TraceMonitor if it doesn't already exist.
- * It returns NULL if the lazy creation fails due to OOM.
- */
-static inline js::TraceMonitor *
-JS_TRACE_MONITOR_FROM_CONTEXT_WITH_LAZY_INIT(JSContext *cx)
-{
-    if (!cx->compartment->hasTraceMonitor())
-        return cx->compartment->allocAndInitTraceMonitor(cx);
-        
-    return cx->compartment->traceMonitor();
+    return &cx->compartment->traceMonitor;
 }
 #endif
 
@@ -681,7 +574,7 @@ TRACE_RECORDER(JSContext *cx)
 {
 #ifdef JS_TRACER
     if (JS_THREAD_DATA(cx)->recordingCompartment)
-        return JS_THREAD_DATA(cx)->recordingCompartment->traceMonitor()->recorder;
+        return JS_THREAD_DATA(cx)->recordingCompartment->traceMonitor.recorder;
 #endif
     return NULL;
 }
@@ -691,7 +584,7 @@ TRACE_PROFILER(JSContext *cx)
 {
 #ifdef JS_TRACER
     if (JS_THREAD_DATA(cx)->profilingCompartment)
-        return JS_THREAD_DATA(cx)->profilingCompartment->traceMonitor()->profile;
+        return JS_THREAD_DATA(cx)->profilingCompartment->traceMonitor.profile;
 #endif
     return NULL;
 }
@@ -704,12 +597,11 @@ GetMathCache(JSContext *cx)
 }
 }
 
-inline void
-JSContext::setCompartment(JSCompartment *compartment)
-{
-    this->compartment = compartment;
-    this->inferenceEnabled = compartment ? compartment->types.inferenceEnabled : false;
-}
+#ifdef DEBUG
+# define EVAL_CACHE_METER(x)    (cx->compartment->evalCacheMeter.x++)
+#else
+# define EVAL_CACHE_METER(x)    ((void) 0)
+#endif
 
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -722,19 +614,15 @@ class PreserveCompartment {
     JSContext *cx;
   private:
     JSCompartment *oldCompartment;
-    bool oldInferenceEnabled;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
   public:
      PreserveCompartment(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM) : cx(cx) {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
         oldCompartment = cx->compartment;
-        oldInferenceEnabled = cx->inferenceEnabled;
     }
 
     ~PreserveCompartment() {
-        /* The old compartment may have been destroyed, so we can't use cx->setCompartment. */
         cx->compartment = oldCompartment;
-        cx->inferenceEnabled = oldInferenceEnabled;
     }
 };
 
@@ -745,14 +633,14 @@ class SwitchToCompartment : public PreserveCompartment {
         : PreserveCompartment(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-        cx->setCompartment(newCompartment);
+        cx->compartment = newCompartment;
     }
 
     SwitchToCompartment(JSContext *cx, JSObject *target JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : PreserveCompartment(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-        cx->setCompartment(target->getCompartment());
+        cx->compartment = target->getCompartment();
     }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER

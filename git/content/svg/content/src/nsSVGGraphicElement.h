@@ -42,7 +42,7 @@
 #include "nsSVGStylableElement.h"
 #include "nsIDOMSVGLocatable.h"
 #include "nsIDOMSVGTransformable.h"
-#include "SVGAnimatedTransformList.h"
+#include "nsIDOMSVGAnimTransformList.h"
 #include "gfxMatrix.h"
 
 typedef nsSVGStylableElement nsSVGGraphicElementBase;
@@ -62,22 +62,23 @@ public:
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void SetAnimateMotionTransform(const gfxMatrix* aMatrix);
-
-  virtual mozilla::SVGAnimatedTransformList* GetAnimatedTransformList();
-  virtual nsIAtom* GetTransformListAttrName() const {
-    return nsGkAtoms::transform;
-  }
 
 protected:
   // nsSVGElement overrides
   virtual PRBool IsEventName(nsIAtom* aName);
+  
+  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                 const nsAString* aValue, PRBool aNotify);
 
-  nsAutoPtr<mozilla::SVGAnimatedTransformList> mTransforms;
+  nsCOMPtr<nsIDOMSVGAnimatedTransformList> mTransforms;
 
   // XXX maybe move this to property table, to save space on un-animated elems?
   nsAutoPtr<gfxMatrix> mAnimateMotionTransform;
+
+  // helper
+  nsresult CreateTransformList();
 };
 
 #endif // __NS_SVGGRAPHICELEMENT_H__

@@ -76,6 +76,8 @@ CPPSRCS =         nsMathMLChar.cpp		        \
                   nsMathMLmsubsupFrame.cpp		\
                   nsMathMLmmultiscriptsFrame.cpp	\
                   nsMathMLmtableFrame.cpp		\
+                  nsMathMLmunderFrame.cpp		\
+                  nsMathMLmoverFrame.cpp		\
                   nsMathMLmunderoverFrame.cpp		\
                   nsMathMLmpaddedFrame.cpp		\
                   nsMathMLmspaceFrame.cpp		\
@@ -100,7 +102,6 @@ font_properties = \
 	mathfontSTIXNonUnicode.properties \
 	mathfontSTIXSize1.properties \
 	mathfontSTIXSizeOneSym.properties \
-	mathfontAsanaMath.properties \
 	mathfontStandardSymbolsL.properties \
 	$(NULL)
 

@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 
 #include "ImageLayers.h"
@@ -46,11 +45,9 @@
 #include "gfxPlatform.h"
 #include "ReadbackLayer.h"
 #include "gfxUtils.h"
-#include "nsPrintfCString.h"
 #include "mozilla/Util.h"
 
 using namespace mozilla::layers;
-using namespace mozilla::gfx;
 
 typedef FrameMetrics::ViewID ViewID;
 const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
@@ -211,14 +208,6 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
 {
   return gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
-}
-
-TemporaryRef<DrawTarget>
-LayerManager::CreateDrawTarget(const IntSize &aSize,
-                               SurfaceFormat aFormat)
-{
-  // Right now this doesn't work on the general layer manager.
-  return NULL;
 }
 
 #ifdef DEBUG
@@ -391,12 +380,6 @@ Layer::GetEffectiveOpacity()
   return opacity;
 }
 
-void
-ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
-{
-  aAttrs = ContainerLayerAttributes(GetFrameMetrics());
-}
-
 PRBool
 ContainerLayer::HasMultipleChildren()
 {
@@ -429,9 +412,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   } else {
     useIntermediateSurface = PR_FALSE;
     gfxMatrix contTransform;
-    if (!mEffectiveTransform.Is2D(&contTransform)) {
-     useIntermediateSurface = PR_TRUE;   
-    } else if (
+    if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
         !contTransform.PreservesAxisAlignedRectangles()) {
 #else
@@ -490,55 +471,6 @@ ContainerLayer::DidInsertChild(Layer* aLayer)
     mMayHaveReadbackChild = PR_TRUE;
   }
 }
-
-PRUint8* 
-PlanarYCbCrImage::AllocateBuffer(PRUint32 aSize)
-{
-  const fallible_t fallible = fallible_t();
-  return new (fallible) PRUint8[aSize]; 
-}
-
-PRUint8*
-PlanarYCbCrImage::CopyData(Data& aDest, gfxIntSize& aDestSize,
-                           PRUint32& aDestBufferSize, const Data& aData)
-{
-  aDest = aData;
-
-  aDest.mYStride = aDest.mYSize.width;
-  aDest.mCbCrStride = aDest.mCbCrSize.width;
-
-  // update buffer size
-  aDestBufferSize = aDest.mCbCrStride * aDest.mCbCrSize.height * 2 +
-                    aDest.mYStride * aDest.mYSize.height;
-
-  // get new buffer
-  PRUint8* buffer = AllocateBuffer(aDestBufferSize); 
-  if (!buffer)
-    return nsnull;
-
-  aDest.mYChannel = buffer;
-  aDest.mCbChannel = aDest.mYChannel + aDest.mYStride * aDest.mYSize.height;
-  aDest.mCrChannel = aDest.mCbChannel + aDest.mCbCrStride * aDest.mCbCrSize.height;
-
-  for (int i = 0; i < aDest.mYSize.height; i++) {
-    memcpy(aDest.mYChannel + i * aDest.mYStride,
-           aData.mYChannel + i * aData.mYStride,
-           aDest.mYStride);
-  }
-  for (int i = 0; i < aDest.mCbCrSize.height; i++) {
-    memcpy(aDest.mCbChannel + i * aDest.mCbCrStride,
-           aData.mCbChannel + i * aData.mCbCrStride,
-           aDest.mCbCrStride);
-    memcpy(aDest.mCrChannel + i * aDest.mCbCrStride,
-           aData.mCrChannel + i * aData.mCbCrStride,
-           aDest.mCbCrStride);
-  }
-
-  aDestSize = aData.mPicSize;
-  return buffer;
-}
-                         
-
 
 #ifdef MOZ_LAYERS_HAVE_LOG
 
@@ -638,6 +570,9 @@ ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
   Layer::PrintInfo(aTo, aPrefix);
   if (!mValidRegion.IsEmpty()) {
     AppendToString(aTo, mValidRegion, " [valid=", "]");
+  }
+  if (mXResolution != 1.0 || mYResolution != 1.0) {
+    aTo.AppendPrintf(" [xres=%g yres=%g]", mXResolution, mYResolution);
   }
   return aTo;
 }

@@ -40,8 +40,6 @@
 # ***** END LICENSE BLOCK *****
 */
 
-"use strict";
-
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
@@ -57,7 +55,6 @@ const KEY_APPDIR                      = "XCurProcD";
 const FILE_BLOCKLIST                  = "blocklist.xml";
 const PREF_BLOCKLIST_LASTUPDATETIME   = "app.update.lastUpdateTime.blocklist-background-update-timer";
 const PREF_BLOCKLIST_URL              = "extensions.blocklist.url";
-const PREF_BLOCKLIST_ITEM_URL         = "extensions.blocklist.itemURL";
 const PREF_BLOCKLIST_ENABLED          = "extensions.blocklist.enabled";
 const PREF_BLOCKLIST_INTERVAL         = "extensions.blocklist.interval";
 const PREF_BLOCKLIST_LEVEL            = "extensions.blocklist.level";
@@ -420,28 +417,6 @@ Blocklist.prototype = {
     return Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
   },
 
-  /* See nsIBlocklistService */
-  getAddonBlocklistURL: function(id, version, appVersion, toolkitVersion) {
-    if (!gBlocklistEnabled)
-      return "";
-
-    if (!this._addonEntries)
-      this._loadBlocklist();
-
-    let blItem = this._addonEntries[id];
-    if (!blItem || !blItem.blockID)
-      return null;
-
-    return this._createBlocklistURL(blItem.blockID);
-  },
-
-  _createBlocklistURL: function(id) {
-    let url = Services.urlFormatter.formatURLPref(PREF_BLOCKLIST_ITEM_URL);
-    url = url.replace(/%blockID%/g, id);
-
-    return url;
-  },
-
   notify: function(aTimer) {
     if (!gBlocklistEnabled)
       return;
@@ -635,7 +610,7 @@ Blocklist.prototype = {
 #
 #    <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist">
 #      <emItems>
-#        <emItem id="item_1@domain" blockID="i1">
+#        <emItem id="item_1@domain">
 #          <versionRange minVersion="1.0" maxVersion="2.0.*">
 #            <targetApplication id="{ec8030f7-c20a-464f-9b0e-13a3a9e97384}">
 #              <versionRange minVersion="1.5" maxVersion="1.5.*"/>
@@ -654,7 +629,7 @@ Blocklist.prototype = {
 #            </targetApplication>
 #          </versionRange>
 #        </emItem>
-#        <emItem id="item_2@domain" blockID="i2">
+#        <emItem id="item_2@domain">
 #          <versionRange minVersion="3.1" maxVersion="4.*"/>
 #        </emItem>
 #        <emItem id="item_3@domain">
@@ -664,7 +639,7 @@ Blocklist.prototype = {
 #            </targetApplication>
 #          </versionRange>
 #        </emItem>
-#        <emItem id="item_4@domain" blockID="i3">
+#        <emItem id="item_4@domain">
 #          <versionRange>
 #            <targetApplication>
 #              <versionRange minVersion="1.5" maxVersion="1.5.*"/>
@@ -673,7 +648,7 @@ Blocklist.prototype = {
 #        <emItem id="item_5@domain"/>
 #      </emItems>
 #      <pluginItems>
-#        <pluginItem blockID="i4">
+#        <pluginItem>
 #          <!-- All match tags must match a plugin to blocklist a plugin -->
 #          <match name="name" exp="some plugin"/>
 #          <match name="description" exp="1[.]2[.]3"/>
@@ -768,8 +743,6 @@ Blocklist.prototype = {
     // extension for the current application.
     if (result[id].length == 0)
       result[id].push(new BlocklistItemData(null));
-
-    result[id].blockID = blocklistElement.getAttribute("blockID");
   },
 
   _handlePluginItemNode: function(blocklistElement, result) {
@@ -779,8 +752,7 @@ Blocklist.prototype = {
     var matchNodes = blocklistElement.childNodes;
     var blockEntry = {
       matches: {},
-      versions: [],
-      blockID: null,
+      versions: []
     };
     var hasMatch = false;
     for (var x = 0; x < matchNodes.length; ++x) {
@@ -806,9 +778,6 @@ Blocklist.prototype = {
     // Add a default versionRange if there wasn't one specified
     if (blockEntry.versions.length == 0)
       blockEntry.versions.push(new BlocklistItemData(null));
-
-    blockEntry.blockID = blocklistElement.getAttribute("blockID");
-
     result.push(blockEntry);
   },
 
@@ -875,34 +844,6 @@ Blocklist.prototype = {
     return Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
   },
 
-  /* See nsIBlocklistService */
-  getPluginBlocklistURL: function(plugin) {
-    if (!gBlocklistEnabled)
-      return "";
-
-    if (!this._pluginEntries)
-      this._loadBlocklist();
-
-    for each (let blockEntry in this._pluginEntries) {
-      let matchFailed = false;
-      for (let name in blockEntry.matches) {
-        if (!(name in plugin) ||
-            typeof(plugin[name]) != "string" ||
-            !blockEntry.matches[name].test(plugin[name])) {
-          matchFailed = true;
-          break;
-        }
-      }
-
-      if (!matchFailed) {
-        if(!blockEntry.blockID)
-          return null;
-        else
-          return this._createBlocklistURL(blockEntry.blockID);
-      }
-    }
-  },
-
   _blocklistUpdated: function(oldAddonEntries, oldPluginEntries) {
     var addonList = [];
 
@@ -950,8 +891,7 @@ Blocklist.prototype = {
           icon: addons[i].iconURL,
           disable: false,
           blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
-          item: addons[i],
-          url: self.getAddonBlocklistURL(addons[i].id),
+          item: addons[i]
         });
       }
 
@@ -987,8 +927,7 @@ Blocklist.prototype = {
               icon: "chrome://mozapps/skin/plugins/pluginGeneric.png",
               disable: false,
               blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
-              item: plugins[i],
-              url: self.getPluginBlocklistURL(plugins[i]),
+              item: plugins[i]
             });
           }
         }
@@ -1019,40 +958,25 @@ Blocklist.prototype = {
       // This lets the dialog get the raw js object
       args.wrappedJSObject = args;
 
-      /*
-        Some tests run without UI, so the async code listens to a message
-        that can be sent programatically
-      */
-      let applyBlocklistChanges = function() {
-        for (let i = 0; i < addonList.length; i++) {
-          if (!addonList[i].disable)
-            continue;
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.openWindow(null, URI_BLOCKLIST_DIALOG, "",
+                    "chrome,centerscreen,dialog,modal,titlebar", args);
 
-          if (addonList[i].item instanceof Ci.nsIPluginTag)
-            addonList[i].item.disabled = true;
-          else
-            addonList[i].item.softDisabled = true;
-        }
+      for (let i = 0; i < addonList.length; i++) {
+        if (!addonList[i].disable)
+          continue;
 
-        if (args.restart)
-          restartApp();
-
-        Services.obs.notifyObservers(self, "blocklist-updated", "");
-        Services.obs.removeObserver(applyBlocklistChanges, "addon-blocklist-closed");
+        if (addonList[i].item instanceof Ci.nsIPluginTag)
+          addonList[i].item.disabled = true;
+        else
+          addonList[i].item.softDisabled = true;
       }
 
-      Services.obs.addObserver(applyBlocklistChanges, "addon-blocklist-closed", false)
+      if (args.restart)
+        restartApp();
 
-      function blocklistUnloadHandler(event) {
-        if (event.target.location == URI_BLOCKLIST_DIALOG) {
-          applyBlocklistChanges();
-          blocklistWindow.removeEventListener("unload", blocklistUnloadHandler);
-        }
-      }
-
-      let blocklistWindow = Services.ww.openWindow(null, URI_BLOCKLIST_DIALOG, "",
-                              "chrome,centerscreen,dialog,titlebar", args);
-      blocklistWindow.addEventListener("unload", blocklistUnloadHandler, false);
+      Services.obs.notifyObservers(self, "blocklist-updated", "");
     });
   },
 

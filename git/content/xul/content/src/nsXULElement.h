@@ -49,7 +49,7 @@
 #ifndef nsXULElement_h__
 #define nsXULElement_h__
 
-// XXX because nsEventListenerManager has broken includes
+// XXX because nsIEventListenerManager has broken includes
 #include "nsIDOMEvent.h"
 #include "nsIServiceManager.h"
 #include "nsIAtom.h"
@@ -57,9 +57,10 @@
 #include "nsIControllers.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOM3EventTarget.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFResource.h"
 #include "nsIScriptObjectOwner.h"
@@ -333,7 +334,14 @@ public:
                      nsIDocument* aDocument,
                      nsIScriptGlobalObjectOwner* aGlobalOwner);
 
-    void UnlinkJSObjects();
+    void UnlinkJSObjects()
+    {
+        if (mScriptObject.mObject) {
+            nsContentUtils::DropScriptObjects(mScriptObject.mLangID, this,
+                                              &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode));
+            mScriptObject.mObject = nsnull;
+        }
+    }
 
     void Set(nsScriptObjectHolder &aHolder)
     {
@@ -343,7 +351,23 @@ public:
         mScriptObject.mLangID = aHolder.getScriptTypeID();
         Set((void*)aHolder);
     }
-    void Set(void *aObject);
+    void Set(void *aObject)
+    {
+        NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
+        if (!aObject) {
+            mScriptObject.mObject = nsnull;
+
+            return;
+        }
+
+        nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
+                                                       this,
+                                                       &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode),
+                                                       aObject, PR_FALSE);
+        if (NS_SUCCEEDED(rv)) {
+            mScriptObject.mObject = aObject;
+        }
+    }
 
     struct ScriptObjectHolder
     {
@@ -481,7 +505,7 @@ public:
                                 nsIContent* aBindingParent,
                                 PRBool aCompileEventHandlers);
     virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
     virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsAString& aResult) const;
     virtual PRBool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
@@ -593,12 +617,10 @@ protected:
     class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
-        nsXULSlots();
-        virtual ~nsXULSlots();
+       nsXULSlots();
+       virtual ~nsXULSlots();
 
-        void Traverse(nsCycleCollectionTraversalCallback &cb);
-
-        nsRefPtr<nsFrameLoader> mFrameLoader;
+       nsRefPtr<nsFrameLoader> mFrameLoader;
     };
 
     virtual nsINode::nsSlots* CreateSlots();
@@ -629,15 +651,15 @@ protected:
     virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify);
 
-    virtual void UpdateEditableState(PRBool aNotify);
-
     virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult);
 
-    virtual nsEventListenerManager*
-      GetEventListenerManagerForAttr(nsIAtom* aAttrName, PRBool* aDefer);
+    virtual nsresult
+      GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
+                                     nsISupports** aTarget,
+                                     PRBool* aDefer);
   
     /**
      * Return our prototype's attribute, if one exists.
@@ -686,15 +708,6 @@ protected:
            PRBool aIsScriptable);
 
     friend class nsScriptEventHandlerOwnerTearoff;
-
-    bool IsReadWriteTextElement() const
-    {
-        const nsIAtom* tag = Tag();
-        return
-            GetNameSpaceID() == kNameSpaceID_XUL &&
-            (tag == nsGkAtoms::textbox || tag == nsGkAtoms::textarea) &&
-            !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
-    }
 };
 
 #endif // nsXULElement_h__

@@ -42,7 +42,6 @@
 #include "nsSMILAnimationController.h"
 #include "nsSMILAnimationFunction.h"
 #include "nsISMILAttr.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 
@@ -216,7 +215,7 @@ nsSVGAnimationElement::GetStartTime(float* retval)
   FlushAnimations();
 
   nsSMILTimeValue startTime = mTimedElement.GetStartTime();
-  if (!startTime.IsDefinite())
+  if (!startTime.IsResolved())
     return NS_ERROR_DOM_INVALID_STATE_ERR;
 
   *retval = float(double(startTime.GetMillis()) / PR_MSEC_PER_SEC);
@@ -246,7 +245,7 @@ nsSVGAnimationElement::GetSimpleDuration(float* retval)
   // Not necessary to call FlushAnimations() for this
 
   nsSMILTimeValue simpleDur = mTimedElement.GetSimpleDuration();
-  if (!simpleDur.IsDefinite()) {
+  if (!simpleDur.IsResolved()) {
     *retval = 0.f;
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }

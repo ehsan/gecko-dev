@@ -81,39 +81,29 @@ function Site(host) {
 
   this.httpURI = NetUtil.newURI("http://" + this.host);
   this.httpsURI = NetUtil.newURI("https://" + this.host);
+
+  this._favicon = "";
 }
 
 Site.prototype = {
   /**
-   * Gets the favicon to use for the site. The callback only gets called if
-   * a favicon is found for either the http URI or the https URI.
+   * Gets the favicon to use for the site. This will return the default favicon
+   * if there is no favicon stored for the site.
    *
-   * @param aCallback
-   *        A callback function that takes a favicon image URL as a parameter.
+   * @return A favicon image URL.
    */
-  getFavicon: function Site_getFavicon(aCallback) {
-    let callbackExecuted = false;
-    function faviconDataCallback(aURI, aDataLen, aData, aMimeType) {
-      // We don't need a second callback, so we can ignore it to avoid making
-      // a second database query for the favicon data.
-      if (callbackExecuted) {
-        return;
-      }
+  get favicon() {
+    if (!this._favicon) {
+      // TODO: Bug 657961: Make this async when bug 655270 is fixed.
       try {
-        // Use getFaviconLinkForIcon to get image data from the database instead
-        // of using the favicon URI to fetch image data over the network.
-        aCallback(gFaviconService.getFaviconLinkForIcon(aURI).spec);
-        callbackExecuted = true;
+        // First try to see if a favicon is stored for the http URI.
+        this._favicon = gFaviconService.getFaviconForPage(this.httpURI).spec;
       } catch (e) {
-        Cu.reportError("AboutPermissions: " + e);
+        // getFaviconImageForPage returns the default favicon if no stored favicon is found.
+        this._favicon = gFaviconService.getFaviconImageForPage(this.httpsURI).spec;
       }
     }
-
-    // Try to find favicion for both URIs. Callback will only be called if a
-    // favicon URI is found. We'll ignore the second callback if it is called,
-    // so this means we'll always prefer the https favicon.
-    gFaviconService.getFaviconURLForPage(this.httpsURI, faviconDataCallback);
-    gFaviconService.getFaviconURLForPage(this.httpURI, faviconDataCallback);
+    return this._favicon;
   },
 
   /**
@@ -155,15 +145,6 @@ Site.prototype = {
    * @return A boolean indicating whether or not a permission is set.
    */
   getPermission: function Site_getPermission(aType, aResultObj) {
-    // Password saving isn't a nsIPermissionManager permission type, so handle
-    // it seperately.
-    if (aType == "password") {
-      aResultObj.value =  this.loginSavingEnabled ?
-                          Ci.nsIPermissionManager.ALLOW_ACTION :
-                          Ci.nsIPermissionManager.DENY_ACTION;
-      return true;
-    }
-
     let permissionValue;
     if (TEST_EXACT_PERM_TYPES.indexOf(aType) == -1) {
       permissionValue = Services.perms.testPermission(this.httpURI, aType);
@@ -186,13 +167,6 @@ Site.prototype = {
    *        be one of the constants defined in nsIPermissionManager.
    */
   setPermission: function Site_setPermission(aType, aPerm) {
-    // Password saving isn't a nsIPermissionManager permission type, so handle
-    // it seperately.
-    if (aType == "password") {
-      this.loginSavingEnabled = aPerm == Ci.nsIPermissionManager.ALLOW_ACTION;
-      return;
-    }
-
     // Using httpURI is kind of bogus, but the permission manager stores the
     // permission for the host, so the right thing happens in the end.
     Services.perms.add(this.httpURI, aType, aPerm);
@@ -244,8 +218,10 @@ Site.prototype = {
    * @return An array of the logins stored for the site.
    */
   get logins() {
-    let httpLogins = Services.logins.findLogins({}, this.httpURI.prePath, "", "");
-    let httpsLogins = Services.logins.findLogins({}, this.httpsURI.prePath, "", "");
+    // There could be more logins for different schemes/ports, but this covers
+    // the vast majority of cases.
+    let httpLogins = Services.logins.findLogins({}, this.httpURI.prePath, "", null);
+    let httpsLogins = Services.logins.findLogins({}, this.httpsURI.prePath, "", null);
     return httpLogins.concat(httpsLogins);
   },
 
@@ -488,13 +464,11 @@ let AboutPermissions = {
     gSitesStmt.params.limit = this.PLACES_SITES_LIMIT;
     gSitesStmt.executeAsync({
       handleResult: function(aResults) {
-        AboutPermissions.startSitesListBatch();
         let row;
         while (row = aResults.getNextRow()) {
           let host = row.getResultByName("host");
           AboutPermissions.addHost(host);
         }
-        AboutPermissions.endSitesListBatch();
       },
       handleError: function(aError) {
         Cu.reportError("AboutPermissions: " + aError);
@@ -511,8 +485,6 @@ let AboutPermissions = {
    * them if they are not already stored in _sites.
    */
   enumerateServices: function() {
-    this.startSitesListBatch();
-
     let logins = Services.logins.getAllLogins();
     logins.forEach(function(aLogin) {
       try {
@@ -544,8 +516,6 @@ let AboutPermissions = {
         }
       }
     }
-
-    this.endSitesListBatch();
   },
 
   /**
@@ -573,25 +543,10 @@ let AboutPermissions = {
     let item = document.createElement("richlistitem");
     item.setAttribute("class", "site");
     item.setAttribute("value", aSite.host);
-
-    aSite.getFavicon(function(aURL) {
-      item.setAttribute("favicon", aURL);
-    });
+    item.setAttribute("favicon", aSite.favicon);
     aSite.listitem = item;
 
-    (this._listFragment || this.sitesList).appendChild(item);
-  },
-
-  startSitesListBatch: function () {
-    if (!this._listFragment)
-      this._listFragment = document.createDocumentFragment();
-  },
-
-  endSitesListBatch: function () {
-    if (this._listFragment) {
-      this.sitesList.appendChild(this._listFragment);
-      this._listFragment = null;
-    }
+    this.sitesList.appendChild(item);    
   },
 
   /**
@@ -699,14 +654,25 @@ let AboutPermissions = {
    */
   updatePermission: function(aType) {
     let allowItem = document.getElementById(aType + "-" + PermissionDefaults.ALLOW);
-    allowItem.hidden = !this._selectedSite &&
-                       this._noGlobalAllow.indexOf(aType) != -1;
+    if (!this._selectedSite &&
+        this._noGlobalAllow.indexOf(aType) != -1) {
+      allowItem.hidden = true;
+      return;
+    }
+
+    allowItem.hidden = false;
 
     let permissionMenulist = document.getElementById(aType + "-menulist");
     let permissionValue;    
     if (!this._selectedSite) {
+
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
+    } else if (aType == "password") {
+      // Services.logins.getLoginSavingEnabled already looks at the default
+      // permission, so we don't need to.
+      permissionValue = this._selectedSite.loginSavingEnabled ?
+                        PermissionDefaults.ALLOW : PermissionDefaults.DENY;
     } else {
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?
@@ -723,6 +689,9 @@ let AboutPermissions = {
     if (!this._selectedSite) {
       // If there is no selected site, we are setting the default permission.
       PermissionDefaults[permissionType] = permissionValue;
+    } else if (permissionType == "password") {
+      let isEnabled = permissionValue == PermissionDefaults.ALLOW;
+      this._selectedSite.loginSavingEnabled = isEnabled;
     } else {
       this._selectedSite.setPermission(permissionType, permissionValue);
     }

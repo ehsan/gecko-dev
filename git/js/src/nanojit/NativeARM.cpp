@@ -129,16 +129,10 @@ Assembler::CountLeadingZeroes(uint32_t data)
         // On Android gcc compiler, the clz instruction is not supported with a
         // target smaller than armv7, despite it being legal for armv5+.
             "   .arch armv7-a\n"
-        // Force the object to be tagged as armv4t to avoid it bumping the final
-        // binary target.
-            "   .object_arch armv4t\n"
 #elif (NJ_COMPILER_ARM_ARCH < 5)
         // Targetting armv5t allows a toolchain with armv4t target to still build
         // with clz, and clz to be used when appropriate at runtime.
             "   .arch armv5t\n"
-        // Force the object file to be tagged as armv4t to avoid it bumping the
-        // final binary target.
-            "   .object_arch armv4t\n"
 #endif
             "   clz     %0, %1  \n"
             :   "=r"    (leading_zeroes)
@@ -1249,10 +1243,7 @@ Assembler::asm_restore(LIns* i, Register r)
                    do_peep_2_1(&merged, _nIns[0], _nIns[1])) {
                 _nIns[1] = merged;
                 _nIns++;
-                verbose_only(
-                    _nInsAfter++;
-                    asm_output("merge next into LDMDB");
-                )
+                verbose_only( asm_output("merge next into LDMDB"); )
             }
         }
     }
@@ -1288,10 +1279,7 @@ Assembler::asm_spill(Register rr, int d, bool quad)
                     do_peep_2_1(&merged, _nIns[0], _nIns[1])) {
                 _nIns[1] = merged;
                 _nIns++;
-                verbose_only(
-                    _nInsAfter++;
-                    asm_output("merge next into STMDB");
-                )
+                verbose_only( asm_output("merge next into STMDB"); )
             }
         }
     }

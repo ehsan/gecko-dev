@@ -53,8 +53,8 @@
 #include "nsAutoPtr.h"
 #include "nsFrameMessageManager.h"
 #include "Layers.h"
-#include "nsIContent.h"
 
+class nsIContent;
 class nsIURI;
 class nsSubDocumentFrame;
 class nsIView;
@@ -127,11 +127,11 @@ public:
     float mYScale;
   };
 
-  nsContentView(nsFrameLoader* aFrameLoader, ViewID aScrollId,
+  nsContentView(nsIContent* aOwnerContent, ViewID aScrollId,
                 ViewConfig aConfig = ViewConfig())
     : mViewportSize(0, 0)
     , mContentSize(0, 0)
-    , mFrameLoader(aFrameLoader)
+    , mOwnerContent(aOwnerContent)
     , mScrollId(aScrollId)
     , mConfig(aConfig)
   {}
@@ -151,7 +151,7 @@ public:
   nsSize mViewportSize;
   nsSize mContentSize;
 
-  nsFrameLoader* mFrameLoader;  // WEAK
+  nsIContent *mOwnerContent; // WEAK
 
 private:
   nsresult Update(const ViewConfig& aConfig);
@@ -196,7 +196,7 @@ public:
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
-  nsIDOMEventTarget* GetTabChildGlobalAsEventTarget();
+  nsPIDOMEventTarget* GetTabChildGlobalAsEventTarget();
   nsresult CreateStaticClone(nsIFrameLoader* aDest);
 
   /**
@@ -296,7 +296,6 @@ private:
 
   // Properly retrieves documentSize of any subdocument type.
   NS_HIDDEN_(nsIntSize) GetSubDocumentSize(const nsIFrame *aIFrame);
-  nsresult GetWindowDimensions(nsRect& aRect);
 
   // Updates the subdocument position and size. This gets called only
   // when we have our own in-process DocShell.
@@ -343,10 +342,6 @@ private:
   // RENDER_MODE_ASYNC_SCROLL), all the fields below are ignored in
   // favor of what content tells.
   PRUint32 mRenderMode;
-
-  // See nsIFrameLoader.idl. EVENT_MODE_NORMAL_DISPATCH automatically
-  // forwards some input events to out-of-process content.
-  PRUint32 mEventMode;
 };
 
 #endif

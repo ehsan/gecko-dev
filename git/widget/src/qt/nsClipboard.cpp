@@ -436,6 +436,9 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
     const QMimeData *mimeData = cb->mimeData();
     const char *flavor=NULL;
     QStringList formats = mimeData->formats();
+    // Temp QString for comparison
+    QString utf8text("text/plain;charset=utf-8");
+    // And is there matching flavor?
     for (PRUint32 i = 0; i < aLength; ++i)
     {
         flavor = aFlavorList[i];
@@ -448,10 +451,10 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
                 NS_WARNING("DO NOT USE THE text/plain DATA FLAVOR ANY MORE. USE text/unicode INSTEAD");
             }
 
-            // QClipboard says it has text/plain, mozilla wants to
-            // know if the data is text/unicode -> interpret text/plain to text/unicode
+            // QClipboard says it has text/plain;charset=utf-8 data, mozilla wants to
+            // know if the data is text/unicode -> interpret text/plain;charset=utf-8 to text/unicode
             if (formats.contains(qflavor) ||
-                strcmp(flavor, kUnicodeMime) == 0)
+                ((strcmp(flavor, kUnicodeMime) == 0) && formats.contains(utf8text)))
             {
                 // A match has been found, return'
                 *_retval = PR_TRUE;

@@ -154,7 +154,6 @@ EXPORTS
     glIsFenceNV                     @155
     glSetFenceNV                    @156
     glTestFenceNV                   @157
-    glGetTranslatedShaderSourceANGLE @159
 
     ; EGL dependencies
     glCreateContext                 @144 NONAME

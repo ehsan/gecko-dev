@@ -510,7 +510,7 @@ PRInt32 nsSSLThread::requestRead(nsNSSSocketInfo *si, void *buf, PRInt32 amount,
   {
     MutexAutoLock threadLock(ssl_thread_singleton->mMutex);
 
-    if (ssl_thread_singleton->exitRequested(threadLock)) {
+    if (ssl_thread_singleton->mExitRequested) {
       PR_SetError(PR_UNKNOWN_ERROR, 0);
       return -1;
     }
@@ -737,7 +737,7 @@ PRInt32 nsSSLThread::requestWrite(nsNSSSocketInfo *si, const void *buf, PRInt32 
   {
     MutexAutoLock threadLock(ssl_thread_singleton->mMutex);
     
-    if (ssl_thread_singleton->exitRequested(threadLock)) {
+    if (ssl_thread_singleton->mExitRequested) {
       PR_SetError(PR_UNKNOWN_ERROR, 0);
       return -1;
     }
@@ -958,7 +958,7 @@ void nsSSLThread::Run(void)
         continue; // go back and finally destroy it, before doing anything else
       }
 
-      if (exitRequested(threadLock))
+      if (mExitRequested)
         break;
 
       PRBool pending_work = PR_FALSE;
@@ -981,13 +981,12 @@ void nsSSLThread::Run(void)
           mCond.Wait();
         }
         
-      } while (!pending_work && !exitRequested(threadLock) &&
-               !mSocketScheduledToBeDestroyed);
+      } while (!pending_work && !mExitRequested && !mSocketScheduledToBeDestroyed);
       
       if (mSocketScheduledToBeDestroyed)
         continue;
       
-      if (exitRequested(threadLock))
+      if (mExitRequested)
         break;
       
       if (!pending_work)
@@ -1135,16 +1134,17 @@ void nsSSLThread::Run(void)
         PR_SetPollableEvent(nsSSLIOLayerHelpers::mSharedPollableEvent);
       }
     }
-    postStoppedEventToMainThread(threadLock);
   }
 }
 
-PRBool nsSSLThread::stoppedOrStopping()
+PRBool nsSSLThread::exitRequested()
 {
   if (!ssl_thread_singleton)
     return PR_FALSE;
 
-  return ssl_thread_singleton->exitRequestedNoLock();
+  // no lock
+
+  return ssl_thread_singleton->mExitRequested;
 }
 
 nsSSLThread *nsSSLThread::ssl_thread_singleton = nsnull;

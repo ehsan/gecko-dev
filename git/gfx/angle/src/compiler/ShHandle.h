@@ -16,7 +16,6 @@
 
 #include "GLSLANG/ShaderLang.h"
 
-#include "compiler/BuiltInFunctionEmulator.h"
 #include "compiler/ExtensionBehavior.h"
 #include "compiler/InfoSink.h"
 #include "compiler/SymbolTable.h"
@@ -67,8 +66,6 @@ protected:
     bool InitBuiltInSymbolTable(const ShBuiltInResources& resources);
     // Clears the results from the previous compilation.
     void clearResults();
-    // Return true if function recursion is detected.
-    bool detectRecursion(TIntermNode* root);
     // Returns true if the given shader does not exceed the minimum
     // functionality mandated in GLSL 1.0 spec Appendix A.
     bool validateLimitations(TIntermNode* root);
@@ -78,10 +75,6 @@ protected:
     void mapLongVariableNames(TIntermNode* root);
     // Translate to object code.
     virtual void translate(TIntermNode* root) = 0;
-    // Get built-in extensions with default behavior.
-    const TExtensionBehavior& getExtensionBehavior() const;
-
-    const BuiltInFunctionEmulator& getBuiltInFunctionEmulator() const;
 
 private:
     ShShaderType shaderType;
@@ -93,15 +86,13 @@ private:
     // Built-in extensions with default behavior.
     TExtensionBehavior extensionBehavior;
 
-    BuiltInFunctionEmulator builtInFunctionEmulator;
-
     // Results of compilation.
     TInfoSink infoSink;  // Output sink.
     TVariableInfoList attribs;  // Active attributes in the compiled shader.
     TVariableInfoList uniforms;  // Active uniforms in the compiled shader.
 
     // Pair of long varying varibale name <originalName, mappedName>.
-    std::map<std::string, std::string> varyingLongNameMap;
+    TMap<TString, TString> varyingLongNameMap;
 };
 
 //
@@ -113,8 +104,7 @@ private:
 // destroy the machine dependent objects, which contain the
 // above machine independent information.
 //
-TCompiler* ConstructCompiler(
-    ShShaderType type, ShShaderSpec spec, ShShaderOutput output);
+TCompiler* ConstructCompiler(ShShaderType type, ShShaderSpec spec);
 void DeleteCompiler(TCompiler*);
 
 #endif // _SHHANDLE_INCLUDED_

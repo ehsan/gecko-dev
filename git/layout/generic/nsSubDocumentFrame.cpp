@@ -44,6 +44,7 @@
  */
 
 #include "mozilla/layout/RenderFrameParent.h"
+using mozilla::layout::RenderFrameParent;
 
 #include "nsSubDocumentFrame.h"
 #include "nsCOMPtr.h"
@@ -81,6 +82,7 @@
 #include "nsWeakReference.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsDisplayList.h"
 #include "nsUnicharUtils.h"
 #include "nsIScrollableFrame.h"
@@ -88,8 +90,6 @@
 #include "nsLayoutUtils.h"
 #include "FrameLayerBuilder.h"
 #include "nsObjectFrame.h"
-#include "nsIServiceManager.h"
-#include "nsContentUtils.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -99,9 +99,9 @@
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
+#include "nsIServiceManager.h"
 
 using namespace mozilla;
-using mozilla::layout::RenderFrameParent;
 
 static nsIDocument*
 GetDocumentFromView(nsIView* aView)
@@ -719,11 +719,6 @@ nsSubDocumentFrame::AttributeChanged(PRInt32 aNameSpaceID,
       return NS_OK;
     }
 
-    if (mFrameLoader->GetRemoteBrowser()) {
-      // TODO: Implement ContentShellAdded for remote browsers (bug 658304)
-      return NS_OK;
-    }
-
     // Note: This logic duplicates a lot of logic in
     // nsFrameLoader::EnsureDocShell.  We should fix that.
 
@@ -863,13 +858,16 @@ DestroyDisplayItemDataForFrames(nsIFrame* aFrame)
 {
   FrameLayerBuilder::DestroyDisplayItemDataFor(aFrame);
 
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      DestroyDisplayItemDataForFrames(childFrames.get());
+  PRInt32 listIndex = 0;
+  nsIAtom* childList = nsnull;
+  do {
+    nsIFrame* child = aFrame->GetFirstChild(childList);
+    while (child) {
+      DestroyDisplayItemDataForFrames(child);
+      child = child->GetNextSibling();
     }
-  }
+    childList = aFrame->GetAdditionalChildListName(listIndex++);
+  } while (childList);
 }
 
 static PRBool
@@ -1071,16 +1069,18 @@ nsSubDocumentFrame::ObtainIntrinsicSizeFrame()
         if (scrollable) {
           nsIFrame* scrolled = scrollable->GetScrolledFrame();
           if (scrolled) {
-            subDocRoot = scrolled->GetFirstPrincipalChild();
+            subDocRoot = scrolled->GetFirstChild(nsnull);
           }
         }
       }
     }
 
+#ifdef MOZ_SVG
     if (subDocRoot && subDocRoot->GetContent() &&
         subDocRoot->GetContent()->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
       return subDocRoot; // SVG documents have an intrinsic size
     }
+#endif
   }
   return nsnull;
 }

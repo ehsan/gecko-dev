@@ -1079,13 +1079,11 @@ nsZipItemPtr_base::nsZipItemPtr_base(nsZipArchive *aZip, const char * aEntryName
 
   nsZipCursor cursor(item, aZip, mAutoBuf, size, doCRC);
   mReturnBuf = cursor.Read(&mReadlen);
-  if (!mReturnBuf) {
+  if (!mReturnBuf)
     return;
-  }
 
   if (mReadlen != item->RealSize()) {
     NS_ASSERTION(mReadlen == item->RealSize(), "nsZipCursor underflow");
     mReturnBuf = nsnull;
-    return;
   }
 }

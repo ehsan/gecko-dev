@@ -53,7 +53,6 @@ void GenerateResources(ShBuiltInResources* resources)
     resources->MaxDrawBuffers = 1;
 
     resources->OES_standard_derivatives = 0;
-    resources->OES_EGL_image_external = 0;
 }
 
 int main(int argc, char* argv[])
@@ -67,7 +66,6 @@ int main(int argc, char* argv[])
     char* buffer = 0;
     int bufferLen = 0;
     int numAttribs = 0, numUniforms = 0;
-    ShShaderOutput output = SH_ESSL_OUTPUT;
 
     ShInitialize();
 
@@ -83,31 +81,6 @@ int main(int argc, char* argv[])
             case 'm': compileOptions |= SH_MAP_LONG_VARIABLE_NAMES; break;
             case 'o': compileOptions |= SH_OBJECT_CODE; break;
             case 'u': compileOptions |= SH_ATTRIBUTES_UNIFORMS; break;
-            case 'l': compileOptions |= SH_UNROLL_FOR_LOOP_WITH_INTEGER_INDEX; break;
-            case 'e': compileOptions |= SH_EMULATE_BUILT_IN_FUNCTIONS; break;
-            case 'b':
-                if (argv[0][2] == '=') {
-                    switch (argv[0][3]) {
-                    case 'e': output = SH_ESSL_OUTPUT; break;
-                    case 'g': output = SH_GLSL_OUTPUT; break;
-                    case 'h': output = SH_HLSL_OUTPUT; break;
-                    default: failCode = EFailUsage;
-                    }
-                } else {
-                    failCode = EFailUsage;
-                }
-                break;
-            case 'x':
-                if (argv[0][2] == '=') {
-                    switch (argv[0][3]) {
-                    case 'i': resources.OES_EGL_image_external = 1; break;
-                    case 'd': resources.OES_standard_derivatives = 1; break;
-                    default: failCode = EFailUsage;
-                    }
-                } else {
-                    failCode = EFailUsage;
-                }
-                break;
             default: failCode = EFailUsage;
             }
         } else {
@@ -115,14 +88,12 @@ int main(int argc, char* argv[])
             switch (FindShaderType(argv[0])) {
             case SH_VERTEX_SHADER:
                 if (vertexCompiler == 0)
-                    vertexCompiler = ShConstructCompiler(
-                        SH_VERTEX_SHADER, SH_GLES2_SPEC, output, &resources);
+                    vertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, &resources);
                 compiler = vertexCompiler;
                 break;
             case SH_FRAGMENT_SHADER:
                 if (fragmentCompiler == 0)
-                    fragmentCompiler = ShConstructCompiler(
-                        SH_FRAGMENT_SHADER, SH_GLES2_SPEC, output, &resources);
+                    fragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, &resources);
                 compiler = fragmentCompiler;
                 break;
             default: break;
@@ -149,12 +120,12 @@ int main(int argc, char* argv[])
               }
               if (compiled && (compileOptions & SH_ATTRIBUTES_UNIFORMS)) {
                   LogMsg("BEGIN", "COMPILER", numCompiles, "ACTIVE ATTRIBS");
-                  PrintActiveVariables(compiler, SH_ACTIVE_ATTRIBUTES, (compileOptions & SH_MAP_LONG_VARIABLE_NAMES) != 0);
+                  PrintActiveVariables(compiler, SH_ACTIVE_ATTRIBUTES, compileOptions & SH_MAP_LONG_VARIABLE_NAMES);
                   LogMsg("END", "COMPILER", numCompiles, "ACTIVE ATTRIBS");
                   printf("\n\n");
 
                   LogMsg("BEGIN", "COMPILER", numCompiles, "ACTIVE UNIFORMS");
-                  PrintActiveVariables(compiler, SH_ACTIVE_UNIFORMS, (compileOptions & SH_MAP_LONG_VARIABLE_NAMES) != 0);
+                  PrintActiveVariables(compiler, SH_ACTIVE_UNIFORMS, compileOptions & SH_MAP_LONG_VARIABLE_NAMES);
                   LogMsg("END", "COMPILER", numCompiles, "ACTIVE UNIFORMS");
                   printf("\n\n");
               }
@@ -188,19 +159,12 @@ int main(int argc, char* argv[])
 //
 void usage()
 {
-    printf("Usage: translate [-i -m -o -u -l -e -b=e -b=g -b=h -x=i -x=d] file1 file2 ...\n"
-        "Where: filename : filename ending in .frag or .vert\n"
-        "       -i       : print intermediate tree\n"
-        "       -m       : map long variable names\n"
-        "       -o       : print translated code\n"
-        "       -u       : print active attribs and uniforms\n"
-        "       -l       : unroll for-loops with integer indices\n"
-        "       -e       : emulate certain built-in functions (workaround for driver bugs)\n"
-        "       -b=e     : output GLSL ES code (this is by default)\n"
-        "       -b=g     : output GLSL code\n"
-        "       -b=h     : output HLSL code\n"
-        "       -x=i     : enable GL_OES_EGL_image_external\n"
-        "       -x=d     : enable GL_OES_EGL_standard_derivatives\n");
+    printf("Usage: translate [-i -m -o -u] file1 file2 ...\n"
+        "Where: filename = filename ending in .frag or .vert\n"
+        "       -i = print intermediate tree\n"
+        "       -m = map long variable names\n"
+        "       -o = print translated code\n"
+        "       -u = print active attribs and uniforms\n");
 }
 
 //

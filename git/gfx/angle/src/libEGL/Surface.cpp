@@ -22,23 +22,6 @@
 
 namespace egl
 {
-
-namespace
-{
-const int versionWindowsVista = MAKEWORD(0x00, 0x06);
-const int versionWindows7 = MAKEWORD(0x01, 0x06);
-
-// Return the version of the operating system in a format suitable for ordering
-// comparison.
-int getComparableOSVersion()
-{
-    DWORD version = GetVersion();
-    int majorVersion = LOBYTE(LOWORD(version));
-    int minorVersion = HIBYTE(LOWORD(version));
-    return MAKEWORD(minorVersion, majorVersion);
-}
-}
-
 Surface::Surface(Display *display, const Config *config, HWND window) 
     : mDisplay(display), mConfig(config), mWindow(window)
 {
@@ -95,7 +78,7 @@ bool Surface::initialize()
     // Modify present parameters for this window, if we are composited,
     // to minimize the amount of queuing done by DWM between our calls to
     // present and the actual screen.
-    if (mWindow && (getComparableOSVersion() >= versionWindowsVista)) {
+    if (mWindow && (LOWORD(GetVersion()) >= 0x60)) {
       BOOL isComposited;
       HRESULT result = DwmIsCompositionEnabled(&isComposited);
       if (SUCCEEDED(result) && isComposited) {
@@ -182,7 +165,7 @@ bool Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
     D3DPRESENT_PARAMETERS presentParameters = {0};
     HRESULT result;
 
-    bool useFlipEx = (getComparableOSVersion() >= versionWindows7) && mDisplay->isD3d9ExDevice();
+    bool useFlipEx = (LOWORD(GetVersion()) >= 0x61) && mDisplay->isD3d9ExDevice();
 
     // FlipEx causes unseemly stretching when resizing windows AND when one
     // draws outside of the WM_PAINT callback. While this is seldom a problem in
@@ -191,26 +174,8 @@ bool Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
     // the current process, disable use of FlipEx.
     DWORD windowPID;
     GetWindowThreadProcessId(mWindow, &windowPID);
-    if (windowPID != GetCurrentProcessId())
-    {
-        useFlipEx = false;
-    }
-
-    // Various hardware does not support D3DSWAPEFFECT_FLIPEX when either the
-    // device format or back buffer format is not 32-bit.
-    HDC deviceContext = GetDC(0);
-    int deviceFormatBits = GetDeviceCaps(deviceContext, BITSPIXEL);
-    ReleaseDC(0, deviceContext);
-    if (mConfig->mBufferSize != 32 || deviceFormatBits != 32)
-    {
-        useFlipEx = false;
-    }
-
-    // D3DSWAPEFFECT_FLIPEX is always VSYNCed
-    if (mSwapInterval == 0)
-    {
-        useFlipEx = false;
-    }
+    if(windowPID != GetCurrentProcessId())
+    useFlipEx = false;
 
     presentParameters.AutoDepthStencilFormat = mConfig->mDepthStencilFormat;
     // We set BackBufferCount = 1 even when we use D3DSWAPEFFECT_FLIPEX.
@@ -250,7 +215,7 @@ bool Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
 
     if (FAILED(result))
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY || result == D3DERR_INVALIDCALL);
+        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
 
         ERR("Could not create additional swap chains or offscreen surfaces: %08lX", result);
         release();
@@ -266,7 +231,7 @@ bool Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
 
     if (FAILED(result))
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY || result == D3DERR_INVALIDCALL);
+        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
 
         ERR("Could not create depthstencil surface for new swap chain: %08lX", result);
         release();
@@ -325,7 +290,7 @@ void Surface::subclassWindow()
     }
 
     SetLastError(0);
-    LONG_PTR oldWndProc = SetWindowLongPtr(mWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(SurfaceWindowProc));
+    LONG oldWndProc = SetWindowLong(mWindow, GWL_WNDPROC, reinterpret_cast<LONG>(SurfaceWindowProc));
     if(oldWndProc == 0 && GetLastError() != ERROR_SUCCESS)
     {
         mWindowSubclassed = false;
@@ -345,7 +310,7 @@ void Surface::unsubclassWindow()
     }
 
     // un-subclass
-    LONG_PTR parentWndFunc = reinterpret_cast<LONG_PTR>(GetProp(mWindow, kParentWndProc));
+    LONG parentWndFunc = reinterpret_cast<LONG>(GetProp(mWindow, kParentWndProc));
 
     // Check the windowproc is still SurfaceWindowProc.
     // If this assert fails, then it is likely the application has subclassed the
@@ -354,8 +319,8 @@ void Surface::unsubclassWindow()
     // EGL context, or to unsubclass before destroying the EGL context.
     if(parentWndFunc)
     {
-        LONG_PTR prevWndFunc = SetWindowLongPtr(mWindow, GWLP_WNDPROC, parentWndFunc);
-        ASSERT(prevWndFunc == reinterpret_cast<LONG_PTR>(SurfaceWindowProc));
+        LONG prevWndFunc = SetWindowLong(mWindow, GWL_WNDPROC, parentWndFunc);
+        ASSERT(prevWndFunc == reinterpret_cast<LONG>(SurfaceWindowProc));
     }
 
     RemoveProp(mWindow, kSurfaceProperty);

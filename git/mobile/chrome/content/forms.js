@@ -77,21 +77,17 @@ function FormAssistant() {
   addEventListener("keypress", this, true);
   addEventListener("keyup", this, false);
   addEventListener("focus", this, true);
-  addEventListener("blur", this, true);
   addEventListener("pageshow", this, false);
   addEventListener("pagehide", this, false);
   addEventListener("submit", this, false);
 
-  this._enabled = Services.prefs.prefHasUserValue("formhelper.enabled") ?
-                    Services.prefs.getBoolPref("formhelper.enabled") : false;
+  this._enabled = Services.prefs.getBoolPref("formhelper.enabled");
 };
 
 FormAssistant.prototype = {
   _selectWrapper: null,
   _currentIndex: -1,
   _elements: [],
-
-  invalidSubmit: false,
 
   get currentElement() {
     return this._elements[this._currentIndex];
@@ -108,7 +104,7 @@ FormAssistant.prototype = {
 
     if (this._isVisibleElement(element)) {
       this._currentIndex = aIndex;
-      gFocusManager.setFocus(element, Ci.nsIFocusManager.FLAG_NOSCROLL);
+      gFocusManager.setFocus(element, Ci.nsIFocusManager.FLAG_NOSCROLL | Ci.nsIFocusManager.FLAG_BYMOUSE);
 
       // To ensure we get the current caret positionning of the focused
       // element we need to delayed a bit the event
@@ -160,17 +156,16 @@ FormAssistant.prototype = {
     if (this._isEditable(aElement))
       aElement = this._getTopLevelEditable(aElement);
 
+    // hack bug 604351
+    // if the element is the same editable element and the VKB is closed, reopen it
+    if (aElement instanceof HTMLInputElement && aElement.mozIsTextField(false) && !Util.isKeyboardOpened) {
+      aElement.blur();
+      gFocusManager.setFocus(aElement, Ci.nsIFocusManager.FLAG_NOSCROLL | Ci.nsIFocusManager.FLAG_BYMOUSE);
+    }
+
     // Checking if the element is the current focused one while the form assistant is open
     // allow the user to reposition the caret into an input element
     if (this._open && aElement == this.currentElement) {
-      //hack bug 604351
-      // if the element is the same editable element and the VKB is closed, reopen it
-      let utils = Util.getWindowUtils(content);
-      if (utils.IMEStatus == utils.IME_STATUS_DISABLED && aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) {
-        aElement.blur();
-        aElement.focus();
-      }
-
       // If the element is a <select/> element and the user has manually click
       // it we need to inform the UI of such a change to keep in sync with the
       // new selected options once the event is finished
@@ -356,23 +351,7 @@ FormAssistant.prototype = {
           this.currentIndex = focusedIndex;
         break;
 
-      case "blur":
-        content.setTimeout(function(self) {
-          if (!self._open)
-            return;
-
-          // If the blurring causes focus be in no other element,
-          // we should close the form assistant.
-          let focusedElement = gFocusManager.getFocusedElementForWindow(content, true, {});
-          if (!focusedElement)
-            self.close();
-        }, 0, this);
-        break;
-
       case "text":
-        if (this._isValidatable(aEvent.target))
-          sendAsyncMessage("FormAssist:ValidationMessage", this._getJSON());
-
         if (this._isAutocomplete(aEvent.target))
           sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
         break;
@@ -459,9 +438,6 @@ FormAssistant.prototype = {
             break;
 
           default:
-            if (this._isValidatable(aEvent.target))
-              sendAsyncMessage("FormAssist:ValidationMessage", this._getJSON());
-
             if (this._isAutocomplete(aEvent.target))
               sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
             else if (currentElement && this._isSelectElement(currentElement))
@@ -534,14 +510,6 @@ FormAssistant.prototype = {
     }
 
     return aElement;
-  },
-
-  _isValidatable: function(aElement) {
-    return this.invalidSubmit &&
-           (aElement instanceof HTMLInputElement ||
-            aElement instanceof HTMLTextAreaElement ||
-            aElement instanceof HTMLSelectElement ||
-            aElement instanceof HTMLButtonElement);
   },
 
   _isAutocomplete: function formHelperIsAutocomplete(aElement) {
@@ -764,7 +732,6 @@ FormAssistant.prototype = {
         type: (element.getAttribute("type") || "").toLowerCase(),
         choices: choices,
         isAutocomplete: this._isAutocomplete(element),
-        validationMessage: this.invalidSubmit ? element.validationMessage : null,
         list: this._getListSuggestions(element),
         rect: this._getRect(),
         caretRect: this._getCaretRect(),

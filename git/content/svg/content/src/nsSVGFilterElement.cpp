@@ -47,8 +47,9 @@ nsSVGElement::LengthInfo nsSVGFilterElement::sLengthInfo[4] =
   { &nsGkAtoms::height, 120, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::Y },
 };
 
-nsSVGElement::IntegerPairInfo nsSVGFilterElement::sIntegerPairInfo[1] =
+nsSVGElement::IntegerInfo nsSVGFilterElement::sIntegerInfo[2] =
 {
+  { &nsGkAtoms::filterRes, 0 },
   { &nsGkAtoms::filterRes, 0 }
 };
 
@@ -143,17 +144,13 @@ NS_IMETHODIMP nsSVGFilterElement::GetPrimitiveUnits(nsIDOMSVGAnimatedEnumeration
 /* readonly attribute nsIDOMSVGAnimatedEnumeration filterResY; */
 NS_IMETHODIMP nsSVGFilterElement::GetFilterResX(nsIDOMSVGAnimatedInteger * *aFilterResX)
 {
-  return mIntegerPairAttributes[FILTERRES].ToDOMAnimatedInteger(aFilterResX,
-                                                                nsSVGIntegerPair::eFirst,
-                                                                this);
+  return mIntegerAttributes[FILTERRES_X].ToDOMAnimatedInteger(aFilterResX, this);
 }
 
 /* readonly attribute nsIDOMSVGAnimatedEnumeration filterResY; */
 NS_IMETHODIMP nsSVGFilterElement::GetFilterResY(nsIDOMSVGAnimatedInteger * *aFilterResY)
 {
-  return mIntegerPairAttributes[FILTERRES].ToDOMAnimatedInteger(aFilterResY,
-                                                                nsSVGIntegerPair::eSecond,
-                                                                this);
+  return mIntegerAttributes[FILTERRES_Y].ToDOMAnimatedInteger(aFilterResY, this);
 }
 
 /* void setFilterRes (in unsigned long filterResX, in unsigned long filterResY);
@@ -161,7 +158,8 @@ NS_IMETHODIMP nsSVGFilterElement::GetFilterResY(nsIDOMSVGAnimatedInteger * *aFil
 NS_IMETHODIMP
 nsSVGFilterElement::SetFilterRes(PRUint32 filterResX, PRUint32 filterResY)
 {
-  mIntegerPairAttributes[FILTERRES].SetBaseValues(filterResX, filterResY, this, PR_FALSE);
+  mIntegerAttributes[FILTERRES_X].SetBaseValue(filterResX, this, PR_FALSE);
+  mIntegerAttributes[FILTERRES_Y].SetBaseValue(filterResY, this, PR_FALSE);
   return NS_OK;
 }
 
@@ -221,11 +219,11 @@ nsSVGFilterElement::GetLengthInfo()
                               NS_ARRAY_LENGTH(sLengthInfo));
 }
 
-nsSVGElement::IntegerPairAttributesInfo
-nsSVGFilterElement::GetIntegerPairInfo()
+nsSVGElement::IntegerAttributesInfo
+nsSVGFilterElement::GetIntegerInfo()
 {
-  return IntegerPairAttributesInfo(mIntegerPairAttributes, sIntegerPairInfo,
-                                   NS_ARRAY_LENGTH(sIntegerPairInfo));
+  return IntegerAttributesInfo(mIntegerAttributes, sIntegerInfo,
+                               NS_ARRAY_LENGTH(sIntegerInfo));
 }
 
 nsSVGElement::EnumAttributesInfo
@@ -242,35 +240,22 @@ nsSVGFilterElement::GetStringInfo()
                               NS_ARRAY_LENGTH(sStringInfo));
 }
 
-inline static void DidAnimateAttr(nsSVGFilterElement *aFilterElement)
+void
+nsSVGFilterElement::DidAnimateLength(PRUint8 aAttrEnum)
 {
-  // nsSVGFilterFrame doesn't implement a useful AttributeChanged
-  nsIFrame* frame = aFilterElement->GetPrimaryFrame();
+  // nsSVGFilterFrame does not implement a useful AttributeChanged
+  nsIFrame* frame = GetPrimaryFrame();
   if (frame) {
     nsSVGEffects::InvalidateRenderingObservers(frame);
   }
 }
 
 void
-nsSVGFilterElement::DidAnimateLength(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
-}
-
-void
-nsSVGFilterElement::DidAnimateIntegerPair(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
-}
-
-void
 nsSVGFilterElement::DidAnimateEnum(PRUint8 aAttrEnum)
 {
-  DidAnimateAttr(this);
-}
-
-void
-nsSVGFilterElement::DidAnimateString(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
+  // nsSVGFilterFrame does not implement a useful AttributeChanged
+  nsIFrame* frame = GetPrimaryFrame();
+  if (frame) {
+    nsSVGEffects::InvalidateRenderingObservers(frame);
+  }
 }

@@ -56,13 +56,10 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
-#include "nsIDocument.h"
+#include "nsContentUtils.h"
 #include "mozilla/Services.h"
 #include "mozilla/css/Loader.h"
 #include "nsCSSStyleSheet.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #ifdef CSS_REPORT_PARSE_ERRORS
 static PRBool gReportErrors = PR_TRUE;
@@ -285,7 +282,7 @@ nsCSSScanner::nsCSSScanner()
   , mSVGMode(PR_FALSE)
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
-  , mInnerWindowID(0)
+  , mWindowID(0)
   , mWindowIDCached(PR_FALSE)
   , mSheet(nsnull)
   , mLoader(nsnull)
@@ -328,7 +325,7 @@ nsCSSScanner::SetLowLevelError(nsresult aErrorCode)
 static int
 CSSErrorsPrefChanged(const char *aPref, void *aClosure)
 {
-  gReportErrors = Preferences::GetBool(CSS_ERRORS_PREF, PR_TRUE);
+  gReportErrors = nsContentUtils::GetBoolPref(CSS_ERRORS_PREF, PR_TRUE);
   return NS_OK;
 }
 #endif
@@ -348,7 +345,7 @@ nsCSSScanner::InitGlobals()
   NS_ASSERTION(gConsoleService && gScriptErrorFactory,
                "unexpected null pointer without failure");
 
-  Preferences::RegisterCallback(CSSErrorsPrefChanged, CSS_ERRORS_PREF);
+  nsContentUtils::RegisterPrefCallback(CSS_ERRORS_PREF, CSSErrorsPrefChanged, nsnull);
   CSSErrorsPrefChanged(CSS_ERRORS_PREF, nsnull);
 #endif
   return PR_TRUE;
@@ -358,7 +355,7 @@ nsCSSScanner::InitGlobals()
 nsCSSScanner::ReleaseGlobals()
 {
 #ifdef CSS_REPORT_PARSE_ERRORS
-  Preferences::UnregisterCallback(CSSErrorsPrefChanged, CSS_ERRORS_PREF);
+  nsContentUtils::UnregisterPrefCallback(CSS_ERRORS_PREF, CSSErrorsPrefChanged, nsnull);
   NS_IF_RELEASE(gConsoleService);
   NS_IF_RELEASE(gScriptErrorFactory);
   NS_IF_RELEASE(gStringBundle);
@@ -449,12 +446,12 @@ nsCSSScanner::OutputError()
   if (InitGlobals() && gReportErrors) {
     if (!mWindowIDCached) {
       if (mSheet) {
-        mInnerWindowID = mSheet->FindOwningWindowInnerID();
+        mWindowID = mSheet->FindOwningWindowID();
       }
-      if (mInnerWindowID == 0 && mLoader) {
+      if (mWindowID == 0 && mLoader) {
         nsIDocument* doc = mLoader->GetDocument();
         if (doc) {
-          mInnerWindowID = doc->InnerWindowID();
+          mWindowID = doc->OuterWindowID();
         }
       }
       mWindowIDCached = PR_TRUE;
@@ -471,8 +468,7 @@ nsCSSScanner::OutputError()
                                          mErrorLineNumber,
                                          mErrorColNumber,
                                          nsIScriptError::warningFlag,
-                                         "CSS Parser",
-                                         mInnerWindowID);
+                                         "CSS Parser", mWindowID);
       if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
         gConsoleService->LogMessage(logError);
@@ -623,7 +619,7 @@ nsCSSScanner::Close()
   mFileName.Truncate();
   mURI = nsnull;
   mError.Truncate();
-  mInnerWindowID = 0;
+  mWindowID = 0;
   mWindowIDCached = PR_FALSE;
   mSheet = nsnull;
   mLoader = nsnull;

@@ -47,7 +47,6 @@
 #include "prlog.h"
 #include "nsIClassInfoImpl.h"
 #include "nsAtomicRefcnt.h"
-#include "nsAlgorithm.h"
 
 using namespace mozilla;
 
@@ -959,7 +958,7 @@ nsPipeInputStream::Search(const char *forString,
         len2 = limit2 - cursor2;
 
         // check if the string is straddling the next buffer segment
-        PRUint32 lim = NS_MIN(strLen, len2 + 1);
+        PRUint32 lim = PR_MIN(strLen, len2 + 1);
         for (i = 0; i < lim; ++i) {
             PRUint32 strPart1Len = strLen - i - 1;
             PRUint32 strPart2Len = strLen - strPart1Len;
@@ -1258,7 +1257,7 @@ nsPipeOutputStream::AsyncWait(nsIOutputStreamCallback *callback,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-nsresult
+NS_COM nsresult
 NS_NewPipe(nsIInputStream **pipeIn,
            nsIOutputStream **pipeOut,
            PRUint32 segmentSize,
@@ -1288,7 +1287,7 @@ NS_NewPipe(nsIInputStream **pipeIn,
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_NewPipe2(nsIAsyncInputStream **pipeIn,
             nsIAsyncOutputStream **pipeOut,
             PRBool nonBlockingInput,

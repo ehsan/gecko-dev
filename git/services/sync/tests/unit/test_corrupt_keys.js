@@ -9,7 +9,7 @@ Cu.import("resource://services-sync/engines/tabs.js");
 Cu.import("resource://services-sync/engines/history.js");
 Cu.import("resource://services-sync/log4moz.js");
   
-add_test(function test_locally_changed_keys() {
+function test_locally_changed_keys() {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
 
   // Tracking info/collections.
@@ -33,6 +33,7 @@ add_test(function test_locally_changed_keys() {
   
   Weave.Service.handleHMACEvent = counting(Weave.Service.handleHMACEvent);
   
+  do_test_pending();
   let server = httpd_setup({
     // Special.
     "/1.1/johndoe/storage/meta/global": upd("meta", meta_global.handler()),
@@ -226,15 +227,18 @@ add_test(function test_locally_changed_keys() {
     do_check_false(store.urlExists("http://foo/bar?record-no--8"));
     do_check_false(store.urlExists("http://foo/bar?record-no--9"));
     
+    // Clean up.
+    Weave.Service.startOver();
+    
   } finally {
     Weave.Svc.Prefs.resetBranch("");
-    server.stop(run_next_test);
+    server.stop(do_test_finished);
   }
-});
+}
 
 function run_test() {
   let logger = Log4Moz.repository.rootLogger;
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
   
-  run_next_test();
+  test_locally_changed_keys();
 }

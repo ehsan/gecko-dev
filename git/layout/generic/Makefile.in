@@ -68,17 +68,16 @@ EXPORTS		= \
 		nsIStatefulFrame.h \
 		nsFrameSelection.h \
 		nsSubDocumentFrame.h \
-		nsObjectFrame.h \
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla/layout
-
-EXPORTS_mozilla/layout = \
-		FrameChildList.h \
+ifdef IBMBIDI
+EXPORTS		+= \
+		nsBidiFrames.h      \
 		$(NULL)
+endif
+
 
 CPPSRCS		= \
-		FrameChildList.cpp \
 		nsAbsoluteContainingBlock.cpp \
 		nsBRFrame.cpp \
 		nsBlockFrame.cpp \
@@ -116,7 +115,6 @@ CPPSRCS		= \
 		nsSubDocumentFrame.cpp \
 		nsTextFrameThebes.cpp \
 		nsTextFrameUtils.cpp \
-		TextOverflow.cpp \
 		nsTextRunTransformations.cpp \
 		nsViewportFrame.cpp \
 		$(NULL)
@@ -124,6 +122,12 @@ CPPSRCS		= \
 ifdef MOZ_MEDIA
 CPPSRCS		+= \
 		nsVideoFrame.cpp \
+		$(NULL)
+endif
+
+ifdef IBMBIDI
+CPPSRCS		+= \
+		nsBidiFrames.cpp \
 		$(NULL)
 endif
 

@@ -63,12 +63,7 @@ class RefTest(object):
 
   def getManifestPath(self, path):
     "Get the path of the manifest, and for remote testing this function is subclassed to point to remote manifest"
-    path = self.getFullPath(path)
-    if os.path.isdir(path):
-      defaultManifestPath = os.path.join(path, 'reftest.list')
-      if os.path.exists(defaultManifestPath):
-        path = defaultManifestPath
-    return path
+    return self.getFullPath(path)
 
   def createReftestProfile(self, options, profileDir, server='localhost'):
     "Sets up a profile for reftest."
@@ -88,8 +83,6 @@ class RefTest(object):
       prefsFile.write('user_pref("reftest.thisChunk", %d);\n' % options.thisChunk)
     if options.logFile != None:
       prefsFile.write('user_pref("reftest.logFile", "%s");\n' % options.logFile)
-    if options.ignoreWindowSize != False:
-      prefsFile.write('user_pref("reftest.ignoreWindowSize", true);\n')
 
     for v in options.extraPrefs:
       thispref = v.split("=")
@@ -135,9 +128,9 @@ class RefTest(object):
 
   def cleanup(self, profileDir):
     if profileDir:
-      shutil.rmtree(profileDir, True)
+      shutil.rmtree(profileDir)
 
-  def runTests(self, testPath, options):
+  def runTests(self, manifest, options):
     debuggerInfo = getDebuggerInfo(self.oldcwd, options.debugger, options.debuggerArgs,
         options.debuggerInteractive);
 
@@ -155,7 +148,7 @@ class RefTest(object):
 
       # then again to actually run reftest
       self.automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
-      reftestlist = self.getManifestPath(testPath)
+      reftestlist = self.getManifestPath(manifest)
       status = self.automation.runApp(None, browserEnv, options.app, profileDir,
                                  ["-reftest", reftestlist],
                                  utilityPath = options.utilityPath,
@@ -255,11 +248,6 @@ class ReftestOptions(OptionParser):
                     dest = "skipSlowTests", action = "store_true",
                     help = "skip tests marked as slow when running")
     defaults["skipSlowTests"] = False
-
-    self.add_option("--ignore-window-size",
-                    dest = "ignoreWindowSize", action = "store_true",
-                    help = "ignore the window size, which may cause spurious failures and passes")
-    defaults["ignoreWindowSize"] = False
 
     self.add_option("--install-extension",
                     action = "append", dest = "extensionsToInstall",

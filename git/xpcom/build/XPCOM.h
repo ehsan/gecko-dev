@@ -25,6 +25,7 @@
 #include "nsISupports.h"
 
 #include "nsTArray.h"
+#include "nsTPtrArray.h"
 #include "nsTWeakRef.h"
 
 #include "nsCOMPtr.h"
@@ -73,6 +74,8 @@
 #include "nsIException.h"
 #include "nsIExceptionService.h"
 #include "nsIFactory.h"
+#include "nsIFastLoadFileControl.h"
+#include "nsIFastLoadService.h"
 #include "nsIFile.h"
 #include "nsIHashable.h"
 #include "nsIINIParser.h"
@@ -105,6 +108,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsISupportsPriority.h"
 #include "nsIThreadManager.h"
+#include "nsITimelineService.h"
 #include "nsITimer.h"
 #include "nsITraceRefcnt.h"
 #include "nsIUUIDGenerator.h"
@@ -140,7 +144,7 @@
 #include "nsIObjectOutputStream.h"
 #include "nsIPipe.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
 #include "nsIMacUtils.h"
 #endif

@@ -93,14 +93,14 @@ public:
   virtual void SetAdditionalStyleContext(PRInt32 aIndex, 
                                          nsStyleContext* aStyleContext);
  
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
 #ifdef ACCESSIBILITY
@@ -124,7 +124,7 @@ public:
 
   // Inserted child content gets its frames parented by our child block
   virtual nsIFrame* GetContentInsertionFrame() {
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return GetFirstChild(nsnull)->GetContentInsertionFrame();
   }
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const

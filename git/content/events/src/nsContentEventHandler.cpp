@@ -43,6 +43,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsISelection.h"
+#include "nsIDOMText.h"
 #include "nsIDOMRange.h"
 #include "nsRange.h"
 #include "nsGUIEvent.h"
@@ -58,6 +59,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
+#include "nsISelection2.h"
 #include "nsIMEStateManager.h"
 #include "nsIObjectFrame.h"
 
@@ -186,6 +188,15 @@ static void ConvertToNativeNewlines(nsAFlatString& aString)
 #endif
 }
 
+static void ConvertToXPNewlines(nsAFlatString& aString)
+{
+#if defined(XP_MACOSX)
+  aString.ReplaceSubstring(NS_LITERAL_STRING("\r"), NS_LITERAL_STRING("\n"));
+#elif defined(XP_WIN)
+  aString.ReplaceSubstring(NS_LITERAL_STRING("\r\n"), NS_LITERAL_STRING("\n"));
+#endif
+}
+
 static void AppendString(nsAString& aString, nsIContent* aContent)
 {
   NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
@@ -207,77 +218,28 @@ static void AppendSubString(nsAString& aString, nsIContent* aContent,
   text->AppendTo(aString, PRInt32(aXPOffset), PRInt32(aXPLength));
 }
 
-#if defined(XP_WIN)
-static PRUint32 CountNewlinesIn(nsIContent* aContent, PRUint32 aMaxOffset)
+static PRUint32 GetNativeTextLength(nsIContent* aContent)
 {
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
-               "aContent is not a text node!");
-  const nsTextFragment* text = aContent->GetText();
-  if (!text)
-    return 0;
-  if (aMaxOffset == PR_UINT32_MAX) {
-    // search the entire string
-    aMaxOffset = text->GetLength();
-  }
-  PRUint32 newlines = 0;
-  for (PRUint32 i = 0; i < aMaxOffset; ++i) {
-    if (text->CharAt(i) == '\n') {
-      ++newlines;
-    }
-  }
-  return newlines;
-}
-#endif
-
-static PRUint32 GetNativeTextLength(nsIContent* aContent, PRUint32 aMaxLength = PR_UINT32_MAX)
-{
-  if (aContent->IsNodeOfType(nsINode::eTEXT)) {
-    PRUint32 textLengthDifference =
-#if defined(XP_MACOSX)
-      // On Mac, the length of a native newline ("\r") is equal to the length of
-      // the XP newline ("\n"), so the native length is the same as the XP length.
-      0;
-#elif defined(XP_WIN)
-      // On Windows, the length of a native newline ("\r\n") is twice the length of
-      // the XP newline ("\n"), so XP length is equal to the length of the native
-      // offset plus the number of newlines encountered in the string.
-      CountNewlinesIn(aContent, aMaxLength);
-#else
-      // On other platforms, the native and XP newlines are the same.
-      0;
-#endif
-
-    const nsTextFragment* text = aContent->GetText();
-    if (!text)
-      return 0;
-    PRUint32 length = NS_MIN(text->GetLength(), aMaxLength);
-    return length + textLengthDifference;
-  } else if (IsContentBR(aContent)) {
-#if defined(XP_WIN)
-    // Length of \r\n
-    return 2;
-#else
-    return 1;
-#endif
-  }
-  return 0;
+  nsAutoString str;
+  if (aContent->IsNodeOfType(nsINode::eTEXT))
+    AppendString(str, aContent);
+  else if (IsContentBR(aContent))
+    str.Assign(PRUnichar('\n'));
+  ConvertToNativeNewlines(str);
+  return str.Length();
 }
 
 static PRUint32 ConvertToXPOffset(nsIContent* aContent, PRUint32 aNativeOffset)
 {
-#if defined(XP_MACOSX)
-  // On Mac, the length of a native newline ("\r") is equal to the length of
-  // the XP newline ("\n"), so the native offset is the same as the XP offset.
-  return aNativeOffset;
-#elif defined(XP_WIN)
-  // On Windows, the length of a native newline ("\r\n") is twice the length of
-  // the XP newline ("\n"), so XP offset is equal to the length of the native
-  // offset minus the number of newlines encountered in the string.
-  return aNativeOffset - CountNewlinesIn(aContent, aNativeOffset);
-#else
-  // On other platforms, the native and XP newlines are the same.
-  return aNativeOffset;
-#endif
+
+  nsAutoString str;
+  AppendString(str, aContent);
+  ConvertToNativeNewlines(str);
+  NS_ASSERTION(aNativeOffset <= str.Length(),
+               "aOffsetForNativeLF is too large!");
+  str.Truncate(aNativeOffset);
+  ConvertToXPNewlines(str);
+  return str.Length();
 }
 
 static nsresult GenerateFlatTextContent(nsIRange* aRange,
@@ -927,38 +889,10 @@ nsContentEventHandler::GetFlatTextOffsetOfRange(nsIContent* aRootContent,
   NS_ASSERTION(startDOMNode, "startNode doesn't have nsIDOMNode");
   domPrev->SetEnd(startDOMNode, aNodeOffset);
 
-  nsCOMPtr<nsIContentIterator> iter;
-  nsresult rv = NS_NewContentIterator(getter_AddRefs(iter));
+  nsAutoString prevStr;
+  nsresult rv = GenerateFlatTextContent(prev, prevStr);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ASSERTION(iter, "NS_NewContentIterator succeeded, but the result is null");
-  iter->Init(domPrev);
-
-  nsCOMPtr<nsINode> startNode = do_QueryInterface(startDOMNode);
-  nsINode* endNode = aNode;
-
-  *aNativeOffset = 0;
-  for (; !iter->IsDone(); iter->Next()) {
-    nsINode* node = iter->GetCurrentNode();
-    if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
-      continue;
-    nsIContent* content = static_cast<nsIContent*>(node);
-
-    if (node->IsNodeOfType(nsINode::eTEXT)) {
-      // Note: our range always starts from offset 0
-      if (node == endNode)
-        *aNativeOffset += GetNativeTextLength(content, aNodeOffset);
-      else
-        *aNativeOffset += GetNativeTextLength(content);
-    } else if (IsContentBR(content)) {
-#if defined(XP_WIN)
-      // On Windows, the length of the newline is 2.
-      *aNativeOffset += 2;
-#else
-      // On other platforms, the length of the newline is 1.
-      *aNativeOffset += 1;
-#endif
-    }
-  }
+  *aNativeOffset = prevStr.Length();
   return NS_OK;
 }
 
@@ -1069,7 +1003,8 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
   nsCOMPtr<nsIDOMNode> endDomNode(do_QueryInterface(endNode));
   NS_ENSURE_TRUE(startDomNode && endDomNode, NS_ERROR_UNEXPECTED);
 
-  nsCOMPtr<nsISelectionPrivate> selPrivate(do_QueryInterface(mSelection));
+  nsCOMPtr<nsISelectionPrivate> selPrivate = do_QueryInterface(mSelection);
+  NS_ENSURE_TRUE(selPrivate, NS_ERROR_UNEXPECTED);
   selPrivate->StartBatchChanges();
 
   // Clear selection first before setting
@@ -1093,7 +1028,7 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
   selPrivate->EndBatchChanges();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  selPrivate->ScrollIntoView(
+  nsCOMPtr<nsISelection2>(do_QueryInterface(mSelection))->ScrollIntoView(
       nsISelectionController::SELECTION_FOCUS_REGION, PR_FALSE, -1, -1);
   aEvent->mSucceeded = PR_TRUE;
   return NS_OK;

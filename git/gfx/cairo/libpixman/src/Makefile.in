@@ -48,8 +48,19 @@ MODULE		= libpixman
 LIBRARY_NAME	= mozlibpixman
 LIBXUL_LIBRARY = 1
 
-ifeq ($(OS_TARGET),Android)
+ifdef GNU_CC
 MODULE_OPTIMIZE_FLAGS = -O2
+else
+ifeq ($(OS_ARCH),SunOS)
+MODULE_OPTIMIZE_FLAGS = -xO5
+endif
+ifeq ($(OS_ARCH),WINNT)
+ifneq ($(OS_TEST),x86_64)
+# FIXME: bug 413019
+OS_COMPILE_CFLAGS += -GL-
+endif
+MODULE_OPTIMIZE_FLAGS = -O2
+endif
 endif
 
 DEFINES += -DPIXMAN_NO_TLS

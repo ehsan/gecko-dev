@@ -22,7 +22,7 @@
  * Contributor(s):
  *   Boris Zbarsky <bzbarsky@mit.edu> (original author)
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -52,7 +52,6 @@ class nsDisplayListBuilder;
 class nsDisplayItem;
 class nsFontMetrics;
 class nsClientRectList;
-class nsFontFaceList;
 
 #include "prtypes.h"
 #include "nsStyleContext.h"
@@ -102,10 +101,10 @@ public:
   static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult);
 
   /**
-   * Use heuristics to figure out the child list that
+   * Use heuristics to figure out the name of the child list that
    * aChildFrame is currently in.
    */
-  static nsIFrame::ChildListID GetChildListNameFor(nsIFrame* aChildFrame);
+  static nsIAtom* GetChildListNameFor(nsIFrame* aChildFrame);
 
   /**
    * GetBeforeFrame returns the outermost :before frame of the given frame, if
@@ -461,7 +460,7 @@ public:
    * @return A matrix equivalent to aMatrix, but operating in the coordinate system with
    *         origin aOrigin.
    */
-  static gfx3DMatrix ChangeMatrixBasis(const gfxPoint3D &aOrigin, const gfx3DMatrix &aMatrix);
+  static gfxMatrix ChangeMatrixBasis(const gfxPoint &aOrigin, const gfxMatrix &aMatrix);
 
   /**
    * Find IDs corresponding to a scrollable content element in the child process.
@@ -510,11 +509,17 @@ public:
                                    PRBool aShouldIgnoreSuppression = PR_FALSE,
                                    PRBool aIgnoreRootScrollFrame = PR_FALSE);
 
-  
-
-  static nsRect TransformRectToBoundsInAncestor(nsIFrame* aFrame,
-                                                const nsRect& aRect,
-                                                nsIFrame* aStopAtAncestor);
+  /**
+   * Returns the CTM at the specified frame. This matrix can be used to map
+   * coordinates from aFrame's to aStopAtAncestor's coordinate system.
+   *
+   * @param aFrame The frame at which we should calculate the CTM.
+   * @param aStopAtAncestor is an ancestor frame to stop at. If it's nsnull,
+   * matrix accumulating stops at root.
+   * @return The CTM at the specified frame.
+   */
+  static gfxMatrix GetTransformToAncestor(nsIFrame *aFrame,
+                                          nsIFrame* aStopAtAncestor = nsnull);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -528,6 +533,7 @@ public:
   static nsPoint InvertTransformsToRoot(nsIFrame* aFrame,
                                         const nsPoint &aPt);
 
+
   /**
    * Helper function that, given a rectangle and a matrix, returns the smallest
    * rectangle containing the image of the source rectangle.
@@ -538,7 +544,7 @@ public:
    * @return The smallest rect that contains the image of aBounds.
    */
   static nsRect MatrixTransformRect(const nsRect &aBounds,
-                                    const gfx3DMatrix &aMatrix, float aFactor);
+                                    const gfxMatrix &aMatrix, float aFactor);
 
   /**
    * Helper function that, given a rectangle and a matrix, returns the smallest
@@ -551,7 +557,7 @@ public:
    * @return The smallest rect that contains the image of aBounds.
    */
   static nsRect MatrixTransformRectOut(const nsRect &aBounds,
-                                    const gfx3DMatrix &aMatrix, float aFactor);
+                                    const gfxMatrix &aMatrix, float aFactor);
   /**
    * Helper function that, given a point and a matrix, returns the image
    * of that point under the matrix transform.
@@ -562,7 +568,7 @@ public:
    * @return The image of the point under the transform.
    */
   static nsPoint MatrixTransformPoint(const nsPoint &aPoint,
-                                      const gfx3DMatrix &aMatrix, float aFactor);
+                                      const gfxMatrix &aMatrix, float aFactor);
 
   /**
    * Given a graphics rectangle in graphics space, return a rectangle in
@@ -916,16 +922,6 @@ public:
                     nsSize aIntrinsicRatio, nsSize aCBSize,
                     nsSize aMargin, nsSize aBorder, nsSize aPadding);
 
-  /*
-   * Calculate the used values for 'width' and 'height' when width
-   * and height are 'auto'. The tentWidth and tentHeight arguments should be
-   * the result of applying the rules for computing intrinsic sizes and ratios.
-   * as specified by CSS 2.1 sections 10.3.2 and 10.6.2
-   */
-  static nsSize ComputeAutoSizeWithIntrinsicDimensions(nscoord minWidth, nscoord minHeight,
-                                                       nscoord maxWidth, nscoord maxHeight,
-                                                       nscoord tentWidth, nscoord tentHeight);
-
   // Implement nsIFrame::GetPrefWidth in terms of nsIFrame::AddInlinePrefWidth
   static nscoord PrefWidthFromInline(nsIFrame* aFrame,
                                      nsRenderingContext* aRenderingContext);
@@ -933,13 +929,6 @@ public:
   // Implement nsIFrame::GetMinWidth in terms of nsIFrame::AddInlineMinWidth
   static nscoord MinWidthFromInline(nsIFrame* aFrame,
                                     nsRenderingContext* aRenderingContext);
-
-  // Get a suitable foreground color for painting aProperty for aFrame.
-  static nscolor GetColor(nsIFrame* aFrame, nsCSSProperty aProperty);
-
-  // Get a baseline y position in app units that is snapped to device pixels.
-  static gfxFloat GetSnappedBaselineY(nsIFrame* aFrame, gfxContext* aContext,
-                                      nscoord aY, nscoord aAscent);
 
   static void DrawString(const nsIFrame*      aFrame,
                          nsRenderingContext* aContext,
@@ -952,23 +941,6 @@ public:
                                 nsRenderingContext* aContext,
                                 const PRUnichar*     aString,
                                 PRInt32              aLength);
-
-  /**
-   * Helper function for drawing text-shadow. The callback's job
-   * is to draw whatever needs to be blurred onto the given context.
-   */
-  typedef void (* TextShadowCallback)(nsRenderingContext* aCtx,
-                                      nsPoint aShadowOffset,
-                                      const nscolor& aShadowColor,
-                                      void* aData);
-
-  static void PaintTextShadow(const nsIFrame*     aFrame,
-                              nsRenderingContext* aContext,
-                              const nsRect&       aTextRect,
-                              const nsRect&       aDirtyRect,
-                              const nscolor&      aForegroundColor,
-                              TextShadowCallback  aCallback,
-                              void*               aCallbackData);
 
   /**
    * Gets the baseline to vertically center text from a font within a
@@ -1047,38 +1019,6 @@ public:
   /* N.B. The only difference between variants of the Draw*Image
    * functions below is the type of the aImage argument.
    */
-
-  /**
-   * Draw a background image.  The image's dimensions are as specified in aDest;
-   * the image itself is not consulted to determine a size.
-   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
-   *   @param aRenderingContext Where to draw the image, set up with an
-   *                            appropriate scale and transform for drawing in
-   *                            app units.
-   *   @param aImage            The image.
-   *   @param aImageSize        The unscaled size of the image being drawn.
-   *                            (This might be the image's size if no scaling
-   *                            occurs, or it might be the image's size if
-   *                            the image is a vector image being rendered at
-   *                            that size.)
-   *   @param aDest             The position and scaled area where one copy of
-   *                            the image should be drawn.
-   *   @param aFill             The area to be filled with copies of the
-   *                            image.
-   *   @param aAnchor           A point in aFill which we will ensure is
-   *                            pixel-aligned in the output.
-   *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
-   */
-  static nsresult DrawBackgroundImage(nsRenderingContext* aRenderingContext,
-                                      imgIContainer*      aImage,
-                                      const nsIntSize&    aImageSize,
-                                      GraphicsFilter      aGraphicsFilter,
-                                      const nsRect&       aDest,
-                                      const nsRect&       aFill,
-                                      const nsPoint&      aAnchor,
-                                      const nsRect&       aDirty,
-                                      PRUint32            aImageFlags);
 
   /**
    * Draw an image.
@@ -1184,9 +1124,7 @@ public:
    * Given an imgIContainer, this method attempts to obtain an intrinsic
    * px-valued height & width for it.  If the imgIContainer has a non-pixel
    * value for either height or width, this method tries to generate a pixel
-   * value for that dimension using the intrinsic ratio (if available).  The
-   * intrinsic ratio will be assigned to aIntrinsicRatio; if there's no
-   * intrinsic ratio then (0, 0) will be assigned.
+   * value for that dimension using the intrinsic ratio (if available).
    *
    * This method will always set aGotWidth and aGotHeight to indicate whether
    * we were able to successfully obtain (or compute) a value for each
@@ -1198,9 +1136,8 @@ public:
    */
   static void ComputeSizeForDrawing(imgIContainer* aImage,
                                     nsIntSize&     aImageSize,
-                                    nsSize&        aIntrinsicRatio,
-                                    bool&          aGotWidth,
-                                    bool&          aGotHeight);
+                                    PRBool&        aGotWidth,
+                                    PRBool&        aGotHeight);
 
   /**
    * Given a source area of an image (in appunits) and a destination area
@@ -1212,6 +1149,11 @@ public:
   static nsRect GetWholeImageDestination(const nsIntSize& aWholeImageSize,
                                          const nsRect& aImageSourceArea,
                                          const nsRect& aDestArea);
+
+  /**
+   * Set the font on aRC based on the style in aSC
+   */
+  static void SetFontFromStyle(nsRenderingContext* aRC, nsStyleContext* aSC);
 
   /**
    * Determine if any corner radius is of nonzero size
@@ -1349,16 +1291,13 @@ public:
   };
 
   struct SurfaceFromElementResult {
-    SurfaceFromElementResult() :
-      // Use safe default values here
-      mIsWriteOnly(PR_TRUE), mIsStillLoading(PR_FALSE), mCORSUsed(PR_FALSE) {}
+    SurfaceFromElementResult() : mIsWriteOnly(PR_TRUE), mIsStillLoading(PR_FALSE) {}
 
     /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
     /* The size of the surface */
     gfxIntSize mSize;
-    /* The principal associated with the element whose surface was returned.
-       If there is a surface, this will never be null. */
+    /* The principal associated with the element whose surface was returned */
     nsCOMPtr<nsIPrincipal> mPrincipal;
     /* The image request, if the element is an nsIImageLoadingContent */
     nsCOMPtr<imgIRequest> mImageRequest;
@@ -1367,8 +1306,6 @@ public:
     /* Whether the element was still loading.  Some consumers need to handle
        this case specially. */
     PRPackedBool mIsStillLoading;
-    /* Whether the element used CORS when loading. */
-    PRPackedBool mCORSUsed;
   };
 
   static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
@@ -1406,30 +1343,6 @@ public:
       (aPresContext->Type() == nsPresContext::eContext_PrintPreview ||
        aPresContext->Type() == nsPresContext::eContext_PageLayout);
   }
-
-  /**
-   * Adds all font faces used in the frame tree starting from aFrame
-   * to the list aFontFaceList.
-   */
-  static nsresult GetFontFacesForFrames(nsIFrame* aFrame,
-                                        nsFontFaceList* aFontFaceList);
-
-  /**
-   * Adds all font faces used within the specified range of text in aFrame,
-   * and optionally its continuations, to the list in aFontFaceList.
-   * Pass 0 and PR_INT32_MAX for aStartOffset and aEndOffset to specify the
-   * entire text is to be considered.
-   */
-  static nsresult GetFontFacesForText(nsIFrame* aFrame,
-                                      PRInt32 aStartOffset,
-                                      PRInt32 aEndOffset,
-                                      PRBool aFollowContinuations,
-                                      nsFontFaceList* aFontFaceList);
-
-  /**
-   * Checks if CSS 3D transforms are currently enabled.
-   */
-  static PRBool Are3DTransformsEnabled();
 
   static void Shutdown();
 

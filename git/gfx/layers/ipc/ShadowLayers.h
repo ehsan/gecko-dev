@@ -157,6 +157,7 @@ public:
    */
   void CreatedThebesBuffer(ShadowableLayer* aThebes,
                            const nsIntRegion& aFrontValidRegion,
+                           float aXResolution, float aYResolution,
                            const nsIntRect& aBufferRect,
                            const SurfaceDescriptor& aInitialFrontBuffer);
   /**
@@ -168,8 +169,7 @@ public:
                           const SharedImage& aInitialFrontImage);
   void CreatedCanvasBuffer(ShadowableLayer* aCanvas,
                            nsIntSize aSize,
-                           const SurfaceDescriptor& aInitialFrontSurface,
-                           bool aNeedYFlip);
+                           const SurfaceDescriptor& aInitialFrontSurface);
 
   /**
    * The specified layer is destroying its buffers.
@@ -238,23 +238,9 @@ public:
   PRBool EndTransaction(InfallibleTArray<EditReply>* aReplies);
 
   /**
-   * Set an actor through which layer updates will be pushed.
-   */
-  void SetShadowManager(PLayersChild* aShadowManager)
-  {
-    mShadowManager = aShadowManager;
-  }
-
-  void SetParentBackendType(LayersBackend aBackendType)
-  {
-    mParentBackend = aBackendType;
-  }
-
-  /**
    * True if this is forwarding to a ShadowLayerManager.
    */
   PRBool HasShadowManager() const { return !!mShadowManager; }
-  PLayersChild* GetShadowManager() const { return mShadowManager; }
 
   /**
    * The following Alloc/Open/Destroy interfaces abstract over the
@@ -330,10 +316,7 @@ public:
    */
   PLayerChild* ConstructShadowFor(ShadowableLayer* aLayer);
 
-  LayersBackend GetParentBackendType()
-  {
-    return mParentBackend;
-  }
+  LayersBackend GetParentBackendType();
 
   /*
    * No need to use double buffer in system memory with GPU rendering,
@@ -510,7 +493,8 @@ public:
    * values.  This is called when a new buffer has been created.
    */
   virtual void SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
-                              const nsIntRegion& aValidRegion) = 0;
+                              const nsIntRegion& aValidRegion,
+                              float aXResolution, float aYResolution) = 0;
 
   virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
@@ -528,6 +512,16 @@ public:
 
   /**
    * CONSTRUCTION PHASE ONLY
+   */
+  virtual void SetResolution(float aXResolution, float aYResolution)
+  {
+    mXResolution = aXResolution;
+    mYResolution = aYResolution;
+    Mutated();
+  }
+
+  /**
+   * CONSTRUCTION PHASE ONLY
    *
    * Publish the remote layer's back ThebesLayerBuffer to this shadow,
    * swapping out the old front ThebesLayerBuffer (the new back buffer
@@ -536,6 +530,7 @@ public:
   virtual void
   Swap(const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
        ThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
+       float* aNewXResolution, float* aNewYResolution,
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion) = 0;
 
   /**
@@ -584,7 +579,7 @@ public:
    * transaction to bring in real pixels.  Init() may only be called
    * once.
    */
-  virtual void Init(const SurfaceDescriptor& front, const nsIntSize& aSize, bool needYFlip) = 0;
+  virtual void Init(const SurfaceDescriptor& front, const nsIntSize& aSize) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY

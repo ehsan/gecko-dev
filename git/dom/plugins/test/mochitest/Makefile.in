@@ -46,14 +46,12 @@ include $(topsrcdir)/config/rules.mk
 
 _MOCHITEST_FILES = \
   utils.js \
-  test_defaultValue.html \
   test_getauthenticationinfo.html \
   test_npobject_getters.html \
   test_npruntime_npnevaluate.html \
   test_npruntime_npninvoke.html \
   test_npruntime_npninvokedefault.html \
   test_npruntime_identifiers.html \
-  npruntime_identifiers_subpage.html \
   loremipsum.txt \
   loremipsum_file.txt \
   loremipsum_nocache.txt \
@@ -100,13 +98,13 @@ _MOCHITEST_FILES = \
   test_npruntime_construct.html \
   307-xo-redirect.sjs \
   test_redirect_handling.html \
+  test_clear_site_data.html \
   test_zero_opacity.html \
   test_NPPVpluginWantsAllNetworkStreams.html \
-  test_npruntime_npnsetexception.html \
-  test_NPNVdocumentOrigin.html \
   $(NULL)
 
 #  test_plugin_scroll_painting.html \ bug 596491
+#  test_npruntime_npnsetexception.html \ Disabled for e10s
 
 ifeq ($(OS_ARCH),WINNT)
 _MOCHITEST_FILES += \
@@ -119,7 +117,6 @@ endif
 
 _MOCHICHROME_FILES = \
   utils.js \
-  test_clear_site_data.html \
   test_npruntime.xul   \
   test_privatemode.xul \
   test_wmode.xul \

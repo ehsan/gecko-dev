@@ -128,7 +128,7 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
 {
   NS_PRECONDITION(IsCompiled(),
                   "Should not be installing an uncompiled method");
-  JSContext* cx = aContext->GetNativeContext();
+  JSContext* cx = (JSContext*) aContext->GetNativeContext();
 
   nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
@@ -294,7 +294,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     return NS_OK;
   }
   
-  JSContext* cx = context->GetNativeContext();
+  JSContext* cx = (JSContext*) context->GetNativeContext();
 
   JSObject* globalObject = global->GetGlobalJSObject();
 
@@ -342,10 +342,9 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     // anything else.  We just report it.  Note that we need to set aside the
     // frame chain here, since the constructor invocation is not related to
     // whatever is on the stack right now, really.
-    JSBool saved = JS_SaveFrameChain(cx);
-    JS_ReportPendingException(cx);
-    if (saved)
-        JS_RestoreFrameChain(cx);
+    JSStackFrame* frame = JS_SaveFrameChain(cx);
+    ::JS_ReportPendingException(cx);
+    JS_RestoreFrameChain(cx, frame);
     return NS_ERROR_FAILURE;
   }
 

@@ -103,11 +103,9 @@ nsDOMMessageEvent::UnrootData()
 }
 
 NS_IMETHODIMP
-nsDOMMessageEvent::GetData(JSContext* aCx, jsval* aData)
+nsDOMMessageEvent::GetData(jsval* aData)
 {
   *aData = mData;
-  if (!JS_WrapValue(aCx, aData))
-    return NS_ERROR_FAILURE;
   return NS_OK;
 }
 

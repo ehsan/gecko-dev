@@ -182,9 +182,11 @@ nsresult nsOggCodecState::PageIn(ogg_page* aPage) {
   return NS_OK;
 }
 
-nsresult nsOggCodecState::PacketOutUntilGranulepos(PRBool& aFoundGranulepos) {
+PRBool
+nsOggCodecState::PacketOutUntilGranulepos()
+{
   int r;
-  aFoundGranulepos = PR_FALSE;
+  PRBool foundGp = PR_FALSE;
   // Extract packets from the sync state until either no more packets
   // come out, or we get a data packet with non -1 granulepos.
   do {
@@ -200,15 +202,15 @@ nsresult nsOggCodecState::PacketOutUntilGranulepos(PRBool& aFoundGranulepos) {
         // then use the granulepos to figure out the granulepos of the
         // preceeding packets.
         mUnstamped.AppendElement(clone);
-        aFoundGranulepos = packet.granulepos > 0;
+        foundGp = packet.granulepos != -1;
       }
     }
-  } while (r != 0 && !aFoundGranulepos);
+  } while (r != 0 && !foundGp);
   if (ogg_stream_check(&mState)) {
     NS_WARNING("Unrecoverable error in ogg_stream_packetout");
     return NS_ERROR_FAILURE;
   }
-  return NS_OK;
+  return foundGp;
 }
 
 nsTheoraState::nsTheoraState(ogg_page* aBosPage) :
@@ -375,10 +377,7 @@ nsTheoraState::PageIn(ogg_page* aPage)
                "Page must be for this stream!");
   if (ogg_stream_pagein(&mState, aPage) == -1)
     return NS_ERROR_FAILURE;
-  PRBool foundGp;
-  nsresult res = PacketOutUntilGranulepos(foundGp);
-  if (NS_FAILED(res))
-    return res;
+  PRBool foundGp = PacketOutUntilGranulepos();
   if (foundGp && mDoneReadingHeaders) {
     // We've found a packet with a granulepos, and we've loaded our metadata
     // and initialized our decoder. Determine granulepos of buffered packets.
@@ -397,7 +396,7 @@ nsTheoraState::PageIn(ogg_page* aPage)
 }
 
 // Returns 1 if the Theora info struct is decoding a media of Theora
-// version (maj,min,sub) or later, otherwise returns 0.
+// verion (maj,min,sub) or later, otherwise returns 0.
 int
 TheoraVersion(th_info* info,
               unsigned char maj,
@@ -623,10 +622,7 @@ nsVorbisState::PageIn(ogg_page* aPage)
                "Page must be for this stream!");
   if (ogg_stream_pagein(&mState, aPage) == -1)
     return NS_ERROR_FAILURE;
-  PRBool foundGp;
-  nsresult res = PacketOutUntilGranulepos(foundGp);
-  if (NS_FAILED(res))
-    return res;
+  PRBool foundGp = PacketOutUntilGranulepos();
   if (foundGp && mDoneReadingHeaders) {
     // We've found a packet with a granulepos, and we've loaded our metadata
     // and initialized our decoder. Determine granulepos of buffered packets.
@@ -678,12 +674,6 @@ nsresult nsVorbisState::ReconstructVorbisGranulepos()
     if (packet->granulepos == -1) {
       packet->granulepos = mGranulepos + samples;
     }
-
-    // Account for a partial last frame
-    if (packet->e_o_s && packet->granulepos >= mGranulepos) {
-       samples = packet->granulepos - mGranulepos;
-    }
- 
     mGranulepos = packet->granulepos;
     RecordVorbisPacketSamples(packet, samples);
     return NS_OK;
@@ -773,34 +763,34 @@ nsSkeletonState::~nsSkeletonState()
 // http://wiki.xiph.org/Ogg_Skeleton_4
 
 // Minimum length in bytes of a Skeleton header packet.
-static const long SKELETON_MIN_HEADER_LEN = 28;
-static const long SKELETON_4_0_MIN_HEADER_LEN = 80;
+#define SKELETON_MIN_HEADER_LEN 28
+#define SKELETON_4_0_MIN_HEADER_LEN 80
 
 // Minimum length in bytes of a Skeleton 4.0 index packet.
-static const long SKELETON_4_0_MIN_INDEX_LEN = 42;
+#define SKELETON_4_0_MIN_INDEX_LEN 42
 
 // Minimum possible size of a compressed index keypoint.
-static const size_t MIN_KEY_POINT_SIZE = 2;
+#define MIN_KEY_POINT_SIZE 2
 
 // Byte offset of the major and minor version numbers in the
 // Ogg Skeleton 4.0 header packet.
-static const size_t SKELETON_VERSION_MAJOR_OFFSET = 8;
-static const size_t SKELETON_VERSION_MINOR_OFFSET = 10;
+#define SKELETON_VERSION_MAJOR_OFFSET 8
+#define SKELETON_VERSION_MINOR_OFFSET 10
 
 // Byte-offsets of the presentation time numerator and denominator
-static const size_t SKELETON_PRESENTATION_TIME_NUMERATOR_OFFSET = 12;
-static const size_t SKELETON_PRESENTATION_TIME_DENOMINATOR_OFFSET = 20;
+#define SKELETON_PRESENTATION_TIME_NUMERATOR_OFFSET 12
+#define SKELETON_PRESENTATION_TIME_DENOMINATOR_OFFSET 20
 
 // Byte-offsets of the length of file field in the Skeleton 4.0 header packet.
-static const size_t SKELETON_FILE_LENGTH_OFFSET = 64;
+#define SKELETON_FILE_LENGTH_OFFSET 64
 
 // Byte-offsets of the fields in the Skeleton index packet.
-static const size_t INDEX_SERIALNO_OFFSET = 6;
-static const size_t INDEX_NUM_KEYPOINTS_OFFSET = 10;
-static const size_t INDEX_TIME_DENOM_OFFSET = 18;
-static const size_t INDEX_FIRST_NUMER_OFFSET = 26;
-static const size_t INDEX_LAST_NUMER_OFFSET = 34;
-static const size_t INDEX_KEYPOINT_OFFSET = 42;
+#define INDEX_SERIALNO_OFFSET 6
+#define INDEX_NUM_KEYPOINTS_OFFSET 10
+#define INDEX_TIME_DENOM_OFFSET 18
+#define INDEX_FIRST_NUMER_OFFSET 26
+#define INDEX_LAST_NUMER_OFFSET 34
+#define INDEX_KEYPOINT_OFFSET 42
 
 static PRBool IsSkeletonBOS(ogg_packet* aPacket)
 {

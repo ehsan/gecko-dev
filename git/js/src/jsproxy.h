@@ -84,7 +84,6 @@ class JS_FRIEND_API(JSProxyHandler) {
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
     virtual JSString *obj_toString(JSContext *cx, JSObject *proxy);
     virtual JSString *fun_toString(JSContext *cx, JSObject *proxy, uintN indent);
-    virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, js::Value *vp);
     virtual void finalize(JSContext *cx, JSObject *proxy);
     virtual void trace(JSTracer *trc, JSObject *proxy);
 
@@ -131,7 +130,6 @@ class JSProxy {
     static JSType typeOf(JSContext *cx, JSObject *proxy);
     static JSString *obj_toString(JSContext *cx, JSObject *proxy);
     static JSString *fun_toString(JSContext *cx, JSObject *proxy, uintN indent);
-    static bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, js::Value *vp);
 };
 
 /* Shared between object and function proxies. */
@@ -142,6 +140,30 @@ const uint32 JSSLOT_PROXY_EXTRA   = 2;
 const uint32 JSSLOT_PROXY_CALL = 3;
 const uint32 JSSLOT_PROXY_CONSTRUCT = 4;
 
+extern JS_FRIEND_API(js::Class) ObjectProxyClass;
+extern JS_FRIEND_API(js::Class) FunctionProxyClass;
+extern JS_FRIEND_API(js::Class) OuterWindowProxyClass;
+extern js::Class CallableObjectClass;
+
+}
+
+inline bool
+JSObject::isObjectProxy() const
+{
+    return getClass() == &js::ObjectProxyClass ||
+           getClass() == &js::OuterWindowProxyClass;
+}
+
+inline bool
+JSObject::isFunctionProxy() const
+{
+    return getClass() == &js::FunctionProxyClass;
+}
+
+inline bool
+JSObject::isProxy() const
+{
+    return isObjectProxy() || isFunctionProxy();
 }
 
 inline js::JSProxyHandler *
@@ -192,6 +214,8 @@ FixProxy(JSContext *cx, JSObject *proxy, JSBool *bp);
 }
 
 JS_BEGIN_EXTERN_C
+
+extern js::Class js_ProxyClass;
 
 extern JS_FRIEND_API(JSObject *)
 js_InitProxyClass(JSContext *cx, JSObject *obj);

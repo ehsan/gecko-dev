@@ -45,8 +45,6 @@
 class nsFrameIterator : public nsIFrameEnumerator
 {
 public:
-  typedef nsIFrame::ChildListID ChildListID;
-
   NS_DECL_ISUPPORTS
 
   virtual void First();
@@ -153,6 +151,8 @@ nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult)
   *aResult = nsnull;
 
   nsCOMPtr<nsIFrameTraversal> t(new nsFrameTraversal());
+  if (!t)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   *aResult = t;
   NS_ADDREF(*aResult);
@@ -179,7 +179,10 @@ NS_NewFrameTraversal(nsIFrameEnumerator **aEnumerator,
     trav = new nsFrameIterator(aPresContext, aStart, aType,
                                aLockInScrollView, aFollowOOFs);
   }
-  trav.forget(aEnumerator);
+  if (!trav)
+    return NS_ERROR_OUT_OF_MEMORY;
+  *aEnumerator = trav;
+  NS_ADDREF(trav);
   return NS_OK;
 }
 
@@ -486,12 +489,12 @@ nsFrameIterator::GetPrevSibling(nsIFrame* aFrame)
 
 nsIFrame*
 nsFrameIterator::GetFirstChildInner(nsIFrame* aFrame) {
-  return aFrame->GetFirstPrincipalChild();
+  return aFrame->GetFirstChild(nsnull);
 }
 
 nsIFrame*
 nsFrameIterator::GetLastChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().LastChild();
+  return aFrame->GetChildList(nsnull).LastChild();
 }
 
 nsIFrame*
@@ -533,12 +536,12 @@ nsFrameIterator::IsPopupFrame(nsIFrame* aFrame)
 
 nsIFrame*
 nsVisualIterator::GetFirstChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetNextVisualFor(nsnull);
+  return aFrame->GetChildList(nsnull).GetNextVisualFor(nsnull);
 }
 
 nsIFrame*
 nsVisualIterator::GetLastChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetPrevVisualFor(nsnull);
+  return aFrame->GetChildList(nsnull).GetPrevVisualFor(nsnull);
 }
 
 nsIFrame*
@@ -546,7 +549,7 @@ nsVisualIterator::GetNextSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
     return nsnull;
-  return parent->PrincipalChildList().GetNextVisualFor(aFrame);
+  return parent->GetChildList(nsnull).GetNextVisualFor(aFrame);
 }
 
 nsIFrame*
@@ -554,5 +557,5 @@ nsVisualIterator::GetPrevSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
     return nsnull;
-  return parent->PrincipalChildList().GetPrevVisualFor(aFrame);
+  return parent->GetChildList(nsnull).GetPrevVisualFor(aFrame);
 }

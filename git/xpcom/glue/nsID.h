@@ -73,10 +73,9 @@ struct nsID {
    */
 
   inline PRBool Equals(const nsID& other) const {
-    // First cast to void* in order to silence the alignment warnings.
     return
-      ((PRUint64*)(void*) &m0)[0] == ((PRUint64*)(void*) &other.m0)[0] &&
-      ((PRUint64*)(void*) &m0)[1] == ((PRUint64*)(void*) &other.m0)[1];
+      ((PRUint64*) &m0)[0] == ((PRUint64*) &other.m0)[0] &&
+      ((PRUint64*) &m0)[1] == ((PRUint64*) &other.m0)[1];
   }
 
   /**

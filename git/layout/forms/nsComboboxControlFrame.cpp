@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -59,7 +59,7 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsEventDispatcher.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMNode.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsISelectControlFrame.h"
@@ -90,9 +90,8 @@
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
 #include "nsRenderingContext.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -127,12 +126,19 @@ const PRInt32 kSizeNotSet = -1;
  * combo box is toggled to open or close. this is used by Accessibility which presses
  * that button Programmatically.
  */
-class nsComboButtonListener : public nsIDOMEventListener
+class nsComboButtonListener: public nsIDOMMouseListener
 {
-public:
-  NS_DECL_ISUPPORTS
+  public:
 
-  NS_IMETHOD HandleEvent(nsIDOMEvent*)
+  NS_DECL_ISUPPORTS
+  NS_IMETHOD HandleEvent(nsIDOMEvent* anEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent) 
   {
     mComboBox->ShowDropDown(!mComboBox->IsDroppedDown());
     return NS_OK; 
@@ -148,7 +154,8 @@ public:
   nsComboboxControlFrame* mComboBox;
 };
 
-NS_IMPL_ISUPPORTS1(nsComboButtonListener,
+NS_IMPL_ISUPPORTS2(nsComboButtonListener,
+                   nsIDOMMouseListener,
                    nsIDOMEventListener)
 
 // static class data member for Bug 32920
@@ -168,60 +175,6 @@ NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, P
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsComboboxControlFrame)
-
-namespace {
-
-class DestroyWidgetRunnable : public nsRunnable {
-public:
-  NS_DECL_NSIRUNNABLE
-
-  explicit DestroyWidgetRunnable(nsIContent* aCombobox) :
-    mCombobox(aCombobox),
-    mWidget(GetWidget())
-  {
-  }
-
-private:
-  nsIWidget* GetWidget(nsIView** aOutView = nsnull) const;
-
-private:
-  nsCOMPtr<nsIContent> mCombobox;
-  nsIWidget* mWidget;
-};
-
-NS_IMETHODIMP DestroyWidgetRunnable::Run()
-{
-  nsIView* view = nsnull;
-  nsIWidget* currentWidget = GetWidget(&view);
-  // Make sure that we are destroying the same widget as what was requested
-  // when the event was fired.
-  if (view && mWidget && mWidget == currentWidget) {
-    view->DestroyWidget();
-  }
-  return NS_OK;
-}
-
-nsIWidget* DestroyWidgetRunnable::GetWidget(nsIView** aOutView) const
-{
-  nsIFrame* primaryFrame = mCombobox->GetPrimaryFrame();
-  nsIComboboxControlFrame* comboboxFrame = do_QueryFrame(primaryFrame);
-  if (comboboxFrame) {
-    nsIFrame* dropdown = comboboxFrame->GetDropDown();
-    if (dropdown) {
-      nsIView* view = dropdown->GetView();
-      NS_ASSERTION(view, "nsComboboxControlFrame view is null");
-      if (aOutView) {
-        *aOutView = view;
-      }
-      if (view) {
-        return view->GetWidget();
-      }
-    }
-  }
-  return nsnull;
-}
-
-}
 
 //-----------------------------------------------------------
 // Reflow Debugging Macros
@@ -477,9 +430,7 @@ nsComboboxControlFrame::ShowList(PRBool aShowList)
         widget->CaptureRollupEvents(this, nsnull, mDroppedDown, mDroppedDown);
 
         if (!aShowList) {
-          nsCOMPtr<nsIRunnable> widgetDestroyer =
-            new DestroyWidgetRunnable(GetContent());
-          NS_DispatchToMainThread(widgetDestroyer);
+          view->DestroyWidget();
         }
       }
     }
@@ -544,43 +495,6 @@ nsComboboxControlFrame::ReflowDropdown(nsPresContext*  aPresContext,
   return rv;
 }
 
-nsPoint
-nsComboboxControlFrame::GetCSSTransformTranslation()
-{
-  nsIFrame* frame = this;
-  PRBool is3DTransform = PR_FALSE;
-  gfxMatrix transform;
-  while (frame) {
-    nsIFrame* parent = nsnull;
-    gfx3DMatrix ctm = frame->GetTransformMatrix(&parent);
-    gfxMatrix matrix;
-    if (ctm.Is2D(&matrix)) {
-      transform = transform * matrix;
-    } else {
-      is3DTransform = PR_TRUE;
-      break;
-    }
-    frame = parent;
-  }
-  nsPoint translation;
-  if (!is3DTransform && !transform.HasNonTranslation()) {
-    nsPresContext* pc = PresContext();
-    gfxPoint pixelTranslation = transform.GetTranslation();
-    PRInt32 apd = pc->AppUnitsPerDevPixel();
-    translation.x = NSFloatPixelsToAppUnits(float(pixelTranslation.x), apd);
-    translation.y = NSFloatPixelsToAppUnits(float(pixelTranslation.y), apd);
-    // To get the translation introduced only by transforms we subtract the
-    // regular non-transform translation.
-    nsRootPresContext* rootPC = pc->GetRootPresContext();
-    if (rootPC) {
-      translation -= GetOffsetToCrossDoc(rootPC->PresShell()->GetRootFrame());
-    } else {
-      translation.x = translation.y = 0;
-    }
-  }
-  return translation;
-}
-
 void
 nsComboboxControlFrame::AbsolutelyPositionDropDown()
 {
@@ -595,11 +509,6 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
    // The approach, taken here is to get use the absolute position of the display frame and use it's location
    // to determine if the dropdown will go offscreen.
 
-  // Normal frame geometry (eg GetOffsetTo, mRect) doesn't include transforms.
-  // In the special case that our transform is only a 2D translation we
-  // introduce this hack so that the dropdown will show up in the right place.
-  nsPoint translation = GetCSSTransformTranslation();
-
    // Use the height calculated for the area frame so it includes both
    // the display and button heights.
   nscoord dropdownYOffset = GetRect().height;
@@ -608,7 +517,7 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
   nsRect screen = nsFormControlFrame::GetUsableScreenRect(PresContext());
 
   // Check to see if the drop-down list will go offscreen
-  if ((GetScreenRectInAppUnits() + translation).YMost() + dropdownSize.height > screen.YMost()) {
+  if (GetScreenRectInAppUnits().YMost() + dropdownSize.height > screen.YMost()) {
     // move the dropdown list up
     dropdownYOffset = - (dropdownSize.height);
   }
@@ -623,7 +532,7 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
   }
   dropdownPosition.y = dropdownYOffset; 
 
-  mDropdownFrame->SetPosition(dropdownPosition + translation);
+  mDropdownFrame->SetPosition(dropdownPosition);
 }
 
 //----------------------------------------------------------
@@ -839,7 +748,7 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(PRBool aDoDropDown) 
 {
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return;
   }
@@ -1039,7 +948,7 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
@@ -1119,8 +1028,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::button, nsnull, kNameSpaceID_XHTML,
-                                nsIDOMNode::ELEMENT_NODE);
+  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::button, nsnull, kNameSpaceID_XHTML);
 
   // create button which drops the list down
   NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo.forget(),
@@ -1131,8 +1039,8 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // make someone to listen to the button. If its pressed by someone like Accessibility
   // then open or close the combo box.
   mButtonListener = new nsComboButtonListener(this);
-  mButtonContent->AddEventListener(NS_LITERAL_STRING("click"), mButtonListener,
-                                   PR_FALSE, PR_FALSE);
+  mButtonContent->AddEventListenerByIID(mButtonListener,
+                                        NS_GET_IID(nsIDOMMouseListener));
 
   mButtonContent->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                           NS_LITERAL_STRING("button"), PR_FALSE);
@@ -1302,7 +1210,7 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   mDisplayContent->SetPrimaryFrame(textFrame);
 
   nsFrameList textList(textFrame, textFrame);
-  mDisplayFrame->SetInitialChildList(kPrincipalList, textList);
+  mDisplayFrame->SetInitialChildList(nsnull, textList);
   return mDisplayFrame;
 }
 
@@ -1335,28 +1243,22 @@ nsComboboxControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsBlockFrame::DestroyFrom(aDestructRoot);
 }
 
+
 nsFrameList
-nsComboboxControlFrame::GetChildList(ChildListID aListID) const
+nsComboboxControlFrame::GetChildList(nsIAtom* aListName) const
 {
-  if (kSelectPopupList == aListID) {
+  if (nsGkAtoms::selectPopupList == aListName) {
     return mPopupFrames;
   }
-  return nsBlockFrame::GetChildList(aListID);
-}
-
-void
-nsComboboxControlFrame::GetChildLists(nsTArray<ChildList>* aLists) const
-{
-  nsBlockFrame::GetChildLists(aLists);
-  mPopupFrames.AppendIfNonempty(aLists, kSelectPopupList);
+  return nsBlockFrame::GetChildList(aListName);
 }
 
 NS_IMETHODIMP
-nsComboboxControlFrame::SetInitialChildList(ChildListID     aListID,
+nsComboboxControlFrame::SetInitialChildList(nsIAtom*        aListName,
                                             nsFrameList&    aChildList)
 {
   nsresult rv = NS_OK;
-  if (kSelectPopupList == aListID) {
+  if (nsGkAtoms::selectPopupList == aListName) {
     mPopupFrames.SetFrames(aChildList);
   } else {
     for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
@@ -1368,9 +1270,28 @@ nsComboboxControlFrame::SetInitialChildList(ChildListID     aListID,
       }
     }
     NS_ASSERTION(mButtonFrame, "missing button frame in initial child list");
-    rv = nsBlockFrame::SetInitialChildList(aListID, aChildList);
+    rv = nsBlockFrame::SetInitialChildList(aListName, aChildList);
   }
   return rv;
+}
+
+#define NS_COMBO_FRAME_POPUP_LIST_INDEX   (NS_BLOCK_LIST_COUNT)
+
+nsIAtom*
+nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
+{
+   // Maintain a separate child list for the dropdown list (i.e. popup listbox)
+   // This is necessary because we don't want the listbox to be included in the layout
+   // of the combox's children because it would take up space, when it is suppose to
+   // be floating above the display.
+  if (aIndex < NS_BLOCK_LIST_COUNT) {
+    return nsBlockFrame::GetAdditionalChildListName(aIndex);
+  }
+  
+  if (NS_COMBO_FRAME_POPUP_LIST_INDEX == aIndex) {
+    return nsGkAtoms::selectPopupList;
+  }
+  return nsnull;
 }
 
 //----------------------------------------------------------------------
@@ -1483,7 +1404,7 @@ void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
                                         nsPoint aPt)
 {
   /* Do we need to do anything? */
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED) || mFocused != this)
     return;
 
@@ -1597,10 +1518,6 @@ nsComboboxControlFrame::RestoreState(nsPresState* aState)
 PRBool
 nsComboboxControlFrame::ToolkitHasNativePopup()
 {
-#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
-  return PR_TRUE;
-#else
-  return PR_FALSE;
-#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
+  return nsContentUtils::GetBoolPref("ui.use_native_popup_windows");
 }
 

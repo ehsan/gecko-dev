@@ -68,8 +68,11 @@ var FullZoom = {
   // browser.zoom.updateBackgroundTabs preference cache
   updateBackgroundTabs: undefined,
 
+  // whether we are in private browsing mode
+  _inPrivateBrowsing: false,
+
   get siteSpecific() {
-    return this._siteSpecificPref;
+    return !this._inPrivateBrowsing && this._siteSpecificPref;
   },
 
   //**************************************************************************//
@@ -91,6 +94,15 @@ var FullZoom = {
     // Register ourselves with the service so we know when our pref changes.
     Services.contentPrefs.addObserver(this.name, this);
 
+    // We disable site-specific preferences in Private Browsing mode, because the
+    // content preferences module is disabled
+    Services.obs.addObserver(this, "private-browsing", true);
+
+    // Retrieve the initial status of the Private Browsing mode.
+    this._inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                              getService(Ci.nsIPrivateBrowsingService).
+                              privateBrowsingEnabled;
+
     this._siteSpecificPref =
       gPrefService.getBoolPref("browser.zoom.siteSpecific");
     this.updateBackgroundTabs =
@@ -101,6 +113,7 @@ var FullZoom = {
   },
 
   destroy: function FullZoom_destroy() {
+    Services.obs.removeObserver(this, "private-browsing");
     gPrefService.removeObserver("browser.zoom.", this);
     Services.contentPrefs.removeObserver(this.name, this);
     window.removeEventListener("DOMMouseScroll", this, false);
@@ -174,6 +187,16 @@ var FullZoom = {
             break;
         }
         break;
+      case "private-browsing":
+        switch (aData) {
+          case "enter":
+            this._inPrivateBrowsing = true;
+            break;
+          case "exit":
+            this._inPrivateBrowsing = false;
+            break;
+        }
+        break;
     }
   },
 
@@ -239,9 +262,7 @@ var FullZoom = {
       var self = this;
       Services.contentPrefs.getPref(aURI, this.name, function (aResult) {
         // Check that we're still where we expect to be in case this took a while.
-        // Null check currentURI, since the window may have been destroyed before
-        // we were called.
-        if (browser.currentURI && aURI.equals(browser.currentURI)) {
+        if (aURI.equals(browser.currentURI)) {
           self._applyPrefToSetting(aResult, browser);
         }
       });
@@ -298,12 +319,14 @@ var FullZoom = {
    * one.
    **/
   _applyPrefToSetting: function FullZoom__applyPrefToSetting(aValue, aBrowser) {
-    if ((!this.siteSpecific) || gInPrintPreviewMode)
+    if ((!this.siteSpecific && !this._inPrivateBrowsing) ||
+        gInPrintPreviewMode)
       return;
 
     var browser = aBrowser || (gBrowser && gBrowser.selectedBrowser);
     try {
-      if (browser.contentDocument instanceof Ci.nsIImageDocument)
+      if (browser.contentDocument instanceof Ci.nsIImageDocument ||
+          this._inPrivateBrowsing)
         ZoomManager.setZoomForBrowser(browser, 1);
       else if (typeof aValue != "undefined")
         ZoomManager.setZoomForBrowser(browser, this._ensureValid(aValue));

@@ -291,14 +291,8 @@ nsHTMLFormatConverter::ConvertFromHTMLToUnicode(const nsAutoString & aFromStr, n
   nsCOMPtr<nsIHTMLToTextSink> textSink(do_QueryInterface(sink));
   NS_ENSURE_TRUE(textSink, NS_ERROR_FAILURE);
 
-  // We set OutputNoScriptContent and OutputNoFramesContent unconditionally
-  // here because |aFromStr| is already filtered based on user preferences.
-  PRUint32 flags =
-    nsIDocumentEncoder::OutputSelectionOnly |
-    nsIDocumentEncoder::OutputAbsoluteLinks |
-    nsIDocumentEncoder::OutputNoScriptContent |
-    nsIDocumentEncoder::OutputNoFramesContent;
-  textSink->Initialize(&aToStr, flags, 0);
+  textSink->Initialize(&aToStr, nsIDocumentEncoder::OutputSelectionOnly
+                       | nsIDocumentEncoder::OutputAbsoluteLinks, 0);
 
   parser->SetContentSink(sink);
 

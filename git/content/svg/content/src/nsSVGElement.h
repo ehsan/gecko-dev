@@ -61,9 +61,7 @@
 class nsSVGSVGElement;
 class nsSVGLength2;
 class nsSVGNumber2;
-class nsSVGNumberPair;
 class nsSVGInteger;
-class nsSVGIntegerPair;
 class nsSVGAngle;
 class nsSVGBoolean;
 class nsSVGEnum;
@@ -80,7 +78,6 @@ class SVGUserUnitList;
 class SVGAnimatedPointList;
 class SVGAnimatedPathSegList;
 class SVGAnimatedPreserveAspectRatio;
-class SVGAnimatedTransformList;
 }
 
 typedef nsStyledElementNotElementCSSInlineStyle nsSVGElementBase;
@@ -101,7 +98,6 @@ public:
   typedef mozilla::SVGAnimatedPointList SVGAnimatedPointList;
   typedef mozilla::SVGAnimatedPathSegList SVGAnimatedPathSegList;
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-  typedef mozilla::SVGAnimatedTransformList SVGAnimatedTransformList;
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -156,13 +152,13 @@ public:
   // Gets the element that establishes the rectangular viewport against which
   // we should resolve percentage lengths (our "coordinate context"). Returns
   // nsnull for outer <svg> or SVG without an <svg> parent (invalid SVG).
-  nsSVGSVGElement* GetCtx() const;
+  nsSVGSVGElement* GetCtx();
 
   /**
    * Returns aMatrix post-multiplied by the transform from the userspace
    * established by this element to the userspace established by its parent.
    */
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
 
   // Setter for to set the current <animateMotion> transformation
   // Only visible for nsSVGGraphicElement, so it's a no-op here, and that
@@ -175,12 +171,9 @@ public:
   PRBool NumberAttrAllowsPercentage(PRUint8 aAttrEnum) {
     return GetNumberInfo().mNumberInfo[aAttrEnum].mPercentagesAllowed;
   }
-  void SetLength(nsIAtom* aName, const nsSVGLength2 &aLength);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeNumber(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeNumberPair(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeInteger(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeIntegerPair(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeAngle(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeBoolean(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
@@ -190,14 +183,11 @@ public:
   virtual void DidChangeLengthList(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangePointList(PRBool aDoSetAttr);
   virtual void DidChangePathSegList(PRBool aDoSetAttr);
-  virtual void DidChangeTransformList(PRBool aDoSetAttr);
   virtual void DidChangeString(PRUint8 aAttrEnum) {}
 
   virtual void DidAnimateLength(PRUint8 aAttrEnum);
   virtual void DidAnimateNumber(PRUint8 aAttrEnum);
-  virtual void DidAnimateNumberPair(PRUint8 aAttrEnum);
   virtual void DidAnimateInteger(PRUint8 aAttrEnum);
-  virtual void DidAnimateIntegerPair(PRUint8 aAttrEnum);
   virtual void DidAnimateAngle(PRUint8 aAttrEnum);
   virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
   virtual void DidAnimateEnum(PRUint8 aAttrEnum);
@@ -207,7 +197,7 @@ public:
   virtual void DidAnimateLengthList(PRUint8 aAttrEnum);
   virtual void DidAnimatePointList();
   virtual void DidAnimatePathSegList();
-  virtual void DidAnimateTransformList();
+  virtual void DidAnimateTransform();
   virtual void DidAnimateString(PRUint8 aAttrEnum);
   virtual void DidAnimateClass();
 
@@ -226,11 +216,6 @@ public:
     // has a member called 'animatedPathSegList' member, so we have a shorter
     // name so we don't get hidden by the GetAnimatedPathSegList declared by
     // NS_DECL_NSIDOMSVGANIMATEDPATHDATA.
-    return nsnull;
-  }
-  // Despite the fact that animated transform lists are used for a variety of
-  // attributes, no SVG element uses more than one.
-  virtual SVGAnimatedTransformList* GetAnimatedTransformList() {
     return nsnull;
   }
 
@@ -252,9 +237,6 @@ public:
     return nsnull;
   }
   virtual nsIAtom* GetPathDataAttrName() const {
-    return nsnull;
-  }
-  virtual nsIAtom* GetTransformListAttrName() const {
     return nsnull;
   }
 
@@ -323,27 +305,6 @@ protected:
     void Reset(PRUint8 aAttrEnum);
   };
 
-  struct NumberPairInfo {
-    nsIAtom** mName;
-    float     mDefaultValue1;
-    float     mDefaultValue2;
-  };
-
-  struct NumberPairAttributesInfo {
-    nsSVGNumberPair* mNumberPairs;
-    NumberPairInfo*  mNumberPairInfo;
-    PRUint32         mNumberPairCount;
-
-    NumberPairAttributesInfo(nsSVGNumberPair *aNumberPairs,
-                             NumberPairInfo *aNumberPairInfo,
-                             PRUint32 aNumberPairCount) :
-      mNumberPairs(aNumberPairs), mNumberPairInfo(aNumberPairInfo),
-      mNumberPairCount(aNumberPairCount)
-      {}
-
-    void Reset(PRUint8 aAttrEnum);
-  };
-
   struct IntegerInfo {
     nsIAtom** mName;
     PRInt32   mDefaultValue;
@@ -358,27 +319,6 @@ protected:
                           IntegerInfo *aIntegerInfo,
                           PRUint32 aIntegerCount) :
       mIntegers(aIntegers), mIntegerInfo(aIntegerInfo), mIntegerCount(aIntegerCount)
-      {}
-
-    void Reset(PRUint8 aAttrEnum);
-  };
-
-  struct IntegerPairInfo {
-    nsIAtom** mName;
-    PRInt32   mDefaultValue1;
-    PRInt32   mDefaultValue2;
-  };
-
-  struct IntegerPairAttributesInfo {
-    nsSVGIntegerPair* mIntegerPairs;
-    IntegerPairInfo*  mIntegerPairInfo;
-    PRUint32          mIntegerPairCount;
-
-    IntegerPairAttributesInfo(nsSVGIntegerPair *aIntegerPairs,
-                              IntegerPairInfo *aIntegerPairInfo,
-                              PRUint32 aIntegerPairCount) :
-      mIntegerPairs(aIntegerPairs), mIntegerPairInfo(aIntegerPairInfo),
-      mIntegerPairCount(aIntegerPairCount)
       {}
 
     void Reset(PRUint8 aAttrEnum);
@@ -517,9 +457,7 @@ protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual NumberAttributesInfo GetNumberInfo();
-  virtual NumberPairAttributesInfo GetNumberPairInfo();
   virtual IntegerAttributesInfo GetIntegerInfo();
-  virtual IntegerPairAttributesInfo GetIntegerPairInfo();
   virtual AngleAttributesInfo GetAngleInfo();
   virtual BooleanAttributesInfo GetBooleanInfo();
   virtual EnumAttributesInfo GetEnumInfo();
@@ -535,6 +473,18 @@ protected:
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 
 private:
+  /* read <number-optional-number> */
+  nsresult
+  ParseNumberOptionalNumber(const nsAString& aValue,
+                            PRUint32 aIndex1, PRUint32 aIndex2);
+
+  /* read <integer-optional-integer> */
+  nsresult
+  ParseIntegerOptionalInteger(const nsAString& aValue,
+                              PRUint32 aIndex1, PRUint32 aIndex2);
+
+  void ResetOldStyleBaseType(nsISVGValue *svg_value);
+
   struct ObservableModificationData {
     // Only to be used if |name| is non-null.  Otherwise, modType will
     // be 0 to indicate NS_OK should be returned and 1 to indicate

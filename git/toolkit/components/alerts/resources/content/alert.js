@@ -48,8 +48,7 @@ var gSlideIncrement = 1;
 var gSlideTime = 10;
 var gOpenTime = 3000; // total time the alert should stay up once we are done animating.
 var gOrigin = 0; // Default value: alert from bottom right, sliding in vertically.
-var gDisableSlideEffect = false;
- 
+
 var gAlertListener = null;
 var gAlertTextClickable = false;
 var gAlertCookie = "";
@@ -93,14 +92,20 @@ function prefillAlertInfo()
 
 function onAlertLoad()
 {
-  var prefService = Components.classes["@mozilla.org/preferences-service;1"].getService();
-  prefService = prefService.QueryInterface(Components.interfaces.nsIPrefService);
-  var prefBranch = prefService.getBranch(null);
-  gSlideIncrement = prefBranch.getIntPref("alerts.slideIncrement");
-  gSlideTime = prefBranch.getIntPref("alerts.slideIncrementTime");
-  gOpenTime = prefBranch.getIntPref("alerts.totalOpenTime");
-  gDisableSlideEffect = prefBranch.getBoolPref("alerts.disableSlidingEffect");
- 
+  // Read out our initial settings from prefs.
+  try 
+  {
+    var prefService = Components.classes["@mozilla.org/preferences-service;1"].getService();
+    prefService = prefService.QueryInterface(Components.interfaces.nsIPrefService);
+    var prefBranch = prefService.getBranch(null);
+    gSlideIncrement = prefBranch.getIntPref("alerts.slideIncrement");
+    gSlideTime = prefBranch.getIntPref("alerts.slideIncrementTime");
+    gOpenTime = prefBranch.getIntPref("alerts.totalOpenTime");
+  }
+  catch (ex)
+  {
+  }
+
   // Make sure that the contents are fixed at the window edge facing the
   // screen's center so that the window looks like "sliding in" and not
   // like "unfolding". The default packing of "start" only works for
@@ -121,6 +126,14 @@ function onAlertLoad()
 
   var alertBox = document.getElementById("alertBox");
   alertBox.orient = (gOrigin & NS_ALERT_HORIZONTAL) ? "vertical" : "horizontal";
+
+  // The above doesn't cause the labels in alertTextBox to reflow,
+  // see bug 311557. As the theme's -moz-box-align css rule gets ignored,
+  // we work around the bug by setting the align property.
+  if (gOrigin & NS_ALERT_HORIZONTAL)
+  {
+    document.getElementById("alertTextBox").align = "center";
+  }
 
   sizeToContent();
 
@@ -165,9 +178,6 @@ function animate(step)
 {
   gCurrentSize += step;
 
-  if (gFinalSize < gCurrentSize)
-    gCurrentSize = gFinalSize;
-
   if (gOrigin & NS_ALERT_HORIZONTAL)
   {
     if (!(gOrigin & NS_ALERT_LEFT))
@@ -186,10 +196,7 @@ function animateAlert()
 {
   if (gCurrentSize < gFinalSize)
   {
-    if (gDisableSlideEffect)
-      animate(gFinalSize); // We don't begin on zero.
-    else
-      animate(gSlideIncrement);
+    animate(gSlideIncrement);
     setTimeout(animateAlert, gSlideTime);
   }
   else
@@ -198,7 +205,7 @@ function animateAlert()
 
 function animateCloseAlert()
 {
-  if (gCurrentSize > 1 && !gDisableSlideEffect)
+  if (gCurrentSize > 1)
   {
     animate(-gSlideIncrement);
     setTimeout(animateCloseAlert, gSlideTime);

@@ -110,15 +110,10 @@ nsSMILInterval::End()
 void
 nsSMILInterval::SetBegin(nsSMILInstanceTime& aBegin)
 {
-  NS_ABORT_IF_FALSE(aBegin.Time().IsDefinite(),
-      "Attempting to set unresolved or indefinite begin time on interval");
+  NS_ABORT_IF_FALSE(aBegin.Time().IsResolved(),
+      "Attempting to set unresolved begin time on interval");
   NS_ABORT_IF_FALSE(!mBeginFixed,
       "Attempting to set begin time but the begin point is fixed");
-  // Check that we're not making an instance time dependent on itself. Such an
-  // arrangement does not make intuitive sense and should be detected when
-  // creating or updating intervals.
-  NS_ABORT_IF_FALSE(!mBegin || aBegin.GetBaseTime() != mBegin,
-      "Attempting to make self-dependent instance time");
 
   mBegin = &aBegin;
 }
@@ -128,10 +123,6 @@ nsSMILInterval::SetEnd(nsSMILInstanceTime& aEnd)
 {
   NS_ABORT_IF_FALSE(!mEndFixed,
       "Attempting to set end time but the end point is fixed");
-  // As with SetBegin, check we're not making an instance time dependent on
-  // itself.
-  NS_ABORT_IF_FALSE(!mEnd || aEnd.GetBaseTime() != mEnd,
-      "Attempting to make self-dependent instance time");
 
   mEnd = &aEnd;
 }

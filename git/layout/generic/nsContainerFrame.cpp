@@ -109,7 +109,7 @@ nsContainerFrame::Init(nsIContent* aContent,
 }
 
 NS_IMETHODIMP
-nsContainerFrame::SetInitialChildList(ChildListID  aListID,
+nsContainerFrame::SetInitialChildList(nsIAtom*     aListName,
                                       nsFrameList& aChildList)
 {
   nsresult  result;
@@ -118,8 +118,8 @@ nsContainerFrame::SetInitialChildList(ChildListID  aListID,
     // initialized
     NS_NOTREACHED("unexpected second call to SetInitialChildList");
     result = NS_ERROR_UNEXPECTED;
-  } else if (aListID != kPrincipalList) {
-    // All we know about is the principal child list.
+  } else if (aListName) {
+    // All we know about is the unnamed principal child list
     NS_NOTREACHED("unknown frame list");
     result = NS_ERROR_INVALID_ARG;
   } else {
@@ -133,12 +133,12 @@ nsContainerFrame::SetInitialChildList(ChildListID  aListID,
 }
 
 NS_IMETHODIMP
-nsContainerFrame::AppendFrames(ChildListID  aListID,
+nsContainerFrame::AppendFrames(nsIAtom*  aListName,
                                nsFrameList& aFrameList)
 {
-  if (aListID != kPrincipalList) {
+  if (nsnull != aListName) {
 #ifdef IBMBIDI
-    if (aListID != kNoReflowPrincipalList)
+    if (aListName != nsGkAtoms::nextBidi)
 #endif
     {
       NS_ERROR("unexpected child list");
@@ -150,7 +150,7 @@ nsContainerFrame::AppendFrames(ChildListID  aListID,
 
     // Ask the parent frame to reflow me.
 #ifdef IBMBIDI
-    if (aListID == kPrincipalList)
+    if (nsnull == aListName)
 #endif
     {
       PresContext()->PresShell()->
@@ -162,16 +162,16 @@ nsContainerFrame::AppendFrames(ChildListID  aListID,
 }
 
 NS_IMETHODIMP
-nsContainerFrame::InsertFrames(ChildListID aListID,
+nsContainerFrame::InsertFrames(nsIAtom*  aListName,
                                nsIFrame* aPrevFrame,
                                nsFrameList& aFrameList)
 {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
-  if (aListID != kPrincipalList) {
+  if (nsnull != aListName) {
 #ifdef IBMBIDI
-    if (aListID != kNoReflowPrincipalList)
+    if (aListName != nsGkAtoms::nextBidi)
 #endif
     {
       NS_ERROR("unexpected child list");
@@ -183,7 +183,7 @@ nsContainerFrame::InsertFrames(ChildListID aListID,
     mFrames.InsertFrames(this, aPrevFrame, aFrameList);
 
 #ifdef IBMBIDI
-    if (aListID == kPrincipalList)
+    if (nsnull == aListName)
 #endif
     {
       PresContext()->PresShell()->
@@ -195,12 +195,12 @@ nsContainerFrame::InsertFrames(ChildListID aListID,
 }
 
 NS_IMETHODIMP
-nsContainerFrame::RemoveFrame(ChildListID aListID,
+nsContainerFrame::RemoveFrame(nsIAtom*  aListName,
                               nsIFrame* aOldFrame)
 {
-  if (aListID != kPrincipalList) {
+  if (nsnull != aListName) {
 #ifdef IBMBIDI
-    if (kNoReflowPrincipalList != aListID)
+    if (nsGkAtoms::nextBidi != aListName)
 #endif
     {
       NS_ERROR("unexpected child list");
@@ -215,7 +215,7 @@ nsContainerFrame::RemoveFrame(ChildListID aListID,
     // that can fit from lines below it.
     PRBool generateReflowCommand = PR_TRUE;
 #ifdef IBMBIDI
-    if (kNoReflowPrincipalList == aListID) {
+    if (nsGkAtoms::nextBidi == aListName) {
       generateReflowCommand = PR_FALSE;
     }
 #endif
@@ -239,7 +239,7 @@ nsContainerFrame::RemoveFrame(ChildListID aListID,
       } else {
         // This recursive call takes care of all continuations after aOldFrame,
         // so we don't need to loop anymore.
-        parent->RemoveFrame(kPrincipalList, aOldFrame);
+        parent->RemoveFrame(nsnull, aOldFrame);
         break;
       }
       aOldFrame = oldFrameNextContinuation;
@@ -294,57 +294,52 @@ nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
 // Child frame enumeration
 
 nsFrameList
-nsContainerFrame::GetChildList(ChildListID aListID) const
+nsContainerFrame::GetChildList(nsIAtom* aListName) const
 {
-  // We only know about the principal child list and the overflow lists.
-  switch (aListID) {
-    case kPrincipalList:
-      return mFrames;
-    case kOverflowList: {
-      nsFrameList* list = GetOverflowFrames();
-      return list ? *list : nsFrameList::EmptyList();
-    }
-    case kOverflowContainersList: {
-      nsFrameList* list =
-        GetPropTableFrames(PresContext(), OverflowContainersProperty());
-      return list ? *list : nsFrameList::EmptyList();
-    }
-    case kExcessOverflowContainersList: {
-      nsFrameList* list =
-        GetPropTableFrames(PresContext(), ExcessOverflowContainersProperty());
-      return list ? *list : nsFrameList::EmptyList();
-    }
-    default:
-      return nsSplittableFrame::GetChildList(aListID);
+  // We only know about the unnamed principal child list and the overflow
+  // lists
+  if (nsnull == aListName) {
+    return mFrames;
   }
+
+  if (nsGkAtoms::overflowList == aListName) {
+    nsFrameList* frameList = GetOverflowFrames();
+    return frameList ? *frameList : nsFrameList::EmptyList();
+  }
+
+  if (nsGkAtoms::overflowContainersList == aListName) {
+    nsFrameList* list = GetPropTableFrames(PresContext(),
+                                           OverflowContainersProperty());
+    return list ? *list : nsFrameList::EmptyList();
+  }
+
+  if (nsGkAtoms::excessOverflowContainersList == aListName) {
+    nsFrameList* list = GetPropTableFrames(PresContext(),
+                                           ExcessOverflowContainersProperty());
+    return list ? *list : nsFrameList::EmptyList();
+  }
+
+  return nsFrameList::EmptyList();
 }
 
-static void AppendIfNonempty(const nsIFrame* aFrame,
-                            FramePropertyTable* aPropTable,
-                            const FramePropertyDescriptor* aProperty,
-                            nsTArray<nsIFrame::ChildList>* aLists,
-                            nsIFrame::ChildListID aListID)
-{
-  nsFrameList* list = static_cast<nsFrameList*>(
-    aPropTable->Get(aFrame, aProperty));
-  if (list) {
-    list->AppendIfNonempty(aLists, aListID);
-  }
-}
+#define NS_CONTAINER_FRAME_OVERFLOW_LIST_INDEX                   0
+#define NS_CONTAINER_FRAME_OVERFLOW_CONTAINERS_LIST_INDEX        1
+#define NS_CONTAINER_FRAME_EXCESS_OVERFLOW_CONTAINERS_LIST_INDEX 2
+// If adding/removing lists, don't forget to update count in .h file
 
-void
-nsContainerFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+
+nsIAtom*
+nsContainerFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
-  mFrames.AppendIfNonempty(aLists, kPrincipalList);
-  FramePropertyTable* propTable = PresContext()->PropertyTable();
-  ::AppendIfNonempty(this, propTable, OverflowProperty(),
-                     aLists, kOverflowList);
-  if (IsFrameOfType(nsIFrame::eCanContainOverflowContainers)) {
-    ::AppendIfNonempty(this, propTable, OverflowContainersProperty(),
-                       aLists, kOverflowContainersList);
-    ::AppendIfNonempty(this, propTable, ExcessOverflowContainersProperty(),
-                       aLists, kExcessOverflowContainersList);
+  if (NS_CONTAINER_FRAME_OVERFLOW_LIST_INDEX == aIndex)
+    return nsGkAtoms::overflowList;
+  else if (IsFrameOfType(nsIFrame::eCanContainOverflowContainers)) {
+    if (NS_CONTAINER_FRAME_OVERFLOW_CONTAINERS_LIST_INDEX == aIndex)
+      return nsGkAtoms::overflowContainersList;
+    else if (NS_CONTAINER_FRAME_EXCESS_OVERFLOW_CONTAINERS_LIST_INDEX == aIndex)
+      return nsGkAtoms::excessOverflowContainersList;
   }
+  return nsnull;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -440,16 +435,20 @@ ReparentFrameViewTo(nsIFrame*       aFrame,
     nsIView* insertBefore = nsLayoutUtils::FindSiblingViewFor(aNewParentView, aFrame);
     aViewManager->InsertChild(aNewParentView, view, insertBefore, insertBefore != nsnull);
   } else {
-    nsIFrame::ChildListIterator lists(aFrame);
-    for (; !lists.IsDone(); lists.Next()) {
+    PRInt32 listIndex = 0;
+    nsIAtom* listName = nsnull;
+    // This loop iterates through every child list name, and also
+    // executes once with listName == nsnull.
+    do {
       // Iterate the child frames, and check each child frame to see if it has
       // a view
-      nsFrameList::Enumerator childFrames(lists.CurrentList());
-      for (; !childFrames.AtEnd(); childFrames.Next()) {
-        ReparentFrameViewTo(childFrames.get(), aViewManager,
+      nsIFrame* childFrame = aFrame->GetFirstChild(listName);
+      for (; childFrame; childFrame = childFrame->GetNextSibling()) {
+        ReparentFrameViewTo(childFrame, aViewManager,
                             aNewParentView, aOldParentView);
       }
-    }
+      listName = aFrame->GetAdditionalChildListName(listIndex++);
+    } while (listName);
   }
 
   return NS_OK;
@@ -987,27 +986,32 @@ nsContainerFrame::PositionChildViews(nsIFrame* aFrame)
     return;
   }
 
-  // Recursively walk aFrame's child frames.
-  // Process the additional child lists, but skip the popup list as the
-  // view for popups is managed by the parent. Currently only nsMenuFrame
-  // has a popupList and during layout will call nsMenuPopupFrame::AdjustView.
-  ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    if (lists.CurrentID() == kPopupList) {
-      continue;
-    }
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
+  nsIAtom*  childListName = nsnull;
+  PRInt32   childListIndex = 0;
+
+  do {
+    // Recursively walk aFrame's child frames
+    nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
+    while (childFrame) {
       // Position the frame's view (if it has one) otherwise recursively
       // process its children
-      nsIFrame* childFrame = childFrames.get();
       if (childFrame->HasView()) {
         PositionFrameView(childFrame);
       } else {
         PositionChildViews(childFrame);
       }
+
+      // Get the next sibling child frame
+      childFrame = childFrame->GetNextSibling();
     }
-  }
+
+    // also process the additional child lists, but skip the popup list as the
+    // view for popups is managed by the parent. Currently only nsMenuFrame
+    // has a popupList and during layout will call nsMenuPopupFrame::AdjustView.
+    do {
+      childListName = aFrame->GetAdditionalChildListName(childListIndex++);
+    } while (childListName == nsGkAtoms::popupList);
+  } while (childListName);
 }
 
 /**
@@ -1371,14 +1375,21 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
 /**
  * Set the frames on the overflow list
  */
-void
+nsresult
 nsContainerFrame::SetOverflowFrames(nsPresContext* aPresContext,
                                     const nsFrameList& aOverflowFrames)
 {
   NS_PRECONDITION(aOverflowFrames.NotEmpty(), "Shouldn't be called");
   nsFrameList* newList = new nsFrameList(aOverflowFrames);
+  if (!newList) {
+    // XXXbz should really destroy the frames here, but callers are holding
+    // pointers to them.... We should switch all callers to framelists, then
+    // audit and do that.
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   aPresContext->PropertyTable()->Set(this, OverflowProperty(), newList);
+  return NS_OK;
 }
 
 nsFrameList*
@@ -1782,27 +1793,35 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   }
 
   // Output the children
+  nsIAtom* listName = nsnull;
+  PRInt32 listIndex = 0;
   PRBool outputOneList = PR_FALSE;
-  ChildListIterator lists(this);
-  for (; !lists.IsDone(); lists.Next()) {
-    if (outputOneList) {
-      IndentBy(out, aIndent);
-    }
-    outputOneList = PR_TRUE;
-    fputs(mozilla::layout::ChildListName(lists.CurrentID()), out);
-    fputs("<\n", out);
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* kid = childFrames.get();
-      // Verify the child frame's parent frame pointer is correct
-      NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
+  do {
+    nsIFrame* kid = GetFirstChild(listName);
+    if (nsnull != kid) {
+      if (outputOneList) {
+        IndentBy(out, aIndent);
+      }
+      outputOneList = PR_TRUE;
+      nsAutoString tmp;
+      if (nsnull != listName) {
+        listName->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
+      }
+      fputs("<\n", out);
+      while (nsnull != kid) {
+        // Verify the child frame's parent frame pointer is correct
+        NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
-      // Have the child frame list
-      kid->List(out, aIndent + 1);
+        // Have the child frame list
+        kid->List(out, aIndent + 1);
+        kid = kid->GetNextSibling();
+      }
+      IndentBy(out, aIndent);
+      fputs(">\n", out);
     }
-    IndentBy(out, aIndent);
-    fputs(">\n", out);
-  }
+    listName = GetAdditionalChildListName(listIndex++);
+  } while(nsnull != listName);
 
   if (!outputOneList) {
     fputs("<>\n", out);

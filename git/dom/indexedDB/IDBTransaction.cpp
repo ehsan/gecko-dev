@@ -54,7 +54,6 @@
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IDBObjectStore.h"
-#include "IndexedDatabaseManager.h"
 #include "TransactionThreadPool.h"
 
 #define SAVEPOINT_NAME "savepoint"
@@ -105,7 +104,7 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
   }
 
   if (!aDispatchDelayed) {
-    nsCOMPtr<nsIThreadInternal> thread =
+    nsCOMPtr<nsIThreadInternal2> thread =
       do_QueryInterface(NS_GetCurrentThread());
     NS_ENSURE_TRUE(thread, nsnull);
 
@@ -471,13 +470,28 @@ IDBTransaction::IndexGetObjectStatement(bool aUnique,
 }
 
 already_AddRefed<mozIStorageStatement>
-IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
-                                         bool aUnique)
+IDBTransaction::IndexUpdateStatement(bool aAutoIncrement,
+                                     bool aUnique,
+                                     bool aOverwrite)
 {
   if (aAutoIncrement) {
     if (aUnique) {
+      if (aOverwrite) {
+        return GetCachedStatement(
+          "INSERT OR REPLACE INTO ai_unique_index_data "
+            "(index_id, ai_object_data_id, value) "
+          "VALUES (:index_id, :object_data_id, :value)"
+        );
+      }
       return GetCachedStatement(
         "INSERT INTO ai_unique_index_data "
+          "(index_id, aI_object_data_id, value) "
+        "VALUES (:index_id, :object_data_id, :value)"
+      );
+    }
+    if (aOverwrite) {
+      return GetCachedStatement(
+        "INSERT OR REPLACE INTO ai_index_data "
           "(index_id, ai_object_data_id, value) "
         "VALUES (:index_id, :object_data_id, :value)"
       );
@@ -489,9 +503,23 @@ IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
     );
   }
   if (aUnique) {
+    if (aOverwrite) {
+      return GetCachedStatement(
+        "INSERT OR REPLACE INTO unique_index_data "
+          "(index_id, object_data_id, object_data_key, value) "
+        "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
+      );
+    }
     return GetCachedStatement(
       "INSERT INTO unique_index_data "
         "(index_id, object_data_id, object_data_key, value) "
+      "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
+    );
+  }
+  if (aOverwrite) {
+    return GetCachedStatement(
+      "INSERT INTO index_data ("
+        "index_id, object_data_id, object_data_key, value) "
       "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
     );
   }
@@ -499,34 +527,6 @@ IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
     "INSERT INTO index_data ("
       "index_id, object_data_id, object_data_key, value) "
     "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
-  );
-}
-
-already_AddRefed<mozIStorageStatement>
-IDBTransaction::IndexDataDeleteStatement(bool aAutoIncrement,
-                                         bool aUnique)
-{
-  if (aAutoIncrement) {
-    if (aUnique) {
-      return GetCachedStatement(
-        "DELETE FROM ai_unique_index_data "
-        "WHERE ai_object_data_id = :object_data_id"
-      );
-    }
-    return GetCachedStatement(
-      "DELETE FROM ai_index_data "
-      "WHERE ai_object_data_id = :object_data_id"
-    );
-  }
-  if (aUnique) {
-    return GetCachedStatement(
-      "DELETE FROM unique_index_data "
-      "WHERE object_data_id = :object_data_id"
-    );
-  }
-  return GetCachedStatement(
-    "DELETE FROM index_data "
-    "WHERE object_data_id = :object_data_id"
   );
 }
 
@@ -628,7 +628,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mDatabase,
-                                                       nsIDOMEventTarget)
+                                                       nsPIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCompleteListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnAbortListener)
@@ -899,7 +899,10 @@ IDBTransaction::AfterProcessNextEvent(nsIThreadInternal* aThread,
     }
 
     // No longer need to observe thread events.
-    if(NS_FAILED(aThread->RemoveObserver(this))) {
+    nsCOMPtr<nsIThreadInternal2> thread = do_QueryInterface(aThread);
+    NS_ASSERTION(thread, "This must never fail!");
+
+    if(NS_FAILED(thread->RemoveObserver(this))) {
       NS_ERROR("Failed to remove observer!");
     }
   }
@@ -974,7 +977,7 @@ CommitHelper::Run()
   }
 
   if (mConnection) {
-    IndexedDatabaseManager::SetCurrentDatabase(database);
+    IDBFactory::SetCurrentDatabase(database);
 
     if (!mAborted) {
       NS_NAMED_LITERAL_CSTRING(release, "END TRANSACTION");
@@ -1010,7 +1013,7 @@ CommitHelper::Run()
     mConnection->Close();
     mConnection = nsnull;
 
-    IndexedDatabaseManager::SetCurrentDatabase(nsnull);
+    IDBFactory::SetCurrentDatabase(nsnull);
   }
 
   return NS_OK;

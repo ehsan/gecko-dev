@@ -40,6 +40,7 @@
 #ifndef NSDEFAULTURIFIXUP_H
 #define NSDEFAULTURIFIXUP_H
 
+#include "nsIPrefBranch.h"
 #include "nsIURIFixup.h"
 
 #include "nsCOMPtr.h"
@@ -70,6 +71,7 @@ private:
     const char * GetFileSystemCharset();
     const char * GetCharsetForUrlBar();
 
+    nsCOMPtr<nsIPrefBranch> mPrefBranch;
     nsCString mFsCharset;
 };
 

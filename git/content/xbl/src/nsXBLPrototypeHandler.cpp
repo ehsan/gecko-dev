@@ -52,18 +52,20 @@
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMXULElement.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIURI.h"
-#include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMText.h"
 #include "nsFocusManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMEventListener.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptError.h"
 #include "nsXPIDLString.h"
@@ -78,9 +80,6 @@
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
 #include "nsEventDispatcher.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -207,12 +206,12 @@ nsXBLPrototypeHandler::InitAccessKeys()
 
   // Get the menu access key value from prefs, overriding the default:
   kMenuAccessKey =
-    Preferences::GetInt("ui.key.menuAccessKey", kMenuAccessKey);
-  kAccelKey = Preferences::GetInt("ui.key.accelKey", kAccelKey);
+    nsContentUtils::GetIntPref("ui.key.menuAccessKey", kMenuAccessKey);
+  kAccelKey = nsContentUtils::GetIntPref("ui.key.accelKey", kAccelKey);
 }
 
 nsresult
-nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
+nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
                                       nsIDOMEvent* aEvent)
 {
   nsresult rv = NS_ERROR_FAILURE;
@@ -317,19 +316,17 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Bind it to the bound element
+  // Temporarily bind it to the bound element
   void *scope = boundGlobal->GetScriptGlobal(stID);
-  nsScriptObjectHolder boundHandler(boundContext);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
-                                              handler, boundHandler);
+                                              onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Execute it.
   nsCOMPtr<nsIDOMEventListener> eventListener;
-  rv = NS_NewJSEventListener(boundContext, scope,
-                             scriptTarget, onEventAtom,
-                             boundHandler, getter_AddRefs(eventListener));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_NewJSEventListener(boundContext, scope,
+                        scriptTarget, onEventAtom,
+                        getter_AddRefs(eventListener));
 
   // Handle the event.
   eventListener->HandleEvent(aEvent);
@@ -379,17 +376,16 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
 }
 
 nsresult
-nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEvent* aEvent)
+nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEvent* aEvent)
 {
   // This is a special-case optimization to make command handling fast.
   // It isn't really a part of XBL, but it helps speed things up.
 
   // See if preventDefault has been set.  If so, don't execute.
   PRBool preventDefault = PR_FALSE;
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aEvent);
-  if (domNSEvent) {
-    domNSEvent->GetPreventDefault(&preventDefault);
-  }
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent(do_QueryInterface(aEvent));
+  if (nsUIEvent)
+    nsUIEvent->GetPreventDefault(&preventDefault);
 
   if (preventDefault)
     return NS_OK;
@@ -548,7 +544,7 @@ nsXBLPrototypeHandler::GetEventName()
 }
 
 already_AddRefed<nsIController>
-nsXBLPrototypeHandler::GetController(nsIDOMEventTarget* aTarget)
+nsXBLPrototypeHandler::GetController(nsPIDOMEventTarget* aTarget)
 {
   // XXX Fix this so there's a generic interface that describes controllers, 
   // This code should have no special knowledge of what objects might have controllers.
@@ -559,7 +555,7 @@ nsXBLPrototypeHandler::GetController(nsIDOMEventTarget* aTarget)
     xulElement->GetControllers(getter_AddRefs(controllers));
 
   if (!controllers) {
-    nsCOMPtr<nsIDOMHTMLTextAreaElement> htmlTextArea(do_QueryInterface(aTarget));
+    nsCOMPtr<nsIDOMNSHTMLTextAreaElement> htmlTextArea(do_QueryInterface(aTarget));
     if (htmlTextArea)
       htmlTextArea->GetControllers(getter_AddRefs(controllers));
   }
@@ -571,7 +567,7 @@ nsXBLPrototypeHandler::GetController(nsIDOMEventTarget* aTarget)
   }
 
   if (!controllers) {
-    nsCOMPtr<nsIDOMWindow> domWindow(do_QueryInterface(aTarget));
+    nsCOMPtr<nsIDOMWindowInternal> domWindow(do_QueryInterface(aTarget));
     if (domWindow)
       domWindow->GetControllers(getter_AddRefs(controllers));
   }

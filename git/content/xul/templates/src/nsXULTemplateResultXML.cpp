@@ -51,30 +51,8 @@ NS_IMPL_ISUPPORTS1(nsXULTemplateResultXML, nsIXULTemplateResult)
 nsXULTemplateResultXML::nsXULTemplateResultXML(nsXMLQuery* aQuery,
                                                nsIDOMNode* aNode,
                                                nsXMLBindingSet* aBindings)
-    : mQuery(aQuery), mNode(aNode)
+    : mId(++sTemplateId), mQuery(aQuery), mNode(aNode)
 {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mNode);
-
-    // If the node has an id, create the uri from it. Otherwise, there isn't
-    // anything to identify the node with so just use a somewhat random number.
-    nsCOMPtr<nsIAtom> id = content->GetID();
-    if (id) {
-      nsCOMPtr<nsIURI> uri = content->GetBaseURI();
-      nsCAutoString spec;
-      uri->GetSpec(spec);
-
-      mId = NS_ConvertUTF8toUTF16(spec);
-
-      nsAutoString idstr;
-      id->ToString(idstr);
-      mId += NS_LITERAL_STRING("#") + idstr;
-    }
-    else {
-      nsAutoString rowid(NS_LITERAL_STRING("row"));
-      rowid.AppendInt(++sTemplateId);
-      mId.Assign(rowid);
-    }
-
     if (aBindings)
         mRequiredValues.SetBindingSet(aBindings);
 }
@@ -96,10 +74,9 @@ nsXULTemplateResultXML::GetIsEmpty(PRBool* aIsEmpty)
     // a node is considered empty if it has no elements as children
     nsCOMPtr<nsIContent> content = do_QueryInterface(mNode);
     if (content) {
-        for (nsIContent* child = content->GetFirstChild();
-             child;
-             child = child->GetNextSibling()) {
-            if (child->IsElement()) {
+        PRUint32 count = content->GetChildCount();
+        for (PRUint32 c = 0; c < count; c++) {
+            if (content->GetChildAt(c)->IsElement()) {
                 *aIsEmpty = PR_FALSE;
                 return NS_OK;
             }
@@ -120,7 +97,9 @@ nsXULTemplateResultXML::GetMayProcessChildren(PRBool* aMayProcessChildren)
 NS_IMETHODIMP
 nsXULTemplateResultXML::GetId(nsAString& aId)
 {
-    aId = mId;
+    nsAutoString rowid(NS_LITERAL_STRING("row"));
+    rowid.AppendInt(mId);
+    aId.Assign(rowid);
     return NS_OK;
 }
 

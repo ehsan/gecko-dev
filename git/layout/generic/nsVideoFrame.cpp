@@ -58,7 +58,6 @@
 #include "nsIImageLoadingContent.h"
 #include "nsDisplayList.h"
 #include "nsCSSRendering.h"
-#include "nsContentUtils.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
@@ -67,7 +66,6 @@
 
 using namespace mozilla;
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 nsIFrame*
 NS_NewHTMLVideoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -101,11 +99,9 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     // before we load, or on a subsequent load.
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::img,
                                             nsnull,
-                                            kNameSpaceID_XHTML,
-                                            nsIDOMNode::ELEMENT_NODE);
+                                            kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-    Element* element = NS_NewHTMLImageElement(nodeInfo.forget());
-    mPosterImage = element;
+    mPosterImage = NS_NewHTMLImageElement(nodeInfo.forget());
     NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
 
     // Push a null JSContext on the stack so that code that runs
@@ -122,8 +118,6 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     NS_ENSURE_TRUE(imgContent, NS_ERROR_FAILURE);
 
     imgContent->ForceImageState(PR_TRUE, 0);
-    // And now have it update its internal state
-    element->UpdateState(false);
 
     nsresult res = UpdatePosterSource(PR_FALSE);
     NS_ENSURE_SUCCESS(res,res);
@@ -136,8 +130,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // actual controls.
   nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::videocontrols,
                                           nsnull,
-                                          kNameSpaceID_XUL,
-                                          nsIDOMNode::ELEMENT_NODE);
+                                          kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   NS_TrustedNewXULElement(getter_AddRefs(mVideoControls), nodeInfo.forget());
@@ -288,7 +281,7 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   transform.Translate(r.TopLeft());
   transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
   layer->SetTransform(gfx3DMatrix::From2D(transform));
-  layer->SetVisibleRegion(nsIntRect(0, 0, frameSize.width, frameSize.height));
+  layer->SetVisibleRegion(nsIntRect(0, 0, videoSize.width, videoSize.height));
   nsRefPtr<Layer> result = layer.forget();
   return result.forget();
 }
@@ -404,8 +397,7 @@ public:
   }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerParameters& aContainerParameters)
+                                             LayerManager* aManager)
   {
     return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
   }

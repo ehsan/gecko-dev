@@ -99,16 +99,16 @@ public:
   // table cells contain a block frame which does most of the work, and
   // so these functions should never be called. They assert and return
   // NS_ERROR_NOT_IMPLEMENTED
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsIFrame* GetContentInsertionFrame() {
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return GetFirstChild(nsnull)->GetContentInsertionFrame();
   }
 
   virtual nsMargin GetUsedMargin() const;

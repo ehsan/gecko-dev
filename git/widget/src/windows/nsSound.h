@@ -51,7 +51,6 @@ class nsSound : public nsISound,
 public: 
   nsSound();
   virtual ~nsSound();
-  void ShutdownOldPlayerThread();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISOUND

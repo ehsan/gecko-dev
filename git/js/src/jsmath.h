@@ -82,6 +82,8 @@ class MathCache
  * JS math functions.
  */
 
+extern js::Class js_MathClass;
+
 extern JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj);
 
@@ -108,12 +110,6 @@ js_math_min(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
 js_math_round(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_math_sqrt(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_math_pow(JSContext *cx, uintN argc, js::Value *vp);
 
 extern jsdouble
 js_math_ceil_impl(jsdouble x);

@@ -84,6 +84,9 @@ NS_NewLayoutDebugger(nsILayoutDebugger** aResult)
     return NS_ERROR_NULL_POINTER;
   }
   nsLayoutDebugger* it = new nsLayoutDebugger();
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   return it->QueryInterface(NS_GET_IID(nsILayoutDebugger), (void**)aResult);
 }
 
@@ -179,12 +182,12 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     nsRect vis = i->GetVisibleRect();
     nsDisplayList* list = i->GetList();
     nsRegion opaque;
-    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
-        nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
-        list = t->GetStoredList()->GetList();
-    }
     if (!list || list->DidComputeVisibility()) {
       opaque = i->GetOpaqueRegion(aBuilder);
+    }
+    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
+      list = t->GetStoredList()->GetList();
     }
     fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)%s%s",
             i->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
@@ -210,7 +213,7 @@ void
 nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
                           const nsDisplayList& aList)
 {
-  PrintDisplayListTo(aBuilder, aList, 0, stdout);
+  PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }
 
 #endif

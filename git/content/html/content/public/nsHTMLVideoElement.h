@@ -45,7 +45,8 @@ class nsHTMLVideoElement : public nsHTMLMediaElement,
                            public nsIDOMHTMLVideoElement
 {
 public:
-  nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
   virtual ~nsHTMLVideoElement();
 
   // nsISupports

@@ -52,65 +52,64 @@
 
 using namespace mozilla;
 
-class nsDOMMultipartFile : public nsDOMFileBase
+class nsDOMMultipartBlob : public nsDOMFile
 {
 public:
-  // Create as a file
-  nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
-                     const nsAString& aName,
+  nsDOMMultipartBlob(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
                      const nsAString& aContentType)
-    : nsDOMFileBase(aName, aContentType, PR_UINT64_MAX),
+    : nsDOMFile(nsnull, aContentType),
       mBlobs(aBlobs)
   {
+    mIsFullFile = false;
+    mStart = 0;
+    mLength = 0;
   }
-
-  // Create as a blob
-  nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
-                     const nsAString& aContentType)
-    : nsDOMFileBase(aContentType, PR_UINT64_MAX),
-      mBlobs(aBlobs)
-  {
-  }
-
-  already_AddRefed<nsIDOMBlob>
-  CreateSlice(PRUint64 aStart, PRUint64 aLength, const nsAString& aContentType);
 
   NS_IMETHOD GetSize(PRUint64*);
   NS_IMETHOD GetInternalStream(nsIInputStream**);
+  NS_IMETHOD MozSlice(PRInt64 aStart, PRInt64 aEnd,
+                      const nsAString& aContentType, PRUint8 optional_argc,
+                      nsIDOMBlob **aBlob);
 
 protected:
   nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;
 };
 
 NS_IMETHODIMP
-nsDOMMultipartFile::GetSize(PRUint64* aLength)
+nsDOMMultipartBlob::GetSize(PRUint64* aLength)
 {
-  if (mLength == PR_UINT64_MAX) {
-    CheckedUint64 length = 0;
-  
-    PRUint32 i;
-    PRUint32 len = mBlobs.Length();
-    for (i = 0; i < len; i++) {
-      nsIDOMBlob* blob = mBlobs.ElementAt(i).get();
-      PRUint64 l = 0;
-  
-      nsresult rv = blob->GetSize(&l);
-      NS_ENSURE_SUCCESS(rv, rv);
-  
-      length += l;
-    }
-  
-    NS_ENSURE_TRUE(length.valid(), NS_ERROR_FAILURE);
+  nsresult rv;
+  *aLength = 0;
 
-    mLength = length.value();
+  if (mLength) {
+    *aLength = mLength;
+    return NS_OK;
   }
 
+  CheckedUint64 length = 0;
+
+  PRUint32 i;
+  PRUint32 len = mBlobs.Length();
+  for (i = 0; i < len; i++) {
+    nsIDOMBlob* blob = mBlobs.ElementAt(i).get();
+    PRUint64 l = 0;
+
+    rv = blob->GetSize(&l);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    length += l;
+  }
+
+  if (!length.valid())
+    return NS_ERROR_FAILURE;
+
+  mLength = length.value();
   *aLength = mLength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMultipartFile::GetInternalStream(nsIInputStream** aStream)
+nsDOMMultipartBlob::GetInternalStream(nsIInputStream** aStream)
 {
   nsresult rv;
   *aStream = nsnull;
@@ -134,15 +133,34 @@ nsDOMMultipartFile::GetInternalStream(nsIInputStream** aStream)
   return CallQueryInterface(stream, aStream);
 }
 
-already_AddRefed<nsIDOMBlob>
-nsDOMMultipartFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
-                                const nsAString& aContentType)
+NS_IMETHODIMP
+nsDOMMultipartBlob::MozSlice(PRInt64 aStart, PRInt64 aEnd,
+                             const nsAString& aContentType,
+                             PRUint8 optional_argc,
+                             nsIDOMBlob **aBlob)
 {
+  nsresult rv;
+  *aBlob = nsnull;
+
+  // Truncate aStart and aEnd so that we stay within this file.
+  PRUint64 thisLength;
+  rv = GetSize(&thisLength);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!optional_argc) {
+    aEnd = (PRInt64)thisLength;
+  }
+
+  ParseSize((PRInt64)thisLength, aStart, aEnd);
+
   // If we clamped to nothing we create an empty blob
   nsTArray<nsCOMPtr<nsIDOMBlob> > blobs;
 
-  PRUint64 length = aLength;
+  PRInt64 length = aEnd - aStart;
+  PRUint64 finalLength = length;
   PRUint64 skipStart = aStart;
+
+  NS_ABORT_IF_FALSE(aStart + length <= thisLength, "Er, what?");
 
   // Prune the list of blobs if we can
   PRUint32 i;
@@ -150,21 +168,22 @@ nsDOMMultipartFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
     nsIDOMBlob* blob = mBlobs[i].get();
 
     PRUint64 l;
-    nsresult rv = blob->GetSize(&l);
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    rv = blob->GetSize(&l);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (skipStart < l) {
-      PRUint64 upperBound = NS_MIN<PRUint64>(l - skipStart, length);
+      PRInt64 upperBound = NS_MIN<PRInt64>(l - skipStart, length);
 
       nsCOMPtr<nsIDOMBlob> firstBlob;
-      rv = blob->MozSlice(skipStart, skipStart + upperBound,
-                          aContentType, 3,
-                          getter_AddRefs(firstBlob));
-      NS_ENSURE_SUCCESS(rv, nsnull);
+      rv = mBlobs.ElementAt(i)->MozSlice(skipStart, skipStart + upperBound,
+                                         aContentType, 2,
+                                         getter_AddRefs(firstBlob));
+      NS_ENSURE_SUCCESS(rv, rv);
 
-      // Avoid wrapping a single blob inside an nsDOMMultipartFile
+      // Avoid wrapping a single blob inside an nsDOMMultipartBlob
       if (length == upperBound) {
-        return firstBlob.forget();
+        firstBlob.forget(aBlob);
+        return NS_OK;
       }
 
       blobs.AppendElement(firstBlob);
@@ -180,25 +199,26 @@ nsDOMMultipartFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
     nsIDOMBlob* blob = mBlobs[i].get();
 
     PRUint64 l;
-    nsresult rv = blob->GetSize(&l);
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    rv = blob->GetSize(&l);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (length < l) {
       nsCOMPtr<nsIDOMBlob> lastBlob;
-      rv = blob->MozSlice(0, length, aContentType, 3,
-                          getter_AddRefs(lastBlob));
-      NS_ENSURE_SUCCESS(rv, nsnull);
+      rv = mBlobs.ElementAt(i)->MozSlice(0, length, aContentType, 2,
+                                         getter_AddRefs(lastBlob));
+      NS_ENSURE_SUCCESS(rv, rv);
 
       blobs.AppendElement(lastBlob);
     } else {
       blobs.AppendElement(blob);
     }
-    length -= NS_MIN<PRUint64>(l, length);
+    length -= NS_MIN<PRInt64>(l, length);
   }
 
   // we can create our blob now
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMMultipartFile(blobs, aContentType);
-  return blob.forget();
+  nsCOMPtr<nsIDOMBlob> blob = new nsDOMMultipartBlob(blobs, aContentType);
+  blob.forget(aBlob);
+  return NS_OK;
 }
 
 class nsDOMBlobBuilder : public nsIDOMMozBlobBuilder
@@ -214,7 +234,7 @@ protected:
   nsresult AppendVoidPtr(void* aData, PRUint32 aLength);
   nsresult AppendString(JSString* aString, JSContext* aCx);
   nsresult AppendBlob(nsIDOMBlob* aBlob);
-  nsresult AppendArrayBuffer(JSObject* aBuffer);
+  nsresult AppendArrayBuffer(js::ArrayBuffer* aBuffer);
 
   bool ExpandBufferSize(PRUint64 aSize)
   {
@@ -312,9 +332,9 @@ nsDOMBlobBuilder::AppendBlob(nsIDOMBlob* aBlob)
 }
 
 nsresult
-nsDOMBlobBuilder::AppendArrayBuffer(JSObject* aBuffer)
+nsDOMBlobBuilder::AppendArrayBuffer(js::ArrayBuffer* aBuffer)
 {
-  return AppendVoidPtr(JS_GetArrayBufferData(aBuffer), JS_GetArrayBufferByteLength(aBuffer));
+  return AppendVoidPtr(aBuffer->data, aBuffer->byteLength);
 }
 
 /* nsIDOMBlob getBlob ([optional] in DOMString contentType); */
@@ -326,33 +346,9 @@ nsDOMBlobBuilder::GetBlob(const nsAString& aContentType,
 
   Flush();
 
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMMultipartFile(mBlobs,
+  nsCOMPtr<nsIDOMBlob> blob = new nsDOMMultipartBlob(mBlobs,
                                                      aContentType);
   blob.forget(aBlob);
-
-  // NB: This is a willful violation of the spec.  The spec says that
-  // the existing contents of the BlobBuilder should be included
-  // in the next blob produced.  This seems silly and has been raised
-  // on the WHATWG listserv.
-  mBlobs.Clear();
-
-  return NS_OK;
-}
-
-/* nsIDOMBlob getFile (in DOMString name, [optional] in DOMString contentType); */
-NS_IMETHODIMP
-nsDOMBlobBuilder::GetFile(const nsAString& aName,
-                          const nsAString& aContentType,
-                          nsIDOMFile** aFile)
-{
-  NS_ENSURE_ARG(aFile);
-
-  Flush();
-
-  nsCOMPtr<nsIDOMFile> file = new nsDOMMultipartFile(mBlobs,
-                                                     aName,
-                                                     aContentType);
-  file.forget(aFile);
 
   // NB: This is a willful violation of the spec.  The spec says that
   // the existing contents of the BlobBuilder should be included
@@ -383,7 +379,7 @@ nsDOMBlobBuilder::Append(const jsval& aData, JSContext* aCx)
 
     // Is it an array buffer?
     if (js_IsArrayBuffer(obj)) {
-      JSObject* buffer = js::ArrayBuffer::getArrayBuffer(obj);
+      js::ArrayBuffer* buffer = js::ArrayBuffer::fromJSObject(obj);
       if (buffer)
         return AppendArrayBuffer(buffer);
     }

@@ -49,7 +49,6 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsdbgapi.h"
-#include "jsfriendapi.h"
 #include "jsprf.h"
 #include "nsXULAppAPI.h"
 #include "nsServiceManagerUtils.h"
@@ -85,6 +84,9 @@
 #endif
 #ifdef XP_WIN
 #include <windows.h>
+#endif
+#ifdef __SYMBIAN32__
+#include <unistd.h>
 #endif
 
 #include "nsIScriptSecurityManager.h"
@@ -263,10 +265,10 @@ GetLine(JSContext *cx, char *bufp, FILE *file, const char *prompt) {
     } else
 #endif
     {
-        char line[256] = { '\0' };
+        char line[256];
         fputs(prompt, gOutFile);
         fflush(gOutFile);
-        if (!fgets(line, sizeof line, file) && errno != EINTR || feof(file))
+        if (!fgets(line, sizeof line, file))
             return JS_FALSE;
         strcpy(bufp, line);
     }
@@ -477,14 +479,14 @@ Load(JSContext *cx, uintN argc, jsval *vp)
                            filename.ptr());
             return false;
         }
-        JSScript *script = JS_CompileFileHandleForPrincipals(cx, obj, filename.ptr(),
-                                                             file, gJSPrincipals);
+        JSObject *scriptObj = JS_CompileFileHandleForPrincipals(cx, obj, filename.ptr(),
+                                                                file, gJSPrincipals);
         fclose(file);
-        if (!script)
+        if (!scriptObj)
             return false;
 
         jsval result;
-        if (!compileOnly && !JS_ExecuteScript(cx, obj, script, &result))
+        if (!compileOnly && !JS_ExecuteScript(cx, obj, scriptObj, &result))
             return false;
     }
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -546,6 +548,14 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     rt = cx->runtime;
     preBytes = rt->gcBytes;
     JS_GC(cx);
+    fprintf(gOutFile, "before %lu, after %lu, break %08lx\n",
+           (unsigned long)preBytes, (unsigned long)rt->gcBytes,
+#if defined(XP_UNIX) && !defined(__SYMBIAN32__)
+           (unsigned long)sbrk(0)
+#else
+           0
+#endif
+           );
 #ifdef JS_GCMETER
     js_DumpGCStats(rt, stdout);
 #endif
@@ -561,7 +571,7 @@ GCZeal(JSContext *cx, uintN argc, jsval *vp)
     if (!JS_ValueToECMAUint32(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID, &zeal))
         return JS_FALSE;
 
-    JS_SetGCZeal(cx, (PRUint8)zeal, JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
+    JS_SetGCZeal(cx, (PRUint8)zeal);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
@@ -573,7 +583,7 @@ static JSBool
 DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 {
     void* startThing = NULL;
-    JSGCTraceKind startTraceKind = JSTRACE_OBJECT;
+    uint32 startTraceKind = 0;
     void *thingToFind = NULL;
     size_t maxDepth = (size_t)-1;
     void *thingToIgnore = NULL;
@@ -718,6 +728,7 @@ static const struct {
     const char  *name;
     uint32      flag;
 } js_options[] = {
+    {"anonfunfix",      JSOPTION_ANONFUNFIX},
     {"atline",          JSOPTION_ATLINE},
     {"jit",             JSOPTION_JIT},
     {"relimit",         JSOPTION_RELIMIT},
@@ -845,6 +856,11 @@ static JSFunctionSpec glob_functions[] = {
 #endif
     {"sendCommand",     SendCommand,    1,0},
     {"getChildGlobalObject", GetChildGlobalObject, 0,0},
+#ifdef MOZ_CALLGRIND
+    {"startCallgrind",  js_StartCallgrind,  0,0},
+    {"stopCallgrind",   js_StopCallgrind,   0,0},
+    {"dumpCallgrind",   js_DumpCallgrind,   1,0},
+#endif
     {nsnull,nsnull,0,0}
 };
 
@@ -876,7 +892,8 @@ env_setProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
     JSAutoByteString value(cx, valstr);
     if (!value)
         return JS_FALSE;
-#if defined XP_WIN || defined HPUX || defined OSF1 || defined SCO
+#if defined XP_WIN || defined HPUX || defined OSF1 || defined IRIX \
+    || defined SCO
     {
         char *waste = JS_smprintf("%s=%s", name.ptr(), value.ptr());
         if (!waste) {
@@ -1011,7 +1028,7 @@ static void
 ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
             JSBool forceTTY)
 {
-    JSScript *script;
+    JSObject *scriptObj;
     jsval result;
     int lineno, startline;
     JSBool ok, hitEOF;
@@ -1044,11 +1061,11 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
         ungetc(ch, file);
         DoBeginRequest(cx);
 
-        script = JS_CompileFileHandleForPrincipals(cx, obj, filename, file,
-                                                   gJSPrincipals);
+        scriptObj = JS_CompileFileHandleForPrincipals(cx, obj, filename, file,
+                                                      gJSPrincipals);
 
-        if (script && !compileOnly)
-            (void)JS_ExecuteScript(cx, obj, script, &result);
+        if (scriptObj && !compileOnly)
+            (void)JS_ExecuteScript(cx, obj, scriptObj, &result);
         DoEndRequest(cx);
 
         return;
@@ -1080,13 +1097,13 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
         DoBeginRequest(cx);
         /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
-        script = JS_CompileScriptForPrincipals(cx, obj, gJSPrincipals, buffer,
-                                               strlen(buffer), "typein", startline);
-        if (script) {
+        scriptObj = JS_CompileScriptForPrincipals(cx, obj, gJSPrincipals, buffer,
+                                                  strlen(buffer), "typein", startline);
+        if (scriptObj) {
             JSErrorReporter older;
 
             if (!compileOnly) {
-                ok = JS_ExecuteScript(cx, obj, script, &result);
+                ok = JS_ExecuteScript(cx, obj, scriptObj, &result);
                 if (ok && result != JSVAL_VOID) {
                     /* Suppress error reports from JS_ValueToString(). */
                     older = JS_SetErrorReporter(cx, NULL);
@@ -1144,7 +1161,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 {
     const char rcfilename[] = "xpcshell.js";
     FILE *rcfile;
-    int i;
+    int i, j, length;
     JSObject *argsObj;
     char *filename = NULL;
     JSBool isInteractive = JS_TRUE;
@@ -1190,7 +1207,8 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         return 1;
     }
 
-    for (size_t j = 0, length = argc - i; j < length; j++) {
+    length = argc - i;
+    for (j = 0; j < length; j++) {
         JSString *str = JS_NewStringCopyZ(cx, argv[i++]);
         if (!str)
             return 1;
@@ -1234,7 +1252,9 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
                 if (!JS_DeepFreezeObject(cx, obj))
                     return JS_FALSE;
                 gobj = JS_NewGlobalObject(cx, &global_class);
-                if (!gobj || !JS_SplicePrototype(cx, gobj, obj))
+                if (!gobj)
+                    return JS_FALSE;
+                if (!JS_SetPrototype(cx, gobj, obj))
                     return JS_FALSE;
                 JS_SetParent(cx, gobj, NULL);
                 JS_SetGlobalObject(cx, gobj);
@@ -1282,9 +1302,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
         case 'p':
             JS_ToggleOptions(cx, JSOPTION_PROFILING);
-            break;
-        case 'n':
-            JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
             break;
         default:
             return usage();
@@ -1827,23 +1844,6 @@ main(int argc, char **argv, char **envp)
     }
 
     {
-        if (argc > 1 && !strcmp(argv[1], "--greomni")) {
-            nsCOMPtr<nsILocalFile> greOmni;
-            nsCOMPtr<nsILocalFile> appOmni;
-            XRE_GetFileFromPath(argv[2], getter_AddRefs(greOmni));
-            if (argc > 3 && !strcmp(argv[3], "--appomni")) {
-                XRE_GetFileFromPath(argv[4], getter_AddRefs(appOmni));
-                argc-=2;
-                argv+=2;
-            } else {
-                appOmni = greOmni;
-            }
-            
-            XRE_InitOmnijar(greOmni, appOmni);
-            argc-=2;
-            argv+=2;
-        }
-
         nsCOMPtr<nsIServiceManager> servMan;
         rv = NS_InitXPCOM2(getter_AddRefs(servMan), appDir, &dirprovider);
         if (NS_FAILED(rv)) {
@@ -1965,11 +1965,6 @@ main(int argc, char **argv, char **envp)
                 return 1;
             }
 
-            if (!JS_InitReflect(cx, glob)) {
-                JS_EndRequest(cx);
-                return 1;
-            }
-
             if (!JS_DefineFunctions(cx, glob, glob_functions) ||
                 !JS_DefineProfilingFunctions(cx, glob)) {
                 JS_EndRequest(cx);
@@ -2086,15 +2081,7 @@ XPCShellDirProvider::GetFile(const char *prop, PRBool *persistent,
 {
     if (mGREDir && !strcmp(prop, NS_GRE_DIR)) {
         *persistent = PR_TRUE;
-        return mGREDir->Clone(result);
-    } else if (mGREDir && !strcmp(prop, NS_APP_PREF_DEFAULTS_50_DIR)) {
-        nsCOMPtr<nsIFile> file;
-        *persistent = PR_TRUE;
-        if (NS_FAILED(mGREDir->Clone(getter_AddRefs(file))) ||
-            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("defaults"))) ||
-            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("pref"))))
-            return NS_ERROR_FAILURE;
-        NS_ADDREF(*result = file);
+        NS_ADDREF(*result = mGREDir);
         return NS_OK;
     }
 
@@ -2117,18 +2104,6 @@ XPCShellDirProvider::GetFiles(const char *prop, nsISimpleEnumerator* *result)
         if (NS_SUCCEEDED(rv))
             dirs.AppendObject(file);
 
-        return NS_NewArrayEnumerator(result, dirs);
-    } else if (!strcmp(prop, NS_APP_PREFS_DEFAULTS_DIR_LIST)) {
-        nsCOMArray<nsIFile> dirs;
-
-        nsCOMPtr<nsIFile> file;
-        if (NS_FAILED(NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
-                                             getter_AddRefs(file))) ||
-            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("defaults"))) ||
-            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("preferences"))))
-            return NS_ERROR_FAILURE;
-
-        dirs.AppendObject(file);
         return NS_NewArrayEnumerator(result, dirs);
     }
     return NS_ERROR_FAILURE;

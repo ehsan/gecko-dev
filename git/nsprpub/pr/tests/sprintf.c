@@ -56,6 +56,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define countof(a) (sizeof(a)/sizeof(a[0]))
+
 static char sbuf[20000];
 
 
@@ -119,15 +121,15 @@ static void TestI(void)
     int f, s, n, p;
     char fmt[20];
 
-    for (f = 0; f < PR_ARRAY_SIZE(formats); f++) {
-	for (s = 0; s < PR_ARRAY_SIZE(signs); s++) {
-	    for (p = 0; p < PR_ARRAY_SIZE(precs); p++) {
+    for (f = 0; f < countof(formats); f++) {
+	for (s = 0; s < countof(signs); s++) {
+	    for (p = 0; p < countof(precs); p++) {
 		fmt[0] = '%';
 		fmt[1] = 0;
 		if (signs[s]) strcat(fmt, signs[s]);
 		if (precs[p]) strcat(fmt, precs[p]);
 		if (formats[f]) strcat(fmt, formats[f]);
-		for (n = 0; n < PR_ARRAY_SIZE(nums); n++) {
+		for (n = 0; n < countof(nums); n++) {
 		    test_i(fmt, nums[n]);
 		}
 	    }
@@ -211,9 +213,9 @@ static void TestL(void)
     int f, s, n, p;
     char fmt[40], sfmt[40];
 
-    for (f = 0; f < PR_ARRAY_SIZE(formats); f++) {
-	for (s = 0; s < PR_ARRAY_SIZE(signs); s++) {
-	    for (p = 0; p < PR_ARRAY_SIZE(precs); p++) {
+    for (f = 0; f < countof(formats); f++) {
+	for (s = 0; s < countof(signs); s++) {
+	    for (p = 0; p < countof(precs); p++) {
 		fmt[0] = '%';
 		fmt[1] = 0;
 		if (signs[s]) strcat(fmt, signs[s]);
@@ -221,7 +223,7 @@ static void TestL(void)
 		strcpy(sfmt, fmt);
 		if (formats[f]) strcat(fmt, formats[f]);
 		if (sformats[f]) strcat(sfmt, sformats[f]);
-		for (n = 0; n < PR_ARRAY_SIZE(nums); n++) {
+		for (n = 0; n < countof(nums); n++) {
 		    test_l(fmt, sfmt, nums[n]);
 		}
 	    }
@@ -334,9 +336,9 @@ static void TestLL(void)
     int f, s, n, p;
     char fmt[40], sfmt[40];
 
-    for (f = 0; f < PR_ARRAY_SIZE(formats); f++) {
-	for (s = 0; s < PR_ARRAY_SIZE(signs); s++) {
-	    for (p = 0; p < PR_ARRAY_SIZE(precs); p++) {
+    for (f = 0; f < countof(formats); f++) {
+	for (s = 0; s < countof(signs); s++) {
+	    for (p = 0; p < countof(precs); p++) {
 		fmt[0] = '%';
 		fmt[1] = 0;
 		if (signs[s]) strcat(fmt, signs[s]);
@@ -344,7 +346,7 @@ static void TestLL(void)
 		strcpy(sfmt, fmt);
 		if (formats[f]) strcat(fmt, formats[f]);
 		if (sformats[f]) strcat(sfmt, sformats[f]);
-		for (n = 0; n < PR_ARRAY_SIZE(nums); n++) {
+		for (n = 0; n < countof(nums); n++) {
 		    test_ll(fmt, sfmt, nums[n]);
 		}
 	    }
@@ -422,15 +424,15 @@ static void TestS(void)
     int f, s, n, p;
     char fmt[40];
 
-    for (f = 0; f < PR_ARRAY_SIZE(formats); f++) {
-	for (s = 0; s < PR_ARRAY_SIZE(signs); s++) {
-	    for (p = 0; p < PR_ARRAY_SIZE(precs); p++) {
+    for (f = 0; f < countof(formats); f++) {
+	for (s = 0; s < countof(signs); s++) {
+	    for (p = 0; p < countof(precs); p++) {
 		fmt[0] = '%';
 		fmt[1] = 0;
 		if (signs[s]) strcat(fmt+strlen(fmt), signs[s]);
 		if (precs[p]) strcat(fmt+strlen(fmt), precs[p]);
 		if (formats[f]) strcat(fmt+strlen(fmt), formats[f]);
-		for (n = 0; n < PR_ARRAY_SIZE(strs); n++) {
+		for (n = 0; n < countof(strs); n++) {
 		    test_s(fmt, strs[n]);
 		}
 	    }

@@ -35,7 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef PLARENAS_H
+#if defined(PLARENAS_H)
+#else  /* defined(PLARENAS_H) */
 #define PLARENAS_H
 
 PR_BEGIN_EXTERN_C
@@ -43,13 +44,34 @@ PR_BEGIN_EXTERN_C
 typedef struct PLArenaPool      PLArenaPool;
 
 /*
-** Initialize an arena pool with the given name for debugging and metering,
-** with a minimum gross size per arena of size bytes.  The net size per arena
-** is smaller than the gross size by a header of four pointers plus any
-** necessary padding for alignment.
+** Allocate an arena pool as specified by the parameters.
 **
-** Note: choose a gross size that's a power of two to avoid the heap allocator
-** rounding the size up.
+** This is equivelant to allocating the space yourself and then
+** calling PL_InitArenaPool().
+**
+** This function may fail (and return a NULL) for a variety of
+** reasons. The reason for a particular failure can be discovered
+** by calling PR_GetError().
+*/
+#if 0  /* Not implemented */
+PR_EXTERN(PLArenaPool*) PL_AllocArenaPool(
+    const char *name, PRUint32 size, PRUint32 align);
+#endif
+
+/*
+** Destroy an arena pool previously allocated by PL_AllocArenaPool().
+**
+** This function may fail if the arena is not empty and the caller
+** wishes to check for empty upon descruction.
+*/
+#if 0  /* Not implemented */
+PR_EXTERN(PRStatus) PL_DestroyArenaPool(PLArenaPool *pool, PRBool checkEmpty);
+#endif
+
+
+/*
+** Initialize an arena pool with the given name for debugging and metering,
+** with a minimum size per arena of size bytes.
 **/
 PR_EXTERN(void) PL_InitArenaPool(
     PLArenaPool *pool, const char *name, PRUint32 size, PRUint32 align);
@@ -73,7 +95,6 @@ PR_EXTERN(void) PL_FinishArenaPool(PLArenaPool *pool);
 
 /*
 ** Compact all of the arenas in a pool so that no space is wasted.
-** NOT IMPLEMENTED.  Do not use.
 **/
 PR_EXTERN(void) PL_CompactArenaPool(PLArenaPool *pool);
 
@@ -94,4 +115,6 @@ PR_EXTERN(void) PL_ClearArenaPool(PLArenaPool *pool, PRInt32 pattern);
 
 PR_END_EXTERN_C
 
-#endif /* PLARENAS_H */
+#endif /* defined(PLARENAS_H) */
+
+/* plarenas */

@@ -42,12 +42,12 @@
 
 void
 NS_GetComplexLineBreaks(const PRUnichar* aText, PRUint32 aLength,
-                        PRUint8* aBreakBefore)
+                        PRPackedBool* aBreakBefore)
 {
   NS_ASSERTION(aText, "aText shouldn't be null");
   TextBreakLocatorRef breakLocator;
 
-  memset(aBreakBefore, PR_FALSE, aLength * sizeof(PRUint8));
+  memset(aBreakBefore, PR_FALSE, aLength * sizeof(PRPackedBool));
 
   OSStatus status = UCCreateTextBreakLocator(NULL, 0, kUCTextBreakLineMask, &breakLocator);
 

@@ -41,6 +41,7 @@
 #include "nsIContentIterator.h"
 #include "nsRange.h"
 #include "nsIContent.h"
+#include "nsIDOMText.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsContentUtils.h"
@@ -569,7 +570,7 @@ nsContentIterator::GetDeepFirstChild(nsINode *aRoot,
   }
 
   nsINode *n = aRoot;
-  nsINode *nChild = n->GetFirstChild();
+  nsINode *nChild = n->GetChildAt(0);
 
   while (nChild)
   {
@@ -579,7 +580,7 @@ nsContentIterator::GetDeepFirstChild(nsINode *aRoot,
       aIndexes->AppendElement(0);
     }
     n = nChild;
-    nChild = n->GetFirstChild();
+    nChild = n->GetChildAt(0);
   }
 
   return n;
@@ -747,7 +748,7 @@ nsContentIterator::NextNode(nsINode *aNode, nsTArray<PRInt32> *aIndexes)
     // if it has children then next node is first child
     if (NodeHasChildren(n))
     {
-      nsINode *nFirstChild = n->GetFirstChild();
+      nsINode *nFirstChild = n->GetChildAt(0);
 
       // update cache
       if (aIndexes)
@@ -889,8 +890,7 @@ nsContentIterator::PrevNode(nsINode *aNode, nsTArray<PRInt32> *aIndexes)
     // if it has children then prev node is last child
     if (numChildren)
     {
-      nsINode *nLastChild = n->GetLastChild();
-      numChildren--;
+      nsINode *nLastChild = n->GetChildAt(--numChildren);
 
       // update cache
       if (aIndexes)
@@ -1301,7 +1301,7 @@ nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
   // short circuit when start node == end node
   if (startParent == endParent)
   {
-    nsINode* nChild = nStartP->GetFirstChild();
+    nsINode* nChild = nStartP->GetChildAt(0);
   
     if (!nChild) // no children, must be a text node or empty container
     {
@@ -1491,7 +1491,7 @@ nsContentSubtreeIterator::Next()
   {
     // as long as we are finding ancestors of the endpoint of the range,
     // dive down into their children
-    nextNode = nextNode->GetFirstChild();
+    nextNode = nextNode->GetChildAt(0);
     NS_ASSERTION(nextNode, "Iterator error, expected a child node!");
 
     // should be impossible to get a null pointer.  If we went all the way

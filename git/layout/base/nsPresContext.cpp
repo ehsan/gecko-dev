@@ -55,7 +55,8 @@
 #include "nsIURL.h"
 #include "nsIDocument.h"
 #include "nsStyleContext.h"
-#include "mozilla/LookAndFeel.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 #include "nsIComponentManager.h"
 #include "nsIURIContentListener.h"
 #include "nsIInterfaceRequestor.h"
@@ -85,7 +86,7 @@
 #include "gfxPlatform.h"
 #include "nsCSSRules.h"
 #include "nsFontFaceLoader.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsStyleStructInlines.h"
 #include "nsIAppShell.h"
 #include "prenv.h"
@@ -93,7 +94,9 @@
 #include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
+#ifdef MOZ_CSS_ANIMATIONS
 #include "nsAnimationManager.h"
+#endif
 #include "mozilla/dom/Element.h"
 #include "nsIFrameMessageManager.h"
 #include "FrameLayerBuilder.h"
@@ -109,7 +112,6 @@
 
 #include "nsContentUtils.h"
 #include "nsPIWindowRoot.h"
-#include "mozilla/Preferences.h"
 
 // Needed for Start/Stop of Image Animation
 #include "imgIContainer.h"
@@ -122,14 +124,14 @@ using namespace mozilla;
 using namespace mozilla::dom;
 
 static nscolor
-MakeColorPref(const nsCString& aColor)
+MakeColorPref(const char *colstr)
 {
   PRUint32 red, green, blue;
   nscolor colorref;
 
   // 4.x stored RGB color values as a string rather than as an int,
   // thus we need to do this conversion
-  PR_sscanf(aColor.get(), "#%02x%02x%02x", &red, &green, &blue);
+  PR_sscanf(colstr, "#%02x%02x%02x", &red, &green, &blue);
   colorref = NS_RGB(red, green, blue);
   return colorref;
 }
@@ -179,6 +181,7 @@ destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
   return PL_DHASH_NEXT;
 }
 
+static NS_DEFINE_CID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
 #include "nsContentCID.h"
 
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
@@ -235,8 +238,6 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   mFocusBackgroundColor = mBackgroundColor;
   mFocusRingWidth = 1;
 
-  mBodyTextColor = mDefaultColor;
-
   if (aType == eContext_Galley) {
     mMedium = nsGkAtoms::screen;
   } else {
@@ -287,46 +288,45 @@ nsPresContext::~nsPresContext()
   }
 
   // Unregister preference callbacks
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "font.",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "browser.display.",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "browser.underline_anchors",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "browser.anchor_color",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "browser.active_color",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "browser.visited_color",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "image.animation_mode",
-                                  this);
+  nsContentUtils::UnregisterPrefCallback("font.",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("browser.display.",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("browser.underline_anchors",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("browser.anchor_color",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("browser.active_color",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("browser.visited_color",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("image.animation_mode",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
 #ifdef IBMBIDI
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "bidi.",
-                                  this);
+  nsContentUtils::UnregisterPrefCallback("bidi.", PrefChangedCallback, this);
 #endif // IBMBIDI
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "dom.send_after_paint_to_content",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "gfx.font_rendering.",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "layout.css.dpi",
-                                  this);
-  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
-                                  "layout.css.devPixelsPerPx",
-                                  this);
+  nsContentUtils::UnregisterPrefCallback("dom.send_after_paint_to_content",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("gfx.font_rendering.",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("layout.css.dpi",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
+  nsContentUtils::UnregisterPrefCallback("layout.css.devPixelsPerPx",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
 
   NS_IF_RELEASE(mDeviceContext);
+  NS_IF_RELEASE(mLookAndFeel);
   NS_IF_RELEASE(mLanguage);
 }
 
@@ -356,6 +356,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDeviceContext); // not xpcom
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mEventManager, nsIObserver);
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLookAndFeel); // a service
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLanguage); // an atom
 
   for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
@@ -365,6 +366,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrintSettings);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrefChangedTimer);
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
@@ -378,6 +381,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
     NS_RELEASE(tmp->mEventManager);
   }
 
+  // NS_RELEASE(tmp->mLookAndFeel); // a service
   // NS_RELEASE(tmp->mLanguage); // an atom
 
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
@@ -388,6 +392,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
     tmp->mPrefChangedTimer->Cancel();
     tmp->mPrefChangedTimer = nsnull;
   }
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -464,7 +470,7 @@ nsPresContext::GetFontPreferences()
   PRInt32 unit = eUnit_px;
 
   nsAdoptingCString cvalue =
-    Preferences::GetCString("font.size.unit");
+    nsContentUtils::GetCharPref("font.size.unit");
 
   if (!cvalue.IsEmpty()) {
     if (cvalue.Equals("px")) {
@@ -484,7 +490,7 @@ nsPresContext::GetFontPreferences()
   pref.Assign("font.minimum-size.");
   pref.Append(langGroup);
 
-  PRInt32 size = Preferences::GetInt(pref.get());
+  PRInt32 size = nsContentUtils::GetIntPref(pref.get());
   if (unit == eUnit_px) {
     mMinimumFontSizePref = CSSPixelsToAppUnits(size);
   }
@@ -514,13 +520,14 @@ nsPresContext::GetFontPreferences()
     if (eType == eDefaultFont_Variable) {
       MAKE_FONT_PREF_KEY(pref, "font.name", generic_dot_langGroup);
 
-      nsAdoptingString value = Preferences::GetString(pref.get());
+      nsAdoptingString value =
+        nsContentUtils::GetStringPref(pref.get());
       if (!value.IsEmpty()) {
         font->name.Assign(value);
       }
       else {
         MAKE_FONT_PREF_KEY(pref, "font.default.", langGroup);
-        value = Preferences::GetString(pref.get());
+        value = nsContentUtils::GetStringPref(pref.get());
         if (!value.IsEmpty()) {
           mDefaultVariableFont.name.Assign(value);
         }
@@ -549,7 +556,7 @@ nsPresContext::GetFontPreferences()
     // get font.size.[generic].[langGroup]
     // size=0 means 'Auto', i.e., generic fonts retain the size of the variable font
     MAKE_FONT_PREF_KEY(pref, "font.size", generic_dot_langGroup);
-    size = Preferences::GetInt(pref.get());
+    size = nsContentUtils::GetIntPref(pref.get());
     if (size > 0) {
       if (unit == eUnit_px) {
         font->size = CSSPixelsToAppUnits(size);
@@ -562,7 +569,7 @@ nsPresContext::GetFontPreferences()
     // get font.size-adjust.[generic].[langGroup]
     // XXX only applicable on GFX ports that handle |font-size-adjust|
     MAKE_FONT_PREF_KEY(pref, "font.size-adjust", generic_dot_langGroup);
-    cvalue = Preferences::GetCString(pref.get());
+    cvalue = nsContentUtils::GetCharPref(pref.get());
     if (!cvalue.IsEmpty()) {
       font->sizeAdjust = (float)atof(cvalue.get());
     }
@@ -589,38 +596,39 @@ nsPresContext::GetDocumentColorPreferences()
       usePrefColors = PR_FALSE;
     }
     else {
-      useAccessibilityTheme =
-        LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
+      mLookAndFeel->GetMetric(nsILookAndFeel::eMetric_UseAccessibilityTheme, useAccessibilityTheme);
       usePrefColors = !useAccessibilityTheme;
     }
 
   }
   if (usePrefColors) {
     usePrefColors =
-      !Preferences::GetBool("browser.display.use_system_colors", PR_FALSE);
+      !nsContentUtils::GetBoolPref("browser.display.use_system_colors",
+                                   PR_FALSE);
   }
 
   if (usePrefColors) {
     nsAdoptingCString colorStr =
-      Preferences::GetCString("browser.display.foreground_color");
+      nsContentUtils::GetCharPref("browser.display.foreground_color");
 
     if (!colorStr.IsEmpty()) {
       mDefaultColor = MakeColorPref(colorStr);
     }
 
-    colorStr = Preferences::GetCString("browser.display.background_color");
+    colorStr =
+      nsContentUtils::GetCharPref("browser.display.background_color");
 
     if (!colorStr.IsEmpty()) {
       mBackgroundColor = MakeColorPref(colorStr);
     }
   }
   else {
-    mDefaultColor =
-      LookAndFeel::GetColor(LookAndFeel::eColorID_WindowForeground,
-                            NS_RGB(0x00, 0x00, 0x00));
-    mBackgroundColor =
-      LookAndFeel::GetColor(LookAndFeel::eColorID_WindowBackground,
-                            NS_RGB(0xFF, 0xFF, 0xFF));
+    mDefaultColor = NS_RGB(0x00, 0x00, 0x00);
+    mBackgroundColor = NS_RGB(0xFF, 0xFF, 0xFF);
+    mLookAndFeel->GetColor(nsILookAndFeel::eColor_WindowForeground,
+                           mDefaultColor);
+    mLookAndFeel->GetColor(nsILookAndFeel::eColor_WindowBackground,
+                           mBackgroundColor);
   }
 
   // Wherever we got the default background color from, ensure it is
@@ -629,8 +637,8 @@ nsPresContext::GetDocumentColorPreferences()
                                       mBackgroundColor);
 
   mUseDocumentColors = !useAccessibilityTheme &&
-    Preferences::GetBool("browser.display.use_document_colors",
-                         mUseDocumentColors);
+    nsContentUtils::GetBoolPref("browser.display.use_document_colors",
+                                mUseDocumentColors);
 }
 
 void
@@ -641,84 +649,93 @@ nsPresContext::GetUserPreferences()
     // get a presshell.
     return;
   }
+    
+  mFontScaler =
+    nsContentUtils::GetIntPref("browser.display.base_font_scaler",
+                               mFontScaler);
+
 
   mAutoQualityMinFontSizePixelsPref =
-    Preferences::GetInt("browser.display.auto_quality_min_font_size");
+    nsContentUtils::GetIntPref("browser.display.auto_quality_min_font_size");
 
   // * document colors
   GetDocumentColorPreferences();
 
   mSendAfterPaintToContent =
-    Preferences::GetBool("dom.send_after_paint_to_content",
-                         mSendAfterPaintToContent);
+    nsContentUtils::GetBoolPref("dom.send_after_paint_to_content",
+                                mSendAfterPaintToContent);
 
   // * link colors
   mUnderlineLinks =
-    Preferences::GetBool("browser.underline_anchors", mUnderlineLinks);
+    nsContentUtils::GetBoolPref("browser.underline_anchors", mUnderlineLinks);
 
-  nsAdoptingCString colorStr = Preferences::GetCString("browser.anchor_color");
+  nsAdoptingCString colorStr =
+    nsContentUtils::GetCharPref("browser.anchor_color");
 
   if (!colorStr.IsEmpty()) {
     mLinkColor = MakeColorPref(colorStr);
   }
 
-  colorStr = Preferences::GetCString("browser.active_color");
+  colorStr =
+    nsContentUtils::GetCharPref("browser.active_color");
 
   if (!colorStr.IsEmpty()) {
     mActiveLinkColor = MakeColorPref(colorStr);
   }
 
-  colorStr = Preferences::GetCString("browser.visited_color");
+  colorStr = nsContentUtils::GetCharPref("browser.visited_color");
 
   if (!colorStr.IsEmpty()) {
     mVisitedLinkColor = MakeColorPref(colorStr);
   }
 
   mUseFocusColors =
-    Preferences::GetBool("browser.display.use_focus_colors", mUseFocusColors);
+    nsContentUtils::GetBoolPref("browser.display.use_focus_colors",
+                                mUseFocusColors);
 
   mFocusTextColor = mDefaultColor;
   mFocusBackgroundColor = mBackgroundColor;
 
-  colorStr = Preferences::GetCString("browser.display.focus_text_color");
+  colorStr = nsContentUtils::GetCharPref("browser.display.focus_text_color");
 
   if (!colorStr.IsEmpty()) {
     mFocusTextColor = MakeColorPref(colorStr);
   }
 
-  colorStr = Preferences::GetCString("browser.display.focus_background_color");
+  colorStr =
+    nsContentUtils::GetCharPref("browser.display.focus_background_color");
 
   if (!colorStr.IsEmpty()) {
     mFocusBackgroundColor = MakeColorPref(colorStr);
   }
 
   mFocusRingWidth =
-    Preferences::GetInt("browser.display.focus_ring_width", mFocusRingWidth);
+    nsContentUtils::GetIntPref("browser.display.focus_ring_width",
+                               mFocusRingWidth);
 
   mFocusRingOnAnything =
-    Preferences::GetBool("browser.display.focus_ring_on_anything",
-                         mFocusRingOnAnything);
+    nsContentUtils::GetBoolPref("browser.display.focus_ring_on_anything",
+                                mFocusRingOnAnything);
 
   mFocusRingStyle =
-    Preferences::GetInt("browser.display.focus_ring_style", mFocusRingStyle);
-
-  mBodyTextColor = mDefaultColor;
-  
+          nsContentUtils::GetIntPref("browser.display.focus_ring_style",
+                                      mFocusRingStyle);
   // * use fonts?
   mUseDocumentFonts =
-    Preferences::GetInt("browser.display.use_document_fonts") != 0;
+    nsContentUtils::GetIntPref("browser.display.use_document_fonts") != 0;
 
   // * replace backslashes with Yen signs? (bug 245770)
   mEnableJapaneseTransform =
-    Preferences::GetBool("layout.enable_japanese_specific_transform");
+    nsContentUtils::GetBoolPref("layout.enable_japanese_specific_transform");
 
-  mPrefScrollbarSide = Preferences::GetInt("layout.scrollbar.side");
+  mPrefScrollbarSide =
+    nsContentUtils::GetIntPref("layout.scrollbar.side");
 
   GetFontPreferences();
 
   // * image animation
   const nsAdoptingCString& animatePref =
-    Preferences::GetCString("image.animation_mode");
+    nsContentUtils::GetCharPref("image.animation_mode");
   if (animatePref.Equals("normal"))
     mImageAnimationModePref = imgIContainer::kNormalAnimMode;
   else if (animatePref.Equals("none"))
@@ -731,24 +748,24 @@ nsPresContext::GetUserPreferences()
   PRUint32 bidiOptions = GetBidi();
 
   PRInt32 prefInt =
-    Preferences::GetInt(IBMBIDI_TEXTDIRECTION_STR,
-                        GET_BIDI_OPTION_DIRECTION(bidiOptions));
+    nsContentUtils::GetIntPref(IBMBIDI_TEXTDIRECTION_STR,
+                               GET_BIDI_OPTION_DIRECTION(bidiOptions));
   SET_BIDI_OPTION_DIRECTION(bidiOptions, prefInt);
   mPrefBidiDirection = prefInt;
 
   prefInt =
-    Preferences::GetInt(IBMBIDI_TEXTTYPE_STR,
-                        GET_BIDI_OPTION_TEXTTYPE(bidiOptions));
+    nsContentUtils::GetIntPref(IBMBIDI_TEXTTYPE_STR,
+                               GET_BIDI_OPTION_TEXTTYPE(bidiOptions));
   SET_BIDI_OPTION_TEXTTYPE(bidiOptions, prefInt);
 
   prefInt =
-    Preferences::GetInt(IBMBIDI_NUMERAL_STR,
-                        GET_BIDI_OPTION_NUMERAL(bidiOptions));
+    nsContentUtils::GetIntPref(IBMBIDI_NUMERAL_STR,
+                               GET_BIDI_OPTION_NUMERAL(bidiOptions));
   SET_BIDI_OPTION_NUMERAL(bidiOptions, prefInt);
 
   prefInt =
-    Preferences::GetInt(IBMBIDI_SUPPORTMODE_STR,
-                        GET_BIDI_OPTION_SUPPORT(bidiOptions));
+    nsContentUtils::GetIntPref(IBMBIDI_SUPPORTMODE_STR,
+                               GET_BIDI_OPTION_SUPPORT(bidiOptions));
   SET_BIDI_OPTION_SUPPORT(bidiOptions, prefInt);
 
   // We don't need to force reflow: either we are initializing a new
@@ -758,10 +775,8 @@ nsPresContext::GetUserPreferences()
 }
 
 void
-nsPresContext::InvalidateThebesLayers()
+nsPresContext::AppUnitsPerDevPixelChanged()
 {
-  if (!mShell)
-    return;
   nsIFrame* rootFrame = mShell->FrameManager()->GetRootFrame();
   if (rootFrame) {
     // FrameLayerBuilder caches invalidation-related values that depend on the
@@ -769,12 +784,6 @@ nsPresContext::InvalidateThebesLayers()
     // is completely flushed.
     FrameLayerBuilder::InvalidateThebesLayersInSubtree(rootFrame);
   }
-}
-
-void
-nsPresContext::AppUnitsPerDevPixelChanged()
-{
-  InvalidateThebesLayers();
 
   mDeviceContext->FlushFontCache();
 
@@ -862,7 +871,6 @@ nsPresContext::UpdateAfterPreferencesChanged()
     mShell->SetPreferenceStyleRules(PR_TRUE);
   }
 
-  InvalidateThebesLayers();
   mDeviceContext->FlushFontCache();
 
   nsChangeHint hint = nsChangeHint(0);
@@ -890,13 +898,30 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
     if (!mImageLoaders[i].Init())
       return NS_ERROR_OUT_OF_MEMORY;
+  
+  // Get the look and feel service here; default colors will be initialized
+  // from calling GetUserPreferences() when we get a presshell.
+  nsresult rv = CallGetService(kLookAndFeelCID, &mLookAndFeel);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("LookAndFeel service must be implemented for this toolkit");
+    return rv;
+  }
 
   mEventManager = new nsEventStateManager();
+  if (!mEventManager)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   NS_ADDREF(mEventManager);
 
   mTransitionManager = new nsTransitionManager(this);
+  if (!mTransitionManager)
+    return NS_ERROR_OUT_OF_MEMORY;
 
+#ifdef MOZ_CSS_ANIMATIONS
   mAnimationManager = new nsAnimationManager(this);
+  if (!mAnimationManager)
+    return NS_ERROR_OUT_OF_MEMORY;
+#endif
 
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
@@ -932,52 +957,52 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
 
     if (!mRefreshDriver) {
       mRefreshDriver = new nsRefreshDriver(this);
+      if (!mRefreshDriver)
+        return NS_ERROR_OUT_OF_MEMORY;
     }
   }
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
   // Register callbacks so we're notified when the preferences change
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "font.",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "browser.display.",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "browser.underline_anchors",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "browser.anchor_color",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "browser.active_color",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "browser.visited_color",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "image.animation_mode",
-                                this);
+  nsContentUtils::RegisterPrefCallback("font.",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("browser.display.",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("browser.underline_anchors",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("browser.anchor_color",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("browser.active_color",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("browser.visited_color",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("image.animation_mode",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
 #ifdef IBMBIDI
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "bidi.",
-                                this);
+  nsContentUtils::RegisterPrefCallback("bidi.", PrefChangedCallback,
+                                       this);
 #endif
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "dom.send_after_paint_to_content",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "gfx.font_rendering.",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "layout.css.dpi",
-                                this);
-  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
-                                "layout.css.devPixelsPerPx",
-                                this);
+  nsContentUtils::RegisterPrefCallback("dom.send_after_paint_to_content",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("gfx.font_rendering.", PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("layout.css.dpi",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
+  nsContentUtils::RegisterPrefCallback("layout.css.devPixelsPerPx",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
 
-  nsresult rv = mEventManager->Init();
+  rv = mEventManager->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
   mEventManager->SetPresContext(this);
@@ -1047,26 +1072,25 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       }
     }
   } else {
+    // Destroy image loaders now that the presshell is going away.
+    // This is important since imageloaders can have pointers to frames and
+    // we don't want those pointers to outlive the destruction of the frame
+    // arena.
+    for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
+      mImageLoaders[i].Enumerate(destroy_loads, nsnull);
+      mImageLoaders[i].Clear();
+    }
+
     if (mTransitionManager) {
       mTransitionManager->Disconnect();
       mTransitionManager = nsnull;
     }
+#ifdef MOZ_CSS_ANIMATIONS
     if (mAnimationManager) {
       mAnimationManager->Disconnect();
       mAnimationManager = nsnull;
     }
-  }
-}
-
-void
-nsPresContext::DestroyImageLoaders()
-{
-  // Destroy image loaders. This is important to do when frames are being
-  // destroyed because imageloaders can have pointers to frames and we don't
-  // want those pointers to outlive the destruction of the frame arena.
-  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
-    mImageLoaders[i].Enumerate(destroy_loads, nsnull);
-    mImageLoaders[i].Clear();
+#endif
   }
 }
 
@@ -1270,6 +1294,16 @@ nsPresContext::SetImageAnimationModeExternal(PRUint16 aMode)
   SetImageAnimationModeInternal(aMode);
 }
 
+already_AddRefed<nsFontMetrics>
+nsPresContext::GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet)
+{
+  nsFontMetrics* metrics = nsnull;
+  mDeviceContext->GetMetricsFor(aFont, mLanguage,
+                                aUseUserFontSet ? GetUserFontSet() : nsnull,
+                                metrics);
+  return metrics;
+}
+
 const nsFont*
 nsPresContext::GetDefaultFont(PRUint8 aFontID) const
 {
@@ -1438,6 +1472,15 @@ nsPresContext::SetBidiEnabled() const
   }
 }
 
+nsBidiPresUtils*
+nsPresContext::GetBidiUtils()
+{
+  if (!mBidiUtils)
+    mBidiUtils = new nsBidiPresUtils;
+
+  return mBidiUtils;
+}
+
 void
 nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceRestyle)
 {
@@ -1478,6 +1521,15 @@ PRUint32
 nsPresContext::GetBidi() const
 {
   return Document()->GetBidiOptions();
+}
+
+PRUint32
+nsPresContext::GetBidiMemoryUsed()
+{
+  if (!mBidiUtils)
+    return 0;
+
+  return mBidiUtils->EstimateMemoryUsed();
 }
 
 #endif //IBMBIDI
@@ -1535,9 +1587,9 @@ nsPresContext::ThemeChangedInternal()
     sThemeChanged = PR_FALSE;
   }
 
-  // Clear all cached LookAndFeel colors.
-  if (sLookAndFeelChanged) {
-    LookAndFeel::Refresh();
+  // Clear all cached nsILookAndFeel colors.
+  if (mLookAndFeel && sLookAndFeelChanged) {
+    mLookAndFeel->LookAndFeelChanged();
     sLookAndFeelChanged = PR_FALSE;
   }
 
@@ -1572,9 +1624,9 @@ nsPresContext::SysColorChangedInternal()
 {
   mPendingSysColorChanged = PR_FALSE;
   
-  if (sLookAndFeelChanged) {
+  if (mLookAndFeel && sLookAndFeelChanged) {
      // Don't use the cached values for the system colors
-    LookAndFeel::Refresh();
+    mLookAndFeel->LookAndFeelChanged();
     sLookAndFeelChanged = PR_FALSE;
   }
    
@@ -1596,7 +1648,9 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
   }
 
   RebuildUserFontSet();
+#ifdef MOZ_CSS_ANIMATIONS
   AnimationManager()->KeyframesListIsDirty();
+#endif
 
   mShell->FrameConstructor()->RebuildAllStyleData(aExtraHint);
 }
@@ -1657,7 +1711,7 @@ nsPresContext::MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData)
 
     if (!notifyList.IsEmpty()) {
       nsPIDOMWindow *win = mDocument->GetInnerWindow();
-      nsCOMPtr<nsIDOMEventTarget> et = do_QueryInterface(win);
+      nsCOMPtr<nsPIDOMEventTarget> et = do_QueryInterface(win);
       nsCxPusher pusher;
 
       for (PRUint32 i = 0, i_end = notifyList.Length(); i != i_end; ++i) {
@@ -2012,11 +2066,11 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (aInnerWindow->HasPaintEventListeners())
     return PR_TRUE;
 
-  nsIDOMEventTarget* parentTarget = aInnerWindow->GetParentTarget();
+  nsPIDOMEventTarget* parentTarget = aInnerWindow->GetParentTarget();
   if (!parentTarget)
     return PR_FALSE;
 
-  nsEventListenerManager* manager = nsnull;
+  nsIEventListenerManager* manager = nsnull;
   if ((manager = parentTarget->GetListenerManager(PR_FALSE)) &&
       manager->MayHavePaintEventListener()) {
     return PR_TRUE;
@@ -2042,7 +2096,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
     return MayHavePaintEventListener(window);
 
   nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(parentTarget);
-  nsIDOMEventTarget* tabChildGlobal;
+  nsPIDOMEventTarget* tabChildGlobal;
   return root &&
          (tabChildGlobal = root->GetParentTarget()) &&
          (manager = tabChildGlobal->GetListenerManager(PR_FALSE)) &&
@@ -2152,9 +2206,8 @@ static PRUint32 sInterruptCounter;
 static PRUint32 sInterruptChecksToSkip = 200;
 // Number of milliseconds that a reflow should be allowed to run for before we
 // actually allow interruption.  Controlled by the
-// GECKO_REFLOW_MIN_NOINTERRUPT_DURATION env var.  Can't be initialized here,
-// because TimeDuration/TimeStamp is not safe to use in static constructors..
-static TimeDuration sInterruptTimeout;
+// GECKO_REFLOW_MIN_NOINTERRUPT_DURATION env var.
+static TimeDuration sInterruptTimeout = TimeDuration::FromMilliseconds(100);
 
 static void GetInterruptEnv()
 {
@@ -2185,8 +2238,9 @@ static void GetInterruptEnv()
   }
 
   ev = PR_GetEnv("GECKO_REFLOW_MIN_NOINTERRUPT_DURATION");
-  int duration_ms = ev ? atoi(ev) : 100;
-  sInterruptTimeout = TimeDuration::FromMilliseconds(duration_ms);
+  if (ev) {
+    sInterruptTimeout = TimeDuration::FromMilliseconds(atoi(ev));
+  }
 }
 
 PRBool

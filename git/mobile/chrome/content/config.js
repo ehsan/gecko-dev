@@ -91,7 +91,6 @@ var ViewConfig = {
     switch (aType) {
       case Ci.nsIPrefBranch.PREF_INT:
         setting.setAttribute("type", "integer");
-        setting.setAttribute("min", -Infinity);
         break;
       case Ci.nsIPrefBranch.PREF_BOOL:
         setting.setAttribute("type", "bool");
@@ -159,7 +158,6 @@ var ViewConfig = {
       case Ci.nsIPrefBranch.PREF_INT:
         setting.setAttribute("type", "integer");
         setting.setAttribute("increment", this.getIncrementForValue(pref.value));
-        setting.setAttribute("min", -Infinity);
         shouldFocus = true;
         break;
 
@@ -258,13 +256,13 @@ var ViewConfig = {
     row.setAttribute("default", aPref.default);
 
     let label = document.createElement("label");
-    label.setAttribute("class", "preferences-title");
+    label.setAttribute("class", "preftitle");
     label.setAttribute("value", aPref.name);
     label.setAttribute("crop", "end");
     row.appendChild(label);
 
     label = document.createElement("label");
-    label.setAttribute("class", "preferences-value");
+    label.setAttribute("class", "prefvalue");
     label.setAttribute("value", aPref.value);
     label.setAttribute("crop", "end");
     row.appendChild(label);

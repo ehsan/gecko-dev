@@ -219,11 +219,47 @@ js_NewXMLObject(JSContext *cx, JSXMLClass xml_class);
 extern JSObject *
 js_GetXMLObject(JSContext *cx, JSXML *xml);
 
+extern JS_FRIEND_DATA(js::Class) js_XMLClass;
+extern JS_FRIEND_DATA(js::Class) js_NamespaceClass;
+extern JS_FRIEND_DATA(js::Class) js_QNameClass;
+extern JS_FRIEND_DATA(js::Class) js_AttributeNameClass;
+extern JS_FRIEND_DATA(js::Class) js_AnyNameClass;
+extern js::Class                 js_XMLFilterClass;
+
 /*
  * Methods to test whether an object or a value is of type "xml" (per typeof).
  */
+inline bool
+JSObject::isXML() const
+{
+    return getClass() == &js_XMLClass;
+}
+
+inline bool
+JSObject::isXMLId() const
+{
+    js::Class *clasp = getClass();
+    return clasp == &js_QNameClass ||
+           clasp == &js_AttributeNameClass ||
+           clasp == &js_AnyNameClass;
+}
 
 #define VALUE_IS_XML(v)      (!JSVAL_IS_PRIMITIVE(v) && JSVAL_TO_OBJECT(v)->isXML())
+
+inline bool
+JSObject::isNamespace() const
+{
+    return getClass() == &js_NamespaceClass;
+}
+
+inline bool
+JSObject::isQName() const
+{
+    js::Class* clasp = getClass();
+    return clasp == &js_QNameClass ||
+           clasp == &js_AttributeNameClass ||
+           clasp == &js_AnyNameClass;
+}
 
 static inline bool
 IsXML(const js::Value &v)
@@ -244,11 +280,11 @@ extern JSObject *
 js_InitXMLClasses(JSContext *cx, JSObject *obj);
 
 /*
- * If obj is a QName corresponding to function::name, set *funidp to name's id
- * and return true, else return false.
+ * If obj is QName corresponding to function::name, set *funidp to name's id,
+ * otherwise set *funidp to void.
  */
-extern bool
-js_GetLocalNameFromFunctionQName(JSObject *obj, jsid *funidp, JSContext *cx);
+JSBool
+js_IsFunctionQName(JSContext *cx, JSObject *obj, jsid *funidp);
 
 extern JSBool
 js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp);

@@ -44,15 +44,14 @@
 #include <locale.h>
 #include <fontconfig/fontconfig.h>
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsILanguageAtomService.h"
 #include "nsTArray.h"
-#include "mozilla/Preferences.h"
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
-
-using namespace mozilla;
 
 /* static */ gfxFontconfigUtils* gfxFontconfigUtils::sUtils = nsnull;
 static nsILanguageAtomService* gLangService = nsnull;
@@ -177,66 +176,6 @@ gfxFontconfigUtils::FcWeightForBaseWeight(PRInt8 aBaseWeight)
     return aBaseWeight < 2 ? FC_WEIGHT_THIN : FC_WEIGHT_EXTRABLACK;
 }
 
-/* static */ PRInt16
-gfxFontconfigUtils::GetThebesStretch(FcPattern *aPattern)
-{
-    int width;
-    if (FcPatternGetInteger(aPattern, FC_WIDTH, 0, &width) != FcResultMatch) {
-        return NS_FONT_STRETCH_NORMAL;
-    }
-
-    if (width <= (FC_WIDTH_ULTRACONDENSED + FC_WIDTH_EXTRACONDENSED) / 2) {
-        return NS_FONT_STRETCH_ULTRA_CONDENSED;
-    }
-    if (width <= (FC_WIDTH_EXTRACONDENSED + FC_WIDTH_CONDENSED) / 2) {
-        return NS_FONT_STRETCH_EXTRA_CONDENSED;
-    }
-    if (width <= (FC_WIDTH_CONDENSED + FC_WIDTH_SEMICONDENSED) / 2) {
-        return NS_FONT_STRETCH_CONDENSED;
-    }
-    if (width <= (FC_WIDTH_SEMICONDENSED + FC_WIDTH_NORMAL) / 2) {
-        return NS_FONT_STRETCH_SEMI_CONDENSED;
-    }
-    if (width <= (FC_WIDTH_NORMAL + FC_WIDTH_SEMIEXPANDED) / 2) {
-        return NS_FONT_STRETCH_NORMAL;
-    }
-    if (width <= (FC_WIDTH_SEMIEXPANDED + FC_WIDTH_EXPANDED) / 2) {
-        return NS_FONT_STRETCH_SEMI_EXPANDED;
-    }
-    if (width <= (FC_WIDTH_EXPANDED + FC_WIDTH_EXTRAEXPANDED) / 2) {
-        return NS_FONT_STRETCH_EXPANDED;
-    }
-    if (width <= (FC_WIDTH_EXTRAEXPANDED + FC_WIDTH_ULTRAEXPANDED) / 2) {
-        return NS_FONT_STRETCH_EXTRA_EXPANDED;
-    }
-    return NS_FONT_STRETCH_ULTRA_EXPANDED;
-}
-
-/* static */ int
-gfxFontconfigUtils::FcWidthForThebesStretch(PRInt16 aStretch)
-{
-    switch (aStretch) {
-        default: // this will catch "normal" (0) as well as out-of-range values
-            return FC_WIDTH_NORMAL;
-        case NS_FONT_STRETCH_ULTRA_CONDENSED:
-            return FC_WIDTH_ULTRACONDENSED;
-        case NS_FONT_STRETCH_EXTRA_CONDENSED:
-            return FC_WIDTH_EXTRACONDENSED;
-        case NS_FONT_STRETCH_CONDENSED:
-            return FC_WIDTH_CONDENSED;
-        case NS_FONT_STRETCH_SEMI_CONDENSED:
-            return FC_WIDTH_SEMICONDENSED;
-        case NS_FONT_STRETCH_SEMI_EXPANDED:
-            return FC_WIDTH_SEMIEXPANDED;
-        case NS_FONT_STRETCH_EXPANDED:
-            return FC_WIDTH_EXPANDED;
-        case NS_FONT_STRETCH_EXTRA_EXPANDED:
-            return FC_WIDTH_EXTRAEXPANDED;
-        case NS_FONT_STRETCH_ULTRA_EXPANDED:
-            return FC_WIDTH_ULTRAEXPANDED;
-    }
-}
-
 // This makes a guess at an FC_WEIGHT corresponding to a base weight and
 // offset (without any knowledge of which weights are available).
 
@@ -304,7 +243,6 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
     FcPatternAddDouble(pattern, FC_PIXEL_SIZE, aFontStyle.size);
     FcPatternAddInteger(pattern, FC_SLANT, GetFcSlant(aFontStyle));
     FcPatternAddInteger(pattern, FC_WEIGHT, GuessFcWeight(aFontStyle));
-    FcPatternAddInteger(pattern, FC_WIDTH, FcWidthForThebesStretch(aFontStyle.stretch));
 
     if (aLang) {
         AddString(pattern, FC_LANG, aLang);
@@ -325,8 +263,8 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
             for (PRUint32 g = 0;
                  g < NS_ARRAY_LENGTH(sFontconfigGenerics);
                  ++g) {
-                if (0 == FcStrCmpIgnoreCase(ToFcChar8(sFontconfigGenerics[g]),
-                                            ToFcChar8(family.get()))) {
+                if (FcStrCmpIgnoreCase(ToFcChar8(sFontconfigGenerics[g]),
+                                       ToFcChar8(family.get()))) {
                     useWeakBinding = PR_TRUE;
                     break;
                 }
@@ -457,7 +395,7 @@ TryLangForGroup(const nsACString& aOSLang, nsIAtom *aLangGroup,
     }
 
     nsIAtom *atom =
-        gLangService->LookupLanguage(*aFcLang);
+        gLangService->LookupLanguage(NS_ConvertUTF8toUTF16(*aFcLang));
 
     return atom == aLangGroup;
 }
@@ -649,8 +587,17 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
     // fontconfig converts the non existing font to sans-serif.
     // This is not good if the web page specifies font-family
     // that has Windows font name in the first.
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), NS_ERROR_FAILURE);
-    nsAdoptingCString list = Preferences::GetCString("font.alias-list");
+    nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return NS_ERROR_FAILURE;
+
+    nsCOMPtr<nsIPrefBranch> prefBranch;
+    prefs->GetBranch(0, getter_AddRefs(prefBranch));
+    if (!prefBranch)
+        return NS_ERROR_FAILURE;
+
+    nsXPIDLCString list;
+    prefBranch->GetCharPref("font.alias-list", getter_Copies(list));
 
     if (!list.IsEmpty()) {
         const char kComma = ',';

@@ -92,15 +92,15 @@ let Change = {
         document.getElementById("textBox1Row").hidden = true;
         document.getElementById("textBox2Row").hidden = true;
         document.getElementById("passphraseLabel").value
-          = this._str("new.recoverykey.label");
+          = this._str("new.synckey.label");
         document.getElementById("passphraseSpacer").hidden = false;
 
         if (this._updatingPassphrase) {
           document.getElementById("passphraseHelpBox").hidden = false;
-          document.title = this._str("new.recoverykey.title");
-          introText.textContent = this._str("new.recoverykey.introText");
+          document.title = this._str("new.synckey.title");
+          introText.textContent = this._str("new.synckey2.introText");
           this._dialog.getButton("finish").label
-            = this._str("new.recoverykey.acceptButton");
+            = this._str("new.synckey.acceptButton");
         }
         else {
           document.getElementById("generatePassphraseButton").hidden = false;
@@ -111,11 +111,11 @@ let Change = {
              pp = Weave.Utils.hyphenatePassphrase(pp);
           this._passphraseBox.value = pp;
           this._passphraseBox.focus();
-          document.title = this._str("change.recoverykey.title");
+          document.title = this._str("change.synckey2.title");
           introText.textContent = this._str("change.synckey.introText2");
-          warningText.textContent = this._str("change.recoverykey.warningText");
+          warningText.textContent = this._str("change.synckey2.warningText");
           this._dialog.getButton("finish").label
-            = this._str("change.recoverykey.acceptButton");
+            = this._str("change.synckey.acceptButton");
           if (this._duringSetup) {
             this._dialog.getButton("finish").disabled = false;
           }
@@ -137,7 +137,7 @@ let Change = {
         else {
           document.title = this._str("change.password.title");
           box2label.value = this._str("new.password.confirm");
-          introText.textContent = this._str("change.password3.introText");
+          introText.textContent = this._str("change.password2.introText");
           warningText.textContent = this._str("change.password.warningText");
           this._dialog.getButton("finish").label
             = this._str("change.password.acceptButton");
@@ -195,21 +195,20 @@ let Change = {
     if (this._updatingPassphrase) {
       Weave.Service.passphrase = pp;
       if (Weave.Service.login()) {
-        this._updateStatus("change.recoverykey.success", "success");
+        this._updateStatus("change.synckey2.success", "success");
         Weave.Service.persistLogin();
-        Weave.SyncScheduler.delayedAutoConnect(0);
       }
       else {
         this._updateStatus("new.passphrase.status.incorrect", "error");
       }
     }
     else {
-      this._updateStatus("change.recoverykey.label", "active");
+      this._updateStatus("change.synckey.label", "active");
 
       if (Weave.Service.changePassphrase(pp))
-        this._updateStatus("change.recoverykey.success", "success");
+        this._updateStatus("change.synckey2.success", "success");
       else
-        this._updateStatus("change.recoverykey.error", "error");
+        this._updateStatus("change.synckey2.error", "error");
     }
 
     return false;

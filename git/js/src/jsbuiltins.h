@@ -42,10 +42,12 @@
 
 #ifdef JS_TRACER
 
-// nanojit.h includes windows.h, so undo the obnoxious #defines, if needed
 #include "nanojit/nanojit.h"
-#include "jswin.h"
-#include "jsprvtd.h"
+#include "jsvalue.h"
+
+#ifdef THIS
+#undef THIS
+#endif
 
 enum JSTNErrType { INFALLIBLE, FAIL_STATUS, FAIL_NULL, FAIL_NEG, FAIL_NEITHER };
 enum { 
@@ -83,8 +85,8 @@ enum {
  * 'i': an integer argument
  * 's': a JSString* argument
  * 'o': a JSObject* argument
- * 'r': a JSObject* argument that is of class RegExpClass
- * 'f': a JSObject* argument that is of class FunctionClass
+ * 'r': a JSObject* argument that is of class js_RegExpClass
+ * 'f': a JSObject* argument that is of class js_FunctionClass
  * 'v': a value argument: on 32-bit, a Value*, on 64-bit, a jsval
  */
 struct JSSpecializedNative {
@@ -230,6 +232,7 @@ struct ClosureVarInfo;
 #define _JS_CTYPE_CHARPTR           _JS_CTYPE(char *,                 _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_CVIPTR            _JS_CTYPE(const ClosureVarInfo *, _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_FRAMEINFO         _JS_CTYPE(FrameInfo *,            _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_PICTABLE          _JS_CTYPE(PICTable *,             _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_UINTN             _JS_CTYPE(uintN,                  _JS_PTR, --, --, INFALLIBLE)
  
 /*
@@ -250,26 +253,6 @@ struct ClosureVarInfo;
 #elif JS_BITS_PER_WORD == 64
 # define _JS_CTYPE_VALUE            _JS_CTYPE(js::ValueArgType,       _JS_U64, "","v", INFALLIBLE)
 #endif
-
-namespace js {
-#if JS_BITS_PER_WORD == 32
-typedef const js::Value *ValueArgType;
-
-static JS_ALWAYS_INLINE const js::Value &
-ValueArgToConstRef(const js::Value *arg)
-{
-    return *arg;
-}
-#elif JS_BITS_PER_WORD == 64
-typedef js::Value        ValueArgType;
-
-static JS_ALWAYS_INLINE const Value &
-ValueArgToConstRef(const Value &v)
-{
-    return v;
-}
-#endif
-}  /* namespace js */
 
 #define _JS_EXPAND(tokens)  tokens
 
@@ -308,7 +291,7 @@ ValueArgToConstRef(const Value &v)
 #define _JS_DEFINE_CALLINFO(linkage, name, crtype, cargtypes, argtypes, isPure, storeAccSet)      \
     _JS_TN_LINKAGE(linkage, crtype) FASTCALL name cargtypes;                                      \
     _JS_CI_LINKAGE(linkage) const nanojit::CallInfo _JS_CALLINFO(name) =                          \
-        { (uintptr_t) &name, argtypes, nanojit::ABI_FASTCALL, isPure, storeAccSet _JS_CI_NAME(name) }; \
+        { (intptr_t) &name, argtypes, nanojit::ABI_FASTCALL, isPure, storeAccSet _JS_CI_NAME(name) }; \
     JS_STATIC_ASSERT_IF(isPure, (storeAccSet) == nanojit::ACCSET_NONE);
 #endif
 
@@ -527,7 +510,7 @@ ValueArgToConstRef(const Value &v)
     JSSpecializedNative name##_sns[] = {                                                          \
         { _JS_TN_INIT_HELPER_n tn0 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define JS_DEFINE_TRCINFO_2(name, tn0, tn1)                                                       \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
@@ -536,7 +519,7 @@ ValueArgToConstRef(const Value &v)
         { _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                                                 \
         { _JS_TN_INIT_HELPER_n tn1 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define JS_DEFINE_TRCINFO_3(name, tn0, tn1, tn2)                                                  \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
@@ -547,7 +530,7 @@ ValueArgToConstRef(const Value &v)
         { _JS_TN_INIT_HELPER_n tn1 | JSTN_MORE },                                                 \
         { _JS_TN_INIT_HELPER_n tn2 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define JS_DEFINE_TRCINFO_4(name, tn0, tn1, tn2, tn3)                                             \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
@@ -560,7 +543,7 @@ ValueArgToConstRef(const Value &v)
         { _JS_TN_INIT_HELPER_n tn2 | JSTN_MORE },                                                 \
         { _JS_TN_INIT_HELPER_n tn3 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define _JS_DEFINE_CALLINFO_n(n, args)  JS_DEFINE_CALLINFO_##n args
 
@@ -597,9 +580,8 @@ namespace js {
 JS_DECLARE_CALLINFO(NewDenseEmptyArray)
 JS_DECLARE_CALLINFO(NewDenseAllocatedArray)
 JS_DECLARE_CALLINFO(NewDenseUnallocatedArray)
-JS_DECLARE_CALLINFO(NewDenseAllocatedEmptyArray)
 }
-JS_DECLARE_CALLINFO(js_NewbornArrayPush_tn)
+JS_DECLARE_CALLINFO(js_ArrayCompPush_tn)
 JS_DECLARE_CALLINFO(js_EnsureDenseArrayCapacity)
 
 /* Defined in jsbuiltins.cpp. */

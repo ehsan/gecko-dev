@@ -40,7 +40,6 @@
 #include "nsISupports.idl"
 
 typedef unsigned long long DOMTimeStamp;
-typedef unsigned long long DOMTimeMilliSec;
 
 // Core
 interface nsIDOMAttr;
@@ -52,10 +51,14 @@ interface nsIDOMDocument;
 interface nsIDOMDocumentFragment;
 interface nsIDOMDocumentType;
 interface nsIDOMElement;
+interface nsIDOMEntity;
+interface nsIDOMEntityReference;
+interface nsIDOMNSDocument;
 interface nsIDOMNSElement;
 interface nsIDOMNamedNodeMap;
 interface nsIDOMNode;
 interface nsIDOMNodeList;
+interface nsIDOMNotation;
 interface nsIDOMProcessingInstruction;
 interface nsIDOMText;
 interface nsIDOMDOMStringList;
@@ -76,6 +79,7 @@ interface nsIDOMMediaList;
 
 // Base
 interface nsIDOMWindow;
+interface nsIDOMWindowInternal;
 interface nsIDOMWindowCollection;
 interface nsIDOMPlugin;
 interface nsIDOMPluginArray;
@@ -90,6 +94,7 @@ interface nsIDOMHistory;
 interface nsIDOMEvent;
 interface nsIDOMEventTarget;
 interface nsIDOMEventListener;
+interface nsIDOMEventGroup;
 
 // HTML
 interface nsIDOMHTMLElement;
@@ -121,7 +126,3 @@ interface nsIDOMRange;
 interface nsIDOMCRMFObject;
 interface nsIDOMCrypto;
 interface nsIDOMPkcs11;
-
-// Used font face (for inspector)
-interface nsIDOMFontFace;
-interface nsIDOMFontFaceList;

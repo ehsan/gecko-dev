@@ -58,14 +58,14 @@
 #include "nsStringEnumerator.h"
 #include "nsTextFormatter.h"
 #include "nsUnicharUtils.h"
+#include "nsWidgetsCID.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsZipArchive.h"
-
-#include "mozilla/LookAndFeel.h"
 
 #include "nsICommandLine.h"
 #include "nsILocaleService.h"
 #include "nsILocalFile.h"
+#include "nsILookAndFeel.h"
 #include "nsIObserverService.h"
 #include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
@@ -82,7 +82,7 @@
 #define SELECTED_LOCALE_PREF "general.useragent.locale"
 #define SELECTED_SKIN_PREF   "general.skins.selectedSkin"
 
-using namespace mozilla;
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 static PLDHashOperator
 RemoveAll(PLDHashTable *table, PLDHashEntryHdr *entry, PRUint32 number, void *arg)
@@ -210,19 +210,26 @@ nsChromeRegistryChrome::Init()
 NS_IMETHODIMP
 nsChromeRegistryChrome::CheckForOSAccessibility()
 {
-  PRInt32 useAccessibilityTheme =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
+  nsresult rv;
 
-  if (useAccessibilityTheme) {
-    /* Set the skin to classic and remove pref observers */
-    if (!mSelectedSkin.EqualsLiteral("classic/1.0")) {
-      mSelectedSkin.AssignLiteral("classic/1.0");
-      RefreshSkins();
-    }
+  nsCOMPtr<nsILookAndFeel> lookAndFeel (do_GetService(kLookAndFeelCID));
+  if (lookAndFeel) {
+    PRInt32 useAccessibilityTheme = 0;
 
-    nsCOMPtr<nsIPrefBranch2> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
-    if (prefs) {
-      prefs->RemoveObserver(SELECTED_SKIN_PREF, this);
+    rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_UseAccessibilityTheme,
+                                useAccessibilityTheme);
+
+    if (NS_SUCCEEDED(rv) && useAccessibilityTheme) {
+      /* Set the skin to classic and remove pref observers */
+      if (!mSelectedSkin.EqualsLiteral("classic/1.0")) {
+        mSelectedSkin.AssignLiteral("classic/1.0");
+        RefreshSkins();
+      }
+
+      nsCOMPtr<nsIPrefBranch2> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
+      if (prefs) {
+        prefs->RemoveObserver(SELECTED_SKIN_PREF, this);
+      }
     }
   }
 
@@ -361,9 +368,12 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
 
     if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
         pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-        rv = UpdateSelectedLocale();
-        if (NS_SUCCEEDED(rv) && mProfileLoaded)
-          FlushAllCaches();
+      if (!mProfileLoaded) {
+        rv = SelectLocaleFromPref(prefs);
+        if (NS_FAILED(rv))
+          return rv;
+      }
+      FlushAllCaches();
     }
     else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       nsXPIDLCString provider;
@@ -416,12 +426,11 @@ nsChromeRegistryChrome::CheckForNewChrome()
   return NS_OK;
 }
 
-nsresult nsChromeRegistryChrome::UpdateSelectedLocale()
+void nsChromeRegistryChrome::UpdateSelectedLocale()
 {
-  nsresult rv = NS_OK;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefs) {
-    rv = SelectLocaleFromPref(prefs);
+    nsresult rv = SelectLocaleFromPref(prefs);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
@@ -430,8 +439,6 @@ nsresult nsChromeRegistryChrome::UpdateSelectedLocale()
                               "selected-locale-has-changed", nsnull);
     }
   }
-
-  return rv;
 }
 
 static void

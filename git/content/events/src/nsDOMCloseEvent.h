@@ -53,9 +53,9 @@ class nsDOMCloseEvent : public nsDOMEvent,
 {
 public:
   nsDOMCloseEvent(nsPresContext* aPresContext, nsEvent* aEvent)
-    : nsDOMEvent(aPresContext, aEvent),
-    mWasClean(PR_FALSE),
-    mReasonCode(1005) {}
+    : nsDOMEvent(aPresContext, aEvent), mWasClean(PR_FALSE)
+  {
+  }
                      
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -66,8 +66,6 @@ public:
 
 private:
   PRBool mWasClean;
-  PRUint16 mReasonCode;
-  nsString mReason;
 };
 
 #endif // nsDOMCloseEvent_h__

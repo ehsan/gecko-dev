@@ -87,6 +87,7 @@ CPPSRCS = \
   nsNavHistoryResult.cpp \
   nsNavBookmarks.cpp \
   nsMaybeWeakPtr.cpp \
+  nsMorkHistoryImporter.cpp \
   nsPlacesModule.cpp \
   SQLFunctions.cpp \
   Helpers.cpp \
@@ -95,6 +96,12 @@ CPPSRCS = \
   AsyncFaviconHelpers.cpp \
   PlaceInfo.cpp \
   VisitInfo.cpp \
+  $(NULL)
+
+EXTRA_DSO_LDOPTS += \
+  $(DEPTH)/db/morkreader/$(LIB_PREFIX)morkreader_s.$(LIB_SUFFIX) \
+  $(MOZ_UNICHARUTIL_LIBS) \
+  $(MOZ_COMPONENT_LIBS) \
   $(NULL)
 
 LOCAL_INCLUDES += -I$(srcdir)/../build

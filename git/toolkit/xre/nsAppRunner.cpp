@@ -51,15 +51,13 @@
 #if defined(MOZ_WIDGET_QT)
 #include <QtGui/QApplication>
 #include <QtCore/QScopedPointer>
+#include <QtGui/QApplication>
 #include <QtGui/QInputContextFactory>
 #include <QtGui/QInputContext>
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-#include <MComponentData>
-#include <MozMeegoAppService.h>
-#endif // MOZ_ENABLE_MEEGOTOUCH
 #endif // MOZ_WIDGET_QT
 
 #include "mozilla/dom/ContentParent.h"
+using mozilla::dom::ContentParent;
 
 #include "nsAppRunner.h"
 #include "nsUpdateDriver.h"
@@ -95,6 +93,7 @@
 #include "nsIContentHandler.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIDOMWindow.h"
+#include "nsIFastLoadService.h" // for PLATFORM_FASL_SUFFIX
 #include "mozilla/ModuleUtils.h"
 #include "nsIIOService2.h"
 #include "nsIObserverService.h"
@@ -105,6 +104,7 @@
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
+#include "nsITimelineService.h"
 #include "nsIToolkitChromeRegistry.h"
 #include "nsIToolkitProfile.h"
 #include "nsIToolkitProfileService.h"
@@ -121,9 +121,6 @@
 #include "nsAppShellCID.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/unused.h"
-
-using mozilla::unused;
 
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
@@ -157,6 +154,10 @@ using mozilla::unused;
 #include "mozilla/Omnijar.h"
 
 #include <stdlib.h>
+
+#if defined(MOZ_SPLASHSCREEN)
+#include "nsSplashScreen.h"
+#endif
 
 #ifdef XP_UNIX
 #include <sys/stat.h>
@@ -250,9 +251,6 @@ static char **gQtOnlyArgv;
 #endif /* MOZ_X11 */
 #include "nsGTKToolkit.h"
 #endif
-#include "BinaryPath.h"
-
-using mozilla::dom::ContentParent;
 
 // Save literal putenv string to environment variable.
 static void
@@ -754,7 +752,9 @@ nsXULAppInfo::EnsureContentProcess()
   if (XRE_GetProcessType() != GeckoProcessType_Default)
     return NS_ERROR_NOT_AVAILABLE;
 
-  unused << ContentParent::GetNewOrUsed();
+  ContentParent* c = ContentParent::GetSingleton();
+  if (!c)
+    return NS_ERROR_NOT_AVAILABLE;
   return NS_OK;
 }
 
@@ -967,13 +967,6 @@ NS_IMETHODIMP
 nsXULAppInfo::AppendAppNotesToCrashReport(const nsACString& data)
 {
   return CrashReporter::AppendAppNotesToCrashReport(data);
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::RegisterAppMemory(PRUint64 pointer,
-                                PRUint64 len)
-{
-  return CrashReporter::RegisterAppMemory((void *)pointer, len);
 }
 
 NS_IMETHODIMP
@@ -1442,16 +1435,141 @@ RemoteCommandLine(const char* aDesktopStartupID)
 }
 #endif // MOZ_ENABLE_XREMOTE
 
-void
-XRE_InitOmnijar(nsILocalFile* greOmni, nsILocalFile* appOmni)
-{
-  mozilla::Omnijar::Init(greOmni, appOmni);
-}
+#ifdef XP_MACOSX
+static char const *gBinaryPath;
+#endif
 
 nsresult
 XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 {
-  return mozilla::BinaryPath::GetFile(argv0, aResult);
+  nsresult rv;
+  nsCOMPtr<nsILocalFile> lf;
+
+  // We need to use platform-specific hackery to find the
+  // path of this executable. This is copied, with some modifications, from
+  // nsGREDirServiceProvider.cpp
+
+#ifdef XP_WIN
+  PRUnichar exePath[MAXPATHLEN];
+
+  if (!::GetModuleFileNameW(0, exePath, MAXPATHLEN))
+    return NS_ERROR_FAILURE;
+
+  rv = NS_NewLocalFile(nsDependentString(exePath), PR_TRUE,
+                       getter_AddRefs(lf));
+  if (NS_FAILED(rv))
+    return rv;
+
+#elif defined(XP_MACOSX)
+  if (gBinaryPath)
+    return NS_NewNativeLocalFile(nsDependentCString(gBinaryPath), PR_FALSE,
+                                 aResult);
+
+  NS_NewNativeLocalFile(EmptyCString(), PR_TRUE, getter_AddRefs(lf));
+  nsCOMPtr<nsILocalFileMac> lfm (do_QueryInterface(lf));
+  if (!lfm)
+    return NS_ERROR_FAILURE;
+
+  // Works even if we're not bundled.
+  CFBundleRef appBundle = CFBundleGetMainBundle();
+  if (!appBundle)
+    return NS_ERROR_FAILURE;
+
+  CFURLRef executableURL = CFBundleCopyExecutableURL(appBundle);
+  if (!executableURL)
+    return NS_ERROR_FAILURE;
+  rv = lfm->InitWithCFURL(executableURL);
+  CFRelease(executableURL);
+  if (NS_FAILED(rv))
+    return rv;
+
+  // Callers expect a normalized path.
+  lfm->Normalize();
+
+#elif defined(XP_UNIX)
+  struct stat fileStat;
+  char exePath[MAXPATHLEN];
+  char tmpPath[MAXPATHLEN];
+
+  rv = NS_ERROR_FAILURE;
+
+  // on unix, there is no official way to get the path of the current binary.
+  // instead of using the MOZILLA_FIVE_HOME hack, which doesn't scale to
+  // multiple applications, we will try a series of techniques:
+  //
+  // 1) look for /proc/<pid>/exe which is a symlink to the executable on newer
+  //    Linux kernels
+  // 2) use realpath() on argv[0], which works unless we're loaded from the
+  //    PATH
+  // 3) manually walk through the PATH and look for ourself
+  // 4) give up
+
+// #ifdef __linux__
+// Commented out because it used to not work because it used to not deal
+// with readlink not null-terminating the buffer.
+#if 0
+  int r = readlink("/proc/self/exe", exePath, MAXPATHLEN);
+
+  if (r > 0 && r < MAXPATHLEN) {
+    exePath[r] = '\0';
+    if (stat(exePath, &fileStat) == 0) {
+      rv = NS_OK;
+    }
+  }
+
+#endif
+  if (NS_FAILED(rv) &&
+      realpath(argv0, exePath) && stat(exePath, &fileStat) == 0) {
+    rv = NS_OK;
+  }
+
+  if (NS_FAILED(rv)) {
+    const char *path = getenv("PATH");
+    if (!path)
+      return NS_ERROR_FAILURE;
+
+    char *pathdup = strdup(path);
+    if (!pathdup)
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    PRBool found = PR_FALSE;
+    char *newStr = pathdup;
+    char *token;
+    while ( (token = nsCRT::strtok(newStr, ":", &newStr)) ) {
+      sprintf(tmpPath, "%s/%s", token, argv0);
+      if (realpath(tmpPath, exePath) && stat(exePath, &fileStat) == 0) {
+        found = PR_TRUE;
+        break;
+      }
+    }
+    free(pathdup);
+    if (!found)
+      return NS_ERROR_FAILURE;
+  }
+
+  rv = NS_NewNativeLocalFile(nsDependentCString(exePath), PR_TRUE,
+                             getter_AddRefs(lf));
+  if (NS_FAILED(rv))
+    return rv;
+
+#elif defined(XP_OS2)
+  PPIB ppib;
+  PTIB ptib;
+  char exePath[MAXPATHLEN];
+
+  DosGetInfoBlocks( &ptib, &ppib);
+  DosQueryModuleName( ppib->pib_hmte, MAXPATHLEN, exePath);
+  rv = NS_NewNativeLocalFile(nsDependentCString(exePath), PR_TRUE,
+                             getter_AddRefs(lf));
+  if (NS_FAILED(rv))
+    return rv;
+
+#else
+#error Oops, you need platform-specific code here
+#endif
+
+  NS_ADDREF(*aResult = lf);
+  return NS_OK;
 }
 
 #define NS_ERROR_LAUNCHED_CHILD_PROCESS NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_PROFILE, 200)
@@ -1559,12 +1677,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 
   // Restart this process by exec'ing it into the current process
   // if supported by the platform.  Otherwise, use NSPR.
-
-#ifdef MOZ_JPROF
-  // make sure JPROF doesn't think we're E10s
-  unsetenv("JPROF_SLAVE");
-#endif
-
+ 
   if (aBlankCommandLine) {
 #if defined(MOZ_WIDGET_QT)
     // Remove only arguments not given to Qt
@@ -1686,34 +1799,26 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
       (do_GetService(NS_PROMPTSERVICE_CONTRACTID));
     NS_ENSURE_TRUE(ps, NS_ERROR_FAILURE);
 
+    PRUint32 flags = nsIPromptService::BUTTON_TITLE_OK * nsIPromptService::BUTTON_POS_0;
+
     if (aUnlocker) {
-      const PRUint32 flags =
-        (nsIPromptService::BUTTON_TITLE_CANCEL * 
-         nsIPromptService::BUTTON_POS_0) +
-        (nsIPromptService::BUTTON_TITLE_IS_STRING * 
-         nsIPromptService::BUTTON_POS_1) +
+      flags =
+        nsIPromptService::BUTTON_TITLE_CANCEL * nsIPromptService::BUTTON_POS_0 +
+        nsIPromptService::BUTTON_TITLE_IS_STRING * nsIPromptService::BUTTON_POS_1 +
         nsIPromptService::BUTTON_POS_1_DEFAULT;
+    }
 
-      PRInt32 button;
-      // The actual value is irrelevant but we shouldn't be handing out
-      // malformed JSBools to XPConnect.
-      PRBool checkState = PR_FALSE;
-      rv = ps->ConfirmEx(nsnull, killTitle, killMessage, flags,
-                         killTitle, nsnull, nsnull, nsnull, 
-                         &checkState, &button);
-      NS_ENSURE_SUCCESS_LOG(rv, rv);
+    PRInt32 button;
+    PRBool checkState;
+    rv = ps->ConfirmEx(nsnull, killTitle, killMessage, flags,
+                       killTitle, nsnull, nsnull, nsnull, &checkState, &button);
+    NS_ENSURE_SUCCESS_LOG(rv, rv);
 
-      if (button == 1) {
-        rv = aUnlocker->Unlock(nsIProfileUnlocker::FORCE_QUIT);
-        if (NS_FAILED(rv)) 
-          return rv;
+    if (button == 1 && aUnlocker) {
+      rv = aUnlocker->Unlock(nsIProfileUnlocker::FORCE_QUIT);
+      if (NS_FAILED(rv)) return rv;
 
-        return NS_LockProfilePath(aProfileDir, aProfileLocalDir, 
-                                  nsnull, aResult);
-      }
-    } else {
-      rv = ps->Alert(nsnull, killTitle, killMessage);
-      NS_ENSURE_SUCCESS_LOG(rv, rv);
+      return NS_LockProfilePath(aProfileDir, aProfileLocalDir, nsnull, aResult);
     }
 
     return NS_ERROR_ABORT;
@@ -2312,12 +2417,6 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
   if (!file)
     return;
 
-#if defined(XP_UNIX) || defined(XP_BEOS)
-#define PLATFORM_FASL_SUFFIX ".mfasl"
-#elif defined(XP_WIN) || defined(XP_OS2)
-#define PLATFORM_FASL_SUFFIX ".mfl"
-#endif
-
   file->AppendNative(NS_LITERAL_CSTRING("XUL" PLATFORM_FASL_SUFFIX));
   file->Remove(PR_FALSE);
   
@@ -2432,7 +2531,7 @@ static nsGTKToolkit* GetGTKToolkit()
   nsCOMPtr<nsIAppShellService> svc = do_GetService(NS_APPSHELLSERVICE_CONTRACTID);
   if (!svc)
     return nsnull;
-  nsCOMPtr<nsIDOMWindow> window;
+  nsCOMPtr<nsIDOMWindowInternal> window;
   svc->GetHiddenDOMWindow(getter_AddRefs(window));
   if (!window)
     return nsnull;
@@ -2546,14 +2645,20 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
  */
 NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
 
+#ifdef MOZ_SPLASHSCREEN
+#define MOZ_SPLASHSCREEN_UPDATE(_i)  do { if (splashScreen) splashScreen->Update(_i); } while(0)
+#else
+#define MOZ_SPLASHSCREEN_UPDATE(_i)  do { } while(0)
+#endif
+
 #ifdef CAIRO_HAS_DWRITE_FONT
 
 #include <dwrite.h>
 
 typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  DWRITE_FACTORY_TYPE factoryType,
-  REFIID iid,
-  IUnknown **factory
+  __in   DWRITE_FACTORY_TYPE factoryType,
+  __in   REFIID iid,
+  __out  IUnknown **factory
 );
 
 #ifdef DEBUG_DWRITE_STARTUP
@@ -2612,7 +2717,7 @@ PRTime gXRE_mainTimestamp = 0;
 
 #ifdef MOZ_X11
 #ifndef MOZ_PLATFORM_MAEMO
-bool fire_glxtest_process();
+void fire_glxtest_process();
 #endif
 #endif
 
@@ -2623,8 +2728,13 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
   gXRE_mainTimestamp = PR_Now();
 
+#ifdef MOZ_SPLASHSCREEN
+  nsSplashScreen *splashScreen = nsnull;
+#endif
+
   nsresult rv;
   ArgResult ar;
+  NS_TIMELINE_MARK("enter main");
 
 #ifdef DEBUG
   if (PR_GetEnv("XRE_MAIN_BREAK"))
@@ -2637,20 +2747,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   // That's the whole reason for doing this in a separate process.
 #ifdef MOZ_X11
 #ifndef MOZ_PLATFORM_MAEMO
-  if (fire_glxtest_process())
-    return 0;
+  fire_glxtest_process();
 #endif
-#endif
-
-#ifdef XP_WIN
-  // Vista API.  Mozilla is DPI Aware.
-  typedef BOOL (*SetProcessDPIAwareFunc)(VOID);
-
-  SetProcessDPIAwareFunc setDPIAware = (SetProcessDPIAwareFunc)
-    GetProcAddress(LoadLibraryW(L"user32.dll"), "SetProcessDPIAware");
-
-  if (setDPIAware)
-    setDPIAware();
 #endif
 
   SetupErrorHandling(argv[0]);
@@ -2709,6 +2807,16 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
   NS_ENSURE_TRUE(aAppData, 2);
 
+#ifdef XP_MACOSX
+  // The xulrunner stub executable tricks CFBundleGetMainBundle on
+  // purpose into lying about the main bundle path. It will set
+  // XRE_BINARY_PATH to inform us of our real location.
+  gBinaryPath = getenv("XRE_BINARY_PATH");
+
+  if (gBinaryPath && !*gBinaryPath)
+    gBinaryPath = nsnull;
+#endif
+
   // Check for application.ini overrides
   const char* override = nsnull;
   ar = CheckArg("override", PR_TRUE, &override);
@@ -2745,6 +2853,21 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     Output(PR_TRUE, "Error: App:BuildID not specified in application.ini\n");
     return 1;
   }
+
+#ifdef MOZ_SPLASHSCREEN
+  // check to see if we need to do a splash screen
+  PRBool wantsSplash = PR_TRUE;
+  PRBool isNoSplash = (CheckArg("nosplash", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
+  isNoSplash |= (PR_GetEnv("NO_SPLASH") != 0);
+  PRBool isNoRemote = (CheckArg("no-remote", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
+
+  if (wantsSplash && !isNoSplash)
+    splashScreen = nsSplashScreen::GetOrCreate();
+
+  if (splashScreen)
+    splashScreen->Open();
+#endif //MOZ_SPLASHSCREEN
+
 
   ScopedLogging log;
 
@@ -2827,6 +2950,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       // see if we have a crashreporter-override.ini in the application directory
       nsCOMPtr<nsIFile> overrideini;
       PRBool exists;
+      static char overrideEnv[MAXPATHLEN];
       if (NS_SUCCEEDED(dirProvider.GetAppDir()->Clone(getter_AddRefs(overrideini))) &&
           NS_SUCCEEDED(overrideini->AppendNative(NS_LITERAL_CSTRING("crashreporter-override.ini"))) &&
           NS_SUCCEEDED(overrideini->Exists(&exists)) &&
@@ -2840,7 +2964,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         overrideini->GetNativePath(overridePath);
 #endif
 
-        SaveWordToEnv("MOZ_CRASHREPORTER_STRINGS_OVERRIDE", overridePath);
+        sprintf(overrideEnv, "MOZ_CRASHREPORTER_STRINGS_OVERRIDE=%s",
+                overridePath.get());
+        PR_SetEnv(overrideEnv);
       }
     }
   }
@@ -2959,6 +3085,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   gArgc = argc = NS_TraceMallocStartupArgs(gArgc, gArgv);
 #endif
 
+  MOZ_SPLASHSCREEN_UPDATE(20);
+
   rv = XRE_InitCommandLine(gArgc, gArgv);
   NS_ENSURE_SUCCESS(rv, 1);
 
@@ -3000,11 +3128,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
 
     QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-    gArgv[gArgc] = strdup("-software");
-    gArgc++;
-    QScopedPointer<MComponentData> meegotouch(new MComponentData(gArgc, gArgv,"", new  MApplicationService("")));
-#endif
 
 #if MOZ_PLATFORM_MAEMO > 5
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
@@ -3072,11 +3195,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
 #ifdef MOZ_ENABLE_XREMOTE
     // handle -remote now that xpcom is fired up
-    bool disableRemote = false;
-    {
-      char *e = PR_GetEnv("MOZ_NO_REMOTE");
-      disableRemote = (e && *e);
-    }
 
     const char* xremotearg;
     ar = CheckArg("remote", PR_TRUE, &xremotearg);
@@ -3090,7 +3208,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return HandleRemoteArgument(xremotearg, desktopStartupIDPtr);
     }
 
-    if (!disableRemote) {
+    if (!PR_GetEnv("MOZ_NO_REMOTE")) {
       // Try to remote the entire command line. If this fails, start up normally.
       RemoteResult rr = RemoteCommandLine(desktopStartupIDPtr);
       if (rr == REMOTE_FOUND)
@@ -3306,6 +3424,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     PRBool appInitiatedRestart = PR_FALSE;
 
+    MOZ_SPLASHSCREEN_UPDATE(30);
+
     NS_TIME_FUNCTION_MARK("Next: ScopedXPCOMStartup");
 
     NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup");
@@ -3382,11 +3502,13 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         }
 
         {
+          NS_TIMELINE_ENTER("startupNotifier");
           nsCOMPtr<nsIObserver> startupNotifier
             (do_CreateInstance(NS_APPSTARTUPNOTIFIER_CONTRACTID, &rv));
           NS_ENSURE_SUCCESS(rv, 1);
 
           startupNotifier->Observe(nsnull, APPSTARTUP_TOPIC, nsnull);
+          NS_TIMELINE_LEAVE("startupNotifier");
         }
 
         NS_TIME_FUNCTION_MARK("Finished startupNotifier");
@@ -3478,8 +3600,12 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         if (!shuttingDown) {
           NS_TIME_FUNCTION_MARK("Next: CreateHiddenWindow");
 
+          NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
           rv = appStartup->CreateHiddenWindow();
+          NS_TIMELINE_LEAVE("appStartup->CreateHiddenWindow");
           NS_ENSURE_SUCCESS(rv, 1);
+
+          MOZ_SPLASHSCREEN_UPDATE(50);
 
 #if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
           nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
@@ -3508,6 +3634,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           NS_ENSURE_SUCCESS(rv, 1);
 #endif
 
+          MOZ_SPLASHSCREEN_UPDATE(70);
+
           nsCOMPtr<nsIObserverService> obsService =
             mozilla::services::GetObserverService();
           if (obsService)
@@ -3532,8 +3660,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef MOZ_ENABLE_XREMOTE
           // if we have X remote support, start listening for requests on the
           // proxy window.
-          if (!disableRemote)
-            remoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
+          remoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
           if (remoteService)
             remoteService->Startup(gAppData->name,
                                    PromiseFlatCString(profileName).get());
@@ -3553,8 +3680,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
         NS_TIME_FUNCTION_MARK("appStartup->Run");
 
+        MOZ_SPLASHSCREEN_UPDATE(90);
         {
+          NS_TIMELINE_ENTER("appStartup->Run");
           rv = appStartup->Run();
+          NS_TIMELINE_LEAVE("appStartup->Run");
           if (NS_FAILED(rv)) {
             NS_ERROR("failed to run appstartup");
             gLogConsoleErrors = PR_TRUE;
@@ -3583,6 +3713,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif /* MOZ_ENABLE_XREMOTE */
         }
 
+#ifdef MOZ_TIMELINE
+        // Make sure we print this out even if timeline is runtime disabled
+        if (NS_FAILED(NS_TIMELINE_LEAVE("main1")))
+          NS_TimelineForceMark("...main1");
+#endif
       }
     }
 
@@ -3592,12 +3727,22 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     // Restart the app after XPCOM has been shut down cleanly. 
     if (appInitiatedRestart) {
+      MOZ_SPLASHSCREEN_UPDATE(90);
+
       RestoreStateForAppInitiatedRestart();
 
       // Ensure that these environment variables are set:
       SaveFileToEnvIfUnset("XRE_PROFILE_PATH", profD);
       SaveFileToEnvIfUnset("XRE_PROFILE_LOCAL_PATH", profLD);
       SaveWordToEnvIfUnset("XRE_PROFILE_NAME", profileName);
+
+#ifdef XP_MACOSX
+      if (gBinaryPath) {
+        static char kEnvVar[MAXPATHLEN];
+        sprintf(kEnvVar, "XRE_BINARY_PATH=%s", gBinaryPath);
+        PR_SetEnv(kEnvVar);
+      }
+#endif
 
 #ifdef MOZ_WIDGET_GTK2
       MOZ_gdk_display_close(display);

@@ -1,4 +1,3 @@
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/history.js");
@@ -105,26 +104,24 @@ function test_history_guids() {
     "SELECT id FROM moz_places WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  let result = Async.querySpinningly(stmt, ["id"]);
+  let result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["id"]);
+  result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
-  stmt.finalize();
 
   _("History: Verify GUIDs weren't added to annotations.");
   stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
     "SELECT a.content AS guid FROM moz_annos a WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
-  stmt.finalize();
 }
 
 function test_bookmark_guids() {
@@ -150,28 +147,26 @@ function test_bookmark_guids() {
     "SELECT id FROM moz_bookmarks WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  let result = Async.querySpinningly(stmt, ["id"]);
+  let result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
   do_check_eq(result[0].id, fxid);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["id"]);
+  result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
   do_check_eq(result[0].id, tbid);
-  stmt.finalize();
 
   _("Bookmarks: Verify GUIDs weren't added to annotations.");
   stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
     "SELECT a.content AS guid FROM moz_items_annos a WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
-  stmt.finalize();
 }
 
 function run_test() {

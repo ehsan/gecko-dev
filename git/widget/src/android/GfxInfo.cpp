@@ -35,6 +35,7 @@
 
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"
+#include "nsPrintfCString.h"
 #include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
@@ -46,6 +47,7 @@
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
+#include "nsIPrefService.h"
 #endif
 
 using namespace mozilla::widget;
@@ -60,12 +62,6 @@ GfxInfo::GetD2DEnabled(PRBool *aEnabled)
 
 nsresult
 GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
-nsresult
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
 {
   return NS_ERROR_FAILURE;
 }
@@ -111,26 +107,12 @@ GfxInfo::GetAdapterDescription(nsAString & aAdapterDescription)
   return NS_OK;
 }
 
-/* readonly attribute DOMString adapterDescription2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterDescription2(nsAString & aAdapterDescription)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute DOMString adapterRAM; */
 NS_IMETHODIMP
 GfxInfo::GetAdapterRAM(nsAString & aAdapterRAM)
 {
   aAdapterRAM.AssignLiteral("");
   return NS_OK;
-}
-
-/* readonly attribute DOMString adapterRAM2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterRAM2(nsAString & aAdapterRAM)
-{
-  return NS_ERROR_FAILURE;
 }
 
 /* readonly attribute DOMString adapterDriver; */
@@ -141,26 +123,12 @@ GfxInfo::GetAdapterDriver(nsAString & aAdapterDriver)
   return NS_OK;
 }
 
-/* readonly attribute DOMString adapterDriver2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterDriver2(nsAString & aAdapterDriver)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute DOMString adapterDriverVersion; */
 NS_IMETHODIMP
 GfxInfo::GetAdapterDriverVersion(nsAString & aAdapterDriverVersion)
 {
   aAdapterDriverVersion.AssignLiteral("");
   return NS_OK;
-}
-
-/* readonly attribute DOMString adapterDriverVersion2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterDriverVersion2(nsAString & aAdapterDriverVersion)
-{
-  return NS_ERROR_FAILURE;
 }
 
 /* readonly attribute DOMString adapterDriverDate; */
@@ -171,13 +139,6 @@ GfxInfo::GetAdapterDriverDate(nsAString & aAdapterDriverDate)
   return NS_OK;
 }
 
-/* readonly attribute DOMString adapterDriverDate2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterDriverDate2(nsAString & aAdapterDriverDate)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute unsigned long adapterVendorID; */
 NS_IMETHODIMP
 GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
@@ -186,33 +147,12 @@ GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
   return NS_OK;
 }
 
-/* readonly attribute unsigned long adapterVendorID2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterVendorID2(PRUint32 *aAdapterVendorID)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute unsigned long adapterDeviceID; */
 NS_IMETHODIMP
 GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
 {
   *aAdapterDeviceID = 0;
   return NS_OK;
-}
-
-/* readonly attribute unsigned long adapterDeviceID2; */
-NS_IMETHODIMP
-GfxInfo::GetAdapterDeviceID2(PRUint32 *aAdapterDeviceID)
-{
-  return NS_ERROR_FAILURE;
-}
-
-/* readonly attribute boolean isGPU2Active; */
-NS_IMETHODIMP
-GfxInfo::GetIsGPU2Active(PRBool* aIsGPU2Active)
-{
-  return NS_ERROR_FAILURE;
 }
 
 void
@@ -271,16 +211,13 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
   }
 
   if (aFeature == FEATURE_OPENGL_LAYERS) {
-    /* XXX: Use this code when we're ready to whitelist devices. */
-    // nsAutoString str;
-    // /* Whitelist Galaxy S phones */
-    // if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
-    //   if (str != NS_LITERAL_STRING("smdkc110")) {
-    //     status = FEATURE_BLOCKED_DEVICE;
-    //   }
-    // }
-
-    status = FEATURE_BLOCKED_DEVICE;
+      nsAutoString str;
+      /* Whitelist Galaxy S phones */
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
+          if (str != NS_LITERAL_STRING("smdkc110")) {
+            status = FEATURE_BLOCKED_DEVICE;
+          }
+      }
   }
 
   *aStatus = status;

@@ -47,10 +47,6 @@
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
-#include "nsIDOMNodeList.h"
-#include "nsComponentManagerUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColumnsAccessible
@@ -97,10 +93,13 @@ nsXULColumnItemAccessible::NativeState()
   return states::READONLY;
 }
 
-PRUint8
-nsXULColumnItemAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -177,8 +176,8 @@ nsXULListboxAccessible::NativeState()
 
   // see if we are multiple select if so set ourselves as such
 
-  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::seltype,
-                            nsGkAtoms::multiple, eCaseMatters)) {
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::seltype,
+                            nsAccessibilityAtoms::multiple, eCaseMatters)) {
       states |= states::MULTISELECTABLE | states::EXTSELECTABLE;
   }
 
@@ -250,7 +249,7 @@ nsXULListboxAccessible::GetColumnCount(PRInt32 *aColumnsCout)
   PRUint32 count = mContent->GetChildCount();
   for (PRUint32 index = 0; index < count; ++index) {
     nsIContent* childContent = mContent->GetChildAt(index);
-    if (childContent->NodeInfo()->Equals(nsGkAtoms::listcols,
+    if (childContent->NodeInfo()->Equals(nsAccessibilityAtoms::listcols,
                                          kNameSpaceID_XUL)) {
       headContent = childContent;
     }
@@ -264,7 +263,7 @@ nsXULListboxAccessible::GetColumnCount(PRInt32 *aColumnsCout)
   count = headContent->GetChildCount();
   for (PRUint32 index = 0; index < count; ++index) {
     nsIContent* childContent = headContent->GetChildAt(index);
-    if (childContent->NodeInfo()->Equals(nsGkAtoms::listcol,
+    if (childContent->NodeInfo()->Equals(nsAccessibilityAtoms::listcol,
                                          kNameSpaceID_XUL)) {
       columnCount++;
     }
@@ -834,8 +833,8 @@ nsXULListitemAccessible::
   nsXULMenuitemAccessible(aContent, aShell)
 {
   mIsCheckbox = mContent->AttrValueIs(kNameSpaceID_None,
-                                      nsGkAtoms::type,
-                                      nsGkAtoms::checkbox,
+                                      nsAccessibilityAtoms::type,
+                                      nsAccessibilityAtoms::checkbox,
                                       eCaseMatters);
 }
 
@@ -883,9 +882,9 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
 {
   nsIContent* child = mContent->GetChildAt(0);
   if (child) {
-    if (child->NodeInfo()->Equals(nsGkAtoms::listcell,
+    if (child->NodeInfo()->Equals(nsAccessibilityAtoms::listcell,
                                   kNameSpaceID_XUL)) {
-      child->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
+      child->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
       return NS_OK;
     }
   }
@@ -999,11 +998,11 @@ nsXULListCellAccessible::GetTable(nsIAccessibleTable **aTable)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible* thisRow = Parent();
+  nsAccessible* thisRow = GetParent();
   if (!thisRow || thisRow->Role() != nsIAccessibleRole::ROLE_ROW)
     return NS_OK;
 
-  nsAccessible* table = thisRow->Parent();
+  nsAccessible* table = thisRow->GetParent();
   if (!table || table->Role() != nsIAccessibleRole::ROLE_TABLE)
     return NS_OK;
 
@@ -1020,13 +1019,13 @@ nsXULListCellAccessible::GetColumnIndex(PRInt32 *aColumnIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible* row = Parent();
+  nsAccessible* row = GetParent();
   if (!row)
     return NS_OK;
 
   *aColumnIndex = 0;
 
-  PRInt32 indexInRow = IndexInParent();
+  PRInt32 indexInRow = GetIndexInParent();
   for (PRInt32 idx = 0; idx < indexInRow; idx++) {
     nsAccessible* cell = row->GetChildAt(idx);
     PRUint32 role = cell->Role();
@@ -1049,17 +1048,17 @@ nsXULListCellAccessible::GetRowIndex(PRInt32 *aRowIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible* row = Parent();
+  nsAccessible* row = GetParent();
   if (!row)
     return NS_OK;
 
-  nsAccessible* table = row->Parent();
+  nsAccessible* table = row->GetParent();
   if (!table)
     return NS_OK;
 
   *aRowIndex = 0;
 
-  PRInt32 indexInTable = row->IndexInParent();
+  PRInt32 indexInTable = row->GetIndexInParent();
   for (PRInt32 idx = 0; idx < indexInTable; idx++) {
     row = table->GetChildAt(idx);
     if (row->Role() == nsIAccessibleRole::ROLE_ROW)
@@ -1214,7 +1213,7 @@ nsXULListCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribu
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(cellIdx);
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex,
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::tableCellIndex,
                          stringIdx);
 
   return NS_OK;

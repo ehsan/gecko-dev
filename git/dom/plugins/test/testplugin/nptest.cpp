@@ -167,7 +167,6 @@ static bool constructObject(NPObject* npobj, const NPVariant* args, uint32_t arg
 static bool setSitesWithData(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setSitesWithDataCapabilities(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastKeyText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getNPNVdocumentOrigin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -226,8 +225,7 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "constructObject",
   "setSitesWithData",
   "setSitesWithDataCapabilities",
-  "getLastKeyText",
-  "getNPNVdocumentOrigin"
+  "getLastKeyText"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[] = {
@@ -287,8 +285,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   constructObject,
   setSitesWithData,
   setSitesWithDataCapabilities,
-  getLastKeyText,
-  getNPNVdocumentOrigin
+  getLastKeyText
 };
 
 STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
@@ -315,7 +312,6 @@ static URLNotifyData kNotifyData = {
   "static-cookie",
   NULL,
   NULL,
-  NULL,
   false,
   0,
   NULL
@@ -324,6 +320,8 @@ static URLNotifyData kNotifyData = {
 static const char* SUCCESS_STRING = "pass";
 
 static bool sIdentifiersInitialized = false;
+
+static uint32_t timerEventCount = 0;
 
 struct timerEvent {
   int32_t timerIdReceive;
@@ -336,12 +334,15 @@ static timerEvent timerEvents[] = {
   {-1, 0, 200, false, -1},
   {0, 0, 400, false, -1},
   {0, 0, 200, true, -1},
-  {0, 1, 400, true, -1},
-  {0, -1, 0, false, 0},
+  {0, 1, 100, true, -1},
   {1, -1, 0, false, -1},
-  {1, -1, 0, false, 1},
+  {0, -1, 0, false, -1},
+  {1, -1, 0, false, -1},
+  {1, -1, 0, false, -1},
+  {0, -1, 0, false, 0},
+  {1, 2, 600, false, 1},
+  {2, -1, 0, false, 2},
 };
-static uint32_t currentTimerEventCount = 0;
 static uint32_t totalTimerEvents = sizeof(timerEvents) / sizeof(timerEvent);
 
 /**
@@ -572,9 +573,9 @@ NP_GetPluginVersion()
 static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
-NP_EXPORT(const char*) NP_GetMIMEDescription()
+NP_EXPORT(char*) NP_GetMIMEDescription()
 #elif defined(XP_WIN) || defined(XP_OS2)
-const char* NP_GetMIMEDescription()
+char* NP_GetMIMEDescription()
 #endif
 {
   return sMimeDescription;
@@ -2844,8 +2845,8 @@ getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant
 static void timerCallback(NPP npp, uint32_t timerID)
 {
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  currentTimerEventCount++;
-  timerEvent event = timerEvents[currentTimerEventCount];
+  timerEventCount++;
+  timerEvent event = timerEvents[timerEventCount];
 
   NPObject* windowObject;
   NPN_GetValue(npp, NPNVWindowNPObject, &windowObject);
@@ -2853,11 +2854,10 @@ static void timerCallback(NPP npp, uint32_t timerID)
     return;
 
   NPVariant rval;
-  if (timerID != id->timerID[event.timerIdReceive]) {
+  if (timerID != id->timerID[event.timerIdReceive])
     id->timerTestResult = false;
-  }
 
-  if (currentTimerEventCount == totalTimerEvents - 1) {
+  if (timerEventCount == totalTimerEvents - 1) {
     NPVariant arg;
     BOOLEAN_TO_NPVARIANT(id->timerTestResult, arg);
     NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier(id->timerTestScriptCallback.c_str()), &arg, 1, &rval);
@@ -2879,7 +2879,7 @@ timerTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* 
 {
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  currentTimerEventCount = 0;
+  timerEventCount = 0;
 
   if (argCount < 1 || !NPVARIANT_IS_STRING(args[0]))
     return false;
@@ -2887,7 +2887,7 @@ timerTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* 
   id->timerTestScriptCallback = argstr->UTF8Characters;
 
   id->timerTestResult = true;
-  timerEvent event = timerEvents[currentTimerEventCount];
+  timerEvent event = timerEvents[timerEventCount];
     
   id->timerID[event.timerIdSchedule] = NPN_ScheduleTimer(npp, event.timerInterval, event.timerRepeat, timerCallback);
   
@@ -3475,24 +3475,5 @@ bool getLastKeyText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   STRINGZ_TO_NPVARIANT(NPN_StrDup(id->lastKeyText.c_str()), *result);
-  return true;
-}
-
-bool getNPNVdocumentOrigin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                           NPVariant* result)
-{
-  if (argCount != 0) {
-    return false;
-  }
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  char *origin = NULL;
-  NPError err = NPN_GetValue(npp, NPNVdocumentOrigin, &origin);
-  if (err != NPERR_NO_ERROR) {
-    return false;
-  }
-
-  STRINGZ_TO_NPVARIANT(origin, *result);
   return true;
 }

@@ -60,21 +60,14 @@
 
 class nsIURI;
 class nsCSSFontFaceRule;
+#ifdef MOZ_CSS_ANIMATIONS
 class nsCSSKeyframesRule;
+#endif
 class nsRuleWalker;
 struct RuleProcessorData;
 struct TreeMatchContext;
 
 class nsEmptyStyleRule : public nsIStyleRule
-{
-  NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
-#ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
-#endif
-};
-
-class nsInitialStyleRule : public nsIStyleRule
 {
   NS_DECL_ISUPPORTS
   virtual void MapRuleInfoInto(nsRuleData* aRuleData);
@@ -91,8 +84,6 @@ class nsStyleSet
 {
  public:
   nsStyleSet();
-
-  size_t SizeOf() const;
 
   // Initialize the object.  You must check the return code and not use
   // the nsStyleSet if Init() fails.
@@ -183,10 +174,12 @@ class nsStyleSet
   PRBool AppendFontFaceRules(nsPresContext* aPresContext,
                              nsTArray<nsFontFaceRuleContainer>& aArray);
 
+#ifdef MOZ_CSS_ANIMATIONS
   // Append all the currently-active keyframes rules to aArray.  Return
   // true for success and false for failure.
   PRBool AppendKeyframesRules(nsPresContext* aPresContext,
                               nsTArray<nsCSSKeyframesRule*>& aArray);
+#endif
 
   // Begin ignoring style context destruction, to avoid lots of unnecessary
   // work on document teardown.
@@ -250,7 +243,9 @@ class nsStyleSet
     eDocSheet, // CSS
     eStyleAttrSheet,
     eOverrideSheet, // CSS
+#ifdef MOZ_CSS_ANIMATIONS
     eAnimationSheet,
+#endif
     eTransitionSheet,
     eSheetTypeCount
     // be sure to keep the number of bits in |mDirty| below and in
@@ -317,8 +312,6 @@ class nsStyleSet
   }
 
   nsCSSStyleSheet::EnsureUniqueInnerResult EnsureUniqueInnerOnCSSSheets();
-
-  nsIStyleRule* InitialStyleRule();
 
  private:
   // Not to be implemented
@@ -410,10 +403,6 @@ class nsStyleSet
   // Empty style rules to force things that restrict which properties
   // apply into different branches of the rule tree.
   nsRefPtr<nsEmptyStyleRule> mFirstLineRule, mFirstLetterRule;
-
-  // Style rule which sets all properties to their initial values for
-  // determining when context-sensitive values are in use.
-  nsRefPtr<nsInitialStyleRule> mInitialStyleRule;
 
   PRUint16 mBatching;
 

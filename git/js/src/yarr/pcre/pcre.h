@@ -42,14 +42,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef JSRegExp_h
 #define JSRegExp_h
 
-// Last remnants from the JSWTFBridge.
-#include "assembler/wtf/Platform.h"
-#include "jsstr.h"
-#include "jsprvtd.h"
-#include "jstl.h"
-
-typedef jschar UChar;
-typedef JSLinearString UString;
+#include "yarr/jswtfbridge.h"
 
 struct JSRegExp;
 struct JSContext;
@@ -62,8 +55,7 @@ const int JSRegExpErrorNoMatch = -1;
 const int JSRegExpErrorHitLimit = -2;
 const int JSRegExpErrorInternal = -4;
 
-JSRegExp* jsRegExpCompile(
-const UChar* pattern, int patternLength,
+JSRegExp* jsRegExpCompile(const UChar* pattern, int patternLength,
     JSRegExpIgnoreCaseOption, JSRegExpMultilineOption,
     unsigned* numSubpatterns, int *error);
 

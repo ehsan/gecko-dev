@@ -110,19 +110,13 @@ protected:
 // Async statements don't need to be scoped, they are reset when done.
 // So use this version for statements used async, scoped version for statements
 // used sync.
-#define DECLARE_AND_ASSIGN_LAZY_STMT_RET(_localStmt, _globalStmt, _ret)            \
-  mozIStorageStatement* _localStmt = GetStatement(_globalStmt);                \
-  NS_ENSURE_TRUE(_localStmt, _ret)
-
 #define DECLARE_AND_ASSIGN_LAZY_STMT(_localStmt, _globalStmt)                  \
-  DECLARE_AND_ASSIGN_LAZY_STMT_RET(_localStmt, _globalStmt, NS_ERROR_UNEXPECTED)
-
-#define DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT_RET(_localStmt, _globalStmt, _ret)     \
-  DECLARE_AND_ASSIGN_LAZY_STMT_RET(_localStmt, _globalStmt, _ret);             \
-  mozStorageStatementScoper scoper(_localStmt)
+  mozIStorageStatement* _localStmt = GetStatement(_globalStmt);                \
+  NS_ENSURE_STATE(_localStmt)
 
 #define DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(_localStmt, _globalStmt)           \
-  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT_RET(_localStmt, _globalStmt, NS_ERROR_UNEXPECTED)
+  DECLARE_AND_ASSIGN_LAZY_STMT(_localStmt, _globalStmt);                       \
+  mozStorageStatementScoper scoper(_localStmt)
 
 
 /**
@@ -298,10 +292,12 @@ public:
   NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
 
   PlacesEvent(const char* aTopic);
+  PlacesEvent(const char* aTopic, bool aDoubleEnqueue);
 protected:
   void Notify();
 
   const char* const mTopic;
+  bool mDoubleEnqueue;
 };
 
 } // namespace places

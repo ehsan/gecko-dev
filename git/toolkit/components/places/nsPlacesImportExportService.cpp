@@ -49,7 +49,7 @@
  *   Old version used this to set attributes on the bookmarks RDF root, such
  *   as the last modified date. We only use H1 to check for the attribute
  *   PLACES_ROOT, which tells us that this hierarchy root is the places root.
- *   For backwards compatibility, if we don't find this, we assume that the
+ *   For backwards compatability, if we don't find this, we assume that the
  *   hierarchy is rooted at the bookmarks menu.
  * Heading := any heading other than h1
  *   Old version used this to set attributes on the current container. We only
@@ -297,8 +297,8 @@ nsEscapeHTML(const char* string)
         default:
           *ptr++ = *string;
       }
+      *ptr = '\0';
     }
-    *ptr = '\0';
   }
   return escaped;
 }
@@ -750,8 +750,8 @@ BookmarkContentSink::HandleHeadBegin(const nsIParserNode& node)
   // processed.
   PRInt32 attrCount = node.GetAttributeCount();
   frame.mLastContainerType = BookmarkImportFrame::Container_Normal;
-  for (PRInt32 i = 0; i < attrCount; ++i) {
-    if (!mFolderSpecified) {
+  if (!mFolderSpecified) {
+    for (PRInt32 i = 0; i < attrCount; i ++) {
       if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_TOOLBARFOLDER_LOWER)) {
         if (mIsImportDefaults)
           frame.mLastContainerType = BookmarkImportFrame::Container_Toolbar;
@@ -772,15 +772,14 @@ BookmarkContentSink::HandleHeadBegin(const nsIParserNode& node)
           frame.mLastContainerType = BookmarkImportFrame::Container_Places;
         break;
       }
-    }
-
-    if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_DATE_ADDED_LOWER)) {
-      frame.mPreviousDateAdded =
-        ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
-    }
-    else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_LAST_MODIFIED_LOWER)) {
-      frame.mPreviousLastModifiedDate =
-        ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
+      else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_DATE_ADDED_LOWER)) {
+        frame.mPreviousDateAdded =
+          ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
+      }
+      else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_LAST_MODIFIED_LOWER)) {
+        frame.mPreviousLastModifiedDate =
+          ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
+      }
     }
   }
   CurFrame().mPreviousText.Truncate();

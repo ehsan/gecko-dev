@@ -408,8 +408,10 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
       if (!mBlockData) {
         mBlockData = new ExtraBlockData(mBounds);
       }
-      changed = aValue != mBlockData->mCarriedOutBottomMargin;
-      mBlockData->mCarriedOutBottomMargin = aValue;
+      if (mBlockData) {
+        changed = aValue != mBlockData->mCarriedOutBottomMargin;
+        mBlockData->mCarriedOutBottomMargin = aValue;
+      }
     }
     else if (mBlockData) {
       changed = aValue != mBlockData->mCarriedOutBottomMargin;
@@ -467,7 +469,9 @@ nsLineBox::AppendFloats(nsFloatCacheFreeList& aFreeList)
       if (!mInlineData) {
         mInlineData = new ExtraInlineData(mBounds);
       }
-      mInlineData->mFloats.Append(aFreeList);
+      if (mInlineData) {
+        mInlineData->mFloats.Append(aFreeList);
+      }
     }
   }
 }
@@ -626,16 +630,15 @@ nsLineIterator::GetLine(PRInt32 aLineNumber,
 }
 
 PRInt32
-nsLineIterator::FindLineContaining(nsIFrame* aFrame, PRInt32 aStartLine)
+nsLineIterator::FindLineContaining(nsIFrame* aFrame)
 {
-  NS_PRECONDITION(aStartLine <= mNumLines, "Bogus line numbers");
-  PRInt32 lineNumber = aStartLine;
+  nsLineBox* line = mLines[0];
+  PRInt32 lineNumber = 0;
   while (lineNumber != mNumLines) {
-    nsLineBox* line = mLines[lineNumber];
     if (line->Contains(aFrame)) {
       return lineNumber;
     }
-    ++lineNumber;
+    line = mLines[++lineNumber];
   }
   return -1;
 }
@@ -657,9 +660,11 @@ nsLineIterator::CheckLineOrder(PRInt32                  aLine,
     return NS_OK;
   }
 
+  nsBidiPresUtils* bidiUtils = line->mFirstChild->PresContext()->GetBidiUtils();
+
   nsIFrame* leftmostFrame;
   nsIFrame* rightmostFrame;
-  *aIsReordered = nsBidiPresUtils::CheckLineOrder(line->mFirstChild, line->GetChildCount(), &leftmostFrame, &rightmostFrame);
+  *aIsReordered = bidiUtils->CheckLineOrder(line->mFirstChild, line->GetChildCount(), &leftmostFrame, &rightmostFrame);
 
   // map leftmost/rightmost to first/last according to paragraph direction
   *aFirstVisual = mRightToLeft ? rightmostFrame : leftmostFrame;

@@ -1,5 +1,4 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -43,7 +42,9 @@
 #define _LIBMATH_H
 
 #include <math.h>
-#include "jsnum.h"
+#ifdef XP_WIN
+# include "jsnum.h"
+#endif
 
 /*
  * Use system provided math routines.
@@ -64,12 +65,6 @@ extern double js_copysign(double, double);
 #define js_copysign copysign
 #endif
 
-#if defined(_M_X64) && defined(_MSC_VER) && _MSC_VER <= 1500
-// This is a workaround for fmod bug (http://support.microsoft.com/kb/982107)
-extern "C" double js_myfmod(double x, double y);
-#define fmod js_myfmod
-#endif
-
 /* Consistency wrapper for platform deviations in fmod() */
 static inline double
 js_fmod(double d, double d2)
@@ -85,28 +80,6 @@ js_fmod(double d, double d2)
     }
 #endif
     return fmod(d, d2);
-}
-
-namespace js {
-
-inline double
-NumberDiv(double a, double b) {
-    if (b == 0) {
-        if (a == 0 || JSDOUBLE_IS_NaN(a) 
-#ifdef XP_WIN
-            || JSDOUBLE_IS_NaN(b) /* XXX MSVC miscompiles such that (NaN == 0) */
-#endif
-        )
-            return js_NaN;    
-
-        if (JSDOUBLE_IS_NEG(a) != JSDOUBLE_IS_NEG(b))
-            return js_NegativeInfinity;
-        return js_PositiveInfinity; 
-    }
-
-    return a / b;
-}
-
 }
 
 #endif /* _LIBMATH_H */

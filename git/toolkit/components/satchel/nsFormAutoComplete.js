@@ -314,9 +314,7 @@ FormAutoComplete.prototype = {
             this.log("getValues failed: " + e.name + " : " + e.message);
             throw "DB failed getting form autocomplete values";
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         return values;

@@ -50,6 +50,7 @@
 #include "plstr.h"
 #include "nsDTDUtils.h"
 #include "nsHTMLTokenizer.h"
+#include "nsTime.h"
 #include "nsParserNode.h"
 #include "nsHTMLEntities.h"
 #include "nsLinebreakConverter.h"
@@ -59,7 +60,6 @@
 #include "nsUnicharUtils.h"
 #include "prmem.h"
 #include "nsIServiceManager.h"
-#include "nsParserConstants.h"
 
 #ifdef NS_DEBUG
 #include "nsLoggingSink.h"
@@ -882,7 +882,7 @@ CNavDTD::HandleDefaultStartToken(CToken* aToken, eHTMLTags aChildTag,
   if (mParserCommand != eViewFragment) {
     PRBool  theChildAgrees = PR_TRUE;
     PRInt32 theIndex = mBodyContext->GetCount();
-    PRInt32 theParentContains = 0;
+    PRBool  theParentContains = PR_FALSE;
 
     do {
       eHTMLTags theParentTag = mBodyContext->TagAt(--theIndex);

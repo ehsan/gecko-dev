@@ -108,7 +108,6 @@ interface nsIXPCScriptable : nsISupports
     const PRUint32 DONT_REFLECT_INTERFACE_NAMES     = 1 << 27;
     const PRUint32 WANT_EQUALITY                    = 1 << 28;
     const PRUint32 WANT_OUTER_OBJECT                = 1 << 29;
-    const PRUint32 USE_STUB_EQUALITY_HOOK           = 1 << 30;
 
     // The high order bit is RESERVED for consumers of these flags. 
     // No implementor of this interface should ever return flags 
@@ -127,64 +126,64 @@ interface nsIXPCScriptable : nsISupports
     void   postCreate(in nsIXPConnectWrappedNative wrapper,
                       in JSContextPtr cx, in JSObjectPtr obj);
 
-    boolean addProperty(in nsIXPConnectWrappedNative wrapper,
+    PRBool addProperty(in nsIXPConnectWrappedNative wrapper,
                        in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
                        in JSValPtr vp);
 
-    boolean delProperty(in nsIXPConnectWrappedNative wrapper,
-                       in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
-                       in JSValPtr vp);
-
-    // The returnCode should be set to NS_SUCCESS_I_DID_SOMETHING if
-    // this method does something.
-    boolean getProperty(in nsIXPConnectWrappedNative wrapper,
+    PRBool delProperty(in nsIXPConnectWrappedNative wrapper,
                        in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
                        in JSValPtr vp);
 
     // The returnCode should be set to NS_SUCCESS_I_DID_SOMETHING if
     // this method does something.
-    boolean setProperty(in nsIXPConnectWrappedNative wrapper,
+    PRBool getProperty(in nsIXPConnectWrappedNative wrapper,
                        in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
                        in JSValPtr vp);
 
-    boolean enumerate(in nsIXPConnectWrappedNative wrapper,
+    // The returnCode should be set to NS_SUCCESS_I_DID_SOMETHING if
+    // this method does something.
+    PRBool setProperty(in nsIXPConnectWrappedNative wrapper,
+                       in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
+                       in JSValPtr vp);
+
+    PRBool enumerate(in nsIXPConnectWrappedNative wrapper,
                      in JSContextPtr cx, in JSObjectPtr obj);
 
-    boolean newEnumerate(in nsIXPConnectWrappedNative wrapper,
+    PRBool newEnumerate(in nsIXPConnectWrappedNative wrapper,
                         in JSContextPtr cx, in JSObjectPtr obj,
                         in PRUint32 enum_op, in JSValPtr statep, out jsid idp);
 
-    boolean newResolve(in nsIXPConnectWrappedNative wrapper,
+    PRBool newResolve(in nsIXPConnectWrappedNative wrapper,
                       in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
                       in PRUint32 flags, out JSObjectPtr objp);
 
-    boolean convert(in nsIXPConnectWrappedNative wrapper,
+    PRBool convert(in nsIXPConnectWrappedNative wrapper,
                    in JSContextPtr cx, in JSObjectPtr obj,
                    in PRUint32 type, in JSValPtr vp);
 
     void   finalize(in nsIXPConnectWrappedNative wrapper,
                     in JSContextPtr cx, in JSObjectPtr obj);
 
-    boolean checkAccess(in nsIXPConnectWrappedNative wrapper,
+    PRBool checkAccess(in nsIXPConnectWrappedNative wrapper,
                        in JSContextPtr cx, in JSObjectPtr obj, in jsid id,
                        in PRUint32 mode, in JSValPtr vp);
 
-    boolean call(in nsIXPConnectWrappedNative wrapper,
+    PRBool call(in nsIXPConnectWrappedNative wrapper,
                 in JSContextPtr cx, in JSObjectPtr obj,
                 in PRUint32 argc, in JSValPtr argv, in JSValPtr vp);
 
-    boolean construct(in nsIXPConnectWrappedNative wrapper,
+    PRBool construct(in nsIXPConnectWrappedNative wrapper,
                      in JSContextPtr cx, in JSObjectPtr obj,
                      in PRUint32 argc, in JSValPtr argv, in JSValPtr vp);
 
-    boolean hasInstance(in nsIXPConnectWrappedNative wrapper,
+    PRBool hasInstance(in nsIXPConnectWrappedNative wrapper,
                        in JSContextPtr cx, in JSObjectPtr obj,
-                       in jsval val, out boolean bp);
+                       in jsval val, out PRBool bp);
 
     void trace(in nsIXPConnectWrappedNative wrapper,
                in JSTracerPtr trc, in JSObjectPtr obj);
 
-    boolean equality(in nsIXPConnectWrappedNative wrapper,
+    PRBool equality(in nsIXPConnectWrappedNative wrapper,
                     in JSContextPtr cx, in JSObjectPtr obj, in jsval val);
 
     JSObjectPtr outerObject(in nsIXPConnectWrappedNative wrapper,

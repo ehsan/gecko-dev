@@ -64,7 +64,6 @@
 #include "json.h"
 
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
@@ -72,18 +71,17 @@
 
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 
-Class js::JSONClass = {
+Class js_JSONClass = {
     js_JSON_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
-    JS_PropertyStub,        /* addProperty */
-    JS_PropertyStub,        /* delProperty */
-    JS_PropertyStub,        /* getProperty */
-    JS_StrictPropertyStub,  /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    PropertyStub,        /* addProperty */
+    PropertyStub,        /* delProperty */
+    PropertyStub,        /* getProperty */
+    StrictPropertyStub,  /* setProperty */
+    EnumerateStub,
+    ResolveStub,
+    ConvertStub
 };
 
 /* ES5 15.12.2. */
@@ -138,6 +136,25 @@ js_json_stringify(JSContext *cx, uintN argc, Value *vp)
 
     return true;
 }
+
+JSBool
+js_TryJSON(JSContext *cx, Value *vp)
+{
+    if (!vp->isObject())
+        return true;
+
+    JSObject *obj = &vp->toObject();
+    Value fval;
+    jsid id = ATOM_TO_JSID(cx->runtime->atomState.toJSONAtom);
+    if (!js_GetMethod(cx, obj, id, JSGET_NO_METHOD_BARRIER, &fval))
+        return false;
+    if (js_IsCallable(fval)) {
+        if (!ExternalInvoke(cx, ObjectValue(*obj), fval, 0, NULL, vp))
+            return false;
+    }
+    return true;
+}
+
 
 static inline bool IsQuoteSpecialCharacter(jschar c)
 {
@@ -281,33 +298,12 @@ class CycleDetector
     JSObject *const obj;
 };
 
-template<typename KeyType>
-class KeyStringifier {
-};
-
-template<>
-class KeyStringifier<uint32> {
-  public:
-    static JSString *toString(JSContext *cx, uint32 index) {
-        return IndexToString(cx, index);
-    }
-};
-
-template<>
-class KeyStringifier<jsid> {
-  public:
-    static JSString *toString(JSContext *cx, jsid id) {
-        return IdToString(cx, id);
-    }
-};
-
 /*
  * ES5 15.12.3 Str, steps 2-4, extracted to enable preprocessing of property
  * values when stringifying objects in JO.
  */
-template<typename KeyType>
 static bool
-PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, StringifyContext *scx)
+PreprocessValue(JSContext *cx, JSObject *holder, jsid key, Value *vp, StringifyContext *scx)
 {
     JSString *keyStr = NULL;
 
@@ -319,10 +315,11 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
             return false;
 
         if (js_IsCallable(toJSON)) {
-            keyStr = KeyStringifier<KeyType>::toString(cx, key);
+            keyStr = IdToString(cx, key);
             if (!keyStr)
                 return false;
 
+            LeaveTrace(cx);
             InvokeArgsGuard args;
             if (!cx->stack.pushInvokeArgs(cx, 1, &args))
                 return false;
@@ -340,7 +337,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
     /* Step 3. */
     if (scx->replacer && scx->replacer->isCallable()) {
         if (!keyStr) {
-            keyStr = KeyStringifier<KeyType>::toString(cx, key);
+            keyStr = IdToString(cx, key);
             if (!keyStr)
                 return false;
         }
@@ -364,17 +361,17 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
     if (vp->isObject()) {
         JSObject *obj = &vp->toObject();
         Class *clasp = obj->getClass();
-        if (clasp == &NumberClass) {
+        if (clasp == &js_NumberClass) {
             double d;
-            if (!ToNumber(cx, *vp, &d))
+            if (!ValueToNumber(cx, *vp, &d))
                 return false;
             vp->setNumber(d);
-        } else if (clasp == &StringClass) {
+        } else if (clasp == &js_StringClass) {
             JSString *str = js_ValueToString(cx, *vp);
             if (!str)
                 return false;
             vp->setString(str);
-        } else if (clasp == &BooleanClass) {
+        } else if (clasp == &js_BooleanClass) {
             *vp = obj->getPrimitiveThis();
             JS_ASSERT(vp->isBoolean());
         }
@@ -447,7 +444,7 @@ JO(JSContext *cx, JSObject *obj, StringifyContext *scx)
          */
         const jsid &id = propertyList[i];
         Value outputValue;
-        if (!obj->getGeneric(cx, id, &outputValue))
+        if (!obj->getProperty(cx, id, &outputValue))
             return false;
         if (!PreprocessValue(cx, obj, id, &outputValue, scx))
             return false;
@@ -516,16 +513,18 @@ JA(JSContext *cx, JSObject *obj, StringifyContext *scx)
 
         /* Steps 7-10. */
         Value outputValue;
-        for (uint32 i = 0; i < length; i++) {
+        for (jsuint i = 0; i < length; i++) {
+            jsid id = INT_TO_JSID(i);
+
             /*
              * Steps 8a-8c.  Again note how the call to the spec's Str method
              * is broken up into getting the property, running it past toJSON
              * and the replacer and maybe unboxing, and interpreting some
              * values as |null| in separate steps.
              */
-            if (!obj->getElement(cx, i, &outputValue))
+            if (!obj->getProperty(cx, id, &outputValue))
                 return JS_FALSE;
-            if (!PreprocessValue(cx, obj, i, &outputValue, scx))
+            if (!PreprocessValue(cx, obj, id, &outputValue, scx))
                 return JS_FALSE;
             if (IsFilteredValue(outputValue)) {
                 if (!scx->sb.append("null"))
@@ -665,7 +664,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
             for (; i < len; i++) {
                 /* Step 4b(iv)(2). */
                 Value v;
-                if (!replacer->getElement(cx, i, &v))
+                if (!replacer->getProperty(cx, INT_TO_JSID(i), &v))
                     return false;
 
                 jsid id;
@@ -708,7 +707,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
         JSObject &spaceObj = space.toObject();
         if (spaceObj.isNumber()) {
             jsdouble d;
-            if (!ToNumber(cx, space, &d))
+            if (!ValueToNumber(cx, space, &d))
                 return false;
             space = NumberValue(d);
         } else if (spaceObj.isString()) {
@@ -743,13 +742,13 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
     }
 
     /* Step 9. */
-    JSObject *wrapper = NewBuiltinClassInstance(cx, &ObjectClass);
+    JSObject *wrapper = NewBuiltinClassInstance(cx, &js_ObjectClass);
     if (!wrapper)
         return false;
 
     /* Step 10. */
     jsid emptyId = ATOM_TO_JSID(cx->runtime->atomState.emptyAtom);
-    if (!DefineNativeProperty(cx, wrapper, emptyId, *vp, JS_PropertyStub, JS_StrictPropertyStub,
+    if (!DefineNativeProperty(cx, wrapper, emptyId, *vp, PropertyStub, StrictPropertyStub,
                               JSPROP_ENUMERATE, 0, 0))
     {
         return false;
@@ -776,7 +775,7 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
 
     /* Step 1. */
     Value val;
-    if (!holder->getGeneric(cx, name, &val))
+    if (!holder->getProperty(cx, name, &val))
         return false;
 
     /* Step 2. */
@@ -814,8 +813,8 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
                     JS_ALWAYS_TRUE(array_deleteProperty(cx, obj, id, &newElement, false));
                 } else {
                     /* Step 2a(iii)(3). */
-                    JS_ALWAYS_TRUE(array_defineProperty(cx, obj, id, &newElement, JS_PropertyStub,
-                                                        JS_StrictPropertyStub, JSPROP_ENUMERATE));
+                    JS_ALWAYS_TRUE(array_defineProperty(cx, obj, id, &newElement, PropertyStub,
+                                                        StrictPropertyStub, JSPROP_ENUMERATE));
                 }
             }
         } else {
@@ -839,8 +838,8 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
                 } else {
                     /* Step 2b(ii)(3). */
                     JS_ASSERT(obj->isNative());
-                    if (!DefineNativeProperty(cx, obj, id, newElement, JS_PropertyStub,
-                                              JS_StrictPropertyStub, JSPROP_ENUMERATE, 0, 0))
+                    if (!DefineNativeProperty(cx, obj, id, newElement, PropertyStub,
+                                              StrictPropertyStub, JSPROP_ENUMERATE, 0, 0))
                     {
                         return false;
                     }
@@ -874,7 +873,7 @@ static bool
 Revive(JSContext *cx, const Value &reviver, Value *vp)
 {
 
-    JSObject *obj = NewBuiltinClassInstance(cx, &ObjectClass);
+    JSObject *obj = NewBuiltinClassInstance(cx, &js_ObjectClass);
     if (!obj)
         return false;
 
@@ -928,10 +927,11 @@ static JSFunctionSpec json_static_methods[] = {
 JSObject *
 js_InitJSONClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *JSON = NewNonFunction<WithProto::Class>(cx, &JSONClass, NULL, obj);
-    if (!JSON || !JSON->setSingletonType(cx))
-        return NULL;
+    JSObject *JSON;
 
+    JSON = NewNonFunction<WithProto::Class>(cx, &js_JSONClass, NULL, obj);
+    if (!JSON)
+        return NULL;
     if (!JS_DefineProperty(cx, obj, js_JSON_str, OBJECT_TO_JSVAL(JSON),
                            JS_PropertyStub, JS_StrictPropertyStub, 0))
         return NULL;
@@ -939,7 +939,7 @@ js_InitJSONClass(JSContext *cx, JSObject *obj)
     if (!JS_DefineFunctions(cx, JSON, json_static_methods))
         return NULL;
 
-    MarkStandardClassInitializedNoProto(obj, &JSONClass);
+    MarkStandardClassInitializedNoProto(obj, &js_JSONClass);
 
     return JSON;
 }

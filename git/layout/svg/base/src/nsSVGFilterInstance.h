@@ -43,11 +43,12 @@
 #include "nsIContent.h"
 #include "nsAutoPtr.h"
 #include "nsSVGFilters.h"
-#include "nsSVGNumber2.h"
-#include "nsSVGNumberPair.h"
+#include "nsISVGChildFrame.h"
+#include "nsSVGString.h"
 
 #include "gfxImageSurface.h"
 
+class nsSVGLength2;
 class nsSVGElement;
 class nsSVGFilterElement;
 class nsSVGFilterPaintCallback;
@@ -63,6 +64,9 @@ struct gfxRect;
 class NS_STACK_CLASS nsSVGFilterInstance
 {
 public:
+  float GetPrimitiveLength(nsSVGLength2 *aLength) const;
+  void ConvertLocation(float aValues[3]) const;
+
   nsSVGFilterInstance(nsIFrame *aTargetFrame,
                       nsSVGFilterPaintCallback *aPaintCallback,
                       nsSVGFilterElement *aFilterElement,
@@ -70,7 +74,6 @@ public:
                       const gfxRect& aFilterRect,
                       const nsIntSize& aFilterSpaceSize,
                       const gfxMatrix &aFilterSpaceToDeviceSpaceTransform,
-                      const nsIntRect& aTargetBounds,
                       const nsIntRect& aDirtyOutputRect,
                       const nsIntRect& aDirtyInputRect,
                       PRUint16 aPrimitiveUnits) :
@@ -81,7 +84,6 @@ public:
     mFilterSpaceToDeviceSpaceTransform(aFilterSpaceToDeviceSpaceTransform),
     mFilterRect(aFilterRect),
     mFilterSpaceSize(aFilterSpaceSize),
-    mTargetBounds(aTargetBounds),
     mDirtyOutputRect(aDirtyOutputRect),
     mDirtyInputRect(aDirtyInputRect),
     mSurfaceRect(nsIntPoint(0, 0), aFilterSpaceSize),
@@ -106,27 +108,10 @@ public:
   nsresult ComputeSourceNeededRect(nsIntRect* aDirty);
   nsresult ComputeOutputBBox(nsIntRect* aBBox);
 
-  float GetPrimitiveNumber(PRUint8 aCtxType, const nsSVGNumber2 *aNumber) const
-  {
-    return GetPrimitiveNumber(aCtxType, aNumber->GetAnimValue());
-  }
-  float GetPrimitiveNumber(PRUint8 aCtxType, const nsSVGNumberPair *aNumberPair,
-                           nsSVGNumberPair::PairIndex aIndex) const
-  {
-    return GetPrimitiveNumber(aCtxType, aNumberPair->GetAnimValue(aIndex));
-  }
-  /**
-   * Converts a point and a length in filter primitive units into filter space.
-   * For object-bounding-box units, the object bounding box offset is applied
-   * to the point.
-   */
-  void ConvertLocation(float aValues[3]) const;
-
   gfxMatrix GetUserSpaceToFilterSpaceTransform() const;
   gfxMatrix GetFilterSpaceToDeviceSpaceTransform() const {
     return mFilterSpaceToDeviceSpaceTransform;
   }
-  gfxPoint FilterSpaceToUserSpace(const gfxPoint& aPt) const;
 
 private:
   typedef nsSVGFE::Image Image;
@@ -189,12 +174,6 @@ private:
   void EnsureColorModel(PrimitiveInfo* aPrimitive,
                         ColorModel aColorModel);
 
-  /**
-   * Scales a numeric filter primitive length in the X, Y or "XY" directions
-   * into a length in filter space (no offset is applied).
-   */
-  float GetPrimitiveNumber(PRUint8 aCtxType, float aValue) const;
-
   gfxRect UserSpaceToFilterSpace(const gfxRect& aUserSpace) const;
   void ClipToFilterSpace(nsIntRect* aRect) const
   {
@@ -211,8 +190,6 @@ private:
   gfxMatrix               mFilterSpaceToDeviceSpaceTransform;
   gfxRect                 mFilterRect;
   nsIntSize               mFilterSpaceSize;
-  // Filter-space bounds of the target image (SourceAlpha/SourceGraphic)
-  nsIntRect               mTargetBounds;
   nsIntRect               mDirtyOutputRect;
   nsIntRect               mDirtyInputRect;
   nsIntRect               mSurfaceRect;

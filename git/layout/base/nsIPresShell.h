@@ -821,12 +821,10 @@ public:
   virtual void VerifyStyleTree() = 0;
 #endif
 
-#ifdef ACCESSIBILITY
-  /**
-   * Return true if accessibility is active.
-   */
-  static bool IsAccessibilityActive();
+  static PRBool gIsAccessibilityActive;
+  static PRBool IsAccessibilityActive() { return gIsAccessibilityActive; }
 
+#ifdef ACCESSIBILITY
   /**
    * Return accessibility service if accessibility is active.
    */

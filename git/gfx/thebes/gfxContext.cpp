@@ -63,15 +63,6 @@ gfxContext::gfxContext(gfxASurface *surface) :
 
     mCairo = cairo_create(surface->CairoSurface());
     mFlags = surface->GetDefaultContextFlags();
-    if (mSurface->GetRotateForLandscape()) {
-        // Rotate page 90 degrees to draw landscape page on portrait paper
-        gfxIntSize size = mSurface->GetSize();
-        Translate(gfxPoint(0, size.width));
-        gfxMatrix matrix(0, -1,
-                         1,  0,
-                         0,  0);
-        Multiply(matrix);
-    }
 }
 gfxContext::~gfxContext()
 {
@@ -407,10 +398,10 @@ gfxContext::UserToDevice(const gfxRect& rect) const
     ymax = ymin;
     for (int i = 0; i < 3; i++) {
         cairo_user_to_device(mCairo, &x[i], &y[i]);
-        xmin = NS_MIN(xmin, x[i]);
-        xmax = NS_MAX(xmax, x[i]);
-        ymin = NS_MIN(ymin, y[i]);
-        ymax = NS_MAX(ymax, y[i]);
+        xmin = PR_MIN(xmin, x[i]);
+        xmax = PR_MAX(xmax, x[i]);
+        ymin = PR_MIN(ymin, y[i]);
+        ymax = PR_MAX(ymax, y[i]);
     }
 
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
@@ -554,28 +545,7 @@ gfxContext::SetDash(gfxFloat *dashes, int ndash, gfxFloat offset)
 {
     cairo_set_dash(mCairo, dashes, ndash, offset);
 }
-
-bool
-gfxContext::CurrentDash(FallibleTArray<gfxFloat>& dashes, gfxFloat* offset) const
-{
-    int count = cairo_get_dash_count(mCairo);
-    if (count <= 0 || !dashes.SetLength(count)) {
-        return false;
-    }
-    cairo_get_dash(mCairo, dashes.Elements(), offset);
-    return true;
-}
-
-gfxFloat
-gfxContext::CurrentDashOffset() const
-{
-    if (cairo_get_dash_count(mCairo) <= 0) {
-        return 0.0;
-    }
-    gfxFloat offset;
-    cairo_get_dash(mCairo, NULL, &offset);
-    return offset;
-}
+//void getDash() const;
 
 void
 gfxContext::SetLineWidth(gfxFloat width)
@@ -694,29 +664,6 @@ gfxContext::GetClipExtents()
     double xmin, ymin, xmax, ymax;
     cairo_clip_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
-}
-
-PRBool
-gfxContext::ClipContainsRect(const gfxRect& aRect)
-{
-    cairo_rectangle_list_t *clip =
-        cairo_copy_clip_rectangle_list(mCairo);
-
-    PRBool result = PR_FALSE;
-
-    if (clip->status == CAIRO_STATUS_SUCCESS) {
-        for (int i = 0; i < clip->num_rectangles; i++) {
-            gfxRect rect(clip->rectangles[i].x, clip->rectangles[i].y,
-                         clip->rectangles[i].width, clip->rectangles[i].height);
-            if (rect.Contains(aRect)) {
-                result = PR_TRUE;
-                break;
-            }
-        }
-    }
-
-   cairo_rectangle_list_destroy(clip);
-   return result;
 }
 
 // rendering sources

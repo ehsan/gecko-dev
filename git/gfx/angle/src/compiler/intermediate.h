@@ -410,8 +410,8 @@ protected:
 //
 class TIntermUnary : public TIntermOperator {
 public:
-    TIntermUnary(TOperator o, TType& t) : TIntermOperator(o, t), operand(0), useEmulatedFunction(false) {}
-    TIntermUnary(TOperator o) : TIntermOperator(o), operand(0), useEmulatedFunction(false) {}
+    TIntermUnary(TOperator o, TType& t) : TIntermOperator(o, t), operand(0) {}
+    TIntermUnary(TOperator o) : TIntermOperator(o), operand(0) {}
 
     virtual void traverse(TIntermTraverser*);
     virtual TIntermUnary* getAsUnaryNode() { return this; }
@@ -420,15 +420,8 @@ public:
     TIntermTyped* getOperand() { return operand; }    
     bool promote(TInfoSink&);
 
-    void setUseEmulatedFunction() { useEmulatedFunction = true; }
-    bool getUseEmulatedFunction() { return useEmulatedFunction; }
-
 protected:
     TIntermTyped* operand;
-
-    // If set to true, replace the built-in function call with an emulated one
-    // to work around driver bugs.
-    bool useEmulatedFunction;
 };
 
 typedef TVector<TIntermNode*> TIntermSequence;
@@ -439,8 +432,8 @@ typedef TMap<TString, TString> TPragmaTable;
 //
 class TIntermAggregate : public TIntermOperator {
 public:
-    TIntermAggregate() : TIntermOperator(EOpNull), userDefined(false), pragmaTable(0), endLine(0), useEmulatedFunction(false) { }
-    TIntermAggregate(TOperator o) : TIntermOperator(o), pragmaTable(0), useEmulatedFunction(false) { }
+    TIntermAggregate() : TIntermOperator(EOpNull), userDefined(false), pragmaTable(0), endLine(0) { }
+    TIntermAggregate(TOperator o) : TIntermOperator(o), pragmaTable(0) { }
     ~TIntermAggregate() { delete pragmaTable; }
 
     virtual TIntermAggregate* getAsAggregate() { return this; }
@@ -463,9 +456,6 @@ public:
     void setEndLine(TSourceLoc line) { endLine = line; }
     TSourceLoc getEndLine() const { return endLine; }
 
-    void setUseEmulatedFunction() { useEmulatedFunction = true; }
-    bool getUseEmulatedFunction() { return useEmulatedFunction; }
-
 protected:
     TIntermAggregate(const TIntermAggregate&); // disallow copy constructor
     TIntermAggregate& operator=(const TIntermAggregate&); // disallow assignment operator
@@ -477,10 +467,6 @@ protected:
     bool debug;
     TPragmaTable *pragmaTable;
     TSourceLoc endLine;
-
-    // If set to true, replace the built-in function call with an emulated one
-    // to work around driver bugs.
-    bool useEmulatedFunction;
 };
 
 //

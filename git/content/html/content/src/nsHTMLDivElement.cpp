@@ -40,7 +40,6 @@
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
-#include "nsDOMMemoryReporter.h"
 
 class nsHTMLDivElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLDivElement
@@ -63,9 +62,6 @@ public:
 
   // nsIDOMHTMLDivElement
   NS_DECL_NSIDOMHTMLDIVELEMENT
-
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsHTMLDivElement,
-                                              nsGenericHTMLElement)
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,

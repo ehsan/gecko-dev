@@ -52,8 +52,6 @@
 
 #include "nsRootAccessible.h"
 
-using namespace mozilla::a11y;
-
 // These constants are only defined in OS X SDK 10.4, so we define them in order
 // to be able to use for earlier OS versions.
 const NSString *kInstanceDescriptionAttribute = @"AXDescription";       // NSAccessibilityDescriptionAttribute
@@ -336,7 +334,9 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   if (mIsExpired)
     return nil;
   
-  nsAccessible* focusedGeckoChild = mGeckoAccessible->FocusedChild();
+  nsCOMPtr<nsIAccessible> focusedGeckoChild;
+  mGeckoAccessible->GetFocusedChild (getter_AddRefs (focusedGeckoChild));
+  
   if (focusedGeckoChild) {
     mozAccessible *focusedChild = GetNativeFromGeckoAccessible(focusedGeckoChild);
     if (focusedChild)

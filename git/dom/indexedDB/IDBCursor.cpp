@@ -301,9 +301,9 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBCursor)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRequest,
-                                                       nsIDOMEventTarget)
+                                                       nsPIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
-                                                       nsIDOMEventTarget)
+                                                       nsPIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIndex)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOwner)
@@ -470,12 +470,14 @@ IDBCursor::GetValue(JSContext* aCx,
       mRooted = true;
     }
 
-    if (!IDBObjectStore::DeserializeValue(aCx, mCloneBuffer, &mCachedValue)) {
+    JSAutoRequest ar(aCx);
+
+    if (!mCloneBuffer.read(&mCachedValue, aCx)) {
       mCachedValue = JSVAL_VOID;
       return NS_ERROR_DOM_DATA_CLONE_ERR;
     }
 
-    mCloneBuffer.clear();
+    mCloneBuffer.clear(aCx);
     mHaveCachedValue = true;
   }
 
@@ -720,7 +722,7 @@ ContinueHelper::GetSuccessResult(JSContext* aCx,
     mCursor->mContinueToKey = Key::UNSETKEY;
 
     mCursor->mCloneBuffer.swap(mCloneBuffer);
-    mCloneBuffer.clear();
+    mCloneBuffer.clear(aCx);
 
     nsresult rv = WrapNative(aCx, mCursor, aVal);
     NS_ENSURE_SUCCESS(rv, rv);

@@ -65,7 +65,6 @@ const NS_OBSERVER_SERVICE_CONTRACTID =
 var gLoadTimeout = 0;
 var gTimeoutHook = null;
 var gRemote = false;
-var gIgnoreWindowSize = false;
 var gTotalChunks = 0;
 var gThisChunk = 0;
 
@@ -157,7 +156,6 @@ var gRecycledCanvases = new Array();
 
 // By default we just log to stdout
 var gDumpLog = dump;
-var gVerbose = false;
 
 // Only dump the sandbox once, because it doesn't depend on the
 // manifest URL (yet!).
@@ -171,18 +169,14 @@ function LogWarning(str)
 
 function LogInfo(str)
 {
-    if (gVerbose)
-        gDumpLog("REFTEST INFO | " + str + "\n");
+//    gDumpLog("REFTEST INFO | " + str + "\n");
     gTestLog.push(str);
 }
 
 function FlushTestLog()
 {
-    if (!gVerbose) {
-        // In verbose mode, we've dumped all these messages already.
-        for (var i = 0; i < gTestLog.length; ++i) {
-            gDumpLog("REFTEST INFO | Saved log: " + gTestLog[i] + "\n");
-        }
+    for (var i = 0; i < gTestLog.length; ++i) {
+        gDumpLog("REFTEST INFO | Saved log: " + gTestLog[i] + "\n");
     }
     gTestLog = [];
 }
@@ -224,10 +218,6 @@ function OnRefTestLoad()
                     .getService(CI.nsIProperties)
                     .get("ProfD", CI.nsIFile);
     gCrashDumpDir.append("minidumps");
-    
-    var env = CC["@mozilla.org/process/environment;1"].
-              getService(CI.nsIEnvironment);
-    gVerbose = !!env.get("MOZ_REFTEST_VERBOSE");
 
     var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                 getService(Components.interfaces.nsIPrefBranch2);
@@ -256,48 +246,29 @@ function OnRefTestLoad()
 
 function InitAndStartRefTests()
 {
-    /* These prefs are optional, so we don't need to spit an error to the log */
+    /* set the gLoadTimeout */
     try {
       var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                   getService(Components.interfaces.nsIPrefBranch2);
-    } catch(e) {
-      gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | | EXCEPTION: " + e + "\n");
-    }
-    
-    /* set the gLoadTimeout */
-    try {
       gLoadTimeout = prefs.getIntPref("reftest.timeout");
-    } catch(e) { 
-      gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
-    }
-    
-    /* Get the logfile for android tests */
-    try {
       logFile = prefs.getCharPref("reftest.logFile");
       if (logFile) {
         try {
-          var mfl = new MozillaFileLogger(logFile);
+          MozillaFileLogger.init(logFile);
           // Set to mirror to stdout as well as the file
-          gDumpLog = function (msg) {dump(msg); mfl.log(msg);};
+          gDumpLog = function (msg) {dump(msg); MozillaFileLogger.log(msg);};
         }
         catch(e) {
           // If there is a problem, just use stdout
           gDumpLog = dump;
         }
       }
-    } catch(e) {}
-    
-    try {
       gRemote = prefs.getBoolPref("reftest.remote");
-    } catch(e) { 
-      gRemote = false;
+    }
+    catch(e) {
+      gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
     }
 
-    try {
-      gIgnoreWindowSize = prefs.getBoolPref("reftest.ignoreWindowSize");
-    } catch(e) {
-      gIgnoreWindowSize = false;
-    }
 
     /* Support for running a chunk (subset) of tests.  In separate try as this is optional */
     try {
@@ -1019,11 +990,10 @@ function DoDrawWindow(ctx, x, y, w, h)
 {
     var flags = ctx.DRAWWINDOW_DRAW_CARET | ctx.DRAWWINDOW_DRAW_VIEW;
     var testRect = gBrowser.getBoundingClientRect();
-    if (gIgnoreWindowSize ||
-        (0 <= testRect.left &&
-         0 <= testRect.top &&
-         window.innerWidth >= testRect.right &&
-         window.innerHeight >= testRect.bottom)) {
+    if (0 <= testRect.left &&
+        0 <= testRect.top &&
+        window.innerWidth >= testRect.right &&
+        window.innerHeight >= testRect.bottom) {
         // We can use the window's retained layer manager
         // because the window is big enough to display the entire
         // browser element
@@ -1345,7 +1315,6 @@ function FinishTestItem()
     gDumpLog("REFTEST INFO | Loading a blank page\n");
     // After clearing, content will notify us of the assertion count
     // and tests will continue.
-    SetAsyncScroll(false);
     SendClear();
 }
 
@@ -1442,19 +1411,8 @@ function RegisterMessageListenersAndLoadContentScript()
         "reftest:ExpectProcessCrash",
         function (m) { RecvExpectProcessCrash(); }
     );
-    gBrowserMessageManager.addMessageListener(
-        "reftest:EnableAsyncScroll",
-        function (m) { SetAsyncScroll(true); }
-    );
 
     gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true);
-}
-
-function SetAsyncScroll(enabled)
-{
-    gBrowser.QueryInterface(CI.nsIFrameLoaderOwner).frameLoader.renderMode =
-        enabled ? CI.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL :
-                  CI.nsIFrameLoader.RENDER_MODE_DEFAULT;
 }
 
 function RecvAssertionCount(count)

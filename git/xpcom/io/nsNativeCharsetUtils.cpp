@@ -51,14 +51,14 @@
 #include "nsReadableUtils.h"
 #include "nsString.h"
 
-nsresult
+NS_COM nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString  &output)
 {
     CopyUTF8toUTF16(input, output);
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
 {
     CopyUTF16toUTF8(input, output);
@@ -802,7 +802,7 @@ nsNativeCharsetConverter::IsNativeUTF8()
 // API implementation
 //-----------------------------------------------------------------------------
 
-nsresult
+NS_COM nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
 {
     output.Truncate();
@@ -839,7 +839,7 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
     return rv;
 }
 
-nsresult
+NS_COM nsresult
 NS_CopyUnicodeToNative(const nsAString &input, nsACString &output)
 {
     output.Truncate();
@@ -868,7 +868,7 @@ NS_CopyUnicodeToNative(const nsAString &input, nsACString &output)
     return NS_OK;
 }
 
-PRBool
+NS_COM PRBool
 NS_IsNativeUTF8()
 {
     return nsNativeCharsetConverter::IsNativeUTF8();
@@ -905,7 +905,7 @@ NS_ShutdownNativeCharsetUtils()
 #include "nsAString.h"
 #include "nsReadableUtils.h"
 
-nsresult
+NS_COM nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
 {
     PRUint32 inputLen = input.Length();
@@ -935,7 +935,7 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
 {
     PRUint32 inputLen = input.Length();
@@ -972,13 +972,13 @@ NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
 }
 
 // moved from widget/src/windows/nsToolkit.cpp
-PRInt32 
+NS_COM PRInt32 
 NS_ConvertAtoW(const char *aStrInA, int aBufferSize, PRUnichar *aStrOutW)
 {
     return MultiByteToWideChar(CP_ACP, 0, aStrInA, -1, aStrOutW, aBufferSize);
 }
 
-PRInt32 
+NS_COM PRInt32 
 NS_ConvertWtoA(const PRUnichar *aStrInW, int aBufferSizeOut,
                char *aStrOutA, const char *aDefault)
 {
@@ -1022,7 +1022,7 @@ NS_ConvertWtoA(const PRUnichar *aStrInW, int aBufferSizeOut,
 
 static UconvObject UnicodeConverter = NULL;
 
-nsresult
+NS_COM nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString  &output)
 {
     PRUint32 inputLen = input.Length();
@@ -1062,7 +1062,7 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString  &output)
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_CopyUnicodeToNative(const nsAString &input, nsACString &output)
 {
     size_t inputLen = input.Length();
@@ -1136,14 +1136,14 @@ NS_ShutdownNativeCharsetUtils()
 
 #include "nsReadableUtils.h"
 
-nsresult
+NS_COM nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString  &output)
 {
     CopyASCIItoUTF16(input, output);
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
 {
     LossyCopyUTF16toASCII(input, output);

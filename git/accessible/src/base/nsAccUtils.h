@@ -50,7 +50,7 @@
 #include "nsAccessibilityService.h"
 #include "nsCoreUtils.h"
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIDocShell.h"
 #include "nsIDOMNode.h"
 #include "nsIPersistentProperties2.h"
@@ -149,11 +149,6 @@ public:
    * Return PR_TRUE if the ARIA property is defined, otherwise PR_FALSE
    */
   static PRBool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
-
-  /**
-   * Return atomic value of ARIA attribute of boolean or NMTOKEN type.
-   */
-  static nsIAtom* GetARIAToken(mozilla::dom::Element* aElement, nsIAtom* aAttr);
 
   /**
    * Return document accessible for the given presshell.

@@ -50,6 +50,7 @@
 
 #include "nsDebug.h"
 #include "nsNetUtil.h"
+#include "nsPrintfCString.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
@@ -68,17 +69,14 @@
 #define TO_CONTAINER(_node)                                                   \
     static_cast<nsNavHistoryContainerResultNode*>(_node)
 
-#define NOTIFY_RESULT_OBSERVERS_RET(_result, _method, _ret)                   \
+#define NOTIFY_RESULT_OBSERVERS(_result, _method)                             \
   PR_BEGIN_MACRO                                                              \
-  NS_ENSURE_TRUE(_result, _ret);                                              \
+  NS_ENSURE_STATE(_result);                                                   \
   if (!_result->mSuppressNotifications) {                                     \
     ENUMERATE_WEAKARRAY(_result->mObservers, nsINavHistoryResultObserver,     \
                         _method)                                              \
   }                                                                           \
   PR_END_MACRO
-
-#define NOTIFY_RESULT_OBSERVERS(_result, _method)                             \
-  NOTIFY_RESULT_OBSERVERS_RET(_result, _method, NS_ERROR_UNEXPECTED)
 
 // What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
 // but some of our classes (like nsNavHistoryResult) have an ambiguous base
@@ -91,10 +89,6 @@
     *aInstancePtr = this; \
     return NS_OK; \
   } else
-
-// Number of changes to handle separately in a batch.  If more changes are
-// requested the node will switch to full refresh mode.
-#define MAX_BATCH_CHANGES_BEFORE_REFRESH 5
 
 // Emulate string comparison (used for sorting) for PRTime and int.
 inline PRInt32 ComparePRTime(PRTime a, PRTime b)
@@ -1650,9 +1644,8 @@ nsNavHistoryContainerResultNode::EnsureItemPosition(PRUint32 aIndex) {
 
   if (AreChildrenVisible()) {
     nsNavHistoryResult* result = GetResult();
-    NOTIFY_RESULT_OBSERVERS_RET(result,
-                                NodeMoved(node, this, aIndex, this, newIndex),
-                                PR_FALSE);
+    NOTIFY_RESULT_OBSERVERS(result,
+                            NodeMoved(node, this, aIndex, this, newIndex));
   }
 
   return PR_TRUE;
@@ -2297,8 +2290,7 @@ nsNavHistoryQueryResultNode::nsNavHistoryQueryResultNode(
                                   PR_TRUE, EmptyCString(), nsnull),
   mLiveUpdate(QUERYUPDATE_COMPLEX_WITH_BOOKMARKS),
   mHasSearchTerms(PR_FALSE),
-  mContentsValid(PR_FALSE),
-  mBatchChanges(0)
+  mContentsValid(PR_FALSE)
 {
 }
 
@@ -2310,8 +2302,7 @@ nsNavHistoryQueryResultNode::nsNavHistoryQueryResultNode(
                                   nsNavHistoryResultNode::RESULT_TYPE_QUERY,
                                   PR_TRUE, EmptyCString(), aOptions),
   mQueries(aQueries),
-  mContentsValid(PR_FALSE),
-  mBatchChanges(0)
+  mContentsValid(PR_FALSE)
 {
   NS_ASSERTION(aQueries.Count() > 0, "Must have at least one query");
 
@@ -2332,8 +2323,7 @@ nsNavHistoryQueryResultNode::nsNavHistoryQueryResultNode(
                                   nsNavHistoryResultNode::RESULT_TYPE_QUERY,
                                   PR_TRUE, EmptyCString(), aOptions),
   mQueries(aQueries),
-  mContentsValid(PR_FALSE),
-  mBatchChanges(0)
+  mContentsValid(PR_FALSE)
 {
   NS_ASSERTION(aQueries.Count() > 0, "Must have at least one query");
 
@@ -2874,8 +2864,6 @@ nsNavHistoryQueryResultNode::OnEndUpdateBatch()
     nsresult rv = Refresh();
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  mBatchChanges = 0;
   return NS_OK;
 }
 
@@ -2891,18 +2879,8 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, PRInt64 aVisitId,
                                      PRTime aTime, PRInt64 aSessionId,
                                      PRInt64 aReferringId,
                                      PRUint32 aTransitionType,
-                                     const nsACString& aGUID,
                                      PRUint32* aAdded)
 {
-  nsNavHistoryResult* result = GetResult();
-  NS_ENSURE_STATE(result);
-  if (result->mBatchInProgress &&
-      ++mBatchChanges > MAX_BATCH_CHANGES_BEFORE_REFRESH) {
-    nsresult rv = Refresh();
-    NS_ENSURE_SUCCESS(rv, rv);
-    return NS_OK;
-  }
-
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
 
@@ -3016,8 +2994,7 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, PRInt64 aVisitId,
  */
 NS_IMETHODIMP
 nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
-                                            const nsAString& aPageTitle,
-                                            const nsACString& aGUID)
+                                            const nsAString& aPageTitle)
 {
   if (!mExpanded) {
     // When we are not expanded, we don't update, just invalidate and unhook.
@@ -3026,15 +3003,6 @@ nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
     // thing.  Therefore, we just give up.
     ClearChildren(PR_TRUE);
     return NS_OK; // no updates in tree state
-  }
-
-  nsNavHistoryResult* result = GetResult();
-  NS_ENSURE_STATE(result);
-  if (result->mBatchInProgress &&
-      ++mBatchChanges > MAX_BATCH_CHANGES_BEFORE_REFRESH) {
-    nsresult rv = Refresh();
-    NS_ENSURE_SUCCESS(rv, rv);
-    return NS_OK;
   }
 
   // compute what the new title should be
@@ -3093,9 +3061,7 @@ nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
 
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI* aURI,
-                                               const nsACString& aGUID,
-                                               PRUint16 aReason)
+nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI *aURI)
 {
   return NS_OK;
 }
@@ -3105,19 +3071,8 @@ nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI* aURI,
  * the given URI.
  */
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnDeleteURI(nsIURI* aURI,
-                                         const nsACString& aGUID,
-                                         PRUint16 aReason)
+nsNavHistoryQueryResultNode::OnDeleteURI(nsIURI *aURI)
 {
-  nsNavHistoryResult* result = GetResult();
-  NS_ENSURE_STATE(result);
-  if (result->mBatchInProgress &&
-      ++mBatchChanges > MAX_BATCH_CHANGES_BEFORE_REFRESH) {
-    nsresult rv = Refresh();
-    NS_ENSURE_SUCCESS(rv, rv);
-    return NS_OK;
-  }
-
   if (IsContainersQuery()) {
     // Incremental updates of query returning queries are pretty much
     // complicated.  In this case it's possible one of the child queries has
@@ -3183,18 +3138,16 @@ static nsresult setFaviconCallback(
 
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnPageChanged(nsIURI* aURI,
-                                           PRUint32 aChangedAttribute,
-                                           const nsAString& aNewValue,
-                                           const nsACString& aGUID)
+nsNavHistoryQueryResultNode::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
+                                           const nsAString &aValue)
 {
   nsCAutoString spec;
   nsresult rv = aURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  switch (aChangedAttribute) {
+  switch (aWhat) {
     case nsINavHistoryObserver::ATTRIBUTE_FAVICON: {
-      NS_ConvertUTF16toUTF8 newFavicon(aNewValue);
+      NS_ConvertUTF16toUTF8 newFavicon(aValue);
       PRBool onlyOneEntry = (mOptions->ResultType() ==
                              nsINavHistoryQueryOptions::RESULTS_AS_URI ||
                              mOptions->ResultType() ==
@@ -3212,10 +3165,7 @@ nsNavHistoryQueryResultNode::OnPageChanged(nsIURI* aURI,
 
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI,
-                                            PRTime aVisitTime,
-                                            const nsACString& aGUID,
-                                            PRUint16 aReason)
+nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
 {
   NS_PRECONDITION(mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY,
                   "Bookmarks queries should not get a OnDeleteVisits notification");
@@ -3223,7 +3173,7 @@ nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI,
     // All visits for this uri have been removed, but the uri won't be removed
     // from the databse, most likely because it's a bookmark.  For a history
     // query this is equivalent to a onDeleteURI notification.
-    nsresult rv = OnDeleteURI(aURI, aGUID, aReason);
+    nsresult rv = OnDeleteURI(aURI);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -3965,7 +3915,7 @@ nsNavHistoryFolderResultNode::StartIncrementalUpdate()
       return PR_TRUE;
 
     nsNavHistoryResult* result = GetResult();
-    NS_ENSURE_TRUE(result, PR_FALSE);
+    NS_ENSURE_STATE(result);
 
     // When any observers are attached also do incremental updates if our
     // parent is visible, so that twisties are drawn correctly.
@@ -5114,14 +5064,12 @@ nsNavHistoryResult::OnItemMoved(PRInt64 aItemId,
 NS_IMETHODIMP
 nsNavHistoryResult::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
                             PRInt64 aSessionId, PRInt64 aReferringId,
-                            PRUint32 aTransitionType, const nsACString& aGUID,
-                            PRUint32* aAdded)
+                            PRUint32 aTransitionType, PRUint32* aAdded)
 {
   PRUint32 added = 0;
 
   ENUMERATE_HISTORY_OBSERVERS(OnVisit(aURI, aVisitId, aTime, aSessionId,
-                                      aReferringId, aTransitionType, aGUID,
-                                      &added));
+                                      aReferringId, aTransitionType, &added));
 
   if (!mRootNode->mExpanded)
     return NS_OK;
@@ -5174,30 +5122,24 @@ nsNavHistoryResult::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
 
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnTitleChanged(nsIURI* aURI,
-                                   const nsAString& aPageTitle,
-                                   const nsACString& aGUID)
+nsNavHistoryResult::OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnTitleChanged(aURI, aPageTitle, aGUID));
+  ENUMERATE_HISTORY_OBSERVERS(OnTitleChanged(aURI, aPageTitle));
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnBeforeDeleteURI(nsIURI *aURI,
-                                      const nsACString& aGUID,
-                                      PRUint16 aReason)
+nsNavHistoryResult::OnBeforeDeleteURI(nsIURI *aURI)
 {
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnDeleteURI(nsIURI *aURI,
-                                const nsACString& aGUID,
-                                PRUint16 aReason)
+nsNavHistoryResult::OnDeleteURI(nsIURI *aURI)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnDeleteURI(aURI, aGUID, aReason));
+  ENUMERATE_HISTORY_OBSERVERS(OnDeleteURI(aURI));
   return NS_OK;
 }
 
@@ -5211,12 +5153,10 @@ nsNavHistoryResult::OnClearHistory()
 
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnPageChanged(nsIURI* aURI,
-                                  PRUint32 aChangedAttribute,
-                                  const nsAString& aValue,
-                                  const nsACString& aGUID)
+nsNavHistoryResult::OnPageChanged(nsIURI *aURI,
+                                  PRUint32 aWhat, const nsAString &aValue)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnPageChanged(aURI, aChangedAttribute, aValue, aGUID));
+  ENUMERATE_HISTORY_OBSERVERS(OnPageChanged(aURI, aWhat, aValue));
   return NS_OK;
 }
 
@@ -5225,11 +5165,8 @@ nsNavHistoryResult::OnPageChanged(nsIURI* aURI,
  * Don't do anything when visits expire.
  */
 NS_IMETHODIMP
-nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI,
-                                   PRTime aVisitTime,
-                                   const nsACString& aGUID,
-                                   PRUint16 aReason)
+nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime, aGUID, aReason));
+  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime));
   return NS_OK;
 }

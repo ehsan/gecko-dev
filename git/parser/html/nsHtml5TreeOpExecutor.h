@@ -59,7 +59,6 @@
 #include "nsHashSets.h"
 #include "nsIURI.h"
 
-class nsHtml5Parser;
 class nsHtml5TreeBuilder;
 class nsHtml5Tokenizer;
 class nsHtml5StreamParser;
@@ -124,6 +123,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     PRBool                        mRunFlushLoopOnStack;
 
     PRBool                        mCallContinueInterruptedParsingIfEnabled;
+
+    PRBool                        mPreventScriptExecution;
 
   public:
   
@@ -368,7 +369,9 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mOwnedElements.AppendObject(aContent);
     }
 
-    void DropHeldElements();
+    void DropHeldElements() {
+      mOwnedElements.Clear();
+    }
 
     /**
      * Flush the operations from the tree operations from the argument
@@ -398,12 +401,11 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void PreloadStyle(const nsAString& aURL, const nsAString& aCharset);
 
-    void PreloadImage(const nsAString& aURL, const nsAString& aCrossOrigin);
+    void PreloadImage(const nsAString& aURL);
 
     void SetSpeculationBase(const nsAString& aURL);
 
   private:
-    nsHtml5Parser* GetParser();
 
     nsHtml5Tokenizer* GetTokenizer();
 

@@ -57,15 +57,15 @@
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsContentUtils.h"
-#include "nsRuleData.h"
 #include "nsRuleProcessorData.h"
 #include "nsTransitionManager.h"
+#ifdef MOZ_CSS_ANIMATIONS
 #include "nsAnimationManager.h"
+#endif
 #include "nsEventStates.h"
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla::dom;
-namespace css = mozilla::css;
 
 NS_IMPL_ISUPPORTS1(nsEmptyStyleRule, nsIStyleRule)
 
@@ -77,50 +77,6 @@ nsEmptyStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 #ifdef DEBUG
 /* virtual */ void
 nsEmptyStyleRule::List(FILE* out, PRInt32 aIndent) const
-{
-}
-#endif
-
-NS_IMPL_ISUPPORTS1(nsInitialStyleRule, nsIStyleRule)
-
-/* virtual */ void
-nsInitialStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
-{
-  // Iterate over the property groups
-  for (nsStyleStructID sid = nsStyleStructID(0);
-       sid < nsStyleStructID_Length; sid = nsStyleStructID(sid + 1)) {
-    if (aRuleData->mSIDs & (1 << sid)) {
-      // Iterate over nsCSSValues within the property group
-      nsCSSValue * const value_start =
-        aRuleData->mValueStorage + aRuleData->mValueOffsets[sid];
-      for (nsCSSValue *value = value_start,
-           *value_end = value + nsCSSProps::PropertyCountInStruct(sid);
-           value != value_end; ++value) {
-        // If MathML is disabled take care not to set MathML properties (or we
-        // will trigger assertions in nsRuleNode)
-        if (sid == eStyleStruct_Font &&
-            !aRuleData->mPresContext->Document()->GetMathMLEnabled()) {
-          size_t index = value - value_start;
-          if (index == nsCSSProps::PropertyIndexInStruct(
-                          eCSSProperty_script_level) ||
-              index == nsCSSProps::PropertyIndexInStruct(
-                          eCSSProperty_script_size_multiplier) ||
-              index == nsCSSProps::PropertyIndexInStruct(
-                          eCSSProperty_script_min_size)) {
-            continue;
-          }
-        }
-        if (value->GetUnit() == eCSSUnit_Null) {
-          value->SetInitialValue();
-        }
-      }
-    }
-  }
-}
-
-#ifdef DEBUG
-/* virtual */ void
-nsInitialStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
 }
 #endif
@@ -143,20 +99,6 @@ nsStyleSet::nsStyleSet()
 {
 }
 
-size_t
-nsStyleSet::SizeOf() const
-{
-  size_t n = sizeof(*this);
-
-  for (int i = 0; i < eSheetTypeCount; i++) {
-    if (mRuleProcessors[i]) {
-      n += mRuleProcessors[i]->SizeOf();
-    }
-  }
-
-  return n;
-}
-
 nsresult
 nsStyleSet::Init(nsPresContext *aPresContext)
 {
@@ -177,7 +119,9 @@ nsStyleSet::Init(nsPresContext *aPresContext)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+#ifdef MOZ_CSS_ANIMATIONS
   GatherRuleProcessors(eAnimationSheet);
+#endif
   GatherRuleProcessors(eTransitionSheet);
 
   return NS_OK;
@@ -258,6 +202,7 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
     //don't regather if this level is disabled
     return NS_OK;
   }
+#ifdef MOZ_CSS_ANIMATIONS
   if (aType == eAnimationSheet) {
     // We have no sheet for the animations level; just a rule
     // processor.  (XXX: We should probably do this for the other
@@ -265,6 +210,7 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
     mRuleProcessors[aType] = PresContext()->AnimationManager();
     return NS_OK;
   }
+#endif
   if (aType == eTransitionSheet) {
     // We have no sheet for the transitions level; just a rule
     // processor.  (XXX: We should probably do this for the other
@@ -641,6 +587,7 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
     NS_ASSERTION(result->GetPseudo() == aPseudoTag, "Unexpected pseudo");
   }
 
+#ifdef MOZ_CSS_ANIMATIONS
   if (aDoAnimations) {
     // Normally the animation manager has already added the correct
     // style rule.  However, if the animation-name just changed, it
@@ -668,16 +615,7 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
                           aPseudoTag, aPseudoType, PR_FALSE, nsnull);
     }
   }
-
-  if (aElementForAnimation && aElementForAnimation->IsHTML(nsGkAtoms::body) &&
-      aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement &&
-      PresContext()->CompatibilityMode() == eCompatibility_NavQuirks) {
-    nsIDocument* doc = aElementForAnimation->GetCurrentDoc();
-    if (doc && doc->GetBodyElement() == aElementForAnimation) {
-      // Update the prescontext's body color
-      PresContext()->SetBodyTextColor(result->GetStyleColor()->mColor);
-    }
-  }
+#endif
 
   return result.forget();
 }
@@ -694,12 +632,8 @@ nsStyleSet::AddImportantRules(nsRuleNode* aCurrLevelNode,
   for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
        node = node->GetParent()) {
     // We guarantee that we never walk the root node here, so no need
-    // to null-check GetRule().  Furthermore, it must be a CSS rule.
-    NS_ASSERTION(nsRefPtr<css::StyleRule>(do_QueryObject(node->GetRule())),
-                 "Unexpected non-CSS rule");
-
-    nsIStyleRule* impRule =
-      static_cast<css::StyleRule*>(node->GetRule())->GetImportantRule();
+    // to null-check GetRule().
+    nsIStyleRule* impRule = node->GetRule()->GetImportantRule();
     if (impRule)
       importantRules.AppendElement(impRule);
   }
@@ -722,10 +656,10 @@ nsStyleSet::AssertNoImportantRules(nsRuleNode* aCurrLevelNode,
 
   for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
        node = node->GetParent()) {
-    nsRefPtr<css::StyleRule> rule(do_QueryObject(node->GetRule()));
-    NS_ASSERTION(rule, "Unexpected non-CSS rule");
-
-    NS_ASSERTION(!rule->GetImportantRule(), "Unexpected important rule");
+    nsIStyleRule* rule = node->GetRule();
+    if (rule) {
+      NS_ASSERTION(!rule->GetImportantRule(), "Unexpected important rule");
+    }
   }
 }
 
@@ -739,7 +673,7 @@ nsStyleSet::AssertNoCSSRules(nsRuleNode* aCurrLevelNode,
   for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
        node = node->GetParent()) {
     nsIStyleRule *rule = node->GetRule();
-    nsRefPtr<css::StyleRule> cssRule(do_QueryObject(rule));
+    nsRefPtr<mozilla::css::StyleRule> cssRule(do_QueryObject(rule));
     NS_ASSERTION(!cssRule || !cssRule->Selector(), "Unexpected CSS rule");
   }
 }
@@ -765,10 +699,6 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
   //  9. UA !important rules                = Agent        !important
   //  -. transition rules                   = Transition   normal
   // [most important]
-
-  // Save off the last rule before we start walking our agent sheets;
-  // this will be either the root or one of the restriction rules.
-  nsRuleNode* lastRestrictionRN = aRuleWalker->CurrentNode();
 
   aRuleWalker->SetLevel(eAgentSheet, PR_FALSE, PR_TRUE);
   if (mRuleProcessors[eAgentSheet])
@@ -833,12 +763,15 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
   }
 #endif
 
+#ifdef MOZ_CSS_ANIMATIONS
   // This needs to match IsMoreSpecificThanAnimation() above.
   aRuleWalker->SetLevel(eAnimationSheet, PR_FALSE, PR_FALSE);
   (*aCollectorFunc)(mRuleProcessors[eAnimationSheet], aData);
+#endif
 
 #ifdef DEBUG
   AssertNoCSSRules(lastPresHintRN, lastUserRN);
+  AssertNoImportantRules(lastPresHintRN, lastUserRN); // preshints
 #endif
 
   if (haveImportantUserRules) {
@@ -853,16 +786,12 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
 
   if (haveImportantUARules) {
     aRuleWalker->SetLevel(eAgentSheet, PR_TRUE, PR_FALSE);
-    AddImportantRules(lastAgentRN, lastRestrictionRN, aRuleWalker); //agent
+    AddImportantRules(lastAgentRN, mRuleTree, aRuleWalker);     //agent
   }
 #ifdef DEBUG
   else {
-    AssertNoImportantRules(lastAgentRN, lastRestrictionRN);
+    AssertNoImportantRules(lastAgentRN, mRuleTree);
   }
-#endif
-
-#ifdef DEBUG
-  AssertNoCSSRules(lastRestrictionRN, mRuleTree);
 #endif
 
 #ifdef DEBUG
@@ -872,6 +801,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
   (*aCollectorFunc)(mRuleProcessors[eTransitionSheet], aData);
 #ifdef DEBUG
   AssertNoCSSRules(aRuleWalker->CurrentNode(), lastImportantRN);
+  AssertNoImportantRules(aRuleWalker->CurrentNode(), lastImportantRN);
 #endif
 
 }
@@ -909,7 +839,9 @@ nsStyleSet::WalkRuleProcessors(nsIStyleRuleProcessor::EnumFunc aFunc,
     (*aFunc)(mRuleProcessors[eStyleAttrSheet], aData);
   if (mRuleProcessors[eOverrideSheet])
     (*aFunc)(mRuleProcessors[eOverrideSheet], aData);
+#ifdef MOZ_CSS_ANIMATIONS
   (*aFunc)(mRuleProcessors[eAnimationSheet], aData);
+#endif
   (*aFunc)(mRuleProcessors[eTransitionSheet], aData);
 }
 
@@ -1000,7 +932,7 @@ nsStyleSet::ResolveStyleForRules(nsStyleContext* aParentContext,
   // matter.
   ruleWalker.SetLevel(eDocSheet, PR_FALSE, PR_FALSE);
   for (PRInt32 i = 0; i < aRules.Count(); i++) {
-    ruleWalker.ForwardOnPossiblyCSSRule(aRules.ObjectAt(i));
+    ruleWalker.Forward(aRules.ObjectAt(i));
   }
 
   return GetContext(aParentContext, ruleWalker.CurrentNode(), nsnull,
@@ -1021,7 +953,7 @@ nsStyleSet::ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
   // matter.
   ruleWalker.SetLevel(eDocSheet, PR_FALSE, PR_FALSE);
   for (PRInt32 i = 0; i < aRules.Count(); i++) {
-    ruleWalker.ForwardOnPossiblyCSSRule(aRules.ObjectAt(i));
+    ruleWalker.Forward(aRules.ObjectAt(i));
   }
 
   nsRuleNode *ruleNode = ruleWalker.CurrentNode();
@@ -1030,7 +962,7 @@ nsStyleSet::ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
   if (aBaseContext->GetStyleIfVisited()) {
     ruleWalker.SetCurrentNode(aBaseContext->GetStyleIfVisited()->GetRuleNode());
     for (PRInt32 i = 0; i < aRules.Count(); i++) {
-      ruleWalker.ForwardOnPossiblyCSSRule(aRules.ObjectAt(i));
+      ruleWalker.Forward(aRules.ObjectAt(i));
     }
     visitedRuleNode = ruleWalker.CurrentNode();
   }
@@ -1090,7 +1022,6 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
   if (treeContext.HaveRelevantLink()) {
     treeContext.ResetForVisitedMatching();
     ruleWalker.Reset();
-    WalkRestrictionRule(aType, &ruleWalker);
     FileRules(EnumRulesMatching<PseudoElementRuleProcessorData>, &data,
               aParentElement, &ruleWalker);
     visitedRuleNode = ruleWalker.CurrentNode();
@@ -1150,7 +1081,6 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
   if (aTreeMatchContext.HaveRelevantLink()) {
     aTreeMatchContext.ResetForVisitedMatching();
     ruleWalker.Reset();
-    WalkRestrictionRule(aType, &ruleWalker);
     FileRules(EnumRulesMatching<PseudoElementRuleProcessorData>, &data,
               aParentElement, &ruleWalker);
     visitedRuleNode = ruleWalker.CurrentNode();
@@ -1266,6 +1196,7 @@ nsStyleSet::AppendFontFaceRules(nsPresContext* aPresContext,
   return PR_TRUE;
 }
 
+#ifdef MOZ_CSS_ANIMATIONS
 PRBool
 nsStyleSet::AppendKeyframesRules(nsPresContext* aPresContext,
                                  nsTArray<nsCSSKeyframesRule*>& aArray)
@@ -1280,6 +1211,7 @@ nsStyleSet::AppendKeyframesRules(nsPresContext* aPresContext,
   }
   return PR_TRUE;
 }
+#endif
 
 void
 nsStyleSet::BeginShutdown(nsPresContext* aPresContext)
@@ -1362,19 +1294,17 @@ nsStyleSet::GCRuleTrees()
 }
 
 static inline nsRuleNode*
-SkipAnimationRules(nsRuleNode* aRuleNode, Element* aElement, PRBool isPseudo)
+SkipTransitionRules(nsRuleNode* aRuleNode, Element* aElement, PRBool isPseudo)
 {
   nsRuleNode* ruleNode = aRuleNode;
   while (!ruleNode->IsRoot() &&
-         (ruleNode->GetLevel() == nsStyleSet::eTransitionSheet ||
-          ruleNode->GetLevel() == nsStyleSet::eAnimationSheet)) {
+         ruleNode->GetLevel() == nsStyleSet::eTransitionSheet) {
     ruleNode = ruleNode->GetParent();
   }
   if (ruleNode != aRuleNode) {
     NS_ASSERTION(aElement, "How can we have transition rules but no element?");
     // Need to do an animation restyle, just like
-    // nsTransitionManager::WalkTransitionRule and
-    // nsAnimationManager::GetAnimationRule would.
+    // nsTransitionManager::WalkTransitionRule would.
     nsRestyleHint hint = isPseudo ? eRestyle_Subtree : eRestyle_Self;
     aRuleNode->GetPresContext()->PresShell()->RestyleForAnimation(aElement,
                                                                   hint);
@@ -1405,16 +1335,16 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
 
   // Skip transition rules as needed just like
   // nsTransitionManager::WalkTransitionRule would.
-  PRBool skipAnimationRules = PresContext()->IsProcessingRestyles() &&
+  PRBool skipTransitionRules = PresContext()->IsProcessingRestyles() &&
     !PresContext()->IsProcessingAnimationStyleChange();
-  if (skipAnimationRules) {
-    // Make sure that we're not using transition rules or animation rules for
-    // our new style context.  If we need them, an animation restyle will
-    // provide.
+  if (skipTransitionRules) {
+    // FIXME do something here for animations?
+    // Make sure that we're not using transition rules for our new style
+    // context.  If we need them, an animation restyle will provide.
     ruleNode =
-      SkipAnimationRules(ruleNode, aElement,
-                         pseudoType !=
-                           nsCSSPseudoElements::ePseudo_NotPseudoElement);
+      SkipTransitionRules(ruleNode, aElement,
+                          pseudoType !=
+                            nsCSSPseudoElements::ePseudo_NotPseudoElement);
   }
 
   nsRuleNode* visitedRuleNode = nsnull;
@@ -1426,12 +1356,12 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
   if (visitedContext) {
      visitedRuleNode = visitedContext->GetRuleNode();
      // Again, skip transition rules as needed
-     if (skipAnimationRules) {
+     if (skipTransitionRules) {
       // FIXME do something here for animations?
        visitedRuleNode =
-         SkipAnimationRules(visitedRuleNode, aElement,
-                            pseudoType !=
-                              nsCSSPseudoElements::ePseudo_NotPseudoElement);
+         SkipTransitionRules(visitedRuleNode, aElement,
+                             pseudoType !=
+                               nsCSSPseudoElements::ePseudo_NotPseudoElement);
      }
   }
 
@@ -1611,13 +1541,4 @@ nsStyleSet::EnsureUniqueInnerOnCSSSheets()
     }
   }
   return res;
-}
-
-nsIStyleRule*
-nsStyleSet::InitialStyleRule()
-{
-  if (!mInitialStyleRule) {
-    mInitialStyleRule = new nsInitialStyleRule;
-  }
-  return mInitialStyleRule;
 }

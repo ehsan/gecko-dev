@@ -51,7 +51,6 @@
 #include "nsContentUtils.h"
 #include "nsFormControlFrame.h"
 #include "nsFontMetrics.h"
-#include "mozilla/dom/Element.h"
 
 
 nsIFrame*
@@ -91,8 +90,7 @@ nsProgressFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                                 kNameSpaceID_XHTML,
-                                                 nsIDOMNode::ELEMENT_NODE);
+                                                 kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Create the div.
@@ -249,7 +247,6 @@ nsProgressFrame::AttributeChanged(PRInt32  aNameSpaceID,
     NS_ASSERTION(barFrame, "The progress frame should have a child with a frame!");
     PresContext()->PresShell()->FrameNeedsReflow(barFrame, nsIPresShell::eResize,
                                                  NS_FRAME_IS_DIRTY);
-    Invalidate(GetVisualOverflowRectRelativeToSelf());
   }
 
   return nsHTMLContainerFrame::AttributeChanged(aNameSpaceID, aAttribute,
@@ -277,28 +274,6 @@ nsProgressFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
   }
 
   return autoSize;
-}
-
-nscoord
-nsProgressFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
-{
-  nsRefPtr<nsFontMetrics> fontMet;
-  NS_ENSURE_SUCCESS(
-      nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet)), 0);
-
-  nscoord minWidth = fontMet->Font().size; // 1em
-
-  if (GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_HORIZONTAL) {
-    minWidth *= 10; // 10em
-  }
-
-  return minWidth;
-}
-
-nscoord
-nsProgressFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
-{
-  return GetMinWidth(aRenderingContext);
 }
 
 bool

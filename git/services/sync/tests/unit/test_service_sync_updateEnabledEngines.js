@@ -386,5 +386,8 @@ add_test(function test_dependentEnginesDisabledLocally() {
 });
 
 function run_test() {
+  if (DISABLE_TESTS_BUG_604565)
+    return;
+
   run_next_test();
 }

@@ -1,6 +1,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Test for SMIL accessKey support</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -172,7 +173,7 @@ function test(spec, charCode, keyCode, offset, modifiers)
     gotStartTimeOk = false;
   }
 
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 
   return gotStartTimeOk;
 }
@@ -235,7 +236,7 @@ function testOpenEnd()
               "open-ended interval");
   }
 
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 }
 
 function testPreventDefault()
@@ -261,7 +262,7 @@ function testPreventDefault()
   }
 
   circle.removeEventListener('keypress', func, false);
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 }
 
 function testDispatchToWindow()
@@ -281,7 +282,7 @@ function testDispatchToWindow()
               "accesskey handling");
   }
 
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 }
 
 function testAdoptNode()
@@ -325,7 +326,7 @@ function testAdoptNode()
     ok(false, "Adopted node failed to catch accesskey event");
   }
 
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 }
 
 function testFauxEvent()
@@ -348,7 +349,7 @@ function testFauxEvent()
     // All is well
   }
 
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 }
 
 window.addEventListener("load", main, false);

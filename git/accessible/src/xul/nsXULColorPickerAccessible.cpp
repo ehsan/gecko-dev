@@ -46,7 +46,6 @@
 
 #include "nsIDOMElement.h"
 
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerTileAccessible
@@ -69,7 +68,7 @@ nsXULColorPickerTileAccessible::GetValue(nsAString& aValue)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::color, aValue);
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::color, aValue);
   return NS_OK;
 }
 
@@ -94,12 +93,12 @@ nsXULColorPickerTileAccessible::NativeState()
 
   // Focused?
   PRBool isFocused = mContent->HasAttr(kNameSpaceID_None,
-                                       nsGkAtoms::hover);
+                                       nsAccessibilityAtoms::hover);
   if (isFocused)
     states |= states::FOCUSED;
 
   PRBool isSelected = mContent->HasAttr(kNameSpaceID_None,
-                                        nsGkAtoms::selected);
+                                        nsAccessibilityAtoms::selected);
   if (isSelected)
     states |= states::SELECTED;
 

@@ -41,10 +41,14 @@
 #include "nsCollationUnix.h"
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
+#include "nsLocaleCID.h"
 #include "nsILocaleService.h"
 #include "nsIPlatformCharset.h"
-#include "nsPosixLocale.h"
+#include "nsIPosixLocale.h"
 #include "nsCOMPtr.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
 //#define DEBUG_UNIX_COLLATION
@@ -122,7 +126,10 @@ nsresult nsCollationUnix::Initialize(nsILocale* locale)
       localeStr.AssignLiteral("C");
     }
 
-    nsPosixLocale::GetPlatformLocale(localeStr, mLocale);
+    nsCOMPtr <nsIPosixLocale> posixLocale = do_GetService(NS_POSIXLOCALE_CONTRACTID, &res);
+    if (NS_SUCCEEDED(res)) {
+      res = posixLocale->GetPlatformLocale(localeStr, mLocale);
+    }
 
     nsCOMPtr <nsIPlatformCharset> platformCharset = do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &res);
     if (NS_SUCCEEDED(res)) {

@@ -38,6 +38,7 @@
 #define nsTableFrame_h__
 
 #include "nscore.h"
+#include "nsTPtrArray.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
@@ -58,6 +59,14 @@ class nsStyleContext;
 
 struct nsTableReflowState;
 struct nsStylePosition;
+
+/**
+ * Child list name indices
+ * @see #GetAdditionalChildListName()
+ */
+#define NS_TABLE_FRAME_COLGROUP_LIST_INDEX 0
+#define NS_TABLE_FRAME_OVERFLOW_LIST_INDEX 1
+#define NS_TABLE_FRAME_LAST_LIST_INDEX    NS_TABLE_FRAME_OVERFLOW_LIST_INDEX
 
 static inline PRBool IS_TABLE_CELL(nsIAtom* frameType) {
   return nsGkAtoms::tableCellFrame == frameType ||
@@ -119,13 +128,15 @@ private:
 
 /* ============================================================================ */
 
-/**
-  * nsTableFrame maps the inner portion of a table (everything except captions.)
+/** nsTableFrame maps the inner portion of a table (everything except captions.)
   * Used as a pseudo-frame within nsTableOuterFrame, it may also be used
   * stand-alone as the top-level frame.
   *
-  * The principal child list contains row group frames. There is also an
-  * additional child list, kColGroupList, which contains the col group frames.
+  * The flowed child list contains row group frames. There is also an additional
+  * named child list:
+  * - "ColGroup-list" which contains the col group frames
+  *
+  * @see nsGkAtoms::colGroupList
   */
 class nsTableFrame : public nsHTMLContainerFrame, public nsITableLayout
 {
@@ -185,12 +196,12 @@ public:
   /** @see nsIFrame::DidSetStyleContext */
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsMargin GetUsedBorder() const;
@@ -241,11 +252,13 @@ public:
   /** Initialize the table frame with a set of children.
     * @see nsIFrame::SetInitialChildList 
     */
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+
+  /** @see nsIFrame::GetAdditionalChildListName */
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -349,7 +362,9 @@ public:
 
   nsFrameList& GetColGroups();
 
-  virtual nsIFrame* GetParentStyleContextFrame();
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   /**
    * Get the "type" of the frame
@@ -551,8 +566,8 @@ protected:
   nscoord GetCollapsedWidth(nsMargin aBorderPadding);
 
   
-  /** Adjust the table for visibility.collapse set on rowgroups, rows,
-    * colgroups and cols
+  /** Adjust the table for visibilty.collapse set on rowgroups, rows, colgroups
+    * and cols
     * @param aDesiredSize    the metrics of the table
     * @param aBorderPadding  the border and padding of the table
     */
@@ -600,7 +615,7 @@ protected:
 
   nsIFrame* GetFirstBodyRowGroupFrame();
 public:
-  typedef nsAutoTArray<nsTableRowGroupFrame*, 8> RowGroupArray;
+  typedef nsAutoTPtrArray<nsTableRowGroupFrame, 8> RowGroupArray;
   /**
    * Push all our child frames from the aRowGroups array, in order, starting
    * from the frame at aPushFrom to the end of the array. The frames are put on
@@ -761,7 +776,7 @@ protected:
   void DumpRowGroup(nsIFrame* aChildFrame);
 #endif
   // DATA MEMBERS
-  nsAutoTArray<nsTableColFrame*, 8> mColFrames;
+  nsAutoTPtrArray<nsTableColFrame, 8> mColFrames;
 
   struct TableBits {
     PRUint32 mHaveReflowedColGroups:1; // have the col groups gotten their initial reflow

@@ -59,7 +59,7 @@ EXPORTS_mozilla/plugins = \
   ChildTimer.h \
   NPEventOSX.h \
   NPEventWindows.h \
-  NPEventUnix.h \
+  NPEventX11.h \
   NPEventAndroid.h \
   PluginIdentifierChild.h \
   PluginIdentifierParent.h \
@@ -75,7 +75,6 @@ EXPORTS_mozilla/plugins = \
   PluginScriptableObjectUtils-inl.h \
   PluginInstanceChild.h \
   PluginInstanceParent.h \
-  PluginUtilsOSX.h \
   AStream.h \
   BrowserStreamChild.h \
   BrowserStreamParent.h \
@@ -110,8 +109,6 @@ CPPSRCS = \
   ChildAsyncCall.cpp \
   ChildTimer.cpp \
   PluginMessageUtils.cpp \
-  PluginIdentifierChild.cpp \
-  PluginIdentifierParent.cpp \
   PluginInstanceChild.cpp \
   PluginInstanceParent.cpp \
   PluginModuleChild.cpp \

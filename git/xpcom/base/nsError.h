@@ -327,7 +327,7 @@ inline int NS_SUCCEEDED(nsresult _nsresult) {
   *      Do not depend on this function. It will be going away!
   ***********************************************************************
   */
-extern nsresult
+extern NS_COM nsresult
 NS_ErrorAccordingToNSPR();
 
 
@@ -337,7 +337,7 @@ NS_ErrorAccordingToNSPR();
 #endif
 
 #ifdef XP_WIN
-extern PRBool sXPCOMHasLoadedNewDLLs;
+extern NS_COM PRBool sXPCOMHasLoadedNewDLLs;
 NS_EXPORT void NS_SetHasLoadedNewDLLs();
 #endif
 

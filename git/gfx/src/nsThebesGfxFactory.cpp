@@ -41,6 +41,7 @@
 #include "nsGfxCIID.h"
 
 #include "nsThebesFontEnumerator.h"
+#include "nsThebesRegion.h"
 #include "nsScriptableRegion.h"
 
 #include "nsDeviceContext.h"
@@ -61,30 +62,59 @@ NS_IMPL_ISUPPORTS0(GfxInitialization)
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsThebesFontEnumerator)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsThebesRegion)
 
 static nsresult
 nsScriptableRegionConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
-  if (!aResult) {
-    return NS_ERROR_NULL_POINTER;
+  nsresult rv;
+
+  nsIScriptableRegion *inst = nsnull;
+
+  if ( !aResult )
+  {
+    rv = NS_ERROR_NULL_POINTER;
+    return rv;
   }
   *aResult = nsnull;
-  if (aOuter) {
-    return NS_ERROR_NO_AGGREGATION;
+  if (aOuter)
+  {
+    rv = NS_ERROR_NO_AGGREGATION;
+    return rv;
   }
 
-  nsCOMPtr<nsIScriptableRegion> scriptableRgn = new nsScriptableRegion();
-  return scriptableRgn->QueryInterface(aIID, aResult);
+  nsCOMPtr <nsIRegion> rgn = new nsThebesRegion();
+  nsCOMPtr<nsIScriptableRegion> scriptableRgn;
+  if (rgn != nsnull)
+  {
+    scriptableRgn = new nsScriptableRegion(rgn);
+    inst = scriptableRgn;
+  }
+  if (!inst)
+  {
+    rv = NS_ERROR_OUT_OF_MEMORY;
+    return rv;
+  }
+  NS_ADDREF(inst);
+  // release our variable above now that we have created our owning
+  // reference - we don't want this to go out of scope early!
+  scriptableRgn = nsnull;
+  rv = inst->QueryInterface(aIID, aResult);
+  NS_RELEASE(inst);
+
+  return rv;
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(GfxInitialization)
 
 NS_DEFINE_NAMED_CID(NS_FONT_ENUMERATOR_CID);
+NS_DEFINE_NAMED_CID(NS_REGION_CID);
 NS_DEFINE_NAMED_CID(NS_SCRIPTABLE_REGION_CID);
 NS_DEFINE_NAMED_CID(NS_GFX_INITIALIZATION_CID);
 
 static const mozilla::Module::CIDEntry kThebesCIDs[] = {
     { &kNS_FONT_ENUMERATOR_CID, false, NULL, nsThebesFontEnumeratorConstructor },
+    { &kNS_REGION_CID, false, NULL, nsThebesRegionConstructor },
     { &kNS_SCRIPTABLE_REGION_CID, false, NULL, nsScriptableRegionConstructor },
     { &kNS_GFX_INITIALIZATION_CID, false, NULL, GfxInitializationConstructor },
     { NULL }
@@ -92,6 +122,7 @@ static const mozilla::Module::CIDEntry kThebesCIDs[] = {
 
 static const mozilla::Module::ContractIDEntry kThebesContracts[] = {
     { "@mozilla.org/gfx/fontenumerator;1", &kNS_FONT_ENUMERATOR_CID },
+    { "@mozilla.org/gfx/region/nsThebes;1", &kNS_REGION_CID },
     { "@mozilla.org/gfx/region;1", &kNS_SCRIPTABLE_REGION_CID },
     { "@mozilla.org/gfx/init;1", &kNS_GFX_INITIALIZATION_CID },
     { NULL }

@@ -249,7 +249,7 @@
     </implementation>
 
     <handlers>
-      <handler event="input" phase="capturing">
+      <handler event="input">
         this._valueEntered = true;
       </handler>
 

@@ -76,6 +76,8 @@ CSRCS = \
 	smimever.c \
 	$(NULL)
 
+REQUIRES = dbm
+
 LIBRARY_NAME = smime
 LIBRARY_VERSION = 3
 

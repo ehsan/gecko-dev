@@ -217,9 +217,11 @@ public:
                     nsRenderingContext *aContext,
                     nsRenderingContext *aTextRunConstructionContext);
 
+#ifdef MOZ_MATHML
     nsBoundingMetrics GetBoundingMetrics(const PRUnichar *aString,
                                          PRUint32 aLength,
                                          nsRenderingContext *aContext);
+#endif /* MOZ_MATHML */
 
     void SetTextRunRTL(PRBool aIsRTL) { mTextRunRTL = aIsRTL; }
     PRBool GetTextRunRTL() { return mTextRunRTL; }
@@ -227,7 +229,7 @@ public:
     gfxFontGroup* GetThebesFontGroup() { return mFontGroup; }
     gfxUserFontSet* GetUserFontSet() { return mFontGroup->GetUserFontSet(); }
 
-    PRUint32 AppUnitsPerDevPixel() { return mP2A; }
+    PRInt32 AppUnitsPerDevPixel() { return mP2A; }
 
 protected:
     const gfxFont::Metrics& GetMetrics() const;
@@ -236,7 +238,7 @@ protected:
     nsRefPtr<gfxFontGroup> mFontGroup;
     nsCOMPtr<nsIAtom> mLanguage;
     nsDeviceContext *mDeviceContext;
-    PRUint32 mP2A;
+    PRInt32 mP2A;
     PRPackedBool mTextRunRTL;
 };
 

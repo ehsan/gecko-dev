@@ -60,83 +60,82 @@ static nscolor GetColorFromNSColor(NSColor* aColor)
                 (unsigned int)([deviceColor blueComponent] * 255.0));
 }
 
-nsresult
-nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
+nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 {
   nsresult res = NS_OK;
   
   switch (aID) {
-    case eColorID_WindowBackground:
+    case eColor_WindowBackground:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
-    case eColorID_WindowForeground:
+    case eColor_WindowForeground:
       aColor = NS_RGB(0x00,0x00,0x00);        
       break;
-    case eColorID_WidgetBackground:
+    case eColor_WidgetBackground:
       aColor = NS_RGB(0xdd,0xdd,0xdd);
       break;
-    case eColorID_WidgetForeground:
+    case eColor_WidgetForeground:
       aColor = NS_RGB(0x00,0x00,0x00);        
       break;
-    case eColorID_WidgetSelectBackground:
+    case eColor_WidgetSelectBackground:
       aColor = NS_RGB(0x80,0x80,0x80);
       break;
-    case eColorID_WidgetSelectForeground:
+    case eColor_WidgetSelectForeground:
       aColor = NS_RGB(0x00,0x00,0x80);
       break;
-    case eColorID_Widget3DHighlight:
+    case eColor_Widget3DHighlight:
       aColor = NS_RGB(0xa0,0xa0,0xa0);
       break;
-    case eColorID_Widget3DShadow:
+    case eColor_Widget3DShadow:
       aColor = NS_RGB(0x40,0x40,0x40);
       break;
-    case eColorID_TextBackground:
+    case eColor_TextBackground:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
-    case eColorID_TextForeground:
+    case eColor_TextForeground:
       aColor = NS_RGB(0x00,0x00,0x00);
       break;
-    case eColorID_TextSelectBackground:
+    case eColor_TextSelectBackground:
       aColor = GetColorFromNSColor([NSColor selectedTextBackgroundColor]);
       break;
-    case eColorID_highlight: // CSS2 color
+    case eColor_highlight: // CSS2 color
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
-    case eColorID__moz_menuhover:
+    case eColor__moz_menuhover:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;      
-    case eColorID_TextSelectForeground:
-      GetColor(eColorID_TextSelectBackground, aColor);
+    case eColor_TextSelectForeground:
+      GetColor(eColor_TextSelectBackground, aColor);
       if (aColor == 0x000000)
         aColor = NS_RGB(0xff,0xff,0xff);
       else
         aColor = NS_DONT_CHANGE_COLOR;
       break;
-    case eColorID_highlighttext:  // CSS2 color
-    case eColorID__moz_menuhovertext:
+    case eColor_highlighttext:  // CSS2 color
+    case eColor__moz_menuhovertext:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlTextColor]);
       break;
-    case eColorID_IMESelectedRawTextBackground:
-    case eColorID_IMESelectedConvertedTextBackground:
-    case eColorID_IMERawInputBackground:
-    case eColorID_IMEConvertedTextBackground:
+    case eColor_IMESelectedRawTextBackground:
+    case eColor_IMESelectedConvertedTextBackground:
+    case eColor_IMERawInputBackground:
+    case eColor_IMEConvertedTextBackground:
       aColor = NS_TRANSPARENT;
       break;
-    case eColorID_IMESelectedRawTextForeground:
-    case eColorID_IMESelectedConvertedTextForeground:
-    case eColorID_IMERawInputForeground:
-    case eColorID_IMEConvertedTextForeground:
+    case eColor_IMESelectedRawTextForeground:
+    case eColor_IMESelectedConvertedTextForeground:
+    case eColor_IMERawInputForeground:
+    case eColor_IMEConvertedTextForeground:
       aColor = NS_SAME_AS_FOREGROUND_COLOR;
       break;
-    case eColorID_IMERawInputUnderline:
-    case eColorID_IMEConvertedTextUnderline:
+    case eColor_IMERawInputUnderline:
+    case eColor_IMEConvertedTextUnderline:
       aColor = NS_40PERCENT_FOREGROUND_COLOR;
       break;
-    case eColorID_IMESelectedRawTextUnderline:
-    case eColorID_IMESelectedConvertedTextUnderline:
+    case eColor_IMESelectedRawTextUnderline:
+    case eColor_IMESelectedConvertedTextUnderline:
       aColor = NS_SAME_AS_FOREGROUND_COLOR;
       break;
-    case eColorID_SpellCheckerUnderline:
+    case eColor_SpellCheckerUnderline:
       aColor = NS_RGB(0xff, 0, 0);
       break;
 
@@ -152,146 +151,146 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       //  if querying the Appearance Manager fails ;)
       //
       
-    case eColorID_buttontext:
-    case eColorID__moz_buttonhovertext:
+    case eColor_buttontext:
+    case eColor__moz_buttonhovertext:
       aColor = GetColorFromNSColor([NSColor controlTextColor]);
       break;
-    case eColorID_captiontext:
-    case eColorID_menutext:
-    case eColorID_infotext:
-    case eColorID__moz_menubartext:
+    case eColor_captiontext:
+    case eColor_menutext:
+    case eColor_infotext:
+    case eColor__moz_menubartext:
       aColor = GetColorFromNSColor([NSColor textColor]);
       break;
-    case eColorID_windowtext:
+    case eColor_windowtext:
       aColor = GetColorFromNSColor([NSColor windowFrameTextColor]);
       break;
-    case eColorID_activecaption:
+    case eColor_activecaption:
       aColor = GetColorFromNSColor([NSColor gridColor]);
       break;
-    case eColorID_activeborder:
+    case eColor_activeborder:
       aColor = NS_RGB(0x00,0x00,0x00);
       break;
-     case eColorID_appworkspace:
+     case eColor_appworkspace:
       aColor = NS_RGB(0xFF,0xFF,0xFF);
       break;
-    case eColorID_background:
+    case eColor_background:
       aColor = NS_RGB(0x63,0x63,0xCE);
       break;
-    case eColorID_buttonface:
-    case eColorID__moz_buttonhoverface:
+    case eColor_buttonface:
+    case eColor__moz_buttonhoverface:
       aColor = NS_RGB(0xF0,0xF0,0xF0);
       break;
-    case eColorID_buttonhighlight:
+    case eColor_buttonhighlight:
       aColor = NS_RGB(0xFF,0xFF,0xFF);
       break;
-    case eColorID_buttonshadow:
+    case eColor_buttonshadow:
       aColor = NS_RGB(0xDC,0xDC,0xDC);
       break;
-    case eColorID_graytext:
+    case eColor_graytext:
       aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
       break;
-    case eColorID_inactiveborder:
+    case eColor_inactiveborder:
       aColor = GetColorFromNSColor([NSColor controlBackgroundColor]);
       break;
-    case eColorID_inactivecaption:
+    case eColor_inactivecaption:
       aColor = GetColorFromNSColor([NSColor controlBackgroundColor]);
       break;
-    case eColorID_inactivecaptiontext:
+    case eColor_inactivecaptiontext:
       aColor = NS_RGB(0x45,0x45,0x45);
       break;
-    case eColorID_scrollbar:
+    case eColor_scrollbar:
       aColor = GetColorFromNSColor([NSColor scrollBarColor]);
       break;
-    case eColorID_threeddarkshadow:
+    case eColor_threeddarkshadow:
       aColor = NS_RGB(0xDC,0xDC,0xDC);
       break;
-    case eColorID_threedshadow:
+    case eColor_threedshadow:
       aColor = NS_RGB(0xE0,0xE0,0xE0);
       break;
-    case eColorID_threedface:
+    case eColor_threedface:
       aColor = NS_RGB(0xF0,0xF0,0xF0);
       break;
-    case eColorID_threedhighlight:
+    case eColor_threedhighlight:
       aColor = GetColorFromNSColor([NSColor highlightColor]);
       break;
-    case eColorID_threedlightshadow:
+    case eColor_threedlightshadow:
       aColor = NS_RGB(0xDA,0xDA,0xDA);
       break;
-    case eColorID_menu:
+    case eColor_menu:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlTextColor]);
       break;
-    case eColorID_infobackground:
+    case eColor_infobackground:
       aColor = NS_RGB(0xFF,0xFF,0xC7);
       break;
-    case eColorID_windowframe:
+    case eColor_windowframe:
       aColor = GetColorFromNSColor([NSColor gridColor]);
       break;
-    case eColorID_window:
-    case eColorID__moz_field:
-    case eColorID__moz_combobox:
+    case eColor_window:
+    case eColor__moz_field:
+    case eColor__moz_combobox:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
-    case eColorID__moz_fieldtext:
-    case eColorID__moz_comboboxtext:
+    case eColor__moz_fieldtext:
+    case eColor__moz_comboboxtext:
       aColor = GetColorFromNSColor([NSColor controlTextColor]);
       break;
-    case eColorID__moz_dialog:
+    case eColor__moz_dialog:
       aColor = GetColorFromNSColor([NSColor controlHighlightColor]);
       break;
-    case eColorID__moz_dialogtext:
-    case eColorID__moz_cellhighlighttext:
-    case eColorID__moz_html_cellhighlighttext:
+    case eColor__moz_dialogtext:
+    case eColor__moz_cellhighlighttext:
+    case eColor__moz_html_cellhighlighttext:
       aColor = GetColorFromNSColor([NSColor controlTextColor]);
       break;
-    case eColorID__moz_dragtargetzone:
+    case eColor__moz_dragtargetzone:
       aColor = GetColorFromNSColor([NSColor selectedControlColor]);
       break;
-    case eColorID__moz_mac_chrome_active:
-    case eColorID__moz_mac_chrome_inactive: {
-      int grey = NativeGreyColorAsInt(toolbarFillGrey, (aID == eColorID__moz_mac_chrome_active));
+    case eColor__moz_mac_chrome_active:
+    case eColor__moz_mac_chrome_inactive: {
+      int grey = NativeGreyColorAsInt(headerEndGrey, (aID == eColor__moz_mac_chrome_active));
       aColor = NS_RGB(grey, grey, grey);
     }
       break;
-    case eColorID__moz_mac_focusring:
+    case eColor__moz_mac_focusring:
       aColor = GetColorFromNSColor([NSColor keyboardFocusIndicatorColor]);
       break;
-    case eColorID__moz_mac_menushadow:
+    case eColor__moz_mac_menushadow:
       aColor = NS_RGB(0xA3,0xA3,0xA3);
       break;          
-    case eColorID__moz_mac_menutextdisable:
+    case eColor__moz_mac_menutextdisable:
       aColor = nsToolkit::OnSnowLeopardOrLater() ?
                  NS_RGB(0x88,0x88,0x88) : NS_RGB(0x98,0x98,0x98);
       break;      
-    case eColorID__moz_mac_menutextselect:
+    case eColor__moz_mac_menutextselect:
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
       break;      
-    case eColorID__moz_mac_disabledtoolbartext:
+    case eColor__moz_mac_disabledtoolbartext:
       aColor = NS_RGB(0x3F,0x3F,0x3F);
       break;
-    case eColorID__moz_mac_menuselect:
+    case eColor__moz_mac_menuselect:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
-    case eColorID__moz_buttondefault:
+    case eColor__moz_buttondefault:
       aColor = NS_RGB(0xDC,0xDC,0xDC);
       break;
-    case eColorID__moz_mac_alternateprimaryhighlight:
+    case eColor__moz_mac_alternateprimaryhighlight:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
-    case eColorID__moz_cellhighlight:
-    case eColorID__moz_html_cellhighlight:
-    case eColorID__moz_mac_secondaryhighlight:
+    case eColor__moz_cellhighlight:
+    case eColor__moz_html_cellhighlight:
+    case eColor__moz_mac_secondaryhighlight:
       // For inactive list selection
       aColor = GetColorFromNSColor([NSColor secondarySelectedControlColor]);
       break;
-    case eColorID__moz_eventreerow:
+    case eColor__moz_eventreerow:
       // Background color of even list rows.
       aColor = GetColorFromNSColor([[NSColor controlAlternatingRowBackgroundColors] objectAtIndex:0]);
       break;
-    case eColorID__moz_oddtreerow:
+    case eColor__moz_oddtreerow:
       // Background color of odd list rows.
       aColor = GetColorFromNSColor([[NSColor controlAlternatingRowBackgroundColors] objectAtIndex:1]);
       break;
-    case eColorID__moz_nativehyperlinktext:
+    case eColor__moz_nativehyperlinktext:
       // There appears to be no available system defined color. HARDCODING to the appropriate color.
       aColor = NS_RGB(0x14,0x4F,0xAE);
       break;
@@ -305,96 +304,92 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
   return res;
 }
 
-nsresult
-nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
+NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsresult res = nsXPLookAndFeel::GetIntImpl(aID, aResult);
+  nsresult res = nsXPLookAndFeel::GetMetric(aID, aMetric);
   if (NS_SUCCEEDED(res))
     return res;
   res = NS_OK;
   
   switch (aID) {
-    case eIntID_CaretBlinkTime:
-      aResult = 567;
+    case eMetric_CaretBlinkTime:
+      aMetric = 567;
       break;
-    case eIntID_CaretWidth:
-      aResult = 1;
+    case eMetric_CaretWidth:
+      aMetric = 1;
       break;
-    case eIntID_ShowCaretDuringSelection:
-      aResult = 0;
+    case eMetric_ShowCaretDuringSelection:
+      aMetric = 0;
       break;
-    case eIntID_SelectTextfieldsOnKeyFocus:
+    case eMetric_SelectTextfieldsOnKeyFocus:
       // Select textfield content when focused by kbd
       // used by nsEventStateManager::sTextfieldSelectModel
-      aResult = 1;
+      aMetric = 1;
       break;
-    case eIntID_SubmenuDelay:
-      aResult = 200;
+    case eMetric_SubmenuDelay:
+      aMetric = 200;
       break;
-    case eIntID_MenusCanOverlapOSBar:
+    case eMetric_MenusCanOverlapOSBar:
       // xul popups are not allowed to overlap the menubar.
-      aResult = 0;
+      aMetric = 0;
       break;
-    case eIntID_SkipNavigatingDisabledMenuItem:
-      aResult = 1;
+    case eMetric_SkipNavigatingDisabledMenuItem:
+      aMetric = 1;
       break;
-    case eIntID_DragThresholdX:
-    case eIntID_DragThresholdY:
-      aResult = 4;
+    case eMetric_DragThresholdX:
+    case eMetric_DragThresholdY:
+      aMetric = 4;
       break;
-    case eIntID_ScrollArrowStyle:
+    case eMetric_ScrollArrowStyle:
       if (nsToolkit::OnLionOrLater()) {
         // OS X Lion's scrollbars have no arrows
-        aResult = eScrollArrow_None;
+        aMetric = eMetric_ScrollArrowNone;
       } else {
         NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
         if ([buttonPlacement isEqualToString:@"Single"]) {
-          aResult = eScrollArrowStyle_Single;
+          aMetric = eMetric_ScrollArrowStyleSingle;
         } else if ([buttonPlacement isEqualToString:@"DoubleMin"]) {
-          aResult = eScrollArrowStyle_BothAtTop;
+          aMetric = eMetric_ScrollArrowStyleBothAtTop;
         } else if ([buttonPlacement isEqualToString:@"DoubleBoth"]) {
-          aResult = eScrollArrowStyle_BothAtEachEnd;
+          aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
         } else {
-          aResult = eScrollArrowStyle_BothAtBottom; // The default is BothAtBottom.
+          aMetric = eMetric_ScrollArrowStyleBothAtBottom; // The default is BothAtBottom.
         }
       }
       break;
-    case eIntID_ScrollSliderStyle:
-      aResult = eScrollThumbStyle_Proportional;
+    case eMetric_ScrollSliderStyle:
+      aMetric = eMetric_ScrollThumbStyleProportional;
       break;
-    case eIntID_TreeOpenDelay:
-      aResult = 1000;
+    case eMetric_TreeOpenDelay:
+      aMetric = 1000;
       break;
-    case eIntID_TreeCloseDelay:
-      aResult = 1000;
+    case eMetric_TreeCloseDelay:
+      aMetric = 1000;
       break;
-    case eIntID_TreeLazyScrollDelay:
-      aResult = 150;
+    case eMetric_TreeLazyScrollDelay:
+      aMetric = 150;
       break;
-    case eIntID_TreeScrollDelay:
-      aResult = 100;
+    case eMetric_TreeScrollDelay:
+      aMetric = 100;
       break;
-    case eIntID_TreeScrollLinesMax:
-      aResult = 3;
+    case eMetric_TreeScrollLinesMax:
+      aMetric = 3;
       break;
-    case eIntID_DWMCompositor:
-    case eIntID_WindowsClassic:
-    case eIntID_WindowsDefaultTheme:
-    case eIntID_TouchEnabled:
-    case eIntID_MaemoClassic:
-    case eIntID_WindowsThemeIdentifier:
-      aResult = 0;
+    case eMetric_DWMCompositor:
+    case eMetric_WindowsClassic:
+    case eMetric_WindowsDefaultTheme:
+    case eMetric_TouchEnabled:
+    case eMetric_MaemoClassic:
+    case eMetric_WindowsThemeIdentifier:
+      aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;
-    case eIntID_MacGraphiteTheme:
-      aResult = [NSColor currentControlTint] == NSGraphiteControlTint;
+    case eMetric_MacGraphiteTheme:
+      aMetric = [NSColor currentControlTint] == NSGraphiteControlTint;
       break;
-    case eIntID_MacLionTheme:
-      aResult = nsToolkit::OnLionOrLater();
-      break;
-    case eIntID_TabFocusModel:
+    case eMetric_TabFocusModel:
     {
       // we should probably cache this
       CFPropertyListRef fullKeyboardAccessProperty;
@@ -402,37 +397,37 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
                                                             kCFPreferencesAnyApplication,
                                                             kCFPreferencesCurrentUser,
                                                             kCFPreferencesAnyHost);
-      aResult = 1;    // default to just textboxes
+      aMetric = 1;    // default to just textboxes
       if (fullKeyboardAccessProperty) {
         PRInt32 fullKeyboardAccessPrefVal;
         if (::CFNumberGetValue((CFNumberRef) fullKeyboardAccessProperty, kCFNumberIntType, &fullKeyboardAccessPrefVal)) {
           // the second bit means  "Full keyboard access" is on
           if (fullKeyboardAccessPrefVal & (1 << 1))
-            aResult = 7; // everything that can be focused
+            aMetric = 7; // everything that can be focused
         }
         ::CFRelease(fullKeyboardAccessProperty);
       }
     }
       break;
-    case eIntID_ScrollToClick:
+    case eMetric_ScrollToClick:
     {
-      aResult = [[NSUserDefaults standardUserDefaults] boolForKey:@"AppleScrollerPagingBehavior"];
+      aMetric = [[NSUserDefaults standardUserDefaults] boolForKey:@"AppleScrollerPagingBehavior"];
     }
       break;
-    case eIntID_ChosenMenuItemsShouldBlink:
-      aResult = 1;
+    case eMetric_ChosenMenuItemsShouldBlink:
+      aMetric = 1;
       break;
-    case eIntID_IMERawInputUnderlineStyle:
-    case eIntID_IMEConvertedTextUnderlineStyle:
-    case eIntID_IMESelectedRawTextUnderlineStyle:
-    case eIntID_IMESelectedConvertedTextUnderline:
-      aResult = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
+    case eMetric_IMERawInputUnderlineStyle:
+    case eMetric_IMEConvertedTextUnderlineStyle:
+    case eMetric_IMESelectedRawTextUnderlineStyle:
+    case eMetric_IMESelectedConvertedTextUnderline:
+      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
       break;
-    case eIntID_SpellCheckerUnderlineStyle:
-      aResult = NS_STYLE_TEXT_DECORATION_STYLE_DOTTED;
+    case eMetric_SpellCheckerUnderlineStyle:
+      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_DOTTED;
       break;
     default:
-      aResult = 0;
+      aMetric = 0;
       res = NS_ERROR_FAILURE;
   }
   return res;
@@ -440,23 +435,22 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-nsresult
-nsLookAndFeel::GetFloatImpl(FloatID aID, float &aResult)
+NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetric)
 {
-  nsresult res = nsXPLookAndFeel::GetFloatImpl(aID, aResult);
+  nsresult res = nsXPLookAndFeel::GetMetric(aID, aMetric);
   if (NS_SUCCEEDED(res))
     return res;
   res = NS_OK;
   
   switch (aID) {
-    case eFloatID_IMEUnderlineRelativeSize:
-      aResult = 2.0f;
+    case eMetricFloat_IMEUnderlineRelativeSize:
+      aMetric = 2.0f;
       break;
-    case eFloatID_SpellCheckerUnderlineRelativeSize:
-      aResult = 2.0f;
+    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
+      aMetric = 2.0f;
       break;
     default:
-      aResult = -1.0;
+      aMetric = -1.0;
       res = NS_ERROR_FAILURE;
   }
 

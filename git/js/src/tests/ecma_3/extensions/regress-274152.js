@@ -54,7 +54,9 @@ function test()
  
   expect = 'SyntaxError: illegal character';
 
-  var formatcontrolchars = ['\u200E',
+  var formatcontrolchars = ['\u200C',
+                            '\u200D',
+                            '\u200E', 
                             '\u0600', 
                             '\u0601', 
                             '\u0602', 

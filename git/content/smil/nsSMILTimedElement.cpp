@@ -53,10 +53,6 @@
 #include "plstr.h"
 #include "prtime.h"
 #include "nsString.h"
-#include "mozilla/AutoRestore.h"
-#include "mozilla/Util.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Helper class: InstanceTimeComparator
@@ -136,43 +132,6 @@ namespace
 }
 
 //----------------------------------------------------------------------
-// Helper class: AutoIntervalUpdateBatcher
-
-// RAII helper to set the mDeferIntervalUpdates flag on an nsSMILTimedElement
-// and perform the UpdateCurrentInterval when the object is destroyed.
-//
-// If several of these objects are allocated on the stack, the update will not
-// be performed until the last object for a given nsSMILTimedElement is
-// destroyed.
-class NS_STACK_CLASS nsSMILTimedElement::AutoIntervalUpdateBatcher
-{
-public:
-  AutoIntervalUpdateBatcher(nsSMILTimedElement& aTimedElement)
-    : mTimedElement(aTimedElement),
-      mDidSetFlag(!aTimedElement.mDeferIntervalUpdates)
-  {
-    mTimedElement.mDeferIntervalUpdates = PR_TRUE;
-  }
-
-  ~AutoIntervalUpdateBatcher()
-  {
-    if (!mDidSetFlag)
-      return;
-
-    mTimedElement.mDeferIntervalUpdates = PR_FALSE;
-
-    if (mTimedElement.mDoDeferredUpdate) {
-      mTimedElement.mDoDeferredUpdate = PR_FALSE;
-      mTimedElement.UpdateCurrentInterval();
-    }
-  }
-
-private:
-  nsSMILTimedElement& mTimedElement;
-  PRPackedBool mDidSetFlag;
-};
-
-//----------------------------------------------------------------------
 // Templated helper functions
 
 // Selectively remove elements from an array of type
@@ -186,18 +145,6 @@ nsSMILTimedElement::RemoveInstanceTimes(InstanceTimeList& aArray,
   for (PRUint32 i = 0; i < aArray.Length(); ++i) {
     nsSMILInstanceTime* item = aArray[i].get();
     if (aTest(item, i)) {
-      // As per bugs 665334 and 669225 we should be careful not to remove the
-      // instance time that corresponds to the previous interval's end time.
-      //
-      // Most functors supplied here fulfil this condition by checking if the
-      // instance time is marked as "ShouldPreserve" and if so, not deleting it.
-      //
-      // However, when filtering instance times, we sometimes need to drop even
-      // instance times marked as "ShouldPreserve". In that case we take special
-      // care not to delete the end instance time of the previous interval.
-      NS_ABORT_IF_FALSE(!GetPreviousInterval() ||
-        item != GetPreviousInterval()->End(),
-        "Removing end instance time of previous interval");
       item->Unlink();
     } else {
       newArray.AppendElement(item);
@@ -231,10 +178,6 @@ const nsSMILMilestone nsSMILTimedElement::sMaxMilestone(LL_MAXINT, PR_FALSE);
 const PRUint8 nsSMILTimedElement::sMaxNumIntervals = 20;
 const PRUint8 nsSMILTimedElement::sMaxNumInstanceTimes = 100;
 
-// Detect if we arrive in some sort of undetected recursive syncbase dependency
-// relationship
-const PRUint16 nsSMILTimedElement::sMaxUpdateIntervalRecursionDepth = 20;
-
 //----------------------------------------------------------------------
 // Ctor, dtor
 
@@ -249,10 +192,7 @@ nsSMILTimedElement::nsSMILTimedElement()
   mCurrentRepeatIteration(0),
   mPrevRegisteredMilestone(sMaxMilestone),
   mElementState(STATE_STARTUP),
-  mSeekState(SEEK_NOT_SEEKING),
-  mDeferIntervalUpdates(PR_FALSE),
-  mDoDeferredUpdate(PR_FALSE),
-  mUpdateIntervalRecursionDepth(0)
+  mSeekState(SEEK_NOT_SEEKING)
 {
   mSimpleDur.SetIndefinite();
   mMin.SetMillis(0L);
@@ -275,18 +215,13 @@ nsSMILTimedElement::~nsSMILTimedElement()
   // Notify anyone listening to our intervals that they're gone
   // (We shouldn't get any callbacks from this because all our instance times
   // are now disassociated with any intervals)
-  ClearIntervals();
+  mElementState = STATE_POSTACTIVE;
+  ResetCurrentInterval();
 
-  // The following assertions are important in their own right (for checking
-  // correct behavior) but also because AutoIntervalUpdateBatcher holds pointers
-  // to class so if they fail there's the possibility we might have dangling
-  // pointers.
-  NS_ABORT_IF_FALSE(!mDeferIntervalUpdates,
-      "Interval updates should no longer be blocked when an nsSMILTimedElement "
-      "disappears");
-  NS_ABORT_IF_FALSE(!mDoDeferredUpdate,
-      "There should no longer be any pending updates when an "
-      "nsSMILTimedElement disappears");
+  for (PRInt32 i = mOldIntervals.Length() - 1; i >= 0; --i) {
+    mOldIntervals[i]->Unlink();
+  }
+  mOldIntervals.Clear();
 }
 
 void
@@ -327,7 +262,9 @@ nsSMILTimedElement::BeginElementAt(double aOffsetSeconds)
     return NS_ERROR_FAILURE;
 
   nsSMILTime currentTime = container->GetCurrentTime();
-  return AddInstanceTimeFromCurrentTime(currentTime, aOffsetSeconds, PR_TRUE);
+  AddInstanceTimeFromCurrentTime(currentTime, aOffsetSeconds, PR_TRUE);
+
+  return NS_OK;
 }
 
 nsresult
@@ -338,7 +275,9 @@ nsSMILTimedElement::EndElementAt(double aOffsetSeconds)
     return NS_ERROR_FAILURE;
 
   nsSMILTime currentTime = container->GetCurrentTime();
-  return AddInstanceTimeFromCurrentTime(currentTime, aOffsetSeconds, PR_FALSE);
+  AddInstanceTimeFromCurrentTime(currentTime, aOffsetSeconds, PR_FALSE);
+
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -425,15 +364,10 @@ nsSMILTimedElement::RemoveInstanceTime(nsSMILInstanceTime* aInstanceTime,
 {
   NS_ABORT_IF_FALSE(aInstanceTime, "Attempting to remove null instance time");
 
-  // If the instance time should be kept (because it is or was the fixed end
-  // point of an interval) then just disassociate it from the creator.
-  if (aInstanceTime->ShouldPreserve()) {
-    aInstanceTime->Unlink();
-    return;
-  }
-
   InstanceTimeList& instanceList = aIsBegin ? mBeginInstances : mEndInstances;
-  mozilla::DebugOnly<PRBool> found =
+#ifdef DEBUG
+  PRBool found =
+#endif
     instanceList.RemoveElementSorted(aInstanceTime, InstanceTimeComparator());
   NS_ABORT_IF_FALSE(found, "Couldn't find instance time to delete");
 
@@ -442,7 +376,7 @@ nsSMILTimedElement::RemoveInstanceTime(nsSMILInstanceTime* aInstanceTime,
 
 namespace
 {
-  class NS_STACK_CLASS RemoveByCreator
+  class RemoveByCreator
   {
   public:
     RemoveByCreator(const nsSMILTimeValueSpec* aCreator) : mCreator(aCreator)
@@ -450,17 +384,7 @@ namespace
 
     PRBool operator()(nsSMILInstanceTime* aInstanceTime, PRUint32 /*aIndex*/)
     {
-      if (aInstanceTime->GetCreator() != mCreator)
-        return PR_FALSE;
-
-      // If the instance time should be kept (because it is or was the fixed end
-      // point of an interval) then just disassociate it from the creator.
-      if (aInstanceTime->ShouldPreserve()) {
-        aInstanceTime->Unlink();
-        return PR_FALSE;
-      }
-
-      return PR_TRUE;
+      return aInstanceTime->GetCreator() == mCreator;
     }
 
   private:
@@ -587,7 +511,7 @@ nsSMILTimedElement::DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly)
     case STATE_STARTUP:
       {
         nsSMILInterval firstInterval;
-        mElementState = GetNextInterval(nsnull, nsnull, nsnull, firstInterval)
+        mElementState = GetNextInterval(nsnull, nsnull, firstInterval)
          ? STATE_WAITING
          : STATE_POSTACTIVE;
         stateChanged = PR_TRUE;
@@ -634,8 +558,7 @@ nsSMILTimedElement::DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly)
 
         if (mCurrentInterval->End()->Time() <= sampleTime) {
           nsSMILInterval newInterval;
-          mElementState =
-            GetNextInterval(mCurrentInterval, nsnull, nsnull, newInterval)
+          mElementState = GetNextInterval(mCurrentInterval, nsnull, newInterval)
             ? STATE_WAITING
             : STATE_POSTACTIVE;
           if (mClient) {
@@ -729,7 +652,7 @@ namespace
     NS_ABORT_IF_FALSE(!aInstanceTime->IsDynamic() ||
          !aInstanceTime->GetCreator(),
         "Dynamic instance time should be unlinked from its creator");
-    return !aInstanceTime->IsDynamic() && !aInstanceTime->ShouldPreserve();
+    return !aInstanceTime->IsDynamic();
   }
 }
 
@@ -758,10 +681,7 @@ nsSMILTimedElement::Rewind()
                     mSeekState == SEEK_BACKWARD_FROM_ACTIVE,
                     "Rewind in the middle of a forwards seek?");
 
-  // Putting us in the startup state will ensure we skip doing any interval
-  // updates
-  mElementState = STATE_STARTUP;
-  ClearIntervals();
+  ClearIntervalProgress();
 
   UnsetBeginSpec(RemoveNonDynamic);
   UnsetEndSpec(RemoveNonDynamic);
@@ -784,8 +704,6 @@ nsSMILTimedElement::Rewind()
 
   mPrevRegisteredMilestone = sMaxMilestone;
   RegisterMilestone();
-  NS_ABORT_IF_FALSE(!mCurrentInterval,
-                    "Current interval is set at end of rewind");
 }
 
 namespace
@@ -793,7 +711,7 @@ namespace
   PRBool
   RemoveNonDOM(nsSMILInstanceTime* aInstanceTime)
   {
-    return !aInstanceTime->FromDOM() && !aInstanceTime->ShouldPreserve();
+    return !aInstanceTime->FromDOM();
   }
 }
 
@@ -918,7 +836,7 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
     return NS_ERROR_FAILURE;
   }
 
-  if (duration.IsDefinite() && duration.GetMillis() == 0L) {
+  if (duration.IsResolved() && duration.GetMillis() == 0L) {
     mSimpleDur.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
@@ -932,7 +850,7 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
 
   // mSimpleDur should never be unresolved. ParseClockValue will either set
   // duration to resolved/indefinite/media or will return a failure code.
-  NS_ABORT_IF_FALSE(duration.IsResolved(),
+  NS_ASSERTION(duration.IsResolved() || duration.IsIndefinite(),
     "Setting unresolved simple duration");
 
   mSimpleDur = duration;
@@ -961,7 +879,7 @@ nsSMILTimedElement::SetMin(const nsAString& aMinSpec)
     duration.SetMillis(0L);
   }
 
-  if (NS_FAILED(rv) || !duration.IsDefinite()) {
+  if (NS_FAILED(rv) || !duration.IsResolved()) {
     mMin.SetMillis(0L);
     return NS_ERROR_FAILURE;
   }
@@ -997,12 +915,12 @@ nsSMILTimedElement::SetMax(const nsAString& aMaxSpec)
   if (isMedia)
     duration.SetIndefinite();
 
-  if (NS_FAILED(rv) || !duration.IsResolved()) {
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
     mMax.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
 
-  if (duration.IsDefinite() && duration.GetMillis() <= 0L) {
+  if (duration.IsResolved() && duration.GetMillis() <= 0L) {
     mMax.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
@@ -1074,7 +992,7 @@ nsSMILTimedElement::SetRepeatDur(const nsAString& aRepeatDurSpec)
   rv = nsSMILParserUtils::ParseClockValue(aRepeatDurSpec, &duration,
           nsSMILParserUtils::kClockValueAllowIndefinite);
 
-  if (NS_FAILED(rv) || !duration.IsResolved()) {
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
     mRepeatDur.SetUnresolved();
     return NS_ERROR_FAILURE;
   }
@@ -1180,20 +1098,15 @@ nsSMILTimedElement::BindToTree(nsIContent* aContextNode)
     Rewind();
   }
 
-  // Scope updateBatcher to last only for the ResolveReferences calls:
-  {
-    AutoIntervalUpdateBatcher updateBatcher(*this);
+  // Resolve references to other parts of the tree
+  PRUint32 count = mBeginSpecs.Length();
+  for (PRUint32 i = 0; i < count; ++i) {
+    mBeginSpecs[i]->ResolveReferences(aContextNode);
+  }
 
-    // Resolve references to other parts of the tree
-    PRUint32 count = mBeginSpecs.Length();
-    for (PRUint32 i = 0; i < count; ++i) {
-      mBeginSpecs[i]->ResolveReferences(aContextNode);
-    }
-
-    count = mEndSpecs.Length();
-    for (PRUint32 j = 0; j < count; ++j) {
-      mEndSpecs[j]->ResolveReferences(aContextNode);
-    }
+  count = mEndSpecs.Length();
+  for (PRUint32 j = 0; j < count; ++j) {
+    mEndSpecs[j]->ResolveReferences(aContextNode);
   }
 
   RegisterMilestone();
@@ -1202,8 +1115,6 @@ nsSMILTimedElement::BindToTree(nsIContent* aContextNode)
 void
 nsSMILTimedElement::HandleTargetElementChange(Element* aNewTarget)
 {
-  AutoIntervalUpdateBatcher updateBatcher(*this);
-
   PRUint32 count = mBeginSpecs.Length();
   for (PRUint32 i = 0; i < count; ++i) {
     mBeginSpecs[i]->HandleTargetElementChange(aNewTarget);
@@ -1237,9 +1148,6 @@ nsSMILTimedElement::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 void
 nsSMILTimedElement::Unlink()
 {
-  AutoIntervalUpdateBatcher updateBatcher(*this);
-
-  // Remove dependencies on other elements
   PRUint32 count = mBeginSpecs.Length();
   for (PRUint32 i = 0; i < count; ++i) {
     nsSMILTimeValueSpec* beginSpec = mBeginSpecs[i];
@@ -1254,11 +1162,6 @@ nsSMILTimedElement::Unlink()
     NS_ABORT_IF_FALSE(endSpec, "null nsSMILTimeValueSpec in list of end specs");
     endSpec->Unlink();
   }
-
-  ClearIntervals();
-
-  // Make sure we don't notify other elements of new intervals
-  mTimeDependents.Clear();
 }
 
 //----------------------------------------------------------------------
@@ -1279,8 +1182,6 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
 
   ClearSpecs(timeSpecsList, instances, aRemove);
 
-  AutoIntervalUpdateBatcher updateBatcher(*this);
-
   do {
     start = end + 1;
     end = aSpec.FindChar(';', start);
@@ -1297,6 +1198,8 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
     ClearSpecs(timeSpecsList, instances, aRemove);
   }
 
+  UpdateCurrentInterval();
+
   return rv;
 }
 
@@ -1306,7 +1209,7 @@ namespace
   // pointers instead.
   // Without this we'd have to either templatize ClearSpecs and all its callers
   // or pass bool flags around to specify which removal function to use here.
-  class NS_STACK_CLASS RemoveByFunction
+  class RemoveByFunction
   {
   public:
     RemoveByFunction(nsSMILTimedElement::RemovalTestFunction aFunction)
@@ -1332,11 +1235,9 @@ nsSMILTimedElement::ClearSpecs(TimeValueSpecList& aSpecs,
 }
 
 void
-nsSMILTimedElement::ClearIntervals()
+nsSMILTimedElement::ClearIntervalProgress()
 {
-  if (mElementState != STATE_STARTUP) {
-    mElementState = STATE_POSTACTIVE;
-  }
+  mElementState = STATE_STARTUP;
   mCurrentRepeatIteration = 0;
   ResetCurrentInterval();
 
@@ -1378,7 +1279,7 @@ nsSMILTimedElement::ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime)
 
 namespace
 {
-  class NS_STACK_CLASS RemoveReset
+  class RemoveReset
   {
   public:
     RemoveReset(const nsSMILInstanceTime* aCurrentIntervalBegin)
@@ -1526,7 +1427,7 @@ nsSMILTimedElement::FilterIntervals()
 
 namespace
 {
-  class NS_STACK_CLASS RemoveFiltered
+  class RemoveFiltered
   {
   public:
     RemoveFiltered(nsSMILTimeValue aCutoff) : mCutoff(aCutoff) { }
@@ -1546,21 +1447,21 @@ namespace
     nsSMILTimeValue mCutoff;
   };
 
-  class NS_STACK_CLASS RemoveBelowThreshold
+  class RemoveBelowThreshold
   {
   public:
     RemoveBelowThreshold(PRUint32 aThreshold,
-                         nsTArray<const nsSMILInstanceTime *>& aTimesToKeep)
+                         const nsSMILInstanceTime* aCurrentIntervalBegin)
       : mThreshold(aThreshold),
-        mTimesToKeep(aTimesToKeep) { }
+        mCurrentIntervalBegin(aCurrentIntervalBegin) { }
     PRBool operator()(nsSMILInstanceTime* aInstanceTime, PRUint32 aIndex)
     {
-      return aIndex < mThreshold && !mTimesToKeep.Contains(aInstanceTime);
+      return aInstanceTime != mCurrentIntervalBegin && aIndex < mThreshold;
     }
 
   private:
     PRUint32 mThreshold;
-    nsTArray<const nsSMILInstanceTime *>& mTimesToKeep;
+    const nsSMILInstanceTime* mCurrentIntervalBegin;
   };
 }
 
@@ -1580,18 +1481,10 @@ nsSMILTimedElement::FilterInstanceTimes(InstanceTimeList& aList)
   // a hard cutoff at which point we just drop the oldest instance times.
   if (aList.Length() > sMaxNumInstanceTimes) {
     PRUint32 threshold = aList.Length() - sMaxNumInstanceTimes;
-    // There are a few instance times we should keep though, notably:
-    // - the current interval begin time,
-    // - the previous interval end time (see note in RemoveInstanceTimes)
-    nsTArray<const nsSMILInstanceTime *> timesToKeep;
-    if (mCurrentInterval) {
-      timesToKeep.AppendElement(mCurrentInterval->Begin());
-    }
-    const nsSMILInterval* prevInterval = GetPreviousInterval();
-    if (prevInterval) {
-      timesToKeep.AppendElement(prevInterval->End());
-    }
-    RemoveBelowThreshold removeBelowThreshold(threshold, timesToKeep);
+    // We should still preserve the current interval begin time however
+    const nsSMILInstanceTime* currentIntervalBegin = mCurrentInterval ?
+      mCurrentInterval->Begin() : nsnull;
+    RemoveBelowThreshold removeBelowThreshold(threshold, currentIntervalBegin);
     RemoveInstanceTimes(aList, removeBelowThreshold);
   }
 }
@@ -1604,12 +1497,11 @@ nsSMILTimedElement::FilterInstanceTimes(InstanceTimeList& aList)
 //
 PRBool
 nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
-                                    const nsSMILInterval* aReplacedInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
                                     nsSMILInterval& aResult) const
 {
-  NS_ABORT_IF_FALSE(!aFixedBeginTime || aFixedBeginTime->Time().IsDefinite(),
-      "Unresolved or indefinite begin time specified for interval start");
+  NS_ABORT_IF_FALSE(!aFixedBeginTime || aFixedBeginTime->Time().IsResolved(),
+      "Unresolved begin time specified for interval start");
   static const nsSMILTimeValue zeroTime(0L);
 
   if (mRestartMode == RESTART_NEVER && aPrevInterval)
@@ -1647,35 +1539,19 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
       tempBegin = new nsSMILInstanceTime(nsSMILTimeValue(0));
     } else {
       PRInt32 beginPos = 0;
-      // If we're updating the current interval then skip any begin time that is
-      // dependent on the current interval's begin time. e.g.
-      //   <animate id="a" begin="b.begin; a.begin+2s"...
-      // If b's interval disappears whilst 'a' is in the waiting state the begin
-      // time at "a.begin+2s" should be skipped since 'a' never begun.
-      do {
-        tempBegin =
-          GetNextGreaterOrEqual(mBeginInstances, beginAfter, beginPos);
-        if (!tempBegin || !tempBegin->Time().IsDefinite()) {
-          return PR_FALSE;
-        }
-      } while (aReplacedInterval &&
-               tempBegin->GetBaseTime() == aReplacedInterval->Begin());
+      tempBegin = GetNextGreaterOrEqual(mBeginInstances, beginAfter, beginPos);
+      if (!tempBegin || !tempBegin->Time().IsResolved()) {
+        return PR_FALSE;
+      }
     }
-    NS_ABORT_IF_FALSE(tempBegin && tempBegin->Time().IsDefinite() &&
+    NS_ABORT_IF_FALSE(tempBegin && tempBegin->Time().IsResolved() && 
         tempBegin->Time() >= beginAfter,
         "Got a bad begin time while fetching next interval");
 
     // Calculate end time
     {
       PRInt32 endPos = 0;
-      // As above with begin times, avoid creating self-referential loops
-      // between instance times by checking that the newly found end instance
-      // time is not already dependent on the end of the current interval.
-      do {
-        tempEnd =
-          GetNextGreaterOrEqual(mEndInstances, tempBegin->Time(), endPos);
-      } while (tempEnd && aReplacedInterval &&
-               tempEnd->GetBaseTime() == aReplacedInterval->End());
+      tempEnd = GetNextGreaterOrEqual(mEndInstances, tempBegin->Time(), endPos);
 
       // If the last interval ended at the same point and was zero-duration and
       // this one is too, look for another end to use instead
@@ -1688,14 +1564,14 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
       // a) We never had any end attribute to begin with (and hence we should
       //    just use the active duration after allowing for the possibility of
       //    an end instance provided by a DOM call), OR
-      // b) We have no definite end instances (SMIL only says "if the instance
-      //    list is empty"--but if we have indefinite/unresolved instance times
-      //    then there must be a good reason we haven't used them (since they
-      //    will be >= tempBegin) such as avoiding creating a self-referential
-      //    loop. In any case, the interval should be allowed to be open.), OR
+      // b) We have an end attribute but no end instances--this is a special
+      //    case that is needed for syncbase timing so that animations of the
+      //    following sort: <animate id="a" end="a.begin+1s" ... /> can be
+      //    resolved (see SVGT 1.2 Test Suite animate-elem-221-t.svg) by first
+      //    establishing an interval of unresolved duration, OR
       // c) We have end events which leave the interval open-ended.
       PRBool openEndedIntervalOk = mEndSpecs.IsEmpty() ||
-                                   !HaveDefiniteEndTimes() ||
+                                   mEndInstances.IsEmpty() ||
                                    EndHasEventConditions();
       if (!tempEnd && !openEndedIntervalOk)
         return PR_FALSE; // Bad interval
@@ -1713,7 +1589,7 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
     // If we get two zero-length intervals in a row we will potentially have an
     // infinite loop so we break it here by searching for the next begin time
     // greater than tempEnd on the next time around.
-    if (tempEnd->Time().IsDefinite() && tempBegin->Time() == tempEnd->Time()) {
+    if (tempEnd->Time().IsResolved() && tempBegin->Time() == tempEnd->Time()) {
       if (prevIntervalWasZeroDur) {
         beginAfter.SetMillis(tempEnd->Time().GetMillis() + 1);
         prevIntervalWasZeroDur = PR_FALSE;
@@ -1780,10 +1656,10 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
 {
   nsSMILTimeValue result;
 
-  NS_ABORT_IF_FALSE(mSimpleDur.IsResolved(),
+  NS_ABORT_IF_FALSE(mSimpleDur.IsResolved() || mSimpleDur.IsIndefinite(),
     "Unresolved simple duration in CalcActiveEnd");
-  NS_ABORT_IF_FALSE(aBegin.IsDefinite(),
-    "Indefinite or unresolved begin time in CalcActiveEnd");
+  NS_ABORT_IF_FALSE(aBegin.IsResolved(),
+    "Unresolved begin time in CalcActiveEnd");
 
   if (mRepeatDur.IsIndefinite()) {
     result.SetIndefinite();
@@ -1791,10 +1667,10 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
     result = GetRepeatDuration();
   }
 
-  if (aEnd.IsDefinite()) {
+  if (aEnd.IsResolved()) {
     nsSMILTime activeDur = aEnd.GetMillis() - aBegin.GetMillis();
 
-    if (result.IsDefinite()) {
+    if (result.IsResolved()) {
       result.SetMillis(NS_MIN(result.GetMillis(), activeDur));
     } else {
       result.SetMillis(activeDur);
@@ -1803,7 +1679,7 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
 
   result = ApplyMinAndMax(result);
 
-  if (result.IsDefinite()) {
+  if (result.IsResolved()) {
     nsSMILTime activeEnd = result.GetMillis() + aBegin.GetMillis();
     result.SetMillis(activeEnd);
   }
@@ -1816,19 +1692,19 @@ nsSMILTimedElement::GetRepeatDuration() const
 {
   nsSMILTimeValue result;
 
-  if (mRepeatCount.IsDefinite() && mRepeatDur.IsDefinite()) {
-    if (mSimpleDur.IsDefinite()) {
+  if (mRepeatCount.IsDefinite() && mRepeatDur.IsResolved()) {
+    if (mSimpleDur.IsResolved()) {
       nsSMILTime activeDur =
         nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis()));
       result.SetMillis(NS_MIN(activeDur, mRepeatDur.GetMillis()));
     } else {
       result = mRepeatDur;
     }
-  } else if (mRepeatCount.IsDefinite() && mSimpleDur.IsDefinite()) {
+  } else if (mRepeatCount.IsDefinite() && mSimpleDur.IsResolved()) {
     nsSMILTime activeDur =
       nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis()));
     result.SetMillis(activeDur);
-  } else if (mRepeatDur.IsDefinite()) {
+  } else if (mRepeatDur.IsResolved()) {
     result = mRepeatDur;
   } else if (mRepeatCount.IsIndefinite()) {
     result.SetIndefinite();
@@ -1842,7 +1718,7 @@ nsSMILTimedElement::GetRepeatDuration() const
 nsSMILTimeValue
 nsSMILTimedElement::ApplyMinAndMax(const nsSMILTimeValue& aDuration) const
 {
-  if (!aDuration.IsResolved()) {
+  if (!aDuration.IsResolved() && !aDuration.IsIndefinite()) {
     return aDuration;
   }
 
@@ -1870,7 +1746,7 @@ nsSMILTimedElement::ActiveTimeToSimpleTime(nsSMILTime aActiveTime,
 {
   nsSMILTime result;
 
-  NS_ASSERTION(mSimpleDur.IsResolved(),
+  NS_ASSERTION(mSimpleDur.IsResolved() || mSimpleDur.IsIndefinite(),
       "Unresolved simple duration in ActiveTimeToSimpleTime");
   NS_ASSERTION(aActiveTime >= 0, "Expecting non-negative active time");
   // Note that a negative aActiveTime will give us a negative value for
@@ -1926,12 +1802,6 @@ nsSMILTimedElement::CheckForEarlyEnd(
 void
 nsSMILTimedElement::UpdateCurrentInterval(PRBool aForceChangeNotice)
 {
-  // Check if updates are currently blocked (batched)
-  if (mDeferIntervalUpdates) {
-    mDoDeferredUpdate = PR_TRUE;
-    return;
-  }
-
   // We adopt the convention of not resolving intervals until the first
   // sample. Otherwise, every time each attribute is set we'll re-resolve the
   // current interval and notify all our time dependents of the change.
@@ -1942,25 +1812,12 @@ nsSMILTimedElement::UpdateCurrentInterval(PRBool aForceChangeNotice)
   if (mElementState == STATE_STARTUP)
     return;
 
-  // Check that we aren't stuck in infinite recursion updating some syncbase
-  // dependencies. Generally such situations should be detected in advance and
-  // the chain broken in a sensible and predictable manner, so if we're hitting
-  // this assertion we need to work out how to detect the case that's causing
-  // it. In release builds, just bail out before we overflow the stack.
-  AutoRestore<PRUint16> depthRestorer(mUpdateIntervalRecursionDepth);
-  if (++mUpdateIntervalRecursionDepth > sMaxUpdateIntervalRecursionDepth) {
-    NS_ABORT_IF_FALSE(PR_FALSE,
-        "Update current interval recursion depth exceeded threshold");
-    return;
-  }
-
   // If the interval is active the begin time is fixed.
   const nsSMILInstanceTime* beginTime = mElementState == STATE_ACTIVE
                                       ? mCurrentInterval->Begin()
                                       : nsnull;
   nsSMILInterval updatedInterval;
-  if (GetNextInterval(GetPreviousInterval(), mCurrentInterval,
-                      beginTime, updatedInterval)) {
+  if (GetNextInterval(GetPreviousInterval(), beginTime, updatedInterval)) {
 
     if (mElementState == STATE_POSTACTIVE) {
 
@@ -2034,7 +1891,7 @@ nsSMILTimedElement::SampleFillValue()
   const nsSMILInterval* prevInterval = GetPreviousInterval();
   NS_ABORT_IF_FALSE(prevInterval,
       "Attempting to sample fill value but there is no previous interval");
-  NS_ABORT_IF_FALSE(prevInterval->End()->Time().IsDefinite() &&
+  NS_ABORT_IF_FALSE(prevInterval->End()->Time().IsResolved() &&
       prevInterval->End()->IsFixedTime(),
       "Attempting to sample fill value but the endpoint of the previous "
       "interval is not resolved and fixed");
@@ -2053,24 +1910,19 @@ nsSMILTimedElement::SampleFillValue()
   }
 }
 
-nsresult
+void
 nsSMILTimedElement::AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
     double aOffsetSeconds, PRBool aIsBegin)
 {
   double offset = aOffsetSeconds * PR_MSEC_PER_SEC;
+  nsSMILTime timeWithOffset = aCurrentTime + PRInt64(NS_round(offset));
 
-  // Check we won't overflow the range of nsSMILTime
-  if (aCurrentTime + NS_round(offset) > LL_MAXINT)
-    return NS_ERROR_ILLEGAL_VALUE;
-
-  nsSMILTimeValue timeVal(aCurrentTime + PRInt64(NS_round(offset)));
+  nsSMILTimeValue timeVal(timeWithOffset);
 
   nsRefPtr<nsSMILInstanceTime> instanceTime =
     new nsSMILInstanceTime(timeVal, nsSMILInstanceTime::SOURCE_DOM);
 
   AddInstanceTime(instanceTime, aIsBegin);
-
-  return NS_OK;
 }
 
 void
@@ -2135,7 +1987,7 @@ nsSMILTimedElement::GetNextMilestone(nsSMILMilestone& aNextMilestone) const
     {
       // Work out what comes next: the interval end or the next repeat iteration
       nsSMILTimeValue nextRepeat;
-      if (mSeekState == SEEK_NOT_SEEKING && mSimpleDur.IsDefinite()) {
+      if (mSeekState == SEEK_NOT_SEEKING && mSimpleDur.IsResolved()) {
         nextRepeat.SetMillis(mCurrentInterval->Begin()->Time().GetMillis() +
             (mCurrentRepeatIteration + 1) * mSimpleDur.GetMillis());
       }
@@ -2151,7 +2003,7 @@ nsSMILTimedElement::GetNextMilestone(nsSMILMilestone& aNextMilestone) const
       }
 
       // Apply the previously calculated milestone
-      if (nextMilestone.IsDefinite()) {
+      if (nextMilestone.IsResolved()) {
         aNextMilestone.mIsEnd = nextMilestone != nextRepeat;
         aNextMilestone.mTime = nextMilestone.GetMillis();
         return PR_TRUE;
@@ -2250,17 +2102,6 @@ nsSMILTimedElement::GetPreviousInterval() const
   return mOldIntervals.IsEmpty()
     ? nsnull
     : mOldIntervals[mOldIntervals.Length()-1].get();
-}
-
-PRBool
-nsSMILTimedElement::HaveDefiniteEndTimes() const
-{
-  if (mEndInstances.IsEmpty())
-    return PR_FALSE;
-
-  // mEndInstances is sorted so if the first time is not definite then none of
-  // them are
-  return mEndInstances[0]->Time().IsDefinite();
 }
 
 PRBool

@@ -51,6 +51,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsRenderingContext.h"
 
+#include "nsIDOMText.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsFrameManager.h"
 #include "nsStyleChangeList.h"
@@ -90,9 +91,7 @@ nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
 
   ///////////////
   // Set font
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(&aRenderingContext, GetStyleContext());
 
   // bounding metrics
   nsAutoString errorMsg; errorMsg.AssignLiteral("invalid-markup");
@@ -100,6 +99,7 @@ nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
     aRenderingContext.GetBoundingMetrics(errorMsg.get(), errorMsg.Length());
 
   // reflow metrics
+  nsFontMetrics* fm = aRenderingContext.FontMetrics();
   aDesiredSize.ascent = fm->MaxAscent();
   nscoord descent = fm->MaxDescent();
   aDesiredSize.height = aDesiredSize.ascent + descent;
@@ -132,9 +132,7 @@ void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
                                  nsRenderingContext* aCtx)
 {
   // Set color and font ...
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm));
-  aCtx->SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(aCtx, mFrame->GetStyleContext());
 
   nsPoint pt = ToReferenceFrame();
   aCtx->SetColor(NS_RGB(255,0,0));
@@ -254,7 +252,7 @@ nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingCo
     PRBool firstTime = PR_TRUE;
     nsBoundingMetrics bm, bmChild;
     nsIFrame* childFrame =
-      stretchAll ? GetFirstPrincipalChild() : mPresentationData.baseFrame;
+      stretchAll ? GetFirstChild(nsnull) : mPresentationData.baseFrame;
     while (childFrame) {
       // initializations in case this child happens not to be a MathML frame
       nsIMathMLFrame* mathMLFrame = do_QueryFrame(childFrame);
@@ -512,7 +510,7 @@ nsMathMLContainerFrame::FinalizeReflow(nsRenderingContext& aRenderingContext,
   // If placeOrigin is false we should reach Place() with aPlaceOrigin == true
   // through Stretch() eventually.
   if (NS_MATHML_HAS_ERROR(mPresentationData.flags) || NS_FAILED(rv)) {
-    DidReflowChildren(GetFirstPrincipalChild());
+    DidReflowChildren(GetFirstChild(nsnull));
     return rv;
   }
 
@@ -559,7 +557,7 @@ nsMathMLContainerFrame::FinalizeReflow(nsRenderingContext& aRenderingContext,
       {
         // The Place() call above didn't request FinishReflowChild(),
         // so let's check that we eventually did through Stretch().
-        nsIFrame* childFrame = GetFirstPrincipalChild();
+        nsIFrame* childFrame = GetFirstChild(nsnull);
         for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
           NS_ASSERTION(!(childFrame->GetStateBits() & NS_FRAME_IN_REFLOW),
                        "DidReflow() was never called");
@@ -615,7 +613,7 @@ nsMathMLContainerFrame::PropagatePresentationDataFor(nsIFrame*       aFrame,
   }
   else {
     // propagate down the subtrees
-    nsIFrame* childFrame = aFrame->GetFirstPrincipalChild();
+    nsIFrame* childFrame = aFrame->GetFirstChild(nsnull);
     while (childFrame) {
       PropagatePresentationDataFor(childFrame,
         aFlagsValues, aFlagsToUpdate);
@@ -634,7 +632,7 @@ nsMathMLContainerFrame::PropagatePresentationDataFromChildAt(nsIFrame*       aPa
   if (!aParentFrame || !aFlagsToUpdate)
     return;
   PRInt32 index = 0;
-  nsIFrame* childFrame = aParentFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aParentFrame->GetFirstChild(nsnull);
   while (childFrame) {
     if ((index >= aFirstChildIndex) &&
         ((aLastChildIndex <= 0) || ((aLastChildIndex > 0) &&
@@ -670,8 +668,7 @@ nsMathMLContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists,
-                                           DISPLAY_CHILD_INLINE);
+  rv = DisplayTextDecorationsAndChildren(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
 #if defined(NS_DEBUG) && defined(SHOW_BOUNDING_BOX)
@@ -696,7 +693,7 @@ nsMathMLContainerFrame::RebuildAutomaticDataForChildren(nsIFrame* aParentFrame)
   // the parent
   // 2. As we ascend the tree, transmit any specific change that we want
   // down the subtrees
-  nsIFrame* childFrame = aParentFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aParentFrame->GetFirstChild(nsnull);
   while (childFrame) {
     nsIMathMLFrame* childMathMLFrame = do_QueryFrame(childFrame);
     if (childMathMLFrame) {
@@ -734,8 +731,8 @@ nsMathMLContainerFrame::ReLayoutChildren(nsIFrame* aParentFrame)
     NS_ASSERTION(content, "dangling frame without a content node");
     if (!content)
       break;
-    if (content->GetNameSpaceID() == kNameSpaceID_MathML &&
-        content->Tag() == nsGkAtoms::math)
+    // XXXldb This should check namespaces too.
+    if (content->Tag() == nsGkAtoms::math)
       break;
 
     // mark the frame dirty, and continue to climb up.  It's important that
@@ -794,10 +791,10 @@ nsMathMLContainerFrame::ChildListChanged(PRInt32 aModType)
 }
 
 NS_IMETHODIMP
-nsMathMLContainerFrame::AppendFrames(ChildListID     aListID,
+nsMathMLContainerFrame::AppendFrames(nsIAtom*        aListName,
                                      nsFrameList&    aFrameList)
 {
-  if (aListID != kPrincipalList) {
+  if (aListName) {
     return NS_ERROR_INVALID_ARG;
   }
   mFrames.AppendFrames(this, aFrameList);
@@ -805,11 +802,11 @@ nsMathMLContainerFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsMathMLContainerFrame::InsertFrames(ChildListID     aListID,
+nsMathMLContainerFrame::InsertFrames(nsIAtom*        aListName,
                                      nsIFrame*       aPrevFrame,
                                      nsFrameList&    aFrameList)
 {
-  if (aListID != kPrincipalList) {
+  if (aListName) {
     return NS_ERROR_INVALID_ARG;
   }
   // Insert frames after aPrevFrame
@@ -818,10 +815,10 @@ nsMathMLContainerFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsMathMLContainerFrame::RemoveFrame(ChildListID     aListID,
+nsMathMLContainerFrame::RemoveFrame(nsIAtom*        aListName,
                                     nsIFrame*       aOldFrame)
 {
-  if (aListID != kPrincipalList) {
+  if (aListName) {
     return NS_ERROR_INVALID_ARG;
   }
   // remove the child frame
@@ -849,6 +846,15 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
   // nsIFrame::FinishAndStoreOverflow likes the overflow area to include the
   // frame rectangle.
   aMetrics->SetOverflowAreasToDesiredBounds();
+
+  // Text-shadow overflows.
+  if (PresContext()->CompatibilityMode() != eCompatibility_NavQuirks) {
+    nsRect frameRect(0, 0, aMetrics->width, aMetrics->height);
+    nsRect shadowRect = nsLayoutUtils::GetTextShadowRectsUnion(frameRect, this);
+    // shadows contribute only to visual overflow
+    nsRect& visOverflow = aMetrics->VisualOverflow();
+    visOverflow.UnionRect(visOverflow, shadowRect);
+  }
 
   // All non-child-frame content such as nsMathMLChars (and most child-frame
   // content) is included in mBoundingMetrics.
@@ -1337,7 +1343,7 @@ static ForceReflow gForceReflow;
 void
 nsMathMLContainerFrame::SetIncrementScriptLevel(PRInt32 aChildIndex, PRBool aIncrement)
 {
-  nsIFrame* child = PrincipalChildList().FrameAt(aChildIndex);
+  nsIFrame* child = GetChildList(nsnull).FrameAt(aChildIndex);
   if (!child)
     return;
   nsIContent* content = child->GetContent();
@@ -1362,7 +1368,7 @@ GetInterFrameSpacingFor(PRInt32         aScriptLevel,
                         nsIFrame*       aParentFrame,
                         nsIFrame*       aChildFrame)
 {
-  nsIFrame* childFrame = aParentFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aParentFrame->GetFirstChild(nsnull);
   if (!childFrame || aChildFrame == childFrame)
     return 0;
 
@@ -1398,9 +1404,10 @@ nsMathMLContainerFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
   if (NS_UNLIKELY(!parentContent)) {
     return 0;
   }
+  // XXXldb This should check namespaces too.
   nsIAtom *parentTag = parentContent->Tag();
-  if (parentContent->GetNameSpaceID() == kNameSpaceID_MathML && 
-      (parentTag == nsGkAtoms::math || parentTag == nsGkAtoms::mtd_)) {
+  if (parentTag == nsGkAtoms::math ||
+      parentTag == nsGkAtoms::mtd_) {
     gap = GetInterFrameSpacingFor(GetStyleFont()->mScriptLevel, mParent, this);
     // add our own italic correction
     nscoord leftCorrection = 0, italicCorrection = 0;
@@ -1437,7 +1444,7 @@ nsMathMLContainerFrame::DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop)
     NS_ASSERTION(frame, "aStop isn't a sibling");
     if (frame->GetStateBits() & NS_FRAME_IN_REFLOW) {
       // finish off principal descendants, too
-      nsIFrame* grandchild = frame->GetFirstPrincipalChild();
+      nsIFrame* grandchild = frame->GetFirstChild(nsnull);
       if (grandchild)
         DidReflowChildren(grandchild, nsnull);
 
@@ -1475,7 +1482,7 @@ nsMathMLContainerFrame::TransmitAutomaticDataForMrowLikeElement()
   PRBool embellishedOpFound = PR_FALSE;
   nsEmbellishData embellishData;
   
-  for (childFrame = GetFirstPrincipalChild();
+  for (childFrame = GetFirstChild(nsnull);
        childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsIMathMLFrame* mathMLFrame = do_QueryFrame(childFrame);

@@ -46,6 +46,7 @@
 #include "nsReadableUtils.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -59,7 +60,6 @@
 #include "nsClientRect.h"
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
-#include "nsFontFaceList.h"
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
@@ -271,95 +271,24 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
 {
   NS_ASSERTION(mIsPositioned, "shouldn't be notified if not positioned");
 
-  nsINode* newRoot = nsnull;
-  nsINode* newStartNode = nsnull;
-  nsINode* newEndNode = nsnull;
-  PRUint32 newStartOffset = 0;
-  PRUint32 newEndOffset = 0;
-
   // If the changed node contains our start boundary and the change starts
   // before the boundary we'll need to adjust the offset.
   if (aContent == mStartParent &&
-      aInfo->mChangeStart < static_cast<PRUint32>(mStartOffset)) {
-    if (aInfo->mDetails) {
-      // splitText(), aInfo->mDetails->mNextSibling is the new text node
-      NS_ASSERTION(aInfo->mDetails->mType ==
-                   CharacterDataChangeInfo::Details::eSplit,
-                   "only a split can start before the end");
-      NS_ASSERTION(static_cast<PRUint32>(mStartOffset) <= aInfo->mChangeEnd,
-                   "mStartOffset is beyond the end of this node");
-      newStartOffset = static_cast<PRUint32>(mStartOffset) - aInfo->mChangeStart;
-      newStartNode = aInfo->mDetails->mNextSibling;
-      if (NS_UNLIKELY(aContent == mRoot)) {
-        newRoot = IsValidBoundary(newStartNode);
-      }
-    } else {
-      // If boundary is inside changed text, position it before change
-      // else adjust start offset for the change in length.
-      mStartOffset = static_cast<PRUint32>(mStartOffset) <= aInfo->mChangeEnd ?
-        aInfo->mChangeStart :
-        mStartOffset + aInfo->mChangeStart - aInfo->mChangeEnd +
-          aInfo->mReplaceLength;
-    }
+      aInfo->mChangeStart < (PRUint32)mStartOffset) {
+    // If boundary is inside changed text, position it before change
+    // else adjust start offset for the change in length
+    mStartOffset = (PRUint32)mStartOffset <= aInfo->mChangeEnd ?
+       aInfo->mChangeStart :
+       mStartOffset + aInfo->mChangeStart - aInfo->mChangeEnd +
+         aInfo->mReplaceLength;
   }
 
-  // Do the same thing for the end boundary, except for splitText of a node
-  // with no parent then only switch to the new node if the start boundary
-  // did so too (otherwise the range would end up with disconnected nodes).
-  if (aContent == mEndParent &&
-      aInfo->mChangeStart < static_cast<PRUint32>(mEndOffset)) {
-    if (aInfo->mDetails && (aContent->GetParent() || newStartNode)) {
-      // splitText(), aInfo->mDetails->mNextSibling is the new text node
-      NS_ASSERTION(aInfo->mDetails->mType ==
-                   CharacterDataChangeInfo::Details::eSplit,
-                   "only a split can start before the end");
-      NS_ASSERTION(static_cast<PRUint32>(mEndOffset) <= aInfo->mChangeEnd,
-                   "mEndOffset is beyond the end of this node");
-      newEndOffset = static_cast<PRUint32>(mEndOffset) - aInfo->mChangeStart;
-      newEndNode = aInfo->mDetails->mNextSibling;
-    } else {
-      mEndOffset = static_cast<PRUint32>(mEndOffset) <= aInfo->mChangeEnd ?
-        aInfo->mChangeStart :
-        mEndOffset + aInfo->mChangeStart - aInfo->mChangeEnd +
-          aInfo->mReplaceLength;
-    }
-  }
-
-  if (aInfo->mDetails &&
-      aInfo->mDetails->mType == CharacterDataChangeInfo::Details::eMerge) {
-    // normalize(), aInfo->mDetails->mNextSibling is the merged text node
-    // that will be removed
-    nsIContent* removed = aInfo->mDetails->mNextSibling;
-    if (removed == mStartParent) {
-      newStartOffset = static_cast<PRUint32>(mStartOffset) + aInfo->mChangeStart;
-      newStartNode = aContent;
-      if (NS_UNLIKELY(removed == mRoot)) {
-        newRoot = IsValidBoundary(newStartNode);
-      }
-    }
-    if (removed == mEndParent) {
-      newEndOffset = static_cast<PRUint32>(mEndOffset) + aInfo->mChangeStart;
-      newEndNode = aContent;
-      if (NS_UNLIKELY(removed == mRoot)) {
-        newRoot = IsValidBoundary(newEndNode);
-      }
-    }
-  }
-  if (newStartNode || newEndNode) {
-    if (!newStartNode) {
-      newStartNode = mStartParent;
-      newStartOffset = mStartOffset;
-    }
-    if (!newEndNode) {
-      newEndNode = mEndParent;
-      newEndOffset = mEndOffset;
-    }
-    DoSetRange(newStartNode, newStartOffset, newEndNode, newEndOffset,
-               newRoot ? newRoot : mRoot.get()
-#ifdef DEBUG
-               , !newEndNode->GetParent()
-#endif
-               );
+  // Do the same thing for the end boundary.
+  if (aContent == mEndParent && aInfo->mChangeStart < (PRUint32)mEndOffset) {
+    mEndOffset = (PRUint32)mEndOffset <= aInfo->mChangeEnd ?
+       aInfo->mChangeStart :
+       mEndOffset + aInfo->mChangeStart - aInfo->mChangeEnd +
+         aInfo->mReplaceLength;
   }
 }
 
@@ -507,16 +436,12 @@ static PRUint32 GetNodeLength(nsINode *aNode)
 void
 nsRange::DoSetRange(nsINode* aStartN, PRInt32 aStartOffset,
                     nsINode* aEndN, PRInt32 aEndOffset,
-                    nsINode* aRoot
-#ifdef DEBUG
-                    , bool aNotInsertedYet
-#endif
-                    )
+                    nsINode* aRoot)
 {
   NS_PRECONDITION((aStartN && aEndN && aRoot) ||
                   (!aStartN && !aEndN && !aRoot),
                   "Set all or none");
-  NS_PRECONDITION(!aRoot || aNotInsertedYet ||
+  NS_PRECONDITION(!aRoot ||
                   (nsContentUtils::ContentIsDescendantOf(aStartN, aRoot) &&
                    nsContentUtils::ContentIsDescendantOf(aEndN, aRoot) &&
                    aRoot == IsValidBoundary(aStartN) &&
@@ -2129,7 +2054,7 @@ nsRange::CreateContextualFragment(const nsAString& aFragment,
 {
   if (mIsPositioned) {
     return nsContentUtils::CreateContextualFragment(mStartParent, aFragment,
-                                                    PR_FALSE, aReturn);
+                                                    PR_TRUE, aReturn);
   }
   return NS_ERROR_FAILURE;
 }
@@ -2312,62 +2237,3 @@ nsRange::GetClientRects(nsIDOMClientRectList** aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsRange::GetUsedFontFaces(nsIDOMFontFaceList** aResult)
-{
-  *aResult = nsnull;
-
-  NS_ENSURE_TRUE(mStartParent, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIDOMNode> startContainer = do_QueryInterface(mStartParent);
-  nsCOMPtr<nsIDOMNode> endContainer = do_QueryInterface(mEndParent);
-
-  // Flush out layout so our frames are up to date.
-  nsIDocument* doc = mStartParent->GetOwnerDoc();
-  NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
-  doc->FlushPendingNotifications(Flush_Frames);
-
-  // Recheck whether we're still in the document
-  NS_ENSURE_TRUE(mStartParent->IsInDoc(), NS_ERROR_UNEXPECTED);
-
-  nsRefPtr<nsFontFaceList> fontFaceList = new nsFontFaceList();
-
-  RangeSubtreeIterator iter;
-  nsresult rv = iter.Init(this);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  while (!iter.IsDone()) {
-    // only collect anything if the range is not collapsed
-    nsCOMPtr<nsIDOMNode> node(iter.GetCurrentNode());
-    iter.Next();
-
-    nsCOMPtr<nsIContent> content = do_QueryInterface(node);
-    if (!content) {
-      continue;
-    }
-    nsIFrame* frame = content->GetPrimaryFrame();
-    if (!frame) {
-      continue;
-    }
-
-    if (content->IsNodeOfType(nsINode::eTEXT)) {
-       if (node == startContainer) {
-         PRInt32 offset = startContainer == endContainer ? 
-           mEndOffset : content->GetText()->GetLength();
-         nsLayoutUtils::GetFontFacesForText(frame, mStartOffset, offset,
-                                            PR_TRUE, fontFaceList);
-         continue;
-       }
-       if (node == endContainer) {
-         nsLayoutUtils::GetFontFacesForText(frame, 0, mEndOffset,
-                                            PR_TRUE, fontFaceList);
-         continue;
-       }
-    }
-
-    nsLayoutUtils::GetFontFacesForFrames(frame, fontFaceList);
-  }
-
-  fontFaceList.forget(aResult);
-  return NS_OK;
-}

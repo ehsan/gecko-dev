@@ -56,7 +56,7 @@
 #include "nsIDocument.h"
 #include "nsBoxLayoutState.h"
 #include "nsINodeInfo.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsIScrollbarMediator.h"
 #include "nsITextControlFrame.h"
 #include "nsIDOMHTMLTextAreaElement.h"
@@ -67,6 +67,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsAutoPtr.h"
 #include "nsPresState.h"
+#include "nsIGlobalHistory3.h"
 #include "nsDocShellCID.h"
 #include "nsIHTMLDocument.h"
 #include "nsEventDispatcher.h"
@@ -77,8 +78,8 @@
 #endif
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
+#include "nsIPrefService.h"
+#include "nsILookAndFeel.h"
 #include "mozilla/dom/Element.h"
 #include "FrameLayerBuilder.h"
 #include "nsSMILKeySpline.h"
@@ -125,31 +126,31 @@ nsHTMLScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 NS_IMETHODIMP
-nsHTMLScrollFrame::SetInitialChildList(ChildListID  aListID,
+nsHTMLScrollFrame::SetInitialChildList(nsIAtom*     aListName,
                                        nsFrameList& aChildList)
 {
-  nsresult rv = nsHTMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsHTMLContainerFrame::SetInitialChildList(aListName, aChildList);
   mInner.ReloadChildFrames();
   return rv;
 }
 
 
 NS_IMETHODIMP
-nsHTMLScrollFrame::AppendFrames(ChildListID  aListID,
+nsHTMLScrollFrame::AppendFrames(nsIAtom*  aListName,
                                 nsFrameList& aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "Only main list supported");
+  NS_ASSERTION(!aListName, "Only main list supported");
   mFrames.AppendFrames(nsnull, aFrameList);
   mInner.ReloadChildFrames();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLScrollFrame::InsertFrames(ChildListID aListID,
+nsHTMLScrollFrame::InsertFrames(nsIAtom*  aListName,
                                 nsIFrame* aPrevFrame,
                                 nsFrameList& aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "Only main list supported");
+  NS_ASSERTION(!aListName, "Only main list supported");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
   mFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
@@ -158,10 +159,10 @@ nsHTMLScrollFrame::InsertFrames(ChildListID aListID,
 }
 
 NS_IMETHODIMP
-nsHTMLScrollFrame::RemoveFrame(ChildListID aListID,
+nsHTMLScrollFrame::RemoveFrame(nsIAtom*  aListName,
                                nsIFrame* aOldFrame)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "Only main list supported");
+  NS_ASSERTION(!aListName, "Only main list supported");
   mFrames.DestroyFrame(aOldFrame);
   mInner.ReloadChildFrames();
   return NS_OK;
@@ -1043,39 +1044,39 @@ nsXULScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 NS_IMETHODIMP
-nsXULScrollFrame::SetInitialChildList(ChildListID     aListID,
+nsXULScrollFrame::SetInitialChildList(nsIAtom*        aListName,
                                       nsFrameList&    aChildList)
 {
-  nsresult rv = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsBoxFrame::SetInitialChildList(aListName, aChildList);
   mInner.ReloadChildFrames();
   return rv;
 }
 
 
 NS_IMETHODIMP
-nsXULScrollFrame::AppendFrames(ChildListID     aListID,
+nsXULScrollFrame::AppendFrames(nsIAtom*        aListName,
                                nsFrameList&    aFrameList)
 {
-  nsresult rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
+  nsresult rv = nsBoxFrame::AppendFrames(aListName, aFrameList);
   mInner.ReloadChildFrames();
   return rv;
 }
 
 NS_IMETHODIMP
-nsXULScrollFrame::InsertFrames(ChildListID     aListID,
+nsXULScrollFrame::InsertFrames(nsIAtom*        aListName,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
 {
-  nsresult rv = nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  nsresult rv = nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   mInner.ReloadChildFrames();
   return rv;
 }
 
 NS_IMETHODIMP
-nsXULScrollFrame::RemoveFrame(ChildListID     aListID,
+nsXULScrollFrame::RemoveFrame(nsIAtom*        aListName,
                               nsIFrame*       aOldFrame)
 {
-  nsresult rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   mInner.ReloadChildFrames();
   return rv;
 }
@@ -1408,7 +1409,15 @@ nsGfxScrollFrameInner::AsyncScroll::InitTimingFunction(nsSMILKeySpline& aTimingF
 static PRBool
 IsSmoothScrollingEnabled()
 {
-  return Preferences::GetBool(SMOOTH_SCROLL_PREF_NAME, PR_FALSE);
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    PRBool enabled;
+    nsresult rv = prefs->GetBoolPref(SMOOTH_SCROLL_PREF_NAME, &enabled);
+    if (NS_SUCCEEDED(rv)) {
+      return enabled;
+    }
+  }
+  return PR_FALSE;
 }
 
 class ScrollFrameActivityTracker : public nsExpirationTracker<nsGfxScrollFrameInner,4> {
@@ -1462,8 +1471,11 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
   , mShouldBuildLayer(PR_FALSE)
 {
   // lookup if we're allowed to overlap the content from the look&feel object
-  mScrollbarsCanOverlapContent =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_ScrollbarsCanOverlapContent) != 0;
+  PRBool canOverlap;
+  nsPresContext* presContext = mOuter->PresContext();
+  presContext->LookAndFeel()->
+    GetMetric(nsILookAndFeel::eMetric_ScrollbarsCanOverlapContent, canOverlap);
+  mScrollbarsCanOverlapContent = canOverlap;
   mScrollingActive = IsAlwaysActive();
 }
 
@@ -1557,11 +1569,15 @@ nsGfxScrollFrameInner::ScrollTo(nsPoint aScrollPosition,
     }
   } else {
     mAsyncScroll = new AsyncScroll;
-    mAsyncScroll->mScrollTimer = do_CreateInstance("@mozilla.org/timer;1");
-    if (!mAsyncScroll->mScrollTimer) {
-      delete mAsyncScroll;
-      mAsyncScroll = nsnull;
-      // allocation failed. Scroll the normal way.
+    if (mAsyncScroll) {
+      mAsyncScroll->mScrollTimer = do_CreateInstance("@mozilla.org/timer;1");
+      if (!mAsyncScroll->mScrollTimer) {
+        delete mAsyncScroll;
+        mAsyncScroll = nsnull;
+      }
+    }
+    if (!mAsyncScroll) {
+      // some allocation failed. Scroll the normal way.
       ScrollToImpl(mDestination);
       return;
     }
@@ -1601,32 +1617,40 @@ static void AdjustViews(nsIFrame* aFrame)
     return;
   }
 
-  // Call AdjustViews recursively for all child frames except the popup list as
-  // the views for popups are not scrolled.
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    if (lists.CurrentID() == nsIFrame::kPopupList) {
-      continue;
+  nsIAtom* childListName = nsnull;
+  PRInt32  childListIndex = 0;
+  do {
+    // Recursively walk aFrame's child frames
+    nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
+    while (childFrame) {
+      AdjustViews(childFrame);
+
+      // Get the next sibling child frame
+      childFrame = childFrame->GetNextSibling();
     }
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      AdjustViews(childFrames.get());
-    }
-  }
+
+    // also process the additional child lists, but skip the popup list as the
+    // views for popups are not scrolled.
+    do {
+      childListName = aFrame->GetAdditionalChildListName(childListIndex++);
+    } while (childListName == nsGkAtoms::popupList);
+  } while (childListName);
 }
 
 static PRBool
 CanScrollWithBlitting(nsIFrame* aFrame)
 {
-  if (aFrame->GetStateBits() & NS_SCROLLFRAME_INVALIDATE_CONTENTS_ON_SCROLL)
-    return PR_FALSE;
-
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+    if (f->GetStyleDisplay()->HasTransform()) {
+      return PR_FALSE;
+    }
+#ifdef MOZ_SVG
     if (nsSVGIntegrationUtils::UsingEffectsForFrame(f) ||
         f->IsFrameOfType(nsIFrame::eSVG)) {
       return PR_FALSE;
     }
+#endif
     nsIScrollableFrame* sf = do_QueryFrame(f);
     if (sf && nsLayoutUtils::HasNonZeroCorner(f->GetStyleBorder()->mBorderRadius))
       return PR_FALSE;
@@ -1734,7 +1758,6 @@ void nsGfxScrollFrameInner::ScrollVisual()
   // to be consistent with the frame hierarchy.
   PRUint32 flags = nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT;
   PRBool canScrollWithBlitting = CanScrollWithBlitting(mOuter);
-  mOuter->RemoveStateBits(NS_SCROLLFRAME_INVALIDATE_CONTENTS_ON_SCROLL);
   if (IsScrollingActive()) {
     if (!canScrollWithBlitting) {
       MarkInactive();
@@ -1840,8 +1863,6 @@ static void
 AppendToTop(nsDisplayListBuilder* aBuilder, nsDisplayList* aDest,
             nsDisplayList* aSource, nsIFrame* aSourceFrame, PRBool aOwnLayer)
 {
-  if (aSource->IsEmpty())
-    return;
   if (aOwnLayer) {
     aDest->AppendNewToTop(
         new (aBuilder) nsDisplayOwnLayer(aBuilder, aSourceFrame, aSource));
@@ -1859,7 +1880,7 @@ nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*          aBuild
 {
   nsresult rv = NS_OK;
   PRBool hasResizer = HasResizer();
-  for (nsIFrame* kid = mOuter->GetFirstPrincipalChild(); kid; kid = kid->GetNextSibling()) {
+  for (nsIFrame* kid = mOuter->GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
     if (kid != mScrolledFrame) {
       if (kid == mResizerBox && hasResizer) {
         // skip the resizer as this will be drawn later on top of the scrolled content
@@ -2189,16 +2210,17 @@ nsGfxScrollFrameInner::ScrollBy(nsIntPoint aDelta,
     nsPoint clampAmount = mDestination - newPos;
     float appUnitsPerDevPixel = mOuter->PresContext()->AppUnitsPerDevPixel();
     *aOverflow = nsIntPoint(
-        NSAppUnitsToIntPixels(NS_ABS(clampAmount.x), appUnitsPerDevPixel),
-        NSAppUnitsToIntPixels(NS_ABS(clampAmount.y), appUnitsPerDevPixel));
+        NSAppUnitsToIntPixels(PR_ABS(clampAmount.x), appUnitsPerDevPixel),
+        NSAppUnitsToIntPixels(PR_ABS(clampAmount.y), appUnitsPerDevPixel));
   }
 }
 
 nsSize
 nsGfxScrollFrameInner::GetLineScrollAmount() const
 {
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(mOuter, getter_AddRefs(fm));
+  const nsStyleFont* font = mOuter->GetStyleFont();
+  const nsFont& f = font->mFont;
+  nsRefPtr<nsFontMetrics> fm = mOuter->PresContext()->GetMetricsFor(f);
   NS_ASSERTION(fm, "FontMetrics is null, assuming fontHeight == 1 appunit");
   nscoord fontHeight = 1;
   if (fm) {
@@ -2331,7 +2353,7 @@ nsGfxScrollFrameInner::ReloadChildFrames()
   mScrollCornerBox = nsnull;
   mResizerBox = nsnull;
 
-  nsIFrame* frame = mOuter->GetFirstPrincipalChild();
+  nsIFrame* frame = mOuter->GetFirstChild(nsnull);
   while (frame) {
     nsIContent* content = frame->GetContent();
     if (content == mOuter->GetContent()) {
@@ -2423,8 +2445,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(
     presContext->Document()->NodeInfoManager();
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::scrollbar, nsnull,
-                                          kNameSpaceID_XUL,
-                                          nsIDOMNode::ELEMENT_NODE);
+                                          kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   if (canHaveHorizontal) {
@@ -2452,8 +2473,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(
   if (isResizable) {
     nsCOMPtr<nsINodeInfo> nodeInfo;
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::resizer, nsnull,
-                                            kNameSpaceID_XUL,
-                                            nsIDOMNode::ELEMENT_NODE);
+                                            kNameSpaceID_XUL);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
     NS_TrustedNewXULElement(getter_AddRefs(mResizerContent), nodeInfo.forget());
@@ -2498,8 +2518,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(
 
   if (canHaveHorizontal && canHaveVertical) {
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::scrollcorner, nsnull,
-                                            kNameSpaceID_XUL,
-                                            nsIDOMNode::ELEMENT_NODE);
+                                            kNameSpaceID_XUL);
     NS_TrustedNewXULElement(getter_AddRefs(mScrollCornerContent), nodeInfo.forget());
     if (!aElements.AppendElement(mScrollCornerContent))
       return NS_ERROR_OUT_OF_MEMORY;
@@ -2578,11 +2597,12 @@ void nsGfxScrollFrameInner::CurPosAttributeChanged(nsIContent* aContent)
 
   nsRect scrolledRect = GetScrolledRect();
 
-  nsPoint current = GetScrollPosition() - scrolledRect.TopLeft();
   nsPoint dest;
-  dest.x = GetCoordAttribute(mHScrollbarBox, nsGkAtoms::curpos, current.x) +
+  dest.x = GetCoordAttribute(mHScrollbarBox, nsGkAtoms::curpos,
+                             -scrolledRect.x) +
            scrolledRect.x;
-  dest.y = GetCoordAttribute(mVScrollbarBox, nsGkAtoms::curpos, current.y) +
+  dest.y = GetCoordAttribute(mVScrollbarBox, nsGkAtoms::curpos,
+                             -scrolledRect.y) +
            scrolledRect.y;
 
   // If we have an async scroll pending don't stomp on that by calling ScrollTo.
@@ -3146,7 +3166,7 @@ nsGfxScrollFrameInner::ReflowFinished()
     mMayHaveDirtyFixedChildren = PR_FALSE;
     nsIFrame* parentFrame = mOuter->GetParent();
     for (nsIFrame* fixedChild =
-           parentFrame->GetFirstChild(nsIFrame::kFixedList);
+           parentFrame->GetFirstChild(nsGkAtoms::fixedList);
          fixedChild; fixedChild = fixedChild->GetNextSibling()) {
       // force a reflow of the fixed child
       presContext->PresShell()->
@@ -3551,7 +3571,10 @@ nsGfxScrollFrameInner::GetActualScrollbarSizes() const
 void
 nsGfxScrollFrameInner::SetScrollbarVisibility(nsIBox* aScrollbar, PRBool aVisible)
 {
-  nsScrollbarFrame* scrollbar = do_QueryFrame(aScrollbar);
+  if (!aScrollbar)
+    return;
+
+  nsIScrollbarFrame* scrollbar = do_QueryFrame(aScrollbar);
   if (scrollbar) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbar->GetScrollbarMediator();
@@ -3604,7 +3627,10 @@ nsGfxScrollFrameInner::SaveState(nsIStatefulFrame::SpecialStateID aStateID)
   }
 
   nsPresState* state = new nsPresState();
-
+  if (!state) {
+    return nsnull;
+  }
+ 
   state->SetScrollState(scrollPos);
 
   return state;

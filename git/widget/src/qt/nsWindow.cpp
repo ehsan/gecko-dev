@@ -96,13 +96,15 @@ using namespace QtMobility;
 #include "nsToolkit.h"
 #include "nsIdleService.h"
 #include "nsRenderingContext.h"
+#include "nsIRegion.h"
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
 #include "nsWidgetsCID.h"
 #include "nsQtKeyUtils.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
 
@@ -112,9 +114,7 @@ using namespace QtMobility;
 #include "nsAutoPtr.h"
 
 #include "gfxQtPlatform.h"
-#ifdef MOZ_X11
 #include "gfxXlibSurface.h"
-#endif
 #include "gfxQPainterSurface.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
@@ -129,22 +129,12 @@ using namespace QtMobility;
 
 #ifdef MOZ_X11
 #include "keysym2ucs.h"
-#if MOZ_PLATFORM_MAEMO == 6
-#include <X11/Xatom.h>
-static Atom sPluginIMEAtom;
-#define PLUGIN_VKB_REQUEST_PROP "_NPAPI_PLUGIN_REQUEST_VKB"
-#endif
 #endif //MOZ_X11
 
 #include <QtOpenGL/QGLWidget>
-#include <QtOpenGL/QGLContext>
 #define GLdouble_defined 1
 #include "Layers.h"
 #include "LayerManagerOGL.h"
-
-// If embedding clients want to create widget without real parent window
-// then nsIBaseWindow->Init() should have parent argument equal to PARENTLESS_WIDGET
-#define PARENTLESS_WIDGET (void*)0x13579
 
 #include "nsShmImage.h"
 extern "C" {
@@ -257,9 +247,6 @@ nsWindow::nsWindow()
     if (!gGlobalsInitialized) {
         gGlobalsInitialized = PR_TRUE;
 
-#if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
-        sPluginIMEAtom = XInternAtom(QX11Info::display(), PLUGIN_VKB_REQUEST_PROP, False);
-#endif
         // It's OK if either of these fail, but it may not be one day.
         initialize_prefs();
     }
@@ -323,8 +310,8 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nsnull)
             return true;
     }
 
-    gBufferMaxSize.width = NS_MAX(gBufferMaxSize.width, size.width);
-    gBufferMaxSize.height = NS_MAX(gBufferMaxSize.height, size.height);
+    gBufferMaxSize.width = PR_MAX(gBufferMaxSize.width, size.width);
+    gBufferMaxSize.height = PR_MAX(gBufferMaxSize.height, size.height);
 
     // Check if system depth has related gfxImage format
     gfxASurface::gfxImageFormat format =
@@ -478,8 +465,14 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     if (parent) {
         parent->RemoveChild(this);
     }
-    ReparentNativeWidget(aNewParent);
-    aNewParent->AddChild(this);
+    if (aNewParent) {
+        ReparentNativeWidget(aNewParent);
+        aNewParent->AddChild(this);
+        return NS_OK;
+    }
+    if (mWidget) {
+        mWidget->setParentItem(0);
+    }
     return NS_OK;
 }
 
@@ -808,12 +801,8 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 
     case NS_NATIVE_DISPLAY:
         {
-#ifdef MOZ_X11
             QWidget *widget = GetViewWidget();
             return widget ? widget->x11Info().display() : nsnull;
-#else
-            return nsnull;
-#endif
         }
         break;
 
@@ -829,12 +818,6 @@ nsWindow::GetNativeData(PRUint32 aDataType)
             widget = mWidget->scene()->views()[0]->viewport();
         return (void *) widget;
     }
-
-    case NS_NATIVE_SHAREABLE_WINDOW: {
-        QWidget *widget = GetViewWidget();
-        return widget ? (void*)widget->winId() : nsnull;
-    }
-
     default:
         NS_WARNING("nsWindow::GetNativeData called with bad value");
         return nsnull;
@@ -1160,7 +1143,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
     // Handle buffered painting mode
     if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
-#ifdef MOZ_X11
         if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
             // Paint offscreen pixmap to QPainter
             static QPixmap gBufferPixmap;
@@ -1171,9 +1153,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             aPainter->drawPixmap(QPoint(rect.x, rect.y), gBufferPixmap,
                                  QRect(0, 0, rect.width, rect.height));
 
-        } else
-#endif
-        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+        } else if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
             // in raster mode we can just wrap gBufferImage as QImage and paint directly
             gfxImageSurface *imgs = static_cast<gfxImageSurface*>(gBufferSurface.get());
             QImage img(imgs->Data(),
@@ -1186,7 +1166,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
         }
     } else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
         QRect trans = aPainter->transform().mapRect(r).toRect();
-#ifdef MOZ_X11
         if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
             nsRefPtr<gfxASurface> widgetSurface = GetSurfaceForQWidget(aWidget);
             nsRefPtr<gfxContext> ctx = new gfxContext(widgetSurface);
@@ -1194,23 +1173,19 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             ctx->Rectangle(gfxRect(trans.x(), trans.y(), trans.width(), trans.height()), PR_TRUE);
             ctx->Clip();
             ctx->Fill();
-        } else
-#endif
-        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+        } else if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
 #ifdef MOZ_HAVE_SHMIMAGE
             if (gShmImage) {
                 gShmImage->Put(aWidget, trans);
             } else
 #endif
-            {
-                // Qt should take care about optimized rendering on QImage into painter device (gl/fb/image et.c.)
-                gfxImageSurface *imgs = static_cast<gfxImageSurface*>(gBufferSurface.get());
-                QImage img(imgs->Data(),
-                           imgs->Width(),
-                           imgs->Height(),
-                           imgs->Stride(),
-                          _gfximage_to_qformat(imgs->Format()));
-                aPainter->drawImage(trans, img, trans);
+            if (gBufferSurface) {
+                nsRefPtr<gfxASurface> widgetSurface = GetSurfaceForQWidget(aWidget);
+                nsRefPtr<gfxContext> ctx = new gfxContext(widgetSurface);
+                ctx->SetSource(gBufferSurface);
+                ctx->Rectangle(gfxRect(trans.x(), trans.y(), trans.width(), trans.height()), PR_TRUE);
+                ctx->Clip();
+                ctx->Fill();
             }
         }
     }
@@ -1510,26 +1485,14 @@ is_latin_shortcut_key(quint32 aKeyval)
             (Qt::Key_A <= aKeyval && aKeyval <= Qt::Key_Z));
 }
 
-nsEventStatus
+PRBool
 nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 {
     nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, aCommand, this);
 
-    nsEventStatus status;
-    DispatchEvent(&event, status);
+    DispatchEvent(&event);
 
-    return status;
-}
-
-nsEventStatus
-nsWindow::DispatchContentCommandEvent(PRInt32 aMsg)
-{
-    nsContentCommandEvent event(PR_TRUE, aMsg, this);
-
-    nsEventStatus status;
-    DispatchEvent(&event, status);
-
-    return status;
+    return PR_TRUE;
 }
 
 nsEventStatus
@@ -1664,44 +1627,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         return setNoDefault ?
             nsEventStatus_eConsumeNoDefault :
             nsEventStatus_eIgnore;
-    }
-
-    // Look for specialized app-command keys
-    switch (aEvent->key()) {
-        case Qt::Key_Back:
-            return DispatchCommandEvent(nsWidgetAtoms::Back);
-        case Qt::Key_Forward:
-            return DispatchCommandEvent(nsWidgetAtoms::Forward);
-        case Qt::Key_Refresh:
-            return DispatchCommandEvent(nsWidgetAtoms::Reload);
-        case Qt::Key_Stop:
-            return DispatchCommandEvent(nsWidgetAtoms::Stop);
-        case Qt::Key_Search:
-            return DispatchCommandEvent(nsWidgetAtoms::Search);
-        case Qt::Key_Favorites:
-            return DispatchCommandEvent(nsWidgetAtoms::Bookmarks);
-        case Qt::Key_HomePage:
-            return DispatchCommandEvent(nsWidgetAtoms::Home);
-        case Qt::Key_Copy:
-        case Qt::Key_F16: // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
-        case Qt::Key_Cut:
-        case Qt::Key_F20:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_CUT);
-        case Qt::Key_Paste:
-        case Qt::Key_F18:
-        case Qt::Key_F9:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_PASTE);
-        case Qt::Key_F14:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
-    }
-
-    // Qt::Key_Redo and Qt::Key_Undo are not available yet.
-    if (aEvent->nativeVirtualKey() == 0xff66) {
-        return DispatchContentCommandEvent(NS_CONTENT_COMMAND_REDO);
-    }
-    if (aEvent->nativeVirtualKey() == 0xff65) {
-        return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
     }
 
     nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
@@ -1898,6 +1823,7 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
     // send the key press event
     return DispatchEvent(&event);
+ }
 #endif
 }
 
@@ -2282,9 +2208,11 @@ nsWindow::Create(nsIWidget        *aParent,
 
     if (aParent != nsnull)
         parent = static_cast<MozQWidget*>(aParent->GetNativeData(NS_NATIVE_WIDGET));
+    else
+        parent = static_cast<MozQWidget*>(aNativeParent);
 
     // ok, create our QGraphicsWidget
-    mWidget = createQWidget(parent, aNativeParent, aInitData);
+    mWidget = createQWidget(parent, aInitData);
 
     if (!mWidget)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -2330,7 +2258,6 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
     nsXPIDLString brandName;
     GetBrandName(brandName);
 
-#ifdef MOZ_X11
     XClassHint *class_hint = XAllocClassHint();
     if (!class_hint)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -2372,7 +2299,6 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
     nsMemory::Free(class_hint->res_class);
     nsMemory::Free(class_hint->res_name);
     XFree(class_hint);
-#endif
 
     return NS_OK;
 }
@@ -2555,9 +2481,7 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
     // and GetWindowPos is called)
     QWidget *widget = GetViewWidget();
     NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
-#ifdef MOZ_X11
     XSync(widget->x11Info().display(), False);
-#endif
 
     return NS_OK;
 }
@@ -2579,9 +2503,15 @@ nsresult
 initialize_prefs(void)
 {
     // check to see if we should set our raise pref
-    gDisableNativeTheme =
-        Preferences::GetBool("mozilla.widget.disable-native-theme",
-                             gDisableNativeTheme);
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return NS_OK;
+
+    PRBool val = PR_TRUE;
+    nsresult rv;
+    rv = prefs->GetBoolPref("mozilla.widget.disable-native-theme", &val);
+    if (NS_SUCCEEDED(rv))
+        gDisableNativeTheme = val;
 
     return NS_OK;
 }
@@ -2630,9 +2560,7 @@ nsPopupWindow::~nsPopupWindow()
 }
 
 MozQWidget*
-nsWindow::createQWidget(MozQWidget *parent,
-                        nsNativeWidget nativeParent,
-                        nsWidgetInitData *aInitData)
+nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 {
     const char *windowName = NULL;
     Qt::WindowFlags flags = Qt::Widget;
@@ -2668,13 +2596,7 @@ nsWindow::createQWidget(MozQWidget *parent,
         break;
     }
 
-    MozQWidget* parentQWidget = nsnull;
-    if (parent) {
-        parentQWidget = parent;
-    } else if (nativeParent && nativeParent != PARENTLESS_WIDGET) {
-        parentQWidget = static_cast<MozQWidget*>(nativeParent);
-    }
-    MozQWidget * widget = new MozQWidget(this, parentQWidget);
+    MozQWidget * widget = new MozQWidget(this, parent);
     if (!widget)
         return nsnull;
 
@@ -2687,12 +2609,7 @@ nsWindow::createQWidget(MozQWidget *parent,
     // create a QGraphicsView if this is a new toplevel window
 
     if (mIsTopLevel) {
-        QGraphicsView* newView = nsnull;
-#if defined MOZ_ENABLE_MEEGOTOUCH
-        newView = new MozMGraphicsView(widget, parentWidget);
-#else
-        newView = new MozQGraphicsView(widget, parentWidget);
-#endif
+        QGraphicsView* newView = new MozQGraphicsView(widget, parentWidget);
 
         if (!newView) {
             delete widget;
@@ -2704,30 +2621,17 @@ nsWindow::createQWidget(MozQWidget *parent,
             newView->setWindowModality(Qt::WindowModal);
         }
 
-#ifdef MOZ_PLATFORM_MAEMO
-        if (GetShouldAccelerate()) {
+        if (!IsAcceleratedQView(newView) && GetShouldAccelerate()) {
             newView->setViewport(new QGLWidget());
         }
-#endif
 
         if (gfxQtPlatform::GetPlatform()->GetRenderMode() == gfxQtPlatform::RENDER_DIRECT) {
             // Disable double buffer and system background rendering
-#ifdef MOZ_X11
             newView->viewport()->setAttribute(Qt::WA_PaintOnScreen, true);
-#endif
             newView->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
         }
         // Enable gestures:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
-#if defined MOZ_ENABLE_MEEGOTOUCH
-        // Disable default Gesture filters (speedup filtering)
-        newView->viewport()->ungrabGesture(Qt::PanGesture);
-        newView->viewport()->ungrabGesture(Qt::TapGesture);
-        newView->viewport()->ungrabGesture(Qt::TapAndHoldGesture);
-        newView->viewport()->ungrabGesture(Qt::SwipeGesture);
-#endif
-
-        // Enable required filters
         newView->viewport()->grabGesture(Qt::PinchGesture);
         newView->viewport()->grabGesture(gSwipeGestureId);
 #endif
@@ -2758,18 +2662,21 @@ nsWindow::createQWidget(MozQWidget *parent,
         SetDefaultIcon();
     }
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
-#if defined MOZ_ENABLE_MEEGOTOUCH
-    // Disable default Gesture filters (speedup filtering)
-    widget->ungrabGesture(Qt::PanGesture);
-    widget->ungrabGesture(Qt::TapGesture);
-    widget->ungrabGesture(Qt::TapAndHoldGesture);
-    widget->ungrabGesture(Qt::SwipeGesture);
-#endif
     widget->grabGesture(Qt::PinchGesture);
     widget->grabGesture(gSwipeGestureId);
 #endif
 
     return widget;
+}
+
+PRBool
+nsWindow::IsAcceleratedQView(QGraphicsView *view)
+{
+    if (view && view->viewport()) {
+        QPaintEngine::Type type = view->viewport()->paintEngine()->type();
+        return (type == QPaintEngine::OpenGL || type == QPaintEngine::OpenGL2);
+    }
+    return PR_FALSE;
 }
 
 // return the gfxASurface for rendering to this widget
@@ -2825,26 +2732,14 @@ nsWindow::contextMenuEvent(QGraphicsSceneContextMenuEvent *)
 nsEventStatus
 nsWindow::imComposeEvent(QInputMethodEvent *event, PRBool &handled)
 {
-    // XXX Needs to check whether this widget has been destroyed or not after
-    //     each DispatchEvent().
-
     nsCompositionEvent start(PR_TRUE, NS_COMPOSITION_START, this);
     DispatchEvent(&start);
 
-    nsAutoString compositionStr(event->commitString().utf16());
-
-    if (!compositionStr.IsEmpty()) {
-      nsCompositionEvent update(PR_TRUE, NS_COMPOSITION_UPDATE, this);
-      update.data = compositionStr;
-      DispatchEvent(&update);
-    }
-
     nsTextEvent text(PR_TRUE, NS_TEXT_TEXT, this);
-    text.theText = compositionStr;
+    text.theText.Assign(event->commitString().utf16());
     DispatchEvent(&text);
 
     nsCompositionEvent end(PR_TRUE, NS_COMPOSITION_END, this);
-    end.data = compositionStr;
     DispatchEvent(&end);
 
     return nsEventStatus_eIgnore;
@@ -3148,119 +3043,26 @@ nsWindow::AreBoundsSane(void)
     return PR_FALSE;
 }
 
-#if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
-typedef enum {
-    VKBUndefined,
-    VKBOpen,
-    VKBClose
-} PluginVKBState;
-
-static QCoreApplication::EventFilter previousEventFilter = NULL;
-
-static PluginVKBState
-GetPluginVKBState(Window aWinId)
-{
-    // Set default value as unexpected error
-    PluginVKBState imeState = VKBUndefined;
-    Display *display = QX11Info::display();
-
-    Atom actualType;
-    int actualFormat;
-    unsigned long nitems;
-    unsigned long bytes;
-    union {
-        unsigned char* asUChar;
-        unsigned long* asLong;
-    } data = {0};
-    int status = XGetWindowProperty(display, aWinId, sPluginIMEAtom,
-                                    0, 1, False, AnyPropertyType,
-                                    &actualType, &actualFormat, &nitems,
-                                    &bytes, &data.asUChar);
-
-    if (status == Success && actualType == XA_CARDINAL && actualFormat == 32 && nitems == 1) {
-        // Assume that plugin set value false - close VKB, true - open VKB
-        imeState = data.asLong[0] ? VKBOpen : VKBClose;
-    }
-
-    if (status == Success) {
-        XFree(data.asUChar);
-    }
-
-    return imeState;
-}
-
-static void
-SetVKBState(Window aWinId, PluginVKBState aState)
-{
-    Display *display = QX11Info::display();
-    if (aState != VKBUndefined) {
-        unsigned long isOpen = aState == VKBOpen ? 1 : 0;
-        XChangeProperty(display, aWinId, sPluginIMEAtom, XA_CARDINAL, 32,
-                        PropModeReplace, (unsigned char *) &isOpen, 1);
-    } else {
-        XDeleteProperty(display, aWinId, sPluginIMEAtom);
-    }
-    XSync(display, False);
-}
-
-static bool
-x11EventFilter(void* message, long* result)
-{
-    XEvent* event = static_cast<XEvent*>(message);
-    if (event->type == PropertyNotify) {
-        if (event->xproperty.atom == sPluginIMEAtom) {
-            PluginVKBState state = GetPluginVKBState(event->xproperty.window);
-            if (state == VKBOpen) {
-                MozQWidget::requestVKB();
-            } else if (state == VKBClose) {
-                MozQWidget::hideVKB();
-            }
-            return true;
-        }
-    }
-    if (previousEventFilter) {
-        return previousEventFilter(message, result);
-    }
-
-    return false;
-}
-#endif
-
 NS_IMETHODIMP
 nsWindow::SetInputMode(const IMEContext& aContext)
 {
     NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
 
-    // SetSoftwareKeyboardState uses mIMEContext,
-    // so, before calling that, record aContext in mIMEContext.
     mIMEContext = aContext;
-
-#if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
-    static QCoreApplication::EventFilter currentEventFilter = NULL;
-    if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN && currentEventFilter != x11EventFilter) {
-        // Install event filter for listening Plugin IME state changes
-        previousEventFilter = QCoreApplication::instance()->setEventFilter(x11EventFilter);
-        currentEventFilter = x11EventFilter;
-    } else if (mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN && currentEventFilter == x11EventFilter) {
-        // Remove event filter
-        QCoreApplication::instance()->setEventFilter(previousEventFilter);
-        currentEventFilter = previousEventFilter;
-        previousEventFilter = NULL;
-        QWidget* view = GetViewWidget();
-        if (view) {
-            SetVKBState(view->winId(), VKBUndefined);
-        }
-    }
-#endif
-
-    switch (mIMEContext.mStatus) {
+    switch (aContext.mStatus) {
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
-        case nsIWidget::IME_STATUS_PLUGIN:
-            SetSoftwareKeyboardState(PR_TRUE);
+            {
+                PRInt32 openDelay = 200;
+                nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+                if (prefs)
+                  prefs->GetIntPref("ui.vkb.open.delay", &openDelay);
+
+                mWidget->requestVKB(openDelay);
+            }
             break;
         default:
-            SetSoftwareKeyboardState(PR_FALSE);
+            mWidget->hideVKB();
             break;
     }
 
@@ -3275,44 +3077,6 @@ nsWindow::GetInputMode(IMEContext& aContext)
 }
 
 void
-nsWindow::SetSoftwareKeyboardState(PRBool aOpen)
-{
-    if (aOpen) {
-        NS_ENSURE_TRUE(mIMEContext.mStatus != nsIWidget::IME_STATUS_DISABLED,);
-
-        // Ensure that opening the virtual keyboard is allowed for this specific
-        // IMEContext depending on the content.ime.strict.policy pref
-        if (mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
-            if (Preferences::GetBool("content.ime.strict_policy", PR_FALSE) &&
-                !mIMEContext.FocusMovedByUser() &&
-                mIMEContext.FocusMovedInContentProcess()) {
-                return;
-            }
-        }
-#if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
-        // doen't open VKB if plugin did set closed state
-        else {
-            QWidget* view = GetViewWidget();
-            if (view && GetPluginVKBState(view->winId()) == VKBClose) {
-                return;
-            }
-        }
-#endif
-    }
-
-    if (aOpen) {
-        // VKB open need to be delayed in order to give
-        // to plugins chance prevent VKB from opening
-        PRInt32 openDelay =
-            Preferences::GetInt("ui.vkb.open.delay", 200);
-        MozQWidget::requestVKB(openDelay, mWidget);
-    } else {
-        MozQWidget::hideVKB();
-    }
-    return;
-}
-
-void
 nsWindow::UserActivity()
 {
   if (!mIdleService) {
@@ -3323,3 +3087,4 @@ nsWindow::UserActivity()
     mIdleService->ResetIdleTimeOut();
   }
 }
+

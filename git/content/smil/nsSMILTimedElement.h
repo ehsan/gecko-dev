@@ -409,7 +409,7 @@ protected:
   void              ClearSpecs(TimeValueSpecList& aSpecs,
                                InstanceTimeList& aInstances,
                                RemovalTestFunction aRemove);
-  void              ClearIntervals();
+  void              ClearIntervalProgress();
   void              DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly);
 
   /**
@@ -472,9 +472,6 @@ protected:
    * @param aPrevInterval   The previous interval used. If supplied, the first
    *                        interval that begins after aPrevInterval will be
    *                        returned. May be nsnull.
-   * @param aReplacedInterval The interval that is being updated (if any). This
-   *                        used to ensure we don't return interval endpoints
-   *                        that are dependent on themselves. May be nsnull.
    * @param aFixedBeginTime The time to use for the start of the interval. This
    *                        is used when only the endpoint of the interval
    *                        should be updated such as when the animation is in
@@ -485,7 +482,6 @@ protected:
    * @return  PR_TRUE if a suitable interval was found, PR_FALSE otherwise.
    */
   PRBool            GetNextInterval(const nsSMILInterval* aPrevInterval,
-                                    const nsSMILInterval* aReplacedInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
                                     nsSMILInterval& aResult) const;
   nsSMILInstanceTime* GetNextGreater(const InstanceTimeList& aList,
@@ -505,7 +501,7 @@ protected:
   void              UpdateCurrentInterval(PRBool aForceChangeNotice = PR_FALSE);
   void              SampleSimpleTime(nsSMILTime aActiveTime);
   void              SampleFillValue();
-  nsresult          AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
+  void              AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
                         double aOffsetSeconds, PRBool aIsBegin);
   void              RegisterMilestone();
   PRBool            GetNextMilestone(nsSMILMilestone& aNextMilestone) const;
@@ -525,7 +521,6 @@ protected:
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
   const nsSMILInterval* GetPreviousInterval() const;
   PRBool            HasPlayed() const { return !mOldIntervals.IsEmpty(); }
-  PRBool            HaveDefiniteEndTimes() const;
   PRBool            EndHasEventConditions() const;
 
   // Reset the current interval by first passing ownership to a temporary
@@ -620,17 +615,6 @@ protected:
     SEEK_BACKWARD_FROM_INACTIVE
   };
   nsSMILSeekState                 mSeekState;
-
-  // Used to batch updates to the timing model
-  class AutoIntervalUpdateBatcher;
-  PRPackedBool mDeferIntervalUpdates;
-  PRPackedBool mDoDeferredUpdate; // Set if an update to the current interval
-                                  // was requested while mDeferIntervalUpdates
-                                  // was set
-
-  // Recursion depth checking
-  PRUint16              mUpdateIntervalRecursionDepth;
-  static const PRUint16 sMaxUpdateIntervalRecursionDepth;
 };
 
 #endif // NS_SMILTIMEDELEMENT_H_

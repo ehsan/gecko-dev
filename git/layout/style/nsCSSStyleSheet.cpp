@@ -1252,12 +1252,12 @@ nsCSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
   }
 }
 
-PRUint64
-nsCSSStyleSheet::FindOwningWindowInnerID() const
+/* virtual */ PRUint64
+nsCSSStyleSheet::FindOwningWindowID() const
 {
   PRUint64 windowID = 0;
   if (mDocument) {
-    windowID = mDocument->InnerWindowID();
+    windowID = mDocument->OuterWindowID();
   }
 
   if (windowID == 0 && mOwningNode) {
@@ -1265,7 +1265,7 @@ nsCSSStyleSheet::FindOwningWindowInnerID() const
     if (node) {
       nsIDocument* doc = node->GetOwnerDoc();
       if (doc) {
-        windowID = doc->InnerWindowID();
+        windowID = doc->OuterWindowID();
       }
     }
   }
@@ -1275,13 +1275,13 @@ nsCSSStyleSheet::FindOwningWindowInnerID() const
     if (sheet) {
       nsRefPtr<nsCSSStyleSheet> cssSheet = do_QueryObject(sheet);
       if (cssSheet) {
-        windowID = cssSheet->FindOwningWindowInnerID();
+        windowID = cssSheet->FindOwningWindowID();
       }
     }
   }
 
   if (windowID == 0 && mParent) {
-    windowID = mParent->FindOwningWindowInnerID();
+    windowID = mParent->FindOwningWindowID();
   }
 
   return windowID;
@@ -1576,15 +1576,14 @@ nsCSSStyleSheet::SubjectSubsumesInnerPrincipal() const
     nsContentUtils::GetSecurityManager();
 
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  nsresult rv = securityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(rv, rv);
+  securityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
 
   if (!subjectPrincipal) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
   PRBool subsumes;
-  rv = subjectPrincipal->Subsumes(mInner->mPrincipal, &subsumes);
+  nsresult rv = subjectPrincipal->Subsumes(mInner->mPrincipal, &subsumes);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (subsumes) {

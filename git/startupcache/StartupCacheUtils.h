@@ -46,26 +46,18 @@ namespace mozilla {
 namespace scache {
 
 NS_EXPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
-                               nsIObjectInputStream** stream);
+NS_NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
+                                  nsIObjectInputStream** stream);
 
 // We can't retrieve the wrapped stream from the objectOutputStream later,
-// so we return it here. We give callers in debug builds the option 
-// to wrap the outputstream in a debug stream, which will detect if
-// non-singleton objects are written out multiple times during a serialization.
-// This could cause them to be deserialized incorrectly (as multiple copies
-// instead of references).
+// so we return it here.
 NS_EXPORT nsresult
-NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
-                                    nsIStorageStream** stream,
-                                    PRBool wantDebugStream);
+NS_NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
+                                       nsIStorageStream** stream);
 
 NS_EXPORT nsresult
-NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, PRUint32* len);
-
-NS_EXPORT nsresult
-PathifyURI(nsIURI *in, nsACString &out);
+NS_NewBufferFromStorageStream(nsIStorageStream *storageStream, 
+                              char** buffer, PRUint32* len);
 }
 }
 #endif //nsStartupCacheUtils_h_

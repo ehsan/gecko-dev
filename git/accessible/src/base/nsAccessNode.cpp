@@ -41,6 +41,7 @@
 #include "nsIAccessible.h"
 
 #include "nsAccCache.h"
+#include "nsAccessibilityAtoms.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 
@@ -54,6 +55,9 @@
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
@@ -75,6 +79,7 @@
  */
 
 nsIStringBundle *nsAccessNode::gStringBundle = 0;
+nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
 nsINode *nsAccessNode::gLastFocusedNode = nsnull;
 
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
@@ -88,7 +93,7 @@ nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible. nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_1(nsAccessNode, mContent)
+NS_IMPL_CYCLE_COLLECTION_0(nsAccessNode)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccessNode)
   NS_INTERFACE_MAP_ENTRY(nsIAccessNode)
@@ -130,12 +135,6 @@ void nsAccessNode::LastRelease()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public
 
-bool
-nsAccessNode::IsDefunct() const
-{
-  return !mContent;
-}
-
 PRBool
 nsAccessNode::Init()
 {
@@ -158,6 +157,19 @@ nsAccessNode::GetUniqueID(void **aUniqueID)
 
   *aUniqueID = UniqueID();
   return NS_OK;
+}
+
+// nsIAccessNode
+NS_IMETHODIMP
+nsAccessNode::GetOwnerWindow(void **aWindow)
+{
+  NS_ENSURE_ARG_POINTER(aWindow);
+  *aWindow = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  return GetDocAccessible()->GetWindowHandle(aWindow);
 }
 
 nsApplicationAccessible*
@@ -195,7 +207,11 @@ void nsAccessNode::InitXPAccessibility()
     // Static variables are released in ShutdownAllXPAccessibility();
     stringBundleService->CreateBundle(ACCESSIBLE_BUNDLE_URL, 
                                       &gStringBundle);
+    stringBundleService->CreateBundle(PLATFORM_KEYS_BUNDLE_URL, 
+                                      &gKeyStringBundle);
   }
+
+  nsAccessibilityAtoms::AddRefAtoms();
 
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
@@ -227,6 +243,7 @@ void nsAccessNode::ShutdownXPAccessibility()
   // at exit of program
 
   NS_IF_RELEASE(gStringBundle);
+  NS_IF_RELEASE(gKeyStringBundle);
   NS_IF_RELEASE(gLastFocusedNode);
 
   // Release gApplicationAccessible after everything else is shutdown
@@ -469,7 +486,7 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
     nsIDocument *doc = mContent->GetOwnerDoc();
     if (doc) {
-      doc->GetHeaderData(nsGkAtoms::headerContentLanguage, aLanguage);
+      doc->GetHeaderData(nsAccessibilityAtoms::headerContentLanguage, aLanguage);
     }
   }
  

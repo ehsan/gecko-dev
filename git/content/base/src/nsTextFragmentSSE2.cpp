@@ -3,7 +3,6 @@
 
 #include <emmintrin.h>
 #include "nscore.h"
-#include "nsAlgorithm.h"
 
 namespace mozilla {
 namespace SSE2 {
@@ -15,8 +14,8 @@ is_zero (__m128i x)
     _mm_movemask_epi8(_mm_cmpeq_epi8(x, _mm_setzero_si128())) == 0xffff;
 }
 
-PRInt32
-FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
+PRBool
+Is8Bit(const PRUnichar *str, const PRUnichar *end)
 {
   const PRUint32 numUnicharsPerVector = 8;
 
@@ -36,10 +35,10 @@ FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
   // Align ourselves to a 16-byte boundary, as required by _mm_load_si128
   // (i.e. MOVDQA).
   PRInt32 alignLen =
-    NS_MIN(len, PRInt32(((-NS_PTR_TO_INT32(str)) & 0xf) / sizeof(PRUnichar)));
+    PR_MIN(len, PRInt32(((-NS_PTR_TO_UINT32(str)) & 0xf) / sizeof(PRUnichar)));
   for (; i < alignLen; i++) {
     if (str[i] > 255)
-      return i;
+      return PR_FALSE;
   }
 
   // Check one XMM register (16 bytes) at a time.
@@ -48,7 +47,7 @@ FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
   for(; i < vectWalkEnd; i += numUnicharsPerVector) {
     const __m128i vect = *reinterpret_cast<const __m128i*>(str + i);
     if (!is_zero(_mm_and_si128(vect, vectmask)))
-      return i;
+      return PR_FALSE;
   }
 
   // Check one word at a time.
@@ -56,17 +55,17 @@ FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
   for(; i < wordWalkEnd; i += numUnicharsPerWord) {
     const size_t word = *reinterpret_cast<const size_t*>(str + i);
     if (word & mask)
-      return i;
+      return PR_FALSE;
   }
 
   // Take care of the remainder one character at a time.
   for (; i < len; i++) {
     if (str[i] > 255) {
-      return i;
+      return PR_FALSE;
     }
   }
 
-  return -1;
+  return PR_TRUE;
 }
 
 } // namespace SSE2

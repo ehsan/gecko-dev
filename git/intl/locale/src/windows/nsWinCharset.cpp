@@ -44,6 +44,7 @@
 #include "nsReadableUtils.h"
 #include "nsLocaleCID.h"
 #include "nsServiceManagerUtils.h"
+#include "nsITimelineService.h"
 #include "nsPlatformCharset.h"
 #include "nsEncoderDecoderUtils.h"
 
@@ -55,9 +56,14 @@ NS_IMPL_ISUPPORTS1(nsPlatformCharset, nsIPlatformCharset)
 
 nsPlatformCharset::nsPlatformCharset()
 {
+  NS_TIMELINE_START_TIMER("nsPlatformCharset()");
+
   nsAutoString acpKey(NS_LITERAL_STRING("acp."));
   acpKey.AppendInt(PRInt32(::GetACP() & 0x00FFFF), 10);
   MapToCharset(acpKey, mCharset);
+
+  NS_TIMELINE_STOP_TIMER("nsPlatformCharset()");
+  NS_TIMELINE_MARK_TIMER("nsPlatformCharset()");
 }
 
 nsPlatformCharset::~nsPlatformCharset()

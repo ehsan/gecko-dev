@@ -152,7 +152,7 @@ nsMathMLmsubsupFrame::PlaceSubSupScript(nsPresContext*      aPresContext,
   nsBoundingMetrics bmBase, bmSubScript, bmSupScript;
   nsIFrame* subScriptFrame = nsnull;
   nsIFrame* supScriptFrame = nsnull;
-  nsIFrame* baseFrame = aFrame->GetFirstPrincipalChild();
+  nsIFrame* baseFrame = aFrame->GetFirstChild(nsnull);
   if (baseFrame)
     subScriptFrame = baseFrame->GetNextSibling();
   if (subScriptFrame)
@@ -193,9 +193,9 @@ nsMathMLmsubsupFrame::PlaceSubSupScript(nsPresContext*      aPresContext,
   // subScriptShift1 = subscriptshift attribute * x-height
   nscoord subScriptShift1, subScriptShift2;
 
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(baseFrame, getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  aRenderingContext.SetFont(baseFrame->GetStyleFont()->mFont,
+                            aPresContext->GetUserFontSet());
+  nsFontMetrics* fm = aRenderingContext.FontMetrics();
 
   // get x-height (an ex)
   nscoord xHeight = fm->XHeight();

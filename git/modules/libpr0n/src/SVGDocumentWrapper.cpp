@@ -301,8 +301,7 @@ SVGDocumentWrapper::OnStopRequest(nsIRequest* aRequest, nsISupports* ctxt,
     // finish parsing & layout in our helper-document to make sure we can hold
     // up to this promise.
     nsCOMPtr<nsIParser> parser = do_QueryInterface(mListener);
-    while (!parser->IsComplete()) {
-      parser->CancelParsingEvents();
+    if (!parser->IsComplete()) {
       parser->ContinueInterruptedParsing();
     }
     FlushLayout();

@@ -23,7 +23,7 @@
  * Contributor(s):
  *   Dan Rosen <dr@netscape.com>
  *   Roland Mainz <roland.mainz@informatik.med.uni-giessen.de>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -68,6 +68,7 @@
 #include "nsISelectionListener.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMRange.h"
@@ -75,7 +76,6 @@
 #include "nsLayoutCID.h"
 #include "nsContentUtils.h"
 #include "nsLayoutStylesheetCache.h"
-#include "mozilla/Preferences.h"
 
 #include "nsViewsCID.h"
 #include "nsIDeviceContextSpec.h"
@@ -110,17 +110,18 @@
 #include "nsIXULDocument.h"
 #include "nsXULPopupManager.h"
 #endif
+#include "nsPrintfCString.h"
 
 #include "nsIClipboardHelper.h"
 
 #include "nsPIDOMWindow.h"
-#include "nsDOMNavigationTiming.h"
 #include "nsPIWindowRoot.h"
 #include "nsJSEnvironment.h"
 #include "nsFocusManager.h"
 
 #include "nsIScrollableFrame.h"
 #include "nsIHTMLDocument.h"
+#include "nsITimelineService.h"
 #include "nsGfxCIID.h"
 #include "nsStyleSheetService.h"
 #include "nsURILoader.h"
@@ -176,7 +177,7 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 
 //focus
 #include "nsIDOMEventTarget.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMFocusListener.h"
 #include "nsISelectionController.h"
 
 #include "nsBidiUtils.h"
@@ -193,10 +194,6 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 
 //switch to page layout
 #include "nsGfxCIID.h"
-
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla;
 
 #ifdef NS_DEBUG
 
@@ -261,7 +258,7 @@ protected:
 
 /** editor Implementation of the FocusListener interface
  */
-class nsDocViewerFocusListener : public nsIDOMEventListener
+class nsDocViewerFocusListener : public nsIDOMFocusListener
 {
 public:
   /** default constructor
@@ -271,9 +268,15 @@ public:
    */
   virtual ~nsDocViewerFocusListener();
 
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMEVENTLISTENER
 
+/*interfaces for addref and release and queryinterface*/
+  NS_DECL_ISUPPORTS
+
+/*BEGIN implementations of focus event handler interface*/
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+  NS_IMETHOD Focus(nsIDOMEvent* aEvent);
+  NS_IMETHOD Blur(nsIDOMEvent* aEvent);
+/*END implementations of focus event handler interface*/
   nsresult             Init(DocumentViewerImpl *aDocViewer);
 
 private:
@@ -285,7 +288,7 @@ private:
 class DocumentViewerImpl : public nsIDocumentViewer,
                            public nsIContentViewerEdit,
                            public nsIContentViewerFile,
-                           public nsIMarkupDocumentViewer,
+                           public nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH,
                            public nsIDocumentViewerPrint
 
 #ifdef NS_PRINTING
@@ -321,11 +324,6 @@ public:
    */
   virtual nsIView* FindContainerView();
 
-  /**
-   * Set collector for navigation timing data (load, unload events).
-   */
-  virtual void SetNavigationTiming(nsDOMNavigationTiming* timing);
-
   // nsIContentViewerEdit
   NS_DECL_NSICONTENTVIEWEREDIT
 
@@ -334,6 +332,9 @@ public:
 
   // nsIMarkupDocumentViewer
   NS_DECL_NSIMARKUPDOCUMENTVIEWER
+
+  // nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH
+  NS_DECL_NSIMARKUPDOCUMENTVIEWER_MOZILLA_2_0_BRANCH
 
 #ifdef NS_PRINTING
   // nsIWebBrowserPrint
@@ -449,7 +450,7 @@ protected:
   nsCOMPtr<nsIPresShell>   mPresShell;
 
   nsCOMPtr<nsISelectionListener> mSelectionListener;
-  nsRefPtr<nsDocViewerFocusListener> mFocusListener;
+  nsCOMPtr<nsIDOMFocusListener> mFocusListener;
 
   nsCOMPtr<nsIContentViewer> mPreviousViewer;
   nsCOMPtr<nsISHEntry> mSHEntry;
@@ -539,6 +540,9 @@ nsresult
 NS_NewDocumentViewer(nsIDocumentViewer** aResult)
 {
   *aResult = new DocumentViewerImpl();
+  if (!*aResult) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   NS_ADDREF(*aResult);
 
@@ -595,6 +599,7 @@ NS_INTERFACE_MAP_BEGIN(DocumentViewerImpl)
     NS_INTERFACE_MAP_ENTRY(nsIContentViewer)
     NS_INTERFACE_MAP_ENTRY(nsIDocumentViewer)
     NS_INTERFACE_MAP_ENTRY(nsIMarkupDocumentViewer)
+    NS_INTERFACE_MAP_ENTRY(nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH)
     NS_INTERFACE_MAP_ENTRY(nsIContentViewerFile)
     NS_INTERFACE_MAP_ENTRY(nsIContentViewerEdit)
     NS_INTERFACE_MAP_ENTRY(nsIDocumentViewerPrint)
@@ -791,6 +796,7 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
   if (!mSelectionListener) {
     nsDocViewerSelectionListener *selectionListener =
       new nsDocViewerSelectionListener();
+    NS_ENSURE_TRUE(selectionListener, NS_ERROR_OUT_OF_MEMORY);
 
     selectionListener->Init(this);
 
@@ -808,13 +814,14 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
     return rv;
 
   // Save old listener so we can unregister it
-  nsRefPtr<nsDocViewerFocusListener> oldFocusListener = mFocusListener;
+  nsCOMPtr<nsIDOMFocusListener> oldFocusListener = mFocusListener;
 
   // focus listener
   //
   // now register ourselves as a focus listener, so that we get called
   // when the focus changes in the window
   nsDocViewerFocusListener *focusListener = new nsDocViewerFocusListener();
+  NS_ENSURE_TRUE(focusListener, NS_ERROR_OUT_OF_MEMORY);
 
   focusListener->Init(this);
 
@@ -822,18 +829,13 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
   mFocusListener = focusListener;
 
   if (mDocument) {
-    mDocument->AddEventListener(NS_LITERAL_STRING("focus"),
-                                mFocusListener,
-                                PR_FALSE, PR_FALSE);
-    mDocument->AddEventListener(NS_LITERAL_STRING("blur"),
-                                mFocusListener,
-                                PR_FALSE, PR_FALSE);
-
+    rv = mDocument->AddEventListenerByIID(mFocusListener,
+                                          NS_GET_IID(nsIDOMFocusListener));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "failed to register focus listener");
     if (oldFocusListener) {
-      mDocument->RemoveEventListener(NS_LITERAL_STRING("focus"),
-                                     oldFocusListener, PR_FALSE);
-      mDocument->RemoveEventListener(NS_LITERAL_STRING("blur"),
-                                     oldFocusListener, PR_FALSE);
+      rv = mDocument->RemoveEventListenerByIID(oldFocusListener,
+                                               NS_GET_IID(nsIDOMFocusListener));
+      NS_ASSERTION(NS_SUCCEEDED(rv), "failed to remove focus listener");
     }
   }
 
@@ -990,14 +992,6 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
   return rv;
 }
 
-void DocumentViewerImpl::SetNavigationTiming(nsDOMNavigationTiming* timing)
-{
-  NS_ASSERTION(mDocument, "Must have a document to set navigation timing.");
-  if (mDocument) {
-    mDocument->SetNavigationTiming(timing);
-  }
-}
-
 //
 // LoadComplete(aStatus)
 //
@@ -1059,15 +1053,24 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
 
     docShell->GetRestoringDocument(&restoring);
     if (!restoring) {
-      nsRefPtr<nsDOMNavigationTiming> timing(mDocument->GetNavigationTiming());
-      if (timing) {
-        timing->NotifyLoadEventStart();
-      }
       nsEventDispatcher::Dispatch(window, mPresContext, &event, nsnull,
                                   &status);
-      if (timing) {
-        timing->NotifyLoadEventEnd();
+#ifdef MOZ_TIMELINE
+      // if navigator.xul's load is complete, the main nav window is visible
+      // mark that point.
+
+      nsIURI *uri = mDocument ? mDocument->GetDocumentURI() : nsnull;
+
+      if (uri) {
+        //printf("DEBUG: getting spec for uri (%p)\n", uri.get());
+        nsCAutoString spec;
+        uri->GetSpec(spec);
+        if (spec.EqualsLiteral("chrome://navigator/content/navigator.xul") ||
+            spec.EqualsLiteral("chrome://browser/content/browser.xul")) {
+          NS_TIMELINE_MARK("Navigator Window visible now");
+        }
       }
+#endif /* MOZ_TIMELINE */
     }
   } else {
     // XXX: Should fire error event to the document...
@@ -1198,9 +1201,7 @@ DocumentViewerImpl::PermitUnload(PRBool aCallerClosesWindow, PRBool *aPermitUnlo
         return NS_OK;
       }
 
-      // Although the exact value is ignored, we must not pass invalid
-      // PRBool values through XPConnect.
-      PRBool dummy = PR_FALSE;
+      PRBool dummy;
       PRInt32 buttonPressed = 0;
       PRUint32 buttonFlags = (nsIPrompt::BUTTON_POS_0_DEFAULT |
                              (nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_0) |
@@ -1396,10 +1397,8 @@ DocumentViewerImpl::Open(nsISupports *aState, nsISHEntry *aSHEntry)
   SyncParentSubDocMap();
 
   if (mFocusListener && mDocument) {
-    mDocument->AddEventListener(NS_LITERAL_STRING("focus"), mFocusListener,
-                                PR_FALSE, PR_FALSE);
-    mDocument->AddEventListener(NS_LITERAL_STRING("blur"), mFocusListener,
-                                PR_FALSE, PR_FALSE);
+    mDocument->AddEventListenerByIID(mFocusListener,
+                                     NS_GET_IID(nsIDOMFocusListener));
   }
 
   // XXX re-enable image animations once that works correctly
@@ -1476,10 +1475,8 @@ DocumentViewerImpl::Close(nsISHEntry *aSHEntry)
     }
 
   if (mFocusListener && mDocument) {
-    mDocument->RemoveEventListener(NS_LITERAL_STRING("focus"), mFocusListener,
-                                   PR_FALSE);
-    mDocument->RemoveEventListener(NS_LITERAL_STRING("blur"), mFocusListener,
-                                   PR_FALSE);
+    mDocument->RemoveEventListenerByIID(mFocusListener,
+                                        NS_GET_IID(nsIDOMFocusListener));
   }
 
   return NS_OK;
@@ -1765,10 +1762,6 @@ DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
   aDocument->SetContainer(container);
 
   if (mDocument != aDocument) {
-    if (mDocument->IsStaticDocument()) {
-      mDocument->SetScriptGlobalObject(nsnull);
-      mDocument->Destroy();
-    }
     // Replace the old document with the new one. Do this only when
     // the new document really is a new document.
     mDocument = aDocument;
@@ -1980,7 +1973,7 @@ DocumentViewerImpl::Show(void)
         printf("About to evict content viewers: prev=%d, loaded=%d\n",
                prevIndex, loadedIndex);
 #endif
-        historyInt->EvictOutOfRangeContentViewers(loadedIndex);
+        historyInt->EvictContentViewers(prevIndex, loadedIndex);
       }
     }
   }
@@ -2162,6 +2155,9 @@ DocumentViewerImpl::CreateStyleSet(nsIDocument* aDocument,
   // this should eventually get expanded to allow for creating
   // different sets for different media
   nsStyleSet *styleSet = new nsStyleSet();
+  if (!styleSet) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   styleSet->BeginUpdate();
   
@@ -2383,9 +2379,6 @@ DocumentViewerImpl::FindContainerView()
     nsCOMPtr<nsPIDOMWindow> pwin(do_GetInterface(docShellItem));
     if (pwin) {
       nsCOMPtr<nsIContent> containerElement = do_QueryInterface(pwin->GetFrameElementInternal());
-      if (!containerElement) {
-        return nsnull;
-      }
       nsCOMPtr<nsIPresShell> parentPresShell;
       if (docShellItem) {
         nsCOMPtr<nsIDocShellTreeItem> parentDocShellItem;
@@ -2395,13 +2388,15 @@ DocumentViewerImpl::FindContainerView()
           parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
         }
       }
-      if (!parentPresShell) {
+      if (!parentPresShell && containerElement) {
         nsCOMPtr<nsIDocument> parentDoc = containerElement->GetCurrentDoc();
         if (parentDoc) {
           parentPresShell = parentDoc->GetShell();
         }
       }
-      if (!parentPresShell) {
+      if (!containerElement) {
+        NS_WARNING("Subdocument container has no content");
+      } else if (!parentPresShell) {
         NS_WARNING("Subdocument container has no presshell");
       } else {
         nsIFrame* f = parentPresShell->GetRealPrimaryFrameFor(containerElement);
@@ -2658,9 +2653,9 @@ DocumentViewerImpl::Print(PRBool            aSilent,
 #endif
 }
 
-/* [noscript] void printWithParent (in nsIDOMWindow aParentWin, in nsIPrintSettings aThePrintSettings, in nsIWebProgressListener aWPListener); */
+/* [noscript] void printWithParent (in nsIDOMWindowInternal aParentWin, in nsIPrintSettings aThePrintSettings, in nsIWebProgressListener aWPListener); */
 NS_IMETHODIMP 
-DocumentViewerImpl::PrintWithParent(nsIDOMWindow*, nsIPrintSettings *aThePrintSettings, nsIWebProgressListener *aWPListener)
+DocumentViewerImpl::PrintWithParent(nsIDOMWindowInternal *aParentWin, nsIPrintSettings *aThePrintSettings, nsIWebProgressListener *aWPListener)
 {
 #ifdef NS_PRINTING
   return Print(aThePrintSettings, aWPListener);
@@ -2752,7 +2747,7 @@ SetChildTextZoom(nsIMarkupDocumentViewer* aChild, void* aClosure)
 static void
 SetChildMinFontSize(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
-  nsCOMPtr<nsIMarkupDocumentViewer> branch =
+  nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> branch =
     do_QueryInterface(aChild);
   branch->SetMinFontSize(NS_PTR_TO_INT32(aClosure));
 }
@@ -2997,14 +2992,13 @@ DocumentViewerImpl::GetDefaultCharacterSet(nsACString& aDefaultCharacterSet)
 {
   if (mDefaultCharacterSet.IsEmpty())
   {
-    const nsAdoptingCString& defCharset =
-      Preferences::GetLocalizedCString("intl.charset.default");
+    const nsAdoptingString& defCharset =
+      nsContentUtils::GetLocalizedStringPref("intl.charset.default");
 
-    if (!defCharset.IsEmpty()) {
-      mDefaultCharacterSet = defCharset;
-    } else {
+    if (!defCharset.IsEmpty())
+      LossyCopyUTF16toASCII(defCharset, mDefaultCharacterSet);
+    else
       mDefaultCharacterSet.AssignLiteral("ISO-8859-1");
-    }
   }
   aDefaultCharacterSet = mDefaultCharacterSet;
   return NS_OK;
@@ -3390,20 +3384,37 @@ DocumentViewerImpl::GetPopupLinkNode(nsIDOMNode** aNode)
   // find out if we have a link in our ancestry
   while (node) {
 
-    nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-    if (content) {
-      nsCOMPtr<nsIURI> hrefURI = content->GetHrefURI();
-      if (hrefURI) {
-        *aNode = node;
-        NS_IF_ADDREF(*aNode); // addref
-        return NS_OK;
+    // are we an anchor?
+    nsCOMPtr<nsIDOMHTMLAnchorElement> anchor(do_QueryInterface(node));
+    nsCOMPtr<nsIDOMHTMLAreaElement> area;
+    nsCOMPtr<nsIDOMHTMLLinkElement> link;
+    nsAutoString xlinkType;
+    if (!anchor) {
+      // area?
+      area = do_QueryInterface(node);
+      if (!area) {
+        // link?
+        link = do_QueryInterface(node);
+        if (!link) {
+          // XLink?
+          nsCOMPtr<nsIDOMElement> element(do_QueryInterface(node));
+          if (element) {
+            element->GetAttributeNS(NS_LITERAL_STRING("http://www.w3.org/1999/xlink"),NS_LITERAL_STRING("type"),xlinkType);
+          }
+        }
       }
     }
-
-    // get our parent and keep trying...
-    nsCOMPtr<nsIDOMNode> parentNode;
-    node->GetParentNode(getter_AddRefs(parentNode));
-    node = parentNode;
+    if (anchor || area || link || xlinkType.EqualsLiteral("simple")) {
+      *aNode = node;
+      NS_IF_ADDREF(*aNode); // addref
+      return NS_OK;
+    }
+    else {
+      // if not, get our parent and keep trying...
+      nsCOMPtr<nsIDOMNode> parentNode;
+      node->GetParentNode(getter_AddRefs(parentNode));
+      node = parentNode;
+    }
   }
 
   // if we have no node, fail
@@ -3516,7 +3527,8 @@ NS_IMETHODIMP nsDocViewerSelectionListener::NotifySelectionChanged(nsIDOMDocumen
 }
 
 //nsDocViewerFocusListener
-NS_IMPL_ISUPPORTS1(nsDocViewerFocusListener,
+NS_IMPL_ISUPPORTS2(nsDocViewerFocusListener,
+                   nsIDOMFocusListener,
                    nsIDOMEventListener)
 
 nsDocViewerFocusListener::nsDocViewerFocusListener()
@@ -3529,38 +3541,59 @@ nsDocViewerFocusListener::~nsDocViewerFocusListener(){}
 nsresult
 nsDocViewerFocusListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  NS_ENSURE_STATE(mDocViewer);
+  return NS_OK;
+}
 
+NS_IMETHODIMP
+nsDocViewerFocusListener::Focus(nsIDOMEvent* aEvent)
+{
   nsCOMPtr<nsIPresShell> shell;
-  mDocViewer->GetPresShell(getter_AddRefs(shell));
-  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
+  if(!mDocViewer)
+    return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsISelectionController> selCon = do_QueryInterface(shell);
+  nsresult result = mDocViewer->GetPresShell(getter_AddRefs(shell));
+  if(NS_FAILED(result) || !shell)
+    return result?result:NS_ERROR_FAILURE;
+  nsCOMPtr<nsISelectionController> selCon;
+  selCon = do_QueryInterface(shell);
   PRInt16 selectionStatus;
   selCon->GetDisplaySelection(&selectionStatus);
 
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  if (eventType.EqualsLiteral("focus")) {
-    // If selection was disabled, re-enable it.
-    if(selectionStatus == nsISelectionController::SELECTION_DISABLED ||
-       selectionStatus == nsISelectionController::SELECTION_HIDDEN) {
-      selCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
-      selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
-    }
-  } else {
-    NS_ABORT_IF_FALSE(eventType.EqualsLiteral("blur"),
-                      "Unexpected event type");
-    // If selection was on, disable it.
-    if(selectionStatus == nsISelectionController::SELECTION_ON ||
-       selectionStatus == nsISelectionController::SELECTION_ATTENTION) {
-      selCon->SetDisplaySelection(nsISelectionController::SELECTION_DISABLED);
-      selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
-    }
+  // If selection was disabled, re-enable it.
+  if(selectionStatus == nsISelectionController::SELECTION_DISABLED ||
+     selectionStatus == nsISelectionController::SELECTION_HIDDEN)
+  {
+    selCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
+    selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
   }
-
-  return NS_OK;
+  return result;
 }
+
+NS_IMETHODIMP
+nsDocViewerFocusListener::Blur(nsIDOMEvent* aEvent)
+{
+  nsCOMPtr<nsIPresShell> shell;
+  if(!mDocViewer)
+    return NS_ERROR_FAILURE;
+
+  nsresult result = mDocViewer->GetPresShell(getter_AddRefs(shell));
+  if(NS_FAILED(result) || !shell)
+    return result?result:NS_ERROR_FAILURE;
+  nsCOMPtr<nsISelectionController> selCon;
+  selCon = do_QueryInterface(shell);
+  PRInt16 selectionStatus;
+  selCon->GetDisplaySelection(&selectionStatus);
+
+  // If selection was on, disable it.
+  if(selectionStatus == nsISelectionController::SELECTION_ON ||
+     selectionStatus == nsISelectionController::SELECTION_ATTENTION)
+  {
+    selCon->SetDisplaySelection(nsISelectionController::SELECTION_DISABLED);
+    selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
+  }
+  return result;
+}
+
 
 nsresult
 nsDocViewerFocusListener::Init(DocumentViewerImpl *aDocViewer)
@@ -3634,7 +3667,6 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
   }
 
   nsPrintEventDispatcher beforeAndAfterPrint(mDocument);
-  NS_ENSURE_STATE(!GetIsPrinting());
   // If we are hosting a full-page plugin, tell it to print
   // first. It shows its own native print UI.
   nsCOMPtr<nsIPluginDocument> pDoc(do_QueryInterface(mDocument));
@@ -3644,6 +3676,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
   if (!mPrintEngine) {
     NS_ENSURE_STATE(mDeviceContext);
     mPrintEngine = new nsPrintEngine();
+    NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, mContainer, mDocument, 
                                   float(mDeviceContext->AppUnitsPerCSSInch()) /
@@ -3708,9 +3741,9 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
   NS_ENSURE_STATE(doc);
 
   nsPrintEventDispatcher beforeAndAfterPrint(doc);
-  NS_ENSURE_STATE(!GetIsPrinting());
   if (!mPrintEngine) {
     mPrintEngine = new nsPrintEngine();
+    NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, mContainer, doc,
                                   float(mDeviceContext->AppUnitsPerCSSInch()) /
@@ -3784,7 +3817,7 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
   // Now, locate the current page we are on and
   // and the page of the page number
   nscoord gap = 0;
-  nsIFrame* pageFrame = seqFrame->GetFirstPrincipalChild();
+  nsIFrame* pageFrame = seqFrame->GetFirstChild(nsnull);
   while (pageFrame != nsnull) {
     nsRect pageRect = pageFrame->GetRect();
     if (pageNum == 1) {
@@ -3826,8 +3859,16 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
   }
 
   if (fndPageFrame) {
+    nscoord deadSpaceGapTwips = 0;
+    nsIPageSequenceFrame * sqf = do_QueryFrame(seqFrame);
+    if (sqf) {
+      sqf->GetDeadSpaceValue(&deadSpaceGapTwips);
+    }
+
+    nscoord deadSpaceGap = nsPresContext::CSSTwipsToAppUnits(deadSpaceGapTwips);
     nscoord newYPosn =
-      nscoord(mPrintEngine->GetPrintPreviewScale() * fndPageFrame->GetPosition().y);
+      nscoord(mPrintEngine->GetPrintPreviewScale() * 
+              float(fndPageFrame->GetPosition().y - deadSpaceGap));
     sf->ScrollTo(nsPoint(pt.x, newYPosn), nsIScrollableFrame::INSTANT);
   }
   return NS_OK;
@@ -4273,7 +4314,7 @@ DocumentViewerImpl::OnDonePrinting()
     if (mDeferredWindowClose) {
       mDeferredWindowClose = PR_FALSE;
       nsCOMPtr<nsISupports> container = do_QueryReferent(mContainer);
-      nsCOMPtr<nsIDOMWindow> win = do_GetInterface(container);
+      nsCOMPtr<nsIDOMWindowInternal> win = do_GetInterface(container);
       if (win)
         win->Close();
     } else if (mClosingWhilePrinting) {

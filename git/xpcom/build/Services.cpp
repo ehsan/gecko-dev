@@ -40,9 +40,6 @@
 #include "nsComponentManager.h"
 #include "nsIIOService.h"
 #include "nsIDirectoryService.h"
-#ifdef ACCESSIBILITY
-#include "nsIAccessibilityService.h"
-#endif
 #include "nsIChromeRegistry.h"
 #include "nsIObserverService.h"
 #include "nsNetCID.h"
@@ -64,7 +61,7 @@ using namespace mozilla::services;
 #define MOZ_SERVICE(NAME, TYPE, CONTRACT_ID)                            \
   static TYPE* g##NAME = nsnull;                                        \
                                                                         \
-  already_AddRefed<TYPE>                                         \
+  NS_COM already_AddRefed<TYPE>                                         \
   mozilla::services::Get##NAME()                                        \
   {                                                                     \
     if (!g##NAME) {                                                     \

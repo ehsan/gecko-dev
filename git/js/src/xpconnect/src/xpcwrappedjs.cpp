@@ -67,9 +67,10 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
                         tmp->GetClass()->GetInterfaceName());
         else
             JS_snprintf(name, sizeof(name), "nsXPCWrappedJS");
-        cb.DescribeRefCountedNode(refcnt, sizeof(nsXPCWrappedJS), name);
+        cb.DescribeNode(RefCounted, refcnt, sizeof(nsXPCWrappedJS), name);
     } else {
-        NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsXPCWrappedJS, refcnt)
+        cb.DescribeNode(RefCounted, refcnt, sizeof(nsXPCWrappedJS),
+                        "nsXPCWrappedJS");
     }
 
     // nsXPCWrappedJS keeps its own refcount artificially at or above 1, see the
@@ -246,8 +247,8 @@ nsXPCWrappedJS::PrintTraceName(JSTracer* trc, char *buf, size_t bufsize)
 {
     const nsXPCWrappedJS* self = static_cast<const nsXPCWrappedJS*>
                                             (trc->debugPrintArg);
-    JS_snprintf(buf, bufsize, "nsXPCWrappedJS[%s,0x%p:0x%p].mJSObj",
-                self->GetClass()->GetInterfaceName(), self, self->mXPTCStub);
+    JS_snprintf(buf, bufsize, "nsXPCWrappedJS[%s,0x%p].mJSObj",
+                self->GetClass()->GetInterfaceName(), self);
 }
 #endif
 
@@ -281,7 +282,7 @@ nsXPCWrappedJS::GetNewOrUsed(XPCCallContext& ccx,
 {
     JSObject2WrappedJSMap* map;
     JSObject* rootJSObj;
-    nsXPCWrappedJS* root = nsnull;
+    nsXPCWrappedJS* root;
     nsXPCWrappedJS* wrapper = nsnull;
     nsXPCWrappedJSClass* clazz = nsnull;
     XPCJSRuntime* rt = ccx.GetRuntime();

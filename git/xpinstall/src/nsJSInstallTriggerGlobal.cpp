@@ -256,9 +256,8 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
   }
   // get the principal.  if it doesn't exist, die.
   nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = secman->GetSubjectPrincipal(getter_AddRefs(principal));
-
-  if (NS_FAILED(rv) || !principal)
+  secman->GetSubjectPrincipal(getter_AddRefs(principal));
+  if (!principal)
   {
     JS_ReportError(cx, "Could not get the Subject Principal during InstallTrigger.Install()");
     return JS_FALSE;
@@ -370,7 +369,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
             }
 
             // Make sure we're allowed to load this URL and the icon URL
-            rv = InstallTriggerCheckLoadURIFromScript(cx, xpiURL);
+            nsresult rv = InstallTriggerCheckLoadURIFromScript(cx, xpiURL);
             if (NS_FAILED(rv))
                 abortLoad = PR_TRUE;
 
@@ -405,11 +404,11 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
     if (!abortLoad && trigger->Size() > 0)
     {
         nsCOMPtr<nsIURI> checkuri;
-        rv = nativeThis->GetOriginatingURI(globalObject,
-                                           getter_AddRefs(checkuri));
+        nsresult rv = nativeThis->GetOriginatingURI(globalObject,
+                                                    getter_AddRefs(checkuri));
         if (NS_SUCCEEDED(rv))
         {
-            nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(globalObject);
+            nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(globalObject));
             nsCOMPtr<nsIXPIInstallInfo> installInfo =
                 new nsXPIInstallInfo(win, checkuri, trigger, 0);
             if (installInfo)
@@ -531,7 +530,7 @@ InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsva
             {
                 // trigger will free item when complete
                 trigger->Add(item.forget());
-                nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(globalObject);
+                nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(globalObject));
                 nsCOMPtr<nsIXPIInstallInfo> installInfo =
                     new nsXPIInstallInfo(win, checkuri, trigger, chromeType);
                 if (installInfo)
@@ -637,7 +636,7 @@ InstallTriggerGlobalStartSoftwareUpdate(JSContext *cx, JSObject *obj, uintN argc
         {
             // trigger will free item when complete
             trigger->Add(item.forget());
-            nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(globalObject);
+            nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(globalObject));
             nsCOMPtr<nsIXPIInstallInfo> installInfo =
                                 new nsXPIInstallInfo(win, checkuri, trigger, 0);
             if (installInfo)
@@ -744,7 +743,7 @@ nsresult InitInstallTriggerGlobalClass(JSContext *jscontext, JSObject *global, v
 //
 nsresult NS_InitInstallTriggerGlobalClass(nsIScriptContext *aContext, void **aPrototype)
 {
-  JSContext *jscontext = aContext->GetNativeContext();
+  JSContext *jscontext = (JSContext *)aContext->GetNativeContext();
   JSObject *proto = nsnull;
   JSObject *constructor = nsnull;
   JSObject *global = JS_GetGlobalObject(jscontext);
@@ -789,7 +788,7 @@ NS_NewScriptInstallTriggerGlobal(nsIScriptContext *aContext,
 
   JSObject *proto;
   JSObject *parent = nsnull;
-  JSContext *jscontext = aContext->GetNativeContext();
+  JSContext *jscontext = (JSContext *)aContext->GetNativeContext();
   nsresult result = NS_OK;
   nsIDOMInstallTriggerGlobal *installTriggerGlobal;
 

@@ -57,7 +57,9 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
       mFontFace(nsnull),
       mScaledFont(nsnull)
 {
-    mApplySyntheticBold = aNeedsBold;
+    if (aNeedsBold) {
+        mSyntheticBoldOffset = 1;  // devunit offset when double-striking text to fake boldness
+    }
 
     mCGFont = aFontEntry->GetFontRef();
     if (!mCGFont) {
@@ -165,7 +167,7 @@ gfxMacFont::InitTextRun(gfxContext *aContext,
                                      aRunStart, aRunLength, aRunScript,
         static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout());
 
-    aTextRun->AdjustAdvancesForSyntheticBold(aContext, aRunStart, aRunLength);
+    aTextRun->AdjustAdvancesForSyntheticBold(aRunStart, aRunLength);
 
     return ok;
 }
@@ -186,28 +188,6 @@ gfxMacFont::SetupCairoFont(gfxContext *aContext)
     }
     cairo_set_scaled_font(aContext->GetCairo(), mScaledFont);
     return PR_TRUE;
-}
-
-gfxFont::RunMetrics
-gfxMacFont::Measure(gfxTextRun *aTextRun,
-                    PRUint32 aStart, PRUint32 aEnd,
-                    BoundingBoxType aBoundingBoxType,
-                    gfxContext *aRefContext,
-                    Spacing *aSpacing)
-{
-    gfxFont::RunMetrics metrics =
-        gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing);
-
-    // if aBoundingBoxType is not TIGHT_HINTED_OUTLINE_EXTENTS then we need to add
-    // a pixel column each side of the bounding box in case of antialiasing "bleed"
-    if (aBoundingBoxType != TIGHT_HINTED_OUTLINE_EXTENTS &&
-        metrics.mBoundingBox.width > 0) {
-        metrics.mBoundingBox.x -= aTextRun->GetAppUnitsPerDevUnit();
-        metrics.mBoundingBox.width += aTextRun->GetAppUnitsPerDevUnit() * 2;
-    }
-
-    return metrics;
 }
 
 void
@@ -244,7 +224,7 @@ gfxMacFont::InitMetrics()
         return;
     }
 
-    mAdjustedSize = NS_MAX(mStyle.size, 1.0);
+    mAdjustedSize = PR_MAX(mStyle.size, 1.0f);
     mFUnitsConvFactor = mAdjustedSize / upem;
 
     // For CFF fonts, when scaling values read from CGFont* APIs, we need to
@@ -318,10 +298,8 @@ gfxMacFont::InitMetrics()
             mMetrics.aveCharWidth = mMetrics.maxAdvance;
         }
     }
-    if (IsSyntheticBold()) {
-        mMetrics.aveCharWidth += GetSyntheticBoldOffset();
-        mMetrics.maxAdvance += GetSyntheticBoldOffset();
-    }
+    mMetrics.aveCharWidth += mSyntheticBoldOffset;
+    mMetrics.maxAdvance += mSyntheticBoldOffset;
 
     mMetrics.spaceWidth = GetCharWidth(cmap, ' ', &glyphID, cgConvFactor);
     if (glyphID == 0) {

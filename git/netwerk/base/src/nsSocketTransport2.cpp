@@ -60,6 +60,7 @@
 #include "prerr.h"
 
 #include "nsIServiceManager.h"
+#include "nsIProxyObjectManager.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
 #include "nsISSLSocketControl.h"
@@ -941,8 +942,6 @@ nsSocketTransport::ResolveHost()
     PRUint32 dnsFlags = 0;
     if (mConnectionFlags & nsSocketTransport::BYPASS_CACHE)
         dnsFlags = nsIDNSService::RESOLVE_BYPASS_CACHE;
-    if (mConnectionFlags & nsSocketTransport::DISABLE_IPV6)
-        dnsFlags |= nsIDNSService::RESOLVE_DISABLE_IPV6;
 
     SendStatus(STATUS_RESOLVING);
     rv = dns->AsyncResolve(SocketHost(), dnsFlags, this, nsnull,
@@ -1272,8 +1271,6 @@ nsSocketTransport::RecoverFromError()
 
     // try next ip address only if past the resolver stage...
     if (mState == STATE_CONNECTING && mDNSRecord) {
-        mDNSRecord->ReportUnusable(SocketPort());
-        
         nsresult rv = mDNSRecord->GetNextAddr(SocketPort(), &mNetAddr);
         if (NS_SUCCEEDED(rv)) {
             SOCKET_LOG(("  trying again with next ip address\n"));
@@ -1933,7 +1930,7 @@ nsSocketTransport::SetTimeout(PRUint32 type, PRUint32 value)
 {
     NS_ENSURE_ARG_MAX(type, nsISocketTransport::TIMEOUT_READ_WRITE);
     // truncate overly large timeout values.
-    mTimeouts[type] = (PRUint16) NS_MIN(value, PR_UINT16_MAX);
+    mTimeouts[type] = (PRUint16) PR_MIN(value, PR_UINT16_MAX);
     PostEvent(MSG_TIMEOUT_CHANGED);
     return NS_OK;
 }
@@ -2065,7 +2062,7 @@ DumpBytesToFile(const char *path, const char *header, const char *buf, PRInt32 n
     while (n) {
         p = (const unsigned char *) buf;
 
-        PRInt32 i, row_max = NS_MIN(16, n);
+        PRInt32 i, row_max = PR_MIN(16, n);
 
         for (i = 0; i < row_max; ++i)
             fprintf(fp, "%02x  ", *p++);

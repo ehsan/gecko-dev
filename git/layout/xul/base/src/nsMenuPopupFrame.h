@@ -208,7 +208,7 @@ public:
   nsresult CreateWidgetForView(nsIView* aView);
   PRUint8 GetShadowStyle();
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   virtual PRBool IsLeaf() const;
@@ -239,8 +239,6 @@ public:
   nsPopupType PopupType() const { return mPopupType; }
   PRBool IsMenu() { return mPopupType == ePopupTypeMenu; }
   PRBool IsOpen() { return mPopupState == ePopupOpen || mPopupState == ePopupOpenAndVisible; }
-
-  PRBool IsDragPopup() { return mIsDragPopup; }
 
   // returns the parent menupopup, if any
   nsMenuFrame* GetParentMenu() {
@@ -347,9 +345,6 @@ public:
   // Return the screen coordinates of the popup, or (-1, -1) if anchored.
   nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
 protected:
 
   // returns the popup's level.
@@ -440,8 +435,6 @@ protected:
   // popup alignment relative to the anchor node
   PRInt8 mPopupAlignment;
   PRInt8 mPopupAnchor;
-  // One of nsIPopupBoxObject::ROLLUP_DEFAULT/ROLLUP_CONSUME/ROLLUP_NO_CONSUME
-  PRInt8 mConsumeRollupEvent;
   PRPackedBool mFlipBoth; // flip in both directions
 
   PRPackedBool mIsOpenChanged; // true if the open state changed since the last layout
@@ -452,9 +445,9 @@ protected:
 
   PRPackedBool mMenuCanOverlapOSBar;    // can we appear over the taskbar/menubar?
   PRPackedBool mShouldAutoPosition; // Should SetPopupPosition be allowed to auto position popup?
+  PRPackedBool mConsumeRollupEvent; // Should the rollup event be consumed?
   PRPackedBool mInContentShell; // True if the popup is in a content shell
   PRPackedBool mIsMenuLocked; // Should events inside this menu be ignored?
-  PRPackedBool mIsDragPopup; // True if this is a popup used for drag feedback
 
   // the flip modes that were used when the popup was opened
   PRPackedBool mHFlip;

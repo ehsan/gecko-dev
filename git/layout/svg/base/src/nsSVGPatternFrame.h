@@ -39,9 +39,9 @@
 #ifndef __NS_SVGPATTERNFRAME_H__
 #define __NS_SVGPATTERNFRAME_H__
 
+#include "nsIDOMSVGMatrix.h"
 #include "nsSVGPaintServerFrame.h"
 #include "gfxMatrix.h"
-#include "nsIDOMSVGAnimTransformList.h"
 
 class nsIFrame;
 class nsSVGLength2;
@@ -51,7 +51,6 @@ class gfxASurface;
 
 namespace mozilla {
 class SVGAnimatedPreserveAspectRatio;
-class SVGAnimatedTransformList;
 } // namespace mozilla
 
 typedef nsSVGPaintServerFrame  nsSVGPatternFrameBase;
@@ -121,8 +120,7 @@ protected:
   {
     return GetEnumValue(aIndex, mContent);
   }
-  mozilla::SVGAnimatedTransformList* GetPatternTransformList(
-      nsIContent* aDefault);
+  nsIDOMSVGAnimatedTransformList* GetPatternTransformList(nsIContent* aDefault);
   gfxMatrix GetPatternTransform();
   const nsSVGViewBox &GetViewBox(nsIContent *aDefault);
   const nsSVGViewBox &GetViewBox() { return GetViewBox(mContent); }
@@ -163,7 +161,7 @@ private:
   // referencing our pattern.  This must be temporary because different
   // referencing frames will all reference this one frame
   nsSVGGeometryFrame               *mSource;
-  nsAutoPtr<gfxMatrix>              mCTM;
+  nsCOMPtr<nsIDOMSVGMatrix>         mCTM;
 
 protected:
   // This flag is used to detect loops in xlink:href processing

@@ -41,8 +41,6 @@ var gExtractedPath = null;    //used to cache file path for extracting files fro
  *
  *            forward: if true, the browser will execute goForward()
  *
- *             reload: if true, the browser will execute reload()
- *
  *  eventsToListenFor: an array containing one or more of the following event  
  *                     types to listen for:  "pageshow", "pagehide", "onload",
  *                     "onunload".  If this property is undefined, only a 
@@ -326,21 +324,8 @@ function finish() {
 
   // Close the test window and signal the framework that the test is done.
   let opener = window.opener;
-  let SimpleTest = opener.wrappedJSObject.SimpleTest;
-
-  // Wait for the window to be closed before finishing the test
-  let ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-	             .getService(Components.interfaces.nsIWindowWatcher);
-  ww.registerNotification(function(subject, topic, data) {
-    if (topic == "domwindowclosed") {
-      ww.unregisterNotification(arguments.callee);
-      SimpleTest.waitForFocus(function() {
-        SimpleTest.finish();
-      }, opener);
-    }
-  });
-
   window.close();
+  opener.wrappedJSObject.SimpleTest.finish();
 }
 
 /**

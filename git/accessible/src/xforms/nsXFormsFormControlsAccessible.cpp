@@ -41,8 +41,6 @@
 #include "States.h"
 #include "nsTextEquivUtils.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsXFormsLabelAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +68,7 @@ void
 nsXFormsLabelAccessible::Description(nsString& aDescription)
 {
   nsTextEquivUtils::
-    GetTextEquivFromIDRefs(this, nsGkAtoms::aria_describedby,
+    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
                            aDescription);
 }
 
@@ -115,10 +113,13 @@ nsXFormsTriggerAccessible::GetValue(nsAString& aValue)
   return NS_OK;
 }
 
-PRUint8
-nsXFormsTriggerAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsTriggerAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -160,10 +161,13 @@ nsXFormsInputAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_ENTRY;
 }
 
-PRUint8
-nsXFormsInputAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsInputAccessible::GetNumActions(PRUint8* aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -219,10 +223,13 @@ nsXFormsInputBooleanAccessible::NativeState()
   return state;
 }
 
-PRUint8
-nsXFormsInputBooleanAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsInputBooleanAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -495,7 +502,7 @@ nsXFormsItemCheckgroupAccessible::NativeState()
 {
   PRUint64 state = nsXFormsSelectableItemAccessible::NativeState();
 
-  if (IsSelected())
+  if (IsItemSelected())
     state |= states::CHECKED;
 
   return state;
@@ -507,7 +514,7 @@ nsXFormsItemCheckgroupAccessible::GetActionName(PRUint8 aIndex, nsAString& aName
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
 
-  if (IsSelected())
+  if (IsItemSelected())
     aName.AssignLiteral("uncheck");
   else
     aName.AssignLiteral("check");
@@ -537,7 +544,7 @@ nsXFormsItemRadiogroupAccessible::NativeState()
 {
   PRUint64 state = nsXFormsSelectableItemAccessible::NativeState();
 
-  if (IsSelected())
+  if (IsItemSelected())
     state |= states::CHECKED;
 
   return state;
@@ -620,7 +627,7 @@ nsXFormsItemComboboxAccessible::NativeState()
     return state;
 
   state |= states::SELECTABLE;
-  if (IsSelected())
+  if (IsItemSelected())
     state |= states::SELECTED;
 
   return state;

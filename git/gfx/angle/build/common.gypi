@@ -4,7 +4,7 @@
 
 {
   'variables': {
-    'component%': 'static_library',
+    'library%': 'shared_library',
   },
   'target_defaults': {
     'default_configuration': 'Debug',
@@ -81,11 +81,6 @@
         },
       },  # Release
     },  # configurations
-    'conditions': [
-      ['component=="shared_library"', {
-        'defines': ['COMPONENT_BUILD'],
-      }],
-    ],
   },  # target_defaults
   'conditions': [
     ['OS=="win"', {

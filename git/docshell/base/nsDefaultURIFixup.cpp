@@ -44,6 +44,8 @@
 #include "nsEscape.h"
 #include "nsCRT.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsIPlatformCharset.h"
 #include "nsILocalFile.h"
 
@@ -53,9 +55,6 @@
 
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsDefaultURIFixup, nsIURIFixup)
@@ -63,6 +62,9 @@ NS_IMPL_ISUPPORTS1(nsDefaultURIFixup, nsIURIFixup)
 nsDefaultURIFixup::nsDefaultURIFixup()
 {
   /* member initializers and constructor code */
+
+  // Try and get the pref service
+  mPrefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
 }
 
 
@@ -132,10 +134,13 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
     }
 
     // hide user:pass unless overridden by pref
-    if (Preferences::GetBool("browser.fixup.hide_user_pass", PR_TRUE))
+    PRBool hideUserPass = PR_TRUE;
+    if (mPrefBranch)
     {
-        uri->SetUserPass(EmptyCString());
+        mPrefBranch->GetBoolPref("browser.fixup.hide_user_pass", &hideUserPass);
     }
+    if (hideUserPass)
+        uri->SetUserPass(EmptyCString());
 
     // return the fixed-up URI
     *aReturn = uri;
@@ -236,7 +241,6 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
     PRBool bAsciiURI = IsASCII(uriString);
     PRBool bUseNonDefaultCharsetForURI =
                         !bAsciiURI &&
-                        !(aFixupFlags & FIXUP_FLAG_USE_UTF8) &&
                         (scheme.IsEmpty() ||
                          scheme.LowerCaseEqualsLiteral("http") ||
                          scheme.LowerCaseEqualsLiteral("https") ||
@@ -270,8 +274,10 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
     // Test whether keywords need to be fixed up
     PRBool fixupKeywords = PR_FALSE;
     if (aFixupFlags & FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP) {
-        nsresult rv = Preferences::GetBool("keyword.enabled", &fixupKeywords);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+        if (mPrefBranch)
+        {
+            NS_ENSURE_SUCCESS(mPrefBranch->GetBoolPref("keyword.enabled", &fixupKeywords), NS_ERROR_FAILURE);
+        }
         if (fixupKeywords)
         {
             KeywordURIFixup(uriString, aURI);
@@ -323,7 +329,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
             uriString.Assign(NS_LITERAL_CSTRING("http://") + uriString);
 
         // For ftp & http, we want to use system charset.
-        if (!bAsciiURI && !(aFixupFlags & FIXUP_FLAG_USE_UTF8))
+        if (!bAsciiURI)
           bUseNonDefaultCharsetForURI = PR_TRUE;
     } // end if checkprotocol
 
@@ -352,7 +358,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                                               nsIURI **aURI)
 {
     *aURI = nsnull;
-    NS_ENSURE_STATE(Preferences::GetRootBranch());
+    NS_ENSURE_STATE(mPrefBranch);
 
     // Strip leading "?" and leading/trailing spaces from aKeyword
     nsCAutoString keyword(aKeyword);
@@ -361,10 +367,19 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
     }
     keyword.Trim(" ");
 
-    nsAdoptingCString url = Preferences::GetLocalizedCString("keyword.URL");
-    if (!url) {
+    nsXPIDLCString url;
+    nsCOMPtr<nsIPrefLocalizedString> keywordURL;
+    mPrefBranch->GetComplexValue("keyword.URL", 
+                                 NS_GET_IID(nsIPrefLocalizedString),
+                                 getter_AddRefs(keywordURL));
+
+    if (keywordURL) {
+        nsXPIDLString wurl;
+        keywordURL->GetData(getter_Copies(wurl));
+        CopyUTF16toUTF8(wurl, url);
+    } else {
         // Fall back to a non-localized pref, for backwards compat
-        url = Preferences::GetCString("keyword.URL");
+        mPrefBranch->GetCharPref("keyword.URL", getter_Copies(url));
     }
 
     // If the pref is set and non-empty, use it.
@@ -426,11 +441,13 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
 
 PRBool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
 {
-    if (!Preferences::GetRootBranch())
+    if (!mPrefBranch)
     {
         return PR_FALSE;
     }
-    if (!Preferences::GetBool("browser.fixup.alternate.enabled", PR_TRUE))
+    PRBool makeAlternate = PR_TRUE;
+    mPrefBranch->GetBoolPref("browser.fixup.alternate.enabled", &makeAlternate);
+    if (!makeAlternate)
     {
         return PR_FALSE;
     }
@@ -466,21 +483,23 @@ PRBool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
     }
 
 
+    nsresult rv;
+
     // Get the prefix and suffix to stick onto the new hostname. By default these
     // are www. & .com but they could be any other value, e.g. www. & .org
 
     nsCAutoString prefix("www.");
-    nsAdoptingCString prefPrefix =
-        Preferences::GetCString("browser.fixup.alternate.prefix");
-    if (prefPrefix)
+    nsXPIDLCString prefPrefix;
+    rv = mPrefBranch->GetCharPref("browser.fixup.alternate.prefix", getter_Copies(prefPrefix));
+    if (NS_SUCCEEDED(rv))
     {
         prefix.Assign(prefPrefix);
     }
 
     nsCAutoString suffix(".com");
-    nsAdoptingCString prefSuffix =
-        Preferences::GetCString("browser.fixup.alternate.suffix");
-    if (prefSuffix)
+    nsXPIDLCString prefSuffix;
+    rv = mPrefBranch->GetCharPref("browser.fixup.alternate.suffix", getter_Copies(prefSuffix));
+    if (NS_SUCCEEDED(rv))
     {
         suffix.Assign(prefSuffix);
     }

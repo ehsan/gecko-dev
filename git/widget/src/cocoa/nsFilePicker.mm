@@ -53,11 +53,10 @@
 #include "nsIURL.h"
 #include "nsArrayEnumerator.h"
 #include "nsIStringBundle.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsCocoaUtils.h"
 #include "nsToolkit.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 const float kAccessoryViewPadding = 5;
 const int   kSaveTypeControlTag = 1;
@@ -92,8 +91,11 @@ static void SetShowHiddenFileState(NSSavePanel* panel)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   PRBool show = PR_FALSE;
-  if (NS_SUCCEEDED(Preferences::GetBool(kShowHiddenFilesPref, &show))) {
-    gCallSecretHiddenFileAPI = PR_TRUE;
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    nsresult rv = prefs->GetBoolPref(kShowHiddenFilesPref, &show);
+    if (NS_SUCCEEDED(rv))
+      gCallSecretHiddenFileAPI = PR_TRUE;
   }
 
   if (gCallSecretHiddenFileAPI) {
@@ -393,22 +395,16 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsC
   
   if (result == NSFileHandlingPanelCancelButton)
     return retVal;
-
-  // Converts data from a NSArray of NSURL to the returned format.
-  // We should be careful to not call [thePanel URLs] more than once given that
-  // it creates a new array each time.
-  // We are using Fast Enumeration, thus the NSURL array is created once then
-  // iterated.
-  for (NSURL* url in [thePanel URLs]) {
-    if (!url) {
-      continue;
-    }
-
-    nsCOMPtr<nsILocalFile> localFile;
-    NS_NewLocalFile(EmptyString(), PR_TRUE, getter_AddRefs(localFile));
-    nsCOMPtr<nsILocalFileMac> macLocalFile = do_QueryInterface(localFile);
-    if (macLocalFile && NS_SUCCEEDED(macLocalFile->InitWithCFURL((CFURLRef)url))) {
-      outFiles.AppendObject(localFile);
+  
+  // append each chosen file to our list
+  for (unsigned int i = 0; i < [[thePanel URLs] count]; i++) {
+    NSURL *theURL = [[thePanel URLs] objectAtIndex:i];
+    if (theURL) {
+      nsCOMPtr<nsILocalFile> localFile;
+      NS_NewLocalFile(EmptyString(), PR_TRUE, getter_AddRefs(localFile));
+      nsCOMPtr<nsILocalFileMac> macLocalFile = do_QueryInterface(localFile);
+      if (macLocalFile && NS_SUCCEEDED(macLocalFile->InitWithCFURL((CFURLRef)theURL)))
+        outFiles.AppendObject(localFile);
     }
   }
 

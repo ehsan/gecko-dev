@@ -1,6 +1,5 @@
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines/history.js");
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 
 const TIMESTAMP1 = (Date.now() - 103406528) * 1000;
@@ -35,7 +34,7 @@ function onNextTitleChanged(callback) {
     onPageChanged: function onPageChanged() {},
     onTitleChanged: function onTitleChanged() {
       PlacesUtils.history.removeObserver(this);
-      Utils.nextTick(callback);
+      Utils.delay(callback, 0, this);
     },
     onVisit: function onVisit() {},
     onDeleteVisits: function onDeleteVisits() {},
@@ -78,14 +77,14 @@ function run_test() {
 
 add_test(function test_store() {
   _("Verify that we've got an empty store to work with.");
-  do_check_empty(store.getAllIDs());
+  do_check_eq([id for (id in store.getAllIDs())].length, 0);
 
   _("Let's create an entry in the database.");
   fxuri = Utils.makeURI("http://getfirefox.com/");
    PlacesUtils.history.addPageWithDetails(fxuri, "Get Firefox!", TIMESTAMP1);
 
   _("Verify that the entry exists.");
-  let ids = Object.keys(store.getAllIDs());
+  let ids = [id for (id in store.getAllIDs())];
   do_check_eq(ids.length, 1);
   fxguid = ids[0];
   do_check_true(store.itemExists(fxguid));
@@ -127,7 +126,7 @@ add_test(function test_store_create() {
   tbguid = Utils.makeGUID();
   tburi = Utils.makeURI("http://getthunderbird.com");
   onNextTitleChanged(ensureThrows(function() {
-    do_check_attribute_count(store.getAllIDs(), 2);
+    do_check_eq([id for (id in store.getAllIDs())].length, 2);
     let queryres = queryHistoryVisits(tburi);
     do_check_eq(queryres.length, 1);
     do_check_eq(queryres[0].time, TIMESTAMP3);
@@ -154,7 +153,7 @@ add_test(function test_null_title() {
      visits: [{date: TIMESTAMP3,
                type: Ci.nsINavHistoryService.TRANSITION_TYPED}]}
   ]);
-  do_check_attribute_count(store.getAllIDs(), 3);
+  do_check_eq([id for (id in store.getAllIDs())].length, 3);
   let queryres = queryHistoryVisits(resuri);
   do_check_eq(queryres.length, 1);
   do_check_eq(queryres[0].time, TIMESTAMP3);
@@ -167,9 +166,8 @@ add_test(function test_invalid_records() {
     + "(url, title, rev_host, visit_count, last_visit_date) "
     + "VALUES ('invalid-uri', 'Invalid URI', '.', 1, " + TIMESTAMP3 + ")";
   let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(query);
-  let result = Async.querySpinningly(stmt);
-  stmt.finalize();
-  do_check_attribute_count(store.getAllIDs(), 4);
+  let result = Utils.queryAsync(stmt);    
+  do_check_eq([id for (id in store.getAllIDs())].length, 4);
 
   _("Make sure we report records with invalid URIs.");
   let invalid_uri_guid = Utils.makeGUID();
@@ -256,7 +254,7 @@ add_test(function test_remove() {
 
   _("Make sure wipe works.");
   store.wipe();
-  do_check_empty(store.getAllIDs());
+  do_check_eq([id for (id in store.getAllIDs())].length, 0);
   queryres = queryHistoryVisits(fxuri);
   do_check_eq(queryres.length, 0);
   queryres = queryHistoryVisits(tburi);

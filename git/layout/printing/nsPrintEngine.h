@@ -41,7 +41,6 @@
 
 #include "nsPrintObject.h"
 #include "nsPrintData.h"
-#include "nsFrameList.h"
 
 // Interfaces
 #include "nsIDocument.h"
@@ -240,7 +239,7 @@ protected:
 
   static nsresult FindSelectionBoundsWithList(nsPresContext* aPresContext,
                                               nsRenderingContext& aRC,
-                                              nsFrameList::Enumerator& aChildFrames,
+                                              nsIAtom*        aList,
                                               nsIFrame *      aParentFrame,
                                               nsRect&         aRect,
                                               nsIFrame *&     aStartFrame,
@@ -258,8 +257,8 @@ protected:
                                       nsRect&         aEndRect);
 
   static nsresult GetPageRangeForSelection(nsIPresShell *        aPresShell,
-                                           nsPresContext*        aPresContext,
-                                           nsRenderingContext&   aRC,
+                                           nsPresContext*       aPresContext,
+                                           nsRenderingContext&  aRC,
                                            nsISelection*         aSelection,
                                            nsIPageSequenceFrame* aPageSeqFrame,
                                            nsIFrame**            aStartFrame,

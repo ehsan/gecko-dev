@@ -55,6 +55,8 @@
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
 #include "nsXMLDocument.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsXBLService.h"
 #include "nsXBLBinding.h"
 #include "nsXBLInsertionPoint.h"
@@ -72,7 +74,6 @@
 
 #include "nsIStyleRuleProcessor.h"
 #include "nsXBLResourceLoader.h"
-#include "mozilla/dom/Element.h"
 
 // Helper Classes =====================================================================
 
@@ -328,7 +329,7 @@ PRBool nsXBLPrototypeBinding::CompareBindingURI(nsIURI* aURI) const
   return equal;
 }
 
-static PRBool
+static PRIntn
 TraverseInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback &cb = 
@@ -814,9 +815,10 @@ nsXBLPrototypeBinding::ImplementsInterface(REFNSIID aIID) const
 nsIContent*
 nsXBLPrototypeBinding::GetImmediateChild(nsIAtom* aTag)
 {
-  for (nsIContent* child = mBinding->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 childCount = mBinding->GetChildCount();
+
+  for (PRUint32 i = 0; i < childCount; i++) {
+    nsIContent* child = mBinding->GetChildAt(i);
     if (child->NodeInfo()->Equals(aTag, kNameSpaceID_XBL)) {
       return child;
     }
@@ -1179,10 +1181,9 @@ nsXBLPrototypeBinding::ConstructAttributeTable(nsIContent* aElement)
   }
 
   // Recur into our children.
-  for (nsIContent* child = aElement->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    ConstructAttributeTable(child);
+  PRUint32 childCount = aElement->GetChildCount();
+  for (PRUint32 i = 0; i < childCount; i++) {
+    ConstructAttributeTable(aElement->GetChildAt(i));
   }
 }
 
@@ -1213,7 +1214,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
   PRInt32 i;
   for (i = 0; i < count; i++) {
     nsIContent* child = childrenElements[i];
-    nsCOMPtr<nsIContent> parent = child->GetParent(); 
+    nsIContent* parent = child->GetParent(); 
 
     // Create an XBL insertion point entry.
     nsXBLInsertionPointEntry* xblIns = nsXBLInsertionPointEntry::Create(parent);
@@ -1362,9 +1363,10 @@ nsXBLPrototypeBinding::GetNestedChildren(nsIAtom* aTag, PRInt32 aNamespace,
                                          nsIContent* aContent,
                                          nsCOMArray<nsIContent> & aList)
 {
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 childCount = aContent->GetChildCount();
+
+  for (PRUint32 i = 0; i < childCount; i++) {
+    nsIContent *child = aContent->GetChildAt(i);
 
     if (child->NodeInfo()->Equals(aTag, aNamespace)) {
       aList.AppendObject(child);

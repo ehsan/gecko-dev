@@ -120,16 +120,6 @@ nsresult nsPartChannel::SendOnStopRequest(nsISupports* aContext,
     return listener->OnStopRequest(this, aContext, aStatus);
 }
 
-void nsPartChannel::SetContentDisposition(const nsACString& aContentDispositionHeader)
-{
-    mContentDispositionHeader = aContentDispositionHeader;
-    nsCOMPtr<nsIURI> uri;
-    GetURI(getter_AddRefs(uri));
-    NS_GetFilenameFromDisposition(mContentDispositionFilename,
-                                  mContentDispositionHeader, uri);
-    mContentDisposition = NS_GetContentDispositionFromHeader(mContentDispositionHeader, this);
-}
-
 //
 // nsISupports implementation...
 //
@@ -347,32 +337,16 @@ nsPartChannel::SetContentLength(PRInt32 aContentLength)
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentDisposition(PRUint32 *aContentDisposition)
+nsPartChannel::GetContentDisposition(nsACString &aContentDisposition)
 {
-    if (mContentDispositionHeader.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    *aContentDisposition = mContentDisposition;
+    aContentDisposition = mContentDisposition;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
+nsPartChannel::SetContentDisposition(const nsACString &aContentDisposition)
 {
-    if (mContentDispositionFilename.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    aContentDispositionFilename = mContentDispositionFilename;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPartChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
-{
-    if (mContentDispositionHeader.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    aContentDispositionHeader = mContentDispositionHeader;
+    mContentDisposition = aContentDisposition;
     return NS_OK;
 }
 
@@ -485,8 +459,6 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
     // fill buffer
     {
         bufLen = count + mBufLen;
-        NS_ENSURE_TRUE((bufLen >= count) && (bufLen >= mBufLen),
-                       NS_ERROR_FAILURE);
         buffer = (char *) malloc(bufLen);
         if (!buffer)
             return NS_ERROR_OUT_OF_MEMORY;
@@ -634,7 +606,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         // have enough info to start a part, go ahead and buffer
         // enough to collect a boundary token.
         if (!mPartChannel || !(cursor[bufLen-1] == nsCRT::LF) )
-            bufAmt = NS_MIN(mTokenLen - 1, bufLen);
+            bufAmt = PR_MIN(mTokenLen - 1, bufLen);
     }
 
     if (bufAmt) {
@@ -827,7 +799,8 @@ nsMultiMixedConv::SendStart(nsIChannel *aChannel) {
     rv = mPartChannel->SetContentLength(mContentLength); // XXX Truncates 64-bit!
     if (NS_FAILED(rv)) return rv;
 
-    mPartChannel->SetContentDisposition(mContentDisposition);
+    rv = mPartChannel->SetContentDisposition(mContentDisposition);
+    if (NS_FAILED(rv)) return rv;
 
     nsLoadFlags loadFlags = 0;
     mPartChannel->GetLoadFlags(&loadFlags);

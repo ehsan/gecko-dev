@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "txExecutionState.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txSingleNodeContext.h"
 #include "txXSLTFunctions.h"
 #include "nsReadableUtils.h"
@@ -142,7 +142,7 @@ txKeyFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 nsresult
 txKeyFunctionCall::getNameAtom(nsIAtom** aAtom)
 {
-    *aAtom = nsGkAtoms::key;
+    *aAtom = txXSLTAtoms::key;
     NS_ADDREF(*aAtom);
     return NS_OK;
 }

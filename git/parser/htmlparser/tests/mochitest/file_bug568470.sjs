@@ -1,5 +1,3 @@
-var timer; // Place timer in global scope to avoid it getting GC'ed prematurely
-
 function handleRequest(request, response)
 {
   response.setHeader("Cache-Control", "no-cache", false);
@@ -12,7 +10,7 @@ function handleRequest(request, response)
   response.write("</div>");
   response.bodyOutputStream.flush();
   response.processAsync();
-  timer = Components.classes["@mozilla.org/timer;1"]
+  var timer = Components.classes["@mozilla.org/timer;1"]
     .createInstance(Components.interfaces.nsITimer);
   timer.initWithCallback(function() {
       response.finish();

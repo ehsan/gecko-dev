@@ -49,7 +49,6 @@
 #include "ImageLayers.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Mutex.h"
-#include "nsIMemoryReporter.h"
 
 class nsHTMLMediaElement;
 class nsMediaStream;
@@ -59,12 +58,26 @@ class nsTimeRanges;
 // The size to use for audio data frames in MozAudioAvailable events.
 // This value is per channel, and is chosen to give ~43 fps of events,
 // for example, 44100 with 2 channels, 2*1024 = 2048.
-static const PRUint32 FRAMEBUFFER_LENGTH_PER_CHANNEL = 1024;
+#define FRAMEBUFFER_LENGTH_PER_CHANNEL 1024
 
 // The total size of the framebuffer used for MozAudioAvailable events
 // has to be within the following range.
-static const PRUint32 FRAMEBUFFER_LENGTH_MIN = 512;
-static const PRUint32 FRAMEBUFFER_LENGTH_MAX = 16384;
+#define FRAMEBUFFER_LENGTH_MIN 512
+#define FRAMEBUFFER_LENGTH_MAX 16384
+
+// Shuts down a thread asynchronously.
+class ShutdownThreadEvent : public nsRunnable 
+{
+public:
+  ShutdownThreadEvent(nsIThread* aThread) : mThread(aThread) {}
+  ~ShutdownThreadEvent() {}
+  NS_IMETHOD Run() {
+    mThread->Shutdown();
+    return NS_OK;
+  }
+private:
+  nsCOMPtr<nsIThread> mThread;
+};
 
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of GetImageContainer, SetVideoData and GetStatistics,
@@ -111,19 +124,6 @@ public:
 
   // Return the duration of the video in seconds.
   virtual double GetDuration() = 0;
-
-  // A media stream is assumed to be infinite if the metadata doesn't
-  // contain the duration, and range requests are not supported, and
-  // no headers give a hint of a possible duration (Content-Length,
-  // Content-Duration, and variants), and we cannot seek in the media
-  // stream to determine the duration.
-  //
-  // When the media stream ends, we can know the duration, thus the stream is
-  // no longer considered to be infinite.
-  virtual void SetInfinite(PRBool aInfinite) = 0;
-
-  // Return true if the stream is infinite (see SetInfinite).
-  virtual PRBool IsInfinite() = 0;
 
   // Pause video playback.
   virtual void Pause() = 0;
@@ -291,14 +291,7 @@ public:
   virtual void SetSeekable(PRBool aSeekable) = 0;
 
   // Return PR_TRUE if seeking is supported.
-  virtual PRBool IsSeekable() = 0;
-
-  // Return the time ranges that can be seeked into.
-  virtual nsresult GetSeekable(nsTimeRanges* aSeekable) = 0;
-
-  // Set the end time of the media resource. When playback reaches
-  // this point the media pauses. aTime is in seconds.
-  virtual void SetEndTime(double aTime) = 0;
+  virtual PRBool GetSeekable() = 0;
 
   // Invalidate the frame.
   virtual void Invalidate();
@@ -379,6 +372,7 @@ public:
   // target paint time of the next video frame to be displayed.
   // Ownership of the image is transferred to the layers subsystem.
   void SetVideoData(const gfxIntSize& aSize,
+                    float aPixelAspectRatio,
                     Image* aImage,
                     TimeStamp aTarget);
 
@@ -389,11 +383,6 @@ public:
   // Returns PR_TRUE if we can play the entire media through without stopping
   // to buffer, given the current download and playback rates.
   PRBool CanPlayThrough();
-
-  // Returns the size, in bytes, of the heap memory used by the currently
-  // queued decoded video and audio data.
-  virtual PRInt64 VideoQueueMemoryInUse() = 0;
-  virtual PRInt64 AudioQueueMemoryInUse() = 0;
 
 protected:
 
@@ -456,6 +445,9 @@ protected:
   // in the midst of being changed.
   Mutex mVideoUpdateLock;
 
+  // Pixel aspect ratio (ratio of the pixel width to pixel height)
+  float mPixelAspectRatio;
+
   // The framebuffer size to use for audioavailable events.
   PRUint32 mFrameBufferLength;
 
@@ -484,62 +476,4 @@ protected:
   PRPackedBool mShuttingDown;
 };
 
-namespace mozilla {
-class MediaMemoryReporter
-{
-  MediaMemoryReporter();
-  ~MediaMemoryReporter();
-  static MediaMemoryReporter* sUniqueInstance;
-
-  static MediaMemoryReporter* UniqueInstance() {
-    if (!sUniqueInstance) {
-      sUniqueInstance = new MediaMemoryReporter;
-    }
-    return sUniqueInstance;
-  }
-
-  typedef nsTArray<nsMediaDecoder*> DecodersArray;
-  static DecodersArray& Decoders() {
-    return UniqueInstance()->mDecoders;
-  }
-
-  DecodersArray mDecoders;
-
-  nsCOMPtr<nsIMemoryReporter> mMediaDecodedVideoMemory;
-  nsCOMPtr<nsIMemoryReporter> mMediaDecodedAudioMemory;
-
-public:
-  static void AddMediaDecoder(nsMediaDecoder* aDecoder) {
-    Decoders().AppendElement(aDecoder);
-  }
-
-  static void RemoveMediaDecoder(nsMediaDecoder* aDecoder) {
-    DecodersArray& decoders = Decoders();
-    decoders.RemoveElement(aDecoder);
-    if (decoders.IsEmpty()) {
-      delete sUniqueInstance;
-      sUniqueInstance = nsnull;
-    }
-  }
-
-  static PRInt64 GetDecodedVideoMemory() {
-    DecodersArray& decoders = Decoders();
-    PRInt64 result = 0;
-    for (size_t i = 0; i < decoders.Length(); ++i) {
-      result += decoders[i]->VideoQueueMemoryInUse();
-    }
-    return result;
-  }
-
-  static PRInt64 GetDecodedAudioMemory() {
-    DecodersArray& decoders = Decoders();
-    PRInt64 result = 0;
-    for (size_t i = 0; i < decoders.Length(); ++i) {
-      result += decoders[i]->AudioQueueMemoryInUse();
-    }
-    return result;
-  }
-};
-
-} //namespace mozilla
 #endif

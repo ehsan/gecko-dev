@@ -48,15 +48,18 @@
 #include "nsIObserver.h"
 #include "nsIXPConnect.h"
 #include "nsIJSContextStack.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsWebShellWindow.h"
 
 #include "nsIEnumerator.h"
 #include "nsCRT.h"
+#include "nsITimelineService.h"
 #include "prprf.h"    
 
 #include "nsWidgetsCID.h"
@@ -73,10 +76,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIChromeRegistry.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 // Default URL for the hidden window, can be overridden by a pref on Mac
 #define DEFAULT_HIDDENWINDOW_URL "resource://gre-resources/hiddenWindow.html"
@@ -110,6 +109,49 @@ NS_IMPL_ISUPPORTS2(nsAppShellService,
                    nsIAppShellService,
                    nsIObserver)
 
+nsresult 
+nsAppShellService::SetXPConnectSafeContext()
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIThreadJSContextStack> cxstack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDOMWindowInternal> junk;
+  JSContext *cx;
+  rv = GetHiddenWindowAndJSContext(getter_AddRefs(junk), &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return cxstack->SetSafeJSContext(cx);
+}  
+
+nsresult nsAppShellService::ClearXPConnectSafeContext()
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIThreadJSContextStack> cxstack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("XPConnect ContextStack gone before XPCOM shutdown?");
+    return rv;
+  }
+
+  nsCOMPtr<nsIDOMWindowInternal> junk;
+  JSContext *cx;
+  rv = GetHiddenWindowAndJSContext(getter_AddRefs(junk), &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext *safe_cx;
+  rv = cxstack->GetSafeJSContext(&safe_cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (cx == safe_cx)
+    rv = cxstack->SetSafeJSContext(nsnull);
+
+  return rv;
+}
+
 NS_IMETHODIMP
 nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
 {
@@ -118,8 +160,11 @@ nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
     
 #ifdef XP_MACOSX
   PRUint32    chromeMask = 0;
-  nsAdoptingCString prefVal =
-      Preferences::GetCString("browser.hiddenWindowChromeURL");
+  nsCOMPtr<nsIPrefBranch> prefBranch;
+  nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
+  nsXPIDLCString prefVal;
+  rv = prefBranch->GetCharPref("browser.hiddenWindowChromeURL", getter_Copies(prefVal));
   const char* hiddenWindowURL = prefVal.get() ? prefVal.get() : DEFAULT_HIDDENWINDOW_URL;
   mApplicationProvidedHiddenWindow = prefVal.get() ? PR_TRUE : PR_FALSE;
 #else
@@ -139,6 +184,12 @@ nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
 
   mHiddenWindow.swap(newWindow);
 
+  // Set XPConnect's fallback JSContext (used for JS Components)
+  // to the DOM JSContext for this thread, so that DOM-to-XPConnect
+  // conversions get the JSContext private magic they need to
+  // succeed.
+  SetXPConnectSafeContext();
+
   // RegisterTopLevelWindow(newWindow); -- Mac only
 
   return NS_OK;
@@ -148,6 +199,7 @@ NS_IMETHODIMP
 nsAppShellService::DestroyHiddenWindow()
 {
   if (mHiddenWindow) {
+    ClearXPConnectSafeContext();
     mHiddenWindow->Destroy();
 
     mHiddenWindow = nsnull;
@@ -155,8 +207,6 @@ nsAppShellService::DestroyHiddenWindow()
 
   return NS_OK;
 }
-
-PRTime gCreateTopLevelWindowTimestamp = 0;
 
 /*
  * Create a new top level window and display the given URL within it...
@@ -172,9 +222,6 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
 
 {
   nsresult rv;
-
-  if (!gCreateTopLevelWindowTimestamp)
-    gCreateTopLevelWindowTimestamp = PR_Now();
 
   nsWebShellWindow *newWindow = nsnull;
   rv = JustCreateTopWindow(aParent, aUrl,
@@ -408,7 +455,7 @@ nsAppShellService::GetHiddenWindow(nsIXULWindow **aWindow)
 }
 
 NS_IMETHODIMP
-nsAppShellService::GetHiddenDOMWindow(nsIDOMWindow **aWindow)
+nsAppShellService::GetHiddenDOMWindow(nsIDOMWindowInternal **aWindow)
 {
   nsresult rv;
   nsCOMPtr<nsIDocShell> docShell;
@@ -417,7 +464,7 @@ nsAppShellService::GetHiddenDOMWindow(nsIDOMWindow **aWindow)
   rv = mHiddenWindow->GetDocShell(getter_AddRefs(docShell));
   NS_ENSURE_SUCCESS(rv, rv);
   
-  nsCOMPtr<nsIDOMWindow> hiddenDOMWindow(do_GetInterface(docShell, &rv));
+  nsCOMPtr<nsIDOMWindowInternal> hiddenDOMWindow(do_GetInterface(docShell, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aWindow = hiddenDOMWindow;
@@ -426,7 +473,7 @@ nsAppShellService::GetHiddenDOMWindow(nsIDOMWindow **aWindow)
 }
 
 NS_IMETHODIMP
-nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
+nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindowInternal **aWindow,
                                                JSContext    **aJSContext)
 {
     nsresult rv = NS_OK;
@@ -435,15 +482,15 @@ nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
         *aJSContext = nsnull;
 
         if ( mHiddenWindow ) {
-            // Convert hidden window to nsIDOMWindow and extract its JSContext.
+            // Convert hidden window to nsIDOMWindowInternal and extract its JSContext.
             do {
                 // 1. Get doc for hidden window.
                 nsCOMPtr<nsIDocShell> docShell;
                 rv = mHiddenWindow->GetDocShell(getter_AddRefs(docShell));
                 if (NS_FAILED(rv)) break;
 
-                // 2. Convert that to an nsIDOMWindow.
-                nsCOMPtr<nsIDOMWindow> hiddenDOMWindow(do_GetInterface(docShell));
+                // 2. Convert that to an nsIDOMWindowInternal.
+                nsCOMPtr<nsIDOMWindowInternal> hiddenDOMWindow(do_GetInterface(docShell));
                 if(!hiddenDOMWindow) break;
 
                 // 3. Get script global object for the window.
@@ -456,7 +503,7 @@ nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
                 if (!scriptContext) { rv = NS_ERROR_FAILURE; break; }
 
                 // 5. Get JSContext from the script context.
-                JSContext *jsContext = scriptContext->GetNativeContext();
+                JSContext *jsContext = (JSContext*)scriptContext->GetNativeContext();
                 if (!jsContext) { rv = NS_ERROR_FAILURE; break; }
 
                 // Now, give results to caller.
@@ -577,6 +624,7 @@ nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
     mXPCOMShuttingDown = PR_TRUE;
     if (mHiddenWindow) {
+      ClearXPConnectSafeContext();
       mHiddenWindow->Destroy();
     }
   } else {

@@ -5,12 +5,9 @@
       android:installLocation="auto"
       android:versionCode="@ANDROID_VERSION_CODE@"
       android:versionName="@MOZ_APP_VERSION@"
-#ifdef MOZ_ANDROID_SHARED_ID
-      android:sharedUserId="@MOZ_ANDROID_SHARED_ID@"
-#endif
-      >
+      android:sharedUserId="@MOZ_ANDROID_SHARED_ID@">
     <uses-sdk android:minSdkVersion="5"
-              android:targetSdkVersion="11"/>
+              android:targetSdkVersion="5"/>
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -18,18 +15,10 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
 
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
-
     <uses-feature android:name="android.hardware.location" android:required="false"/>
     <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen"/>
 
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" />
-    <uses-feature android:name="android.hardware.camera.autofocus" />
- 
     <application android:label="@MOZ_APP_DISPLAYNAME@"
 		 android:icon="@drawable/icon"
 #if MOZILLA_OFFICIAL
@@ -95,38 +84,19 @@
 
         <activity android:name="Restarter"
                   android:process="@ANDROID_PACKAGE_NAME@Restarter"
-                  android:theme="@style/GreyTheme"
-                  android:excludeFromRecents="true">
+                  android:theme="@style/GreyTheme">
           <intent-filter>
             <action android:name="org.mozilla.gecko.restart"/>
           </intent-filter>
         </activity>
-
 #if MOZ_CRASHREPORTER
-  <activity android:name="CrashReporter"
-            android:label="@string/crash_reporter_title"
-            android:icon="@drawable/crash_reporter"
-            android:excludeFromRecents="true">
+	<activity android:name="CrashReporter"
+                  android:label="@string/crash_reporter_title"
+		  android:icon="@drawable/crash_reporter" >
           <intent-filter>
             <action android:name="org.mozilla.gecko.reportCrash" />
           </intent-filter>
 	</activity>
 #endif
-
-        <activity android:name="LauncherShortcuts"
-                  android:label="@string/launcher_shortcuts_title">
-            <!--  This intent-filter allows your shortcuts to be created in the launcher. -->
-            <intent-filter>
-                <action android:name="android.intent.action.CREATE_SHORTCUT" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-        <activity android:name="org.mozilla.gecko.VideoPlayer"
-                  android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation" 
-                  android:theme="@android:style/Theme.NoTitleBar" >
-            <intent-filter>
-                <action android:name="org.mozilla.gecko.PLAY_VIDEO" />
-            </intent-filter>
-        </activity>
     </application>
 </manifest> 

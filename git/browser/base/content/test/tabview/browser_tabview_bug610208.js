@@ -18,16 +18,12 @@ function test() {
     finish();
   }
 
-  let closeTabItemManually = function (tabItem) {
-    EventUtils.synthesizeMouseAtCenter(tabItem.container, {button: 1}, cw);
-  }
-
   let prepareTest = function (testName) {
     let originalBounds = groupItem.getChild(0).getBounds();
 
     let tabItem = groupItem.getChild(1);
     let bounds = tabItem.getBounds();
-    closeTabItemManually(tabItem);
+    tabItem.close();
 
     ok(originalBounds.equals(groupItem.getChild(0).getBounds()), testName + ': tabs did not change their size');
     ok(bounds.equals(groupItem.getChild(1).getBounds()), testName + ': third tab is now on second tab\'s previous position');
@@ -132,19 +128,15 @@ function test() {
     groupItem.setSize(250, 250, true);
     groupItem.setUserSize();
 
+    let originalBounds = groupItem.getChild(0).getBounds();
     ok(!groupItem.isStacked(), 'testRemoveWhileStacked: group is not stacked');
 
-    let originalBounds;
-    let tabItem = groupItem.getChild(0);
-
     // add new tabs to let the group stack
-    while (!groupItem.isStacked()) {
-      originalBounds = tabItem.getBounds();
-      win.gBrowser.addTab();
-    }
+    while (!groupItem.isStacked())
+      win.gBrowser.loadOneTab('about:blank', {inBackground: true});
 
     afterAllTabsLoaded(function () {
-      tabItem.close();
+      groupItem.getChild(0).close();
       ok(!groupItem.isStacked(), 'testRemoveWhileStacked: group is not stacked');
 
       let bounds = groupItem.getChild(0).getBounds();
@@ -168,13 +160,13 @@ function test() {
 
     ok(groupItem.isStacked(), 'testExpandedMode: group is stacked');
 
-    groupItem.addSubscriber('expanded', function onGroupExpanded() {
-      groupItem.removeSubscriber('expanded', onGroupExpanded);
+    groupItem.addSubscriber(groupItem, 'expanded', function () {
+      groupItem.removeSubscriber(groupItem, 'expanded');
       onExpanded();
     });
 
-    groupItem.addSubscriber('collapsed', function onGroupCollapsed() {
-      groupItem.removeSubscriber('collapsed', onGroupCollapsed);
+    groupItem.addSubscriber(groupItem, 'collapsed', function () {
+      groupItem.removeSubscriber(groupItem, 'collapsed');
       onCollapsed();
     });
 
@@ -184,7 +176,7 @@ function test() {
       let bounds = tabItem.getBounds();
 
       while (groupItem.getChildren().length > 2)
-        closeTabItemManually(groupItem.getChild(1));
+        groupItem.getChild(1).close();
 
       ok(originalBounds.equals(groupItem.getChild(0).getBounds()), 'testExpandedMode: tabs did not change their size');
 

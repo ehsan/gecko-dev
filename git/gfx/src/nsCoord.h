@@ -38,7 +38,6 @@
 #ifndef NSCOORD_H
 #define NSCOORD_H
 
-#include "nsAlgorithm.h"
 #include "nscore.h"
 #include "nsMathUtils.h"
 #include <math.h>
@@ -56,7 +55,8 @@
  */
 
 // This controls whether we're using integers or floats for coordinates. We
-// want to eventually use floats.
+// want to eventually use floats. If you change this, you need to manually
+// change the definition of nscoord in gfx/src/gfxidltypes.idl.
 //#define NS_COORD_IS_FLOAT
 
 inline float NS_IEEEPositiveInfinity() {
@@ -93,16 +93,7 @@ inline nscoord NSToCoordRound(float aValue)
 #if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__)
   return NS_lroundup30(aValue);
 #else
-  return nscoord(floorf(aValue + 0.5f));
-#endif /* XP_WIN32 && _M_IX86 && !__GNUC__ */
-}
-
-inline nscoord NSToCoordRound(double aValue)
-{
-#if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__)
-  return NS_lroundup30((float)aValue);
-#else
-  return nscoord(floor(aValue + 0.5f));
+  return nscoord(NS_floorf(aValue + 0.5f));
 #endif /* XP_WIN32 && _M_IX86 && !__GNUC__ */
 }
 
@@ -151,8 +142,8 @@ inline nscoord _nscoordSaturatingMultiply(nscoord aCoord, float aScale,
 
   float product = aCoord * aScale;
   if (requireNotNegative ? aCoord > 0 : (aCoord > 0) == (aScale > 0))
-    return NSToCoordRoundWithClamp(NS_MIN<float>(nscoord_MAX, product));
-  return NSToCoordRoundWithClamp(NS_MAX<float>(nscoord_MIN, product));
+    return NSToCoordRoundWithClamp(PR_MIN(nscoord_MAX, product));
+  return NSToCoordRoundWithClamp(PR_MAX(nscoord_MIN, product));
 #endif
 }
 
@@ -227,13 +218,13 @@ NSCoordSaturatingAdd(nscoord a, nscoord b)
                  "Doing nscoord addition with values > nscoord_MAX");
     NS_ASSERTION((PRInt64)a + (PRInt64)b > (PRInt64)nscoord_MIN,
                  "nscoord addition will reach or pass nscoord_MIN");
-    // This one's only a warning because the NS_MIN below means that
+    // This one's only a warning because the PR_MIN below means that
     // we'll handle this case correctly.
     NS_WARN_IF_FALSE((PRInt64)a + (PRInt64)b < (PRInt64)nscoord_MAX,
                      "nscoord addition capped to nscoord_MAX");
 
     // Cap the result, just in case we're dealing with numbers near nscoord_MAX
-    return NS_MIN(nscoord_MAX, a + b);
+    return PR_MIN(nscoord_MAX, a + b);
   }
 #endif
 }
@@ -286,13 +277,13 @@ NSCoordSaturatingSubtract(nscoord a, nscoord b,
                    "Doing nscoord subtraction with values > nscoord_MAX");
       NS_ASSERTION((PRInt64)a - (PRInt64)b > (PRInt64)nscoord_MIN,
                    "nscoord subtraction will reach or pass nscoord_MIN");
-      // This one's only a warning because the NS_MIN below means that
+      // This one's only a warning because the PR_MIN below means that
       // we'll handle this case correctly.
       NS_WARN_IF_FALSE((PRInt64)a - (PRInt64)b < (PRInt64)nscoord_MAX,
                        "nscoord subtraction capped to nscoord_MAX");
 
       // Cap the result, in case we're dealing with numbers near nscoord_MAX
-      return NS_MIN(nscoord_MAX, a - b);
+      return PR_MIN(nscoord_MAX, a - b);
     }
   }
 #endif
@@ -359,12 +350,7 @@ inline float NSCoordToFloat(nscoord aCoord) {
  */
 inline nscoord NSToCoordFloor(float aValue)
 {
-  return nscoord(floorf(aValue));
-}
-
-inline nscoord NSToCoordFloor(double aValue)
-{
-  return nscoord(floor(aValue));
+  return nscoord(NS_floorf(aValue));
 }
 
 inline nscoord NSToCoordFloorClamped(float aValue)
@@ -387,12 +373,7 @@ inline nscoord NSToCoordFloorClamped(float aValue)
 
 inline nscoord NSToCoordCeil(float aValue)
 {
-  return nscoord(ceilf(aValue));
-}
-
-inline nscoord NSToCoordCeil(double aValue)
-{
-  return nscoord(ceil(aValue));
+  return nscoord(NS_ceilf(aValue));
 }
 
 inline nscoord NSToCoordCeilClamped(float aValue)
@@ -413,35 +394,17 @@ inline nscoord NSToCoordCeilClamped(float aValue)
   return NSToCoordCeil(aValue);
 }
 
-inline nscoord NSToCoordCeilClamped(double aValue)
-{
-#ifndef NS_COORD_IS_FLOAT
-  // Bounds-check before converting out of double, to avoid overflow
-  NS_WARN_IF_FALSE(aValue <= nscoord_MAX,
-                   "Overflowed nscoord_MAX in conversion to nscoord");
-  if (aValue >= nscoord_MAX) {
-    return nscoord_MAX;
-  }
-  NS_WARN_IF_FALSE(aValue >= nscoord_MIN,
-                   "Overflowed nscoord_MIN in conversion to nscoord");
-  if (aValue <= nscoord_MIN) {
-    return nscoord_MIN;
-  }
-#endif
-  return NSToCoordCeil(aValue);
-}
-
 /*
  * Int Rounding Functions
  */
 inline PRInt32 NSToIntFloor(float aValue)
 {
-  return PRInt32(floorf(aValue));
+  return PRInt32(NS_floorf(aValue));
 }
 
 inline PRInt32 NSToIntCeil(float aValue)
 {
-  return PRInt32(ceilf(aValue));
+  return PRInt32(NS_ceilf(aValue));
 }
 
 inline PRInt32 NSToIntRound(float aValue)
@@ -449,19 +412,14 @@ inline PRInt32 NSToIntRound(float aValue)
   return NS_lroundf(aValue);
 }
 
-inline PRInt32 NSToIntRound(double aValue)
-{
-  return NS_lround(aValue);
-}
-
 inline PRInt32 NSToIntRoundUp(float aValue)
 {
-  return PRInt32(floorf(aValue + 0.5f));
+  return PRInt32(NS_floorf(aValue + 0.5f));
 }
 
 inline PRInt32 NSToIntRoundUp(double aValue)
 {
-  return PRInt32(floor(aValue + 0.5));
+  return PRInt32(NS_floor(aValue + 0.5));
 }
 
 /* 

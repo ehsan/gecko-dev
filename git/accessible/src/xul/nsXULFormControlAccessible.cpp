@@ -39,17 +39,17 @@
 
 #include "nsXULFormControlAccessible.h"
 
+#include "nsAccessibilityAtoms.h"
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
-#include "Relation.h"
+#include "nsRelUtils.h"
 #include "States.h"
 
 // NOTE: alphabetically ordered
 #include "nsHTMLFormControlAccessible.h"
 #include "nsXULMenuAccessible.h"
-#include "nsIAccessibleRelation.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIDOMXULButtonElement.h"
@@ -61,8 +61,6 @@
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsITextControlFrame.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULButtonAccessible
@@ -82,10 +80,13 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsXULButtonAccessible, nsAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULButtonAccessible: nsIAccessible
 
-PRUint8
-nsXULButtonAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULButtonAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -158,7 +159,7 @@ nsXULButtonAccessible::NativeState()
   if (ContainsMenu())
     state |= states::HASPOPUP;
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::_default))
+  if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::_default))
     state |= states::DEFAULT;
 
   return state;
@@ -177,14 +178,14 @@ nsXULButtonAccessible::CacheChildren()
   // XXX: no children until the button is menu button. Probably it's not
   // totally correct but in general AT wants to have leaf buttons.
   PRBool isMenu = mContent->AttrValueIs(kNameSpaceID_None,
-                                       nsGkAtoms::type,
-                                       nsGkAtoms::menu,
+                                       nsAccessibilityAtoms::type,
+                                       nsAccessibilityAtoms::menu,
                                        eCaseMatters);
 
   PRBool isMenuButton = isMenu ?
     PR_FALSE :
-    mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                          nsGkAtoms::menuButton, eCaseMatters);
+    mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                          nsAccessibilityAtoms::menuButton, eCaseMatters);
 
   if (!isMenu && !isMenuButton)
     return;
@@ -229,10 +230,10 @@ PRBool
 nsXULButtonAccessible::ContainsMenu()
 {
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::menu, &nsGkAtoms::menuButton, nsnull};
+    {&nsAccessibilityAtoms::menu, &nsAccessibilityAtoms::menuButton, nsnull};
 
   return mContent->FindAttrValueIn(kNameSpaceID_None,
-                                   nsGkAtoms::type,
+                                   nsAccessibilityAtoms::type,
                                    strings, eCaseMatters) >= 0;
 }
 
@@ -246,10 +247,10 @@ nsXULDropmarkerAccessible::
 {
 }
 
-PRUint8
-nsXULDropmarkerAccessible::ActionCount()
+NS_IMETHODIMP nsXULDropmarkerAccessible::GetNumActions(PRUint8 *aResult)
 {
-  return 1;
+  *aResult = 1;
+  return NS_OK;
 }
 
 PRBool nsXULDropmarkerAccessible::DropmarkerOpen(PRBool aToggleOpen)
@@ -317,6 +318,7 @@ nsXULDropmarkerAccessible::NativeState()
   return DropmarkerOpen(PR_FALSE) ? states::PRESSED : 0;
 }
 
+                      
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULCheckboxAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,10 +335,10 @@ nsXULCheckboxAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
-PRUint8
-nsXULCheckboxAccessible::ActionCount()
+NS_IMETHODIMP nsXULCheckboxAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 1;
+  *_retval = 1;
+  return NS_OK;
 }
 
 /**
@@ -417,41 +419,48 @@ nsresult
 nsXULGroupboxAccessible::GetNameInternal(nsAString& aName)
 {
   // XXX: we use the first related accessible only.
-  nsAccessible* label =
-    RelationByType(nsIAccessibleRelation::RELATION_LABELLED_BY).Next();
-  if (label)
+  nsCOMPtr<nsIAccessible> label =
+    nsRelUtils::GetRelatedAccessible(this, nsIAccessibleRelation::RELATION_LABELLED_BY);
+
+  if (label) {
     return label->GetName(aName);
+  }
 
   return NS_OK;
 }
 
-Relation
-nsXULGroupboxAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsAccessibleWrap::RelationByType(aType);
-  if (aType != nsIAccessibleRelation::RELATION_LABELLED_BY)
-    return rel;
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  // The label for xul:groupbox is generated from xul:label that is
-  // inside the anonymous content of the xul:caption.
-  // The xul:label has an accessible object but the xul:caption does not
-  PRInt32 childCount = GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *childAcc = GetChildAt(childIdx);
-    if (childAcc->Role() == nsIAccessibleRole::ROLE_LABEL) {
-      // Ensure that it's our label
-      Relation reverseRel =
-        childAcc->RelationByType(nsIAccessibleRelation::RELATION_LABEL_FOR);
-      nsAccessible* testGroupbox = nsnull;
-      while ((testGroupbox = reverseRel.Next()))
-        if (testGroupbox == this) {
+  if (aRelationType == nsIAccessibleRelation::RELATION_LABELLED_BY) {
+    // The label for xul:groupbox is generated from xul:label that is
+    // inside the anonymous content of the xul:caption.
+    // The xul:label has an accessible object but the xul:caption does not
+    PRInt32 childCount = GetChildCount();
+    for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+      nsAccessible *childAcc = GetChildAt(childIdx);
+      if (childAcc->Role() == nsIAccessibleRole::ROLE_LABEL) {
+        // Ensure that it's our label
+        // XXX: we'll fail if group accessible expose more than one relation
+        // targets.
+        nsCOMPtr<nsIAccessible> testGroupboxAccessible =
+          nsRelUtils::GetRelatedAccessible(childAcc,
+                                           nsIAccessibleRelation::RELATION_LABEL_FOR);
+
+        if (testGroupboxAccessible == this) {
           // The <label> points back to this groupbox
-          rel.AppendTarget(childAcc);
+          return nsRelUtils::
+            AddTarget(aRelationType, aRelation, childAcc);
         }
+      }
     }
   }
 
-  return rel;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -564,9 +573,8 @@ nsXULToolbarButtonAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
   PRInt32 setSize = 0;
   PRInt32 posInSet = 0;
 
-  nsAccessible* parent = Parent();
-  if (!parent)
-    return;
+  nsAccessible* parent(GetParent());
+  NS_ENSURE_TRUE(parent,);
 
   PRInt32 childCount = parent->GetChildCount();
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
@@ -599,9 +607,9 @@ nsXULToolbarButtonAccessible::IsSeparator(nsAccessible *aAccessible)
   if (!contentDomNode)
     return PR_FALSE;
 
-  return (contentDomNode->Tag() == nsGkAtoms::toolbarseparator) ||
-         (contentDomNode->Tag() == nsGkAtoms::toolbarspacer) ||
-         (contentDomNode->Tag() == nsGkAtoms::toolbarspring);
+  return (contentDomNode->Tag() == nsAccessibilityAtoms::toolbarseparator) ||
+         (contentDomNode->Tag() == nsAccessibilityAtoms::toolbarspacer) ||
+         (contentDomNode->Tag() == nsAccessibilityAtoms::toolbarspring);
 }
 
 
@@ -625,7 +633,8 @@ nsresult
 nsXULToolbarAccessible::GetNameInternal(nsAString& aName)
 {
   nsAutoString name;
-  if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::toolbarname, name)) {
+  if (mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::toolbarname,
+                        name)) {
     name.CompressWhitespace();
     aName = name;
   }
@@ -674,9 +683,6 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsXULTextFieldAccessible, nsAccessible, nsHyperText
 
 NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   PRUint64 state = NativeState();
 
   if (state & states::PROTECTED)    // Don't return password text!
@@ -726,8 +732,8 @@ nsXULTextFieldAccessible::NativeState()
   if (menuList) {
     // <xul:menulist droppable="false">
     if (!mContent->AttrValueIs(kNameSpaceID_None,
-                               nsGkAtoms::editable,
-                               nsGkAtoms::_true, eIgnoreCase)) {
+                               nsAccessibilityAtoms::editable,
+                               nsAccessibilityAtoms::_true, eIgnoreCase)) {
       state |= states::READONLY;
     }
   }
@@ -738,19 +744,20 @@ nsXULTextFieldAccessible::NativeState()
 PRUint32
 nsXULTextFieldAccessible::NativeRole()
 {
-  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                            nsGkAtoms::password, eIgnoreCase))
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                            nsAccessibilityAtoms::password, eIgnoreCase))
     return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
   return nsIAccessibleRole::ROLE_ENTRY;
 }
 
+
 /**
   * Only one actions available
   */
-PRUint8
-nsXULTextFieldAccessible::ActionCount()
+NS_IMETHODIMP nsXULTextFieldAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 1;
+  *_retval = 1;
+  return NS_OK;
 }
 
 /**

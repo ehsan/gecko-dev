@@ -44,6 +44,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIScriptElement.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIParser.h"
 #include "nsIRefreshURI.h"
 #include "nsPIDOMWindow.h"
@@ -51,7 +52,7 @@
 #include "nsContentCID.h"
 #include "nsNetUtil.h"
 #include "nsUnicharUtils.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txLog.h"
 #include "nsIConsoleService.h"
 #include "nsIDOMDocumentFragment.h"
@@ -343,8 +344,7 @@ txMozillaXMLOutput::endElement()
             }
         } else if (ns == kNameSpaceID_XHTML &&
                    (localName == nsGkAtoms::input ||
-                    localName == nsGkAtoms::button ||
-                    localName == nsGkAtoms::menuitem)) {
+                    localName == nsGkAtoms::button)) {
           element->DoneCreatingElement();
         }
     }
@@ -562,8 +562,7 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
 
     // Create the element
     nsCOMPtr<nsINodeInfo> ni;
-    ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID,
-                                       nsIDOMNode::ELEMENT_NODE);
+    ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     NS_NewElement(getter_AddRefs(mOpenedElement), aNsID, ni.forget(),
@@ -686,7 +685,7 @@ txMozillaXMLOutput::createTxWrapper()
             // The new documentElement should go after the document type.
             // This is needed for cases when there is no existing
             // documentElement in the document.
-            rootLocation = NS_MAX(rootLocation, j + 1);
+            rootLocation = PR_MAX(rootLocation, j + 1);
 #endif
             ++j;
         }
@@ -716,7 +715,7 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, PRBool aIsHTML)
     nsresult rv = NS_OK;
     nsIAtom *atom = aElement->Tag();
 
-    if ((atom != nsGkAtoms::tr || !aIsHTML) &&
+    if ((atom != txHTMLAtoms::tr || !aIsHTML) &&
         NS_PTR_TO_INT32(mTableStateStack.peek()) == ADDED_TBODY) {
         PRUint32 last = mCurrentNodeStack.Count() - 1;
         NS_ASSERTION(last != (PRUint32)-1, "empty stack");
@@ -726,10 +725,10 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, PRBool aIsHTML)
         mTableStateStack.pop();
     }
 
-    if (atom == nsGkAtoms::table && aIsHTML) {
+    if (atom == txHTMLAtoms::table && aIsHTML) {
         mTableState = TABLE;
     }
-    else if (atom == nsGkAtoms::tr && aIsHTML &&
+    else if (atom == txHTMLAtoms::tr && aIsHTML &&
              NS_PTR_TO_INT32(mTableStateStack.peek()) == TABLE) {
         nsCOMPtr<nsIContent> tbody;
         rv = createHTMLElement(nsGkAtoms::tbody, getter_AddRefs(tbody));
@@ -747,7 +746,7 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, PRBool aIsHTML)
 
         mCurrentNode = tbody;
     }
-    else if (atom == nsGkAtoms::head &&
+    else if (atom == txHTMLAtoms::head &&
              mOutputFormat.mMethod == eHTMLOutput) {
         // Insert META tag, according to spec, 16.2, like
         // <META http-equiv="Content-Type" content="text/html; charset=EUC-JP">
@@ -782,7 +781,7 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
     nsIAtom *atom = aElement->Tag();
 
     if (mTableState == ADDED_TBODY) {
-        NS_ASSERTION(atom == nsGkAtoms::tbody,
+        NS_ASSERTION(atom == txHTMLAtoms::tbody,
                      "Element flagged as added tbody isn't a tbody");
         PRUint32 last = mCurrentNodeStack.Count() - 1;
         NS_ASSERTION(last != (PRUint32)-1, "empty stack");
@@ -794,13 +793,13 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 
         return NS_OK;
     }
-    else if (mCreatingNewDocument && atom == nsGkAtoms::meta) {
+    else if (mCreatingNewDocument && atom == txHTMLAtoms::meta) {
         // handle HTTP-EQUIV data
         nsAutoString httpEquiv;
-        aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, httpEquiv);
+        aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::httpEquiv, httpEquiv);
         if (!httpEquiv.IsEmpty()) {
             nsAutoString value;
-            aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
+            aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::content, value);
             if (!value.IsEmpty()) {
                 ToLowerCase(httpEquiv);
                 nsCOMPtr<nsIAtom> header = do_GetAtom(httpEquiv);
@@ -816,7 +815,7 @@ void txMozillaXMLOutput::processHTTPEquiv(nsIAtom* aHeader, const nsString& aVal
 {
     // For now we only handle "refresh". There's a longer list in
     // HTMLContentSink::ProcessHeaderData
-    if (aHeader == nsGkAtoms::refresh)
+    if (aHeader == txHTMLAtoms::refresh)
         LossyCopyUTF16toASCII(aValue, mRefreshString);
 }
 
@@ -943,7 +942,7 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
             nsAutoString voidString;
             voidString.SetIsVoid(PR_TRUE);
             rv = NS_NewDOMDocumentType(getter_AddRefs(documentType),
-                                       mNodeInfoManager,
+                                       mNodeInfoManager, nsnull,
                                        doctypeName,
                                        mOutputFormat.mPublicId,
                                        mOutputFormat.mSystemId,
@@ -970,8 +969,7 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
 
     nsCOMPtr<nsINodeInfo> ni;
     ni = mNodeInfoManager->GetNodeInfo(aName, nsnull,
-                                       kNameSpaceID_XHTML,
-                                       nsIDOMNode::ELEMENT_NODE);
+                                       kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     return NS_NewHTMLElement(aResult, ni.forget(), mCreatingNewDocument ?
@@ -1081,9 +1079,8 @@ txTransformNotifier::SetOutputDocument(nsIDocument* aDocument)
 void
 txTransformNotifier::SignalTransformEnd(nsresult aResult)
 {
-    if (mInTransform ||
-        (NS_SUCCEEDED(aResult) &&
-         (mScriptElements.Count() > 0 || mPendingStylesheetCount > 0))) {
+    if (mInTransform || (NS_SUCCEEDED(aResult) &&
+        mScriptElements.Count() > 0 || mPendingStylesheetCount > 0)) {
         return;
     }
 

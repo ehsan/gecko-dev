@@ -42,7 +42,7 @@
 #include "prtypes.h"
 #include "prlog.h"
 #include "nsTArray.h"
-#include "nsString.h"
+
 #include "nsIObserver.h"
 
 #include "gfxTypes.h"
@@ -50,10 +50,6 @@
 #include "gfxColor.h"
 
 #include "qcms.h"
-
-#include "gfx2DGlue.h"
-#include "mozilla/RefPtr.h"
-
 #ifdef XP_OS2
 #undef OS2EMX_PLAIN_CHAR
 #endif
@@ -69,8 +65,7 @@ class gfxPlatformFontList;
 class gfxTextRun;
 class nsIURI;
 class nsIAtom;
-
-extern cairo_user_data_key_t kDrawTarget;
+class nsIPrefBranch;
 
 // pref lang id's for font prefs
 // !!! needs to match the list of pref font.default.xx entries listed in all.js !!!
@@ -172,18 +167,6 @@ public:
 
     virtual already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
                                                         gfxASurface::gfxImageFormat format);
-
-    virtual mozilla::RefPtr<mozilla::gfx::DrawTarget>
-      CreateDrawTargetForSurface(gfxASurface *aSurface);
-
-    virtual mozilla::RefPtr<mozilla::gfx::SourceSurface>
-      GetSourceSurfaceForSurface(mozilla::gfx::DrawTarget *aTarget, gfxASurface *aSurface);
-
-    virtual mozilla::RefPtr<mozilla::gfx::ScaledFont>
-      GetScaledFontForFont(gfxFont *aFont);
-
-    virtual already_AddRefed<gfxASurface>
-      GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
 
     /*
      * Font bits
@@ -367,7 +350,7 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
-    virtual void FontsPrefsChanged(const char *aPref);
+    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
     /**
      * Returns a 1x1 surface that can be used to create graphics contexts
@@ -387,6 +370,8 @@ protected:
     gfxPlatform();
     virtual ~gfxPlatform();
 
+    static PRBool GetBoolPref(const char *aPref, PRBool aDefault);
+
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
@@ -401,8 +386,7 @@ private:
 
     nsRefPtr<gfxASurface> mScreenReferenceSurface;
     nsTArray<PRUint32> mCJKPrefLangs;
-    nsCOMPtr<nsIObserver> mSRGBOverrideObserver;
-    nsCOMPtr<nsIObserver> mFontPrefsObserver;
+    nsCOMPtr<nsIObserver> overrideObserver;
 };
 
 #endif /* GFX_PLATFORM_H */

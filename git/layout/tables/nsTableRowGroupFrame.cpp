@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -113,7 +113,7 @@ PRInt32 nsTableRowGroupFrame::GetStartRowIndex()
 void  nsTableRowGroupFrame::AdjustRowIndices(PRInt32 aRowIndex,
                                              PRInt32 anAdjustment)
 {
-  nsIFrame* rowFrame = GetFirstPrincipalChild();
+  nsIFrame* rowFrame = GetFirstChild(nsnull);
   for ( ; rowFrame; rowFrame = rowFrame->GetNextSibling()) {
     if (NS_STYLE_DISPLAY_TABLE_ROW==rowFrame->GetStyleDisplay()->mDisplay) {
       PRInt32 index = ((nsTableRowFrame*)rowFrame)->GetRowIndex();
@@ -227,7 +227,7 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
   
   // No cursor. Traverse children the hard way and build a cursor while we're at it
   nsTableRowGroupFrame::FrameCursorData* cursor = f->SetupRowCursor();
-  kid = f->GetFirstPrincipalChild();
+  kid = f->GetFirstChild(nsnull);
   while (kid) {
     nsresult rv = f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
     if (NS_FAILED(rv)) {
@@ -1383,10 +1383,10 @@ nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 }
 
 NS_IMETHODIMP
-nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
+nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
                                    nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(!aListName, "unexpected child list");
 
   ClearRowCursor();
 
@@ -1423,11 +1423,11 @@ nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
+nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
                                    nsIFrame*       aPrevFrame,
                                    nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
@@ -1476,10 +1476,10 @@ nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableRowGroupFrame::RemoveFrame(ChildListID     aListID,
+nsTableRowGroupFrame::RemoveFrame(nsIAtom*        aListName,
                                   nsIFrame*       aOldFrame)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(!aListName, "unexpected child list");
 
   ClearRowCursor();
 
@@ -1706,16 +1706,14 @@ nsTableRowGroupFrame::GetLine(PRInt32    aLineNumber,
 }
   
 PRInt32
-nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame, PRInt32 aStartLine)
+nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame)
 {
   NS_ENSURE_ARG_POINTER(aFrame);
   
   nsTableRowFrame *rowFrame = do_QueryFrame(aFrame);
   NS_ASSERTION(rowFrame, "RowGroup contains a frame that is not a row");
 
-  PRInt32 rowIndexInGroup = rowFrame->GetRowIndex() - GetStartRowIndex();
-
-  return rowIndexInGroup >= aStartLine ? rowIndexInGroup : -1;
+  return rowFrame->GetRowIndex() - GetStartRowIndex();
 }
 
 #ifdef IBMBIDI

@@ -68,7 +68,6 @@ namespace net {
 
 class HttpChannelChild : public PHttpChannelChild
                        , public HttpBaseChannel
-                       , public HttpAsyncAborter<HttpChannelChild>
                        , public nsICacheInfoChannel
                        , public nsIProxiedChannel
                        , public nsIApplicationCacheChannel
@@ -76,6 +75,7 @@ class HttpChannelChild : public PHttpChannelChild
                        , public nsIAssociatedContentSecurity
                        , public nsIChildChannel
                        , public nsIHttpChannelChild
+                       , public ChannelEventQueue<HttpChannelChild>
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -143,7 +143,7 @@ protected:
   bool RecvOnStopRequest(const nsresult& statusCode);
   bool RecvOnProgress(const PRUint64& progress, const PRUint64& progressMax);
   bool RecvOnStatus(const nsresult& status);
-  bool RecvFailedAsyncOpen(const nsresult& status);
+  bool RecvCancelEarly(const nsresult& status);
   bool RecvRedirect1Begin(const PRUint32& newChannel,
                           const URI& newURI,
                           const PRUint32& redirectFlags,
@@ -154,11 +154,11 @@ protected:
   bool RecvDeleteSelf();
 
   bool GetAssociatedContentSecurity(nsIAssociatedContentSecurity** res = nsnull);
-  virtual void DoNotifyListenerCleanup();
 
 private:
   RequestHeaderTuples mRequestHeaders;
   nsCOMPtr<nsIChildChannel> mRedirectChannelChild;
+  nsCOMPtr<nsIURI> mRedirectOriginalURI;
   nsCOMPtr<nsISupports> mSecurityInfo;
 
   PRPackedBool mIsFromCache;
@@ -168,16 +168,12 @@ private:
 
   // If ResumeAt is called before AsyncOpen, we need to send extra data upstream
   bool mSendResumeAt;
+  // Current suspension depth for this channel object
+  PRUint32 mSuspendCount;
 
   bool mIPCOpen;
-  bool mKeptAlive;            // IPC kept open, but only for security info
-  ChannelEventQueue mEventQ;
+  bool mKeptAlive;
 
-  // true after successful AsyncOpen until OnStopRequest completes.
-  bool RemoteChannelExists() { return mIPCOpen && !mKeptAlive; }
-
-  void AssociateApplicationCache(const nsCString &groupID,
-                                 const nsCString &clientID);
   void OnStartRequest(const nsHttpResponseHead& responseHead,
                       const PRBool& useResponseHead,
                       const RequestHeaderTuples& requestHeaders,
@@ -197,8 +193,7 @@ private:
   void OnStopRequest(const nsresult& statusCode);
   void OnProgress(const PRUint64& progress, const PRUint64& progressMax);
   void OnStatus(const nsresult& status);
-  void FailedAsyncOpen(const nsresult& status);
-  void HandleAsyncAbort();
+  void OnCancel(const nsresult& status);
   void Redirect1Begin(const PRUint32& newChannelId,
                       const URI& newUri,
                       const PRUint32& redirectFlags,
@@ -206,20 +201,15 @@ private:
   void Redirect3Complete();
   void DeleteSelf();
 
-  // Called asynchronously from Resume: continues any pending calls into client.
-  void CompleteResume();
-
-  friend class AssociateApplicationCacheEvent;
   friend class StartRequestEvent;
   friend class StopRequestEvent;
   friend class TransportAndDataEvent;
   friend class ProgressEvent;
   friend class StatusEvent;
-  friend class FailedAsyncOpenEvent;
+  friend class CancelEvent;
   friend class Redirect1Event;
   friend class Redirect3Event;
   friend class DeleteSelfEvent;
-  friend class HttpAsyncAborter<HttpChannelChild>;
 };
 
 //-----------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 <head>
   <title>Plugin crashing</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 
 <body>
@@ -12,8 +13,6 @@
       SimpleTest.finish();
       return;
     }
-
-    SimpleTest.expectChildProcessCrash();
 
     var iframe = document.getElementById('iframe1');
     var p = iframe.contentDocument.getElementById('plugin1');

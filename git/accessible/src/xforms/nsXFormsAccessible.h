@@ -190,13 +190,11 @@ public:
                                    nsIWeakReference *aShell);
 
   NS_IMETHOD GetValue(nsAString& aValue);
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
-
 protected:
-  bool IsSelected();
+  PRBool IsItemSelected();
 };
 
 #endif

@@ -83,7 +83,6 @@
 #include "nsNetCID.h"
 #include "mozilla/storage.h"
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 using namespace mozilla::net;
 
@@ -1493,11 +1492,11 @@ nsCookieService::SetCookieStringCommon(nsIURI *aHostURI,
 }
 
 void
-nsCookieService::SetCookieStringInternal(nsIURI             *aHostURI,
-                                         bool                aIsForeign,
-                                         nsDependentCString &aCookieHeader,
-                                         const nsCString    &aServerTime,
-                                         PRBool              aFromHttp)
+nsCookieService::SetCookieStringInternal(nsIURI          *aHostURI,
+                                         bool             aIsForeign,
+                                         const nsCString &aCookieHeader,
+                                         const nsCString &aServerTime,
+                                         PRBool           aFromHttp) 
 {
   NS_ASSERTION(aHostURI, "null host!");
 
@@ -1550,8 +1549,9 @@ nsCookieService::SetCookieStringInternal(nsIURI             *aHostURI,
   }
 
   // process each cookie in the header
-  while (SetCookieInternal(aHostURI, baseDomain, requireHostMatch, cookieStatus,
-                           aCookieHeader, serverTime, aFromHttp)) {
+  nsDependentCString cookieHeader(aCookieHeader);
+  while (SetCookieInternal(aHostURI, baseDomain, requireHostMatch,
+                           cookieStatus, cookieHeader, serverTime, aFromHttp)) {
     // document.cookie can only set one cookie at a time
     if (!aFromHttp)
       break;
@@ -1650,8 +1650,8 @@ nsCookieService::RemoveAll()
       CancelAsyncRead(PR_TRUE);
     }
 
-    nsCOMPtr<mozIStorageAsyncStatement> stmt;
-    nsresult rv = mDefaultDBState->dbConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
+    nsCOMPtr<mozIStorageStatement> stmt;
+    nsresult rv = mDefaultDBState->dbConn->CreateStatement(NS_LITERAL_CSTRING(
       "DELETE FROM moz_cookies"), getter_AddRefs(stmt));
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<mozIStoragePendingStatement> handle;
@@ -1809,8 +1809,8 @@ nsCookieService::Read()
 {
   // Set up a statement for the read. Note that our query specifies that
   // 'baseDomain' not be NULL -- see below for why.
-  nsCOMPtr<mozIStorageAsyncStatement> stmtRead;
-  nsresult rv = mDefaultDBState->dbConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
+  nsCOMPtr<mozIStorageStatement> stmtRead;
+  nsresult rv = mDefaultDBState->dbConn->CreateStatement(NS_LITERAL_CSTRING(
     "SELECT "
       "name, "
       "value, "
@@ -1830,8 +1830,8 @@ nsCookieService::Read()
   // column. This takes care of any cookies set by browsers that don't
   // understand the 'baseDomain' column, where the database schema version
   // is from one that does. (This would occur when downgrading.)
-  nsCOMPtr<mozIStorageAsyncStatement> stmtDeleteNull;
-  rv = mDefaultDBState->dbConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
+  nsCOMPtr<mozIStorageStatement> stmtDeleteNull;
+  rv = mDefaultDBState->dbConn->CreateStatement(NS_LITERAL_CSTRING(
     "DELETE FROM moz_cookies WHERE baseDomain ISNULL"),
     getter_AddRefs(stmtDeleteNull));
   NS_ENSURE_SUCCESS(rv, RESULT_RETRY);
@@ -1946,7 +1946,7 @@ nsCookieService::CancelAsyncRead(PRBool aPurgeReadSet)
   // Cancel the pending read, kill the read listener, and empty the array
   // of data already read in on the background thread.
   mDefaultDBState->readListener->Cancel();
-  mozilla::DebugOnly<nsresult> rv = mDefaultDBState->pendingRead->Cancel();
+  nsresult rv = mDefaultDBState->pendingRead->Cancel();
   NS_ASSERT_SUCCESS(rv);
 
   mDefaultDBState->stmtReadDomain = nsnull;

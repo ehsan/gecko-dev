@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Emanuele Costa <emanuele.costa@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -267,7 +266,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         //   principal of the context.
         nsCOMPtr<nsIPrincipal> objectPrincipal;
         rv = securityManager->
-            GetObjectPrincipal(scriptContext->GetNativeContext(),
+            GetObjectPrincipal((JSContext*)scriptContext->GetNativeContext(),
                                globalJSObject,
                                getter_AddRefs(objectPrincipal));
         if (NS_FAILED(rv))
@@ -294,7 +293,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
 
         // First check to make sure it's OK to evaluate this script to
         // start with.  For example, script could be disabled.
-        JSContext *cx = scriptContext->GetNativeContext();
+        JSContext *cx = (JSContext*)scriptContext->GetNativeContext();
         JSAutoRequest ar(cx);
 
         PRBool ok;
@@ -373,7 +372,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         // lose the error), or it might be JS that then proceeds to
         // cause an error of its own (which will also make us lose
         // this error).
-        JSContext *cx = scriptContext->GetNativeContext();
+        JSContext *cx = (JSContext*)scriptContext->GetNativeContext();
         JSAutoRequest ar(cx);
         ::JS_ReportPendingException(cx);
     }
@@ -1028,24 +1027,6 @@ nsJSChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsJSChannel::GetContentDisposition(PRUint32 *aContentDisposition)
-{
-    return mStreamChannel->GetContentDisposition(aContentDisposition);
-}
-
-NS_IMETHODIMP
-nsJSChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-    return mStreamChannel->GetContentDispositionFilename(aContentDispositionFilename);
-}
-
-NS_IMETHODIMP
-nsJSChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
-{
-    return mStreamChannel->GetContentDispositionHeader(aContentDispositionHeader);
-}
-
-NS_IMETHODIMP
 nsJSChannel::GetContentLength(PRInt32 *aContentLength)
 {
     return mStreamChannel->GetContentLength(aContentLength);
@@ -1238,7 +1219,10 @@ nsJSProtocolHandler::NewURI(const nsACString &aSpec,
     // provided by standard URLs, so there is no "outer" object given to
     // CreateInstance.
 
-    nsCOMPtr<nsIURI> url = new nsJSURI(aBaseURI);
+    nsCOMPtr<nsIURI> url = do_CreateInstance(NS_SIMPLEURI_CONTRACTID, &rv);
+
+    if (NS_FAILED(rv))
+        return rv;
 
     if (!aCharset || !nsCRT::strcasecmp("UTF-8", aCharset))
       rv = url->SetSpec(aSpec);
@@ -1257,7 +1241,10 @@ nsJSProtocolHandler::NewURI(const nsACString &aSpec,
         return rv;
     }
 
-    url.forget(result);
+    *result = new nsJSURI(aBaseURI, url);
+    NS_ENSURE_TRUE(*result, NS_ERROR_OUT_OF_MEMORY);
+
+    NS_ADDREF(*result);
     return rv;
 }
 
@@ -1294,33 +1281,33 @@ nsJSProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval
 
 ////////////////////////////////////////////////////////////
 // nsJSURI implementation
-static NS_DEFINE_CID(kThisSimpleURIImplementationCID,
-                     NS_THIS_SIMPLEURI_IMPLEMENTATION_CID);
 
-
-NS_IMPL_ADDREF_INHERITED(nsJSURI, nsSimpleURI)
-NS_IMPL_RELEASE_INHERITED(nsJSURI, nsSimpleURI)
+NS_IMPL_ADDREF(nsJSURI)
+NS_IMPL_RELEASE(nsJSURI)
 
 NS_INTERFACE_MAP_BEGIN(nsJSURI)
+  NS_INTERFACE_MAP_ENTRY(nsIURI)
+  NS_INTERFACE_MAP_ENTRY(nsISerializable)
+  NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
+  NS_INTERFACE_MAP_ENTRY(nsIMutable)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIURI)
   if (aIID.Equals(kJSURICID))
       foundInterface = static_cast<nsIURI*>(this);
-  else if (aIID.Equals(kThisSimpleURIImplementationCID)) {
-      // Need to return explicitly here, because if we just set foundInterface
-      // to null the NS_INTERFACE_MAP_END_INHERITING will end up calling into
-      // nsSimplURI::QueryInterface and finding something for this CID.
-      *aInstancePtr = nsnull;
-      return NS_NOINTERFACE;
-  }
   else
-NS_INTERFACE_MAP_END_INHERITING(nsSimpleURI)
+NS_INTERFACE_MAP_END
 
 // nsISerializable methods:
 
 NS_IMETHODIMP
 nsJSURI::Read(nsIObjectInputStream* aStream)
 {
-    nsresult rv = nsSimpleURI::Read(aStream);
+    nsresult rv;
+
+    rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mSimpleURI));
     if (NS_FAILED(rv)) return rv;
+
+    mMutable = do_QueryInterface(mSimpleURI);
+    NS_ENSURE_TRUE(mMutable, NS_ERROR_UNEXPECTED);
 
     PRBool haveBase;
     rv = aStream->ReadBoolean(&haveBase);
@@ -1337,7 +1324,9 @@ nsJSURI::Read(nsIObjectInputStream* aStream)
 NS_IMETHODIMP
 nsJSURI::Write(nsIObjectOutputStream* aStream)
 {
-    nsresult rv = nsSimpleURI::Write(aStream);
+    nsresult rv;
+
+    rv = aStream->WriteObject(mSimpleURI, PR_TRUE);
     if (NS_FAILED(rv)) return rv;
 
     rv = aStream->WriteBoolean(mBaseURI != nsnull);
@@ -1351,53 +1340,131 @@ nsJSURI::Write(nsIObjectOutputStream* aStream)
     return NS_OK;
 }
 
-// nsSimpleURI methods:
-/* virtual */ nsSimpleURI*
-nsJSURI::StartClone(nsSimpleURI::RefHandlingEnum /* ignored */)
-{
-    nsCOMPtr<nsIURI> baseClone;
-    if (mBaseURI) {
-      // Note: We preserve ref on *base* URI, regardless of ref handling mode.
-      nsresult rv = mBaseURI->Clone(getter_AddRefs(baseClone));
-      if (NS_FAILED(rv)) {
-        return nsnull;
-      }
-    }
+// nsIURI methods:
 
-    return new nsJSURI(baseClone);
+NS_IMETHODIMP
+nsJSURI::Clone(nsIURI** aClone)
+{
+    return CloneInternal(eHonorRef, aClone);
 }
 
-/* virtual */ nsresult
-nsJSURI::EqualsInternal(nsIURI* aOther,
-                        nsSimpleURI::RefHandlingEnum aRefHandlingMode,
-                        PRBool* aResult)
+NS_IMETHODIMP
+nsJSURI::CloneIgnoringRef(nsIURI** aClone)
 {
-    NS_ENSURE_ARG_POINTER(aOther);
-    NS_PRECONDITION(aResult, "null pointer for outparam");
+    return CloneInternal(eIgnoreRef, aClone);
+}
 
-    nsRefPtr<nsJSURI> otherJSURI;
-    nsresult rv = aOther->QueryInterface(kJSURICID,
-                                         getter_AddRefs(otherJSURI));
-    if (NS_FAILED(rv)) {
-        *aResult = PR_FALSE; // aOther is not a nsJSURI --> not equal.
-        return NS_OK;
+nsresult
+nsJSURI::CloneInternal(nsJSURI::RefHandlingEnum aRefHandlingMode,
+                       nsIURI** aClone)
+{
+    nsCOMPtr<nsIURI> simpleClone;
+    nsresult rv = (aRefHandlingMode == eHonorRef ? 
+                   mSimpleURI->Clone(getter_AddRefs(simpleClone)) :
+                   mSimpleURI->CloneIgnoringRef(getter_AddRefs(simpleClone)));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIURI> baseClone;
+    if (mBaseURI) {
+        rv = mBaseURI->Clone(getter_AddRefs(baseClone));
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    // Compare the member data that our base class knows about.
-    if (!nsSimpleURI::EqualsInternal(otherJSURI, aRefHandlingMode)) {
+    nsIURI* newURI = new nsJSURI(baseClone, simpleClone);
+    NS_ENSURE_TRUE(newURI, NS_ERROR_OUT_OF_MEMORY);
+
+    NS_ADDREF(*aClone = newURI);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsJSURI::Equals(nsIURI* aOther, PRBool *aResult)
+{
+    return EqualsInternal(aOther, eHonorRef, aResult);
+}
+
+NS_IMETHODIMP
+nsJSURI::EqualsExceptRef(nsIURI* other, PRBool *result)
+{
+    return EqualsInternal(other, eIgnoreRef, result);
+}
+
+nsresult
+nsJSURI::EqualsInternal(nsIURI* aOther,
+                        nsJSURI::RefHandlingEnum aRefHandlingMode,
+                        PRBool *aResult)
+{
+    if (!aOther) {
+        *aResult = PR_FALSE;
+        return NS_OK;
+    }
+    
+    nsRefPtr<nsJSURI> otherJSUri;
+    aOther->QueryInterface(kJSURICID, getter_AddRefs(otherJSUri));
+    if (!otherJSUri) {
         *aResult = PR_FALSE;
         return NS_OK;
     }
 
-    // Compare the piece of additional member data that we add to base class.
-    nsIURI* otherBaseURI = otherJSURI->GetBaseURI();
+    return (aRefHandlingMode == eHonorRef ? 
+            mSimpleURI->Equals(otherJSUri->mSimpleURI, aResult) :
+            mSimpleURI->EqualsExceptRef(otherJSUri->mSimpleURI, aResult));
+}
 
-    if (mBaseURI) {
-        // (As noted in StartClone, we always honor refs on mBaseURI)
-        return mBaseURI->Equals(otherBaseURI, aResult);
-    }
+// nsIClassInfo methods:
+NS_IMETHODIMP 
+nsJSURI::GetInterfaces(PRUint32 *count, nsIID * **array)
+{
+    *count = 0;
+    *array = nsnull;
+    return NS_OK;
+}
 
-    *aResult = !otherBaseURI;
+NS_IMETHODIMP 
+nsJSURI::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
+{
+    *_retval = nsnull;
+    return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsJSURI::GetContractID(char * *aContractID)
+{
+    // Make sure to modify any subclasses as needed if this ever
+    // changes.
+    *aContractID = nsnull;
+    return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsJSURI::GetClassDescription(char * *aClassDescription)
+{
+    *aClassDescription = nsnull;
+    return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsJSURI::GetClassID(nsCID * *aClassID)
+{
+    // Make sure to modify any subclasses as needed if this ever
+    // changes to not call the virtual GetClassIDNoAlloc.
+    *aClassID = (nsCID*) nsMemory::Alloc(sizeof(nsCID));
+    if (!*aClassID)
+        return NS_ERROR_OUT_OF_MEMORY;
+    return GetClassIDNoAlloc(*aClassID);
+}
+
+NS_IMETHODIMP 
+nsJSURI::GetImplementationLanguage(PRUint32 *aImplementationLanguage)
+{
+    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
+    return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsJSURI::GetFlags(PRUint32 *aFlags)
+{
+    *aFlags = nsIClassInfo::MAIN_THREAD_ONLY;
     return NS_OK;
 }
 
@@ -1407,4 +1474,3 @@ nsJSURI::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
     *aClassIDNoAlloc = kJSURICID;
     return NS_OK;
 }
-

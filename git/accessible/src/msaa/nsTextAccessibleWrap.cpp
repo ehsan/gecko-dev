@@ -44,7 +44,6 @@
 #include "nsIFrame.h"
 #include "nsFontMetrics.h"
 #include "nsPresContext.h"
-#include "nsLayoutUtils.h"
 
 #include "gfxFont.h"
 
@@ -257,7 +256,11 @@ __try {
   }
 
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(frame, getter_AddRefs(fm));
+  frame->PresContext()->DeviceContext()->
+    GetMetricsFor(frame->GetStyleFont()->mFont,
+                  frame->GetStyleVisibility()->mLanguage,
+                  frame->PresContext()->GetUserFontSet(),
+                  *getter_AddRefs(fm));
 
   const nsString& name = fm->GetThebesFontGroup()->GetFontAt(0)->GetName();
   if (name.IsEmpty())

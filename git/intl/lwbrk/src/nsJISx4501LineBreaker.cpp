@@ -460,7 +460,7 @@ GetClass(PRUnichar u)
    } else if (((0x3200 <= u) && (u <= 0xA4CF)) || // CJK and Yi
               ((0xAC00 <= h) && (h <= 0xD7FF)) || // Hangul
               ((0xf900 <= h) && (h <= 0xfaff))) {
-     c = CLASS_BREAKABLE; // CJK character, Han, and Han Compatibility
+     c = CLASS_BREAKABLE; // CJK character, Han, and Han Compatability
    } else if (0xff00 == h) {
      if (l < 0x0060) { // Fullwidth ASCII variant
        c = GETCLASSFROMTABLE(gLBClass00, (l+0x20));
@@ -786,7 +786,7 @@ nsJISx4051LineBreaker::WordMove(const PRUnichar* aText, PRUint32 aLen,
   }
 
   PRInt32 ret;
-  nsAutoTArray<PRUint8, 2000> breakState;
+  nsAutoTArray<PRPackedBool, 2000> breakState;
   if (!textNeedsJISx4051 || !breakState.AppendElements(end - begin)) {
     // No complex text character, do not try to do complex line break.
     // (This is required for serializers. See Bug #344816.)
@@ -833,7 +833,7 @@ nsJISx4051LineBreaker::Prev(const PRUnichar* aText, PRUint32 aLen,
 
 void
 nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLength,
-                                         PRUint8* aBreakBefore)
+                                         PRPackedBool* aBreakBefore)
 {
   PRUint32 cur;
   PRInt8 lastClass = CLASS_NONE;
@@ -890,7 +890,7 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
 
 void
 nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength,
-                                         PRUint8* aBreakBefore)
+                                         PRPackedBool* aBreakBefore)
 {
   PRUint32 cur;
   PRInt8 lastClass = CLASS_NONE;

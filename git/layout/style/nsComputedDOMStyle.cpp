@@ -23,7 +23,7 @@
  *   Daniel Glazman <glazman@netscape.com>
  *   Boris Zbarsky <bzbarsky@mit.edu>
  *   Christopher A. Aillon <christopher@aillon.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Christian Biesinger <cbiesinger@web.de>
  *   Michael Ventnor <m.ventnor@gmail.com>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
@@ -49,6 +49,7 @@
 
 #include "nsDOMError.h"
 #include "nsDOMString.h"
+#include "nsPrintfCString.h"
 #include "nsIDOMCSS2Properties.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSPrimitiveValue.h"
@@ -491,7 +492,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
       if (type == nsGkAtoms::tableOuterFrame) {
         // If the frame is an outer table frame then we should get the style
         // from the inner table frame.
-        mInnerFrame = mOuterFrame->GetFirstPrincipalChild();
+        mInnerFrame = mOuterFrame->GetFirstChild(nsnull);
         NS_ASSERTION(mInnerFrame, "Outer table must have an inner");
         NS_ASSERTION(!mInnerFrame->GetNextSibling(),
                      "Outer table frames should have just one child, "
@@ -938,77 +939,7 @@ nsComputedDOMStyle::DoGetMozTransformOrigin()
                   &nsComputedDOMStyle::GetFrameBoundsHeightForTransform);
   valueList->AppendCSSValue(height);
 
-  if (display->mTransformOrigin[2].GetUnit() != eStyleUnit_Coord ||
-      display->mTransformOrigin[2].GetCoordValue() != 0) {
-    nsROCSSPrimitiveValue* depth = GetROCSSPrimitiveValue();
-    SetValueToCoord(depth, display->mTransformOrigin[2], PR_FALSE,
-                    nsnull);
-    valueList->AppendCSSValue(depth);
-  }
-
   return valueList;
-}
-
-/* Convert the stored representation into a list of two values and then hand
- * it back.
- */
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozPerspectiveOrigin()
-{
-  /* We need to build up a list of two values.  We'll call them
-   * width and height.
-   */
-
-  /* Store things as a value list */
-  nsDOMCSSValueList* valueList = GetROCSSValueList(PR_FALSE);
-
-  /* Now, get the values. */
-  const nsStyleDisplay* display = GetStyleDisplay();
-
-  nsROCSSPrimitiveValue* width = GetROCSSPrimitiveValue();
-  SetValueToCoord(width, display->mPerspectiveOrigin[0], PR_FALSE,
-                  &nsComputedDOMStyle::GetFrameBoundsWidthForTransform);
-  valueList->AppendCSSValue(width);
-
-  nsROCSSPrimitiveValue* height = GetROCSSPrimitiveValue();
-  SetValueToCoord(height, display->mPerspectiveOrigin[1], PR_FALSE,
-                  &nsComputedDOMStyle::GetFrameBoundsHeightForTransform);
-  valueList->AppendCSSValue(height);
-
-  return valueList;
-}
-
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozPerspective()
-{
-    nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-    if (GetStyleDisplay()->mChildPerspective.GetUnit() == eStyleUnit_Coord &&
-        GetStyleDisplay()->mChildPerspective.GetCoordValue() == 0.0) {
-        val->SetIdent(eCSSKeyword_none);
-    } else {
-        SetValueToCoord(val, GetStyleDisplay()->mChildPerspective, PR_FALSE);
-    }
-    return val;
-}
-
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozBackfaceVisibility()
-{
-    nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-    val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mBackfaceVisibility,
-                                       nsCSSProps::kBackfaceVisibilityKTable));
-    return val;
-}
-
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozTransformStyle()
-{
-    nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mTransformStyle,
-                                       nsCSSProps::kTransformStyleKTable));
-    return val;
 }
 
 /* If the property is "none", hand back "none" wrapped in a value.
@@ -1018,6 +949,8 @@ nsComputedDOMStyle::DoGetMozTransformStyle()
 nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetMozTransform()
 {
+  static const PRInt32 NUM_FLOATS = 4;
+
   /* First, get the display data.  We'll need it. */
   const nsStyleDisplay* display = GetStyleDisplay();
 
@@ -1035,6 +968,16 @@ nsComputedDOMStyle::DoGetMozTransform()
   /* Otherwise, we need to compute the current value of the transform matrix,
    * store it in a string, and hand it back to the caller.
    */
+  nsAutoString resultString(NS_LITERAL_STRING("matrix("));
+
+  /* Now, we need to convert the matrix into a string.  We'll start by taking
+   * the first four entries and converting them directly to floating-point
+   * values.
+   */
+  for (PRInt32 index = 0; index < NUM_FLOATS; ++index) {
+    resultString.AppendFloat(display->mTransform.GetMainMatrixEntry(index));
+    resultString.Append(NS_LITERAL_STRING(", "));
+  }
 
   /* Use the inner frame for width and height.  If we fail, assume zero.
    * TODO: There is no good way for us to represent the case where there's no
@@ -1049,62 +992,21 @@ nsComputedDOMStyle::DoGetMozTransform()
     (mInnerFrame ? nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame) :
      nsRect(0, 0, 0, 0));
 
-   PRBool dummy;
-   gfx3DMatrix matrix =
-     nsStyleTransformMatrix::ReadTransforms(display->mSpecifiedTransform,
-                                            mStyleContextHolder,
-                                            mStyleContextHolder->PresContext(),
-                                            dummy,
-                                            bounds,
-                                            float(nsDeviceContext::AppUnitsPerCSSPixel()));
+  /* Now, compute the dX and dY components by adding the stored coord value
+   * (in CSS pixels) to the translate values.
+   */
 
-  PRBool is3D = !matrix.Is2D();
+  float deltaX = nsPresContext::AppUnitsToFloatCSSPixels
+    (display->mTransform.GetXTranslation(bounds));
+  float deltaY = nsPresContext::AppUnitsToFloatCSSPixels
+    (display->mTransform.GetYTranslation(bounds));
 
-  nsAutoString resultString(NS_LITERAL_STRING("matrix"));
-  if (is3D) {
-    resultString.Append(NS_LITERAL_STRING("3d"));
-  }
 
-  resultString.Append(NS_LITERAL_STRING("("));
-  resultString.AppendFloat(matrix._11);
-  resultString.Append(NS_LITERAL_STRING(", "));
-  resultString.AppendFloat(matrix._12);
-  resultString.Append(NS_LITERAL_STRING(", "));
-  if (is3D) {
-    resultString.AppendFloat(matrix._13);
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._14);
-    resultString.Append(NS_LITERAL_STRING(", "));
-  }
-  resultString.AppendFloat(matrix._21);
-  resultString.Append(NS_LITERAL_STRING(", "));
-  resultString.AppendFloat(matrix._22);
-  resultString.Append(NS_LITERAL_STRING(", "));
-  if (is3D) {
-    resultString.AppendFloat(matrix._23);
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._24);
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._31);
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._32);
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._33);
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._34);
-    resultString.Append(NS_LITERAL_STRING(", "));
-  }
-  resultString.AppendFloat(matrix._41);
+  /* Append these values! */
+  resultString.AppendFloat(deltaX);
   resultString.Append(NS_LITERAL_STRING("px, "));
-  resultString.AppendFloat(matrix._42);
-  resultString.Append(NS_LITERAL_STRING("px"));
-  if (is3D) {
-    resultString.Append(NS_LITERAL_STRING(", "));
-    resultString.AppendFloat(matrix._43);
-    resultString.Append(NS_LITERAL_STRING("px, "));
-    resultString.AppendFloat(matrix._44);
-  }
-  resultString.Append(NS_LITERAL_STRING(")"));
+  resultString.AppendFloat(deltaY);
+  resultString.Append(NS_LITERAL_STRING("px)"));
 
   /* Create a value to hold our result. */
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
@@ -2483,42 +2385,6 @@ nsComputedDOMStyle::DoGetTextIndent()
 }
 
 nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextOverflow()
-{
-  const nsStyleTextReset *style = GetStyleTextReset();
-  nsROCSSPrimitiveValue *first = GetROCSSPrimitiveValue();
-  const nsStyleTextOverflowSide *side = style->mTextOverflow.GetFirstValue();
-  if (side->mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(side->mString, str);
-    first->SetString(str);
-  } else {
-    first->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(side->mType,
-                                     nsCSSProps::kTextOverflowKTable));
-  }
-  side = style->mTextOverflow.GetSecondValue();
-  if (!side) {
-    return first;
-  }
-  nsROCSSPrimitiveValue *second = GetROCSSPrimitiveValue();
-  if (side->mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(side->mString, str);
-    second->SetString(str);
-  } else {
-    second->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(side->mType,
-                                     nsCSSProps::kTextOverflowKTable));
-  }
-
-  nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
-  valueList->AppendCSSValue(first);
-  valueList->AppendCSSValue(second);
-  return valueList;
-}
-
-nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetTextShadow()
 {
   return GetCSSShadowArray(GetStyleText()->mTextShadow,
@@ -3226,7 +3092,7 @@ nsComputedDOMStyle::GetAbsoluteOffset(mozilla::css::Side aSide)
       // the containing block is the viewport, which _does_ include
       // scrollbars.  We have to do some extra work.
       // the first child in the default frame list is what we want
-      nsIFrame* scrollingChild = container->GetFirstPrincipalChild();
+      nsIFrame* scrollingChild = container->GetFirstChild(nsnull);
       nsIScrollableFrame *scrollFrame = do_QueryFrame(scrollingChild);
       if (scrollFrame) {
         scrollbarSizes = scrollFrame->GetActualScrollbarSizes();
@@ -4095,21 +3961,17 @@ nsComputedDOMStyle::AppendTimingFunction(nsDOMCSSValueList *aValueList,
   nsROCSSPrimitiveValue* timingFunction = GetROCSSPrimitiveValue();
   aValueList->AppendCSSValue(timingFunction);
 
-  nsAutoString tmp;
-
   if (aTimingFunction.mType == nsTimingFunction::Function) {
     // set the value from the cubic-bezier control points
     // (We could try to regenerate the keywords if we want.)
-    tmp.AppendLiteral("cubic-bezier(");
-    tmp.AppendFloat(aTimingFunction.mFunc.mX1);
-    tmp.AppendLiteral(", ");
-    tmp.AppendFloat(aTimingFunction.mFunc.mY1);
-    tmp.AppendLiteral(", ");
-    tmp.AppendFloat(aTimingFunction.mFunc.mX2);
-    tmp.AppendLiteral(", ");
-    tmp.AppendFloat(aTimingFunction.mFunc.mY2);
-    tmp.AppendLiteral(")");
+    timingFunction->SetString(
+      nsPrintfCString(64, "cubic-bezier(%f, %f, %f, %f)",
+                          aTimingFunction.mFunc.mX1,
+                          aTimingFunction.mFunc.mY1,
+                          aTimingFunction.mFunc.mX2,
+                          aTimingFunction.mFunc.mY2));
   } else {
+    nsString tmp;
     tmp.AppendLiteral("steps(");
     tmp.AppendInt(aTimingFunction.mSteps);
     if (aTimingFunction.mType == nsTimingFunction::StepStart) {
@@ -4117,8 +3979,8 @@ nsComputedDOMStyle::AppendTimingFunction(nsDOMCSSValueList *aValueList,
     } else {
       tmp.AppendLiteral(", end)");
     }
+    timingFunction->SetString(tmp);
   }
-  timingFunction->SetString(tmp);
 }
 
 nsIDOMCSSValue*
@@ -4139,6 +4001,7 @@ nsComputedDOMStyle::DoGetTransitionTimingFunction()
   return valueList;
 }
 
+#ifdef MOZ_CSS_ANIMATIONS
 nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetAnimationName()
 {
@@ -4325,6 +4188,7 @@ nsComputedDOMStyle::DoGetAnimationPlayState()
 
   return valueList;
 }
+#endif
 
 #define COMPUTED_STYLE_MAP_ENTRY(_prop, _method)              \
   { eCSSProperty_##_prop, &nsComputedDOMStyle::DoGet##_method, PR_FALSE }
@@ -4452,7 +4316,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(text_align,                    TextAlign),
     COMPUTED_STYLE_MAP_ENTRY(text_decoration,               TextDecoration),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(text_indent,            TextIndent),
-    COMPUTED_STYLE_MAP_ENTRY(text_overflow,                 TextOverflow),
     COMPUTED_STYLE_MAP_ENTRY(text_shadow,                   TextShadow),
     COMPUTED_STYLE_MAP_ENTRY(text_transform,                TextTransform),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(top,                    Top),
@@ -4470,6 +4333,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
      * Implementations of -moz- styles *
     \* ******************************* */
 
+#ifdef MOZ_CSS_ANIMATIONS
     COMPUTED_STYLE_MAP_ENTRY(animation_delay,               AnimationDelay),
     COMPUTED_STYLE_MAP_ENTRY(animation_direction,           AnimationDirection),
     COMPUTED_STYLE_MAP_ENTRY(animation_duration,            AnimationDuration),
@@ -4478,8 +4342,8 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(animation_name,                AnimationName),
     COMPUTED_STYLE_MAP_ENTRY(animation_play_state,          AnimationPlayState),
     COMPUTED_STYLE_MAP_ENTRY(animation_timing_function,     AnimationTimingFunction),
+#endif
     COMPUTED_STYLE_MAP_ENTRY(appearance,                    Appearance),
-    COMPUTED_STYLE_MAP_ENTRY(backface_visibility,           MozBackfaceVisibility),
     COMPUTED_STYLE_MAP_ENTRY(_moz_background_inline_policy, BackgroundInlinePolicy),
     COMPUTED_STYLE_MAP_ENTRY(binding,                       Binding),
     COMPUTED_STYLE_MAP_ENTRY(border_bottom_colors,          BorderBottomColors),
@@ -4512,8 +4376,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_bottomRight,OutlineRadiusBottomRight),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topLeft,    OutlineRadiusTopLeft),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topRight,   OutlineRadiusTopRight),
-    COMPUTED_STYLE_MAP_ENTRY(perspective,                   MozPerspective),
-    COMPUTED_STYLE_MAP_ENTRY_LAYOUT(perspective_origin,     MozPerspectiveOrigin),
     COMPUTED_STYLE_MAP_ENTRY(stack_sizing,                  StackSizing),
     COMPUTED_STYLE_MAP_ENTRY(_moz_tab_size,                 MozTabSize),
     COMPUTED_STYLE_MAP_ENTRY(text_blink,                    MozTextBlink),
@@ -4522,7 +4384,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(text_decoration_style,         MozTextDecorationStyle),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_transform,         MozTransform),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_transform_origin,  MozTransformOrigin),
-    COMPUTED_STYLE_MAP_ENTRY(transform_style,               MozTransformStyle),
     COMPUTED_STYLE_MAP_ENTRY(transition_delay,              TransitionDelay),
     COMPUTED_STYLE_MAP_ENTRY(transition_duration,           TransitionDuration),
     COMPUTED_STYLE_MAP_ENTRY(transition_property,           TransitionProperty),

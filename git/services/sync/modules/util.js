@@ -36,31 +36,65 @@
  * ***** END LICENSE BLOCK ***** */
 
 const EXPORTED_SYMBOLS = ["XPCOMUtils", "Services", "NetUtil", "PlacesUtils",
-                          "FileUtils", "Utils", "Async", "Svc", "Str"];
+                          "Utils", "Svc", "Str"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://services-sync/ext/StringBundle.js");
 Cu.import("resource://services-sync/log4moz.js");
-Cu.import("resource://services-sync/status.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 
+// Constants for makeSyncCallback, waitForSyncCallback
+const CB_READY = {};
+const CB_COMPLETE = {};
+const CB_FAIL = {};
+const REASON_ERROR = Ci.mozIStorageStatementCallback.REASON_ERROR;
+
 /*
  * Utility functions
  */
 
 let Utils = {
+  /**
+   * Execute an arbitrary number of asynchronous functions one after the
+   * other, passing the callback arguments on to the next one.  All functions
+   * must take a callback function as their last argument.  The 'this' object
+   * will be whatever asyncChain's is.
+   * 
+   * @usage this._chain = Utils.asyncChain;
+   *        this._chain(this.foo, this.bar, this.baz)(args, for, foo)
+   * 
+   * This is equivalent to:
+   *
+   *   let self = this;
+   *   self.foo(args, for, foo, function (bars, args) {
+   *     self.bar(bars, args, function (baz, params) {
+   *       self.baz(baz, params);
+   *     });
+   *   });
+   */
+  asyncChain: function asyncChain() {
+    let funcs = Array.slice(arguments);
+    let thisObj = this;
+    return function callback() {
+      if (funcs.length) {
+        let args = Array.slice(arguments).concat(callback);
+        let f = funcs.shift();
+        f.apply(thisObj, args);
+      }
+    };
+  },
+
   /**
    * Wrap a function to catch all exceptions and log them
    *
@@ -113,44 +147,31 @@ let Utils = {
   },
 
   /**
-   * Wrap functions to notify when it starts and finishes executing or if it
-   * threw an error.
-   * 
-   * The message is a combination of a provided prefix, the local name, and
-   * the event. Possible events are: "start", "finish", "error". The subject
-   * is the function's return value on "finish" or the caught exception on
-   * "error". The data argument is the predefined data value.
-   * 
-   * Example:
-   * 
-   * @usage function MyObj(name) {
-   *          this.name = name;
-   *          this._notify = Utils.notify("obj:");
-   *        }
-   *        MyObj.prototype = {
-   *          foo: function() this._notify("func", "data-arg", function () {
-   *            //...
-   *          }(),
-   *        };
+   * Wrap functions to notify when it starts and finishes executing or if it got
+   * an error. The message is a combination of a provided prefix and local name
+   * with the current state and the subject is the provided subject.
+   *
+   * @usage function MyObj() { this._notify = Utils.notify("prefix:"); }
+   *        MyObj.foo = function() { this._notify(name, subject, func)(); }
    */
   notify: function Utils_notify(prefix) {
-    return function NotifyMaker(name, data, func) {
+    return function NotifyMaker(name, subject, func) {
       let thisArg = this;
-      let notify = function(state, subject) {
+      let notify = function(state) {
         let mesg = prefix + name + ":" + state;
         thisArg._log.trace("Event: " + mesg);
-        Observers.notify(mesg, subject, data);
+        Observers.notify(mesg, subject);
       };
 
       return function WrappedNotify() {
         try {
-          notify("start", null);
+          notify("start");
           let ret = func.call(thisArg);
-          notify("finish", ret);
+          notify("finish");
           return ret;
         }
         catch(ex) {
-          notify("error", ex);
+          notify("error");
           throw ex;
         }
       };
@@ -171,6 +192,61 @@ let Utils = {
         db.commitTransaction();
       }
     }
+  },
+
+  // Prototype for mozIStorageCallback, used in queryAsync below.
+  // This allows us to define the handle* functions just once rather
+  // than on every queryAsync invocation.
+  _storageCallbackPrototype: {
+    results: null,
+
+    // These are set by queryAsync.
+    names: null,
+    syncCb: null,
+
+    handleResult: function handleResult(results) {
+      if (!this.names) {
+        return;
+      }
+      if (!this.results) {
+        this.results = [];
+      }
+      let row;
+      while ((row = results.getNextRow()) != null) {
+        let item = {};
+        for each (name in this.names) {
+          item[name] = row.getResultByName(name);
+        }
+        this.results.push(item);
+      }
+    },
+    handleError: function handleError(error) {
+      this.syncCb.throw(error);
+    },
+    handleCompletion: function handleCompletion(reason) {
+
+      // If we got an error, handleError will also have been called, so don't
+      // call the callback! We never cancel statements, so we don't need to
+      // address that quandary.
+      if (reason == REASON_ERROR)
+        return;
+
+      // If we were called with column names but didn't find any results,
+      // the calling code probably still expects an array as a return value.
+      if (this.names && !this.results) {
+        this.results = [];
+      }
+      this.syncCb(this.results);
+    }
+  },
+
+  queryAsync: function(query, names) {
+    // Synchronously asyncExecute fetching all results by name
+    let storageCallback = {names: names,
+                           syncCb: Utils.makeSyncCallback()};
+    storageCallback.__proto__ = Utils._storageCallbackPrototype;
+    query.executeAsync(storageCallback);
+    return Utils.waitForSyncCallback(storageCallback.syncCb);
   },
 
   byteArrayToString: function byteArrayToString(bytes) {
@@ -241,7 +317,7 @@ let Utils = {
    *        Property name to defer (or an array of property names)
    */
   deferGetSet: function Utils_deferGetSet(obj, defer, prop) {
-    if (Array.isArray(prop))
+    if (Utils.isArray(prop))
       return prop.map(function(prop) Utils.deferGetSet(obj, defer, prop));
 
     let prot = obj.prototype;
@@ -260,6 +336,16 @@ let Utils = {
       });
     }
   },
+
+  /**
+   * Determine if some value is an array
+   *
+   * @param val
+   *        Value to check (can be null, undefined, etc.)
+   * @return True if it's an array; false otherwise
+   */
+  isArray: function Utils_isArray(val) val != null && typeof val == "object" &&
+    val.constructor.name == "Array",
 
   lazyStrings: function Weave_lazyStrings(name) {
     let bundle = "chrome://weave/locale/services/" + name + ".properties";
@@ -297,7 +383,7 @@ let Utils = {
       return thing;
     let ret;
 
-    if (Array.isArray(thing)) {
+    if (Utils.isArray(thing)) {
       ret = [];
       for (let i = 0; i < thing.length; i++)
         ret.push(Utils.deepCopy(thing[i], noSort));
@@ -410,6 +496,21 @@ let Utils = {
     return hex;
   },
 
+  _sha256: function _sha256(message) {
+    let hasher = Cc["@mozilla.org/security/hash;1"].
+      createInstance(Ci.nsICryptoHash);
+    hasher.init(hasher.SHA256);
+    return Utils.digestUTF8(message, hasher);
+  },
+
+  sha256: function sha256(message) {
+    return Utils.bytesAsHex(Utils._sha256(message));
+  },
+
+  sha256Base64: function (message) {
+    return btoa(Utils._sha256(message));
+  },
+
   _sha1: function _sha1(message) {
     let hasher = Cc["@mozilla.org/security/hash;1"].
       createInstance(Ci.nsICryptoHash);
@@ -425,6 +526,10 @@ let Utils = {
     return Utils.encodeBase32(Utils._sha1(message));
   },
   
+  sha1Base64: function (message) {
+    return btoa(Utils._sha1(message));
+  },
+
   /**
    * Produce an HMAC key object from a key string.
    */
@@ -440,6 +545,26 @@ let Utils = {
                    .createInstance(Ci.nsICryptoHMAC);
     hasher.init(type, key);
     return hasher;
+  },
+
+  /**
+   * Some HMAC convenience functions for tests and backwards compatibility:
+   * 
+   *   sha1HMACBytes: hashes byte string, returns bytes string
+   *   sha256HMAC: hashes UTF-8 encoded string, returns hex string
+   *   sha256HMACBytes: hashes byte string, returns bytes string
+   */
+  sha1HMACBytes: function sha1HMACBytes(message, key) {
+    let h = Utils.makeHMACHasher(Ci.nsICryptoHMAC.SHA1, key);
+    return Utils.digestBytes(message, h);
+  },
+  sha256HMAC: function sha256HMAC(message, key) {
+    let h = Utils.makeHMACHasher(Ci.nsICryptoHMAC.SHA256, key);
+    return Utils.bytesAsHex(Utils.digestUTF8(message, h));
+  },
+  sha256HMACBytes: function sha256HMACBytes(message, key) {
+    let h = Utils.makeHMACHasher(Ci.nsICryptoHMAC.SHA256, key);
+    return Utils.digestBytes(message, h);
   },
 
   /**
@@ -459,6 +584,10 @@ let Utils = {
     return T.slice(0, len);
   },
 
+  byteArrayToString: function byteArrayToString(bytes) {
+    return [String.fromCharCode(byte) for each (byte in bytes)].join("");
+  },
+  
   /**
    * PBKDF2 implementation in Javascript.
    * 
@@ -761,7 +890,7 @@ let Utils = {
     try {
       return Services.io.newURI(URIString, null, null);
     } catch (e) {
-      let log = Log4Moz.repository.getLogger("Sync.Utils");
+      let log = Log4Moz.repository.getLogger("Service.Util");
       log.debug("Could not create URI: " + Utils.exceptionStr(e));
       return null;
     }
@@ -847,29 +976,16 @@ let Utils = {
   },
 
   /**
-   * Execute a function on the next event loop tick.
-   * 
-   * @param callback
-   *        Function to invoke.
-   * @param thisObj [optional]
-   *        Object to bind the callback to.
-   */
-  nextTick: function nextTick(callback, thisObj) {
-    if (thisObj) {
-      callback = callback.bind(thisObj);
-    }
-    Services.tm.currentThread.dispatch(callback, Ci.nsIThread.DISPATCH_NORMAL);
-  },
-
-  /**
    * Return a timer that is scheduled to call the callback after waiting the
    * provided time or as soon as possible. The timer will be set as a property
    * of the provided object with the given timer name.
    */
-  namedTimer: function delay(callback, wait, thisObj, name) {
-    if (!thisObj || !name) {
-      throw "You must provide both an object and a property name for the timer!";
-    }
+  delay: function delay(callback, wait, thisObj, name) {
+    // Default to running right away
+    wait = wait || 0;
+
+    // Use a dummy object if one wasn't provided
+    thisObj = thisObj || {};
 
     // Delay an existing timer if it exists
     if (name in thisObj && thisObj[name] instanceof Ci.nsITimer) {
@@ -1047,23 +1163,16 @@ let Utils = {
   },
 
   /**
-   * Create an array like the first but without elements of the second. Reuse
-   * arrays if possible.
+   * Create an array like the first but without elements of the second
    */
   arraySub: function arraySub(minuend, subtrahend) {
-    if (!minuend.length || !subtrahend.length)
-      return minuend;
     return minuend.filter(function(i) subtrahend.indexOf(i) == -1);
   },
 
   /**
-   * Build the union of two arrays. Reuse arrays if possible.
+   * Build the union of two arrays.
    */
   arrayUnion: function arrayUnion(foo, bar) {
-    if (!foo.length)
-      return bar;
-    if (!bar.length)
-      return foo;
     return foo.concat(Utils.arraySub(bar, foo));
   },
 
@@ -1092,9 +1201,6 @@ let Utils = {
   // If Master Password is enabled and locked, present a dialog to unlock it.
   // Return whether the system is unlocked.
   ensureMPUnlocked: function ensureMPUnlocked() {
-    if (!Utils.mpLocked()) {
-      return true;
-    }
     let sdr = Cc["@mozilla.org/security/sdr;1"]
                 .getService(Ci.nsISecretDecoderRing);
     try {
@@ -1105,15 +1211,74 @@ let Utils = {
   },
   
   /**
-   * Return a value for a backoff interval.  Maximum is eight hours, unless
-   * Status.backoffInterval is higher.
-   *
+   * Helpers for making asynchronous calls within a synchronous API possible.
+   * 
+   * If you value your sanity, do not look closely at the following functions.
    */
-  calculateBackoff: function calculateBackoff(attempts, base_interval) {
-    let backoffInterval = attempts *
-                          (Math.floor(Math.random() * base_interval) +
-                           base_interval);
-    return Math.max(Math.min(backoffInterval, MAXIMUM_BACKOFF_INTERVAL), Status.backoffInterval);
+
+  /**
+   * Check if the app is ready (not quitting)
+   */
+  checkAppReady: function checkAppReady() {
+    // Watch for app-quit notification to stop any sync calls
+    Svc.Obs.add("quit-application", function() {
+      Utils.checkAppReady = function() {
+        throw Components.Exception("App. Quitting", Cr.NS_ERROR_ABORT);
+      };
+    });
+    // In the common case, checkAppReady just returns true
+    return (Utils.checkAppReady = function() true)();
+  },
+
+  /**
+   * Create a sync callback that remembers state like whether it's been called
+   */
+  makeSyncCallback: function makeSyncCallback() {
+    // The main callback remembers the value it's passed and that it got data
+    let onComplete = function onComplete(data) {
+      onComplete.state = CB_COMPLETE;
+      onComplete.value = data;
+    };
+
+    // Initialize private callback data to prepare to be called
+    onComplete.state = CB_READY;
+    onComplete.value = null;
+
+    // Allow an alternate callback to trigger an exception to be thrown
+    onComplete.throw = function onComplete_throw(data) {
+      onComplete.state = CB_FAIL;
+      onComplete.value = data;
+
+      // Cause the caller to get an exception and stop execution
+      throw data;
+    };
+
+    return onComplete;
+  },
+
+  /**
+   * Wait for a sync callback to finish
+   */
+  waitForSyncCallback: function waitForSyncCallback(callback) {
+    // Grab the current thread so we can make it give up priority
+    let thread = Cc["@mozilla.org/thread-manager;1"].getService().currentThread;
+
+    // Keep waiting until our callback is triggered unless the app is quitting
+    while (Utils.checkAppReady() && callback.state == CB_READY) {
+      thread.processNextEvent(true);
+    }
+
+    // Reset the state of the callback to prepare for another call
+    let state = callback.state;
+    callback.state = CB_READY;
+
+    // Throw the value the callback decided to fail with
+    if (state == CB_FAIL) {
+      throw callback.value;
+    }
+
+    // Return the value passed to the callback
+    return callback.value;
   }
 };
 

@@ -50,14 +50,14 @@
 #include "WrapperFactory.h"
 
 #include "jsfriendapi.h"
+#include "jsstr.h"
 
 namespace xpc {
 
-nsIPrincipal *
+static nsIPrincipal *
 GetCompartmentPrincipal(JSCompartment *compartment)
 {
-    JSPrincipals *prin = JS_GetCompartmentPrincipals(compartment);
-    return prin ? static_cast<nsJSPrincipals *>(prin)->nsIPrincipalPtr : nsnull;
+    return compartment->principals ? static_cast<nsJSPrincipals *>(compartment->principals)->nsIPrincipalPtr : 0;
 }
 
 bool

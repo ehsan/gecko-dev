@@ -45,6 +45,7 @@
 #include "nsColor.h"
 #include "nsIObserver.h"
 #include "nsWeakPtr.h"
+#include "nsIFrameSetElement.h"
 
 class  nsIContent;
 class  nsIFrame;
@@ -59,9 +60,6 @@ class  nsGUIEvent;
 class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA
-
-// defined at nsHTMLFrameSetElement.h
-struct nsFramesetSpec;
 
 struct nsBorderColor 
 {
@@ -113,7 +111,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  NS_IMETHOD SetInitialChildList(ChildListID  aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*     aListName,
                                  nsFrameList& aChildList);
 
   static PRBool  gDragInProgress;

@@ -9,12 +9,12 @@
          xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
 <window>
-  <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/LogController.js"/>
+  <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="text/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/TestRunner.js"/>
   <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/MozillaLogger.js"/>
+          src="chrome://mochikit/content/tests/SimpleTest/MozillaFileLogger.js"/>
   <script type="text/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/quit.js" />
   <script type="application/javascript"
@@ -32,7 +32,7 @@ function loadTests()
 {
   window.removeEventListener("load", loadTests, false);
   [links, singleTestPath] = getTestList();
- 
+
   // load server.js in so we can share template functions
   var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                        getService(Ci.mozIJSSubScriptLoader);
@@ -45,12 +45,14 @@ function loadTests()
   var tableContent = srvScope.linksToTableRows(links, 0);
 
   function populate() {
-    document.getElementById("test-table").innerHTML += tableContent;
+    $("test-table").innerHTML += tableContent;
   }
   gTestList = eval(srvScope.jsonArrayOfTestFiles(links));
   populate();
-
   hookup();
+
+  if (singleTestPath)
+    window.location.href = singleTestPath;
 }
 
     window.addEventListener("load", loadTests, false);
@@ -61,7 +63,6 @@ function loadTests()
     <button label="Run Chrome Tests" id="runtests" flex="1"/>
 
     <body xmlns="http://www.w3.org/1999/xhtml" id="xulharness">
-      <!--TODO: this should be separated into a file that both this file and server.js uses-->
       <div class="container">
         <p style="float:right;">
           <small>Based on the MochiKit unit tests.</small>
@@ -78,7 +79,7 @@ function loadTests()
         </div>
         <div class="clear"></div>
         <div class="frameholder">
-          <iframe type="content" scrolling="no" id="testframe" width="550" height="350"></iframe>
+          <iframe scrolling="no" id="testframe" width="500"></iframe>
         </div>
         <div class="clear"></div>
         <div class="toggle">
@@ -95,12 +96,6 @@ function loadTests()
                 <td>Todo</td>
                 <td>Test Files</td>
               </tr>
-            </tbody>
-          </table>
-          <br/>
-          <table cellpadding="0" cellspacing="0" border="1" bordercolor="red">
-          <!-- tbody needed to avoid bug 494546 causing performance problems -->
-            <tbody id="fail-table">
             </tbody>
           </table>
         </div>

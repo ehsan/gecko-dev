@@ -787,10 +787,6 @@ nsHttpServer.prototype =
     // Fire a pending server-stopped notification if it's our responsibility.
     if (!this._hasOpenConnections() && this._socketClosed)
       this._notifyStopped();
-    // Bug 508125: Add a GC here else we'll use gigabytes of memory running
-    // mochitests. We can't rely on xpcshell doing an automated GC, as that
-    // would interfere with testing GC stuff...
-    gc();
   },
 
   /**
@@ -1843,14 +1839,12 @@ const CR = 0x0D, LF = 0x0A;
  *   character; the first CRLF is the lowest index i where
  *   |array[i] == "\r".charCodeAt(0)| and |array[i+1] == "\n".charCodeAt(0)|,
  *   if such an |i| exists, and -1 otherwise
- * @param start : uint
- *   start index from which to begin searching in array
  * @returns int
  *   the index of the first CRLF if any were present, -1 otherwise
  */
-function findCRLF(array, start)
+function findCRLF(array)
 {
-  for (var i = array.indexOf(CR, start); i >= 0; i = array.indexOf(CR, i + 1))
+  for (var i = array.indexOf(CR); i >= 0; i = array.indexOf(CR, i + 1))
   {
     if (array[i + 1] == LF)
       return i;
@@ -1867,9 +1861,6 @@ function LineData()
 {
   /** An array of queued bytes from which to get line-based characters. */
   this._data = [];
-
-  /** Start index from which to search for CRLF. */
-  this._start = 0;
 }
 LineData.prototype =
 {
@@ -1879,22 +1870,7 @@ LineData.prototype =
    */
   appendBytes: function(bytes)
   {
-    var count = bytes.length;
-    var quantum = 262144; // just above half SpiderMonkey's argument-count limit
-    if (count < quantum)
-    {
-      Array.prototype.push.apply(this._data, bytes);
-      return;
-    }
-
-    // Large numbers of bytes may cause Array.prototype.push to be called with
-    // more arguments than the JavaScript engine supports.  In that case append
-    // bytes in fixed-size amounts until all bytes are appended.
-    for (var start = 0; start < count; start += quantum)
-    {
-      var slice = bytes.slice(start, Math.min(start + quantum, count));
-      Array.prototype.push.apply(this._data, slice);
-    }
+    Array.prototype.push.apply(this._data, bytes);
   },
 
   /**
@@ -1912,31 +1888,23 @@ LineData.prototype =
   readLine: function(out)
   {
     var data = this._data;
-    var length = findCRLF(data, this._start);
+    var length = findCRLF(data);
     if (length < 0)
-    {
-      this._start = data.length;
       return false;
-    }
-
-    // Reset for future lines.
-    this._start = 0;
 
     //
     // We have the index of the CR, so remove all the characters, including
-    // CRLF, from the array with splice, and convert the removed array
-    // (excluding the trailing CRLF characters) into the corresponding string.
+    // CRLF, from the array with splice, and convert the removed array into the
+    // corresponding string, from which we then strip the trailing CRLF.
     //
-    var leading = data.splice(0, length + 2);
-    var quantum = 262144;
-    var line = "";
-    for (var start = 0; start < length; start += quantum)
-    {
-      var slice = leading.slice(start, Math.min(start + quantum, length));
-      line += String.fromCharCode.apply(null, slice);
-    }
+    // Getting the line in this matter acknowledges that substring is an O(1)
+    // operation in SpiderMonkey because strings are immutable, whereas two
+    // splices, both from the beginning of the data, are less likely to be as
+    // cheap as a single splice plus two extra character conversions.
+    //
+    var line = String.fromCharCode.apply(null, data.splice(0, length + 2));
+    out.value = line.substring(0, length);
 
-    out.value = line;
     return true;
   },
 

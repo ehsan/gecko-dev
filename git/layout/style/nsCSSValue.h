@@ -142,13 +142,12 @@ enum nsCSSUnit {
   eCSSUnit_Gradient     = 42,     // (nsCSSValueGradient*) value
 
   eCSSUnit_Pair         = 50,     // (nsCSSValuePair*) pair of values
-  eCSSUnit_Triplet      = 51,     // (nsCSSValueTriplet*) triplet of values
-  eCSSUnit_Rect         = 52,     // (nsCSSRect*) rectangle (four values)
-  eCSSUnit_List         = 53,     // (nsCSSValueList*) list of values
-  eCSSUnit_ListDep      = 54,     // (nsCSSValueList*) same as List
+  eCSSUnit_Rect         = 51,     // (nsCSSRect*) rectangle (four values)
+  eCSSUnit_List         = 52,     // (nsCSSValueList*) list of values
+  eCSSUnit_ListDep      = 53,     // (nsCSSValueList*) same as List
                                   //   but does not own the list
-  eCSSUnit_PairList     = 55,     // (nsCSSValuePairList*) list of value pairs
-  eCSSUnit_PairListDep  = 56,     // (nsCSSValuePairList*) same as PairList
+  eCSSUnit_PairList     = 54,     // (nsCSSValuePairList*) list of value pairs
+  eCSSUnit_PairListDep  = 55,     // (nsCSSValuePairList*) same as PairList
                                   //   but does not own the list
 
   eCSSUnit_Integer      = 70,     // (int) simple value
@@ -201,8 +200,6 @@ struct nsCSSValueList;
 struct nsCSSValueList_heap;
 struct nsCSSValuePairList;
 struct nsCSSValuePairList_heap;
-struct nsCSSValueTriplet;
-struct nsCSSValueTriplet_heap;
 
 class nsCSSValue {
 public:
@@ -373,9 +370,6 @@ public:
   inline nsCSSValuePairList* GetPairListValue();
   inline const nsCSSValuePairList* GetPairListValue() const;
 
-  inline nsCSSValueTriplet& GetTripletValue();
-  inline const nsCSSValueTriplet& GetTripletValue() const;
-
   URL* GetURLStructValue() const
   {
     // Not allowing this for Image values, because if the caller takes
@@ -423,8 +417,6 @@ public:
   void SetPairValue(const nsCSSValue& xValue, const nsCSSValue& yValue);
   void SetDependentListValue(nsCSSValueList* aList);
   void SetDependentPairListValue(nsCSSValuePairList* aList);
-  void SetTripletValue(const nsCSSValueTriplet* aTriplet);
-  void SetTripletValue(const nsCSSValue& xValue, const nsCSSValue& yValue, const nsCSSValue& zValue);
   void SetAutoValue();
   void SetInheritValue();
   void SetInitialValue();
@@ -539,7 +531,6 @@ protected:
     nsCSSValueGradient* mGradient;
     nsCSSValuePair_heap* mPair;
     nsCSSRect_heap* mRect;
-    nsCSSValueTriplet_heap* mTriplet;
     nsCSSValueList_heap* mList;
     nsCSSValueList* mListDependent;
     nsCSSValuePairList_heap* mPairList;
@@ -668,7 +659,6 @@ struct nsCSSValueList {
   ~nsCSSValueList();
 
   nsCSSValueList* Clone() const;  // makes a deep copy
-  void CloneInto(nsCSSValueList* aList) const; // makes a deep copy into aList
   void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
 
   bool operator==(nsCSSValueList const& aOther) const;
@@ -847,88 +837,12 @@ struct nsCSSValuePair {
 // refcounted.  It should not be necessary to use this class directly;
 // it's an implementation detail of nsCSSValue.
 struct nsCSSValuePair_heap : public nsCSSValuePair {
-    // forward constructor
-    nsCSSValuePair_heap(const nsCSSValue& aXValue, const nsCSSValue& aYValue)
-        : nsCSSValuePair(aXValue, aYValue)
-    {}
-
-    NS_INLINE_DECL_REFCOUNTING(nsCSSValuePair_heap)
-};
-
-struct nsCSSValueTriplet {
-    nsCSSValueTriplet()
-    {
-        MOZ_COUNT_CTOR(nsCSSValueTriplet);
-    }
-    nsCSSValueTriplet(nsCSSUnit aUnit)
-        : mXValue(aUnit), mYValue(aUnit), mZValue(aUnit)
-    {
-        MOZ_COUNT_CTOR(nsCSSValueTriplet);
-    }
-    nsCSSValueTriplet(const nsCSSValue& aXValue, 
-                      const nsCSSValue& aYValue, 
-                      const nsCSSValue& aZValue)
-        : mXValue(aXValue), mYValue(aYValue), mZValue(aZValue)
-    {
-        MOZ_COUNT_CTOR(nsCSSValueTriplet);
-    }
-    nsCSSValueTriplet(const nsCSSValueTriplet& aCopy)
-        : mXValue(aCopy.mXValue), mYValue(aCopy.mYValue), mZValue(aCopy.mZValue)
-    {
-        MOZ_COUNT_CTOR(nsCSSValueTriplet);
-    }
-    ~nsCSSValueTriplet()
-    {
-        MOZ_COUNT_DTOR(nsCSSValueTriplet);
-    }
-
-    PRBool operator==(const nsCSSValueTriplet& aOther) const {
-        return mXValue == aOther.mXValue &&
-               mYValue == aOther.mYValue &&
-               mZValue == aOther.mZValue;
-    }
-
-    PRBool operator!=(const nsCSSValueTriplet& aOther) const {
-        return mXValue != aOther.mXValue ||
-               mYValue != aOther.mYValue ||
-               mZValue != aOther.mZValue;
-    }
-
-    void SetAllValuesTo(const nsCSSValue& aValue) {
-        mXValue = aValue;
-        mYValue = aValue;
-        mZValue = aValue;
-    }
-
-    void Reset() {
-        mXValue.Reset();
-        mYValue.Reset();
-        mZValue.Reset();
-    }
-
-    PRBool HasValue() const {
-        return mXValue.GetUnit() != eCSSUnit_Null ||
-               mYValue.GetUnit() != eCSSUnit_Null ||
-               mZValue.GetUnit() != eCSSUnit_Null;
-    }
-
-    void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
-
-    nsCSSValue mXValue;
-    nsCSSValue mYValue;
-    nsCSSValue mZValue;
-};
-
-// nsCSSValueTriplet_heap differs from nsCSSValueTriplet only in being
-// refcounted.  It should not be necessary to use this class directly;
-// it's an implementation detail of nsCSSValue.
-struct nsCSSValueTriplet_heap : public nsCSSValueTriplet {
   // forward constructor
-  nsCSSValueTriplet_heap(const nsCSSValue& aXValue, const nsCSSValue& aYValue, const nsCSSValue& aZValue)
-    : nsCSSValueTriplet(aXValue, aYValue, aZValue)
+  nsCSSValuePair_heap(const nsCSSValue& aXValue, const nsCSSValue& aYValue)
+    : nsCSSValuePair(aXValue, aYValue)
   {}
 
-  NS_INLINE_DECL_REFCOUNTING(nsCSSValueTriplet_heap)
+  NS_INLINE_DECL_REFCOUNTING(nsCSSValuePair_heap)
 };
 
 // This has to be here so that the relationship between nsCSSValuePair
@@ -945,20 +859,6 @@ nsCSSValue::GetPairValue() const
 {
   NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Pair, "not a pair value");
   return *mValue.mPair;
-}
-
-inline nsCSSValueTriplet&
-nsCSSValue::GetTripletValue()
-{
-    NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Triplet, "not a triplet value");
-    return *mValue.mTriplet;
-}
-
-inline const nsCSSValueTriplet&
-nsCSSValue::GetTripletValue() const
-{
-    NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Triplet, "not a triplet value");
-    return *mValue.mTriplet;
 }
 
 // Maybe should be replaced with nsCSSValueList and nsCSSValue::Array?

@@ -39,7 +39,6 @@
 #include "nsAutoPtr.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIServiceManager.h"
@@ -49,9 +48,6 @@
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "nsDOMDeviceMotionEvent.h"
-
-static const nsTArray<nsIDOMWindow*>::index_type NoIndex =
-    nsTArray<nsIDOMWindow*>::NoIndex;
 
 class nsDeviceMotionData : public nsIDeviceMotionData
 {
@@ -167,7 +163,7 @@ nsDeviceMotion::TimeoutHandler(nsITimer *aTimer, void *aClosure)
   }
   
   // what about listeners that don't clean up properly?  they will leak
-  if (self->mListeners.Count() == 0 && self->mWindowListeners.Length() == 0) {
+  if (self->mListeners.Count() == 0 && self->mWindowListeners.Count() == 0) {
     self->Shutdown();
     self->mStarted = PR_FALSE;
   }
@@ -175,7 +171,7 @@ nsDeviceMotion::TimeoutHandler(nsITimer *aTimer, void *aClosure)
 
 NS_IMETHODIMP nsDeviceMotion::AddListener(nsIDeviceMotionListener *aListener)
 {
-  if (mListeners.IndexOf(aListener) != -1)
+  if (mListeners.IndexOf(aListener) >= 0)
     return NS_OK; // already exists
 
   if (mStarted == PR_FALSE) {
@@ -189,7 +185,7 @@ NS_IMETHODIMP nsDeviceMotion::AddListener(nsIDeviceMotionListener *aListener)
 
 NS_IMETHODIMP nsDeviceMotion::RemoveListener(nsIDeviceMotionListener *aListener)
 {
-  if (mListeners.IndexOf(aListener) == -1)
+  if (mListeners.IndexOf(aListener) < 0)
     return NS_OK; // doesn't exist
 
   mListeners.RemoveObject(aListener);
@@ -199,22 +195,26 @@ NS_IMETHODIMP nsDeviceMotion::RemoveListener(nsIDeviceMotionListener *aListener)
 
 NS_IMETHODIMP nsDeviceMotion::AddWindowListener(nsIDOMWindow *aWindow)
 {
+  if (mWindowListeners.IndexOf(aWindow) >= 0)
+    return NS_OK; // already exists
+
   if (mStarted == PR_FALSE) {
     mStarted = PR_TRUE;
     Startup();
   }
-  if (mWindowListeners.IndexOf(aWindow) == NoIndex)
-    mWindowListeners.AppendElement(aWindow);
+
+  mWindowListeners.AppendObject(aWindow);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsDeviceMotion::RemoveWindowListener(nsIDOMWindow *aWindow)
 {
-  if (mWindowListeners.IndexOf(aWindow) == NoIndex)
-    return NS_OK;
+  if (mWindowListeners.IndexOf(aWindow) < 0)
+    return NS_OK; // doesn't exist
 
-  mWindowListeners.RemoveElement(aWindow);
+  mWindowListeners.RemoveObject(aWindow);
   StartDisconnectTimer();
+
   return NS_OK;
 }
 
@@ -230,16 +230,8 @@ nsDeviceMotion::DeviceMotionChanged(PRUint32 type, double x, double y, double z)
     mListeners[i]->OnMotionChange(a);
   }
 
-  for (PRUint32 i = mWindowListeners.Length(); i > 0 ; ) {
+  for (PRUint32 i = mWindowListeners.Count(); i > 0 ; ) {
     --i;
-
-    // check to see if this window is in the background.  if
-    // it is, don't send any device motion to it.
-    nsCOMPtr<nsPIDOMWindow> pwindow = do_QueryInterface(mWindowListeners[i]);
-    if (!pwindow ||
-        !pwindow->GetOuterWindow() ||
-        pwindow->GetOuterWindow()->IsBackground())
-      continue;
 
     nsCOMPtr<nsIDOMDocument> domdoc;
     mWindowListeners[i]->GetDocument(getter_AddRefs(domdoc));
@@ -257,10 +249,10 @@ nsDeviceMotion::DeviceMotionChanged(PRUint32 type, double x, double y, double z)
 
 void
 nsDeviceMotion::FireDOMOrientationEvent(nsIDOMDocument *domdoc,
-                                        nsIDOMEventTarget *target,
-                                        double alpha,
-                                        double beta,
-                                        double gamma)
+                                         nsIDOMEventTarget *target,
+                                         double alpha,
+                                         double beta,
+                                         double gamma)
 {
   nsCOMPtr<nsIDOMEvent> event;
   PRBool defaultActionEnabled = PR_TRUE;

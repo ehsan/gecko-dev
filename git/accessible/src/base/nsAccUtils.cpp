@@ -43,6 +43,7 @@
 #include "nsIAccessibleTypes.h"
 
 #include "nsAccessibilityService.h"
+#include "nsAccessibilityAtoms.h"
 #include "nsARIAMap.h"
 #include "nsDocAccessible.h"
 #include "nsHyperTextAccessible.h"
@@ -55,9 +56,6 @@
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsComponentManagerUtils.h"
-
-namespace dom = mozilla::dom;
-using namespace mozilla::a11y;
 
 void
 nsAccUtils::GetAccAttr(nsIPersistentProperties *aAttributes,
@@ -87,17 +85,17 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
 
   if (aLevel) {
     value.AppendInt(aLevel);
-    SetAccAttr(aAttributes, nsGkAtoms::level, value);
+    SetAccAttr(aAttributes, nsAccessibilityAtoms::level, value);
   }
 
   if (aSetSize && aPosInSet) {
     value.Truncate();
     value.AppendInt(aPosInSet);
-    SetAccAttr(aAttributes, nsGkAtoms::posinset, value);
+    SetAccAttr(aAttributes, nsAccessibilityAtoms::posinset, value);
 
     value.Truncate();
     value.AppendInt(aSetSize);
-    SetAccAttr(aAttributes, nsGkAtoms::setsize, value);
+    SetAccAttr(aAttributes, nsAccessibilityAtoms::setsize, value);
   }
 }
 
@@ -110,7 +108,7 @@ nsAccUtils::GetDefaultLevel(nsAccessible *aAccessible)
     return 1;
 
   if (role == nsIAccessibleRole::ROLE_ROW) {
-    nsAccessible* parent = aAccessible->Parent();
+    nsAccessible *parent = aAccessible->GetParent();
     if (parent && parent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE) {
       // It is a row inside flatten treegrid. Group level is always 1 until it
       // is overriden by aria-level attribute.
@@ -126,7 +124,7 @@ nsAccUtils::GetARIAOrDefaultLevel(nsAccessible *aAccessible)
 {
   PRInt32 level = 0;
   nsCoreUtils::GetUIntAttr(aAccessible->GetContent(),
-                           nsGkAtoms::aria_level, &level);
+                           nsAccessibilityAtoms::aria_level, &level);
 
   if (level != 0)
     return level;
@@ -275,25 +273,25 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
 
     // container-relevant attribute
     if (relevant.IsEmpty() &&
-        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_relevant) &&
-        ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_relevant, relevant))
-      SetAccAttr(aAttributes, nsGkAtoms::containerRelevant, relevant);
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsAccessibilityAtoms::aria_relevant) &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_relevant, relevant))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerRelevant, relevant);
 
     // container-live, and container-live-role attributes
     if (live.IsEmpty()) {
       nsRoleMapEntry *role = GetRoleMapEntry(ancestor);
       if (nsAccUtils::HasDefinedARIAToken(ancestor,
-                                          nsGkAtoms::aria_live)) {
-        ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_live,
+                                          nsAccessibilityAtoms::aria_live)) {
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_live,
                           live);
       } else if (role) {
         GetLiveAttrValue(role->liveAttRule, live);
       }
       if (!live.IsEmpty()) {
-        SetAccAttr(aAttributes, nsGkAtoms::containerLive, live);
+        SetAccAttr(aAttributes, nsAccessibilityAtoms::containerLive, live);
         if (role) {
           nsAccUtils::SetAccAttr(aAttributes,
-                                 nsGkAtoms::containerLiveRole,
+                                 nsAccessibilityAtoms::containerLiveRole,
                                  NS_ConvertASCIItoUTF16(role->roleString));
         }
       }
@@ -301,15 +299,15 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
 
     // container-atomic attribute
     if (atomic.IsEmpty() &&
-        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
-        ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_atomic, atomic))
-      SetAccAttr(aAttributes, nsGkAtoms::containerAtomic, atomic);
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsAccessibilityAtoms::aria_atomic) &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_atomic, atomic))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerAtomic, atomic);
 
     // container-busy attribute
     if (busy.IsEmpty() &&
-        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_busy) &&
-        ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_busy, busy))
-      SetAccAttr(aAttributes, nsGkAtoms::containerBusy, busy);
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsAccessibilityAtoms::aria_busy) &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_busy, busy))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerBusy, busy);
 
     if (ancestor == aTopContent)
       break;
@@ -327,30 +325,12 @@ nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
 
   if (!aContent->HasAttr(kNameSpaceID_None, aAtom) ||
       aContent->AttrValueIs(kNameSpaceID_None, aAtom,
-                            nsGkAtoms::_empty, eCaseMatters) ||
+                            nsAccessibilityAtoms::_empty, eCaseMatters) ||
       aContent->AttrValueIs(kNameSpaceID_None, aAtom,
-                            nsGkAtoms::_undefined, eCaseMatters)) {
+                            nsAccessibilityAtoms::_undefined, eCaseMatters)) {
         return PR_FALSE;
   }
   return PR_TRUE;
-}
-
-nsIAtom*
-nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
-{
-  if (!nsAccUtils::HasDefinedARIAToken(aElement, aAttr))
-    return nsGkAtoms::_empty;
-
-  static nsIContent::AttrValuesArray tokens[] =
-    { &nsGkAtoms::_false, &nsGkAtoms::_true,
-      &nsGkAtoms::mixed, nsnull};
-
-  PRInt32 idx = aElement->FindAttrValueIn(kNameSpaceID_None,
-                                          aAttr, tokens, eCaseMatters);
-  if (idx >= 0)
-    return *(tokens[idx]);
-
-  return nsnull;
 }
 
 nsAccessible *
@@ -358,7 +338,7 @@ nsAccUtils::GetAncestorWithRole(nsAccessible *aDescendant, PRUint32 aRole)
 {
   nsAccessible *document = aDescendant->GetDocAccessible();
   nsAccessible *parent = aDescendant;
-  while ((parent = parent->Parent())) {
+  while ((parent = parent->GetParent())) {
     PRUint32 testRole = parent->Role();
     if (testRole == aRole)
       return parent;
@@ -379,7 +359,7 @@ nsAccUtils::GetSelectableContainer(nsAccessible* aAccessible, PRUint64 aState)
     return nsnull;
 
   nsAccessible* parent = aAccessible;
-  while ((parent = parent->Parent()) && !parent->IsSelect()) {
+  while ((parent = parent->GetParent()) && !parent->IsSelect()) {
     if (Role(parent) == nsIAccessibleRole::ROLE_PANE)
       return nsnull;
   }
@@ -404,8 +384,8 @@ PRBool
 nsAccUtils::IsARIASelected(nsAccessible *aAccessible)
 {
   return aAccessible->GetContent()->
-    AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_selected,
-                nsGkAtoms::_true, eCaseMatters);
+    AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::aria_selected,
+                nsAccessibilityAtoms::_true, eCaseMatters);
 }
 
 nsHyperTextAccessible*
@@ -440,7 +420,7 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
     if (textAcc)
       return textAcc;
 
-  } while (accessible = accessible->Parent());
+  } while (accessible = accessible->GetParent());
 
   NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
   return nsnull;
@@ -544,7 +524,7 @@ nsAccUtils::GetRoleMapEntry(nsINode *aNode)
   nsIContent *content = nsCoreUtils::GetRoleContent(aNode);
   nsAutoString roleString;
   if (!content ||
-      !content->GetAttr(kNameSpaceID_None, nsGkAtoms::role, roleString) ||
+      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::role, roleString) ||
       roleString.IsEmpty()) {
     // We treat role="" as if the role attribute is absent (per aria spec:8.1.1)
     return nsnull;

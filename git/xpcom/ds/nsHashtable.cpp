@@ -127,8 +127,12 @@ hashEnumerate(PLDHashTable* table, PLDHashEntryHdr* hdr, PRUint32 i, void *arg)
     _HashEnumerateArgs* thunk = (_HashEnumerateArgs*)arg;
     HTEntry* entry = static_cast<HTEntry*>(hdr);
     
-    if (thunk->fn(entry->key, entry->value, thunk->arg))
+    switch (thunk->fn(entry->key, entry->value, thunk->arg)) {
+      case kHashEnumerateNext:
         return PL_DHASH_NEXT;
+      case kHashEnumerateRemove:
+        return PL_DHASH_REMOVE;
+    }
     return PL_DHASH_STOP;           
 }
 

@@ -90,8 +90,7 @@ protected:
 
     virtual PPluginIdentifierParent*
     AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt,
-                           const bool& aTemporary);
+                           const int32_t& aInt);
 
     virtual bool
     DeallocPPluginIdentifier(PPluginIdentifierParent* aActor);
@@ -137,14 +136,8 @@ public:
         return !IsOnCxxStack();
     }
 
-    /**
-     * Get an identifier actor for this NPIdentifier. If this is a temporary
-     * identifier, the temporary refcount is increased by one. This method
-     * is intended only for use by StackIdentifier and the scriptable
-     * Enumerate hook.
-     */
-    PluginIdentifierParent*
-    GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
+    PPluginIdentifierParent*
+    GetIdentifierForNPIdentifier(NPIdentifier aIdentifier);
 
     void ProcessRemoteNativeEventsInRPCCall();
 
@@ -209,10 +202,6 @@ protected:
 
     NS_OVERRIDE virtual bool
     RecvGetNativeCursorsSupported(bool* supported);
-
-    NS_OVERRIDE virtual bool
-    RecvNPN_SetException(PPluginScriptableObjectParent* aActor,
-                         const nsCString& aMessage);
 
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
@@ -295,10 +284,6 @@ private:
 
 #if defined(XP_MACOSX)
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing);
-#endif
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    virtual nsresult HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
-                                    bool* handled);
 #endif
 
 private:

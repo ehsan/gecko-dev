@@ -42,6 +42,7 @@
 #include "nsIProgressEventSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIProxyObjectManager.h"
 #include "nsIRequest.h"
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
@@ -95,7 +96,7 @@ public:
         nsresult rv;
 
         while (count) {
-            PRUint32 n, amt = NS_MIN<PRUint32>(count, sizeof(buf));
+            PRUint32 n, amt = PR_MIN(count, sizeof(buf));
 
             rv = stream->Read(buf, amt, &n);
             if (NS_FAILED(rv)) {

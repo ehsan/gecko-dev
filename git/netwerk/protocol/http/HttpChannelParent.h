@@ -53,7 +53,6 @@
 using namespace mozilla::dom;
 
 class nsICacheEntryDescriptor;
-class nsIAssociatedContentSecurity;
 
 namespace mozilla {
 namespace net {
@@ -64,7 +63,6 @@ class HttpChannelParent : public PHttpChannelParent
                         , public nsIParentRedirectingChannel
                         , public nsIProgressEventSink
                         , public nsIInterfaceRequestor
-                        , public nsIHttpHeaderVisitor
 {
 public:
   NS_DECL_ISUPPORTS
@@ -74,7 +72,6 @@ public:
   NS_DECL_NSIPARENTREDIRECTINGCHANNEL
   NS_DECL_NSIPROGRESSEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSIHTTPHEADERVISITOR
 
   HttpChannelParent(PBrowserParent* iframeEmbedding);
   virtual ~HttpChannelParent();
@@ -121,9 +118,8 @@ protected:
   nsCOMPtr<nsITabParent> mTabParent;
 
 private:
-  nsCOMPtr<nsIChannel>                    mChannel;
-  nsCOMPtr<nsICacheEntryDescriptor>       mCacheDescriptor;
-  nsCOMPtr<nsIAssociatedContentSecurity>  mAssociatedContentSecurity;
+  nsCOMPtr<nsIChannel> mChannel;
+  nsCOMPtr<nsICacheEntryDescriptor> mCacheDescriptor;
   bool mIPCClosed;                // PHttpChannel actor has been Closed()
 
   nsCOMPtr<nsIChannel> mRedirectChannel;
@@ -134,9 +130,6 @@ private:
   nsresult mStoredStatus;
   PRUint64 mStoredProgress;
   PRUint64 mStoredProgressMax;
-
-  // used while visiting headers, to send them to child: else null
-  RequestHeaderTuples *mHeadersToSyncToChild;
 };
 
 } // namespace net

@@ -75,6 +75,74 @@ CreateClampOrRepeatTextureImage(GLContext *aGl,
   return aGl->CreateTextureImage(aSize, aContentType, wrapMode);
 }
 
+// |aTexCoordRect| is the rectangle from the texture that we want to
+// draw using the given program.  The program already has a necessary
+// offset and scale, so the geometry that needs to be drawn is a unit
+// square from 0,0 to 1,1.
+//
+// |aTexSize| is the actual size of the texture, as it can be larger
+// than the rectangle given by |aTexCoordRect|.
+static void
+BindAndDrawQuadWithTextureRect(GLContext* aGl,
+                               LayerProgram *aProg,
+                               const nsIntRect& aTexCoordRect,
+                               const nsIntSize& aTexSize,
+                               GLenum aWrapMode)
+{
+  GLuint vertAttribIndex =
+    aProg->AttribLocation(LayerProgram::VertexAttrib);
+  GLuint texCoordAttribIndex =
+    aProg->AttribLocation(LayerProgram::TexCoordAttrib);
+  NS_ASSERTION(texCoordAttribIndex != GLuint(-1), "no texture coords?");
+
+  // clear any bound VBO so that glVertexAttribPointer() goes back to
+  // "pointer mode"
+  aGl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+
+  // Given what we know about these textures and coordinates, we can
+  // compute fmod(t, 1.0f) to get the same texture coordinate out.  If
+  // the texCoordRect dimension is < 0 or > width/height, then we have
+  // wraparound that we need to deal with by drawing multiple quads,
+  // because we can't rely on full non-power-of-two texture support
+  // (which is required for the REPEAT wrap mode).
+
+  GLContext::RectTriangles rects;
+
+  if (aWrapMode == LOCAL_GL_REPEAT) {
+    rects.addRect(/* dest rectangle */
+                  0.0f, 0.0f, 1.0f, 1.0f,
+                  /* tex coords */
+                  aTexCoordRect.x / GLfloat(aTexSize.width),
+                  aTexCoordRect.y / GLfloat(aTexSize.height),
+                  aTexCoordRect.XMost() / GLfloat(aTexSize.width),
+                  aTexCoordRect.YMost() / GLfloat(aTexSize.height));
+  } else {
+    GLContext::DecomposeIntoNoRepeatTriangles(aTexCoordRect, aTexSize, rects);
+  }
+
+  // vertex position buffer is 2 floats, not normalized, 0 stride.
+  aGl->fVertexAttribPointer(vertAttribIndex, 2,
+                            LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                            rects.vertexPointer());
+
+  // texture coord buffer is 2 floats, not normalized, 0 stride.
+  aGl->fVertexAttribPointer(texCoordAttribIndex, 2,
+                            LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                            rects.texCoordPointer());
+
+  {
+    aGl->fEnableVertexAttribArray(texCoordAttribIndex);
+    {
+      aGl->fEnableVertexAttribArray(vertAttribIndex);
+
+      aGl->fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
+
+      aGl->fDisableVertexAttribArray(vertAttribIndex);
+    }
+    aGl->fDisableVertexAttribArray(texCoordAttribIndex);
+  }
+}
+
 static void
 SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
 {
@@ -103,6 +171,8 @@ public:
 
   enum { PAINT_WILL_RESAMPLE = ThebesLayerBuffer::PAINT_WILL_RESAMPLE };
   virtual PaintState BeginPaint(ContentType aContentType,
+                                float aXResolution,
+                                float aYResolution,
                                 PRUint32 aFlags) = 0;
 
   void RenderTo(const nsIntPoint& aOffset, LayerManagerOGL* aManager,
@@ -140,6 +210,13 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
   if (mTexImageOnWhite && mTexImageOnWhite->InUpdate()) {
     mTexImageOnWhite->EndUpdate();
   }
+
+  // Bind textures.
+  TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
+  TextureImage::ScopedBindTexture texOnWhiteBind(mTexImageOnWhite, LOCAL_GL_TEXTURE1);
+
+  float xres = mLayer->GetXResolution();
+  float yres = mLayer->GetYResolution();
 
   PRInt32 passes = mTexImageOnWhite ? 2 : 1;
   for (PRInt32 pass = 1; pass <= passes; ++pass) {
@@ -190,98 +267,23 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     } else {
       renderRegion = &visibleRegion;
     }
+    nsIntRegionRectIterator iter(*renderRegion);
+    while (const nsIntRect *iterRect = iter.Next()) {
+      nsIntRect quadRect = *iterRect;
+      program->SetLayerQuadRect(quadRect);
 
-    nsIntRegion region(*renderRegion);
-    nsIntPoint origin = GetOriginOffset();
-    region.MoveBy(-origin);           // translate into TexImage space, buffer origin might not be at texture (0,0)
+      quadRect.MoveBy(-GetOriginOffset());
 
-    // Figure out the intersecting draw region
-    nsIntSize texSize = mTexImage->GetSize();
-    nsIntRect textureRect = nsIntRect(0, 0, texSize.width, texSize.height);
-    textureRect.MoveBy(region.GetBounds().TopLeft());
-    nsIntRegion subregion;
-    subregion.And(region, textureRect);
-    if (subregion.IsEmpty())  // Region is empty, nothing to draw
-      return;
+      // The buffer rect and rotation are resolution-neutral; with a
+      // non-1.0 resolution, only the texture size is scaled by the
+      // resolution.  So map the quadrent rect into the space scaled to
+      // the texture size and let GL do the rest.
+      quadRect.ScaleRoundOut(xres, yres);
 
-    nsIntRegion screenRects;
-    nsIntRegion regionRects;
-
-    // Collect texture/screen coordinates for drawing
-    nsIntRegionRectIterator iter(subregion);
-    while (const nsIntRect* iterRect = iter.Next()) {
-        nsIntRect regionRect = *iterRect;
-        nsIntRect screenRect = regionRect;
-        screenRect.MoveBy(origin);
-
-        screenRects.Or(screenRects, screenRect);
-        regionRects.Or(regionRects, regionRect);
+      BindAndDrawQuadWithTextureRect(gl(), program, quadRect,
+                                     mTexImage->GetSize(),
+                                     mTexImage->GetWrapMode());
     }
-
-    mTexImage->BeginTileIteration();
-    if (mTexImageOnWhite) {
-      NS_ASSERTION(mTexImage->GetTileCount() == mTexImageOnWhite->GetTileCount(),
-                   "Tile count mismatch on component alpha texture");
-      mTexImageOnWhite->BeginTileIteration();
-    }
-
-    bool usingTiles = (mTexImage->GetTileCount() > 1);
-    do {
-      if (mTexImageOnWhite) {
-        NS_ASSERTION(mTexImageOnWhite->GetTileRect() == mTexImage->GetTileRect(), "component alpha textures should be the same size.");
-      }
-
-      nsIntRect tileRect = mTexImage->GetTileRect();
-
-      // Bind textures.
-      TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
-      TextureImage::ScopedBindTexture texOnWhiteBind(mTexImageOnWhite, LOCAL_GL_TEXTURE1);
-
-      // Draw texture. If we're using tiles, we do repeating manually, as texture
-      // repeat would cause each individual tile to repeat instead of the
-      // compound texture as a whole. This involves drawing at most 4 sections,
-      // 2 for each axis that has texture repeat.
-      for (int y = 0; y < (usingTiles ? 2 : 1); y++) {
-        for (int x = 0; x < (usingTiles ? 2 : 1); x++) {
-          nsIntRect currentTileRect(tileRect);
-          currentTileRect.MoveBy(x * texSize.width, y * texSize.height);
-
-          nsIntRegionRectIterator screenIter(screenRects);
-          nsIntRegionRectIterator regionIter(regionRects);
-
-          const nsIntRect* screenRect;
-          const nsIntRect* regionRect;
-          while ((screenRect = screenIter.Next()) &&
-                 (regionRect = regionIter.Next())) {
-              nsIntRect tileScreenRect(*screenRect);
-              nsIntRect tileRegionRect(*regionRect);
-
-              // When we're using tiles, find the intersection between the tile
-              // rect and this region rect. Tiling is then handled by the
-              // outer for-loops and modifying the tile rect.
-              if (usingTiles) {
-                  tileScreenRect.MoveBy(-origin);
-                  tileScreenRect = tileScreenRect.Intersect(currentTileRect);
-                  tileScreenRect.MoveBy(origin);
-
-                  if (tileScreenRect.IsEmpty())
-                    continue;
-
-                  tileRegionRect = regionRect->Intersect(currentTileRect);
-                  tileRegionRect.MoveBy(-currentTileRect.TopLeft());
-              }
-
-              program->SetLayerQuadRect(tileScreenRect);
-              aManager->BindAndDrawQuadWithTextureRect(program, tileRegionRect,
-                                                       tileRect.Size(),
-                                                       mTexImage->GetWrapMode());
-          }
-        }
-      }
-
-      if (mTexImageOnWhite)
-          mTexImageOnWhite->NextTile();
-    } while (mTexImage->NextTile());
   }
 
   if (mTexImageOnWhite) {
@@ -310,11 +312,15 @@ public:
 
   // ThebesLayerBufferOGL interface
   virtual PaintState BeginPaint(ContentType aContentType, 
+                                float aXResolution, 
+                                float aYResolution,
                                 PRUint32 aFlags)
   {
     // Let ThebesLayerBuffer do all the hard work for us! :D
     return ThebesLayerBuffer::BeginPaint(mLayer, 
                                          aContentType, 
+                                         aXResolution, 
+                                         aYResolution,
                                          aFlags);
   }
 
@@ -350,6 +356,8 @@ public:
   virtual ~BasicBufferOGL() {}
 
   virtual PaintState BeginPaint(ContentType aContentType,
+                                float aXResolution,
+                                float aYResolution,
                                 PRUint32 aFlags);
 
 protected:
@@ -402,20 +410,42 @@ FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
   ctx->Paint();
 }
 
+static nsIntSize
+ScaledSize(const nsIntSize& aSize, float aXScale, float aYScale)
+{
+  if (aXScale == 1.0 && aYScale == 1.0) {
+    return aSize;
+  }
+
+  nsIntRect rect(0, 0, aSize.width, aSize.height);
+  rect.ScaleRoundOut(aXScale, aYScale);
+  return rect.Size();
+}
+
 BasicBufferOGL::PaintState
 BasicBufferOGL::BeginPaint(ContentType aContentType,
+                           float aXResolution,
+                           float aYResolution,
                            PRUint32 aFlags)
 {
   PaintState result;
-  // We need to disable rotation if we're going to be resampled when
+  float curXRes = mLayer->GetXResolution();
+  float curYRes = mLayer->GetYResolution();
+  // If we have non-identity resolution then mBufferRotation might not fall
+  // on a buffer pixel boundary, in which case that row of pixels will contain
+  // a mix of two completely different rows of the layer, which would be
+  // a catastrophe. So disable rotation in that case.
+  // We also need to disable rotation if we're going to be resampled when
   // drawing, because we might sample across the rotation boundary.
-  PRBool canHaveRotation =  !(aFlags & PAINT_WILL_RESAMPLE);
+  PRBool canHaveRotation =
+    !(aFlags & PAINT_WILL_RESAMPLE) && aXResolution == 1.0 && aYResolution == 1.0;
 
   nsIntRegion validRegion = mLayer->GetValidRegion();
 
   Layer::SurfaceMode mode;
   ContentType contentType;
   nsIntRegion neededRegion;
+  nsIntSize destBufferDims;
   PRBool canReuseBuffer;
   nsIntRect destBufferRect;
 
@@ -423,6 +453,8 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     mode = mLayer->GetSurfaceMode();
     contentType = aContentType;
     neededRegion = mLayer->GetVisibleRegion();
+    destBufferDims = ScaledSize(neededRegion.GetBounds().Size(),
+                                aXResolution, aYResolution);
     // If we're going to resample, we need a buffer that's in clamp mode.
     canReuseBuffer = neededRegion.GetBounds().Size() <= mBufferRect.Size() &&
       mTexImage &&
@@ -467,13 +499,23 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
       // We need to validate the entire buffer, to make sure that only valid
       // pixels are sampled
       neededRegion = destBufferRect;
+      destBufferDims = ScaledSize(neededRegion.GetBounds().Size(),
+                                  aXResolution, aYResolution);
     }
 
     if (mTexImage &&
         (mTexImage->GetContentType() != contentType ||
+         aXResolution != curXRes || aYResolution != curYRes ||
          (mode == Layer::SURFACE_COMPONENT_ALPHA) != (mTexImageOnWhite != nsnull))) {
       // We're effectively clearing the valid region, so we need to draw
       // the entire needed region now.
+      //
+      // XXX/cjones: a possibly worthwhile optimization to keep in mind
+      // is to re-use buffers when the resolution and visible region
+      // have changed in such a way that the buffer size stays the same.
+      // It might make even more sense to allocate buffers from a
+      // recyclable pool, so that we could keep this logic simple and
+      // still get back the same buffer.
       result.mRegionToInvalidate = mLayer->GetValidRegion();
       validRegion.SetEmpty();
       mTexImage = nsnull;
@@ -492,8 +534,8 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   if (result.mRegionToDraw.IsEmpty())
     return result;
 
-  if (destBufferRect.width > gl()->GetMaxTextureSize() ||
-      destBufferRect.height > gl()->GetMaxTextureSize()) {
+  if (destBufferDims.width > gl()->GetMaxTextureSize() ||
+      destBufferDims.height > gl()->GetMaxTextureSize()) {
     return result;
   }
 
@@ -503,6 +545,9 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
 
   PRUint32 bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
   if (canReuseBuffer) {
+    NS_ASSERTION(curXRes == aXResolution && curYRes == aYResolution,
+                 "resolution changes must clear the buffer!");
+
     nsIntRect keepArea;
     if (keepArea.IntersectRect(destBufferRect, mBufferRect)) {
       // Set mBufferRotation so that the pixels currently in mBuffer
@@ -526,12 +571,12 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
         // We can't do a real self-copy because the buffer is rotated.
         // So allocate a new buffer for the destination.
         destBufferRect = neededRegion.GetBounds();
-        destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferRect.Size(), contentType, bufferFlags);
+        destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferDims, contentType, bufferFlags);
         if (!destBuffer)
           return result;
         if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
           destBufferOnWhite =
-            CreateClampOrRepeatTextureImage(gl(), destBufferRect.Size(), contentType, bufferFlags);
+            CreateClampOrRepeatTextureImage(gl(), destBufferDims, contentType, bufferFlags);
           if (!destBufferOnWhite)
             return result;
         }
@@ -548,13 +593,13 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     }
   } else {
     // The buffer's not big enough, so allocate a new one
-    destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferRect.Size(), contentType, bufferFlags);
+    destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferDims, contentType, bufferFlags);
     if (!destBuffer)
       return result;
 
     if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
       destBufferOnWhite = 
-        CreateClampOrRepeatTextureImage(gl(), destBufferRect.Size(), contentType, bufferFlags);
+        CreateClampOrRepeatTextureImage(gl(), destBufferDims, contentType, bufferFlags);
       if (!destBufferOnWhite)
         return result;
     }
@@ -578,21 +623,24 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
         srcRect.MoveBy(- mBufferRect.TopLeft() + mBufferRotation);
         dstRect.MoveBy(- destBufferRect.TopLeft());
 
-        destBuffer->Resize(destBufferRect.Size());
+        nsIntSize size = ScaledSize(destBufferRect.Size(), aXResolution, aYResolution);
+        destBuffer->Resize(size);
+        srcRect.ScaleRoundOut(aXResolution, aYResolution);
+        dstRect.ScaleRoundOut(aXResolution, aYResolution);
 
         gl()->BlitTextureImage(mTexImage, srcRect,
                                destBuffer, dstRect);
         if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-          destBufferOnWhite->Resize(destBufferRect.Size());
+          destBufferOnWhite->Resize(size);
           gl()->BlitTextureImage(mTexImageOnWhite, srcRect,
                                  destBufferOnWhite, dstRect);
         }
       } else {
         // can't blit, just draw everything
-        destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferRect.Size(), contentType, bufferFlags);
+        destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferDims, contentType, bufferFlags);
         if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
           destBufferOnWhite = 
-            CreateClampOrRepeatTextureImage(gl(), destBufferRect.Size(), contentType, bufferFlags);
+            CreateClampOrRepeatTextureImage(gl(), destBufferDims, contentType, bufferFlags);
         }
       }
     }
@@ -624,6 +672,7 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   // Make the region to draw relative to the buffer, before
   // passing to BeginUpdate.
   result.mRegionToDraw.MoveBy(offset);
+  result.mRegionToDraw.ScaleRoundOut(aXResolution, aYResolution);
   // BeginUpdate is allowed to modify the given region,
   // if it wants more to be repainted than we request.
   if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
@@ -662,20 +711,16 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     NS_WARNING("unable to get context for update");
     return result;
   }
+  result.mContext->Scale(aXResolution, aYResolution);
   result.mContext->Translate(-gfxPoint(quadrantRect.x, quadrantRect.y));
   // Move rgnToPaint back into position so that the thebes callback
   // gets the right coordintes.
+  result.mRegionToDraw.ScaleRoundOut(1/aXResolution, 1/aYResolution);
   result.mRegionToDraw.MoveBy(-offset);
-
-  // If we do partial updates, we have to clip drawing to the regionToDraw.
-  // If we don't clip, background images will be fillrect'd to the region correctly,
-  // while text or lines will paint outside of the regionToDraw. This becomes apparent
-  // with concave regions. Right now the scrollbars invalidate a narrow strip of the awesomebar
-  // although they never cover it. This leads to two draw rects, the narow strip and the actually
-  // newly exposed area. It would be wise to fix this glitch in any way to have simpler
-  // clip and draw regions.
-  gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
-
+  // Round our region out to values that will scale cleanly by the given
+  // resolution.
+  result.mRegionToDraw.ExtendForScaling(aXResolution, aYResolution);
+  
   return result;
 }
 
@@ -749,23 +794,31 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     CanUseOpaqueSurface() ? gfxASurface::CONTENT_COLOR :
                             gfxASurface::CONTENT_COLOR_ALPHA;
 
-  PRUint32 flags = 0;
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
   gfxMatrix transform2d;
+  gfxSize scale(1.0, 1.0);
+  float paintXRes = 1.0;
+  float paintYRes = 1.0;
+  PRUint32 flags = 0;
   if (GetEffectiveTransform().Is2D(&transform2d)) {
+    scale = transform2d.ScaleFactors(PR_TRUE);
+    paintXRes = gfxUtils::ClampToScaleFactor(scale.width);
+    paintYRes = gfxUtils::ClampToScaleFactor(scale.height);
+    transform2d.Scale(1.0/paintXRes, 1.0/paintYRes);
     if (transform2d.HasNonIntegerTranslation()) {
       flags |= ThebesLayerBufferOGL::PAINT_WILL_RESAMPLE;
     }
   } else {
     flags |= ThebesLayerBufferOGL::PAINT_WILL_RESAMPLE;
   }
-#endif
 
-  Buffer::PaintState state = mBuffer->BeginPaint(contentType, flags);
+  Buffer::PaintState state =
+    mBuffer->BeginPaint(contentType, paintXRes, paintYRes, flags);
   mValidRegion.Sub(mValidRegion, state.mRegionToInvalidate);
 
   if (state.mContext) {
     state.mRegionToInvalidate.And(state.mRegionToInvalidate, mVisibleRegion);
+    mXResolution = paintXRes;
+    mYResolution = paintYRes;
 
     LayerManager::DrawThebesLayerCallback callback =
       mOGLManager->GetThebesLayerCallback();
@@ -813,7 +866,8 @@ public:
     : ThebesLayerBufferOGL(aLayer, aLayer)
   {}
 
-  virtual PaintState BeginPaint(ContentType aContentType, PRUint32) {
+  virtual PaintState BeginPaint(ContentType aContentType,
+                                float, float, PRUint32) {
     NS_RUNTIMEABORT("can't BeginPaint for a shadow layer");
     return PaintState();
   }
@@ -849,20 +903,26 @@ ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
   nsIntPoint visTopLeft = mLayer->GetVisibleRegion().GetBounds().TopLeft();
   destRegion.MoveBy(-visTopLeft);
 
-  // Correct for rotation
-  destRegion.MoveBy(aRotation);
+  // |aUpdated|, |aRect|, and |aRotation| are in thebes-layer space,
+  // unadjusted for resolution.  The texture is in device space, so
+  // first we need to map the update params to device space.
+  //
+  // XXX this prematurely commits us to updating rects instead of
+  // regions here.  This will be a perf penalty on platforms that
+  // support region updates.  This is OK for now because the
+  // TextureImage backends we care about need to update contiguous
+  // rects anyway, and would do this conversion internally.  To fix
+  // this, we would need to scale the region instead of its bounds
+  // here.
   nsIntRect destBounds = destRegion.GetBounds();
-  destRegion.MoveBy((destBounds.x >= size.width) ? -size.width : 0,
-                    (destBounds.y >= size.height) ? -size.height : 0);
-
-  // There's code to make sure that updated regions don't cross rotation
-  // boundaries, so assert here that this is the case
-  NS_ASSERTION(((destBounds.x % size.width) + destBounds.width <= size.width) &&
-               ((destBounds.y % size.height) + destBounds.height <= size.height),
-               "Updated region lies across rotation boundaries!");
+  gfxRect destRect(destBounds.x, destBounds.y, destBounds.width, destBounds.height);
+  destRect.Scale(mLayer->GetXResolution(), mLayer->GetYResolution());
+  destRect.RoundOut();
 
   // NB: this gfxContext must not escape EndUpdate() below
-  mTexImage->DirectUpdate(aUpdate, destRegion);
+  nsIntRegion scaledDestRegion(nsIntRect(destRect.X(), destRect.Y(),
+                                         destRect.Width(), destRect.Height()));
+  mTexImage->DirectUpdate(aUpdate, scaledDestRegion);
 
   mBufferRect = aRect;
   mBufferRotation = aRotation;
@@ -880,7 +940,8 @@ ShadowThebesLayerOGL::~ShadowThebesLayerOGL()
 
 void
 ShadowThebesLayerOGL::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
-                                     const nsIntRegion& aValidRegion)
+                                     const nsIntRegion& aValidRegion,
+                                     float aXResolution, float aYResolution)
 {
   if (mDestroyed) {
     return;
@@ -899,6 +960,7 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
                            const nsIntRegion& aUpdatedRegion,
                            ThebesBuffer* aNewBack,
                            nsIntRegion* aNewBackValidRegion,
+                           float* aNewXResolution, float* aNewYResolution,
                            OptionalThebesBuffer* aReadOnlyFront,
                            nsIntRegion* aFrontUpdatedRegion)
 {
@@ -909,6 +971,8 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
 
   *aNewBack = aNewFront;
   *aNewBackValidRegion = mValidRegion;
+  *aNewXResolution = mXResolution;
+  *aNewYResolution = mYResolution;
   *aReadOnlyFront = null_t();
   aFrontUpdatedRegion->SetEmpty();
 }

@@ -66,7 +66,7 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 
-#if defined(MOZ_PLATFORM_MAEMO) || defined(ANDROID) || defined(MOZ_EGL_XRENDER_COMPOSITE)
+#if defined(MOZ_PLATFORM_MAEMO) || defined(ANDROID)
 #define USE_GLES2 1
 #endif
 
@@ -75,12 +75,8 @@ typedef char realGLboolean;
 #include "GLContextSymbols.h"
 
 namespace mozilla {
-  namespace layers {
-    class LayerManagerOGL;
-    class ColorTextureLayerProgram;
-  };
-
 namespace gl {
+
 class GLContext;
 
 class LibrarySymbolLoader
@@ -160,13 +156,6 @@ class TextureImage
 {
     NS_INLINE_DECL_REFCOUNTING(TextureImage)
 public:
-    enum TextureState
-    {
-      Created, // Texture created, but has not had glTexImage called to initialize it.
-      Allocated,  // Texture memory exists, but contents are invalid.
-      Valid  // Texture fully ready to use.
-    };
-
     typedef gfxASurface::gfxContentType ContentType;
 
     virtual ~TextureImage() {}
@@ -194,15 +183,6 @@ public:
      */
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion) = 0;
     /**
-     * Retrieves the region that will require updating, given a
-     * region that needs to be updated. This can be used for
-     * making decisions about updating before calling BeginUpdate().
-     *
-     * |aRegion| is an inout param.
-     */
-    virtual void GetUpdateRegion(nsIntRegion& aForRegion) {
-    };
-    /**
      * Finish the active update and synchronize with the server, if
      * necessary.
      *
@@ -210,27 +190,6 @@ public:
      * EndUpdate().
      */
     virtual void EndUpdate() = 0;
-
-    /**
-     * The Image may contain several textures for different regions (tiles).
-     * These functions iterate over each sub texture image tile.
-     */
-    virtual void BeginTileIteration() {
-    };
-
-    virtual PRBool NextTile() {
-        return PR_FALSE;
-    };
-
-    virtual nsIntRect GetTileRect() {
-        return nsIntRect(nsIntPoint(0,0), mSize);
-    };
-
-    virtual GLuint GetTextureID() = 0;
-
-    virtual PRUint32 GetTileCount() {
-        return 1;
-    };
 
     /**
      * Set this TextureImage's size, and ensure a texture has been
@@ -247,12 +206,7 @@ public:
         EndUpdate();
     }
 
-    /**
-     * aSurf - the source surface to update from
-     * aRegion - the region in this image to update
-     * aFrom - offset in the source to update from
-     */
-    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0)) = 0;
+    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion) =0;
 
     virtual void BindTexture(GLenum aTextureUnit) = 0;
     virtual void ReleaseTexture() {};
@@ -279,6 +233,16 @@ public:
         TextureImage *mTexture;
     };
 
+    /**
+     * Return this TextureImage's texture ID for use with GL APIs.
+     * Callers are responsible for properly binding the texture etc.
+     *
+     * The texture is only texture complete after either Resize
+     * or a matching pair of BeginUpdate/EndUpdate have been called.
+     * Otherwise, a texture ID may be returned, but the texture
+     * may not be texture complete.
+     */
+    GLuint Texture() { return mTexture; }
 
     /**
      * Returns the shader program type that should be used to render
@@ -315,15 +279,17 @@ protected:
      * TextureImage from GLContext::CreateTextureImage().  That is,
      * clients must not be given partially-constructed TextureImages.
      */
-    TextureImage(const nsIntSize& aSize,
+    TextureImage(GLuint aTexture, const nsIntSize& aSize,
                  GLenum aWrapMode, ContentType aContentType,
                  PRBool aIsRGB = PR_FALSE)
-        : mSize(aSize)
+        : mTexture(aTexture)
+        , mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
         , mIsRGBFormat(aIsRGB)
     {}
 
+    GLuint mTexture;
     nsIntSize mSize;
     GLenum mWrapMode;
     ContentType mContentType;
@@ -352,20 +318,25 @@ public:
                       GLenum aWrapMode,
                       ContentType aContentType,
                       GLContext* aContext)
-        : TextureImage(aSize, aWrapMode, aContentType)
-        , mTexture(aTexture)
+        : TextureImage(aTexture, aSize, aWrapMode, aContentType)
         , mTextureState(Created)
         , mGLContext(aContext)
         , mUpdateOffset(0, 0)
     {}
 
+    enum TextureState
+    {
+      Created, // Texture created, but has not had glTexImage called to initialize it.
+      Allocated,  // Texture memory exists, but contents are invalid.
+      Valid  // Texture fully ready to use.
+    };
+    
     virtual void BindTexture(GLenum aTextureUnit);
 
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
-    virtual void GetUpdateRegion(nsIntRegion& aForRegion);
     virtual void EndUpdate();
-    virtual bool DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0));
-    virtual GLuint GetTextureID() { return mTexture; };
+    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion);
+
     // Returns a surface to draw into
     virtual already_AddRefed<gfxASurface>
       GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt);
@@ -383,7 +354,6 @@ public:
     virtual void Resize(const nsIntSize& aSize);
 protected:
 
-    GLuint mTexture;
     TextureState mTextureState;
     GLContext* mGLContext;
     nsRefPtr<gfxASurface> mUpdateSurface;
@@ -391,49 +361,6 @@ protected:
 
     // The offset into the update surface at which the update rect is located.
     nsIntPoint mUpdateOffset;
-};
-
-/**
- * A container class that complements many sub TextureImages into a big TextureImage.
- * Aims to behave just like the real thing.
- */
-
-class TiledTextureImage
-    : public TextureImage
-{
-public:
-    TiledTextureImage(GLContext* aGL, nsIntSize aSize,
-        TextureImage::ContentType, PRBool aUseNearestFilter = PR_FALSE);
-    ~TiledTextureImage();
-    void DumpDiv();
-    virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
-    virtual void GetUpdateRegion(nsIntRegion& aForRegion);
-    virtual void EndUpdate();
-    virtual void Resize(const nsIntSize& aSize);
-    virtual PRUint32 GetTileCount();
-    virtual void BeginTileIteration();
-    virtual PRBool NextTile();
-    virtual nsIntRect GetTileRect();
-    virtual GLuint GetTextureID() {
-        return mImages[mCurrentImage]->GetTextureID();
-    };
-    virtual bool DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0));
-    virtual PRBool InUpdate() const { return mInUpdate; };
-    virtual void BindTexture(GLenum);
-protected:
-    unsigned int mCurrentImage;
-    nsTArray< nsRefPtr<TextureImage> > mImages;
-    bool mInUpdate;
-    nsIntSize mSize;
-    unsigned int mTileSize;
-    unsigned int mRows, mColumns;
-    GLContext* mGL;
-    PRBool mUseNearestFilter;
-    // A temporary surface to faciliate cross-tile updates.
-    nsRefPtr<gfxASurface> mUpdateSurface;
-    // The region of update requested
-    nsIntRegion mUpdateRegion;
-    TextureState mTextureState;
 };
 
 struct THEBES_API ContextFormat
@@ -568,8 +495,6 @@ public:
     virtual PRBool SetupLookupFunction() = 0;
 
     virtual void WindowDestroyed() {}
-
-    virtual void ReleaseSurface() {}
 
     void *GetUserData(void *aKey) {
         void *result = nsnull;
@@ -756,15 +681,6 @@ public:
         return mOffscreenTexture;
     }
 
-#if defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE)
-    virtual gfxASurface* GetOffscreenPixmapSurface()
-    {
-      return 0;
-    };
-    
-    virtual PRBool WaitNative() { return PR_FALSE; }
-#endif
-
     virtual PRBool TextureImageSupportsGetBackingSurface() {
         return PR_FALSE;
     }
@@ -789,21 +705,6 @@ public:
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
                        PRBool aUseNearestFilter=PR_FALSE);
-
-    /**
-     * In EGL we want to use Tiled Texture Images, which we return
-     * from CreateTextureImage above.
-     * Inside TiledTextureImage we need to create actual images and to
-     * prevent infinite recursion we need to differentiate the two
-     * functions.
-     **/
-    virtual already_AddRefed<TextureImage>
-    TileGenFunc(const nsIntSize& aSize,
-                TextureImage::ContentType aContentType,
-                PRBool aUseNearestFilter = PR_FALSE)
-    {
-        return nsnull;
-    };
 
     /**
      * Read the image data contained in aTexture, and return it as an ImageSurface.
@@ -890,19 +791,6 @@ public:
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
                                              bool aPixelBuffer = PR_FALSE);
 
-    
-    void TexImage2D(GLenum target, GLint level, GLint internalformat, 
-                    GLsizei width, GLsizei height, GLsizei stride,
-                    GLint pixelsize, GLint border, GLenum format, 
-                    GLenum type, const GLvoid *pixels);
-
-
-    void TexSubImage2D(GLenum target, GLint level, 
-                       GLint xoffset, GLint yoffset, 
-                       GLsizei width, GLsizei height, GLsizei stride,
-                       GLint pixelsize, GLenum format, 
-                       GLenum type, const GLvoid* pixels);
-
     /** Helper for DecomposeIntoNoRepeatTriangles
      */
     struct RectTriangles {
@@ -978,9 +866,6 @@ public:
         ARB_texture_non_power_of_two,
         ARB_pixel_buffer_object,
         ARB_ES2_compatibility,
-        OES_texture_float,
-        ARB_texture_float,
-        EXT_unpack_subimage,
         Extensions_Max
     };
 
@@ -1110,21 +995,6 @@ protected:
     GLint mMaxRenderbufferSize;
 
 public:
- 
-    /** \returns the first GL error, and guarantees that all GL error flags are cleared,
-      * i.e. that a subsequent GetError call will return NO_ERROR
-      */
-    GLenum GetAndClearError() {
-        // the first error is what we want to return
-        GLenum error = fGetError();
-        
-        if (error) {
-            // clear all pending errors
-            while(fGetError()) {}
-        }
-        
-        return error;
-    }
 
 #ifdef DEBUG
 
@@ -1142,7 +1012,6 @@ protected:
     GLenum mGLError;
 
 public:
-
     void BeforeGLCall(const char* glFunction) {
         if (mDebugMode) {
             // since the static member variable sCurrentGLContext is not thread-local as it should,

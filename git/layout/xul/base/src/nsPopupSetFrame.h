@@ -57,14 +57,14 @@ public:
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
                                   nsFrameList&    aChildList);
 
   // nsIBox

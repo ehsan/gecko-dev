@@ -54,7 +54,7 @@
 #include "nsBoxFrame.h"
 #include "nsBoxFrame.h"
 
-nsBoxLayout* nsSprocketLayout::gInstance = nsnull;
+nsIBoxLayout* nsSprocketLayout::gInstance = nsnull;
 
 //#define DEBUG_GROW
 
@@ -64,7 +64,7 @@ nsBoxLayout* nsSprocketLayout::gInstance = nsnull;
 
 
 nsresult
-NS_NewSprocketLayout( nsIPresShell* aPresShell, nsCOMPtr<nsBoxLayout>& aNewLayout)
+NS_NewSprocketLayout( nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout)
 {
   if (!nsSprocketLayout::gInstance) {
     nsSprocketLayout::gInstance = new nsSprocketLayout();

@@ -38,7 +38,6 @@
 #include "IPC/IPCMessageUtils.h"
 #include "mozilla/net/NeckoMessageUtils.h"
 
-#include "nsAlgorithm.h"
 #include "nsBufferedStreams.h"
 #include "nsStreamUtils.h"
 #include "nsCRT.h"
@@ -346,7 +345,7 @@ nsBufferedInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
 
     nsresult rv = NS_OK;
     while (count > 0) {
-        PRUint32 amt = NS_MIN(count, mFillPoint - mCursor);
+        PRUint32 amt = PR_MIN(count, mFillPoint - mCursor);
         if (amt > 0) {
             PRUint32 read = 0;
             rv = writer(this, closure, mBuffer + mCursor, *result, amt, &read);
@@ -578,7 +577,7 @@ nsBufferedOutputStream::Write(const char *buf, PRUint32 count, PRUint32 *result)
     nsresult rv = NS_OK;
     PRUint32 written = 0;
     while (count > 0) {
-        PRUint32 amt = NS_MIN(count, mBufferSize - mCursor);
+        PRUint32 amt = PR_MIN(count, mBufferSize - mCursor);
         if (amt > 0) {
             memcpy(mBuffer + mCursor, buf + written, amt);
             written += amt;
@@ -669,7 +668,7 @@ nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, P
     *_retval = 0;
     nsresult rv;
     while (count > 0) {
-        PRUint32 left = NS_MIN(count, mBufferSize - mCursor);
+        PRUint32 left = PR_MIN(count, mBufferSize - mCursor);
         if (left == 0) {
             rv = Flush();
             if (NS_FAILED(rv))
@@ -686,7 +685,7 @@ nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, P
         mCursor += read;
         *_retval += read;
         count -= read;
-        mFillPoint = NS_MAX(mFillPoint, mCursor);
+        mFillPoint = PR_MAX(mFillPoint, mCursor);
     }
     return NS_OK;
 }

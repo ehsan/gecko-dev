@@ -41,7 +41,6 @@
 // 3, certain combination of kana is never used in japanese language
 
 #include "nsGB2312Prober.h"
-#include "nsDebug.h"
 
 void  nsGB18030Prober::Reset(void)
 {
@@ -53,7 +52,6 @@ void  nsGB18030Prober::Reset(void)
 
 nsProbingState nsGB18030Prober::HandleData(const char* aBuf, PRUint32 aLen)
 {
-  NS_ASSERTION(aLen, "HandleData called with empty buffer");
   nsSMState codingState;
 
   for (PRUint32 i = 0; i < aLen; i++)

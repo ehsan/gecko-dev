@@ -48,7 +48,7 @@ function testTableStruct(aIdentifier, aCellsArray, aColHeaderType,
     tableNode.localName == "tree";
 
   var rowCount = aCellsArray.length;
-  var colsCount = aCellsArray[0] ? aCellsArray[0].length : 0;
+  var colsCount = aCellsArray[0].length;
 
   // Test table accessible tree.
   var tableObj = {

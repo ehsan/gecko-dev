@@ -42,7 +42,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsPNGDecoder.h"
-#include "ImageLogging.h"
 
 #include "nsMemory.h"
 #include "nsRect.h"
@@ -77,9 +76,10 @@ static PRLogModuleInfo *gPNGDecoderAccountingLog =
 #define HEIGHT_OFFSET (WIDTH_OFFSET + 4)
 #define BYTES_NEEDED_FOR_DIMENSIONS (HEIGHT_OFFSET + 4)
 
-// First 8 bytes of a PNG file
-const PRUint8 
-nsPNGDecoder::pngSignatureBytes[] = { 137, 80, 78, 71, 13, 10, 26, 10 };
+// This is defined in the PNG spec as an invariant. We use it to
+// do manual validation without libpng.
+static const PRUint8 pngSignatureBytes[] =
+               { 137, 80, 78, 71, 13, 10, 26, 10 };
 
 nsPNGDecoder::nsPNGDecoder() :
   mPNG(nsnull), mInfo(nsnull),
@@ -116,8 +116,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                                gfxASurface::gfxImageFormat format)
 {
   PRUint32 imageDataLength;
-  nsresult rv = mImage->EnsureFrame(GetFrameCount(), x_offset, y_offset,
-                                    width, height, format,
+  nsresult rv = mImage->AppendFrame(x_offset, y_offset, width, height, format,
                                     &mImageData, &imageDataLength);
   if (NS_FAILED(rv))
     longjmp(png_jmpbuf(mPNG), 5); // NS_ERROR_OUT_OF_MEMORY
@@ -307,7 +306,7 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
       return;
 
     // Read data into our header buffer
-    PRUint32 bytesToRead = NS_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
+    PRUint32 bytesToRead = PR_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
                                   mHeaderBytesRead);
     memcpy(mHeaderBuf + mHeaderBytesRead, aBuffer, bytesToRead);
     mHeaderBytesRead += bytesToRead;
@@ -316,8 +315,7 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
     if (mHeaderBytesRead == BYTES_NEEDED_FOR_DIMENSIONS) {
 
       // Check that the signature bytes are right
-      if (memcmp(mHeaderBuf, nsPNGDecoder::pngSignatureBytes, 
-                 sizeof(pngSignatureBytes))) {
+      if (memcmp(mHeaderBuf, pngSignatureBytes, sizeof(pngSignatureBytes))) {
         PostDataError();
         return;
       }
@@ -878,13 +876,6 @@ nsPNGDecoder::warning_callback(png_structp png_ptr, png_const_charp warning_msg)
 {
   PR_LOG(gPNGLog, PR_LOG_WARNING, ("libpng warning: %s\n", warning_msg));
 }
-
-Telemetry::ID
-nsPNGDecoder::SpeedHistogram()
-{
-  return Telemetry::IMAGE_DECODE_SPEED_PNG;
-}
-
 
 } // namespace imagelib
 } // namespace mozilla

@@ -60,7 +60,8 @@
 #include "nsScrollbarButtonFrame.h"
 #include "nsISliderListener.h"
 #include "nsIScrollbarMediator.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
+#include "nsILookAndFeel.h"
 #include "nsRepeatService.h"
 #include "nsBoxLayoutState.h"
 #include "nsSprocketLayout.h"
@@ -69,10 +70,6 @@
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
 
 PRBool nsSliderFrame::gMiddlePref = PR_FALSE;
 PRInt32 nsSliderFrame::gSnapMultiplier;
@@ -120,8 +117,8 @@ nsSliderFrame::Init(nsIContent*      aContent,
   if (!gotPrefs) {
     gotPrefs = PR_TRUE;
 
-    gMiddlePref = Preferences::GetBool("middlemouse.scrollbarPosition");
-    gSnapMultiplier = Preferences::GetInt("slider.snapMultiplier");
+    gMiddlePref = nsContentUtils::GetBoolPref("middlemouse.scrollbarPosition");
+    gSnapMultiplier = nsContentUtils::GetIntPref("slider.snapMultiplier");
   }
 
   mCurPos = GetCurrentPosition(aContent);
@@ -130,10 +127,10 @@ nsSliderFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::RemoveFrame(ChildListID     aListID,
+nsSliderFrame::RemoveFrame(nsIAtom*        aListName,
                            nsIFrame*       aOldFrame)
 {
-  nsresult rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   if (mFrames.IsEmpty())
     RemoveListener();
 
@@ -141,12 +138,12 @@ nsSliderFrame::RemoveFrame(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::InsertFrames(ChildListID     aListID,
+nsSliderFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
   PRBool wasEmpty = mFrames.IsEmpty();
-  nsresult rv = nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  nsresult rv = nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   if (wasEmpty)
     AddListener();
 
@@ -154,13 +151,13 @@ nsSliderFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::AppendFrames(ChildListID     aListID,
+nsSliderFrame::AppendFrames(nsIAtom*        aListName,
                             nsFrameList&    aFrameList)
 {
   // if we have no children and on was added then make sure we add the
   // listener
   PRBool wasEmpty = mFrames.IsEmpty();
-  nsresult rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
+  nsresult rv = nsBoxFrame::AppendFrames(aListName, aFrameList);
   if (wasEmpty)
     AddListener();
 
@@ -297,7 +294,7 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
             current = max;
 
         // set the new position and notify observers
-        nsScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+        nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
         if (scrollbarFrame) {
           nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
           if (mediator) {
@@ -609,11 +606,16 @@ nsSliderFrame::GetScrollToClick()
  
   // if there was no scrollbar, always scroll on click
   PRBool scrollToClick = PR_FALSE;
-  PRInt32 scrollToClickMetric;
-  nsresult rv = LookAndFeel::GetInt(LookAndFeel::eIntID_ScrollToClick,
-                                    &scrollToClickMetric);
-  if (NS_SUCCEEDED(rv) && scrollToClickMetric == 1)
-    scrollToClick = PR_TRUE;
+  nsresult rv;
+  nsCOMPtr<nsILookAndFeel> lookNFeel =
+    do_GetService("@mozilla.org/widget/lookandfeel;1", &rv);
+  if (NS_SUCCEEDED(rv)) {
+    PRInt32 scrollToClickMetric;
+    rv = lookNFeel->GetMetric(nsILookAndFeel::eMetric_ScrollToClick,
+                              scrollToClickMetric);
+    if (NS_SUCCEEDED(rv) && scrollToClickMetric == 1)
+      scrollToClick = PR_TRUE;
+  }
   return scrollToClick;
 
 #else
@@ -807,7 +809,7 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
 
   mUserChanged = PR_TRUE;
 
-  nsScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+  nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
   if (scrollbarFrame) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
@@ -843,10 +845,10 @@ nsSliderFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsSliderFrame::SetInitialChildList(ChildListID     aListID,
+nsSliderFrame::SetInitialChildList(nsIAtom*        aListName,
                                    nsFrameList&    aChildList)
 {
-  nsresult r = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult r = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 
   AddListener();
 
@@ -854,11 +856,21 @@ nsSliderFrame::SetInitialChildList(ChildListID     aListID,
 }
 
 nsresult
-nsSliderMediator::HandleEvent(nsIDOMEvent* aEvent)
+nsSliderMediator::MouseDown(nsIDOMEvent* aMouseEvent)
 {
   // Only process the event if the thumb is not being dragged.
   if (mSlider && !mSlider->isDraggingThumb())
-    return mSlider->MouseDown(aEvent);
+    return mSlider->MouseDown(aMouseEvent);
+
+  return NS_OK;
+}
+
+nsresult
+nsSliderMediator::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+  // Only process the event if the thumb is not being dragged.
+  if (mSlider && !mSlider->isDraggingThumb())
+    return mSlider->MouseUp(aMouseEvent);
 
   return NS_OK;
 }
@@ -870,14 +882,11 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   printf("Begin dragging\n");
 #endif
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
-  if (!mouseEvent)
-    return NS_OK;
-
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled,
                             nsGkAtoms::_true, eCaseMatters))
     return NS_OK;
 
+  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
   PRUint16 button = 0;
   mouseEvent->GetButton(&button);
   if (!(button == 0 || (button == 1 && gMiddlePref)))
@@ -943,6 +952,16 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
+nsresult
+nsSliderFrame::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+#ifdef DEBUG_SLIDER
+  printf("Finish dragging\n");
+#endif
+
+  return NS_OK;
+}
+
 void
 nsSliderFrame::DragThumb(PRBool aGrabMouseEvents)
 {
@@ -976,8 +995,7 @@ nsSliderFrame::AddListener()
   nsIFrame* thumbFrame = mFrames.FirstChild();
   if (thumbFrame) {
     thumbFrame->GetContent()->
-      AddEventListener(NS_LITERAL_STRING("mousedown"), mMediator, PR_FALSE,
-                       PR_FALSE);
+      AddEventListenerByIID(mMediator, NS_GET_IID(nsIDOMMouseListener));
   }
 }
 
@@ -991,7 +1009,7 @@ nsSliderFrame::RemoveListener()
     return;
 
   thumbFrame->GetContent()->
-    RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMediator, PR_FALSE);
+    RemoveEventListenerByIID(mMediator, NS_GET_IID(nsIDOMMouseListener));
 }
 
 NS_IMETHODIMP
@@ -1133,5 +1151,6 @@ void nsSliderFrame::Notify(void)
     }
 }
 
-NS_IMPL_ISUPPORTS1(nsSliderMediator,
+NS_IMPL_ISUPPORTS2(nsSliderMediator,
+                   nsIDOMMouseListener,
                    nsIDOMEventListener)

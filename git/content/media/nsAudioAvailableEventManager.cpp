@@ -41,7 +41,7 @@
 #include "nsAudioAvailableEventManager.h"
 #include "VideoUtils.h"
 
-static const nsTArray< nsCOMPtr<nsIRunnable> >::size_type MAX_PENDING_EVENTS = 100;
+#define MAX_PENDING_EVENTS 100
 
 using namespace mozilla;
 
@@ -116,7 +116,7 @@ void nsAudioAvailableEventManager::DispatchPendingEvents(PRUint64 aCurrentTime)
   }
 }
 
-void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioData,
+void nsAudioAvailableEventManager::QueueWrittenAudioData(SoundDataValue* aAudioData,
                                                          PRUint32 aAudioDataLength,
                                                          PRUint64 aEndTimeSampleOffset)
 {
@@ -136,7 +136,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     }
     mSignalBufferLength = currentBufferSize;
   }
-  AudioDataValue* audioData = aAudioData;
+  SoundDataValue* audioData = aAudioData;
   PRUint32 audioDataLength = aAudioDataLength;
   PRUint32 signalBufferTail = mSignalBufferLength - mSignalBufferPosition;
 
@@ -153,7 +153,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     PRUint32 i;
     float *signalBuffer = mSignalBuffer.get() + mSignalBufferPosition;
     for (i = 0; i < signalBufferTail; ++i) {
-      signalBuffer[i] = MOZ_CONVERT_AUDIO_SAMPLE(audioData[i]);
+      signalBuffer[i] = MOZ_CONVERT_SOUND_SAMPLE(audioData[i]);
     }
     audioData += signalBufferTail;
     audioDataLength -= signalBufferTail;
@@ -172,7 +172,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
       }
     }
 
-    // Inform the element that we've written audio data.
+    // Inform the element that we've written sound data.
     nsCOMPtr<nsIRunnable> event =
       new nsAudioAvailableEventRunner(mDecoder, mSignalBuffer.forget(),
                                       mSignalBufferLength, time);
@@ -194,7 +194,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     PRUint32 i;
     float *signalBuffer = mSignalBuffer.get() + mSignalBufferPosition;
     for (i = 0; i < audioDataLength; ++i) {
-      signalBuffer[i] = MOZ_CONVERT_AUDIO_SAMPLE(audioData[i]);
+      signalBuffer[i] = MOZ_CONVERT_SOUND_SAMPLE(audioData[i]);
     }
     mSignalBufferPosition += audioDataLength;
   }

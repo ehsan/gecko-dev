@@ -50,6 +50,7 @@
 
 class nsStyleContext;
 struct PLDHashTable;
+class nsILanguageAtomService;
 struct nsRuleData;
 class nsIStyleRule;
 struct nsCSSValueList;
@@ -415,6 +416,7 @@ public:
   // (which comes from the presShell) to perform the allocation.
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW;
   void Destroy() { DestroyInternal(nsnull); }
+  static nsILanguageAtomService* gLangService;
 
   // Implemented in nsStyleSet.h, since it needs to know about nsStyleSet.
   inline void AddRef();
@@ -600,7 +602,6 @@ protected:
                           const nsRuleData* aRuleData,
                           const nsStyleFont* aFont,
                           const nsStyleFont* aParentFont,
-                          const nsStyleVisibility* aLanguageVisibility,
                           nscoord* aSize,
                           const nsFont& aSystemFont,
                           nscoord aParentSize,
@@ -743,10 +744,6 @@ public:
   PRBool TreeHasCachedData() const {
     NS_ASSERTION(IsRoot(), "should only be called on root of rule tree");
     return HaveChildren() || mStyleData.mInheritedData || mStyleData.mResetData;
-  }
-
-  PRBool NodeHasCachedData(const nsStyleStructID aSID) {
-    return !!mStyleData.GetStyleData(aSID);
   }
 };
 

@@ -66,8 +66,14 @@
 #include "IDBKeyRange.h"
 #include "IndexedDatabaseManager.h"
 #include "LazyIdleThread.h"
+#include "nsIObserverService.h"
 
-using namespace mozilla;
+#define PREF_INDEXEDDB_QUOTA "dom.indexedDB.warningQuota"
+
+// megabytes
+#define DEFAULT_QUOTA 50
+
+#define BAD_TLS_INDEX (PRUintn)-1
 
 #define DB_SCHEMA_VERSION 4
 
@@ -76,6 +82,41 @@ USING_INDEXEDDB_NAMESPACE
 namespace {
 
 GeckoProcessType gAllowedProcessType = GeckoProcessType_Invalid;
+
+PRUintn gCurrentDatabaseIndex = BAD_TLS_INDEX;
+
+PRInt32 gIndexedDBQuota = DEFAULT_QUOTA;
+
+class QuotaCallback : public mozIStorageQuotaCallback
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD
+  QuotaExceeded(const nsACString& aFilename,
+                PRInt64 aCurrentSizeLimit,
+                PRInt64 aCurrentTotalSize,
+                nsISupports* aUserData,
+                PRInt64* _retval)
+  {
+    NS_ASSERTION(gCurrentDatabaseIndex != BAD_TLS_INDEX,
+                 "This should be impossible!");
+
+    IDBDatabase* database =
+      static_cast<IDBDatabase*>(PR_GetThreadPrivate(gCurrentDatabaseIndex));
+
+    if (database && database->IsQuotaDisabled()) {
+      *_retval = 0;
+      return NS_OK;
+    }
+
+    return NS_ERROR_FAILURE;
+  }
+};
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(QuotaCallback, mozIStorageQuotaCallback)
+
+const PRUint32 kDefaultThreadTimeoutMS = 30000;
 
 struct ObjectStoreInfoMap
 {
@@ -312,21 +353,75 @@ CreateMetaData(mozIStorageConnection* aConnection,
 }
 
 nsresult
-GetDatabaseFile(const nsACString& aASCIIOrigin,
-                const nsAString& aName,
-                nsIFile** aDatabaseFile)
+CreateDatabaseConnection(const nsACString& aASCIIOrigin,
+                         const nsAString& aName,
+                         nsAString& aDatabaseFilePath,
+                         mozIStorageConnection** aConnection)
 {
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aASCIIOrigin.IsEmpty() && !aName.IsEmpty(), "Bad arguments!");
 
-  nsCOMPtr<nsIFile> dbFile;
-  nsresult rv = IDBFactory::GetDirectory(getter_AddRefs(dbFile));
+  aDatabaseFilePath.Truncate();
+
+  nsCOMPtr<nsIFile> dbDirectory;
+  nsresult rv = IDBFactory::GetDirectory(getter_AddRefs(dbDirectory));
+
+  PRBool exists;
+  rv = dbDirectory->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (exists) {
+    PRBool isDirectory;
+    rv = dbDirectory->IsDirectory(&isDirectory);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(isDirectory, NS_ERROR_UNEXPECTED);
+  }
+  else {
+    rv = dbDirectory->Create(nsIFile::DIRECTORY_TYPE, 0755);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   NS_ConvertASCIItoUTF16 originSanitized(aASCIIOrigin);
   originSanitized.ReplaceChar(":/", '+');
 
-  rv = dbFile->Append(originSanitized);
+  rv = dbDirectory->Append(originSanitized);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = dbDirectory->Exists(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (exists) {
+    PRBool isDirectory;
+    rv = dbDirectory->IsDirectory(&isDirectory);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(isDirectory, NS_ERROR_UNEXPECTED);
+  }
+  else {
+    rv = dbDirectory->Create(nsIFile::DIRECTORY_TYPE, 0755);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  nsCOMPtr<nsIFile> dbFile;
+  rv = dbDirectory->Clone(getter_AddRefs(dbFile));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<mozIStorageServiceQuotaManagement> ss =
+    do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(ss, NS_ERROR_FAILURE);
+
+  rv = dbDirectory->Append(NS_LITERAL_STRING("*"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCString pattern;
+  rv = dbDirectory->GetNativePath(pattern);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (gIndexedDBQuota > 0) {
+    PRUint64 quota = PRUint64(gIndexedDBQuota) * 1024 * 1024;
+    nsRefPtr<QuotaCallback> callback(new QuotaCallback());
+    rv = ss->SetQuotaForFilenamePattern(pattern, quota, callback, nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   nsAutoString filename;
   filename.AppendInt(HashString(aName));
@@ -356,33 +451,21 @@ GetDatabaseFile(const nsACString& aASCIIOrigin,
   rv = dbFile->Append(filename);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  dbFile.forget(aDatabaseFile);
-  return NS_OK;
-}
+  rv = dbFile->Exists(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-nsresult
-CreateDatabaseConnection(const nsAString& aName,
-                         nsIFile* aDBFile,
-                         mozIStorageConnection** aConnection)
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-  NS_NAMED_LITERAL_CSTRING(quotaVFSName, "quota");
-
-  nsCOMPtr<mozIStorageServiceQuotaManagement> ss =
-    do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(ss, NS_ERROR_FAILURE);
+  NS_NAMED_LITERAL_CSTRING(quota, "quota");
 
   nsCOMPtr<mozIStorageConnection> connection;
-  nsresult rv = ss->OpenDatabaseWithVFS(aDBFile, quotaVFSName,
-                                        getter_AddRefs(connection));
+  rv = ss->OpenDatabaseWithVFS(dbFile, quota, getter_AddRefs(connection));
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     // Nuke the database file.  The web services can recreate their data.
-    rv = aDBFile->Remove(PR_FALSE);
+    rv = dbFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = ss->OpenDatabaseWithVFS(aDBFile, quotaVFSName,
-                                 getter_AddRefs(connection));
+    exists = PR_FALSE;
+
+    rv = ss->OpenDatabaseWithVFS(dbFile, quota, getter_AddRefs(connection));
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -391,40 +474,42 @@ CreateDatabaseConnection(const nsAString& aName,
   rv = connection->GetSchemaVersion(&schemaVersion);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!schemaVersion) {
-    // Brand new file, initialize our tables.
-    mozStorageTransaction transaction(connection, false,
-                                  mozIStorageConnection::TRANSACTION_IMMEDIATE);
+  if (schemaVersion != DB_SCHEMA_VERSION) {
+    if (exists) {
+      // If the connection is not at the right schema version, nuke it.
+      rv = dbFile->Remove(PR_FALSE);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      rv = ss->OpenDatabaseWithVFS(dbFile, quota, getter_AddRefs(connection));
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
 
     rv = CreateTables(connection);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CreateMetaData(connection, aName);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = transaction.Commit();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    NS_ASSERTION(NS_SUCCEEDED(connection->GetSchemaVersion(&schemaVersion)) &&
-                 schemaVersion == DB_SCHEMA_VERSION,
-                 "CreateTables set a bad schema version!");
-  }
-  else if (schemaVersion != DB_SCHEMA_VERSION) {
-    NS_WARNING("Unable to open IndexedDB database, schema doesn't match");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  // Turn on foreign key constraints.
+  // Check to make sure that the database schema is correct again.
+  NS_ASSERTION(NS_SUCCEEDED(connection->GetSchemaVersion(&schemaVersion)) &&
+               schemaVersion == DB_SCHEMA_VERSION,
+               "CreateTables failed!");
+
+  // Turn on foreign key constraints in debug builds to catch bugs!
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "PRAGMA foreign_keys = ON;"
   ));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = dbFile->GetPath(aDatabaseFilePath);
   NS_ENSURE_SUCCESS(rv, rv);
 
   connection.forget(aConnection);
   return NS_OK;
 }
 
-} // anonymous namespace
+} // anonyomous namespace
 
 IDBFactory::IDBFactory()
 {
@@ -442,6 +527,18 @@ IDBFactory::Create(nsPIDOMWindow* aWindow)
     aWindow = aWindow->GetCurrentInnerWindow();
   }
   NS_ENSURE_TRUE(aWindow, nsnull);
+
+  if (gCurrentDatabaseIndex == BAD_TLS_INDEX) {
+    // First time we're creating a database.
+    if (PR_NewThreadPrivateIndex(&gCurrentDatabaseIndex, NULL) != PR_SUCCESS) {
+      NS_ERROR("PR_NewThreadPrivateIndex failed!");
+      gCurrentDatabaseIndex = BAD_TLS_INDEX;
+      return nsnull;
+    }
+
+    nsContentUtils::AddIntPrefVarCache(PREF_INDEXEDDB_QUOTA, &gIndexedDBQuota,
+                                       DEFAULT_QUOTA);
+  }
 
   nsRefPtr<IDBFactory> factory = new IDBFactory();
 
@@ -495,6 +592,39 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
   NS_ENSURE_SUCCESS(rv, nsnull);
 
   return connection.forget();
+}
+
+// static
+bool
+IDBFactory::SetCurrentDatabase(IDBDatabase* aDatabase)
+{
+  NS_ASSERTION(gCurrentDatabaseIndex != BAD_TLS_INDEX,
+               "This should have been set already!");
+
+#ifdef DEBUG
+  if (aDatabase) {
+    NS_ASSERTION(!PR_GetThreadPrivate(gCurrentDatabaseIndex),
+                 "Someone forgot to unset gCurrentDatabaseIndex!");
+  }
+  else {
+    NS_ASSERTION(PR_GetThreadPrivate(gCurrentDatabaseIndex),
+                 "Someone forgot to set gCurrentDatabaseIndex!");
+  }
+#endif
+
+  if (PR_SetThreadPrivate(gCurrentDatabaseIndex, aDatabase) != PR_SUCCESS) {
+    NS_WARNING("Failed to set gCurrentDatabaseIndex!");
+    return false;
+  }
+
+  return true;
+}
+
+// static
+PRUint32
+IDBFactory::GetIndexedDBQuota()
+{
+  return PRUint32(PR_MAX(gIndexedDBQuota, 0));
 }
 
 // static
@@ -803,40 +933,9 @@ OpenDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  nsCOMPtr<nsIFile> dbFile;
-  nsresult rv = GetDatabaseFile(mASCIIOrigin, mName, getter_AddRefs(dbFile));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  rv = dbFile->GetPath(mDatabaseFilePath);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsCOMPtr<nsIFile> dbDirectory;
-  rv = dbFile->GetParent(getter_AddRefs(dbDirectory));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  PRBool exists;
-  rv = dbDirectory->Exists(&exists);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (exists) {
-    PRBool isDirectory;
-    rv = dbDirectory->IsDirectory(&isDirectory);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    NS_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-  else {
-    rv = dbDirectory->Create(nsIFile::DIRECTORY_TYPE, 0755);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-
-  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-  NS_ASSERTION(mgr, "This should never be null!");
-
-  rv = mgr->EnsureQuotaManagementForDirectory(dbDirectory);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
   nsCOMPtr<mozIStorageConnection> connection;
-  rv = CreateDatabaseConnection(mName, dbFile, getter_AddRefs(connection));
+  nsresult rv = CreateDatabaseConnection(mASCIIOrigin, mName, mDatabaseFilePath,
+                                         getter_AddRefs(connection));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   // Get the data version.
@@ -881,9 +980,9 @@ OpenDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     nsAutoPtr<ObjectStoreInfo>& objectStoreInfo = mObjectStores[i];
     for (PRUint32 j = 0; j < objectStoreInfo->indexes.Length(); j++) {
       IndexInfo& indexInfo = objectStoreInfo->indexes[j];
-      mLastIndexId = NS_MAX(indexInfo.id, mLastIndexId);
+      mLastIndexId = PR_MAX(indexInfo.id, mLastIndexId);
     }
-    mLastObjectStoreId = NS_MAX(objectStoreInfo->id, mLastObjectStoreId);
+    mLastObjectStoreId = PR_MAX(objectStoreInfo->id, mLastObjectStoreId);
   }
 
   return NS_OK;
@@ -978,6 +1077,6 @@ OpenDatabaseHelper::GetSuccessResult(JSContext* aCx,
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMEventTarget*, database),
+  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsPIDOMEventTarget*, database),
                     aVal);
 }

@@ -212,6 +212,7 @@ void MessagePumpLibevent::OnLibeventNotification(int fd, short flags,
 }
 
 
+#if defined(CHROMIUM_MOZILLA_BUILD)
 MessagePumpLibevent::SignalEvent::SignalEvent() :
   event_(NULL)
 {
@@ -292,6 +293,7 @@ MessagePumpLibevent::OnLibeventSignalNotification(int sig, short flags,
   DCHECK(context);
   reinterpret_cast<SignalWatcher*>(context)->OnSignal(sig);
 }
+#endif  // defined(CHROMIUM_MOZILLA_BUILD)
 
 
 // Reentrant!

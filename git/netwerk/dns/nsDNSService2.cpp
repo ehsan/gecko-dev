@@ -39,6 +39,7 @@
 #include "nsIDNSRecord.h"
 #include "nsIDNSListener.h"
 #include "nsICancelable.h"
+#include "nsIProxyObjectManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
@@ -49,7 +50,6 @@
 #include "nsNetCID.h"
 #include "nsNetError.h"
 #include "nsDNSPrefetch.h"
-#include "nsThreadUtils.h"
 #include "nsIProtocolProxyService.h"
 #include "prsystem.h"
 #include "prnetdb.h"
@@ -80,7 +80,6 @@ public:
     nsDNSRecord(nsHostRecord *hostRecord)
         : mHostRecord(hostRecord)
         , mIter(nsnull)
-        , mLastIter(nsnull)
         , mIterGenCnt(-1)
         , mDone(PR_FALSE) {}
 
@@ -88,9 +87,7 @@ private:
     virtual ~nsDNSRecord() {}
 
     nsRefPtr<nsHostRecord>  mHostRecord;
-    void                   *mIter;       // enum ptr for PR_EnumerateAddrInfo
-    void                   *mLastIter;   // previous enum ptr, for use in
-                                         // getting addrinfo in ReportUnusable
+    void                   *mIter;
     int                     mIterGenCnt; // the generation count of
                                          // mHostRecord->addr_info when we
                                          // start iterating
@@ -110,7 +107,7 @@ nsDNSRecord::GetCanonicalName(nsACString &result)
     // host name is the IP address literal.
     const char *cname;
     {
-        MutexAutoLock lock(mHostRecord->addr_info_lock);
+        MutexAutoLock lock(*mHostRecord->addr_info_lock);
         if (mHostRecord->addr_info)
             cname = PR_GetCanonNameFromAddrInfo(mHostRecord->addr_info);
         else
@@ -129,9 +126,7 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
     if (mDone)
         return NS_ERROR_NOT_AVAILABLE;
 
-    mHostRecord->addr_info_lock.Lock();
-    PRBool startedFresh = !mIter;
-
+    mHostRecord->addr_info_lock->Lock();
     if (mHostRecord->addr_info) {
         if (!mIter)
             mIterGenCnt = mHostRecord->addr_info_gencnt;
@@ -140,34 +135,16 @@ nsDNSRecord::GetNextAddr(PRUint16 port, PRNetAddr *addr)
             // Restart the iteration.  Alternatively, we could just fail.
             mIter = nsnull;
             mIterGenCnt = mHostRecord->addr_info_gencnt;
-            startedFresh = PR_TRUE;
         }
-
-        do {
-            mLastIter = mIter;
-            mIter = PR_EnumerateAddrInfo(mIter, mHostRecord->addr_info,
-                                         port, addr);
-        }
-        while (mIter && mHostRecord->Blacklisted(addr));
-
-        if (startedFresh && !mIter) {
-            // if everything was blacklisted we want to reset the blacklist (and
-            // likely relearn it) and return the first address. That is better
-            // than nothing
-            mHostRecord->ResetBlacklist();
-            mLastIter = nsnull;
-            mIter = PR_EnumerateAddrInfo(nsnull, mHostRecord->addr_info,
-                                         port, addr);
-        }
-            
-        mHostRecord->addr_info_lock.Unlock();
+        mIter = PR_EnumerateAddrInfo(mIter, mHostRecord->addr_info, port, addr);
+        mHostRecord->addr_info_lock->Unlock();
         if (!mIter) {
             mDone = PR_TRUE;
             return NS_ERROR_NOT_AVAILABLE;
         }
     }
     else {
-        mHostRecord->addr_info_lock.Unlock();
+        mHostRecord->addr_info_lock->Unlock();
         if (!mHostRecord->addr) {
             // Both mHostRecord->addr_info and mHostRecord->addr are null.
             // This can happen if mHostRecord->addr_info expired and the
@@ -212,11 +189,9 @@ nsDNSRecord::HasMore(PRBool *result)
         // unfortunately, NSPR does not provide a way for us to determine if
         // there is another address other than to simply get the next address.
         void *iterCopy = mIter;
-        void *iterLastCopy = mLastIter;
         PRNetAddr addr;
         *result = NS_SUCCEEDED(GetNextAddr(0, &addr));
         mIter = iterCopy; // backup iterator
-        mLastIter = iterLastCopy; // backup iterator
         mDone = PR_FALSE;
     }
     return NS_OK;
@@ -226,33 +201,8 @@ NS_IMETHODIMP
 nsDNSRecord::Rewind()
 {
     mIter = nsnull;
-    mLastIter = nsnull;
     mIterGenCnt = -1;
     mDone = PR_FALSE;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDNSRecord::ReportUnusable(PRUint16 aPort)
-{
-    // right now we don't use the port in the blacklist
-
-    mHostRecord->addr_info_lock.Lock();
-
-    // Check that we are using a real addr_info (as opposed to a single
-    // constant address), and that the generation count is valid. Otherwise,
-    // ignore the report.
-
-    if (mHostRecord->addr_info &&
-        mIterGenCnt == mHostRecord->addr_info_gencnt) {
-        PRNetAddr addr;
-        void *id = PR_EnumerateAddrInfo(mLastIter, mHostRecord->addr_info,
-                                        aPort, &addr);
-        if (id)
-            mHostRecord->ReportUnusable(&addr);
-    }
-    
-    mHostRecord->addr_info_lock.Unlock();
     return NS_OK;
 }
 
@@ -469,67 +419,6 @@ nsDNSService::Shutdown()
     return NS_OK;
 }
 
-namespace {
-
-class DNSListenerProxy : public nsIDNSListener
-{
-public:
-  DNSListenerProxy(nsIDNSListener* aListener, nsIEventTarget* aTargetThread)
-    : mListener(aListener)
-    , mTargetThread(aTargetThread)
-  { }
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDNSLISTENER
-
-  class OnLookupCompleteRunnable : public nsRunnable
-  {
-  public:
-    OnLookupCompleteRunnable(nsIDNSListener* aListener,
-                             nsICancelable* aRequest,
-                             nsIDNSRecord* aRecord,
-                             nsresult aStatus)
-      : mListener(aListener)
-      , mRequest(aRequest)
-      , mRecord(aRecord)
-      , mStatus(aStatus)
-    { }
-
-    NS_DECL_NSIRUNNABLE
-
-  private:
-    nsCOMPtr<nsIDNSListener> mListener;
-    nsCOMPtr<nsICancelable> mRequest;
-    nsCOMPtr<nsIDNSRecord> mRecord;
-    nsresult mStatus;
-  };
-
-private:
-  nsCOMPtr<nsIDNSListener> mListener;
-  nsCOMPtr<nsIEventTarget> mTargetThread;
-};
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(DNSListenerProxy, nsIDNSListener)
-
-NS_IMETHODIMP
-DNSListenerProxy::OnLookupComplete(nsICancelable* aRequest,
-                                   nsIDNSRecord* aRecord,
-                                   nsresult aStatus)
-{
-  nsRefPtr<OnLookupCompleteRunnable> r =
-    new OnLookupCompleteRunnable(mListener, aRequest, aRecord, aStatus);
-  return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
-}
-
-NS_IMETHODIMP
-DNSListenerProxy::OnLookupCompleteRunnable::Run()
-{
-  mListener->OnLookupComplete(mRequest, mRecord, mStatus);
-  return NS_OK;
-}
-
-} // anonymous namespace
-
 NS_IMETHODIMP
 nsDNSService::AsyncResolve(const nsACString  &hostname,
                            PRUint32           flags,
@@ -562,11 +451,18 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
             hostPtr = &hostACE;
     }
 
+    nsCOMPtr<nsIDNSListener> listenerProxy;
     if (target) {
-      listener = new DNSListenerProxy(listener, target);
+        rv = NS_GetProxyForObject(target,
+                                  NS_GET_IID(nsIDNSListener),
+                                  listener,
+                                  NS_PROXY_ASYNC | NS_PROXY_ALWAYS,
+                                  getter_AddRefs(listenerProxy));
+        if (NS_FAILED(rv)) return rv;
+        listener = listenerProxy;
     }
 
-    PRUint16 af = GetAFForLookup(*hostPtr, flags);
+    PRUint16 af = GetAFForLookup(*hostPtr);
 
     nsDNSAsyncRequest *req =
             new nsDNSAsyncRequest(res, *hostPtr, listener, flags, af);
@@ -624,7 +520,7 @@ nsDNSService::Resolve(const nsACString &hostname,
     PR_EnterMonitor(mon);
     nsDNSSyncRequest syncReq(mon);
 
-    PRUint16 af = GetAFForLookup(*hostPtr, flags);
+    PRUint16 af = GetAFForLookup(*hostPtr);
 
     rv = res->ResolveHost(PromiseFlatCString(*hostPtr).get(), flags, af, &syncReq);
     if (NS_SUCCEEDED(rv)) {
@@ -684,9 +580,9 @@ nsDNSService::Observe(nsISupports *subject, const char *topic, const PRUnichar *
 }
 
 PRUint16
-nsDNSService::GetAFForLookup(const nsACString &host, PRUint32 flags)
+nsDNSService::GetAFForLookup(const nsACString &host)
 {
-    if (mDisableIPv6 || (flags & RESOLVE_DISABLE_IPV6))
+    if (mDisableIPv6)
         return PR_AF_INET;
 
     MutexAutoLock lock(mLock);

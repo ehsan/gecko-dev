@@ -66,14 +66,14 @@ HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
   , mStoredStatus(0)
   , mStoredProgress(0)
   , mStoredProgressMax(0)
-  , mHeadersToSyncToChild(nsnull)
 {
   // Ensure gHttpHandler is initialized: we need the atom table up and running.
   nsIHttpProtocolHandler* handler;
   CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &handler);
   NS_ASSERTION(handler, "no http handler");
 
-  mTabParent = do_QueryObject(static_cast<TabParent*>(iframeEmbedding));
+  mTabParent = do_QueryInterface(static_cast<nsITabParent*>(
+      static_cast<TabParent*>(iframeEmbedding)));
 }
 
 HttpChannelParent::~HttpChannelParent()
@@ -85,8 +85,7 @@ void
 HttpChannelParent::ActorDestroy(ActorDestroyReason why)
 {
   // We may still have refcount>0 if nsHttpChannel hasn't called OnStopRequest
-  // yet, but child process has crashed.  We must not try to send any more msgs
-  // to child, or IPDL will kill chrome process, too.
+  // yet, but we must not send any more msgs to child.
   mIPCClosed = true;
 }
 
@@ -94,14 +93,13 @@ HttpChannelParent::ActorDestroy(ActorDestroyReason why)
 // HttpChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS7(HttpChannelParent,
+NS_IMPL_ISUPPORTS6(HttpChannelParent,
                    nsIInterfaceRequestor,
                    nsIProgressEventSink,
                    nsIRequestObserver,
                    nsIStreamListener,
                    nsIParentChannel,
-                   nsIParentRedirectingChannel,
-                   nsIHttpHeaderVisitor)
+                   nsIParentRedirectingChannel)
 
 //-----------------------------------------------------------------------------
 // HttpChannelParent::nsIInterfaceRequestor
@@ -159,11 +157,11 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
 
   nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
   if (NS_FAILED(rv))
-    return SendFailedAsyncOpen(rv);
+    return SendCancelEarly(rv);
 
   rv = NS_NewChannel(getter_AddRefs(mChannel), uri, ios, nsnull, nsnull, loadFlags);
   if (NS_FAILED(rv))
-    return SendFailedAsyncOpen(rv);
+    return SendCancelEarly(rv);
 
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
 
@@ -241,7 +239,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
 
   rv = httpChan->AsyncOpen(channelListener, nsnull);
   if (NS_FAILED(rv))
-    return SendFailedAsyncOpen(rv);
+    return SendCancelEarly(rv);
 
   return true;
 }
@@ -261,10 +259,8 @@ HttpChannelParent::RecvConnectChannel(const PRUint32& channelId)
 bool 
 HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 {
-  if (mChannel) {
-    nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
-    httpChan->SetPriority(priority);
-  }
+  nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
+  httpChan->SetPriority(priority);
 
   nsCOMPtr<nsISupportsPriority> priorityRedirectChannel =
       do_QueryInterface(mRedirectChannel);
@@ -277,18 +273,14 @@ HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 bool
 HttpChannelParent::RecvSuspend()
 {
-  if (mChannel) {
-    mChannel->Suspend();
-  }
+  mChannel->Suspend();
   return true;
 }
 
 bool
 HttpChannelParent::RecvResume()
 {
-  if (mChannel) {
-    mChannel->Resume();
-  }
+  mChannel->Resume();
   return true;
 }
 
@@ -308,7 +300,8 @@ bool
 HttpChannelParent::RecvSetCacheTokenCachedCharset(const nsCString& charset)
 {
   if (mCacheDescriptor)
-    mCacheDescriptor->SetMetaDataElement("charset", charset.get());
+    mCacheDescriptor->SetMetaDataElement("charset",
+                                         PromiseFlatCString(charset).get());
   return true;
 }
 
@@ -318,12 +311,20 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
                                                        const PRInt32& broken,
                                                        const PRInt32& no)
 {
-  if (mAssociatedContentSecurity) {
-    mAssociatedContentSecurity->SetCountSubRequestsHighSecurity(high);
-    mAssociatedContentSecurity->SetCountSubRequestsLowSecurity(low);
-    mAssociatedContentSecurity->SetCountSubRequestsBrokenSecurity(broken);
-    mAssociatedContentSecurity->SetCountSubRequestsNoSecurity(no);
-  }
+  nsHttpChannel *chan = static_cast<nsHttpChannel *>(mChannel.get());
+
+  nsCOMPtr<nsISupports> secInfo;
+  chan->GetSecurityInfo(getter_AddRefs(secInfo));
+
+  nsCOMPtr<nsIAssociatedContentSecurity> assoc = do_QueryInterface(secInfo);
+  if (!assoc)
+    return true;
+
+  assoc->SetCountSubRequestsHighSecurity(high);
+  assoc->SetCountSubRequestsLowSecurity(low);
+  assoc->SetCountSubRequestsBrokenSecurity(broken);
+  assoc->SetCountSubRequestsNoSecurity(no);
+
   return true;
 }
 
@@ -352,9 +353,10 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
 bool
 HttpChannelParent::RecvDocumentChannelCleanup()
 {
-  // From now on only using mAssociatedContentSecurity.  Free everything else.
-  mChannel = 0;          // Reclaim some memory sooner.
-  mCacheDescriptor = 0;  // Else we'll block other channels reading same URI
+  // We must clear the cache entry here, else we'll block other channels from
+  // reading it if we've got it open for writing.  
+  mCacheDescriptor = 0;
+
   return true;
 }
 
@@ -413,17 +415,20 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
   nsCOMPtr<nsISupports> secInfoSupp;
   chan->GetSecurityInfo(getter_AddRefs(secInfoSupp));
   if (secInfoSupp) {
-    mAssociatedContentSecurity = do_QueryInterface(secInfoSupp);
     nsCOMPtr<nsISerializable> secInfoSer = do_QueryInterface(secInfoSupp);
     if (secInfoSer)
       NS_SerializeToString(secInfoSer, secInfoSerialization);
   }
 
-  // sync request headers to child, in case they've changed
   RequestHeaderTuples headers;
-  mHeadersToSyncToChild = &headers;
-  requestHead->Headers().VisitHeaders(this);
-  mHeadersToSyncToChild = 0;
+  nsHttpHeaderArray harray = requestHead->Headers();
+
+  for (PRUint32 i = 0; i < harray.Count(); i++) {
+    RequestHeaderTuple* tuple = headers.AppendElement();
+    tuple->mHeader = harray.Headers()[i].header;
+    tuple->mValue  = harray.Headers()[i].value;
+    tuple->mMerge  = false;
+  }
 
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
   if (mIPCClosed || 
@@ -585,23 +590,6 @@ HttpChannelParent::CompleteRedirect(PRBool succeeded)
   }
 
   mRedirectChannel = nsnull;
-  return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// HttpChannelParent::nsIHttpHeaderVisitor
-//-----------------------------------------------------------------------------
-
-nsresult
-HttpChannelParent::VisitHeader(const nsACString &header, const nsACString &value)
-{
-  // Will be set unless some random code QI's us to nsIHttpHeaderVisitor
-  NS_ENSURE_STATE(mHeadersToSyncToChild);
-
-  RequestHeaderTuple* tuple = mHeadersToSyncToChild->AppendElement();
-  tuple->mHeader = header;
-  tuple->mValue  = value;
-  tuple->mMerge  = false;  // headers already merged:
   return NS_OK;
 }
 

@@ -68,6 +68,7 @@
 #include "nsIViewManager.h"
 #include "nsIContentViewer.h"
 #include "nsGUIEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIRDFNode.h"
@@ -127,9 +128,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
@@ -279,8 +278,9 @@ nsXULDocument::~nsXULDocument()
 
     delete mTemplateBuilderTable;
 
-    Preferences::UnregisterCallback(nsXULDocument::DirectionChanged,
-                                    "intl.uidirection.", this);
+    nsContentUtils::UnregisterPrefCallback("intl.uidirection.",
+                                           nsXULDocument::DirectionChanged,
+                                           this);
 
     if (--gRefCnt == 0) {
         NS_IF_RELEASE(gRDFService);
@@ -289,11 +289,12 @@ nsXULDocument::~nsXULDocument()
         NS_IF_RELEASE(kNC_attribute);
         NS_IF_RELEASE(kNC_value);
 
-        // Remove the current document here from the table in
+        // Remove the current document here from the FastLoad table in
         // case the document did not make it past StartLayout in
-        // ResumeWalk. 
+        // ResumeWalk. The FastLoad table must be clear of entries so
+        // that the FastLoad file footer can be properly written.
         if (mDocumentURI)
-            nsXULPrototypeCache::GetInstance()->RemoveFromCacheSet(mDocumentURI);
+            nsXULPrototypeCache::GetInstance()->RemoveFromFastLoadSet(mDocumentURI);
     }
 }
 
@@ -390,8 +391,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     delete tmp->mTemplateBuilderTable;
     tmp->mTemplateBuilderTable = nsnull;
-
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCommandDispatcher)
     //XXX We should probably unlink all the objects we traverse.
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -452,7 +451,7 @@ nsXULDocument::SetContentType(const nsAString& aContentType)
 }
 
 // This is called when the master document begins loading, whether it's
-// being cached or not.
+// fastloaded or not.
 nsresult
 nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
                                  nsILoadGroup* aLoadGroup,
@@ -495,9 +494,9 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     // to trigger the fail-safe parse-from-disk solution. Example failure cases
     // (for reference) include:
     //
-    // NS_ERROR_NOT_AVAILABLE: the URI cannot be found in the startup cache,
+    // NS_ERROR_NOT_AVAILABLE: the URI cannot be found in the FastLoad cache,
     //                         parse from disk
-    // other: the startup cache file could not be found, probably
+    // other: the FastLoad cache file, XUL.mfl, could not be found, probably
     //        due to being accessed before a profile has been selected (e.g.
     //        loading chrome for the profile manager itself). This must be
     //        parsed from disk.
@@ -930,14 +929,14 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
     // execute the handler.
 
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
-    for (nsIContent* child = listener->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
-
+    PRUint32 count = listener->GetChildCount();
+    for (PRUint32 i = 0; i < count; ++i) {
         // Look for an <observes> element beneath the listener. This
         // ought to have an |element| attribute that refers to
         // aBroadcaster, and an |attribute| element that tells us what
         // attriubtes we're listening for.
+        nsIContent *child = listener->GetChildAt(i);
+
         if (!child->NodeInfo()->Equals(nsGkAtoms::observes, kNameSpaceID_XUL))
             continue;
 
@@ -1718,7 +1717,8 @@ nsXULDocument::AddElementToDocumentPost(Element* aElement)
         // Create our XUL key listener and hook it up.
         nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
         if (xblService) {
-            xblService->AttachGlobalKeyHandler(aElement);
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->AttachGlobalKeyHandler(piTarget);
         }
     }
 
@@ -1764,11 +1764,10 @@ nsXULDocument::AddSubtreeToDocument(nsIContent* aContent)
     if (NS_FAILED(rv)) return rv;
 
     // Recurse to children
-    for (nsIContent* child = aElement->GetLastChild();
-         child;
-         child = child->GetPreviousSibling()) {
+    PRUint32 count = aElement->GetChildCount();
 
-        rv = AddSubtreeToDocument(child);
+    while (count-- > 0) {
+        rv = AddSubtreeToDocument(aElement->GetChildAt(count));
         if (NS_FAILED(rv))
             return rv;
     }
@@ -1794,16 +1793,16 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aContent)
     if (aElement->NodeInfo()->Equals(nsGkAtoms::keyset, kNameSpaceID_XUL)) {
         nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
         if (xblService) {
-            xblService->DetachGlobalKeyHandler(aElement);
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->DetachGlobalKeyHandler(piTarget);
         }
     }
 
     // 1. Remove any children from the document.
-    for (nsIContent* child = aElement->GetLastChild();
-         child;
-         child = child->GetPreviousSibling()) {
+    PRUint32 count = aElement->GetChildCount();
 
-        rv = RemoveSubtreeFromDocument(child);
+    while (count-- > 0) {
+        rv = RemoveSubtreeFromDocument(aElement->GetChildAt(count));
         if (NS_FAILED(rv))
             return rv;
     }
@@ -1985,8 +1984,9 @@ nsXULDocument::Init()
         }
     }
 
-    Preferences::RegisterCallback(nsXULDocument::DirectionChanged,
-                                  "intl.uidirection.", this);
+    nsContentUtils::RegisterPrefCallback("intl.uidirection.",
+                                         nsXULDocument::DirectionChanged,
+                                         this);
 
 #ifdef PR_LOGGING
     if (! gXULLog)
@@ -2727,6 +2727,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     //        The .xul file must be parsed from disk.
 
     PRBool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
+    if (aIsDynamic)
+        mIsWritingFastLoad = useXULCache;
+
     if (useXULCache && mCurrentPrototype) {
         PRBool loaded;
         rv = mCurrentPrototype->AwaitLoadDone(this, &loaded);
@@ -3701,8 +3704,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         nsCOMPtr<nsINodeInfo> newNodeInfo;
         newNodeInfo = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
                                                     aPrototype->mNodeInfo->GetPrefixAtom(),
-                                                    aPrototype->mNodeInfo->NamespaceID(),
-                                                    nsIDOMNode::ELEMENT_NODE);
+                                                    aPrototype->mNodeInfo->NamespaceID());
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
         nsCOMPtr<nsIContent> content;
         PRInt32 ns = newNodeInfo->NamespaceID();
@@ -4048,8 +4050,7 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         if (attr == nsGkAtoms::removeelement &&
             value.EqualsLiteral("true")) {
 
-            nsCOMPtr<nsIContent> parent = aTargetNode->GetParent();
-            rv = RemoveElement(parent, aTargetNode);
+            rv = RemoveElement(aTargetNode->GetParent(), aTargetNode);
             if (NS_FAILED(rv)) return rv;
 
             return NS_OK;
@@ -4079,7 +4080,7 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
     nsCOMPtr<nsIContent> currContent;
 
     for (i = 0; i < childCount; ++i) {
-        currContent = aOverlayNode->GetFirstChild();
+        currContent = aOverlayNode->GetChildAt(0);
 
         nsIAtom *idAtom = currContent->GetID();
 

@@ -46,6 +46,8 @@ MODULE = transformiix
 LIBRARY_NAME = txxpath_s
 LIBXUL_LIBRARY = 1
 
+
+
 CPPSRCS = \
         txBooleanExpr.cpp \
         txBooleanResult.cpp \
@@ -77,14 +79,18 @@ CPPSRCS = \
         txUnionNodeTest.cpp \
         txUnaryExpr.cpp \
         txVariableRefExpr.cpp \
-        txXPathOptimizer.cpp \
-        nsXPathEvaluator.cpp \
-        nsXPathExpression.cpp \
-        nsXPathNSResolver.cpp \
-        nsXPathResult.cpp \
-        txMozillaXPathTreeWalker.cpp \
-        txNodeSetAdaptor.cpp \
-        txXPCOMExtensionFunction.cpp
+        txXPathOptimizer.cpp
+ifndef MOZ_XSLT_STANDALONE
+CPPSRCS += nsXPathEvaluator.cpp \
+           nsXPathExpression.cpp \
+           nsXPathNSResolver.cpp \
+           nsXPathResult.cpp \
+           txMozillaXPathTreeWalker.cpp \
+           txNodeSetAdaptor.cpp \
+           txXPCOMExtensionFunction.cpp
+else
+CPPSRCS += txStandaloneXPathTreeWalker.cpp
+endif
 
 # we don't want the shared lib, but we want to force the creation of a
 # static lib.

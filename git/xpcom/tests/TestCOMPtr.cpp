@@ -41,6 +41,15 @@
 #include "nsCOMPtr.h"
 #include "nsISupports.h"
 
+#ifdef HAVE_CPP_NEW_CASTS
+  #define STATIC_CAST(T,x)  static_cast<T>(x)
+  #define REINTERPRET_CAST(T,x) reinterpret_cast<T>(x)
+#else
+  #define STATIC_CAST(T,x)  ((T)(x))
+  #define REINTERPRET_CAST(T,x) ((T)(x))
+#endif
+
+
 #define NS_IFOO_IID \
 { 0x6f7652e0,  0xee43, 0x11d1, \
  { 0x9c, 0xc3, 0x00, 0x60, 0x08, 0x8c, 0xa6, 0xb3 } }
@@ -124,14 +133,14 @@ IFoo::IFoo()
   {
     ++total_constructions_;
     printf("  new IFoo@%p [#%d]\n",
-           static_cast<void*>(this), total_constructions_);
+           STATIC_CAST(void*, this), total_constructions_);
   }
 
 IFoo::~IFoo()
   {
     ++total_destructions_;
     printf("IFoo@%p::~IFoo() [#%d]\n",
-           static_cast<void*>(this), total_destructions_);
+           STATIC_CAST(void*, this), total_destructions_);
   }
 
 nsrefcnt
@@ -139,7 +148,7 @@ IFoo::AddRef()
   {
     ++refcount_;
     printf("IFoo@%p::AddRef(), refcount --> %d\n", 
-           static_cast<void*>(this), refcount_);
+           STATIC_CAST(void*, this), refcount_);
     return refcount_;
   }
 
@@ -151,12 +160,12 @@ IFoo::Release()
       printf(">>");
 
     printf("IFoo@%p::Release(), refcount --> %d\n",
-           static_cast<void*>(this), refcount_);
+           STATIC_CAST(void*, this), refcount_);
 
     if ( newcount == 0 )
       {
-        printf("  delete IFoo@%p\n", static_cast<void*>(this));
-        printf("<<IFoo@%p::Release()\n", static_cast<void*>(this));
+        printf("  delete IFoo@%p\n", STATIC_CAST(void*, this));
+        printf("<<IFoo@%p::Release()\n", STATIC_CAST(void*, this));
         delete this;
       }
 
@@ -166,7 +175,7 @@ IFoo::Release()
 nsresult
 IFoo::QueryInterface( const nsIID& aIID, void** aResult )
 	{
-    printf("IFoo@%p::QueryInterface()\n", static_cast<void*>(this));
+    printf("IFoo@%p::QueryInterface()\n", STATIC_CAST(void*, this));
 		nsISupports* rawPtr = 0;
 		nsresult status = NS_OK;
 
@@ -176,7 +185,7 @@ IFoo::QueryInterface( const nsIID& aIID, void** aResult )
 			{
 				nsID iid_of_ISupports = NS_ISUPPORTS_IID;
 				if ( aIID.Equals(iid_of_ISupports) )
-					rawPtr = static_cast<nsISupports*>(this);
+					rawPtr = STATIC_CAST(nsISupports*, this);
 				else
 					status = NS_ERROR_NO_INTERFACE;
 			}
@@ -193,7 +202,7 @@ CreateIFoo( void** result )
   {
     printf(">>CreateIFoo() --> ");
     IFoo* foop = new IFoo;
-    printf("IFoo@%p\n", static_cast<void*>(foop));
+    printf("IFoo@%p\n", STATIC_CAST(void*, foop));
 
     foop->AddRef();
     *result = foop;
@@ -245,30 +254,30 @@ NS_DEFINE_STATIC_IID_ACCESSOR(IBar, NS_IBAR_IID)
 
 IBar::IBar()
   {
-    printf("  new IBar@%p\n", static_cast<void*>(this));
+    printf("  new IBar@%p\n", STATIC_CAST(void*, this));
   }
 
 IBar::~IBar()
   {
-    printf("IBar@%p::~IBar()\n", static_cast<void*>(this));
+    printf("IBar@%p::~IBar()\n", STATIC_CAST(void*, this));
   }
 
 nsresult
 IBar::QueryInterface( const nsID& aIID, void** aResult )
 	{
-    printf("IBar@%p::QueryInterface()\n", static_cast<void*>(this));
+    printf("IBar@%p::QueryInterface()\n", STATIC_CAST(void*, this));
 		nsISupports* rawPtr = 0;
 		nsresult status = NS_OK;
 
 		if ( aIID.Equals(GetIID()) )
 			rawPtr = this;
 		else if ( aIID.Equals(NS_GET_IID(IFoo)) )
-			rawPtr = static_cast<IFoo*>(this);
+			rawPtr = STATIC_CAST(IFoo*, this);
 		else
 			{
 				nsID iid_of_ISupports = NS_ISUPPORTS_IID;
 				if ( aIID.Equals(iid_of_ISupports) )
-					rawPtr = static_cast<nsISupports*>(this);
+					rawPtr = STATIC_CAST(nsISupports*, this);
 				else
 					status = NS_ERROR_NO_INTERFACE;
 			}
@@ -287,7 +296,7 @@ CreateIBar( void** result )
   {
     printf(">>CreateIBar() --> ");
     IBar* barp = new IBar;
-    printf("IBar@%p\n", static_cast<void*>(barp));
+    printf("IBar@%p\n", STATIC_CAST(void*, barp));
 
     barp->AddRef();
     *result = barp;
@@ -316,12 +325,12 @@ nsresult
 TestBloat_Raw_Unsafe()
 	{
 		IBar* barP = 0;
-		nsresult result = CreateIBar(reinterpret_cast<void**>(&barP));
+		nsresult result = CreateIBar(REINTERPRET_CAST(void**, &barP));
 
 		if ( barP )
 			{
 				IFoo* fooP = 0;
-				if ( NS_SUCCEEDED( result = barP->QueryInterface(NS_GET_IID(IFoo), reinterpret_cast<void**>(&fooP)) ) )
+				if ( NS_SUCCEEDED( result = barP->QueryInterface(NS_GET_IID(IFoo), REINTERPRET_CAST(void**, &fooP)) ) )
 					{
 						fooP->print_totals();
 						NS_RELEASE(fooP);
@@ -382,10 +391,10 @@ main()
 			//delete foop;
 
       printf("\n### Test  3: can you |AddRef| if you must?\n");
-      static_cast<IFoo*>(foop)->AddRef();
+      STATIC_CAST(IFoo*, foop)->AddRef();
 
       printf("\n### Test  4: can you |Release| if you must?\n");
-      static_cast<IFoo*>(foop)->Release();
+      STATIC_CAST(IFoo*, foop)->Release();
 
       printf("\n### Test  5: will a |nsCOMPtr| |Release| when it goes out of scope?\n");
     }

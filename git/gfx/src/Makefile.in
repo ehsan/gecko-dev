@@ -55,8 +55,19 @@ FORCE_USE_PIC  = 1
 XPIDLSRCS = \
 	nsIFontEnumerator.idl \
 	nsIScriptableRegion.idl \
+	gfxIFormats.idl \
+	gfxidltypes.idl \
 	$(NULL)
-        
+
+EXPORTS_NAMESPACES = mozilla
+
+EXPORTS_mozilla = \
+	BaseMargin.h \
+	BasePoint.h \
+	BaseRect.h \
+	BaseSize.h \
+	$(NULL)
+
 EXPORTS	= \
 	gfxCore.h \
 	gfxCrashReporterUtils.h \
@@ -75,14 +86,13 @@ EXPORTS	= \
 	nsFontMetrics.h \
 	nsDeviceContext.h \
 	nsGfxCIID.h \
+	nsIRegion.h \
 	nsITheme.h \
 	nsThemeConstants.h \
 	nsBoundingMetrics.h \
 	$(NULL)
 
 ifdef MOZ_X11
-EXPORTS_NAMESPACES = mozilla
-
 EXPORTS_mozilla	+= X11Util.h
 endif
 
@@ -95,6 +105,7 @@ CPPSRCS = \
         nsScriptableRegion.cpp \
         gfxCrashReporterUtils.cpp \
         nsDeviceContext.cpp \
+        nsThebesRegion.cpp \
         nsThebesGfxFactory.cpp \
         nsRenderingContext.cpp \
         nsFontMetrics.cpp \
@@ -127,6 +138,7 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS += nsSystemFontsWin.cpp
+OS_LIBS += $(call EXPAND_LIBNAME,usp10)
 endif
 
 include $(topsrcdir)/config/rules.mk

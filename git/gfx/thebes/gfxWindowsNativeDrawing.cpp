@@ -138,8 +138,8 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
                 // There's probably a better fix, but I haven't figured out
                 // the root cause of the problem.
                 mTempSurfaceSize =
-                    gfxIntSize((PRInt32) ceil(mNativeRect.Width() + 1),
-                               (PRInt32) ceil(mNativeRect.Height() + 1));
+                    gfxIntSize((PRInt32) NS_ceil(mNativeRect.Width() + 1),
+                               (PRInt32) NS_ceil(mNativeRect.Height() + 1));
             } else {
                 // figure out the scale factors
                 mScale = m.ScaleFactors(PR_TRUE);
@@ -153,8 +153,8 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
 
                 // See comment above about "+1"
                 mTempSurfaceSize =
-                    gfxIntSize((PRInt32) ceil(mNativeRect.Width() * mScale.width + 1),
-                               (PRInt32) ceil(mNativeRect.Height() * mScale.height + 1));
+                    gfxIntSize((PRInt32) NS_ceil(mNativeRect.Width() * mScale.width + 1),
+                               (PRInt32) NS_ceil(mNativeRect.Height() * mScale.height + 1));
             }
         }
     }
@@ -168,7 +168,12 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
             GetWorldTransform(mDC, &mOldWorldTransform);
             SetWorldTransform(mDC, &mWorldTransform);
         }
+
+#ifdef WINCE
+        SetViewportOrgEx(mDC, 0, 0, &mOrigViewportOrigin);
+#else
         GetViewportOrgEx(mDC, &mOrigViewportOrigin);
+#endif
         SetViewportOrgEx(mDC,
                          mOrigViewportOrigin.x + (int)mDeviceOffset.x,
                          mOrigViewportOrigin.y + (int)mDeviceOffset.y,

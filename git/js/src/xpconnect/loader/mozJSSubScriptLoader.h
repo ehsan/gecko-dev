@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jsapi.h"
 #include "nsCOMPtr.h"
 #include "mozIJSSubScriptLoader.h"
 #include "nsIScriptSecurityManager.h"
@@ -51,8 +50,6 @@
     {0x8e, 0x08, 0x82, 0xfa, 0x0a, 0x33, 0x9b, 0x00} \
 }
 
-class nsIIOService;
-
 class mozJSSubScriptLoader : public mozIJSSubScriptLoader
 {
 public:
@@ -64,10 +61,6 @@ public:
     NS_DECL_MOZIJSSUBSCRIPTLOADER
 
 private:
-    nsresult ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_obj,
-                        jschar *charset, const char *uriStr,
-                        nsIIOService *serv, nsIPrincipal *principal,
-                        JSScript **scriptp);
-
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
+    
 };

@@ -58,12 +58,7 @@ using nsQueryContentEvent;
 using nsRect;
 using nsSelectionEvent;
 using nsTextEvent;
-using nsMouseEvent;
-using nsMouseScrollEvent;
-using nsKeyEvent;
 using RemoteDOMEvent;
-using mozilla::WindowsHandle;
-using nscolor;
 
 namespace mozilla {
 namespace dom {
@@ -185,14 +180,6 @@ parent:
      */
     sync GetDPI() returns (float value);
 
-    /**
-     * Return native data of root widget
-     */
-    sync GetWidgetNativeData() returns (WindowsHandle value);
-
-    SetCursor(PRUint32 value);
-    SetBackgroundColor(nscolor color);
-
     PContentPermissionRequest(nsCString aType, URI uri);
 
     PContentDialog(PRUint32 aType, nsCString aName, nsCString aFeatures,
@@ -247,14 +234,12 @@ child:
 
     LoadURL(nsCString uri);
 
-    UpdateDimensions(nsRect rect, nsIntSize size);
+    Move(nsIntSize size);
 
     /**
      * Sending an activate message moves focus to the child.
      */
     Activate();
-
-    Deactivate();
 
     /**
      * @see nsIDOMWindowUtils sendMouseEvent.
@@ -266,10 +251,6 @@ child:
                PRInt32 aClickCount,
                PRInt32 aModifiers,
                bool aIgnoreRootScrollFrame);
-
-    RealMouseEvent(nsMouseEvent event);
-    RealKeyEvent(nsKeyEvent event);
-    MouseScrollEvent(nsMouseScrollEvent event);
 
     /**
      * @see nsIDOMWindowUtils sendKeyEvent.

@@ -248,8 +248,7 @@ static SECStatus DeleteCRL (CERTCertDBHandle *certHandle, char *name, int type)
 }
 
 SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type, 
-                     PRFileDesc *inFile, PRInt32 importOptions, PRInt32 decodeOptions,
-                     secuPWData *pwdata)
+                     PRFileDesc *inFile, PRInt32 importOptions, PRInt32 decodeOptions)
 {
     CERTSignedCrl *crl = NULL;
     SECItem crlDER;
@@ -273,12 +272,6 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
     decodeOptions |= CRL_DECODE_DONT_COPY_DER;
 
     slot = PK11_GetInternalKeySlot();
-
-    if (PK11_NeedLogin(slot)) {
-	rv = PK11_Authenticate(slot, PR_TRUE, pwdata);
-    if (rv != SECSuccess)
-	goto loser;
-    }
  
 #if defined(DEBUG_jp96085)
     starttime = PR_IntervalNow();
@@ -306,7 +299,6 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
     } else {
 	SEC_DestroyCrl (crl);
     }
-  loser:
     if (slot) {
         PK11_FreeSlot(slot);
     }
@@ -1058,7 +1050,7 @@ int main(int argc, char **argv)
 	}
 	else if (importCRL) {
 	    rv = ImportCRL (certHandle, url, crlType, inFile, importOptions,
-			    decodeOptions, &pwdata);
+			    decodeOptions);
 	} else if (generateCRL || modifyCRL) {
 	    if (!inCrlInitFile)
 		inCrlInitFile = PR_STDIN;
@@ -1080,7 +1072,7 @@ int main(int argc, char **argv)
 	    ListCRLNames (certHandle, crlType, PR_FALSE);
 	    /* import CRL as a blob */
 	    rv = ImportCRL (certHandle, url, crlType, inFile, importOptions,
-			    decodeOptions, &pwdata);
+			    decodeOptions);
 	    /* list CRLs */
 	    ListCRLNames (certHandle, crlType, PR_FALSE);
 	}

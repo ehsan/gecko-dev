@@ -39,17 +39,23 @@
 
 #include "nsIScriptableRegion.h"
 #include "gfxCore.h"
-#include "nsISupports.h"
-#include "nsRegion.h"
+#include "nsIRegion.h"
 
+class nsIRegion;
+
+/**
+ * An adapter class for the unscriptable nsIRegion interface.
+ */
 class NS_GFX nsScriptableRegion : public nsIScriptableRegion {
 public:
-	nsScriptableRegion();
-
+	nsScriptableRegion(nsIRegion* region);
+	virtual ~nsScriptableRegion();
+	
 	NS_DECL_ISUPPORTS
 
 	NS_DECL_NSISCRIPTABLEREGION
 
 private:
-	nsIntRegion mRegion;
+	nsIRegion* mRegion;
+	nsRegionRectSet *mRectSet;
 };

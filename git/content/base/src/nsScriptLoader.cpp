@@ -910,7 +910,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
 
   JSContext *cx = nsnull; // Initialize this to keep GCC happy.
   if (stid == nsIProgrammingLanguage::JAVASCRIPT) {
-    cx = context->GetNativeContext();
+    cx = (JSContext *)context->GetNativeContext();
     ::JS_BeginRequest(cx);
     NS_ASSERTION(!::JS_IsExceptionPending(cx),
                  "JS_ReportPendingException wasn't called in EvaluateString");
@@ -1314,12 +1314,11 @@ void
 nsScriptLoader::PreloadURI(nsIURI *aURI, const nsAString &aCharset,
                            const nsAString &aType)
 {
-  // Check to see if scripts has been turned off.
-  if (!mEnabled || !mDocument->IsScriptEnabled()) {
+  nsRefPtr<nsScriptLoadRequest> request = new nsScriptLoadRequest(nsnull, 0);
+  if (!request) {
     return;
   }
 
-  nsRefPtr<nsScriptLoadRequest> request = new nsScriptLoadRequest(nsnull, 0);
   request->mURI = aURI;
   request->mIsInline = PR_FALSE;
   request->mLoading = PR_TRUE;

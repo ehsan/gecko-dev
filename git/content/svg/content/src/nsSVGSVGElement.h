@@ -192,8 +192,9 @@ public:
 #endif // MOZ_SMIL
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+  virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeViewBox(PRBool aDoSetAttr);
   virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
 
@@ -204,7 +205,7 @@ public:
   float GetLength(PRUint8 mCtxType);
 
   // public helpers:
-  gfxMatrix GetViewBoxTransform() const;
+  gfxMatrix GetViewBoxTransform();
   PRBool    HasValidViewbox() const { return mViewBox.IsValid(); }
 
   // This services any pending notifications for the transform on on this root
@@ -231,13 +232,13 @@ private:
   // particular) have access.
   void SetImageOverridePreserveAspectRatio(const SVGPreserveAspectRatio& aPAR);
   void ClearImageOverridePreserveAspectRatio();
-  const SVGPreserveAspectRatio* GetImageOverridePreserveAspectRatio() const;
+  const SVGPreserveAspectRatio* GetImageOverridePreserveAspectRatio();
 
   // Returns PR_TRUE if we should synthesize a viewBox for ourselves (that is,
   // if we're the outermost <svg> in an image document, and we're not currently
   // being painted by an <svg:image> element). This method also assumes that we
   // lack a valid viewBox attribute.
-  PRBool ShouldSynthesizeViewBox() const;
+  PRBool ShouldSynthesizeViewBox();
 
 protected:
   // nsSVGElement overrides
@@ -252,7 +253,7 @@ protected:
 
   // implementation helpers:
 
-  PRBool IsRoot() const {
+  PRBool IsRoot() {
     NS_ASSERTION((IsInDoc() && !GetParent()) ==
                  (GetOwnerDoc() && (GetOwnerDoc()->GetRootElement() == this)),
                  "Can't determine if we're root");
@@ -263,7 +264,7 @@ protected:
    * Returns true if this is an SVG <svg> element that is the child of
    * another non-foreignObject SVG element.
    */
-  PRBool IsInner() const {
+  PRBool IsInner() {
     const nsIContent *parent = GetFlattenedTreeParent();
     return parent && parent->GetNameSpaceID() == kNameSpaceID_SVG &&
            parent->Tag() != nsGkAtoms::foreignObject;

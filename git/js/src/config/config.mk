@@ -45,9 +45,9 @@
 #
 
 # Define an include-at-most-once flag
-ifdef INCLUDED_CONFIG_MK
-$(error Don't include config.mk twice!)
-endif
+#ifdef INCLUDED_CONFIG_MK
+#$(error Don't include config.mk twice!)
+#endif
 INCLUDED_CONFIG_MK = 1
 
 EXIT_ON_ERROR = set -e; # Shell loops continue past errors without this.
@@ -88,9 +88,6 @@ space :=$(nullstr) # EOL
 
 core_winabspath = $(firstword $(subst /, ,$(call core_abspath,$(1)))):$(subst $(space),,$(patsubst %,\\%,$(wordlist 2,$(words $(subst /, ,$(call core_abspath,$(1)))), $(strip $(subst /, ,$(call core_abspath,$(1)))))))
 
-# LIBXUL_DIST is not defined under js/src, thus we make it mean DIST there.
-LIBXUL_DIST ?= $(DIST)
-
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
 #
@@ -129,7 +126,7 @@ endif
 # but save the version to allow multiple versions of the same base
 # platform to be built in the same tree.
 #
-ifneq (,$(filter FreeBSD HP-UX Linux NetBSD OpenBSD OSF1 SunOS,$(OS_ARCH)))
+ifneq (,$(filter FreeBSD HP-UX IRIX Linux NetBSD OpenBSD OSF1 SunOS,$(OS_ARCH)))
 OS_RELEASE	:= $(basename $(OS_RELEASE))
 
 # Allow the user to ignore the OS_VERSION, which is usually irrelevant.
@@ -149,18 +146,22 @@ FINAL_LINK_COMP_NAMES = $(DEPTH)/config/final-link-comp-names
 MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFIX)
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
 
+ifdef MOZ_MEMORY
+ifneq ($(OS_ARCH),WINNT)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_MOZLIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
+# If we are linking jemalloc into a program, we want the jemalloc symbols
+# to be exported
+ifneq (,$(SIMPLE_PROGRAMS)$(PROGRAM))
+JEMALLOC_LIBS += $(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)
+endif
+endif
+endif
+
 CC := $(CC_WRAPPER) $(CC)
 CXX := $(CXX_WRAPPER) $(CXX)
 MKDIR ?= mkdir
 SLEEP ?= sleep
 TOUCH ?= touch
-
-ifndef .PYMAKE
-PYTHON_PATH = $(PYTHON) $(topsrcdir)/config/pythonpath.py
-else
-PYCOMMANDPATH += $(topsrcdir)/config
-PYTHON_PATH = %pythonpath main
-endif
 
 # determine debug-related options
 _DEBUG_CFLAGS :=
@@ -193,6 +194,14 @@ OS_CFLAGS += -FR
 OS_CXXFLAGS += -FR
 endif
 else # ! MOZ_DEBUG
+
+# We don't build a static CRT when building a custom CRT,
+# it appears to be broken. So don't link to jemalloc if
+# the Makefile wants static CRT linking.
+ifeq ($(MOZ_MEMORY)_$(USE_STATIC_LIBS),1_)
+# Disable default CRT libs and add the right lib path for the linker
+OS_LDFLAGS += $(MOZ_MEMORY_LDFLAGS)
+endif
 
 # MOZ_DEBUG_SYMBOLS generates debug symbols in separate PDB files.
 # Used for generating an optimized build with debugging symbols.
@@ -232,27 +241,14 @@ endif
 endif # NS_TRACE_MALLOC
 
 endif # MOZ_DEBUG
-
-# We don't build a static CRT when building a custom CRT,
-# it appears to be broken. So don't link to jemalloc if
-# the Makefile wants static CRT linking.
-ifeq ($(MOZ_MEMORY)_$(USE_STATIC_LIBS),1_1)
-# Disable default CRT libs and add the right lib path for the linker
-MOZ_UTILS_LDFLAGS=
-endif
-
 endif # WINNT && !GNU_CC
-
-ifndef MOZ_UTILS_PROGRAM_LDFLAGS
-MOZ_UTILS_PROGRAM_LDFLAGS=$(MOZ_UTILS_LDFLAGS)
-endif
 
 #
 # Build using PIC by default
 #
 _ENABLE_PIC=1
 
-# Determine if module being compiled is destined
+# Determine if module being compiled is destined 
 # to be merged into libxul
 
 ifdef LIBXUL_LIBRARY
@@ -387,6 +383,7 @@ MY_RULES	:= $(DEPTH)/config/myrules.mk
 # Default command macros; can be overridden in <arch>.mk.
 #
 CCC = $(CXX)
+NFSPWD = $(CONFIG_TOOLS)/nfspwd
 PURIFY = purify $(PURIFYOPTIONS)
 QUANTIFY = quantify $(QUANTIFYOPTIONS)
 ifdef CROSS_COMPILE
@@ -408,7 +405,7 @@ INCLUDES = \
   -I$(DIST)/include -I$(DIST)/include/nsprpub \
   $(if $(LIBXUL_SDK),-I$(LIBXUL_SDK)/include -I$(LIBXUL_SDK)/include/nsprpub) \
   $(OS_INCLUDES) \
-  $(NULL)
+  $(NULL) 
 
 include $(topsrcdir)/config/static-checking-config.mk
 
@@ -455,9 +452,6 @@ HOST_CFLAGS	+= $(MOZ_OPTIMIZE_FLAGS)
 endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
-
-CFLAGS += $(MOZ_FRAMEPTR_FLAGS)
-CXXFLAGS += $(MOZ_FRAMEPTR_FLAGS)
 
 # Check for FAIL_ON_WARNINGS & FAIL_ON_WARNINGS_DEBUG (Shorthand for Makefiles
 # to request that we use the 'warnings as errors' compile flags)
@@ -509,22 +503,17 @@ RTL_FLAGS=-MD          # Dynamically linked, multithreaded RTL
 ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 ifndef MOZ_NO_DEBUG_RTL
 RTL_FLAGS=-MDd         # Dynamically linked, multithreaded MSVC4.0 debug RTL
-endif
+endif 
 endif # MOZ_DEBUG || NS_TRACE_MALLOC
 endif # USE_STATIC_LIBS
 endif # WINNT && !GNU_CC
 
 ifeq ($(OS_ARCH),Darwin)
-# Compiling ObjC requires an Apple compiler anyway, so it's ok to set
-# host CMFLAGS here.
+# Darwin doesn't cross-compile, so just set both types of flags here.
 HOST_CMFLAGS += -fobjc-exceptions
 HOST_CMMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMMFLAGS += -fobjc-exceptions
-ifeq ($(MOZ_WIDGET_TOOLKIT),uikit)
-OS_COMPILE_CMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
-OS_COMPILE_CMMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
-endif
 endif
 
 COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
@@ -573,6 +562,10 @@ else
 ELF_DYNSTR_GC	= :
 endif
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+OS_LIBS += $(MOZ_QT_LIBS)
+endif
+
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
 ifdef MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS
@@ -602,6 +595,13 @@ ifeq (2,$(MOZ_OPTIMIZE))
 PBBUILD_SETTINGS += GCC_MODEL_TUNING= OPTIMIZATION_CFLAGS="$(MOZ_OPTIMIZE_FLAGS)"
 endif # MOZ_OPTIMIZE=2
 endif # MOZ_OPTIMIZE
+ifeq (1,$(HAS_XCODE_2_1))
+# Xcode 2.1 puts its build products in a directory corresponding to the
+# selected build style/configuration.
+XCODE_PRODUCT_DIR = build/$(BUILDSTYLE)
+else
+XCODE_PRODUCT_DIR = build
+endif # HAS_XCODE_2_1=1
 endif # OS_ARCH=Darwin
 
 
@@ -687,23 +687,26 @@ endif # NSINSTALL_BIN
 ifeq (,$(CROSS_COMPILE)$(filter-out WINNT OS2, $(OS_ARCH)))
 INSTALL		= $(NSINSTALL)
 else
-
-# This isn't laid out as conditional directives so that NSDISTMODE can be
-# target-specific.
-INSTALL         = $(if $(filter copy, $(NSDISTMODE)), $(NSINSTALL) -t, $(if $(filter absolute_symlink, $(NSDISTMODE)), $(NSINSTALL) -L $(PWD), $(NSINSTALL) -R))
-
+ifeq ($(NSDISTMODE),copy)
+# copy files, but preserve source mtime
+INSTALL		= $(NSINSTALL) -t
+else
+ifeq ($(NSDISTMODE),absolute_symlink)
+# install using absolute symbolic links
+ifeq ($(OS_ARCH),Darwin)
+INSTALL		= $(NSINSTALL) -L $(PWD)
+else
+INSTALL		= $(NSINSTALL) -L `$(NFSPWD)`
+endif # Darwin
+else
+# install using relative symbolic links
+INSTALL		= $(NSINSTALL) -R
+endif # absolute_symlink
+endif # copy
 endif # WINNT/OS2
 
 # Use nsinstall in copy mode to install files on the system
 SYSINSTALL	= $(NSINSTALL) -t
-
-# Directory nsinstall. Windows and OS/2 nsinstall can't recursively copy
-# directories.
-ifneq (,$(filter WINNT os2-emx,$(HOST_OS_ARCH)))
-DIR_INSTALL = $(PYTHON) $(topsrcdir)/config/nsinstall.py
-else
-DIR_INSTALL = $(INSTALL)
-endif # WINNT/OS2
 
 #
 # Localization build automation
@@ -747,10 +750,10 @@ endif
 MERGE_FILES = $(foreach f,$(1),$(call MERGE_FILE,$(f)))
 
 ifeq (OS2,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(LIBXUL_DIST)"
+RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
 else
 ifneq (WINNT,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(LIBXUL_DIST)/bin/run-mozilla.sh
+RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
 endif # ! WINNT
 endif # ! OS2
 
@@ -785,22 +788,4 @@ EXPAND_MKSHLIB = $(EXPAND_LIBS_EXEC) --uselist -- $(MKSHLIB)
 
 ifdef STDCXX_COMPAT
 CHECK_STDCXX = objdump -p $(1) | grep -e 'GLIBCXX_3\.4\.\(9\|[1-9][0-9]\)' > /dev/null && echo "TEST-UNEXPECTED-FAIL | | We don't want these libstdc++ symbols to be used:" && objdump -T $(1) | grep -e 'GLIBCXX_3\.4\.\(9\|[1-9][0-9]\)' && exit 1 || exit 0
-endif
-
-# autoconf.mk sets OBJ_SUFFIX to an error to avoid use before including
-# this file
-OBJ_SUFFIX := $(_OBJ_SUFFIX)
-
-# PGO builds with GCC build objects with instrumentation in a first pass,
-# then objects optimized, without instrumentation, in a second pass. If
-# we overwrite the ojects from the first pass with those from the second,
-# we end up not getting instrumentation data for better optimization on
-# incremental builds. As a consequence, we use a different object suffix
-# for the first pass.
-ifndef NO_PROFILE_GUIDED_OPTIMIZE
-ifdef MOZ_PROFILE_GENERATE
-ifdef GNU_CC
-OBJ_SUFFIX := i_o
-endif
-endif
 endif

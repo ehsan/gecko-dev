@@ -45,7 +45,6 @@
 #include "gfxFont.h"
 #include "gfxUserFontSet.h"
 #include "nsFontMetrics.h"
-#include "nsLayoutUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Constants and structures
@@ -70,12 +69,12 @@ const char* const kCopyValue = nsnull;
 static nsCSSTextAttrMapItem gCSSTextAttrsMap[] =
 {
   // CSS name            CSS value        Attribute name                                Attribute value
-  { "color",             kAnyValue,       &nsGkAtoms::color,                 kCopyValue },
-  { "font-family",       kAnyValue,       &nsGkAtoms::font_family,            kCopyValue },
-  { "font-style",        kAnyValue,       &nsGkAtoms::font_style,             kCopyValue },
-  { "text-decoration",   "line-through",  &nsGkAtoms::textLineThroughStyle,  "solid" },
-  { "text-decoration",   "underline",     &nsGkAtoms::textUnderlineStyle,    "solid" },
-  { "vertical-align",    kAnyValue,       &nsGkAtoms::textPosition,          kCopyValue }
+  { "color",             kAnyValue,       &nsAccessibilityAtoms::color,                 kCopyValue },
+  { "font-family",       kAnyValue,       &nsAccessibilityAtoms::fontFamily,            kCopyValue },
+  { "font-style",        kAnyValue,       &nsAccessibilityAtoms::fontStyle,             kCopyValue },
+  { "text-decoration",   "line-through",  &nsAccessibilityAtoms::textLineThroughStyle,  "solid" },
+  { "text-decoration",   "underline",     &nsAccessibilityAtoms::textUnderlineStyle,    "solid" },
+  { "vertical-align",    kAnyValue,       &nsAccessibilityAtoms::textPosition,          kCopyValue }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +147,7 @@ nsTextAttrsMgr::GetAttributes(nsIPersistentProperties *aAttributes,
     frame = offsetElm->GetPrimaryFrame();
   }
 
-  nsTArray<nsITextAttr*> textAttrArray(10);
+  nsTPtrArray<nsITextAttr> textAttrArray(10);
 
   // "language" text attribute
   nsLangTextAttr langTextAttr(mHyperTextAcc, hyperTextElm, offsetNode);
@@ -213,7 +212,7 @@ nsTextAttrsMgr::GetAttributes(nsIPersistentProperties *aAttributes,
 }
 
 nsresult
-nsTextAttrsMgr::GetRange(const nsTArray<nsITextAttr*>& aTextAttrArray,
+nsTextAttrsMgr::GetRange(const nsTPtrArray<nsITextAttr>& aTextAttrArray,
                          PRInt32 *aStartHTOffset, PRInt32 *aEndHTOffset)
 {
   PRUint32 attrLen = aTextAttrArray.Length();
@@ -325,7 +324,7 @@ nsCSSTextAttr::nsCSSTextAttr(PRUint32 aIndex, nsIContent *aRootContent,
 }
 
 nsIAtom*
-nsCSSTextAttr::GetName() const
+nsCSSTextAttr::GetName()
 {
   return *gCSSTextAttrsMap[mIndex].mAttrName;
 }
@@ -480,7 +479,10 @@ nsFontSizeTextAttr::Format(const nscoord& aValue, nsAString& aFormattedValue)
 nscoord
 nsFontSizeTextAttr::GetFontSize(nsIFrame *aFrame)
 {
-  return aFrame->GetStyleFont()->mSize;
+  nsStyleFont* styleFont =
+    (nsStyleFont*)(aFrame->GetStyleDataExternal(eStyleStruct_Font));
+
+  return styleFont->mSize;
 }
 
 
@@ -525,8 +527,15 @@ nsFontWeightTextAttr::GetFontWeight(nsIFrame *aFrame)
 {
   // nsFont::width isn't suitable here because it's necessary to expose real
   // value of font weight (used font might not have some font weight values).
+  nsStyleFont* styleFont =
+    (nsStyleFont*)(aFrame->GetStyleDataExternal(eStyleStruct_Font));
+
+  gfxUserFontSet *fs = aFrame->PresContext()->GetUserFontSet();
+
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm));
+  aFrame->PresContext()->DeviceContext()->
+    GetMetricsFor(styleFont->mFont, aFrame->GetStyleVisibility()->mLanguage,
+                  fs, *getter_AddRefs(fm));
 
   gfxFontGroup *fontGroup = fm->GetThebesFontGroup();
   gfxFont *font = fontGroup->GetFontAt(0);

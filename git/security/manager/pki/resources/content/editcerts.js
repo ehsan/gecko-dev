@@ -148,15 +148,21 @@ function doLoadForSSLCert()
 	 editButton.setAttribute("disabled","true");
   }
 */  
-  var sslTrust = document.getElementById("sslTrustGroup");
-  sslTrust.value = certdb.isCertTrusted(cert, nsIX509Cert.SERVER_CERT, 
-                                        nsIX509CertDB.TRUSTED_SSL);
+  var trustssl = document.getElementById("trustSSLCert");
+  var notrustssl = document.getElementById("dontTrustSSLCert");
+  if (certdb.isCertTrusted(cert, nsIX509Cert.SERVER_CERT, 
+                          nsIX509CertDB.TRUSTED_SSL)) {
+    trustssl.radioGroup.selectedItem = trustssl;
+  } else {
+    trustssl.radioGroup.selectedItem = notrustssl;
+  }
 }
 
 function doSSLOK()
 {
-  var sslTrust = document.getElementById("sslTrustGroup");
-  var trustssl = sslTrust.value ? nsIX509CertDB.TRUSTED_SSL : 0;
+  var ssl = document.getElementById("trustSSLCert");
+  //var checked = ssl.getAttribute("value");
+  var trustssl = ssl.selected ? nsIX509CertDB.TRUSTED_SSL : 0;
   //
   //  Set the cert trust
   //
@@ -203,15 +209,21 @@ function doLoadForEmailCert()
 	 editButton.setAttribute("disabled","true");
   }
 */  
-  var sslTrust = document.getElementById("sslTrustGroup");
-  sslTrust.value = certdb.isCertTrusted(cert, nsIX509Cert.EMAIL_CERT, 
-                                        nsIX509CertDB.TRUSTED_EMAIL);
+  var trustemail = document.getElementById("trustEmailCert");
+  var notrustemail = document.getElementById("dontTrustEmailCert");
+  if (certdb.isCertTrusted(cert, nsIX509Cert.EMAIL_CERT, 
+                          nsIX509CertDB.TRUSTED_EMAIL)) {
+    trustemail.radioGroup.selectedItem = trustemail;
+  } else {
+    trustemail.radioGroup.selectedItem = notrustemail;
+  }
 }
 
 function doEmailOK()
 {
-  var sslTrust = document.getElementById("sslTrustGroup");
-  var trustemail = sslTrust.value ? nsIX509CertDB.TRUSTED_EMAIL : 0;
+  var email = document.getElementById("trustEmailCert");
+  //var checked = ssl.getAttribute("value");
+  var trustemail = email.selected ? nsIX509CertDB.TRUSTED_EMAIL : 0;
   //
   //  Set the cert trust
   //
@@ -247,7 +259,7 @@ function getCaCertForEntityCert(cert)
         return null;
      }
      if((nextCertInChain.type == nsIX509Cert.CA_CERT) || 
-        (nextCertInChain.subjectName == lastSubjectName))
+                                 (nextCertInChain.subjectName = lastSubjectName))
      {
         break;
      }

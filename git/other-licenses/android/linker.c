@@ -940,8 +940,7 @@ load_segments(int fd, size_t offset, void *header, soinfo *si)
             TRACE("[ %d - Trying to load segment from '%s' @ 0x%08x "
                   "(0x%08x). p_vaddr=0x%08x p_offset=0x%08x ]\n", pid, si->name,
                   (unsigned)tmp, len, phdr->p_vaddr, phdr->p_offset);
-            if (fd == -1 || ((si->flags & FLAG_MMAPPED) &&
-                             PFLAGS_TO_PROT(phdr->p_flags) & PROT_WRITE)) {
+            if (fd == -1 || PFLAGS_TO_PROT(phdr->p_flags) & PROT_WRITE) {
                 pbase = mmap(tmp, len, PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
                 if (pbase != MAP_FAILED) {
@@ -951,7 +950,7 @@ load_segments(int fd, size_t offset, void *header, soinfo *si)
                     DL_ERR("%s: Memcpy mapping of segment failed!", si->name);
             } else {
                 pbase = mmap(tmp, len, PFLAGS_TO_PROT(phdr->p_flags),
-                             ((si->flags & FLAG_MMAPPED) ? MAP_SHARED : MAP_PRIVATE) | MAP_FIXED, fd,
+                             MAP_SHARED | MAP_FIXED, fd,
                              offset + ((phdr->p_offset) & (~PAGE_MASK)));
             }
             if (pbase == MAP_FAILED) {
@@ -1241,7 +1240,7 @@ load_mapped_library(const char * name, int fd,
      * segments */
     si->base = req_base;
     si->size = ext_sz;
-    si->flags = FLAG_MMAPPED;
+    si->flags = 0;
     si->entry = 0;
     si->dynamic = (unsigned *)-1;
     if (alloc_mem_region(si) < 0)
@@ -1416,8 +1415,6 @@ static int reloc_library(soinfo *si, Elf32_Rel *rel, unsigned count)
     /* crappy hack part 1: find the read only region */
     int cnt;
     void * ro_region_end = si->base;
-    unsigned lowest_text_rel = 0xffffffff;
-
     Elf32_Ehdr *ehdr = (Elf32_Ehdr *)si->base;
     Elf32_Phdr *phdr = (Elf32_Phdr *)((unsigned char *)si->base + ehdr->e_phoff);
     for (cnt = 0; cnt < ehdr->e_phnum; ++cnt, ++phdr) {
@@ -1430,7 +1427,9 @@ static int reloc_library(soinfo *si, Elf32_Rel *rel, unsigned count)
     }
 
     void * remapped_page = NULL;
-    void * copy_page = NULL;
+    void * copy_page = mmap(NULL, PAGE_SIZE,
+                            PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
     for (idx = 0; idx < count; ++idx) {
         unsigned type = ELF32_R_TYPE(rel->r_info);
@@ -1519,12 +1518,7 @@ static int reloc_library(soinfo *si, Elf32_Rel *rel, unsigned count)
 
         /* crappy hack part 2: make this page writable */
         void * reloc_page = reloc & ~PAGE_MASK;
-        if ((si->flags & FLAG_MMAPPED) &&
-            (reloc < ro_region_end && reloc_page != remapped_page)) {
-            if (copy_page == NULL)
-                copy_page = mmap(NULL, PAGE_SIZE,
-                                 PROT_READ | PROT_WRITE,
-                                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (reloc < ro_region_end && reloc_page != remapped_page) {
             if (remapped_page != NULL)
                 mprotect(remapped_page, PAGE_SIZE, PROT_READ | PROT_EXEC);
             memcpy(copy_page, reloc_page, PAGE_SIZE);
@@ -1538,8 +1532,6 @@ static int reloc_library(soinfo *si, Elf32_Rel *rel, unsigned count)
             memcpy(reloc_page, copy_page, PAGE_SIZE);
             remapped_page = reloc_page;
         }
-        if ((reloc < ro_region_end) && (reloc < lowest_text_rel))
-            lowest_text_rel = reloc & ~PAGE_MASK;
 
 /* TODO: This is ugly. Split up the relocations by arch into
  * different files.
@@ -1646,15 +1638,7 @@ static int reloc_library(soinfo *si, Elf32_Rel *rel, unsigned count)
         }
         rel++;
     }
-    if (copy_page) {
-        munmap(copy_page, PAGE_SIZE);
-#if defined(ANDROID_ARM_LINKER)
-        /* If we have a copy_page, it means we applied text relocations,
-         * which, in turn, means we need to maintain Instruction and Data
-         * caches coherent */
-        cacheflush(lowest_text_rel, (unsigned) ro_region_end, 0);
-#endif
-    }
+    munmap(copy_page, PAGE_SIZE);
     return 0;
 }
 
@@ -1909,70 +1893,6 @@ static int nullify_closed_stdio (void)
     return return_value;
 }
 
-/* Performs a single (plt) relocation for the relocation at index num, and
- * returns the resulting relocated address */
-static unsigned int plt_reloc(soinfo *si, unsigned int num)
-{
-    if (si->plt_rel) {
-      reloc_library(si, &si->plt_rel[num], 1);
-      return *(unsigned int *)(si->base + si->plt_rel[num].r_offset);
-    }
-#ifdef ANDROID_SH_LINKER
-    if (si->plt_rela) {
-      reloc_library_a(si, &si->plt_rela[num], 1);
-      return *(unsigned int *)(si->base + si->plt_rela[num].r_offset);
-    }
-#endif
-}
-
-/* As this function is only referenced from assembly, we need to tell the
- * compiler not to throw it away */
-static unsigned int plt_reloc(soinfo *si, unsigned int num) __attribute__((used));
-
-#ifdef ANDROID_ARM_LINKER
-/* On ARM, the runtime symbol resolution function is called with
- * - ip pointing to the function pointer to update in PLT_GOT
- * - lr pointing to &PLT_GOT[2]
- * - a pointer to the return address on top of the stack.
- * Note that the stack, when this function is called, in unaligned
- */
-__asm__ (
-    ".text\n"
-    ".align 2\n"
-    ".type runtime_reloc, %function\n"
-"runtime_reloc:\n"
-    /* We need to save r0-r3 because they are arguments we will be passing
-     * to the resolved function, and r4 to realign the stack */
-    "stmfd  sp!, {r0-r4}\n"
-    /* Prepare the call to plt_reloc.
-     * The first argument is the soinfo pointer, which we stored at
-     * PLT_GOT[1], which is at lr - 4. */
-    "ldr r0, [lr, #-4]\n"
-    /* The second argument is the index of the plt entry, starting from
-       PLT_GOT[3]. This is (ip - (lr + 4)) / 4. */
-    "sub r1, ip, lr\n"
-    "sub r1, #4\n"
-    "lsr r1, r1, #2\n"
-    /* Call plt_reloc */
-    "bl plt_reloc\n"
-    /* Store the resolved function address to ip to use after overwriting
-       r0. */
-    "mov ip, r0\n"
-    /* Restore r0-r3 to be used as arguments when calling the resolved
-     * function, r4 which we saved to realign the stack and lr which
-     * was saved by the plt trampoline. */
-    "ldmia sp!, {r0-r4,lr}\n"
-    /* Jump to the resolved function. */
-    "bx ip\n"
-);
-#else
-#define ANDROID_NO_RUNTIME_RELOC
-#endif
-
-#ifndef ANDROID_NO_RUNTIME_RELOC
-static void runtime_reloc() __attribute__((used));
-#endif
-
 static int link_image(soinfo *si, unsigned wr_offset)
 {
     unsigned *d;
@@ -2216,23 +2136,10 @@ static int link_image(soinfo *si, unsigned wr_offset)
         }
     }
 
-#ifndef ANDROID_NO_RUNTIME_RELOC
-    /* Initialize GOT[1] and GOT[2], which are used by the PLT trampoline */
-    Elf32_Addr *got = (Elf32_Addr *)si->plt_got;
-    got[1] = (Elf32_Addr) si;
-    got[2] = (Elf32_Addr) runtime_reloc;
-#endif
-
     if(si->plt_rel) {
         DEBUG("[ %5d relocating %s plt ]\n", pid, si->name );
-#ifdef ANDROID_NO_RUNTIME_RELOC
         if(reloc_library(si, si->plt_rel, si->plt_rel_count))
             goto fail;
-#else
-        /* Relocate PLT GOT */
-        for (d = got + 3; d < got + 3 + si->plt_rel_count; d++)
-            *d += si->base;
-#endif
     }
     if(si->rel) {
         DEBUG("[ %5d relocating %s ]\n", pid, si->name );
@@ -2243,14 +2150,8 @@ static int link_image(soinfo *si, unsigned wr_offset)
 #ifdef ANDROID_SH_LINKER
     if(si->plt_rela) {
         DEBUG("[ %5d relocating %s plt ]\n", pid, si->name );
-#ifdef ANDROID_NO_RUNTIME_RELOC
         if(reloc_library_a(si, si->plt_rela, si->plt_rela_count))
             goto fail;
-#else
-        /* Relocate PLT GOT */
-        for (d = got + 3; d < got + 3 + si->plt_rela_count; d++)
-            *d += si->base;
-#endif
     }
     if(si->rela) {
         DEBUG("[ %5d relocating %s ]\n", pid, si->name );

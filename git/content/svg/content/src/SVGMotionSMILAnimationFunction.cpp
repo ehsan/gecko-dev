@@ -157,9 +157,9 @@ SVGMotionSMILAnimationFunction::GetCalcMode() const
 static nsSVGMpathElement*
 GetFirstMpathChild(nsIContent* aElem)
 {
-  for (nsIContent* child = aElem->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 childCount = aElem->GetChildCount();
+  for (PRUint32 i = 0; i < childCount; ++i) {
+    nsIContent* child = aElem->GetChildAt(i);
     if (child->Tag() == nsGkAtoms::mpath &&
         child->GetNameSpaceID() == kNameSpaceID_SVG) {
       return static_cast<nsSVGMpathElement*>(child);
@@ -383,18 +383,6 @@ SVGMotionSMILAnimationFunction::
   CheckKeyPoints();
 }
 
-PRBool
-SVGMotionSMILAnimationFunction::IsToAnimation() const
-{
-  // Rely on inherited method, but not if we have an <mpath> child or a |path|
-  // attribute, because they'll override any 'to' attr we might have.
-  // NOTE: We can't rely on mPathSourceType, because it might not have been
-  // set to a useful value yet (or it might be stale).
-  return !GetFirstMpathChild(&mAnimationElement->AsElement()) &&
-    !HasAttr(nsGkAtoms::path) &&
-    nsSMILAnimationFunction::IsToAnimation();
-}
-
 void
 SVGMotionSMILAnimationFunction::CheckKeyPoints()
 {
@@ -495,6 +483,17 @@ SVGMotionSMILAnimationFunction::UnsetRotate()
   mRotateAngle = 0.0f; // default value
   mRotateType = eRotateType_Explicit;
   mHasChanged = PR_TRUE;
+}
+
+PRBool
+SVGMotionSMILAnimationFunction::TreatSingleValueAsStatic() const
+{
+  // <animateMotion> has two more ways that we could be just sampling a single
+  // value -- via path attribute and the <mpath> element, with a path
+  // description that just includes a single "move" command.
+  return (mPathSourceType == ePathSourceType_ValuesAttr ||
+          mPathSourceType == ePathSourceType_PathAttr ||
+          mPathSourceType == ePathSourceType_Mpath);
 }
 
 } // namespace mozilla

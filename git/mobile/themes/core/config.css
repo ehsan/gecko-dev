@@ -44,7 +44,7 @@ richlistitem {
   -moz-box-align: center;
 }
 
-richlistitem .preferences-title {
+richlistitem .preftitle {
   pointer-events: none;
   min-width: 200px;
   -moz-box-flex: 1;
@@ -52,11 +52,11 @@ richlistitem .preferences-title {
 }
 
 /* XXX look  + sync */
-richlistitem[default="false"] .preferences-title {
+richlistitem[default="false"] .preftitle {
   font-weight: bold;
 }
 
-richlistitem .preferences-value {
+richlistitem .prefvalue {
   min-width: 200px;
   pointer-events: none;
   -moz-box-flex: 4;
@@ -92,18 +92,17 @@ richlistitem .preferences-value {
 
 #editor-container > hbox > label {
   pointer-events: none;
-  color: black;
 }
 
 #editor + richlistitem {
   display: none;
 }
 
-#editor[default="false"] .preferences-title {
+#editor[default="false"] .preftitle {
   font-weight: bold;
 }
 
-#editor-setting setting {
+#editor-setting .prefbox {
   border-color: transparent !important;
 }
 

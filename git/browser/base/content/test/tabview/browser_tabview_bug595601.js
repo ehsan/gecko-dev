@@ -35,10 +35,13 @@ function test() {
   registerCleanupFunction(function () {
     TabsProgressListener.uninit();
 
+    Services.prefs.clearUserPref("browser.sessionstore.max_concurrent_tabs");
     Services.prefs.clearUserPref("browser.sessionstore.restore_hidden_tabs");
 
     ss.setBrowserState(stateBackup);
   });
+
+  Services.prefs.setIntPref("browser.sessionstore.max_concurrent_tabs", 3);
 
   TabView._initFrame(function () {
     executeSoon(testRestoreWithHiddenTabs);

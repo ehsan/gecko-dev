@@ -537,9 +537,7 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
   SECItem **rawArray;
   int numcerts;
   int i;
-  CERTValOutParam cvout[1];
-  cvout[0].type = cert_po_end;
-
+  
   nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
   if (!inss)
     return nsrv;
@@ -603,6 +601,8 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
    * valid chains, then import them.
    */
   now = PR_Now();
+  CERTValOutParam cvout[1];
+  cvout[0].type = cert_po_end;
 
   for (node = CERT_LIST_HEAD(certList);
        !CERT_LIST_END(node,certList);

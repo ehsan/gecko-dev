@@ -46,6 +46,7 @@
 
 #include "nsIAppShellService.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsILocalFile.h"
 #include "nsIObserverService.h"
@@ -55,6 +56,7 @@
 #include "nsIPromptService.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
+#include "nsITimelineService.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
@@ -94,15 +96,8 @@
 #include <sys/sysctl.h>
 #endif
 
-#include "mozilla/Telemetry.h"
-
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
-
-using namespace mozilla;
 extern PRTime gXRE_mainTimestamp;
-// The following tracks our overhead between reaching XRE_main and loading any XUL
-extern PRTime gCreateTopLevelWindowTimestamp;// Timestamp of the first call to
-                                             // nsAppShellService::CreateTopLevelWindow
 extern PRTime gFirstPaintTimestamp;
 // mfinklesessionstore-browser-state-restored might be a better choice than the one below
 static PRTime gRestoredTimestamp = 0;       // Timestamp of sessionstore-windows-restored
@@ -137,8 +132,7 @@ nsAppStartup::nsAppStartup() :
   mRunning(PR_FALSE),
   mShuttingDown(PR_FALSE),
   mAttemptingQuit(PR_FALSE),
-  mRestart(PR_FALSE),
-  mInterrupted(PR_FALSE)
+  mRestart(PR_FALSE)
 { }
 
 
@@ -346,7 +340,7 @@ nsAppStartup::Quit(PRUint32 aMode)
             ferocity = eAttemptQuit;
             nsCOMPtr<nsISupports> window;
             windowEnumerator->GetNext(getter_AddRefs(window));
-            nsCOMPtr<nsIDOMWindow> domWindow = do_QueryInterface(window);
+            nsCOMPtr<nsIDOMWindowInternal> domWindow(do_QueryInterface(window));
             if (domWindow) {
               PRBool closed = PR_FALSE;
               domWindow->GetClosed(&closed);
@@ -453,20 +447,6 @@ NS_IMETHODIMP
 nsAppStartup::GetShuttingDown(PRBool *aResult)
 {
   *aResult = mShuttingDown;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAppStartup::SetInterrupted(PRBool aInterrupted)
-{
-  mInterrupted = aInterrupted;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAppStartup::GetInterrupted(PRBool *aInterrupted)
-{
-  *aInterrupted = mInterrupted;
   return NS_OK;
 }
 
@@ -594,11 +574,11 @@ JiffiesSinceBoot(const char *file)
   char *s = strrchr(stat, ')');
   if (!s)
     return 0;
-  int ret = sscanf(s + 2,
-                   "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u "
-                   "%*u %*u %*u %*u %*u %*d %*d %*d %*d %llu",
-                   &starttime);
-  if (ret != 1 || !starttime)
+  sscanf(s + 2,
+         "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u "
+         "%*u %*u %*u %*u %*u %*d %*d %*d %*d %llu",
+         &starttime);
+  if (!starttime)
     return 0;
   return starttime;
 }
@@ -615,13 +595,7 @@ ThreadedCalculateProcessCreationTimestamp(void *aClosure)
   char thread_stat[40];
   sprintf(thread_stat, "/proc/self/task/%d/stat", (pid_t) syscall(__NR_gettid));
   
-  PRUint64 thread_jiffies = JiffiesSinceBoot(thread_stat);
-  PRUint64 self_jiffies = JiffiesSinceBoot("/proc/self/stat");
-  
-  if (!thread_jiffies || !self_jiffies)
-    return;
-
-  PRTime interval = (thread_jiffies - self_jiffies) * PR_USEC_PER_SEC / hz;
+  PRTime interval = (JiffiesSinceBoot(thread_stat) - JiffiesSinceBoot("/proc/self/stat")) * PR_USEC_PER_SEC / hz;;
   gProcessCreationTimestamp = now - interval;
 }
 
@@ -654,7 +628,7 @@ CalculateProcessCreationTimestamp()
   timestamp = (timestamp - 116444736000000000LL) / 10LL;
 #else
   timestamp = (timestamp - 116444736000000000i64) / 10i64;
-#endif
+#endif    
   return timestamp;
 }
 #elif defined(XP_MACOSX)
@@ -712,14 +686,6 @@ MaybeDefineProperty(JSContext *cx, JSObject *obj, const char *name, PRTime times
   JS_DefineProperty(cx, obj, name, OBJECT_TO_JSVAL(date), NULL, NULL, JSPROP_ENUMERATE);     
 }
 
-enum {
-  INVALID_PROCESS_CREATION = 0,
-  INVALID_MAIN,
-  INVALID_FIRST_PAINT,
-  INVALID_SESSION_RESTORED,
-  INVALID_CREATE_TOP_LEVEL_WINDOW
-};
-
 NS_IMETHODIMP
 nsAppStartup::GetStartupInfo()
 {
@@ -754,33 +720,10 @@ nsAppStartup::GetStartupInfo()
   } else if (!gProcessCreationTimestamp) {
     gProcessCreationTimestamp = CalculateProcessCreationTimestamp();
   }
-  // Bug 670008: Avoid obviously invalid process creation times
-  if (PR_Now() <= gProcessCreationTimestamp) {
-    gProcessCreationTimestamp = 0;
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_PROCESS_CREATION);
-  }
 
   MaybeDefineProperty(cx, obj, "process", gProcessCreationTimestamp);
-
-  if (gXRE_mainTimestamp >= gProcessCreationTimestamp)
-    MaybeDefineProperty(cx, obj, "main", gXRE_mainTimestamp);
-  else
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_MAIN);
-
-  if (gCreateTopLevelWindowTimestamp >= gProcessCreationTimestamp)
-    MaybeDefineProperty(cx, obj, "createTopLevelWindow", gCreateTopLevelWindowTimestamp);
-  else
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_CREATE_TOP_LEVEL_WINDOW);
-
-  if (gFirstPaintTimestamp >= gXRE_mainTimestamp)
-    MaybeDefineProperty(cx, obj, "firstPaint", gFirstPaintTimestamp);
-  else
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_FIRST_PAINT);
-
-  if (gRestoredTimestamp >= gXRE_mainTimestamp)
-    MaybeDefineProperty(cx, obj, "sessionRestored", gRestoredTimestamp);
-  else
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_SESSION_RESTORED);
-
+  MaybeDefineProperty(cx, obj, "main", gXRE_mainTimestamp);
+  MaybeDefineProperty(cx, obj, "firstPaint", gFirstPaintTimestamp);
+  MaybeDefineProperty(cx, obj, "sessionRestored", gRestoredTimestamp);
   return NS_OK;
 }

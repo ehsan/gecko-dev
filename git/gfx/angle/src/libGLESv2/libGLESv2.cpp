@@ -772,8 +772,6 @@ void __stdcall glCompressedTexImage2D(GLenum target, GLint level, GLenum interna
         {
           case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
           case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-          case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-          case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             break;
           default:
             return error(GL_INVALID_ENUM);
@@ -823,27 +821,9 @@ void __stdcall glCompressedTexImage2D(GLenum target, GLint level, GLenum interna
                 return error(GL_INVALID_ENUM);
             }
 
-            switch (internalformat) {
-              case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (!context->supportsDXT1Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (!context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (!context->supportsDXT5Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              default: UNREACHABLE();
+            if (!context->supportsCompressedTextures())
+            {
+                return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
             }
 
             if (imageSize != gl::ComputeCompressedSize(width, height, internalformat))
@@ -917,8 +897,6 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
         {
           case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
           case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-          case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-          case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             break;
           default:
             return error(GL_INVALID_ENUM);
@@ -938,27 +916,9 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
                 return error(GL_INVALID_VALUE);
             }
 
-            switch (format) {
-              case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (!context->supportsDXT1Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (!context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (!context->supportsDXT5Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              default: UNREACHABLE();
+            if (!context->supportsCompressedTextures())
+            {
+                return error(GL_INVALID_ENUM); // in this case, it's as though the format switch has failed.
             }
 
             if (imageSize != gl::ComputeCompressedSize(width, height, format))
@@ -969,7 +929,7 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
             if (xoffset % 4 != 0 || yoffset % 4 != 0)
             {
                 return error(GL_INVALID_OPERATION); // we wait to check the offsets until this point, because the multiple-of-four restriction
-                                                    // does not exist unless DXT textures are supported.
+                                                    // does not exist unless DXT1 textures are supported.
             }
 
             if (target == GL_TEXTURE_2D)
@@ -1133,27 +1093,7 @@ void __stdcall glCopyTexImage2D(GLenum target, GLint level, GLenum internalforma
                  break;
               case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
               case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (context->supportsDXT1Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (context->supportsDXT5Textures())
+                if (context->supportsCompressedTextures())
                 {
                     return error(GL_INVALID_OPERATION);
                 }
@@ -1305,8 +1245,6 @@ void __stdcall glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GL
                 break;
               case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
               case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
                 return error(GL_INVALID_OPERATION);
               default:
                 return error(GL_INVALID_OPERATION);
@@ -1951,7 +1889,7 @@ void __stdcall glFinish(void)
 
         if (context)
         {
-            context->sync(true);
+            context->finish();
         }
     }
     catch(std::bad_alloc&)
@@ -1970,7 +1908,7 @@ void __stdcall glFlush(void)
 
         if (context)
         {
-            context->sync(false);
+            context->flush();
         }
     }
     catch(std::bad_alloc&)
@@ -1987,7 +1925,7 @@ void __stdcall glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenu
     try
     {
         if ((target != GL_FRAMEBUFFER && target != GL_DRAW_FRAMEBUFFER_ANGLE && target != GL_READ_FRAMEBUFFER_ANGLE)
-            || (renderbuffertarget != GL_RENDERBUFFER && renderbuffer != 0))
+            || renderbuffertarget != GL_RENDERBUFFER)
         {
             return error(GL_INVALID_ENUM);
         }
@@ -2003,13 +1941,13 @@ void __stdcall glFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenu
                 framebuffer = context->getReadFramebuffer();
                 framebufferHandle = context->getReadFramebufferHandle();
             }
-            else
+            else 
             {
                 framebuffer = context->getDrawFramebuffer();
                 framebufferHandle = context->getDrawFramebufferHandle();
             }
 
-            if (!framebuffer || (framebufferHandle == 0 && renderbuffer != 0))
+            if (framebufferHandle == 0 || !framebuffer)
             {
                 return error(GL_INVALID_OPERATION);
             }
@@ -3089,9 +3027,6 @@ void __stdcall glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
               case GL_SHADER_SOURCE_LENGTH:
                 *params = shaderObject->getSourceLength();
                 return;
-              case GL_TRANSLATED_SHADER_SOURCE_LENGTH_ANGLE:
-                *params = shaderObject->getTranslatedSourceLength();
-                return;
               default:
                 return error(GL_INVALID_ENUM);
             }
@@ -3212,38 +3147,6 @@ void __stdcall glGetShaderSource(GLuint shader, GLsizei bufsize, GLsizei* length
     }
 }
 
-void __stdcall glGetTranslatedShaderSourceANGLE(GLuint shader, GLsizei bufsize, GLsizei* length, GLchar* source)
-{
-    EVENT("(GLuint shader = %d, GLsizei bufsize = %d, GLsizei* length = 0x%0.8p, GLchar* source = 0x%0.8p)",
-          shader, bufsize, length, source);
-
-    try
-    {
-        if (bufsize < 0)
-        {
-            return error(GL_INVALID_VALUE);
-        }
-
-        gl::Context *context = gl::getContext();
-
-        if (context)
-        {
-            gl::Shader *shaderObject = context->getShader(shader);
-
-            if (!shaderObject)
-            {
-                return error(GL_INVALID_OPERATION);
-            }
-
-            shaderObject->getTranslatedSource(bufsize, length, source);
-        }
-    }
-    catch(std::bad_alloc&)
-    {
-        return error(GL_OUT_OF_MEMORY);
-    }
-}
-
 const GLubyte* __stdcall glGetString(GLenum name)
 {
     EVENT("(GLenum name = 0x%X)", name);
@@ -3257,7 +3160,7 @@ const GLubyte* __stdcall glGetString(GLenum name)
           case GL_VENDOR:
             return (GLubyte*)"Google Inc.";
           case GL_RENDERER:
-            return (GLubyte*)((context != NULL) ? context->getRendererString() : "ANGLE");
+            return (GLubyte*)"ANGLE";
           case GL_VERSION:
             return (GLubyte*)"OpenGL ES 2.0 (ANGLE "VERSION_STRING")";
           case GL_SHADING_LANGUAGE_VERSION:
@@ -3481,7 +3384,7 @@ int __stdcall glGetUniformLocation(GLuint program, const GLchar* name)
                 return error(GL_INVALID_OPERATION, -1);
             }
 
-            return programObject->getUniformLocation(name);
+            return programObject->getUniformLocation(name, false);
         }
     }
     catch(std::bad_alloc&)
@@ -4564,8 +4467,6 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
             break;
           case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:  // error cases for compressed textures are handled below
           case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-          case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-          case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             break; 
           default:
             return error(GL_INVALID_VALUE);
@@ -4610,10 +4511,10 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
                 return error(GL_INVALID_ENUM);
             }
 
-            switch (format) {
-              case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (context->supportsDXT1Textures())
+            if (format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ||
+                format == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT)
+            {
+                if (context->supportsCompressedTextures())
                 {
                     return error(GL_INVALID_OPERATION);
                 }
@@ -4621,29 +4522,6 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
                 {
                     return error(GL_INVALID_ENUM);
                 }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (context->supportsDXT5Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              default:
-                break;
             }
 
             if (type == GL_FLOAT)
@@ -5804,7 +5682,6 @@ __eglMustCastToProperFunctionPointerType __stdcall glGetProcAddress(const char *
         {"glGetFenceivNV", (__eglMustCastToProperFunctionPointerType)glGetFenceivNV},
         {"glFinishFenceNV", (__eglMustCastToProperFunctionPointerType)glFinishFenceNV},
         {"glSetFenceNV", (__eglMustCastToProperFunctionPointerType)glSetFenceNV},
-        {"glGetTranslatedShaderSourceANGLE", (__eglMustCastToProperFunctionPointerType)glGetTranslatedShaderSourceANGLE},
     };
 
     for (int ext = 0; ext < sizeof(glExtensions) / sizeof(Extension); ext++)

@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXULMenuAccessibleWrap.h"
+#include "nsAccessibilityAtoms.h"
 #include "nsINameSpaceManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +60,7 @@ nsXULMenuitemAccessibleWrap::GetName(nsAString& aName)
   }
   
   nsAutoString accel;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, accel);
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::acceltext, accel);
   if (!accel.IsEmpty()) {
     aName += NS_LITERAL_STRING("\t") + accel;
   }

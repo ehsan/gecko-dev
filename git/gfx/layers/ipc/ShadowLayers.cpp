@@ -49,7 +49,6 @@
 #include "mozilla/layers/PLayersParent.h"
 #include "ShadowLayers.h"
 #include "ShadowLayerChild.h"
-#include "ShadowLayerUtils.h"
 
 using namespace mozilla::ipc;
 
@@ -187,6 +186,8 @@ ShadowLayerForwarder::CreatedCanvasLayer(ShadowableLayer* aCanvas)
 void
 ShadowLayerForwarder::CreatedThebesBuffer(ShadowableLayer* aThebes,
                                           const nsIntRegion& aFrontValidRegion,
+                                          float aXResolution,
+                                          float aYResolution,
                                           const nsIntRect& aBufferRect,
                                           const SurfaceDescriptor& aTempFrontBuffer)
 {
@@ -198,7 +199,9 @@ ShadowLayerForwarder::CreatedThebesBuffer(ShadowableLayer* aThebes,
   }
   mTxn->AddEdit(OpCreateThebesBuffer(NULL, Shadow(aThebes),
                                      buffer,
-                                     aFrontValidRegion));
+                                     aFrontValidRegion,
+                                     aXResolution,
+                                     aYResolution));
 }
 
 void
@@ -214,13 +217,11 @@ ShadowLayerForwarder::CreatedImageBuffer(ShadowableLayer* aImage,
 void
 ShadowLayerForwarder::CreatedCanvasBuffer(ShadowableLayer* aCanvas,
                                           nsIntSize aSize,
-                                          const SurfaceDescriptor& aTempFrontSurface,
-                                          bool aNeedYFlip)
+                                          const SurfaceDescriptor& aTempFrontSurface)
 {
   mTxn->AddEdit(OpCreateCanvasBuffer(NULL, Shadow(aCanvas),
                                      aSize,
-                                     aTempFrontSurface,
-                                     aNeedYFlip));
+                                     aTempFrontSurface));
 }
 
 void
@@ -378,6 +379,18 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 
   MOZ_LAYERS_LOG(("[LayersForwarder] ... done"));
   return PR_TRUE;
+}
+
+LayersBackend
+ShadowLayerForwarder::GetParentBackendType()
+{
+  if (mParentBackend == LayerManager::LAYERS_NONE) {
+    LayersBackend backend;
+    if (mShadowManager->SendGetParentType(&backend)) {
+      mParentBackend = backend;
+    }
+  }
+  return mParentBackend;
 }
 
 static gfxASurface::gfxImageFormat

@@ -9,8 +9,8 @@ function test() {
 
   // open a new window and setup the window state.
   newWin = openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no");
-  newWin.addEventListener("load", function onLoad(event) {
-    this.removeEventListener("load", onLoad, false);
+  newWin.addEventListener("load", function(event) {
+    this.removeEventListener("load", arguments.callee, false);
 
     let newState = {
       windows: [{
@@ -58,8 +58,10 @@ function test() {
     let onTabViewShow = function() {
       newWin.removeEventListener("tabviewshown", onTabViewShow, false);
 
-      let contentWindow = newWin.TabView.getContentWindow();
+      let contentWindow = newWin.document.getElementById("tab-view").contentWindow;
+
       is(contentWindow.GroupItems.groupItems.length, 2, "Has two group items");
+      is(contentWindow.GroupItems.getOrphanedTabs().length, 0, "No orphan tabs");
 
       // clean up and finish
       newWin.close();
@@ -67,6 +69,6 @@ function test() {
       finish();
     }
     newWin.addEventListener("tabviewshown", onTabViewShow, false);
-    waitForFocus(function() { newWin.TabView.toggle(); });
+    newWin.TabView.toggle();
   }, false);
 }

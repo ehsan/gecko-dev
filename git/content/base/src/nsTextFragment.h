@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -46,8 +47,6 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsTraceRefcnt.h"
-#include "nsDOMMemoryReporter.h"
-
 class nsString;
 class nsCString;
 
@@ -80,7 +79,7 @@ class nsCString;
  * This class does not have a virtual destructor therefore it is not
  * meant to be subclassed.
  */
-class NS_FINAL_CLASS nsTextFragment {
+class nsTextFragment {
 public:
   static nsresult Init();
   static void Shutdown();
@@ -113,8 +112,8 @@ public:
 
   /**
    * Return PR_TRUE if this fragment contains Bidi text
-   * For performance reasons this flag is only set if explicitely requested (by
-   * setting the aUpdateBidi argument on SetTo or Append to true).
+   * For performance reasons this flag is not set automatically, but
+   * requires an explicit call to UpdateBidiFlag()
    */
   PRBool IsBidi() const
   {
@@ -155,17 +154,14 @@ public:
 
   /**
    * Change the contents of this fragment to be a copy of the given
-   * buffer. If aUpdateBidi is true, contents of the fragment will be scanned,
-   * and mState.mIsBidi will be turned on if it includes any Bidi characters.
+   * buffer.
    */
-  void SetTo(const PRUnichar* aBuffer, PRInt32 aLength, PRBool aUpdateBidi);
+  void SetTo(const PRUnichar* aBuffer, PRInt32 aLength);
 
   /**
-   * Append aData to the end of this fragment. If aUpdateBidi is true, contents
-   * of the fragment will be scanned, and mState.mIsBidi will be turned on if
-   * it includes any Bidi characters.
+   * Append aData to the end of this fragment.
    */
-  void Append(const PRUnichar* aBuffer, PRUint32 aLength, PRBool aUpdateBidi);
+  void Append(const PRUnichar* aBuffer, PRUint32 aLength);
 
   /**
    * Append the contents of this string fragment to aString
@@ -210,6 +206,12 @@ public:
     return mState.mIs2b ? m2b[aIndex] : static_cast<unsigned char>(m1b[aIndex]);
   }
 
+  /**
+   * Scan the contents of the fragment and turn on mState.mIsBidi if it
+   * includes any Bidi characters.
+   */
+  void UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength);
+
   struct FragmentBits {
     // PRUint32 to ensure that the values are unsigned, because we
     // want 0/1, not 0/-1!
@@ -222,26 +224,9 @@ public:
     PRUint32 mLength : 29;
   };
 
-  /**
-   * Returns the size taken in memory by this text fragment.
-   * @return the size taken in memory by this text fragment.
-   */
-  PRInt64 SizeOf() const
-  {
-    PRInt64 size = sizeof(*this);
-    size += GetLength() * Is2b() ? sizeof(*m2b) : sizeof(*m1b);
-    return size;
-  }
-
 private:
   void ReleaseText();
 
-  /**
-   * Scan the contents of the fragment and turn on mState.mIsBidi if it
-   * includes any Bidi characters.
-   */
-  void UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength);
- 
   union {
     PRUnichar *m2b;
     const char *m1b; // This is const since it can point to shared data

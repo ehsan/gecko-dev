@@ -45,8 +45,7 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsThreadUtils.h"
 
-NS_IMPL_ISUPPORTS2(ThirdPartyUtil, mozIThirdPartyUtil,
-                                   mozIThirdPartyUtil_BRANCH)
+NS_IMPL_ISUPPORTS1(ThirdPartyUtil, mozIThirdPartyUtil)
 
 nsresult
 ThirdPartyUtil::Init()
@@ -56,6 +55,46 @@ ThirdPartyUtil::Init()
   nsresult rv;
   mTLDService = do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv);
   return rv;
+}
+
+// Get the base domain for aHostURI; e.g. for "www.bbc.co.uk", this would be
+// "bbc.co.uk". Only properly-formed URI's are tolerated, though a trailing
+// dot may be present. If aHostURI is an IP address, an alias such as
+// 'localhost', an eTLD such as 'co.uk', or the empty string, aBaseDomain will
+// be the exact host. The result of this function should only be used in exact
+// string comparisons, since substring comparisons will not be valid for the
+// special cases elided above.
+nsresult
+ThirdPartyUtil::GetBaseDomain(nsIURI* aHostURI,
+                              nsCString& aBaseDomain)
+{
+  // Get the base domain. this will fail if the host contains a leading dot,
+  // more than one trailing dot, or is otherwise malformed.
+  nsresult rv = mTLDService->GetBaseDomain(aHostURI, 0, aBaseDomain);
+  if (rv == NS_ERROR_HOST_IS_IP_ADDRESS ||
+      rv == NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS) {
+    // aHostURI is either an IP address, an alias such as 'localhost', an eTLD
+    // such as 'co.uk', or the empty string. Uses the normalized host in such
+    // cases.
+    rv = aHostURI->GetAsciiHost(aBaseDomain);
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // aHostURI (and thus aBaseDomain) may be the string '.'. If so, fail.
+  if (aBaseDomain.Length() == 1 && aBaseDomain.Last() == '.')
+    return NS_ERROR_INVALID_ARG;
+
+  // Reject any URIs without a host that aren't file:// URIs. This makes it the
+  // only way we can get a base domain consisting of the empty string, which
+  // means we can safely perform foreign tests on such URIs where "not foreign"
+  // means "the involved URIs are all file://".
+  if (aBaseDomain.IsEmpty()) {
+    PRBool isFileURI = PR_FALSE;
+    aHostURI->SchemeIs("file", &isFileURI);
+    NS_ENSURE_TRUE(isFileURI, NS_ERROR_INVALID_ARG);
+  }
+
+  return NS_OK;
 }
 
 // Determine if aFirstDomain is a different base domain to aSecondURI; or, if
@@ -247,29 +286,23 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
   ourWin->GetParent(getter_AddRefs(parentWin));
   NS_ENSURE_TRUE(parentWin, NS_ERROR_INVALID_ARG);
 
-  // Check whether this is the document channel for this window (representing a
-  // load of a new page). In that situation we want to avoid comparing
-  // channelURI to ourWin, since what's in ourWin right now will be replaced as
-  // the channel loads.  This covers the case of a freshly kicked-off load
-  // (e.g. the user typing something in the location bar, or clicking on a
-  // bookmark), where the window's URI hasn't yet been set, and will be bogus.
-  // It also covers situations where a subframe is navigated to someting that
-  // is same-origin with all its ancestors.  This is a bit of a nasty hack, but
-  // we will hopefully flag these channels better later.
-  nsLoadFlags flags;
-  rv = aChannel->GetLoadFlags(&flags);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (SameCOMIdentity(ourWin, parentWin)) {
+    // Check whether this is the document channel for this window (representing
+    // a load of a new page). This covers the case of a freshly kicked-off load
+    // (e.g. the user typing something in the location bar, or clicking on a
+    // bookmark), where the window's URI hasn't yet been set, and will be bogus.
+    // This is a bit of a nasty hack, but we will hopefully flag these channels
+    // better later.
+    nsLoadFlags flags;
+    rv = aChannel->GetLoadFlags(&flags);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  if (flags & nsIChannel::LOAD_DOCUMENT_URI) {
-    if (SameCOMIdentity(ourWin, parentWin)) {
+    if (flags & nsIChannel::LOAD_DOCUMENT_URI) {
       // We only need to compare aURI to the channel URI -- the window's will be
       // bogus. We already know the answer.
       *aResult = false;
       return NS_OK;
     }
-
-    // Make sure to still compare to ourWin's ancestors
-    ourWin = parentWin;
   }
 
   // Check the window hierarchy. This covers most cases for an ordinary page
@@ -277,42 +310,3 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
   return IsThirdPartyWindow(ourWin, channelURI, aResult);
 }
 
-// Get the base domain for aHostURI; e.g. for "www.bbc.co.uk", this would be
-// "bbc.co.uk". Only properly-formed URI's are tolerated, though a trailing
-// dot may be present. If aHostURI is an IP address, an alias such as
-// 'localhost', an eTLD such as 'co.uk', or the empty string, aBaseDomain will
-// be the exact host. The result of this function should only be used in exact
-// string comparisons, since substring comparisons will not be valid for the
-// special cases elided above.
-NS_IMETHODIMP
-ThirdPartyUtil::GetBaseDomain(nsIURI* aHostURI,
-                              nsACString& aBaseDomain)
-{
-  // Get the base domain. this will fail if the host contains a leading dot,
-  // more than one trailing dot, or is otherwise malformed.
-  nsresult rv = mTLDService->GetBaseDomain(aHostURI, 0, aBaseDomain);
-  if (rv == NS_ERROR_HOST_IS_IP_ADDRESS ||
-      rv == NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS) {
-    // aHostURI is either an IP address, an alias such as 'localhost', an eTLD
-    // such as 'co.uk', or the empty string. Uses the normalized host in such
-    // cases.
-    rv = aHostURI->GetAsciiHost(aBaseDomain);
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // aHostURI (and thus aBaseDomain) may be the string '.'. If so, fail.
-  if (aBaseDomain.Length() == 1 && aBaseDomain.Last() == '.')
-    return NS_ERROR_INVALID_ARG;
-
-  // Reject any URIs without a host that aren't file:// URIs. This makes it the
-  // only way we can get a base domain consisting of the empty string, which
-  // means we can safely perform foreign tests on such URIs where "not foreign"
-  // means "the involved URIs are all file://".
-  if (aBaseDomain.IsEmpty()) {
-    PRBool isFileURI = false;
-    aHostURI->SchemeIs("file", &isFileURI);
-    NS_ENSURE_TRUE(isFileURI, NS_ERROR_INVALID_ARG);
-  }
-
-  return NS_OK;
-}

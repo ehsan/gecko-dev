@@ -169,29 +169,31 @@ void nsTableCellMap::InsertGroupCellMap(nsTableRowGroupFrame*  aNewGroup,
                                         nsTableRowGroupFrame*& aPrevGroup)
 {
   nsCellMap* newMap = new nsCellMap(aNewGroup, mBCInfo != nsnull);
-  nsCellMap* prevMap = nsnull;
-  nsCellMap* lastMap = mFirstMap;
-  if (aPrevGroup) {
-    nsCellMap* map = mFirstMap;
-    while (map) {
-      lastMap = map;
-      if (map->GetRowGroup() == aPrevGroup) {
-        prevMap = map;
-        break;
-      }
-      map = map->GetNextSibling();
-    }
-  }
-  if (!prevMap) {
+  if (newMap) {
+    nsCellMap* prevMap = nsnull;
+    nsCellMap* lastMap = mFirstMap;
     if (aPrevGroup) {
-      prevMap = lastMap;
-      aPrevGroup = (prevMap) ? prevMap->GetRowGroup() : nsnull;
+      nsCellMap* map = mFirstMap;
+      while (map) {
+        lastMap = map;
+        if (map->GetRowGroup() == aPrevGroup) {
+          prevMap = map;
+          break;
+        }
+        map = map->GetNextSibling();
+      }
     }
-    else {
-      aPrevGroup = nsnull;
+    if (!prevMap) {
+      if (aPrevGroup) {
+        prevMap = lastMap;
+        aPrevGroup = (prevMap) ? prevMap->GetRowGroup() : nsnull;
+      }
+      else {
+        aPrevGroup = nsnull;
+      }
     }
+    InsertGroupCellMap(prevMap, *newMap);
   }
-  InsertGroupCellMap(prevMap, *newMap);
 }
 
 void nsTableCellMap::RemoveGroupCellMap(nsTableRowGroupFrame* aGroup)
@@ -268,7 +270,7 @@ void
 nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
 {
   nsTableFrame::RowGroupArray orderedRowGroups;
-  nsAutoTArray<nsCellMap*, 8> maps;
+  nsAutoTPtrArray<nsCellMap, 8> maps;
 
   aTableFrame->OrderRowGroups(orderedRowGroups);
   if (!orderedRowGroups.Length()) {
@@ -1175,11 +1177,14 @@ nsCellMap::~nsCellMap()
 }
 
 /* static */
-void
+nsresult
 nsCellMap::Init()
 {
-  NS_ABORT_IF_FALSE(!sEmptyRow, "How did that happen?");
+  NS_ASSERTION(!sEmptyRow, "How did that happen?");
   sEmptyRow = new nsCellMap::CellDataArray();
+  NS_ENSURE_TRUE(sEmptyRow, NS_ERROR_OUT_OF_MEMORY);
+
+  return NS_OK;
 }
 
 /* static */
@@ -1639,7 +1644,7 @@ PRBool nsCellMap::CellsSpanOut(nsTArray<nsTableRowFrame*>& aRows) const
   PRInt32 numNewRows = aRows.Length();
   for (PRInt32 rowX = 0; rowX < numNewRows; rowX++) {
     nsIFrame* rowFrame = (nsIFrame *) aRows.ElementAt(rowX);
-    nsIFrame* childFrame = rowFrame->GetFirstPrincipalChild();
+    nsIFrame* childFrame = rowFrame->GetFirstChild(nsnull);
     while (childFrame) {
       nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
       if (cellFrame) {
@@ -1813,7 +1818,7 @@ nsCellMap::ExpandWithRows(nsTableCellMap&             aMap,
   for (PRInt32 rowX = startRowIndex; rowX <= endRowIndex; rowX++) {
     nsTableRowFrame* rFrame = aRowFrames.ElementAt(newRowIndex);
     // append cells
-    nsIFrame* cFrame = rFrame->GetFirstPrincipalChild();
+    nsIFrame* cFrame = rFrame->GetFirstChild(nsnull);
     PRInt32 colIndex = 0;
     while (cFrame) {
       nsTableCellFrame *cellFrame = do_QueryFrame(cFrame);
@@ -2276,7 +2281,7 @@ nsCellMap::RebuildConsideringRows(nsTableCellMap&             aMap,
     PRInt32 numNewRows = aRowsToInsert->Length();
     for (PRInt32 newRowX = 0; newRowX < numNewRows; newRowX++) {
       nsTableRowFrame* rFrame = aRowsToInsert->ElementAt(newRowX);
-      nsIFrame* cFrame = rFrame->GetFirstPrincipalChild();
+      nsIFrame* cFrame = rFrame->GetFirstChild(nsnull);
       while (cFrame) {
         nsTableCellFrame *cellFrame = do_QueryFrame(cFrame);
         if (cellFrame) {
@@ -2879,8 +2884,8 @@ nsCellMapColumnIterator::GetNextFrame(PRInt32* aRow, PRInt32* aColSpan)
 
     ++mFoundCells;
 
-    NS_ABORT_IF_FALSE(cellData == mMap->GetDataAt(*aRow, mCol),
-                      "Giving caller bogus row?");
+    NS_ASSERTION(cellData = mMap->GetDataAt(*aRow, mCol),
+                 "Giving caller bogus row?");
 
     return cellFrame;
   }

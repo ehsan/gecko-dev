@@ -57,6 +57,8 @@ public:
   {
     if (!sInstance) {
       sInstance = new nsAutoCopyListener();
+      if (!sInstance)
+        return nsnull;
 
       NS_ADDREF(sInstance);
     }

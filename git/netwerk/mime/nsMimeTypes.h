@@ -66,7 +66,6 @@
 #define APPLICATION_ECMASCRIPT              "application/ecmascript"
 #define APPLICATION_JAVASCRIPT              "application/javascript"
 #define APPLICATION_XJAVASCRIPT             "application/x-javascript"
-#define APPLICATION_JSON                    "application/json"
 #define APPLICATION_NETSCAPE_REVOCATION     "application/x-netscape-revocation"
 #define APPLICATION_NS_PROXY_AUTOCONFIG     "application/x-ns-proxy-autoconfig"
 #define APPLICATION_NS_JAVASCRIPT_AUTOCONFIG        "application/x-javascript-config"
@@ -99,7 +98,6 @@
 #define APPLICATION_XPINSTALL               "application/x-xpinstall"
 #define APPLICATION_XML                     "application/xml"
 #define APPLICATION_XHTML_XML               "application/xhtml+xml"
-#define APPLICATION_XSLT_XML                "application/xslt+xml"
 #define APPLICATION_MATHML_XML              "application/mathml+xml"
 #define APPLICATION_RDF_XML                 "application/rdf+xml"
 

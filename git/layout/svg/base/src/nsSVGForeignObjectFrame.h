@@ -41,6 +41,7 @@
 
 #include "nsContainerFrame.h"
 #include "nsISVGChildFrame.h"
+#include "nsIDOMSVGMatrix.h"
 #include "nsRegion.h"
 #include "nsIPresShell.h"
 #include "gfxRect.h"
@@ -72,7 +73,7 @@ public:
                                PRInt32         aModType);
 
   virtual nsIFrame* GetContentInsertionFrame() {
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return GetFirstChild(nsnull)->GetContentInsertionFrame();
   }
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
@@ -91,7 +92,7 @@ public:
   /**
    * Foreign objects can return a transform matrix.
    */
-  virtual gfx3DMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
+  virtual gfxMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Get the "type" of the frame
@@ -152,7 +153,7 @@ protected:
   // If width or height is less than or equal to zero we must disable rendering
   PRBool IsDisabled() const { return mRect.width <= 0 || mRect.height <= 0; }
 
-  nsAutoPtr<gfxMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 
   // Areas dirtied by changes to decendents that are in our document
   nsRegion mSameDocDirtyRegion;

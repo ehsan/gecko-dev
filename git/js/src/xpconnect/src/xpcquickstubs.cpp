@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsapi.h"
+#include "jsstr.h"
 #include "jscntxt.h"  /* for error messages */
 #include "nsCOMPtr.h"
 #include "xpcprivate.h"
@@ -214,7 +215,7 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
 }
 
 static JSBool
-ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, uintN orig_attrs,
+ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id,
                  JSPropertyOp getter, JSStrictPropertyOp setter,
                  JSObject **getterobjp, JSObject **setterobjp)
 {
@@ -222,7 +223,7 @@ ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, uintN orig_attrs,
     jsval roots[2] = { JSVAL_NULL, JSVAL_NULL };
     js::AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
-    uintN attrs = JSPROP_SHARED | (orig_attrs & JSPROP_ENUMERATE);
+    uintN attrs = JSPROP_SHARED;
     JSObject *getterobj;
     if(getter)
     {
@@ -322,11 +323,8 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
     }
 
     JSObject *getterobj, *setterobj;
-    if(!ReifyPropertyOps(cx, desc.obj, id, desc.attrs, desc.getter, desc.setter,
-                         &getterobj, &setterobj))
-    {
+    if(!ReifyPropertyOps(cx, obj, id, desc.getter, desc.setter, &getterobj, &setterobj))
         return JS_FALSE;
-    }
 
     JSObject *wantedobj = wantGetter ? getterobj : setterobj;
     jsval v = wantedobj ? OBJECT_TO_JSVAL(wantedobj) : JSVAL_VOID;
@@ -361,7 +359,8 @@ DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
-    JSNative forward = wantGetter ? js_obj_defineGetter : js_obj_defineSetter;
+    JSNative forward = wantGetter ? Jsvalify(js_obj_defineGetter)
+                                  : Jsvalify(js_obj_defineSetter);
     jsval idval = (argc >= 1) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     if(!JSVAL_IS_STRING(idval))
         return forward(cx, argc, vp);
@@ -383,7 +382,7 @@ DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
         return forward(cx, argc, vp);
 
     // Reify the getter and setter...
-    if(!ReifyPropertyOps(cx, obj2, id, attrs, getter, setter, nsnull, nsnull))
+    if(!ReifyPropertyOps(cx, obj, id, getter, setter, nsnull, nsnull))
         return JS_FALSE;
 
     return forward(cx, argc, vp);
@@ -726,10 +725,8 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
 
     size_t len;
     const jschar *chars = JS_GetStringCharsZAndLength(cx, s, &len);
-    if (!chars) {
-        mValid = JS_FALSE;
+    if (!chars)
         return;
-    }
 
     new(mBuf) implementation_type(chars, len);
     mValid = JS_TRUE;
@@ -774,10 +771,8 @@ xpc_qsAUTF8String::xpc_qsAUTF8String(JSContext *cx, jsval v, jsval *pval)
 
     size_t len;
     const PRUnichar *chars = JS_GetStringCharsZAndLength(cx, s, &len);
-    if (!chars) {
-        mValid = JS_FALSE;
+    if (!chars)
         return;
-    }
 
     new(mBuf) implementation_type(chars, len);
     mValid = JS_TRUE;

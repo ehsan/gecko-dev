@@ -45,12 +45,9 @@
 #include "mozilla/plugins/PPluginSurfaceChild.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
-#elif defined(MOZ_WIDGET_COCOA)
-#include "PluginUtilsOSX.h"
+#elif defined(OS_MACOSX)
 #include "nsCoreAnimationSupport.h"
 #include "base/timer.h"
-
-using namespace mozilla::plugins::PluginUtilsOSX;
 #endif
 
 #include "npfunctions.h"
@@ -119,11 +116,6 @@ protected:
     DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
                      const NPRemoteWindow& aWindow,
                      bool aIsAsync);
-
-    virtual bool
-    AnswerHandleKeyEvent(const nsKeyEvent& aEvent, bool* handled);
-    virtual bool
-    AnswerHandleTextEvent(const nsTextEvent& aEvent, bool* handled);
 
     virtual PPluginSurfaceChild* AllocPPluginSurface(const WindowsSharedMemoryHandle&,
                                                      const gfxIntSize&, const bool&) {
@@ -415,7 +407,7 @@ private:
       HBITMAP         bmp;
     } mAlphaExtract;
 #endif // defined(OS_WIN)
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(OS_MACOSX)
 private:
 #if defined(__i386__)
     NPEventModel          mEventModel;
@@ -424,14 +416,11 @@ private:
     CGContextRef          mShContext;
     int16_t               mDrawingModel;
     nsCARenderer          mCARenderer;
-    void                 *mCGLayer;
 
 public:
     const NPCocoaEvent* getCurrentEvent() {
         return mCurrentEvent;
     }
-  
-    bool CGDraw(CGContextRef ref, nsIntRect aUpdateRect);
 
 #if defined(__i386__)
     NPEventModel EventModel() { return mEventModel; }
@@ -444,15 +433,10 @@ private:
     bool CanPaintOnBackground();
 
     bool IsVisible() {
-#ifdef XP_MACOSX
-        return mWindow.clipRect.top != mWindow.clipRect.bottom &&
-               mWindow.clipRect.left != mWindow.clipRect.right;
-#else
         return mWindow.clipRect.top != 0 ||
             mWindow.clipRect.left != 0 ||
             mWindow.clipRect.bottom != 0 ||
             mWindow.clipRect.right != 0;
-#endif
     }
 
     // ShowPluginFrame - in general does four things:
@@ -528,12 +512,6 @@ private:
     // Back surface, just keeping reference to
     // surface which is on ParentProcess side
     nsRefPtr<gfxASurface> mBackSurface;
-
-#ifdef XP_MACOSX
-    // Current IOSurface available for rendering
-    // We can't use thebes gfxASurface like other platforms.
-    nsDoubleBufferCARenderer mDoubleBufferCARenderer; 
-#endif
 
     // (Not to be confused with mBackSurface).  This is a recent copy
     // of the opaque pixels under our object frame, if

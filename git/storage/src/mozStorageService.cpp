@@ -54,7 +54,8 @@
 #include "nsIXPConnect.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 
 #include "sqlite3.h"
 #include "test_quota.c"
@@ -63,7 +64,6 @@
 #include "nsIMemoryReporter.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Util.h"
 
 namespace {
 
@@ -133,17 +133,17 @@ namespace storage {
 //// Memory Reporting
 
 static PRInt64
-GetStorageSQLiteMemoryUsed()
+GetStorageSQLiteMemoryUsed(void *)
 {
   return ::sqlite3_memory_used();
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLiteMemoryUsed,
     "explicit/storage/sqlite",
-    KIND_HEAP,
-    UNITS_BYTES,
+    MR_HEAP,
+    "Memory used by SQLite.",
     GetStorageSQLiteMemoryUsed,
-    "Memory used by SQLite.")
+    nsnull)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers
@@ -185,8 +185,10 @@ public:
     // We need to obtain the toolkit.storage.synchronous preferences on the main
     // thread because the preference service can only be accessed there.  This
     // is cached in the service for all future Open[Unshared]Database calls.
-    PRInt32 synchronous =
-      Preferences::GetInt(PREF_TS_SYNCHRONOUS, PREF_TS_SYNCHRONOUS_DEFAULT);
+    nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    PRInt32 synchronous = PREF_TS_SYNCHRONOUS_DEFAULT;
+    if (pref)
+      (void)pref->GetIntPref(PREF_TS_SYNCHRONOUS, &synchronous);
     ::PR_ATOMIC_SET(mSynchronousPrefValPtr, synchronous);
 
     // Register our SQLite memory reporter.  Registration can only happen on
@@ -278,20 +280,15 @@ Service::getSynchronousPref()
 }
 
 Service::Service()
-: mMutex("Service::mMutex"),
-  mSqliteVFS(nsnull)
+: mMutex("Service::mMutex")
 {
 }
 
 Service::~Service()
 {
-  int rc = sqlite3_vfs_unregister(mSqliteVFS);
-  if (rc != SQLITE_OK)
-    NS_WARNING("Failed to unregister sqlite vfs wrapper.");
-
   // Shutdown the sqlite3 API.  Warn if shutdown did not turn out okay, but
   // there is nothing actionable we can do in that case.
-  rc = ::sqlite3_quota_shutdown();
+  int rc = ::sqlite3_quota_shutdown();
   if (rc != SQLITE_OK)
     NS_WARNING("sqlite3 did not shutdown cleanly.");
 
@@ -299,12 +296,10 @@ Service::~Service()
   if (rc != SQLITE_OK)
     NS_WARNING("sqlite3 did not shutdown cleanly.");
 
-  DebugOnly<bool> shutdownObserved = !sXPConnect;
+  bool shutdownObserved = !sXPConnect;
   NS_ASSERTION(shutdownObserved, "Shutdown was not observed!");
 
   gService = nsnull;
-  delete mSqliteVFS;
-  mSqliteVFS = nsnull;
 }
 
 void
@@ -313,8 +308,6 @@ Service::shutdown()
   NS_IF_RELEASE(sXPConnect);
 }
 
-sqlite3_vfs* ConstructTelemetryVFS();
- 
 nsresult
 Service::initialize()
 {
@@ -329,15 +322,7 @@ Service::initialize()
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
 
-  mSqliteVFS = ConstructTelemetryVFS();
-  if (mSqliteVFS) {
-    rc = sqlite3_vfs_register(mSqliteVFS, 1);
-    if (rc != SQLITE_OK)
-      return convertResultCode(rc);
-  } else {
-    NS_WARNING("Failed to register telemetry VFS");
-  }
-  rc = ::sqlite3_quota_initialize("telemetry-vfs", 0);
+  rc = ::sqlite3_quota_initialize(NULL, 0);
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
 
@@ -494,8 +479,6 @@ NS_IMETHODIMP
 Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
                               mozIStorageConnection **_connection)
 {
-  NS_ENSURE_ARG(aDatabaseFile);
-
 #ifdef NS_FUNCTION_TIMER
   nsCString leafname;
   (void)aDatabaseFile->GetNativeLeafName(leafname);
@@ -616,21 +599,6 @@ Service::SetQuotaForFilenamePattern(const nsACString &aPattern,
   NS_ENSURE_TRUE(rc == SQLITE_OK, convertResultCode(rc));
 
   data.forget();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-Service::UpdateQutoaInformationForFile(nsIFile* aFile)
-{
-  NS_ENSURE_ARG_POINTER(aFile);
-
-  nsCString path;
-  nsresult rv = aFile->GetNativePath(path);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  int rc = ::sqlite3_quota_file(PromiseFlatCString(path).get());
-  NS_ENSURE_TRUE(rc == SQLITE_OK, convertResultCode(rc));
-
   return NS_OK;
 }
 

@@ -708,6 +708,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
       }
       break;
     }
+#ifdef MOZ_CSS_ANIMATIONS
     case eCSSProperty_animation: {
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(eCSSProperty_animation);
@@ -758,6 +759,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
       }
       break;
     }
+#endif
     case eCSSProperty_marker: {
       const nsCSSValue &endValue =
         *data->ValueFor(eCSSProperty_marker_end);
@@ -767,15 +769,6 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue) const
         *data->ValueFor(eCSSProperty_marker_start);
       if (endValue == midValue && midValue == startValue)
         AppendValueToString(eCSSProperty_marker_end, aValue);
-      break;
-    }
-    case eCSSProperty__moz_columns: {
-      // Two values, column-count and column-width, separated by a space.
-      const nsCSSProperty* subprops =
-        nsCSSProps::SubpropertyEntryFor(aProperty);
-      AppendValueToString(subprops[0], aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendValueToString(subprops[1], aValue);
       break;
     }
     default:

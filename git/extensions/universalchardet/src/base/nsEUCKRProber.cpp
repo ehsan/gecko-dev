@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsEUCKRProber.h"
-#include "nsDebug.h"
 
 void  nsEUCKRProber::Reset(void)
 {
@@ -48,7 +47,6 @@ void  nsEUCKRProber::Reset(void)
 
 nsProbingState nsEUCKRProber::HandleData(const char* aBuf, PRUint32 aLen)
 {
-  NS_ASSERTION(aLen, "HandleData called with empty buffer");
   nsSMState codingState;
 
   for (PRUint32 i = 0; i < aLen; i++)

@@ -59,6 +59,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsIURI.h"
+#include "nsTime.h"
 #include "nsIProxyObjectManager.h"
 #include "nsCRT.h"
 #include "nsUsageArrayHelper.h"

@@ -189,21 +189,6 @@ nsInProcessTabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
 }
 
 NS_IMETHODIMP
-nsInProcessTabChildGlobal::Btoa(const nsAString& aBinaryData,
-                            nsAString& aAsciiBase64String)
-{
-  return nsContentUtils::Btoa(aBinaryData, aAsciiBase64String);
-}
-
-NS_IMETHODIMP
-nsInProcessTabChildGlobal::Atob(const nsAString& aAsciiString,
-                            nsAString& aBinaryData)
-{
-  return nsContentUtils::Atob(aAsciiString, aBinaryData);
-}
-
-
-NS_IMETHODIMP
 nsInProcessTabChildGlobal::PrivateNoteIntentionalCrash()
 {
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -310,8 +295,9 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
   JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+  JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
 
-  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_PRIVATE_IS_NSISUPPORTS);
+  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
   JS_SetErrorReporter(cx, ContentScriptErrorReporter);
 
@@ -324,7 +310,7 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
                          nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT;
 
   nsISupports* scopeSupports =
-    NS_ISUPPORTS_CAST(nsIDOMEventTarget*, this);
+    NS_ISUPPORTS_CAST(nsPIDOMEventTarget*, this);
   JS_SetContextPrivate(cx, scopeSupports);
 
   nsresult rv =

@@ -1,13 +1,10 @@
 // -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
 let Cc = Components.classes;
 let Ci = Components.interfaces;
-let Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Services.jsm");
+dump("!! remote browser loaded\n");
 
 let WebProgressListener = {
-  _lastLocation: null,
-
   init: function() {
     let flags = Ci.nsIWebProgress.NOTIFY_LOCATION |
                 Ci.nsIWebProgress.NOTIFY_SECURITY |
@@ -33,8 +30,6 @@ let WebProgressListener = {
   onProgressChange: function onProgressChange(aWebProgress, aRequest, aCurSelf, aMaxSelf, aCurTotal, aMaxTotal) {
   },
 
-  _firstPaint: false,
-
   onLocationChange: function onLocationChange(aWebProgress, aRequest, aLocationURI) {
     if (content != aWebProgress.DOMWindow)
       return;
@@ -55,18 +50,10 @@ let WebProgressListener = {
 
     sendAsyncMessage("Content:LocationChange", json);
 
-    this._firstPaint = false;
-    let self = this;
-
-    // Keep track of hash changes
-    this.hashChanged = (location == this._lastLocation);
-    this._lastLocation = location;
-
     // When a new page is loaded fire a message for the first paint
     addEventListener("MozAfterPaint", function(aEvent) {
       removeEventListener("MozAfterPaint", arguments.callee, true);
 
-      self._firstPaint = true;
       let scrollOffset = ContentScroll.getScrollOffset(content);
       sendAsyncMessage("Browser:FirstPaint", scrollOffset);
     }, true);
@@ -122,7 +109,6 @@ let SecurityUI = {
 
 let WebNavigation =  {
   _webNavigation: docShell.QueryInterface(Ci.nsIWebNavigation),
-  _timer: null,
 
   init: function() {
     addMessageListener("WebNavigation:GoBack", this);
@@ -136,10 +122,10 @@ let WebNavigation =  {
   receiveMessage: function(message) {
     switch (message.name) {
       case "WebNavigation:GoBack":
-        this.goBack();
+        this.goBack(message);
         break;
       case "WebNavigation:GoForward":
-        this.goForward();
+        this.goForward(message);
         break;
       case "WebNavigation:GotoIndex":
         this.gotoIndex(message);
@@ -157,13 +143,11 @@ let WebNavigation =  {
   },
 
   goBack: function() {
-    if (this._webNavigation.canGoBack)
-      this._webNavigation.goBack();
+    this._webNavigation.goBack();
   },
 
   goForward: function() {
-    if (this._webNavigation.canGoForward)
-      this._webNavigation.goForward();
+    this._webNavigation.goForward();
   },
 
   gotoIndex: function(message) {
@@ -173,14 +157,6 @@ let WebNavigation =  {
   loadURI: function(message) {
     let flags = message.json.flags || this._webNavigation.LOAD_FLAGS_NONE;
     this._webNavigation.loadURI(message.json.uri, flags, null, null, null);
-
-    let tabData = message.json;
-    if (tabData.entries) {
-      // We are going to load from history so kill the current load. We do not
-      // want the load added to the history anyway. We reload after resetting history
-      this._webNavigation.stop(this._webNavigation.STOP_ALL);
-      this._restoreHistory(tabData, 0);
-    }
   },
 
   reload: function(message) {
@@ -191,238 +167,6 @@ let WebNavigation =  {
   stop: function(message) {
     let flags = message.json.flags || this._webNavigation.STOP_ALL;
     this._webNavigation.stop(flags);
-  },
-
-  _restoreHistory: function _restoreHistory(aTabData, aCount) {
-    // We need to wait for the sessionHistory to be initialized and there
-    // is no good way to do this. We'll try a wait loop like desktop
-    try {
-      if (!this._webNavigation.sessionHistory)
-        throw new Error();
-    } catch (ex) {
-      if (aCount < 10) {
-        let self = this;
-        this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-        this._timer.initWithCallback(function(aTimer) {
-          self._timer = null;
-          self._restoreHistory(aTabData, aCount + 1);
-        }, 100, Ci.nsITimer.TYPE_ONE_SHOT);
-        return;
-      }
-    }
-
-    let history = this._webNavigation.sessionHistory;
-    if (history.count > 0)
-      history.PurgeHistory(history.count);
-    history.QueryInterface(Ci.nsISHistoryInternal);
-
-    // helper hashes for ensuring unique frame IDs and unique document
-    // identifiers.
-    let idMap = { used: {} };
-    let docIdentMap = {};
-
-    for (let i = 0; i < aTabData.entries.length; i++) {
-      if (!aTabData.entries[i].url)
-        continue;
-      history.addEntry(this._deserializeHistoryEntry(aTabData.entries[i], idMap, docIdentMap), true);
-    }
-
-    // We need to force set the active history item and cause it to reload since
-    // we stop the load above
-    let activeIndex = (aTabData.index || aTabData.entries.length) - 1;
-    history.getEntryAtIndex(activeIndex, true);
-    history.QueryInterface(Ci.nsISHistory).reloadCurrentEntry();
-  },
-
-  _deserializeHistoryEntry: function _deserializeHistoryEntry(aEntry, aIdMap, aDocIdentMap) {
-    let shEntry = Cc["@mozilla.org/browser/session-history-entry;1"].createInstance(Ci.nsISHEntry);
-
-    shEntry.setURI(Services.io.newURI(aEntry.url, null, null));
-    shEntry.setTitle(aEntry.title || aEntry.url);
-    if (aEntry.subframe)
-      shEntry.setIsSubFrame(aEntry.subframe || false);
-    shEntry.loadType = Ci.nsIDocShellLoadInfo.loadHistory;
-    if (aEntry.contentType)
-      shEntry.contentType = aEntry.contentType;
-    if (aEntry.referrer)
-      shEntry.referrerURI = Services.io.newURI(aEntry.referrer, null, null);
-
-    if (aEntry.cacheKey) {
-      let cacheKey = Cc["@mozilla.org/supports-PRUint32;1"].createInstance(Ci.nsISupportsPRUint32);
-      cacheKey.data = aEntry.cacheKey;
-      shEntry.cacheKey = cacheKey;
-    }
-
-    if (aEntry.ID) {
-      // get a new unique ID for this frame (since the one from the last
-      // start might already be in use)
-      let id = aIdMap[aEntry.ID] || 0;
-      if (!id) {
-        for (id = Date.now(); id in aIdMap.used; id++);
-        aIdMap[aEntry.ID] = id;
-        aIdMap.used[id] = true;
-      }
-      shEntry.ID = id;
-    }
-
-    if (aEntry.docshellID)
-      shEntry.docshellID = aEntry.docshellID;
-
-    if (aEntry.structuredCloneState && aEntry.structuredCloneVersion) {
-      shEntry.stateData =
-        Cc["@mozilla.org/docshell/structured-clone-container;1"].
-        createInstance(Ci.nsIStructuredCloneContainer);
-
-      shEntry.stateData.initFromBase64(aEntry.structuredCloneState, aEntry.structuredCloneVersion);
-    }
-
-    if (aEntry.scroll) {
-      let scrollPos = aEntry.scroll.split(",");
-      scrollPos = [parseInt(scrollPos[0]) || 0, parseInt(scrollPos[1]) || 0];
-      shEntry.setScrollPosition(scrollPos[0], scrollPos[1]);
-    }
-
-    let childDocIdents = {};
-    if (aEntry.docIdentifier) {
-      // If we have a serialized document identifier, try to find an SHEntry
-      // which matches that doc identifier and adopt that SHEntry's
-      // BFCacheEntry.  If we don't find a match, insert shEntry as the match
-      // for the document identifier.
-      let matchingEntry = aDocIdentMap[aEntry.docIdentifier];
-      if (!matchingEntry) {
-        matchingEntry = {shEntry: shEntry, childDocIdents: childDocIdents};
-        aDocIdentMap[aEntry.docIdentifier] = matchingEntry;
-      } else {
-        shEntry.adoptBFCacheEntry(matchingEntry);
-        childDocIdents = matchingEntry.childDocIdents;
-      }
-    }
-
-    if (aEntry.owner_b64) {
-      let ownerInput = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
-      let binaryData = atob(aEntry.owner_b64);
-      ownerInput.setData(binaryData, binaryData.length);
-      let binaryStream = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIObjectInputStream);
-      binaryStream.setInputStream(ownerInput);
-      try { // Catch possible deserialization exceptions
-        shEntry.owner = binaryStream.readObject(true);
-      } catch (ex) { dump(ex); }
-    }
-
-    if (aEntry.children && shEntry instanceof Ci.nsISHContainer) {
-      for (let i = 0; i < aEntry.children.length; i++) {
-        if (!aEntry.children[i].url)
-          continue;
-
-        // We're getting sessionrestore.js files with a cycle in the
-        // doc-identifier graph, likely due to bug 698656.  (That is, we have
-        // an entry where doc identifier A is an ancestor of doc identifier B,
-        // and another entry where doc identifier B is an ancestor of A.)
-        //
-        // If we were to respect these doc identifiers, we'd create a cycle in
-        // the SHEntries themselves, which causes the docshell to loop forever
-        // when it looks for the root SHEntry.
-        //
-        // So as a hack to fix this, we restrict the scope of a doc identifier
-        // to be a node's siblings and cousins, and pass childDocIdents, not
-        // aDocIdents, to _deserializeHistoryEntry.  That is, we say that two
-        // SHEntries with the same doc identifier have the same document iff
-        // they have the same parent or their parents have the same document.
-
-        shEntry.AddChild(this._deserializeHistoryEntry(aEntry.children[i], aIdMap, childDocIdents), i);
-      }
-    }
-    
-    return shEntry;
-  },
-
-  sendHistory: function sendHistory() {
-    // We need to package up the session history and send it to the sessionstore
-    let entries = [];
-    let history = docShell.QueryInterface(Ci.nsIWebNavigation).sessionHistory;
-    for (let i = 0; i < history.count; i++) {
-      let entry = this._serializeHistoryEntry(history.getEntryAtIndex(i, false));
-      entries.push(entry);
-    }
-    let index = history.index + 1;
-    sendAsyncMessage("Content:SessionHistory", { entries: entries, index: index });
-  },
-
-  _serializeHistoryEntry: function _serializeHistoryEntry(aEntry) {
-    let entry = { url: aEntry.URI.spec };
-
-    if (aEntry.title && aEntry.title != entry.url)
-      entry.title = aEntry.title;
-
-    if (!(aEntry instanceof Ci.nsISHEntry))
-      return entry;
-
-    let cacheKey = aEntry.cacheKey;
-    if (cacheKey && cacheKey instanceof Ci.nsISupportsPRUint32 && cacheKey.data != 0)
-      entry.cacheKey = cacheKey.data;
-
-    entry.ID = aEntry.ID;
-    entry.docshellID = aEntry.docshellID;
-
-    if (aEntry.referrerURI)
-      entry.referrer = aEntry.referrerURI.spec;
-
-    if (aEntry.contentType)
-      entry.contentType = aEntry.contentType;
-
-    let x = {}, y = {};
-    aEntry.getScrollPosition(x, y);
-    if (x.value != 0 || y.value != 0)
-      entry.scroll = x.value + "," + y.value;
-
-    if (aEntry.owner) {
-      try {
-        let binaryStream = Cc["@mozilla.org/binaryoutputstream;1"].createInstance(Ci.nsIObjectOutputStream);
-        let pipe = Cc["@mozilla.org/pipe;1"].createInstance(Ci.nsIPipe);
-        pipe.init(false, false, 0, 0xffffffff, null);
-        binaryStream.setOutputStream(pipe.outputStream);
-        binaryStream.writeCompoundObject(aEntry.owner, Ci.nsISupports, true);
-        binaryStream.close();
-
-        // Now we want to read the data from the pipe's input end and encode it.
-        let scriptableStream = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIBinaryInputStream);
-        scriptableStream.setInputStream(pipe.inputStream);
-        let ownerBytes = scriptableStream.readByteArray(scriptableStream.available());
-        // We can stop doing base64 encoding once our serialization into JSON
-        // is guaranteed to handle all chars in strings, including embedded
-        // nulls.
-        entry.owner_b64 = btoa(String.fromCharCode.apply(null, ownerBytes));
-      } catch (e) { dump(e); }
-    }
-
-    entry.docIdentifier = aEntry.BFCacheEntry.ID;
-
-    if (aEntry.stateData != null) {
-      entry.structuredCloneState = aEntry.stateData.getDataAsBase64();
-      entry.structuredCloneVersion = aEntry.stateData.formatVersion;
-    }
-
-    if (!(aEntry instanceof Ci.nsISHContainer))
-      return entry;
-
-    if (aEntry.childCount > 0) {
-      entry.children = [];
-      for (let i = 0; i < aEntry.childCount; i++) {
-        let child = aEntry.GetChildAt(i);
-        if (child)
-          entry.children.push(this._serializeHistoryEntry(child));
-        else // to maintain the correct frame order, insert a dummy entry 
-          entry.children.push({ url: "about:blank" });
-
-        // don't try to restore framesets containing wyciwyg URLs (cf. bug 424689 and bug 450595)
-        if (/^wyciwyg:\/\//.test(entry.children[i].url)) {
-          delete entry.children;
-          break;
-        }
-      }
-    }
-
-    return entry;
   }
 };
 
@@ -450,9 +194,6 @@ let DOMEvents =  {
           return;
 
         sendAsyncMessage("DOMContentLoaded", { });
-
-        // Send the session history now too
-        WebNavigation.sendHistory();
         break;
 
       case "pageshow":
@@ -469,15 +210,6 @@ let DOMEvents =  {
           windowId: util.outerWindowID,
           persisted: aEvent.persisted
         };
-
-        // Clear onload focus to prevent the VKB to be shown unexpectingly
-        // but only if the location has really changed and not only the
-        // fragment identifier
-        let contentWindowID = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
-        if (!WebProgressListener.hashChanged && contentWindowID == util.currentInnerWindowID) {
-          let focusManager = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-          focusManager.clearFocus(content);
-        }
 
         sendAsyncMessage(aEvent.type, json);
         break;
@@ -517,10 +249,6 @@ let DOMEvents =  {
           rel: target.rel,
           type: target.type
         };
-        
-        // rel=icon can also have a sizes attribute
-        if (target.hasAttribute("sizes"))
-          json.sizes = target.getAttribute("sizes");
 
         sendAsyncMessage("DOMLinkAdded", json);
         break;
@@ -582,25 +310,15 @@ let ContentScroll =  {
       case "Content:SetCacheViewport": {
         // Set resolution for root view
         let rootCwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-        if (json.id == 1) {
+        if (json.id == 1)
           rootCwu.setResolution(json.scale, json.scale);
-          if (!WebProgressListener._firstPaint)
-            break;
-        }
 
         let displayport = new Rect(json.x, json.y, json.w, json.h);
         if (displayport.isEmpty())
           break;
 
         // Map ID to element
-        let element = null;
-        try {
-          element = rootCwu.findElementWithViewId(json.id);
-        } catch(e) {
-          // This could give NS_ERROR_NOT_AVAILABLE. In that case, the
-          // presshell is not available because the page is reloading.
-        }
-
+        let element = rootCwu.findElementWithViewId(json.id);
         if (!element)
           break;
 
@@ -629,6 +347,16 @@ let ContentScroll =  {
         let win = element.ownerDocument.defaultView;
         let winCwu = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         winCwu.setDisplayPortForElement(x, y, displayport.width, displayport.height, element);
+
+        // XXX If we scrolled during this displayport update, then it is the
+        //     end of a pan. Due to bug 637852, there may be seaming issues
+        //     with the visible content, so we need to redraw.
+        if (json.id == 1 && json.scrollX >= 0 && json.scrollY >= 0)
+          win.setTimeout(
+            function() {
+              winCwu.redraw();
+            }, 0);
+
         break;
       }
 
@@ -663,15 +391,8 @@ let ContentScroll =  {
         sendAsyncMessage("MozScrolledAreaChanged", {
           width: aEvent.width,
           height: aEvent.height,
-          left: aEvent.x + content.scrollX
+          left: aEvent.x
         });
-
-        // Send event only after painting to make sure content views in the parent process have
-        // been updated.
-        addEventListener("MozAfterPaint", function afterPaint() {
-          removeEventListener("MozAfterPaint", afterPaint, false);
-          sendAsyncMessage("Content:UpdateDisplayPort");
-        }, false);
 
         break;
       }
@@ -760,7 +481,7 @@ let IndexedDB = {
       host: contentDocument.documentURIObject.asciiHost,
       location: contentDocument.location.toString(),
       data: aData,
-      observerId: this.addWaitingObserver(observer)
+      observerId: this.addWaitingObserver(observer),
     });
   },
 
@@ -785,7 +506,7 @@ let IndexedDB = {
     let observer = this.waitingObservers[aObserverId];
     delete this.waitingObservers[aObserverId];
     return observer;
-  }
+  },
 };
 
 IndexedDB.init();

@@ -100,7 +100,6 @@ function modalDialog(callback)
   this.observer.handler = callback;
   this.observer.startTimer = this.start;
   this.observer.docFinder = this.getDialog;
-  this.modalDialogTimer = null; // put timer in class def so it doesn't get GC'ed
 }
 
 /**
@@ -126,19 +125,19 @@ modalDialog.prototype.start = function modalDialog_start(delay, observer)
 {
   const dialogDelay = (delay == undefined) ? 100 : delay;
 
-  this.modalDialogTimer = Cc["@mozilla.org/timer;1"].
+  var modalDialogTimer = Cc["@mozilla.org/timer;1"].
                          createInstance(Ci.nsITimer);
 
   // If we are not called from the observer, we have to use the supplied
   // observer instead of this.observer
   if (observer) {
-    this.modalDialogTimer.init(observer,
-                               dialogDelay,
-                               Ci.nsITimer.TYPE_ONE_SHOT);
+    modalDialogTimer.init(observer,
+                          dialogDelay,
+                          Ci.nsITimer.TYPE_ONE_SHOT);
   } else {
-    this.modalDialogTimer.init(this.observer,
-                               dialogDelay,
-                               Ci.nsITimer.TYPE_ONE_SHOT);
+    modalDialogTimer.init(this.observer,
+                          dialogDelay,
+                          Ci.nsITimer.TYPE_ONE_SHOT);
   }
 }
 

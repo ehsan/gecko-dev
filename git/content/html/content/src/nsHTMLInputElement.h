@@ -85,6 +85,8 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
+  UploadLastDir();
+
   /**
    * Fetch the last used directory for this location from the content
    * pref service, if it is available.
@@ -102,6 +104,10 @@ public:
    *        file will be stored
    */
   nsresult StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile);
+private:
+  // Directories are stored here during private browsing mode
+  nsInterfaceHashtable<nsStringHashKey, nsILocalFile> mUploadLastDirStore;
+  PRBool mInPrivateBrowsing;
 };
 
 class nsHTMLInputElement : public nsGenericHTMLFormElement,
@@ -155,7 +161,7 @@ public:
   virtual PRBool RestoreState(nsPresState* aState);
   virtual PRBool AllowDrop();
 
-  virtual void FieldSetDisabledChanged(PRBool aNotify);
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
 
   // nsIContent
   virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
@@ -208,12 +214,10 @@ public:
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
-  NS_IMETHOD_(PRBool) HasCachedSelection();
 
   void GetDisplayFileName(nsAString& aFileName) const;
   const nsCOMArray<nsIDOMFile>& GetFiles() const;
   void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
-  void SetFiles(nsIDOMFileList* aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged() const {
@@ -235,13 +239,13 @@ public:
 
   NS_IMETHOD FireAsyncClickHandler();
 
-  virtual void UpdateEditableState(PRBool aNotify)
+  virtual void UpdateEditableState()
   {
-    return UpdateEditableFormControlState(aNotify);
+    return UpdateEditableFormControlState();
   }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLInputElement,
-                                           nsGenericHTMLFormElement)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLInputElement,
+                                                     nsGenericHTMLFormElement)
 
   static UploadLastDir* gUploadLastDir;
   // create and destroy the static UploadLastDir object for remembering
@@ -452,11 +456,6 @@ protected:
    * Update mFileList with the currently selected file.
    */
   nsresult UpdateFileList();
-
-  /**
-   * Called after calling one of the SetFiles() functions.
-   */
-  void AfterSetFiles(bool aSetValueChanged);
 
   /**
    * Determine whether the editor needs to be initialized explicitly for

@@ -62,15 +62,20 @@ DIRS = \
   interfaces/json \
   interfaces/offline \
   interfaces/geolocation \
+  interfaces/threads \
   interfaces/notification \
-  interfaces/svg \
   $(NULL)
+
+ifdef MOZ_SVG
+DIRS += interfaces/svg
+endif
 
 ifdef MOZ_SMIL
 DIRS += interfaces/smil
 endif
 
 DIRS += \
+  public/coreEvents \
   base \
   src \
   locales \
@@ -79,7 +84,6 @@ DIRS += \
   indexedDB \
   system \
   ipc \
-  workers \
   $(NULL)
 
 ifdef ENABLE_TESTS

@@ -105,22 +105,6 @@ typedef struct JSXDROps {
     void        (*finalize)(JSXDRState *);
 } JSXDROps;
 
-struct JSXDRState;
-
-namespace js {
-
-class XDRScriptState {
-public:
-    XDRScriptState(JSXDRState *x);
-    ~XDRScriptState();
-
-    JSXDRState      *xdr;
-    const char      *filename;
-    bool             filenameSaved;
-};
-
-} /* namespace JS */
-
 struct JSXDRState {
     JSXDRMode   mode;
     JSXDROps    *ops;
@@ -131,7 +115,6 @@ struct JSXDRState {
     void        *reghash;
     void        *userdata;
     JSScript    *script;
-    js::XDRScriptState *state;
 };
 
 extern JS_PUBLIC_API(void)
@@ -186,7 +169,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_XDRValue(JSXDRState *xdr, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_XDRScript(JSXDRState *xdr, JSScript **scriptp);
+JS_XDRScriptObject(JSXDRState *xdr, JSObject **scriptObjp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_XDRRegisterClass(JSXDRState *xdr, JSClass *clasp, uint32 *lp);
@@ -222,7 +205,7 @@ JS_XDRFindClassById(JSXDRState *xdr, uint32 id);
  * before deserialization of bytecode.  If the saved version does not match
  * the current version, abort deserialization and invalidate the file.
  */
-#define JSXDR_BYTECODE_VERSION      (0xb973c0de - 95)
+#define JSXDR_BYTECODE_VERSION      (0xb973c0de - 87)
 
 /*
  * Library-private functions.

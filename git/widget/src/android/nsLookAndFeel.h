@@ -48,16 +48,13 @@ public:
     nsLookAndFeel();
     virtual ~nsLookAndFeel();
 
-    virtual nsresult NativeGetColor(ColorID aID, nscolor &aResult);
-    virtual nsresult GetIntImpl(IntID aID, PRInt32 &aResult);
-    virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
-    virtual PRBool GetEchoPasswordImpl();
+    nsresult NativeGetColor(const nsColorID aID, nscolor &aColor);
+    NS_IMETHOD GetMetric(const nsMetricID aID, PRInt32 & aMetric);
+    NS_IMETHOD GetMetric(const nsMetricFloatID aID, float & aMetric);
 
 protected:
-    static PRBool mInitializedSystemColors;
+    static PRBool mInitialized;
     static mozilla::AndroidSystemColors mSystemColors;
-    static PRBool mInitializedShowPassword;
-    static PRBool mShowPassword;
 
     nsresult GetSystemColors();
     nsresult CallRemoteGetSystemColors();

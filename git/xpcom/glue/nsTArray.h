@@ -42,7 +42,6 @@
 #include <string.h>
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nscore.h"
 #include "nsQuickSort.h"
 #include "nsDebug.h"
@@ -113,35 +112,6 @@ struct NS_COM_GLUE nsTArrayHeader
   PRUint32 mIsAutoArray : 1;
 };
 
-// This class provides a SafeElementAt method to nsTArray<T*> which does
-// not take a second default value parameter.
-template <class E, class Derived>
-struct nsTArray_SafeElementAtHelper
-{
-  typedef E*       elem_type;
-  typedef PRUint32 index_type;
-
-  // No implementation is provided for these two methods, and that is on
-  // purpose, since we don't support these functions on non-pointer type
-  // instantiations.
-  elem_type& SafeElementAt(index_type i);
-  const elem_type& SafeElementAt(index_type i) const;
-};
-
-template <class E, class Derived>
-struct nsTArray_SafeElementAtHelper<E*, Derived>
-{
-  typedef E*       elem_type;
-  typedef PRUint32 index_type;
-
-  elem_type SafeElementAt(index_type i) {
-    return static_cast<Derived*> (this)->SafeElementAt(i, nsnull);
-  }
-
-  const elem_type SafeElementAt(index_type i) const {
-    return static_cast<const Derived*> (this)->SafeElementAt(i, nsnull);
-  }
-};
 
 //
 // This class serves as a base class for nsTArray.  It shouldn't be used
@@ -230,20 +200,11 @@ protected:
                        size_type elementSize);
 
 protected:
+  // NOTE: This method isn't heavily optimized if either array is an
+  // nsAutoTArray.
   template<class Allocator>
   PRBool SwapArrayElements(nsTArray_base<Allocator>& other,
                            size_type elemSize);
-
-  // This is an RAII class used in SwapArrayElements.
-  class IsAutoArrayRestorer {
-    public:
-      IsAutoArrayRestorer(nsTArray_base<Alloc> &array);
-      ~IsAutoArrayRestorer();
-
-    private:
-      nsTArray_base<Alloc> &mArray;
-      PRBool mIsAuto;
-  };
 
   // Helper function for SwapArrayElements. Ensures that if the array
   // is an nsAutoTArray that it doesn't use the built-in buffer.
@@ -264,12 +225,7 @@ protected:
   // Returns a Header for the built-in buffer of this nsAutoTArray.
   Header* GetAutoArrayBuffer() {
     NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
-    return GetAutoArrayBufferUnsafe();
-  }
 
-  // Returns a Header for the built-in buffer of this nsAutoTArray, but doesn't
-  // assert that we are an nsAutoTArray.
-  Header* GetAutoArrayBufferUnsafe() {
     return reinterpret_cast<Header*>(&(reinterpret_cast<AutoArray*>(&mHdr))->aligned);
   }
 
@@ -392,8 +348,7 @@ public:
 // infallible allocator.
 //
 template<class E, class Alloc=nsTArrayDefaultAllocator>
-class nsTArray : public nsTArray_base<Alloc>,
-                 public nsTArray_SafeElementAtHelper<E, nsTArray<E, Alloc> >
+class nsTArray : public nsTArray_base<Alloc>
 {
 public:
   typedef nsTArray_base<Alloc>           base_type;
@@ -402,9 +357,6 @@ public:
   typedef E                              elem_type;
   typedef nsTArray<E, Alloc>             self_type;
   typedef nsTArrayElementTraits<E>       elem_traits;
-  typedef nsTArray_SafeElementAtHelper<E, self_type> safeelementat_helper_type;
-
-  using safeelementat_helper_type::SafeElementAt;
 
   // A special value that is used to indicate an invalid or unknown index
   // into the array.
@@ -475,12 +427,6 @@ public:
   nsTArray& operator=(const nsTArray<E, Allocator>& other) {
     ReplaceElementsAt(0, Length(), other.Elements(), other.Length());
     return *this;
-  }
-
-  // @return The amount of memory taken used by this nsTArray, not including
-  // sizeof(this)
-  size_t SizeOf() const {
-    return this->Capacity() * sizeof(elem_type) + sizeof(*this->Hdr());
   }
 
   //
@@ -701,13 +647,7 @@ public:
                                const Item& item) {
     return ReplaceElementsAt(start, count, &item, 1);
   }
-
-  // A variation on the ReplaceElementsAt method defined above.
-  template<class Item>
-  elem_type *ReplaceElementAt(index_type index, const Item& item) {
-    return ReplaceElementsAt(index, 1, item, 1);
-  }
-
+    
   // A variation on the ReplaceElementsAt method defined above.
   template<class Item>
   elem_type *InsertElementsAt(index_type index, const Item* array,
@@ -950,6 +890,8 @@ public:
 
   // This method causes the elements contained in this array and the given
   // array to be swapped.
+  // NOTE: This method isn't heavily optimized if either array is an
+  // nsAutoTArray.
   template<class Allocator>
   PRBool SwapElements(nsTArray<E, Allocator>& other) {
     return this->SwapArrayElements(other, sizeof(elem_type));
@@ -1247,22 +1189,7 @@ public:
   typedef typename base_type::Header Header;
   typedef typename base_type::elem_type elem_type;
 
-protected:
   nsAutoArrayBase() {
-    Init();
-  }
-
-  // We need this constructor because nsAutoTArray and friends all have
-  // implicit copy-constructors.  If we don't have this method, those
-  // copy-constructors will call nsAutoArrayBase's implicit copy-constructor,
-  // which won't call Init() and set up the auto buffer!
-  nsAutoArrayBase(const TArrayBase &aOther) {
-    Init();
-    AppendElements(aOther);
-  }
-
-private:
-  void Init() {
     *base_type::PtrToHdr() = reinterpret_cast<Header*>(&mAutoBuf);
     base_type::Hdr()->mLength = 0;
     base_type::Hdr()->mCapacity = N;
@@ -1273,6 +1200,7 @@ private:
                  "GetAutoArrayBuffer needs to be fixed");
   }
 
+protected:
   union {
     char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
     PRUint64 dummy;

@@ -48,6 +48,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIDOMXULCommandDispatcher.h"
+#include "nsIDOMFocusListener.h"
 #include "nsWeakReference.h"
 #include "nsIDOMNode.h"
 #include "nsString.h"

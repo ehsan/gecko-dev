@@ -62,15 +62,14 @@ nsMathMLFrame::GetMathMLFrameType()
   return eMathMLFrameType_Ordinary;  
 }
 
-// snippet of code used by <mstyle>, <mtable> and <math> which are the only
-// three tags where the displaystyle attribute is allowed by the spec.
+// snippet of code used by <mstyle> and <mtable>, which are the only
+// two tags where the displaystyle attribute is allowed by the spec.
 /* static */ void
 nsMathMLFrame::FindAttrDisplaystyle(nsIContent*         aContent,
                                     nsPresentationData& aPresentationData)
 {
   NS_ASSERTION(aContent->Tag() == nsGkAtoms::mstyle_ ||
-               aContent->Tag() == nsGkAtoms::mtable_ ||
-               aContent->Tag() == nsGkAtoms::math, "bad caller");
+               aContent->Tag() == nsGkAtoms::mtable_, "bad caller");
   static nsIContent::AttrValuesArray strings[] =
     {&nsGkAtoms::_false, &nsGkAtoms::_true, nsnull};
   // see if the explicit displaystyle attribute is there
@@ -220,8 +219,6 @@ nsMathMLFrame::GetPresentationDataFrom(nsIFrame*           aFrame,
       if (display->mDisplay == NS_STYLE_DISPLAY_BLOCK) {
         aPresentationData.flags |= NS_MATHML_DISPLAYSTYLE;
       }
-      FindAttrDisplaystyle(content, aPresentationData);
-      aPresentationData.mstyle = frame->GetFirstContinuation();
       break;
     }
     frame = frame->GetParent();
@@ -328,9 +325,8 @@ nsMathMLFrame::CalcLength(nsPresContext*   aPresContext,
     return NSToCoordRound(aCSSValue.GetFloatValue() * (float)font->mFont.size);
   }
   else if (eCSSUnit_XHeight == unit) {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
-                                                 getter_AddRefs(fm));
+    const nsStyleFont* font = aStyleContext->GetStyleFont();
+    nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font->mFont);
     nscoord xHeight = fm->XHeight();
     return NSToCoordRound(aCSSValue.GetFloatValue() * (float)xHeight);
   }
@@ -379,34 +375,6 @@ nsMathMLFrame::ParseNamedSpaceValue(nsIFrame*   aMathMLmstyleFrame,
   else if (aString.EqualsLiteral("veryverythickmathspace")) {
     i = 7;
     namedspaceAtom = nsGkAtoms::veryverythickmathspace_;
-  }
-  else if (aString.EqualsLiteral("negativeveryverythinmathspace")) {
-    i = -1;
-    namedspaceAtom = nsGkAtoms::negativeveryverythinmathspace_;
-  }
-  else if (aString.EqualsLiteral("negativeverythinmathspace")) {
-    i = -2;
-    namedspaceAtom = nsGkAtoms::negativeverythinmathspace_;
-  }
-  else if (aString.EqualsLiteral("negativethinmathspace")) {
-    i = -3;
-    namedspaceAtom = nsGkAtoms::negativethinmathspace_;
-  }
-  else if (aString.EqualsLiteral("negativemediummathspace")) {
-    i = -4;
-    namedspaceAtom = nsGkAtoms::negativemediummathspace_;
-  }
-  else if (aString.EqualsLiteral("negativethickmathspace")) {
-    i = -5;
-    namedspaceAtom = nsGkAtoms::negativethickmathspace_;
-  }
-  else if (aString.EqualsLiteral("negativeverythickmathspace")) {
-    i = -6;
-    namedspaceAtom = nsGkAtoms::negativeverythickmathspace_;
-  }
-  else if (aString.EqualsLiteral("negativeveryverythickmathspace")) {
-    i = -7;
-    namedspaceAtom = nsGkAtoms::negativeveryverythickmathspace_;
   }
 
   if (0 != i) {

@@ -4,38 +4,48 @@
 function test() {
   waitForExplicitFinish();
 
-  registerCleanupFunction(function() {
-    while (gBrowser.tabs[1])
-      gBrowser.removeTab(gBrowser.tabs[1]);
-    hideTabView();
-  });
-  showTabView(onTabViewWindowLoaded);
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  TabView.toggle();
 }
 
 function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
   ok(TabView.isVisible(), "Tab View is visible");
 
-  let contentWindow = TabView.getContentWindow();
-
-  registerCleanupFunction(function() {
-    let groupItem = contentWindow.GroupItems.groupItem(groupItemId);
-    if (groupItem)
-      closeGroupItem(groupItem);
-  });
+  let contentWindow = document.getElementById("tab-view").contentWindow;
 
   // create a group item
-  let groupItem = createGroupItemWithBlankTabs(window, 300, 300, 400, 1);
-  let groupItemId = groupItem.id;
-  is(groupItem.getChildren().length, 1, "The new group has a tab item");
-  // start the tests
-  waitForFocus(function() {
+  let box = new contentWindow.Rect(20, 400, 300, 300);
+  let groupItem = new contentWindow.GroupItem([], { bounds: box });
+
+  // create a tab item in the new group
+  let onTabViewHidden = function() {
+    window.removeEventListener("tabviewhidden", onTabViewHidden, false);
+
+    ok(!TabView.isVisible(), "Tab View is hidden because we just opened a tab");
+    // show tab view
+    TabView.toggle();
+  };
+  let onTabViewShown = function() {
+    window.removeEventListener("tabviewshown", onTabViewShown, false);
+
+    is(groupItem.getChildren().length, 1, "The new group has a tab item");
+    // start the tests
     testUndoGroup(contentWindow, groupItem);
-  }, contentWindow);
+  };
+  window.addEventListener("tabviewhidden", onTabViewHidden, false);
+  window.addEventListener("tabviewshown", onTabViewShown, false);
+
+  // click on the + button
+  let newTabButton = groupItem.container.getElementsByClassName("newTabButton");
+  ok(newTabButton[0], "New tab button exists");
+
+  EventUtils.sendMouseEvent({ type: "click" }, newTabButton[0], contentWindow);
 }
 
 function testUndoGroup(contentWindow, groupItem) {
-  groupItem.addSubscriber("groupHidden", function onHidden() {
-    groupItem.removeSubscriber("groupHidden", onHidden);
+  groupItem.addSubscriber(groupItem, "groupHidden", function() {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
 
     // check the data of the group
     let theGroupItem = contentWindow.GroupItems.groupItem(groupItem.id);
@@ -52,8 +62,8 @@ function testUndoGroup(contentWindow, groupItem) {
       { type: "click" }, theGroupItem.$undoContainer[0], contentWindow);
   });
 
-  groupItem.addSubscriber("groupShown", function onShown() {
-    groupItem.removeSubscriber("groupShown", onShown);
+  groupItem.addSubscriber(groupItem, "groupShown", function() {
+    groupItem.removeSubscriber(groupItem, "groupShown");
 
     // check the data of the group
     let theGroupItem = contentWindow.GroupItems.groupItem(groupItem.id);
@@ -70,13 +80,13 @@ function testUndoGroup(contentWindow, groupItem) {
   });
 
   let closeButton = groupItem.container.getElementsByClassName("close");
-  ok(closeButton[0], "Group item close button exists");
+  ok(closeButton, "Group item close button exists");
   EventUtils.sendMouseEvent({ type: "click" }, closeButton[0], contentWindow);
 }
 
 function testCloseUndoGroup(contentWindow, groupItem) {
-  groupItem.addSubscriber("groupHidden", function onHidden() {
-    groupItem.removeSubscriber("groupHidden", onHidden);
+  groupItem.addSubscriber(groupItem, "groupHidden", function() {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
 
     // check the data of the group
     let theGroupItem = contentWindow.GroupItems.groupItem(groupItem.id);
@@ -95,11 +105,18 @@ function testCloseUndoGroup(contentWindow, groupItem) {
       { type: "click" }, closeButton[0], contentWindow);
   });
 
-  groupItem.addSubscriber("close", function onClose() {
-    groupItem.removeSubscriber("close", onClose);
+  groupItem.addSubscriber(groupItem, "close", function() {
+    groupItem.removeSubscriber(groupItem, "close");
 
     let theGroupItem = contentWindow.GroupItems.groupItem(groupItem.id);
     ok(!theGroupItem, "The group item doesn't exists");
+
+    let endGame = function() {
+      window.removeEventListener("tabviewhidden", endGame, false);
+      ok(!TabView.isVisible(), "Tab View is hidden");
+      finish();
+    };
+    window.addEventListener("tabviewhidden", endGame, false);
 
     // after the last selected tabitem is closed, there would be not active
     // tabitem on the UI so we set the active tabitem before toggling the 
@@ -108,13 +125,10 @@ function testCloseUndoGroup(contentWindow, groupItem) {
     ok(tabItems[0], "A tab item exists");
     contentWindow.UI.setActive(tabItems[0]);
 
-    hideTabView(function() {
-      ok(!TabView.isVisible(), "Tab View is hidden");
-      finish();
-    });
+    TabView.toggle();
   });
 
   let closeButton = groupItem.container.getElementsByClassName("close");
-  ok(closeButton[0], "Group item close button exists");
+  ok(closeButton, "Group item close button exists");
   EventUtils.sendMouseEvent({ type: "click" }, closeButton[0], contentWindow);
 }

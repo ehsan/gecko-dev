@@ -47,7 +47,6 @@
 #include "nsIContent.h"
 #include "nsStyleContext.h"
 
-class nsBaseContentList;
 class nsIFrame;
 template <class T, class A> class nsTArray;
 

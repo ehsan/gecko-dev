@@ -54,7 +54,6 @@
 #include "jsscript.h"           /* js_XDRScript */
 #include "jsstr.h"
 #include "jsxdrapi.h"
-#include "vm/Debugger.h"
 
 #include "jsobjinlines.h"
 
@@ -240,7 +239,6 @@ JS_XDRInitBase(JSXDRState *xdr, JSXDRMode mode, JSContext *cx)
     xdr->reghash = NULL;
     xdr->userdata = NULL;
     xdr->script = NULL;
-    xdr->state = NULL;
 }
 
 JS_PUBLIC_API(JSXDRState *)
@@ -664,35 +662,16 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
     return JS_TRUE;
 }
 
-XDRScriptState::XDRScriptState(JSXDRState *x)
-    : xdr(x)
-    , filename(NULL)
-    , filenameSaved(false)
-{
-    JS_ASSERT(!xdr->state);
-
-    xdr->state = this;
-}
-
-XDRScriptState::~XDRScriptState()
-{
-    xdr->state = NULL;
-    if (xdr->mode == JSXDR_DECODE && filename && !filenameSaved)
-        xdr->cx->free_((void *)filename);
-}
-
 JS_PUBLIC_API(JSBool)
-JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
+JS_XDRScriptObject(JSXDRState *xdr, JSObject **scriptObjp)
 {
-    JS_ASSERT(!xdr->state);
-
     JSScript *script;
     uint32 magic;
     if (xdr->mode == JSXDR_DECODE) {
         script = NULL;
-        *scriptp = NULL;
+        *scriptObjp = NULL;
     } else {
-        script = *scriptp;
+        script = (*scriptObjp)->getScript();
         magic = JSXDR_MAGIC_SCRIPT_CURRENT;
     }
 
@@ -705,24 +684,16 @@ JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         return false;
     }
 
-    XDRScriptState state(xdr);
-    if (!xdr->state)
-        return false;
-
-    if (xdr->mode == JSXDR_ENCODE)
-        state.filename = script->filename;
-    if (!JS_XDRCStringOrNull(xdr, (char **) &state.filename))
-        return false;
-
     if (!js_XDRScript(xdr, &script))
         return false;
 
     if (xdr->mode == JSXDR_DECODE) {
-        if (!js_NewScriptObject(xdr->cx, script))
-            return false;
         js_CallNewScriptHook(xdr->cx, script, NULL);
-        Debugger::onNewScript(xdr->cx, script, script->u.object, Debugger::NewHeldScript);
-        *scriptp = script;
+        *scriptObjp = js_NewScriptObject(xdr->cx, script);
+        if (!*scriptObjp) {
+            js_DestroyScript(xdr->cx, script);
+            return false;
+        }
     }
 
     return true;

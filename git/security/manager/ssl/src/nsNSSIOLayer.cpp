@@ -226,8 +226,7 @@ nsNSSSocketInfo::nsNSSSocketInfo()
     mAllowTLSIntoleranceTimeout(PR_TRUE),
     mRememberClientAuthCertificate(PR_FALSE),
     mHandshakeStartTime(0),
-    mPort(0),
-    mIsCertIssuerBlacklisted(PR_FALSE)
+    mPort(0)
 {
   mThreadData = new nsSSLSocketThreadData;
 }
@@ -361,7 +360,7 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
   if (mDocShellDependentStuffKnown)
     return NS_OK;
 
-  if (!mCallbacks || nsSSLThread::stoppedOrStopping())
+  if (!mCallbacks || nsSSLThread::exitRequested())
     return NS_ERROR_FAILURE;
 
   mDocShellDependentStuffKnown = PR_TRUE;
@@ -568,7 +567,7 @@ NS_IMETHODIMP nsNSSSocketInfo::GetInterface(const nsIID & uuid, void * *result)
 
     rv = ir->GetInterface(uuid, result);
   } else {
-    if (nsSSLThread::stoppedOrStopping())
+    if (nsSSLThread::exitRequested())
       return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
@@ -1414,7 +1413,7 @@ displayAlert(nsAFlatString &formattedString, nsNSSSocketInfo *infoObject)
   // The interface requestor object may not be safe, so proxy the call to get
   // the nsIPrompt.
 
-  if (nsSSLThread::stoppedOrStopping())
+  if (nsSSLThread::exitRequested())
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
@@ -1451,7 +1450,7 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo, PRInt32 err)
     return NS_OK;
   }
 
-  if (nsSSLThread::stoppedOrStopping()) {
+  if (nsSSLThread::exitRequested()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1777,7 +1776,9 @@ nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(PRFileDesc* ssl_layer_fd, ns
 
   PRBool enableSSL3 = PR_FALSE;
   SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_SSL3, &enableSSL3);
-  if (enableSSL3) {
+  PRBool enableSSL2 = PR_FALSE;
+  SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_SSL2, &enableSSL2);
+  if (enableSSL3 || enableSSL2) {
     // Add this site to the list of TLS intolerant sites.
     addIntolerantSite(key);
   }
@@ -3353,7 +3354,7 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
   if (!infoObject)
     return SECFailure;
 
-  if (nsSSLThread::stoppedOrStopping())
+  if (nsSSLThread::exitRequested())
     return cancel_and_failure(infoObject);
 
   CERTCertificate *peerCert = nsnull;
@@ -3439,10 +3440,6 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
       srv = CERT_PKIXVerifyCert(peerCert, certificateUsageSSLServer,
                                 survivingParams->GetRawPointerForNSS(),
                                 cvout, (void*)infoObject);
-    }
-
-    if (infoObject->IsCertIssuerBlacklisted()) {
-      collected_errors |= nsICertOverrideService::ERROR_UNTRUSTED;
     }
 
     // We ignore the result code of the cert verification.
@@ -3689,16 +3686,20 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, PRBool forSTARTTLS,
                        PRBool anonymousLoad, nsNSSSocketInfo *infoObject)
 {
   nsNSSShutDownPreventionLock locker;
-
-  if (SECSuccess != SSL_OptionSet(fd, SSL_CBC_RANDOM_IV, false)) {
-      return NS_ERROR_FAILURE;
-  }
-
   if (forSTARTTLS || proxyHost) {
     if (SECSuccess != SSL_OptionSet(fd, SSL_SECURITY, PR_FALSE)) {
       return NS_ERROR_FAILURE;
     }
     infoObject->SetHasCleartextPhase(PR_TRUE);
+  }
+
+  if (forSTARTTLS) {
+    if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_SSL2, PR_FALSE)) {
+      return NS_ERROR_FAILURE;
+    }
+    if (SECSuccess != SSL_OptionSet(fd, SSL_V2_COMPATIBLE_HELLO, PR_FALSE)) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   // Let's see if we're trying to connect to a site we know is
@@ -3718,6 +3719,10 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, PRBool forSTARTTLS,
     // One advantage of this approach, if a site only supports the older
     // hellos, it is more likely that we will get a reasonable error code
     // on our single retry attempt.
+    
+    if (!forSTARTTLS &&
+        SECSuccess != SSL_OptionSet(fd, SSL_V2_COMPATIBLE_HELLO, PR_TRUE))
+      return NS_ERROR_FAILURE;
   }
 
   if (SECSuccess != SSL_OptionSet(fd, SSL_HANDSHAKE_AS_CLIENT, PR_TRUE)) {

@@ -55,4 +55,8 @@ CPPSRCS = nsWindowDataSource.cpp
 
 XPIDLSRCS = nsIWindowDataSource.idl
 
+EXTRA_DSO_LDOPTS = \
+	$(MOZ_COMPONENT_LIBS) \
+	$(NULL)
+
 include $(topsrcdir)/config/rules.mk

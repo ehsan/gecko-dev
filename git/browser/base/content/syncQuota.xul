@@ -50,13 +50,12 @@
 ]>
 <dialog id="quotaDialog"
         windowtype="Sync:ViewQuota"
-        persist="screenX screenY width height"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         xmlns:html="http://www.w3.org/1999/xhtml"
         onload="gSyncQuota.init()"
         buttons="accept,cancel"
         title="&quota.dialogTitle.label;"
-        ondialogcancel="return gSyncQuota.onCancel();"
+        ondialogcancel="return true;"
         ondialogaccept="return gSyncQuota.onAccept();">
 
   <script type="application/javascript"

@@ -45,6 +45,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#endif 
+
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
 #include "nsIApplicationCacheService.h"
@@ -55,6 +59,7 @@
 #include "nsIStreamListenerTee.h"
 #include "nsISeekableStream.h"
 #include "nsMimeTypes.h"
+#include "nsPrintfCString.h"
 #include "nsNetUtil.h"
 #include "prprf.h"
 #include "prnetdb.h"
@@ -66,8 +71,6 @@
 #include "nsChannelClassifier.h"
 #include "nsIRedirectResultListener.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
-#include "nsDOMError.h"
 
 // True if the local cache should be bypassed when processing a request.
 #define BYPASS_LOCAL_CACHE(loadFlags) \
@@ -110,13 +113,14 @@ AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded)
 //-----------------------------------------------------------------------------
 
 nsHttpChannel::nsHttpChannel()
-    : HttpAsyncAborter<nsHttpChannel>(this)
-    , mLogicalOffset(0)
+    : mLogicalOffset(0)
     , mCacheAccess(0)
     , mPostID(0)
     , mRequestTime(0)
     , mOnCacheEntryAvailableCallback(nsnull)
     , mAsyncCacheOpen(PR_FALSE)
+    , mPendingAsyncCallOnResume(nsnull)
+    , mSuspendCount(0)
     , mCachedContentIsValid(PR_FALSE)
     , mCachedContentIsPartial(PR_FALSE)
     , mTransactionReplaced(PR_FALSE)
@@ -130,11 +134,13 @@ nsHttpChannel::nsHttpChannel()
     , mFallingBack(PR_FALSE)
     , mWaitingForRedirectCallback(PR_FALSE)
     , mRequestTimeInitialized(PR_FALSE)
-    , mDidReval(false)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
     mChannelCreationTime = PR_Now();
     mChannelCreationTimestamp = mozilla::TimeStamp::Now();
+    // Subfields of unions cannot be targeted in an initializer list
+    mSelfAddr.raw.family = PR_AF_UNSPEC;
+    mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 nsHttpChannel::~nsHttpChannel()
@@ -168,6 +174,22 @@ nsHttpChannel::Init(nsIURI *uri,
 //-----------------------------------------------------------------------------
 // nsHttpChannel <private>
 //-----------------------------------------------------------------------------
+
+nsresult
+nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
+                         nsRunnableMethod<nsHttpChannel> **retval)
+{
+    nsresult rv;
+
+    nsRefPtr<nsRunnableMethod<nsHttpChannel> > event =
+        NS_NewRunnableMethod(this, funcPtr);
+    rv = NS_DispatchToCurrentThread(event);
+    if (NS_SUCCEEDED(rv) && retval) {
+        *retval = event;
+    }
+
+    return rv;
+}
 
 nsresult
 nsHttpChannel::Connect(PRBool firstTime)
@@ -270,8 +292,6 @@ nsHttpChannel::Connect(PRBool firstTime)
             if (NS_FAILED(rv) && event) {
                 event->Revoke();
             }
-            mozilla::Telemetry::Accumulate(
-                    mozilla::Telemetry::HTTP_CACHE_DISPOSITION, kCacheHit);
             return rv;
         }
         else if (mLoadFlags & LOAD_ONLY_FROM_CACHE) {
@@ -315,9 +335,60 @@ nsHttpChannel::Connect(PRBool firstTime)
     return NS_OK;
 }
 
-void
-nsHttpChannel::DoNotifyListenerCleanup()
+// called when Connect fails
+nsresult
+nsHttpChannel::AsyncAbort(nsresult status)
 {
+    LOG(("nsHttpChannel::AsyncAbort [this=%p status=%x]\n", this, status));
+
+    mStatus = status;
+    mIsPending = PR_FALSE;
+
+    nsresult rv = AsyncCall(&nsHttpChannel::HandleAsyncNotifyListener);
+    // And if that fails?  Callers ignore our return value anyway....
+    
+    // finally remove ourselves from the load group.
+    if (mLoadGroup)
+        mLoadGroup->RemoveRequest(this, nsnull, status);
+
+    return rv;
+}
+
+void
+nsHttpChannel::HandleAsyncNotifyListener()
+{
+    NS_PRECONDITION(!mPendingAsyncCallOnResume, "How did that happen?");
+    
+    if (mSuspendCount) {
+        LOG(("Waiting until resume to do async notification [this=%p]\n",
+             this));
+        mPendingAsyncCallOnResume = &nsHttpChannel::HandleAsyncNotifyListener;
+        return;
+    }
+
+    DoNotifyListener();
+}
+
+void
+nsHttpChannel::DoNotifyListener()
+{
+    // Make sure mIsPending is set to PR_FALSE. At this moment we are done from
+    // the point of view of our consumer and we have to report our self
+    // as not-pending.
+    if (mListener) {
+        mListener->OnStartRequest(this, mListenerContext);
+        mIsPending = PR_FALSE;
+        mListener->OnStopRequest(this, mListenerContext, mStatus);
+        mListener = 0;
+        mListenerContext = 0;
+    }
+    else {
+        mIsPending = PR_FALSE;
+    }
+    // We have to make sure to drop the reference to the callbacks too
+    mCallbacks = nsnull;
+    mProgressSink = nsnull;
+
     // We don't need this info anymore
     CleanRedirectCacheChainIfNecessary();
 }
@@ -325,11 +396,11 @@ nsHttpChannel::DoNotifyListenerCleanup()
 void
 nsHttpChannel::HandleAsyncRedirect()
 {
-    NS_PRECONDITION(!mCallOnResume, "How did that happen?");
+    NS_PRECONDITION(!mPendingAsyncCallOnResume, "How did that happen?");
     
     if (mSuspendCount) {
         LOG(("Waiting until resume to do async redirect [this=%p]\n", this));
-        mCallOnResume = &nsHttpChannel::HandleAsyncRedirect;
+        mPendingAsyncCallOnResume = &nsHttpChannel::HandleAsyncRedirect;
         return;
     }
 
@@ -383,12 +454,12 @@ nsHttpChannel::ContinueHandleAsyncRedirect(nsresult rv)
 void
 nsHttpChannel::HandleAsyncNotModified()
 {
-    NS_PRECONDITION(!mCallOnResume, "How did that happen?");
+    NS_PRECONDITION(!mPendingAsyncCallOnResume, "How did that happen?");
     
     if (mSuspendCount) {
         LOG(("Waiting until resume to do async not-modified [this=%p]\n",
              this));
-        mCallOnResume = &nsHttpChannel::HandleAsyncNotModified;
+        mPendingAsyncCallOnResume = &nsHttpChannel::HandleAsyncNotModified;
         return;
     }
     
@@ -407,11 +478,11 @@ nsHttpChannel::HandleAsyncNotModified()
 void
 nsHttpChannel::HandleAsyncFallback()
 {
-    NS_PRECONDITION(!mCallOnResume, "How did that happen?");
+    NS_PRECONDITION(!mPendingAsyncCallOnResume, "How did that happen?");
 
     if (mSuspendCount) {
         LOG(("Waiting until resume to do async fallback [this=%p]\n", this));
-        mCallOnResume = &nsHttpChannel::HandleAsyncFallback;
+        mPendingAsyncCallOnResume = &nsHttpChannel::HandleAsyncFallback;
         return;
     }
 
@@ -653,12 +724,8 @@ nsHttpChannel::CallOnStartRequest()
     mTracingEnabled = PR_FALSE;
 
     if (mResponseHead && mResponseHead->ContentType().IsEmpty()) {
-        NS_ASSERTION(mConnectionInfo, "Should have connection info here");
         if (!mContentTypeHint.IsEmpty())
             mResponseHead->SetContentType(mContentTypeHint);
-        else if (mResponseHead->Version() == NS_HTTP_VERSION_0_9 &&
-                 mConnectionInfo->Port() != mConnectionInfo->DefaultPort())
-            mResponseHead->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
         else {
             // Uh-oh.  We had better find out what type we are!
 
@@ -979,8 +1046,6 @@ nsHttpChannel::ProcessResponse()
         LOG(("  continuation state has been reset"));
     }
 
-    bool successfulReval = false;
-
     // handle different server response categories.  Note that we handle
     // caching or not caching of error pages in
     // nsHttpResponseHead::MustValidate; if you change this switch, update that
@@ -1032,9 +1097,6 @@ nsHttpChannel::ProcessResponse()
             LOG(("ProcessNotModified failed [rv=%x]\n", rv));
             rv = ProcessNormal();
         }
-        else {
-            successfulReval = true;
-        }
         break;
     case 401:
     case 407:
@@ -1070,42 +1132,12 @@ nsHttpChannel::ProcessResponse()
         break;
     }
 
-    if (!mDidReval)
-        mozilla::Telemetry::Accumulate(
-                mozilla::Telemetry::HTTP_CACHE_DISPOSITION, kCacheMissed);
-    else if (successfulReval)
-        mozilla::Telemetry::Accumulate(
-                mozilla::Telemetry::HTTP_CACHE_DISPOSITION, kCacheHitViaReval);
-    else
-        mozilla::Telemetry::Accumulate(
-                mozilla::Telemetry::HTTP_CACHE_DISPOSITION,
-                kCacheMissedViaReval);
-
     return rv;
 }
 
 nsresult
 nsHttpChannel::ContinueProcessResponse(nsresult rv)
 {
-    if (rv == NS_ERROR_DOM_BAD_URI && mRedirectURI) {
-
-        PRBool isHTTP = PR_FALSE;
-        if (NS_FAILED(mRedirectURI->SchemeIs("http", &isHTTP)))
-            isHTTP = PR_FALSE;
-        if (!isHTTP && NS_FAILED(mRedirectURI->SchemeIs("https", &isHTTP)))
-            isHTTP = PR_FALSE;
-        
-        if (!isHTTP) {
-            // This was a blocked attempt to redirect and subvert the system by
-            // redirecting to another protocol (perhaps javascript:)
-            // In that case we want to throw an error instead of displaying the
-            // non-redirected response body.
-
-            LOG(("ContinueProcessResponse detected rejected Non-HTTP Redirection"));
-            return NS_ERROR_CORRUPTED_CONTENT;
-        }
-    }
-
     if (NS_SUCCEEDED(rv)) {
         InitCacheEntry();
         CloseCacheEntry(PR_FALSE);
@@ -1280,12 +1312,13 @@ nsHttpChannel::ProxyFailover()
 void
 nsHttpChannel::HandleAsyncReplaceWithProxy()
 {
-    NS_PRECONDITION(!mCallOnResume, "How did that happen?");
+    NS_PRECONDITION(!mPendingAsyncCallOnResume, "How did that happen?");
 
     if (mSuspendCount) {
         LOG(("Waiting until resume to do async proxy replacement [this=%p]\n",
              this));
-        mCallOnResume = &nsHttpChannel::HandleAsyncReplaceWithProxy;
+        mPendingAsyncCallOnResume =
+            &nsHttpChannel::HandleAsyncReplaceWithProxy;
         return;
     }
 
@@ -1313,7 +1346,7 @@ nsHttpChannel::ContinueHandleAsyncReplaceWithProxy(nsresult status)
         mLoadGroup->RemoveRequest(this, nsnull, mStatus);
     }
     else if (NS_FAILED(status)) {
-        AsyncAbort(status);
+       AsyncAbort(status);
     }
 
     // Return NS_OK here, even it seems to be breaking the async function stack
@@ -1328,11 +1361,11 @@ nsHttpChannel::ContinueHandleAsyncReplaceWithProxy(nsresult status)
 void
 nsHttpChannel::HandleAsyncRedirectChannelToHttps()
 {
-    NS_PRECONDITION(!mCallOnResume, "How did that happen?");
+    NS_PRECONDITION(!mPendingAsyncCallOnResume, "How did that happen?");
 
     if (mSuspendCount) {
         LOG(("Waiting until resume to do async redirect to https [this=%p]\n", this));
-        mCallOnResume = &nsHttpChannel::HandleAsyncRedirectChannelToHttps;
+        mPendingAsyncCallOnResume = &nsHttpChannel::HandleAsyncRedirectChannelToHttps;
         return;
     }
 
@@ -1627,16 +1660,6 @@ nsHttpChannel::ResponseWouldVary()
     }
     return PR_FALSE;
 }
-
-// We need to have an implementation of this function just so that we can keep
-// all references to mCallOnResume of type nsHttpChannel:  it's not OK in C++
-// to set a member function ptr to  a base class function.
-void
-nsHttpChannel::HandleAsyncAbort()
-{
-    HttpAsyncAborter<nsHttpChannel>::HandleAsyncAbort();
-}
-
 
 nsresult
 nsHttpChannel::Hash(const char *buf, nsACString &hash)
@@ -2542,14 +2565,8 @@ nsHttpChannel::CheckCache()
     PRBool doValidation = PR_FALSE;
     PRBool canAddImsHeader = PR_TRUE;
 
-    // Cached entry is not the entity we request (see bug #633743)
-    if (ResponseWouldVary()) {
-        LOG(("Validating based on Vary headers returning TRUE\n"));
-        canAddImsHeader = PR_FALSE;
-        doValidation = PR_TRUE;
-    }
-    // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used
-    else if (mLoadFlags & LOAD_FROM_CACHE) {
+    // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used.
+    if (mLoadFlags & LOAD_FROM_CACHE) {
         LOG(("NOT validating based on LOAD_FROM_CACHE load flag\n"));
         doValidation = PR_FALSE;
     }
@@ -2581,6 +2598,12 @@ nsHttpChannel::CheckCache()
         doValidation = PR_TRUE;
     }
 
+    else if (ResponseWouldVary()) {
+        LOG(("Validating based on Vary headers returning TRUE\n"));
+        canAddImsHeader = PR_FALSE;
+        doValidation = PR_TRUE;
+    }
+    
     else if (MustValidateBasedOnQueryUrl()) {
         LOG(("Validating based on RFC 2616 section 13.9 "
              "(query-url w/o explicit expiration-time)\n"));
@@ -2704,7 +2727,6 @@ nsHttpChannel::CheckCache()
             if (val)
                 mRequestHead.SetHeader(nsHttp::If_None_Match,
                                        nsDependentCString(val));
-            mDidReval = true;
         }
     }
 
@@ -3596,9 +3618,9 @@ nsHttpChannel::Resume()
     
     LOG(("nsHttpChannel::Resume [this=%p]\n", this));
         
-    if (--mSuspendCount == 0 && mCallOnResume) {
-        nsresult rv = AsyncCall(mCallOnResume);
-        mCallOnResume = nsnull;
+    if (--mSuspendCount == 0 && mPendingAsyncCallOnResume) {
+        nsresult rv = AsyncCall(mPendingAsyncCallOnResume);
+        mPendingAsyncCallOnResume = nsnull;
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -3678,10 +3700,6 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
         (BYPASS_LOCAL_CACHE(mLoadFlags)))
         mCaps |= NS_HTTP_REFRESH_DNS;
 
-    // Force-Reload should reset the persistent connection pool for this host
-    if (mLoadFlags & LOAD_FRESH_CONNECTION)
-        mCaps |= NS_HTTP_CLEAR_KEEPALIVES;
-    
     mIsPending = PR_TRUE;
     mWasOpened = PR_TRUE;
 
@@ -4053,7 +4071,6 @@ nsHttpChannel::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 
     // don't enter this block if we're reading from the cache...
     if (NS_SUCCEEDED(mStatus) && !mCachePump && mTransaction) {
-        // mTransactionPump doesn't hit OnInputStreamReady and call this until
         // all of the response headers have been acquired, so we can take ownership
         // of them from the transaction.
         mResponseHead = mTransaction->TakeResponseHead();

@@ -158,9 +158,3 @@ SSL_ConfigSecureServerWithCertChain;
 ;+    local:
 ;+*;
 ;+};
-;+NSS_3.13 {    # NSS 3.13 release
-;+    global:
-NSSSSL_GetVersion;
-;+    local:
-;+       *;
-;+};

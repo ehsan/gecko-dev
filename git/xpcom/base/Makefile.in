@@ -70,11 +70,8 @@ CPPSRCS		= \
 		nsStackWalk.cpp \
 		nsMemoryReporterManager.cpp \
 		FunctionTimer.cpp \
+		Telemetry.cpp \
 		$(NULL)
-
-ifeq ($(OS_ARCH),Linux)
-CPPSRCS += MapsMemoryReporter.cpp
-endif
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS		+= nsMacUtilsImpl.cpp
@@ -98,10 +95,10 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
 	FunctionTimer.h \
-	MapsMemoryReporter.h \
 	$(NULL)
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += nsSetDllDirectory.cpp
 CPPSRCS += nsCrashOnException.cpp
 endif
 
@@ -144,6 +141,7 @@ XPIDLSRCS	= \
 		nsIUUIDGenerator.idl \
 		nsIMutable.idl \
 		nsIMemoryReporter.idl \
+		nsITelemetry.idl \
 		$(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
@@ -156,6 +154,8 @@ FORCE_STATIC_LIB = 1
 # Force use of PIC
 FORCE_USE_PIC	= 1
 
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 DEFINES		+= -D_IMPL_NS_COM

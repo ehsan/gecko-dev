@@ -64,6 +64,8 @@ public:
   NS_DECL_NSIASYNCINPUTSTREAM
 
   nsPNGEncoder();
+
+private:
   ~nsPNGEncoder();
 
 protected:

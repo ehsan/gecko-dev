@@ -302,8 +302,3 @@ nsDragService::Unsuppress()
     return nsBaseDragService::Unsuppress();
 }
 
-NS_IMETHODIMP
-nsDragService::DragMoved(PRInt32 aX, PRInt32 aY)
-{
-    return nsBaseDragService::DragMoved(aX, aY);
-}

@@ -65,7 +65,6 @@ extern PRLogModuleInfo* gPIPNSSLog;
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-static NS_DEFINE_CID(kCertOverrideCID, NS_CERTOVERRIDE_CID);
 
 // treeArrayElStr
 //
@@ -199,11 +198,6 @@ nsCertTree::nsCertTree() : mTreeArray(NULL)
   mCompareCache.ops = nsnull;
   mNSSComponent = do_GetService(kNSSComponentCID);
   mOverrideService = do_GetService("@mozilla.org/security/certoverride;1");
-  // Might be a different service if someone is overriding the contract
-  nsCOMPtr<nsICertOverrideService> origCertOverride =
-    do_GetService(kCertOverrideCID);
-  mOriginalOverrideService =
-    static_cast<nsCertOverrideService*>(origCertOverride.get());
   mCellText = nsnull;
 }
 
@@ -491,7 +485,9 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
   if (!aCertList)
     return NS_ERROR_FAILURE;
 
-  if (!mOriginalOverrideService)
+  nsCertOverrideService *cos = 
+    reinterpret_cast<nsCertOverrideService*>(mOverrideService.get());
+  if (!cos)
     return NS_ERROR_FAILURE;
 
   nsTHashtable<nsCStringHashKey> allHostPortOverrideKeys;
@@ -499,10 +495,9 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
     return NS_ERROR_OUT_OF_MEMORY;
 
   if (aWantedType == nsIX509Cert::SERVER_CERT) {
-    mOriginalOverrideService->
-      EnumerateCertOverrides(nsnull, 
-                             CollectAllHostPortOverridesCallback, 
-                             &allHostPortOverrideKeys);
+    cos->EnumerateCertOverrides(nsnull, 
+                                CollectAllHostPortOverridesCallback, 
+                                &allHostPortOverrideKeys);
   }
 
   CERTCertListNode *node;
@@ -642,7 +637,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
         ++count;
         ++InsertPosition;
       }
-      if (addOverrides) {
+      if (addOverrides && cos) {
         nsCertAndArrayAndPositionAndCounterAndTracker cap;
         cap.certai = certai;
         cap.array = &mDispInfo;
@@ -650,8 +645,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
         cap.counter = 0;
         cap.tracker = &allHostPortOverrideKeys;
 
-        mOriginalOverrideService->
-          EnumerateCertOverrides(pipCert, MatchingCertOverridesCallback, &cap);
+        cos->EnumerateCertOverrides(pipCert, MatchingCertOverridesCallback, &cap);
         count += cap.counter;
       }
     }
@@ -663,8 +657,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
     cap.position = 0;
     cap.counter = 0;
     cap.tracker = &allHostPortOverrideKeys;
-    mOriginalOverrideService->
-      EnumerateCertOverrides(nsnull, AddRemaningHostPortOverridesCallback, &cap);
+    cos->EnumerateCertOverrides(nsnull, AddRemaningHostPortOverridesCallback, &cap);
   }
 
   return NS_OK;

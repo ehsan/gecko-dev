@@ -4,8 +4,6 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
-var arguments;
-
 function b(foo) {
     delete foo.d
     delete foo.w

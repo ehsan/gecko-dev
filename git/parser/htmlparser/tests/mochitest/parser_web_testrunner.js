@@ -66,19 +66,18 @@ function asyncRun(fn) {
 
 function writeErrorSummary(input, expected, got, isTodo) {
   if (isTodo) {
-    $("display").appendChild(createEl('h2', null, "Unexpected Success:"));
+    appendChildNodes($("display"), H2("Unexpected Success:"));
   } else {
-    $("display").appendChild(createEl('h2', null, "Unexpected Failure:"));
+    appendChildNodes($("display"), H2("Unexpected Failure:"));
   }
-  $("display").appendChild(createEl('br'));
-  $("display").appendChild(createEl('span', null, "Matched: "));
-  $("display").appendChild(document.createTextNode("" + (expected == got)));
-  var pre = createEl('pre');
-  pre.appendChild(createTextNode("Input: \n" + input, "\n-\n"));
-  pre.appendChild(createTextNode("Expected:\n" + expected, "\n-\n"));
-  pre.appendChild(createTextNode("Output:\n" + got + "\n-\n"));
-  $("display").appendChild(pre);
-  $("display").appendChild(createEl('hr'));
+  appendChildNodes(
+    $("display"), BR(),
+    SPAN("Matched: "), "" + (expected == got),
+    PRE("Input: \n" + input, "\n-\n",
+        "Expected:\n" + expected, "\n-\n",
+        "Output:\n" + got + "\n-\n"),
+    HR()
+  );
 }
 
 /**

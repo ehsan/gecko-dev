@@ -54,7 +54,7 @@ struct nsCSSRendering {
   /**
    * Initialize any static variables used by nsCSSRendering.
    */
-  static void Init();
+  static nsresult Init();
   
   /**
    * Clean up any static variables used by nsCSSRendering.
@@ -292,7 +292,6 @@ struct nsCSSRendering {
    *       not app units.
    *   input:
    *     @param aGfxContext
-   *     @param aDirtyRect        no need to paint outside this rect
    *     @param aColor            the color of the decoration line
    *     @param aPt               the top/left edge of the text
    *     @param aLineSize         the width and the height of the decoration
@@ -320,7 +319,6 @@ struct nsCSSRendering {
    *                              used for strikeout line and overline too.
    */
   static void PaintDecorationLine(gfxContext* aGfxContext,
-                                  const gfxRect& aDirtyRect,
                                   const nscolor aColor,
                                   const gfxPoint& aPt,
                                   const gfxSize& aLineSize,

@@ -41,7 +41,7 @@
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 #include "nsStyleContext.h"
-#include "nsDataHashtable.h"
+#include "nsTHashtable.h"
 #include "nsGUIEvent.h"
 #include "mozilla/TimeStamp.h"
 #include "nsThreadUtils.h"

@@ -47,12 +47,7 @@
 
 class THEBES_API gfxPSSurface : public gfxASurface {
 public:
-    enum PageOrientation {
-        PORTRAIT,
-        LANDSCAPE
-    };
-
-    gfxPSSurface(nsIOutputStream *aStream, const gfxSize& aSizeInPoints, PageOrientation aOrientation);
+    gfxPSSurface(nsIOutputStream *aStream, const gfxSize& aSizeInPoints);
     virtual ~gfxPSSurface();
 
     virtual nsresult BeginPrinting(const nsAString& aTitle, const nsAString& aPrintToFileName);
@@ -65,12 +60,10 @@ public:
     void SetDPI(double x, double y);
     void GetDPI(double *xDPI, double *yDPI);
 
-    virtual PRBool GetRotateForLandscape() { return (mOrientation == LANDSCAPE); }
-
     // this is in points!
     virtual const gfxIntSize GetSize() const
     {
-        return mSize;
+        return gfxIntSize(mSize.width, mSize.height);
     }
 
     virtual PRInt32 GetDefaultContextFlags() const
@@ -83,8 +76,7 @@ private:
     nsCOMPtr<nsIOutputStream> mStream;
     double mXDPI;
     double mYDPI;
-    gfxIntSize mSize;
-    PageOrientation mOrientation;
+    gfxSize mSize;
 };
 
 #endif /* GFX_PSSURFACE_H */

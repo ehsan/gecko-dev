@@ -44,7 +44,7 @@
 #include "nsHttpTransaction.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
-#include "nsClassHashtable.h"
+#include "nsHashtable.h"
 #include "nsAutoPtr.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsISocketTransportService.h"
@@ -113,10 +113,6 @@ public:
     // connections.
     nsresult PruneDeadConnections();
 
-    // Close all idle persistent connections and prevent any active connections
-    // from being reused.
-    nsresult ClosePersistentConnections();
-
     // called to get a reference to the socket transport service.  the socket
     // transport service is not available when the connection manager is down.
     nsresult GetSocketThreadTarget(nsIEventTarget **);
@@ -141,11 +137,6 @@ public:
     // called to force the transaction queue to be processed once more, giving
     // preference to the specified connection.
     nsresult ProcessPendingQ(nsHttpConnectionInfo *);
-
-    // This is used to force an idle connection to be closed and removed from
-    // the idle connection list. It is called when the idle connection detects
-    // that the network peer has closed the transport.
-    nsresult CloseIdleConnection(nsHttpConnection *);
 
 private:
     virtual ~nsHttpConnectionMgr();
@@ -215,8 +206,7 @@ private:
         
         nsresult SetupStreams(nsISocketTransport **,
                               nsIAsyncInputStream **,
-                              nsIAsyncOutputStream **,
-                              PRBool isBackup);
+                              nsIAsyncOutputStream **);
         nsresult SetupPrimaryStreams();
         nsresult SetupBackupStreams();
         void     SetupBackupTimer();
@@ -262,12 +252,11 @@ private:
     // NOTE: these members are only accessed on the socket transport thread
     //-------------------------------------------------------------------------
 
-    static PLDHashOperator ProcessOneTransactionCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
+    static PRIntn ProcessOneTransactionCB(nsHashKey *, void *, void *);
 
-    static PLDHashOperator PruneDeadConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
-    static PLDHashOperator ShutdownPassCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
-    static PLDHashOperator PurgeExcessIdleConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
-    static PLDHashOperator ClosePersistentConnectionsCB(const nsACString &, nsAutoPtr<nsConnectionEntry> &, void *);
+    static PRIntn PruneDeadConnectionsCB(nsHashKey *, void *, void *);
+    static PRIntn ShutdownPassCB(nsHashKey *, void *, void *);
+    static PRIntn PurgeExcessIdleConnectionsCB(nsHashKey *, void *, void *);
     PRBool   ProcessPendingQForEntry(nsConnectionEntry *);
     PRBool   AtActiveConnectionLimit(nsConnectionEntry *, PRUint8 caps);
     void     GetConnection(nsConnectionEntry *, nsHttpTransaction *,
@@ -277,7 +266,6 @@ private:
     PRBool   BuildPipeline(nsConnectionEntry *, nsAHttpTransaction *, nsHttpPipeline **);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
     nsresult EnsureSocketThreadTargetIfOnline();
-    void     ClosePersistentConnections(nsConnectionEntry *ent);
     nsresult CreateTransport(nsConnectionEntry *, nsHttpTransaction *);
     void     AddActiveConn(nsHttpConnection *, nsConnectionEntry *);
     void     StartedConnect();
@@ -339,7 +327,6 @@ private:
     void OnMsgPruneDeadConnections (PRInt32, void *);
     void OnMsgReclaimConnection    (PRInt32, void *);
     void OnMsgUpdateParam          (PRInt32, void *);
-    void OnMsgClosePersistentConnections (PRInt32, void *);
 
     // Total number of active connections in all of the ConnectionEntry objects
     // that are accessed from mCT connection table.
@@ -357,9 +344,9 @@ private:
     // the connection table
     //
     // this table is indexed by connection key.  each entry is a
-    // nsConnectionEntry object.
+    // ConnectionEntry object.
     //
-    nsClassHashtable<nsCStringHashKey, nsConnectionEntry> mCT;
+    nsHashtable mCT;
 };
 
 #endif // !nsHttpConnectionMgr_h__

@@ -67,7 +67,6 @@
 #include "mozilla/FunctionTimer.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
-#include "nsIProtocolHandler.h"
 
 #ifdef IS_BIG_ENDIAN
 #define SC_ENDIAN "big"
@@ -143,9 +142,7 @@ StartupCache::Init()
     NS_WARNING("Startup cache is only available in the chrome process");
     return NS_ERROR_NOT_AVAILABLE;
   }
-  // workaround for bug 653936
-  nsCOMPtr<nsIProtocolHandler> jarInitializer(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "jar"));
-  
+
   nsresult rv;
   mTable.Init();
 #ifdef DEBUG
@@ -510,7 +507,7 @@ StartupCacheDebugOutputStream::CheckReferences(nsISupports* aObject)
   
   PRUint32 flags;
   rv = classInfo->GetFlags(&flags);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
   if (flags & nsIClassInfo::SINGLETON)
     return PR_TRUE;
   

@@ -61,6 +61,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIProxiedProtocolHandler.h"
 #include "nsIProxyInfo.h"
+#include "nsITimelineService.h"
 #include "nsEscape.h"
 #include "nsNetCID.h"
 #include "nsIRecyclingAllocator.h"
@@ -428,6 +429,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         return rv;
 
     PRBool externalProtocol = PR_FALSE;
+    PRBool listedProtocol   = PR_TRUE;
     nsCOMPtr<nsIPrefBranch2> prefBranch;
     GetPrefBranch(getter_AddRefs(prefBranch));
     if (prefBranch) {
@@ -436,6 +438,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         rv = prefBranch->GetBoolPref(externalProtocolPref.get(), &externalProtocol);
         if (NS_FAILED(rv)) {
             externalProtocol = PR_FALSE;
+            listedProtocol   = PR_FALSE;
         }
     }
 
@@ -604,6 +607,7 @@ nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
 {
     nsresult rv;
     NS_ENSURE_ARG_POINTER(aURI);
+    NS_TIMELINE_MARK_URI("nsIOService::NewChannelFromURI(%s)", aURI);
 
     nsCAutoString scheme;
     rv = aURI->GetScheme(scheme);

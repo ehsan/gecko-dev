@@ -44,7 +44,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCRT.h"
 #include "nsString.h"
-#include "mozilla/Preferences.h"
+#include "nsContentUtils.h"
 
 #include "nsIControllerCommandTable.h"
 #include "nsICommandParams.h"
@@ -63,8 +63,6 @@
 
 #include "nsIClipboardDragDropHooks.h"
 #include "nsIClipboardDragDropHookList.h"
-
-using namespace mozilla;
 
 const char * const sSelectAllString = "cmd_selectAll";
 const char * const sSelectNoneString = "cmd_selectNone";
@@ -248,7 +246,7 @@ nsSelectMoveScrollCommand::DoSelectCommand(const char *aCommandName, nsIDOMWindo
   PRBool caretOn = PR_FALSE;
   selCont->GetCaretEnabled(&caretOn);
   if (!caretOn) {
-    caretOn = Preferences::GetBool("accessibility.browsewithcaret");
+    caretOn = nsContentUtils::GetBoolPref("accessibility.browsewithcaret");
     if (caretOn) {
       nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aWindow);
       if (piWindow) {

@@ -71,11 +71,15 @@ public:
   virtual PRBool DecodeVideoFrame(PRBool &aKeyframeSkip,
                                   PRInt64 aTimeThreshold);
 
-  virtual PRBool HasAudio() {
+  virtual PRBool HasAudio()
+  {
+    mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mVorbisState != 0 && mVorbisState->mActive;
   }
 
-  virtual PRBool HasVideo() {
+  virtual PRBool HasVideo()
+  {
+    mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mTheoraState != 0 && mTheoraState->mActive;
   }
 
@@ -85,9 +89,18 @@ public:
 
 private:
 
-  PRBool HasSkeleton() {
+  PRBool HasSkeleton()
+  {
+    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mSkeletonState != 0 && mSkeletonState->mActive;
   }
+
+  // Returns PR_TRUE if we should decode up to the seek target rather than
+  // seeking to the target using a bisection search or index-assisted seek.
+  // We should do this if the seek target (aTarget, in usecs), lies not too far
+  // ahead of the current playback position (aCurrentTime, in usecs).
+  PRBool CanDecodeToTarget(PRInt64 aTarget,
+                           PRInt64 aCurrentTime);
 
   // Seeks to the keyframe preceeding the target time using available
   // keyframe indexes.
@@ -218,10 +231,8 @@ private:
 
   // Decodes a packet of Theora data, and inserts its frame into the
   // video queue. May return NS_ERROR_OUT_OF_MEMORY. Caller must have obtained
-  // the reader's monitor. aTimeThreshold is the current playback position
-  // in media time in microseconds. Frames with an end time before this will
-  // not be enqueued.
-  nsresult DecodeTheora(ogg_packet* aPacket, PRInt64 aTimeThreshold);
+  // the reader's monitor.
+  nsresult DecodeTheora(ogg_packet* aPacket);
 
   // Read a page of data from the Ogg file. Returns the offset of the start
   // of the page, or -1 if the page read failed.
@@ -273,10 +284,6 @@ private:
   // The offset of the end of the last page we've read, or the start of
   // the page we're about to read.
   PRInt64 mPageOffset;
-
-  // The picture region inside Theora frame to be displayed, if we have
-  // a Theora video track.
-  nsIntRect mPicture;
 };
 
 #endif

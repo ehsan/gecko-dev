@@ -62,7 +62,8 @@
 #define NS_MATHML_PSEUDO_UNIT_WIDTH       2
 #define NS_MATHML_PSEUDO_UNIT_HEIGHT      3
 #define NS_MATHML_PSEUDO_UNIT_DEPTH       4
-#define NS_MATHML_PSEUDO_UNIT_NAMEDSPACE  5
+#define NS_MATHML_PSEUDO_UNIT_LSPACE      5
+#define NS_MATHML_PSEUDO_UNIT_NAMEDSPACE  6
 
 nsIFrame*
 NS_NewMathMLmpaddedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -93,11 +94,10 @@ nsMathMLmpaddedFrame::ProcessAttributes()
   /*
   parse the attributes
 
-  width  = [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | h-unit | namedspace)
-  height = [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | v-unit | namedspace)
-  depth  = [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | v-unit | namedspace)
-  lspace = [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | h-unit | namedspace)
-  voffset= [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | v-unit | namedspace)
+  width = [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | h-unit | namedspace)
+  height= [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | v-unit)
+  depth = [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | v-unit)
+  lspace= [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | h-unit)
   */
 
   nsAutoString value;
@@ -138,15 +138,6 @@ nsMathMLmpaddedFrame::ProcessAttributes()
   if (!value.IsEmpty()) {
     ParseAttribute(value, mLeftSpaceSign, mLeftSpace, mLeftSpacePseudoUnit);
   }
-
-  // voffset
-  mVerticalOffsetSign = NS_MATHML_SIGN_INVALID;
-  GetAttribute(mContent, nsnull, nsGkAtoms::voffset_, value);
-  if (!value.IsEmpty()) {
-    ParseAttribute(value, mVerticalOffsetSign, mVerticalOffset, 
-                   mVerticalOffsetPseudoUnit);
-  }
-  
 }
 
 // parse an input string in the following format (see bug 148326 for testcases):
@@ -263,6 +254,7 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
   else if (unit.EqualsLiteral("width"))  aPseudoUnit = NS_MATHML_PSEUDO_UNIT_WIDTH;
   else if (unit.EqualsLiteral("height")) aPseudoUnit = NS_MATHML_PSEUDO_UNIT_HEIGHT;
   else if (unit.EqualsLiteral("depth"))  aPseudoUnit = NS_MATHML_PSEUDO_UNIT_DEPTH;
+  else if (unit.EqualsLiteral("lspace")) aPseudoUnit = NS_MATHML_PSEUDO_UNIT_LSPACE;
   else if (!gotPercent) { // percentage can only apply to a pseudo-unit
 
     // see if the unit is a named-space
@@ -305,6 +297,7 @@ void
 nsMathMLmpaddedFrame::UpdateValue(PRInt32                  aSign,
                                   PRInt32                  aPseudoUnit,
                                   const nsCSSValue&        aCSSValue,
+                                  nscoord                  aLeftSpace,
                                   const nsBoundingMetrics& aBoundingMetrics,
                                   nscoord&                 aValueToUpdate) const
 {
@@ -326,6 +319,10 @@ nsMathMLmpaddedFrame::UpdateValue(PRInt32                  aSign,
              scaler = aBoundingMetrics.descent;
              break;
 
+        case NS_MATHML_PSEUDO_UNIT_LSPACE:
+             scaler = aLeftSpace;
+             break;
+
         default:
           // if we ever reach here, it would mean something is wrong 
           // somewhere with the setup and/or the caller
@@ -341,12 +338,22 @@ nsMathMLmpaddedFrame::UpdateValue(PRInt32                  aSign,
     else
       amount = CalcLength(PresContext(), mStyleContext, aCSSValue);
 
+    nscoord oldValue = aValueToUpdate;
     if (NS_MATHML_SIGN_PLUS == aSign)
       aValueToUpdate += amount;
     else if (NS_MATHML_SIGN_MINUS == aSign)
       aValueToUpdate -= amount;
     else
       aValueToUpdate  = amount;
+
+    /* The REC says:
+    Dimensions that would be positive if the content was rendered normally
+    cannot be made negative using <mpadded>; a positive dimension is set 
+    to 0 if it would otherwise become negative. Dimensions which are 
+    initially 0 can be made negative
+    */
+    if (0 < oldValue && 0 > aValueToUpdate)
+      aValueToUpdate = 0;
   }
 }
 
@@ -374,7 +381,7 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   nsresult rv =
     nsMathMLContainerFrame::Place(aRenderingContext, PR_FALSE, aDesiredSize);
   if (NS_MATHML_HAS_ERROR(mPresentationData.flags) || NS_FAILED(rv)) {
-    DidReflowChildren(GetFirstPrincipalChild());
+    DidReflowChildren(GetFirstChild(nsnull));
     return rv;
   }
 
@@ -401,7 +408,6 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   // mpadded and the positioning point for the following content".  MathML2
   // doesn't make the distinction.
   nscoord width  = mBoundingMetrics.width;
-  nscoord voffset = 0;
 
   PRInt32 pseudoUnit;
 
@@ -409,36 +415,26 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   pseudoUnit = (mWidthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_WIDTH : mWidthPseudoUnit;
   UpdateValue(mWidthSign, pseudoUnit, mWidth,
-              mBoundingMetrics, width);
-  width = NS_MAX(0, width);
+              lspace, mBoundingMetrics, width);
 
   // update "height" (this is the ascent in the terminology of the REC)
   pseudoUnit = (mHeightPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_HEIGHT : mHeightPseudoUnit;
   UpdateValue(mHeightSign, pseudoUnit, mHeight,
-              mBoundingMetrics, height);
-  height = NS_MAX(0, height);
+              lspace, mBoundingMetrics, height);
 
   // update "depth" (this is the descent in the terminology of the REC)
   pseudoUnit = (mDepthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_DEPTH : mDepthPseudoUnit;
   UpdateValue(mDepthSign, pseudoUnit, mDepth,
-              mBoundingMetrics, depth);
-  depth = NS_MAX(0, depth);
+              lspace, mBoundingMetrics, depth);
 
-  // update lspace
-  if (mLeftSpacePseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
-    pseudoUnit = mLeftSpacePseudoUnit;
-    UpdateValue(mLeftSpaceSign, pseudoUnit, mLeftSpace,
-                mBoundingMetrics, lspace);
-  }
+  // update lspace -- should be *last* because lspace is overwritten!!
+  pseudoUnit = (mLeftSpacePseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
+             ? NS_MATHML_PSEUDO_UNIT_LSPACE : mLeftSpacePseudoUnit;
+  UpdateValue(mLeftSpaceSign, pseudoUnit, mLeftSpace,
+              lspace, mBoundingMetrics, lspace);
 
-  // update voffset
-  if (mVerticalOffsetPseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
-    pseudoUnit = mVerticalOffsetPseudoUnit;
-    UpdateValue(mVerticalOffsetSign, pseudoUnit, mVerticalOffset,
-                mBoundingMetrics, voffset);
-  }
   // do the padding now that we have everything
   // The idea here is to maintain the invariant that <mpadded>...</mpadded> (i.e.,
   // with no attributes) looks the same as <mrow>...</mrow>. But when there are
@@ -450,20 +446,22 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
     mBoundingMetrics.leftBearing = 0;
   }
 
-  if (mWidthSign != NS_MATHML_SIGN_INVALID) { // there was padding on the right
+  if (mLeftSpaceSign != NS_MATHML_SIGN_INVALID ||
+      mWidthSign != NS_MATHML_SIGN_INVALID) { // there was padding on the right
     // dismiss the right italic correction now (so that our parent won't correct us)
-    mBoundingMetrics.width = width;
+    mBoundingMetrics.width = NS_MAX(0, lspace + width);
     mBoundingMetrics.rightBearing = mBoundingMetrics.width;
   }
 
   nscoord dy = height - mBoundingMetrics.ascent;
   nscoord dx = lspace;
 
+  mBoundingMetrics.ascent = height;
+  mBoundingMetrics.descent = depth;
+
   aDesiredSize.ascent += dy;
   aDesiredSize.width = mBoundingMetrics.width;
   aDesiredSize.height += dy + depth - mBoundingMetrics.descent;
-  mBoundingMetrics.ascent = height;
-  mBoundingMetrics.descent = depth;
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 
   mReference.x = 0;
@@ -471,7 +469,7 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
 
   if (aPlaceOrigin) {
     // Finish reflowing child frames, positioning their origins.
-    PositionRowChildFrames(dx, aDesiredSize.ascent - voffset);
+    PositionRowChildFrames(dx, aDesiredSize.ascent);
   }
 
   return NS_OK;

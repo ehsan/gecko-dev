@@ -38,12 +38,15 @@
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
+let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+         getService(Ci.nsISessionStore);
+
 let stateBackup = ss.getBrowserState();
 
 function cleanup() {
   // Reset the pref
   try {
-    Services.prefs.clearUserPref("browser.sessionstore.restore_on_demand");
+    Services.prefs.clearUserPref("browser.sessionstore.max_concurrent_tabs");
   } catch (e) {}
   ss.setBrowserState(stateBackup);
   executeSoon(finish);
@@ -53,9 +56,9 @@ function test() {
   /** Bug 607016 - If a tab is never restored, attributes (eg. hidden) aren't updated correctly **/
   waitForExplicitFinish();
 
-  // Set the pref to true so we know exactly how many tabs should be restoring at
+  // Set the pref to 0 so we know exactly how many tabs should be restoring at
   // any given time. This guarantees that a finishing load won't start another.
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", true);
+  Services.prefs.setIntPref("browser.sessionstore.max_concurrent_tabs", 0);
 
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {

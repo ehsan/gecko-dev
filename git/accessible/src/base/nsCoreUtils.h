@@ -39,7 +39,9 @@
 #ifndef nsCoreUtils_h_
 #define nsCoreUtils_h_
 
+#include "nsAccessibilityAtoms.h"
 
+#include "nsIDOMDocumentXBL.h"
 #include "nsIDOMNode.h"
 #include "nsIContent.h"
 #include "nsIBoxObject.h"
@@ -232,11 +234,6 @@ public:
   static PRBool IsContentDocument(nsIDocument *aDocument);
 
   /**
-   * Return true if the given document node is for tab document accessible.
-   */
-  static bool IsTabDocument(nsIDocument* aDocumentNode);
-
-  /**
    * Return true if the given document is an error page.
    */
   static PRBool IsErrorPage(nsIDocument *aDocument);
@@ -367,15 +364,9 @@ public:
    */
   static PRBool IsHTMLTableHeader(nsIContent *aContent)
   {
-    return aContent->NodeInfo()->Equals(nsGkAtoms::th) ||
-      aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::scope);
+    return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
+      aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
-
-  /**
-   * Check the visibility across both parent content and chrome.
-   */
-  static bool CheckVisibilityInParentChain(nsIFrame* aFrame);
-
 };
 
 
@@ -397,6 +388,40 @@ public:
 
 private:
   nsTArray<nsString> mNames;
+};
+
+/**
+ * Used to iterate through IDs or elements pointed by IDRefs attribute. Note,
+ * any method used to iterate through IDs or elements moves iterator to next
+ * position.
+ */
+class IDRefsIterator
+{
+public:
+  IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr);
+
+  /**
+   * Return next ID.
+   */
+  const nsDependentSubstring NextID();
+
+  /**
+   * Return next element.
+   */
+  nsIContent* NextElem();
+
+  /**
+   * Return the element with the given ID.
+   */
+  nsIContent* GetElem(const nsDependentSubstring& aID);
+
+private:
+  nsString mIDs;
+  nsAString::index_type mCurrIdx;
+
+  nsIDocument* mDocument;
+  nsCOMPtr<nsIDOMDocumentXBL> mXBLDocument;
+  nsCOMPtr<nsIDOMElement> mBindingParent;
 };
 
 #endif

@@ -39,7 +39,8 @@
 
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsIDOMSVGAnimTransformList.h"
-#include "SVGAnimatedTransformList.h"
+#include "nsSVGTransformList.h"
+#include "nsSVGMatrix.h"
 #include "nsSVGEffects.h"
 #include "nsIDOMSVGStopElement.h"
 #include "nsSVGGradientElement.h"
@@ -47,9 +48,6 @@
 #include "nsSVGGradientFrame.h"
 #include "gfxContext.h"
 #include "gfxPattern.h"
-#include "nsContentUtils.h"
-
-using mozilla::SVGAnimatedTransformList;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -161,14 +159,18 @@ nsSVGGradientFrame::GetGradientTransform(nsIFrame *aSource,
   nsSVGGradientElement *element =
     GetGradientWithAttr(nsGkAtoms::gradientTransform, mContent);
 
-  SVGAnimatedTransformList* animTransformList =
-    element->GetAnimatedTransformList();
-  if (!animTransformList)
+  if (!element->mGradientTransform)
     return bboxMatrix;
 
-  gfxMatrix gradientTransform =
-    animTransformList->GetAnimValue().GetConsolidationMatrix();
-  return bboxMatrix.PreMultiply(gradientTransform);
+  nsCOMPtr<nsIDOMSVGTransformList> trans;
+  element->mGradientTransform->GetAnimVal(getter_AddRefs(trans));
+  nsCOMPtr<nsIDOMSVGMatrix> gradientTransform =
+    nsSVGTransformList::GetConsolidationMatrix(trans);
+
+  if (!gradientTransform)
+    return bboxMatrix;
+
+  return bboxMatrix.PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(gradientTransform));
 }
 
 PRUint16

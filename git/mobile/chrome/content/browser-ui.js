@@ -39,7 +39,6 @@
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/AddonManager.jsm");
 
 [
   ["AllPagesList", "popup_autocomplete", "cmd_openLocation"],
@@ -64,7 +63,6 @@ let Elements = {};
   ["contentShowing",     "bcast_contentShowing"],
   ["urlbarState",        "bcast_urlbarState"],
   ["stack",              "stack"],
-  ["tabList",            "tabs"],
   ["tabs",               "tabs-container"],
   ["controls",           "browser-controls"],
   ["panelUI",            "panel-container"],
@@ -116,21 +114,17 @@ var BrowserUI = {
   },
 
   _titleChanged: function(aBrowser) {
-    let url = this.getDisplayURI(aBrowser);
-    let caption = aBrowser.contentTitle || url;
-
-    if (aBrowser.contentTitle == "" && !Util.isURLEmpty(aBrowser.userTypedValue))
-      caption = aBrowser.userTypedValue;
-    else if (Util.isURLEmpty(url))
-      caption = "";
-
-    let tab = Browser.getTabForBrowser(aBrowser);
-    if (tab)
-      tab.chromeTab.updateTitle(caption);
-
     let browser = Browser.selectedBrowser;
     if (browser && aBrowser != browser)
       return;
+
+    let url = this.getDisplayURI(browser);
+    let caption = browser.contentTitle || url;
+
+    if (browser.contentTitle == "" && !Util.isURLEmpty(browser.userTypedValue))
+      caption = browser.userTypedValue;
+    else if (Util.isURLEmpty(url))
+      caption = "";
 
     if (caption) {
       this._title.value = caption;
@@ -166,7 +160,7 @@ var BrowserUI = {
 
   _updateToolbar: function _updateToolbar() {
     let mode = Elements.urlbarState.getAttribute("mode");
-    if (mode == "edit" && AwesomeScreen.activePanel)
+    if (mode == "edit" && this.activePanel)
       return;
 
     if (Browser.selectedTab.isLoading() && mode != "loading")
@@ -191,8 +185,6 @@ var BrowserUI = {
   },
 
   lockToolbar: function lockToolbar() {
-    if (Util.isTablet())
-      return;
     this._toolbarLocked++;
     document.getElementById("toolbar-moveable-container").top = "0";
     if (this._toolbarLocked == 1)
@@ -209,7 +201,7 @@ var BrowserUI = {
   },
 
   _setURL: function _setURL(aURL) {
-    if (AwesomeScreen.activePanel)
+    if (this.activePanel)
       this._edit.defaultValue = aURL;
     else
       this._edit.value = aURL;
@@ -235,12 +227,12 @@ var BrowserUI = {
     // During an awesome search we always show the popup_autocomplete/AllPagesList
     // panel since this looks in every places and the rationale behind typing
     // is to find something, whereever it is.
-    if (AwesomeScreen.activePanel != AllPagesList) {
+    if (this.activePanel != AllPagesList) {
       let inputField = this._edit;
       let oldClickSelectsAll = inputField.clickSelectsAll;
       inputField.clickSelectsAll = false;
 
-      AwesomeScreen.activePanel = AllPagesList;
+      this.activePanel = AllPagesList;
 
       // changing the searchString property call updateAwesomeHeader again
       inputField.controller.searchString = aString;
@@ -256,14 +248,66 @@ var BrowserUI = {
 
   _closeOrQuit: function _closeOrQuit() {
     // Close active dialog, if we have one. If not then close the application.
-    if (AwesomeScreen.activePanel) {
-      AwesomeScreen.activePanel = null;
+    if (this.activePanel) {
+      this.activePanel = null;
     } else if (this.activeDialog) {
       this.activeDialog.close();
     } else {
       // Check to see if we should really close the window
       if (Browser.closing())
         window.close();
+    }
+  },
+
+  _activePanel: null,
+  get activePanel() {
+    return this._activePanel;
+  },
+
+  set activePanel(aPanel) {
+    if (this._activePanel == aPanel)
+      return;
+
+    let awesomePanel = document.getElementById("awesome-panels");
+    let awesomeHeader = document.getElementById("awesome-header");
+
+    let willShowPanel = (!this._activePanel && aPanel);
+    if (willShowPanel) {
+      this.pushDialog(aPanel);
+      this._edit.attachController();
+      this._editURI();
+      awesomePanel.hidden = awesomeHeader.hidden = false;
+    };
+
+    if (aPanel) {
+      aPanel.open();
+      if (this._edit.value == "")
+        this._showURI();
+    }
+
+    let willHidePanel = (this._activePanel && !aPanel);
+    if (willHidePanel) {
+      awesomePanel.hidden = true;
+      awesomeHeader.hidden = false;
+      this._edit.reset();
+      this._edit.detachController();
+      this.popDialog();
+    }
+
+    if (this._activePanel)
+      this._activePanel.close();
+
+    // The readOnly state of the field enabled/disabled the VKB
+    let isReadOnly = !(aPanel == AllPagesList && Util.isPortrait() && (willShowPanel || !this._edit.readOnly));
+    this._edit.readOnly = isReadOnly;
+    if (isReadOnly)
+      this._edit.blur();
+
+    this._activePanel = aPanel;
+    if (willHidePanel || willShowPanel) {
+      let event = document.createEvent("UIEvents");
+      event.initUIEvent("NavigationPanel" + (willHidePanel ? "Hidden" : "Shown"), true, true, window, false);
+      window.dispatchEvent(event);
     }
   },
 
@@ -309,24 +353,6 @@ var BrowserUI = {
       return;
     this._popup = null;
     this._dispatchPopupChanged(false);
-  },
-
-  // Will the on-screen keyboard cover the whole screen when opened?
-  _isKeyboardFullscreen: function _isKeyboardFullscreen() {
-#ifdef ANDROID
-    if (!Util.isPortrait()) {
-      switch (Services.prefs.getIntPref("widget.ime.android.landscape_fullscreen")) {
-        case 1:
-          return true;
-        case -1: {
-          let threshold = Services.prefs.getIntPref("widget.ime.android.fullscreen_threshold");
-          let dpi = Util.displayDPI;
-          return (window.innerHeight * 100 < threshold * dpi);
-        }
-      }
-    }
-#endif
-    return false;
   },
 
   _dispatchPopupChanged: function _dispatchPopupChanged(aVisible) {
@@ -386,10 +412,25 @@ var BrowserUI = {
     return this._toolbarH;
   },
 
+  get sidebarW() {
+    delete this._sidebarW;
+    return this._sidebarW = Elements.controls.getBoundingClientRect().width;
+  },
+
+  get starButton() {
+    delete this.starButton;
+    return this.starButton = document.getElementById("tool-star");
+  },
+
   sizeControls: function(windowW, windowH) {
     // tabs
-    Elements.tabList.resize();
-    AwesomeScreen.doResize(windowW, windowH);
+    document.getElementById("tabs").resize();
+
+    // awesomebar and related panels
+    let popup = document.getElementById("awesome-panels");
+    popup.top = this.toolbarH;
+    popup.height = windowH - this.toolbarH;
+    popup.width = windowW;
 
     // content navigator helper
     document.getElementById("content-navigator").contentHasChanged();
@@ -430,9 +471,6 @@ var BrowserUI = {
 
     // listening AppCommand to handle special keys
     window.addEventListener("AppCommand", this, true);
-
-    // Initialize the number of tabs in toolbar
-    TabsPopup.init();
 
     // We can delay some initialization until after startup.  We wait until
     // the first page is shown, then dispatch a UIReadyDelayed event.
@@ -475,12 +513,15 @@ var BrowserUI = {
       DownloadsView.init();
       ConsoleView.init();
 
+      // Pre-start the content process
+      Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
+          .ensureContentProcess();
+
 #ifdef MOZ_SERVICES_SYNC
       // Init the sync system
       WeaveGlue.init();
 #endif
 
-      Services.prefs.addObserver("browser.ui.layout.tablet", BrowserUI, false);
       Services.obs.addObserver(BrowserSearch, "browser-search-engine-modified", false);
       messageManager.addMessageListener("Browser:MozApplicationManifest", OfflineApps);
 
@@ -488,20 +529,23 @@ var BrowserUI = {
       BadgeHandlers.register(BrowserUI._edit.popup);
       FormHelperUI.init();
       FindHelperUI.init();
+      PageActions.init();
       FullScreenVideo.init();
       NewTabPopup.init();
-      WebappsUI.init();
-      CapturePickerUI.init();
+      CharsetMenu.init();
 
       // If some add-ons were disabled during during an application update, alert user
-      let addonIDs = AddonManager.getStartupChanges("disabled");
-      if (addonIDs.length > 0) {
-        let disabledStrings = Strings.browser.GetStringFromName("alertAddonsDisabled");
-        let label = PluralForm.get(addonIDs.length, disabledStrings).replace("#1", addonIDs.length);
-        let image = "chrome://browser/skin/images/alert-addons-30.png";
+      if (Services.prefs.prefHasUserValue("extensions.disabledAddons")) {
+        let addons = Services.prefs.getCharPref("extensions.disabledAddons").split(",");
+        if (addons.length > 0) {
+          let disabledStrings = Strings.browser.GetStringFromName("alertAddonsDisabled");
+          let label = PluralForm.get(addons.length, disabledStrings).replace("#1", addons.length);
+          let image = "chrome://browser/skin/images/alert-addons-30.png";
 
-        let alerts = Cc["@mozilla.org/toaster-alerts-service;1"].getService(Ci.nsIAlertsService);
-        alerts.showAlertNotification(image, Strings.browser.GetStringFromName("alertAddons"), label, false, "", null);
+          let alerts = Cc["@mozilla.org/toaster-alerts-service;1"].getService(Ci.nsIAlertsService);
+          alerts.showAlertNotification(image, Strings.browser.GetStringFromName("alertAddons"), label, false, "", null);
+        }
+        Services.prefs.clearUserPref("extensions.disabledAddons");
       }
 
 #ifdef MOZ_UPDATER
@@ -539,44 +583,9 @@ var BrowserUI = {
 
   uninit: function() {
     Services.obs.removeObserver(BrowserSearch, "browser-search-engine-modified");
-    Services.prefs.removeObserver("browser.ui.layout.tablet", BrowserUI);
     messageManager.removeMessageListener("Browser:MozApplicationManifest", OfflineApps);
     ExtensionsView.uninit();
     ConsoleView.uninit();
-  },
-
-  observe: function observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed" && aData == "browser.ui.layout.tablet")
-      this.updateTabletLayout();
-  },
-
-  updateTabletLayout: function updateTabletLayout() {
-    let wasTablet = Elements.urlbarState.hasAttribute("tablet");
-    let isTablet = Util.isTablet({ forceUpdate: true });
-    if (wasTablet == isTablet)
-      return;
-
-    if (isTablet) {
-      this.unlockToolbar();
-      Elements.urlbarState.setAttribute("tablet", "true");
-    } else {
-      Elements.urlbarState.removeAttribute("tablet");
-    }
-
-    // Tablet mode changes the size of the thumbnails
-    // in the tabs container. Hence we have to force a
-    // thumbnail update on all tabs.
-    setTimeout(function(self) {
-      self._updateAllTabThumbnails();
-    }, 0, this);
-  },
-
-  _updateAllTabThumbnails: function() {
-    let tabs = Browser.tabs;
-
-    tabs.forEach(function(tab) {
-      tab.updateThumbnail({ force: true });
-    });
   },
 
   update: function(aState) {
@@ -667,7 +676,6 @@ var BrowserUI = {
     // new page is opened, so a call to Browser.hideSidebars() fill this
     // requirement and fix the sidebars position.
     Browser.hideSidebars();
-    Elements.tabList.removeClosedTab();
 
     // Delay doing the fixup so the raw URI is passed to loadURIWithFlags
     // and the proper third-party fixup can be done
@@ -686,18 +694,18 @@ var BrowserUI = {
     this._hidePopup();
     if (this.activeDialog)
       this.activeDialog.close();
-    AwesomeScreen.activePanel = AllPagesList;
+    this.activePanel = AllPagesList;
   },
 
   closeAutoComplete: function closeAutoComplete() {
     if (this.isAutoCompleteOpen())
       this._edit.popup.closePopup();
 
-    AwesomeScreen.activePanel = null;
+    this.activePanel = null;
   },
 
   isAutoCompleteOpen: function isAutoCompleteOpen() {
-    return AwesomeScreen.activePanel == AllPagesList;
+    return this.activePanel == AllPagesList;
   },
 
   doOpenSearch: function doOpenSearch(aName) {
@@ -713,10 +721,9 @@ var BrowserUI = {
 
     let engine = Services.search.getEngineByName(aName);
     let submission = engine.getSubmission(searchValue, null);
+    Browser.selectedBrowser.userTypedValue = submission.uri.spec;
     Browser.loadURI(submission.uri.spec, { postData: submission.postData });
 
-    // loadURI may open a new tab, so get the selectedBrowser afterward.
-    Browser.selectedBrowser.userTypedValue = submission.uri.spec;
     this._titleChanged(Browser.selectedBrowser);
   },
 
@@ -728,23 +735,16 @@ var BrowserUI = {
   updateStar: function() {
     let uri = getBrowser().currentURI;
     if (uri.spec == "about:blank") {
-      this._setStar(false);
+      this.starButton.removeAttribute("starred");
       return;
     }
 
-    PlacesUtils.asyncGetBookmarkIds(uri, function(aItemIds) {
-      this._setStar(aItemIds.length > 0)
-    }, this);
-  },
-
-  _setStar: function _setStar(aIsStarred) {
-    let buttons = document.getElementsByClassName("tool-star");
-    for (let i = 0; i < buttons.length; i++) {
-      if (aIsStarred)
-        buttons[i].setAttribute("starred", "true");
+    PlacesUtils.asyncGetBookmarkIds(uri, function (aItemIds) {
+      if (aItemIds.length)
+        this.starButton.setAttribute("starred", "true");
       else
-        buttons[i].removeAttribute("starred");
-    }
+        this.starButton.removeAttribute("starred");
+    }, this);
   },
 
   newTab: function newTab(aURI, aOwner) {
@@ -783,9 +783,8 @@ var BrowserUI = {
   },
 
   selectTab: function selectTab(aTab) {
-    AwesomeScreen.activePanel = null;
+    this.activePanel = null;
     Browser.selectedTab = aTab;
-    Elements.tabList.removeClosedTab();
   },
 
   undoCloseTab: function undoCloseTab(aIndex) {
@@ -805,8 +804,8 @@ var BrowserUI = {
   },
 
   showPanel: function showPanel(aPanelId) {
-    if (AwesomeScreen.activePanel)
-      AwesomeScreen.activePanel = null; // Hide the awesomescreen.
+    if (this.activePanel)
+      this.activePanel = null; // Hide the awesomescreen.
 
     Elements.panelUI.left = 0;
     Elements.panelUI.hidden = false;
@@ -840,8 +839,8 @@ var BrowserUI = {
 
   switchTask: function switchTask() {
     try {
-      let shell = Cc["@mozilla.org/browser/shell-service;1"].createInstance(Ci.nsIShellService);
-      shell.switchTask();
+      let phone = Cc["@mozilla.org/phone/support;1"].createInstance(Ci.nsIPhoneSupport);
+      phone.switchTask();
     } catch(e) { }
   },
 
@@ -854,16 +853,16 @@ var BrowserUI = {
       return;
     }
 
-    // Check open dialogs
-    let dialog = this.activeDialog;
-    if (dialog && dialog != AwesomeScreen.activePanel) {
-      dialog.close();
+    // Check active panel
+    if (this.activePanel) {
+      this.activePanel = null;
       return;
     }
 
-    // Check active panel
-    if (AwesomeScreen.activePanel) {
-      AwesomeScreen.activePanel = null;
+    // Check open dialogs
+    let dialog = this.activeDialog;
+    if (dialog) {
+      dialog.close();
       return;
     }
 
@@ -912,14 +911,18 @@ var BrowserUI = {
         this._tabSelect(aEvent);
         break;
       case "TabOpen":
-        Elements.tabList.removeClosedTab();
-        Browser.hidePartialTabSidebar();
-        break;
       case "TabRemove":
-        Browser.hidePartialTabSidebar();
+      {
+        // Workaround to hide the tabstrip if it is partially visible
+        // See bug 524469 and bug 626660
+        let [tabsVisibility,,,] = Browser.computeSidebarVisibility();
+        if (tabsVisibility > 0.0 && tabsVisibility < 1.0)
+          Browser.hideSidebars();
+
         break;
-      case "PanFinished": {
-        let tabs = Elements.tabList;
+      }
+      case "PanFinished":
+        let tabs = document.getElementById("tabs");
         let [tabsVisibility,,oldLeftWidth, oldRightWidth] = Browser.computeSidebarVisibility();
         if (tabsVisibility == 0.0 && tabs.hasClosedTab) {
           let { x: x1, y: y1 } = Browser.getScrollboxPosition(Browser.controlsScrollboxScroller);
@@ -937,7 +940,6 @@ var BrowserUI = {
           Browser.tryFloatToolbar(0, 0);
         }
         break;
-      }
       case "SizeChanged":
         this.sizeControls(ViewableAreaObserver.width, ViewableAreaObserver.height);
         break;
@@ -953,7 +955,7 @@ var BrowserUI = {
             this.doCommand("cmd_menu");
             break;
           case "Search":
-            if (!AwesomeScreen.activePanel)
+            if (!this.activePanel)
               AllPagesList.doCommand();
             else
               this.doCommand("cmd_opensearch");
@@ -1018,35 +1020,6 @@ var BrowserUI = {
         return this._domWindowClose(browser);
         break;
       case "DOMLinkAdded":
-        // checks for an icon to use for a web app
-        // apple-touch-icon size is 57px and default size is 16px
-        let rel = json.rel.toLowerCase().split(" ");
-        if (rel.indexOf("icon") != -1) {
-          // We use the sizes attribute if available
-          // see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#rel-icon
-          let size = 16;
-          if (json.sizes) {
-            let sizes = json.sizes.toLowerCase().split(" ");
-            sizes.forEach(function(item) {
-              if (item != "any") {
-                let [w, h] = item.split("x");
-                size = Math.max(Math.min(w, h), size);
-              }
-            });
-          }
-          if (size > browser.appIcon.size) {
-            browser.appIcon.href = json.href;
-            browser.appIcon.size = size;
-          }
-        }
-        else if ((rel.indexOf("apple-touch-icon") != -1) && (browser.appIcon.size < 57)) {
-          // XXX should we support apple-touch-icon-precomposed ?
-          // see http://developer.apple.com/safari/library/documentation/appleapplications/reference/safariwebcontent/configuringwebapplications/configuringwebapplications.html
-          browser.appIcon.href = json.href;
-          browser.appIcon.size = 57;
-        }
-
-        // Handle favicon changes
         if (Browser.selectedBrowser == browser)
           this._updateIcon(Browser.selectedBrowser.mIconURL);
         break;
@@ -1119,7 +1092,6 @@ var BrowserUI = {
       case "cmd_quit":
       case "cmd_close":
       case "cmd_menu":
-      case "cmd_showTabs":
       case "cmd_newTab":
       case "cmd_closeTab":
       case "cmd_undoCloseTab":
@@ -1188,7 +1160,8 @@ var BrowserUI = {
       case "cmd_star":
       {
         BookmarkPopup.toggle();
-        this._setStar(true);
+        if (!this.starButton.hasAttribute("starred"))
+          this.starButton.setAttribute("starred", "true");
 
         let bookmarkURI = browser.currentURI;
         PlacesUtils.asyncGetBookmarkIds(bookmarkURI, function (aItemIds) {
@@ -1217,34 +1190,43 @@ var BrowserUI = {
         BrowserSearch.toggle();
         break;
       case "cmd_bookmarks":
-        AwesomeScreen.activePanel = BookmarkList;
+        this.activePanel = BookmarkList;
         break;
       case "cmd_history":
-        AwesomeScreen.activePanel = HistoryList;
+        this.activePanel = HistoryList;
         break;
       case "cmd_remoteTabs":
         if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
-          // We have to set activePanel before showing sync's dialog
-          // to make the sure the dialog stacking is correct.
-          AwesomeScreen.activePanel = RemoteTabsList;
           WeaveGlue.open();
-        } else {
-          AwesomeScreen.activePanel = RemoteTabsList;
+        } else if (!Weave.Service.isLoggedIn && !Services.prefs.getBoolPref("browser.sync.enabled")) {
+          // unchecked the relative command button
+          document.getElementById("remotetabs-button").removeAttribute("checked");
+          this.activePanel = null;
+
+          BrowserUI.showPanel("prefs-container");
+          let prefsBox = document.getElementById("prefs-list");
+          let syncArea = document.getElementById("prefs-sync");
+          if (prefsBox && syncArea) {
+            let prefsBoxY = prefsBox.firstChild.boxObject.screenY;
+            let syncAreaY = syncArea.boxObject.screenY;
+            setTimeout(function() {
+              prefsBox.scrollBoxObject.scrollTo(0, syncAreaY - prefsBoxY);
+            }, 0);
+          }
+
+          return;
         }
 
+        this.activePanel = RemoteTabsList;
         break;
       case "cmd_quit":
-        // Only close one window
-        this._closeOrQuit();
+        GlobalOverlay.goQuitApplication();
         break;
       case "cmd_close":
         this._closeOrQuit();
         break;
       case "cmd_menu":
         AppMenu.toggle();
-        break;
-      case "cmd_showTabs":
-        TabsPopup.toggle();
         break;
       case "cmd_newTab":
         this.newTab();

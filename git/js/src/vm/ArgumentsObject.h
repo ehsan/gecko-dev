@@ -47,6 +47,8 @@
 class GetPropCompiler;
 #endif
 
+#define JS_ARGUMENTS_OBJECT_ON_TRACE ((void *)0xa126)
+
 #ifdef JS_TRACER
 namespace nanojit {
 class ValidateWriter;
@@ -60,7 +62,6 @@ struct VMFrame;
 namespace mjit {
 namespace ic {
 struct PICInfo;
-struct GetElementIC;
 
 /* Aargh, Windows. */
 #ifdef GetProp
@@ -149,7 +150,7 @@ class ArgumentsObject : public ::JSObject
     static const uint32 INITIAL_LENGTH_SLOT = 0;
     static const uint32 DATA_SLOT = 1;
 
-  public:
+  protected:
     static const uint32 RESERVED_SLOTS = 2;
 
   private:
@@ -180,7 +181,6 @@ class ArgumentsObject : public ::JSObject
 #endif
 #ifdef JS_POLYIC
     friend class ::GetPropCompiler;
-    friend struct mjit::ic::GetElementIC;
 #endif
 
     void setInitialLength(uint32 length);
@@ -225,16 +225,9 @@ class ArgumentsObject : public ::JSObject
     inline js::ArgumentsData *data() const;
 
     inline const js::Value &element(uint32 i) const;
-    inline const js::Value *elements() const;
+    inline js::Value *elements() const;
+    inline js::Value *addressOfElement(uint32 i);
     inline void setElement(uint32 i, const js::Value &v);
-
-    /* The stack frame for this ArgumentsObject, if the frame is still active. */
-    inline js::StackFrame *maybeStackFrame() const;
-    inline void setStackFrame(js::StackFrame *frame);
-
-    inline bool onTrace() const;
-    inline void setOnTrace();
-    inline void clearOnTrace();
 };
 
 /*
@@ -246,6 +239,8 @@ class ArgumentsObject : public ::JSObject
  */
 class NormalArgumentsObject : public ArgumentsObject
 {
+    static js::Class jsClass;
+
     friend bool JSObject::isNormalArguments() const;
     friend struct EmptyShape; // for EmptyShape::getEmptyArgumentsShape
     friend ArgumentsObject *
@@ -270,12 +265,20 @@ class NormalArgumentsObject : public ArgumentsObject
  */
 class StrictArgumentsObject : public ArgumentsObject
 {
+    static js::Class jsClass;
+
     friend bool JSObject::isStrictArguments() const;
     friend ArgumentsObject *
     ArgumentsObject::create(JSContext *cx, uint32 argc, JSObject &callee);
 };
 
 } // namespace js
+
+inline bool
+JSObject::isNormalArguments() const
+{
+    return getClass() == &js::NormalArgumentsObject::jsClass;
+}
 
 js::NormalArgumentsObject *
 JSObject::asNormalArguments()
@@ -284,11 +287,23 @@ JSObject::asNormalArguments()
     return reinterpret_cast<js::NormalArgumentsObject *>(this);
 }
 
+inline bool
+JSObject::isStrictArguments() const
+{
+    return getClass() == &js::StrictArgumentsObject::jsClass;
+}
+
 js::StrictArgumentsObject *
 JSObject::asStrictArguments()
 {
     JS_ASSERT(isStrictArguments());
     return reinterpret_cast<js::StrictArgumentsObject *>(this);
+}
+
+inline bool
+JSObject::isArguments() const
+{
+    return isNormalArguments() || isStrictArguments();
 }
 
 js::ArgumentsObject *

@@ -61,6 +61,7 @@ CPPSRCS = \
   nsHyperTextAccessibleWrap.cpp \
   nsHTMLImageAccessibleWrap.cpp \
   nsHTMLTableAccessibleWrap.cpp \
+  nsAccessibleRelationWrap.cpp \
   nsApplicationAccessibleWrap.cpp \
   nsWinUtils.cpp \
   CAccessibleAction.cpp \
@@ -70,7 +71,6 @@ CPPSRCS = \
   CAccessibleEditableText.cpp \
   CAccessibleHyperlink.cpp \
   CAccessibleHypertext.cpp \
-  ia2AccessibleRelation.cpp \
   CAccessibleTable.cpp \
   CAccessibleTableCell.cpp \
   CAccessibleValue.cpp \
@@ -90,6 +90,7 @@ EXPORTS = \
   nsHyperTextAccessibleWrap.h \
   nsHTMLImageAccessibleWrap.h \
   nsHTMLTableAccessibleWrap.h \
+  nsAccessibleRelationWrap.h \
   nsApplicationAccessibleWrap.h \
   CAccessibleAction.h \
   CAccessibleImage.h \
@@ -106,8 +107,6 @@ EXPORTS = \
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
@@ -115,6 +114,5 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../base \
   -I$(srcdir)/../html \
   -I$(srcdir)/../xul \
-  -I$(srcdir)/../../../content/base/src \
-  -I$(srcdir)/../../../content/events/src \
   $(NULL)
+

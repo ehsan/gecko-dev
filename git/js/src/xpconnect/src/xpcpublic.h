@@ -41,16 +41,12 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "jsobj.h"
 #include "jsgc.h"
-#include "jspubtd.h"
 
 #include "nsISupports.h"
 #include "nsIPrincipal.h"
 #include "nsWrapperCache.h"
-#include "nsStringGlue.h"
-#include "nsTArray.h"
 
 class nsIPrincipal;
 
@@ -75,8 +71,11 @@ xpc_LocalizeContext(JSContext *cx);
 nsresult
 xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
+extern JSBool
+XPC_WN_Equality(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
+
 #define IS_WRAPPER_CLASS(clazz)                                               \
-    ((clazz)->ext.isWrappedNative)
+    (clazz->ext.equality == js::Valueify(XPC_WN_Equality))
 
 inline JSBool
 DebugCheckWrapperClass(JSObject* obj)
@@ -183,84 +182,5 @@ nsWrapperCache::GetWrapper() const
   xpc_UnmarkGrayObject(obj);
   return obj;
 }
-
-class nsIMemoryMultiReporterCallback;
-
-namespace mozilla {
-namespace xpconnect {
-namespace memory {
-
-struct CompartmentStats
-{
-    CompartmentStats(JSContext *cx, JSCompartment *c);
-
-    nsCString name;
-    PRInt64 gcHeapArenaHeaders;
-    PRInt64 gcHeapArenaPadding;
-    PRInt64 gcHeapArenaUnused;
-
-    PRInt64 gcHeapKinds[JSTRACE_LAST + 1];
-
-    PRInt64 objectSlots;
-    PRInt64 stringChars;
-    PRInt64 propertyTables;
-    PRInt64 shapeKids;
-    PRInt64 scriptData;
-
-#ifdef JS_METHODJIT
-    PRInt64 mjitCodeMethod;
-    PRInt64 mjitCodeRegexp;
-    PRInt64 mjitCodeUnused;
-    PRInt64 mjitData;
-#endif
-#ifdef JS_TRACER
-    PRInt64 tjitCode;
-    PRInt64 tjitDataAllocatorsMain;
-    PRInt64 tjitDataAllocatorsReserve;
-    PRInt64 tjitDataNonAllocators;
-#endif
-    TypeInferenceMemoryStats typeInferenceMemory;
-};
-
-struct IterateData
-{
-    IterateData()
-      : runtimeObjectSize(0),
-        atomsTableSize(0),
-        stackSize(0),
-        gcHeapChunkTotal(0),
-        gcHeapChunkCleanUnused(0),
-        gcHeapChunkDirtyUnused(0),
-        gcHeapArenaUnused(0),
-        gcHeapChunkAdmin(0),
-        gcHeapUnusedPercentage(0),
-        compartmentStatsVector(),
-        currCompartmentStats(NULL) { }
-
-    PRInt64 runtimeObjectSize;
-    PRInt64 atomsTableSize;
-    PRInt64 stackSize;
-    PRInt64 gcHeapChunkTotal;
-    PRInt64 gcHeapChunkCleanUnused;
-    PRInt64 gcHeapChunkDirtyUnused;
-    PRInt64 gcHeapArenaUnused;
-    PRInt64 gcHeapChunkAdmin;
-    PRInt64 gcHeapUnusedPercentage;
-
-    nsTArray<CompartmentStats> compartmentStatsVector;
-    CompartmentStats *currCompartmentStats;
-};
-
-JSBool
-CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data);
-
-void
-ReportJSRuntimeStats(const IterateData &data, const nsACString &pathPrefix,
-                     nsIMemoryMultiReporterCallback *callback,
-                     nsISupports *closure);
-
-} // namespace memory
-} // namespace xpconnect
-} // namespace mozilla
 
 #endif

@@ -210,7 +210,7 @@ TabMatcher.prototype = {
   _filterForUnmatches: function TabMatcher__filterForUnmatches(tabs) {
     var self = this;
     return tabs.filter(function(tab) {
-      let name = tab.$tabTitle[0].textContent;
+      var name = tab.$tabTitle[0].innerHTML;
       let url = TabUtils.URLOf(tab);
       return !name.match(self.term, "i") && !url.match(self.term, "i");
     });
@@ -230,8 +230,17 @@ TabMatcher.prototype = {
     while (enumerator.hasMoreElements()) {
       var win = enumerator.getNext();
       // This function gets tabs from other windows, not from the current window
-      if (win != gWindow)
-        allTabs.push.apply(allTabs, win.gBrowser.tabs);
+      if (win != gWindow) {
+        // If TabView is around iterate over all tabs, else get the currently
+        // shown tabs...
+        let tvWindow = win.TabView.getContentWindow();
+        if (tvWindow)
+          allTabs = allTabs.concat(tvWindow.TabItems.getItems());
+        else
+          // win.gBrowser.tabs isn't a proper array, so we can't use concat
+          for (let i = 0; i < win.gBrowser.tabs.length; i++)
+            allTabs.push(win.gBrowser.tabs[i]);
+      }
     }
     return allTabs;
   },
@@ -520,9 +529,6 @@ function createSearchTabMacher() {
 }
 
 function hideSearch(event) {
-  if (!isSearchEnabled())
-    return;
-
   iQ("#searchbox").val("");
   iQ("#searchshade").hide();
   iQ("#search").hide();
@@ -588,7 +594,8 @@ function ensureSearchShown(activatedByKeypress) {
 
     // NOTE: when this function is called by keydown handler, next keypress
     // event or composition events of IME will be fired on the focused editor.
-    let dispatchTabViewSearchEnabledEvent = function dispatchTabViewSearchEnabledEvent() {
+
+    function dispatchTabViewSearchEnabledEvent() {
       let newEvent = document.createEvent("Events");
       newEvent.initEvent("tabviewsearchenabled", false, false);
       dispatchEvent(newEvent);
@@ -597,7 +604,7 @@ function ensureSearchShown(activatedByKeypress) {
     if (activatedByKeypress) {
       // set the focus so key strokes are entered into the textbox.
       $searchbox[0].focus();
-      dispatchTabViewSearchEnabledEvent();
+      dispatchTabViewSearchEnabledEvent(); 
     } else {
       // marshal the focusing, otherwise it ends up with searchbox[0].focus gets
       // called before the search button gets the focus after being pressed.

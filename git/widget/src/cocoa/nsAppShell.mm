@@ -61,15 +61,13 @@
 #include "nsCocoaUtils.h"
 #include "nsChildView.h"
 #include "nsToolkit.h"
-#include "TextInputHandler.h"
 
 #include "npapi.h"
-
-using namespace mozilla::widget;
 
 // defined in nsChildView.mm
 extern nsIRollupListener * gRollupListener;
 extern nsIWidget         * gRollupWidget;
+extern PRUint32          gLastModifierState;
 
 // defined in nsCocoaWindow.mm
 extern PRInt32             gXULModalLevel;
@@ -339,7 +337,7 @@ nsAppShell::Init()
   rv = nsBaseAppShell::Init();
 
 #ifndef NP_NO_CARBON
-  TextInputHandler::InstallPluginKeyEventsHandler();
+  NS_InstallPluginKeyEventsHandler();
 #endif
 
   gCocoaAppModalWindowList = new nsCocoaAppModalWindowList;
@@ -794,7 +792,7 @@ nsAppShell::Exit(void)
   gCocoaAppModalWindowList = NULL;
 
 #ifndef NP_NO_CARBON
-  TextInputHandler::RemovePluginKeyEventsHandler();
+  NS_RemovePluginKeyEventsHandler();
 #endif
 
   // Quoting from Apple's doc on the [NSApplication stop:] method (from their
@@ -949,9 +947,8 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 
 // applicationDidBecomeActive
 //
-// Make sure TextInputHandler::sLastModifierState is updated when we become
-// active (since we won't have received [ChildView flagsChanged:] messages
-// while inactive).
+// Make sure gLastModifierState is updated when we become active (since we
+// won't have received [ChildView flagsChanged:] messages while inactive).
 - (void)applicationDidBecomeActive:(NSNotification*)aNotification
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -960,8 +957,7 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   // to worry about getting an NSInternalInconsistencyException here.
   NSEvent* currentEvent = [NSApp currentEvent];
   if (currentEvent) {
-    TextInputHandler::sLastModifierState =
-      [currentEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
+    gLastModifierState = [currentEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;

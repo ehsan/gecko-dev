@@ -313,7 +313,6 @@ private:
   nsIDOMCSSValue* DoGetMozTextDecorationLine();
   nsIDOMCSSValue* DoGetMozTextDecorationStyle();
   nsIDOMCSSValue* DoGetTextIndent();
-  nsIDOMCSSValue* DoGetTextOverflow();
   nsIDOMCSSValue* DoGetTextTransform();
   nsIDOMCSSValue* DoGetTextShadow();
   nsIDOMCSSValue* DoGetLetterSpacing();
@@ -347,10 +346,6 @@ private:
   nsIDOMCSSValue* DoGetPageBreakBefore();
   nsIDOMCSSValue* DoGetMozTransform();
   nsIDOMCSSValue* DoGetMozTransformOrigin();
-  nsIDOMCSSValue* DoGetMozPerspective();
-  nsIDOMCSSValue* DoGetMozBackfaceVisibility();
-  nsIDOMCSSValue* DoGetMozPerspectiveOrigin();
-  nsIDOMCSSValue* DoGetMozTransformStyle();
   nsIDOMCSSValue* DoGetOrient();
 
   /* User interface properties */
@@ -376,6 +371,7 @@ private:
   nsIDOMCSSValue* DoGetTransitionDelay();
   nsIDOMCSSValue* DoGetTransitionTimingFunction();
 
+#ifdef MOZ_CSS_ANIMATIONS
   /* CSS Animations */
   nsIDOMCSSValue* DoGetAnimationName();
   nsIDOMCSSValue* DoGetAnimationDuration();
@@ -385,6 +381,7 @@ private:
   nsIDOMCSSValue* DoGetAnimationFillMode();
   nsIDOMCSSValue* DoGetAnimationIterationCount();
   nsIDOMCSSValue* DoGetAnimationPlayState();
+#endif
 
   /* SVG properties */
   nsIDOMCSSValue* DoGetFill();

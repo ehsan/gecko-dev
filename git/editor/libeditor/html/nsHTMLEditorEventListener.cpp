@@ -49,6 +49,7 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMHTMLTableElement.h"
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIContent.h"
@@ -61,14 +62,18 @@
 /*
  * nsHTMLEditorEventListener implementation
  *
+ * The only reason we need this is so a context mouse-click
+ *  moves the caret or selects an element as it does for normal click
  */
 
 #ifdef DEBUG
 nsresult
 nsHTMLEditorEventListener::Connect(nsEditor* aEditor)
 {
-  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryObject(aEditor);
-  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor = do_QueryObject(aEditor);
+  nsCOMPtr<nsIHTMLEditor> htmlEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
+  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
   NS_PRECONDITION(htmlEditor && htmlInlineTableEditor,
                   "Set nsHTMLEditor or its sub class");
   return nsEditorEventListener::Connect(aEditor);
@@ -129,8 +134,17 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   nsresult res = mouseEvent->GetButton(&buttonNumber);
   NS_ENSURE_SUCCESS(res, res);
 
-  PRBool isContextClick = buttonNumber == 2;
+  PRBool isContextClick;
 
+#if defined(XP_MACOSX)
+  // Ctrl+Click for context menu
+  res = mouseEvent->GetCtrlKey(&isContextClick);
+  NS_ENSURE_SUCCESS(res, res);
+#else
+  // Right mouse button for Windows, UNIX
+  isContextClick = buttonNumber == 2;
+#endif
+  
   PRInt32 clickCount;
   res = mouseEvent->GetDetail(&clickCount);
   NS_ENSURE_SUCCESS(res, res);
@@ -149,13 +163,17 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
     NS_ENSURE_TRUE(selection, NS_OK);
 
     // Get location of mouse within target node
+    nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
+    NS_ENSURE_TRUE(uiEvent, NS_ERROR_FAILURE);
+
     nsCOMPtr<nsIDOMNode> parent;
-    res = mouseEvent->GetRangeParent(getter_AddRefs(parent));
+    PRInt32 offset = 0;
+
+    res = uiEvent->GetRangeParent(getter_AddRefs(parent));
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
 
-    PRInt32 offset = 0;
-    res = mouseEvent->GetRangeOffset(&offset);
+    res = uiEvent->GetRangeOffset(&offset);
     NS_ENSURE_SUCCESS(res, res);
 
     // Detect if mouse point is within current selection for context click
@@ -227,8 +245,14 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
           }
         }
 
-        if (isContextClick && !nsHTMLEditUtils::IsImage(node))
+// XXX: should we call nsHTMLEditUtils::IsTableElement here?
+// that also checks for thead, tbody, tfoot
+        if (nsTextEditUtils::IsBody(node) ||
+            nsHTMLEditUtils::IsTableCellOrCaption(node) ||
+            nsHTMLEditUtils::IsTableRow(node) ||
+            nsHTMLEditUtils::IsTable(node))
         {
+          // This will place caret just inside table cell or at start of body
           selection->Collapse(parent, offset);
         }
         else

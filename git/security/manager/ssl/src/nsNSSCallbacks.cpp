@@ -127,10 +127,6 @@ nsHTTPDownloadEvent::Run()
   ios->NewChannel(mRequestSession->mURL, nsnull, nsnull, getter_AddRefs(chan));
   NS_ENSURE_STATE(chan);
 
-  // Disabled because it breaks authentication with a proxy, when such proxy
-  // had been setup, and brings blue UI for EV certs.
-  // chan->SetLoadFlags(nsIRequest::LOAD_ANONYMOUS);
-
   // Create a loadgroup for this new channel.  This way if the channel
   // is redirected, we'll have a way to cancel the resulting channel.
   nsCOMPtr<nsILoadGroup> lg = do_CreateInstance(NS_LOADGROUP_CONTRACTID);
@@ -440,7 +436,7 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
 
       if (!request_canceled)
       {
-        PRBool wantExit = nsSSLThread::stoppedOrStopping();
+        PRBool wantExit = nsSSLThread::exitRequested();
         PRBool timeout = 
           (PRIntervalTime)(PR_IntervalNow() - start_time) > mTimeoutInterval;
 
@@ -811,9 +807,7 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
       rv = NS_ERROR_NOT_AVAILABLE;
     }
     else {
-      // Although the exact value is ignored, we must not pass invalid
-      // PRBool values through XPConnect.
-      PRBool checkState = PR_FALSE;
+      PRBool checkState;
       rv = proxyPrompt->PromptPassword(nsnull, promptString.get(),
                                        &password, nsnull, &checkState, &value);
     }
@@ -1040,70 +1034,6 @@ static struct nsSerialBinaryBlacklistEntry myUTNBlacklistEntries[] = {
   { 0, 0 } // end marker
 };
 
-// Call this if we have already decided that a cert should be treated as INVALID,
-// in order to check if we to worsen the error to REVOKED.
-PRErrorCode
-PSM_SSL_DigiNotarTreatAsRevoked(CERTCertificate * serverCert,
-                                CERTCertList * serverCertChain)
-{
-  // If any involved cert was issued by DigiNotar, 
-  // and serverCert was issued after 01-JUL-2011,
-  // then worsen the error to revoked.
-  
-  PRTime cutoff = 0;
-  PRStatus status = PR_ParseTimeString("01-JUL-2011 00:00", PR_TRUE, &cutoff);
-  if (status != PR_SUCCESS) {
-    NS_ASSERTION(status == PR_SUCCESS, "PR_ParseTimeString failed");
-    // be safe, assume it's afterwards, keep going
-  } else {
-    PRTime notBefore = 0, notAfter = 0;
-    if (CERT_GetCertTimes(serverCert, &notBefore, &notAfter) == SECSuccess &&
-           notBefore < cutoff) {
-      // no worsening for certs issued before the cutoff date
-      return 0;
-    }
-  }
-  
-  for (CERTCertListNode *node = CERT_LIST_HEAD(serverCertChain);
-       !CERT_LIST_END(node, serverCertChain);
-       node = CERT_LIST_NEXT(node)) {
-    if (node->cert->issuerName &&
-        strstr(node->cert->issuerName, "CN=DigiNotar")) {
-      return SEC_ERROR_REVOKED_CERTIFICATE;
-    }
-  }
-  
-  return 0;
-}
-
-// Call this only if a cert has been reported by NSS as VALID
-PRErrorCode
-PSM_SSL_BlacklistDigiNotar(CERTCertificate * serverCert,
-                           CERTCertList * serverCertChain)
-{
-  PRBool isDigiNotarIssuedCert = PR_FALSE;
-
-  for (CERTCertListNode *node = CERT_LIST_HEAD(serverCertChain);
-       !CERT_LIST_END(node, serverCertChain);
-       node = CERT_LIST_NEXT(node)) {
-    if (!node->cert->issuerName)
-      continue;
-
-    if (strstr(node->cert->issuerName, "CN=DigiNotar")) {
-      isDigiNotarIssuedCert = PR_TRUE;
-    }
-  }
-
-  if (isDigiNotarIssuedCert) {
-    // let's see if we want to worsen the error code to revoked.
-    PRErrorCode revoked_code = PSM_SSL_DigiNotarTreatAsRevoked(serverCert, serverCertChain);
-    return (revoked_code != 0) ? revoked_code : SEC_ERROR_UNTRUSTED_ISSUER;
-  }
-
-  return 0;
-}
-
-
 SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
                                               PRBool checksig, PRBool isServer) {
   nsNSSShutDownPreventionLock locker;
@@ -1149,7 +1079,7 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
       }
     }
   }
-
+  
   SECStatus rv = PSM_SSL_PKIX_AuthCertificate(fd, serverCert, checksig, isServer);
 
   // We want to remember the CA certs in the temp db, so that the application can find the
@@ -1165,37 +1095,14 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
       nsc = nsNSSCertificate::Create(serverCert);
     }
 
-    CERTCertList *certList = nsnull;
-    certList = CERT_GetCertChainFromCert(serverCert, PR_Now(), certUsageSSLCA);
-    if (!certList) {
-      rv = SECFailure;
-    } else {
-      PRErrorCode blacklistErrorCode;
-      if (rv == SECSuccess) { // PSM_SSL_PKIX_AuthCertificate said "valid cert"
-        blacklistErrorCode = PSM_SSL_BlacklistDigiNotar(serverCert, certList);
-      } else { // PSM_SSL_PKIX_AuthCertificate said "invalid cert"
-        PRErrorCode savedErrorCode = PORT_GetError();
-        // Check if we want to worsen the error code to "revoked".
-        blacklistErrorCode = PSM_SSL_DigiNotarTreatAsRevoked(serverCert, certList);
-        if (blacklistErrorCode == 0) {
-          // we don't worsen the code, let's keep the original error code from NSS
-          PORT_SetError(savedErrorCode);
-        }
-      }
-      
-      if (blacklistErrorCode != 0) {
-        infoObject->SetCertIssuerBlacklisted();
-        PORT_SetError(blacklistErrorCode);
-        rv = SECFailure;
-      }
-    }
-
-    if (rv == SECSuccess) {
+    if (SECSuccess == rv) {
       if (nsc) {
         PRBool dummyIsEV;
         nsc->GetIsExtendedValidation(&dummyIsEV); // the nsc object will cache the status
       }
     
+      CERTCertList *certList = CERT_GetCertChainFromCert(serverCert, PR_Now(), certUsageSSLCA);
+
       nsCOMPtr<nsINSSComponent> nssComponent;
       
       for (CERTCertListNode *node = CERT_LIST_HEAD(certList);
@@ -1231,9 +1138,6 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
         PR_FREEIF(nickname);
       }
 
-    }
-
-    if (certList) {
       CERT_DestroyCertList(certList);
     }
 

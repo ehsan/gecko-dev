@@ -64,8 +64,6 @@
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
-#include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
@@ -150,7 +148,7 @@ namespace imagelib {
 class imgDecodeWorker;
 class Decoder;
 
-class RasterImage : public Image
+class RasterImage : public mozilla::imagelib::Image
                   , public nsITimerCallback
                   , public nsIProperties
                   , public nsSupportsWeakReference
@@ -211,10 +209,8 @@ public:
   /* The total number of frames in this image. */
   PRUint32 GetNumFrames();
 
-  virtual PRUint32 GetDecodedHeapSize();
-  virtual PRUint32 GetDecodedNonheapSize();
-  virtual PRUint32 GetDecodedOutOfProcessSize();
-  virtual PRUint32 GetSourceHeapSize();
+  PRUint32 GetDecodedDataSize();
+  PRUint32 GetSourceDataSize();
 
   /* Triggers discarding. */
   void Discard(bool force = false);
@@ -234,31 +230,29 @@ public:
    */
   nsresult SetSize(PRInt32 aWidth, PRInt32 aHeight);
 
+  nsresult EnsureCleanFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
+                            PRInt32 aWidth, PRInt32 aHeight,
+                            gfxASurface::gfxImageFormat aFormat,
+                            PRUint8** imageData,
+                            PRUint32* imageLength);
 
   /**
-   * Ensures that a given frame number exists with the given parameters, and
-   * returns pointers to the data storage for that frame.
-   * It is not possible to create sparse frame arrays; you can only append
-   * frames to the current frame array.
+   * Adds to the end of the list of frames.
    */
-  nsresult EnsureFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
-                       PRInt32 aWidth, PRInt32 aHeight,
-                       gfxASurface::gfxImageFormat aFormat,
-                       PRUint8 aPaletteDepth,
-                       PRUint8** imageData,
-                       PRUint32* imageLength,
-                       PRUint32** paletteData,
-                       PRUint32* paletteLength);
-
-  /**
-   * A shorthand for EnsureFrame, above, with aPaletteDepth = 0 and paletteData
-   * and paletteLength set to null.
-   */
-  nsresult EnsureFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
+  nsresult AppendFrame(PRInt32 aX, PRInt32 aY,
                        PRInt32 aWidth, PRInt32 aHeight,
                        gfxASurface::gfxImageFormat aFormat,
                        PRUint8** imageData,
                        PRUint32* imageLength);
+
+  nsresult AppendPalettedFrame(PRInt32 aX, PRInt32 aY,
+                               PRInt32 aWidth, PRInt32 aHeight,
+                               gfxASurface::gfxImageFormat aFormat,
+                               PRUint8 aPaletteDepth,
+                               PRUint8**  imageData,
+                               PRUint32*  imageLength,
+                               PRUint32** paletteData,
+                               PRUint32*  paletteLength);
 
   void FrameUpdated(PRUint32 aFrameNum, nsIntRect& aUpdatedRect);
 
@@ -282,10 +276,10 @@ public:
   nsresult AddSourceData(const char *aBuffer, PRUint32 aCount);
 
   /* Called after the all the source data has been added with addSourceData. */
-  nsresult SourceDataComplete();
+  virtual nsresult SourceDataComplete();
 
   /* Called for multipart images when there's a new source image to add. */
-  nsresult NewSourceData();
+  virtual nsresult NewSourceData();
 
   /**
    * A hint of the number of bytes of source data that the image contains. If
@@ -298,7 +292,7 @@ public:
    * Thus, pre-allocation simplifies code and reduces the total number of
    * allocations.
    */
-  nsresult SetSourceSizeHint(PRUint32 sizeHint);
+  virtual nsresult SetSourceSizeHint(PRUint32 sizeHint);
 
   // "Blend" method indicates how the current image is combined with the
   // previous image.
@@ -379,14 +373,13 @@ private:
    */
   void DeleteImgFrame(PRUint32 framenum);
 
-  imgFrame* GetImgFrameNoDecode(PRUint32 framenum);
   imgFrame* GetImgFrame(PRUint32 framenum);
   imgFrame* GetDrawableImgFrame(PRUint32 framenum);
   imgFrame* GetCurrentImgFrame();
   imgFrame* GetCurrentDrawableImgFrame();
   PRUint32 GetCurrentImgFrameIndex() const;
   
-  inline void EnsureAnimExists()
+  inline Anim* ensureAnimExists()
   {
     if (!mAnim) {
 
@@ -404,6 +397,7 @@ private:
       // is acceptable for the moment.
       LockImage();
     }
+    return mAnim;
   }
   
   /** Function for doing the frame compositing of animations
@@ -492,7 +486,7 @@ private: // data
   DiscardTrackerNode         mDiscardTrackerNode;
 
   // Source data members
-  FallibleTArray<char>       mSourceData;
+  nsTArray<char>             mSourceData;
   nsCString                  mSourceDataMimeType;
   nsCString                  mURIString;
 
@@ -503,10 +497,6 @@ private: // data
   nsRefPtr<Decoder>              mDecoder;
   nsRefPtr<imgDecodeWorker>      mWorker;
   PRUint32                       mBytesDecoded;
-
-  // How many times we've decoded this image.
-  // This is currently only used for statistics
-  PRInt32                        mDecodeCount;
 
 #ifdef DEBUG
   PRUint32                       mFramesNotified;
@@ -538,7 +528,6 @@ private: // data
   nsresult WriteToDecoder(const char *aBuffer, PRUint32 aCount);
   nsresult DecodeSomeData(PRUint32 aMaxBytes);
   PRBool   IsDecodeFinished();
-  TimeStamp mDrawStartTime;
 
   // Decoder shutdown
   enum eShutdownIntent {
@@ -551,13 +540,13 @@ private: // data
 
   // Helpers
   void DoError();
-  bool CanDiscard();
-  bool CanForciblyDiscard();
-  bool DiscardingActive();
-  bool StoringSourceData();
+  PRBool CanDiscard();
+  PRBool CanForciblyDiscard();
+  PRBool DiscardingActive();
+  PRBool StoringSourceData();
 
 protected:
-  bool ShouldAnimate();
+  PRBool ShouldAnimate();
 };
 
 // XXXdholbert These helper classes should move to be inside the
@@ -580,7 +569,6 @@ class imgDecodeWorker : public nsRunnable
 
   private:
     nsWeakPtr mContainer;
-    TimeDuration mDecodeTime; // the default constructor initializes to 0
 };
 
 // Asynchronous Decode Requestor

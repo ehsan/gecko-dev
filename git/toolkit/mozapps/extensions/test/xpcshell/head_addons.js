@@ -19,8 +19,6 @@ var gInternalManager = null;
 var gAppInfo = null;
 var gAddonsList;
 
-var TEST_UNPACKED = false;
-
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
     // nsIXULAppInfo
@@ -163,7 +161,7 @@ function do_get_addon_root_uri(aProfileDir, aId) {
 }
 
 function do_get_expected_addon_name(aId) {
-  if (TEST_UNPACKED)
+  if (Services.prefs.getBoolPref("extensions.alwaysUnpack"))
     return aId;
   return aId + ".xpi";
 }
@@ -272,11 +270,7 @@ function do_check_author(aActual, aExpected) {
 function do_check_screenshot(aActual, aExpected) {
   do_check_eq(aActual.toString(), aExpected.url);
   do_check_eq(aActual.url, aExpected.url);
-  do_check_eq(aActual.width, aExpected.width);
-  do_check_eq(aActual.height, aExpected.height);
   do_check_eq(aActual.thumbnailURL, aExpected.thumbnailURL);
-  do_check_eq(aActual.thumbnailWidth, aExpected.thumbnailWidth);
-  do_check_eq(aActual.thumbnailHeight, aExpected.thumbnailHeight);
   do_check_eq(aActual.caption, aExpected.caption);
 }
 
@@ -372,12 +366,6 @@ function shutdownManager() {
     if (thr.hasPendingEvents())
       thr.processNextEvent(false);
   }
-
-  // Force the XPIProvider provider to reload since it defines some constants on
-  // load that need to change during tests
-  let scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
-  AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
-  Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
 
 function loadAddonsList() {
@@ -440,20 +428,6 @@ function isExtensionInAddonsList(aDir, aId) {
   return isItemInAddonsList("extensions", aDir, aId);
 }
 
-function check_startup_changes(aType, aIds) {
-  var ids = aIds.slice(0);
-  ids.sort();
-  var changes = AddonManager.getStartupChanges(aType);
-  changes.sort();
-
-  // Remove the default theme if it is in the list
-  var pos = changes.indexOf("{972ce4c6-7e08-4474-a285-3208198ce6fd}");
-  if (pos != -1)
-    changes.splice(pos, 1);
-
-  do_check_eq(JSON.stringify(ids), JSON.stringify(changes));
-}
-
 /**
  * Escapes any occurances of &, ", < or > with XML entities.
  *
@@ -493,7 +467,7 @@ function createInstallRDF(aData) {
   rdf += '<Description about="urn:mozilla:install-manifest">\n';
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
-   "optionsURL", "optionsType", "aboutURL", "iconURL", "icon64URL",
+   "optionsURL", "aboutURL", "iconURL", "icon64URL",
    "skinnable", "bootstrap"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
@@ -595,7 +569,7 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
 
   var dir = aDir.clone();
 
-  if (TEST_UNPACKED) {
+  if (Services.prefs.getBoolPref("extensions.alwaysUnpack")) {
     dir.append(id);
     writeInstallRDFToDir(aData, dir, aExtraFile);
     return dir;
@@ -1087,9 +1061,6 @@ Services.prefs.setBoolPref("extensions.logging.enabled", true);
 // By default only load extensions from the profile install location
 Services.prefs.setIntPref("extensions.enabledScopes", AddonManager.SCOPE_PROFILE);
 
-// By default don't disable add-ons from any scope
-Services.prefs.setIntPref("extensions.autoDisableScopes", 0);
-
 // By default, don't cache add-ons in AddonRepository.jsm
 Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
 
@@ -1132,7 +1103,6 @@ do_register_cleanup(function() {
   while (entry = dirEntries.nextFile) {
     do_throw("Found unexpected file in temporary directory: " + entry.leafName);
   }
-  dirEntries.close();
 
   var testDir = gProfD.clone();
   testDir.append("extensions");

@@ -70,6 +70,7 @@
 #include "nsIServiceManager.h"
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"
+#include "nsITimelineService.h"
 #include "nsFind.h"
 #include "nsDOMError.h"
 #include "nsFocusManager.h"

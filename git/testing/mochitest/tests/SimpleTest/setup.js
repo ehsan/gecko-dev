@@ -37,46 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 TestRunner.logEnabled = true;
-TestRunner.logger = LogController;
-
-/* Helper function */
-parseQueryString = function(encodedString, useArrays) {
-  // strip a leading '?' from the encoded string
-  var qstr = (encodedString[0] == "?") ? encodedString.substring(1) : 
-                                         encodedString;
-  var pairs = qstr.replace(/\+/g, "%20").split(/(\&amp\;|\&\#38\;|\&#x26;|\&)/);
-  var o = {};
-  var decode;
-  if (typeof(decodeURIComponent) != "undefined") {
-    decode = decodeURIComponent;
-  } else {
-    decode = unescape;
-  }
-  if (useArrays) {
-    for (var i = 0; i < pairs.length; i++) {
-      var pair = pairs[i].split("=");
-      if (pair.length !== 2) {
-        continue;
-      }
-      var name = decode(pair[0]);
-      var arr = o[name];
-      if (!(arr instanceof Array)) {
-        arr = [];
-        o[name] = arr;
-      }
-      arr.push(decode(pair[1]));
-    }
-  } else {
-    for (i = 0; i < pairs.length; i++) {
-      pair = pairs[i].split("=");
-      if (pair.length !== 2) {
-        continue;
-      }
-      o[decode(pair[0])] = decode(pair[1]);
-    }
-  }
-  return o;
-};
+TestRunner.logger = new Logger();
 
 // Check the query string for arguments
 var params = parseQueryString(location.search.substring(1), true);
@@ -108,11 +69,6 @@ if (params.timeout) {
 var fileLevel =  params.fileLevel || null;
 var consoleLevel = params.consoleLevel || null;
 
-// loop tells us how many times to run the tests
-if (params.repeat) {
-  TestRunner.repeat = params.repeat;
-} 
-
 // closeWhenDone tells us to call quit.js when complete
 if (params.closeWhenDone) {
   TestRunner.onComplete = goQuitApplication;
@@ -120,8 +76,8 @@ if (params.closeWhenDone) {
 
 // logFile to write our results
 if (params.logFile) {
-  var spl = new SpecialPowersLogger(params.logFile);
-  TestRunner.logger.addListener("mozLogger", fileLevel + "", spl.getLogCallback());
+  MozillaFileLogger.init(params.logFile);
+  TestRunner.logger.addListener("mozLogger", fileLevel + "", MozillaFileLogger.getLogCallback());
 }
 
 // if we get a quiet param, don't log to the console
@@ -135,10 +91,6 @@ if (!params.quiet) {
 var gTestList = [];
 var RunSet = {}
 RunSet.runall = function(e) {
-  // Filter tests to include|exclude tests based on data in params.filter.
-  // This allows for including or excluding tests from the gTestList
-  gTestList = filterTests(params.runOnlyTests, params.excludeTests);
-
   // Which tests we're going to run
   var my_tests = gTestList;
 
@@ -202,7 +154,6 @@ RunSet.runall = function(e) {
   }
   TestRunner.runTests(my_tests);
 }
-
 RunSet.reloadAndRunAll = function(e) {
   e.preventDefault();
   //window.location.hash = "";
@@ -214,65 +165,9 @@ RunSet.reloadAndRunAll = function(e) {
     window.location.href += "&autorun=1";
   } else {
     window.location.href += "?autorun=1";
-  }  
-};
-
-// Test Filtering Code
-
-// Open the file referenced by runOnly|exclude and use that to compare against
-// gTestList.  Return a modified version of gTestList
-function filterTests(runOnly, exclude) {
-  var filteredTests = [];
-  var filterFile = null;
-
-  if (runOnly) {
-    filterFile = runOnly;
-  } else if (exclude) {
-    filterFile = exclude;
-  }
-
-  if (filterFile == null)
-    return gTestList;
-
-  var datafile = "http://mochi.test:8888/" + filterFile;
-  var objXml = new XMLHttpRequest();
-  objXml.open("GET",datafile,false);
-  objXml.send(null);
-  try {
-    var filter = JSON.parse(objXml.responseText);
-  } catch (ex) {
-    dump("INFO | setup.js | error loading or parsing '" + datafile + "'\n");
-    return gTestList;
   }
   
-  for (var i = 0; i < gTestList.length; ++i) {
-    var test_path = gTestList[i];
-    
-    //We use tmp_path to remove leading '/'
-    var tmp_path = test_path.replace(/^\//, '');
-
-    var found = false;
-
-    for (var f in filter) {
-      // Remove leading /tests/ if exists
-      file = f.replace(/^\//, '')
-      file = file.replace(/^tests\//, '')
-      
-      // Match directory or filename, gTestList has tests/<path>
-      if (tmp_path.match("^tests/" + file) != null) {
-        if (runOnly)
-          filteredTests.push(test_path);
-        found = true;
-        break;
-      }
-    }
-
-    if (exclude && !found)
-      filteredTests.push(test_path);
-  }
-
-  return filteredTests;
-}
+};
 
 // UI Stuff
 function toggleVisible(elem) {
@@ -295,7 +190,7 @@ function isVisible(elem) {
 
 function toggleNonTests (e) {
   e.preventDefault();
-  var elems = document.getElementsClassName("non-test");
+  var elems = getElementsByTagAndClassName("*", "non-test");
   for (var i="0"; i<elems.length; i++) {
     toggleVisible(elems[i]);
   }
@@ -308,9 +203,9 @@ function toggleNonTests (e) {
 
 // hook up our buttons
 function hookup() {
-  document.getElementById('runtests').onclick = RunSet.reloadAndRunAll;
-  document.getElementById('toggleNonTests').onclick = toggleNonTests; 
-  // run automatically if autorun specified
+  connect("runtests", "onclick", RunSet, "reloadAndRunAll");
+  connect("toggleNonTests", "onclick", toggleNonTests);
+  // run automatically if
   if (params.autorun) {
     RunSet.runall();
   }

@@ -57,8 +57,6 @@
 #include "nsIServiceManager.h"
 #include "nsIMutableArray.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLSelectListAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +87,7 @@ nsHTMLSelectListAccessible::NativeState()
       state &= ~states::FOCUSED;
     }
   }
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple))
+  if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::multiple))
     state |= states::MULTISELECTABLE | states::EXTSELECTABLE;
 
   return state;
@@ -116,14 +114,14 @@ nsHTMLSelectListAccessible::IsSelect()
 bool
 nsHTMLSelectListAccessible::SelectAll()
 {
-  return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple) ?
+  return mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::multiple) ?
            nsAccessibleWrap::SelectAll() : false;
 }
 
 bool
 nsHTMLSelectListAccessible::UnselectAll()
 {
-  return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple) ?
+  return mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::multiple) ?
            nsAccessibleWrap::UnselectAll() : false;
 }
 
@@ -155,8 +153,8 @@ nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
     }
 
     nsCOMPtr<nsIAtom> tag = childContent->Tag();
-    if (tag == nsGkAtoms::option ||
-        tag == nsGkAtoms::optgroup) {
+    if (tag == nsAccessibilityAtoms::option ||
+        tag == nsAccessibilityAtoms::optgroup) {
 
       // Get an accessible for option or optgroup and cache it.
       nsRefPtr<nsAccessible> accessible =
@@ -166,7 +164,7 @@ nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
         AppendChild(accessible);
 
       // Deep down into optgroup element.
-      if (tag == nsGkAtoms::optgroup)
+      if (tag == nsAccessibilityAtoms::optgroup)
         CacheOptSiblings(childContent);
     }
   }
@@ -200,7 +198,7 @@ nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
 {
   // CASE #1 -- great majority of the cases
   // find the label attribute - this is what the W3C says we should use
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
   if (!aName.IsEmpty())
     return NS_OK;
 
@@ -302,7 +300,7 @@ nsHTMLSelectOptionAccessible::NativeState()
     // visibility implementation unless they get reimplemented in layout
     state &= ~states::OFFSCREEN;
     // <select> is not collapsed: compare bounds to calculate OFFSCREEN
-    nsAccessible* listAcc = Parent();
+    nsAccessible* listAcc = GetParent();
     if (listAcc) {
       PRInt32 optionX, optionY, optionWidth, optionHeight;
       PRInt32 listX, listY, listWidth, listHeight;
@@ -323,7 +321,7 @@ nsHTMLSelectOptionAccessible::GetLevelInternal()
   nsIContent *parentContent = mContent->GetParent();
 
   PRInt32 level =
-    parentContent->NodeInfo()->Equals(nsGkAtoms::optgroup) ? 2 : 1;
+    parentContent->NodeInfo()->Equals(nsAccessibilityAtoms::optgroup) ? 2 : 1;
 
   if (level == 1 && Role() != nsIAccessibleRole::ROLE_HEADING)
     level = 0; // In a single level list, the level is irrelevant
@@ -371,10 +369,10 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetActionName(PRUint8 aIndex, nsAStr
   return NS_ERROR_INVALID_ARG;
 }
 
-PRUint8
-nsHTMLSelectOptionAccessible::ActionCount()
+NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 1;
+  *_retval = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
@@ -384,9 +382,8 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
     if (!newHTMLOption) 
       return NS_ERROR_FAILURE;
     // Clear old selection
-    nsAccessible* parent = Parent();
-    if (!parent)
-      return NS_OK;
+    nsAccessible* parent = GetParent();
+    NS_ASSERTION(parent, "No parent!");
 
     nsCOMPtr<nsIContent> oldHTMLOptionContent =
       GetFocusedOption(parent->GetContent());
@@ -517,7 +514,7 @@ void
 nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibleOptionNode)
 {
   if (!aPossibleOptionNode ||
-      aPossibleOptionNode->Tag() != nsGkAtoms::option ||
+      aPossibleOptionNode->Tag() != nsAccessibilityAtoms::option ||
       !aPossibleOptionNode->IsHTML()) {
     return;
   }
@@ -564,7 +561,7 @@ nsHTMLSelectOptionAccessible::GetSelectState(PRUint64* aState)
   *aState = 0;
 
   nsIContent *content = mContent;
-  while (content && content->Tag() != nsGkAtoms::select) {
+  while (content && content->Tag() != nsAccessibilityAtoms::select) {
     content = content->GetParent();
   }
 
@@ -616,10 +613,9 @@ NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::GetActionName(PRUint8 aIndex, nsAS
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-PRUint8
-nsHTMLSelectOptGroupAccessible::ActionCount()
+NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 0;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -774,10 +770,11 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::GetValue(nsAString& aValue)
   return option ? option->GetName(aValue) : NS_OK;
 }
 
-PRUint8
-nsHTMLComboboxAccessible::ActionCount()
+/** Just one action ( click ). */
+NS_IMETHODIMP nsHTMLComboboxAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 /**
@@ -894,7 +891,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
 {
   *aBoundingFrame = nsnull;
 
-  nsAccessible* comboAcc = Parent();
+  nsAccessible* comboAcc = GetParent();
   if (!comboAcc)
     return;
 

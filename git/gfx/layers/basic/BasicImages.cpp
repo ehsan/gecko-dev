@@ -129,8 +129,6 @@ public:
   void SetOffscreenFormat(gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
   gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
 
-  PRUint32 GetDataSize() { return mBuffer ? mDelayedConversion ? mBufferSize : mSize.height * mStride : 0; }
-
 protected:
   nsAutoArrayPtr<PRUint8>              mBuffer;
   nsCountedRef<nsMainThreadSurfaceRef> mSurface;
@@ -146,22 +144,83 @@ void
 BasicPlanarYCbCrImage::SetData(const Data& aData)
 {
   // Do some sanity checks to prevent integer overflow
-  if (aData.mYSize.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      aData.mYSize.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image source width or height");
+  if (aData.mYSize.width > 16384 || aData.mYSize.height > 16384) {
+    NS_ERROR("Illegal width or height");
     return;
   }
   
+  gfx::YUVType type = gfx::YV12;
+  int width_shift = 0;
+  int height_shift = 0;
+  if (aData.mYSize.width == aData.mCbCrSize.width &&
+      aData.mYSize.height == aData.mCbCrSize.height) {
+    type = gfx::YV24;
+    width_shift = 0;
+    height_shift = 0;
+  }
+  else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
+           aData.mYSize.height == aData.mCbCrSize.height) {
+    type = gfx::YV16;
+    width_shift = 1;
+    height_shift = 0;
+  }
+  else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
+           aData.mYSize.height / 2 == aData.mCbCrSize.height ) {
+    type = gfx::YV12;
+    width_shift = 1;
+    height_shift = 1;
+  }
+  else {
+    NS_ERROR("YCbCr format not supported");
+  }
+
   if (mDelayedConversion) {
-    mBuffer = CopyData(mData, mSize, mBufferSize, aData);
+
+    mData = aData;
+    mData.mCbCrStride = mData.mCbCrSize.width = aData.mPicSize.width >> width_shift;
+    // Round up the values for width and height to make sure we sample enough data
+    // for the last pixel - See bug 590735
+    if (width_shift && (aData.mPicSize.width & 1)) {
+      mData.mCbCrStride++;
+      mData.mCbCrSize.width++;
+    }
+    mData.mCbCrSize.height = aData.mPicSize.height >> height_shift;
+    if (height_shift && (aData.mPicSize.height & 1)) {
+        mData.mCbCrSize.height++;
+    }
+    mData.mYSize = aData.mPicSize;
+    mData.mYStride = mData.mYSize.width;
+    mBufferSize = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
+                  mData.mYStride * mData.mYSize.height;
+    mBuffer = new PRUint8[mBufferSize];
+    
+    mData.mYChannel = mBuffer;
+    mData.mCbChannel = mData.mYChannel + mData.mYStride * mData.mYSize.height;
+    mData.mCrChannel = mData.mCbChannel + mData.mCbCrStride * mData.mCbCrSize.height;
+    int cbcr_x = aData.mPicX >> width_shift;
+    int cbcr_y = aData.mPicY >> height_shift;
+
+    for (int i = 0; i < mData.mYSize.height; i++) {
+      memcpy(mData.mYChannel + i * mData.mYStride,
+             aData.mYChannel + ((aData.mPicY + i) * aData.mYStride) + aData.mPicX,
+             mData.mYStride);
+    }
+    for (int i = 0; i < mData.mCbCrSize.height; i++) {
+      memcpy(mData.mCbChannel + i * mData.mCbCrStride,
+             aData.mCbChannel + ((cbcr_y + i) * aData.mCbCrStride) + cbcr_x,
+             mData.mCbCrStride);
+    }
+    for (int i = 0; i < mData.mCbCrSize.height; i++) {
+      memcpy(mData.mCrChannel + i * mData.mCbCrStride,
+             aData.mCrChannel + ((cbcr_y + i) * aData.mCbCrStride) + cbcr_x,
+             mData.mCbCrStride);
+    }
+
+    // Fix picture rect to be correct
+    mData.mPicX = mData.mPicY = 0;
+    mSize = aData.mPicSize;
     return;
   }
-  
-  gfx::YUVType type = 
-    gfx::TypeFromSize(aData.mYSize.width,
-                      aData.mYSize.height,
-                      aData.mCbCrSize.width,
-                      aData.mCbCrSize.height);
 
   gfxASurface::gfxImageFormat format = GetOffscreenFormat();
 
@@ -169,15 +228,6 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
   // YCbCr to RGB conversion rather than on the RGB data when rendered.
   PRBool prescale = mScaleHint.width > 0 && mScaleHint.height > 0 &&
                     mScaleHint != aData.mPicSize;
-
-  gfxIntSize size(prescale ? mScaleHint.width : aData.mPicSize.width,
-                  prescale ? mScaleHint.height : aData.mPicSize.height);
-  if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      size.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image dest width or height");
-    return;
-  }
-
   if (format == gfxASurface::ImageFormatRGB16_565) {
 #if defined(HAVE_YCBCR_TO_RGB565)
     if (prescale &&
@@ -212,8 +262,11 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
       prescale = PR_FALSE;
   }
 
+  gfxIntSize size(prescale ? mScaleHint.width : aData.mPicSize.width,
+                  prescale ? mScaleHint.height : aData.mPicSize.height);
+
   mStride = gfxASurface::FormatStrideForWidth(format, size.width);
-  mBuffer = AllocateBuffer(size.height * mStride);
+  mBuffer = new PRUint8[size.height * mStride];
   if (!mBuffer) {
     // out of memory
     return;

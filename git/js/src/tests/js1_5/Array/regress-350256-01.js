@@ -37,7 +37,7 @@
 
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350256;
-var summary = 'Array.apply maximum arguments';
+var summary = 'Array.apply maximum arguments: 2^16';
 var actual = '';
 var expect = '';
 

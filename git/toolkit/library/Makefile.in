@@ -103,6 +103,7 @@ CPPSRCS += \
 GARBAGE	+= \
 	$(INTL_UNICHARUTIL_UTIL_LCPPSRCS) \
 	$(wildcard *.$(OBJ_SUFFIX)) \
+	dlldeps-javaxpcom.cpp \
 	$(NULL)
 
 LOCAL_INCLUDES += -I$(topsrcdir)/intl/unicharutil/util \
@@ -151,7 +152,7 @@ OS_LIBS += \
 	-framework SystemConfiguration \
 	-framework QuickTime \
 	-framework IOKit \
-	-F/System/Library/PrivateFrameworks -framework CoreUI \
+	-lcrypto \
 	$(TK_LIBS) \
 	$(NULL)
 endif
@@ -163,14 +164,11 @@ EXTRA_DSO_LDOPTS += \
 	-framework CoreAudio \
 	-framework AudioToolbox \
 	-framework AudioUnit \
-	-framework IOKit \
-	-framework Foundation \
-	-framework AppKit \
 	$(NULL)
 endif
 endif
 
-ifneq (,$(filter NetBSD OpenBSD,$(OS_ARCH)))
+ifneq (,$(filter GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
 ifdef MOZ_SYDNEYAUDIO
 EXTRA_DSO_LDOPTS += -lossaudio
 endif
@@ -251,6 +249,11 @@ include $(srcdir)/libxul-rules.mk
 ifeq ($(OS_ARCH),OpenBSD)
 # Needed by nsAuthGSSAPI
 EXTRA_DSO_LDOPTS += -lkrb5 -lcrypto
+endif
+
+ifdef MOZ_JAVAXPCOM
+dlldeps-javaxpcom.cpp: $(topsrcdir)/extensions/java/xpcom/src/dlldeps-javaxpcom.cpp
+	$(INSTALL) $^ .
 endif
 
 ifdef MOZ_DEBUG

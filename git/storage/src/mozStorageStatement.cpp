@@ -478,7 +478,8 @@ Statement::GetParameterIndex(const nsACString &aName,
   // the colon for SQLite.
   nsCAutoString name(":");
   name.Append(aName);
-  int ind = ::sqlite3_bind_parameter_index(mDBStatement, name.get());
+  int ind = ::sqlite3_bind_parameter_index(mDBStatement,
+                                           PromiseFlatCString(name).get());
   if (ind  == 0) // Named parameter not found.
     return NS_ERROR_INVALID_ARG;
 

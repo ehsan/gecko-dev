@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Dean Tessman <dean_tessman@hotmail.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -65,13 +65,19 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIStatefulFrame.h"
 #include "nsIScrollableFrame.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
 #include "nsThreadUtils.h"
 
 class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
 class nsComboboxDisplayFrame;
+
+/**
+ * Child list name indices
+ * @see #GetAdditionalChildListName()
+ */
+#define NS_COMBO_LIST_COUNT   (NS_BLOCK_LIST_COUNT + 1)
 
 class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIFormControlFrame,
@@ -139,10 +145,10 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
   virtual nsIFrame* GetContentInsertionFrame();
 
@@ -254,12 +260,6 @@ protected:
   void HandleRedisplayTextEvent();
   void ActuallyDisplayText(PRBool aNotify);
 
-private:
-  // If our total transform to the root frame of the root document is only a 2d
-  // translation then return that translation, otherwise returns (0,0).
-  nsPoint GetCSSTransformTranslation();
-
-protected:
   nsFrameList              mPopupFrames;             // additional named child list
   nsCOMPtr<nsIContent>     mDisplayContent;          // Anonymous content used to display the current selection
   nsCOMPtr<nsIContent>     mButtonContent;           // Anonymous content for the button
@@ -283,7 +283,7 @@ protected:
 
   // make someone to listen to the button. If its programmatically pressed by someone like Accessibility
   // then open or close the combo box.
-  nsCOMPtr<nsIDOMEventListener> mButtonListener;
+  nsCOMPtr<nsIDOMMouseListener> mButtonListener;
 
   // static class data member for Bug 32920
   // only one control can be focused at a time

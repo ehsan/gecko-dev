@@ -38,23 +38,15 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import re, sys, os, os.path, logging, shutil, signal, math, time
+import re, sys, os, os.path, logging, shutil, signal, math
 from glob import glob
 from optparse import OptionParser
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import mkdtemp, gettempdir
 import manifestparser
-import mozinfo
 
 from automationutils import *
 
-#TODO: replace this with json.loads when Python 2.6 is required.
-def parse_json(j):
-    """
-    Awful hack to parse a restricted subset of JSON strings into Python dicts.
-    """
-    return eval(j, {'true':True,'false':False,'null':None})
-  
 """ Control-C handling """
 gotSIGINT = False
 def markGotSIGINT(signum, stackFrame):
@@ -66,9 +58,9 @@ class XPCShellTests(object):
   log = logging.getLogger()
   oldcwd = os.getcwd()
 
-  def __init__(self, log=sys.stdout):
+  def __init__(self):
     """ Init logging """
-    handler = logging.StreamHandler(log)
+    handler = logging.StreamHandler(sys.stdout)
     self.log.setLevel(logging.INFO)
     self.log.addHandler(handler)
 
@@ -79,7 +71,7 @@ class XPCShellTests(object):
 
       if we are chunking tests, it will be done here as well
     """
-    mp = manifestparser.TestManifest(strict=False)
+    mp = manifestparser.ManifestParser(strict=False)
     if self.manifest is None:
       for testdir in self.testdirs:
         if testdir:
@@ -88,7 +80,7 @@ class XPCShellTests(object):
       mp.read(self.manifest)
     self.buildTestPath()
 
-    self.alltests = mp.active_tests(**mozinfo.info)
+    self.alltests = mp.tests
 
     if self.singleFile is None and self.totalChunks > 1:
       self.chunkTests()
@@ -146,10 +138,7 @@ class XPCShellTests(object):
       self.xrePath = os.path.dirname(self.xpcshell)
     else:
       self.xrePath = os.path.abspath(self.xrePath)
-
-    if self.mozInfo is None:
-      self.mozInfo = os.path.join(self.testharnessdir, "mozinfo.json")
-
+            
   def buildEnvironment(self):
     """
       Create and returns a dictionary of self.env to include all the appropriate env variables and values.
@@ -220,9 +209,7 @@ class XPCShellTests(object):
     """
     # - NOTE: if you rename/add any of the constants set here, update
     #   do_load_child_test_harness() in head.js
-    if not self.appPath:
-        self.appPath = self.xrePath
-    self.xpcsCmd = [self.xpcshell, '-g', self.xrePath, '-a', self.appPath, '-r', self.httpdManifest, '-j', '-s'] + \
+    self.xpcsCmd = [self.xpcshell, '-g', self.xrePath, '-r', self.httpdManifest, '-j', '-s'] + \
         ['-e', 'const _HTTPD_JS_PATH = "%s";' % self.httpdJSPath,
          '-e', 'const _HEAD_JS_PATH = "%s";' % self.headJSPath,
          '-f', os.path.join(self.testharnessdir, 'head.js')]
@@ -261,7 +248,7 @@ class XPCShellTests(object):
       test['head'] is a whitespace delimited list of head files.
       return the list of head files as paths including the subdir if the head file exists
 
-      On a remote system, this may be overloaded to list files in a remote directory structure.
+      On a remote system, this is overloaded to list files in a remote directory structure.
     """
     return [os.path.join(test['here'], f).strip() for f in sorted(test['head'].split(' ')) if os.path.isfile(os.path.join(test['here'], f))]
 
@@ -270,7 +257,7 @@ class XPCShellTests(object):
       test['tail'] is a whitespace delimited list of head files.
       return the list of tail files as paths including the subdir if the tail file exists
 
-      On a remote system, this may be overloaded to list files in a remote directory structure.
+      On a remote system, this is overloaded to list files in a remote directory structure.
     """
     return [os.path.join(test['here'], f).strip() for f in sorted(test['tail'].split(' ')) if os.path.isfile(os.path.join(test['here'], f))]
 
@@ -280,7 +267,7 @@ class XPCShellTests(object):
       When running check-interactive and check-one, the directory is well-defined and
       retained for inspection once the tests complete.
 
-      On a remote system, this may be overloaded to use a remote path structure.
+      On a remote system, we overload this to use a remote path structure.
     """
     if self.interactive or self.singleFile:
       profileDir = os.path.join(gettempdir(), self.profileName, "xpcshellprofile")
@@ -294,14 +281,14 @@ class XPCShellTests(object):
       profileDir = mkdtemp()
     self.env["XPCSHELL_TEST_PROFILE_DIR"] = profileDir
     if self.interactive or self.singleFile:
-      self.log.info("TEST-INFO | profile dir is %s" % profileDir)
+      print "TEST-INFO | profile dir is %s" % profileDir
     return profileDir
 
   def setupLeakLogging(self):
     """
       Enable leaks (only) detection to its own log file and set environment variables.
 
-      On a remote system, this may be overloaded to use a remote filename and path structure
+      On a remote system, we overload this to use a remote filename and path structure
     """
     filename = "runxpcshelltests_leaks.log"
 
@@ -381,25 +368,16 @@ class XPCShellTests(object):
              '-e', 'const _HEAD_FILES = [%s];' % cmdH,
              '-e', 'const _TAIL_FILES = [%s];' % cmdT]
 
-  def buildCmdTestFile(self, name):
-    """
-      Build the command line arguments for the test file.
-      On a remote system, this may be overloaded to use a remote path structure.
-    """
-    return ['-e', 'const _TEST_FILE = ["%s"];' %
-              replaceBackSlashes(name)]
-
-  def runTests(self, xpcshell, xrePath=None, appPath=None, symbolsPath=None,
+  def runTests(self, xpcshell, xrePath=None, symbolsPath=None,
                manifest=None, testdirs=[], testPath=None,
                interactive=False, verbose=False, keepGoing=False, logfiles=True,
                thisChunk=1, totalChunks=1, debugger=None,
                debuggerArgs=None, debuggerInteractive=False,
-               profileName=None, mozInfo=None, **otherOptions):
+               profileName=None):
     """Run xpcshell tests.
 
     |xpcshell|, is the xpcshell executable to use to run the tests.
     |xrePath|, if provided, is the path to the XRE to use.
-    |appPath|, if provided, is the path to an application directory.
     |symbolsPath|, if provided is the path to a directory containing
       breakpad symbols for processing crashes in tests.
     |manifest|, if provided, is a file containing a list of
@@ -416,16 +394,13 @@ class XPCShellTests(object):
     |debuggerInfo|, if set, specifies the debugger and debugger arguments
       that will be used to launch xpcshell.
     |profileName|, if set, specifies the name of the application for the profile
-      directory if running only a subset of tests.
-    |mozInfo|, if set, specifies specifies build configuration information, either as a filename containing JSON, or a dict.
-    |otherOptions| may be present for the convenience of subclasses
+      directory if running only a subset of tests
     """
 
     global gotSIGINT 
 
     self.xpcshell = xpcshell
     self.xrePath = xrePath
-    self.appPath = appPath
     self.symbolsPath = symbolsPath
     self.manifest = manifest
     self.testdirs = testdirs
@@ -438,7 +413,6 @@ class XPCShellTests(object):
     self.thisChunk = thisChunk
     self.debuggerInfo = getDebuggerInfo(self.oldcwd, debugger, debuggerArgs, debuggerInteractive)
     self.profileName = profileName or "xpcshell"
-    self.mozInfo = mozInfo
 
     # If we have an interactive debugger, disable ctrl-c.
     if self.debuggerInfo and self.debuggerInfo["interactive"]:
@@ -446,27 +420,15 @@ class XPCShellTests(object):
 
     if not testdirs and not manifest:
       # nothing to test!
-      self.log.error("Error: No test dirs or test manifest specified!")
+      print >>sys.stderr, "Error: No test dirs or test manifest specified!"
       return False
 
-    self.testCount = 0
-    self.passCount = 0
-    self.failCount = 0
-    self.todoCount = 0
+    passCount = 0
+    failCount = 0
 
     self.setAbsPath()
     self.buildXpcsRunArgs()
     self.buildEnvironment()
-
-    # Handle filenames in mozInfo
-    if not isinstance(self.mozInfo, dict):
-      mozInfoFile = self.mozInfo
-      if not os.path.isfile(mozInfoFile):
-        self.log.error("Error: couldn't find mozinfo.json at '%s'. Perhaps you need to use --build-info-json?" % mozInfoFile)
-        return False
-      self.mozInfo = parse_json(open(mozInfoFile).read())
-    mozinfo.update(self.mozInfo)
-    
     pStdout, pStderr = self.getPipes()
 
     self.buildTestList()
@@ -479,16 +441,6 @@ class XPCShellTests(object):
       if self.testPath and name.find(self.testPath) == -1:
         continue
 
-      self.testCount += 1
-
-      # Check for skipped tests
-      if 'disabled' in test:
-        self.log.info("TEST-INFO | skipping %s | %s" %
-                      (name, test['disabled']))
-        continue
-      # Check for known-fail tests
-      expected = test['expected'] == 'pass'
-
       testdir = os.path.dirname(name)
       self.buildXpcsCmd(testdir)
       testHeadFiles = self.getHeadFiles(test)
@@ -500,11 +452,11 @@ class XPCShellTests(object):
       self.leakLogFile = self.setupLeakLogging()
 
       # The test file will have to be loaded after the head files.
-      cmdT = self.buildCmdTestFile(name)
+      cmdT = ['-e', 'const _TEST_FILE = ["%s"];' %
+                replaceBackSlashes(name)]
 
       try:
-        self.log.info("TEST-INFO | %s | running test ..." % name)
-        startTime = time.time()
+        print "TEST-INFO | %s | running test ..." % name
 
         proc = self.launchProcess(cmdH + cmdT + self.xpcsRunArgs,
                     stdout=pStdout, stderr=pStderr, env=self.env, cwd=testdir)
@@ -522,31 +474,22 @@ class XPCShellTests(object):
 
         def print_stdout(stdout):
           """Print stdout line-by-line to avoid overflowing buffers."""
-          self.log.info(">>>>>>>")
-          if (stdout):
-            for line in stdout.splitlines():
-              self.log.info(line)
-          self.log.info("<<<<<<<")
+          print ">>>>>>>"
+          for line in stdout.splitlines():
+            print line
+          print "<<<<<<<"
 
-        result = not ((self.getReturnCode(proc) != 0) or
-                      (stdout and re.search("^((parent|child): )?TEST-UNEXPECTED-",
-                                            stdout, re.MULTILINE)) or
-                      (stdout and re.search(": SyntaxError:", stdout,
-                                            re.MULTILINE)))
-
-        if result != expected:
-          self.log.error("TEST-UNEXPECTED-%s | %s | test failed (with xpcshell return code: %d), see following log:" % ("FAIL" if expected else "PASS", name, self.getReturnCode(proc)))
+        if (self.getReturnCode(proc) != 0) or \
+            (stdout and re.search("^((parent|child): )?TEST-UNEXPECTED-", stdout, re.MULTILINE)) or \
+            (stdout and re.search(": SyntaxError:", stdout, re.MULTILINE)):
+          print "TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:" % (name, self.getReturnCode(proc))
           print_stdout(stdout)
-          self.failCount += 1
+          failCount += 1
         else:
-          timeTaken = (time.time() - startTime) * 1000
-          self.log.info("TEST-%s | %s | test passed (time: %.3fms)" % ("PASS" if expected else "KNOWN-FAIL", name, timeTaken))
+          print "TEST-PASS | %s | test passed" % name
           if verbose:
             print_stdout(stdout)
-          if expected:
-            self.passCount += 1
-          else:
-            self.todoCount += 1
+          passCount += 1
 
         checkForCrashes(testdir, self.symbolsPath, testName=name)
         # Find child process(es) leak log(s), if any: See InitLog() in
@@ -566,25 +509,24 @@ class XPCShellTests(object):
         if self.profileDir and not self.interactive and not self.singleFile:
           self.removeDir(self.profileDir)
       if gotSIGINT:
-        self.log.error("TEST-UNEXPECTED-FAIL | Received SIGINT (control-C) during test execution")
+        print "TEST-UNEXPECTED-FAIL | Received SIGINT (control-C) during test execution"
         if (keepGoing):
           gotSIGINT = False
         else:
           break
-    if self.testCount == 0:
-      self.log.error("TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?")
-      self.failCount = 1
+    if passCount == 0 and failCount == 0:
+      print "TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?"
+      failCount = 1
 
-    self.log.info("""INFO | Result summary:
+    print """INFO | Result summary:
 INFO | Passed: %d
-INFO | Failed: %d
-INFO | Todo: %d""" % (self.passCount, self.failCount, self.todoCount))
+INFO | Failed: %d""" % (passCount, failCount)
 
     if gotSIGINT and not keepGoing:
-      self.log.error("TEST-UNEXPECTED-FAIL | Received SIGINT (control-C), so stopped run. " \
-                     "(Use --keep-going to keep running tests after killing one with SIGINT)")
+      print "TEST-UNEXPECTED-FAIL | Received SIGINT (control-C), so stopped run. " \
+            "(Use --keep-going to keep running tests after killing one with SIGINT)"
       return False
-    return self.failCount == 0
+    return failCount == 0
 
 class XPCShellOptions(OptionParser):
   def __init__(self):
@@ -592,9 +534,6 @@ class XPCShellOptions(OptionParser):
     OptionParser.__init__(self)
 
     addCommonOptions(self)
-    self.add_option("--app-path",
-                    type="string", dest="appPath", default=None,
-                    help="application directory (as opposed to XRE directory)")
     self.add_option("--interactive",
                     action="store_true", dest="interactive", default=False,
                     help="don't automatically run tests, drop to an xpcshell prompt")
@@ -625,9 +564,6 @@ class XPCShellOptions(OptionParser):
     self.add_option("--profile-name",
                     type = "string", dest="profileName", default=None,
                     help="name of application profile being tested")
-    self.add_option("--build-info-json",
-                    type = "string", dest="mozInfo", default=None,
-                    help="path to a mozinfo.json including information about the build configuration. defaults to looking for mozinfo.json next to the script.")
 
 def main():
   parser = XPCShellOptions()

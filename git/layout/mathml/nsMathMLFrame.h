@@ -49,7 +49,6 @@
 #include "nsFrame.h"
 #include "nsCSSValue.h"
 #include "nsMathMLElement.h"
-#include "nsLayoutUtils.h"
 
 class nsMathMLChar;
 
@@ -240,8 +239,9 @@ public:
   GetSubDropFromChild(nsIFrame*       aChild,
                       nscoord&        aSubDrop) 
   {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
+    const nsStyleFont* font = aChild->GetStyleFont();
+    nsRefPtr<nsFontMetrics> fm = aChild->PresContext()->GetMetricsFor(
+                                                              font->mFont);
     GetSubDrop(fm, aSubDrop);
   }
 
@@ -249,8 +249,9 @@ public:
   GetSupDropFromChild(nsIFrame*       aChild,
                       nscoord&        aSupDrop) 
   {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
+    const nsStyleFont* font = aChild->GetStyleFont();
+    nsRefPtr<nsFontMetrics> fm = aChild->PresContext()->GetMetricsFor(
+                                                              font->mFont);
     GetSupDrop(fm, aSupDrop);
   }
 

@@ -46,6 +46,15 @@
 #include "nsLayoutUtils.h"
 #include "nsAutoPtr.h"
 
+/**
+ * Child list name indices
+ * @see #GetAdditionalChildListName()
+ */
+#define NS_CONTAINER_LIST_COUNT_SANS_OC 1
+  // for frames that don't use overflow containers
+#define NS_CONTAINER_LIST_COUNT_INCL_OC 3
+  // for frames that support overflow containers
+
 // Option flags for ReflowChild() and FinishReflowChild()
 // member functions
 #define NS_FRAME_NO_MOVE_VIEW         0x0001
@@ -72,18 +81,18 @@ public:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame*   aParent,
                   nsIFrame*   aPrevInFlow);
-  NS_IMETHOD SetInitialChildList(ChildListID  aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*     aListName,
                                  nsFrameList& aChildList);
-  NS_IMETHOD AppendFrames(ChildListID  aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*  aListName,
                           nsFrameList& aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*  aListName,
                           nsIFrame* aPrevFrame,
                           nsFrameList& aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*  aListName,
                          nsIFrame* aOldFrame);
 
-  virtual nsFrameList GetChildList(ChildListID aList) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual void ChildIsDirty(nsIFrame* aChild);
 
@@ -395,8 +404,8 @@ protected:
   /**
    * Set the overflow list.  aOverflowFrames must not be an empty list.
    */
-  void SetOverflowFrames(nsPresContext*  aPresContext,
-                         const nsFrameList& aOverflowFrames);
+  nsresult SetOverflowFrames(nsPresContext*  aPresContext,
+                             const nsFrameList& aOverflowFrames);
 
   /**
    * Destroy the overflow list and any frames that are on it.

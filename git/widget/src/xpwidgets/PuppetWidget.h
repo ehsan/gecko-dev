@@ -138,7 +138,8 @@ public:
   { /* dead man walking */ }
 
   // PuppetWidgets don't have native data, as they're purely nonnative.
-  virtual void* GetNativeData(PRUint32 aDataType);
+  virtual void* GetNativeData(PRUint32 aDataType)
+  { return nsnull; }
   NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent)
   { return NS_ERROR_UNEXPECTED; }
 
@@ -163,11 +164,8 @@ public:
   //
 
 //NS_IMETHOD              CaptureMouse(PRBool aCapture);
-  virtual LayerManager*
-  GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                  LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
-                  LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                  bool* aAllowRetaining = nsnull);
+  virtual LayerManager*     GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+                                            bool* aAllowRetaining = nsnull);
 //  virtual nsDeviceContext* GetDeviceContext();
   virtual gfxASurface*      GetThebesSurface();
 
@@ -181,8 +179,6 @@ public:
   NS_IMETHOD OnIMETextChange(PRUint32 aOffset, PRUint32 aEnd,
                              PRUint32 aNewEnd);
   NS_IMETHOD OnIMESelectionChange(void);
-
-  NS_IMETHOD SetCursor(nsCursor aCursor);
 
   // Gets the DPI of the screen corresponding to this widget.
   // Contacts the parent process which gets the DPI from the

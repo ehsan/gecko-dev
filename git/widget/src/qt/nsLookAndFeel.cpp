@@ -63,8 +63,7 @@ nsLookAndFeel::~nsLookAndFeel()
 {
 }
 
-nsresult
-nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
+nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID,nscolor &aColor)
 {
   nsresult res = NS_OK;
 
@@ -74,127 +73,127 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
   QPalette palette = qApp->palette();
 
   switch (aID) {
-    case eColorID_WindowBackground:
+    case eColor_WindowBackground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_WindowForeground:
+    case eColor_WindowForeground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_WidgetBackground:
+    case eColor_WidgetBackground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_WidgetForeground:
+    case eColor_WidgetForeground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::WindowText));
       break;
 
-    case eColorID_WidgetSelectBackground:
+    case eColor_WidgetSelectBackground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_WidgetSelectForeground:
+    case eColor_WidgetSelectForeground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::WindowText));
       break;
 
-    case eColorID_Widget3DHighlight:
+    case eColor_Widget3DHighlight:
       aColor = NS_RGB(0xa0,0xa0,0xa0);
       break;
 
-    case eColorID_Widget3DShadow:
+    case eColor_Widget3DShadow:
       aColor = NS_RGB(0x40,0x40,0x40);
       break;
 
-    case eColorID_TextBackground:
+    case eColor_TextBackground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_TextForeground:
+    case eColor_TextForeground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::WindowText));
       break;
 
-    case eColorID_TextSelectBackground:
-    case eColorID_IMESelectedRawTextBackground:
-    case eColorID_IMESelectedConvertedTextBackground:
+    case eColor_TextSelectBackground:
+    case eColor_IMESelectedRawTextBackground:
+    case eColor_IMESelectedConvertedTextBackground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Highlight));
       break;
 
-    case eColorID_TextSelectForeground:
-    case eColorID_IMESelectedRawTextForeground:
-    case eColorID_IMESelectedConvertedTextForeground:
+    case eColor_TextSelectForeground:
+    case eColor_IMESelectedRawTextForeground:
+    case eColor_IMESelectedConvertedTextForeground:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::HighlightedText));
       break;
 
-    case eColorID_IMERawInputBackground:
-    case eColorID_IMEConvertedTextBackground:
+    case eColor_IMERawInputBackground:
+    case eColor_IMEConvertedTextBackground:
       aColor = NS_TRANSPARENT;
       break;
 
-    case eColorID_IMERawInputForeground:
-    case eColorID_IMEConvertedTextForeground:
+    case eColor_IMERawInputForeground:
+    case eColor_IMEConvertedTextForeground:
       aColor = NS_SAME_AS_FOREGROUND_COLOR;
       break;
 
-    case eColorID_IMERawInputUnderline:
-    case eColorID_IMEConvertedTextUnderline:
+    case eColor_IMERawInputUnderline:
+    case eColor_IMEConvertedTextUnderline:
       aColor = NS_SAME_AS_FOREGROUND_COLOR;
       break;
 
-    case eColorID_IMESelectedRawTextUnderline:
-    case eColorID_IMESelectedConvertedTextUnderline:
+    case eColor_IMESelectedRawTextUnderline:
+    case eColor_IMESelectedConvertedTextUnderline:
       aColor = NS_TRANSPARENT;
       break;
 
-    case eColorID_SpellCheckerUnderline:
+    case eColor_SpellCheckerUnderline:
       aColor = NS_RGB(0xff, 0, 0);
       break;
 
-    case eColorID_activeborder:
+    case eColor_activeborder:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_activecaption:
+    case eColor_activecaption:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_appworkspace:
+    case eColor_appworkspace:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_background:
+    case eColor_background:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_captiontext:
+    case eColor_captiontext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Text));
       break;
 
-    case eColorID_graytext:
+    case eColor_graytext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Disabled, QPalette::Text));
       break;
 
-    case eColorID_highlight:
+    case eColor_highlight:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Highlight));
       break;
 
-    case eColorID_highlighttext:
+    case eColor_highlighttext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::HighlightedText));
       break;
 
-    case eColorID_inactiveborder:
+    case eColor_inactiveborder:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Disabled, QPalette::Window));
       break;
 
-    case eColorID_inactivecaption:
+    case eColor_inactivecaption:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Disabled, QPalette::Window));
       break;
 
-    case eColorID_inactivecaptiontext:
+    case eColor_inactivecaptiontext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Disabled, QPalette::Text));
       break;
 
-    case eColorID_infobackground:
+    case eColor_infobackground:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 4, 0))
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::ToolTipBase));
 #else
@@ -202,7 +201,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
 #endif
       break;
 
-    case eColorID_infotext:
+    case eColor_infotext:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 4, 0))
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::ToolTipText));
 #else
@@ -210,90 +209,90 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
 #endif
       break;
 
-    case eColorID_menu:
+    case eColor_menu:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_menutext:
-    case eColorID__moz_menubartext:
+    case eColor_menutext:
+    case eColor__moz_menubartext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Text));
       break;
 
-    case eColorID_scrollbar:
+    case eColor_scrollbar:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Mid));
       break;
 
-    case eColorID_threedface:
-    case eColorID_buttonface:
+    case eColor_threedface:
+    case eColor_buttonface:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Button));
       break;
 
-    case eColorID_buttonhighlight:
-    case eColorID_threedhighlight:
+    case eColor_buttonhighlight:
+    case eColor_threedhighlight:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Dark));
       break;
 
-    case eColorID_buttontext:
+    case eColor_buttontext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::ButtonText));
       break;
 
-    case eColorID_buttonshadow:
-    case eColorID_threedshadow:
+    case eColor_buttonshadow:
+    case eColor_threedshadow:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Dark));
       break;
 
-    case eColorID_threeddarkshadow:
+    case eColor_threeddarkshadow:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Shadow));
       break;
 
-    case eColorID_threedlightshadow:
+    case eColor_threedlightshadow:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Light));
       break;
 
-    case eColorID_window:
-    case eColorID_windowframe:
+    case eColor_window:
+    case eColor_windowframe:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID_windowtext:
+    case eColor_windowtext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Text));
       break;
 
      // from the CSS3 working draft (not yet finalized)
      // http://www.w3.org/tr/2000/wd-css3-userint-20000216.html#color
 
-    case eColorID__moz_buttondefault:
+    case eColor__moz_buttondefault:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Button));
       break;
 
-    case eColorID__moz_field:
-    case eColorID__moz_combobox:
+    case eColor__moz_field:
+    case eColor__moz_combobox:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Base));
       break;
 
-    case eColorID__moz_fieldtext:
-    case eColorID__moz_comboboxtext:
+    case eColor__moz_fieldtext:
+    case eColor__moz_comboboxtext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Text));
       break;
 
-    case eColorID__moz_dialog:
+    case eColor__moz_dialog:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID__moz_dialogtext:
+    case eColor__moz_dialogtext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::WindowText));
       break;
 
-    case eColorID__moz_dragtargetzone:
+    case eColor__moz_dragtargetzone:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Window));
       break;
 
-    case eColorID__moz_buttonhovertext:
+    case eColor__moz_buttonhovertext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::ButtonText));
       break;
 
-    case eColorID__moz_menuhovertext:
-    case eColorID__moz_menubarhovertext:
+    case eColor__moz_menuhovertext:
+    case eColor__moz_menubarhovertext:
       aColor = QCOLOR_TO_NS_RGB(palette.color(QPalette::Normal, QPalette::Text));
       break;
 
@@ -307,109 +306,108 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
 
 #ifdef NS_LOOKANDFEEL_DEBUG
 static const char *metricToString[] = {
-    "eIntID_CaretBlinkTime",
-    "eIntID_CaretWidth",
-    "eIntID_ShowCaretDuringSelection",
-    "eIntID_SelectTextfieldsOnKeyFocus",
-    "eIntID_SubmenuDelay",
-    "eIntID_MenusCanOverlapOSBar",
-    "eIntID_SkipNavigatingDisabledMenuItem",
-    "eIntID_DragThresholdX",
-    "eIntID_DragThresholdY",
-    "eIntID_UseAccessibilityTheme",
-    "eIntID_ScrollArrowStyle",
-    "eIntID_ScrollSliderStyle",
-    "eIntID_ScrollButtonLeftMouseButtonAction",
-    "eIntID_ScrollButtonMiddleMouseButtonAction",
-    "eIntID_ScrollButtonRightMouseButtonAction",
-    "eIntID_TreeOpenDelay",
-    "eIntID_TreeCloseDelay",
-    "eIntID_TreeLazyScrollDelay",
-    "eIntID_TreeScrollDelay",
-    "eIntID_TreeScrollLinesMax",
-    "eIntID_TabFocusModel",
-    "eIntID_WindowsDefaultTheme",
-    "eIntID_AlertNotificationOrigin",
-    "eIntID_ScrollToClick",
-    "eIntID_IMERawInputUnderlineStyle",
-    "eIntID_IMESelectedRawTextUnderlineStyle",
-    "eIntID_IMEConvertedTextUnderlineStyle",
-    "eIntID_IMESelectedConvertedTextUnderline",
-    "eIntID_ImagesInMenus"
+    "eMetric_CaretBlinkTime",
+    "eMetric_CaretWidth",
+    "eMetric_ShowCaretDuringSelection",
+    "eMetric_SelectTextfieldsOnKeyFocus",
+    "eMetric_SubmenuDelay",
+    "eMetric_MenusCanOverlapOSBar",
+    "eMetric_SkipNavigatingDisabledMenuItem",
+    "eMetric_DragThresholdX",
+    "eMetric_DragThresholdY",
+    "eMetric_UseAccessibilityTheme",
+    "eMetric_ScrollArrowStyle",
+    "eMetric_ScrollSliderStyle",
+    "eMetric_ScrollButtonLeftMouseButtonAction",
+    "eMetric_ScrollButtonMiddleMouseButtonAction",
+    "eMetric_ScrollButtonRightMouseButtonAction",
+    "eMetric_TreeOpenDelay",
+    "eMetric_TreeCloseDelay",
+    "eMetric_TreeLazyScrollDelay",
+    "eMetric_TreeScrollDelay",
+    "eMetric_TreeScrollLinesMax",
+    "eMetric_TabFocusModel",
+    "eMetric_WindowsDefaultTheme",
+    "eMetric_AlertNotificationOrigin",
+    "eMetric_ScrollToClick",
+    "eMetric_IMERawInputUnderlineStyle",
+    "eMetric_IMESelectedRawTextUnderlineStyle",
+    "eMetric_IMEConvertedTextUnderlineStyle",
+    "eMetric_IMESelectedConvertedTextUnderline",
+    "eMetric_ImagesInMenus"
     };
 #endif
 
-nsresult
-nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
+NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID,PRInt32 &aMetric)
 {
 #ifdef NS_LOOKANDFEEL_DEBUG
-  qDebug("nsLookAndFeel::GetIntImpl aID = %s", metricToString[aID]);
+  qDebug("nsLookAndFeel::GetMetric aID = %s", metricToString[aID]);
 #endif
 
-  nsresult res = nsXPLookAndFeel::GetIntImpl(aID, aResult);
+  nsresult res = nsXPLookAndFeel::GetMetric(aID, aMetric);
   if (NS_SUCCEEDED(res))
       return res;
 
   res = NS_OK;
 
   switch (aID) {
-    case eIntID_CaretBlinkTime:
-      aResult = 500;
+    case eMetric_CaretBlinkTime:
+      aMetric = 500;
       break;
 
-    case eIntID_CaretWidth:
-      aResult = 1;
+    case eMetric_CaretWidth:
+      aMetric = 1;
       break;
 
-    case eIntID_ShowCaretDuringSelection:
-      aResult = 0;
+    case eMetric_ShowCaretDuringSelection:
+      aMetric = 0;
       break;
 
-    case eIntID_SelectTextfieldsOnKeyFocus:
+    case eMetric_SelectTextfieldsOnKeyFocus:
       // Select textfield content when focused by kbd
       // used by nsEventStateManager::sTextfieldSelectModel
-      aResult = 1;
+      aMetric = 1;
       break;
 
-    case eIntID_SubmenuDelay:
-      aResult = 200;
+    case eMetric_SubmenuDelay:
+      aMetric = 200;
       break;
 
-    case eIntID_MenusCanOverlapOSBar:
+    case eMetric_MenusCanOverlapOSBar:
       // we want XUL popups to be able to overlap the task bar.
-      aResult = 1;
+      aMetric = 1;
       break;
 
-    case eIntID_ScrollArrowStyle:
-      aResult = eScrollArrowStyle_Single;
+    case eMetric_ScrollArrowStyle:
+      aMetric = eMetric_ScrollArrowStyleSingle;
       break;
 
-    case eIntID_ScrollSliderStyle:
-      aResult = eScrollThumbStyle_Proportional;
+    case eMetric_ScrollSliderStyle:
+      aMetric = eMetric_ScrollThumbStyleProportional;
       break;
 
-    case eIntID_TouchEnabled:
+    case eMetric_TouchEnabled:
 #ifdef MOZ_PLATFORM_MAEMO
       // All known Maemo devices are touch enabled.
-      aResult = 1;
+      aMetric = 1;
 #else
-      aResult = 0;
+      aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
 #endif
       break;
 
-    case eIntID_WindowsDefaultTheme:
-    case eIntID_MaemoClassic:
-      aResult = 0;
+    case eMetric_WindowsDefaultTheme:
+    case eMetric_MaemoClassic:
+      aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;
 
-    case eIntID_SpellCheckerUnderlineStyle:
-      aResult = NS_STYLE_TEXT_DECORATION_STYLE_WAVY;
+    case eMetric_SpellCheckerUnderlineStyle:
+      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_WAVY;
       break;
 
     default:
-      aResult = 0;
+      aMetric = 0;
       res = NS_ERROR_FAILURE;
   }
   return res;
@@ -417,33 +415,33 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
 
 #ifdef NS_LOOKANDFEEL_DEBUG
 static const char *floatMetricToString[] = {
-    "eFloatID_IMEUnderlineRelativeSize"
+    "eMetricFloat_IMEUnderlineRelativeSize"
 };
 #endif
 
-nsresult
-nsLookAndFeel::GetFloatImpl(FloatID aID, float &aResult)
+NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID,
+                                       float &aMetric)
 {
 #ifdef NS_LOOKANDFEEL_DEBUG
-  qDebug("nsLookAndFeel::GetFloatImpl aID = %s", floatMetricToString[aID]);
+  qDebug("nsLookAndFeel::GetMetric aID = %s", floatMetricToString[aID]);
 #endif
 
-  nsresult res = nsXPLookAndFeel::GetFloatImpl(aID, aResult);
+  nsresult res = nsXPLookAndFeel::GetMetric(aID, aMetric);
   if (NS_SUCCEEDED(res))
       return res;
   res = NS_OK;
 
   switch (aID) {
-    case eFloatID_IMEUnderlineRelativeSize:
-      aResult = 1.0f;
+    case eMetricFloat_IMEUnderlineRelativeSize:
+      aMetric = 1.0f;
       break;
 
-    case eFloatID_SpellCheckerUnderlineRelativeSize:
-      aResult = 1.0f;
+    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
+      aMetric = 1.0f;
       break;
 
     default:
-      aResult = -1.0;
+      aMetric = -1.0;
       res = NS_ERROR_FAILURE;
       break;
   }

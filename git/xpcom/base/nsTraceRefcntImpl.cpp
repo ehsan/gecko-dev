@@ -73,7 +73,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void
+NS_COM void
 NS_MeanAndStdDev(double n, double sumOfValues, double sumOfSquaredValues,
                  double *meanResult, double *stdDevResult)
 {
@@ -507,7 +507,7 @@ class nsDefaultComparator <BloatEntry*, BloatEntry*> {
 
 #endif /* NS_IMPL_REFCNT_LOGGING */
 
-nsresult
+NS_COM nsresult
 nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
@@ -570,7 +570,7 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
   return NS_OK;
 }
 
-void
+NS_COM void
 nsTraceRefcntImpl::ResetStatistics()
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
@@ -879,7 +879,7 @@ static void PrintStackFrame(void *aPC, void *aClosure)
 
 }
 
-void
+NS_COM void
 nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 {
   NS_StackWalk(PrintStackFrame, 2, aStream);
@@ -894,7 +894,7 @@ nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 #include <stdlib.h> // for free()
 #endif // MOZ_DEMANGLE_SYMBOLS
 
-void
+NS_COM void
 nsTraceRefcntImpl::DemangleSymbol(const char * aSymbol,
                               char * aBuffer,
                               int aBufLen)
@@ -1260,12 +1260,12 @@ NS_LogCOMPtrRelease(void* aCOMPtr, nsISupports* aObject)
 #endif
 }
 
-void
+NS_COM void
 nsTraceRefcntImpl::Startup()
 {
 }
 
-void
+NS_COM void
 nsTraceRefcntImpl::Shutdown()
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
@@ -1286,30 +1286,10 @@ nsTraceRefcntImpl::Shutdown()
     PL_HashTableDestroy(gSerialNumbers);
     gSerialNumbers = nsnull;
   }
-  if (gBloatLog) {
-    fclose(gBloatLog);
-    gBloatLog = nsnull;
-  }
-  if (gRefcntsLog) {
-    fclose(gRefcntsLog);
-    gRefcntsLog = nsnull;
-  }
-  if (gAllocLog) {
-    fclose(gAllocLog);
-    gAllocLog = nsnull;
-  }
-  if (gLeakyLog) {
-    fclose(gLeakyLog);
-    gLeakyLog = nsnull;
-  }
-  if (gCOMPtrLog) {
-    fclose(gCOMPtrLog);
-    gCOMPtrLog = nsnull;
-  }
 #endif
 }
 
-void
+NS_COM void
 nsTraceRefcntImpl::SetActivityIsLegal(PRBool aLegal)
 {
 #ifdef NS_IMPL_REFCNT_LOGGING

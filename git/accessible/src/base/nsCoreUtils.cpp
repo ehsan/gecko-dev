@@ -43,30 +43,30 @@
 #include "nsAccessNode.h"
 
 #include "nsIDocument.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
+#include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIScrollableFrame.h"
 #include "nsEventStateManager.h"
-#include "nsISelectionPrivate.h"
+#include "nsISelection2.h"
 #include "nsISelectionController.h"
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
 #include "nsIView.h"
-#include "nsLayoutUtils.h"
 
 #include "nsContentCID.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "mozilla/dom/Element.h"
 
 static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
@@ -78,7 +78,7 @@ PRBool
 nsCoreUtils::HasClickListener(nsIContent *aContent)
 {
   NS_ENSURE_TRUE(aContent, PR_FALSE);
-  nsEventListenerManager* listenerManager =
+  nsIEventListenerManager* listenerManager =
     aContent->GetListenerManager(PR_FALSE);
 
   return listenerManager &&
@@ -204,7 +204,7 @@ nsCoreUtils::GetAccessKeyFor(nsIContent *aContent)
   // Accesskeys are registered by @accesskey attribute only. At first check
   // whether it is presented on the given element to avoid the slow
   // nsEventStateManager::GetRegisteredAccessKey() method.
-  if (!aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::accesskey))
+  if (!aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::accesskey))
     return 0;
 
   nsCOMPtr<nsIDocument> doc = aContent->GetOwnerDoc();
@@ -331,18 +331,20 @@ nsCoreUtils::ScrollSubstringTo(nsIFrame *aFrame,
   scrollToRange->SetStart(aStartNode, aStartIndex);
   scrollToRange->SetEnd(aEndNode, aEndIndex);
 
-  nsCOMPtr<nsISelection> selection;
+  nsCOMPtr<nsISelection> selection1;
   selCon->GetSelection(nsISelectionController::SELECTION_ACCESSIBILITY,
-                       getter_AddRefs(selection));
+                       getter_AddRefs(selection1));
 
-  nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(selection));
-  selection->RemoveAllRanges();
-  selection->AddRange(scrollToRange);
+  nsCOMPtr<nsISelection2> selection(do_QueryInterface(selection1));
+  if (selection) {
+    selection->RemoveAllRanges();
+    selection->AddRange(scrollToRange);
 
-  privSel->ScrollIntoView(nsISelectionController::SELECTION_ANCHOR_REGION,
-                          PR_TRUE, aVPercent, aHPercent);
+    selection->ScrollIntoView(nsISelectionController::SELECTION_ANCHOR_REGION,
+                              PR_TRUE, aVPercent, aHPercent);
 
-  selection->CollapseToStart();
+    selection->CollapseToStart();
+  }
 
   return NS_OK;
 }
@@ -425,11 +427,12 @@ nsCoreUtils::GetScreenCoordsForWindow(nsINode *aNode)
 
   nsCOMPtr<nsIDOMWindow> window;
   domDoc->GetDefaultView(getter_AddRefs(window));
-  if (!window)
+  nsCOMPtr<nsIDOMWindowInternal> windowInter(do_QueryInterface(window));
+  if (!windowInter)
     return coords;
 
-  window->GetScreenX(&coords.x);
-  window->GetScreenY(&coords.y);
+  windowInter->GetScreenX(&coords.x);
+  windowInter->GetScreenY(&coords.y);
   return coords;
 }
 
@@ -476,26 +479,6 @@ nsCoreUtils::IsContentDocument(nsIDocument *aDocument)
   PRInt32 contentType;
   docShellTreeItem->GetItemType(&contentType);
   return (contentType == nsIDocShellTreeItem::typeContent);
-}
-
-bool
-nsCoreUtils::IsTabDocument(nsIDocument* aDocumentNode)
-{
-  nsCOMPtr<nsISupports> container = aDocumentNode->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(container));
-
-  nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
-  treeItem->GetParent(getter_AddRefs(parentTreeItem));
-
-  // Tab document running in own process doesn't have parent.
-  if (XRE_GetProcessType() == GeckoProcessType_Content)
-    return !parentTreeItem;
-
-  // Parent of docshell for tab document running in chrome process is root.
-  nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
-  treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
-
-  return parentTreeItem == rootTreeItem;
 }
 
 PRBool
@@ -577,9 +560,9 @@ nsCoreUtils::IsXLink(nsIContent *aContent)
   if (!aContent)
     return PR_FALSE;
 
-  return aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
-                               nsGkAtoms::simple, eCaseMatters) &&
-    aContent->HasAttr(kNameSpaceID_XLink, nsGkAtoms::href);
+  return aContent->AttrValueIs(kNameSpaceID_XLink, nsAccessibilityAtoms::type,
+                               nsAccessibilityAtoms::simple, eCaseMatters) &&
+         aContent->HasAttr(kNameSpaceID_XLink, nsAccessibilityAtoms::href);
 }
 
 void
@@ -590,7 +573,8 @@ nsCoreUtils::GetLanguageFor(nsIContent *aContent, nsIContent *aRootContent,
 
   nsIContent *walkUp = aContent;
   while (walkUp && walkUp != aRootContent &&
-         !walkUp->GetAttr(kNameSpaceID_None, nsGkAtoms::lang, aLanguage))
+         !walkUp->GetAttr(kNameSpaceID_None,
+                          nsAccessibilityAtoms::lang, aLanguage))
     walkUp = walkUp->GetParent();
 }
 
@@ -637,7 +621,7 @@ nsCoreUtils::GetTreeBoxObject(nsIContent *aContent)
   // Find DOMNode's parents recursively until reach the <tree> tag
   nsIContent* currentContent = aContent;
   while (currentContent) {
-    if (currentContent->NodeInfo()->Equals(nsGkAtoms::tree,
+    if (currentContent->NodeInfo()->Equals(nsAccessibilityAtoms::tree,
                                            kNameSpaceID_XUL)) {
       // We will get the nsITreeBoxObject from the tree node
       nsCOMPtr<nsIDOMXULElement> xulElement(do_QueryInterface(currentContent));
@@ -765,34 +749,10 @@ nsCoreUtils::IsColumnHidden(nsITreeColumn *aColumn)
   nsCOMPtr<nsIDOMElement> element;
   aColumn->GetElement(getter_AddRefs(element));
   nsCOMPtr<nsIContent> content = do_QueryInterface(element);
-  return content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
-                              nsGkAtoms::_true, eCaseMatters);
+  return content->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::hidden,
+                              nsAccessibilityAtoms::_true, eCaseMatters);
 }
 
-bool
-nsCoreUtils::CheckVisibilityInParentChain(nsIFrame* aFrame)
-{
-  nsIView* view = aFrame->GetClosestView();
-  if (view && !view->IsEffectivelyVisible())
-    return false;
-
-  nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
-  while (presShell) {
-    if (!presShell->IsActive()) {
-      return false;
-    }
-
-    nsIFrame* rootFrame = presShell->GetRootFrame();
-    presShell = nsnull;
-    if (rootFrame) {
-      nsIFrame* frame = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
-      if (frame) {
-        presShell = frame->PresContext()->GetPresShell();
-      }
-    }
-  }
-  return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibleDOMStringList
@@ -827,3 +787,77 @@ nsAccessibleDOMStringList::Contains(const nsAString& aString, PRBool *aResult)
   return NS_OK;
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+// IDRefsIterator
+////////////////////////////////////////////////////////////////////////////////
+
+IDRefsIterator::IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr) :
+  mCurrIdx(0)
+{
+  if (!aContent->IsInDoc() ||
+      !aContent->GetAttr(kNameSpaceID_None, aIDRefsAttr, mIDs))
+    return;
+
+  if (aContent->IsInAnonymousSubtree()) {
+    mXBLDocument = do_QueryInterface(aContent->GetOwnerDoc());
+    mBindingParent = do_QueryInterface(aContent->GetBindingParent());
+  } else {
+    mDocument = aContent->GetOwnerDoc();
+  }
+}
+
+const nsDependentSubstring
+IDRefsIterator::NextID()
+{
+  for (; mCurrIdx < mIDs.Length(); mCurrIdx++) {
+    if (!NS_IsAsciiWhitespace(mIDs[mCurrIdx]))
+      break;
+  }
+
+  if (mCurrIdx >= mIDs.Length())
+    return nsDependentSubstring();
+
+  nsAString::index_type idStartIdx = mCurrIdx;
+  while (++mCurrIdx < mIDs.Length()) {
+    if (NS_IsAsciiWhitespace(mIDs[mCurrIdx]))
+      break;
+  }
+
+  return Substring(mIDs, idStartIdx, mCurrIdx++ - idStartIdx);
+}
+
+nsIContent*
+IDRefsIterator::NextElem()
+{
+  while (true) {
+    const nsDependentSubstring id = NextID();
+    if (id.IsEmpty())
+      break;
+
+    nsIContent* refContent = GetElem(id);
+    if (refContent)
+      return refContent;
+  }
+
+  return nsnull;
+}
+
+nsIContent*
+IDRefsIterator::GetElem(const nsDependentSubstring& aID)
+{
+  if (mXBLDocument) {
+    // If content is anonymous subtree then use "anonid" attribute to get
+    // elements, otherwise search elements in DOM by ID attribute.
+
+    nsCOMPtr<nsIDOMElement> refElm;
+    mXBLDocument->GetAnonymousElementByAttribute(mBindingParent,
+                                                 NS_LITERAL_STRING("anonid"),
+                                                 aID,
+                                                 getter_AddRefs(refElm));
+    nsCOMPtr<nsIContent> refContent = do_QueryInterface(refElm);
+    return refContent;
+  }
+
+  return mDocument->GetElementById(aID);
+}

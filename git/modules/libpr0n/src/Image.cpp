@@ -42,7 +42,7 @@ namespace imagelib {
 
 // Constructor
 Image::Image(imgStatusTracker* aStatusTracker) :
-  mInnerWindowId(0),
+  mWindowId(0),
   mAnimationConsumers(0),
   mAnimationMode(kNormalAnimMode),
   mInitialized(PR_FALSE),
@@ -63,8 +63,7 @@ Image::GetDataSize()
   if (mError)
     return 0;
   
-  return GetSourceHeapSize() + GetDecodedHeapSize() +
-         GetDecodedNonheapSize() + GetDecodedOutOfProcessSize();
+  return GetSourceDataSize() + GetDecodedDataSize();
 }
 
 // Translates a mimetype into a concrete decoder

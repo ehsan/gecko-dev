@@ -105,8 +105,6 @@
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 
-#include "mozilla/Util.h" // for DebugOnly
-
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
 #include "mozilla/_ipdltest/IPDLUnitTestProcessChild.h"
@@ -371,19 +369,15 @@ XRE_InitChildProcess(int aArgc,
   // on windows and mac, |crashReporterArg| is the named pipe on which the
   // server is listening for requests, or "-" if crash reporting is
   // disabled.
-  if (0 != strcmp("-", crashReporterArg) && 
-      !XRE_SetRemoteExceptionHandler(crashReporterArg)) {
-    // Bug 684322 will add better visibility into this condition
-    NS_WARNING("Could not setup crash reporting\n");
-  }
+  if (0 != strcmp("-", crashReporterArg)
+      && !XRE_SetRemoteExceptionHandler(crashReporterArg))
+    return 1;
 #  elif defined(OS_LINUX)
   // on POSIX, |crashReporterArg| is "true" if crash reporting is
   // enabled, false otherwise
-  if (0 != strcmp("false", crashReporterArg) && 
-      !XRE_SetRemoteExceptionHandler(NULL)) {
-    // Bug 684322 will add better visibility into this condition
-    NS_WARNING("Could not setup crash reporting\n");
-  }
+  if (0 != strcmp("false", crashReporterArg)
+      && !XRE_SetRemoteExceptionHandler(NULL))
+    return 1;
 #  else
 #    error "OOP crash reporting unsupported on this platform"
 #  endif   
@@ -423,7 +417,7 @@ XRE_InitChildProcess(int aArgc,
   NS_ABORT_IF_FALSE(!*end, "invalid parent PID");
 
   base::ProcessHandle parentHandle;
-  mozilla::DebugOnly<bool> ok = base::OpenProcessHandle(parentPID, &parentHandle);
+  bool ok = base::OpenProcessHandle(parentPID, &parentHandle);
   NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
 
 #if defined(XP_WIN)
@@ -574,13 +568,13 @@ XRE_InitParentProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
 
-  ScopedXREEmbed embed;
-
   gArgc = aArgc;
   gArgv = aArgv;
   int rv = XRE_InitCommandLine(gArgc, gArgv);
   if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
+
+  ScopedXREEmbed embed;
 
   {
     embed.Start();
@@ -689,7 +683,7 @@ XRE_ShutdownChildProcess()
 {
   NS_ABORT_IF_FALSE(MessageLoopForUI::current(), "Wrong thread!");
 
-  mozilla::DebugOnly<MessageLoop*> ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   NS_ABORT_IF_FALSE(!!ioLoop, "Bad shutdown order");
 
   // Quit() sets off the following chain of events
@@ -716,7 +710,7 @@ TestShellParent* gTestShellParent = nsnull;
 TestShellParent* GetOrCreateTestShellParent()
 {
     if (!gTestShellParent) {
-        ContentParent* parent = ContentParent::GetNewOrUsed();
+        ContentParent* parent = ContentParent::GetSingleton();
         NS_ENSURE_TRUE(parent, nsnull);
         gTestShellParent = parent->CreateTestShell();
         NS_ENSURE_TRUE(gTestShellParent, nsnull);
@@ -762,8 +756,7 @@ XRE_ShutdownTestShell()
 {
   if (!gTestShellParent)
     return true;
-  return static_cast<ContentParent*>(gTestShellParent->Manager())->
-    DestroyTestShell(gTestShellParent);
+  return ContentParent::GetSingleton()->DestroyTestShell(gTestShellParent);
 }
 
 #ifdef MOZ_X11

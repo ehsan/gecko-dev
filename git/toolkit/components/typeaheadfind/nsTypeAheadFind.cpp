@@ -61,12 +61,13 @@
 #include "nsCRT.h"
 
 #include "nsIDOMNode.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsFrameTraversal.h"
 #include "nsIDOMDocument.h"
 #include "nsIImageDocument.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
@@ -88,7 +89,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIObserverService.h"
 #include "nsFocusManager.h"
-#include "mozilla/dom/Element.h"
 
 #include "nsTypeAheadFind.h"
 

@@ -283,6 +283,7 @@ public:
   NS_IMETHOD LogoutAuthenticatedPK11();
   NS_IMETHOD DownloadCRLDirectly(nsAutoString, nsAutoString);
   NS_IMETHOD RememberCert(CERTCertificate *cert);
+  static nsresult GetNSSCipherIDFromPrefString(const nsACString &aPrefString, PRUint16 &aCipherId);
 
   NS_IMETHOD LaunchSmartCardThread(SECMODModule *module);
   NS_IMETHOD ShutdownSmartCardThread(SECMODModule *module);
@@ -356,12 +357,8 @@ private:
   nsNSSShutDownList *mShutdownObjectList;
   SmartCardThreadList *mThreadList;
   PRBool mIsNetworkDown;
-
-  void deleteBackgroundThreads();
-  void createBackgroundThreads();
   nsSSLThread *mSSLThread;
   nsCertVerificationThread *mCertVerificationThread;
-
   nsNSSHttpInterface mHttpForNSS;
   nsRefPtr<nsClientAuthRememberService> mClientAuthRememberService;
   nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParam;

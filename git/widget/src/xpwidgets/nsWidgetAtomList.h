@@ -43,7 +43,7 @@
   It is designed to be used as inline input to nsWidgetAtoms.cpp *only*
   through the magic of C preprocessing.
 
-  All entries must be enclosed in the macro WIDGET_ATOM which will have cruel
+  All entires must be enclosed in the macro WIDGET_ATOM which will have cruel
   and unusual things done to it
 
   It is recommended (but not strictly necessary) to keep all entries
@@ -120,12 +120,9 @@ WIDGET_ATOM(Search, "Search")
 WIDGET_ATOM(selected, "selected")
 WIDGET_ATOM(sortdirection, "sortDirection")
 WIDGET_ATOM(state, "state")
-WIDGET_ATOM(statusbar, "statusbar")
 WIDGET_ATOM(Stop, "Stop")
 WIDGET_ATOM(_true, "true")
 WIDGET_ATOM(tab, "tab")
-WIDGET_ATOM(toolbar, "toolbar")
-WIDGET_ATOM(toolbox, "toolbox")
 WIDGET_ATOM(tree, "tree")
 WIDGET_ATOM(treecolpicker, "treecolpicker")
 WIDGET_ATOM(type, "type")

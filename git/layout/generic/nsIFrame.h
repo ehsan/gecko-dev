@@ -6,7 +6,7 @@
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
+ * http://www.mozilla.org/MPL/I
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -60,7 +60,6 @@
 #include "gfxMatrix.h"
 #include "nsFrameList.h"
 #include "nsAlgorithm.h"
-#include "mozilla/layout/FrameChildList.h"
 #include "FramePropertyTable.h"
 
 /**
@@ -92,7 +91,7 @@ class nsIWidget;
 class nsIDOMRange;
 class nsISelectionController;
 class nsBoxLayoutState;
-class nsBoxLayout;
+class nsIBoxLayout;
 class nsILineIterator;
 #ifdef ACCESSIBILITY
 class nsAccessible;
@@ -503,7 +502,7 @@ typedef PRBool nsDidReflowStatus;
  * A frame in the layout model. This interface is supported by all frame
  * objects.
  *
- * Frames can have multiple child lists: the default child list
+ * Frames can have multiple child lists: the default unnamed child list
  * (referred to as the <i>principal</i> child list, and additional named
  * child lists. There is an ordering of frames within a child list, but
  * there is no order defined between frames in different child lists of
@@ -526,11 +525,6 @@ public:
   typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
   typedef mozilla::FrameProperties FrameProperties;
   typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layout::FrameChildList ChildList;
-  typedef mozilla::layout::FrameChildListID ChildListID;
-  typedef mozilla::layout::FrameChildListIDs ChildListIDs;
-  typedef mozilla::layout::FrameChildListIterator ChildListIterator;
-  typedef mozilla::layout::FrameChildListArrayIterator ChildListArrayIterator;
 
   NS_DECL_QUERYFRAME_TARGET(nsIFrame)
 
@@ -561,7 +555,7 @@ public:
   /**
    * Destroys this frame and each of its child frames (recursively calls
    * Destroy() for each child). If this frame is a first-continuation, this
-   * also removes the frame from the primary frame map and clears undisplayed
+   * also removes the frame from the primary frame man and clears undisplayed
    * content for its content node.
    * If the frame is a placeholder, it also ensures the out-of-flow frame's
    * removal and destruction.
@@ -586,7 +580,8 @@ public:
    * This is only called once for a given child list, and won't be called
    * at all for child lists with no initial list of frames.
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aChildList list of child frames. Each of the frames has its
    *            NS_FRAME_IS_DIRTY bit set.  Must not be empty.
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
@@ -598,7 +593,7 @@ public:
    *            child list.
    * @see     #Init()
    */
-  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
                                   nsFrameList&    aChildList) = 0;
 
   /**
@@ -606,7 +601,8 @@ public:
    * list.  The implementation should append the frames to the specified
    * child list and then generate a reflow command.
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aFrameList list of child frames to append. Each of the frames has
    *            its NS_FRAME_IS_DIRTY bit set.  Must not be empty.
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
@@ -616,7 +612,7 @@ public:
    *            aChildList in the process of moving the frames over to its own
    *            child list.
    */
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList) = 0;
 
   /**
@@ -624,7 +620,8 @@ public:
    * list.  The implementation should insert the new frames into the specified
    * child list and then generate a reflow command.
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aPrevFrame the frame to insert frames <b>after</b>
    * @param   aFrameList list of child frames to insert <b>after</b> aPrevFrame.
    *            Each of the frames has its NS_FRAME_IS_DIRTY bit set
@@ -635,7 +632,7 @@ public:
    *            aChildList in the process of moving the frames over to its own
    *            child list.
    */
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) = 0;
 
@@ -645,7 +642,8 @@ public:
    * and then generate a reflow command. The implementation is responsible
    * for destroying aOldFrame (the caller mustn't destroy aOldFrame).
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aOldFrame the frame to remove
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
@@ -654,7 +652,7 @@ public:
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame,
    *          NS_OK otherwise
    */
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame) = 0;
 
   /**
@@ -898,8 +896,6 @@ public:
 
   NS_DECLARE_FRAME_PROPERTY(ScrollLayerCount, nsnull)
 
-  NS_DECLARE_FRAME_PROPERTY(LineBaselineOffset, nsnull)
-
   /**
    * Return the distance between the border edge of the frame and the
    * margin edge of the frame.  Like GetRect(), returns the dimensions
@@ -1020,48 +1016,37 @@ public:
   }
 
   /**
+   * Used to iterate the list of additional child list names. Returns the atom
+   * name for the additional child list at the specified 0-based index, or a
+   * NULL pointer if there are no more named child lists.
+   *
+   * Note that the list is only the additional named child lists and does not
+   * include the unnamed principal child list.
+   */
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const = 0;
+
+  /**
    * Get the specified child list.
    *
-   * @param   aListID identifies the requested child list.
-   * @return  the child list.  If the requested list is unsupported by this
-   *          frame type, an empty list will be returned.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
+   * @return  the child list.  If this is an unknown list name, an empty list
+   *            will be returned.
+   * @see     #GetAdditionalListName()
    */
   // XXXbz if all our frame storage were actually backed by nsFrameList, we
   // could make this return a const reference...  nsBlockFrame is the only real
   // culprit here.  Make sure to assign the return value of this function into
   // a |const nsFrameList&|, not an nsFrameList.
-  virtual nsFrameList GetChildList(ChildListID aListID) const = 0;
-  nsFrameList PrincipalChildList() { return GetChildList(kPrincipalList); }
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const = 0;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const = 0;
   // XXXbz this method should go away
-  nsIFrame* GetFirstChild(ChildListID aListID) const {
-    return GetChildList(aListID).FirstChild();
+  nsIFrame* GetFirstChild(nsIAtom* aListName) const {
+    return GetChildList(aListName).FirstChild();
   }
   // XXXmats this method should also go away then
-  nsIFrame* GetLastChild(ChildListID aListID) const {
-    return GetChildList(aListID).LastChild();
+  nsIFrame* GetLastChild(nsIAtom* aListName) const {
+    return GetChildList(aListName).LastChild();
   }
-  nsIFrame* GetFirstPrincipalChild() const {
-    return GetFirstChild(kPrincipalList);
-  }
-
-  // The individual concrete child lists.
-  static const ChildListID kPrincipalList = mozilla::layout::kPrincipalList;
-  static const ChildListID kAbsoluteList = mozilla::layout::kAbsoluteList;
-  static const ChildListID kBulletList = mozilla::layout::kBulletList;
-  static const ChildListID kCaptionList = mozilla::layout::kCaptionList;
-  static const ChildListID kColGroupList = mozilla::layout::kColGroupList;
-  static const ChildListID kExcessOverflowContainersList = mozilla::layout::kExcessOverflowContainersList;
-  static const ChildListID kFixedList = mozilla::layout::kFixedList;
-  static const ChildListID kFloatList = mozilla::layout::kFloatList;
-  static const ChildListID kOverflowContainersList = mozilla::layout::kOverflowContainersList;
-  static const ChildListID kOverflowList = mozilla::layout::kOverflowList;
-  static const ChildListID kOverflowOutOfFlowList = mozilla::layout::kOverflowOutOfFlowList;
-  static const ChildListID kPopupList = mozilla::layout::kPopupList;
-  static const ChildListID kPushedFloatsList = mozilla::layout::kPushedFloatsList;
-  static const ChildListID kSelectPopupList = mozilla::layout::kSelectPopupList;
-  // A special alias for kPrincipalList that do not request reflow.
-  static const ChildListID kNoReflowPrincipalList = mozilla::layout::kNoReflowPrincipalList;
 
   /**
    * Child frames are linked together in a doubly-linked list
@@ -1203,21 +1188,6 @@ public:
    * if we have the -moz-transform property or if we're an SVGForeignObjectFrame.
    */
   virtual PRBool IsTransformed() const;
-
-  /**
-   * Returns whether this frame will attempt to preserve the 3d transforms of its
-   * children. This is a direct indicator of -moz-transform-style: preserve-3d.
-   */
-  PRBool Preserves3DChildren() const;
-
-  /**
-   * Returns whether this frame has a parent that Preserves3DChildren() and
-   * can respect this. Returns false if the frame is clipped.
-   */
-  PRBool Preserves3D() const;
-
-  // Calculate the overflow size of all child frames, taking preserve-3d into account
-  void ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, const nsRect& aBounds);
 
   /**
    * Event handling of GUI events.
@@ -1925,7 +1895,7 @@ public:
    * @return A gfxMatrix that converts points in this frame's coordinate space into
    *         points in aOutAncestor's coordinate space.
    */
-  virtual gfx3DMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
+  virtual gfxMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Bit-flags to pass to IsFrameOfType()
@@ -2022,25 +1992,14 @@ public:
    * after a short period. This call does no immediate invalidation,
    * but when the mark times out, we'll invalidate the frame's overflow
    * area.
-   * @param aChangeHint nsChangeHint_UpdateTransformLayer or
-   * nsChangeHint_UpdateOpacityLayer or 0, depending on whether the change
-   * triggering the activity is a changing transform, changing opacity, or
-   * something else.
    */
-  void MarkLayersActive(nsChangeHint aHint);
+  void MarkLayersActive();
+
   /**
    * Return true if this frame is marked as needing active layers.
    */
   PRBool AreLayersMarkedActive();
-  /**
-   * Return true if this frame is marked as needing active layers.
-   * @param aChangeHint nsChangeHint_UpdateTransformLayer or
-   * nsChangeHint_UpdateOpacityLayer. We return true only if
-   * a change in the transform or opacity has been recorded while layers have
-   * been marked active for this frame.
-   */
-  PRBool AreLayersMarkedActive(nsChangeHint aChangeHint);
-
+  
   /**
    * @param aFlags see InvalidateInternal below
    */
@@ -2132,8 +2091,7 @@ public:
     INVALIDATE_NO_THEBES_LAYERS = 0x10,
     INVALIDATE_ONLY_THEBES_LAYERS = 0x20,
     INVALIDATE_EXCLUDE_CURRENT_PAINT = 0x40,
-    INVALIDATE_NO_UPDATE_LAYER_TREE = 0x80,
-    INVALIDATE_ALREADY_TRANSFORMED = 0x100
+    INVALIDATE_NO_UPDATE_LAYER_TREE = 0x80
   };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
@@ -2397,11 +2355,19 @@ public:
    * this frame returns a child frame, then the child frame must be sure
    * to return a grandparent or higher!
    *
-   * @return The frame whose style context should be the parent of this frame's
-   *         style context.  Null is permitted, and means that this frame's
-   *         style context should be the root of the style context tree.
+   * @param aPresContext:   PresContext
+   * @param aProviderFrame: The frame whose style context should be the
+   *                        parent of this frame's style context.  Null
+   *                        is permitted, and means that this frame's
+   *                        style context should be the root of the
+   *                        style context tree.
+   * @param aIsChild:       True if |aProviderFrame| is set to a child
+   *                        of this frame; false if it is an ancestor or
+   *                        null.
    */
-  virtual nsIFrame* GetParentStyleContextFrame() = 0;
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild) = 0;
 
   /**
    * Determines whether a frame is visible for painting;
@@ -2512,7 +2478,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
    * aRect must not be null!
    */
   PRBool GetAbsPosClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
-                           const nsSize& aSize) const;
+                           const nsSize& aSize);
 
   /**
    * Check if this frame is focusable and in the current tab order.
@@ -2602,7 +2568,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   {
     // box layout ends at box-wrapped frames, so don't allow these frames
     // to report child boxes.
-    return IsBoxFrame() ? GetFirstPrincipalChild() : nsnull;
+    return IsBoxFrame() ? GetFirstChild(nsnull) : nsnull;
   }
   nsIBox* GetNextBox() const
   {
@@ -2618,8 +2584,8 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   NS_IMETHOD GetBorder(nsMargin& aBorder)=0;
   NS_IMETHOD GetPadding(nsMargin& aBorderAndPadding)=0;
   NS_IMETHOD GetMargin(nsMargin& aMargin)=0;
-  virtual void SetLayoutManager(nsBoxLayout* aLayout) { }
-  virtual nsBoxLayout* GetLayoutManager() { return nsnull; }
+  NS_IMETHOD SetLayoutManager(nsIBoxLayout* aLayout)=0;
+  NS_IMETHOD GetLayoutManager(nsIBoxLayout** aLayout)=0;
   NS_HIDDEN_(nsresult) GetClientRect(nsRect& aContentRect);
 
   // For nsSprocketLayout

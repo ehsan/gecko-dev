@@ -72,16 +72,11 @@
 #include "nsThreadUtils.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
 
 #include <math.h>
 
 #ifdef MOZ_MAEMO_LIBLOCATION
 #include "MaemoLocationProvider.h"
-#endif
-
-#ifdef MOZ_ENABLE_QTMOBILITY
-#include "QTMLocationProvider.h"
 #endif
 
 #ifdef ANDROID
@@ -96,7 +91,6 @@
 #define MAX_GEO_REQUESTS_PER_WINDOW  1500
 
 using mozilla::unused;          // <snicker>
-using namespace mozilla;
 using namespace mozilla::dom;
 
 class RequestPromptEvent : public nsRunnable
@@ -149,7 +143,7 @@ public:
   // have to do more, then we can change this around.
   RequestSendLocationEvent(nsIDOMGeoPosition* aPosition,
                            nsGeolocationRequest* aRequest,
-                           nsGeolocation* aLocator)
+                           nsGeolocation* aLocator = nsnull)
     : mPosition(aPosition),
       mRequest(aRequest),
       mLocator(aLocator)
@@ -389,9 +383,7 @@ nsGeolocationRequest::Allow()
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
     
-     nsCOMPtr<nsIRunnable> ev =
-         new RequestSendLocationEvent(lastPosition, this,
-                                      mIsWatchPositionRequest ? nsnull : mLocator);
+    nsCOMPtr<nsIRunnable> ev = new RequestSendLocationEvent(lastPosition, this, mLocator);
     NS_DispatchToMainThread(ev);
   }
 
@@ -464,9 +456,7 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 void
 nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
 {
-  nsCOMPtr<nsIRunnable> ev  =
-      new RequestSendLocationEvent(aPosition, this,
-                                   mIsWatchPositionRequest ? nsnull : mLocator);
+  nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition, this);
   NS_DispatchToMainThread(ev);
 }
 
@@ -509,30 +499,33 @@ static PRBool sGeoIgnoreLocationFilter = PR_FALSE;
 static int
 GeoEnabledChangedCallback(const char *aPrefName, void *aClosure)
 {
-  sGeoEnabled = Preferences::GetBool("geo.enabled", PR_TRUE);
+  sGeoEnabled = nsContentUtils::GetBoolPref("geo.enabled", PR_TRUE);
   return 0;
 }
 
 static int
 GeoIgnoreLocationFilterChangedCallback(const char *aPrefName, void *aClosure)
 {
-  sGeoIgnoreLocationFilter =
-    Preferences::GetBool("geo.ignore.location_filter", PR_TRUE);
+  sGeoIgnoreLocationFilter = nsContentUtils::GetBoolPref("geo.ignore.location_filter",
+                                                         PR_TRUE);
   return 0;
 }
 
 
 nsresult nsGeolocationService::Init()
 {
-  mTimeout = Preferences::GetInt("geo.timeout", 6000);
+  mTimeout = nsContentUtils::GetIntPref("geo.timeout", 6000);
 
-  Preferences::RegisterCallback(GeoIgnoreLocationFilterChangedCallback,
-                                "geo.ignore.location_filter");
+  nsContentUtils::RegisterPrefCallback("geo.ignore.location_filter",
+                                       GeoIgnoreLocationFilterChangedCallback,
+                                       nsnull);
 
   GeoIgnoreLocationFilterChangedCallback("geo.ignore.location_filter", nsnull);
 
 
-  Preferences::RegisterCallback(GeoEnabledChangedCallback, "geo.enabled");
+  nsContentUtils::RegisterPrefCallback("geo.enabled",
+                                       GeoEnabledChangedCallback,
+                                       nsnull);
 
   GeoEnabledChangedCallback("geo.enabled", nsnull);
 
@@ -582,12 +575,6 @@ nsresult nsGeolocationService::Init()
 
 #ifdef MOZ_MAEMO_LIBLOCATION
   provider = new MaemoLocationProvider();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
-
-#ifdef MOZ_ENABLE_QTMOBILITY
-  provider = new QTMLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
 #endif
@@ -1044,14 +1031,6 @@ nsGeolocation::WindowOwnerStillExists()
 bool
 nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
 {
-  if (Preferences::GetBool("geo.prompt.testing", PR_FALSE)) {
-    nsCOMPtr<nsIRunnable> ev =
-        new RequestAllowEvent(Preferences::GetBool("geo.prompt.testing.allow",
-                                                   PR_FALSE), request);
-    NS_DispatchToMainThread(ev);
-    return true;
-  }
-
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mOwner);
     if (!window)
@@ -1071,6 +1050,13 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     child->SendPContentPermissionRequestConstructor(request, type, IPC::URI(mURI));
     
     request->Sendprompt();
+    return true;
+  }
+
+  if (nsContentUtils::GetBoolPref("geo.prompt.testing", PR_FALSE))
+  {
+    nsCOMPtr<nsIRunnable> ev  = new RequestAllowEvent(nsContentUtils::GetBoolPref("geo.prompt.testing.allow", PR_FALSE), request);
+    NS_DispatchToMainThread(ev);
     return true;
   }
 

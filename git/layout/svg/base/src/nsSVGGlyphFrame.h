@@ -46,7 +46,7 @@
 #include "gfxFont.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
-#include "nsTextFragment.h"
+#include "nsSVGMatrix.h"
 
 class nsSVGTextFrame;
 class nsSVGTextPathFrame;
@@ -246,7 +246,7 @@ protected:
 
   // Used to support GetBBoxContribution by making GetConvasTM use this as the
   // parent transform instead of the real CanvasTM.
-  nsAutoPtr<gfxMatrix> mOverrideCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCanvasTM;
 
   // Owning pointer, must call gfxTextRunWordCache::RemoveTextRun before deleting
   gfxTextRun *mTextRun;

@@ -42,7 +42,6 @@
 #define GFX_FONT_H
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "nsString.h"
 #include "gfxPoint.h"
@@ -168,8 +167,8 @@ struct THEBES_API gfxFontStyle {
     // Not meant to be called when sizeAdjust = 0.
     gfxFloat GetAdjustedSize(gfxFloat aspect) const {
         NS_ASSERTION(sizeAdjust != 0.0, "Not meant to be called when sizeAdjust = 0");
-        gfxFloat adjustedSize = NS_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
-        return NS_MIN(adjustedSize, FONT_MAX_SIZE);
+        gfxFloat adjustedSize = PR_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
+        return PR_MIN(adjustedSize, FONT_MAX_SIZE);
     }
 
     PLDHashNumber Hash() const {
@@ -222,13 +221,8 @@ public:
 
     virtual ~gfxFontEntry();
 
-    // unique name for the face, *not* the family; not necessarily the
-    // "real" or user-friendly name, may be an internal identifier
+    // unique name for the face, *not* the family
     const nsString& Name() const { return mName; }
-
-    // the "real" name of the face, if available from the font resource
-    // (may be expensive); returns Name() if nothing better is available
-    virtual nsString RealFaceName();
 
     gfxFontFamily* Family() const { return mFamily; }
 
@@ -279,7 +273,7 @@ public:
         mFamily = aFamily;
     }
 
-    virtual nsString FamilyName() const;
+    const nsString& FamilyName() const;
 
     already_AddRefed<gfxFont> FindOrMakeFont(const gfxFontStyle *aStyle,
                                              PRBool aNeedsBold);
@@ -611,23 +605,10 @@ protected:
 };
 
 struct gfxTextRange {
-    enum {
-        // flags for recording the kind of font-matching that was used
-        kFontGroup      = 0x0001,
-        kPrefsFallback  = 0x0002,
-        kSystemFallback = 0x0004
-    };
-    gfxTextRange(PRUint32 aStart, PRUint32 aEnd,
-                 gfxFont* aFont, PRUint8 aMatchType)
-        : start(aStart),
-          end(aEnd),
-          font(aFont),
-          matchType(aMatchType)
-    { }
+    gfxTextRange(PRUint32 aStart,  PRUint32 aEnd) : start(aStart), end(aEnd) { }
     PRUint32 Length() const { return end - start; }
-    PRUint32 start, end;
     nsRefPtr<gfxFont> font;
-    PRUint8 matchType;
+    PRUint32 start, end;
 };
 
 
@@ -1193,12 +1174,8 @@ public:
     // This is called by the default Draw() implementation above.
     virtual PRBool SetupCairoFont(gfxContext *aContext) = 0;
 
-    PRBool IsSyntheticBold() { return mApplySyntheticBold; }
-
-    // Amount by which synthetic bold "fattens" the glyphs: 1/16 of the em-size
-    gfxFloat GetSyntheticBoldOffset() {
-        return GetAdjustedSize() * (1.0 / 16.0);
-    }
+    PRBool IsSyntheticBold() { return mSyntheticBoldOffset != 0; }
+    PRUint32 GetSyntheticBoldOffset() { return mSyntheticBoldOffset; }
 
     gfxFontEntry *GetFontEntry() { return mFontEntry.get(); }
     PRBool HasCharacter(PRUint32 ch) {
@@ -1228,11 +1205,6 @@ protected:
     nsRefPtr<gfxFontEntry> mFontEntry;
 
     PRPackedBool               mIsValid;
-
-    // use synthetic bolding for environments where this is not supported
-    // by the platform
-    PRPackedBool               mApplySyntheticBold;
-
     nsExpirationState          mExpirationState;
     gfxFontStyle               mStyle;
     nsAutoTArray<gfxGlyphExtents*,1> mGlyphExtentsArray;
@@ -1240,6 +1212,9 @@ protected:
     gfxFloat                   mAdjustedSize;
 
     float                      mFUnitsConvFactor; // conversion factor from font units to dev units
+
+    // synthetic bolding for environments where this is not supported by the platform
+    PRUint32                   mSyntheticBoldOffset;  // number of devunit pixels to offset double-strike, 0 ==> no bolding
 
     // the AA setting requested for this font - may affect glyph bounds
     AntialiasOption            mAntialiasOption;
@@ -1896,7 +1871,6 @@ public:
     struct GlyphRun {
         nsRefPtr<gfxFont> mFont;   // never null
         PRUint32          mCharacterOffset; // into original UTF16 string
-        PRUint8           mMatchType;
     };
 
     class THEBES_API GlyphRunIterator {
@@ -1952,8 +1926,7 @@ public:
      * are added before any further operations are performed with this
      * TextRun.
      */
-    nsresult AddGlyphRun(gfxFont *aFont, PRUint8 aMatchType,
-                         PRUint32 aStartCharIndex, PRBool aForceNewRun);
+    nsresult AddGlyphRun(gfxFont *aFont, PRUint32 aStartCharIndex, PRBool aForceNewRun = PR_FALSE);
     void ResetGlyphRuns() { mGlyphRuns.Clear(); }
     void SortGlyphRuns();
     void SanitizeGlyphRuns();
@@ -2049,9 +2022,7 @@ public:
 #endif
 
     // post-process glyph advances to deal with synthetic bolding
-    void AdjustAdvancesForSyntheticBold(gfxContext *aContext,
-                                        PRUint32 aStart,
-                                        PRUint32 aLength);
+    void AdjustAdvancesForSyntheticBold(PRUint32 aStart, PRUint32 aLength);
 
 protected:
     /**
@@ -2254,7 +2225,7 @@ private:
 
     // XXX this should be changed to a GlyphRun plus a maybe-null GlyphRun*,
     // for smaller size especially in the super-common one-glyphrun case
-    nsAutoTArray<GlyphRun,1>        mGlyphRuns;
+    nsAutoTArray<GlyphRun,1>                       mGlyphRuns;
     // When TEXT_IS_8BIT is set, we use mSingle, otherwise we use mDouble.
     // When TEXT_IS_PERSISTENT is set, we don't own the text, otherwise we
     // own the text. When we own the text, it's allocated fused with the
@@ -2352,7 +2323,6 @@ public:
      */
     typedef PRBool (*FontCreationCallback) (const nsAString& aName,
                                             const nsACString& aGenericName,
-                                            PRBool aUseFontSet,
                                             void *closure);
     PRBool ForEachFont(const nsAString& aFamilies,
                        nsIAtom *aLanguage,
@@ -2382,8 +2352,7 @@ public:
 
     virtual already_AddRefed<gfxFont>
         FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRInt32 aRunScript,
-                        gfxFont *aPrevMatchedFont,
-                        PRUint8 *aMatchType);
+                        gfxFont *aPrevMatchedFont);
 
     // search through pref fonts for a character, return nsnull if no matching pref font
     virtual already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
@@ -2466,14 +2435,11 @@ protected:
      * and with actual font names.  If false then fc() is called with each
      * family name in aFamilies (after resolving CSS/Gecko generic family names
      * if aResolveGeneric).
-     * If aUseFontSet is true, the fontgroup's user font set is checked;
-     * if false then it is skipped.
      */
     PRBool ForEachFontInternal(const nsAString& aFamilies,
                                nsIAtom *aLanguage,
                                PRBool aResolveGeneric,
                                PRBool aResolveFontName,
-                               PRBool aUseFontSet,
                                FontCreationCallback fc,
                                void *closure);
 
@@ -2481,7 +2447,6 @@ protected:
 
     static PRBool FindPlatformFont(const nsAString& aName,
                                    const nsACString& aGenericName,
-                                   PRBool aUseFontSet,
                                    void *closure);
 
     static NS_HIDDEN_(nsILanguageAtomService*) gLangService;

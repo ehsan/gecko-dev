@@ -1,6 +1,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Test for SMIL keyTimes</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -297,7 +298,7 @@ function main()
       checkSample(anim, times[1], times[0], i);
     }
 
-    anim.parentNode.removeChild(anim);
+    removeElement(anim);
   }
 
   // fallback to discrete for non-additive animation
@@ -319,7 +320,7 @@ function main()
     checkLineCapSample(anim, sample[1], sample[0],
       "[non-interpolatable fallback]");
   }
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 
   SimpleTest.finish();
 }

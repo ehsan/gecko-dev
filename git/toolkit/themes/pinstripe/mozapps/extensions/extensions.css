@@ -35,12 +35,29 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-@import url("chrome://global/skin/inContentUI.css");
-
 %include ../../global/shared.inc
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
+
+#addons-page {
+  -moz-appearance: none;
+  padding: 18px;
+  background-image: /* Texture */
+                    url("chrome://mozapps/skin/extensions/background-texture.png"),
+                    /* Gradient */
+                    -moz-linear-gradient(top, #ADB5C2, #BFC6D1);
+}
+
+#view-port-container {
+  /* Needed to allow the radius to clip the inner content, see bug 595656 */
+  /* Disabled because of bug 623615
+  overflow: hidden;
+  */
+  background-image: -moz-linear-gradient(top, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(50, 65, 92, 0.4);
+  border-radius: 5px;
+}
 
 
 /*** global warnings ***/
@@ -167,7 +184,7 @@
   margin-bottom: 15px;
 }
 
-.alert button {
+.alert .addon-control {
   margin: 1em 2em;
 }
 
@@ -801,19 +818,6 @@
   max-height: 300px;
 }
 
-#detail-screenshot[loading] {
-  background-image: url("chrome://global/skin/icons/loading_16.png"),
-                    -moz-linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
-  background-position: 50% 50%;
-  background-repeat: no-repeat;
-  border-radius: 3px;
-}
-
-#detail-screenshot[loading="error"] {
-  background-image: url("chrome://global/skin/media/error.png"),
-                    -moz-linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
-}
-
 #detail-desc-container {
   margin-bottom: 2em;
 }
@@ -890,23 +894,20 @@
   margin-bottom: 2em;
 }
 
-#detail-grid > columns > column:first-child {
-  max-width: 25em;
-}
-
 .detail-row[first-row="true"],
-.detail-row-complex[first-row="true"],
-setting[first-row="true"] {
+.detail-row-complex[first-row="true"] {
   border-top: none;
 }
 
 .detail-row,
-.detail-row-complex,
-setting {
+.detail-row-complex {
   border-top: 2px solid;
   -moz-border-top-colors: rgba(28, 31, 37, 0.2) rgba(255, 255, 255, 0.2);
   -moz-box-align: center;
-  min-height: 30px;
+}
+
+.detail-row-value {
+  -moz-margin-start: 0;
 }
 
 #detail-controls {
@@ -916,25 +917,6 @@ setting {
 #detail-view[active="false"]:not([pending]):not([notification]) {
   background-image: -moz-linear-gradient(rgba(135, 135, 135, 0.1),
                                          rgba(135, 135, 135, 0));
-}
-
-setting[first-row="true"] {
-  margin-top: 2em;
-}
-
-.preferences-description {
-  font-size: 90.9%;
-  color: graytext;
-  margin-top: -2px;
-  -moz-margin-start: 2em;
-}
-
-setting[type="string"] > .setting-input > textbox {
-  -moz-box-flex: 1;
-}
-
-setting[type="radio"] > radiogroup {
-  -moz-box-orient: horizontal;
 }
 
 
@@ -954,6 +936,7 @@ setting[type="radio"] > radiogroup {
 /*** rating ***/
 
 .meta-rating {
+  -moz-margin-start: 0;
   -moz-margin-end: 0;
   margin-top: 2px;
 }
@@ -1099,15 +1082,33 @@ setting[type="radio"] > radiogroup {
 
 /*** buttons ***/
 
+.addon-control {
+  -moz-appearance: none;
+  padding: 1px 4px;
+  min-width: 60px;
+  border-radius: 3px;
+  border: 1px solid rgba(60,73,97,0.5);
+  box-shadow: inset 0 1px rgba(255,255,255,0.25), 0 1px rgba(255,255,255,0.25);
+  background-image: -moz-linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.2));
+  background-clip: padding-box;
+  color: #252F3B;
+  text-shadow: @loweredShadow@;
+}
+
 .addon-control[disabled="true"] {
   display: none;
 }
 
-button.button-link {
+.addon-control:active:hover {
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.2), 0 1px rgba(255,255,255,0.25);
+  background-image: -moz-linear-gradient(rgba(45,54,71,0.3), rgba(45,54,71,0.1));
+  border-color: rgba(60,73,97,0.7);
+}
+
+.button-link {
   -moz-appearance: none;
   background: transparent;
   border: none;
-  box-shadow: none;
   text-decoration: underline;
   color: #0066CC;
   cursor: pointer;
@@ -1122,13 +1123,6 @@ button.button-link {
 .button-link:hover,
 .text-link:hover {
   color: #3DA1FF;
-}
-
-/* Needed to override normal button style from inContent.css */
-button.button-link:not([disabled="true"]):active:hover {
-  background: transparent;
-  border: none;
-  box-shadow: none;
 }
 
 .header-button {

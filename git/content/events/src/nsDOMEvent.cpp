@@ -46,6 +46,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "prmem.h"
@@ -56,9 +57,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIScriptError.h"
 #include "nsDOMPopStateEvent.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static const char* const sEventNames[] = {
   "mousedown", "mouseup", "click", "dblclick", "mouseover",
@@ -67,8 +65,7 @@ static const char* const sEventNames[] = {
   "afterscriptexecute", "beforeunload", "unload",
   "hashchange", "readystatechange", "abort", "error",
   "submit", "reset", "change", "select", "input", "invalid", "text",
-  "compositionstart", "compositionend", "compositionupdate",
-  "popupshowing", "popupshown",
+  "compositionstart", "compositionend", "popupshowing", "popupshown",
   "popuphiding", "popuphidden", "close", "command", "broadcast", "commandupdate",
   "dragenter", "dragover", "dragexit", "dragdrop", "draggesture",
   "drag", "dragend", "dragstart", "dragleave", "drop", "resize",
@@ -78,9 +75,11 @@ static const char* const sEventNames[] = {
   "DOMAttrModified", "DOMCharacterDataModified",
   "DOMActivate", "DOMFocusIn", "DOMFocusOut",
   "pageshow", "pagehide", "DOMMouseScroll", "MozMousePixelScroll",
-  "offline", "online", "copy", "cut", "paste", "open", "message", "show",
+  "offline", "online", "copy", "cut", "paste", "open", "message",
+#ifdef MOZ_SVG
   "SVGLoad", "SVGUnload", "SVGAbort", "SVGError", "SVGResize", "SVGScroll",
   "SVGZoom",
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
   "beginEvent", "endEvent", "repeatEvent",
 #endif // MOZ_SMIL
@@ -93,7 +92,6 @@ static const char* const sEventNames[] = {
   "MozAfterPaint",
   "MozBeforePaint",
   "MozBeforeResize",
-  "mozfullscreenchange",
   "MozSwipeGesture",
   "MozMagnifyGestureStart",
   "MozMagnifyGestureUpdate",
@@ -108,11 +106,14 @@ static const char* const sEventNames[] = {
   "MozTouchUp",
   "MozScrolledAreaChanged",
   "transitionend",
-  "animationstart",
-  "animationend",
-  "animationiteration",
   "devicemotion",
   "deviceorientation"
+#ifdef MOZ_CSS_ANIMATIONS
+  ,
+  "animationstart",
+  "animationend",
+  "animationiteration"
+#endif
 };
 
 static char *sPopupAllowedEvents;
@@ -283,14 +284,16 @@ NS_METHOD nsDOMEvent::GetType(nsAString& aType)
 }
 
 static nsresult
-GetDOMEventTarget(nsIDOMEventTarget* aTarget,
+GetDOMEventTarget(nsPIDOMEventTarget* aTarget,
                   nsIDOMEventTarget** aDOMTarget)
 {
-  nsIDOMEventTarget* realTarget =
+  nsPIDOMEventTarget* realTarget =
     aTarget ? aTarget->GetTargetForDOMEvent() : aTarget;
+  if (realTarget) {
+    return CallQueryInterface(realTarget, aDOMTarget);
+  }
 
-  NS_IF_ADDREF(*aDOMTarget = realTarget);
-
+  *aDOMTarget = nsnull;
   return NS_OK;
 }
 
@@ -675,12 +678,8 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_COMPOSITION_EVENT:
     {
-      nsCompositionEvent* compositionEvent =
-        new nsCompositionEvent(PR_FALSE, msg, nsnull);
-      nsCompositionEvent* oldCompositionEvent =
-        static_cast<nsCompositionEvent*>(mEvent);
-      compositionEvent->data = oldCompositionEvent->data;
-      newEvent = compositionEvent;
+      newEvent = new nsCompositionEvent(PR_FALSE, msg, nsnull);
+      isInputEvent = PR_TRUE;
       break;
     }
     case NS_MOUSE_SCROLL_EVENT:
@@ -777,6 +776,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
                                static_cast<nsUIEvent*>(mEvent)->detail);
       break;
     }
+#ifdef MOZ_SVG
     case NS_SVG_EVENT:
     {
       newEvent = new nsEvent(PR_FALSE, msg);
@@ -791,6 +791,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent->eventStructType = NS_SVGZOOM_EVENT;
       break;
     }
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
     case NS_SMIL_TIME_EVENT:
     {
@@ -822,6 +823,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
+#ifdef MOZ_CSS_ANIMATIONS
     case NS_ANIMATION_EVENT:
     {
       nsAnimationEvent* oldAnimationEvent =
@@ -832,6 +834,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
+#endif
     case NS_MOZTOUCH_EVENT:
     {
       newEvent = new nsMozTouchEvent(PR_FALSE, msg, nsnull,
@@ -1087,7 +1090,8 @@ nsDOMEvent::PopupAllowedEventsChanged()
     nsMemory::Free(sPopupAllowedEvents);
   }
 
-  nsAdoptingCString str = Preferences::GetCString("dom.popup_allowed_events");
+  nsAdoptingCString str =
+    nsContentUtils::GetCharPref("dom.popup_allowed_events");
 
   // We'll want to do this even if str is empty to avoid looking up
   // this pref all the time if it's not set.
@@ -1133,8 +1137,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_keypress];
   case NS_COMPOSITION_START:
     return sEventNames[eDOMEvents_compositionstart];
-  case NS_COMPOSITION_UPDATE:
-    return sEventNames[eDOMEvents_compositionupdate];
   case NS_COMPOSITION_END:
     return sEventNames[eDOMEvents_compositionend];
   case NS_FOCUS_CONTENT:
@@ -1265,8 +1267,7 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_open];
   case NS_MESSAGE:
     return sEventNames[eDOMEvents_message];
-  case NS_SHOW_EVENT:
-    return sEventNames[eDOMEvents_show];
+#ifdef MOZ_SVG
   case NS_SVG_LOAD:
     return sEventNames[eDOMEvents_SVGLoad];
   case NS_SVG_UNLOAD:
@@ -1281,6 +1282,7 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_SVGScroll];
   case NS_SVG_ZOOM:
     return sEventNames[eDOMEvents_SVGZoom];
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
   case NS_SMIL_BEGIN:
     return sEventNames[eDOMEvents_beginEvent];
@@ -1367,18 +1369,18 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_MozScrolledAreaChanged];
   case NS_TRANSITION_END:
     return sEventNames[eDOMEvents_transitionend];
+  case NS_DEVICE_MOTION:
+    return sEventNames[eDOMEvents_devicemotion];
+  case NS_DEVICE_ORIENTATION:
+    return sEventNames[eDOMEvents_deviceorientation];
+#ifdef MOZ_CSS_ANIMATIONS
   case NS_ANIMATION_START:
     return sEventNames[eDOMEvents_animationstart];
   case NS_ANIMATION_END:
     return sEventNames[eDOMEvents_animationend];
   case NS_ANIMATION_ITERATION:
     return sEventNames[eDOMEvents_animationiteration];
-  case NS_DEVICE_MOTION:
-    return sEventNames[eDOMEvents_devicemotion];
-  case NS_DEVICE_ORIENTATION:
-    return sEventNames[eDOMEvents_deviceorientation];
-  case NS_FULLSCREENCHANGE:
-    return sEventNames[eDOMEvents_mozfullscreenchange];
+#endif
   default:
     break;
   }

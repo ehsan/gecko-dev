@@ -64,11 +64,7 @@
       <!-- Startup -->
       <preference id="browser.startup.page"
                   name="browser.startup.page"
-                  type="int"
-                  onchange="gMainPane.startupPagePrefChanged();"/>
-      <preference id="browser.sessionstore.restore_on_demand"
-                  name="browser.sessionstore.restore_on_demand"
-                  type="bool"/>
+                  type="int"/>
       <preference id="browser.startup.homepage"
                   name="browser.startup.homepage"
                   type="wstring"/>
@@ -124,13 +120,6 @@
           </menupopup>
         </menulist>
       </hbox>
-      <hbox align="center">
-        <checkbox id="restoreOnDemand"
-                  label="&restoreOnDemand.label;"
-                  accesskey="&restoreOnDemand.accesskey;"
-                  class="indent"
-                  preference="browser.sessionstore.restore_on_demand"/>
-      </hbox>
       <separator class="thin"/>
       <hbox align="center">
         <label value="&homepage.label;" accesskey="&homepage.accesskey;" control="browserHomePage"/>
@@ -148,7 +137,7 @@
                 oncommand="gMainPane.setHomePageToCurrent();"
                 id="useCurrent"
                 preference="pref.browser.homepage.disable_button.current_page"/>
-        <button label="&chooseBookmark.label;" accesskey="&chooseBookmark.accesskey;"
+        <button label="&useBookmark.label;" accesskey="&useBookmark.accesskey;"
                 oncommand="gMainPane.setHomePageToBookmark();"
                 id="useBookmark"
                 preference="pref.browser.homepage.disable_button.bookmark_page"/>

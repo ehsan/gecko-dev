@@ -42,6 +42,7 @@
 #include "nsGUIEvent.h"
 #include "nsIComponentManager.h"
 #include "nsGfxCIID.h"
+#include "nsIRegion.h"
 #include "nsIInterfaceRequestor.h"
 
 //mmptemp

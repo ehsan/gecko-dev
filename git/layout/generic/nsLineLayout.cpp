@@ -402,8 +402,7 @@ nsresult
 nsLineLayout::BeginSpan(nsIFrame* aFrame,
                         const nsHTMLReflowState* aSpanReflowState,
                         nscoord aLeftEdge,
-                        nscoord aRightEdge,
-                        nscoord* aBaseline)
+                        nscoord aRightEdge)
 {
   NS_ASSERTION(aRightEdge != NS_UNCONSTRAINEDSIZE,
                "should no longer be using unconstrained sizes");
@@ -428,7 +427,6 @@ nsLineLayout::BeginSpan(nsIFrame* aFrame,
     psd->mLeftEdge = aLeftEdge;
     psd->mX = aLeftEdge;
     psd->mRightEdge = aRightEdge;
-    psd->mBaseline = aBaseline;
 
     psd->mNoWrap =
       !aSpanReflowState->frame->GetStyleText()->WhiteSpaceCanWrap();
@@ -707,8 +705,10 @@ IsPercentageAware(const nsIFrame* aFrame)
 
     // Handle SVG, which doesn't map width/height into style
     if ((
+#ifdef MOZ_SVG
          fType == nsGkAtoms::svgOuterSVGFrame ||
          fType == nsGkAtoms::imageFrame ||
+#endif
          fType == nsGkAtoms::subDocumentFrame) &&
         const_cast<nsIFrame*>(aFrame)->GetIntrinsicSize().width.GetUnit() ==
         eStyleUnit_Percent) {
@@ -1474,26 +1474,6 @@ nsLineLayout::VerticalAlignLine()
   }
   PlaceTopBottomFrames(psd, -mTopEdge, lineHeight);
 
-  // If the frame being reflowed has text decorations, we simulate the
-  // propagation of those decorations to a line-level element by storing the
-  // offset in a frame property on any child frames that are vertically-aligned
-  // somewhere other than the baseline. This property is then used by
-  // nsTextFrame::GetTextDecorations when the same conditions are met.
-  if (rootPFD.mFrame->GetStyleContext()->HasTextDecorationLines()) {
-    for (const PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
-      const nsIFrame *const f = pfd->mFrame;
-      const nsStyleCoord& vAlign =
-          f->GetStyleContext()->GetStyleTextReset()->mVerticalAlign;
-
-      if (vAlign.GetUnit() != eStyleUnit_Enumerated ||
-          vAlign.GetIntValue() != NS_STYLE_VERTICAL_ALIGN_BASELINE) {
-        const nscoord offset = baselineY - pfd->mBounds.y;
-        f->Properties().Set(nsIFrame::LineBaselineOffset(),
-                            NS_INT32_TO_PTR(offset));
-      }
-    }
-  }
-
   // Fill in returned line-box and max-element-width data
   mLineBox->mBounds.x = psd->mLeftEdge;
   mLineBox->mBounds.y = mTopEdge;
@@ -1580,9 +1560,10 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
   nsIFrame* spanFrame = spanFramePFD->mFrame;
 
   // Get the parent frame's font for all of the frames in this span
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(spanFrame, getter_AddRefs(fm));
-  mBlockReflowState->rendContext->SetFont(fm);
+  nsStyleContext* styleContext = spanFrame->GetStyleContext();
+  nsRenderingContext* rc = mBlockReflowState->rendContext;
+  nsLayoutUtils::SetFontFromStyle(mBlockReflowState->rendContext, styleContext);
+  nsFontMetrics* fm = rc->FontMetrics();
 
   PRBool preMode = mStyleText->WhiteSpaceIsSignificant();
 
@@ -1756,7 +1737,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     // This is the distance from the top edge of the parents visual
     // box to the baseline. The span already computed this for us,
     // so just use it.
-    *psd->mBaseline = baselineY = spanFramePFD->mAscent;
+    baselineY = spanFramePFD->mAscent;
 
 
 #ifdef NOISY_VERTICAL_ALIGN
@@ -2133,7 +2114,6 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
       spanFramePFD->mAscent -= minY; // move the baseline up
       spanFramePFD->mBounds.height -= minY; // move the bottom up
       psd->mTopLeading += minY;
-      *psd->mBaseline -= minY;
 
       pfd = psd->mFirstFrame;
       while (nsnull != pfd) {
@@ -2552,6 +2532,15 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
 
     overflowAreas.ScrollableOverflow().UnionRect(
       psd->mFrame->mOverflowAreas.ScrollableOverflow(), adjustedBounds);
+
+    // Text-shadow overflow
+    if (mPresContext->CompatibilityMode() != eCompatibility_NavQuirks) {
+      nsRect shadowRect = nsLayoutUtils::GetTextShadowRectsUnion(adjustedBounds,
+                                                                 psd->mFrame->mFrame);
+      adjustedBounds.UnionRect(adjustedBounds, shadowRect);
+    }
+
+    // Text shadow is only part of visual overflow and not scrollable overflow.
     overflowAreas.VisualOverflow().UnionRect(
       psd->mFrame->mOverflowAreas.VisualOverflow(), adjustedBounds);
   }
@@ -2604,12 +2593,7 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
     } else {
       r = pfd->mOverflowAreas;
       if (pfd->GetFlag(PFD_ISTEXTFRAME)) {
-        // We need to recompute overflow areas in two cases:
-        // (1) When PFD_RECOMPUTEOVERFLOW is set due to trimming
-        // (2) When there are text decorations, since we can't recompute the
-        //     overflow area until Reflow and VerticalAlignLine have finished
-        if (pfd->GetFlag(PFD_RECOMPUTEOVERFLOW) ||
-            frame->GetStyleContext()->HasTextDecorationLines()) {
+        if (pfd->GetFlag(PFD_RECOMPUTEOVERFLOW)) {
           nsTextFrame* f = static_cast<nsTextFrame*>(frame);
           r = f->RecomputeOverflow();
         }

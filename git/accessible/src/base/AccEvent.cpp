@@ -136,10 +136,39 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AccEvent, Release)
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent protected methods
 
-nsAccessible*
+nsAccessible *
 AccEvent::GetAccessibleForNode() const
 {
-  return mNode ? GetAccService()->GetAccessible(mNode) : nsnull;
+  if (!mNode)
+    return nsnull;
+
+  nsAccessible *accessible = GetAccService()->GetAccessible(mNode);
+
+#ifdef MOZ_XUL
+  // hack for xul tree table. We need a better way for firing delayed event
+  // against xul tree table. see bug 386821.
+  // There will be problem if some day we want to fire delayed event against
+  // the xul tree itself or an unselected treeitem.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mNode));
+  if (content && content->NodeInfo()->Equals(nsAccessibilityAtoms::tree,
+                                             kNameSpaceID_XUL)) {
+
+    nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelect =
+      do_QueryInterface(mNode);
+
+    if (multiSelect) {
+      PRInt32 treeIndex = -1;
+      multiSelect->GetCurrentIndex(&treeIndex);
+      if (treeIndex >= 0) {
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);
+        if (treeAcc)
+          return treeAcc->GetTreeItemAccessible(treeIndex);
+      }
+    }
+  }
+#endif
+
+  return accessible;
 }
 
 void
@@ -202,17 +231,14 @@ AccStateChangeEvent::
 
 AccStateChangeEvent::
   AccStateChangeEvent(nsINode* aNode, PRUint64 aState, PRBool aIsEnabled):
-  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode,
-           eAutoDetect, eAllowDupes),
+  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode),
   mState(aState), mIsEnabled(aIsEnabled)
 {
 }
 
 AccStateChangeEvent::
   AccStateChangeEvent(nsINode* aNode, PRUint64 aState) :
-  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode,
-           eAutoDetect, eAllowDupes),
-  mState(aState)
+  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode), mState(aState)
 {
   // Use GetAccessibleForNode() because we do not want to store an accessible
   // since it leads to problems with delayed events in the case when
@@ -286,9 +312,9 @@ AccHideEvent::
   AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode) :
   AccMutationEvent(::nsIAccessibleEvent::EVENT_HIDE, aTarget, aTargetNode)
 {
-  mParent = mAccessible->Parent();
-  mNextSibling = mAccessible->NextSibling();
-  mPrevSibling = mAccessible->PrevSibling();
+  mParent = mAccessible->GetParent();
+  mNextSibling = mAccessible->GetCachedNextSibling();
+  mPrevSibling = mAccessible->GetCachedPrevSibling();
 }
 
 

@@ -59,15 +59,13 @@ public:
   nsHTMLCheckboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
+  NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 };
 
 
@@ -100,6 +98,7 @@ public:
   nsHTMLButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
+  NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
@@ -107,9 +106,6 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 };
 
 
@@ -125,15 +121,13 @@ public:
   nsHTML4ButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
+  NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 };
 
 
@@ -152,6 +146,7 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& _retval); 
+  NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
@@ -159,13 +154,9 @@ public:
   NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsAccessible
-  virtual void ApplyARIAState(PRUint64* aState);
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 };
 
 
@@ -177,10 +168,13 @@ class nsHTMLGroupboxAccessible : public nsHyperTextAccessibleWrap
 public:
   nsHTMLGroupboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
+  // nsIAccessible
+  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
+                               nsIAccessibleRelation **aRelation);
+
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual PRUint32 NativeRole();
-  virtual Relation RelationByType(PRUint32 aType);
 
 protected:
   nsIContent* GetLegend();
@@ -195,9 +189,12 @@ class nsHTMLLegendAccessible : public nsHyperTextAccessibleWrap
 public:
   nsHTMLLegendAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
+  // nsIAccessible
+  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
+                               nsIAccessibleRelation **aRelation);
+
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual Relation RelationByType(PRUint32 aType);
 };
 
 #endif  

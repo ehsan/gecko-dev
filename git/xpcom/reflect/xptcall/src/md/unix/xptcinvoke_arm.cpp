@@ -187,7 +187,11 @@ NS_InvokeByIndex(nsISupports* that, PRUint32 methodIndex,
                        paramCount, params);
 
   vtable = *reinterpret_cast<vtable_func **>(that);
+#if defined(__GXX_ABI_VERSION) && __GXX_ABI_VERSION >= 100 /* G++ V3 ABI */
   func = vtable[methodIndex];
+#else /* non G++ V3 ABI */
+  func = vtable[2 + methodIndex];
+#endif
 
   return func(that, stack_space[base_size * 2 - 3],
                     stack_space[base_size * 2 - 2],
@@ -382,7 +386,11 @@ NS_InvokeByIndex(nsISupports* that, PRUint32 methodIndex,
                    PRUint32 paramCount, nsXPTCVariant* params)
 {
   vtable_func *vtable = *reinterpret_cast<vtable_func **>(that);
+#if defined(__GXX_ABI_VERSION) && __GXX_ABI_VERSION >= 100 /* G++ V3 ABI */
   vtable_func func = vtable[methodIndex];
+#else /* non G++ V3 ABI */
+  vtable_func func = vtable[2 + methodIndex];
+#endif
   // 'register PRUint32 result asm("r0")' could be used here, but it does not
   //  seem to be reliable in all cases: http://gcc.gnu.org/PR46164
   PRUint32 result;

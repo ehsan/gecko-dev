@@ -51,7 +51,6 @@
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
 #include "nsIPrincipal.h"
-#include "nsITimedChannel.h"
 
 #include "nsCategoryCache.h"
 #include "nsCOMPtr.h"
@@ -90,13 +89,12 @@ public:
   NS_DECL_ISUPPORTS
 
   nsresult Init(nsIURI *aURI,
-                nsIURI *aCurrentURI,
+                nsIURI *aKeyURI,
                 nsIRequest *aRequest,
                 nsIChannel *aChannel,
                 imgCacheEntry *aCacheEntry,
-                void *aLoadId,
-                nsIPrincipal* aLoadingPrincipal,
-                PRInt32 aCORSMode);
+                void *aCacheId,
+                void *aLoadId);
 
   // Callers must call imgRequestProxy::Notify later.
   nsresult AddProxy(imgRequestProxy *proxy);
@@ -105,6 +103,11 @@ public:
   nsresult RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBool aNotify);
 
   void SniffMimeType(const char *buf, PRUint32 len);
+
+  // a request is "reusable" if it has already been loaded, or it is
+  // currently being loaded on the same event queue as the new request
+  // being made...
+  PRBool IsReusable(void *aCacheId);
 
   // Cancel, but also ensure that all work done in Init() is undone. Call this
   // only when the channel has failed to open, and so calling Cancel() on it
@@ -117,29 +120,12 @@ public:
   nsresult UnlockImage();
   nsresult RequestDecode();
 
-  inline void SetInnerWindowID(PRUint64 aInnerWindowId) {
-    mInnerWindowId = aInnerWindowId;
+  inline void SetWindowID(PRUint64 aWindowId) {
+    mWindowId = aWindowId;
   }
 
-  inline PRUint64 InnerWindowID() const {
-    return mInnerWindowId;
-  }
-
-  // Set the cache validation information (expiry time, whether we must
-  // validate, etc) on the cache entry based on the request information.
-  // If this function is called multiple times, the information set earliest
-  // wins.
-  static void SetCacheValidation(imgCacheEntry* aEntry, nsIRequest* aRequest);
-
-  // The CORS mode for which we loaded this image.
-  PRInt32 GetCORSMode() const { return mCORSMode; }
-
-  // The principal for the document that loaded this image. Used when trying to
-  // validate a CORS image load.
-  already_AddRefed<nsIPrincipal> GetLoadingPrincipal() const
-  {
-    nsCOMPtr<nsIPrincipal> principal = mLoadingPrincipal;
-    return principal.forget();
+  inline PRUint64 WindowID() const {
+    return mWindowId;
   }
 
 private:
@@ -153,11 +139,13 @@ private:
 
   inline void SetLoadId(void *aLoadId) {
     mLoadId = aLoadId;
+    mLoadTime = PR_Now();
   }
   void Cancel(nsresult aStatus);
   void RemoveFromCache();
 
   nsresult GetURI(nsIURI **aURI);
+  nsresult GetKeyURI(nsIURI **aURI);
   nsresult GetSecurityInfo(nsISupports **aSecurityInfo);
 
   inline const char *GetMimeType() const {
@@ -216,14 +204,10 @@ private:
   friend class imgMemoryReporter;
 
   nsCOMPtr<nsIRequest> mRequest;
-  // The original URI we were loaded with. This is the same as the URI we are
-  // keyed on in the cache.
+  // The original URI we were loaded with.
   nsCOMPtr<nsIURI> mURI;
-  // The URI of the resource we ended up loading after all redirects, etc.
-  nsCOMPtr<nsIURI> mCurrentURI;
-  // The principal of the document which loaded this image. Used when validating for CORS.
-  nsCOMPtr<nsIPrincipal> mLoadingPrincipal;
-  // The principal of this image.
+  // The URI we are keyed on in the cache.
+  nsCOMPtr<nsIURI> mKeyURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   // Status-tracker -- transferred to mImage, when it gets instantiated
   nsAutoPtr<imgStatusTracker> mStatusTracker;
@@ -235,25 +219,22 @@ private:
 
   nsTObserverArray<imgRequestProxy*> mObservers;
 
-  nsCOMPtr<nsITimedChannel> mTimedChannel;
-
   nsCString mContentType;
 
   nsRefPtr<imgCacheEntry> mCacheEntry; /* we hold on to this to this so long as we have observers */
 
+  void *mCacheId;
+
   void *mLoadId;
+  PRTime mLoadTime;
 
   imgCacheValidator *mValidator;
   nsCategoryCache<nsIContentSniffer> mImageSniffers;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
 
-  // The ID of the inner window origin, used for error reporting.
-  PRUint64 mInnerWindowId;
-
-  // The CORS mode (defined in imgIRequest) this image was loaded with. By
-  // default, imgIRequest::CORS_NONE.
-  PRInt32 mCORSMode;
+  // Originating outer window ID. Used for error reporting.
+  PRUint64 mWindowId;
 
   // Sometimes consumers want to do things before the image is ready. Let them,
   // and apply the action when the image becomes available.

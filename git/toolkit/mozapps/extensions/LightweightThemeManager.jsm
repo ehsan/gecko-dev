@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-"use strict";
-
 var EXPORTED_SYMBOLS = ["LightweightThemeManager"];
 
 const Cc = Components.classes;
@@ -554,10 +552,6 @@ AddonWrapper.prototype = {
 
   get scope() {
     return AddonManager.SCOPE_PROFILE;
-  },
-
-  get foreignInstall() {
-    return false;
   },
 
   // Lightweight themes are always compatible

@@ -39,7 +39,6 @@
 
 #include "nsTextEquivUtils.h"
 
-#include "AccIterator.h"
 #include "nsAccessibilityService.h"
 #include "nsAccessible.h"
 #include "nsAccUtils.h"
@@ -193,7 +192,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
   }
   
   if (aContent->IsHTML() &&
-      aContent->NodeInfo()->Equals(nsGkAtoms::br)) {
+      aContent->NodeInfo()->Equals(nsAccessibilityAtoms::br)) {
     aString->AppendLiteral("\r\n");
     return NS_OK;
   }
@@ -360,14 +359,14 @@ nsTextEquivUtils::AppendFromDOMNode(nsIContent *aContent, nsAString *aString)
     if (labeledEl) {
       labeledEl->GetLabel(textEquivalent);
     } else {
-      if (aContent->NodeInfo()->Equals(nsGkAtoms::label,
+      if (aContent->NodeInfo()->Equals(nsAccessibilityAtoms::label,
                                        kNameSpaceID_XUL))
-        aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::value,
+        aContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value,
                           textEquivalent);
 
       if (textEquivalent.IsEmpty())
         aContent->GetAttr(kNameSpaceID_None,
-                          nsGkAtoms::tooltiptext, textEquivalent);
+                          nsAccessibilityAtoms::tooltiptext, textEquivalent);
     }
 
     AppendString(aString, textEquivalent);
@@ -520,7 +519,7 @@ PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
   eNoRule,           // ROLE_AUTOCOMPLETE
   eNoRule,           // ROLE_EDITBAR
   eFromValue,        // ROLE_ENTRY
-  eFromSubtreeIfRec, // ROLE_CAPTION
+  eNoRule,           // ROLE_CAPTION
   eNoRule,           // ROLE_DOCUMENT_FRAME
   eFromSubtreeIfRec, // ROLE_HEADING
   eNoRule,           // ROLE_PAGE

@@ -49,7 +49,9 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsHTMLParts.h"
 #include "nsIComponentManager.h"
+#include "nsIDOMComment.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsIBaseWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocumentType.h"
@@ -71,7 +73,7 @@
 #include "nsCExternalHandlerService.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsJSUtils.h"
@@ -103,8 +105,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aDocumentURI,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
-                  PRBool aLoadedAsData,
-                  nsIScriptGlobalObject* aEventObject)
+                  PRBool aLoadedAsData)
 {
   // Note: can't require that aDocumentURI/aBaseURI/aPrincipal be non-null,
   // since at least one caller (XMLHttpRequest) doesn't have decent args to
@@ -139,9 +140,11 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
       isHTML = PR_TRUE;
       isXHTML = PR_TRUE;
     }
+#ifdef MOZ_SVG
     else if (publicId.EqualsLiteral("-//W3C//DTD SVG 1.1//EN")) {
       rv = NS_NewSVGDocument(getter_AddRefs(d));
     }
+#endif
     // XXX Add support for XUL documents.
     else {
       rv = NS_NewXMLDocument(getter_AddRefs(d));
@@ -154,8 +157,6 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
     return rv;
   }
 
-  d->SetScriptHandlingObject(aEventObject);
-  
   if (isHTML) {
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(d);
     NS_ASSERTION(htmlDoc, "HTML Document doesn't implement nsIHTMLDocument?");
@@ -385,8 +386,8 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
                                          nsnull, 0, 0, nsIScriptError::warningFlag,
                                          "DOM",
                                          callingDoc ?
-                                           callingDoc->InnerWindowID() :
-                                           this->InnerWindowID());
+                                           callingDoc->OuterWindowID() :
+                                           this->OuterWindowID());
 
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -408,7 +409,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   // be loaded.  Note that we need to hold a strong ref to |principal|
   // here, because ResetToURI will null out our node principal before
   // setting the new one.
-  nsRefPtr<nsEventListenerManager> elm(mListenerManager);
+  nsCOMPtr<nsIEventListenerManager> elm(mListenerManager);
   mListenerManager = nsnull;
 
   // When we are called from JS we can find the load group for the page,

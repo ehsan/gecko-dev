@@ -49,13 +49,11 @@
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsSliderFrame.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsIScrollbarMediator.h"
 #include "nsRepeatService.h"
 #include "nsGUIEvent.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
+#include "nsILookAndFeel.h"
 
 //
 // NS_NewToolbarFrame
@@ -102,16 +100,16 @@ nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
                                           nsEventStatus*  aEventStatus)
 {
   // Get the desired action for the scrollbar button.
-  LookAndFeel::IntID tmpAction;
+  nsILookAndFeel::nsMetricID tmpAction;
   if (aEvent->eventStructType == NS_MOUSE_EVENT &&
       aEvent->message == NS_MOUSE_BUTTON_DOWN) {
     PRUint16 button = static_cast<nsMouseEvent*>(aEvent)->button;
     if (button == nsMouseEvent::eLeftButton) {
-      tmpAction = LookAndFeel::eIntID_ScrollButtonLeftMouseButtonAction;
+      tmpAction = nsILookAndFeel::eMetric_ScrollButtonLeftMouseButtonAction;
     } else if (button == nsMouseEvent::eMiddleButton) {
-      tmpAction = LookAndFeel::eIntID_ScrollButtonMiddleMouseButtonAction;
+      tmpAction = nsILookAndFeel::eMetric_ScrollButtonMiddleMouseButtonAction;
     } else if (button == nsMouseEvent::eRightButton) {
-      tmpAction = LookAndFeel::eIntID_ScrollButtonRightMouseButtonAction;
+      tmpAction = nsILookAndFeel::eMetric_ScrollButtonRightMouseButtonAction;
     } else {
       return PR_FALSE;
     }
@@ -121,9 +119,9 @@ nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
 
   // Get the button action metric from the pres. shell.
   PRInt32 pressedButtonAction;
-  if (NS_FAILED(LookAndFeel::GetInt(tmpAction, &pressedButtonAction))) {
+  if (NS_FAILED(aPresContext->LookAndFeel()->GetMetric(tmpAction,
+                                                       pressedButtonAction)))
     return PR_FALSE;
-  }
 
   // get the scrollbar control
   nsIFrame* scrollbar;
@@ -243,7 +241,7 @@ nsScrollbarButtonFrame::DoButtonAction(PRBool aSmoothScroll)
   else if (curpos > maxpos)
     curpos = maxpos;
 
-  nsScrollbarFrame* sb = do_QueryFrame(scrollbar);
+  nsIScrollbarFrame* sb = do_QueryFrame(scrollbar);
   if (sb) {
     nsIScrollbarMediator* m = sb->GetScrollbarMediator();
     if (m) {
@@ -269,7 +267,7 @@ nsScrollbarButtonFrame::GetChildWithTag(nsPresContext* aPresContext,
                                         nsIFrame*& result)
 {
   // recursively search our children
-  nsIFrame* childFrame = start->GetFirstPrincipalChild();
+  nsIFrame* childFrame = start->GetFirstChild(nsnull);
   while (nsnull != childFrame) 
   {    
     // get the content node

@@ -4,47 +4,21 @@
 function new_timestamp() {
   return Math.round(Date.now() / 10) / 100;
 }
-
+  
 function httpd_setup (handlers) {
   let server = new nsHttpServer();
-  let port   = 8080;
   for (let path in handlers) {
     server.registerPathHandler(path, handlers[path]);
   }
-  try {
-    server.start(port);
-  } catch (ex) {
-    _("==========================================");
-    _("Got exception starting HTTP server on port " + port);
-    _("Error: " + Utils.exceptionStr(ex));
-    _("Is there a process already listening on port " + port + "?");
-    _("==========================================");
-    do_throw(ex);
-  }
-
+  server.start(8080);
   return server;
 }
 
 function httpd_handler(statusCode, status, body) {
-  return function handler(request, response) {
-    // Allow test functions to inspect the request.
-    request.body = readBytesFromInputStream(request.bodyInputStream);
-    handler.request = request;
-
+  return function(request, response) {
     response.setStatusLine(request.httpVersion, statusCode, status);
-    if (body) {
-      response.bodyOutputStream.write(body, body.length);
-    }
+    response.bodyOutputStream.write(body, body.length);
   };
-}
-
-function basic_auth_header(user, password) {
-  return "Basic " + btoa(user + ":" + Utils.encodeUTF8(password));
-}
-
-function basic_auth_matches(req, user, password) {
-  return req.hasHeader("Authorization") &&
-         (req.getHeader("Authorization") == basic_auth_header(user, password));
 }
 
 function httpd_basic_auth_handler(body, metadata, response) {

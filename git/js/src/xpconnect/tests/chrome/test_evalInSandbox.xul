@@ -8,15 +8,19 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=533596
 <window title="Mozilla Bug 533596"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <!-- test results are displayed in the html:body -->
   <body xmlns="http://www.w3.org/1999/xhtml">
 
-  <iframe src="http://example.org/tests/js/src/xpconnect/tests/mochitest/file_evalInSandbox.html"
+  <iframe type="content"
+          src="http://example.org/tests/js/src/xpconnect/tests/mochitest/file_evalInSandbox.html"
           onload="checkCrossOrigin(this)">
   </iframe>
-  <iframe src="chrome://mochitests/content/chrome/js/src/xpconnect/tests/chrome/file_evalInSandbox.html"
+  <iframe type="content"
+          src="data:text/html,&lt;html&gt;&lt;body&gt;&lt;script&gt;document.foo %3D 'bar'%3B&lt;%2Fscript&gt;&lt;%2Fbody&gt;&lt;%2Fhtml&gt;"
           onload="checkSameOrigin(this)">
   </iframe>
   </body>

@@ -151,7 +151,7 @@ ByteBufferImpl::Fill(nsresult* aErrorCode, nsIInputStream* aStream,
   return nb;
 }
 
-nsresult NS_NewByteBuffer(nsIByteBuffer** aInstancePtrResult,
+NS_COM nsresult NS_NewByteBuffer(nsIByteBuffer** aInstancePtrResult,
                                   nsISupports* aOuter,
                                   PRUint32 aBufferSize)
 {

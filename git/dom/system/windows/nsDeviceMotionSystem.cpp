@@ -98,9 +98,7 @@ ThinkPadSensor::Startup()
 void
 ThinkPadSensor::Shutdown()
 {
-  if (mLibrary == nsnull)
-    return;
-
+  NS_ASSERTION(mLibrary, "Shutdown called when mLibrary is null?");
   FreeLibrary(mLibrary);
   mLibrary = nsnull;
   gShockproofGetAccelerometerData = nsnull;
@@ -147,10 +145,8 @@ void nsDeviceMotionSystem::Startup()
   if (mSensor)
     started = mSensor->Startup();
 
-  if (!started) {
-    mSensor = nsnull;
+  if (!started)
     return;
-  }
 
   mUpdateTimer = do_CreateInstance("@mozilla.org/timer;1");
   if (mUpdateTimer)

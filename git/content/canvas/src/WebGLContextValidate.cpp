@@ -39,7 +39,8 @@
 
 #include "WebGLContext.h"
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsServiceManagerUtils.h"
 
 #include "CheckedInt.h"
 
@@ -92,12 +93,12 @@ PRBool
 WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
 {
 #ifdef DEBUG
-    GLint currentProgram = 0;
+    GLuint currentProgram = 0;
     MakeContextCurrent();
-    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &currentProgram);
-    NS_ASSERTION(GLuint(currentProgram) == mCurrentProgram->GLName(),
+    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, (GLint*) &currentProgram);
+    NS_ASSERTION(currentProgram == mCurrentProgram->GLName(),
                  "WebGL: current program doesn't agree with GL state");
-    if (GLuint(currentProgram) != mCurrentProgram->GLName())
+    if (currentProgram != mCurrentProgram->GLName())
         return PR_FALSE;
 #endif
 
@@ -328,62 +329,6 @@ PRBool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
     }
 }
 
-bool WebGLContext::ValidateGLSLVariableName(const nsAString& name, const char *info)
-{
-    const PRUint32 maxSize = 255;
-    if (name.Length() > maxSize) {
-        ErrorInvalidValue("%s: identifier is %d characters long, exceeds the maximum allowed length of %d characters",
-                          info, name.Length(), maxSize);
-        return false;
-    }
-
-    if (!ValidateGLSLString(name, info)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool WebGLContext::ValidateGLSLString(const nsAString& string, const char *info)
-{
-    for (PRUint32 i = 0; i < string.Length(); ++i) {
-        if (!ValidateGLSLCharacter(string.CharAt(i))) {
-             ErrorInvalidValue("%s: string contains the illegal character '%d'", info, string.CharAt(i));
-             return false;
-        }
-    }
-
-    return true;
-}
-
-PRUint32 WebGLContext::GetTexelSize(WebGLenum format, WebGLenum type)
-{
-    if (type == LOCAL_GL_UNSIGNED_BYTE || type == LOCAL_GL_FLOAT) {
-        int multiplier = type == LOCAL_GL_FLOAT ? 4 : 1;
-        switch (format) {
-            case LOCAL_GL_ALPHA:
-            case LOCAL_GL_LUMINANCE:
-                return 1 * multiplier;
-            case LOCAL_GL_LUMINANCE_ALPHA:
-                return 2 * multiplier;
-            case LOCAL_GL_RGB:
-                return 3 * multiplier;
-            case LOCAL_GL_RGBA:
-                return 4 * multiplier;
-            default:
-                break;
-        }
-    } else if (type == LOCAL_GL_UNSIGNED_SHORT_4_4_4_4 ||
-               type == LOCAL_GL_UNSIGNED_SHORT_5_5_5_1 ||
-               type == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
-    {
-        return 2;
-    }
-
-    NS_ABORT();
-    return 0;
-}
-
 PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
                                               PRUint32 *texelSize, const char *info)
 {
@@ -492,6 +437,17 @@ PRBool WebGLContext::ValidateStencilParamsForDrawCall()
   return PR_TRUE;
 }
 
+bool WebGLContext::ValidateGLSLIdentifier(const nsAString& name, const char *info)
+{
+    const PRUint32 maxSize = 4095;
+    if (name.Length() > maxSize) {
+        ErrorInvalidValue("%s: identifier is %d characters long, exceeds the maximum allowed length of %d characters",
+                          info, name.Length(), maxSize);
+        return false;
+    }
+    return true;
+}
+
 PRBool
 WebGLContext::InitAndValidateGL()
 {
@@ -504,7 +460,7 @@ WebGLContext::InitAndValidateGL()
     }
 
     mActiveTexture = 0;
-    mWebGLError = LOCAL_GL_NO_ERROR;
+    mSynthesizedGLError = LOCAL_GL_NO_ERROR;
 
     mAttribBuffers.Clear();
 
@@ -526,6 +482,9 @@ WebGLContext::InitAndValidateGL()
     mMapFramebuffers.Clear();
     mMapRenderbuffers.Clear();
 
+    // make sure that the opengl stuff that we need is supported
+    GLint val = 0;
+
     MakeContextCurrent();
 
     // on desktop OpenGL, we always keep vertex attrib 0 array enabled
@@ -533,7 +492,7 @@ WebGLContext::InitAndValidateGL()
         gl->fEnableVertexAttribArray(0);
     }
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, &mGLMaxVertexAttribs);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, (GLint*) &mGLMaxVertexAttribs);
     if (mGLMaxVertexAttribs < 8) {
         LogMessage("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
         return PR_FALSE;
@@ -544,7 +503,7 @@ WebGLContext::InitAndValidateGL()
     // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
     // even though the hardware supports much more.  The
     // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS value is the accurate value.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &mGLMaxTextureUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureUnits);
     if (mGLMaxTextureUnits < 8) {
         LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: %d is < 8!", mGLMaxTextureUnits);
         return PR_FALSE;
@@ -553,28 +512,20 @@ WebGLContext::InitAndValidateGL()
     mBound2DTextures.SetLength(mGLMaxTextureUnits);
     mBoundCubeMapTextures.SetLength(mGLMaxTextureUnits);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
-    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
-    
-#ifdef XP_MACOSX
-    if (gl->Vendor() == gl::GLContext::VendorIntel) {
-        // bug 684882, corruption in large cube maps on Intel Mac driver.
-        // Is reported to only affect Mac OS < 10.7.2 but don't want to rely on that yet.
-        mGLMaxCubeMapTextureSize = NS_MIN(mGLMaxCubeMapTextureSize, 512);
-    }
-#endif
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*) &mGLMaxTextureSize);
+    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, (GLint*) &mGLMaxCubeMapTextureSize);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureImageUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxVertexTextureImageUnits);
 
     if (gl->HasES2Compatibility()) {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, &mGLMaxFragmentUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, &mGLMaxVertexUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, &mGLMaxVaryingVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
     } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &mGLMaxFragmentUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint*) &mGLMaxFragmentUniformVectors);
         mGLMaxFragmentUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, &mGLMaxVertexUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
         mGLMaxVertexUniformVectors /= 4;
 
         // we are now going to try to read GL_MAX_VERTEX_OUTPUT_COMPONENTS and GL_MAX_FRAGMENT_INPUT_COMPONENTS,
@@ -582,7 +533,7 @@ WebGLContext::InitAndValidateGL()
         // and check OpenGL error for INVALID_ENUM.
 
         // before we start, we check that no error already occurred, to prevent hiding it in our subsequent error handling
-        error = gl->GetAndClearError();
+        error = gl->fGetError();
         if (error != LOCAL_GL_NO_ERROR) {
             LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
             return PR_FALSE;
@@ -598,7 +549,7 @@ WebGLContext::InitAndValidateGL()
         error = gl->fGetError();
         switch (error) {
             case LOCAL_GL_NO_ERROR:
-                mGLMaxVaryingVectors = NS_MIN(maxVertexOutputComponents, minFragmentInputComponents) / 4;
+                mGLMaxVaryingVectors = PR_MIN(maxVertexOutputComponents, minFragmentInputComponents) / 4;
                 break;
             case LOCAL_GL_INVALID_ENUM:
                 mGLMaxVaryingVectors = 16; // = 64/4, 64 is the min value for maxVertexOutputComponents in OpenGL 3.2 spec
@@ -609,8 +560,23 @@ WebGLContext::InitAndValidateGL()
         }
     }
 
+#if 0
+    // Leaving this code in here, even though it's ifdef'd out, for
+    // when we support more than 1 color attachment.
+    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, (GLint*) &val);
+#else
     // Always 1 for GLES2
-    mMaxFramebufferColorAttachments = 1;
+    val = 1;
+#endif
+    mMaxFramebufferColorAttachments = val;
+
+#if defined(DEBUG_vladimir) && defined(USE_GLES2)
+    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
+    fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_FORMAT: 0x%04x\n", val);
+
+    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, (GLint*) &val);
+    fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_TYPE: 0x%04x\n", val);
+#endif
 
     if (!gl->IsGLES2()) {
         // gl_PointSize is always available in ES2 GLSL, but has to be
@@ -634,11 +600,14 @@ WebGLContext::InitAndValidateGL()
         }
     }
 
-    // Check the shader validator pref
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), PR_FALSE);
+    gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT,   (GLint*) &mPixelStorePackAlignment);
+    gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, (GLint*) &mPixelStoreUnpackAlignment);
 
-    mShaderValidation =
-        Preferences::GetBool("webgl.shader_validator", mShaderValidation);
+    // Check the shader validator pref
+    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
+
+    prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
 
 #if defined(USE_ANGLE)
     // initialize shader translator
@@ -650,9 +619,9 @@ WebGLContext::InitAndValidateGL()
     }
 #endif
 
-    // notice that the point of calling GetAndClearError here is not only to check for error,
-    // it is also to reset the error flags so that a subsequent WebGL getError call will give the correct result.
-    error = gl->GetAndClearError();
+    // notice that the point of calling GetError here is not only to check for error,
+    // it is also to reset the error flag so that a subsequent WebGL getError call will give the correct result.
+    error = gl->fGetError();
     if (error != LOCAL_GL_NO_ERROR) {
         LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
         return PR_FALSE;

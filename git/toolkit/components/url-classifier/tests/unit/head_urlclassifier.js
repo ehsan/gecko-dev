@@ -1,4 +1,3 @@
-//* -*- Mode: Javascript; tab-width: 8; indent-tabs-mode: nil; js-indent-level: 2 -*- *
 function dumpn(s) {
   dump(s + "\n");
 }
@@ -278,8 +277,6 @@ function runNextTest()
   dbservice.setHashCompleter('test-phish-simple', null);
   dumpn("running " + gTests[gNextTest]);
 
-  dump("running " + gTests[gNextTest]);
-
   gTests[gNextTest++]();
 }
 
@@ -289,13 +286,10 @@ function runTests(tests)
   runNextTest();
 }
 
-var timerArray = [];
-
 function Timer(delay, cb) {
   this.cb = cb;
   var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
   timer.initWithCallback(this, delay, timer.TYPE_ONE_SHOT);
-  timerArray.push(timer);
 }
 
 Timer.prototype = {
@@ -309,34 +303,5 @@ notify: function(timer) {
     this.cb();
   }
 }
-
-// LFSRgenerator is a 32-bit linear feedback shift register random number
-// generator. It is highly predictable and is not intended to be used for
-// cryptography but rather to allow easier debugging than a test that uses
-// Math.random().
-function LFSRgenerator(seed) {
-  // Force |seed| to be a number.
-  seed = +seed;
-  // LFSR generators do not work with a value of 0.
-  if (seed == 0)
-    seed = 1;
-
-  this._value = seed;
-}
-LFSRgenerator.prototype = {
-  // nextNum returns a random unsigned integer of in the range [0,2^|bits|].
-  nextNum: function(bits) {
-    if (!bits)
-      bits = 32;
-
-    let val = this._value;
-    // Taps are 32, 22, 2 and 1.
-    let bit = ((val >>> 0) ^ (val >>> 10) ^ (val >>> 30) ^ (val >>> 31)) & 1;
-    val = (val >>> 1) | (bit << 31);
-    this._value = val;
-
-    return (val >>> (32 - bits));
-  },
-};
 
 cleanUp();

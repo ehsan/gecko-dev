@@ -62,11 +62,10 @@
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
 #include "nsIInlineSpellChecker.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsStubMutationObserver.h"
 #include "nsIViewManager.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIObserver.h"
 
 class nsIDOMCharacterData;
 class nsIDOMRange;
@@ -101,7 +100,6 @@ class nsIDOMNSEvent;
 class nsEditor : public nsIEditor,
                  public nsIEditorIMESupport,
                  public nsSupportsWeakReference,
-                 public nsIObserver,
                  public nsIPhonetic
 {
 public:
@@ -155,9 +153,6 @@ public:
   /* ------------ nsIEditorIMESupport methods -------------- */
   NS_DECL_NSIEDITORIMESUPPORT
   
-  /* ------------ nsIObserver methods -------------- */
-  NS_DECL_NSIOBSERVER
-
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
 
@@ -205,8 +200,6 @@ public:
                                         nsIPrivateTextRangeList *aTextRange)=0;
   nsresult EndIMEComposition();
 
-  void SwitchTextDirectionTo(PRUint32 aDirection);
-
   void BeginKeypressHandling() { mLastKeypressEventWasTrusted = eTriTrue; }
   void BeginKeypressHandling(nsIDOMNSEvent* aEvent);
   void EndKeypressHandling() { mLastKeypressEventWasTrusted = eTriUnset; }
@@ -232,8 +225,6 @@ public:
 
 protected:
   nsCString mContentMIMEType;       // MIME type of the doc we are editing.
-
-  nsresult DetermineCurrentDirection();
 
   /** create a transaction for setting aAttribute to aValue on aElement
     */
@@ -381,7 +372,7 @@ protected:
   // install the event listeners for the editor 
   virtual nsresult InstallEventListeners();
 
-  virtual void CreateEventListeners();
+  virtual nsresult CreateEventListeners();
 
   // unregister and release our event listeners
   virtual void RemoveEventListeners();
@@ -505,19 +496,17 @@ public:
                        nsCOMPtr<nsIDOMNode> *aResultNode,
                        PRBool       bNoBlockCrossing = PR_FALSE);
 
-  /**
-   * Get the rightmost child of aCurrentNode;
-   * return nsnull if aCurrentNode has no children.
-   */
-  already_AddRefed<nsIDOMNode> GetRightmostChild(nsIDOMNode *aCurrentNode, 
-                                                 PRBool      bNoBlockCrossing = PR_FALSE);
+  /** Get the rightmost child of aCurrentNode;
+    * return nsnull if aCurrentNode has no children.
+    */
+  nsCOMPtr<nsIDOMNode> GetRightmostChild(nsIDOMNode *aCurrentNode, 
+                                         PRBool      bNoBlockCrossing = PR_FALSE);
 
-  /**
-   * Get the leftmost child of aCurrentNode;
-   * return nsnull if aCurrentNode has no children.
-   */
-  already_AddRefed<nsIDOMNode> GetLeftmostChild(nsIDOMNode  *aCurrentNode, 
-                                                PRBool      bNoBlockCrossing = PR_FALSE);
+  /** Get the leftmost child of aCurrentNode;
+    * return nsnull if aCurrentNode has no children.
+    */
+  nsCOMPtr<nsIDOMNode> GetLeftmostChild(nsIDOMNode  *aCurrentNode, 
+                                         PRBool      bNoBlockCrossing = PR_FALSE);
 
   /** returns PR_TRUE if aNode is of the type implied by aTag */
   static inline PRBool NodeIsType(nsIDOMNode *aNode, nsIAtom *aTag)
@@ -577,8 +566,7 @@ public:
   
   static PRInt32 GetIndexOf(nsIDOMNode *aParent, nsIDOMNode *aChild);
   static nsCOMPtr<nsIDOMNode> GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset);
-  static nsCOMPtr<nsIDOMNode> GetNodeAtRangeOffsetPoint(nsIDOMNode* aParentOrNode, PRInt32 aOffset);
-
+  
   static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outStartNode, PRInt32 *outStartOffset);
   static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outEndNode, PRInt32 *outEndOffset);
 #if DEBUG_JOE
@@ -625,7 +613,7 @@ public:
                                     nsIDOMNode *aEndNode,
                                     PRInt32 aEndOffset);
 
-  virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget() = 0;
+  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget() = 0;
 
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
@@ -728,11 +716,6 @@ public:
   // nothing.
   nsresult InitializeSelection(nsIDOMEventTarget* aFocusEventTarget);
 
-  // This method has to be called by nsEditorEventListener::Focus.
-  // All actions that have to be done when the editor is focused needs to be
-  // added here.
-  void OnFocus(nsIDOMEventTarget* aFocusEventTarget);
-
 protected:
 
   PRUint32        mModCount;		// number of modifications (for undo/redo stack)
@@ -781,7 +764,7 @@ protected:
   PRInt8                        mDocDirtyState;		// -1 = not initialized
   nsWeakPtr        mDocWeak;  // weak reference to the nsIDOMDocument
   // The form field as an event receiver
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
 
   nsString* mPhonetic;
 

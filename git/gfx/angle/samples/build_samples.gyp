@@ -25,18 +25,10 @@
       ],
       'include_dirs': [
         '../include',
-        '../src',
       ],
       'sources': [
         'translator/translator.cpp',
-        '../src/common/debug.cpp',
       ],
-      'msvs_settings': {
-        'VCLinkerTool': {
-          'AdditionalLibraryDirectories': ['$(DXSDK_DIR)/lib/x86'],
-          'AdditionalDependencies': ['d3d9.lib'],
-        }
-      }
     },
   ],
   'conditions': [

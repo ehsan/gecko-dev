@@ -58,7 +58,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ActivityNotFoundException;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -66,12 +65,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.os.BatteryManager;
-import android.os.Debug;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.widget.Toast;
@@ -92,9 +88,6 @@ public class WatcherService extends Service
     boolean bInstalling = false;
 
     @SuppressWarnings("unchecked")
-    private static final Class<?>[] mSetForegroundSignature = new Class[] {
-    boolean.class};
-    @SuppressWarnings("unchecked")
     private static final Class[] mStartForegroundSignature = new Class[] {
         int.class, Notification.class};
     @SuppressWarnings("unchecked")
@@ -102,10 +95,8 @@ public class WatcherService extends Service
         boolean.class};
 
     private NotificationManager mNM;
-    private Method mSetForeground;
     private Method mStartForeground;
     private Method mStopForeground;
-    private Object[] mSetForegroundArgs = new Object[1];
     private Object[] mStartForegroundArgs = new Object[2];
     private Object[] mStopForegroundArgs = new Object[1];
 
@@ -138,26 +129,11 @@ public class WatcherService extends Service
 
         this.sPingTarget = GetIniData("watcher", "PingTarget", sIniFile, "www.mozilla.org");
         sHold = GetIniData("watcher", "delay", sIniFile, "60000");
-        this.lDelay = Long.parseLong(sHold.trim());
+           this.lDelay = Long.parseLong(sHold.trim());
         sHold = GetIniData("watcher", "period", sIniFile,"300000");
-        this.lPeriod = Long.parseLong(sHold.trim());
+           this.lPeriod = Long.parseLong(sHold.trim());
         sHold = GetIniData("watcher", "strikes", sIniFile,"3");
-        this.nMaxStrikes = Integer.parseInt(sHold.trim());
-
-        sHold = GetIniData("watcher", "stayon", sIniFile,"0");
-        int nStayOn = Integer.parseInt(sHold.trim());
-        
-        try {
-            if (nStayOn != 0) {
-                if (!Settings.System.putInt(getContentResolver(), Settings.System.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB)) {
-                    doToast("Screen couldn't be set to Always On [stay on while plugged in]");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            String sExcept = e.getMessage();
-            doToast("Screen couldn't be set to Always On [exception " + sExcept + "]");
-        }
+           this.nMaxStrikes = Integer.parseInt(sHold.trim());
 
         doToast("WatcherService created");
         }
@@ -303,12 +279,6 @@ public class WatcherService extends Service
                     // Running on an older platform.
                     mStartForeground = mStopForeground = null;
                     }
-                try {
-                    mSetForeground = getClass().getMethod("setForeground", mSetForegroundSignature);
-                    }
-                catch (NoSuchMethodException e) {
-                    mSetForeground = null;
-                    }
                 Notification notification = new Notification();
                 startForegroundCompat(R.string.foreground_service_started, notification);
                 }
@@ -338,18 +308,7 @@ public class WatcherService extends Service
         }
 
         // Fall back on the old API.
-        if  (mSetForeground != null) {
-            try {
-                mSetForegroundArgs[0] = Boolean.TRUE;
-                mSetForeground.invoke(this, mSetForegroundArgs);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
-        }
+        setForeground(true);
         mNM.notify(id, notification);
     }
 
@@ -376,18 +335,7 @@ public class WatcherService extends Service
         // Fall back on the old API.  Note to cancel BEFORE changing the
         // foreground state, since we could be killed at that point.
         mNM.cancel(id);
-        if  (mSetForeground != null) {
-            try {
-                mSetForegroundArgs[0] = Boolean.FALSE;
-                mSetForeground.invoke(this, mSetForegroundArgs);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
-        }
+        setForeground(false);
     }
 
     public void doToast(String sMsg)

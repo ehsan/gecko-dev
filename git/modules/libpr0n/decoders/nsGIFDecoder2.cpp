@@ -201,7 +201,7 @@ void nsGIFDecoder2::BeginGIF()
 }
 
 //******************************************************************************
-nsresult nsGIFDecoder2::BeginImageFrame(PRUint16 aDepth)
+nsresult nsGIFDecoder2::BeginImageFrame(gfx_depth aDepth)
 {
   PRUint32 imageDataLength;
   nsresult rv;
@@ -215,15 +215,13 @@ nsresult nsGIFDecoder2::BeginImageFrame(PRUint16 aDepth)
   // and include transparency to allow for optimization of opaque images
   if (mGIFStruct.images_decoded) {
     // Image data is stored with original depth and palette
-    rv = mImage->EnsureFrame(mGIFStruct.images_decoded,
-                             mGIFStruct.x_offset, mGIFStruct.y_offset,
-                             mGIFStruct.width, mGIFStruct.height,
-                             format, aDepth, &mImageData, &imageDataLength,
-                             &mColormap, &mColormapSize);
+    rv = mImage->AppendPalettedFrame(mGIFStruct.x_offset, mGIFStruct.y_offset,
+                                     mGIFStruct.width, mGIFStruct.height,
+                                     format, aDepth, &mImageData, &imageDataLength,
+                                     &mColormap, &mColormapSize);
   } else {
     // Regardless of depth of input, image is decoded into 24bit RGB
-    rv = mImage->EnsureFrame(mGIFStruct.images_decoded,
-                             mGIFStruct.x_offset, mGIFStruct.y_offset,
+    rv = mImage->AppendFrame(mGIFStruct.x_offset, mGIFStruct.y_offset,
                              mGIFStruct.width, mGIFStruct.height,
                              format, &mImageData, &imageDataLength);
   }
@@ -629,7 +627,7 @@ nsGIFDecoder2::WriteInternal(const char *aBuffer, PRUint32 aCount)
                (mGIFStruct.bytes_in_hold) ? mGIFStruct.hold : nsnull;
   if (p) {
     // Add what we have sofar to the block
-    PRUint32 l = NS_MIN(len, mGIFStruct.bytes_to_consume);
+    PRUint32 l = PR_MIN(len, mGIFStruct.bytes_to_consume);
     memcpy(p+mGIFStruct.bytes_in_hold, buf, l);
 
     if (l < mGIFStruct.bytes_to_consume) {
@@ -1095,13 +1093,6 @@ done:
 
   return;
 }
-
-Telemetry::ID
-nsGIFDecoder2::SpeedHistogram()
-{
-  return Telemetry::IMAGE_DECODE_SPEED_GIF;
-}
-
 
 } // namespace imagelib
 } // namespace mozilla

@@ -215,12 +215,13 @@ function getFileListing(basePath, testPath, dir, srvScope)
     if (!testsDir.exists())
       return [];
 
+    // If we were passed a speComponents.interfacesfic file, run only that test.
     if (testsDir.isFile()) {
       if (fileNameRegexp.test(testsDir.leafName))
         var singlePath = basePath + '/' + testPath;
         var links = {};
         links[singlePath] = true;
-        return [links, null];
+        return [links, singlePath];
 
       // We were passed a file that's not a test...
       return [];
@@ -364,7 +365,7 @@ function readConfig() {
   configFile.append("testConfig.js");
 
   if (!configFile.exists())
-    return {};
+    return;
 
   var fileInStream = Components.classes["@mozilla.org/network/file-input-stream;1"].
                      createInstance(Components.interfaces.nsIFileInputStream);

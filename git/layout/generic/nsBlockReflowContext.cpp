@@ -77,7 +77,7 @@ static nsIFrame* DescendIntoBlockLevelFrame(nsIFrame* aFrame)
 {
   nsIAtom* type = aFrame->GetType();
   if (type == nsGkAtoms::columnSetFrame)
-    return DescendIntoBlockLevelFrame(aFrame->GetFirstPrincipalChild());
+    return DescendIntoBlockLevelFrame(aFrame->GetFirstChild(nsnull));
   return aFrame;
 }
 
@@ -119,7 +119,7 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
     // OK because our traversal is idempotent.
     for (nsBlockFrame* block = static_cast<nsBlockFrame*>(frame);
          block; block = static_cast<nsBlockFrame*>(block->GetNextInFlow())) {
-      for (PRIntn overflowLines = PR_FALSE; overflowLines <= PR_TRUE; ++overflowLines) {
+      for (PRBool overflowLines = PR_FALSE; overflowLines <= PR_TRUE; ++overflowLines) {
         nsBlockFrame::line_iterator line;
         nsBlockFrame::line_iterator line_end;
         PRBool anyLines = PR_TRUE;
@@ -173,6 +173,8 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
               nsSize availSpace(aRS.ComputedWidth(), aRS.ComputedHeight());
               outerReflowState = new nsHTMLReflowState(prescontext,
                                                        aRS, frame, availSpace);
+              if (!outerReflowState)
+                goto done;
             }
             {
               nsSize availSpace(outerReflowState->ComputedWidth(),

@@ -47,6 +47,7 @@
 #include "jspubtd.h"
 #include "jsopcode.h"
 #include "jsscript.h"
+#include "jsvalue.h"
 
 #include "vm/Stack.h"
 
@@ -143,91 +144,104 @@ BoxNonStrictThis(JSContext *cx, const CallReceiver &call);
 inline bool
 ComputeThis(JSContext *cx, StackFrame *fp);
 
-enum MaybeConstruct {
-    NO_CONSTRUCT = INITIAL_NONE,
-    CONSTRUCT = INITIAL_CONSTRUCT
+/*
+ * Choose enumerator values so that the enum can be passed used directly as the
+ * stack frame flags.
+ */
+enum ConstructOption {
+    INVOKE_NORMAL = 0,
+    INVOKE_CONSTRUCTOR = StackFrame::CONSTRUCTING
 };
+JS_STATIC_ASSERT(INVOKE_CONSTRUCTOR != INVOKE_NORMAL);
 
-/*
- * InvokeKernel assumes that the given args have been pushed on the top of the
- * VM stack. Additionally, if 'args' is contained in a CallArgsList, that they
- * have already been marked 'active'.
- */
-extern bool
-InvokeKernel(JSContext *cx, const CallArgs &args, MaybeConstruct construct = NO_CONSTRUCT);
-
-/*
- * Invoke assumes that 'args' has been pushed (via ContextStack::pushInvokeArgs)
- * and is currently at the top of the VM stack.
- */
-inline bool
-Invoke(JSContext *cx, InvokeArgsGuard &args, MaybeConstruct construct = NO_CONSTRUCT)
+static inline uintN
+ToReportFlags(ConstructOption option)
 {
-    args.setActive();
-    bool ok = InvokeKernel(cx, args, construct);
-    args.setInactive();
-    return ok;
+    return (uintN)option;
+}
+
+static inline uint32
+ToFrameFlags(ConstructOption option)
+{
+    return (uintN)option;
 }
 
 /*
- * This Invoke overload places the least requirements on the caller: it may be
- * called at any time and it takes care of copying the given callee, this, and
- * arguments onto the stack.
- */
-extern bool
-Invoke(JSContext *cx, const Value &thisv, const Value &fval, uintN argc, Value *argv,
-       Value *rval);
-
-/*
- * This helper takes care of the infinite-recursion check necessary for
- * getter/setter calls.
- */
-extern bool
-InvokeGetterOrSetter(JSContext *cx, JSObject *obj, const Value &fval, uintN argc, Value *argv,
-                     Value *rval);
-
-/*
- * InvokeConstructor* implement a function call from a constructor context
- * (e.g. 'new') handling the the creation of the new 'this' object.
+ * The js::InvokeArgumentsGuard passed to js_Invoke must come from an
+ * immediately-enclosing successful call to js::StackSpace::pushInvokeArgs,
+ * i.e., there must have been no un-popped pushes to cx->stack. Furthermore,
+ * |args.getvp()[0]| should be the callee, |args.getvp()[1]| should be |this|,
+ * and the range [args.getvp() + 2, args.getvp() + 2 + args.getArgc()) should
+ * be initialized actual arguments.
  */
 extern JS_REQUIRES_STACK bool
-InvokeConstructorKernel(JSContext *cx, const CallArgs &args);
-
-/* See the InvokeArgsGuard overload of Invoke. */
-inline bool
-InvokeConstructor(JSContext *cx, InvokeArgsGuard &args)
-{
-    args.setActive();
-    bool ok = InvokeConstructorKernel(cx, ImplicitCast<CallArgs>(args));
-    args.setInactive();
-    return ok;
-}
-
-/* See the fval overload of Invoke. */
-extern bool
-InvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *argv, Value *rval);
+Invoke(JSContext *cx, const CallArgs &args, ConstructOption option = INVOKE_NORMAL);
 
 /*
- * InvokeConstructorWithGivenThis directly calls the constructor with the given
- * 'this'; the caller must choose the semantically correct 'this'.
+ * Natives like sort/forEach/replace call Invoke repeatedly with the same
+ * callee, this, and number of arguments. To optimize this, such natives can
+ * start an "invoke session" to factor out much of the dynamic setup logic
+ * required by a normal Invoke. Usage is:
+ *
+ *   InvokeSessionGuard session(cx);
+ *   if (!session.start(cx, callee, thisp, argc, &session))
+ *     ...
+ *
+ *   while (...) {
+ *     // write actual args (not callee, this)
+ *     session[0] = ...
+ *     ...
+ *     session[argc - 1] = ...
+ *
+ *     if (!session.invoke(cx, session))
+ *       ...
+ *
+ *     ... = session.rval();
+ *   }
+ *
+ *   // session ended by ~InvokeSessionGuard
  */
+class InvokeSessionGuard;
+
+/*
+ * "External" calls may come from C or C++ code using a JSContext on which no
+ * JS is running (!cx->fp), so they may need to push a dummy StackFrame.
+ */
+
+extern bool
+ExternalInvoke(JSContext *cx, const Value &thisv, const Value &fval,
+               uintN argc, Value *argv, Value *rval);
+
+extern bool
+ExternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, const Value &fval,
+                 JSAccessMode mode, uintN argc, Value *argv, Value *rval);
+
+/*
+ * These two functions invoke a function called from a constructor context
+ * (e.g. 'new'). InvokeConstructor handles the general case where a new object
+ * needs to be created for/by the constructor. ConstructWithGivenThis directly
+ * calls the constructor with the given 'this', hence the caller must
+ * understand the semantics of the constructor call.
+ */
+
+extern JS_REQUIRES_STACK bool
+InvokeConstructor(JSContext *cx, const CallArgs &args);
+
 extern JS_REQUIRES_STACK bool
 InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fval,
                                uintN argc, Value *argv, Value *rval);
 
-/*
- * Executes a script with the given scopeChain/this. The 'type' indicates
- * whether this is eval code or global code. To support debugging, the
- * evalFrame parameter can point to an arbitrary frame in the context's call
- * stack to simulate executing an eval in that frame.
- */
 extern bool
-ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const Value &thisv,
-              ExecuteType type, StackFrame *evalInFrame, Value *result);
+ExternalInvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *argv,
+                          Value *rval);
 
-/* Execute a script with the given scopeChain as global code. */
-extern bool
-Execute(JSContext *cx, JSScript *script, JSObject &scopeChain, Value *rval);
+/*
+ * Executes a script with the given scope chain in the context of the given
+ * frame.
+ */
+extern JS_FORCES_STACK bool
+Execute(JSContext *cx, JSObject &chain, JSScript *script,
+        StackFrame *prev, uintN flags, Value *result);
 
 /* Flags to toggle js::Interpret() execution. */
 enum InterpMode
@@ -235,9 +249,7 @@ enum InterpMode
     JSINTERP_NORMAL    = 0, /* interpreter is running normally */
     JSINTERP_RECORD    = 1, /* interpreter has been started to record/run traces */
     JSINTERP_SAFEPOINT = 2, /* interpreter should leave on a method JIT safe point */
-    JSINTERP_PROFILE   = 3, /* interpreter should profile a loop */
-    JSINTERP_REJOIN    = 4, /* as normal, but the frame has already started */
-    JSINTERP_SKIP_TRAP = 5  /* as REJOIN, but skip trap at first opcode */
+    JSINTERP_PROFILE   = 3  /* interpreter should profile a loop */
 };
 
 /*
@@ -245,7 +257,7 @@ enum InterpMode
  * pointed to by cx->fp until completion or error.
  */
 extern JS_REQUIRES_STACK JS_NEVER_INLINE bool
-Interpret(JSContext *cx, StackFrame *stopFp, InterpMode mode = JSINTERP_NORMAL);
+Interpret(JSContext *cx, StackFrame *stopFp, uintN inlineCallCount = 0, InterpMode mode = JSINTERP_NORMAL);
 
 extern JS_REQUIRES_STACK bool
 RunScript(JSContext *cx, JSScript *script, StackFrame *fp);
@@ -279,173 +291,78 @@ ValueToId(JSContext *cx, const Value &v, jsid *idp);
  *                          closure level.
  * @return  The value of the upvar.
  */
-extern const Value &
-GetUpvar(JSContext *cx, uintN level, UpvarCookie cookie);
+extern const js::Value &
+GetUpvar(JSContext *cx, uintN level, js::UpvarCookie cookie);
 
-/* Search the call stack for the nearest frame with static level targetLevel. */
-extern StackFrame *
-FindUpvarFrame(JSContext *cx, uintN targetLevel);
+} /* namespace js */
 
 /*
- * A linked list of the |FrameRegs regs;| variables belonging to all
- * js::Interpret C++ frames on this thread's stack.
+ * JS_LONE_INTERPRET indicates that the compiler should see just the code for
+ * the js_Interpret function when compiling jsinterp.cpp. The rest of the code
+ * from the file should be visible only when compiling jsinvoke.cpp. It allows
+ * platform builds to optimize selectively js_Interpret when the granularity
+ * of the optimizations with the given compiler is a compilation unit.
  *
- * Note that this is *not* a list of all JS frames running under the
- * interpreter; that would include inlined frames, whose FrameRegs are
- * saved in various pieces in various places. Rather, this lists each
- * js::Interpret call's live 'regs'; when control returns to that call, it
- * will resume execution with this 'regs' instance.
- *
- * When Debugger puts a script in single-step mode, all js::Interpret
- * invocations that might be presently running that script must have
- * interrupts enabled. It's not practical to simply check
- * script->stepModeEnabled() at each point some callee could have changed
- * it, because there are so many places js::Interpret could possibly cause
- * JavaScript to run: each place an object might be coerced to a primitive
- * or a number, for example. So instead, we simply expose a list of the
- * 'regs' those frames are using, and let Debugger tweak the affected
- * js::Interpret frames when an onStep handler is established.
- *
- * Elements of this list are allocated within the js::Interpret stack
- * frames themselves; the list is headed by this thread's js::ThreadData.
+ * JS_STATIC_INTERPRET is the modifier for functions defined in jsinterp.cpp
+ * that only js_Interpret calls. When JS_LONE_INTERPRET is true all such
+ * functions are declared below.
  */
-class InterpreterFrames {
-  public:
-    class InterruptEnablerBase {
-      public:
-        virtual void enableInterrupts() const = 0;
-    };
+#ifndef JS_LONE_INTERPRET
+# ifdef _MSC_VER
+#  define JS_LONE_INTERPRET 0
+# else
+#  define JS_LONE_INTERPRET 1
+# endif
+#endif
 
-    InterpreterFrames(JSContext *cx, FrameRegs *regs, const InterruptEnablerBase &enabler);
-    ~InterpreterFrames();
+#if !JS_LONE_INTERPRET
+# define JS_STATIC_INTERPRET    static
+#else
+# define JS_STATIC_INTERPRET
 
-    /* If this js::Interpret frame is running |script|, enable interrupts. */
-    void enableInterruptsIfRunning(JSScript *script) {
-        if (script == regs->fp()->script())
-            enabler.enableInterrupts();
-    }
+extern JS_REQUIRES_STACK JSBool
+js_EnterWith(JSContext *cx, jsint stackIndex, JSOp op, size_t oplen);
 
-    InterpreterFrames *older;
+extern JS_REQUIRES_STACK void
+js_LeaveWith(JSContext *cx);
 
-  private:
-    JSContext *context;
-    FrameRegs *regs;
-    const InterruptEnablerBase &enabler;
-};
+/*
+ * Find the results of incrementing or decrementing *vp. For pre-increments,
+ * both *vp and *vp2 will contain the result on return. For post-increments,
+ * vp will contain the original value converted to a number and vp2 will get
+ * the result. Both vp and vp2 must be roots.
+ */
+extern JSBool
+js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, js::Value *vp, js::Value *vp2);
 
+/*
+ * Opcode tracing helper. When len is not 0, cx->fp->regs->pc[-len] gives the
+ * previous opcode.
+ */
+extern JS_REQUIRES_STACK void
+js_LogOpcode(JSContext *cx);
+
+/*
+ * JS_OPMETER helper functions.
+ */
+extern void
+js_MeterOpcodePair(JSOp op1, JSOp op2);
+
+extern void
+js_MeterSlotOpcode(JSOp op, uint32 slot);
+
+#endif /* JS_LONE_INTERPRET */
 /*
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-extern bool
-UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
+extern JS_REQUIRES_STACK JSBool
+js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
 
-extern bool
-OnUnknownMethod(JSContext *cx, js::Value *vp);
+extern JSBool
+js_OnUnknownMethod(JSContext *cx, js::Value *vp);
 
-extern bool
-IsActiveWithOrBlock(JSContext *cx, JSObject &obj, int stackDepth);
-
-/************************************************************************/
-
-static JS_ALWAYS_INLINE void
-ClearValueRange(Value *vec, uintN len, bool useHoles)
-{
-    if (useHoles) {
-        for (uintN i = 0; i < len; i++)
-            vec[i].setMagic(JS_ARRAY_HOLE);
-    } else {
-        for (uintN i = 0; i < len; i++)
-            vec[i].setUndefined();
-    }
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Value *vec, size_t len)
-{
-    PodZero(vec, len);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Value *beg, Value *end)
-{
-    PodZero(beg, end - beg);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(jsid *beg, jsid *end)
-{
-    for (jsid *id = beg; id != end; ++id)
-        *id = INT_TO_JSID(0);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(jsid *vec, size_t len)
-{
-    MakeRangeGCSafe(vec, vec + len);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(const Shape **beg, const Shape **end)
-{
-    PodZero(beg, end - beg);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(const Shape **vec, size_t len)
-{
-    PodZero(vec, len);
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToUndefined(Value *beg, Value *end)
-{
-    for (Value *v = beg; v != end; ++v)
-        v->setUndefined();
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToUndefined(Value *vec, size_t len)
-{
-    SetValueRangeToUndefined(vec, vec + len);
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToNull(Value *beg, Value *end)
-{
-    for (Value *v = beg; v != end; ++v)
-        v->setNull();
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToNull(Value *vec, size_t len)
-{
-    SetValueRangeToNull(vec, vec + len);
-}
-
-/*
- * To really poison a set of values, using 'magic' or 'undefined' isn't good
- * enough since often these will just be ignored by buggy code (see bug 629974)
- * in debug builds and crash in release builds. Instead, we use a safe-for-crash
- * pointer.
- */
-static JS_ALWAYS_INLINE void
-Debug_SetValueRangeToCrashOnTouch(Value *beg, Value *end)
-{
-#ifdef DEBUG
-    for (Value *v = beg; v != end; ++v)
-        v->setObject(*reinterpret_cast<JSObject *>(0x42));
-#endif
-}
-
-static JS_ALWAYS_INLINE void
-Debug_SetValueRangeToCrashOnTouch(Value *vec, size_t len)
-{
-#ifdef DEBUG
-    Debug_SetValueRangeToCrashOnTouch(vec, vec + len);
-#endif
-}
-
-}  /* namespace js */
+extern JS_REQUIRES_STACK js::Class *
+js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
 
 #endif /* jsinterp_h___ */

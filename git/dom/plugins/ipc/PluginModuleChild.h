@@ -55,7 +55,7 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 #include "PluginInterposeOSX.h"
 #endif
 
@@ -111,23 +111,13 @@ protected:
         return MediateRace(parent, child);
     }
 
-    NS_OVERRIDE
-    virtual bool ShouldContinueFromReplyTimeout();
-
     // Implement the PPluginModuleChild interface
     virtual bool AnswerNP_GetEntryPoints(NPError* rv);
     virtual bool AnswerNP_Initialize(NativeThreadId* tid, NPError* rv);
 
     virtual PPluginIdentifierChild*
     AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt,
-                           const bool& aTemporary);
-
-    virtual bool
-    RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
-                                     const nsCString& aString,
-                                     const int32_t& aInt,
-                                     const bool& aTemporary);
+                           const int32_t& aInt);
 
     virtual bool
     DeallocPPluginIdentifier(PPluginIdentifierChild* aActor);
@@ -165,14 +155,6 @@ protected:
 
     virtual bool
     AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult);
-
-    virtual bool
-    RecvSetAudioSessionData(const nsID& aId,
-                            const nsString& aDisplayName,
-                            const nsString& aIconPath);
-
-    virtual bool
-    RecvSetParentHangTimeout(const uint32_t& aSeconds);
 
     virtual void
     ActorDestroy(ActorDestroyReason why);
@@ -236,7 +218,7 @@ public:
     static NPUTF8* NP_CALLBACK NPN_UTF8FromIdentifier(NPIdentifier aIdentifier);
     static int32_t NP_CALLBACK NPN_IntFromIdentifier(NPIdentifier aIdentifier);
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
     void ProcessNativeEvents();
     
     void PluginShowWindow(uint32_t window_id, bool modal, CGRect r) {
@@ -412,11 +394,8 @@ private:
      */
     nsTHashtable<NPObjectData> mObjectMap;
 
-    friend class PluginIdentifierChild;
-    friend class PluginIdentifierChildString;
-    friend class PluginIdentifierChildInt;
-    nsDataHashtable<nsCStringHashKey, PluginIdentifierChildString*> mStringIdentifiers;
-    nsDataHashtable<nsUint32HashKey, PluginIdentifierChildInt*> mIntIdentifiers;
+    nsDataHashtable<nsCStringHashKey, PluginIdentifierChild*> mStringIdentifiers;
+    nsDataHashtable<nsUint32HashKey, PluginIdentifierChild*> mIntIdentifiers;
 
 public: // called by PluginInstanceChild
     /**

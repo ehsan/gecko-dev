@@ -76,9 +76,6 @@ public:
   nsresult SendOnDataAvailable(nsISupports* aContext, nsIInputStream* aStream,
                                PRUint32 aOffset, PRUint32 aLen);
   nsresult SendOnStopRequest(nsISupports* aContext, nsresult aStatus);
-  /* SetContentDisposition expects the full value of the Content-Disposition
-   * header */
-  void SetContentDisposition(const nsACString& aContentDispositionHeader);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUEST
@@ -100,9 +97,7 @@ protected:
 
   nsCString               mContentType;
   nsCString               mContentCharset;
-  PRUint32                mContentDisposition;
-  nsString                mContentDispositionFilename;
-  nsCString               mContentDispositionHeader;
+  nsCString               mContentDisposition;
   PRUint64                mContentLength;
 
   PRBool                  mIsByteRangeRequest;

@@ -47,6 +47,6 @@
  */
 void
 NS_GetComplexLineBreaks(const PRUnichar* aText, PRUint32 aLength,
-                        PRUint8* aBreakBefore);
+                        PRPackedBool* aBreakBefore);
 
 #endif  /* nsComplexBreaker_h__ */

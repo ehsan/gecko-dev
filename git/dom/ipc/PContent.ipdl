@@ -83,13 +83,9 @@ union StorageConstructData
 };
 
 struct FontListEntry {
-    nsString  familyName;
-    nsString  faceName;
+    nsCString familyName;
     nsCString filepath;
-    PRUint16  weight;
-    PRInt16   stretch;
-    PRUint8   italic;
-    PRUint8   index;
+    PRUint32  index;
 };
 
 rpc protocol PContent
@@ -132,14 +128,6 @@ child:
     ScreenSizeChanged(gfxIntSize size);
 
     FlushMemory(nsString reason);
-
-    GarbageCollect();
-    CycleCollect();
-    
-    /**
-     * Start accessibility engine in content process.
-     */
-    ActivateA11y();
 
 parent:
     PNecko();
@@ -208,12 +196,6 @@ parent:
 
     sync GetSystemColors(PRUint32 colorsCount)
         returns (PRUint32[] colors);
-
-    sync GetIconForExtension(nsCString aFileExt, PRUint32 aIconSize)
-        returns (PRUint8[] bits);
-
-    sync GetShowPasswordSetting()
-        returns (PRBool showPassword);
 
 both:
      AsyncMessage(nsString aMessage, nsString aJSON);

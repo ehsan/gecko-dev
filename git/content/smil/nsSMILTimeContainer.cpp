@@ -149,7 +149,7 @@ nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
 {
   // SVG 1.1 doesn't specify what to do for negative times so we adopt SVGT1.2's
   // behaviour of clamping negative times to 0.
-  aSeekTo = NS_MAX<nsSMILTime>(0, aSeekTo);
+  aSeekTo = PR_MAX(0, aSeekTo);
 
   // The following behaviour is consistent with:
   // http://www.w3.org/2003/01/REC-SVG11-20030114-errata
@@ -261,7 +261,7 @@ nsSMILTimeContainer::GetNextMilestoneInParentTime(
 
   nsSMILTimeValue parentTime =
     ContainerToParentTime(mMilestoneEntries.Top().mMilestone.mTime);
-  if (!parentTime.IsDefinite())
+  if (!parentTime.IsResolved())
     return PR_FALSE;
 
   aNextMilestone = nsSMILMilestone(parentTime.GetMillis(),
@@ -279,7 +279,7 @@ nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
     return PR_FALSE;
 
   nsSMILTimeValue containerTime = ParentToContainerTime(aMilestone.mTime);
-  if (!containerTime.IsDefinite())
+  if (!containerTime.IsResolved())
     return PR_FALSE;
 
   nsSMILMilestone containerMilestone(containerTime.GetMillis(),

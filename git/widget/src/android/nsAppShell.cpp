@@ -43,16 +43,18 @@
 #include "nsIObserverService.h"
 #include "nsIAppStartup.h"
 #include "nsIGeolocationProvider.h"
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
 
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
 #include "prenv.h"
 
 #include "AndroidBridge.h"
 #include "nsDeviceMotionSystem.h"
 #include <android/log.h>
 #include <pthread.h>
+#include "nsIPrefBranch2.h"
 #include <wchar.h>
 
 #ifdef MOZ_LOGGING
@@ -60,7 +62,7 @@
 #include "prlog.h"
 #endif
 
-#ifdef DEBUG_ANDROID_EVENTS
+#ifdef ANDROID_DEBUG_EVENTS
 #define EVLOG(args...)  ALOG(args)
 #else
 #define EVLOG(args...) do { } while (0)
@@ -74,7 +76,6 @@ PRLogModuleInfo *gWidgetLog = nsnull;
 
 nsDeviceMotionSystem *gDeviceMotionSystem = nsnull;
 nsIGeolocationUpdate *gLocationCallback = nsnull;
-nsAutoPtr<mozilla::AndroidGeckoEvent> gLastSizeChange;
 
 nsAppShell *nsAppShell::gAppShell = nsnull;
 
@@ -101,14 +102,6 @@ nsAppShell::NotifyNativeEvent()
     mQueueCond.Notify();
 }
 
-#define PREFNAME_MATCH_OS  "intl.locale.matchOS"
-#define PREFNAME_UA_LOCALE "general.useragent.locale"
-static const char* kObservedPrefs[] = {
-  PREFNAME_MATCH_OS,
-  PREFNAME_UA_LOCALE,
-  nsnull
-};
-
 nsresult
 nsAppShell::Init()
 {
@@ -133,21 +126,36 @@ nsAppShell::Init()
     if (!bridge)
         return rv;
 
-    Preferences::AddStrongObservers(this, kObservedPrefs);
+    nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    branch->AddObserver("intl.locale.matchOS", this, PR_FALSE);
+    branch->AddObserver("general.useragent.locale", this, PR_FALSE);
 
-    PRBool match;
-    rv = Preferences::GetBool(PREFNAME_MATCH_OS, &match);
+    nsString locale;
+    PRBool match = PR_FALSE;
+    rv = branch->GetBoolPref("intl.locale.matchOS", &match);
+
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (match) {
         bridge->SetSelectedLocale(EmptyString());
         return NS_OK;
     }
-
-    nsAutoString locale;
-    rv = Preferences::GetLocalizedString(PREFNAME_UA_LOCALE, &locale);
-    if (NS_FAILED(rv)) {
-        rv = Preferences::GetString(PREFNAME_UA_LOCALE, &locale);
+    nsCOMPtr<nsIPrefLocalizedString> pls;
+    rv = branch->GetComplexValue("general.useragent.locale",
+                                 NS_GET_IID(nsIPrefLocalizedString),
+                                 getter_AddRefs(pls));
+    if (NS_SUCCEEDED(rv) && pls) {
+        nsXPIDLString uval;
+        pls->ToString(getter_Copies(uval));
+        if (uval)
+            locale.Assign(uval);
+    } else {
+        nsXPIDLCString cval;
+        rv = branch->GetCharPref("general.useragent.locale",
+                                 getter_Copies(cval));
+        if (NS_SUCCEEDED(rv) && cval)
+            locale.AssignWithConversion(cval);
     }
 
     bridge->SetSelectedLocale(locale);
@@ -166,27 +174,40 @@ nsAppShell::Observe(nsISupports* aSubject,
         return nsBaseAppShell::Observe(aSubject, aTopic, aData);
     } else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) && aData && (
                    nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_UA_LOCALE)) ||
+                       NS_LITERAL_STRING("general.useragent.locale")) ||
                    nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_MATCH_OS)))) {
+                       NS_LITERAL_STRING("intl.locale.matchOS"))))
+    {
         AndroidBridge* bridge = AndroidBridge::Bridge();
-        if (!bridge) {
+        nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
+        if (!prefs || !bridge)
             return NS_OK;
-        }
 
-        PRBool match;
-        nsresult rv = Preferences::GetBool(PREFNAME_MATCH_OS, &match);
+        nsString locale;
+        PRBool match = PR_FALSE;
+        nsresult rv = prefs->GetBoolPref("intl.locale.matchOS", &match);
         NS_ENSURE_SUCCESS(rv, rv);
 
         if (match) {
             bridge->SetSelectedLocale(EmptyString());
             return NS_OK;
         }
-
-        nsAutoString locale;
-        if (NS_FAILED(Preferences::GetLocalizedString(PREFNAME_UA_LOCALE,
-                                                      &locale))) {
-            locale = Preferences::GetString(PREFNAME_UA_LOCALE);
+        nsCOMPtr<nsIPrefLocalizedString> pls;
+        rv = prefs->GetComplexValue("general.useragent.locale",
+                                    NS_GET_IID(nsIPrefLocalizedString),
+                                    getter_AddRefs(pls));
+        if (NS_SUCCEEDED(rv) && pls) {
+            nsXPIDLString uval;
+            pls->ToString(getter_Copies(uval));
+            if (uval)
+                locale.Assign(uval);
+        }
+        else {
+            nsXPIDLCString cval;
+            rv = prefs->GetCharPref("general.useragent.locale",
+                                    getter_Copies(cval));
+            if (NS_SUCCEEDED(rv) && cval)
+                locale.AssignWithConversion(cval);
         }
 
         bridge->SetSelectedLocale(locale);
@@ -217,7 +238,7 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         curEvent = GetNextEvent();
         if (!curEvent && mayWait) {
             // hmm, should we really hardcode this 10s?
-#if defined(DEBUG_ANDROID_EVENTS)
+#if defined(ANDROID_DEBUG_EVENTS)
             PRTime t0, t1;
             EVLOG("nsAppShell: waiting on mQueueCond");
             t0 = PR_Now();
@@ -256,7 +277,7 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
             RemoveNextEvent();
             delete nextEvent;
 
-#if defined(DEBUG_ANDROID_EVENTS)
+#if defined(ANDROID_DEBUG_EVENTS)
             ALOG("# Removing DRAW event (%d outstanding)", mNumDraws);
 #endif
 
@@ -277,7 +298,7 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
               nextEvent->Action() == AndroidMotionEvent::ACTION_MOVE))
             break;
 
-#if defined(DEBUG_ANDROID_EVENTS)
+#if defined(ANDROID_DEBUG_EVENTS)
         ALOG("# Removing % 2d event", curType);
 #endif
 
@@ -328,7 +349,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
             mozilla::services::GetObserverService();
         NS_NAMED_LITERAL_STRING(minimize, "heap-minimize");
         obsServ->NotifyObservers(nsnull, "memory-pressure", minimize.get());
-        obsServ->NotifyObservers(nsnull, "application-background", nsnull);
 
         break;
     }
@@ -352,18 +372,9 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         // We really want to send a notification like profile-before-change,
         // but profile-before-change ends up shutting some things down instead
         // of flushing data
-        nsIPrefService* prefs = Preferences::GetService();
-        if (prefs) {
+        nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs)
             prefs->SavePrefFile(nsnull);
-        }
-
-        break;
-    }
-
-    case AndroidGeckoEvent::ACTIVITY_START: {
-        nsCOMPtr<nsIObserverService> obsServ =
-            mozilla::services::GetObserverService();
-        obsServ->NotifyObservers(nsnull, "application-foreground", nsnull);
 
         break;
     }
@@ -390,15 +401,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::SIZE_CHANGED: {
-        // store the last resize event to dispatch it to new windows with a FORCED_RESIZE event
-        if (curEvent != gLastSizeChange) {
-            gLastSizeChange = new AndroidGeckoEvent(curEvent);
-        }
-        nsWindow::OnGlobalAndroidEvent(curEvent);
-        break;
-    }
-
     default:
         nsWindow::OnGlobalAndroidEvent(curEvent);
     }
@@ -406,13 +408,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());
 
     return true;
-}
-
-void
-nsAppShell::ResendLastResizeEvent(nsWindow* aDest) {
-    if (gLastSizeChange) {
-        nsWindow::OnGlobalAndroidEvent(gLastSizeChange);
-    }
 }
 
 AndroidGeckoEvent*
@@ -448,22 +443,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
 {
     {
         MutexAutoLock lock(mQueueLock);
-        if (ae->Type() == AndroidGeckoEvent::SURFACE_DESTROYED) {
-            // Give priority to this event, and discard any pending
-            // SURFACE_CREATED events.
-            mEventQueue.InsertElementAt(0, ae);
-            AndroidGeckoEvent *event;
-            for (int i = mEventQueue.Length()-1; i >=1; i--) {
-                event = mEventQueue[i];
-                if (event->Type() == AndroidGeckoEvent::SURFACE_CREATED) {
-                    mEventQueue.RemoveElementAt(i);
-                    delete event;
-                }
-            }
-        } else {
-            mEventQueue.AppendElement(ae);
-        }
-
+        mEventQueue.AppendElement(ae);
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
             mNumDraws++;
         }

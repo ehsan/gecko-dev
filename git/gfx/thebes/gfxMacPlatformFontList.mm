@@ -59,12 +59,8 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 
-#include "mozilla/Telemetry.h"
-
 #include <unistd.h>
 #include <time.h>
-
-using namespace mozilla;
 
 class nsAutoreleasePool {
 public:
@@ -721,8 +717,6 @@ gfxMacPlatformFontList::InitFontList()
     if (mATSGeneration == currentGeneration)
         return NS_OK;
 
-    Telemetry::AutoTimer<Telemetry::MAC_INITFONTLIST_TOTAL> timer;
-
     mATSGeneration = currentGeneration;
 #ifdef PR_LOGGING
     LOG_FONTLIST(("(fontlist) updating to generation: %d", mATSGeneration));
@@ -827,7 +821,7 @@ gfxMacPlatformFontList::GetStandardFamilyName(const nsAString& aFontName, nsAStr
     // convert the name to a Pascal-style Str255 to try as Quickdraw name
     Str255 qdname;
     NS_ConvertUTF16toUTF8 utf8name(aFontName);
-    qdname[0] = NS_MAX<size_t>(255, strlen(utf8name.get()));
+    qdname[0] = PR_MAX(255, strlen(utf8name.get()));
     memcpy(&qdname[1], utf8name.get(), qdname[0]);
 
     // look up the Quickdraw name

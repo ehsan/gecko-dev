@@ -49,7 +49,6 @@
 #include "nsCOMPtr.h"
 #include "nsIDocument.h"
 #include "nsCOMArray.h"
-#include "nsIFrameLoader.h"
 #include "nsIFrame.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
@@ -57,8 +56,6 @@
 #include "nsFocusManager.h"
 #include "nsIDocument.h"
 #include "nsEventStates.h"
-#include "mozilla/TimeStamp.h"
-#include "nsContentUtils.h"
 
 class nsIPresShell;
 class nsIDocShell;
@@ -82,10 +79,6 @@ class nsEventStateManager : public nsSupportsWeakReference,
 {
   friend class nsMouseWheelTransaction;
 public:
-
-  typedef mozilla::TimeStamp TimeStamp;
-  typedef mozilla::TimeDuration TimeDuration;
-
   nsEventStateManager();
   virtual ~nsEventStateManager();
 
@@ -127,6 +120,19 @@ public:
   already_AddRefed<nsIContent> GetEventTargetContent(nsEvent* aEvent);
 
   /**
+   * Returns the content state of aContent.
+   * @param aContent      The control whose state is requested.
+   * @param aFollowLabels Whether to reflect a label's content state on its
+   *                      associated control. If aFollowLabels is true and
+   *                      aContent is a control which has a label that has the 
+   *                      hover or active content state set, GetContentState
+   *                      will pretend that those states are also set on aContent.
+   * @return              The content state.
+   */
+  virtual nsEventStates GetContentState(nsIContent *aContent,
+                                        PRBool aFollowLabels = PR_FALSE);
+
+  /**
    * Notify that the given NS_EVENT_STATE_* bit has changed for this content.
    * @param aContent Content which has changed states
    * @param aState   Corresponding state flags such as NS_EVENT_STATE_FOCUS
@@ -166,8 +172,6 @@ public:
    */
   PRUint32 GetRegisteredAccessKey(nsIContent* aContent);
 
-  PRBool GetAccessKeyLabelPrefix(nsAString& aPrefix);
-
   nsresult SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
                      PRBool aHaveHotspot, float aHotspotX, float aHotspotY,
                      nsIWidget* aWidget, PRBool aLockCursor); 
@@ -175,27 +179,16 @@ public:
   static void StartHandlingUserInput()
   {
     ++sUserInputEventDepth;
-    if (sUserInputEventDepth == 1) {
-      sHandlingInputStart = TimeStamp::Now();
-    }
   }
 
   static void StopHandlingUserInput()
   {
     --sUserInputEventDepth;
-    if (sUserInputEventDepth == 0) {
-      sHandlingInputStart = TimeStamp();
-    }
   }
 
   static PRBool IsHandlingUserInput()
   {
-    if (sUserInputEventDepth <= 0) {
-      return PR_FALSE;
-    }
-    TimeDuration timeout = nsContentUtils::HandlingUserInputTimeout();
-    return timeout <= TimeDuration(0) ||
-           (TimeStamp::Now() - sHandlingInputStart) <= timeout;
+    return sUserInputEventDepth > 0;
   }
 
   /**
@@ -203,10 +196,7 @@ public:
    * This includes timers or anything else that is initiated from user input.
    * However, mouse hover events are not counted as user input, nor are
    * page load events. If this method is called from asynchronously executed code,
-   * such as during layout reflows, it will return false. If more time has elapsed
-   * since the user input than is specified by the
-   * dom.event.handling-user-input-time-limit pref (default 1 second), this
-   * function also returns false.
+   * such as during layout reflows, it will return false.
    */
   NS_IMETHOD_(PRBool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
   
@@ -223,10 +213,6 @@ public:
   // if aContent is non-null, marks the object as active.
   static void SetActiveManager(nsEventStateManager* aNewESM,
                                nsIContent* aContent);
-
-  // Sets the full-screen event state on aElement to aIsFullScreen.
-  static void SetFullScreenState(mozilla::dom::Element* aElement, PRBool aIsFullScreen);
-
 protected:
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
@@ -357,12 +343,6 @@ protected:
   nsresult ChangeTextSize(PRInt32 change);
   nsresult ChangeFullZoom(PRInt32 change);
   /**
-   * Computes actual delta value used for scrolling.  If user customized the
-   * scrolling speed and/or direction, this would return the customized value.
-   * Otherwise, it would return the original delta value of aMouseEvent.
-   */
-  PRInt32 ComputeWheelDeltaFor(nsMouseScrollEvent* aMouseEvent);
-  /**
    * Computes the action for the aMouseEvent with prefs.  The result is
    * MOUSE_SCROLL_N_LINES, MOUSE_SCROLL_PAGE, MOUSE_SCROLL_HISTORY,
    * MOUSE_SCROLL_ZOOM, MOUSE_SCROLL_PIXELS or -1.
@@ -455,27 +435,10 @@ protected:
 
   void DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
                                nsIFrame* aTargetFrame);
-  void DoQuerySelectedText(nsQueryContentEvent* aEvent);
 
   PRBool RemoteQueryContentEvent(nsEvent *aEvent);
   mozilla::dom::TabParent *GetCrossProcessTarget();
   PRBool IsTargetCrossProcess(nsGUIEvent *aEvent);
-
-  void DispatchCrossProcessEvent(nsEvent* aEvent, nsIFrameLoader* remote);
-  PRBool IsRemoteTarget(nsIContent* target);
-  PRBool HandleCrossProcessEvent(nsEvent *aEvent,
-                                 nsIFrame* aTargetFrame,
-                                 nsEventStatus *aStatus);
-
-private:
-  static inline void DoStateChange(mozilla::dom::Element* aElement,
-                                   nsEventStates aState, PRBool aAddState);
-  static inline void DoStateChange(nsIContent* aContent, nsEventStates aState,
-                                   PRBool aAddState);
-  static void UpdateAncestorState(nsIContent* aStartNode,
-                                  nsIContent* aStopBefore,
-                                  nsEventStates aState,
-                                  PRBool aAddState);
 
   PRInt32     mLockCursor;
 
@@ -528,8 +491,6 @@ private:
 
   PRPackedBool m_haveShutdown;
 
-  // Time at which we began handling user input.
-  static TimeStamp sHandlingInputStart;
 
 public:
   static nsresult UpdateUserActivityTimer(void);

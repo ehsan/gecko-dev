@@ -52,9 +52,9 @@ function test() {
         tabToDetach.linkedBrowser.contentDocument != event.target)
       return;
 
-    event.currentTarget.removeEventListener("pageshow", onPageShow, false);
-
     if (!newWindow) {
+      gBrowser.removeEventListener("pageshow", onPageShow, false);
+
       // prepare the tab (set icon and busy state)
       // we have to set these only after onState* notification, otherwise
       // they're overriden
@@ -65,10 +65,12 @@ function test() {
         // detach and set the listener on the new window
         newWindow = gBrowser.replaceTabWithWindow(tabToDetach);
         // wait for gBrowser to come along
-        newWindow.addEventListener("load", function () {
+        function onLoad(event) {
+          newWindow.gBrowser
+                   .addEventListener("pageshow", onPageShow, false);
           newWindow.removeEventListener("load", arguments.callee, false);
-          newWindow.gBrowser.addEventListener("pageshow", onPageShow, false);
-        }, false);
+        }
+        newWindow.addEventListener("load", onLoad, false);
       }, 0);
       return;
     }

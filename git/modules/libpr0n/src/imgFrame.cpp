@@ -69,6 +69,9 @@ static PRUint32 gTotalDDBSize = 0;
 // Returns true if an image of aWidth x aHeight is allowed and legal.
 static PRBool AllowedImageSize(PRInt32 aWidth, PRInt32 aHeight)
 {
+  NS_ASSERTION(aWidth > 0, "invalid image width");
+  NS_ASSERTION(aHeight > 0, "invalid image height");
+
   // reject over-wide or over-tall images
   const PRInt32 k64KLimit = 0x0000FFFF;
   if (NS_UNLIKELY(aWidth > k64KLimit || aHeight > k64KLimit )) {
@@ -76,8 +79,9 @@ static PRBool AllowedImageSize(PRInt32 aWidth, PRInt32 aHeight)
     return PR_FALSE;
   }
 
-  // protect against invalid sizes
-  if (NS_UNLIKELY(aHeight <= 0 || aWidth <= 0)) {
+  // protect against division by zero - this really shouldn't happen
+  // if our consumers were well behaved, but they aren't (bug 368427)
+  if (NS_UNLIKELY(aHeight == 0)) {
     return PR_FALSE;
   }
 
@@ -168,7 +172,7 @@ imgFrame::~imgFrame()
 }
 
 nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, 
-                        gfxASurface::gfxImageFormat aFormat, PRUint8 aPaletteDepth /* = 0 */)
+                        gfxASurface::gfxImageFormat aFormat, PRInt8 aPaletteDepth /* = 0 */)
 {
   // assert for properties that should be verified by decoders, warn for properties related to bad content
   if (!AllowedImageSize(aWidth, aHeight))
@@ -778,35 +782,39 @@ void imgFrame::SetCompositingFailed(PRBool val)
   mCompositingFailed = val;
 }
 
-PRUint32
-imgFrame::EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const
+PRUint32 imgFrame::EstimateMemoryUsed() const
 {
   PRUint32 size = 0;
 
-  if (mSinglePixel && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+  if (mSinglePixel) {
     size += sizeof(gfxRGBA);
   }
 
-  if (mPalettedImageData && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+  if (mPalettedImageData) {
     size += GetImageDataLength() + PaletteDataLength();
   }
 
 #ifdef USE_WIN_SURFACE
-  if (mWinSurface && aLocation == mWinSurface->GetMemoryLocation()) {
+  if (mWinSurface) {
     size += mWinSurface->KnownMemoryUsed();
   } else
 #endif
 #ifdef XP_MACOSX
-  if (mQuartzSurface && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+  if (mQuartzSurface) {
     size += mSize.width * mSize.height * 4;
   } else
 #endif
-  if (mImageSurface && aLocation == mImageSurface->GetMemoryLocation()) {
+  if (mImageSurface) {
     size += mImageSurface->KnownMemoryUsed();
   }
 
-  if (mOptSurface && aLocation == mOptSurface->GetMemoryLocation()) {
+  if (mOptSurface) {
     size += mOptSurface->KnownMemoryUsed();
+  }
+
+  // fall back to pessimistic/approximate size
+  if (size == 0) {
+    size = mSize.width * mSize.height * 4;
   }
 
   return size;

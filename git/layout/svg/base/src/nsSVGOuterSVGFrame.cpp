@@ -49,10 +49,11 @@
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsSVGMatrix.h"
 
 namespace dom = mozilla::dom;
 
@@ -115,7 +116,7 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
 void
 nsSVGMutationObserver::UpdateTextFragmentTrees(nsIFrame *aFrame)
 {
-  nsIFrame* kid = aFrame->GetFirstPrincipalChild();
+  nsIFrame* kid = aFrame->GetFirstChild(nsnull);
   while (kid) {
     if (kid->GetType() == nsGkAtoms::svgTextFrame) {
       nsSVGTextFrame* textFrame = static_cast<nsSVGTextFrame*>(kid);
@@ -282,8 +283,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
   nsSVGLength2 &height = content->mLengthAttributes[nsSVGSVGElement::HEIGHT];
 
   if (!width.IsPercentage() && !height.IsPercentage()) {
-    nsSize ratio(NSToCoordRoundWithClamp(width.GetAnimValue(content)),
-                 NSToCoordRoundWithClamp(height.GetAnimValue(content)));
+    nsSize ratio(width.GetAnimValue(content), height.GetAnimValue(content));
     if (ratio.width < 0) {
       ratio.width = 0;
     }
@@ -304,8 +304,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
     if (viewBoxHeight < 0.0f) {
       viewBoxHeight = 0.0f;
     }
-    return nsSize(NSToCoordRoundWithClamp(viewBoxWidth),
-                  NSToCoordRoundWithClamp(viewBoxHeight));
+    return nsSize(viewBoxWidth, viewBoxHeight);
   }
 
   return nsSVGOuterSVGFrameBase::GetIntrinsicRatio();
@@ -679,6 +678,9 @@ nsSVGOuterSVGFrame::IsRedrawSuspended()
 NS_IMETHODIMP
 nsSVGOuterSVGFrame::SuspendRedraw()
 {
+#ifdef DEBUG
+  //printf("suspend redraw (count=%d)\n", mRedrawSuspendCount);
+#endif
   if (++mRedrawSuspendCount != 1)
     return NS_OK;
 
@@ -695,6 +697,10 @@ nsSVGOuterSVGFrame::SuspendRedraw()
 NS_IMETHODIMP
 nsSVGOuterSVGFrame::UnsuspendRedraw()
 {
+#ifdef DEBUG
+//  printf("unsuspend redraw (count=%d)\n", mRedrawSuspendCount);
+#endif
+
   NS_ASSERTION(mRedrawSuspendCount >=0, "unbalanced suspend count!");
 
   if (--mRedrawSuspendCount > 0)
@@ -764,9 +770,9 @@ nsSVGOuterSVGFrame::GetCanvasTM()
     }
 
     gfxMatrix TM = viewBoxTM * zoomPanTM * gfxMatrix().Scale(devPxPerCSSPx, devPxPerCSSPx);
-    mCanvasTM = new gfxMatrix(TM);
+    mCanvasTM = NS_NewSVGMatrix(TM);
   }
-  return *mCanvasTM;
+  return nsSVGUtils::ConvertSVGMatrixToThebes(mCanvasTM);
 }
 
 //----------------------------------------------------------------------
@@ -808,7 +814,7 @@ nsSVGOuterSVGFrame::IsRootOfReplacedElementSubDoc(nsIFrame **aEmbeddingFrame)
   if (!mContent->GetParent()) {
     // Our content is the document element
     nsCOMPtr<nsISupports> container = PresContext()->GetContainer();
-    nsCOMPtr<nsIDOMWindow> window = do_GetInterface(container);
+    nsCOMPtr<nsIDOMWindowInternal> window = do_GetInterface(container);
     if (window) {
       nsCOMPtr<nsIDOMElement> frameElement;
       window->GetFrameElement(getter_AddRefs(frameElement));

@@ -71,7 +71,7 @@ public:
 
   nsFieldSetFrame(nsStyleContext* aContext);
 
-  NS_IMETHOD SetInitialChildList(ChildListID    aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*       aListName,
                                  nsFrameList&   aChildList);
 
   NS_HIDDEN_(nscoord)
@@ -97,12 +97,12 @@ public:
   void PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags);
 
-  NS_IMETHOD AppendFrames(ChildListID    aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*       aListName,
                           nsFrameList&   aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID    aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*       aListName,
                           nsIFrame*      aPrevFrame,
                           nsFrameList&   aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID    aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*       aListName,
                          nsIFrame*      aOldFrame);
 
   virtual nsIAtom* GetType() const;
@@ -158,7 +158,7 @@ nsFieldSetFrame::IsContainingBlock() const
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
+nsFieldSetFrame::SetInitialChildList(nsIAtom*       aListName,
                                      nsFrameList&   aChildList)
 {
   // Get the content and legend frames.
@@ -172,7 +172,7 @@ nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
   }
 
   // Queue up the frames for the content frame
-  return nsHTMLContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(nsnull, aChildList);
 }
 
 class nsDisplayFieldSetBorderBackground : public nsDisplayItem {
@@ -618,16 +618,16 @@ nsFieldSetFrame::GetSkipSides() const
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::AppendFrames(ChildListID    aListID,
+nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
                               nsFrameList&   aFrameList)
 {
   // aFrameList is not allowed to contain "the legend" for this fieldset
   ReparentFrameList(aFrameList);
-  return mContentFrame->AppendFrames(aListID, aFrameList);
+  return mContentFrame->AppendFrames(aListName, aFrameList);
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::InsertFrames(ChildListID    aListID,
+nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                               nsIFrame*      aPrevFrame,
                               nsFrameList&   aFrameList)
 {
@@ -640,16 +640,16 @@ nsFieldSetFrame::InsertFrames(ChildListID    aListID,
   if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
     aPrevFrame = nsnull;
   }
-  return mContentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
+  return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::RemoveFrame(ChildListID    aListID,
+nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
                              nsIFrame*      aOldFrame)
 {
   // For reference, see bug 70648, bug 276104 and bug 236071.
   NS_ASSERTION(aOldFrame != mLegendFrame, "Cannot remove mLegendFrame here");
-  return mContentFrame->RemoveFrame(aListID, aOldFrame);
+  return mContentFrame->RemoveFrame(aListName, aOldFrame);
 }
 
 #ifdef ACCESSIBILITY

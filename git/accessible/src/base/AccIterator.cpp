@@ -40,8 +40,6 @@
 #include "nsAccessibilityService.h"
 #include "nsAccessible.h"
 
-#include "mozilla/dom/Element.h"
-
 ////////////////////////////////////////////////////////////////////////////////
 // AccIterator
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +62,7 @@ AccIterator::~AccIterator()
 }
 
 nsAccessible*
-AccIterator::Next()
+AccIterator::GetNext()
 {
   while (mState) {
     nsAccessible *child = mState->mParent->GetChildAt(mState->mIndex++);
@@ -111,7 +109,7 @@ RelatedAccIterator::
 {
   mBindingParent = aDependentContent->GetBindingParent();
   nsIAtom* IDAttr = mBindingParent ?
-    nsGkAtoms::anonid : aDependentContent->GetIDAttributeName();
+    nsAccessibilityAtoms::anonid : aDependentContent->GetIDAttributeName();
 
   nsAutoString id;
   if (aDependentContent->GetAttr(kNameSpaceID_None, IDAttr, id))
@@ -154,7 +152,7 @@ RelatedAccIterator::Next()
 HTMLLabelIterator::
   HTMLLabelIterator(nsDocAccessible* aDocument, nsIContent* aElement,
                     LabelFilter aFilter) :
-  mRelIter(aDocument, aElement, nsGkAtoms::_for),
+  mRelIter(aDocument, aElement, nsAccessibilityAtoms::_for),
   mElement(aElement), mLabelFilter(aFilter)
 {
 }
@@ -166,7 +164,7 @@ HTMLLabelIterator::Next()
   // element, or <label> ancestor which implicitly point to it.
   nsAccessible* label = nsnull;
   while ((label = mRelIter.Next())) {
-    if (label->GetContent()->Tag() == nsGkAtoms::label)
+    if (label->GetContent()->Tag() == nsAccessibilityAtoms::label)
       return label;
   }
 
@@ -177,9 +175,9 @@ HTMLLabelIterator::Next()
   // implicitly points to us). Don't go up farther than form or body element.
   nsIContent* walkUpContent = mElement;
   while ((walkUpContent = walkUpContent->GetParent()) &&
-         walkUpContent->Tag() != nsGkAtoms::form &&
-         walkUpContent->Tag() != nsGkAtoms::body) {
-    if (walkUpContent->Tag() == nsGkAtoms::label) {
+         walkUpContent->Tag() != nsAccessibilityAtoms::form &&
+         walkUpContent->Tag() != nsAccessibilityAtoms::body) {
+    if (walkUpContent->Tag() == nsAccessibilityAtoms::label) {
       // Prevent infinite loop.
       mLabelFilter = eSkipAncestorLabel;
       return GetAccService()->GetAccessible(walkUpContent);
@@ -196,7 +194,7 @@ HTMLLabelIterator::Next()
 
 HTMLOutputIterator::
 HTMLOutputIterator(nsDocAccessible* aDocument, nsIContent* aElement) :
-  mRelIter(aDocument, aElement, nsGkAtoms::_for)
+  mRelIter(aDocument, aElement, nsAccessibilityAtoms::_for)
 {
 }
 
@@ -205,7 +203,7 @@ HTMLOutputIterator::Next()
 {
   nsAccessible* output = nsnull;
   while ((output = mRelIter.Next())) {
-    if (output->GetContent()->Tag() == nsGkAtoms::output)
+    if (output->GetContent()->Tag() == nsAccessibilityAtoms::output)
       return output;
   }
 
@@ -219,7 +217,7 @@ HTMLOutputIterator::Next()
 
 XULLabelIterator::
   XULLabelIterator(nsDocAccessible* aDocument, nsIContent* aElement) :
-  mRelIter(aDocument, aElement, nsGkAtoms::control)
+  mRelIter(aDocument, aElement, nsAccessibilityAtoms::control)
 {
 }
 
@@ -228,7 +226,7 @@ XULLabelIterator::Next()
 {
   nsAccessible* label = nsnull;
   while ((label = mRelIter.Next())) {
-    if (label->GetContent()->Tag() == nsGkAtoms::label)
+    if (label->GetContent()->Tag() == nsAccessibilityAtoms::label)
       return label;
   }
 
@@ -242,7 +240,7 @@ XULLabelIterator::Next()
 
 XULDescriptionIterator::
   XULDescriptionIterator(nsDocAccessible* aDocument, nsIContent* aElement) :
-  mRelIter(aDocument, aElement, nsGkAtoms::control)
+  mRelIter(aDocument, aElement, nsAccessibilityAtoms::control)
 {
 }
 
@@ -251,99 +249,9 @@ XULDescriptionIterator::Next()
 {
   nsAccessible* descr = nsnull;
   while ((descr = mRelIter.Next())) {
-    if (descr->GetContent()->Tag() == nsGkAtoms::description)
+    if (descr->GetContent()->Tag() == nsAccessibilityAtoms::description)
       return descr;
   }
 
   return nsnull;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// IDRefsIterator
-////////////////////////////////////////////////////////////////////////////////
-
-IDRefsIterator::IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr) :
-  mCurrIdx(0)
-{
-  if (!aContent->IsInDoc() ||
-      !aContent->GetAttr(kNameSpaceID_None, aIDRefsAttr, mIDs))
-    return;
-
-  if (aContent->IsInAnonymousSubtree()) {
-    mXBLDocument = do_QueryInterface(aContent->GetOwnerDoc());
-    mBindingParent = do_QueryInterface(aContent->GetBindingParent());
-  } else {
-    mDocument = aContent->GetOwnerDoc();
-  }
-}
-
-const nsDependentSubstring
-IDRefsIterator::NextID()
-{
-  for (; mCurrIdx < mIDs.Length(); mCurrIdx++) {
-    if (!NS_IsAsciiWhitespace(mIDs[mCurrIdx]))
-      break;
-  }
-
-  if (mCurrIdx >= mIDs.Length())
-    return nsDependentSubstring();
-
-  nsAString::index_type idStartIdx = mCurrIdx;
-  while (++mCurrIdx < mIDs.Length()) {
-    if (NS_IsAsciiWhitespace(mIDs[mCurrIdx]))
-      break;
-  }
-
-  return Substring(mIDs, idStartIdx, mCurrIdx++ - idStartIdx);
-}
-
-nsIContent*
-IDRefsIterator::NextElem()
-{
-  while (true) {
-    const nsDependentSubstring id = NextID();
-    if (id.IsEmpty())
-      break;
-
-    nsIContent* refContent = GetElem(id);
-    if (refContent)
-      return refContent;
-  }
-
-  return nsnull;
-}
-
-nsIContent*
-IDRefsIterator::GetElem(const nsDependentSubstring& aID)
-{
-  if (mXBLDocument) {
-    // If content is anonymous subtree then use "anonid" attribute to get
-    // elements, otherwise search elements in DOM by ID attribute.
-
-    nsCOMPtr<nsIDOMElement> refElm;
-    mXBLDocument->GetAnonymousElementByAttribute(mBindingParent,
-                                                 NS_LITERAL_STRING("anonid"),
-                                                 aID,
-                                                 getter_AddRefs(refElm));
-    nsCOMPtr<nsIContent> refContent = do_QueryInterface(refElm);
-    return refContent;
-  }
-
-  return mDocument->GetElementById(aID);
-}
-
-nsAccessible*
-IDRefsIterator::Next()
-{
-  nsIContent* nextElm = NextElem();
-  return nextElm ? GetAccService()->GetAccessible(nextElm) : nsnull;
-}
-
-nsAccessible*
-SingleAccIterator::Next()
-{
-  nsRefPtr<nsAccessible> nextAcc;
-  mAcc.swap(nextAcc);
-  return (nextAcc && !nextAcc->IsDefunct()) ? nextAcc : nsnull;
-}
-

@@ -252,10 +252,15 @@ bool OnDemandSymbolSupplier::GenerateSymbolFile(const CodeModule *module,
     DumpSymbols dump;
     if (dump.Read(module_str)) {
       if (dump.SetArchitecture(system_info->cpu)) {
-         std::fstream file([symbol_path fileSystemRepresentation],
-                           std::ios_base::out | std::ios_base::trunc);
-         dump.WriteSymbolFile(file);
-     } else {
+        FILE *file = fopen([symbol_path fileSystemRepresentation],"w");
+        if (file) {
+          dump.WriteSymbolFile(file);
+          fclose(file);
+        } else {
+          printf("Unable to open %s (%d)\n", name.c_str(), errno);
+          result = false;
+        } 
+      } else {
         printf("Architecture %s not available for %s\n", 
                system_info->cpu.c_str(), name.c_str());
         result = false;

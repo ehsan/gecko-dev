@@ -55,6 +55,7 @@
 class nsLeafAccessible : public nsAccessibleWrap
 {
 public:
+  using nsAccessible::GetChildAtPoint;
 
   nsLeafAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
@@ -62,8 +63,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                        EWhichChildAtPoint aWhichChild);
 
 protected:
 
@@ -87,10 +88,12 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
+  NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetValue(nsAString& _retval);
   NS_IMETHOD TakeFocus();
+  NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
 
   // nsAccessNode
   virtual void Shutdown();
@@ -98,12 +101,8 @@ public:
   // nsAccessible
   virtual PRUint64 NativeState();
 
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
-  virtual KeyBinding AccessKey() const;
-
   // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> AnchorURIAt(PRUint32 aAnchorIndex);
+  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
 
 protected:
   // nsAccessible

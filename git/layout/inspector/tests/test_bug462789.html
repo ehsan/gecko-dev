@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=462789
 -->
 <head>
   <title>Test for Bug 462789</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -70,9 +71,9 @@ function do_test() {
 
   try {
     utils.getContentState(docElement);
-    ok(true, "Should not throw"); 
+    ok(false, "expected an exception"); 
   }
-  catch(e) { ok(false, "Got an exception: " + e); }
+  catch(e) { is(e.result, ERROR_FAILURE, "got the expected exception"); }
 
   try {
     utils.setContentState(docElement, false);

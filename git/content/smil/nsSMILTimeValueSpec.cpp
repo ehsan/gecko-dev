@@ -44,7 +44,8 @@
 #include "nsSMILParserUtils.h"
 #include "nsISMILAnimationElement.h"
 #include "nsContentUtils.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
+#include "nsIDOMEventGroup.h"
 #include "nsGUIEvent.h"
 #include "nsIDOMTimeEvent.h"
 #include "nsString.h"
@@ -182,7 +183,7 @@ nsSMILTimeValueSpec::HandleNewInterval(nsSMILInterval& aInterval,
     ConvertBetweenTimeContainers(baseInstance.Time(), aSrcContainer);
 
   // Apply offset
-  if (newTime.IsDefinite()) {
+  if (newTime.IsResolved()) {
     newTime.SetMillis(newTime.GetMillis() + mParams.mOffset.GetMillis());
   }
 
@@ -218,7 +219,7 @@ nsSMILTimeValueSpec::HandleChangedInstanceTime(
     ConvertBetweenTimeContainers(aBaseTime.Time(), aSrcContainer);
 
   // Apply offset
-  if (updatedTime.IsDefinite()) {
+  if (updatedTime.IsResolved()) {
     updatedTime.SetMillis(updatedTime.GetMillis() +
                           mParams.mOffset.GetMillis());
   }
@@ -320,28 +321,6 @@ nsSMILTimeValueSpec::GetTimedElement(Element* aElement)
   return &animElement->TimedElement();
 }
 
-// Indicates whether we're allowed to register an event-listener
-// when scripting is disabled.
-PRBool
-nsSMILTimeValueSpec::IsWhitelistedEvent()
-{
-  // The category of (SMIL-specific) "repeat(n)" events are allowed.
-  if (mParams.mType == nsSMILTimeValueSpecParams::REPEAT) {
-    return PR_TRUE;
-  }
-
-  // A specific list of other SMIL-related events are allowed, too.
-  if (mParams.mType == nsSMILTimeValueSpecParams::EVENT &&
-      (mParams.mEventSymbol == nsGkAtoms::repeat ||
-       mParams.mEventSymbol == nsGkAtoms::repeatEvent ||
-       mParams.mEventSymbol == nsGkAtoms::beginEvent ||
-       mParams.mEventSymbol == nsGkAtoms::endEvent)) {
-    return PR_TRUE;
-  }
-
-  return PR_FALSE;
-}
-
 void
 nsSMILTimeValueSpec::RegisterEventListener(Element* aTarget)
 {
@@ -354,25 +333,21 @@ nsSMILTimeValueSpec::RegisterEventListener(Element* aTarget)
   if (!aTarget)
     return;
 
-  // When script is disabled, only allow registration for whitelisted events.
-  if (!aTarget->GetOwnerDocument()->IsScriptEnabled() &&
-      !IsWhitelistedEvent()) {
-    return;
-  }
-
   if (!mEventListener) {
     mEventListener = new EventListener(this);
   }
 
-  nsEventListenerManager* elm = GetEventListenerManager(aTarget);
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  nsIEventListenerManager* elm =
+    GetEventListenerManager(aTarget, getter_AddRefs(sysGroup));
   if (!elm)
     return;
   
   elm->AddEventListenerByType(mEventListener,
                               nsDependentAtomString(mParams.mEventSymbol),
                               NS_EVENT_FLAG_BUBBLE |
-                              NS_PRIV_EVENT_UNTRUSTED_PERMITTED |
-                              NS_EVENT_FLAG_SYSTEM_EVENT);
+                              NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
+                              sysGroup);
 }
 
 void
@@ -381,23 +356,28 @@ nsSMILTimeValueSpec::UnregisterEventListener(Element* aTarget)
   if (!aTarget || !mEventListener)
     return;
 
-  nsEventListenerManager* elm = GetEventListenerManager(aTarget);
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  nsIEventListenerManager* elm =
+    GetEventListenerManager(aTarget, getter_AddRefs(sysGroup));
   if (!elm)
     return;
 
   elm->RemoveEventListenerByType(mEventListener,
                                  nsDependentAtomString(mParams.mEventSymbol),
                                  NS_EVENT_FLAG_BUBBLE |
-                                 NS_PRIV_EVENT_UNTRUSTED_PERMITTED |
-                                 NS_EVENT_FLAG_SYSTEM_EVENT);
+                                 NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
+                                 sysGroup);
 }
 
-nsEventListenerManager*
-nsSMILTimeValueSpec::GetEventListenerManager(Element* aTarget)
+nsIEventListenerManager*
+nsSMILTimeValueSpec::GetEventListenerManager(Element* aTarget,
+                                             nsIDOMEventGroup** aSystemGroup)
 {
   NS_ABORT_IF_FALSE(aTarget, "null target; can't get EventListenerManager");
+  NS_ABORT_IF_FALSE(aSystemGroup && !*aSystemGroup,
+      "Bad out param for system group");
 
-  nsCOMPtr<nsIDOMEventTarget> target;
+  nsCOMPtr<nsPIDOMEventTarget> piTarget;
 
   if (mParams.mType == nsSMILTimeValueSpecParams::ACCESSKEY) {
     nsIDocument* doc = aTarget->GetCurrentDoc();
@@ -406,14 +386,22 @@ nsSMILTimeValueSpec::GetEventListenerManager(Element* aTarget)
     nsPIDOMWindow* win = doc->GetWindow();
     if (!win)
       return nsnull;
-    target = do_QueryInterface(win);
+    piTarget = do_QueryInterface(win);
   } else {
-    target = aTarget;
+    piTarget = aTarget;
   }
-  if (!target)
+  if (!piTarget)
     return nsnull;
 
-  return target->GetListenerManager(PR_TRUE);
+  nsIEventListenerManager* elm = piTarget->GetListenerManager(PR_TRUE);
+  if (!elm)
+    return nsnull;
+
+  aTarget->GetSystemEventGroup(aSystemGroup);
+  if (!*aSystemGroup)
+    return nsnull;
+
+  return elm;
 }
 
 void
@@ -537,7 +525,7 @@ nsSMILTimeValueSpec::ConvertBetweenTimeContainers(
 {
   // If the source time is either indefinite or unresolved the result is going
   // to be the same
-  if (!aSrcTime.IsDefinite())
+  if (!aSrcTime.IsResolved())
     return aSrcTime;
 
   // Convert from source time container to our parent time container
@@ -558,8 +546,8 @@ nsSMILTimeValueSpec::ConvertBetweenTimeContainers(
     // time. Just return the indefinite time.
     return docTime;
 
-  NS_ABORT_IF_FALSE(docTime.IsDefinite(),
-    "ContainerToParentTime gave us an unresolved or indefinite time");
+   NS_ABORT_IF_FALSE(docTime.IsResolved(),
+       "ContainerToParentTime gave us an unresolved time");
 
   return dstContainer->ParentToContainerTime(docTime.GetMillis());
 }

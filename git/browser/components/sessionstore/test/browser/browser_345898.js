@@ -46,7 +46,9 @@ function test() {
       return ex.name == "NS_ERROR_ILLEGAL_VALUE";
     }
   }
-
+  
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  
   // all of the following calls with illegal arguments should throw NS_ERROR_ILLEGAL_VALUE
   ok(test(function() ss.getWindowState({})),
      "Invalid window for getWindowState throws");

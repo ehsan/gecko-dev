@@ -69,6 +69,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -90,6 +91,7 @@
 #include "nsTreeUtils.h"
 #include "nsChildIterator.h"
 #include "nsITheme.h"
+#include "nsITimelineService.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "imgIContainerObserver.h"
@@ -104,10 +106,8 @@
 #include "nsRenderingContext.h"
 
 #ifdef IBMBIDI
-#include "nsBidiUtils.h"
+#include "nsBidiPresUtils.h"
 #endif
-
-using namespace mozilla;
 
 // Enumeration function that cancels all the image requests in our cache
 static PLDHashOperator
@@ -685,7 +685,8 @@ nsTreeBodyFrame::InvalidateColumn(nsITreeColumn* aCol)
     return NS_ERROR_INVALID_ARG;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireInvalidateEvent(-1, -1, aCol, aCol);
 #endif
 
@@ -707,7 +708,8 @@ nsTreeBodyFrame::InvalidateRow(PRInt32 aIndex)
     return NS_OK;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireInvalidateEvent(aIndex, aIndex, nsnull, nsnull);
 #endif
 
@@ -728,7 +730,8 @@ nsTreeBodyFrame::InvalidateCell(PRInt32 aIndex, nsITreeColumn* aCol)
     return NS_OK;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireInvalidateEvent(aIndex, aIndex, aCol, aCol);
 #endif
 
@@ -771,7 +774,8 @@ nsTreeBodyFrame::InvalidateRange(PRInt32 aStart, PRInt32 aEnd)
     aEnd = last;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive()) {
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive()) {
     PRInt32 end =
       mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
     FireInvalidateEvent(aStart, end, nsnull, nsnull);
@@ -808,7 +812,8 @@ nsTreeBodyFrame::InvalidateColumnRange(PRInt32 aStart, PRInt32 aEnd, nsITreeColu
     aEnd = last;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive()) {
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive()) {
     PRInt32 end =
       mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
     FireInvalidateEvent(aStart, end, aCol, aCol);
@@ -838,7 +843,7 @@ FindScrollParts(nsIFrame* aCurrFrame, nsTreeBodyFrame::ScrollParts* aResult)
     }
   }
   
-  nsScrollbarFrame *sf = do_QueryFrame(aCurrFrame);
+  nsIScrollbarFrame *sf = do_QueryFrame(aCurrFrame);
   if (sf) {
     if (!aCurrFrame->IsHorizontal()) {
       if (!aResult->mVScrollbar) {
@@ -853,7 +858,7 @@ FindScrollParts(nsIFrame* aCurrFrame, nsTreeBodyFrame::ScrollParts* aResult)
     return;
   }
   
-  nsIFrame* child = aCurrFrame->GetFirstPrincipalChild();
+  nsIFrame* child = aCurrFrame->GetFirstChild(nsnull);
   while (child &&
          !child->GetContent()->IsRootOfNativeAnonymousSubtree() &&
          (!aResult->mVScrollbar || !aResult->mHScrollbar ||
@@ -1611,10 +1616,7 @@ nsTreeBodyFrame::GetItemWithinCellAt(nscoord aX, const nsRect& aCellRect,
 
   AdjustForBorderPadding(textContext, textRect);
 
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
-                                               getter_AddRefs(fm));
-  rc->SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(rc, textContext);
 
   AdjustForCellText(cellText, aRowIndex, aColumn, *rc, textRect);
 
@@ -1741,10 +1743,7 @@ nsTreeBodyFrame::GetCellWidth(PRInt32 aRow, nsTreeColumn* aCol,
   // Get the borders and padding for the text.
   GetBorderPadding(textContext, bp);
 
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
-                                               getter_AddRefs(fm));
-  aRenderingContext->SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(aRenderingContext, textContext);
 
   // Get the width of the text itself
   nscoord width =
@@ -1795,12 +1794,13 @@ nsTreeBodyFrame::MarkDirtyIfSelect()
 }
 
 nsresult
-nsTreeBodyFrame::CreateTimer(const LookAndFeel::IntID aID,
+nsTreeBodyFrame::CreateTimer(const nsILookAndFeel::nsMetricID aID,
                              nsTimerCallbackFunc aFunc, PRInt32 aType,
                              nsITimer** aTimer)
 {
   // Get the delay from the look and feel service.
-  PRInt32 delay = LookAndFeel::GetInt(aID, 0);
+  PRInt32 delay = 0;
+  PresContext()->LookAndFeel()->GetMetric(aID, delay);
 
   nsCOMPtr<nsITimer> timer;
 
@@ -1824,7 +1824,8 @@ nsTreeBodyFrame::RowCountChanged(PRInt32 aIndex, PRInt32 aCount)
     return NS_OK; // Nothing to do.
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireRowCountChangedEvent(aIndex, aCount);
 #endif
 
@@ -1844,7 +1845,7 @@ nsTreeBodyFrame::RowCountChanged(PRInt32 aIndex, PRInt32 aCount)
   NS_ASSERTION(rowCount == mRowCount, "row count did not change by the amount suggested, check caller");
 #endif
 
-  PRInt32 count = NS_ABS(aCount);
+  PRInt32 count = PR_ABS(aCount);
   PRInt32 last = GetLastVisibleRow();
   if (aIndex >= mTopRowIndex && aIndex <= last)
     InvalidateRange(aIndex, last);
@@ -2634,7 +2635,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
         }
 
         // Set a timer to trigger the tree scrolling.
-        CreateTimer(LookAndFeel::eIntID_TreeLazyScrollDelay,
+        CreateTimer(nsILookAndFeel::eMetric_TreeLazyScrollDelay,
                     LazyScrollCallback, nsITimer::TYPE_ONE_SHOT,
                     getter_AddRefs(mSlots->mTimer));
        }
@@ -2672,7 +2673,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
             mView->IsContainerOpen(mSlots->mDropRow, &isOpen);
             if (!isOpen) {
               // This node isn't expanded, set a timer to expand it.
-              CreateTimer(LookAndFeel::eIntID_TreeOpenDelay,
+              CreateTimer(nsILookAndFeel::eMetric_TreeOpenDelay,
                           OpenCallback, nsITimer::TYPE_ONE_SHOT,
                           getter_AddRefs(mSlots->mTimer));
             }
@@ -2749,7 +2750,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
 
     if (!mSlots->mArray.IsEmpty()) {
       // Close all spring loaded folders except the drop folder.
-      CreateTimer(LookAndFeel::eIntID_TreeCloseDelay,
+      CreateTimer(nsILookAndFeel::eMetric_TreeCloseDelay,
                   CloseCallback, nsITimer::TYPE_ONE_SHOT,
                   getter_AddRefs(mSlots->mTimer));
     }
@@ -3393,9 +3394,6 @@ nsTreeBodyFrame::PaintImage(PRInt32              aRowIndex,
   // Resolve style for the image.
   nsStyleContext* imageContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreeimage);
 
-  // Obtain opacity value for the image.
-  float opacity = imageContext->GetStyleDisplay()->mOpacity;
-
   // Obtain the margins for the image and then deflate our rect by that
   // amount.  The image is assumed to be contained within the deflated rect.
   nsRect imageRect(aImageRect);
@@ -3502,20 +3500,10 @@ nsTreeBodyFrame::PaintImage(PRInt32              aRowIndex,
       nsLayoutUtils::GetWholeImageDestination(rawImageSize, sourceRect,
           nsRect(destRect.TopLeft(), imageDestSize));
 
-    gfxContext* ctx = aRenderingContext.ThebesContext();
-    if (opacity != 1.0f) {
-      ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-    }
-
     nsLayoutUtils::DrawImage(&aRenderingContext, image,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         wholeImageDest, destRect, destRect.TopLeft(), aDirtyRect,
         imgIContainer::FLAG_NONE);
-
-    if (opacity != 1.0f) {
-      ctx->PopGroupToSource();
-      ctx->Paint(opacity);
-    }
   }
 
   // Update the aRemainingWidth and aCurrX values.
@@ -3552,9 +3540,6 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
   // Resolve style for the text.  It contains all the info we need to lay ourselves
   // out and to paint.
   nsStyleContext* textContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreecelltext);
-
-  // Obtain opacity value for the image.
-  float opacity = textContext->GetStyleDisplay()->mOpacity;
 
   // Obtain the margins for the text and then deflate our rect by that 
   // amount.  The text is assumed to be contained within the deflated rect.
@@ -3616,22 +3601,18 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
     fontMet->GetStrikeout(offset, size);
     aRenderingContext.FillRect(textRect.x, textRect.y + baseline - offset, textRect.width, size);
   }
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_START_TIMER("Render Outline Text");
+#endif
   PRUint8 direction = aTextRTL ? NS_STYLE_DIRECTION_RTL :
                                  NS_STYLE_DIRECTION_LTR;
 
-  gfxContext* ctx = aRenderingContext.ThebesContext();
-  if (opacity != 1.0f) {
-    ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-  }
-
   nsLayoutUtils::DrawString(this, &aRenderingContext, text.get(), text.Length(),
                             textRect.TopLeft() + nsPoint(0, baseline), direction);
-
-  if (opacity != 1.0f) {
-    ctx->PopGroupToSource();
-    ctx->Paint(opacity);
-  }
-
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_STOP_TIMER("Render Outline Text");
+  NS_TIMELINE_MARK_TIMER("Render Outline Text");
+#endif
 }
 
 void
@@ -4141,7 +4122,7 @@ nsTreeBodyFrame::ScrollHorzInternal(const ScrollParts& aParts, PRInt32 aPosition
 }
 
 NS_IMETHODIMP
-nsTreeBodyFrame::ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex)
+nsTreeBodyFrame::ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
   ScrollParts parts = GetScrollParts();
 
@@ -4160,7 +4141,7 @@ nsTreeBodyFrame::ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, PRInt32 aO
 }
   
 NS_IMETHODIMP
-nsTreeBodyFrame::PositionChanged(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
+nsTreeBodyFrame::PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
 {
   ScrollParts parts = GetScrollParts();
   
@@ -4348,8 +4329,9 @@ nsTreeBodyFrame::ComputeDropPosition(nsGUIEvent* aEvent, PRInt32* aRow, PRInt16*
 
   if (CanAutoScroll(*aRow)) {
     // Get the max value from the look and feel service.
-    PRInt32 scrollLinesMax =
-      LookAndFeel::GetInt(LookAndFeel::eIntID_TreeScrollLinesMax, 0);
+    PRInt32 scrollLinesMax = 0;
+    PresContext()->LookAndFeel()->
+      GetMetric(nsILookAndFeel::eMetric_TreeScrollLinesMax, scrollLinesMax);
     scrollLinesMax--;
     if (scrollLinesMax < 0)
       scrollLinesMax = 0;
@@ -4409,7 +4391,7 @@ nsTreeBodyFrame::LazyScrollCallback(nsITimer *aTimer, void *aClosure)
 
     if (self->mView) {
       // Set a new timer to scroll the tree repeatedly.
-      self->CreateTimer(LookAndFeel::eIntID_TreeScrollDelay,
+      self->CreateTimer(nsILookAndFeel::eMetric_TreeScrollDelay,
                         ScrollCallback, nsITimer::TYPE_REPEATING_SLACK,
                         getter_AddRefs(self->mSlots->mTimer));
       self->ScrollByLines(self->mSlots->mScrollLines);

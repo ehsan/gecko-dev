@@ -1919,8 +1919,15 @@ ProcessSubjectPublicKeyInfo(CERTSubjectPublicKeyInfo *spki,
                                                     params, 3, text);
         break;
       }
+      case dhKey:
+      case dsaKey:
+      case fortezzaKey:
+      case keaKey:
+         /* Too many parameters, to rarely used to bother displaying it */
+         break;
+      case nullKey:
       default:
-         /* Algorithm unknown, or too rarely used to bother displaying it */
+         /* Algorithm unknown */
          break;
       }
       SECKEY_DestroyPublicKey (key);

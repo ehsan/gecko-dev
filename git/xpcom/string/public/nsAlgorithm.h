@@ -54,15 +54,6 @@
   // for NS_ASSERTION
 #endif
 
-
-template <class T>
-inline
-T
-NS_ROUNDUP( const T& a, const T& b )
-  {
-    return ((a + (b - 1)) / b) * b;
-  }
-
 template <class T>
 inline
 const T&
@@ -71,21 +62,12 @@ NS_MIN( const T& a, const T& b )
     return b < a ? b : a;
   }
 
-// Must return b when a == b in case a is -0
 template <class T>
 inline
 const T&
 NS_MAX( const T& a, const T& b )
   {
     return a > b ? a : b;
-  }
-
-template <class T>
-inline
-T
-NS_ABS( const T& a )
-  {
-    return a < 0 ? -a : a;
   }
 
 template <class InputIterator, class T>

@@ -36,7 +36,7 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
         {
             ShBuiltInResources resources;
             ShInitBuiltInResources(&resources);
-            Context *context = getContext();
+            Context *context = getContext();            
 
             resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
             resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
@@ -48,8 +48,8 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
             resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
             resources.OES_standard_derivatives = 1;
 
-            mFragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, SH_HLSL_OUTPUT, &resources);
-            mVertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, SH_HLSL_OUTPUT, &resources);
+            mFragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, &resources);
+            mVertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, &resources);
         }
     }
 
@@ -157,50 +157,28 @@ int Shader::getSourceLength() const
     }
 }
 
-int Shader::getTranslatedSourceLength() const
-{
-    if (!mHlsl)
-    {
-        return 0;
-    }
-    else
-    {
-       return strlen(mHlsl) + 1;
-    }
-}
-
-void Shader::getSourceImpl(char *source, GLsizei bufSize, GLsizei *length, char *buffer)
+void Shader::getSource(GLsizei bufSize, GLsizei *length, char *source)
 {
     int index = 0;
 
-    if (source)
+    if (mSource)
     {
-        while (index < bufSize - 1 && index < (int)strlen(source))
+        while (index < bufSize - 1 && index < (int)strlen(mSource))
         {
-            buffer[index] = source[index];
+            source[index] = mSource[index];
             index++;
         }
     }
 
     if (bufSize)
     {
-        buffer[index] = '\0';
+        source[index] = '\0';
     }
 
     if (length)
     {
         *length = index;
     }
-}
-
-void Shader::getSource(GLsizei bufSize, GLsizei *length, char *buffer)
-{
-    getSourceImpl(mSource, bufSize, length, buffer);
-}
-
-void Shader::getTranslatedSource(GLsizei bufSize, GLsizei *length, char *buffer)
-{
-    getSourceImpl(mHlsl, bufSize, length, buffer);
 }
 
 bool Shader::isCompiled()

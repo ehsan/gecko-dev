@@ -50,6 +50,15 @@ using namespace mozilla;
 using mozilla::layers::ImageContainer;
 using mozilla::layers::PlanarYCbCrImage;
 
+// The maximum height and width of the video. Used for
+// sanitizing the memory allocation of the RGB buffer.
+// The maximum resolution we anticipate encountering in the
+// wild is 2160p - 3840x2160 pixels.
+#define MAX_VIDEO_WIDTH  4000
+#define MAX_VIDEO_HEIGHT 3000
+
+using mozilla::layers::PlanarYCbCrImage;
+
 // Verify these values are sane. Once we've checked the frame sizes, we then
 // can do less integer overflow checking.
 PR_STATIC_ASSERT(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION);
@@ -112,8 +121,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
                              PRInt64 aEndTime,
                              const YCbCrBuffer& aBuffer,
                              PRBool aKeyframe,
-                             PRInt64 aTimecode,
-                             nsIntRect aPicture)
+                             PRInt64 aTimecode)
 {
   if (!aContainer) {
     return nsnull;
@@ -128,7 +136,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
   }
 
   // The following situations could be triggered by invalid input
-  if (aPicture.width <= 0 || aPicture.height <= 0) {
+  if (aInfo.mPicture.width <= 0 || aInfo.mPicture.height <= 0) {
     NS_WARNING("Empty picture rect");
     return nsnull;
   }
@@ -138,14 +146,30 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
     return nsnull;
   }
 
+  PRUint32 picX = aInfo.mPicture.x;
+  PRUint32 picY = aInfo.mPicture.y;
+  gfxIntSize picSize = gfxIntSize(aInfo.mPicture.width, aInfo.mPicture.height);
+
+  if (aInfo.mFrame.width != aBuffer.mPlanes[0].mWidth ||
+      aInfo.mFrame.height != aBuffer.mPlanes[0].mHeight)
+  {
+    // Frame size is different from what the container reports. This is legal
+    // in WebM, and we will preserve the ratio of the crop rectangle as it
+    // was reported relative to the picture size reported by the container.
+    picX = (aInfo.mPicture.x * aBuffer.mPlanes[0].mWidth) / aInfo.mFrame.width;
+    picY = (aInfo.mPicture.y * aBuffer.mPlanes[0].mHeight) / aInfo.mFrame.height;
+    picSize = gfxIntSize((aBuffer.mPlanes[0].mWidth * aInfo.mPicture.width) / aInfo.mFrame.width,
+                         (aBuffer.mPlanes[0].mHeight * aInfo.mPicture.height) / aInfo.mFrame.height);
+  }
+
   // Ensure the picture size specified in the headers can be extracted out of
   // the frame we've been supplied without indexing out of bounds.
-  PRUint32 xLimit;
-  PRUint32 yLimit;
-  if (!AddOverflow32(aPicture.x, aPicture.width, xLimit) ||
-      xLimit > aBuffer.mPlanes[0].mStride ||
-      !AddOverflow32(aPicture.y, aPicture.height, yLimit) ||
-      yLimit > aBuffer.mPlanes[0].mHeight)
+  PRUint32 picXLimit;
+  PRUint32 picYLimit;
+  if (!AddOverflow32(picX, picSize.width, picXLimit) ||
+      picXLimit > aBuffer.mPlanes[0].mStride ||
+      !AddOverflow32(picY, picSize.height, picYLimit) ||
+      picYLimit > aBuffer.mPlanes[0].mHeight)
   {
     // The specified picture dimensions can't be contained inside the video
     // frame, we'll stomp memory if we try to copy it. Fail.
@@ -153,12 +177,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
     return nsnull;
   }
 
-  nsAutoPtr<VideoData> v(new VideoData(aOffset,
-                                       aTime,
-                                       aEndTime,
-                                       aKeyframe,
-                                       aTimecode,
-                                       aInfo.mDisplay));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aEndTime, aKeyframe, aTimecode));
   // Currently our decoder only knows how to output to PLANAR_YCBCR
   // format.
   Image::Format format = Image::PLANAR_YCBCR;
@@ -178,9 +197,9 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
   data.mCrChannel = aBuffer.mPlanes[2].mData;
   data.mCbCrSize = gfxIntSize(aBuffer.mPlanes[1].mWidth, aBuffer.mPlanes[1].mHeight);
   data.mCbCrStride = aBuffer.mPlanes[1].mStride;
-  data.mPicX = aPicture.x;
-  data.mPicY = aPicture.y;
-  data.mPicSize = gfxIntSize(aPicture.width, aPicture.height);
+  data.mPicX = picX;
+  data.mPicY = picY;
+  data.mPicSize = picSize;
   data.mStereoMode = aInfo.mStereoMode;
 
   videoImage->SetData(data); // Copies buffer
@@ -188,7 +207,8 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
 }
 
 nsBuiltinDecoderReader::nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder)
-  : mDecoder(aDecoder)
+  : mReentrantMonitor("media.decoderreader"),
+    mDecoder(aDecoder)
 {
   MOZ_COUNT_CTOR(nsBuiltinDecoderReader);
 }
@@ -211,8 +231,7 @@ nsresult nsBuiltinDecoderReader::ResetDecode()
 
 VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
 {
-  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
-               "Should be on state machine or decode thread.");
+  NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
 
   // Extract the start times of the bitstreams in order to calculate
   // the duration.
@@ -228,14 +247,14 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
     }
   }
   if (HasAudio()) {
-    AudioData* audioData = DecodeToFirstData(&nsBuiltinDecoderReader::DecodeAudioData,
+    SoundData* soundData = DecodeToFirstData(&nsBuiltinDecoderReader::DecodeAudioData,
                                              mAudioQueue);
-    if (audioData) {
-      audioStartTime = audioData->mTime;
+    if (soundData) {
+      audioStartTime = soundData->mTime;
     }
   }
 
-  PRInt64 startTime = NS_MIN(videoStartTime, audioStartTime);
+  PRInt64 startTime = PR_MIN(videoStartTime, audioStartTime);
   if (startTime != PR_INT64_MAX) {
     aOutStartTime = startTime;
   }
@@ -272,6 +291,7 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
         PRBool skip = PR_FALSE;
         eof = !DecodeVideoFrame(skip, 0);
         {
+          ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
           ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
           if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
             return NS_ERROR_FAILURE;
@@ -296,6 +316,7 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
       }
     }
     {
+      ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
       ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
       if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
         return NS_ERROR_FAILURE;
@@ -306,79 +327,26 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
 
   if (HasAudio()) {
     // Decode audio forward to the seek target.
-    PRInt64 targetSample = 0;
-    if (!UsecsToSamples(aTarget, mInfo.mAudioRate, targetSample)) {
-      return NS_ERROR_FAILURE;
-    }
     PRBool eof = PR_FALSE;
     while (HasAudio() && !eof) {
       while (!eof && mAudioQueue.GetSize() == 0) {
         eof = !DecodeAudioData();
         {
+          ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
           ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
           if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
             return NS_ERROR_FAILURE;
           }
         }
       }
-      const AudioData* audio = mAudioQueue.PeekFront();
-      if (!audio)
-        break;
-      PRInt64 startSample = 0;
-      if (!UsecsToSamples(audio->mTime, mInfo.mAudioRate, startSample)) {
-        return NS_ERROR_FAILURE;
-      }
-      if (startSample + audio->mSamples <= targetSample) {
-        // Our seek target lies after the samples in this AudioData. Pop it
-        // off the queue, and keep decoding forwards.
-        delete mAudioQueue.PopFront();
+      nsAutoPtr<SoundData> audio(mAudioQueue.PeekFront());
+      if (audio && audio->mTime + audio->mDuration <= aTarget) {
+        mAudioQueue.PopFront();
         audio = nsnull;
-        continue;
-      }
-      if (startSample > targetSample) {
-        // The seek target doesn't lie in the audio block just after the last
-        // audio samples we've seen which were before the seek target. This
-        // could have been the first audio data we've seen after seek, i.e. the
-        // seek terminated after the seek target in the audio stream. Just
-        // abort the audio decode-to-target, the state machine will play
-        // silence to cover the gap. Typically this happens in poorly muxed
-        // files.
-        NS_WARNING("Audio not synced after seek, maybe a poorly muxed file?");
+      } else {
+        audio.forget();
         break;
       }
-
-      // The seek target lies somewhere in this AudioData's samples, strip off
-      // any samples which lie before the seek target, so we'll begin playback
-      // exactly at the seek target.
-      NS_ASSERTION(targetSample >= startSample, "Target must at or be after data start.");
-      NS_ASSERTION(targetSample < startSample + audio->mSamples, "Data must end after target.");
-
-      PRInt64 samplesToPrune = targetSample - startSample;
-      if (samplesToPrune > audio->mSamples) {
-        // We've messed up somehow. Don't try to trim samples, the |samples|
-        // variable below will overflow.
-        NS_WARNING("Can't prune more samples that we have!");
-        break;
-      }
-      PRUint32 samples = audio->mSamples - static_cast<PRUint32>(samplesToPrune);
-      PRUint32 channels = audio->mChannels;
-      nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[samples * channels]);
-      memcpy(audioData.get(),
-             audio->mAudioData.get() + (samplesToPrune * channels),
-             samples * channels * sizeof(AudioDataValue));
-      PRInt64 duration;
-      if (!SamplesToUsecs(samples, mInfo.mAudioRate, duration)) {
-        return NS_ERROR_FAILURE;
-      }
-      nsAutoPtr<AudioData> data(new AudioData(audio->mOffset,
-                                              aTarget,
-                                              duration,
-                                              samples,
-                                              audioData.forget(),
-                                              channels));
-      delete mAudioQueue.PopFront();
-      mAudioQueue.PushFront(data.forget());
-      break;
     }
   }
   return NS_OK;

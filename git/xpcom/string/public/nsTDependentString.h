@@ -91,10 +91,11 @@ class nsTDependentString_CharT : public nsTString_CharT
           AssertValid();
         }
 
-      nsTDependentString_CharT( const string_type& str, PRUint32 startPos )
-        : string_type()
+      explicit
+      nsTDependentString_CharT( const substring_type& str )
+        : string_type(const_cast<char_type*>(str.Data()), str.Length(), F_TERMINATED)
         {
-          Rebind(str, startPos);
+          AssertValid();
         }
 
       // Create a nsTDependentSubstring to be bound later
@@ -116,14 +117,12 @@ class nsTDependentString_CharT : public nsTString_CharT
           Rebind(data, PRUint32(char_traits::length(data)));
         }
 
-      void Rebind( const char_type* data, size_type length );
+      NS_COM void Rebind( const char_type* data, size_type length );
 
       void Rebind( const char_type* start, const char_type* end )
         {
           Rebind(start, PRUint32(end - start));
         }
-
-      void Rebind( const string_type&, PRUint32 startPos );
 
     private:
       

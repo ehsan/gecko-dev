@@ -54,7 +54,7 @@
  * make dependency induced by this file should not prove painful.
  */
 
-#include "jsapi.h"
+#include "jspubtd.h"
 #include "jsstaticcheck.h"
 #include "jsutil.h"
 
@@ -71,9 +71,9 @@ static const uintN JS_GCTHING_ALIGN = 8;
 static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
-typedef uint8       jsbytecode;
-typedef uint8       jssrcnote;
-typedef uintptr_t   jsatomid;
+typedef uint8  jsbytecode;
+typedef uint8  jssrcnote;
+typedef uint32 jsatomid;
 
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
@@ -85,15 +85,20 @@ typedef struct JSFunctionBox        JSFunctionBox;
 typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
 typedef struct JSProperty           JSProperty;
+typedef struct JSScript             JSScript;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
 typedef struct JSThread             JSThread;
 typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
 
 /* Friend "Advanced API" typedefs. */
+typedef struct JSAtomList           JSAtomList;
+typedef struct JSAtomListElement    JSAtomListElement;
+typedef struct JSAtomMap            JSAtomMap;
 typedef struct JSAtomState          JSAtomState;
 typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;
+typedef struct JSRegExpStatics      JSRegExpStatics;
 typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSNativeTraceInfo    JSNativeTraceInfo;
@@ -121,13 +126,10 @@ class JSFixedString;
 class JSStaticAtom;
 class JSRope;
 class JSAtom;
-struct JSDefinition;
-class JSWrapper;
 
 namespace js {
 
 struct ArgumentsData;
-struct Class;
 
 class RegExp;
 class RegExpStatics;
@@ -135,6 +137,7 @@ class AutoStringRooter;
 class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
+class InvokeSessionGuard;
 class StringBuffer;
 class TraceRecorder;
 struct TraceMonitor;
@@ -154,14 +157,13 @@ class TokenStream;
 struct Token;
 struct TokenPos;
 struct TokenPtr;
-class UpvarCookie;
 
-class TempAllocPolicy;
-class RuntimeAllocPolicy;
+class ContextAllocPolicy;
+class SystemAllocPolicy;
 
 template <class T,
           size_t MinInlineCapacity = 0,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class Vector;
 
 template <class>
@@ -170,18 +172,13 @@ struct DefaultHasher;
 template <class Key,
           class Value,
           class HashPolicy = DefaultHasher<Key>,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class HashMap;
 
 template <class T,
           class HashPolicy = DefaultHasher<T>,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class HashSet;
-
-template <typename K,
-          typename V,
-          size_t InlineElems>
-class InlineMap;
 
 class PropertyCache;
 struct PropertyCacheEntry;
@@ -189,26 +186,6 @@ struct PropertyCacheEntry;
 struct Shape;
 struct EmptyShape;
 class Bindings;
-
-class MultiDeclRange;
-class ParseMapPool;
-class DefnOrHeader;
-typedef InlineMap<JSAtom *, JSDefinition *, 24> AtomDefnMap;
-typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
-typedef InlineMap<JSAtom *, DefnOrHeader, 24> AtomDOHMap;
-typedef Vector<UpvarCookie, 8> UpvarCookies;
-
-class Breakpoint;
-class BreakpointSite;
-typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, RuntimeAllocPolicy>
-    BreakpointSiteMap;
-class Debugger;
-class WatchpointMap;
-
-typedef JSNative             Native;
-typedef JSPropertyOp         PropertyOp;
-typedef JSStrictPropertyOp   StrictPropertyOp;
-typedef JSPropertyDescriptor PropertyDescriptor;
 
 } /* namespace js */
 
@@ -265,7 +242,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*
@@ -334,6 +311,11 @@ typedef struct JSDebugHooks {
  * If JSLookupPropOp succeeds and returns with *propp non-null, that pointer
  * may be passed as the prop parameter to a JSAttributesOp, as a short-cut
  * that bypasses id re-lookup.
+ *
+ * NB: successful return with non-null *propp means the implementation may
+ * have locked *objp and added a reference count associated with *propp, so
+ * callers should not risk deadlock by nesting or interleaving other lookups
+ * or any obj-bearing ops before dropping *propp.
  */
 typedef JSBool
 (* JSLookupPropOp)(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,

@@ -44,7 +44,6 @@
 #include <windows.h>
 #endif
 
-#include "nsPluginInstanceOwner.h"
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
 #include "nsRegion.h"
@@ -57,9 +56,12 @@
 class nsIAccessible;
 #endif
 
+class nsPluginInstanceOwner;
 class nsPluginHost;
+class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
+class nsIDOMElement;
 class nsIOSurface;
 class PluginBackgroundSink;
 
@@ -128,7 +130,6 @@ public:
   virtual nsresult Instantiate(const char* aMimeType, nsIURI* aURI);
   virtual void TryNotifyContentObjectWrapper();
   virtual void StopPlugin();
-  virtual void SetIsDocumentActive(PRBool aIsActive);
 
   /*
    * Stop a plugin instance. If aDelayedStop is true, the plugin will
@@ -349,8 +350,7 @@ public:
                               nsTArray<nsIWidget::Configuration>* aConfigurations);
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerParameters& aContainerParameters)
+                                             LayerManager* aManager)
   {
     return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder,
                                                            aManager, 

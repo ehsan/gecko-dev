@@ -44,6 +44,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIContentViewer.h"
+#include "nsIPrefBranch.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIScriptContext.h"
 #include "nsITimer.h"
@@ -105,7 +106,7 @@
 #include "nsISecureBrowserUI.h"
 #include "nsIObserver.h"
 #include "nsDocShellLoadTypes.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsILoadContext.h"
 #include "nsIWidget.h"
 #include "nsIWebShellServices.h"
@@ -118,7 +119,6 @@ class nsDocShell;
 class nsIController;
 class OnLinkClickEvent;
 class nsIScrollableFrame;
-class nsDOMNavigationTiming;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -184,7 +184,7 @@ class nsDocShell : public nsDocLoader,
                    public nsIObserver,
                    public nsILoadContext,
                    public nsIWebShellServices,
-                   public nsILinkHandler,
+                   public nsILinkHandler_5_0,
                    public nsIClipboardCommands
 {
     friend class nsDSURIContentListener;
@@ -234,9 +234,8 @@ public:
     NS_IMETHOD OnLinkClick(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec,
-        nsIInputStream* aPostDataStream,
-        nsIInputStream* aHeadersDataStream,
-        PRBool aIsTrusted);
+        nsIInputStream* aPostDataStream = 0,
+        nsIInputStream* aHeadersDataStream = 0);
     NS_IMETHOD OnLinkClickSync(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec,
@@ -248,6 +247,13 @@ public:
         nsIURI* aURI,
         const PRUnichar* aTargetSpec);
     NS_IMETHOD OnLeaveLink();
+    // nsILinkHandler_5_0
+    NS_IMETHOD OnLinkClick(nsIContent* aContent,
+        nsIURI* aURI,
+        const PRUnichar* aTargetSpec,
+        nsIInputStream* aPostDataStream,
+        nsIInputStream* aHeadersDataStream,
+        PRBool aIsTrusted);
 
     nsDocShellInfoLoadType ConvertLoadTypeToDocShellLoadInfo(PRUint32 aLoadType);
     PRUint32 ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType);
@@ -650,6 +656,15 @@ protected:
     void DoGetPositionAndSize(PRInt32 * x, PRInt32 * y, PRInt32 * cx,
                               PRInt32 * cy);
     
+    // Check whether aURI should inherit our security context
+    static nsresult URIInheritsSecurityContext(nsIURI* aURI, PRBool* aResult);
+
+    // Check whether aURI is a URI_IS_LOCAL_FILE or not
+    static PRBool URIIsLocalFile(nsIURI *aURI);
+
+    // Check whether aURI is about:blank
+    static PRBool IsAboutBlank(nsIURI* aURI);
+
     // Call this when a URI load is handed to us (via OnLinkClick or
     // InternalLoad).  This makes sure that we're not inside unload, or that if
     // we are it's still OK to load this URI.
@@ -675,8 +690,6 @@ protected:
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);
 
     void ClearFrameHistory(nsISHEntry* aEntry);
-
-    nsresult MaybeInitTiming();
 
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
@@ -709,6 +722,7 @@ protected:
     nsCOMPtr<nsIContentViewer> mContentViewer;
     nsCOMPtr<nsIDocumentCharsetInfo> mDocumentCharsetInfo;
     nsCOMPtr<nsIWidget>        mParentWidget;
+    nsCOMPtr<nsIPrefBranch>    mPrefs;
 
     // mCurrentURI should be marked immutable on set if possible.
     nsCOMPtr<nsIURI>           mCurrentURI;
@@ -722,11 +736,7 @@ protected:
     // Somebody give me better name
     nsCOMPtr<nsISHEntry>       mOSHE;
     // Reference to the SHEntry for this docshell until the page is loaded
-    // Somebody give me better name.
-    // If mLSHE is non-null, non-pushState subframe loads don't create separate
-    // root history entries. That is, frames loaded during the parent page
-    // load don't generate history entries the way frame navigation after the
-    // parent has loaded does. (This isn't the only purpose of mLSHE.)
+    // Somebody give me better name
     nsCOMPtr<nsISHEntry>       mLSHE;
 
     // Holds a weak pointer to a RestorePresentationEvent object if any that
@@ -762,7 +772,7 @@ protected:
     // For that reasons don't use nsCOMPtr.
 
     nsIDocShellTreeOwner *     mTreeOwner; // Weak Reference
-    nsIDOMEventTarget *       mChromeEventHandler; //Weak Reference
+    nsPIDOMEventTarget *       mChromeEventHandler; //Weak Reference
 
     eCharsetReloadState        mCharsetReloadState;
 
@@ -785,14 +795,12 @@ protected:
     PRInt32                    mPreviousTransIndex;
     PRInt32                    mLoadedTransIndex;
 
-    PRPackedBool               mCreated;
     PRPackedBool               mAllowSubframes;
     PRPackedBool               mAllowPlugins;
     PRPackedBool               mAllowJavascript;
     PRPackedBool               mAllowMetaRedirects;
     PRPackedBool               mAllowImages;
     PRPackedBool               mAllowDNSPrefetch;
-    PRPackedBool               mAllowWindowControl;
     PRPackedBool               mCreatingDocument; // (should be) debugging only
     PRPackedBool               mUseErrorPages;
     PRPackedBool               mObserveErrorPages;
@@ -835,8 +843,6 @@ protected:
     PRUint64                   mHistoryID;
 
     static nsIURIFixup *sURIFixup;
-
-    nsRefPtr<nsDOMNavigationTiming> mTiming;
 
 #ifdef DEBUG
 private:

@@ -88,6 +88,13 @@
 # define JS_EXTERN_DATA(__type) extern __declspec(dllexport) __type
 # define JS_EXPORT_DATA(__type) __declspec(dllexport) __type
 
+#elif defined(__SYMBIAN32__)
+
+# define JS_EXTERN_API(__type) extern EXPORT_C __type
+# define JS_EXPORT_API(__type) EXPORT_C __type
+# define JS_EXTERN_DATA(__type) extern EXPORT_C __type
+# define JS_EXPORT_DATA(__type) EXPORT_C __type
+
 #else /* Unix */
 
 # ifdef HAVE_VISIBILITY_ATTRIBUTE
@@ -124,6 +131,8 @@
 # endif
 #elif defined(XP_OS2)
 # define JS_IMPORT_API(__x)     __declspec(dllimport) __x
+#elif defined(__SYMBIAN32__)
+# define JS_IMPORT_API(__x)     IMPORT_C __x
 #else
 # define JS_IMPORT_API(__x)     JS_EXPORT_API (__x)
 #endif
@@ -132,6 +141,12 @@
 # define JS_IMPORT_DATA(__x)      __declspec(dllimport) __x
 #elif defined(XP_OS2)
 # define JS_IMPORT_DATA(__x)      __declspec(dllimport) __x
+#elif defined(__SYMBIAN32__)
+# if defined(__CW32__)
+#   define JS_IMPORT_DATA(__x)    __declspec(dllimport) __x
+# else
+#   define JS_IMPORT_DATA(__x)    IMPORT_C __x
+# endif
 #else
 # define JS_IMPORT_DATA(__x)     JS_EXPORT_DATA (__x)
 #endif

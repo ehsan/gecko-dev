@@ -41,7 +41,6 @@
 
 #include "AccEvent.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsRefreshDriver.h"
 
 class nsAccessible;
 class nsDocAccessible;
@@ -129,6 +128,14 @@ public:
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(NotificationController)
 
   /**
+   * Return true when tree is constructed.
+   */
+  inline bool IsTreeConstructed()
+  {
+    return mTreeConstructedState == eTreeConstructed;
+  }
+
+  /**
    * Shutdown the notification controller.
    */
   void Shutdown();
@@ -148,8 +155,11 @@ public:
    */
   inline void ScheduleTextUpdate(nsIContent* aTextNode)
   {
-    if (mTextHash.PutEntry(aTextNode))
+    // Ignore the notification if initial tree construction hasn't been done yet.
+    if (mTreeConstructedState != eTreeConstructionPending &&
+        mTextHash.PutEntry(aTextNode)) {
       ScheduleProcessing();
+    }
   }
 
   /**
@@ -288,6 +298,17 @@ private:
    * The presshell of the document accessible.
    */
   nsIPresShell* mPresShell;
+
+  /**
+   * Indicate whether initial construction of the document's accessible tree
+   * performed or pending. When the document accessible is created then
+   * we construct its initial accessible tree.
+   */
+  enum eTreeConstructedState {
+    eTreeConstructed,
+    eTreeConstructionPending
+  };
+  eTreeConstructedState mTreeConstructedState;
 
   /**
    * Child documents that needs to be bound to the tree.

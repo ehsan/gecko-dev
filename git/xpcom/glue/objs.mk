@@ -34,6 +34,12 @@
 #
 # ***** END LICENSE BLOCK *****
 
+XPCOM_GLUE_SRC_LCSRCS =          \
+  pldhash.c                      \
+  $(NULL)
+
+XPCOM_GLUE_SRC_CSRCS = $(addprefix $(topsrcdir)/xpcom/glue/, $(XPCOM_GLUE_SRC_LCSRCS))
+
 XPCOM_GLUE_SRC_LCPPSRCS =        \
   nsArrayEnumerator.cpp          \
   nsArrayUtils.cpp               \
@@ -60,7 +66,6 @@ XPCOM_GLUE_SRC_LCPPSRCS =        \
   nsCycleCollectionParticipant.cpp \
   nsCycleCollectorUtils.cpp      \
   nsDeque.cpp \
-  pldhash.cpp \
   $(NULL)
 
 XPCOM_GLUE_SRC_CPPSRCS = $(addprefix $(topsrcdir)/xpcom/glue/, $(XPCOM_GLUE_SRC_LCPPSRCS))
@@ -69,15 +74,12 @@ XPCOM_GLUENS_SRC_LCPPSRCS =      \
   BlockingResourceBase.cpp       \
   DeadlockDetector.cpp           \
   SSE.cpp                        \
+  arm.cpp                        \
   unused.cpp                     \
   nsProxyRelease.cpp             \
   nsTextFormatter.cpp            \
   GenericFactory.cpp             \
   FileUtils.cpp                  \
   $(NULL)
-
-ifeq (arm,$(TARGET_CPU))
-XPCOM_GLUENS_SRC_LCPPSRCS += arm.cpp
-endif
 
 XPCOM_GLUENS_SRC_CPPSRCS = $(addprefix $(topsrcdir)/xpcom/glue/,$(XPCOM_GLUENS_SRC_LCPPSRCS))

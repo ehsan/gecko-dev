@@ -42,8 +42,6 @@
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsOuterDocAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,8 +74,8 @@ nsOuterDocAccessible::NativeState()
 }
 
 nsAccessible*
-nsOuterDocAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                   EWhichChildAtPoint aWhichChild)
+nsOuterDocAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                      EWhichChildAtPoint aWhichChild)
 {
   PRInt32 docX = 0, docY = 0, docWidth = 0, docHeight = 0;
   nsresult rv = GetBounds(&docX, &docY, &docWidth, &docHeight);
@@ -92,7 +90,7 @@ nsOuterDocAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   NS_ENSURE_TRUE(child, nsnull);
 
   if (aWhichChild == eDeepestChild)
-    return child->ChildAtPoint(aX, aY, eDeepestChild);
+    return child->GetChildAtPoint(aX, aY, eDeepestChild);
   return child;
 }
 
@@ -112,11 +110,14 @@ nsOuterDocAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-PRUint8
-nsOuterDocAccessible::ActionCount()
+NS_IMETHODIMP
+nsOuterDocAccessible::GetNumActions(PRUint8 *aNumActions)
 {
+  NS_ENSURE_ARG_POINTER(aNumActions);
+  *aNumActions = 0;
+
   // Internal frame, which is the doc's parent, should not have a click action.
-  return 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -71,14 +71,13 @@ CPPSRCS		= \
 		nsSupportsArray.cpp \
 		nsSupportsArrayEnumerator.cpp \
 		nsSupportsPrimitives.cpp \
+		nsTimelineService.cpp \
 		nsUnicharBuffer.cpp \
 		nsVariant.cpp \
 		$(NULL)
 
 ifdef HAVE_CLOCK_MONOTONIC
 CPPSRCS += TimeStamp_posix.cpp
-else ifeq ($(OS_ARCH),Darwin)
-CPPSRCS += TimeStamp_darwin.cpp
 else
 CPPSRCS += TimeStamp.cpp
 endif
@@ -86,7 +85,6 @@ endif
 EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
-  CharTokenizer.h \
   TimeStamp.h \
   $(NULL)
 
@@ -109,6 +107,7 @@ EXPORTS		= \
 		nsStaticAtom.h \
 		nsSupportsArray.h \
 		nsSupportsPrimitives.h \
+		nsTime.h \
 		nsVariant.h \
 		nsStringEnumerator.h \
 		nsHashPropertyBag.h \
@@ -135,6 +134,7 @@ XPIDLSRCS	= \
 		nsIStringEnumerator.idl \
 		nsISupportsArray.idl \
 		nsISupportsIterators.idl \
+		nsITimelineService.idl \
 		$(NULL)
 
 SDK_XPIDLSRCS   = \

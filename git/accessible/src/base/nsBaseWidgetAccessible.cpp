@@ -40,6 +40,7 @@
 #include "nsBaseWidgetAccessible.h"
 
 #include "States.h"
+#include "nsAccessibilityAtoms.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
@@ -51,8 +52,6 @@
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsLeafAccessible
@@ -70,8 +69,8 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsLeafAccessible, nsAccessible)
 // nsLeafAccessible: nsAccessible public
 
 nsAccessible*
-nsLeafAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                               EWhichChildAtPoint aWhichChild)
+nsLeafAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                  EWhichChildAtPoint aWhichChild)
 {
   // Don't walk into leaf accessibles.
   return this;
@@ -137,10 +136,13 @@ nsLinkableAccessible::GetValue(nsAString& aValue)
 }
 
 
-PRUint8
-nsLinkableAccessible::ActionCount()
+NS_IMETHODIMP
+nsLinkableAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return (mIsOnclick || mIsLink) ? 1 : 0;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  *aNumActions = (mIsOnclick || mIsLink) ? 1 : 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -173,11 +175,13 @@ nsLinkableAccessible::DoAction(PRUint8 aIndex)
     nsAccessibleWrap::DoAction(aIndex);
 }
 
-KeyBinding
-nsLinkableAccessible::AccessKey() const
+NS_IMETHODIMP
+nsLinkableAccessible::GetKeyboardShortcut(nsAString& aKeyboardShortcut)
 {
-  return mActionAcc ?
-    mActionAcc->AccessKey() : nsAccessible::AccessKey();
+  aKeyboardShortcut.Truncate();
+
+  return mActionAcc ? mActionAcc->GetKeyboardShortcut(aKeyboardShortcut) :
+    nsAccessible::GetKeyboardShortcut(aKeyboardShortcut);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,14 +200,14 @@ nsLinkableAccessible::Shutdown()
 // nsLinkableAccessible: HyperLinkAccessible
 
 already_AddRefed<nsIURI>
-nsLinkableAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
+nsLinkableAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 {
   if (mIsLink) {
-    NS_ASSERTION(mActionAcc->IsLink(),
+    NS_ASSERTION(mActionAcc->IsHyperLink(),
                  "nsIAccessibleHyperLink isn't implemented.");
 
-    if (mActionAcc->IsLink())
-      return mActionAcc->AnchorURIAt(aAnchorIndex);
+    if (mActionAcc->IsHyperLink())
+      return mActionAcc->GetAnchorURI(aAnchorIndex);
   }
 
   return nsnull;
@@ -232,8 +236,8 @@ nsLinkableAccessible::BindToParent(nsAccessible* aParent,
   // on non accessible node in parent chain but this node is skipped when tree
   // is traversed.
   nsAccessible* walkUpAcc = this;
-  while ((walkUpAcc = walkUpAcc->Parent()) && !walkUpAcc->IsDoc()) {
-    if (walkUpAcc->Role() == nsIAccessibleRole::ROLE_LINK &&
+  while ((walkUpAcc = walkUpAcc->GetParent()) && !walkUpAcc->IsDoc()) {
+    if (walkUpAcc && walkUpAcc->Role() == nsIAccessibleRole::ROLE_LINK &&
         walkUpAcc->State() & states::LINKED) {
       mIsLink = PR_TRUE;
       mActionAcc = walkUpAcc;

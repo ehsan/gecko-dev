@@ -10,7 +10,6 @@
     COMPONENT(BINARYOUTPUTSTREAM, nsBinaryOutputStreamConstructor)
     COMPONENT(STORAGESTREAM, nsStorageStreamConstructor)
     COMPONENT(VERSIONCOMPARATOR, nsVersionComparatorImplConstructor)
-    COMPONENT(SCRIPTABLEBASE64ENCODER, nsScriptableBase64EncoderConstructor)
     COMPONENT(PIPE, nsPipeConstructor)
 
     COMPONENT(PROPERTIES, nsPropertiesConstructor)
@@ -22,6 +21,9 @@
     COMPONENT(CONSOLESERVICE, nsConsoleServiceConstructor)
     COMPONENT(EXCEPTIONSERVICE, nsExceptionServiceConstructor)
     COMPONENT(ATOMSERVICE, nsAtomServiceConstructor)
+#ifdef MOZ_TIMELINE
+    COMPONENT(TIMELINESERVICE, nsTimelineServiceConstructor)
+#endif
     COMPONENT(OBSERVERSERVICE, nsObserverService::Create)
 
     COMPONENT(XPCOMPROXY, nsProxyObjectManager::Create)
@@ -61,6 +63,10 @@
     COMPONENT(STRINGINPUTSTREAM, nsStringInputStreamConstructor)
     COMPONENT(MULTIPLEXINPUTSTREAM, nsMultiplexInputStreamConstructor)
 
+#ifndef MOZ_NO_FAST_LOAD
+    COMPONENT(FASTLOADSERVICE, nsFastLoadService::Create)
+#endif
+
     COMPONENT(VARIANT, nsVariantConstructor)
     COMPONENT(INTERFACEINFOMANAGER_SERVICE, nsXPTIInterfaceInfoManagerGetSingleton)
 
@@ -74,7 +80,7 @@
     COMPONENT(WINDOWSREGKEY, nsWindowsRegKeyConstructor)
 #endif
 
-#if defined(MOZ_WIDGET_COCOA)
+#ifdef XP_MACOSX
     COMPONENT(MACUTILSIMPL, nsMacUtilsImplConstructor)
 #endif
 

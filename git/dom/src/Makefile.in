@@ -42,10 +42,6 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS		= jsurl events storage offline json geolocation notification
-
-ifdef ENABLE_TESTS
-DIRS		+= foo
-endif
+DIRS		= jsurl events storage offline json geolocation threads notification
 
 include $(topsrcdir)/config/rules.mk

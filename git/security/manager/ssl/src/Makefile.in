@@ -62,6 +62,7 @@ CPPSRCS = 				\
 	nsPSMBackgroundThread.cpp       \
 	nsSSLThread.cpp                 \
 	nsCertVerificationThread.cpp    \
+	nsCipherInfo.cpp \
 	nsProtectedAuthThread.cpp \
 	nsNSSCallbacks.cpp		\
 	nsNSSComponent.cpp		\
@@ -119,6 +120,13 @@ DEFINES += -DNSS_ENABLE_ECC
 # Use local includes because they are inserted before INCLUDES
 # so that Mozilla's nss.h is used, not glibc's
 LOCAL_INCLUDES += $(NSS_CFLAGS)
+
+EXTRA_DSO_LDOPTS += \
+		$(MOZ_UNICHARUTIL_LIBS) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(MOZ_JS_LIBS) \
+		$(NSS_LIBS) \
+		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

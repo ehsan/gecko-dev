@@ -59,7 +59,6 @@
 #include "prnetdb.h"
 #include "prtpool.h"
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nss.h"
 #include "pk11func.h"
 #include "key.h"
@@ -232,8 +231,8 @@ struct relayBuffer
   }
 
   bool empty() { return bufferhead == buffertail; }
-  size_t areafree() { return bufferend - buffertail; }
-  size_t margin() { return areafree() + BUF_MARGIN; }
+  size_t free() { return bufferend - buffertail; }
+  size_t margin() { return free() + BUF_MARGIN; }
   size_t present() { return buffertail - bufferhead; }
 };
 
@@ -275,14 +274,10 @@ private:
   PRFileDesc* fd_;
 };
 
-// These numbers are multiplied by the number of listening ports (actual
-// servers running).  According the thread pool implementation there is no
-// need to limit the number of threads initially, threads are allocated
-// dynamically and stored in a linked list.  Initial number of 2 is chosen
-// to allocate a thread for socket accept and preallocate one for the first
-// connection that is with high probability expected to come.
-const PRUint32 INITIAL_THREADS = 2;
-const PRUint32 MAX_THREADS = 100;
+// These are suggestions. If the number of ports to proxy on * 2
+// is greater than either of these, then we'll use that value instead.
+const PRUint32 INITIAL_THREADS = 1;
+const PRUint32 MAX_THREADS = 5;
 const PRUint32 DEFAULT_STACKSIZE = (512 * 1024);
 
 // global data
@@ -698,17 +693,17 @@ void HandleConnection(void* data)
           continue;
         } // PR_POLL_EXCEPT, PR_POLL_ERR, PR_POLL_HUP handling
 
-        if (out_flags & PR_POLL_READ && !buffers[s].areafree())
+        if (out_flags & PR_POLL_READ && !buffers[s].free())
         {
            LOG_DEBUG((" no place in read buffer but got read flag, dropping it now!"));
            in_flags &= ~PR_POLL_READ;
         }
 
-        if (out_flags & PR_POLL_READ && buffers[s].areafree())
+        if (out_flags & PR_POLL_READ && buffers[s].free())
         {
           LOG_DEBUG((" :reading"));
           PRInt32 bytesRead = PR_Recv(sockets[s].fd, buffers[s].buffertail, 
-              buffers[s].areafree(), 0, PR_INTERVAL_NO_TIMEOUT);
+              buffers[s].free(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesRead == 0)
           {
@@ -793,7 +788,7 @@ void HandleConnection(void* data)
               break;
             } // end of CONNECT handling
 
-            if (!buffers[s].areafree())
+            if (!buffers[s].free())
             {
               // Do not poll for read when the buffer is full
               LOG_DEBUG((" no place in our read buffer, stop reading"));
@@ -1288,8 +1283,8 @@ int main(int argc, char** argv)
   }
 
   // create a thread pool to handle connections
-  threads = PR_CreateThreadPool(INITIAL_THREADS * servers.size(),
-                                MAX_THREADS * servers.size(),
+  threads = PR_CreateThreadPool(PR_MAX(INITIAL_THREADS, servers.size()*2),
+                                PR_MAX(MAX_THREADS, servers.size()*2),
                                 DEFAULT_STACKSIZE);
   if (!threads) {
     LOG_ERROR(("Failed to create thread pool\n"));

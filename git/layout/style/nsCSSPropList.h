@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -368,6 +368,7 @@ CSS_PROP_FONT(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 #endif
+#ifdef MOZ_CSS_ANIMATIONS
 CSS_PROP_SHORTHAND(
     -moz-animation,
     animation,
@@ -458,6 +459,7 @@ CSS_PROP_DISPLAY(
     kTransitionTimingFunctionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+#endif
 CSS_PROP_SHORTHAND(
     background,
     background,
@@ -1239,11 +1241,6 @@ CSS_PROP_COLOR(
     nsnull,
     offsetof(nsStyleColor, mColor),
     eStyleAnimType_Color)
-CSS_PROP_SHORTHAND(
-    -moz-columns,
-    _moz_columns,
-    CSS_PROP_DOMPROP_PREFIXED(Columns),
-    CSS_PROPERTY_PARSE_FUNCTION)
 CSS_PROP_COLUMN(
     -moz-column-count,
     _moz_column_count,
@@ -2212,16 +2209,6 @@ CSS_PROP_TEXT(
     nsnull,
     offsetof(nsStyleText, mTextIndent),
     eStyleAnimType_Coord)
-CSS_PROP_TEXTRESET(
-    text-overflow,
-    text_overflow,
-    TextOverflow,
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
-    0,
-    kTextOverflowKTable,
-    offsetof(nsStyleTextReset, mTextOverflow),
-    eStyleAnimType_None)
 CSS_PROP_TEXT(
     text-shadow,
     text_shadow,
@@ -2264,43 +2251,6 @@ CSS_PROP_DISPLAY(
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
-CSS_PROP_DISPLAY(
-    -moz-perspective-origin,
-    perspective_origin,
-    CSS_PROP_DOMPROP_PREFIXED(PerspectiveOrigin),
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_STORES_CALC,
-    0,
-    kBackgroundPositionKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
-CSS_PROP_DISPLAY(
-    -moz-perspective,
-    perspective,
-    CSS_PROP_DOMPROP_PREFIXED(Perspective),
-    CSS_PROPERTY_PARSE_VALUE,
-    VARIANT_NONE | VARIANT_INHERIT | VARIANT_LENGTH,
-    nsnull,
-    offsetof(nsStyleDisplay, mChildPerspective),
-    eStyleAnimType_Coord)
-CSS_PROP_DISPLAY(
-    -moz-transform-style,
-    transform_style,
-    CSS_PROP_DOMPROP_PREFIXED(TransformStyle),
-    CSS_PROPERTY_PARSE_VALUE,
-    VARIANT_HK,
-    kTransformStyleKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_DISPLAY(
-    -moz-backface-visibility,
-    backface_visibility,
-    CSS_PROP_DOMPROP_PREFIXED(BackfaceVisibility),
-    CSS_PROPERTY_PARSE_VALUE,
-    VARIANT_HK,
-    kBackfaceVisibilityKTable,
-    offsetof(nsStyleDisplay, mBackfaceVisibility),
-    eStyleAnimType_None)
 CSS_PROP_POSITION(
     top,
     top,
@@ -2549,7 +2499,7 @@ CSS_PROP_XUL(
     box_ordinal_group,
     CSS_PROP_DOMPROP_PREFIXED(BoxOrdinalGroup),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_NONNEGATIVE,
+        CSS_PROPERTY_VALUE_AT_LEAST_ONE,
     VARIANT_HI,
     nsnull,
     CSS_PROP_NO_OFFSET,
@@ -2564,6 +2514,7 @@ CSS_PROP_XUL(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 
+#ifdef MOZ_MATHML
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_FONT(
     -moz-script-level,
@@ -2599,6 +2550,7 @@ CSS_PROP_FONT(
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+#endif
 #endif
 
 CSS_PROP_SVGRESET(

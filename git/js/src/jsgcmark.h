@@ -50,6 +50,9 @@
 namespace js {
 namespace gc {
 
+template<typename T>
+void Mark(JSTracer *trc, T *thing);
+
 void
 MarkString(JSTracer *trc, JSString *str);
 
@@ -59,28 +62,18 @@ MarkString(JSTracer *trc, JSString *str, const char *name);
 void
 MarkObject(JSTracer *trc, JSObject &obj, const char *name);
 
-/*
- * Mark an object that may be in a different compartment from the compartment
- * being GC'd. (Although it won't be marked if it's in the wrong compartment.)
- */
-void
-MarkCrossCompartmentObject(JSTracer *trc, JSObject &obj, const char *name);
-
 void
 MarkObjectWithPrinter(JSTracer *trc, JSObject &obj, JSTraceNamePrinter printer,
 		      const void *arg, size_t index);
 
 void
-MarkScript(JSTracer *trc, JSScript *script, const char *name);
-
-void
 MarkShape(JSTracer *trc, const Shape *shape, const char *name);
 
 void
-MarkTypeObject(JSTracer *trc, types::TypeObject *type, const char *name);
+MarkXML(JSTracer *trc, JSXML *xml, const char *name);
 
 void
-MarkXML(JSTracer *trc, JSXML *xml, const char *name);
+MarkAtomRange(JSTracer *trc, size_t len, JSAtom **vec, const char *name);
 
 void
 MarkObjectRange(JSTracer *trc, size_t len, JSObject **vec, const char *name);
@@ -101,7 +94,7 @@ void
 MarkIdRange(JSTracer *trc, size_t len, jsid *vec, const char *name);
 
 void
-MarkKind(JSTracer *trc, void *thing, JSGCTraceKind kind);
+MarkKind(JSTracer *trc, void *thing, uint32 kind);
 
 void
 MarkValueRaw(JSTracer *trc, const js::Value &v);
@@ -109,18 +102,11 @@ MarkValueRaw(JSTracer *trc, const js::Value &v);
 void
 MarkValue(JSTracer *trc, const js::Value &v, const char *name);
 
-/*
- * Mark a value that may be in a different compartment from the compartment
- * being GC'd. (Although it won't be marked if it's in the wrong compartment.)
- */
 void
-MarkCrossCompartmentValue(JSTracer *trc, const js::Value &v, const char *name);
+MarkValueRange(JSTracer *trc, Value *beg, Value *end, const char *name);
 
 void
-MarkValueRange(JSTracer *trc, const Value *beg, const Value *end, const char *name);
-
-void
-MarkValueRange(JSTracer *trc, size_t len, const Value *vec, const char *name);
+MarkValueRange(JSTracer *trc, size_t len, Value *vec, const char *name);
 
 void
 MarkShapeRange(JSTracer *trc, const Shape **beg, const Shape **end, const char *name);
@@ -151,13 +137,7 @@ void
 MarkRoot(JSTracer *trc, JSString *thing, const char *name);
 
 void
-MarkRoot(JSTracer *trc, JSScript *thing, const char *name);
-
-void
 MarkRoot(JSTracer *trc, const Shape *thing, const char *name);
-
-void
-MarkRoot(JSTracer *trc, types::TypeObject *thing, const char *name);
 
 void
 MarkRoot(JSTracer *trc, JSXML *thing, const char *name);
@@ -170,9 +150,6 @@ MarkChildren(JSTracer *trc, JSString *str);
 
 void
 MarkChildren(JSTracer *trc, const Shape *shape);
-
-void
-MarkChildren(JSTracer *trc, JSScript *script);
 
 void
 MarkChildren(JSTracer *trc, JSXML *xml);

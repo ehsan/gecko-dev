@@ -64,7 +64,9 @@
 
 #define NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER "domstorage-flush-timer"
 
+#ifdef MOZ_STORAGE
 #include "nsDOMStorageDBWrapper.h"
+#endif
 
 #define IS_PERMISSION_ALLOWED(perm) \
       ((perm) != nsIPermissionManager::UNKNOWN_ACTION && \
@@ -270,9 +272,6 @@ public:
 
   // cache the keys from the database for faster lookup
   nsresult CacheKeysFromDB();
-
-  PRUint64 CachedVersion() { return mItemsCachedVersion; }
-  void SetCachedVersion(PRUint64 version) { mItemsCachedVersion = version; }
   
   // Some privileged internal pages can use a persistent storage even in
   // session-only or private-browsing modes.
@@ -312,7 +311,9 @@ public:
   virtual bool CacheStoragePermissions();
 
 private:
+#ifdef MOZ_STORAGE
   static nsDOMStorageDBWrapper* gStorageDB;
+#endif
   friend class nsDOMStorageManager;
   friend class nsDOMStoragePersistentDB;
   friend class StorageParent;
@@ -331,9 +332,8 @@ private:
 
   static nsresult InitDB();
 
-  // 0 initially or a positive data version number assigned by gStorageDB
-  // after keys have been cached from the database
-  PRUint64 mItemsCachedVersion;
+  // true if items from the database are cached
+  PRPackedBool mItemsCached;
 
   // the key->value item pairs
   nsTHashtable<nsSessionStorageEntry> mItems;

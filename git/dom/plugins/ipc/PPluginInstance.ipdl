@@ -46,7 +46,6 @@ include protocol PStreamNotify;
 include protocol PPluginSurface;
 
 include "mozilla/plugins/PluginMessageUtils.h";
-include "IPC/nsGUIEventIPC.h";
 
 using NPError;
 using NPRemoteWindow;
@@ -60,8 +59,6 @@ using gfxIntSize;
 using mozilla::null_t;
 using mozilla::plugins::WindowsSharedMemoryHandle;
 using nsIntRect;
-using nsTextEvent;
-using nsKeyEvent;
 
 namespace mozilla {
 namespace plugins {
@@ -72,15 +69,10 @@ struct SurfaceDescriptorX11 {
   gfxIntSize size;
 };
 
-struct IOSurfaceDescriptor {
-  uint32_t surfaceId;
-};
-
 union SurfaceDescriptor {
   Shmem;
   SurfaceDescriptorX11;
   PPluginSurface; // used on Windows
-  IOSurfaceDescriptor; // used on OSX 10.5+
   // Descriptor can be null here in case
   // 1) of first Show call (prevSurface is null)
   // 2) when child is going to destroy
@@ -150,11 +142,6 @@ child:
   // refer to the existing background or a fresh descriptor.
   async UpdateBackground(SurfaceDescriptor background, nsIntRect rect);
 
-  rpc HandleTextEvent(nsTextEvent event)
-    returns (bool handled);
-  rpc HandleKeyEvent(nsKeyEvent event)
-    returns (bool handled);
-
   rpc NPP_Destroy()
     returns (NPError rv);
 
@@ -171,8 +158,6 @@ parent:
     returns (bool value, NPError result);
   rpc NPN_GetValue_NPNVnetscapeWindow()
     returns (NativeWindowHandle value, NPError result);
-  rpc NPN_GetValue_NPNVdocumentOrigin()
-    returns (nsCString value, NPError result);
 
   rpc NPN_SetValue_NPPVpluginWindow(bool windowed)
     returns (NPError result);

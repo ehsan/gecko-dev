@@ -65,7 +65,7 @@ nsIRootBox::GetRootBox(nsIPresShell* aShell)
   }
 
   if (rootFrame) {
-    rootFrame = rootFrame->GetFirstPrincipalChild();
+    rootFrame = rootFrame->GetFirstChild(nsnull);
   }
 
   nsIRootBox* rootBox = do_QueryFrame(rootFrame);
@@ -89,12 +89,12 @@ public:
   virtual nsresult AddTooltipSupport(nsIContent* aNode);
   virtual nsresult RemoveTooltipSupport(nsIContent* aNode);
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
@@ -149,63 +149,66 @@ nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 {
   mPopupSetFrame = nsnull;
 
-  nsCOMPtr<nsBoxLayout> layout;
+  nsCOMPtr<nsIBoxLayout> layout;
   NS_NewStackLayout(aShell, layout);
   SetLayoutManager(layout);
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::AppendFrames(ChildListID     aListID,
+nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
                              nsFrameList&    aFrameList)
 {
   nsresult  rv;
 
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
+  NS_ASSERTION(!aListName, "unexpected child list name");
   NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
-  if (aListID != kPrincipalList) {
-    // We only support the principal child list.
+  if (aListName) {
+    // We only support unnamed principal child list
     rv = NS_ERROR_INVALID_ARG;
+
   } else if (!mFrames.IsEmpty()) {
-    // We only allow a single child frame.
+    // We only allow a single child frame
     rv = NS_ERROR_FAILURE;
+
   } else {
-    rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
+    rv = nsBoxFrame::AppendFrames(aListName, aFrameList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::InsertFrames(ChildListID     aListID,
+nsRootBoxFrame::InsertFrames(nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
                              nsFrameList&    aFrameList)
 {
   nsresult  rv;
 
   // Because we only support a single child frame inserting is the same
-  // as appending.
+  // as appending
   NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
   if (aPrevFrame) {
     rv = NS_ERROR_UNEXPECTED;
   } else {
-    rv = AppendFrames(aListID, aFrameList);
+    rv = AppendFrames(aListName, aFrameList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::RemoveFrame(ChildListID     aListID,
+nsRootBoxFrame::RemoveFrame(nsIAtom*        aListName,
                             nsIFrame*       aOldFrame)
 {
   nsresult  rv;
 
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
-  if (aListID != kPrincipalList) {
-    // We only support the principal child list.
+  NS_ASSERTION(!aListName, "unexpected child list name");
+  if (aListName) {
+    // We only support the unnamed principal child list
     rv = NS_ERROR_INVALID_ARG;
+  
   } else if (aOldFrame == mFrames.FirstChild()) {
-    rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+     rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   } else {
     rv = NS_ERROR_FAILURE;
   }
@@ -218,7 +221,7 @@ PRInt32 gReflows = 0;
 #endif
 
 NS_IMETHODIMP
-nsRootBoxFrame::Reflow(nsPresContext*           aPresContext,
+nsRootBoxFrame::Reflow(nsPresContext*          aPresContext,
                        nsHTMLReflowMetrics&     aDesiredSize,
                        const nsHTMLReflowState& aReflowState,
                        nsReflowStatus&          aStatus)

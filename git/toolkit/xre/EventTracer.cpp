@@ -52,18 +52,6 @@
  * Set MOZ_INSTRUMENT_EVENT_LOOP_OUTPUT in the environment to a
  * file path to contain the log output, the default is to log to stdout.
  *
- * Set MOZ_INSTRUMENT_EVENT_LOOP_THRESHOLD in the environment to an
- * integer number of milliseconds to change the threshold for reporting.
- * The default is 20 milliseconds. Unresponsive periods shorter than this
- * threshold will not be reported.
- *
- * Set MOZ_INSTRUMENT_EVENT_LOOP_INTERVAL in the environment to an
- * integer number of milliseconds to change the maximum sampling frequency.
- * This variable controls how often events will be sent to the main
- * thread's event loop to sample responsiveness. The sampler will not
- * send events twice within LOOP_INTERVAL milliseconds.
- * The default is 10 milliseconds.
- *
  * All logged output lines start with MOZ_EVENT_TRACE. All timestamps
  * output are milliseconds since the epoch (PRTime / 1000).
  *
@@ -87,7 +75,6 @@
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/WidgetTraceEvent.h"
-#include <limits.h>
 #include <prenv.h>
 #include <prinrval.h>
 #include <prthread.h>
@@ -114,12 +101,9 @@ bool sExit = false;
  */
 void TracerThread(void *arg)
 {
-  // These are the defaults. They can be overridden by environment vars.
   // This should be set to the maximum latency we'd like to allow
   // for responsiveness.
-  PRIntervalTime threshold = PR_MillisecondsToInterval(20);
-  // This is the sampling interval.
-  PRIntervalTime interval = PR_MillisecondsToInterval(10);
+  const PRIntervalTime kMeasureInterval = PR_MillisecondsToInterval(50);
 
   FILE* log = NULL;
   char* envfile = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_OUTPUT");
@@ -129,35 +113,19 @@ void TracerThread(void *arg)
   if (log == NULL)
     log = stdout;
 
-  char* thresholdenv = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_THRESHOLD");
-  if (thresholdenv && *thresholdenv) {
-    int val = atoi(thresholdenv);
-    if (val != 0 && val != INT_MAX && val != INT_MIN) {
-      threshold = PR_MillisecondsToInterval(val);
-    }
-  }
-
-  char* intervalenv = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_INTERVAL");
-  if (intervalenv && *intervalenv) {
-    int val = atoi(intervalenv);
-    if (val != 0 && val != INT_MAX && val != INT_MIN) {
-      interval = PR_MillisecondsToInterval(val);
-    }
-  }
-
   fprintf(log, "MOZ_EVENT_TRACE start %llu\n", PR_Now() / PR_USEC_PER_MSEC);
 
   while (!sExit) {
     TimeStamp start(TimeStamp::Now());
-    PRIntervalTime next_sleep = interval;
+    PRIntervalTime next_sleep = kMeasureInterval;
 
-    //TODO: only wait up to a maximum of interval; return
+    //TODO: only wait up to a maximum of kMeasureInterval, return
     // early if that threshold is exceeded and dump a stack trace
     // or do something else useful.
     if (FireAndWaitForTracerEvent()) {
       TimeDuration duration = TimeStamp::Now() - start;
-      // Only report samples that exceed our measurement threshold.
-      if (duration.ToMilliseconds() > threshold) {
+      // Only report samples that exceed our measurement interval.
+      if (duration.ToMilliseconds() > kMeasureInterval) {
         fprintf(log, "MOZ_EVENT_TRACE sample %llu %d\n",
                 PR_Now() / PR_USEC_PER_MSEC,
                 int(duration.ToSecondsSigDigits() * 1000));

@@ -159,6 +159,7 @@ NS_IMPL_THREADSAFE_RELEASE(nsThread)
 NS_INTERFACE_MAP_BEGIN(nsThread)
   NS_INTERFACE_MAP_ENTRY(nsIThread)
   NS_INTERFACE_MAP_ENTRY(nsIThreadInternal)
+  NS_INTERFACE_MAP_ENTRY(nsIThreadInternal2)
   NS_INTERFACE_MAP_ENTRY(nsIEventTarget)
   NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIThread)
@@ -312,20 +313,6 @@ nsThread::nsThread()
   , mPriority(PRIORITY_NORMAL)
   , mThread(nsnull)
   , mRunningEvent(0)
-  , mStackSize(0)
-  , mShutdownContext(nsnull)
-  , mShutdownRequired(PR_FALSE)
-  , mEventsAreDoomed(PR_FALSE)
-{
-}
-
-nsThread::nsThread(PRUint32 aStackSize)
-  : mLock("nsThread.mLock")
-  , mEvents(&mEventsRoot)
-  , mPriority(PRIORITY_NORMAL)
-  , mThread(nsnull)
-  , mRunningEvent(0)
-  , mStackSize(aStackSize)
   , mShutdownContext(nsnull)
   , mShutdownRequired(PR_FALSE)
   , mEventsAreDoomed(PR_FALSE)
@@ -350,7 +337,7 @@ nsThread::Init()
   // ThreadFunc is responsible for setting mThread
   PRThread *thr = PR_CreateThread(PR_USER_THREAD, ThreadFunc, this,
                                   PR_PRIORITY_NORMAL, PR_GLOBAL_THREAD,
-                                  PR_JOINABLE_THREAD, mStackSize);
+                                  PR_JOINABLE_THREAD, 0);
   if (!thr) {
     NS_RELEASE_THIS();
     return NS_ERROR_OUT_OF_MEMORY;
@@ -757,6 +744,9 @@ nsThread::nsChainedEventQueue::PutEvent(nsIRunnable *event)
   }
   return val;
 }
+
+//-----------------------------------------------------------------------------
+// nsIThreadInternal2
 
 NS_IMETHODIMP
 nsThread::GetRecursionDepth(PRUint32 *depth)

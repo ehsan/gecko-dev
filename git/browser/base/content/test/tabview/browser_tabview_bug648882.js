@@ -21,8 +21,8 @@ function test() {
 
     cw.TabItems.pausePainting();
 
-    tabItem.addSubscriber("updated", function onUpdated() {
-      tabItem.removeSubscriber("updated", onUpdated);
+    tabItem.addSubscriber(tabItem, "updated", function () {
+      tabItem.removeSubscriber(tabItem, "updated");
       ok(isIdle, "tabItem is updated only when UI is idle");
       finish();
     });

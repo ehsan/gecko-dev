@@ -24,7 +24,6 @@
  *   Asaf Romano <mano@mozilla.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *   Drew Willcoxon <adw@mozilla.com>
- *   Steffen Wilberg <steffen.wilberg@web.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -72,12 +71,12 @@ var PlacesOrganizer = {
     this._initFolderTree();
 
     var leftPaneSelection = "AllBookmarks"; // default to all-bookmarks
-    if (window.arguments && window.arguments[0])
+    if ("arguments" in window && window.arguments.length > 0)
       leftPaneSelection = window.arguments[0];
 
     this.selectLeftPaneQuery(leftPaneSelection);
     // clear the back-stack
-    this._backHistory.splice(0, this._backHistory.length);
+    this._backHistory.splice(0);
     document.getElementById("OrganizerCommand:Back").setAttribute("disabled", true);
 
     var view = this._content.treeBoxObject.view;
@@ -115,8 +114,6 @@ var PlacesOrganizer = {
     // remove the "Properties" context-menu item, we've our own details pane
     document.getElementById("placesContext")
             .removeChild(document.getElementById("placesContext_show:info"));
-
-    gPrivateBrowsingListener.init();
   },
 
   QueryInterface: function PO_QueryInterface(aIID) {
@@ -148,7 +145,6 @@ var PlacesOrganizer = {
   },
 
   destroy: function PO_destroy() {
-    gPrivateBrowsingListener.uninit();
   },
 
   _location: null,
@@ -162,7 +158,7 @@ var PlacesOrganizer = {
 
     if (this.location) {
       this._backHistory.unshift(this.location);
-      this._forwardHistory.splice(0, this._forwardHistory.length);
+      this._forwardHistory.splice(0);
     }
 
     this._location = aLocation;
@@ -277,30 +273,17 @@ var PlacesOrganizer = {
    *          the node to set up scope from
    */
   _setSearchScopeForNode: function PO__setScopeForNode(aNode) {
-    let itemId = aNode.itemId;
-
-    // Set default buttons status.
-    let bookmarksButton = document.getElementById("scopeBarAll");
-    bookmarksButton.hidden = false;
-    let downloadsButton = document.getElementById("scopeBarDownloads");
-    downloadsButton.hidden = true;
-
+    var itemId = aNode.itemId;
     if (PlacesUtils.nodeIsHistoryContainer(aNode) ||
         itemId == PlacesUIUtils.leftPaneQueries["History"]) {
       PlacesQueryBuilder.setScope("history");
     }
-    else if (itemId == PlacesUIUtils.leftPaneQueries["Downloads"]) {
-      downloadsButton.hidden = false;
-      bookmarksButton.hidden = true;
-      PlacesQueryBuilder.setScope("downloads");
-    }
-    else {
-      // Default to All Bookmarks for all other nodes, per bug 469437.
+    // Default to All Bookmarks for all other nodes, per bug 469437.
+    else
       PlacesQueryBuilder.setScope("bookmarks");
-    }
 
     // Enable or disable the folder scope button.
-    let folderButton = document.getElementById("scopeBarFolder");
+    var folderButton = document.getElementById("scopeBarFolder");
     folderButton.hidden = !PlacesUtils.nodeIsFolder(aNode) ||
                           itemId == PlacesUIUtils.allBookmarksFolderId;
   },
@@ -381,24 +364,19 @@ var PlacesOrganizer = {
   },
 
   /**
-   * Show the migration wizard for importing passwords,
-   * cookies, history, preferences, and bookmarks.
+   * Show the migration wizard for importing from a file.
    */
-  importFromBrowser: function PO_importFromBrowser() {
-#ifdef XP_MACOSX
-    // On Mac, the window is not modal
-    let win = Services.wm.getMostRecentWindow("Browser:MigrationWizard");
-    if (win) {
-      win.focus();
-      return;
-    }
+  importBookmarks: function PO_import() {
+    // XXX: ifdef it to be non-modal (non-"sheet") on mac (see bug 259039)
+    var features = "modal,centerscreen,chrome,resizable=no";
 
-    let features = "centerscreen,chrome,resizable=no";
-#else
-    let features = "modal,centerscreen,chrome,resizable=no";
-#endif
-    window.openDialog("chrome://browser/content/migration/migration.xul",
-                      "migration", features);
+    // The migrator window will set this to true when it closes, if the user
+    // chose to migrate from a specific file.
+    window.fromFile = false;
+    openDialog("chrome://browser/content/migration/migration.xul",
+               "migration", features, "bookmarks");
+    if (window.fromFile)
+      this.importFromFile();
   },
 
   /**
@@ -914,21 +892,9 @@ var PlacesSearchBox = {
         options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
         content.load([query], options);
       }
-      else {
+      else
         content.applyFilter(filterString);
-      }
       break;
-    case "downloads": {
-        let query = PlacesUtils.history.getNewQuery();
-        query.searchTerms = filterString;
-        query.setTransitions([Ci.nsINavHistoryService.TRANSITION_DOWNLOAD], 1);
-        let options = currentOptions.clone();
-        // Make sure we're getting uri results.
-        options.resultType = currentOptions.RESULT_TYPE_URI;
-        options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-        content.load([query], options);
-      break;
-    }
     default:
       throw "Invalid filterCollection on search";
       break;
@@ -958,28 +924,17 @@ var PlacesSearchBox = {
 
   /**
    * Updates the display with the title of the current collection.
-   * @param   aTitle
+   * @param   title
    *          The title of the current collection.
    */
-  updateCollectionTitle: function PSB_updateCollectionTitle(aTitle) {
-    let title = "";
-    if (aTitle) {
-      title = PlacesUIUtils.getFormattedString("searchCurrentDefault",
-                                               [aTitle]);
-    }
-    else {
-      switch(this.filterCollection) {
-        case "history":
-          title = PlacesUIUtils.getString("searchHistory");
-          break;
-        case "downloads":
-          title = PlacesUIUtils.getString("searchDownloads");
-          break;
-        default:
-          title = PlacesUIUtils.getString("searchBookmarks");                                    
-      }
-    }
-    this.searchFilter.placeholder = title;
+  updateCollectionTitle: function PSB_updateCollectionTitle(title) {
+    if (title)
+      this.searchFilter.placeholder =
+        PlacesUIUtils.getFormattedString("searchCurrentDefault", [title]);
+    else
+      this.searchFilter.placeholder = this.filterCollection == "history" ?
+                                      PlacesUIUtils.getString("searchHistory") :
+                                      PlacesUIUtils.getString("searchBookmarks");
   },
 
   /**
@@ -1061,9 +1016,6 @@ var PlacesQueryBuilder = {
     case "scopeBarFolder":
       this.setScope("collection");
       break;
-    case "scopeBarDownloads":
-      this.setScope("downloads");
-      break;
     case "scopeBarAll":
       this.setScope("bookmarks");
       break;
@@ -1079,8 +1031,7 @@ var PlacesQueryBuilder = {
    * PSB_search()).  If there is an active search, it's performed again to
    * update the content tree.
    * @param   aScope
-   *          The search scope: "bookmarks", "collection", "downloads" or
-   *          "history".
+   *          the search scope, "bookmarks", "collection", or "history"
    */
   setScope: function PQB_setScope(aScope) {
     // Determine filterCollection, folders, and scopeButtonId based on aScope.
@@ -1111,10 +1062,6 @@ var PlacesQueryBuilder = {
       folders.push(PlacesUtils.bookmarksMenuFolderId,
                    PlacesUtils.toolbarFolderId,
                    PlacesUtils.unfiledBookmarksFolderId);
-      break;
-    case "downloads":
-      filterCollection = "downloads";
-      scopeButtonId = "scopeBarDownloads";
       break;
     default:
       throw "Invalid search scope";
@@ -1392,42 +1339,5 @@ var ViewMenu = {
     var sortConst = "SORT_BY_" + colLookupTable[columnId].key + "_" + aDirection;
     result.sortingAnnotation = colLookupTable[columnId].anno || "";
     result.sortingMode = Ci.nsINavHistoryQueryOptions[sortConst];
-  }
-}
-
-/**
- * Disables the "Import and Backup->Import From Another Browser" menu item
- * in private browsing mode.
- */
-let gPrivateBrowsingListener = {
-  _cmd_import: null,
-
-  init: function PO_PB_init() {
-    this._cmd_import = document.getElementById("OrganizerCommand_browserImport");
-
-    let pbs = Cc["@mozilla.org/privatebrowsing;1"].
-              getService(Ci.nsIPrivateBrowsingService);
-    if (pbs.privateBrowsingEnabled)
-      this.updateUI(true);
-
-    Services.obs.addObserver(this, "private-browsing", false);
-  },
-
-  uninit: function PO_PB_uninit() {
-    Services.obs.removeObserver(this, "private-browsing");
-  },
-
-  observe: function PO_PB_observe(aSubject, aTopic, aData) {
-    if (aData == "enter")
-      this.updateUI(true);
-    else if (aData == "exit")
-      this.updateUI(false);
-  },
-
-  updateUI: function PO_PB_updateUI(PBmode) {
-    if (PBmode)
-      this._cmd_import.setAttribute("disabled", "true");
-    else
-      this._cmd_import.removeAttribute("disabled");
   }
 };

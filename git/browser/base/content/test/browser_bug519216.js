@@ -41,10 +41,8 @@ var progressListener4 = {
   onLocationChange: function onLocationChange() {
     ok(expectListener4, "didn't call progressListener4 for the first location change");
     gBrowser.removeProgressListener(this);
-    executeSoon(function () {
-      gBrowser.addTab();
-      gBrowser.removeCurrentTab();
-      finish();
-    });
+    gBrowser.addTab();
+    gBrowser.removeCurrentTab();
+    finish();
   }
 };

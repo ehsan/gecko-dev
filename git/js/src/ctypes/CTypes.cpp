@@ -1020,29 +1020,6 @@ struct ConvertImpl<JSUint64, jsdouble> {
 };
 #endif
 
-// C++ doesn't guarantee that exact values are the only ones that will
-// round-trip. In fact, on some platforms, including SPARC, there are pairs of
-// values, a uint64 and a double, such that neither value is exactly
-// representable in the other type, but they cast to each other.
-#ifdef SPARC
-// Simulate x86 overflow behavior
-template<>
-struct ConvertImpl<JSUint64, jsdouble> {
-  static JS_ALWAYS_INLINE JSUint64 Convert(jsdouble d) {
-    return d >= 0xffffffffffffffff ?
-           0x8000000000000000 : JSUint64(d);
-  }
-};
-
-template<>
-struct ConvertImpl<JSInt64, jsdouble> {
-  static JS_ALWAYS_INLINE JSInt64 Convert(jsdouble d) {
-    return d >= 0x7fffffffffffffff ?
-           0x8000000000000000 : JSInt64(d);
-  }
-};
-#endif
-
 template<class TargetType, class FromType>
 static JS_ALWAYS_INLINE TargetType Convert(FromType d)
 {
@@ -1865,7 +1842,7 @@ ImplicitConvert(JSContext* cx,
       case TYPE_unsigned_char: {
         // Convert from UTF-16 to UTF-8.
         size_t nbytes =
-          GetDeflatedUTF8StringLength(cx, sourceChars, sourceLength);
+          js_GetDeflatedUTF8StringLength(cx, sourceChars, sourceLength);
         if (nbytes == (size_t) -1)
           return false;
 
@@ -1876,7 +1853,7 @@ ImplicitConvert(JSContext* cx,
           return false;
         }
 
-        ASSERT_OK(DeflateStringToUTF8Buffer(cx, sourceChars, sourceLength,
+        ASSERT_OK(js_DeflateStringToUTF8Buffer(cx, sourceChars, sourceLength,
                     *charBuffer, &nbytes));
         (*charBuffer)[nbytes] = 0;
         *freePointer = true;
@@ -1922,7 +1899,7 @@ ImplicitConvert(JSContext* cx,
       case TYPE_unsigned_char: {
         // Convert from UTF-16 to UTF-8.
         size_t nbytes =
-          GetDeflatedUTF8StringLength(cx, sourceChars, sourceLength);
+          js_GetDeflatedUTF8StringLength(cx, sourceChars, sourceLength);
         if (nbytes == (size_t) -1)
           return false;
 
@@ -1932,7 +1909,7 @@ ImplicitConvert(JSContext* cx,
         }
 
         char* charBuffer = static_cast<char*>(buffer);
-        ASSERT_OK(DeflateStringToUTF8Buffer(cx, sourceChars, sourceLength,
+        ASSERT_OK(js_DeflateStringToUTF8Buffer(cx, sourceChars, sourceLength,
                     charBuffer, &nbytes));
 
         if (targetLength > nbytes)
@@ -2780,14 +2757,14 @@ void
 CType::Trace(JSTracer* trc, JSObject* obj)
 {
   // Make sure our TypeCode slot is legit. If it's not, bail.
-  jsval slot = obj->getSlot(SLOT_TYPECODE);
+  jsval slot = js::Jsvalify(obj->getSlot(SLOT_TYPECODE));
   if (JSVAL_IS_VOID(slot))
     return;
 
   // The contents of our slots depends on what kind of type we are.
   switch (TypeCode(JSVAL_TO_INT(slot))) {
   case TYPE_struct: {
-    slot = obj->getReservedSlot(SLOT_FIELDINFO);
+    slot = Jsvalify(obj->getReservedSlot(SLOT_FIELDINFO));
     if (JSVAL_IS_VOID(slot))
       return;
 
@@ -2802,7 +2779,7 @@ CType::Trace(JSTracer* trc, JSObject* obj)
   }
   case TYPE_function: {
     // Check if we have a FunctionInfo.
-    slot = obj->getReservedSlot(SLOT_FNINFO);
+    slot = Jsvalify(obj->getReservedSlot(SLOT_FNINFO));
     if (JSVAL_IS_VOID(slot))
       return;
 
@@ -3607,7 +3584,7 @@ ArrayType::ConstructData(JSContext* cx,
       case TYPE_signed_char:
       case TYPE_unsigned_char: {
         // Determine the UTF-8 length.
-        length = GetDeflatedUTF8StringLength(cx, sourceChars, sourceLength);
+        length = js_GetDeflatedUTF8StringLength(cx, sourceChars, sourceLength);
         if (length == (size_t) -1)
           return false;
 
@@ -4571,11 +4548,6 @@ GetABI(JSContext* cx, jsval abiType, ffi_abi* result)
 #if (defined(_WIN32) && !defined(_WIN64)) || defined(_OS2)
     *result = FFI_STDCALL;
     return true;
-#elif (defined(_WIN64))
-    // We'd like the same code to work across Win32 and Win64, so stdcall_api
-    // and winapi_abi become aliases to the lone Win64 ABI.
-    *result = FFI_WIN64;
-    return true;
 #endif
   case INVALID_ABI:
     break;
@@ -4720,7 +4692,6 @@ FunctionType::BuildSymbolName(JSContext* cx,
     break;
 
   case ABI_STDCALL: {
-#if (defined(_WIN32) && !defined(_WIN64)) || defined(_OS2)
     // On WIN32, stdcall functions look like:
     //   _foo@40
     // where 'foo' is the function name, and '40' is the aligned size of the
@@ -4737,11 +4708,6 @@ FunctionType::BuildSymbolName(JSContext* cx,
     }
 
     IntegerToString(size, 10, result);
-#elif defined(_WIN64)
-    // On Win64, stdcall is an alias to the default ABI for compatibility, so no
-    // mangling is done.
-    AppendString(result, name);
-#endif
     break;
   }
 
@@ -5800,7 +5766,7 @@ CData::ReadString(JSContext* cx, uintN argc, jsval* vp)
 
     // Determine the length.
     size_t dstlen;
-    if (!InflateUTF8StringToBuffer(cx, bytes, length, NULL, &dstlen))
+    if (!js_InflateUTF8StringToBuffer(cx, bytes, length, NULL, &dstlen))
       return JS_FALSE;
 
     jschar* dst =
@@ -5808,7 +5774,7 @@ CData::ReadString(JSContext* cx, uintN argc, jsval* vp)
     if (!dst)
       return JS_FALSE;
 
-    ASSERT_OK(InflateUTF8StringToBuffer(cx, bytes, length, dst, &dstlen));
+    ASSERT_OK(js_InflateUTF8StringToBuffer(cx, bytes, length, dst, &dstlen));
     dst[dstlen] = 0;
 
     result = JS_NewUCString(cx, dst, dstlen);

@@ -64,7 +64,6 @@
 #include "nsNetStrings.h"
 #include "nsDNSPrefetch.h"
 #include "nsAboutProtocolHandler.h"
-#include "nsXULAppAPI.h"
 
 #include "nsNetCID.h"
 
@@ -215,9 +214,11 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsNestedAboutURI)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAboutCacheEntry)
 #endif
 
+#ifdef NECKO_OFFLINE_CACHE
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsOfflineCacheDevice, nsOfflineCacheDevice::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCacheNamespace)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCache)
+#endif
 
 #ifdef NECKO_PROTOCOL_file
 // file
@@ -281,48 +282,11 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsWyciwygProtocolHandler)
 #endif
 
 #ifdef NECKO_PROTOCOL_websocket
-#include "WebSocketChannel.h"
-#include "WebSocketChannelChild.h"
+#include "nsWebSocketHandler.h"
 namespace mozilla {
 namespace net {
-static BaseWebSocketChannel*
-WebSocketChannelConstructor(bool aSecure)
-{
-  if (IsNeckoChild()) {
-    return new WebSocketChannelChild(aSecure);
-  }
-
-  if (aSecure) {
-    return new WebSocketSSLChannel;
-  } else {
-    return new WebSocketChannel;
-  }
-}
-
-#define WEB_SOCKET_HANDLER_CONSTRUCTOR(type, secure)  \
-static nsresult                                       \
-type##Constructor(nsISupports *aOuter, REFNSIID aIID, \
-                  void **aResult)                     \
-{                                                     \
-  nsresult rv;                                        \
-                                                      \
-  BaseWebSocketChannel * inst;                        \
-                                                      \
-  *aResult = NULL;                                    \
-  if (NULL != aOuter) {                               \
-    rv = NS_ERROR_NO_AGGREGATION;                     \
-    return rv;                                        \
-  }                                                   \
-  inst = WebSocketChannelConstructor(secure);         \
-  NS_ADDREF(inst);                                    \
-  rv = inst->QueryInterface(aIID, aResult);           \
-  NS_RELEASE(inst);                                   \
-  return rv;                                          \
-}
-
-WEB_SOCKET_HANDLER_CONSTRUCTOR(WebSocketChannel, false)
-WEB_SOCKET_HANDLER_CONSTRUCTOR(WebSocketSSLChannel, true)
-#undef WEB_SOCKET_HANDLER_CONSTRUCTOR
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocketHandler)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocketSSLHandler)
 } // namespace mozilla::net
 } // namespace mozilla
 #endif
@@ -671,10 +635,8 @@ static void nsNetShutdown()
     // Release DNS service reference.
     nsDNSPrefetch::Shutdown();
 
-#ifdef NECKO_PROTOCOL_websocket
     // Release the Websocket Admission Manager
-    mozilla::net::WebSocketChannel::Shutdown();
-#endif // NECKO_PROTOCOL_websocket
+    mozilla::net::nsWebSocketHandler::Shutdown();
 }
 
 NS_DEFINE_NAMED_CID(NS_IOSERVICE_CID);
@@ -767,9 +729,11 @@ NS_DEFINE_NAMED_CID(NS_SOCKSSOCKETPROVIDER_CID);
 NS_DEFINE_NAMED_CID(NS_SOCKS4SOCKETPROVIDER_CID);
 NS_DEFINE_NAMED_CID(NS_UDPSOCKETPROVIDER_CID);
 NS_DEFINE_NAMED_CID(NS_CACHESERVICE_CID);
+#ifdef NECKO_OFFLINE_CACHE
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHENAMESPACE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHE_CID);
+#endif
 #ifdef NECKO_COOKIES
 NS_DEFINE_NAMED_CID(NS_COOKIEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_COOKIESERVICE_CID);
@@ -898,9 +862,11 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_SOCKS4SOCKETPROVIDER_CID, false, NULL, nsSOCKSSocketProvider::CreateV4 },
     { &kNS_UDPSOCKETPROVIDER_CID, false, NULL, nsUDPSocketProviderConstructor },
     { &kNS_CACHESERVICE_CID, false, NULL, nsCacheService::Create },
+#ifdef NECKO_OFFLINE_CACHE
     { &kNS_APPLICATIONCACHESERVICE_CID, false, NULL, nsOfflineCacheDeviceConstructor },
     { &kNS_APPLICATIONCACHENAMESPACE_CID, false, NULL, nsApplicationCacheNamespaceConstructor },
     { &kNS_APPLICATIONCACHE_CID, false, NULL, nsApplicationCacheConstructor },
+#endif
 #ifdef NECKO_COOKIES
     { &kNS_COOKIEMANAGER_CID, false, NULL, nsICookieServiceConstructor },
     { &kNS_COOKIESERVICE_CID, false, NULL, nsICookieServiceConstructor },
@@ -922,9 +888,9 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
 #endif
 #ifdef NECKO_PROTOCOL_websocket
     { &kNS_WEBSOCKETPROTOCOLHANDLER_CID, false, NULL,
-      mozilla::net::WebSocketChannelConstructor },
+      mozilla::net::nsWebSocketHandlerConstructor },
     { &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID, false, NULL,
-      mozilla::net::WebSocketSSLChannelConstructor },
+      mozilla::net::nsWebSocketSSLHandlerConstructor },
 #endif
 #if defined(XP_WIN)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsNotifyAddrListenerConstructor },
@@ -1038,9 +1004,11 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NETWORK_SOCKET_CONTRACTID_PREFIX "socks4", &kNS_SOCKS4SOCKETPROVIDER_CID },
     { NS_NETWORK_SOCKET_CONTRACTID_PREFIX "udp", &kNS_UDPSOCKETPROVIDER_CID },
     { NS_CACHESERVICE_CONTRACTID, &kNS_CACHESERVICE_CID },
+#ifdef NECKO_OFFLINE_CACHE
     { NS_APPLICATIONCACHESERVICE_CONTRACTID, &kNS_APPLICATIONCACHESERVICE_CID },
     { NS_APPLICATIONCACHENAMESPACE_CONTRACTID, &kNS_APPLICATIONCACHENAMESPACE_CID },
     { NS_APPLICATIONCACHE_CONTRACTID, &kNS_APPLICATIONCACHE_CID },
+#endif
 #ifdef NECKO_COOKIES
     { NS_COOKIEMANAGER_CONTRACTID, &kNS_COOKIEMANAGER_CID },
     { NS_COOKIESERVICE_CONTRACTID, &kNS_COOKIESERVICE_CID },

@@ -293,20 +293,10 @@ nsIMM32Handler::CommitComposition(nsWindow* aWindow, PRBool aForce)
   if (!aForce && !IsComposingWindow(aWindow)) {
     return;
   }
-
-  PRBool associated = aWindow->AssociateDefaultIMC(PR_TRUE);
-  PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: CommitComposition, associated=%s\n",
-     associated ? "YES" : "NO"));
-
   nsIMEContext IMEContext(aWindow->GetWindowHandle());
   if (IMEContext.IsValid()) {
     ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
     ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, 0);
-  }
-
-  if (associated) {
-    aWindow->AssociateDefaultIMC(PR_FALSE);
   }
 }
 
@@ -324,19 +314,9 @@ nsIMM32Handler::CancelComposition(nsWindow* aWindow, PRBool aForce)
   if (!aForce && !IsComposingWindow(aWindow)) {
     return;
   }
-
-  PRBool associated = aWindow->AssociateDefaultIMC(PR_TRUE);
-  PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: CancelComposition, associated=%s\n",
-     associated ? "YES" : "NO"));
-
   nsIMEContext IMEContext(aWindow->GetWindowHandle());
   if (IMEContext.IsValid()) {
     ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, 0);
-  }
-
-  if (associated) {
-    aWindow->AssociateDefaultIMC(PR_FALSE);
   }
 }
 
@@ -1050,7 +1030,6 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   }
 
   mCompositionStart = selection.mReply.mOffset;
-  mLastDispatchedCompositionString.Truncate();
 
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, aWindow);
   aWindow->InitEvent(event, &point);
@@ -1222,7 +1201,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
         PRUint32 maxlen = compANSIStr.Length();
         mClauseArray[0] = 0; // first value must be 0
         for (PRInt32 i = 1; i < clauseArrayLength; i++) {
-          PRUint32 len = NS_MIN(mClauseArray[i], maxlen);
+          PRUint32 len = PR_MIN(mClauseArray[i], maxlen);
           mClauseArray[i] = ::MultiByteToWideChar(GetKeyboardCodePage(), 
                                                   MB_PRECOMPOSED,
                                                   (LPCSTR)compANSIStr.get(),
@@ -1233,7 +1212,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   }
   // compClauseArrayLength may be negative. I.e., ImmGetCompositionStringW
   // may return an error code.
-  mClauseArray.SetLength(NS_MAX<long>(0, clauseArrayLength));
+  mClauseArray.SetLength(PR_MAX(0, clauseArrayLength));
 
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
     ("IMM32: HandleComposition, GCS_COMPCLAUSE, mClauseLength=%ld\n",
@@ -1259,7 +1238,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
 
   // attrStrLen may be negative. I.e., ImmGetCompositionStringW may return an
   // error code.
-  mAttributeArray.SetLength(NS_MAX<long>(0, attrArrayLength));
+  mAttributeArray.SetLength(PR_MAX(0, attrArrayLength));
 
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
     ("IMM32: HandleComposition, GCS_COMPATTR, mAttributeLength=%ld\n",
@@ -1314,12 +1293,9 @@ nsIMM32Handler::HandleEndComposition(nsWindow* aWindow)
   }
 
   aWindow->InitEvent(event, &point);
-  // The last dispatched composition string must be the committed string.
-  event.data = mLastDispatchedCompositionString;
   aWindow->DispatchWindowEvent(&event);
   mIsComposing = PR_FALSE;
   mComposingWindow = nsnull;
-  mLastDispatchedCompositionString.Truncate();
 }
 
 static void
@@ -1674,26 +1650,8 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
     return;
   }
 
-  nsRefPtr<nsWindow> kungFuDeathGrip(aWindow);
-
-  nsIntPoint point(0, 0);
-
-  if (mCompositionString != mLastDispatchedCompositionString) {
-    nsCompositionEvent compositionUpdate(PR_TRUE, NS_COMPOSITION_UPDATE,
-                                         aWindow);
-    aWindow->InitEvent(compositionUpdate, &point);
-    compositionUpdate.data = mCompositionString;
-    mLastDispatchedCompositionString = mCompositionString;
-
-    aWindow->DispatchWindowEvent(&compositionUpdate);
-
-    if (!mIsComposing || aWindow->Destroyed()) {
-      return;
-    }
-    SetIMERelatedWindowsPos(aWindow, aIMEContext);
-  }
-
   nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, aWindow);
+  nsIntPoint point(0, 0);
 
   aWindow->InitEvent(event, &point);
 
@@ -1898,7 +1856,7 @@ nsIMM32Handler::GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
     useCaretRect = PR_FALSE;
     if (mCursorPosition != NO_IME_CARET) {
       PRUint32 cursorPosition =
-        NS_MIN<PRUint32>(mCursorPosition, mCompositionString.Length());
+        PR_MIN(PRUint32(mCursorPosition), mCompositionString.Length());
       offset -= cursorPosition;
       NS_ASSERTION(offset >= 0, "offset is negative!");
     }

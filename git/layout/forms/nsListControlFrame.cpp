@@ -60,15 +60,17 @@
 #include "nsIDOMEventTarget.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIComponentManager.h"
+#include "nsILookAndFeel.h"
 #include "nsFontMetrics.h"
 #include "nsIScrollableFrame.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
 #include "nsGUIEvent.h"
 #include "nsIServiceManager.h"
@@ -80,13 +82,11 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsCSSRendering.h"
 #include "nsITheme.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMKeyListener.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "nsContentUtils.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
 
 // Constants
 const nscoord kMaxDropDownRows          = 20; // This matches the setting for 4.x browsers
@@ -111,7 +111,9 @@ DOMTimeStamp nsListControlFrame::gLastKeyTime = 0;
  * Frames are not refcounted so they can't be used as event listeners.
  *****************************************************************************/
 
-class nsListEventListener : public nsIDOMEventListener
+class nsListEventListener : public nsIDOMKeyListener,
+                            public nsIDOMMouseListener,
+                            public nsIDOMMouseMotionListener
 {
 public:
   nsListEventListener(nsListControlFrame *aFrame)
@@ -120,7 +122,26 @@ public:
   void SetFrame(nsListControlFrame *aFrame) { mFrame = aFrame; }
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMEVENTLISTENER
+
+  // nsIDOMEventListener
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+
+  // nsIDOMKeyListener
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent);
+
+  // nsIDOMMouseListener
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);
+
+  // nsIDOMMouseMotionListener
+  NS_IMETHOD MouseMove(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragMove(nsIDOMEvent* aMouseEvent);
 
 private:
   nsListControlFrame  *mFrame;
@@ -181,14 +202,17 @@ nsListControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   mEventListener->SetFrame(nsnull);
 
-  mContent->RemoveEventListener(NS_LITERAL_STRING("keypress"), mEventListener,
-                                PR_FALSE);
-  mContent->RemoveEventListener(NS_LITERAL_STRING("mousedown"), mEventListener,
-                                PR_FALSE);
-  mContent->RemoveEventListener(NS_LITERAL_STRING("mouseup"), mEventListener,
-                                PR_FALSE);
-  mContent->RemoveEventListener(NS_LITERAL_STRING("mousemove"), mEventListener,
-                                PR_FALSE);
+  mContent->RemoveEventListenerByIID(static_cast<nsIDOMMouseListener*>
+                                                (mEventListener),
+                                     NS_GET_IID(nsIDOMMouseListener));
+
+  mContent->RemoveEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>
+                                                (mEventListener),
+                                     NS_GET_IID(nsIDOMMouseMotionListener));
+
+  mContent->RemoveEventListenerByIID(static_cast<nsIDOMKeyListener*>
+                                                (mEventListener),
+                                     NS_GET_IID(nsIDOMKeyListener));
 
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   nsHTMLScrollFrame::DestroyFrom(aDestructRoot);
@@ -306,7 +330,7 @@ void nsListControlFrame::PaintFocus(nsRenderingContext& aRC, nsPoint aPt)
     if (!childframe) {
       // Failing all else, try the first thing we have, but only if
       // it's an element.  Text frames need not apply.
-      childframe = containerFrame->GetFirstPrincipalChild();
+      childframe = containerFrame->GetFirstChild(nsnull);
       if (childframe && !childframe->GetContent()->IsElement()) {
         childframe = nsnull;
       }
@@ -338,10 +362,11 @@ void nsListControlFrame::PaintFocus(nsRenderingContext& aRC, nsPoint aPt)
   }
 
   // set up back stop colors and then ask L&F service for the real colors
-  nscolor color =
-    LookAndFeel::GetColor(lastItemIsSelected ?
-                            LookAndFeel::eColorID_WidgetSelectForeground :
-                            LookAndFeel::eColorID_WidgetSelectBackground);
+  nscolor color;
+  presContext->LookAndFeel()->
+    GetColor(lastItemIsSelected ?
+             nsILookAndFeel::eColor_WidgetSelectForeground :
+             nsILookAndFeel::eColor_WidgetSelectBackground, color);
 
   nsCSSRendering::PaintFocus(presContext, aRC, fRect, color);
 }
@@ -388,7 +413,7 @@ static nscoord
 GetMaxOptionHeight(nsIFrame* aContainer)
 {
   nscoord result = 0;
-  for (nsIFrame* option = aContainer->GetFirstPrincipalChild();
+  for (nsIFrame* option = aContainer->GetFirstChild(nsnull);
        option; option = option->GetNextSibling()) {
     nscoord optionHeight;
     if (nsCOMPtr<nsIDOMHTMLOptGroupElement>
@@ -405,21 +430,32 @@ GetMaxOptionHeight(nsIFrame* aContainer)
   return result;
 }
 
+static inline PRBool
+IsOptGroup(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::optgroup) &&
+          aContent->IsHTML());
+}
+
+static inline PRBool
+IsOption(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::option) &&
+          aContent->IsHTML());
+}
+
 static PRUint32
 GetNumberOfOptionsRecursive(nsIContent* aContent)
 {
-  if (!aContent) {
-    return 0;
-  }
-
   PRUint32 optionCount = 0;
-  for (nsIContent* cur = aContent->GetFirstChild();
-       cur;
-       cur = cur->GetNextSibling()) {
-    if (cur->IsHTML(nsGkAtoms::option)) {
+  const PRUint32 childCount = aContent ? aContent->GetChildCount() : 0;
+  for (PRUint32 index = 0; index < childCount; ++index) {
+    nsIContent* child = aContent->GetChildAt(index);
+    if (::IsOption(child)) {
       ++optionCount;
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
-      optionCount += GetNumberOfOptionsRecursive(cur);
+    }
+    else if (::IsOptGroup(child)) {
+      optionCount += ::GetNumberOfOptionsRecursive(child);
     }
   }
   return optionCount;
@@ -753,6 +789,21 @@ nsListControlFrame::ShouldPropagateComputedHeightToScrolledContent() const
 }
 
 //---------------------------------------------------------
+PRBool 
+nsListControlFrame::IsOptionElement(nsIContent* aContent)
+{
+  PRBool result = PR_FALSE;
+ 
+  nsCOMPtr<nsIDOMHTMLOptionElement> optElem;
+  if (NS_SUCCEEDED(aContent->QueryInterface(NS_GET_IID(nsIDOMHTMLOptionElement),(void**) getter_AddRefs(optElem)))) {      
+    if (optElem != nsnull) {
+      result = PR_TRUE;
+    }
+  }
+ 
+  return result;
+}
+
 nsIFrame*
 nsListControlFrame::GetContentInsertionFrame() {
   return GetOptionsContainer()->GetContentInsertionFrame();
@@ -766,7 +817,7 @@ nsIContent *
 nsListControlFrame::GetOptionFromContent(nsIContent *aContent) 
 {
   for (nsIContent* content = aContent; content; content = content->GetParent()) {
-    if (content->IsHTML(nsGkAtoms::option)) {
+    if (IsOptionElement(content)) {
       return content;
     }
   }
@@ -1023,7 +1074,7 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE || uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
     return NS_OK;
 
@@ -1033,7 +1084,7 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsListControlFrame::SetInitialChildList(ChildListID    aListID,
+nsListControlFrame::SetInitialChildList(nsIAtom*       aListName,
                                         nsFrameList&   aChildList)
 {
   // First check to see if all the content has been added
@@ -1042,7 +1093,7 @@ nsListControlFrame::SetInitialChildList(ChildListID    aListID,
     mIsAllFramesHere    = PR_FALSE;
     mHasBeenInitialized = PR_FALSE;
   }
-  nsresult rv = nsHTMLScrollFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsHTMLScrollFrame::SetInitialChildList(aListName, aChildList);
 
   // If all the content is here now check
   // to see if all the frames have been created
@@ -1091,14 +1142,17 @@ nsListControlFrame::Init(nsIContent*     aContent,
   if (!mEventListener) 
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mContent->AddEventListener(NS_LITERAL_STRING("keypress"), mEventListener,
-                             PR_FALSE, PR_FALSE);
-  mContent->AddEventListener(NS_LITERAL_STRING("mousedown"), mEventListener,
-                             PR_FALSE, PR_FALSE);
-  mContent->AddEventListener(NS_LITERAL_STRING("mouseup"), mEventListener,
-                             PR_FALSE, PR_FALSE);
-  mContent->AddEventListener(NS_LITERAL_STRING("mousemove"), mEventListener,
-                             PR_FALSE, PR_FALSE);
+  mContent->AddEventListenerByIID(static_cast<nsIDOMMouseListener*>
+                                             (mEventListener),
+                                  NS_GET_IID(nsIDOMMouseListener));
+
+  mContent->AddEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>
+                                             (mEventListener),
+                                  NS_GET_IID(nsIDOMMouseMotionListener));
+
+  mContent->AddEventListenerByIID(static_cast<nsIDOMKeyListener*>
+                                             (mEventListener),
+                                  NS_GET_IID(nsIDOMKeyListener));
 
   mStartSelectionIndex = kNothingSelected;
   mEndSelectionIndex = kNothingSelected;
@@ -1857,14 +1911,11 @@ nsListControlFrame::MouseUp(nsIDOMEvent* aMouseEvent)
 {
   NS_ASSERTION(aMouseEvent != nsnull, "aMouseEvent is null.");
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
-  NS_ENSURE_TRUE(mouseEvent, NS_ERROR_FAILURE);
-
   UpdateInListState(aMouseEvent);
 
   mButtonDown = PR_FALSE;
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
@@ -2071,12 +2122,9 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
 {
   NS_ASSERTION(aMouseEvent != nsnull, "aMouseEvent is null.");
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
-  NS_ENSURE_TRUE(mouseEvent, NS_ERROR_FAILURE);
-
   UpdateInListState(aMouseEvent);
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
@@ -2141,8 +2189,6 @@ nsresult
 nsListControlFrame::MouseMove(nsIDOMEvent* aMouseEvent)
 {
   NS_ASSERTION(aMouseEvent, "aMouseEvent is null.");
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
-  NS_ENSURE_TRUE(mouseEvent, NS_ERROR_FAILURE);
 
   UpdateInListState(aMouseEvent);
 
@@ -2385,7 +2431,7 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
 {
   NS_ASSERTION(aKeyEvent, "keyEvent is null.");
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
     return NS_OK;
 
@@ -2625,10 +2671,9 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
   // Actually process the new index and let the selection code
   // do the scrolling for us
   if (newIndex != kNothingSelected) {
-    // If you hold control, but not shift, no key will actually do anything
-    // except space.
+    // If you hold control, no key will actually do anything except space.
     PRBool wasChanged = PR_FALSE;
-    if (isControl && !isShift && charcode != ' ') {
+    if (isControl && charcode != ' ') {
       mStartSelectionIndex = newIndex;
       mEndSelectionIndex = newIndex;
       InvalidateFocus();
@@ -2659,25 +2704,53 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
  * nsListEventListener
  *****************************************************************************/
 
-NS_IMPL_ISUPPORTS1(nsListEventListener, nsIDOMEventListener)
+NS_IMPL_ADDREF(nsListEventListener)
+NS_IMPL_RELEASE(nsListEventListener)
+NS_INTERFACE_MAP_BEGIN(nsListEventListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMouseListener)
+NS_INTERFACE_MAP_END
 
-NS_IMETHODIMP
-nsListEventListener::HandleEvent(nsIDOMEvent* aEvent)
-{
-  if (!mFrame)
-    return NS_OK;
-
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  if (eventType.EqualsLiteral("keypress"))
-    return mFrame->nsListControlFrame::KeyPress(aEvent);
-  if (eventType.EqualsLiteral("mousedown"))
-    return mFrame->nsListControlFrame::MouseDown(aEvent);
-  if (eventType.EqualsLiteral("mouseup"))
-    return mFrame->nsListControlFrame::MouseUp(aEvent);
-  if (eventType.EqualsLiteral("mousemove"))
-    return mFrame->nsListControlFrame::MouseMove(aEvent);
-
-  NS_ABORT();
-  return NS_OK;
+#define FORWARD_EVENT(_event) \
+NS_IMETHODIMP \
+nsListEventListener::_event(nsIDOMEvent* aEvent) \
+{ \
+  if (mFrame) \
+    return mFrame->nsListControlFrame::_event(aEvent); \
+  return NS_OK; \
 }
+
+#define IGNORE_EVENT(_event) \
+NS_IMETHODIMP \
+nsListEventListener::_event(nsIDOMEvent* aEvent) \
+{ return NS_OK; }
+
+IGNORE_EVENT(HandleEvent)
+
+/*================== nsIDOMKeyListener =========================*/
+
+IGNORE_EVENT(KeyDown)
+IGNORE_EVENT(KeyUp)
+FORWARD_EVENT(KeyPress)
+
+/*=============== nsIDOMMouseListener ======================*/
+
+FORWARD_EVENT(MouseDown)
+FORWARD_EVENT(MouseUp)
+IGNORE_EVENT(MouseClick)
+IGNORE_EVENT(MouseDblClick)
+IGNORE_EVENT(MouseOver)
+IGNORE_EVENT(MouseOut)
+
+/*=============== nsIDOMMouseMotionListener ======================*/
+
+FORWARD_EVENT(MouseMove)
+// XXXbryner does anyone call this, ever?
+IGNORE_EVENT(DragMove)
+
+#undef FORWARD_EVENT
+#undef IGNORE_EVENT
+

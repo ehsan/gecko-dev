@@ -317,7 +317,7 @@ txStylesheet::doneCompiling()
     frameIter.reset();
     ImportFrame* frame;
     while ((frame = static_cast<ImportFrame*>(frameIter.next()))) {
-        nsTArray<txStripSpaceTest*> frameStripSpaceTests;
+        nsTPtrArray<txStripSpaceTest> frameStripSpaceTests;
 
         txListIterator itemIter(&frame->mToplevelItems);
         itemIter.resetToEnd();
@@ -502,7 +502,7 @@ txStylesheet::addFrames(txListIterator& aInsertIter)
 
 nsresult
 txStylesheet::addStripSpace(txStripSpaceItem* aStripSpaceItem,
-                            nsTArray<txStripSpaceTest*>& aFrameStripSpaceTests)
+                            nsTPtrArray<txStripSpaceTest>& aFrameStripSpaceTests)
 {
     PRInt32 testCount = aStripSpaceItem->mStripSpaceTests.Length();
     for (; testCount > 0; --testCount) {

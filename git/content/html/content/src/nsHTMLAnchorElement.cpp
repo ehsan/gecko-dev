@@ -37,22 +37,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsGenericHTMLElement.h"
-#include "nsIDOMHTMLAnchorElement.h"
-#include "nsILink.h"
-#include "Link.h"
-
 #include "nsCOMPtr.h"
-#include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsGenericHTMLElement.h"
+#include "nsILink.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
-#include "nsHTMLDNSPrefetch.h"
-#include "nsDOMMemoryReporter.h"
 
+#include "nsHTMLDNSPrefetch.h"
+
+#include "Link.h"
 using namespace mozilla::dom;
 
 class nsHTMLAnchorElement : public nsGenericHTMLElement,
@@ -82,11 +80,6 @@ public:
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT  
 
-  // TODO: we do not really count Link::mCachedURI but given that it's a
-  // nsCOMPtr<nsIURI>, that would be required adding SizeOf() to the interface.
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsHTMLAnchorElement,
-                                              nsGenericHTMLElement)
-
   // nsILink
   NS_IMETHOD LinkAdded() { return NS_OK; }
   NS_IMETHOD LinkRemoved() { return NS_OK; }
@@ -106,7 +99,6 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
-  virtual void RequestLinkStateUpdate();
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -135,8 +127,7 @@ public:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
 nsHTMLAnchorElement::nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    Link(this)
+  : nsGenericHTMLElement(aNodeInfo)
 {
 }
 
@@ -377,12 +368,6 @@ nsHTMLAnchorElement::GetLinkState() const
   return Link::GetLinkState();
 }
 
-void
-nsHTMLAnchorElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
-}
-
 already_AddRefed<nsIURI>
 nsHTMLAnchorElement::GetHrefURI() const
 {
@@ -460,4 +445,3 @@ nsHTMLAnchorElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
 }
-

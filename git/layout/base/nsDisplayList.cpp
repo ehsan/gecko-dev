@@ -54,7 +54,9 @@
 #include "nsStyleStructInlines.h"
 #include "nsStyleTransformMatrix.h"
 #include "gfxMatrix.h"
+#ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
+#endif
 #include "nsLayoutUtils.h"
 #include "nsIScrollableFrame.h"
 #include "nsThemeConstants.h"
@@ -106,7 +108,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
 
   if(mReferenceFrame->GetType() == nsGkAtoms::viewportFrame) {
     ViewportFrame* viewportFrame = static_cast<ViewportFrame*>(mReferenceFrame);
-    if (!viewportFrame->GetChildList(nsIFrame::kFixedList).IsEmpty()) {
+    if (!viewportFrame->GetChildList(nsGkAtoms::fixedList).IsEmpty()) {
       mHasFixedItems = PR_TRUE;
     }
   }
@@ -200,26 +202,21 @@ static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
 static void RecordFrameMetrics(nsIFrame* aForFrame,
                                nsIFrame* aScrollFrame,
                                ContainerLayer* aRoot,
-                               const nsRect& aVisibleRect,
-                               const nsRect& aViewport,
+                               nsRect aVisibleRect,
+                               nsRect aViewport,
                                nsRect* aDisplayPort,
-                               ViewID aScrollId,
-                               const nsDisplayItem::ContainerParameters& aContainerParameters) {
+                               ViewID aScrollId) {
   nsPresContext* presContext = aForFrame->PresContext();
-  PRInt32 auPerDevPixel = presContext->AppUnitsPerDevPixel();
 
-  nsIntRect visible = aVisibleRect.ScaleToNearestPixels(
-    aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
+  nsIntRect visible = aVisibleRect.ToNearestPixels(presContext->AppUnitsPerDevPixel());
   aRoot->SetVisibleRegion(nsIntRegion(visible));
 
   FrameMetrics metrics;
 
-  metrics.mViewport = aViewport.ScaleToNearestPixels(
-    aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
-
+  PRInt32 auPerDevPixel = presContext->AppUnitsPerDevPixel();
+  metrics.mViewport = aViewport.ToNearestPixels(auPerDevPixel);
   if (aDisplayPort) {
-    metrics.mDisplayPort = aDisplayPort->ScaleToNearestPixels(
-      aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
+    metrics.mDisplayPort = aDisplayPort->ToNearestPixels(auPerDevPixel);
   }
 
   nsIScrollableFrame* scrollableFrame = nsnull;
@@ -230,15 +227,16 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
     nsSize contentSize =
       scrollableFrame->GetScrollRange().Size() +
       scrollableFrame->GetScrollPortRect().Size();
-    metrics.mContentSize = contentSize.ScaleToNearestPixels(
-      aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
-    metrics.mViewportScrollOffset = scrollableFrame->GetScrollPosition().ScaleToNearestPixels(
-      aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
+    metrics.mContentSize = nsIntSize(NSAppUnitsToIntPixels(contentSize.width, auPerDevPixel),
+                                     NSAppUnitsToIntPixels(contentSize.height, auPerDevPixel));
+
+    metrics.mViewportScrollOffset =
+      scrollableFrame->GetScrollPosition().ToNearestPixels(auPerDevPixel);
   }
   else {
     nsSize contentSize = aForFrame->GetSize();
-    metrics.mContentSize = contentSize.ScaleToNearestPixels(
-      aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
+    metrics.mContentSize = nsIntSize(NSAppUnitsToIntPixels(contentSize.width, auPerDevPixel),
+                                     NSAppUnitsToIntPixels(contentSize.height, auPerDevPixel));
   }
 
   metrics.mScrollId = aScrollId;
@@ -451,16 +449,19 @@ static nsRect GetDisplayPortBounds(nsDisplayListBuilder* aBuilder,
                                    PRBool aIgnoreTransform)
 {
   nsIFrame* frame = aItem->GetUnderlyingFrame();
-  const nsRect* displayport = aBuilder->GetDisplayPort();
+  nscoord auPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
+  gfxMatrix transform;
 
-  if (aIgnoreTransform) {
-    return *displayport;
+  if (!aIgnoreTransform) {
+    transform = nsLayoutUtils::GetTransformToAncestor(frame,
+                  aBuilder->ReferenceFrame());
+    transform.Invert();
   }
 
-  return nsLayoutUtils::TransformRectToBoundsInAncestor(
-           frame,
+  const nsRect* displayport = aBuilder->GetDisplayPort();
+  return nsLayoutUtils::MatrixTransformRect(
            nsRect(0, 0, displayport->width, displayport->height),
-           aBuilder->ReferenceFrame());
+           transform, auPerDevPixel);
 }
 
 PRBool
@@ -571,6 +572,8 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
       return;
     }
     layerManager = new BasicLayerManager();
+    if (!layerManager)
+      return;
   }
 
   if (aFlags & PAINT_FLUSH_LAYERS) {
@@ -588,21 +591,13 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     aBuilder->LayerBuilder()->DidBeginRetainedLayerTransaction(layerManager);
   }
 
-  nsPresContext* presContext = aForFrame->PresContext();
-  nsIPresShell* presShell = presContext->GetPresShell();
-
-  nsDisplayItem::ContainerParameters containerParameters
-    (presShell->GetXResolution(), presShell->GetYResolution());
   nsRefPtr<ContainerLayer> root = aBuilder->LayerBuilder()->
-    BuildContainerLayerFor(aBuilder, layerManager, aForFrame, nsnull, *this,
-                           containerParameters, nsnull);
+    BuildContainerLayerFor(aBuilder, layerManager, aForFrame, nsnull, *this);
   if (!root)
     return;
-  // Root is being scaled up by the X/Y resolution. Scale it back down.
-  gfx3DMatrix rootTransform = root->GetTransform()*
-    gfx3DMatrix::ScalingMatrix(1.0f/containerParameters.mXScale,
-                               1.0f/containerParameters.mYScale, 1.0f);
-  root->SetTransform(rootTransform);
+
+  nsPresContext* presContext = aForFrame->PresContext();
+  nsIPresShell* presShell = presContext->GetPresShell();
 
   ViewID id = presContext->IsRootContentDocument() ? FrameMetrics::ROOT_SCROLL_ID
                                                    : FrameMetrics::NULL_SCROLL_ID;
@@ -618,8 +613,17 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   }
   RecordFrameMetrics(aForFrame, rootScrollFrame,
                      root, mVisibleRect, mVisibleRect,
-                     (usingDisplayport ? &displayport : nsnull), id,
-                     containerParameters);
+                     (usingDisplayport ? &displayport : nsnull), id);
+
+  // If the layer manager supports resolution scaling, set that up
+  if (LayerManager::LAYERS_BASIC == layerManager->GetBackendType()) {
+    BasicLayerManager* basicManager =
+      static_cast<BasicLayerManager*>(layerManager.get());
+    // This is free if both resolutions are 1.0, or neither resolution
+    // has changed since the last transaction
+    basicManager->SetResolution(presShell->GetXResolution(),
+                                presShell->GetYResolution());
+  }
 
   layerManager->SetRoot(root);
   aBuilder->LayerBuilder()->WillEndTransaction(layerManager);
@@ -695,7 +699,7 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
     aState->mItemBuffer.SetLength(i);
 
     if (aRect.Intersects(item->GetBounds(aBuilder))) {
-      nsAutoTArray<nsIFrame*, 16> outFrames;
+      nsTArray<nsIFrame*> outFrames;
       item->HitTest(aBuilder, aRect, aState, &outFrames);
 
       for (PRUint32 j = 0; j < outFrames.Length(); j++) {
@@ -762,24 +766,6 @@ static PRBool IsContentLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
       static_cast<nsIContent*>(aClosure)) <= 0;
 }
 
-static PRBool IsZPositionLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
-                             void* aClosure) {
-  if (!aItem1->GetUnderlyingFrame()->Preserves3D() ||
-      !aItem1->GetUnderlyingFrame()->Preserves3D()) {
-    return IsContentLEQ(aItem1, aItem2, aClosure);
-  }
-
-  nsIFrame* ancestor;
-  gfx3DMatrix matrix1 = aItem1->GetUnderlyingFrame()->GetTransformMatrix(&ancestor);
-  gfx3DMatrix matrix2 = aItem2->GetUnderlyingFrame()->GetTransformMatrix(&ancestor);
-
-  if (matrix1._43 == matrix2._43) {
-    return IsContentLEQ(aItem1, aItem2, aClosure);
-  }
-
-  return matrix1._43 < matrix2._43;
-}
-
 static PRBool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
                           void* aClosure) {
   // These GetUnderlyingFrame calls return non-null because we're only used
@@ -788,7 +774,7 @@ static PRBool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
   PRInt32 index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
   PRInt32 index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
   if (index1 == index2)
-    return IsZPositionLEQ(aItem1, aItem2, aClosure);
+    return IsContentLEQ(aItem1, aItem2, aClosure);
   return index1 < index2;
 }
 
@@ -833,11 +819,6 @@ void nsDisplayList::SortByZOrder(nsDisplayListBuilder* aBuilder,
 void nsDisplayList::SortByContentOrder(nsDisplayListBuilder* aBuilder,
                                        nsIContent* aCommonAncestor) {
   Sort(aBuilder, IsContentLEQ, aCommonAncestor);
-}
-
-void nsDisplayList::SortByZPosition(nsDisplayListBuilder* aBuilder,
-                                    nsIContent* aCommonAncestor) {
-  Sort(aBuilder, IsZPositionLEQ, aCommonAncestor);
 }
 
 void nsDisplayList::Sort(nsDisplayListBuilder* aBuilder,
@@ -1046,15 +1027,12 @@ nsDisplayBackground::HitTest(nsDisplayListBuilder* aBuilder,
                              HitTestState* aState,
                              nsTArray<nsIFrame*> *aOutFrames)
 {
-  if (mIsThemed) {
-    // For theme backgrounds, assume that any point in our border rect is a hit.
-    if (!nsRect(ToReferenceFrame(), mFrame->GetSize()).Intersects(aRect))
-      return;
-  } else {
-    if (!RoundedBorderIntersectsRect(mFrame, ToReferenceFrame(), aRect)) {
-      // aRect doesn't intersect our border-radius curve.
-      return;
-    }
+  // For theme backgrounds, assume that any point in our bounds is a hit.
+  // We don't know the true hit region of the theme background.
+  if (!mIsThemed &&
+      !RoundedBorderIntersectsRect(mFrame, ToReferenceFrame(), aRect)) {
+    // aRect doesn't intersect our border-radius curve.
+    return;
   }
 
   aOutFrames->AppendElement(mFrame);
@@ -1725,11 +1703,9 @@ nsRegion nsDisplayOpacity::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
 // nsDisplayOpacity uses layers for rendering
 already_AddRefed<Layer>
 nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
-                             LayerManager* aManager,
-                             const ContainerParameters& aContainerParameters) {
+                             LayerManager* aManager) {
   nsRefPtr<Layer> layer = aBuilder->LayerBuilder()->
-    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList,
-                           aContainerParameters, nsnull);
+    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList);
   if (!layer)
     return nsnull;
 
@@ -1740,7 +1716,7 @@ nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
 nsDisplayItem::LayerState
 nsDisplayOpacity::GetLayerState(nsDisplayListBuilder* aBuilder,
                                 LayerManager* aManager) {
-  if (mFrame->AreLayersMarkedActive(nsChangeHint_UpdateOpacityLayer))
+  if (mFrame->AreLayersMarkedActive())
     return LAYER_ACTIVE;
   nsIFrame* activeScrolledRoot =
     nsLayoutUtils::GetActiveScrolledRootFor(mFrame, nsnull);
@@ -1794,11 +1770,9 @@ nsDisplayOwnLayer::~nsDisplayOwnLayer() {
 // nsDisplayOpacity uses layers for rendering
 already_AddRefed<Layer>
 nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
-                              LayerManager* aManager,
-                              const ContainerParameters& aContainerParameters) {
+                              LayerManager* aManager) {
   nsRefPtr<Layer> layer = aBuilder->LayerBuilder()->
-    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList,
-                           aContainerParameters, nsnull);
+    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList);
   return layer.forget();
 }
 
@@ -1861,11 +1835,9 @@ nsDisplayScrollLayer::~nsDisplayScrollLayer()
 
 already_AddRefed<Layer>
 nsDisplayScrollLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
-                                 LayerManager* aManager,
-                                 const ContainerParameters& aContainerParameters) {
+                                 LayerManager* aManager) {
   nsRefPtr<ContainerLayer> layer = aBuilder->LayerBuilder()->
-    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList,
-                           aContainerParameters, nsnull);
+    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList);
 
   // Get the already set unique ID for scrolling this content remotely.
   // Or, if not set, generate a new ID.
@@ -1882,8 +1854,7 @@ nsDisplayScrollLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
     usingDisplayport = nsLayoutUtils::GetDisplayPort(content, &displayport);
   }
   RecordFrameMetrics(mScrolledFrame, mScrollFrame, layer, mVisibleRect, viewport,
-                     (usingDisplayport ? &displayport : nsnull), scrollId,
-                     aContainerParameters);
+                     (usingDisplayport ? &displayport : nsnull), scrollId);
 
   return layer.forget();
 }
@@ -2324,9 +2295,9 @@ nsDisplayTransform::GetFrameBoundsForTransform(const nsIFrame* aFrame)
  * to get from (0, 0) of the frame to the transform origin.
  */
 static
-gfxPoint3D GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
-                                        float aFactor,
-                                        const nsRect* aBoundsOverride)
+gfxPoint GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
+                                      float aFactor,
+                                      const nsRect* aBoundsOverride)
 {
   NS_PRECONDITION(aFrame, "Can't get delta for a null frame!");
   NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
@@ -2341,8 +2312,8 @@ gfxPoint3D GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
                          nsDisplayTransform::GetFrameBoundsForTransform(aFrame));
 
   /* Allows us to access named variables by index. */
-  gfxPoint3D result;
-  gfxFloat* coords[3] = {&result.x, &result.y, &result.z};
+  gfxPoint result;
+  gfxFloat* coords[2] = {&result.x, &result.y};
   const nscoord* dimensions[2] =
     {&boundingRect.width, &boundingRect.height};
 
@@ -2364,8 +2335,6 @@ gfxPoint3D GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
       *coords[index] = NSAppUnitsToFloatPixels(coord.GetCoordValue(), aFactor);
     }
   }
-
-  *coords[2] = NSAppUnitsToFloatPixels(display->mTransformOrigin[2].GetCoordValue(), aFactor);
   
   /* Adjust based on the origin of the rectangle. */
   result.x += NSAppUnitsToFloatPixels(boundingRect.x, aFactor);
@@ -2374,98 +2343,26 @@ gfxPoint3D GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
   return result;
 }
 
-/* Returns the delta specified by the -moz-perspective-origin property.
- * This is a positive delta, meaning that it indicates the direction to move
- * to get from (0, 0) of the frame to the perspective origin.
- */
-static
-gfxPoint3D GetDeltaToMozPerspectiveOrigin(const nsIFrame* aFrame,
-                                          float aFactor,
-                                          const nsRect* aBoundsOverride)
-{
-  NS_PRECONDITION(aFrame, "Can't get delta for a null frame!");
-  NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
-                  "Can't get a delta for an untransformed frame!");
-
-  /* For both of the coordinates, if the value of -moz-perspective-origin is a
-   * percentage, it's relative to the size of the frame.  Otherwise, if it's
-   * a distance, it's already computed for us!
-   */
-
-  //TODO: Should this be using our bounds or the parent's bounds?
-  // How do we handle aBoundsOverride in the latter case?
-  const nsStyleDisplay* display = aFrame->GetParent()->GetStyleDisplay();
-  nsRect boundingRect = (aBoundsOverride ? *aBoundsOverride :
-                         nsDisplayTransform::GetFrameBoundsForTransform(aFrame));
-
-  /* Allows us to access named variables by index. */
-  gfxPoint3D result;
-  result.z = 0.0f;
-  gfxFloat* coords[2] = {&result.x, &result.y};
-  const nscoord* dimensions[2] =
-    {&boundingRect.width, &boundingRect.height};
-
-  for (PRUint8 index = 0; index < 2; ++index) {
-    /* If the -moz-transform-origin specifies a percentage, take the percentage
-     * of the size of the box.
-     */
-    const nsStyleCoord &coord = display->mPerspectiveOrigin[index];
-    if (coord.GetUnit() == eStyleUnit_Calc) {
-      const nsStyleCoord::Calc *calc = coord.GetCalcValue();
-      *coords[index] = NSAppUnitsToFloatPixels(*dimensions[index], aFactor) *
-                         calc->mPercent +
-                       NSAppUnitsToFloatPixels(calc->mLength, aFactor);
-    } else if (coord.GetUnit() == eStyleUnit_Percent) {
-      *coords[index] = NSAppUnitsToFloatPixels(*dimensions[index], aFactor) *
-        coord.GetPercentValue();
-    } else {
-      NS_ABORT_IF_FALSE(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
-      *coords[index] = NSAppUnitsToFloatPixels(coord.GetCoordValue(), aFactor);
-    }
-  }
-  
-  /**
-   * An offset of (0,0) results in the perspective-origin being at the centre of the element,
-   * so include a shift of the centre point to (0,0).
-   */
-  result.x -= NSAppUnitsToFloatPixels(boundingRect.width, aFactor)/2;
-  result.y -= NSAppUnitsToFloatPixels(boundingRect.height, aFactor)/2;
-
-  return result;
-}
-
 /* Wraps up the -moz-transform matrix in a change-of-basis matrix pair that
  * translates from local coordinate space to transform coordinate space, then
  * hands it back.
  */
-gfx3DMatrix
+gfxMatrix
 nsDisplayTransform::GetResultingTransformMatrix(const nsIFrame* aFrame,
                                                 const nsPoint &aOrigin,
                                                 float aFactor,
-                                                const nsRect* aBoundsOverride,
-                                                nsIFrame** aOutAncestor)
+                                                const nsRect* aBoundsOverride)
 {
   NS_PRECONDITION(aFrame, "Cannot get transform matrix for a null frame!");
-
-  if (aOutAncestor) {
-      *aOutAncestor = nsLayoutUtils::GetCrossDocParentFrame(aFrame);
-  }
-
-  /* Preserve-3d can cause frames without a transform to get an nsDisplayTransform created, we should
-   * use our parent's transform here.
-   */
-  if (!aFrame->GetStyleDisplay()->HasTransform()) {
-    return GetResultingTransformMatrix(aFrame->GetParent(), aOrigin - aFrame->GetPosition(), aFactor, nsnull, aOutAncestor);
-  }
+  NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
+                  "Cannot get transform matrix if frame isn't transformed!");
 
   /* Account for the -moz-transform-origin property by translating the
    * coordinate space to the new origin.
    */
-  gfxPoint3D toMozOrigin = GetDeltaToMozTransformOrigin(aFrame, aFactor, aBoundsOverride);
-  gfxPoint3D toPerspectiveOrigin = GetDeltaToMozPerspectiveOrigin(aFrame, aFactor, aBoundsOverride);
-  gfxPoint3D newOrigin = gfxPoint3D(NSAppUnitsToFloatPixels(aOrigin.x, aFactor),
-                                    NSAppUnitsToFloatPixels(aOrigin.y, aFactor),
-                                    0.0f);
+  gfxPoint toMozOrigin = GetDeltaToMozTransformOrigin(aFrame, aFactor, aBoundsOverride);
+  gfxPoint newOrigin = gfxPoint(NSAppUnitsToFloatPixels(aOrigin.x, aFactor),
+                                NSAppUnitsToFloatPixels(aOrigin.y, aFactor));
 
   /* Get the underlying transform matrix.  This requires us to get the
    * bounds of the frame.
@@ -2475,85 +2372,33 @@ nsDisplayTransform::GetResultingTransformMatrix(const nsIFrame* aFrame,
                    nsDisplayTransform::GetFrameBoundsForTransform(aFrame));
 
   /* Get the matrix, then change its basis to factor in the origin. */
-  PRBool dummy;
-  gfx3DMatrix result;
-  /* Transformed frames always have a transform, or are preserving 3d (and might still have perspective!) */
-  if (disp->mSpecifiedTransform) {
-    result = nsStyleTransformMatrix::ReadTransforms(disp->mSpecifiedTransform,
-                                                    aFrame->GetStyleContext(),
-                                                    aFrame->PresContext(),
-                                                    dummy, bounds, aFactor);
-  } else {
-     NS_ASSERTION(aFrame->GetStyleDisplay()->mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D,
-                  "If we don't have a transform, then we must be at least attempting to preserve the transforms of our children");
-  }
-
-  const nsStyleDisplay* parentDisp = nsnull;
-  if (aFrame->GetParent()) {
-    parentDisp = aFrame->GetParent()->GetStyleDisplay();
-  }
-  if (nsLayoutUtils::Are3DTransformsEnabled() &&
-      parentDisp && parentDisp->mChildPerspective.GetUnit() == eStyleUnit_Coord &&
-      parentDisp->mChildPerspective.GetCoordValue() > 0.0) {
-    gfx3DMatrix perspective;
-    perspective._34 =
-      -1.0 / NSAppUnitsToFloatPixels(parentDisp->mChildPerspective.GetCoordValue(),
-                                     aFactor);
-    result = result * nsLayoutUtils::ChangeMatrixBasis(toPerspectiveOrigin, perspective);
-  }
-
-  if (aFrame->Preserves3D() && nsLayoutUtils::Are3DTransformsEnabled()) {
-      // Include the transform set on our parent
-      NS_ASSERTION(aFrame->GetParent() &&
-                   aFrame->GetParent()->IsTransformed() &&
-                   aFrame->GetParent()->Preserves3DChildren(),
-                   "Preserve3D mismatch!");
-      gfx3DMatrix parent = GetResultingTransformMatrix(aFrame->GetParent(), aOrigin - aFrame->GetPosition(),
-                                                       aFactor, nsnull, aOutAncestor);
-      return nsLayoutUtils::ChangeMatrixBasis(newOrigin + toMozOrigin, result) * parent;
-  }
-
   return nsLayoutUtils::ChangeMatrixBasis
-    (newOrigin + toMozOrigin, result);
-}
-
-const gfx3DMatrix&
-nsDisplayTransform::GetTransform(float aFactor)
-{
-  if (mTransform.IsIdentity() || mCachedFactor != aFactor) {
-    mTransform =
-      GetResultingTransformMatrix(mFrame, ToReferenceFrame(),
-                                  aFactor,
-                                  nsnull);
-    mCachedFactor = aFactor;
-  }
-  return mTransform;
+    (newOrigin + toMozOrigin, disp->mTransform.GetThebesMatrix(bounds, aFactor));
 }
 
 already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBuilder,
-                                                       LayerManager *aManager,
-                                                       const ContainerParameters& aContainerParameters)
+                                                       LayerManager *aManager)
 {
-  const gfx3DMatrix& newTransformMatrix = 
-    GetTransform(mFrame->PresContext()->AppUnitsPerDevPixel());
-
-  if (newTransformMatrix.IsSingular() ||
-      (mFrame->GetStyleDisplay()->mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN &&
-       newTransformMatrix.GetNormalVector().z <= 0.0)) {
+  gfxMatrix newTransformMatrix =
+    GetResultingTransformMatrix(mFrame, ToReferenceFrame(),
+                                 mFrame->PresContext()->AppUnitsPerDevPixel(),
+                                nsnull);
+  if (newTransformMatrix.IsSingular())
     return nsnull;
-  }
 
-  return aBuilder->LayerBuilder()->
-    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, *mStoredList.GetList(),
-                           aContainerParameters, &newTransformMatrix);
+  nsRefPtr<Layer> layer = aBuilder->LayerBuilder()->
+    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, *mStoredList.GetList());
+  if (!layer)
+    return nsnull;
+ 
+  layer->SetTransform(gfx3DMatrix::From2D(newTransformMatrix));
+  return layer.forget();
 }
 
 nsDisplayItem::LayerState
 nsDisplayTransform::GetLayerState(nsDisplayListBuilder* aBuilder,
                                   LayerManager* aManager) {
-  if (mFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer))
-    return LAYER_ACTIVE;
-  if (!GetTransform(mFrame->PresContext()->AppUnitsPerDevPixel()).Is2D())
+  if (mFrame->AreLayersMarkedActive())
     return LAYER_ACTIVE;
   nsIFrame* activeScrolledRoot =
     nsLayoutUtils::GetActiveScrolledRootFor(mFrame, nsnull);
@@ -2570,19 +2415,10 @@ PRBool nsDisplayTransform::ComputeVisibility(nsDisplayListBuilder *aBuilder,
 {
   /* As we do this, we need to be sure to
    * untransform the visible rect, since we want everything that's painting to
-   * think that it's painting in its original rectangular coordinate space.
-   * If we can't untransform, take the entire overflow rect */
-  nsRect untransformedVisibleRect;
-  if (!UntransformRect(mVisibleRect, 
-                       mFrame, 
-                       aBuilder->ToReferenceFrame(mFrame), 
-                       &untransformedVisibleRect)) 
-  {
-    untransformedVisibleRect = mFrame->GetVisualOverflowRectRelativeToSelf() +  
-                               aBuilder->ToReferenceFrame(mFrame);
-  }
-  nsRegion untransformedVisible = untransformedVisibleRect;
-  // Call RecomputeVisiblity instead of ComputeVisibility since
+   * think that it's painting in its original rectangular coordinate space. */
+  nsRegion untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
+  // Call RecomputeVisiblity instead of ComputeVisibilty since
   // nsDisplayItem::ComputeVisibility should only be called from
   // nsDisplayList::ComputeVisibility (which sets mVisibleRect on the item)
   mStoredList.RecomputeVisibility(aBuilder, &untransformedVisible);
@@ -2607,27 +2443,23 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
    * 4. Pass that rect down through to the list's version of HitTest.
    */
   float factor = nsPresContext::AppUnitsPerCSSPixel();
-  gfx3DMatrix matrix = GetTransform(factor);
-
-  /* If the matrix is singular, or a hidden backface is shown, we didn't hit anything. */
-  if (matrix.IsSingular() ||
-      (mFrame->GetStyleDisplay()->mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN &&
-       matrix.GetNormalVector().z <= 0.0)) {
-          return;
-  }
+  gfxMatrix matrix =
+    GetResultingTransformMatrix(mFrame, ToReferenceFrame(),
+                                factor, nsnull);
+  if (matrix.IsSingular())
+    return;
 
   /* We want to go from transformed-space to regular space.
    * Thus we have to invert the matrix, which normally does
    * the reverse operation (e.g. regular->transformed)
    */
+  matrix.Invert();
 
   /* Now, apply the transform and pass it down the channel. */
   nsRect resultingRect;
   if (aRect.width == 1 && aRect.height == 1) {
-    // Magic width/height indicating we're hit testing a point, not a rect
-    gfxPoint point = matrix.Inverse().ProjectPoint(
-                       gfxPoint(NSAppUnitsToFloatPixels(aRect.x, factor),
-                                NSAppUnitsToFloatPixels(aRect.y, factor)));
+    gfxPoint point = matrix.Transform(gfxPoint(NSAppUnitsToFloatPixels(aRect.x, factor),
+                                               NSAppUnitsToFloatPixels(aRect.y, factor)));
 
     resultingRect = nsRect(NSFloatPixelsToAppUnits(float(point.x), factor),
                            NSFloatPixelsToAppUnits(float(point.y), factor),
@@ -2639,7 +2471,7 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
                          NSAppUnitsToFloatPixels(aRect.width, factor),
                          NSAppUnitsToFloatPixels(aRect.height, factor));
 
-    gfxRect rect = matrix.Inverse().ProjectRectBounds(originalRect);;
+    gfxRect rect = matrix.TransformBounds(originalRect);
 
     resultingRect = nsRect(NSFloatPixelsToAppUnits(float(rect.X()), factor),
                            NSFloatPixelsToAppUnits(float(rect.Y()), factor),
@@ -2695,17 +2527,12 @@ nsRegion nsDisplayTransform::GetOpaqueRegion(nsDisplayListBuilder *aBuilder,
   if (aForceTransparentSurface) {
     *aForceTransparentSurface = PR_FALSE;
   }
-  nsRect untransformedVisible;
-  if (!UntransformRect(mVisibleRect, mFrame, ToReferenceFrame(), &untransformedVisible)) {
-      return nsRegion();
-  }
-  
-  const gfx3DMatrix& matrix = GetTransform(nsPresContext::AppUnitsPerCSSPixel());
-                
+  const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
+  nsRect untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
   nsRegion result;
-  gfxMatrix matrix2d;
-  if (matrix.Is2D(&matrix2d) &&
-      matrix2d.PreservesAxisAlignedRectangles() &&
+  if (disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
+      disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
       mStoredList.GetOpaqueRegion(aBuilder).Contains(untransformedVisible)) {
     result = mVisibleRect;
   }
@@ -2718,17 +2545,13 @@ nsRegion nsDisplayTransform::GetOpaqueRegion(nsDisplayListBuilder *aBuilder,
  */
 PRBool nsDisplayTransform::IsUniform(nsDisplayListBuilder *aBuilder, nscolor* aColor)
 {
-  nsRect untransformedVisible;
-  if (!UntransformRect(mVisibleRect, mFrame, ToReferenceFrame(), &untransformedVisible)) {
-    return PR_FALSE;
-  }
-  const gfx3DMatrix& matrix = GetTransform(nsPresContext::AppUnitsPerCSSPixel());
-
-  gfxMatrix matrix2d;
-  return matrix.Is2D(&matrix2d) &&
-         matrix2d.PreservesAxisAlignedRectangles() &&
-         mStoredList.GetVisibleRect().Contains(untransformedVisible) &&
-         mStoredList.IsUniform(aBuilder, aColor);
+  const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
+  nsRect untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
+  return disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
+    disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
+    mStoredList.GetVisibleRect().Contains(untransformedVisible) &&
+    mStoredList.IsUniform(aBuilder, aColor);
 }
 
 /* If UNIFIED_CONTINUATIONS is defined, we can merge two display lists that
@@ -2791,6 +2614,8 @@ nsRect nsDisplayTransform::TransformRect(const nsRect &aUntransformedBounds,
                                          const nsRect* aBoundsOverride)
 {
   NS_PRECONDITION(aFrame, "Can't take the transform based on a null frame!");
+  NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
+                  "Cannot transform a rectangle if there's no transformation!");
 
   float factor = nsPresContext::AppUnitsPerCSSPixel();
   return nsLayoutUtils::MatrixTransformRect
@@ -2805,6 +2630,8 @@ nsRect nsDisplayTransform::TransformRectOut(const nsRect &aUntransformedBounds,
                                             const nsRect* aBoundsOverride)
 {
   NS_PRECONDITION(aFrame, "Can't take the transform based on a null frame!");
+  NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
+                  "Cannot transform a rectangle if there's no transformation!");
 
   float factor = nsPresContext::AppUnitsPerCSSPixel();
   return nsLayoutUtils::MatrixTransformRectOut
@@ -2813,34 +2640,31 @@ nsRect nsDisplayTransform::TransformRectOut(const nsRect &aUntransformedBounds,
      factor);
 }
 
-PRBool nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
+nsRect nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
                                            const nsIFrame* aFrame,
-                                           const nsPoint &aOrigin,
-                                           nsRect* aOutRect)
+                                           const nsPoint &aOrigin)
 {
   NS_PRECONDITION(aFrame, "Can't take the transform based on a null frame!");
+  NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
+                  "Cannot transform a rectangle if there's no transformation!");
+
 
   /* Grab the matrix.  If the transform is degenerate, just hand back the
    * empty rect.
    */
   float factor = nsPresContext::AppUnitsPerCSSPixel();
-  gfx3DMatrix matrix = GetResultingTransformMatrix(aFrame, aOrigin, factor, nsnull);
+  gfxMatrix matrix = GetResultingTransformMatrix(aFrame, aOrigin, factor, nsnull);
   if (matrix.IsSingular())
-    return PR_FALSE;
-
-  gfxRect result(NSAppUnitsToFloatPixels(aUntransformedBounds.x, factor),
-                 NSAppUnitsToFloatPixels(aUntransformedBounds.y, factor),
-                 NSAppUnitsToFloatPixels(aUntransformedBounds.width, factor),
-                 NSAppUnitsToFloatPixels(aUntransformedBounds.height, factor));
+    return nsRect();
 
   /* We want to untransform the matrix, so invert the transformation first! */
-  result = matrix.Inverse().ProjectRectBounds(result);
+  matrix.Invert();
 
-  *aOutRect = nsLayoutUtils::RoundGfxRectToAppRect(result, factor);
-
-  return PR_TRUE;
+  return nsLayoutUtils::MatrixTransformRect(aUntransformedBounds, matrix,
+                                            factor);
 }
 
+#ifdef MOZ_SVG
 nsDisplaySVGEffects::nsDisplaySVGEffects(nsDisplayListBuilder* aBuilder,
                                          nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aBuilder, aFrame, aList), mEffectsFrame(aFrame),
@@ -2916,20 +2740,4 @@ PRBool nsDisplaySVGEffects::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayIt
     other->mBounds + other->mEffectsFrame->GetOffsetTo(mEffectsFrame));
   return PR_TRUE;
 }
-
-nsDisplayForcePaintOnScroll::nsDisplayForcePaintOnScroll(
-    nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-  : nsDisplayItem(aBuilder, aFrame) {
-  MOZ_COUNT_CTOR(nsDisplayForcePaintOnScroll);
-}
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-nsDisplayForcePaintOnScroll::~nsDisplayForcePaintOnScroll() {
-  MOZ_COUNT_DTOR(nsDisplayForcePaintOnScroll);
-}
 #endif
-
-PRBool nsDisplayForcePaintOnScroll::IsVaryingRelativeToMovingFrame(
-         nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) {
-  return PR_TRUE;
-}

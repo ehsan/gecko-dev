@@ -1,6 +1,5 @@
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/engines.js");
 var btoa;
 
 let provider = {
@@ -9,6 +8,10 @@ let provider = {
     switch (prop) {
       case "ExtPrefDL":
         return [Services.dirsvc.get("CurProcD", Ci.nsIFile)];
+      case "UHist":
+        let histFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+        histFile.append("history.dat");
+        return histFile;
       default:
         throw Cr.NS_ERROR_FAILURE;
     }
@@ -82,14 +85,6 @@ function FakeGUIDService() {
 }
 
 
-function fakeSHA256HMAC(message) {
-   message = message.substr(0, 64);
-   while (message.length < 64) {
-     message += " ";
-   }
-   return message;
-}
-
 /*
  * Mock implementation of WeaveCrypto. It does not encrypt or
  * decrypt, merely returning the input verbatim.
@@ -99,12 +94,23 @@ function FakeCryptoService() {
 
   delete Svc.Crypto;  // get rid of the getter first
   Svc.Crypto = this;
+  Utils.sha256HMAC = this.sha256HMAC;
 
-  CryptoWrapper.prototype.ciphertextHMAC = function ciphertextHMAC(keyBundle) {
-    return fakeSHA256HMAC(this.ciphertext);
-  };
+  CryptoWrapper.prototype.ciphertextHMAC = this.ciphertextHMAC;
 }
 FakeCryptoService.prototype = {
+
+  sha256HMAC: function Utils_sha256HMAC(message, hasher) {
+     message = message.substr(0, 64);
+     while (message.length < 64) {
+       message += " ";
+     }
+     return message;
+  },
+
+  ciphertextHMAC: function CryptoWrapper_ciphertextHMAC(keyBundle) {
+    return Utils.sha256HMAC(this.ciphertext);
+  },
 
   encrypt: function(aClearText, aSymmetricKey, aIV) {
     return aClearText;
@@ -184,7 +190,7 @@ Cu.import("resource://services-sync/identity.js");
  * Test setup helpers.
  */
 
-// Turn WBO cleartext into fake "encrypted" payload as it goes over the wire.
+// Turn WBO cleartext into "encrypted" payload as it goes over the wire
 function encryptPayload(cleartext) {
   if (typeof cleartext == "object") {
     cleartext = JSON.stringify(cleartext);
@@ -192,7 +198,7 @@ function encryptPayload(cleartext) {
 
   return {ciphertext: cleartext, // ciphertext == cleartext with fake crypto
           IV: "irrelevant",
-          hmac: fakeSHA256HMAC(cleartext, Utils.makeHMACKey(""))};
+          hmac: Utils.sha256HMAC(cleartext, Utils.makeHMACKey(""))};
 }
 
 function generateNewKeys(collections) {
@@ -201,12 +207,13 @@ function generateNewKeys(collections) {
   CollectionKeys.setContents(wbo.cleartext, modified);
 }
 
-function do_check_empty(obj) {
-  do_check_attribute_count(obj, 0);
+function basic_auth_header(user, password) {
+  return "Basic " + btoa(user + ":" + Utils.encodeUTF8(password));
 }
 
-function do_check_attribute_count(obj, c) {
-  do_check_eq(c, Object.keys(obj).length);
+function basic_auth_matches(req, user, password) {
+  return req.hasHeader("Authorization") &&
+         (req.getHeader("Authorization") == basic_auth_header(user, password));
 }
 
 function do_check_throws(aFunc, aResult, aStack)
@@ -226,94 +233,3 @@ function do_check_throws(aFunc, aResult, aStack)
   }
   do_throw("Expected result " + aResult + ", none thrown.", aStack);
 }
-
-/*
- * A fake engine implementation.
- * This is used all over the place.
- * 
- * Complete with record, store, and tracker implementations.
- */
-
-function RotaryRecord(collection, id) {
-  CryptoWrapper.call(this, collection, id);
-}
-RotaryRecord.prototype = {
-  __proto__: CryptoWrapper.prototype
-};
-Utils.deferGetSet(RotaryRecord, "cleartext", ["denomination"]);
-
-function RotaryStore() {
-  Store.call(this, "Rotary");
-  this.items = {};
-}
-RotaryStore.prototype = {
-  __proto__: Store.prototype,
-
-  create: function Store_create(record) {
-    this.items[record.id] = record.denomination;
-  },
-
-  remove: function Store_remove(record) {
-    delete this.items[record.id];
-  },
-
-  update: function Store_update(record) {
-    this.items[record.id] = record.denomination;
-  },
-
-  itemExists: function Store_itemExists(id) {
-    return (id in this.items);
-  },
-
-  createRecord: function(id, collection) {
-    let record = new RotaryRecord(collection, id);
-    record.denomination = this.items[id] || "Data for new record: " + id;
-    return record;
-  },
-
-  changeItemID: function(oldID, newID) {
-    this.items[newID] = this.items[oldID];
-    delete this.items[oldID];
-  },
-
-  getAllIDs: function() {
-    let ids = {};
-    for (let id in this.items) {
-      ids[id] = true;
-    }
-    return ids;
-  },
-
-  wipe: function() {
-    this.items = {};
-  }
-};
-
-function RotaryTracker() {
-  Tracker.call(this, "Rotary");
-}
-RotaryTracker.prototype = {
-  __proto__: Tracker.prototype
-};
-
-
-function RotaryEngine() {
-  SyncEngine.call(this, "Rotary");
-  // Ensure that the engine starts with a clean slate.
-  this.toFetch        = [];
-  this.previousFailed = [];
-}
-RotaryEngine.prototype = {
-  __proto__: SyncEngine.prototype,
-  _storeObj: RotaryStore,
-  _trackerObj: RotaryTracker,
-  _recordObj: RotaryRecord,
-
-  _findDupe: function(item) {
-    for (let [id, value] in Iterator(this._store.items)) {
-      if (item.denomination == value) {
-        return id;
-      }
-    }
-  }
-};

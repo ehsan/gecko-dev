@@ -42,8 +42,6 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-NO_PROFILE_GUIDED_OPTIMIZE = 1
-
 ifdef ENABLE_TESTS
 
 ifdef _MSC_VER
@@ -62,10 +60,9 @@ CPPSRCS = crashinject.cpp
 
 endif # ENABLE_TESTS
 
-MOZ_UTILS_LDFLAGS =
-
 include $(topsrcdir)/config/rules.mk
 
+ifndef MOZ_MEMORY
 ifdef WIN32_REDIST_DIR
 ifndef MOZ_DEBUG
 
@@ -102,3 +99,4 @@ endif
 
 endif # ! MOZ_DEBUG
 endif # WIN32_REDIST_DIR
+endif # ! MOZ_MEMORY

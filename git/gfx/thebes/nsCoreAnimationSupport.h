@@ -41,11 +41,10 @@
 #define nsCoreAnimationSupport_h__
 #ifdef XP_MACOSX
 
-#import <QuartzCore/QuartzCore.h>
 #import "ApplicationServices/ApplicationServices.h"
 #include "nscore.h"
 #include "gfxTypes.h"
-#include "nsAutoPtr.h"
+#import <QuartzCore/QuartzCore.h>
 
 // Get the system color space.
 CGColorSpaceRef THEBES_API CreateSystemColorSpace();
@@ -55,15 +54,11 @@ struct _CGLPBufferObject;
 struct _CGLContextObject;
 class nsIOSurface;
 
-typedef uint32_t IOSurfaceID;
-
 class THEBES_API nsCARenderer {
-  NS_INLINE_DECL_REFCOUNTING(nsCARenderer)
 public:
   nsCARenderer() : mCARenderer(nsnull), mPixelBuffer(nsnull), mOpenGLContext(nsnull),
                    mCGImage(nsnull), mCGData(nsnull), mIOSurface(nsnull), mFBO(nsnull),
-                   mIOTexture(nsnull), 
-                   mUnsupportedWidth(UINT32_MAX), mUnsupportedHeight(UINT32_MAX) {}
+                   mIOTexture(nsnull) {}
   ~nsCARenderer();
   nsresult SetupRenderer(void* aCALayer, int aWidth, int aHeight);
   nsresult Render(int aWidth, int aHeight, CGImageRef *aOutCAImage);
@@ -73,42 +68,32 @@ public:
    * is attached then an internal pixel buffer will be
    * used.
    */ 
-  void AttachIOSurface(nsRefPtr<nsIOSurface> aSurface);
-  IOSurfaceID GetIOSurfaceID();
+  void AttachIOSurface(nsIOSurface *aSurface);
   static nsresult DrawSurfaceToCGContext(CGContextRef aContext, 
                                          nsIOSurface *surf, 
                                          CGColorSpaceRef aColorSpace, 
                                          int aX, int aY,
-                                         size_t aWidth, size_t aHeight);
-  
-  // Remove & Add the layer without destroying
-  // the renderer for fast back buffer swapping.
-  void DettachCALayer();
-  void AttachCALayer(void *aCALayer);
-#ifdef DEBUG
-  static void SaveToDisk(nsIOSurface *surf);
-#endif
+                                         int aWidth, int aHeight);
 private:
   void Destroy();
 
   void *mCARenderer;
-  _CGLPBufferObject     *mPixelBuffer;
-  _CGLContextObject     *mOpenGLContext;
-  CGImageRef             mCGImage;
-  void                  *mCGData;
-  nsRefPtr<nsIOSurface>  mIOSurface;
-  uint32_t               mFBO;
-  uint32_t               mIOTexture;
-  uint32_t               mUnsupportedWidth;
-  uint32_t               mUnsupportedHeight;
+  _CGLPBufferObject *mPixelBuffer;
+  _CGLContextObject *mOpenGLContext;
+  CGImageRef         mCGImage;
+  void              *mCGData;
+  nsIOSurface       *mIOSurface;
+  uint32_t           mFBO;
+  uint32_t           mIOTexture;
 };
 
+typedef uint32_t IOSurfaceID;
+
 class THEBES_API nsIOSurface {
-    NS_INLINE_DECL_REFCOUNTING(nsIOSurface)
 public:
-  static already_AddRefed<nsIOSurface> CreateIOSurface(int aWidth, int aHeight);
+  static nsIOSurface *CreateIOSurface(int aWidth, int aHeight); 
   static void ReleaseIOSurface(nsIOSurface *aIOSurface); 
-  static already_AddRefed<nsIOSurface> LookupSurface(IOSurfaceID aSurfaceID);
+  static nsIOSurface *LookupSurface(IOSurfaceID aSurfaceID);
 
   nsIOSurface(CFTypeRef aIOSurfacePtr) : mIOSurfacePtr(aIOSurfacePtr) {}
   ~nsIOSurface() { CFRelease(mIOSurfacePtr); }

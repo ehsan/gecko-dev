@@ -56,13 +56,10 @@
 #include "nsIObserverService.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIWebNavigation.h"
-#include "mozilla/Preferences.h"
 
 #include "nsXULAppAPI.h"
 #define IS_CHILD_PROCESS() \
     (GeckoProcessType_Default != XRE_GetProcessType())
-
-using namespace mozilla;
 
 // Event names
 
@@ -395,8 +392,8 @@ nsDOMOfflineResourceList::MozAdd(const nsAString& aURI)
   PRUint32 length;
   rv = GetMozLength(&length);
   NS_ENSURE_SUCCESS(rv, rv);
-  PRUint32 maxEntries =
-    Preferences::GetUint(kMaxEntriesPref, DEFAULT_MAX_ENTRIES);
+  PRUint32 maxEntries = nsContentUtils::GetIntPref(kMaxEntriesPref,
+                                                   DEFAULT_MAX_ENTRIES);
 
   if (length > maxEntries) return NS_ERROR_NOT_AVAILABLE;
 

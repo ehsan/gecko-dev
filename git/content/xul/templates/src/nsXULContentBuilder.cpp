@@ -498,9 +498,10 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
 
     // Iterate through all of the template children, constructing
     // "real" content model nodes for each "template" child.
-    for (nsIContent* tmplKid = aTemplateNode->GetFirstChild();
-         tmplKid;
-         tmplKid = tmplKid->GetNextSibling()) {
+    PRUint32 count = aTemplateNode->GetChildCount();
+
+    for (PRUint32 kid = 0; kid < count; kid++) {
+        nsIContent *tmplKid = aTemplateNode->GetChildAt(kid);
 
         PRInt32 nameSpaceID = tmplKid->GetNameSpaceID();
 
@@ -1323,7 +1324,7 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
     while (0 != (count = ungenerated.Length())) {
         // Pull the next "ungenerated" element off the queue.
         PRUint32 last = count - 1;
-        nsCOMPtr<nsIContent> element = ungenerated[last];
+        nsIContent* element = ungenerated[last];
         ungenerated.RemoveElementAt(last);
 
         PRUint32 i = element->GetChildCount();
@@ -1400,8 +1401,7 @@ nsXULContentBuilder::CreateElement(PRInt32 aNameSpaceID,
     nsCOMPtr<nsIContent> result;
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID,
-                                                   nsIDOMNode::ELEMENT_NODE);
+    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID);
 
     rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo.forget(),
                        NOT_FROM_PARSER);
@@ -1934,10 +1934,8 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
                 staticCount = 0;
         } else {
             // compute the "static" XUL element count
-            for (nsIContent* child = aContainer->GetFirstChild();
-                 child;
-                 child = child->GetNextSibling()) {
-                 
+            for (PRUint32 childLoop = 0; childLoop < numChildren; ++childLoop) {
+                child = aContainer->GetChildAt(childLoop);
                 if (nsContentUtils::HasNonEmptyAttr(child, kNameSpaceID_None,
                                                     nsGkAtoms::_template))
                     break;

@@ -187,9 +187,7 @@ nsSMILAnimationFunction::SampleAt(nsSMILTime aSampleTime,
     !IsValueFixedForSimpleDuration();
 
   // Are we on a new repeat and accumulating across repeats?
-  if (!mErrorFlags) { // (can't call GetAccumulate() if we've had parse errors)
-    mHasChanged |= (mRepeatIteration != aRepeatIteration) && GetAccumulate();
-  }
+  mHasChanged |= (mRepeatIteration != aRepeatIteration) && GetAccumulate();
 
   mSampleTime       = aSampleTime;
   mSimpleDuration   = aSimpleDuration;
@@ -252,7 +250,8 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   // If this interval is active, we must have a non-negative mSampleTime
   NS_ABORT_IF_FALSE(mSampleTime >= 0 || !mIsActive,
       "Negative sample time for active animation");
-  NS_ABORT_IF_FALSE(mSimpleDuration.IsResolved() || mLastValue,
+  NS_ABORT_IF_FALSE(mSimpleDuration.IsResolved() ||
+      mSimpleDuration.IsIndefinite() || mLastValue,
       "Unresolved simple duration for active or frozen animation");
 
   // If we want to add but don't have a base value then just fail outright.
@@ -407,7 +406,7 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
   // its starting point.
   double simpleProgress = 0.0;
 
-  if (mSimpleDuration.IsDefinite()) {
+  if (mSimpleDuration.IsResolved()) {
     nsSMILTime dur = mSimpleDuration.GetMillis();
 
     NS_ABORT_IF_FALSE(dur >= 0, "Simple duration should not be negative");
@@ -477,21 +476,6 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
   if (calcMode == CALC_DISCRETE || NS_FAILED(rv)) {
     double scaledSimpleProgress =
       ScaleSimpleProgress(simpleProgress, CALC_DISCRETE);
-
-    // Floating-point errors can mean that, for example, a sample time of 29s in
-    // a 100s duration animation gives us a simple progress of 0.28999999999
-    // instead of the 0.29 we'd expect. Normally this isn't a noticeable
-    // problem, but when we have sudden jumps in animation values (such as is
-    // the case here with discrete animation) we can get unexpected results.
-    //
-    // To counteract this, before we perform a floor() on the animation
-    // progress, we add a tiny fudge factor to push us into the correct interval
-    // in cases where floating-point errors might cause us to fall short.
-    static const double kFloatingPointFudgeFactor = 1.0e-16;
-    if (scaledSimpleProgress + kFloatingPointFudgeFactor <= 1.0) {
-      scaledSimpleProgress += kFloatingPointFudgeFactor;
-    }
-
     if (IsToAnimation()) {
       // We don't follow SMIL 3, 12.6.4, where discrete to animations
       // are the same as <set> animations.  Instead, we treat it as a

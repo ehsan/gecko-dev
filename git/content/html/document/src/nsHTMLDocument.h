@@ -41,6 +41,7 @@
 #include "nsDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
@@ -68,7 +69,8 @@ class nsICachingChannel;
 
 class nsHTMLDocument : public nsDocument,
                        public nsIHTMLDocument,
-                       public nsIDOMHTMLDocument
+                       public nsIDOMHTMLDocument,
+                       public nsIDOMNSHTMLDocument
 {
 public:
   using nsDocument::SetDocumentURI;
@@ -103,6 +105,8 @@ public:
 
   virtual void EndLoad();
 
+  virtual mozilla::dom::Element* GetImageMap(const nsAString& aMapName);
+
   virtual void SetCompatibilityMode(nsCompatibility aMode);
 
   virtual PRBool IsWriting()
@@ -124,7 +128,25 @@ public:
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
   // nsIDOMHTMLDocument interface
-  NS_DECL_NSIDOMHTMLDOCUMENT
+  NS_IMETHOD GetTitle(nsAString & aTitle);
+  NS_IMETHOD SetTitle(const nsAString & aTitle);
+  NS_IMETHOD GetReferrer(nsAString & aReferrer);
+  NS_IMETHOD GetURL(nsAString & aURL);
+  NS_IMETHOD GetBody(nsIDOMHTMLElement * *aBody);
+  NS_IMETHOD SetBody(nsIDOMHTMLElement * aBody);
+  NS_IMETHOD GetImages(nsIDOMHTMLCollection * *aImages);
+  NS_IMETHOD GetApplets(nsIDOMHTMLCollection * *aApplets);
+  NS_IMETHOD GetLinks(nsIDOMHTMLCollection * *aLinks);
+  NS_IMETHOD GetForms(nsIDOMHTMLCollection * *aForms);
+  NS_IMETHOD GetAnchors(nsIDOMHTMLCollection * *aAnchors);
+  NS_IMETHOD GetCookie(nsAString & aCookie);
+  NS_IMETHOD SetCookie(const nsAString & aCookie);
+  NS_IMETHOD Open(void);
+  NS_IMETHOD Close(void);
+  NS_IMETHOD Write(const nsAString & text);
+  NS_IMETHOD Writeln(const nsAString & text);
+  NS_IMETHOD GetElementsByName(const nsAString & elementName,
+                               nsIDOMNodeList **_retval);
 
   /**
    * Returns the result of document.all[aID] which can either be a node
@@ -142,6 +164,8 @@ public:
                                        UseExistingNameString, aName);
   }
 
+  // nsIDOMNSHTMLDocument interface
+  NS_DECL_NSIDOMNSHTMLDOCUMENT
 
   virtual nsresult ResolveName(const nsAString& aName,
                                nsIContent *aForm,
@@ -174,6 +198,8 @@ public:
     mDisableCookieAccess = PR_TRUE;
   }
 
+  virtual nsIContent* GetBodyContentExternal();
+
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
@@ -193,6 +219,13 @@ public:
   void EndUpdate(nsUpdateType aUpdateType);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLDocument, nsDocument)
+
+  virtual already_AddRefed<nsIParser> GetFragmentParser() {
+    return mFragmentParser.forget();
+  }
+  virtual void SetFragmentParser(nsIParser* aParser) {
+    mFragmentParser = aParser;
+  }
 
   virtual nsresult SetEditingState(EditingState aState);
 
@@ -224,8 +257,9 @@ protected:
 
   void GetDomainURI(nsIURI **uri);
 
-  nsresult WriteCommon(JSContext *cx, const nsAString& aText,
+  nsresult WriteCommon(const nsAString& aText,
                        PRBool aNewlineTerminate);
+  nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
@@ -247,9 +281,9 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mEmbeds;
   nsCOMPtr<nsIDOMHTMLCollection> mLinks;
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
-  nsCOMPtr<nsIDOMHTMLCollection> mScripts;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
+  nsRefPtr<nsContentList> mImageMaps;
 
   /** # of forms in the document, synchronously set */
   PRInt32 mNumForms;
@@ -336,11 +370,15 @@ protected:
 
   // When false, the .cookies property is completely disabled
   PRBool mDisableCookieAccess;
+
+  // Parser used for constructing document fragments.
+  nsCOMPtr<nsIParser> mFragmentParser;
 };
 
 #define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \
     NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                                 \
     NS_INTERFACE_TABLE_ENTRY(_class, nsIHTMLDocument)                         \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)                      \
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNSHTMLDocument)
 
 #endif /* nsHTMLDocument_h___ */

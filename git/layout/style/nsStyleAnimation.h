@@ -55,10 +55,8 @@ class nsStyleContext;
 class nsCSSValue;
 struct nsCSSValueList;
 struct nsCSSValuePair;
-struct nsCSSValueTriplet;
 struct nsCSSValuePairList;
 struct nsCSSRect;
-class gfx3DMatrix;
 
 namespace mozilla {
 namespace dom {
@@ -175,22 +173,13 @@ public:
    * @param aUseSVGMode     A flag to indicate whether we should parse
    *                        |aSpecifiedValue| in SVG mode.
    * @param [out] aComputedValue The resulting computed value.
-   * @param [out] aIsContextSensitive
-   *                        Set to PR_TRUE if |aSpecifiedValue| may produce
-   *                        a different |aComputedValue| depending on other CSS
-   *                        properties on |aTargetElement| or its ancestors.
-   *                        PR_FALSE otherwise.
-   *                        Note that the operation of this method is
-   *                        significantly faster when |aIsContextSensitive| is
-   *                        nsnull.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
   static PRBool ComputeValue(nsCSSProperty aProperty,
-                             mozilla::dom::Element* aTargetElement,
+                             mozilla::dom::Element* aElement,
                              const nsAString& aSpecifiedValue,
                              PRBool aUseSVGMode,
-                             Value& aComputedValue,
-                             PRBool* aIsContextSensitive = nsnull);
+                             Value& aComputedValue);
 
   /**
    * Creates a specified value for the given computed value.
@@ -229,17 +218,6 @@ public:
                                      nsStyleContext* aStyleContext,
                                      Value& aComputedValue);
 
-   /**
-    * Interpolates between 2 matrices by decomposing them.
-    *
-    * @param aMatrix1   First matrix, using CSS pixel units.
-    * @param aMatrix2   Second matrix, using CSS pixel units.
-    * @param aProgress  Interpolation value in the range [0.0, 1.0]
-    */
-   static gfx3DMatrix InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
-                                                 const gfx3DMatrix &aMatrix2, 
-                                                 double aProgress);
-
   /**
    * The types and values for the values that we extract and animate.
    */
@@ -259,7 +237,6 @@ public:
     eUnit_Calc, // nsCSSValue* (never null), always with a single
                 // calc() expression that's either length or length+percent
     eUnit_CSSValuePair, // nsCSSValuePair* (never null)
-    eUnit_CSSValueTriplet, // nsCSSValueTriplet* (never null)
     eUnit_CSSRect, // nsCSSRect* (never null)
     eUnit_Dasharray, // nsCSSValueList* (never null)
     eUnit_Shadow, // nsCSSValueList* (may be null)
@@ -278,7 +255,6 @@ public:
       nscolor mColor;
       nsCSSValue* mCSSValue;
       nsCSSValuePair* mCSSValuePair;
-      nsCSSValueTriplet* mCSSValueTriplet;
       nsCSSRect* mCSSRect;
       nsCSSValueList* mCSSValueList;
       nsCSSValuePairList* mCSSValuePairList;
@@ -323,10 +299,6 @@ public:
     nsCSSValuePair* GetCSSValuePairValue() const {
       NS_ASSERTION(IsCSSValuePairUnit(mUnit), "unit mismatch");
       return mValue.mCSSValuePair;
-    }
-    nsCSSValueTriplet* GetCSSValueTripletValue() const {
-      NS_ASSERTION(IsCSSValueTripletUnit(mUnit), "unit mismatch");
-      return mValue.mCSSValueTriplet;
     }
     nsCSSRect* GetCSSRectValue() const {
       NS_ASSERTION(IsCSSRectUnit(mUnit), "unit mismatch");
@@ -385,7 +357,6 @@ public:
     // "SetAndAdopt*".
     void SetAndAdoptCSSValueValue(nsCSSValue *aValue, Unit aUnit);
     void SetAndAdoptCSSValuePairValue(nsCSSValuePair *aValue, Unit aUnit);
-    void SetAndAdoptCSSValueTripletValue(nsCSSValueTriplet *aValue, Unit aUnit);
     void SetAndAdoptCSSRectValue(nsCSSRect *aValue, Unit aUnit);
     void SetAndAdoptCSSValueListValue(nsCSSValueList *aValue, Unit aUnit);
     void SetAndAdoptCSSValuePairListValue(nsCSSValuePairList *aValue);
@@ -412,9 +383,6 @@ public:
     }
     static PRBool IsCSSValuePairUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePair;
-    }
-    static PRBool IsCSSValueTripletUnit(Unit aUnit) {
-      return aUnit == eUnit_CSSValueTriplet;
     }
     static PRBool IsCSSRectUnit(Unit aUnit) {
       return aUnit == eUnit_CSSRect;

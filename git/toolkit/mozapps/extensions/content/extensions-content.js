@@ -37,13 +37,9 @@
 # ***** END LICENSE BLOCK *****
 */
 
-"use strict";
-
-(function(){
-
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 const MSG_INSTALL_ENABLED  = "WebInstallerIsInstallEnabled";
 const MSG_INSTALL_ADDONS   = "WebInstallerInstallAddonsFromWebpage";
@@ -192,22 +188,18 @@ function createInstallTrigger(window) {
     }
   };
 
-  let obj = Cu.createObjectIn(window);
-  function genPropDesc(fun) {
-    return { enumerable: true, configurable: true, writable: true,
-             value: chromeObject[fun].bind(chromeObject) };
-  }
-  const properties = {
-    'enabled': genPropDesc('enabled'),
-    'updateEnabled': genPropDesc('updateEnabled'),
-    'install': genPropDesc('install'),
-    'installChrome': genPropDesc('installChrome'),
-    'startSoftwareUpdate': genPropDesc('startSoftwareUpdate')
-  };
-
-  Object.defineProperties(obj, properties);
-
-  Cu.makeObjectPropsNormal(obj);
+  let sandbox = Cu.Sandbox(window);
+  let obj = Cu.evalInSandbox(
+    "(function (x) {\
+       var bind = Function.bind;\
+       return {\
+         enabled: bind.call(x.enabled, x),\
+         updateEnabled: bind.call(x.updateEnabled, x),\
+         install: bind.call(x.install, x),\
+         installChrome: bind.call(x.installChrome, x),\
+         startSoftwareUpdate: bind.call(x.startSoftwareUpdate, x)\
+       };\
+     })", sandbox)(chromeObject);
 
   obj.SKIN = chromeObject.SKIN;
   obj.LOCALE = chromeObject.LOCALE;
@@ -332,4 +324,3 @@ InstallTriggerManager.prototype = {
 
 var manager = new InstallTriggerManager();
 
-})();

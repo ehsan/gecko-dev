@@ -39,21 +39,20 @@
 
 #include "nsHTMLTableAccessible.h"
 
-#include "Relation.h"
 #include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
+#include "nsRelUtils.h"
 #include "nsTextEquivUtils.h"
 
-#include "nsIAccessibleRelation.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
+#include "nsISelection2.h"
 #include "nsISelectionPrivate.h"
 #include "nsINameSpaceManager.h"
-#include "nsIDOMNodeList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIDOMHTMLTableElement.h"
@@ -66,9 +65,6 @@
 #include "nsFrameSelection.h"
 #include "nsLayoutErrors.h"
 #include "nsArrayUtils.h"
-#include "nsComponentManagerUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableCellAccessible
@@ -138,7 +134,8 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(idx);
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex, stringIdx);
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::tableCellIndex,
+                         stringIdx);
   return NS_OK;
 }
 
@@ -269,7 +266,7 @@ already_AddRefed<nsIAccessibleTable>
 nsHTMLTableCellAccessible::GetTableAccessible()
 {
   nsAccessible* parent = this;
-  while ((parent = parent->Parent())) {
+  while ((parent = parent->GetParent())) {
     PRUint32 role = parent->Role();
     if (role == nsIAccessibleRole::ROLE_TABLE ||
         role == nsIAccessibleRole::ROLE_TREE_TABLE) {
@@ -309,26 +306,26 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
                                           nsIArray **aHeaderCells)
 {
   // Get header cells from @header attribute.
-  IDRefsIterator iter(mContent, nsGkAtoms::headers);
+  IDRefsIterator iter(mContent, nsAccessibilityAtoms::headers);
   nsIContent* headerCellElm = iter.NextElem();
   if (headerCellElm) {
     nsresult rv = NS_OK;
     nsCOMPtr<nsIMutableArray> headerCells =
       do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    PRUint32 desiredRole = -1;
-    if (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells)
-      desiredRole = nsIAccessibleRole::ROLE_ROWHEADER;
-    else if (aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells)
-      desiredRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
 
     do {
       nsAccessible* headerCell =
         GetAccService()->GetAccessibleInWeakShell(headerCellElm, mWeakShell);
 
-      if (headerCell && headerCell->Role() == desiredRole)
+      if (headerCell &&
+          (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells &&
+              headerCell->Role() == nsIAccessibleRole::ROLE_ROWHEADER ||
+              aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells &&
+              headerCell->Role() == nsIAccessibleRole::ROLE_COLUMNHEADER)) {
         headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
                                    PR_FALSE);
+      }
     } while ((headerCellElm = iter.NextElem()));
 
     NS_ADDREF(*aHeaderCells = headerCells);
@@ -365,9 +362,9 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 {
   // Check value of @scope attribute.
   static nsIContent::AttrValuesArray scopeValues[] =
-    {&nsGkAtoms::col, &nsGkAtoms::row, nsnull};
+    {&nsAccessibilityAtoms::col, &nsAccessibilityAtoms::row, nsnull};
   PRInt32 valueIdx = 
-    mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::scope,
+    mContent->FindAttrValueIn(kNameSpaceID_None, nsAccessibilityAtoms::scope,
                               scopeValues, eCaseMatters);
 
   switch (valueIdx) {
@@ -467,22 +464,10 @@ nsresult
 nsHTMLTableAccessible::GetNameInternal(nsAString& aName)
 {
   nsAccessible::GetNameInternal(aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
 
-  // Use table caption as a name.
-  nsAccessible* caption = Caption();
-  if (caption) {
-    nsIContent* captionContent = caption->GetContent();
-    if (captionContent) {
-      nsTextEquivUtils::AppendTextEquivFromContent(this, captionContent, &aName);
-      if (!aName.IsEmpty())
-        return NS_OK;
-    }
-  }
+  if (aName.IsEmpty())
+    mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary, aName);
 
-  // If no caption then use summary as a name.
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::summary, aName);
   return NS_OK;
 }
 
@@ -506,14 +491,21 @@ nsHTMLTableAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableAccessible: nsIAccessible implementation
 
-Relation
-nsHTMLTableAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
+                                         nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsAccessibleWrap::RelationByType(aType);
-  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
-    rel.AppendTarget(Caption());
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
+                                                    aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return rel;
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY) {
+    nsCOMPtr<nsIAccessible> accCaption;
+    GetCaption(getter_AddRefs(accCaption));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accCaption);
+  }
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -522,9 +514,10 @@ nsHTMLTableAccessible::RelationByType(PRUint32 aType)
 NS_IMETHODIMP
 nsHTMLTableAccessible::GetCaption(nsIAccessible **aCaption)
 {
-  NS_ENSURE_ARG_POINTER(aCaption);
+  nsAccessible* firstChild = GetChildAt(0);
+  if (firstChild && firstChild->Role() == nsIAccessibleRole::ROLE_CAPTION)
+    NS_ADDREF(*aCaption = firstChild);
 
-  NS_IF_ADDREF(*aCaption = Caption());
   return NS_OK;
 }
 
@@ -1211,9 +1204,13 @@ nsHTMLTableAccessible::RemoveRowsOrColumnsFromSelection(PRInt32 aIndex,
     const_cast<nsFrameSelection*>(presShell->ConstFrameSelection());
 
   PRBool doUnselectRow = (aTarget == nsISelectionPrivate::TABLESELECTION_ROW);
+
+  nsresult rv = NS_OK;
   PRInt32 count = 0;
-  nsresult rv = doUnselectRow ? GetColumnCount(&count) : GetRowCount(&count);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (doUnselectRow)
+    rv = GetColumnCount(&count);
+  else
+    rv = GetRowCount(&count);
 
   PRInt32 startRowIdx = doUnselectRow ? aIndex : 0;
   PRInt32 endRowIdx = doUnselectRow ? aIndex : count - 1;
@@ -1271,23 +1268,17 @@ nsHTMLTableAccessible::Description(nsString& aDescription)
   if (!aDescription.IsEmpty())
     return;
 
-  // Use summary as description if it weren't used as a name.
-  // XXX: get rid code duplication with NameInternal().
-  nsAccessible* caption = Caption();
-  if (caption) {
-    nsIContent* captionContent = caption->GetContent();
-    if (captionContent) {
-      nsAutoString captionText;
+  nsCOMPtr<nsIAccessible> captionAccessible;
+  GetCaption(getter_AddRefs(captionAccessible));
+  nsCOMPtr<nsIAccessNode> captionAccessNode = do_QueryInterface(captionAccessible);
+  if (captionAccessNode) {
+    nsCOMPtr<nsIDOMNode> captionNode;
+    captionAccessNode->GetDOMNode(getter_AddRefs(captionNode));
+    nsCOMPtr<nsIContent> captionContent = do_QueryInterface(captionNode);
+    if (captionContent)
       nsTextEquivUtils::AppendTextEquivFromContent(this, captionContent,
-                                                   &captionText);
-
-      if (!captionText.IsEmpty()) { // summary isn't used as a name.
-        mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::summary,
-                          aDescription);
-      }
-    }
+                                                   &aDescription);
   }
-
 #ifdef SHOW_LAYOUT_HEURISTIC
   if (aDescription.IsEmpty()) {
     PRBool isProbablyForLayout;
@@ -1380,7 +1371,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
     RETURN_LAYOUT_ANSWER(PR_FALSE, "Has role attribute");
   }
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::role)) {
+  if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
     // Role attribute is present, but overridden roles have already been dealt with.
     // Only landmarks and other roles that don't override the role from native
     // markup are left to deal with here.
@@ -1389,7 +1380,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
   
   // Check for legitimate data table elements or attributes
   nsAutoString summary;
-  if ((mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::summary, summary) &&
+  if ((mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary, summary) &&
        !summary.IsEmpty()) || 
       HasDescendant(NS_LITERAL_STRING("caption"), PR_FALSE) ||
       HasDescendant(NS_LITERAL_STRING("th")) ||
@@ -1519,14 +1510,21 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 // nsHTMLCaptionAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-Relation
-nsHTMLCaptionAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsHyperTextAccessible::RelationByType(aType);
-  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR)
-    rel.AppendTarget(Parent());
+  nsresult rv = nsHyperTextAccessible::GetRelationByType(aRelationType,
+                                                         aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return rel;
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIPTION_FOR) {
+    nsCOMPtr<nsIAccessible> accParent;
+    GetParent(getter_AddRefs(accParent));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
+  }
+
+  return NS_OK;
 }
 
 PRUint32

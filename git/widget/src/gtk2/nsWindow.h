@@ -203,11 +203,8 @@ public:
     gint               ConvertBorderStyles(nsBorderStyle aStyle);
 
     // event callbacks
-#if defined(MOZ_WIDGET_GTK2)
-    gboolean           OnExposeEvent(GdkEventExpose *aEvent);
-#else
-    gboolean           OnExposeEvent(cairo_t *cr);
-#endif
+    gboolean           OnExposeEvent(GtkWidget *aWidget,
+                                     GdkEventExpose *aEvent);
     gboolean           OnConfigureEvent(GtkWidget *aWidget,
                                         GdkEventConfigure *aEvent);
     void               OnContainerUnrealize(GtkWidget *aWidget);
@@ -337,14 +334,10 @@ public:
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
 
-#if defined(MOZ_WIDGET_GTK2)
     gfxASurface       *GetThebesSurface();
 
     static already_AddRefed<gfxASurface> GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                                                   const nsIntSize& aSize);
-#else
-    gfxASurface       *GetThebesSurface(cairo_t *cr);
-#endif
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 
 #ifdef ACCESSIBILITY
@@ -389,7 +382,6 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    PRBool             DispatchContentCommandEvent(PRInt32 aMsg);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            PRBool aIntersectWithExisting);
     PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
@@ -535,3 +527,4 @@ public:
 };
 
 #endif /* __nsWindow_h__ */
+

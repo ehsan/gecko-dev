@@ -78,6 +78,7 @@ CPPSRCS		= \
 		nsImageControlFrame.cpp \
 		nsLegendFrame.cpp \
 		nsListControlFrame.cpp \
+		nsIsIndexFrame.cpp \
 		nsSelectsAreaFrame.cpp \
 		$(NULL)
 

@@ -234,10 +234,7 @@ nsDiskCacheMap::FlushHeader()
     if (sizeof(nsDiskCacheHeader) != bytesWritten) {
         return NS_ERROR_UNEXPECTED;
     }
-
-    PRStatus err = PR_Sync(mMapFD);
-    if (err != PR_SUCCESS) return NS_ERROR_UNEXPECTED;
-
+    
     return NS_OK;
 }
 
@@ -325,9 +322,9 @@ nsDiskCacheMap::GrowRecords()
         memmove(newRecords,
                 newArray + bucketIndex * oldRecordsPerBucket,
                 count * sizeof(nsDiskCacheRecord));
-        // clear unused records
-        memset(newRecords + count, 0,
-               (newRecordsPerBucket - count) * sizeof(nsDiskCacheRecord));
+        // Clear the new empty entries
+        for (PRUint32 i = count; i < newRecordsPerBucket; ++i)
+            newRecords[i].SetHashNumber(0);
     }
 
     // Set as the new record array
@@ -1142,7 +1139,7 @@ nsDiskCacheMap::NotifyCapacityChange(PRUint32 capacity)
   // Heuristic 2. we don't want more than 32MB reserved to store the record
   //              map in memory.
   const PRInt32 RECORD_COUNT_LIMIT = 32 * 1024 * 1024 / sizeof(nsDiskCacheRecord);
-  PRInt32 maxRecordCount = NS_MIN(PRInt32(capacity), RECORD_COUNT_LIMIT);
+  PRInt32 maxRecordCount = PR_MIN(PRInt32(capacity), RECORD_COUNT_LIMIT);
   if (mMaxRecordCount < maxRecordCount) {
     // We can only grow
     mMaxRecordCount = maxRecordCount;

@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Checks that we migrate data from the old rdf style database
+// Checks that we migrate data from previous versions of the database
 
 var addon1 = {
   id: "addon1@tests.mozilla.org",
@@ -129,11 +129,6 @@ function run_test() {
   Services.prefs.setCharPref("extensions.lastAppVersion", "1");
 
   startupManager();
-  check_startup_changes("installed", []);
-  check_startup_changes("updated", []);
-  check_startup_changes("uninstalled", []);
-  check_startup_changes("disabled", []);
-  check_startup_changes("enabled", []);
 
   do_check_false(oldCache.exists());
 

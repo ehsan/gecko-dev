@@ -41,7 +41,7 @@
 #define jstypedarray_h
 
 #include "jsapi.h"
-#include "jsclass.h"
+#include "jsvalue.h"
 
 typedef struct JSProperty JSProperty;
 
@@ -56,106 +56,34 @@ namespace js {
  * TypedArray with a size.
  */
 struct JS_FRIEND_API(ArrayBuffer) {
-    static Class slowClass;
+    static Class jsclass;
     static JSPropertySpec jsprops[];
 
     static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsid id, Value *vp);
+    static void class_finalize(JSContext *cx, JSObject *obj);
 
     static JSBool class_constructor(JSContext *cx, uintN argc, Value *vp);
 
     static JSObject *create(JSContext *cx, int32 nbytes);
 
+    static ArrayBuffer *fromJSObject(JSObject *obj);
+
     ArrayBuffer()
+        : data(0), byteLength()
     {
     }
 
     ~ArrayBuffer();
 
-    static void
-    obj_trace(JSTracer *trc, JSObject *obj);
+    bool allocateStorage(JSContext *cx, uint32 bytes);
+    void freeStorage(JSContext *cx);
 
-    static JSBool
-    obj_lookupProperty(JSContext *cx, JSObject *obj, jsid id,
-                       JSObject **objp, JSProperty **propp);
+    void *offsetData(uint32 offs) {
+        return (void*) (((intptr_t)data) + offs);
+    }
 
-    static JSBool
-    obj_lookupElement(JSContext *cx, JSObject *obj, uint32 index,
-                      JSObject **objp, JSProperty **propp);
-
-    static JSBool
-    obj_lookupSpecial(JSContext *cx, JSObject *obj, SpecialId sid, JSObject **objp,
-                      JSProperty **propp);
-
-    static JSBool
-    obj_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *v,
-                       PropertyOp getter, StrictPropertyOp setter, uintN attrs);
-
-    static JSBool
-    obj_defineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *v,
-                      PropertyOp getter, StrictPropertyOp setter, uintN attrs);
-
-    static JSBool
-    obj_defineSpecial(JSContext *cx, JSObject *obj, SpecialId sid, const Value *v,
-                      PropertyOp getter, StrictPropertyOp setter, uintN attrs);
-
-    static JSBool
-    obj_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp);
-
-    static JSBool
-    obj_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name,
-                    Value *vp);
-
-    static JSBool
-    obj_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp);
-
-    static JSBool
-    obj_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp);
-
-    static JSBool
-    obj_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
-
-    static JSBool
-    obj_setElement(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict);
-
-    static JSBool
-    obj_setSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict);
-
-    static JSBool
-    obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
-
-    static JSBool
-    obj_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp);
-
-    static JSBool
-    obj_getSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
-
-    static JSBool
-    obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
-
-    static JSBool
-    obj_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp);
-
-    static JSBool
-    obj_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
-
-    static JSBool
-    obj_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict);
-
-    static JSBool
-    obj_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict);
-
-    static JSBool
-    obj_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict);
-
-    static JSBool
-    obj_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
-                  Value *statep, jsid *idp);
-
-    static JSType
-    obj_typeOf(JSContext *cx, JSObject *obj);
-
-    static JSObject *
-    getArrayBuffer(JSObject *obj);
+    void *data;
+    uint32 byteLength;
 };
 
 /*
@@ -186,16 +114,6 @@ struct JS_FRIEND_API(TypedArray) {
         TYPE_MAX
     };
 
-    enum {
-        /* Properties of the typed array stored in reserved slots. */
-        FIELD_LENGTH = 0,
-        FIELD_BYTEOFFSET,
-        FIELD_BYTELENGTH,
-        FIELD_TYPE,
-        FIELD_BUFFER,
-        FIELD_MAX
-    };
-
     // and MUST NOT be used to construct new objects.
     static Class fastClasses[TYPE_MAX];
 
@@ -205,7 +123,7 @@ struct JS_FRIEND_API(TypedArray) {
 
     static JSPropertySpec jsprops[];
 
-    static JSObject *getTypedArray(JSObject *obj);
+    static TypedArray *fromJSObject(JSObject *obj);
 
     static JSBool prop_getBuffer(JSContext *cx, JSObject *obj, jsid id, Value *vp);
     static JSBool prop_getByteOffset(JSContext *cx, JSObject *obj, jsid id, Value *vp);
@@ -214,32 +132,34 @@ struct JS_FRIEND_API(TypedArray) {
 
     static JSBool obj_lookupProperty(JSContext *cx, JSObject *obj, jsid id,
                                      JSObject **objp, JSProperty **propp);
-    static JSBool obj_lookupElement(JSContext *cx, JSObject *obj, uint32 index,
-                                    JSObject **objp, JSProperty **propp);
-    static JSBool obj_lookupSpecial(JSContext *cx, JSObject *obj, SpecialId sid,
-                                    JSObject **objp, JSProperty **propp);
+
+    static void obj_trace(JSTracer *trc, JSObject *obj);
 
     static JSBool obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
-    static JSBool obj_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp);
-    static JSBool obj_getSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
 
     static JSBool obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
-    static JSBool obj_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp);
-    static JSBool obj_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
 
-    static JSUint32 getLength(JSObject *obj);
-    static JSUint32 getByteOffset(JSObject *obj);
-    static JSUint32 getByteLength(JSObject *obj);
-    static JSUint32 getType(JSObject *obj);
-    static JSObject * getBuffer(JSObject *obj);
-    static void * getDataOffset(JSObject *obj);
+    static int32 lengthOffset() { return offsetof(TypedArray, length); }
+    static int32 dataOffset() { return offsetof(TypedArray, data); }
+    static int32 typeOffset() { return offsetof(TypedArray, type); }
 
   public:
-    static bool
-    isArrayIndex(JSContext *cx, JSObject *obj, jsid id, jsuint *ip = NULL);
+    TypedArray() : buffer(0) { }
 
-    static inline uint32 slotWidth(int atype) {
-        switch (atype) {
+    bool isArrayIndex(JSContext *cx, jsid id, jsuint *ip = NULL);
+    bool valid() { return buffer != 0; }
+
+    ArrayBuffer *buffer;
+    JSObject *bufferJS;
+    uint32 byteOffset;
+    uint32 byteLength;
+    uint32 length;
+    uint32 type;
+
+    void *data;
+
+    inline int slotWidth() const {
+        switch (type) {
           case js::TypedArray::TYPE_INT8:
           case js::TypedArray::TYPE_UINT8:
           case js::TypedArray::TYPE_UINT8_CLAMPED:
@@ -254,21 +174,11 @@ struct JS_FRIEND_API(TypedArray) {
           case js::TypedArray::TYPE_FLOAT64:
             return 8;
           default:
-            JS_NOT_REACHED("invalid typed array type");
+            JS_NOT_REACHED("invalid typed array");
             return 0;
         }
     }
-
-    static inline int slotWidth(JSObject *obj) {
-        return slotWidth(getType(obj));
-    }
-
-    static int lengthOffset();
-    static int dataOffset();
 };
-
-extern bool
-IsFastTypedArrayClass(const Class *clasp);
 
 } // namespace js
 
@@ -314,29 +224,5 @@ js_CreateTypedArrayWithBuffer(JSContext *cx, jsint atype, JSObject *bufArg,
 
 extern int32 JS_FASTCALL
 js_TypedArray_uint8_clamp_double(const double x);
-
-JS_FRIEND_API(JSUint32)
-JS_GetArrayBufferByteLength(JSObject *obj);
-
-JS_FRIEND_API(uint8 *)
-JS_GetArrayBufferData(JSObject *obj);
-
-JS_FRIEND_API(JSUint32)
-JS_GetTypedArrayLength(JSObject *obj);
-
-JS_FRIEND_API(JSUint32)
-JS_GetTypedArrayByteOffset(JSObject *obj);
-
-JS_FRIEND_API(JSUint32)
-JS_GetTypedArrayByteLength(JSObject *obj);
-
-JS_FRIEND_API(JSUint32)
-JS_GetTypedArrayType(JSObject *obj);
-
-JS_FRIEND_API(JSObject *)
-JS_GetTypedArrayBuffer(JSObject *obj);
-
-JS_FRIEND_API(void *)
-JS_GetTypedArrayData(JSObject *obj);
 
 #endif /* jstypedarray_h */

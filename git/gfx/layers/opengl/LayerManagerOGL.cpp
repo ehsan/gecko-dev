@@ -46,7 +46,6 @@
 #include "ColorLayerOGL.h"
 #include "CanvasLayerOGL.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Preferences.h"
 
 #include "LayerManagerOGLShaders.h"
 
@@ -58,6 +57,8 @@
 
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 
 #include "gfxCrashReporterUtils.h"
 
@@ -80,6 +81,7 @@ LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
   , mBackBufferTexture(0)
   , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
+  , mRenderFPS(false)
 {
 }
 
@@ -334,7 +336,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
   };
   mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER, sizeof(vertices), vertices, LOCAL_GL_STATIC_DRAW);
 
-  nsCOMPtr<nsIConsoleService>
+  nsCOMPtr<nsIConsoleService> 
     console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
 
   if (console) {
@@ -356,8 +358,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
       msg += NS_LITERAL_STRING("TEXTURE_RECTANGLE");
     console->LogStringMessage(msg.get());
   }
-
-  Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
 
   reporter.SetSuccessful();
   return true;
@@ -402,8 +402,7 @@ LayerManagerOGL::EndEmptyTransaction()
 
 void
 LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
-                                void* aCallbackData,
-                                EndTransactionFlags aFlags)
+                                void* aCallbackData)
 {
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
@@ -415,7 +414,7 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
     return;
   }
 
-  if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
+  if (mRoot) {
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
     mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
@@ -541,10 +540,6 @@ LayerManagerOGL::RootLayer() const
   return static_cast<LayerOGL*>(mRoot->ImplData());
 }
 
-PRBool LayerManagerOGL::sDrawFPS = PR_FALSE;
-
-/* This function tries to stick to portable C89 as much as possible
- * so that it can be easily copied into other applications */
 void
 LayerManagerOGL::FPSState::DrawFPS(GLContext* context, CopyProgram* copyprog)
 {
@@ -580,18 +575,13 @@ LayerManagerOGL::FPSState::DrawFPS(GLContext* context, CopyProgram* copyprog)
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     };
 
-    // convert from 8 bit to 32 bit so that don't have to write the text above out in 32 bit format
-    // we rely on int being 32 bits
-    unsigned int* buf = (unsigned int*)malloc(64 * 8 * 4);
+    unsigned long* buf = (unsigned long*)malloc(64 * 8 * 4);
     for (int i = 0; i < 7; i++) {
       for (int j = 0; j < 41; j++) {
-        unsigned int purple = 0xfff000ff;
-        unsigned int white  = 0xffffffff;
-        buf[i * 64 + j] = (text[i * 41 + j] == 0) ? purple : white;
+        buf[i * 64 + j] = (text[i * 41 + j] == 0) ? 0xfff000ff : 0xffffffff;
       }
     }
     context->fTexImage2D(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, 64, 8, 0, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, buf);
-    free(buf);
     initialized = true;
   }
 
@@ -675,71 +665,6 @@ LayerManagerOGL::FPSState::DrawFPS(GLContext* context, CopyProgram* copyprog)
   context->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 12);
 }
 
-// |aTexCoordRect| is the rectangle from the texture that we want to
-// draw using the given program.  The program already has a necessary
-// offset and scale, so the geometry that needs to be drawn is a unit
-// square from 0,0 to 1,1.
-//
-// |aTexSize| is the actual size of the texture, as it can be larger
-// than the rectangle given by |aTexCoordRect|.
-void 
-LayerManagerOGL::BindAndDrawQuadWithTextureRect(LayerProgram *aProg,
-                                                const nsIntRect& aTexCoordRect,
-                                                const nsIntSize& aTexSize,
-                                                GLenum aWrapMode)
-{
-  GLuint vertAttribIndex =
-    aProg->AttribLocation(LayerProgram::VertexAttrib);
-  GLuint texCoordAttribIndex =
-    aProg->AttribLocation(LayerProgram::TexCoordAttrib);
-  NS_ASSERTION(texCoordAttribIndex != GLuint(-1), "no texture coords?");
-
-  // clear any bound VBO so that glVertexAttribPointer() goes back to
-  // "pointer mode"
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-
-  // Given what we know about these textures and coordinates, we can
-  // compute fmod(t, 1.0f) to get the same texture coordinate out.  If
-  // the texCoordRect dimension is < 0 or > width/height, then we have
-  // wraparound that we need to deal with by drawing multiple quads,
-  // because we can't rely on full non-power-of-two texture support
-  // (which is required for the REPEAT wrap mode).
-
-  GLContext::RectTriangles rects;
-
-  if (aWrapMode == LOCAL_GL_REPEAT) {
-    rects.addRect(/* dest rectangle */
-                  0.0f, 0.0f, 1.0f, 1.0f,
-                  /* tex coords */
-                  aTexCoordRect.x / GLfloat(aTexSize.width),
-                  aTexCoordRect.y / GLfloat(aTexSize.height),
-                  aTexCoordRect.XMost() / GLfloat(aTexSize.width),
-                  aTexCoordRect.YMost() / GLfloat(aTexSize.height));
-  } else {
-    GLContext::DecomposeIntoNoRepeatTriangles(aTexCoordRect, aTexSize, rects);
-  }
-
-  mGLContext->fVertexAttribPointer(vertAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   rects.vertexPointer());
-
-  mGLContext->fVertexAttribPointer(texCoordAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   rects.texCoordPointer());
-
-  {
-    mGLContext->fEnableVertexAttribArray(texCoordAttribIndex);
-    {
-      mGLContext->fEnableVertexAttribArray(vertAttribIndex);
-
-      mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
-
-      mGLContext->fDisableVertexAttribArray(vertAttribIndex);
-    }
-    mGLContext->fDisableVertexAttribArray(texCoordAttribIndex);
-  }
-}
-
 void
 LayerManagerOGL::Render()
 {
@@ -807,7 +732,7 @@ LayerManagerOGL::Render()
     return;
   }
 
-  if (sDrawFPS) {
+  if (mRenderFPS) {
     mFPS.DrawFPS(mGLContext, GetCopy2DProgram());
   }
 
@@ -950,10 +875,7 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTra
     viewMatrix = mWorldMatrix * viewMatrix;
   }
 
-  gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
-  matrix3d._33 = 0.0f;
-
-  SetLayerProgramProjectionMatrix(matrix3d);
+  SetLayerProgramProjectionMatrix(gfx3DMatrix::From2D(viewMatrix));
 }
 
 void
@@ -1019,13 +941,13 @@ LayerManagerOGL::CopyToTarget()
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
                                mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO);
 
-#ifndef USE_GLES2
-  // GLES2 promises that binding to any custom FBO will attach
-  // to GL_COLOR_ATTACHMENT0 attachment point.
   if (mGLContext->IsDoubleBuffered()) {
     mGLContext->fReadBuffer(LOCAL_GL_BACK);
   }
+#ifndef USE_GLES2
   else {
+  // GLES2 promises that binding to any custom FBO will attach
+  // to GL_COLOR_ATTACHMENT0 attachment point.
     mGLContext->fReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0);
   }
 #endif

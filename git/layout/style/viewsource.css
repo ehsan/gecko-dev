@@ -41,7 +41,6 @@
 *|*:root {
   background-color: white;
   color: black;
-  direction: ltr;
 }
 #viewsource {
   font-family: -moz-fixed;
@@ -64,7 +63,7 @@ pre {
 }
 .end-tag {
  color: purple;
- font-weight: bold;
+ font-weight: bold; 
 }
 .comment {
  color: green;
@@ -96,16 +95,25 @@ pre {
  color: blue;
  font-weight: normal;
 }
+.summary {
+ display: block;
+ background-color: #FFFFCC;
+ width: 90%;
+ border: solid;
+ border-width: 1pt;
+ font-family: sans-serif;
+}
+.popup {
+  font-weight: normal;
+}
 .markupdeclaration {
  color: steelblue;
  font-style: italic;
 }
-span:not(.error) {
- unicode-bidi: embed;
-}
-.error, 
-.error > :-moz-any(.start-tag, .end-tag, .comment, .cdata, .doctype, .pi,
-                   .entity, .attribute-name, .attribute-value) {
+.error, .error > .start-tag, .error > .end-tag,
+.error > .comment, .error > .cdata, .error > .doctype,
+.error > .pi, .error > .entity, .error > .attribute-name,
+.error > .attribute-value {
   color: red;
   font-weight: bold;
 }

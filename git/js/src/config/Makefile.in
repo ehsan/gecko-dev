@@ -56,7 +56,9 @@ else
 HOST_CSRCS	= nsinstall.c pathsub.c
 endif
 
-TARGETS		= $(HOST_PROGRAM) $(SIMPLE_PROGRAMS)
+PLSRCS		= nfspwd.pl
+
+TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
 
 # IMPORTANT: Disable NSBUILDROOT for this directory only, otherwise we have
 # a recursive rule for finding nsinstall and the Perl scripts.

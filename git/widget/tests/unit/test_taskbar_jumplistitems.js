@@ -184,13 +184,8 @@ function test_shortcuts()
   handlerApp.appendParameter("-test");
 
   sc.iconIndex = 1;
-  do_check_eq(sc.iconIndex, 1);
 
-  var faviconPageUri = Cc["@mozilla.org/network/simple-uri;1"]
-                    .createInstance(Ci.nsIURI);
-  faviconPageUri.spec = "http://www.123.com/";
-  sc.faviconPageUri = faviconPageUri;
-  do_check_eq(sc.faviconPageUri, faviconPageUri);
+  do_check_eq(sc.iconIndex, 1);
 
   var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
                   getService(Ci.nsIProperties).

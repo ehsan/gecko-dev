@@ -96,7 +96,6 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
-#include "mozilla/dom/Element.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gObjectLog = PR_NewLogModule("objlc");
@@ -338,7 +337,9 @@ class AutoNotifier {
         mOldState = aContent->ObjectState();
     }
     ~AutoNotifier() {
-      mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE, mNotify);
+      if (mNotify) {
+        mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE);
+      }
     }
 
     /**
@@ -349,7 +350,7 @@ class AutoNotifier {
     void Notify() {
       NS_ASSERTION(mNotify, "Should not notify when notify=false");
 
-      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE, PR_TRUE);
+      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE);
       mOldType = mContent->Type();
       mOldState = mContent->ObjectState();
     }
@@ -1130,6 +1131,23 @@ nsObjectLoadingContent::LoadObject(const nsAString& aURI,
   return LoadObject(uri, aNotify, aTypeHint, aForceLoad);
 }
 
+static PRBool
+IsAboutBlank(nsIURI* aURI)
+{
+  // XXXbz this duplicates an nsDocShell function, sadly
+  NS_PRECONDITION(aURI, "Must have URI");
+    
+  // GetSpec can be expensive for some URIs, so check the scheme first.
+  PRBool isAbout = PR_FALSE;
+  if (NS_FAILED(aURI->SchemeIs("about", &isAbout)) || !isAbout) {
+    return PR_FALSE;
+  }
+    
+  nsCAutoString str;
+  aURI->GetSpec(str);
+  return str.EqualsLiteral("about:blank");  
+}
+
 void
 nsObjectLoadingContent::UpdateFallbackState(nsIContent* aContent,
                                             AutoFallback& fallback,
@@ -1443,8 +1461,17 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   }
 
   // Set up the channel's principal and such, like nsDocShell::DoURILoad does
-  nsContentUtils::SetUpChannelOwner(thisContent->NodePrincipal(),
-                                    chan, aURI, PR_TRUE);
+  PRBool inheritPrincipal;
+  rv = NS_URIChainHasFlags(aURI,
+                           nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
+                           &inheritPrincipal);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (inheritPrincipal || IsAboutBlank(aURI) ||
+      (nsContentUtils::URIIsLocalFile(aURI) &&
+       NS_SUCCEEDED(thisContent->NodePrincipal()->CheckMayLoad(aURI,
+                                                               PR_FALSE)))) {
+    chan->SetOwner(thisContent->NodePrincipal());
+  }
 
   nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(chan);
   if (scriptChannel) {
@@ -1470,8 +1497,11 @@ nsObjectLoadingContent::GetCapabilities() const
 {
   return eSupportImages |
          eSupportPlugins |
-         eSupportDocuments |
-         eSupportSVG;
+         eSupportDocuments
+#ifdef MOZ_SVG
+         | eSupportSVG
+#endif
+         ;
 }
 
 void
@@ -1499,13 +1529,10 @@ nsObjectLoadingContent::RemovedFromDocument()
   }
 }
 
-/* static */
 void
-nsObjectLoadingContent::Traverse(nsObjectLoadingContent *tmp,
-                                 nsCycleCollectionTraversalCallback &cb)
+nsObjectLoadingContent::Traverse(nsCycleCollectionTraversalCallback &cb)
 {
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
-  cb.NoteXPCOMChild(static_cast<nsIFrameLoader*>(tmp->mFrameLoader));
+  cb.NoteXPCOMChild(static_cast<nsIFrameLoader*>(mFrameLoader));
 }
 
 // <private>
@@ -1615,9 +1642,7 @@ nsObjectLoadingContent::UnloadContent()
 
 void
 nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
-                                           nsEventStates aOldState,
-                                           PRBool aSync,
-                                           PRBool aNotify)
+                                          nsEventStates aOldState, PRBool aSync)
 {
   LOG(("OBJLC [%p]: Notifying about state change: (%u, %llx) -> (%u, %llx) (sync=%i)\n",
        this, aOldType, aOldState.GetInternalValue(), mType,
@@ -1626,18 +1651,6 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
-
-  NS_ASSERTION(thisContent->IsElement(), "Not an element?");
-
-  // Unfortunately, we do some state changes without notifying
-  // (e.g. in Fallback when canceling image requests), so we have to
-  // manually notify object state changes.
-  thisContent->AsElement()->UpdateState(false);
-
-  if (!aNotify) {
-    // We're done here
-    return;
-  }
 
   nsIDocument* doc = thisContent->GetCurrentDoc();
   if (!doc) {
@@ -1652,11 +1665,12 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
     nsEventStates changedBits = aOldState ^ newState;
 
     {
-      nsAutoScriptBlocker scriptBlocker;
+      mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
       doc->ContentStateChanged(thisContent, changedBits);
     }
     if (aSync) {
-      // Make sure that frames are actually constructed immediately.
+      // Make sure that frames are actually constructed, and do it after
+      // EndUpdate was called.
       doc->FlushPendingNotifications(Flush_Frames);
     }
   } else if (aOldType != mType) {
@@ -1692,8 +1706,12 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
     return eType_Image;
   }
 
+#ifdef MOZ_SVG
   PRBool isSVG = aMIMEType.LowerCaseEqualsLiteral("image/svg+xml");
   PRBool supportedSVG = isSVG && (caps & eSupportSVG);
+#else
+  PRBool supportedSVG = PR_FALSE;
+#endif
   if (((caps & eSupportDocuments) || supportedSVG) &&
       IsSupportedDocument(aMIMEType)) {
     return eType_Document;
@@ -1926,10 +1944,13 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
   PRBool hasAlternateContent = PR_FALSE;
 
   // Search for a child <param> with a pluginurl name
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsHTML(nsGkAtoms::param)) {
+  PRUint32 count = aContent->GetChildCount();
+  for (PRUint32 i = 0; i < count; ++i) {
+    nsIContent* child = aContent->GetChildAt(i);
+    NS_ASSERTION(child, "GetChildCount lied!");
+
+    if (child->IsHTML() &&
+        child->Tag() == nsGkAtoms::param) {
       if (child->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
                              NS_LITERAL_STRING("pluginurl"), eIgnoreCase)) {
         return GetPluginDisabledState(aContentType);

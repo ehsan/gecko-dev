@@ -93,10 +93,10 @@ protected:
   void UpdateReferencedElement(Element* aFrom, Element* aTo);
   void UnregisterFromReferencedElement(Element* aElement);
   nsSMILTimedElement* GetTimedElement(Element* aElement);
-  PRBool IsWhitelistedEvent();
   void RegisterEventListener(Element* aElement);
   void UnregisterEventListener(Element* aElement);
-  nsEventListenerManager* GetEventListenerManager(Element* aElement);
+  nsIEventListenerManager* GetEventListenerManager(Element* aElement,
+      nsIDOMEventGroup** aSystemGroup);
   void HandleEvent(nsIDOMEvent* aEvent);
   PRBool CheckEventDetail(nsIDOMEvent* aEvent);
   PRBool CheckRepeatEventDetail(nsIDOMEvent* aEvent);

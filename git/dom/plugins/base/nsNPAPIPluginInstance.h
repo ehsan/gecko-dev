@@ -68,7 +68,6 @@ public:
   uint32_t id;
   nsCOMPtr<nsITimer> timer;
   void (*callback)(NPP npp, uint32_t timerID);
-  PRBool inCallback;
 };
 
 class nsNPAPIPluginInstance : public nsISupports
@@ -86,16 +85,13 @@ public:
   nsresult NewStreamToPlugin(nsIPluginStreamListener** listener);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
-#ifdef ANDROID
-  nsresult PostEvent(void* event) { return 0; };
-#endif
   nsresult HandleEvent(void* event, PRInt16* result);
   nsresult GetValueFromPlugin(NPPVariable variable, void* value);
   nsresult GetDrawingModel(PRInt32* aModel);
   nsresult IsRemoteDrawingCoreAnimation(PRBool* aDrawing);
   nsresult GetJSObject(JSContext *cx, JSObject** outObject);
   nsresult DefineJavaProperties();
-  PRBool ShouldCache();
+  nsresult ShouldCache(PRBool* shouldCache);
   nsresult IsWindowless(PRBool* isWindowless);
   nsresult AsyncSetWindow(NPWindow* window);
   nsresult GetImage(ImageContainer* aContainer, Image** aImage);
@@ -119,9 +115,6 @@ public:
   nsresult SetOwner(nsIPluginInstanceOwner *aOwner);
   nsresult ShowStatus(const char* message);
   nsresult InvalidateOwner();
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-  nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
-#endif
 
   nsNPAPIPlugin* GetPlugin();
 
@@ -144,11 +137,6 @@ public:
 #ifdef XP_MACOSX
   void SetDrawingModel(NPDrawingModel aModel);
   void SetEventModel(NPEventModel aModel);
-#endif
-
-#ifdef ANDROID
-  void SetDrawingModel(PRUint32 aModel);
-  void* GetJavaSurface();
 #endif
 
   nsresult NewStreamListener(const char* aURL, void* notifyData,
@@ -175,7 +163,7 @@ public:
   }
 
   // return is only valid when the plugin is not running
-  mozilla::TimeStamp StopTime();
+  mozilla::TimeStamp LastStopTime();
 
   // cache this NPAPI plugin
   nsresult SetCached(PRBool aCache);
@@ -221,10 +209,6 @@ protected:
 
 #ifdef XP_MACOSX
   NPDrawingModel mDrawingModel;
-#endif
-
-#ifdef ANDROID
-  PRUint32 mDrawingModel;
 #endif
 
   enum {
@@ -275,9 +259,6 @@ private:
   nsCOMPtr<nsIURI> mURI;
 
   PRPackedBool mUsePluginLayersPref;
-#ifdef ANDROID
-  void* mSurface;
-#endif
 };
 
 #endif // nsNPAPIPluginInstance_h_

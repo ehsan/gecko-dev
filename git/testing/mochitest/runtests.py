@@ -232,22 +232,6 @@ class MochitestOptions(optparse.OptionParser):
                            "inside a VMware Workstation 7.0 or later VM")
     defaults["vmwareRecording"] = False
 
-    self.add_option("--repeat",
-                    action = "store", type = "int",
-                    dest = "repeat", metavar = "REPEAT",
-                    help = "repeats the test or set of tests the given number of times, ie: repeat=1 will run the test twice.")                   
-    defaults["repeat"] = 0
-
-    self.add_option("--run-only-tests",
-                    action = "store", type="string", dest = "runOnlyTests",
-                    help = "JSON list of tests that we only want to run, cannot be specified with --exclude-tests.")
-    defaults["runOnlyTests"] = None
-
-    self.add_option("--exclude-tests",
-                    action = "store", type="string", dest = "excludeTests",
-                    help = "JSON list of tests that we want to not run, cannot be specified with --run-only-tests.")
-    defaults["excludeTests"] = None
-
     # -h, --help are automatically handled by OptionParser
 
     self.set_defaults(**defaults)
@@ -310,17 +294,6 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
       if not os.path.exists(mochitest.vmwareHelperPath):
         self.error("%s not found, cannot automate VMware recording." %
                    mochitest.vmwareHelperPath)
-
-    if options.runOnlyTests != None and options.excludeTests != None:
-      self.error("We can only support --run-only-tests OR --exclude-tests, not both.")
-      
-    if (options.runOnlyTests):
-      if (not os.path.exists(os.path.join(os.path.dirname(__file__), options.runOnlyTests))):
-        self.error("unable to find --run-only-tests file '%s'" % (options.runOnlyTests));
-        
-    if (options.excludeTests):
-      if (not os.path.exists(os.path.join(os.path.dirname(__file__), options.excludeTests))):
-        self.error("unable to find --exclude-tests file '%s'" % (options.excludeTests));
 
     return options
 
@@ -430,9 +403,8 @@ class WebSocketServer(object):
 
 class Mochitest(object):
   # Path to the test script on the server
-  TEST_PATH = "tests"
-  CHROME_PATH = "redirect.html"
-  PLAIN_LOOP_PATH = "plain-loop.html"
+  TEST_PATH = "/tests/"
+  CHROME_PATH = "/redirect.html";
   urlOpts = []
   runSSLTunnel = True
   vmwareHelper = None
@@ -460,15 +432,13 @@ class Mochitest(object):
   def buildTestPath(self, options):
     """ Build the url path to the specific test harness and test file or directory """
     testHost = "http://mochi.test:8888"
-    testURL = ("/").join([testHost, self.TEST_PATH, options.testPath])
-    if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.repeat > 0:
-       testURL = ("/").join([testHost, self.PLAIN_LOOP_PATH])
+    testURL = testHost + self.TEST_PATH + options.testPath
     if options.chrome or options.a11y:
-       testURL = ("/").join([testHost, self.CHROME_PATH])
+       testURL = testHost + self.CHROME_PATH
     elif options.browserChrome:
       testURL = "about:blank"
     elif options.ipcplugins:
-      testURL = ("/").join([testHost, self.TEST_PATH, "dom/plugins/test"])
+      testURL = testHost + self.TEST_PATH + "dom/plugins/test"
     return testURL
 
   def startWebSocketServer(self, options, debuggerInfo):
@@ -530,7 +500,12 @@ class Mochitest(object):
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
 
-    self.installSpecialPowersExtension(options)
+    # We only need special powers in non-chrome harnesses
+    if (not options.browserChrome and
+        not options.chrome and
+        not options.a11y):
+      self.installSpecialPowersExtension(options)
+
     self.installExtensionsToProfile(options)
     return manifest
 
@@ -556,19 +531,17 @@ class Mochitest(object):
 
     return browserEnv
 
-  def buildURLOptions(self, options, env):
+  def buildURLOptions(self, options):
     """ Add test control options from the command line to the url 
 
         URL parameters to test URL:
 
         autorun -- kick off tests automatically
         closeWhenDone -- runs quit.js after tests
-        hideResultsTable -- hides the table of individual test results
         logFile -- logs test run to an absolute path
         totalChunks -- how many chunks to split tests into
         thisChunk -- which chunk to run
         timeout -- per-test timeout in seconds
-        repeat -- How many times to repeat the test, ie: repeat=1 will run the test twice.
     """
   
     # allow relative paths for logFile
@@ -595,16 +568,6 @@ class Mochitest(object):
         self.urlOpts.append("chunkByDir=%d" % options.chunkByDir)
       if options.shuffle:
         self.urlOpts.append("shuffle=1")
-      if "MOZ_HIDE_RESULTS_TABLE" in env and env["MOZ_HIDE_RESULTS_TABLE"] == "1":
-        self.urlOpts.append("hideResultsTable=1")
-      if options.repeat:
-        self.urlOpts.append("repeat=%d" % options.repeat)
-      if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.repeat > 0:
-        self.urlOpts.append("testname=%s" % ("/").join([self.TEST_PATH, options.testPath]))
-      if options.runOnlyTests:
-        self.urlOpts.append("runOnlyTests=%s" % options.runOnlyTests)
-      elif options.excludeTests:
-        self.urlOpts.append("excludeTests=%s" % options.excludeTests)
 
   def cleanup(self, manifest, options):
     """ remove temporary files and profile """
@@ -660,7 +623,7 @@ class Mochitest(object):
     self.startWebSocketServer(options, debuggerInfo)
 
     testURL = self.buildTestPath(options)
-    self.buildURLOptions(options, browserEnv)
+    self.buildURLOptions(options)
     if len(self.urlOpts) > 0:
       testURL += "?" + "&".join(self.urlOpts)
 
@@ -694,9 +657,6 @@ class Mochitest(object):
     except KeyboardInterrupt:
       self.automation.log.info("INFO | runtests.py | Received keyboard interrupt.\n");
       status = -1
-    except:
-      self.automation.log.info("INFO | runtests.py | Received unexpected exception while running application '%s'\n" % (sys.exc_info()[1]))
-      status = 1
 
     if options.vmwareRecording:
       self.stopVMwareRecording();
@@ -746,9 +706,6 @@ class Mochitest(object):
     elif (options.a11y):
       testRoot = 'a11y'
  
-    if "MOZ_HIDE_RESULTS_TABLE" in os.environ and os.environ["MOZ_HIDE_RESULTS_TABLE"] == "1":
-      options.hideResultsTable = True
-
     #TODO: when we upgrade to python 2.6, just use json.dumps(options.__dict__)
     content = "{"
     content += '"testRoot": "%s", ' % (testRoot) 
@@ -834,7 +791,7 @@ overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/ipc-o
                                      options.profilePath, "mochikit@mozilla.org")
 
     # Write chrome.manifest.
-    with open(os.path.join(options.profilePath, "extensions", "staged", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
+    with open(os.path.join(options.profilePath, "extensions", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
       mfile.write(chrome)
 
   def copyTestsJarToProfile(self, options):

@@ -117,20 +117,14 @@ function tab_switch_04() {
   is(new_tab_03.owner, null, "Closing tab 01 nulls tab3 owner");
   is(Browser.selectedTab.notification, Elements.browsers.selectedPanel, "Deck has correct browser");
 
-  function callback() {
+  // Add a tab then close it
+  new_tab_04 = Browser.addTab("about:home", true);
+  checkExpectedSize();
+  new_tab_04.browser.addEventListener("load", function() {
     new_tab_04.browser.removeEventListener("load", arguments.callee, true);
     Browser.closeTab(new_tab_04, { forceClose: true });
     tab_undo();
-  };
-
-  // Add a tab then close it
-  new_tab_04 = Browser.addTab("about:home", true);
-  waitFor(callback, function() {
-    // Ensure the tab is not empty
-    return !new_tab_04.chromeTab.thumbnail.hasAttribute("empty");
-  });
-
-  checkExpectedSize();
+  }, true);
 }
 
 function tab_undo() {
@@ -148,15 +142,14 @@ function tab_on_undo() {
   let undoBox = document.getElementById("tabs")._tabsUndo;
   is(undoBox.firstChild, null, "It should be no tab in the undo box");
 
-  Browser.loadURI("about:home");
+  Browser.loadURI("about:firstrun");
   is(undoBox.firstChild, null, "It should be no tab in the undo box when opening a new local page");
 
-  // loadURI will open a new tab so ensure new_tab_05 point to the newly opened tab
-  new_tab_05 = Browser.selectedTab;
-
-  let tabs = [new_tab_01, new_tab_02, new_tab_03, new_tab_04, new_tab_05];
-  while (tabs.length)
-    Browser.closeTab(tabs.shift(), { forceClose: true });
+  Browser.closeTab(new_tab_01, { forceClose: true });
+  Browser.closeTab(new_tab_02, { forceClose: true });
+  Browser.closeTab(new_tab_03, { forceClose: true });
+  Browser.closeTab(new_tab_04, { forceClose: true });
+  Browser.closeTab(new_tab_05, { forceClose: true });
   checkExpectedSize();
 
   tab_about_empty();

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=462428
 -->
 <head>
   <title>Test for Bug 462428</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -20,20 +21,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=462428
 /** Test for Bug 462428 **/
 var getter = document.__lookupGetter__('documentElement');
 ok(getter !== undefined, "But able to look it up the normal way");
-ok(!document.hasOwnProperty('documentElement'), "property should still be on the prototype");
-
-var sawProp = false;
-for (var i in document) {
-    if (i === "documentElement") {
-        sawProp = true;
-    }
-}
-
-ok(sawProp, "property should be enumerable");
 
 is(getter.call(document), document.documentElement, "the getter actually works");
 
-Object.getPrototypeOf(document).__defineSetter__('documentElement', function() {});
+document.__defineSetter__('documentElement', function() {});
 is(getter.call(document), document.documentElement, "the getter works after defineSetter");
 
 var oldTitle = document.title;

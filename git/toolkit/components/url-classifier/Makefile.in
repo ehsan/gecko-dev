@@ -53,7 +53,6 @@ XPIDLSRCS = \
   nsIUrlClassifierDBService.idl \
   nsIUrlClassifierHashCompleter.idl \
   nsIUrlClassifierStreamUpdater.idl \
-  nsIUrlClassifierPrefixSet.idl \
   nsIUrlClassifierUtils.idl \
   nsIUrlListManager.idl \
   $(NULL)
@@ -62,8 +61,6 @@ CPPSRCS = \
   nsUrlClassifierDBService.cpp \
   nsUrlClassifierStreamUpdater.cpp \
   nsUrlClassifierUtils.cpp \
-  nsUrlClassifierPrefixSet.cpp \
-  nsUrlClassifierProxies.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

@@ -175,14 +175,14 @@ public:
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
                    nsIFrame*        asPrevInFlow);
-  NS_IMETHOD  SetInitialChildList(ChildListID        aListID,
+  NS_IMETHOD  SetInitialChildList(nsIAtom*           aListName,
                                   nsFrameList&       aChildList);
-  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsFrameList&    aFrameList);
-  NS_IMETHOD  InsertFrames(ChildListID     aListID,
+  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList);
-  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsStyleContext* GetAdditionalStyleContext(PRInt32 aIndex) const;
@@ -190,11 +190,8 @@ public:
                                          nsStyleContext* aStyleContext);
   virtual void SetParent(nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
-  virtual nsFrameList GetChildList(ChildListID aListID) const {
-    return nsFrameList::EmptyList();
-  }
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const {}
-
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext, 
                           nsGUIEvent*     aEvent,
                           nsEventStatus*  aEventStatus);
@@ -268,18 +265,9 @@ public:
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() {
-    return DoGetParentStyleContextFrame();
-  }
-
-  /**
-   * Do the work for getting the parent style context frame so that
-   * other frame's |GetParentStyleContextFrame| methods can call this
-   * method on *another* frame.  (This function handles out-of-flow
-   * frames by using the frame manager's placeholder map and it also
-   * handles block-within-inline and generated content wrappers.)
-   */
-  nsIFrame* DoGetParentStyleContextFrame();
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   virtual PRBool IsEmpty();
   virtual PRBool IsSelfEmpty();
@@ -407,6 +395,15 @@ public:
   PRBool IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
                             nsHTMLReflowMetrics& aMetrics,
                             nsReflowStatus& aStatus);
+
+  // Do the work for getting the parent style context frame so that
+  // other frame's |GetParentStyleContextFrame| methods can call this
+  // method on *another* frame.  (This function handles out-of-flow
+  // frames by using the frame manager's placeholder map and it also
+  // handles block-within-inline and generated content wrappers.)
+  nsresult DoGetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   // Incorporate the child overflow areas into aOverflowAreas.
   // If the child does not have a overflow, use the child area.
@@ -577,7 +574,7 @@ public:
                                nsIFrame** aContainingBlock = nsnull);
 
   // test whether aFrame should apply paginated overflow clipping.
-  static PRBool ApplyPaginatedOverflowClipping(const nsIFrame* aFrame)
+  static PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame)
   {
     // If we're paginated and a block, and have NS_BLOCK_CLIP_PAGINATED_OVERFLOW
     // set, then we want to clip our overflow.

@@ -91,7 +91,7 @@ SyncChannel::EventOccurred()
     mMonitor.AssertCurrentThreadOwns();
     NS_ABORT_IF_FALSE(AwaitingSyncReply(), "not in wait loop");
 
-    return (!Connected() || 0 != mRecvd.type() || mRecvd.is_reply_error());
+    return (!Connected() || 0 != mRecvd.type());
 }
 
 bool
@@ -142,20 +142,17 @@ SyncChannel::Send(Message* msg, Message* reply)
     // (NB: IPDL prevents the latter from occuring in actor code)
 
     // FIXME/cjones: real error handling
-    bool replyIsError = mRecvd.is_reply_error();
     NS_ABORT_IF_FALSE(mRecvd.is_sync() && mRecvd.is_reply() &&
-                      (replyIsError ||
+                      (mRecvd.is_reply_error() ||
                        (mPendingReply == mRecvd.type() &&
                         msgSeqno == mRecvd.seqno())),
                       "unexpected sync message");
 
     mPendingReply = 0;
-    if (!replyIsError) {
-        *reply = mRecvd;
-    }
+    *reply = mRecvd;
     mRecvd = Message();
 
-    return !replyIsError;
+    return true;
 }
 
 void

@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -165,8 +165,8 @@ nsPlaceholderFrame::DestroyFrom(nsIFrame* aDestructRoot)
     if (shell->FrameManager() &&
         ((GetStateBits() & PLACEHOLDER_FOR_POPUP) ||
          !nsLayoutUtils::IsProperAncestorFrame(aDestructRoot, oof))) {
-      ChildListID listId = nsLayoutUtils::GetChildListNameFor(oof);
-      shell->FrameManager()->RemoveFrame(listId, oof);
+      nsIAtom* listName = nsLayoutUtils::GetChildListNameFor(oof);
+      shell->FrameManager()->RemoveFrame(listName, oof);
     }
     // else oof will be destroyed by its parent
   }
@@ -191,15 +191,20 @@ nsPlaceholderFrame::CanContinueTextRun() const
   return mOutOfFlowFrame->CanContinueTextRun();
 }
 
-nsIFrame*
-nsPlaceholderFrame::GetParentStyleContextFrame()
+NS_IMETHODIMP
+nsPlaceholderFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                               nsIFrame**      aProviderFrame,
+                                               PRBool*         aIsChild)
 {
   NS_PRECONDITION(GetParent(), "How can we not have a parent here?");
+  *aIsChild = PR_FALSE;
 
   // Lie about our pseudo so we can step out of all anon boxes and
   // pseudo-elements.  The other option would be to reimplement the
   // {ib} split gunk here.
-  return CorrectStyleParentFrame(GetParent(), nsGkAtoms::placeholderFrame);
+  *aProviderFrame =
+    CorrectStyleParentFrame(GetParent(), nsGkAtoms::placeholderFrame);
+  return NS_OK;
 }
 
 

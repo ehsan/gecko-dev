@@ -141,11 +141,10 @@ class Type(object):
         'jsval',
         )
 
-    def __init__(self, pointer=False, reference=False):
+    def __init__(self, pointer=False, unique_pointer=False, reference=False):
         self.pointer = pointer
+        self.unique_pointer = unique_pointer
         self.reference = reference
-        if reference and not pointer:
-            raise Exception("If reference is True pointer must be True too")
 
     @staticmethod
     def decodeflags(byte):
@@ -158,6 +157,7 @@ class Type(object):
         
         """
         return {'pointer': bool(byte & 0x80),
+                'unique_pointer': bool(byte & 0x40),
                 'reference': bool(byte & 0x20),
                 }
 
@@ -169,6 +169,8 @@ class Type(object):
         flags = 0
         if self.pointer:
             flags |= 0x80
+        if self.unique_pointer:
+            flags |= 0x40
         if self.reference:
             flags |= 0x20
         return flags
@@ -515,7 +517,6 @@ class Param(object):
         flags. Params default to "in".
 
         """
-
         self.type = type
         self.in_ = in_
         self.out = out
@@ -641,8 +642,6 @@ class Method(object):
         self.optargc = optargc
         self.implicit_jscontext = implicit_jscontext
         self.params = list(params)
-        if result and not isinstance(result, Param):
-            raise Exception("result must be a Param!")
         self.result = result
 
     def read_params(self, typelib, map, data_pool, offset, num_args):
@@ -846,7 +845,7 @@ class Interface(object):
     
     def __init__(self, name, iid=UNRESOLVED_IID, namespace="",
                  resolved=False, parent=None, methods=[], constants=[],
-                 scriptable=False, function=False, builtinclass=False):
+                 scriptable=False, function=False):
         self.resolved = resolved
         #TODO: should validate IIDs!
         self.iid = iid
@@ -858,7 +857,6 @@ class Interface(object):
         self.constants = list(constants)
         self.scriptable = scriptable
         self.function = function
-        self.builtinclass = builtinclass
         # For sanity, if someone constructs an Interface and passes
         # in methods or constants, then it's resolved.
         if self.methods or self.constants:
@@ -924,13 +922,11 @@ class Interface(object):
         (flags, ) = struct.unpack(">B", map[start:start + struct.calcsize(">B")])
         offset = offset + struct.calcsize(">B")
         # only the first two bits are flags
-        flags &= 0xE0
+        flags &= 0xC0
         if flags & 0x80:
             self.scriptable = True
         if flags & 0x40:
             self.function = True
-        if flags & 0x20:
-            self.builtinclass = True
         self.resolved = True
 
     def write_directory_entry(self, file):
@@ -969,8 +965,6 @@ class Interface(object):
             flags |= 0x80
         if self.function:
             flags |= 0x40
-        if self.builtinclass:
-            flags |= 0x20
         file.write(struct.pack(">B", flags))
         
     def write_names(self, file, data_pool_offset):
@@ -1119,42 +1113,6 @@ class Typelib(object):
                 if isinstance(m.result, InterfaceType) and m.result.iface not in self.interfaces:
                     raise DataError, "Interface method %s::%s, result references interface %s not present in typelib!" % (i.name, m.name, m.result.iface.name)
 
-    def writefd(self, fd):
-        # write out space for a header + one empty annotation,
-        # padded to 4-byte alignment.
-        headersize = (Typelib._header.size + 1)
-        if headersize % 4:
-            headersize += 4 - headersize % 4
-        fd.write("\x00" * headersize)
-        # save this offset, it's the interface directory offset.
-        interface_directory_offset = fd.tell()
-        # write out space for an interface directory
-        fd.write("\x00" * Interface._direntry.size * len(self.interfaces))
-        # save this offset, it's the data pool offset.
-        data_pool_offset = fd.tell()
-        # write out all the interface descriptors to the data pool
-        for i in self.interfaces:
-            i.write_names(fd, data_pool_offset)
-            i.write(self, fd, data_pool_offset)
-        # now, seek back and write the header
-        file_len = fd.tell()
-        fd.seek(0)
-        fd.write(Typelib._header.pack(XPT_MAGIC,
-                                      TYPELIB_VERSION[0],
-                                      TYPELIB_VERSION[1],
-                                      len(self.interfaces),
-                                      file_len,
-                                      interface_directory_offset,
-                                      data_pool_offset))
-        # write an empty annotation
-        fd.write(struct.pack(">B", 0x80))
-        # now write the interface directory
-        #XXX: bug-compatible with existing xpt lib, put it one byte
-        # ahead of where it's supposed to be.
-        fd.seek(interface_directory_offset - 1)
-        for i in self.interfaces:
-            i.write_directory_entry(fd)
-
     def write(self, filename):
         """
         Write the contents of this typelib to the file named |filename|.
@@ -1162,7 +1120,40 @@ class Typelib(object):
         """
         self._sanityCheck()
         with open(filename, "wb") as f:
-            self.writefd(f)
+            # write out space for a header + one empty annotation,
+            # padded to 4-byte alignment.
+            headersize = (Typelib._header.size + 1)
+            if headersize % 4:
+                headersize += 4 - headersize % 4
+            f.write("\x00" * headersize)
+            # save this offset, it's the interface directory offset.
+            interface_directory_offset = f.tell()
+            # write out space for an interface directory
+            f.write("\x00" * Interface._direntry.size * len(self.interfaces))
+            # save this offset, it's the data pool offset.
+            data_pool_offset = f.tell()
+            # write out all the interface descriptors to the data pool
+            for i in self.interfaces:
+                i.write_names(f, data_pool_offset)
+                i.write(self, f, data_pool_offset)
+            # now, seek back and write the header
+            file_len = f.tell()
+            f.seek(0)
+            f.write(Typelib._header.pack(XPT_MAGIC,
+                                         TYPELIB_VERSION[0],
+                                         TYPELIB_VERSION[1],
+                                         len(self.interfaces),
+                                         file_len,
+                                         interface_directory_offset,
+                                         data_pool_offset))
+            # write an empty annotation
+            f.write(struct.pack(">B", 0x80))
+            # now write the interface directory
+            #XXX: bug-compatible with existing xpt lib, put it one byte
+            # ahead of where it's supposed to be.
+            f.seek(interface_directory_offset - 1)
+            for i in self.interfaces:
+                i.write_directory_entry(f)
 
     def merge(self, other, sanitycheck=True):
         """
@@ -1269,9 +1260,7 @@ class Typelib(object):
                                                     i.parent.name))
                 out.write("""      Flags:
          Scriptable: %s
-         BuiltinClass: %s
          Function: %s\n""" % (i.scriptable and "TRUE" or "FALSE",
-                              i.builtinclass and "TRUE" or "FALSE",
                               i.function and "TRUE" or "FALSE"))
                 out.write("      Methods:\n")
                 if len(i.methods) == 0:

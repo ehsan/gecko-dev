@@ -42,30 +42,9 @@
 #include "xpcexception.idl"
 #include "xpcjsid.idl"
 #include "nsIComponentManager.idl"
-
-%{C++
-#include "jspubtd.h"
-%}
+#include "nsIScriptableInterfaces.idl"
 
 interface xpcIJSWeakReference;
-
-/**
-* interface of Components.interfacesByID
-* (interesting stuff only reflected into JavaScript)
-*/
-[scriptable, uuid(c99cffac-5aed-4267-ad2f-f4a4c9d4a081)]
-interface nsIXPCComponents_InterfacesByID : nsISupports
-{
-};
-
-/**
-* interface of Components.interfaces
-* (interesting stuff only reflected into JavaScript)
-*/
-[scriptable, uuid(b8c31bba-79db-4a1d-930d-4cdd68713f9e)]
-interface nsIXPCComponents_Interfaces : nsISupports
-{
-};
 
 /**
 * interface of Components.classes
@@ -142,18 +121,9 @@ interface nsIXPCComponents_utils_Sandbox : nsISupports
 };
 
 /**
- * interface for callback to be passed to Cu.schedulePreciseGC
- */
-[scriptable, function, uuid(71000535-b0fd-44d1-8ce0-909760e3953c)]
-interface ScheduledGCCallback : nsISupports
-{
-    void callback();
-};
-
-/**
 * interface of Components.utils
 */
-[scriptable, uuid(fed2d752-6cb3-4135-97b0-2c290e541e2d)]
+[scriptable, uuid(c1d616fa-1875-49ba-b7b8-5861dab31a42)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -235,16 +205,6 @@ interface nsIXPCComponents_Utils : nsISupports
                                /*, [optional] in JSObject targetObj */);
 
     /*
-     * Unloads the JS module at 'registryLocation'. Existing references to the
-     * module will continue to work but any subsequent import of the module will
-     * reload it and give new reference. If the JS module hasn't yet been
-     * imported then this method will do nothing.
-     *
-     * @param resourceURI A resource:// URI string to unload the module from.
-     */
-    void unload(in AUTF8String registryLocation);
-
-    /*
      * To be called from JS only.
      *
      * Return a weak reference for the given JS object.
@@ -259,13 +219,6 @@ interface nsIXPCComponents_Utils : nsISupports
     void forceGC();
 
     /*
-     * Schedule a garbage collection cycle for a point in the future when no JS
-     * is running. Call the provided function once this has occurred.
-     */
-    [implicit_jscontext]
-    void schedulePreciseGC(in ScheduledGCCallback callback);
-
-    /*
      * To be called from JS only.
      *
      * Returns the global object with which the given object is associated.
@@ -274,23 +227,6 @@ interface nsIXPCComponents_Utils : nsISupports
      * @return the corresponding global.
      */
     void /* JSObject */ getGlobalForObject(/* in JSObject obj */);
-
-    /*
-     * To be called from JS only.
-     *
-     * Returns an object created in |vobj|'s compartment.
-     */
-    [implicit_jscontext]
-    jsval createObjectIn(in jsval vobj);
-
-    /*
-     * To be called from JS only.
-     *
-     * Ensures that all functions come from vobj's scope (and aren't cross
-     * compartment wrappers).
-     */
-    [implicit_jscontext]
-    void makeObjectPropsNormal(in jsval vobj);
 };
 
 /**
@@ -299,18 +235,18 @@ interface nsIXPCComponents_Utils : nsISupports
 [scriptable, uuid(155809f1-71f1-47c5-be97-d812ba560405)]
 interface nsIXPCComponents : nsISupports
 {
-    readonly attribute nsIXPCComponents_Interfaces      interfaces;
-    readonly attribute nsIXPCComponents_InterfacesByID  interfacesByID;
-    readonly attribute nsIXPCComponents_Classes         classes;
-    readonly attribute nsIXPCComponents_ClassesByID     classesByID;
-    readonly attribute nsIStackFrame                    stack;
-    readonly attribute nsIXPCComponents_Results         results;
-    readonly attribute nsIComponentManager              manager;
-    readonly attribute nsIXPCComponents_Utils           utils;
+    readonly attribute nsIScriptableInterfaces      interfaces;
+    readonly attribute nsIScriptableInterfacesByID  interfacesByID;
+    readonly attribute nsIXPCComponents_Classes     classes;
+    readonly attribute nsIXPCComponents_ClassesByID classesByID;
+    readonly attribute nsIStackFrame                stack;
+    readonly attribute nsIXPCComponents_Results     results;
+    readonly attribute nsIComponentManager          manager;
+    readonly attribute nsIXPCComponents_Utils       utils;
 
-    readonly attribute nsIXPCComponents_ID              ID;
-    readonly attribute nsIXPCComponents_Exception       Exception;
-    readonly attribute nsIXPCComponents_Constructor     Constructor;
+    readonly attribute nsIXPCComponents_ID          ID;
+    readonly attribute nsIXPCComponents_Exception   Exception;
+    readonly attribute nsIXPCComponents_Constructor Constructor;
 
     boolean isSuccessCode(in nsresult result);
 

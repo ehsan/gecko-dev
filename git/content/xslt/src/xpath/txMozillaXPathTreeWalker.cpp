@@ -39,6 +39,7 @@
 #include "txXPathTreeWalker.h"
 #include "nsIAtom.h"
 #include "nsIAttribute.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNode.h"
@@ -54,7 +55,6 @@
 #include "nsUnicharUtils.h"
 #include "nsAttrName.h"
 #include "nsTArray.h"
-#include "mozilla/dom/Element.h"
 
 const PRUint32 kUnknownIndex = PRUint32(-1);
 
@@ -209,7 +209,7 @@ txXPathTreeWalker::moveToFirstChild()
     NS_ASSERTION(mCurrentIndex != kUnknownIndex || mDescendants.IsEmpty(),
                  "Index should be known if parents index are");
 
-    nsIContent* child = mPosition.mNode->GetFirstChild();
+    nsIContent* child = mPosition.mNode->GetChildAt(0);
     if (!child) {
         return PR_FALSE;
     }
@@ -242,7 +242,7 @@ txXPathTreeWalker::moveToLastChild()
     if (!total) {
         return PR_FALSE;
     }
-    mPosition.mNode = mPosition.mNode->GetLastChild();
+    mPosition.mNode = mPosition.mNode->GetChildAt(total - 1);
 
     if (mCurrentIndex != kUnknownIndex &&
         !mDescendants.AppendValue(mCurrentIndex)) {
@@ -468,11 +468,16 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
     }
 
     if (aNode.isContent()) {
-        // Elements and PIs have a name
-        if (aNode.mNode->IsElement() ||
-            aNode.mNode->NodeType() ==
-            nsIDOMNode::PROCESSING_INSTRUCTION_NODE) {
-            aName = aNode.Content()->NodeName();
+        if (aNode.mNode->IsElement()) {
+            aName = aNode.Content()->NodeInfo()->QualifiedNameCorrectedCase();
+            return;
+        }
+
+        if (aNode.mNode->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION)) {
+            // PIs don't have a nodeinfo but do have a name
+            nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode.mNode);
+            node->GetNodeName(aName);
+
             return;
         }
 
@@ -482,6 +487,11 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
     }
 
     aNode.Content()->GetAttrNameAt(aNode.mIndex)->GetQualifiedName(aName);
+
+    // Check for html
+    if (aNode.Content()->IsHTML()) {
+        ToUpperCase(aName);
+    }
 }
 
 /* static */
@@ -515,7 +525,11 @@ txXPathNodeUtils::getNodeType(const txXPathNode& aNode)
     }
 
     if (aNode.isContent()) {
-        return aNode.mNode->NodeType();
+        PRUint16 type;
+        nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode.mNode);
+        node->GetNodeType(&type);
+
+        return type;
     }
 
     return txXPathNodeType::ATTRIBUTE_NODE;
@@ -613,7 +627,13 @@ txXPathNodeUtils::getXSLTId(const txXPathNode& aNode,
 void
 txXPathNodeUtils::getBaseURI(const txXPathNode& aNode, nsAString& aURI)
 {
-    aNode.mNode->GetDOMBaseURI(aURI);
+    nsCOMPtr<nsIDOM3Node> node = do_QueryInterface(aNode.mNode);
+    if (node) {
+        node->GetBaseURI(aURI);
+    }
+    else {
+        aURI.Truncate();
+    }
 }
 
 /* static */
@@ -692,7 +712,7 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
     PRInt32 otherTotal = otherParents.Length() - 1;
     NS_ASSERTION(total != otherTotal, "Can't have same number of parents");
 
-    PRInt32 lastIndex = NS_MIN(total, otherTotal);
+    PRInt32 lastIndex = PR_MIN(total, otherTotal);
     PRInt32 i;
     parent = nsnull;
     for (i = 0; i <= lastIndex; ++i) {

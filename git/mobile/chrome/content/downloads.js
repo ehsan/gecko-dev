@@ -89,7 +89,6 @@ var DownloadsView = {
       item.setAttribute("downloadID", aAttrs.id);
       item.setAttribute("iconURL", "moz-icon://" + aAttrs.file + "?size=32");
       item.setAttribute("lastSeconds", Infinity);
-      item.setAttribute("class", "panel-listitem");
   
       // Initialize more complex attributes
       this._updateTime(item);
@@ -351,7 +350,7 @@ var DownloadsView = {
     }
     else if (today - end < (24 * 60 * 60 * 1000)) {
       // Download finished after yesterday started, show yesterday
-      dateTime = strings.GetStringFromName("downloadsYesterday");
+      dateTime = strings.GetStringFromName("donwloadsYesterday");
     }
     else if (today - end < (6 * 24 * 60 * 60 * 1000)) {
       // Download finished after last week started, show day of week

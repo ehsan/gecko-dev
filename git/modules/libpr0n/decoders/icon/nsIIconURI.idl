@@ -73,7 +73,7 @@
    *   Description: The mime type we want an icon for. This is ignored by stock images.
    */
 
-[scriptable, uuid(da53adda-cbe3-41bc-a57d-fdd7a0ff448b)]
+[scriptable, uuid(5d8a4518-bebf-4e7e-bad0-3e6737b3d7f4)]
 interface nsIMozIconURI : nsIURI 
 {
   /**

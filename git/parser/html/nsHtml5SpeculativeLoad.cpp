@@ -58,29 +58,19 @@ nsHtml5SpeculativeLoad::Perform(nsHtml5TreeOpExecutor* aExecutor)
 {
   switch (mOpCode) {
     case eSpeculativeLoadBase:
-      aExecutor->SetSpeculationBase(mUrl);
+        aExecutor->SetSpeculationBase(mUrl);
       break;
     case eSpeculativeLoadImage:
-      aExecutor->PreloadImage(mUrl, mCharsetOrCrossOrigin);
+        aExecutor->PreloadImage(mUrl);
       break;
     case eSpeculativeLoadScript:
-      aExecutor->PreloadScript(mUrl, mCharsetOrCrossOrigin, mTypeOrCharsetSource);
+        aExecutor->PreloadScript(mUrl, mCharset, mType);
       break;
     case eSpeculativeLoadStyle:
-      aExecutor->PreloadStyle(mUrl, mCharsetOrCrossOrigin);
+        aExecutor->PreloadStyle(mUrl, mCharset);
       break;
     case eSpeculativeLoadManifest:  
-      aExecutor->ProcessOfflineManifest(mUrl);
-      break;
-    case eSpeculativeLoadSetDocumentCharset: {
-        nsCAutoString narrowName;
-        CopyUTF16toUTF8(mCharsetOrCrossOrigin, narrowName);
-        NS_ASSERTION(mTypeOrCharsetSource.Length() == 1,
-            "Unexpected charset source string");
-        PRInt32 intSource = (PRInt32)mTypeOrCharsetSource.First();
-        aExecutor->SetDocumentCharsetAndSource(narrowName,
-                                               intSource);
-      }
+        aExecutor->ProcessOfflineManifest(mUrl);
       break;
     default:
       NS_NOTREACHED("Bogus speculative load.");

@@ -92,23 +92,6 @@ static int enableRTCSignals(bool enable);
 
 
 //----------------------------------------------------------------------
-// replace use of atexit()
-
-static void DumpAddressMap();
-
-struct JprofShutdown {
-    JprofShutdown() {}
-    ~JprofShutdown() {
-        DumpAddressMap();
-    }
-};
-
-static void RegisterJprofShutdown() {
-    // This instanciates the dummy class above, and will trigger the class
-    // destructor when libxul is unloaded. This is equivalent to atexit(),
-    // but gracefully handles dlclose().
-    static JprofShutdown t;
-}
 
 #if defined(i386) || defined(_i386) || defined(__x86_64__)
 JPROF_STATIC void CrawlStack(malloc_log_entry* me,
@@ -213,12 +196,9 @@ static void DumpAddressMap()
 }
 #endif
 
-static bool was_paused = true;
-
 static void EndProfilingHook(int signum)
 {
     DumpAddressMap();
-    was_paused = true;
     puts("Jprof: profiling paused.");
 }
 
@@ -227,17 +207,11 @@ static void EndProfilingHook(int signum)
 JPROF_STATIC void
 JprofLog(u_long aTime, void* stack_top, void* top_instr_ptr)
 {
-  // Static is simply to make debugging tolerable
+  // Static is simply to make debugging tollerable
   static malloc_log_entry me;
 
   me.delTime = aTime;
   me.thread = syscall(SYS_gettid); //gettid();
-  if (was_paused) {
-      me.flags = JP_FIRST_AFTER_PAUSE;
-      was_paused = 0;
-  } else {
-      me.flags = 0;
-  }
 
   CrawlStack(&me, stack_top, top_instr_ptr);
 
@@ -399,8 +373,6 @@ void *ucontext)
 NS_EXPORT_(void) setupProfilingStuff(void)
 {
     static int gFirstTime = 1;
-    char filename[2048]; // XXX fix
-
     if(gFirstTime && !(gFirstTime=0)) {
 	int  startTimer = 1;
 	int  doNotStart = 1;
@@ -422,10 +394,6 @@ NS_EXPORT_(void) setupProfilingStuff(void)
          *   JP_APPEND -> Append to jprof-log rather than overwriting it.
          *               This is somewhat risky since it depends on the
          *               address map staying constant across multiple runs.
-         *   JP_FILENAME -> base filename to use when saving logs.  Note that
-         *               this does not affect the mapfile.
-         *
-         * JPROF_SLAVE is set if this is not the first process.
 	*/
 	if(tst) {
 	    if(strstr(tst, "JP_DEFER"))
@@ -476,29 +444,12 @@ NS_EXPORT_(void) setupProfilingStuff(void)
                   
 #endif
             }
-            char *f = strstr(tst,"JP_FILENAME=");
-            if (f)
-                f = f + strlen("JP_FILENAME=");
-            else
-                f = M_LOGFILE;
-
-            char *is_slave = getenv("JPROF_SLAVE");
-            if (!is_slave)
-                setenv("JPROF_SLAVE","", 0);
-
-            int pid = syscall(SYS_gettid); //gettid();
-            if (is_slave)
-                snprintf(filename,sizeof(filename),"%s-%d",f,pid);
-            else
-                snprintf(filename,sizeof(filename),"%s",f);
-
-            // XXX FIX! inherit current capture state!
 	}
 
 	if(!doNotStart) {
 
 	    if(gLogFD<0) {
-		gLogFD = open(filename, O_CREAT | O_WRONLY | append, 0666);
+		gLogFD = open(M_LOGFILE, O_CREAT | O_WRONLY | append, 0666);
 		if(gLogFD<0) {
 		    fprintf(stderr, "Unable to create " M_LOGFILE);
 		    perror(":");
@@ -507,7 +458,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 		    sigset_t mset;
 
 		    // Dump out the address map when we terminate
-		    RegisterJprofShutdown();
+		    atexit(DumpAddressMap);
 
 		    main_thread = pthread_self();
                     //fprintf(stderr,"jprof: main_thread = %u\n",
@@ -529,13 +480,11 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 
                     if (!rtcHz || firstDelay != 0)
 #endif
-                    {
-                        if (realTime) {
-                            sigaction(SIGALRM, &action, NULL);
-                        }
+                    if (realTime) {
+                        sigaction(SIGALRM, &action, NULL);
+                    } else {
+                        sigaction(SIGPROF, &action, NULL);
                     }
-                    // enable PROF in all cases to simplify JP_DEFER/pause/restart
-                    sigaction(SIGPROF, &action, NULL);
 
 		    // make it so a SIGUSR1 will stop the profiling
 		    // Note:  It currently does not close the logfile.

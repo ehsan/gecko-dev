@@ -56,18 +56,18 @@ namespace mozilla {
 namespace scache {
 
 NS_IMPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
-                               nsIObjectInputStream** stream);
+NS_NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
+                                  nsIObjectInputStream** stream);
 
 // We can't retrieve the wrapped stream from the objectOutputStream later,
 // so we return it here.
 NS_IMPORT nsresult
-NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
-                                    nsIStorageStream** stream);
+NS_NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
+                                       nsIStorageStream** stream);
 
 NS_IMPORT nsresult
-NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, PRUint32* len);
+NS_NewBufferFromStorageStream(nsIStorageStream *storageStream, 
+                              char** buffer, PRUint32* len);
 }
 }
 
@@ -188,7 +188,7 @@ TestWriteObject() {
   sc->InvalidateCache();
   
   // Create an object stream. Usually this is done with
-  // NewObjectOutputWrappedStorageStream, but that uses
+  // NS_NewObjectOutputWrappedStorageStream, but that uses
   // StartupCache::GetSingleton in debug builds, and we
   // don't have access to that here. Obviously.
   char* id = "id";
@@ -223,7 +223,7 @@ TestWriteObject() {
   char* bufPtr = NULL;
   nsAutoArrayPtr<char> buf;
   PRUint32 len;
-  NewBufferFromStorageStream(storageStream, &bufPtr, &len);
+  NS_NewBufferFromStorageStream(storageStream, &bufPtr, &len);
   buf = bufPtr;
 
   // Since this is a post-startup write, it should be written and
@@ -245,7 +245,7 @@ TestWriteObject() {
   }
   buf2 = buf2Ptr;
 
-  rv = NewObjectInputStreamFromBuffer(buf2, len2, getter_AddRefs(objectInput));
+  rv = NS_NewObjectInputStreamFromBuffer(buf2, len2, getter_AddRefs(objectInput));
   if (NS_FAILED(rv)) {
     fail("failed to created input stream");
     return rv;

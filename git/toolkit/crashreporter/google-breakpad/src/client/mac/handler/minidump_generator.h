@@ -43,10 +43,6 @@
 
 #include "dynamic_images.h"
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
-  #define HAS_PPC_SUPPORT
-#endif
-
 namespace google_breakpad {
 
 using std::string;
@@ -132,7 +128,6 @@ class MinidumpGenerator {
   int  FindExecutableModule();
 
   // Per-CPU implementations of these methods
-#ifdef HAS_PPC_SUPPORT
   bool WriteStackPPC(breakpad_thread_state_data_t state,
                      MDMemoryDescriptor *stack_location);
   bool WriteContextPPC(breakpad_thread_state_data_t state,
@@ -143,7 +138,6 @@ class MinidumpGenerator {
   bool WriteContextPPC64(breakpad_thread_state_data_t state,
                        MDLocationDescriptor *register_location);
   u_int64_t CurrentPCForStackPPC64(breakpad_thread_state_data_t state);
-#endif
   bool WriteStackX86(breakpad_thread_state_data_t state,
                        MDMemoryDescriptor *stack_location);
   bool WriteContextX86(breakpad_thread_state_data_t state,

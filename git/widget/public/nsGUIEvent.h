@@ -50,9 +50,9 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMMouseEvent.h"
+#include "nsIDOMNSMouseEvent.h"
 #include "nsIDOMDataTransfer.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
@@ -65,9 +65,6 @@ namespace mozilla {
 namespace dom {
   class PBrowserParent;
   class PBrowserChild;
-}
-namespace plugins {
-  class PPluginInstanceChild;
 }
 }
 
@@ -106,11 +103,15 @@ class nsHashKey;
 #define NS_COMMAND_EVENT                  24
 #define NS_SCROLLAREA_EVENT               25
 #define NS_TRANSITION_EVENT               26
+#ifdef MOZ_CSS_ANIMATIONS
 #define NS_ANIMATION_EVENT                27
+#endif
 
 #define NS_UI_EVENT                       28
+#ifdef MOZ_SVG
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT                32
 #endif // MOZ_SMIL
@@ -160,9 +161,7 @@ class nsHashKey;
 
 #define NS_EVENT_FLAG_EXCEPTION_THROWN    0x10000
 
-#define NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS 0x20000
-
-#define NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS 0x40000
+#define NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS 0x20000
 
 #define NS_EVENT_CAPTURE_MASK             (~(NS_EVENT_FLAG_BUBBLE | NS_EVENT_FLAG_NO_CONTENT_DISPATCH))
 #define NS_EVENT_BUBBLE_MASK              (~(NS_EVENT_FLAG_CAPTURE | NS_EVENT_FLAG_NO_CONTENT_DISPATCH))
@@ -344,7 +343,6 @@ class nsHashKey;
 #define NS_COMPOSITION_EVENT_START    2200
 #define NS_COMPOSITION_START          (NS_COMPOSITION_EVENT_START)
 #define NS_COMPOSITION_END            (NS_COMPOSITION_EVENT_START + 1)
-#define NS_COMPOSITION_UPDATE         (NS_COMPOSITION_EVENT_START + 2)
 
 // text events
 #define NS_TEXT_START                 2400
@@ -362,6 +360,7 @@ class nsHashKey;
 #define NS_PAGE_SHOW               (NS_PAGETRANSITION_START + 1)
 #define NS_PAGE_HIDE               (NS_PAGETRANSITION_START + 2)
 
+#ifdef MOZ_SVG
 // SVG events
 #define NS_SVG_EVENT_START              2800
 #define NS_SVG_LOAD                     (NS_SVG_EVENT_START)
@@ -374,6 +373,7 @@ class nsHashKey;
 // SVG Zoom events
 #define NS_SVGZOOM_EVENT_START          2900
 #define NS_SVG_ZOOM                     (NS_SVGZOOM_EVENT_START)
+#endif // MOZ_SVG
 
 // XUL command events
 #define NS_XULCOMMAND_EVENT_START       3000
@@ -423,6 +423,7 @@ class nsHashKey;
 #define NS_QUERY_SCROLL_TARGET_INFO     (NS_QUERY_CONTENT_EVENT_START + 99)
 
 // Video events
+#ifdef MOZ_MEDIA
 #define NS_MEDIA_EVENT_START            3300
 #define NS_LOADSTART           (NS_MEDIA_EVENT_START)
 #define NS_PROGRESS            (NS_MEDIA_EVENT_START+1)
@@ -445,6 +446,7 @@ class nsHashKey;
 #define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
 #define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
 #define NS_MOZAUDIOAVAILABLE   (NS_MEDIA_EVENT_START+20)
+#endif // MOZ_MEDIA
 
 // paint notification events
 #define NS_NOTIFYPAINT_START    3400
@@ -501,10 +503,12 @@ class nsHashKey;
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
 
+#ifdef MOZ_CSS_ANIMATIONS
 #define NS_ANIMATION_EVENT_START     4250
 #define NS_ANIMATION_START           (NS_ANIMATION_EVENT_START)
 #define NS_ANIMATION_END             (NS_ANIMATION_EVENT_START + 1)
 #define NS_ANIMATION_ITERATION       (NS_ANIMATION_EVENT_START + 2)
+#endif
 
 #ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT_START     4300
@@ -539,12 +543,6 @@ class nsHashKey;
 #define NS_DEVICE_ORIENTATION_START  4900
 #define NS_DEVICE_ORIENTATION        (NS_DEVICE_ORIENTATION_START)
 #define NS_DEVICE_MOTION             (NS_DEVICE_ORIENTATION_START+1)
-
-#define NS_SHOW_EVENT                5000
-
-// Fullscreen DOM API
-#define NS_FULL_SCREEN_START         5100
-#define NS_FULLSCREENCHANGE          (NS_FULL_SCREEN_START)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -615,9 +613,9 @@ public:
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
   // Event targets, needed by DOM Events
-  nsCOMPtr<nsIDOMEventTarget> target;
-  nsCOMPtr<nsIDOMEventTarget> currentTarget;
-  nsCOMPtr<nsIDOMEventTarget> originalTarget;
+  nsCOMPtr<nsPIDOMEventTarget> target;
+  nsCOMPtr<nsPIDOMEventTarget> currentTarget;
+  nsCOMPtr<nsPIDOMEventTarget> originalTarget;
 };
 
 /**
@@ -829,19 +827,10 @@ public:
 
 class nsMouseEvent_base : public nsInputEvent
 {
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
 public:
-
-  nsMouseEvent_base()
-  {
-  }
-
   nsMouseEvent_base(PRBool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 type)
-    : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0)
-    , inputSource(nsIDOMMouseEvent::MOZ_SOURCE_MOUSE) {}
+  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0),
+    inputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE) {}
 
   /// The possible related target
   nsCOMPtr<nsISupports> relatedTarget;
@@ -852,25 +841,17 @@ public:
   // ranges between 0.0 and 1.0
   float                 pressure;
 
-  // Possible values at nsIDOMMouseEvent
+  // Possible values at nsIDOMNSMouseEvent
   PRUint16              inputSource;
 };
 
 class nsMouseEvent : public nsMouseEvent_base
 {
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
 public:
   enum buttonType  { eLeftButton = 0, eMiddleButton = 1, eRightButton = 2 };
   enum reasonType  { eReal, eSynthesized };
   enum contextType { eNormal, eContextMenuKey };
   enum exitType    { eChild, eTopLevel };
-
-  nsMouseEvent()
-  {
-  }
 
 protected:
   nsMouseEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w,
@@ -978,15 +959,7 @@ struct nsAlternativeCharCode {
 
 class nsKeyEvent : public nsInputEvent
 {
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
 public:
-  nsKeyEvent()
-  {
-  }
-
   nsKeyEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_KEY_EVENT),
       keyCode(0), charCode(0), isChar(0)
@@ -1130,7 +1103,6 @@ class nsTextEvent : public nsInputEvent
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
-  friend class mozilla::plugins::PPluginInstanceChild;
 
   nsTextEvent()
   {
@@ -1155,7 +1127,7 @@ public:
   PRBool            isChar;
 };
 
-class nsCompositionEvent : public nsGUIEvent
+class nsCompositionEvent : public nsInputEvent
 {
 private:
   friend class mozilla::dom::PBrowserParent;
@@ -1170,15 +1142,9 @@ public:
 
 public:
   nsCompositionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
+    : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
   {
-    // XXX compositionstart is cancelable in draft of DOM3 Events.
-    //     However, it doesn't make sense for us, we cannot cancel composition
-    //     when we send compositionstart event.
-    flags |= NS_EVENT_FLAG_CANT_CANCEL;
   }
-
-  nsString data;
 };
 
 /* Mouse Scroll Events: Line Scrolling, Pixel Scrolling and Common Event Flows
@@ -1220,14 +1186,6 @@ public:
 
 class nsMouseScrollEvent : public nsMouseEvent_base
 {
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
-  nsMouseScrollEvent()
-  {
-  }
-
 public:
   enum nsMouseScrollFlags {
     kIsFullPage =   1 << 0,
@@ -1400,18 +1358,10 @@ public:
     // line.  If mMouseScrollEvent is a page scroll event, the unit of this
     // value is page.
     PRInt32 mComputedScrollAmount;
-    PRInt32 mComputedScrollAction;
   } mReply;
 
   enum {
     NOT_FOUND = PR_UINT32_MAX
-  };
-
-  // values of mComputedScrollAction
-  enum {
-    SCROLL_ACTION_NONE,
-    SCROLL_ACTION_LINE,
-    SCROLL_ACTION_PAGE
   };
 };
 
@@ -1575,13 +1525,6 @@ public:
   {
   }
 
-  nsSimpleGestureEvent(const nsSimpleGestureEvent& other)
-    : nsMouseEvent_base((other.flags & NS_EVENT_FLAG_TRUSTED) != 0,
-                        other.message, other.widget, NS_SIMPLE_GESTURE_EVENT),
-      direction(other.direction), delta(other.delta)
-  {
-  }
-
   PRUint32 direction;   // See nsIDOMSimpleGestureEvent for values
   PRFloat64 delta;      // Delta for magnify and rotate events
 };
@@ -1600,6 +1543,7 @@ public:
   float elapsedTime;
 };
 
+#ifdef MOZ_CSS_ANIMATIONS
 class nsAnimationEvent : public nsEvent
 {
 public:
@@ -1613,6 +1557,7 @@ public:
   nsString animationName;
   float elapsedTime;
 };
+#endif
 
 class nsUIStateChangeEvent : public nsGUIEvent
 {
@@ -1707,8 +1652,7 @@ enum nsDragDropEventStatus {
 #define NS_IS_IME_EVENT(evnt) \
        (((evnt)->message == NS_TEXT_TEXT) ||  \
         ((evnt)->message == NS_COMPOSITION_START) ||  \
-        ((evnt)->message == NS_COMPOSITION_END) || \
-        ((evnt)->message == NS_COMPOSITION_UPDATE))
+        ((evnt)->message == NS_COMPOSITION_END))
 
 #define NS_IS_ACTIVATION_EVENT(evnt) \
        (((evnt)->message == NS_ACTIVATE) || \

@@ -318,7 +318,7 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment(PRUint32 aLangID)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = SetScriptContext(aLangID, newCtx);
 
-  JSContext *cx = mScriptContext->GetNativeContext();
+  JSContext *cx = (JSContext *)mScriptContext->GetNativeContext();
   JSAutoRequest ar(cx);
 
   // nsJSEnvironment set the error reporter to NS_ScriptErrorReporter so
@@ -372,7 +372,8 @@ nsXBLDocGlobalObject::GetGlobalJSObject()
   if (!mScriptContext)
     return nsnull;
 
-  JSContext* cx = mScriptContext->GetNativeContext();
+  JSContext* cx = static_cast<JSContext*>
+                             (mScriptContext->GetNativeContext());
   if (!cx)
     return nsnull;
 
@@ -428,7 +429,7 @@ static PRBool IsChromeURI(nsIURI* aURI)
 
 /* Implementation file */
 
-static PRBool
+static PRIntn
 TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
@@ -438,7 +439,7 @@ TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
   return kHashEnumerateNext;
 }
 
-static PRBool
+static PRIntn
 UnlinkProtoJSObjects(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsXBLPrototypeBinding *proto = static_cast<nsXBLPrototypeBinding*>(aData);
@@ -452,7 +453,7 @@ struct ProtoTracer
   void *mClosure;
 };
 
-static PRBool
+static PRIntn
 TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   ProtoTracer* closure = static_cast<ProtoTracer*>(aClosure);

@@ -38,12 +38,15 @@
 
 #include "txXSLTProcessor.h"
 #include "txInstructions.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txLog.h"
 #include "txStylesheetCompileHandlers.h"
 #include "txStylesheetCompiler.h"
 #include "txExecutionState.h"
 #include "txExprResult.h"
+#ifdef TX_EXE
+#include "txHTMLOutput.h"
+#endif
 
 TX_LG_IMPL
 
@@ -53,6 +56,20 @@ txXSLTProcessor::init()
 {
     TX_LG_CREATE;
 
+#ifdef TX_EXE
+    if (!txStandaloneNamespaceManager::init())
+        return MB_FALSE;
+
+    if (NS_FAILED(txHTMLOutput::init())) {
+        return MB_FALSE;
+    }
+
+    txXMLAtoms::init();
+    txXPathAtoms::init();
+    txXSLTAtoms::init();
+    txHTMLAtoms::init();
+#endif
+    
     if (!txHandlerTable::init())
         return MB_FALSE;
 
@@ -67,6 +84,11 @@ txXSLTProcessor::init()
 void
 txXSLTProcessor::shutdown()
 {
+#ifdef TX_EXE
+    txStandaloneNamespaceManager::shutdown();
+    txHTMLOutput::shutdown();
+#endif
+
     txStylesheetCompilerState::shutdown();
     txHandlerTable::shutdown();
 }

@@ -41,7 +41,6 @@ class IntCount
 public:
     IntCount();
     ~IntCount();
-    void clear();
     int countAdd(int index, int increment=1);
     int countGet(int index);
     int getSize();

@@ -60,11 +60,7 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIWindowsRegKey.h"
 
-#include "mozilla/Telemetry.h"
-
 #include <usp10.h>
-
-using namespace mozilla;
 
 #define ROUND(x) floor((x) + 0.5)
 
@@ -213,20 +209,17 @@ FontTypeToOutPrecision(PRUint8 fontType)
  *
  */
 
-GDIFontEntry::GDIFontEntry(const nsAString& aFaceName,
-                           gfxWindowsFontType aFontType,
-                           PRBool aItalic, PRUint16 aWeight, PRInt16 aStretch,
-                           gfxUserFontData *aUserFontData)
-    : gfxFontEntry(aFaceName),
-      mWindowsFamily(0), mWindowsPitch(0),
-      mFontType(aFontType),
-      mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
-      mCharset(), mUnicodeRanges()
+GDIFontEntry::GDIFontEntry(const nsAString& aFaceName, gfxWindowsFontType aFontType,
+                                   PRBool aItalic, PRUint16 aWeight, gfxUserFontData *aUserFontData) : 
+    gfxFontEntry(aFaceName), 
+    mWindowsFamily(0), mWindowsPitch(0),
+    mFontType(aFontType),
+    mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
+    mCharset(), mUnicodeRanges()
 {
     mUserFontData = aUserFontData;
     mItalic = aItalic;
     mWeight = aWeight;
-    mStretch = aStretch;
     if (IsType1())
         mForceGDI = PR_TRUE;
     mIsUserFont = aUserFontData != nsnull;
@@ -321,8 +314,8 @@ GDIFontEntry::GetFontTable(PRUint32 aTableTag,
 
 void
 GDIFontEntry::FillLogFont(LOGFONTW *aLogFont, PRBool aItalic,
-                          PRUint16 aWeight, gfxFloat aSize,
-                          PRBool aUseCleartype)
+                              PRUint16 aWeight, gfxFloat aSize,
+                              PRBool aUseCleartype)
 {
     memcpy(aLogFont, &mLogFont, sizeof(LOGFONTW));
 
@@ -417,7 +410,7 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
 
 void
 GDIFontEntry::InitLogFont(const nsAString& aName,
-                          gfxWindowsFontType aFontType)
+                              gfxWindowsFontType aFontType)
 {
 #define CLIP_TURNOFF_FONTASSOCIATION 0x40
     
@@ -441,21 +434,20 @@ GDIFontEntry::InitLogFont(const nsAString& aName,
     mLogFont.lfItalic         = mItalic;
     mLogFont.lfWeight         = mWeight;
 
-    int len = NS_MIN<int>(aName.Length(), LF_FACESIZE - 1);
+    int len = PR_MIN(aName.Length(), LF_FACESIZE - 1);
     memcpy(&mLogFont.lfFaceName, nsPromiseFlatString(aName).get(), len * 2);
     mLogFont.lfFaceName[len] = '\0';
 }
 
 GDIFontEntry* 
-GDIFontEntry::CreateFontEntry(const nsAString& aName,
-                              gfxWindowsFontType aFontType, PRBool aItalic,
-                              PRUint16 aWeight, PRInt16 aStretch,
-                              gfxUserFontData* aUserFontData)
+GDIFontEntry::CreateFontEntry(const nsAString& aName, gfxWindowsFontType aFontType, 
+                                  PRBool aItalic, PRUint16 aWeight, 
+                                  gfxUserFontData* aUserFontData)
 {
     // jtdfix - need to set charset, unicode ranges, pitch/family
 
-    GDIFontEntry *fe = new GDIFontEntry(aName, aFontType, aItalic,
-                                        aWeight, aStretch, aUserFontData);
+    GDIFontEntry *fe = new GDIFontEntry(aName, aFontType, aItalic, aWeight,
+                                        aUserFontData);
 
     return fe;
 }
@@ -476,7 +468,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
     GDIFontFamily *ff = reinterpret_cast<GDIFontFamily*>(data);
 
     // Some fonts claim to support things > 900, but we don't so clamp the sizes
-    logFont.lfWeight = NS_MAX<LONG>(NS_MIN<LONG>(logFont.lfWeight, 900), 100);
+    logFont.lfWeight = PR_MAX(PR_MIN(logFont.lfWeight, 900), 100);
 
     gfxWindowsFontType feType = GDIFontEntry::DetermineFontType(metrics, fontType);
 
@@ -504,10 +496,8 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         }
     }
 
-    fe = GDIFontEntry::CreateFontEntry(nsDependentString(lpelfe->elfFullName),
-                                       feType, (logFont.lfItalic == 0xFF),
-                                       (PRUint16) (logFont.lfWeight), 0,
-                                       nsnull);
+    fe = GDIFontEntry::CreateFontEntry(nsDependentString(lpelfe->elfFullName), feType, (logFont.lfItalic == 0xFF),
+                                       (PRUint16) (logFont.lfWeight), nsnull);
     if (!fe)
         return 1;
 
@@ -561,7 +551,7 @@ GDIFontFamily::FindStyleVariations()
     memset(&logFont, 0, sizeof(LOGFONTW));
     logFont.lfCharSet = DEFAULT_CHARSET;
     logFont.lfPitchAndFamily = 0;
-    PRUint32 l = NS_MIN<PRUint32>(mName.Length(), LF_FACESIZE - 1);
+    PRUint32 l = PR_MIN(mName.Length(), LF_FACESIZE - 1);
     memcpy(logFont.lfFaceName,
            nsPromiseFlatString(mName).get(),
            l * sizeof(PRUnichar));
@@ -658,7 +648,6 @@ gfxGDIFontList::GetFontSubstitutes()
 nsresult
 gfxGDIFontList::InitFontList()
 {
-    Telemetry::AutoTimer<Telemetry::GDI_INITFONTLIST_TOTAL> timer;
     gfxFontCache *fc = gfxFontCache::GetCache();
     if (fc)
         fc->AgeAllGenerations();
@@ -753,7 +742,7 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     gfxFontEntry *fe = GDIFontEntry::CreateFontEntry(lookup->Name(), 
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
         PRUint32(aProxyEntry->mItalic ? FONT_STYLE_ITALIC : FONT_STYLE_NORMAL), 
-        w, aProxyEntry->mStretch, nsnull);
+        w, nsnull);
         
     if (!fe)
         return nsnull;
@@ -831,7 +820,7 @@ public:
 
         while (mCurrentChunk < mNumChunks && bytesLeft) {
             FontDataChunk& currentChunk = mDataChunks[mCurrentChunk];
-            PRUint32 bytesToCopy = NS_MIN(bytesLeft, 
+            PRUint32 bytesToCopy = PR_MIN(bytesLeft, 
                                           currentChunk.mLength - mChunkOffset);
             memcpy(out, currentChunk.mData + mChunkOffset, bytesToCopy);
             bytesLeft -= bytesToCopy;
@@ -899,8 +888,8 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         PRUint32 eotlen;
 
         isEmbedded = PR_TRUE;
-        PRUint32 nameLen = NS_MIN<PRUint32>(uniqueName.Length(), LF_FACESIZE - 1);
-        nsAutoString fontName(Substring(uniqueName, 0, nameLen));
+        PRUint32 nameLen = PR_MIN(uniqueName.Length(), LF_FACESIZE - 1);
+        nsPromiseFlatString fontName(Substring(uniqueName, 0, nameLen));
         
         FontDataOverlay overlayNameData = {0, 0, 0};
 
@@ -972,7 +961,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     GDIFontEntry *fe = GDIFontEntry::CreateFontEntry(uniqueName, 
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
         PRUint32(aProxyEntry->mItalic ? FONT_STYLE_ITALIC : FONT_STYLE_NORMAL), 
-        w, aProxyEntry->mStretch, winUserFontData);
+        w, winUserFontData);
 
     if (!fe)
         return fe;

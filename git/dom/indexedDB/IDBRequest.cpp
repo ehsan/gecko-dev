@@ -143,7 +143,7 @@ IDBRequest::SetDone(AsyncConnectionHelper* aHelper)
   }
 
   // Otherwise we need to get the result from the helper.
-  JSContext* cx = mScriptContext->GetNativeContext();
+  JSContext* cx = static_cast<JSContext*>(mScriptContext->GetNativeContext());
   NS_ASSERTION(cx, "Failed to get a context!");
 
   JSObject* global = static_cast<JSObject*>(mScriptContext->GetNativeGlobal());
@@ -300,8 +300,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBRequest,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnSuccessListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
-                                                       nsPIDOMEventTarget)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest,
@@ -313,7 +311,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest,
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnSuccessListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTransaction)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBRequest)

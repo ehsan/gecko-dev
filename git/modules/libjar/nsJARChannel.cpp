@@ -52,10 +52,6 @@
 #include "nsIPrincipal.h"
 #include "nsIFileURL.h"
 
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
-
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
 // the entry for a directory will either be empty (in the case of the
@@ -667,32 +663,6 @@ nsJARChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsJARChannel::GetContentDisposition(PRUint32 *aContentDisposition)
-{
-    if (mContentDispositionHeader.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    *aContentDisposition = mContentDisposition;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsJARChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsJARChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
-{
-    if (mContentDispositionHeader.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    aContentDispositionHeader = mContentDispositionHeader;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsJARChannel::GetContentLength(PRInt32 *result)
 {
     // if content length is unknown, query mJarInput...
@@ -832,6 +802,7 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
     }
 
     if (NS_SUCCEEDED(status) && channel) {
+        nsCAutoString header;
         // Grab the security info from our base channel
         channel->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
 
@@ -840,7 +811,6 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             // We only want to run scripts if the server really intended to
             // send us a JAR file.  Check the server-supplied content type for
             // a JAR type.
-            nsCAutoString header;
             httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Type"),
                                            header);
             nsCAutoString contentType;
@@ -851,6 +821,10 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             mIsUnsafe = !(contentType.Equals(channelContentType) &&
                           (contentType.EqualsLiteral("application/java-archive") ||
                            contentType.EqualsLiteral("application/x-jar")));
+            rv = httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Disposition"),
+                                                header);
+            if (NS_SUCCEEDED(rv))
+                SetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION, header);
         } else {
             nsCOMPtr<nsIJARChannel> innerJARChannel(do_QueryInterface(channel));
             if (innerJARChannel) {
@@ -858,15 +832,25 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
                 innerJARChannel->GetIsUnsafe(&unsafe);
                 mIsUnsafe = unsafe;
             }
+            // Soon-to-be common way to get Disposition: right now only nsIJARChannel
+            rv = NS_GetContentDisposition(request, header);
+            if (NS_SUCCEEDED(rv))
+                SetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION, header);
         }
-
-        channel->GetContentDispositionHeader(mContentDispositionHeader);
-        mContentDisposition = NS_GetContentDispositionFromHeader(mContentDispositionHeader, this);
     }
 
-    if (NS_SUCCEEDED(status) && mIsUnsafe &&
-        !Preferences::GetBool("network.jar.open-unsafe-types", PR_FALSE)) {
-        status = NS_ERROR_UNSAFE_CONTENT_TYPE;
+    if (NS_SUCCEEDED(status) && mIsUnsafe) {
+        PRBool allowUnpack = PR_FALSE;
+
+        nsCOMPtr<nsIPrefBranch> prefs =
+            do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            prefs->GetBoolPref("network.jar.open-unsafe-types", &allowUnpack);
+        }
+
+        if (!allowUnpack) {
+            status = NS_ERROR_UNSAFE_CONTENT_TYPE;
+        }
     }
 
     if (NS_SUCCEEDED(status)) {

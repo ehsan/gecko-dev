@@ -89,13 +89,13 @@ public:
 
 #define SET_COORD(aX, aY, coord, isHorizontal) if (isHorizontal) { aX = (coord); } else { aY  = (coord); }
 
-nsresult NS_NewSprocketLayout(nsIPresShell* aPresShell, nsCOMPtr<nsBoxLayout>& aNewLayout);
+nsresult NS_NewSprocketLayout(nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout);
 
 class nsSprocketLayout : public nsBoxLayout {
 
 public:
 
-  friend nsresult NS_NewSprocketLayout(nsIPresShell* aPresShell, nsCOMPtr<nsBoxLayout>& aNewLayout);
+  friend nsresult NS_NewSprocketLayout(nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout);
   static void Shutdown();
 
   NS_IMETHOD Layout(nsIBox* aBox, nsBoxLayoutState& aState);
@@ -162,8 +162,8 @@ private:
 
 
   // because the sprocket layout manager has no instance variables. We 
-  // can make a static one and reuse it everywhere.
-  static nsBoxLayout* gInstance;
+  // can make a static on and reuse it everywhere.
+  static nsIBoxLayout* gInstance;
 
 };
 

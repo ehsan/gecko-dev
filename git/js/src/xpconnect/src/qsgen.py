@@ -465,7 +465,7 @@ argumentUnboxingTemplates = {
         "        return JS_FALSE;\n",
 
     'boolean':
-        "    JSBool ${name};\n"
+        "    PRBool ${name};\n"
         "    JS_ValueToBoolean(cx, ${argVal}, &${name});\n",
 
     '[astring]':
@@ -845,12 +845,6 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         callTemplate = ""
         code = customMethodCall.get('code', None)
 
-    unwrapThisFailureFatal = (customMethodCall is None or
-                              customMethodCall.get('unwrapThisFailureFatal', True));
-    if (not unwrapThisFailureFatal and not isAttr):
-        raise UserError(member.iface.name + '.' + member.name + ": "
-                        "Unwrapping this failure must be fatal for methods")
-
     # Function prolog.
 
     # Only template functions can have additional arguments.
@@ -870,10 +864,6 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
 
     # Create ccx if needed.
     haveCcx = memberNeedsCcx(member)
-    if haveCcx and not unwrapThisFailureFatal:
-        raise UserError(member.iface.name + '.' + member.name + ": "
-                        "Unwrapping this failure must be fatal when we have a ccx")
-
     if haveCcx:
         f.write("    XPCCallContext ccx(JS_CALLER, cx, obj, "
                 "JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));\n")
@@ -909,26 +899,14 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         else:
             pthisval = '&vp[1]' # as above, ok to overwrite vp[1]
 
-        if unwrapThisFailureFatal:
-            unwrapFatalArg = "true"
-        else:
-            unwrapFatalArg = "false"
-
         if not isSetter and isInterfaceType(member.realtype):
             f.write("    XPCLazyCallContext lccx(JS_CALLER, cx, obj);\n")
             f.write("    if (!xpc_qsUnwrapThis(cx, obj, callee, &self, "
-                    "&selfref.ptr, %s, &lccx, %s))\n" % (pthisval, unwrapFatalArg))
+                    "&selfref.ptr, %s, &lccx))\n" % pthisval)
         else:
             f.write("    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, "
-                    "&selfref.ptr, %s, nsnull, %s))\n" % (pthisval, unwrapFatalArg))
+                    "&selfref.ptr, %s, nsnull))\n" % pthisval)
         f.write("        return JS_FALSE;\n")
-
-        if not unwrapThisFailureFatal:
-            f.write("      if (!self) {\n")
-            if (isGetter):
-                f.write("        *vp = JSVAL_NULL;\n")
-            f.write("        return JS_TRUE;\n")
-            f.write("    }\n");
 
     if isMethod:
         # If there are any required arguments, check argc.
@@ -1004,8 +982,7 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
             if member.implicit_jscontext:
                 argv.append('cx')
             if member.optional_argc:
-                argv.append('NS_MIN<PRUint32>(argc, %d) - %d' % 
-                            (len(member.params), requiredArgs))
+                argv.append('argc - %d' % requiredArgs)
             if not isVoidType(member.realtype):
                 argv.append(outParamForm(resultname, member.realtype))
             args = ', '.join(argv)
@@ -1225,7 +1202,7 @@ def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
             assert haveCcx
             template = (
                 "    nsCOMPtr<nsIVariant> ${name}(already_AddRefed<nsIVariant>("
-                "XPCVariant::newVariant(ccx, js::ValueArgToConstRef(${argVal}))));\n"
+                "XPCVariant::newVariant(ccx, js::Jsvalify(js::ValueArgToConstRef(${argVal})))));\n"
                 "    if (!${name}) {\n")
             f.write(substitute(template, params))
             writeFailure(f, getTraceInfoDefaultReturn(member.realtype), 2)
@@ -1240,7 +1217,7 @@ def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
             f.write("    xpc_qsSelfRef %sref;\n" % name)
             f.write("    JS::Anchor<jsval> %sanchor;\n" % name);
             f.write("    rv = xpc_qsUnwrapArg<%s>("
-                    "cx, js::ValueArgToConstRef(%s), &%s, &%sref.ptr, &%sanchor.get());\n"
+                    "cx, js::Jsvalify(js::ValueArgToConstRef(%s)), &%s, &%sref.ptr, &%sanchor.get());\n"
                     % (type.name, argVal, name, name, name))
             f.write("    if (NS_FAILED(rv)) {\n")
             if haveCcx:
@@ -1355,10 +1332,6 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
 
     if customMethodCall is not None and customMethodCall.get('skipgen', False):
         return
-    if (customMethodCall is not None and
-        not customMethodCall.get('unwrapThisFailureFatal', True)):
-        raise UserError(member.iface.name + '.' + member.name + ": "
-                        "Unwrapping this failure must be fatal for traceable stubs")
 
     # Write the function
     f.write("static %sFASTCALL\n" % getTraceReturnType(member.realtype))

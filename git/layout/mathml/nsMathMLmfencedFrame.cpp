@@ -24,7 +24,6 @@
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Frederic Wang <fred.wang@free.fr>
- *   Florian Scholz <elchi3@elchi3.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -82,11 +81,11 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
 }
 
 NS_IMETHODIMP
-nsMathMLmfencedFrame::SetInitialChildList(ChildListID     aListID,
+nsMathMLmfencedFrame::SetInitialChildList(nsIAtom*        aListName,
                                           nsFrameList&    aChildList)
 {
   // First, let the base class do its work
-  nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListName, aChildList);
   if (NS_FAILED(rv)) return rv;
 
   // InheritAutomaticData will not get called if our parent is not a mathml
@@ -250,9 +249,9 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
 
   PRInt32 i;
   const nsStyleFont* font = GetStyleFont();
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  aReflowState.rendContext->SetFont(fm);
+  aReflowState.rendContext->SetFont(font->mFont,
+                                    aPresContext->GetUserFontSet());
+  nsFontMetrics* fm = aReflowState.rendContext->FontMetrics();
   nscoord axisHeight, em;
   GetAxisHeight(*aReflowState.rendContext, fm, axisHeight);
   GetEmHeight(fm, em);
@@ -273,7 +272,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
 
   nsReflowStatus childStatus;
   nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
-  nsIFrame* firstChild = GetFirstPrincipalChild();
+  nsIFrame* firstChild = GetFirstChild(nsnull);
   nsIFrame* childFrame = firstChild;
   nscoord ascent = 0, descent = 0;
   if (firstChild || mOpenChar || mCloseChar || mSeparatorsCount > 0) {
@@ -352,10 +351,12 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   // adjust the origin of children.
 
   // we need to center around the axis
-  nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
-                         containerSize.descent + axisHeight);
-  containerSize.ascent = delta + axisHeight;
-  containerSize.descent = delta - axisHeight;
+  if (firstChild) { // do nothing for an empty <mfenced></mfenced>
+    nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
+                           containerSize.descent + axisHeight);
+    containerSize.ascent = delta + axisHeight;
+    containerSize.descent = delta - axisHeight;
+  }
 
   /////////////////
   // opening fence ...
@@ -594,8 +595,7 @@ nsMathMLmfencedFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 
   nsPresContext* presContext = PresContext();
   const nsStyleFont* font = GetStyleFont();
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  nsRefPtr<nsFontMetrics> fm = presContext->GetMetricsFor(font->mFont);
   nscoord em;
   GetEmHeight(fm, em);
 
@@ -606,7 +606,7 @@ nsMathMLmfencedFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
   }
 
   PRInt32 i = 0;
-  nsIFrame* childFrame = GetFirstPrincipalChild();
+  nsIFrame* childFrame = GetFirstChild(nsnull);
   while (childFrame) {
     // XXX This includes margin while Reflow currently doesn't consider
     // margin, so we may end up with too much space, but, with stretchy

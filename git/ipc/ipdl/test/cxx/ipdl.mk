@@ -1,8 +1,5 @@
 IPDLSRCS =					\
   PTestBlockChild.ipdl				\
-  PTestBridgeMain.ipdl				\
-  PTestBridgeSub.ipdl				\
-  PTestBridgeMainSub.ipdl			\
   PTestCrashCleanup.ipdl			\
   PTestDataStructures.ipdl			\
   PTestDataStructuresSub.ipdl			\
@@ -23,8 +20,6 @@ IPDLSRCS =					\
   PTestMultiMgrsRight.ipdl			\
   PTestMultiMgrsBottom.ipdl			\
   PTestNestedLoops.ipdl				\
-  PTestOpens.ipdl				\
-  PTestOpensOpened.ipdl				\
   PTestRaceDeferral.ipdl			\
   PTestRacyReentry.ipdl				\
   PTestRacyRPCReplies.ipdl			\
@@ -40,8 +35,7 @@ IPDLSRCS =					\
   PTestShutdownSub.ipdl				\
   PTestShutdownSubsub.ipdl			\
   PTestStackHooks.ipdl				\
-  PTestSyncError.ipdl                           \
-  PTestSyncHang.ipdl                            \
   PTestSyncWakeup.ipdl				\
+  PTestSyncHang.ipdl                            \
   PTestSysVShmem.ipdl				\
   $(NULL)
