@@ -1118,7 +1118,7 @@ Navigator::GetMozMobileMessage()
 
 #ifdef MOZ_B2G_RIL
 
-CellBroadcast*
+nsIDOMMozCellBroadcast*
 Navigator::GetMozCellBroadcast(ErrorResult& aRv)
 {
   if (!mCellBroadcast) {
@@ -1126,7 +1126,11 @@ Navigator::GetMozCellBroadcast(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mCellBroadcast = CellBroadcast::Create(mWindow, aRv);
+
+    aRv = NS_NewCellBroadcast(mWindow, getter_AddRefs(mCellBroadcast));
+    if (aRv.Failed()) {
+      return nullptr;
+    }
   }
 
   return mCellBroadcast;

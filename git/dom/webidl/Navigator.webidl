@@ -264,6 +264,8 @@ partial interface Navigator {
   readonly attribute MozMobileConnection mozMobileConnection;
 };
 
+// nsIMozNavigatorCellBroadcast
+interface MozCellBroadcast;
 partial interface Navigator {
   [Throws, Func="Navigator::HasCellBroadcastSupport"]
   readonly attribute MozCellBroadcast mozCellBroadcast;
