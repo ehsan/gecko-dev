@@ -97,10 +97,8 @@
 #include "nsINestedURI.h"
 #include "nsIMutable.h"
 #include "nsIPropertyBag2.h"
-#include "nsIWritablePropertyBag2.h"
 #include "nsIIDNService.h"
 #include "nsIChannelEventSink.h"
-#include "nsIChannelPolicy.h"
 
 // Helper, to simplify getting the I/O service.
 inline const nsGetServiceByContractIDWithError
@@ -169,13 +167,12 @@ NS_NewFileURI(nsIURI* *result,
 }
 
 inline nsresult
-NS_NewChannel(nsIChannel           **result,
+NS_NewChannel(nsIChannel           **result, 
               nsIURI                *uri,
               nsIIOService          *ioService = nsnull,    // pass in nsIIOService to optimize callers
               nsILoadGroup          *loadGroup = nsnull,
               nsIInterfaceRequestor *callbacks = nsnull,
-              PRUint32               loadFlags = nsIRequest::LOAD_NORMAL,
-              nsIChannelPolicy      *channelPolicy = nsnull)
+              PRUint32               loadFlags = nsIRequest::LOAD_NORMAL)
 {
     nsresult rv;
     nsCOMPtr<nsIIOService> grip;
@@ -190,13 +187,6 @@ NS_NewChannel(nsIChannel           **result,
                 rv |= chan->SetNotificationCallbacks(callbacks);
             if (loadFlags != nsIRequest::LOAD_NORMAL)
                 rv |= chan->SetLoadFlags(loadFlags);
-            if (channelPolicy) {
-                nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan, &rv);
-                if (props) {
-                    props->SetPropertyAsInterface(NS_CHANNEL_PROP_CHANNEL_POLICY,
-                                                  channelPolicy);
-                }
-            }
             if (NS_SUCCEEDED(rv))
                 chan.forget(result);
         }

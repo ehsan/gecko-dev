@@ -45,6 +45,7 @@
 #include "nsIDOMNode.h"
 #include "nsIContent.h"
 #include "nsContentUtils.h"
+#include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"

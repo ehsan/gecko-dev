@@ -37,9 +37,6 @@
 
 #include "nsDOMTransitionEvent.h"
 #include "nsGUIEvent.h"
-#include "nsDOMClassInfoID.h"
-#include "nsIClassInfo.h"
-#include "nsIXPCScriptable.h"
 
 nsDOMTransitionEvent::nsDOMTransitionEvent(nsPresContext *aPresContext,
                                            nsTransitionEvent *aEvent)
