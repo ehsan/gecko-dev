@@ -106,9 +106,9 @@ MobileConnectionChild::GetIccId(nsAString& aIccId)
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::GetRadioState(int32_t* aRadioState)
+MobileConnectionChild::GetRadioState(nsAString& aRadioState)
 {
-  *aRadioState = mRadioState;
+  aRadioState = mRadioState;
   return NS_OK;
 }
 
@@ -488,9 +488,9 @@ MobileConnectionChild::RecvNotifyIccChanged(const nsString& aIccId)
 }
 
 bool
-MobileConnectionChild::RecvNotifyRadioStateChanged(const int32_t& aRadioState)
+MobileConnectionChild::RecvNotifyRadioStateChanged(const nsString& aRadioState)
 {
-  mRadioState = aRadioState;
+  mRadioState.Assign(aRadioState);
 
   for (int32_t i = 0; i < mListeners.Count(); i++) {
     mListeners[i]->NotifyRadioStateChanged();

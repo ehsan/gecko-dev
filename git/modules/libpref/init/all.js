@@ -404,11 +404,7 @@ pref("media.webvtt.regions.enabled", false);
 pref("media.track.enabled", false);
 
 // Whether to enable MediaSource support
-#ifdef RELEASE_BUILD
 pref("media.mediasource.enabled", false);
-#else
-pref("media.mediasource.enabled", true);
-#endif
 
 #ifdef MOZ_WEBSPEECH
 pref("media.webspeech.recognition.enable", false);

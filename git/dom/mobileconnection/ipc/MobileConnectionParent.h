@@ -52,7 +52,7 @@ protected:
   RecvInit(nsMobileConnectionInfo* aVoice, nsMobileConnectionInfo* aData,
            nsString* aLastKnownNetwork, nsString* aLastKnownHomeNetwork,
            nsString* aIccId, int32_t* aNetworkSelectionMode,
-           int32_t* aRadioState, nsTArray<nsString>* aSupportedNetworkTypes) MOZ_OVERRIDE;
+           nsString* aRadioState, nsTArray<nsString>* aSupportedNetworkTypes) MOZ_OVERRIDE;
 
 private:
   nsCOMPtr<nsIMobileConnection> mMobileConnection;

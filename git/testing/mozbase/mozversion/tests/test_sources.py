@@ -17,11 +17,6 @@ class SourcesTest(unittest.TestCase):
     """test getting version information from a sources xml"""
 
     application_ini = """[App]\nName = B2G\n"""
-    platform_ini = """[Build]
-BuildID = PlatformBuildID
-SourceStamp = PlatformSourceStamp
-SourceRepository = PlatformSourceRepo
-"""
     sources_xml = """<?xml version="1.0" ?><manifest>
   <project path="build" revision="build_revision" />
   <project path="gaia" revision="gaia_revision" />
@@ -41,24 +36,23 @@ SourceRepository = PlatformSourceRepo
         os.chdir(self.cwd)
         mozfile.remove(self.tempdir)
 
-    def _write_conf_files(self, sources=True):
+    def test_sources(self):
         with open(os.path.join(self.tempdir, 'application.ini'), 'w') as f:
             f.writelines(self.application_ini)
-        with open(os.path.join(self.tempdir, 'platform.ini'), 'w') as f:
-            f.writelines(self.platform_ini)
-        if sources:
-            with open(os.path.join(self.tempdir, 'sources.xml'), 'w') as f:
-                f.writelines(self.sources_xml)
 
-    def test_sources(self):
-        self._write_conf_files()
+        sources = os.path.join(self.tempdir, 'sources.xml')
+        with open(sources, 'w') as f:
+            f.writelines(self.sources_xml)
 
         os.chdir(self.tempdir)
-        self._check_version(get_version(sources=os.path.join(self.tempdir,
-                                                             'sources.xml')))
+        self._check_version(get_version(sources=sources))
 
     def test_sources_in_current_directory(self):
-        self._write_conf_files()
+        with open(os.path.join(self.tempdir, 'application.ini'), 'w') as f:
+            f.writelines(self.application_ini)
+
+        with open(os.path.join(self.tempdir, 'sources.xml'), 'w') as f:
+            f.writelines(self.sources_xml)
 
         os.chdir(self.tempdir)
         self._check_version(get_version())
@@ -70,7 +64,8 @@ SourceRepository = PlatformSourceRepo
 
     def test_without_sources_file(self):
         """With a missing sources file no exception should be thrown"""
-        self._write_conf_files(sources=False)
+        with open(os.path.join(self.tempdir, 'application.ini'), 'w') as f:
+            f.writelines(self.application_ini)
 
         get_version(self.binary)
 

@@ -110,10 +110,8 @@ void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
   aCtx->ThebesContext()->SetColor(NS_RGB(255,255,255));
   nscoord ascent = aCtx->FontMetrics()->MaxAscent();
   NS_NAMED_LITERAL_STRING(errorMsg, "invalid-markup");
-  nsLayoutUtils::DrawUniDirString(errorMsg.get(),
-                                  uint32_t(errorMsg.Length()),
-                                  nsPoint(pt.x, pt.y + ascent),
-                                  *aCtx);
+  aCtx->DrawString(errorMsg.get(), uint32_t(errorMsg.Length()),
+                   pt.x, pt.y+ascent);
 }
 
 /* /////////////

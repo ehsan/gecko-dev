@@ -23,6 +23,7 @@
 #include "nsAttrAndChildArray.h"
 #include "mozFlushType.h"
 #include "nsDOMAttributeMap.h"
+#include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"

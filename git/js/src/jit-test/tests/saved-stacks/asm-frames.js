@@ -19,7 +19,7 @@ function tester() {
   stack = saveStack();
 }
 
-const buf = new ArrayBuffer(1024*8);
+const buf = ArrayBuffer(1024*8);
 const module = AsmModule(this, { t: tester }, buf);
 module.test();
 

@@ -102,7 +102,6 @@ class JitCode : public gc::TenuredCell
     }
     void trace(JSTracer *trc);
     void finalize(FreeOp *fop);
-    void fixupAfterMovingGC() {}
     void setInvalidated() {
         invalidated_ = true;
     }

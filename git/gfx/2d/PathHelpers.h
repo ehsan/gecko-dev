@@ -146,16 +146,6 @@ GFX2D_API void AppendRoundedRectToPath(PathBuilder* aPathBuilder,
                                        const Size(& aCornerRadii)[4],
                                        bool aDrawClockwise = true);
 
-inline TemporaryRef<Path> MakePathForRoundedRect(const DrawTarget& aDrawTarget,
-                                                 const Rect& aRect,
-                                                 const Size(& aCornerRadii)[4],
-                                                 bool aDrawClockwise = true)
-{
-  RefPtr<PathBuilder> builder = aDrawTarget.CreatePathBuilder();
-  AppendRoundedRectToPath(builder, aRect, aCornerRadii, aDrawClockwise);
-  return builder->Finish();
-}
-
 /**
  * Appends a path represending an ellipse to the path being built by
  * aPathBuilder.
@@ -166,15 +156,6 @@ inline TemporaryRef<Path> MakePathForRoundedRect(const DrawTarget& aDrawTarget,
 GFX2D_API void AppendEllipseToPath(PathBuilder* aPathBuilder,
                                    const Point& aCenter,
                                    const Size& aDimensions);
-
-inline TemporaryRef<Path> MakePathForEllipse(const DrawTarget& aDrawTarget,
-                                             const Point& aCenter,
-                                             const Size& aDimensions)
-{
-  RefPtr<PathBuilder> builder = aDrawTarget.CreatePathBuilder();
-  AppendEllipseToPath(builder, aCenter, aDimensions);
-  return builder->Finish();
-}
 
 /**
  * If aDrawTarget's transform only contains a translation, and if this line is

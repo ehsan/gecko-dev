@@ -1347,7 +1347,6 @@ ParentImpl::CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
 {
   AssertIsInMainProcess();
   AssertIsOnMainThread();
-  MOZ_ASSERT(aCtx->GetContentParent());
 
   const ProtocolId protocolId = GetProtocolId();
 
@@ -1364,7 +1363,7 @@ ParentImpl::CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
     }
 
     PBackgroundParent* clonedActor =
-      Alloc(aCtx->GetContentParent(), transport, base::GetProcId(aPeerProcess));
+      Alloc(mContent, transport, base::GetProcId(aPeerProcess));
     MOZ_ASSERT(clonedActor);
 
     clonedActor->CloneManagees(this, aCtx);
