@@ -75,7 +75,6 @@ this.Keyboard = {
     mm.addMessageListener('Forms:SetSelectionRange:Result:OK', this);
     mm.addMessageListener('Forms:ReplaceSurroundingText:Result:OK', this);
     mm.addMessageListener('Forms:SendKey:Result:OK', this);
-    mm.addMessageListener('Forms:SendKey:Result:Error', this);
     mm.addMessageListener('Forms:SequenceError', this);
     mm.addMessageListener('Forms:GetContext:Result:OK', this);
     mm.addMessageListener('Forms:SetComposition:Result:OK', this);
@@ -126,7 +125,6 @@ this.Keyboard = {
       case 'Forms:SetSelectionRange:Result:OK':
       case 'Forms:ReplaceSurroundingText:Result:OK':
       case 'Forms:SendKey:Result:OK':
-      case 'Forms:SendKey:Result:Error':
       case 'Forms:SequenceError':
       case 'Forms:GetContext:Result:OK':
       case 'Forms:SetComposition:Result:OK':

@@ -521,15 +521,9 @@ let FormAssistant = {
                                   json.charCode, json.modifiers);
         this._editing = false;
 
-        if (json.requestId && doKeypress) {
+        if (json.requestId) {
           sendAsyncMessage("Forms:SendKey:Result:OK", {
             requestId: json.requestId
-          });
-        }
-        else if (json.requestId && !doKeypress) {
-          sendAsyncMessage("Forms:SendKey:Result:Error", {
-            requestId: json.requestId,
-            error: "Keydown event got canceled"
           });
         }
         break;

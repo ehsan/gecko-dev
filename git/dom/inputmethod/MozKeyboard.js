@@ -498,7 +498,6 @@ MozInputContext.prototype = {
        "Keyboard:SetSelectionRange:Result:OK",
        "Keyboard:ReplaceSurroundingText:Result:OK",
        "Keyboard:SendKey:Result:OK",
-       "Keyboard:SendKey:Result:Error",
        "Keyboard:SetComposition:Result:OK",
        "Keyboard:EndComposition:Result:OK",
        "Keyboard:SequenceError"]);
@@ -543,9 +542,6 @@ MozInputContext.prototype = {
     switch (msg.name) {
       case "Keyboard:SendKey:Result:OK":
         resolver.resolve();
-        break;
-      case "Keyboard:SendKey:Result:Error":
-        resolver.reject(json.error);
         break;
       case "Keyboard:GetText:Result:OK":
         resolver.resolve(json.text);
