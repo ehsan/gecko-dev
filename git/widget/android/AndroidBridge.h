@@ -85,6 +85,7 @@ class NetworkInformation;
 } // namespace hal
 
 namespace dom {
+class ScreenOrientationWrapper;
 namespace sms {
 struct SmsFilterData;
 } // namespace sms
@@ -175,9 +176,8 @@ public:
 
     void AcknowledgeEventSync();
 
-    void EnableDeviceMotion(bool aEnable);
-
     void EnableLocation(bool aEnable);
+    void EnableLocationHighAccuracy(bool aEnable);
 
     void EnableSensor(int aSensorType);
 
@@ -417,6 +417,14 @@ public:
     void ShowSurface(jobject surface, const gfxRect& aRect, bool aInverted, bool aBlend);
     void HideSurface(jobject surface);
 
+    // This method doesn't take a ScreenOrientation because it's an enum and
+    // that would require including the header which requires include IPC
+    // headers which requires including basictypes.h which requires a lot of
+    // changes...
+    void GetScreenOrientation(dom::ScreenOrientationWrapper& aOrientation);
+    void EnableScreenOrientationNotifications();
+    void DisableScreenOrientationNotifications();
+
 protected:
     static AndroidBridge *sBridge;
 
@@ -455,6 +463,7 @@ protected:
     jmethodID jNotifyScreenShot;
     jmethodID jAcknowledgeEventSync;
     jmethodID jEnableLocation;
+    jmethodID jEnableLocationHighAccuracy;
     jmethodID jEnableSensor;
     jmethodID jDisableSensor;
     jmethodID jReturnIMEQueryResult;
@@ -519,6 +528,10 @@ protected:
     jmethodID jGetCurrentNetworkInformation;
     jmethodID jEnableNetworkNotifications;
     jmethodID jDisableNetworkNotifications;
+
+    jmethodID jGetScreenOrientation;
+    jmethodID jEnableScreenOrientationNotifications;
+    jmethodID jDisableScreenOrientationNotifications;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
