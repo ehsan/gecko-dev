@@ -18,10 +18,9 @@ function getZoom() {
 }
 
 function test() {
-  TiltUtils.setDocumentZoom(Math.random());
+  setZoom(Math.random());
   is(getZoom(), TiltUtils.getDocumentZoom(),
     "The getDocumentZoom utility function didn't return the expected results.");
-
 
   if (!isTiltEnabled()) {
     info("Skipping controller test because Tilt isn't enabled.");
