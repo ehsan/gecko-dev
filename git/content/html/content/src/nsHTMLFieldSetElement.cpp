@@ -41,12 +41,10 @@
 #include "nsStyleConsts.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsConstraintValidation.h"
 
 
 class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
-                              public nsIDOMHTMLFieldSetElement,
-                              public nsConstraintValidation
+                              public nsIDOMHTMLFieldSetElement
 {
 public:
   nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -74,9 +72,6 @@ public:
                                nsIContent* aSubmitElement);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
-
-  // nsConstraintValidation
-  PRBool IsBarredFromConstraintValidation() { return PR_TRUE; };
 };
 
 // construction, destruction
@@ -112,8 +107,6 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFieldSetElement)
 
 // nsIDOMHTMLFieldSetElement
 
-// nsConstraintValidation
-NS_IMPL_NSCONSTRAINTVALIDATION(nsHTMLFieldSetElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLFieldSetElement)
 

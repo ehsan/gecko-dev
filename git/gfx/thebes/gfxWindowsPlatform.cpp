@@ -128,13 +128,9 @@ public:
     }
 
     NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
-        cairo_device_t *device =
-            gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
-        if (device) {
-            *memoryUsed = cairo_d2d_get_surface_vram_usage(device);
-        } else {
-            *memoryUsed = 0;
-        }
+	*memoryUsed = cairo_d2d_get_surface_vram_usage(
+	    gfxWindowsPlatform::GetPlatform()->GetD2DDevice()
+	    );
         return NS_OK;
     }
 };

@@ -200,7 +200,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_BUTTON_SUBMIT :
   case NS_FORM_INPUT_BUTTON :
   case NS_FORM_INPUT_CHECKBOX :
-  case NS_FORM_INPUT_EMAIL :
   case NS_FORM_INPUT_FILE :
   case NS_FORM_INPUT_HIDDEN :
   case NS_FORM_INPUT_RESET :
@@ -210,7 +209,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_INPUT_SUBMIT :
   case NS_FORM_INPUT_TEXT :
   case NS_FORM_INPUT_TEL :
-  case NS_FORM_INPUT_URL :
   case NS_FORM_SELECT :
   case NS_FORM_TEXTAREA :
   case NS_FORM_FIELDSET :

@@ -1790,10 +1790,8 @@ nsEventStateManager::FireContextClick()
         PRInt32 type = formCtrl->GetType();
 
         allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
-                             type == NS_FORM_INPUT_EMAIL ||
                              type == NS_FORM_INPUT_SEARCH ||
                              type == NS_FORM_INPUT_TEL ||
-                             type == NS_FORM_INPUT_URL ||
                              type == NS_FORM_INPUT_PASSWORD ||
                              type == NS_FORM_INPUT_FILE ||
                              type == NS_FORM_TEXTAREA);
@@ -3294,7 +3292,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
   //Reset target frame to null to avoid mistargeting after reentrant event
   mCurrentTarget = nsnull;
-  mCurrentTargetContent = nsnull;
 
   return ret;
 }
@@ -3614,7 +3611,6 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   event.inputSource = static_cast<nsMouseEvent*>(aEvent)->inputSource;
 
   mCurrentTargetContent = aTargetContent;
-  mCurrentTarget = nsnull;
 
   nsIFrame* targetFrame = nsnull;
   if (aTargetContent) {
@@ -3631,7 +3627,6 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   }
 
   mCurrentTargetContent = nsnull;
-  mCurrentTarget = nsnull;
 
   return targetFrame;
 }
@@ -3796,7 +3791,6 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
 
   // reset mCurretTargetContent to what it was
   mCurrentTargetContent = targetBeforeEvent;
-  mCurrentTarget = nsnull;
 }
 
 void

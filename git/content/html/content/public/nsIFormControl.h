@@ -81,7 +81,6 @@ enum ButtonElementTypes {
 enum InputElementTypes {
   NS_FORM_INPUT_BUTTON = NS_FORM_INPUT_ELEMENT + 1,
   NS_FORM_INPUT_CHECKBOX,
-  NS_FORM_INPUT_EMAIL,
   NS_FORM_INPUT_FILE,
   NS_FORM_INPUT_HIDDEN,
   NS_FORM_INPUT_RESET,
@@ -92,7 +91,6 @@ enum InputElementTypes {
   NS_FORM_INPUT_SUBMIT,
   NS_FORM_INPUT_TEL,
   NS_FORM_INPUT_TEXT,
-  NS_FORM_INPUT_URL,
   eInputElementTypesMax
 };
 
