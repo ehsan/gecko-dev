@@ -41,8 +41,10 @@
 
 #include "nsServiceManagerUtils.h"
 
-#include "mozilla/Preferences.h"
-
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
+#include "nsISupportsPrimitives.h"
 #include "nsIStreamBufferAccess.h"
 #include "nsIUUIDGenerator.h"
 #include "nsMemory.h"
@@ -860,16 +862,23 @@ void gfxFontUtils::GetPrefsFontList(const char *aPrefName, nsTArray<nsString>& a
     aFontList.Clear();
     
     // get the list of single-face font families
-    nsAdoptingString fontlistValue = Preferences::GetString(aPrefName);
-    if (!fontlistValue) {
-        return;
-    }
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
 
+    nsAutoString fontlistValue;
+    if (prefs) {
+        nsCOMPtr<nsISupportsString> prefString;
+        prefs->GetComplexValue(aPrefName, NS_GET_IID(nsISupportsString), getter_AddRefs(prefString));
+        if (!prefString) 
+            return;
+        prefString->GetData(fontlistValue);
+    }
+    
     // append each font name to the list
     nsAutoString fontname;
+    nsPromiseFlatString fonts(fontlistValue);
     const PRUnichar *p, *p_end;
-    fontlistValue.BeginReading(p);
-    fontlistValue.EndReading(p_end);
+    fonts.BeginReading(p);
+    fonts.EndReading(p_end);
 
      while (p < p_end) {
         const PRUnichar *nameStart = p;

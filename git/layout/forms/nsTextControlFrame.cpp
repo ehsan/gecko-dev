@@ -36,9 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
 #include "nsCOMPtr.h"
 #include "nsTextControlFrame.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIFormControl.h"
 #include "nsIServiceManager.h"
 #include "nsFrameSelection.h"

@@ -425,7 +425,6 @@ let AboutPermissions = {
 
     gSitesStmt.finalize();
     gVisitStmt.finalize();
-    gPlacesDatabase.asyncClose(null);
   },
 
   observe: function (aSubject, aTopic, aData) {
@@ -691,8 +690,13 @@ let AboutPermissions = {
    */
   updatePermission: function(aType) {
     let allowItem = document.getElementById(aType + "-" + PermissionDefaults.ALLOW);
-    allowItem.hidden = !this._selectedSite &&
-                       this._noGlobalAllow.indexOf(aType) != -1;
+    if (!this._selectedSite &&
+        this._noGlobalAllow.indexOf(aType) != -1) {
+      allowItem.hidden = true;
+      return;
+    }
+
+    allowItem.hidden = false;
 
     let permissionMenulist = document.getElementById(aType + "-menulist");
     let permissionValue;    

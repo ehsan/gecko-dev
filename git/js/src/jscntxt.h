@@ -291,7 +291,7 @@ struct JSThread {
 #define JS_THREAD_DATA(cx)      (&(cx)->thread()->data)
 
 extern JSThread *
-js_CurrentThreadAndLockGC(JSRuntime *rt);
+js_CurrentThread(JSRuntime *rt);
 
 /*
  * The function takes the GC lock and does not release in successful return.
@@ -299,7 +299,7 @@ js_CurrentThreadAndLockGC(JSRuntime *rt);
  * the error reporting to the caller.
  */
 extern JSBool
-js_InitContextThreadAndLockGC(JSContext *cx);
+js_InitContextThread(JSContext *cx);
 
 /*
  * On entrance the GC lock must be held and it will be held on exit.
@@ -427,7 +427,6 @@ struct JSRuntime {
 
     /* Pre-allocated space for the GC mark stacks. Pointer type ensures alignment. */
     void                *gcMarkStackObjs[js::OBJECT_MARK_STACK_SIZE / sizeof(void *)];
-    void                *gcMarkStackRopes[js::ROPES_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackXMLs[js::XML_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackLarges[js::LARGE_MARK_STACK_SIZE / sizeof(void *)];
 
@@ -451,43 +450,8 @@ struct JSRuntime {
     bool                gcRunning;
     bool                gcRegenShapes;
 
-    /*
-     * These options control the zealousness of the GC. The fundamental values
-     * are gcNextScheduled and gcDebugCompartmentGC. At every allocation,
-     * gcNextScheduled is decremented. When it reaches zero, we do either a
-     * full or a compartmental GC, based on gcDebugCompartmentGC.
-     *
-     * At this point, if gcZeal_ >= 2 then gcNextScheduled is reset to the
-     * value of gcZealFrequency. Otherwise, no additional GCs take place.
-     *
-     * You can control these values in several ways:
-     *   - Pass the -Z flag to the shell (see the usage info for details)
-     *   - Call gczeal() or schedulegc() from inside shell-executed JS code
-     *     (see the help for details)
-     *
-     * Additionally, if gzZeal_ == 1 then we perform GCs in select places
-     * (during MaybeGC and whenever a GC poke happens). This option is mainly
-     * useful to embedders.
-     */
 #ifdef JS_GC_ZEAL
-    int                 gcZeal_;
-    int                 gcZealFrequency;
-    int                 gcNextScheduled;
-    bool                gcDebugCompartmentGC;
-
-    int gcZeal() { return gcZeal_; }
-
-    bool needZealousGC() {
-        if (gcNextScheduled > 0 && --gcNextScheduled == 0) {
-            if (gcZeal() >= 2)
-                gcNextScheduled = gcZealFrequency;
-            return true;
-        }
-        return false;
-    }
-#else
-    int gcZeal() { return 0; }
-    bool needZealousGC() { return false; }
+    jsrefcount          gcZeal;
 #endif
 
     JSGCCallback        gcCallback;
@@ -746,7 +710,7 @@ struct JSRuntime {
      * OOM reporting (in js_ReportOutOfMemory). If a GC is requested while
      * reporting the OOM, we ignore it.
      */
-    int32               inOOMReport;
+    bool                 inOOMReport;
 
 #if defined(MOZ_GCTIMER) || defined(JSGC_TESTPILOT)
     struct GCData {
@@ -1081,6 +1045,9 @@ struct JSContext
     /* Limit pointer for checking native stack consumption during recursion. */
     jsuword             stackLimit;
 
+    /* Quota on the size of arenas used to compile and execute scripts. */
+    size_t              scriptStackQuota;
+
     /* Data shared by threads in an address space. */
     JSRuntime *const    runtime;
 
@@ -1091,7 +1058,7 @@ struct JSContext
     js::ContextStack    stack;
 
     /* ContextStack convenience functions */
-    bool hasfp() const                { return stack.hasfp(); }
+    bool running() const              { return stack.running(); }
     js::StackFrame* fp() const        { return stack.fp(); }
     js::StackFrame* maybefp() const   { return stack.maybefp(); }
     js::FrameRegs& regs() const       { return stack.regs(); }
@@ -1144,7 +1111,7 @@ struct JSContext
      * This typically occurs via the JSAPI right after a context is constructed.
      */
     bool canSetDefaultVersion() const {
-        return !stack.hasfp() && !hasVersionOverride;
+        return !stack.running() && !hasVersionOverride;
     }
 
     /* Force a version for future script compilation. */
@@ -1186,11 +1153,10 @@ struct JSContext
      * default version.
      */
     void maybeMigrateVersionOverride() {
-        JS_ASSERT(stack.empty());
-        if (JS_UNLIKELY(isVersionOverridden())) {
-            defaultVersion = versionOverride;
-            clearVersionOverride();
-        }
+        if (JS_LIKELY(!isVersionOverridden() && stack.empty()))
+            return;
+        defaultVersion = versionOverride;
+        clearVersionOverride();
     }
 
     /*
@@ -1205,7 +1171,7 @@ struct JSContext
         if (hasVersionOverride)
             return versionOverride;
 
-        if (stack.hasfp()) {
+        if (stack.running()) {
             /* There may be a scripted function somewhere on the stack! */
             js::StackFrame *f = fp();
             while (f && !f->isScriptFrame())
@@ -1456,6 +1422,13 @@ class AutoCheckRequestDepth {
 # define CHECK_REQUEST(cx)          ((void) 0)
 # define CHECK_REQUEST_THREAD(cx)   ((void) 0)
 #endif
+
+static inline uintN
+FramePCOffset(JSContext *cx, js::StackFrame* fp)
+{
+    jsbytecode *pc = fp->hasImacropc() ? fp->imacropc() : fp->pc(cx);
+    return uintN(pc - fp->script()->code);
+}
 
 static inline JSAtom **
 FrameAtomBase(JSContext *cx, js::StackFrame *fp)
@@ -2328,6 +2301,12 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
 
 extern void
 js_ReportOutOfMemory(JSContext *cx);
+
+/*
+ * Report that cx->scriptStackQuota is exhausted.
+ */
+void
+js_ReportOutOfScriptQuota(JSContext *maybecx);
 
 /* JS_CHECK_RECURSION is used outside JS, so JS_FRIEND_API. */
 JS_FRIEND_API(void)

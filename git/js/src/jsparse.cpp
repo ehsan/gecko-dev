@@ -191,7 +191,7 @@ Parser::Parser(JSContext *cx, JSPrincipals *prin, StackFrame *cfp)
     tokenStream(cx),
     principals(NULL),
     callerFrame(cfp),
-    callerVarObj(cfp ? &cfp->varObj() : NULL),
+    callerVarObj(cfp ? &cx->stack.space().varObjForFrame(cfp) : NULL),
     nodeList(NULL),
     functionCount(0),
     traceListHead(NULL),
@@ -252,7 +252,7 @@ Parser::newObjectBox(JSObject *obj)
     JSObjectBox *objbox;
     JS_ARENA_ALLOCATE_TYPE(objbox, JSObjectBox, &context->tempPool);
     if (!objbox) {
-        js_ReportOutOfMemory(context);
+        js_ReportOutOfScriptQuota(context);
         return NULL;
     }
     objbox->traceLink = traceListHead;
@@ -278,7 +278,7 @@ Parser::newFunctionBox(JSObject *obj, JSParseNode *fn, JSTreeContext *tc)
     JSFunctionBox *funbox;
     JS_ARENA_ALLOCATE_TYPE(funbox, JSFunctionBox, &context->tempPool);
     if (!funbox) {
-        js_ReportOutOfMemory(context);
+        js_ReportOutOfScriptQuota(context);
         return NULL;
     }
     funbox->traceLink = traceListHead;
@@ -682,7 +682,7 @@ NewOrRecycledNode(JSTreeContext *tc)
 
         JS_ARENA_ALLOCATE_TYPE(pn, JSParseNode, &cx->tempPool);
         if (!pn)
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
     } else {
         tc->parser->nodeList = pn->pn_next;
     }
@@ -926,8 +926,10 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (!compiler.init(chars, length, filename, lineno, version))
         return NULL;
 
-    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
-    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
+                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote),
+                     &cx->scriptStackQuota);
 
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
@@ -1133,25 +1135,21 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     JS_ASSERT(cg.version() == version);
 
     script = JSScript::NewScriptFromCG(cx, &cg);
-    if (!script)
-        goto out;
-
-    if (funbox)
+    if (script && funbox)
         script->savedCallerFun = true;
 
 #ifdef JS_SCOPE_DEPTH_METER
-    JSObject *obj = scopeChain;
-    uintN depth = 1;
-    while ((obj = obj->getParent()) != NULL)
-        ++depth;
-    JS_BASIC_STATS_ACCUM(&cx->runtime->hostenvScopeDepthStats, depth);
+    if (script) {
+        JSObject *obj = scopeChain;
+        uintN depth = 1;
+        while ((obj = obj->getParent()) != NULL)
+            ++depth;
+        JS_BASIC_STATS_ACCUM(&cx->runtime->hostenvScopeDepthStats, depth);
+    }
 #endif
 
-    {
-        AutoShapeRooter shapeRoot(cx, script->bindings.lastShape());
-        if (!defineGlobals(cx, globalScope, script))
-            goto late_error;
-    }
+    if (!defineGlobals(cx, globalScope, script))
+        goto late_error;
 
   out:
     JS_FinishArenaPool(&codePool);
@@ -1822,8 +1820,10 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
 
     /* No early return from after here until the js_FinishArenaPool calls. */
     JSArenaPool codePool, notePool;
-    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
-    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
+                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote),
+                     &cx->scriptStackQuota);
 
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
@@ -2193,10 +2193,8 @@ bool
 Parser::markFunArgs(JSFunctionBox *funbox)
 {
     JSFunctionBoxQueue queue;
-    if (!queue.init(functionCount)) {
-        js_ReportOutOfMemory(context);
+    if (!queue.init(functionCount))
         return false;
-    }
 
     FindFunArgs(funbox, -1, &queue);
     while ((funbox = queue.pull()) != NULL) {
@@ -2837,10 +2835,7 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSAtom *funAtom = NULL,
                  * allows us to handle both these cases in a natural way.
                  */
                 outer_ale = MakePlaceholder(dn, tc);
-                if (!outer_ale)
-                    return false;
             }
-
 
             JSDefinition *outer_dn = ALE_DEFN(outer_ale);
 
@@ -8762,7 +8757,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
             return NULL;
 
         JSObject *obj;
-        if (context->hasfp()) {
+        if (context->running()) {
             obj = RegExp::createObject(context, context->regExpStatics(),
                                        tokenStream.getTokenbuf().begin(),
                                        tokenStream.getTokenbuf().length(),

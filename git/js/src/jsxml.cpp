@@ -1716,12 +1716,13 @@ ParseXMLSource(JSContext *cx, JSString *src)
         return NULL;
 
     dstlen = length;
-    InflateStringToBuffer(cx, prefix, constrlen(prefix), chars, &dstlen);
+    js_InflateStringToBuffer(cx, prefix, constrlen(prefix), chars, &dstlen);
     offset = dstlen;
     js_strncpy(chars + offset, uri->chars(), urilen);
     offset += urilen;
     dstlen = length - offset + 1;
-    InflateStringToBuffer(cx, middle, constrlen(middle), chars + offset, &dstlen);
+    js_InflateStringToBuffer(cx, middle, constrlen(middle), chars + offset,
+                             &dstlen);
     offset += dstlen;
     srcp = src->getChars(cx);
     if (!srcp) {
@@ -1731,19 +1732,23 @@ ParseXMLSource(JSContext *cx, JSString *src)
     js_strncpy(chars + offset, srcp, srclen);
     offset += srclen;
     dstlen = length - offset + 1;
-    InflateStringToBuffer(cx, suffix, constrlen(suffix), chars + offset, &dstlen);
+    js_InflateStringToBuffer(cx, suffix, constrlen(suffix), chars + offset,
+                             &dstlen);
     chars [offset + dstlen] = 0;
 
     LeaveTrace(cx);
     xml = NULL;
+    FrameRegsIter i(cx);
+    for (; !i.done() && !i.pc(); ++i)
+        JS_ASSERT(!i.fp()->isScriptFrame());
     filename = NULL;
     lineno = 1;
-    FrameRegsIter i(cx);
     if (!i.done()) {
+        StackFrame *fp = i.fp();
         op = (JSOp) *i.pc();
         if (op == JSOP_TOXML || op == JSOP_TOXMLLIST) {
-            filename = i.fp()->script()->filename;
-            lineno = js_FramePCToLineNumber(cx, i.fp(), i.pc());
+            filename = fp->script()->filename;
+            lineno = js_FramePCToLineNumber(cx, fp);
             for (endp = srcp + srclen; srcp < endp; srcp++) {
                 if (*srcp == '\n')
                     --lineno;
@@ -7281,7 +7286,7 @@ js_SetDefaultXMLNamespace(JSContext *cx, const Value &v)
     if (!ns)
         return JS_FALSE;
 
-    JSObject &varobj = cx->fp()->varObj();
+    JSObject &varobj = cx->stack.currentVarObj();
     if (!varobj.defineProperty(cx, JS_DEFAULT_XML_NAMESPACE_ID, ObjectValue(*ns),
                                PropertyStub, StrictPropertyStub, JSPROP_PERMANENT)) {
         return JS_FALSE;
@@ -7359,7 +7364,7 @@ js_ValueToXMLString(JSContext *cx, const Value &v)
 JSBool
 js_GetAnyName(JSContext *cx, jsid *idp)
 {
-    JSObject *global = cx->hasfp() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
+    JSObject *global = cx->running() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
     Value v = global->getReservedSlot(JSProto_AnyName);
     if (v.isUndefined()) {
         JSObject *obj = NewNonFunction<WithProto::Given>(cx, &js_AnyNameClass, NULL, global);

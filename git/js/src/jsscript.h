@@ -395,42 +395,6 @@ struct JITScript;
 }
 #endif
 
-class JSPCCounters {
-    size_t numBytecodes;
-    int *counts;
-
- public:
-    JSPCCounters() : numBytecodes(0), counts(NULL) {
-    }
-
-    ~JSPCCounters() {
-        JS_ASSERT(!counts);
-    }
-
-    bool init(JSContext *cx, size_t numBytecodes);
-    void destroy(JSContext *cx);
-
-    // Boolean conversion, for 'if (counters) ...'
-    operator void*() const {
-        return counts;
-    }
-
-    int *get(int runmode) {
-        JS_ASSERT(runmode >= 0 && runmode < JSRUNMODE_COUNT);
-        return counts ? &counts[numBytecodes * runmode] : NULL;
-    }
-
-    int& get(int runmode, size_t offset) {
-        JS_ASSERT(offset < numBytecodes);
-        JS_ASSERT(counts);
-        return get(runmode)[offset];
-    }
-
-    size_t numRunmodes() const {
-        return JSRUNMODE_COUNT;
-    }
-};
-
 struct JSScript {
     /*
      * Two successively less primitive ways to make a new JSScript.  The first
@@ -534,9 +498,6 @@ struct JSScript {
 #endif
 
     uint32          *closedSlots; /* vector of closed slots; args first, then vars. */
-
-    /* array of execution counters for every JSOp in the script, by runmode */
-    JSPCCounters    pcCounters;
 
   public:
 #ifdef JS_METHODJIT
@@ -777,7 +738,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc);
  * fp->imacpc may be non-null, indicating an active imacro.
  */
 extern uintN
-js_FramePCToLineNumber(JSContext *cx, js::StackFrame *fp, jsbytecode *pc);
+js_FramePCToLineNumber(JSContext *cx, js::StackFrame *fp);
 
 extern uintN
 js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc);
@@ -789,9 +750,6 @@ extern JS_FRIEND_API(uintN)
 js_GetScriptLineExtent(JSScript *script);
 
 namespace js {
-
-extern uintN
-CurrentLine(JSContext *cx);
 
 /*
  * This function returns the file and line number of the script currently

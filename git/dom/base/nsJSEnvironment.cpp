@@ -1009,7 +1009,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
   if (zeal >= 0)
-    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
+    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal);
 #endif
 
   return 0;
@@ -3520,10 +3520,9 @@ nsJSContext::ReportPendingException()
   // set aside the frame chain, since it has nothing to do with the
   // exception we're reporting.
   if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
-    PRBool saved = ::JS_SaveFrameChain(mContext);
+    JSStackFrame* frame = JS_SaveFrameChain(mContext);
     ::JS_ReportPendingException(mContext);
-    if (saved)
-        ::JS_RestoreFrameChain(mContext);
+    JS_RestoreFrameChain(mContext, frame);
   }
 }
 

@@ -247,7 +247,7 @@ js_GetArgsObject(JSContext *cx, StackFrame *fp)
      */
     JS_ASSERT_IF(fp->fun()->isHeavyweight(), fp->hasCallObj());
 
-    while (fp->isEvalInFunction())
+    while (fp->isDirectEvalOrDebuggerFrame())
         fp = fp->prev();
 
     /* Create an arguments object for fp only if it lacks one. */
@@ -978,7 +978,6 @@ NewCallObject(JSContext *cx, JSScript *script, JSObject &scopeChain, JSObject *c
 
     /* Init immediately to avoid GC seeing a half-init'ed object. */
     callobj->initCall(cx, bindings, &scopeChain);
-    callobj->makeVarObj();
 
     /* This must come after callobj->lastProp has been set. */
     if (!callobj->ensureInstanceReservedSlots(cx, argsVars))
@@ -1231,7 +1230,7 @@ SetCallArg(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     else
         argp = &obj->callObjArg(i);
 
-    GCPoke(cx, *argp);
+    GC_POKE(cx, *argp);
     *argp = *vp;
     return true;
 }
@@ -1254,7 +1253,7 @@ SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 
     Value *up = &obj->getCallObjCallee()->getFlatClosureUpvar(i);
 
-    GCPoke(cx, *up);
+    GC_POKE(cx, *up);
     *up = *vp;
     return true;
 }
@@ -1311,7 +1310,7 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     else
         varp = &obj->callObjVar(i);
 
-    GCPoke(cx, *varp);
+    GC_POKE(cx, *varp);
     *varp = *vp;
     return true;
 }
@@ -1488,7 +1487,7 @@ StackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
                         if (shape->isMethod() && shape->methodObject() == funobj) {
                             if (!thisp->methodReadBarrier(cx, *shape, vp))
                                 return false;
-                            overwriteCallee(vp->toObject());
+                            calleev().setObject(vp->toObject());
                             return true;
                         }
 
@@ -1501,7 +1500,7 @@ StackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
                                 clone->hasMethodObj(*thisp)) {
                                 JS_ASSERT(clone != &funobj);
                                 *vp = v;
-                                overwriteCallee(*clone);
+                                calleev().setObject(*clone);
                                 return true;
                             }
                         }
@@ -1530,7 +1529,7 @@ StackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
             if (!newfunobj)
                 return false;
             newfunobj->setMethodObj(*first_barriered_thisp);
-            overwriteCallee(*newfunobj);
+            calleev().setObject(*newfunobj);
             vp->setObject(*newfunobj);
             return true;
         }
@@ -1588,9 +1587,12 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     JSFunction *fun = obj->getFunctionPrivate();
 
     /* Find fun's top-most activation record. */
-    StackFrame *fp = js_GetTopStackFrame(cx);
-    while (fp && (fp->maybeFun() != fun || fp->isEvalInFunction()))
-        fp = fp->prev();
+    StackFrame *fp;
+    for (fp = js_GetTopStackFrame(cx);
+         fp && (fp->maybeFun() != fun || fp->isDirectEvalOrDebuggerFrame());
+         fp = fp->prev()) {
+        continue;
+    }
 
     switch (slot) {
       case FUN_ARGUMENTS:
@@ -2517,7 +2519,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
         AutoArenaAllocator aaa(&cx->tempPool);
         jschar *cp = aaa.alloc<jschar>(args_length + 1);
         if (!cp) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return false;
         }
         jschar *collected_args = cp;
@@ -3013,6 +3015,9 @@ js_ReportIsNotFunction(JSContext *cx, const Value *vp, uintN flags)
     ptrdiff_t spindex = 0;
 
     FrameRegsIter i(cx);
+    while (!i.done() && !i.pc())
+        ++i;
+
     if (!i.done()) {
         uintN depth = js_ReconstructStackDepth(cx, i.fp()->script(), i.pc());
         Value *simsp = i.fp()->base() + depth;

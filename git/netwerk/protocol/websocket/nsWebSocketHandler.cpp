@@ -265,18 +265,15 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsPostMessage, nsIRunnable)
 class nsWSAdmissionManager
 {
 public:
-    nsWSAdmissionManager()
-    {
-        MOZ_COUNT_CTOR(nsWSAdmissionManager);
-    }
+    nsWSAdmissionManager() {}
 
     class nsOpenConn
     {
     public:
         nsOpenConn(nsCString &addr, nsWebSocketHandler *handler)
             : mAddress(addr), mHandler(handler)
-        { MOZ_COUNT_CTOR(nsOpenConn); }
-        ~nsOpenConn() {MOZ_COUNT_DTOR(nsOpenConn); }
+        {}
+        ~nsOpenConn() {}
         
         nsCString mAddress;
         nsRefPtr<nsWebSocketHandler> mHandler;
@@ -284,7 +281,6 @@ public:
     
     ~nsWSAdmissionManager()
     {
-        MOZ_COUNT_DTOR(nsWSAdmissionManager);
         for (PRUint32 i = 0; i < mData.Length(); i++)
             delete mData[i];
     }
@@ -355,8 +351,6 @@ public:
         mContext(aContext),
         mListener(aListener)
     {
-        MOZ_COUNT_CTOR(nsWSCompression);
-
         mZlib.zalloc = allocator;
         mZlib.zfree = destructor;
         mZlib.opaque = Z_NULL;
@@ -378,8 +372,6 @@ public:
 
     ~nsWSCompression()
     {
-        MOZ_COUNT_DTOR(nsWSCompression);
-
         if (mActive)
             deflateEnd(&mZlib);
     }
@@ -865,11 +857,9 @@ nsWebSocketHandler::ProcessInput(PRUint8 *buffer, PRUint32 count)
                     mCloseTimer->Cancel();
                     mCloseTimer = nsnull;
                 }
-                if (mListener) {
-                    nsCOMPtr<nsIRunnable> event =
-                            new CallOnServerClose(mListener, mContext);
-                    NS_DispatchToMainThread(event);
-                }
+                nsCOMPtr<nsIRunnable> event =
+                    new CallOnServerClose(mListener, mContext);
+                NS_DispatchToMainThread(event);
 
                 if (mClientClosed)
                     ReleaseSession();
@@ -961,7 +951,7 @@ nsWebSocketHandler::ApplyMask(PRUint32 mask, PRUint8 *data, PRUint64 len)
     // but the buffer might not be alligned. So we first deal with
     // 0 to 3 bytes of preamble individually
 
-    while (len && (reinterpret_cast<PRUptrdiff>(data) & 3)) {
+    while (len && ((unsigned long) data & 3)) {
         *data ^= mask >> 24;
         mask = PR_ROTATE_LEFT32(mask, 8);
         data++;
@@ -1316,11 +1306,9 @@ nsWebSocketHandler::StopSession(nsresult reason)
 
     if (!mCalledOnStop) {
         mCalledOnStop = 1;
-        if (mListener) {
-            nsCOMPtr<nsIRunnable> event =
-                    new CallOnStop(mListener, mContext, reason);
-            NS_DispatchToMainThread(event);
-        }
+        nsCOMPtr<nsIRunnable> event =
+            new CallOnStop(mListener, mContext, reason);
+        NS_DispatchToMainThread(event);
     }
 
     return;

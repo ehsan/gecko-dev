@@ -170,9 +170,9 @@ CompartmentHasLiveScripts(JSCompartment *comp)
         if (JS_GetContextThread(icx) != currentThreadId)
             continue;
 #endif
-        for (FrameRegsIter i(icx); !i.done(); ++i) {
-            JSScript *script = i.fp()->script();
-            if (script->compartment == comp)
+        for (AllFramesIter i(icx); !i.done(); ++i) {
+            JSScript *script = i.fp()->maybeScript();
+            if (script && script->compartment == comp)
                 return JS_TRUE;
         }
     }
@@ -1299,59 +1299,6 @@ JS_EndPC(JSContext *cx, JSScript *script)
     return script->code + script->length;
 }
 
-JS_PUBLIC_API(JSBool)
-JS_GetLinePCs(JSContext *cx, JSScript *script,
-              uintN startLine, uintN maxLines,
-              uintN* count, uintN** retLines, jsbytecode*** retPCs)
-{
-    uintN* lines;
-    jsbytecode** pcs;
-    size_t len = (script->length > maxLines ? maxLines : script->length);
-    lines = (uintN*) cx->malloc_(len * sizeof(uintN));
-    if (!lines)
-        return JS_FALSE;
-
-    pcs = (jsbytecode**) cx->malloc_(len * sizeof(jsbytecode*));
-    if (!pcs) {
-        cx->free_(lines);
-        return JS_FALSE;
-    }
-
-    uintN lineno = script->lineno;
-    uintN offset = 0;
-    uintN i = 0;
-    for (jssrcnote *sn = script->notes(); !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn)) {
-        offset += SN_DELTA(sn);
-        JSSrcNoteType type = (JSSrcNoteType) SN_TYPE(sn);
-        if (type == SRC_SETLINE || type == SRC_NEWLINE) {
-            if (type == SRC_SETLINE)
-                lineno = (uintN) js_GetSrcNoteOffset(sn, 0);
-            else
-                lineno++;
-
-            if (lineno >= startLine) {
-                lines[i] = lineno;
-                pcs[i] = script->code + offset;
-                if (++i >= maxLines)
-                    break;
-            }
-        }
-    }
-
-    *count = i;
-    if (retLines)
-        *retLines = lines;
-    else
-        cx->free_(lines);
-
-    if (retPCs)
-        *retPCs = pcs;
-    else
-        cx->free_(pcs);
-
-    return JS_TRUE;
-}
-
 JS_PUBLIC_API(uintN)
 JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun)
 {
@@ -1429,7 +1376,7 @@ JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsbytecode *)
 JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    return Valueify(fp)->pcQuadratic(cx);
+    return Valueify(fp)->pc(cx);
 }
 
 JS_PUBLIC_API(JSStackFrame *)
@@ -1491,7 +1438,7 @@ JS_PUBLIC_API(JSObject *)
 JS_GetFrameScopeChain(JSContext *cx, JSStackFrame *fpArg)
 {
     StackFrame *fp = Valueify(fpArg);
-    JS_ASSERT(cx->stack.containsSlow(fp));
+    JS_ASSERT(cx->stack.contains(fp));
 
     js::AutoCompartment ac(cx, &fp->scopeChain());
     if (!ac.enter())
@@ -1506,7 +1453,7 @@ JS_PUBLIC_API(JSObject *)
 JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fpArg)
 {
     StackFrame *fp = Valueify(fpArg);
-    JS_ASSERT(cx->stack.containsSlow(fp));
+    JS_ASSERT(cx->stack.contains(fp));
 
     if (!fp->isFunctionFrame())
         return NULL;
@@ -1568,7 +1515,7 @@ JS_IsConstructorFrame(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameCalleeObject(JSContext *cx, JSStackFrame *fp)
 {
-    return Valueify(fp)->maybeCalleev().toObjectOrNull();
+    return Valueify(fp)->maybeCallee();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -1690,7 +1637,8 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fpArg,
     if (!script)
         return false;
 
-    bool ok = Execute(cx, script, *scobj, fp->thisValue(), EXECUTE_DEBUG, fp, Valueify(rval));
+    uintN evalFlags = StackFrame::DEBUGGER | StackFrame::EVAL;
+    bool ok = Execute(cx, *scobj, script, fp, evalFlags, Valueify(rval));
 
     js_DestroyScript(cx, script);
     return ok;
@@ -1709,7 +1657,7 @@ JS_EvaluateInStackFrame(JSContext *cx, JSStackFrame *fp,
     if (!CheckDebugMode(cx))
         return JS_FALSE;
 
-    chars = InflateString(cx, bytes, &len);
+    chars = js_InflateString(cx, bytes, &len);
     if (!chars)
         return JS_FALSE;
     length = (uintN) len;
@@ -2243,7 +2191,7 @@ js_StartVtune(JSContext *cx, uintN argc, jsval *vp)
     jsval *argv = JS_ARGV(cx, vp);
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        params.tb5Filename = DeflateString(cx, str->chars(), str->length());
+        params.tb5Filename = js_DeflateString(cx, str->chars(), str->length());
     }
 
     status = VTStartSampling(&params);
@@ -2482,9 +2430,9 @@ jstv_Filename(JSStackFrame *fp)
 inline uintN
 jstv_Lineno(JSContext *cx, JSStackFrame *fp)
 {
-    while (fp && fp->pcQuadratic(cx) == NULL)
+    while (fp && fp->pc(cx) == NULL)
         fp = fp->prev();
-    return (fp && fp->pcQuadratic(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
+    return (fp && fp->pc(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
 }
 
 /* Collect states here and distribute to a matching buffer, if any */
@@ -2581,7 +2529,7 @@ ethogram_addScript(JSContext *cx, uintN argc, jsval *vp)
     }
     if (JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        filename = DeflateString(cx, str->chars(), str->length());
+        filename = js_DeflateString(cx, str->chars(), str->length());
         if (!filename)
             return false;
     }
@@ -2765,33 +2713,3 @@ JS_GetFunctionCallback(JSContext *cx)
 
 #endif /* MOZ_TRACE_JSCALLS */
 
-JS_PUBLIC_API(void)
-JS_DumpProfile(JSContext *cx, JSScript *script)
-{
-    JS_ASSERT(!cx->runtime->gcRunning);
-
-#if defined(DEBUG)
-    if (script->pcCounters) {
-        // Display hit counts for every JS code line
-        AutoArenaAllocator mark(&cx->tempPool);
-        Sprinter sprinter;
-        INIT_SPRINTER(cx, &sprinter, &cx->tempPool, 0);
-
-        fprintf(stdout, "--- PC COUNTS %s:%d ---\n", script->filename, script->lineno);
-        js_Disassemble(cx, script, true, &sprinter);
-        fprintf(stdout, "%s\n", sprinter.base);
-        fprintf(stdout, "--- END PC COUNTS %s:%d ---\n", script->filename, script->lineno);
-    }
-#endif
-}
-
-JS_PUBLIC_API(void)
-JS_DumpAllProfiles(JSContext *cx)
-{
-    for (JSScript *script = (JSScript *) JS_LIST_HEAD(&cx->compartment->scripts);
-         script != (JSScript *) &cx->compartment->scripts;
-         script = (JSScript *) JS_NEXT_LINK((JSCList *)script))
-    {
-        JS_DumpProfile(cx, script);
-    }
-}

@@ -669,14 +669,17 @@ case "$target" in
             fi
 
             _CC_SUITE=8
+            CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
             AC_DEFINE(_CRT_SECURE_NO_DEPRECATE)
             AC_DEFINE(_CRT_NONSTDC_NO_DEPRECATE)
         elif test "$_CC_MAJOR_VERSION" = "15"; then
             _CC_SUITE=9
+            CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         elif test "$_CC_MAJOR_VERSION" = "16"; then
             _CC_SUITE=10
+            CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         else
@@ -1075,6 +1078,7 @@ case "$target" in
     if test -n "$_MACOSX_DEPLOYMENT_TARGET" ; then
         dnl Use the specified value
         export MACOSX_DEPLOYMENT_TARGET=$_MACOSX_DEPLOYMENT_TARGET
+        AC_DEFINE_UNQUOTED(__ENVIRONMENT_MAC_OS_X_VERION_MIN_REQUIRED__,$_MACOSX_DEPLOYMENT_TARGET)
     else
         dnl No value specified on the command line or in the environment,
         dnl use architecture minimum.
@@ -4217,29 +4221,29 @@ dnl See if compiler supports some gcc-style attributes
 
 AC_CACHE_CHECK(for __attribute__((always_inline)),
                ac_cv_attribute_always_inline,
-               [AC_TRY_COMPILE([inline void f(void) __attribute__((always_inline));],
-                               [],
+               [AC_TRY_COMPILE([],
+                               [inline void f(void) __attribute__((always_inline));],
                                ac_cv_attribute_always_inline=yes,
                                ac_cv_attribute_always_inline=no)])
 
 AC_CACHE_CHECK(for __attribute__((malloc)),
                ac_cv_attribute_malloc,
-               [AC_TRY_COMPILE([void* f(int) __attribute__((malloc));],
-                               [],
+               [AC_TRY_COMPILE([],
+                               [void* f(int) __attribute__((malloc));],
                                ac_cv_attribute_malloc=yes,
                                ac_cv_attribute_malloc=no)])
 
 AC_CACHE_CHECK(for __attribute__((warn_unused_result)),
                ac_cv_attribute_warn_unused,
-               [AC_TRY_COMPILE([int f(void) __attribute__((warn_unused_result));],
-                               [],
+               [AC_TRY_COMPILE([],
+                               [int f(void) __attribute__((warn_unused_result));],
                                ac_cv_attribute_warn_unused=yes,
                                ac_cv_attribute_warn_unused=no)])
 
 AC_CACHE_CHECK(for __attribute__((noreturn)),
                ac_cv_attribute_noreturn,
-               [AC_TRY_COMPILE([void f(void) __attribute__((noreturn));],
-                               [],
+               [AC_TRY_COMPILE([],
+                               [void f(void) __attribute__((noreturn));],
                                ac_cv_attribute_noreturn=yes,
                                ac_cv_attribute_noreturn=no)])
  

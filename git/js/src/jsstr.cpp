@@ -87,6 +87,7 @@
 using namespace js;
 using namespace js::gc;
 
+#ifdef DEBUG
 bool
 JSString::isShort() const
 {
@@ -100,12 +101,7 @@ JSString::isFixed() const
 {
     return isFlat() && !isExtensible();
 }
-
-bool
-JSString::isInline() const
-{
-    return isFixed() && (d.u1.chars == d.inlineStorage || isShort());
-}
+#endif
 
 bool
 JSString::isExternal() const
@@ -113,6 +109,26 @@ JSString::isExternal() const
     bool is_external = arenaHeader()->getThingKind() == FINALIZE_EXTERNAL_STRING;
     JS_ASSERT_IF(is_external, isFixed());
     return is_external;
+}
+
+static JS_ALWAYS_INLINE JSString *
+Tag(JSRope *str)
+{
+    JS_ASSERT(!(size_t(str) & 1));
+    return (JSString *)(size_t(str) | 1);
+}
+
+static JS_ALWAYS_INLINE bool
+Tagged(JSString *str)
+{
+    return (size_t(str) & 1) != 0;
+}
+
+static JS_ALWAYS_INLINE JSRope *
+Untag(JSString *str)
+{
+    JS_ASSERT((size_t(str) & 1) == 1);
+    return (JSRope *)(size_t(str) & ~size_t(1));
 }
 
 void
@@ -123,41 +139,62 @@ JSLinearString::mark(JSTracer *)
         str = str->asDependent().base();
 }
 
-size_t
-JSString::charsHeapSize()
+void
+JSString::mark(JSTracer *trc)
 {
-    /* JSRope: do nothing, we'll count all children chars when we hit the leaf strings. */
-    if (isRope())
-        return 0;
+    if (isLinear()) {
+        asLinear().mark(trc);
+        return;
+    }
 
-    JS_ASSERT(isLinear());
-
-    /* JSDependentString: do nothing, we'll count the chars when we hit the base string. */
-    if (isDependent())
-        return 0;
-
-    JS_ASSERT(isFlat());
-    
-    /* JSExtensibleString: count the full capacity, not just the used space. */
-    if (isExtensible())
-        return asExtensible().capacity() * sizeof(jschar);
-
-    JS_ASSERT(isFixed());
-
-    /* JSExternalString: don't count, the chars could be stored anywhere. */
-    if (isExternal())
-        return 0;
-    
-    /* JSInlineString, JSShortString, JSInlineAtom, JSShortAtom: the chars are inline. */
-    if (isInline())
-        return 0;
-
-    /* JSStaticAtom: the chars are static and so not part of the heap. */
-    if (isStaticAtom())
-        return 0;
-
-    /* JSAtom, JSFixedString: count the chars. */
-    return length() * sizeof(jschar);
+    /*
+     * This function must not fail, so a simple stack-based traversal must not
+     * be used (since it may oom if the stack grows large). Instead, strings
+     * are temporarily mutated to embed parent pointers as they are traversed.
+     * This algorithm is homomorphic to JSString::flatten.
+     */
+    JSRope *str = &asRope();
+    JSRope *parent = NULL;
+    first_visit_node: {
+        if (!str->markIfUnmarked())
+            goto finish_node;
+        JS_ASSERT(!Tagged(str->d.u1.left) && !Tagged(str->d.s.u2.right));
+        JSString *left = str->d.u1.left;
+        if (left->isRope()) {
+            str->d.u1.left = Tag(parent);
+            parent = str;
+            str = &left->asRope();
+            goto first_visit_node;
+        }
+        left->asLinear().mark(trc);
+    }
+    visit_right_child: {
+        JSString *right = str->d.s.u2.right;
+        if (right->isRope()) {
+            str->d.s.u2.right = Tag(parent);
+            parent = str;
+            str = &right->asRope();
+            goto first_visit_node;
+        }
+        right->asLinear().mark(trc);
+    }
+    finish_node: {
+        if (!parent)
+            return;
+        if (Tagged(parent->d.u1.left)) {
+            JS_ASSERT(!Tagged(parent->d.s.u2.right));
+            JSRope *nextParent = Untag(parent->d.u1.left);
+            parent->d.u1.left = str;
+            str = parent;
+            parent = nextParent;
+            goto visit_right_child;
+        }
+        JSRope *nextParent = Untag(parent->d.s.u2.right);
+        parent->d.s.u2.right = str;
+        str = parent;
+        parent = nextParent;
+        goto finish_node;
+    }
 }
 
 static JS_ALWAYS_INLINE size_t
@@ -1782,8 +1819,8 @@ enum MatchControlFlags {
 
 /* Factor out looping and matching logic. */
 static bool
-DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, const RegExpPair &rep,
-        DoMatchCallback callback, void *data, MatchControlFlags flags, Value *rval)
+DoMatch(JSContext *cx, RegExpStatics *res, Value *vp, JSString *str, const RegExpPair &rep,
+        DoMatchCallback callback, void *data, MatchControlFlags flags)
 {
     RegExp &re = rep.re();
     if (re.global()) {
@@ -1792,9 +1829,9 @@ DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, const RegExpPair &rep,
         if (rep.reobj())
             rep.reobj()->zeroRegExpLastIndex();
         for (size_t count = 0, i = 0, length = str->length(); i <= length; ++count) {
-            if (!re.execute(cx, res, str, &i, testGlobal, rval))
+            if (!re.execute(cx, res, str, &i, testGlobal, vp))
                 return false;
-            if (!Matched(testGlobal, *rval))
+            if (!Matched(testGlobal, *vp))
                 break;
             if (!callback(cx, res, count, data))
                 return false;
@@ -1806,9 +1843,9 @@ DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, const RegExpPair &rep,
         bool testSingle = !!(flags & TEST_SINGLE_BIT),
              callbackOnSingle = !!(flags & CALLBACK_ON_SINGLE_BIT);
         size_t i = 0;
-        if (!re.execute(cx, res, str, &i, testSingle, rval))
+        if (!re.execute(cx, res, str, &i, testSingle, vp))
             return false;
-        if (callbackOnSingle && Matched(testSingle, *rval) && !callback(cx, res, 0, data))
+        if (callbackOnSingle && Matched(testSingle, *vp) && !callback(cx, res, 0, data))
             return false;
     }
     return true;
@@ -1883,14 +1920,12 @@ str_match(JSContext *cx, uintN argc, Value *vp)
     AutoObjectRooter array(cx);
     MatchArgType arg = array.addr();
     RegExpStatics *res = cx->regExpStatics();
-    Value rval;
-    if (!DoMatch(cx, res, str, *rep, MatchCallback, arg, MATCH_ARGS, &rval))
+    if (!DoMatch(cx, res, vp, str, *rep, MatchCallback, arg, MATCH_ARGS))
         return false;
 
+    /* When not global, DoMatch will leave |RegExp.exec()| in *vp. */
     if (rep->re().global())
         vp->setObjectOrNull(array.object());
-    else
-        *vp = rval;
     return true;
 }
 
@@ -2366,8 +2401,7 @@ str_replace_regexp(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata)
     rdata.calledBack = false;
 
     RegExpStatics *res = cx->regExpStatics();
-    Value tmp;
-    if (!DoMatch(cx, res, rdata.str, *rep, ReplaceRegExpCallback, &rdata, REPLACE_ARGS, &tmp))
+    if (!DoMatch(cx, res, vp, rdata.str, *rep, ReplaceRegExpCallback, &rdata, REPLACE_ARGS))
         return false;
 
     if (!rdata.calledBack) {
@@ -2893,18 +2927,23 @@ str_concat(JSContext *cx, uintN argc, Value *vp)
     if (!str)
         return false;
 
-    Value *argv = JS_ARGV(cx, vp);
-    for (uintN i = 0; i < argc; i++) {
+    /* Set vp (aka rval) early to handle the argc == 0 case. */
+    vp->setString(str);
+
+    Value *argv;
+    uintN i;
+    for (i = 0, argv = vp + 2; i < argc; i++) {
         JSString *str2 = js_ValueToString(cx, argv[i]);
         if (!str2)
             return false;
+        argv[i].setString(str2);
 
         str = js_ConcatStrings(cx, str, str2);
         if (!str)
             return false;
+        vp->setString(str);
     }
 
-    JS_SET_RVAL(cx, vp, StringValue(str));
     return true;
 }
 
@@ -3605,7 +3644,7 @@ NewShortString(JSContext *cx, const char *chars, size_t length)
 #ifdef DEBUG
         size_t oldLength = length;
 #endif
-        if (!InflateUTF8StringToBuffer(cx, chars, length, storage, &length))
+        if (!js_InflateUTF8StringToBuffer(cx, chars, length, storage, &length))
             return NULL;
         JS_ASSERT(length <= oldLength);
         storage[length] = 0;
@@ -3754,7 +3793,7 @@ js_NewStringCopyN(JSContext *cx, const char *s, size_t n)
     if (JSShortString::lengthFits(n))
         return NewShortString(cx, s, n);
 
-    jschar *chars = InflateString(cx, s, &n);
+    jschar *chars = js_InflateString(cx, s, &n);
     if (!chars)
         return NULL;
     JSFixedString *str = js_NewString(cx, chars, n);
@@ -4037,28 +4076,35 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit)
     return NULL;
 }
 
-namespace js {
-
 jschar *
-InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding fc)
+js_InflateString(JSContext *cx, const char *bytes, size_t *lengthp, bool useCESU8)
 {
-    size_t nchars;
+    size_t nbytes, nchars, i;
     jschar *chars;
-    size_t nbytes = *lengthp;
+#ifdef DEBUG
+    JSBool ok;
+#endif
 
-    if (js_CStringsAreUTF8 || fc == CESU8Encoding) {
-        if (!InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars, fc))
+    nbytes = *lengthp;
+    if (js_CStringsAreUTF8 || useCESU8) {
+        if (!js_InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars,
+                                          useCESU8))
             goto bad;
         chars = (jschar *) cx->malloc_((nchars + 1) * sizeof (jschar));
         if (!chars)
             goto bad;
-        JS_ALWAYS_TRUE(InflateUTF8StringToBuffer(cx, bytes, nbytes, chars, &nchars, fc));
+#ifdef DEBUG
+        ok =
+#endif
+            js_InflateUTF8StringToBuffer(cx, bytes, nbytes, chars, &nchars,
+                                         useCESU8);
+        JS_ASSERT(ok);
     } else {
         nchars = nbytes;
         chars = (jschar *) cx->malloc_((nchars + 1) * sizeof(jschar));
         if (!chars)
             goto bad;
-        for (size_t i = 0; i < nchars; i++)
+        for (i = 0; i < nchars; i++)
             chars[i] = (unsigned char) bytes[i];
     }
     *lengthp = nchars;
@@ -4078,19 +4124,26 @@ InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding f
  * May be called with null cx.
  */
 char *
-DeflateString(JSContext *cx, const jschar *chars, size_t nchars)
+js_DeflateString(JSContext *cx, const jschar *chars, size_t nchars)
 {
     size_t nbytes, i;
     char *bytes;
+#ifdef DEBUG
+    JSBool ok;
+#endif
 
     if (js_CStringsAreUTF8) {
-        nbytes = GetDeflatedStringLength(cx, chars, nchars);
+        nbytes = js_GetDeflatedStringLength(cx, chars, nchars);
         if (nbytes == (size_t) -1)
             return NULL;
         bytes = (char *) (cx ? cx->malloc_(nbytes + 1) : OffTheBooks::malloc_(nbytes + 1));
         if (!bytes)
             return NULL;
-        JS_ALWAYS_TRUE(DeflateStringToBuffer(cx, chars, nchars, bytes, &nbytes));
+#ifdef DEBUG
+        ok =
+#endif
+            js_DeflateStringToBuffer(cx, chars, nchars, bytes, &nbytes);
+        JS_ASSERT(ok);
     } else {
         nbytes = nchars;
         bytes = (char *) (cx ? cx->malloc_(nbytes + 1) : OffTheBooks::malloc_(nbytes + 1));
@@ -4104,26 +4157,25 @@ DeflateString(JSContext *cx, const jschar *chars, size_t nchars)
 }
 
 size_t
-GetDeflatedStringLength(JSContext *cx, const jschar *chars, size_t nchars)
+js_GetDeflatedStringLength(JSContext *cx, const jschar *chars, size_t nchars)
 {
     if (!js_CStringsAreUTF8)
         return nchars;
 
-    return GetDeflatedUTF8StringLength(cx, chars, nchars);
+    return js_GetDeflatedUTF8StringLength(cx, chars, nchars);
 }
 
 /*
  * May be called with null cx through public API, see below.
  */
 size_t
-GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
-                                size_t nchars, FlationCoding fc)
+js_GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
+                               size_t nchars, bool useCESU8)
 {
     size_t nbytes;
     const jschar *end;
     uintN c, c2;
     char buffer[10];
-    bool useCESU8 = fc == CESU8Encoding;
 
     nbytes = nchars;
     for (end = chars + nchars; chars != end; chars++) {
@@ -4161,9 +4213,9 @@ GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
     return (size_t) -1;
 }
 
-bool
-DeflateStringToBuffer(JSContext *cx, const jschar *src, size_t srclen,
-                          char *dst, size_t *dstlenp)
+JSBool
+js_DeflateStringToBuffer(JSContext *cx, const jschar *src, size_t srclen,
+                         char *dst, size_t *dstlenp)
 {
     size_t dstlen, i;
 
@@ -4184,22 +4236,20 @@ DeflateStringToBuffer(JSContext *cx, const jschar *src, size_t srclen,
         return JS_TRUE;
     }
 
-    return DeflateStringToUTF8Buffer(cx, src, srclen, dst, dstlenp);
+    return js_DeflateStringToUTF8Buffer(cx, src, srclen, dst, dstlenp);
 }
 
-bool
-DeflateStringToUTF8Buffer(JSContext *cx, const jschar *src, size_t srclen,
-                              char *dst, size_t *dstlenp, FlationCoding fc)
+JSBool
+js_DeflateStringToUTF8Buffer(JSContext *cx, const jschar *src, size_t srclen,
+                             char *dst, size_t *dstlenp, bool useCESU8)
 {
-    size_t i, utf8Len;
+    size_t dstlen, i, origDstlen, utf8Len;
     jschar c, c2;
     uint32 v;
     uint8 utf8buf[6];
 
-    bool useCESU8 = fc == CESU8Encoding;
-    size_t dstlen = *dstlenp;
-    size_t origDstlen = dstlen;
-
+    dstlen = *dstlenp;
+    origDstlen = dstlen;
     while (srclen) {
         c = *src++;
         srclen--;
@@ -4239,7 +4289,7 @@ badSurrogate:
     *dstlenp = (origDstlen - dstlen);
     /* Delegate error reporting to the measurement function. */
     if (cx)
-        GetDeflatedStringLength(cx, src - 1, srclen + 1);
+        js_GetDeflatedStringLength(cx, src - 1, srclen + 1);
     return JS_FALSE;
 
 bufferTooSmall:
@@ -4251,36 +4301,37 @@ bufferTooSmall:
     return JS_FALSE;
 }
 
-bool
-InflateStringToBuffer(JSContext *cx, const char *src, size_t srclen,
-                          jschar *dst, size_t *dstlenp)
+JSBool
+js_InflateStringToBuffer(JSContext *cx, const char *src, size_t srclen,
+                         jschar *dst, size_t *dstlenp)
 {
     size_t dstlen, i;
 
-    if (js_CStringsAreUTF8)
-        return InflateUTF8StringToBuffer(cx, src, srclen, dst, dstlenp);
-
-    if (dst) {
-        dstlen = *dstlenp;
-        if (srclen > dstlen) {
-            for (i = 0; i < dstlen; i++)
-                dst[i] = (unsigned char) src[i];
-            if (cx) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                     JSMSG_BUFFER_TOO_SMALL);
+    if (!js_CStringsAreUTF8) {
+        if (dst) {
+            dstlen = *dstlenp;
+            if (srclen > dstlen) {
+                for (i = 0; i < dstlen; i++)
+                    dst[i] = (unsigned char) src[i];
+                if (cx) {
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                         JSMSG_BUFFER_TOO_SMALL);
+                }
+                return JS_FALSE;
             }
-            return JS_FALSE;
+            for (i = 0; i < srclen; i++)
+                dst[i] = (unsigned char) src[i];
         }
-        for (i = 0; i < srclen; i++)
-            dst[i] = (unsigned char) src[i];
+        *dstlenp = srclen;
+        return JS_TRUE;
     }
-    *dstlenp = srclen;
-    return JS_TRUE;
+
+    return js_InflateUTF8StringToBuffer(cx, src, srclen, dst, dstlenp);
 }
 
-bool
-InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
-                              jschar *dst, size_t *dstlenp, FlationCoding fc)
+JSBool
+js_InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
+                             jschar *dst, size_t *dstlenp, bool useCESU8)
 {
     size_t dstlen, origDstlen, offset, j, n;
     uint32 v;
@@ -4288,7 +4339,6 @@ InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
     dstlen = dst ? *dstlenp : (size_t) -1;
     origDstlen = dstlen;
     offset = 0;
-    bool useCESU8 = fc == CESU8Encoding;
 
     while (srclen) {
         v = (uint8) *src;
@@ -4359,8 +4409,6 @@ bufferTooSmall:
     }
     return JS_FALSE;
 }
-
-} /* namepsace js */
 
 /*
  * From java.lang.Character.java:
@@ -5661,6 +5709,27 @@ const jschar js_uriUnescaped_ucstr[] =
      '-', '_', '.', '!', '~', '*', '\'', '(', ')', 0};
 
 #define ____ false
+
+/*
+ * This table allows efficient testing for the regular expression \w which is
+ * defined by ECMA-262 15.10.2.6 to be [0-9A-Z_a-z].
+ */
+const bool js_alnum[] = {
+/*       0     1     2     3     4     5     6     7     8     9  */
+/*  0 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  1 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  2 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  3 */ ____, ____, ____, ____, ____, ____, ____, ____, ____, ____,
+/*  4 */ ____, ____, ____, ____, ____, ____, ____, ____, true, true,
+/*  5 */ true, true, true, true, true, true, true, true, ____, ____,
+/*  6 */ ____, ____, ____, ____, ____, true, true, true, true, true,
+/*  7 */ true, true, true, true, true, true, true, true, true, true,
+/*  8 */ true, true, true, true, true, true, true, true, true, true,
+/*  9 */ true, ____, ____, ____, ____, true, ____, true, true, true,
+/* 10 */ true, true, true, true, true, true, true, true, true, true,
+/* 11 */ true, true, true, true, true, true, true, true, true, true,
+/* 12 */ true, true, true, ____, ____, ____, ____, ____
+};
 
 /*
  * Identifier start chars:

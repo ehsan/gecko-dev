@@ -39,8 +39,8 @@
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #elif XP_MACOSX
-#include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
+#include "PluginInterposeOSX.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #endif
@@ -923,6 +923,18 @@ PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
     return NS_OK;
 }
+
+#if defined(XP_MACOSX)
+nsresult
+PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->IsRemoteDrawingCoreAnimation(aDrawing);
+}
+#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,

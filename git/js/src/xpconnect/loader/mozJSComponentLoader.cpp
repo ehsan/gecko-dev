@@ -259,9 +259,9 @@ class JSCLContextHelper
 {
 public:
     JSCLContextHelper(mozJSComponentLoader* loader);
-    ~JSCLContextHelper();
+    ~JSCLContextHelper() { Pop(); }
 
-    void reportErrorAfterPop(char *buf);
+    JSContext* Pop();
 
     operator JSContext*() const {return mContext;}
 
@@ -269,7 +269,6 @@ private:
     JSContext* mContext;
     intN       mContextThread;
     nsIThreadJSContextStack* mContextStack;
-    char*      mBuf;
 
     // prevent copying and assignment
     JSCLContextHelper(const JSCLContextHelper &); // not implemented
@@ -293,6 +292,22 @@ private:
 };
 
 static nsresult
+OutputError(JSContext *cx,
+            const char *format,
+            va_list ap)
+{
+    char *buf = JS_vsmprintf(format, ap);
+    if (!buf) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    JS_ReportError(cx, buf);
+    JS_smprintf_free(buf);
+
+    return NS_OK;
+}
+
+static nsresult
 ReportOnCaller(nsAXPCNativeCallContext *cc,
                const char *format, ...) {
     if (!cc) {
@@ -307,15 +322,7 @@ ReportOnCaller(nsAXPCNativeCallContext *cc,
     rv = cc->GetJSContext(&callerContext);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    char *buf = JS_vsmprintf(format, ap);
-    if (!buf) {
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    JS_ReportError(callerContext, buf);
-    JS_smprintf_free(buf);
-
-    return NS_OK;
+    return OutputError(callerContext, format, ap);
 }
 
 static nsresult
@@ -325,14 +332,12 @@ ReportOnCaller(JSCLContextHelper &helper,
     va_list ap;
     va_start(ap, format);
 
-    char *buf = JS_vsmprintf(format, ap);
-    if (!buf) {
-        return NS_ERROR_OUT_OF_MEMORY;
+    JSContext *cx = helper.Pop();
+    if (!cx) {
+        return NS_ERROR_FAILURE;
     }
 
-    helper.reportErrorAfterPop(buf);
-
-    return NS_OK;
+    return OutputError(cx, format, ap);
 }
 
 static nsresult
@@ -1634,8 +1639,7 @@ mozJSComponentLoader::ModuleEntry::GetFactory(const mozilla::Module& module,
 
 JSCLContextHelper::JSCLContextHelper(mozJSComponentLoader *loader)
     : mContext(loader->mContext), mContextThread(0),
-      mContextStack(loader->mContextStack),
-      mBuf(nsnull)
+      mContextStack(loader->mContextStack)
 {
     mContextStack->Push(mContext);
     mContextThread = JS_GetContextThread(mContext);
@@ -1644,33 +1648,21 @@ JSCLContextHelper::JSCLContextHelper(mozJSComponentLoader *loader)
     } 
 }
 
-JSCLContextHelper::~JSCLContextHelper()
+// Pops the context that was pushed and then returns the context that is now at
+// the top of the stack.
+JSContext*
+JSCLContextHelper::Pop()
 {
+    JSContext* cx = nsnull;
     if (mContextStack) {
+        JS_ClearNewbornRoots(mContext);
         if (mContextThread) {
             JS_EndRequest(mContext);
         }
 
         mContextStack->Pop(nsnull);
-
-        JSContext* cx = nsnull;
         mContextStack->Peek(&cx);
-
         mContextStack = nsnull;
-
-        if (cx && mBuf) {
-            JS_ReportError(cx, mBuf);
-        }
     }
-
-    if (mBuf) {
-        JS_smprintf_free(mBuf);
-    }
-}
-
-void
-JSCLContextHelper::reportErrorAfterPop(char *buf)
-{
-    NS_ASSERTION(!mBuf, "Already called reportErrorAfterPop");
-    mBuf = buf;
+    return cx;
 }

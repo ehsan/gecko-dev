@@ -3,7 +3,6 @@
 chrome.jar:
 % skin browser classic/1.0 %skin/ os!=Android
 % skin browser classic/1.0 %skin/ os=Android osversion<2.3
-% skin browser froyo/1.0 %skin/
 # NOTE: If you add a new file here, you'll need to add it to the gingerbread
 # and honeycomb sections at the bottom of this file
   skin/aboutCertError.css                   (aboutCertError.css)
@@ -13,12 +12,12 @@ chrome.jar:
 * skin/browser.css                          (browser.css)
 * skin/content.css                          (content.css)
   skin/config.css                           (config.css)
+  skin/firstRun.css                         (firstRun.css)
 * skin/forms.css                            (forms.css)
   skin/header.css                           (header.css)
 * skin/notification.css                     (notification.css)
 * skin/platform.css                         (platform.css)
   skin/touchcontrols.css                    (touchcontrols.css)
-* skin/localePicker.css                     (localePicker.css)
 % override chrome://global/skin/about.css chrome://browser/skin/about.css
 % override chrome://global/skin/media/videocontrols.css chrome://browser/skin/touchcontrols.css
 
@@ -123,9 +122,9 @@ chrome.jar:
   skin/images/unmute-hdpi.png               (images/unmute-hdpi.png)
   skin/images/scrubber-hdpi.png             (images/scrubber-hdpi.png)
 
+#ifdef ANDROID
 chrome.jar:
 % skin browser classic/1.0 %skin/gingerbread/ os=Android osversion=2.3 osversion=2.3.3 osversion=2.3.4
-% skin browser gingerbread/1.0 %skin/gingerbread/
   skin/gingerbread/aboutCertError.css                   (aboutCertError.css)
   skin/gingerbread/aboutPage.css                        (aboutPage.css)
   skin/gingerbread/about.css                            (about.css)
@@ -133,12 +132,12 @@ chrome.jar:
 * skin/gingerbread/browser.css                          (gingerbread/browser.css)
 * skin/gingerbread/content.css                          (gingerbread/content.css)
   skin/gingerbread/config.css                           (config.css)
+  skin/gingerbread/firstRun.css                         (firstRun.css)
 * skin/gingerbread/forms.css                            (gingerbread/forms.css)
   skin/gingerbread/header.css                           (header.css)
 * skin/gingerbread/notification.css                     (notification.css)
 * skin/gingerbread/platform.css                         (gingerbread/platform.css)
   skin/gingerbread/touchcontrols.css                    (touchcontrols.css)
-* skin/gingerbread/localePicker.css                     (gingerbread/localePicker.css)
 % override chrome://global/skin/about.css chrome://browser/skin/about.css
 % override chrome://global/skin/media/videocontrols.css chrome://browser/skin/touchcontrols.css
 
@@ -243,7 +242,6 @@ chrome.jar:
 
 chrome.jar:
 % skin browser classic/1.0 %skin/honeycomb/ os=Android osversion>=3.0
-% skin browser honeycomb/1.0 %skin/honeycomb/
   skin/honeycomb/aboutCertError.css                   (aboutCertError.css)
   skin/honeycomb/aboutPage.css                        (aboutPage.css)
   skin/honeycomb/about.css                            (about.css)
@@ -251,12 +249,12 @@ chrome.jar:
 * skin/honeycomb/browser.css                          (browser.css)
 * skin/honeycomb/content.css                          (content.css)
   skin/honeycomb/config.css                           (config.css)
+  skin/honeycomb/firstRun.css                         (firstRun.css)
 * skin/honeycomb/forms.css                            (forms.css)
   skin/honeycomb/header.css                           (header.css)
 * skin/honeycomb/notification.css                     (notification.css)
 * skin/honeycomb/platform.css                         (platform.css)
   skin/honeycomb/touchcontrols.css                    (touchcontrols.css)
-* skin/honeycomb/localePicker.css                     (localePicker.css)
 % override chrome://global/skin/about.css chrome://browser/skin/about.css
 % override chrome://global/skin/media/videocontrols.css chrome://browser/skin/touchcontrols.css
 
@@ -361,3 +359,4 @@ chrome.jar:
   skin/honeycomb/images/unmute-hdpi.png               (honeycomb/images/unmute-hdpi.png)
   skin/honeycomb/images/scrubber-hdpi.png             (honeycomb/images/scrubber-hdpi.png)
 
+#endif

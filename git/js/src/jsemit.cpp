@@ -174,7 +174,7 @@ EmitCheck(JSContext *cx, JSCodeGenerator *cg, JSOp op, ptrdiff_t delta)
             JS_ARENA_GROW_CAST(base, jsbytecode *, cg->codePool, size, incr);
         }
         if (!base) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return -1;
         }
         CG_BASE(cg) = base;
@@ -524,7 +524,7 @@ AddJumpTarget(AddJumpTargetArgs *args, JSJumpTarget **jtp)
             JS_ARENA_ALLOCATE_CAST(jt, JSJumpTarget *, &args->cx->tempPool,
                                    sizeof *jt);
             if (!jt) {
-                js_ReportOutOfMemory(args->cx);
+                js_ReportOutOfScriptQuota(args->cx);
                 return 0;
             }
         }
@@ -980,7 +980,7 @@ OptimizeSpanDeps(JSContext *cx, JSCodeGenerator *cg)
             incr = BYTECODE_SIZE(length) - size;
             JS_ARENA_GROW_CAST(base, jsbytecode *, cg->codePool, size, incr);
             if (!base) {
-                js_ReportOutOfMemory(cx);
+                js_ReportOutOfScriptQuota(cx);
                 return JS_FALSE;
             }
             CG_BASE(cg) = base;
@@ -2182,16 +2182,8 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         }
         break;
       default:
-        if (pn->isConst()) {
-            if (cg->needStrictChecks()) {
-                JSAutoByteString name;
-                if (!js_AtomToPrintableString(cx, atom, &name) ||
-                    !ReportStrictModeError(cx, CG_TS(cg), cg, pn, JSMSG_READ_ONLY, name.ptr())) {
-                    return JS_FALSE;
-                }
-            }
+        if (pn->isConst())
             pn->pn_op = op = JSOP_NAME;
-        }
     }
 
     if (dn->isGlobal()) {
@@ -4610,7 +4602,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         void *cg2space;
         JS_ARENA_ALLOCATE_TYPE(cg2space, JSCodeGenerator, cg->codePool);
         if (!cg2space) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return JS_FALSE;
         }
         JSCodeGenerator *cg2 =
@@ -7309,7 +7301,7 @@ AllocSrcNote(JSContext *cx, JSCodeGenerator *cg)
                 CG_NOTE_MASK(cg) = (CG_NOTE_MASK(cg) << 1) | 1;
         }
         if (!CG_NOTES(cg)) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return -1;
         }
     }
@@ -7407,7 +7399,7 @@ GrowSrcNotes(JSContext *cx, JSCodeGenerator *cg)
     size = SRCNOTE_SIZE(CG_NOTE_MASK(cg) + 1);
     JS_ARENA_GROW_CAST(CG_NOTES(cg), jssrcnote *, pool, size, size);
     if (!CG_NOTES(cg)) {
-        js_ReportOutOfMemory(cx);
+        js_ReportOutOfScriptQuota(cx);
         return JS_FALSE;
     }
     CG_NOTE_MASK(cg) = (CG_NOTE_MASK(cg) << 1) | 1;
@@ -7645,7 +7637,7 @@ NewTryNote(JSContext *cx, JSCodeGenerator *cg, JSTryNoteKind kind,
 
     JS_ARENA_ALLOCATE_TYPE(tryNode, JSTryNode, &cx->tempPool);
     if (!tryNode) {
-        js_ReportOutOfMemory(cx);
+        js_ReportOutOfScriptQuota(cx);
         return JS_FALSE;
     }
 

@@ -639,8 +639,7 @@ SimpleTest._eqArray = function (a1, a2, stack, seen) {
         var e1 = i > a1.length - 1 ? SimpleTest.DNE : a1[i];
         var e2 = i > a2.length - 1 ? SimpleTest.DNE : a2[i];
         stack.push({ type: 'Array', idx: i, vals: [e1, e2] });
-        ok = SimpleTest._deepCheck(e1, e2, stack, seen);
-        if (ok) {
+        if (ok = SimpleTest._deepCheck(e1, e2, stack, seen)) {
             stack.pop();
         } else {
             break;
@@ -681,8 +680,7 @@ SimpleTest._eqAssoc = function (o1, o2, stack, seen) {
         var e1 = o1[i] == undefined ? SimpleTest.DNE : o1[i];
         var e2 = o2[i] == undefined ? SimpleTest.DNE : o2[i];
         stack.push({ type: 'Object', idx: i, vals: [e1, e2] });
-        ok = SimpleTest._deepCheck(e1, e2, stack, seen)
-        if (ok) {
+        if (ok = SimpleTest._deepCheck(e1, e2, stack, seen)) {
             stack.pop();
         } else {
             break;

@@ -64,7 +64,6 @@
 //   bounds - a <Rect>; otherwise based on the locations of the provided elements
 //   container - a DOM element to use as the container for this groupItem; otherwise will create
 //   title - the title for the groupItem; otherwise blank
-//   focusTitle - focus the title's input field after creation
 //   dontPush - true if this groupItem shouldn't push away or snap on creation; default is false
 //   immediately - true if we want all placement immediately, not with animation
 function GroupItem(listOfEls, options) {
@@ -219,12 +218,11 @@ function GroupItem(listOfEls, options) {
       if (!same)
         return;
 
-      if (!self.isDragging)
-        self.focusTitle();
+      if (!self.isDragging) {
+        self.$titleShield.hide();
+        (self.$title)[0].focus();
+      }
     });
-
-  if (options.focusTitle)
-    this.focusTitle();
 
   // ___ Stack Expander
   this.$expander = iQ("<div/>")
@@ -404,14 +402,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     var css = {width: w};
     this.$title.css(css);
     this.$titleShield.css(css);
-  },
-
-  // ----------
-  // Function: focusTitle
-  // Hide the title's shield and focus the underlying input field.
-  focusTitle: function GroupItem_focusTitle() {
-    this.$titleShield.hide();
-    this.$title[0].focus();
   },
 
   // ----------
@@ -1024,7 +1014,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (typeof item.setResizable == 'function')
           item.setResizable(false, options.immediately);
 
-        if (item == UI.getActiveTab() || !this._activeTab)
+        // if it is visually active, set it as the active tab.
+        if (iQ(item.container).hasClass("focus"))
           this.setActiveTab(item);
 
         // if it matches the selected tab or no active tab and the browser

@@ -402,9 +402,12 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsC
   // Converts data from a NSArray of NSURL to the returned format.
   // We should be careful to not call [thePanel URLs] more than once given that
   // it creates a new array each time.
-  // We are using Fast Enumeration, thus the NSURL array is created once then
-  // iterated.
-  for (NSURL* url in [thePanel URLs]) {
+  // TODO: we should use Fast Enumeration as soon as Obj-C 2.0 is allowed in
+  // our code.
+  NSArray* urls = [thePanel URLs];
+
+  for (unsigned int i = 0; i < [urls count]; ++i) {
+    NSURL* url = [urls objectAtIndex:i];
     if (!url) {
       continue;
     }

@@ -505,7 +505,6 @@ private:
   nsAutoTArray<ThemeGeometry,2>  mThemeGeometries;
   nsDisplayTableItem*            mCurrentTableItem;
   const nsRegion*                mFinalTransparentRegion;
-  nsRect                         mDisplayPort;
   nsRegion                       mExcludedGlassRegion;
   Mode                           mMode;
   PRPackedBool                   mBuildCaret;
@@ -522,6 +521,7 @@ private:
   PRPackedBool                   mIsPaintingToWindow;
   PRPackedBool                   mSnappingEnabled;
   PRPackedBool                   mHasDisplayPort;
+  nsRect                         mDisplayPort;
   PRPackedBool                   mHasFixedItems;
 };
 
