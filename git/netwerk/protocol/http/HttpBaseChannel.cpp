@@ -48,7 +48,6 @@
 
 #include "nsICachingChannel.h"
 #include "nsISeekableStream.h"
-#include "nsITimedChannel.h"
 #include "nsIEncodedChannel.h"
 #include "nsIResumableChannel.h"
 #include "nsIApplicationCacheChannel.h"
@@ -79,19 +78,12 @@ HttpBaseChannel::HttpBaseChannel()
   , mChooseApplicationCache(PR_FALSE)
   , mLoadedFromApplicationCache(PR_FALSE)
   , mChannelIsForDownload(PR_FALSE)
-  , mTracingEnabled(PR_TRUE)
-  , mTimingEnabled(PR_FALSE)
-  , mSuspendCount(0)
   , mRedirectedCachekeys(nsnull)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
   // grab a reference to the handler to ensure that it doesn't go away.
   NS_ADDREF(gHttpHandler);
-
-  // Subfields of unions cannot be targeted in an initializer list
-  mSelfAddr.raw.family = PR_AF_UNSPEC;
-  mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 HttpBaseChannel::~HttpBaseChannel()
@@ -173,7 +165,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
 // HttpBaseChannel::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED9(HttpBaseChannel,
+NS_IMPL_ISUPPORTS_INHERITED8(HttpBaseChannel,
                              nsHashPropertyBag, 
                              nsIRequest,
                              nsIChannel,
@@ -182,8 +174,7 @@ NS_IMPL_ISUPPORTS_INHERITED9(HttpBaseChannel,
                              nsIHttpChannelInternal,
                              nsIUploadChannel,
                              nsIUploadChannel2,
-                             nsISupportsPriority,
-                             nsITraceableChannel)
+                             nsISupportsPriority)
 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIRequest
@@ -500,15 +491,6 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
 
   mUploadStreamHasHeaders = aStreamHasHeaders;
   mUploadStream = aStream;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetUploadStreamHasHeaders(PRBool *hasHeaders)
-{
-  NS_ENSURE_ARG(hasHeaders);
-
-  *hasHeaders = mUploadStreamHasHeaders;
   return NS_OK;
 }
 
@@ -881,13 +863,16 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   //  (1) modify it
   //  (2) keep a reference to it after returning from this function
   //
-  // Use CloneIgnoringRef to strip away any fragment per RFC 2616 section 14.36
-  rv = referrer->CloneIgnoringRef(getter_AddRefs(clone));
+  rv = referrer->Clone(getter_AddRefs(clone));
   if (NS_FAILED(rv)) return rv;
 
   // strip away any userpass; we don't want to be giving out passwords ;-)
-  rv = clone->SetUserPass(EmptyCString());
-  if (NS_FAILED(rv)) return rv;
+  clone->SetUserPass(EmptyCString());
+
+  // strip away any fragment per RFC 2616 section 14.36
+  nsCOMPtr<nsIURL> url = do_QueryInterface(clone);
+  if (url)
+    url->SetRef(EmptyCString());
 
   nsCAutoString spec;
   rv = clone->GetAsciiSpec(spec);
@@ -1030,7 +1015,7 @@ HttpBaseChannel::SetRedirectionLimit(PRUint32 value)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  mRedirectionLimit = NS_MIN<PRUint32>(value, 0xff);
+  mRedirectionLimit = PR_MIN(value, 0xff);
   return NS_OK;
 }
 
@@ -1254,18 +1239,6 @@ HttpBaseChannel::GetRemotePort(PRInt32* port)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::HTTPUpgrade(const nsACString &aProtocolName,
-                             nsIHttpUpgradeListener *aListener)
-{
-    NS_ENSURE_ARG(!aProtocolName.IsEmpty());
-    NS_ENSURE_ARG_POINTER(aListener);
-    
-    mUpgradeProtocol = aProtocolName;
-    mUpgradeProtocolCallback = aListener;
-    return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsISupportsPriority
 //-----------------------------------------------------------------------------
@@ -1332,80 +1305,11 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
   return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// nsStreamListenerWrapper <private>
-//-----------------------------------------------------------------------------
-
-// Wrapper class to make replacement of nsHttpChannel's listener
-// from JavaScript possible. It is workaround for bug 433711.
-class nsStreamListenerWrapper : public nsIStreamListener
-{
-public:
-  nsStreamListenerWrapper(nsIStreamListener *listener);
-
-  NS_DECL_ISUPPORTS
-  NS_FORWARD_NSIREQUESTOBSERVER(mListener->)
-  NS_FORWARD_NSISTREAMLISTENER(mListener->)
-
-private:
-  ~nsStreamListenerWrapper() {}
-  nsCOMPtr<nsIStreamListener> mListener;
-};
-
-nsStreamListenerWrapper::nsStreamListenerWrapper(nsIStreamListener *listener)
-  : mListener(listener)
-{
-  NS_ASSERTION(mListener, "no stream listener specified");
-}
-
-NS_IMPL_ISUPPORTS2(nsStreamListenerWrapper,
-                   nsIStreamListener,
-                   nsIRequestObserver)
-
-//-----------------------------------------------------------------------------
-// nsHttpChannel::nsITraceableChannel
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-HttpBaseChannel::SetNewListener(nsIStreamListener *aListener, nsIStreamListener **_retval)
-{
-  if (!mTracingEnabled)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(aListener);
-
-  nsCOMPtr<nsIStreamListener> wrapper = new nsStreamListenerWrapper(mListener);
-
-  wrapper.forget(_retval);
-  mListener = aListener;
-  return NS_OK;
-}
+//------------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel helpers
 //-----------------------------------------------------------------------------
-
-void
-HttpBaseChannel::DoNotifyListener()
-{
-  // Make sure mIsPending is set to PR_FALSE. At this moment we are done from
-  // the point of view of our consumer and we have to report our self
-  // as not-pending.
-  if (mListener) {
-    mListener->OnStartRequest(this, mListenerContext);
-    mIsPending = PR_FALSE;
-    mListener->OnStopRequest(this, mListenerContext, mStatus);
-    mListener = 0;
-    mListenerContext = 0;
-  } else {
-    mIsPending = PR_FALSE;
-  }
-  // We have to make sure to drop the reference to the callbacks too
-  mCallbacks = nsnull;
-  mProgressSink = nsnull;
-
-  DoNotifyListenerCleanup();
-}
 
 void
 HttpBaseChannel::AddCookiesToRequest()
@@ -1573,11 +1477,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   nsCOMPtr<nsIWritablePropertyBag> bag(do_QueryInterface(newChannel));
   if (bag)
     mPropertyHash.EnumerateRead(CopyProperties, bag.get());
-
-  // transfer timed channel enabled status
-  nsCOMPtr<nsITimedChannel> timed(do_QueryInterface(newChannel));
-  if (timed)
-    timed->SetTimingEnabled(mTimingEnabled);
 
   return NS_OK;
 }

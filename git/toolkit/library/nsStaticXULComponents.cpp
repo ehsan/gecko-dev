@@ -221,8 +221,6 @@
 #define JSCTYPES_MODULE
 #endif
 
-#define JSREFLECT_MODULE MODULE(jsreflect)
-
 #define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
 
 #ifndef MOZ_APP_COMPONENT_MODULES
@@ -282,7 +280,6 @@
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
-    JSREFLECT_MODULE                         \
     MODULE(jsperf)                           \
     SERVICES_CRYPTO_MODULE                   \
     MOZ_APP_COMPONENT_MODULES                \

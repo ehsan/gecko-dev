@@ -115,6 +115,21 @@ public:
   void SetDefaultTarget(gfxContext* aContext, BufferMode aDoubleBuffering);
   gfxContext* GetDefaultTarget() { return mDefaultTarget; }
 
+  /**
+   * Set a target resolution for managed layers that are scalable.  It
+   * might make sense to call this outside of a transaction, but
+   * currently it's only allowed during the construction phase of
+   * transactions.
+   */
+  void SetResolution(float aXResolution, float aYResolution)
+  {
+    NS_ASSERTION(InConstruction(), "resolution must be set before drawing");
+    mXResolution = aXResolution;
+    mYResolution = aYResolution;
+  }
+  float XResolution() const { return mXResolution; }
+  float YResolution() const { return mYResolution; }
+
   nsIWidget* GetRetainerWidget() { return mWidget; }
   void ClearRetainerWidget() { mWidget = nsnull; }
 
@@ -165,16 +180,7 @@ public:
 
   void SetTransactionIncomplete() { mTransactionIncomplete = true; }
 
-  already_AddRefed<gfxContext> PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
-                                                 const nsIntRegion& aRegion,
-                                                 PRBool* aNeedsClipToVisibleRegion);
-  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
-                                                          gfxASurface::gfxContentType aContent);
-  void PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxContext *aPushed);
-
   virtual PRBool IsCompositingCheap() { return PR_FALSE; }
-  virtual bool HasShadowManagerInternal() const { return false; }
-  bool HasShadowManager() const { return HasShadowManagerInternal(); }
 
 protected:
 #ifdef DEBUG
@@ -185,8 +191,7 @@ protected:
 #endif
 
   // Paints aLayer to mTarget.
-  void PaintLayer(gfxContext* aTarget,
-                  Layer* aLayer,
+  void PaintLayer(Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
                   void* aCallbackData,
                   ReadbackProcessor* aReadback);
@@ -194,8 +199,18 @@ protected:
   // Clear the contents of a layer
   void ClearLayer(Layer* aLayer);
 
+  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
+                                                          gfxASurface::gfxContentType aContent,
+                                                          gfxPoint *aSavedOffset);
+  void PopGroupWithCachedSurface(gfxContext *aTarget,
+                                 const gfxPoint& aSavedOffset);
+
   bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
+
+  // Target resolution for scalable content.
+  float mXResolution;
+  float mYResolution;
 
   // Widget whose surface should be used as the basis for ThebesLayer
   // buffers.
@@ -210,7 +225,6 @@ protected:
 
   BufferMode   mDoubleBuffering;
   PRPackedBool mUsingDefaultTarget;
-  PRPackedBool mCachedSurfaceInUse;
   bool         mTransactionIncomplete;
 };
  
@@ -246,7 +260,6 @@ public:
 
   ShadowableLayer* Hold(Layer* aLayer);
 
-  bool HasShadowManager() const { return ShadowLayerForwarder::HasShadowManager(); }
   PLayersChild* GetShadowManager() const { return mShadowManager; }
 
   void SetShadowManager(PLayersChild* aShadowManager)
@@ -255,7 +268,6 @@ public:
   }
 
   virtual PRBool IsCompositingCheap();
-  virtual bool HasShadowManagerInternal() const { return HasShadowManager(); }
 
 private:
   /**

@@ -45,11 +45,11 @@
 #include "nsIWidget.h"
 
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
 #include "nsIServiceManager.h"
 #include "nsILanguageAtomService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIPrefService.h"
 
 #include "gfxImageSurface.h"
 
@@ -84,7 +84,6 @@ static nsSystemFontsAndroid *gSystemFonts = nsnull;
 #error Need to declare gSystemFonts!
 #endif
 
-using namespace mozilla;
 using mozilla::services::GetObserverService;
 
 class nsFontCache : public nsIObserver
@@ -369,11 +368,19 @@ nsDeviceContext::SetDPI()
         mAppUnitsPerDevNotScaledPixel =
             NS_lround((AppUnitsPerCSSPixel() * 96) / dpi);
     } else {
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
         // A value of -1 means use the maximum of 96 and the system DPI.
         // A value of 0 means use the system DPI. A positive value is used as the DPI.
         // This sets the physical size of a device pixel and thus controls the
         // interpretation of physical units.
-        PRInt32 prefDPI = Preferences::GetInt("layout.css.dpi", -1);
+        PRInt32 prefDPI = -1;
+        if (prefs) {
+            nsresult rv = prefs->GetIntPref("layout.css.dpi", &prefDPI);
+            if (NS_FAILED(rv)) {
+                prefDPI = -1;
+            }
+        }
 
         if (prefDPI > 0) {
             dpi = prefDPI;
@@ -381,7 +388,7 @@ nsDeviceContext::SetDPI()
             dpi = mWidget->GetDPI();
 
             if (prefDPI < 0) {
-                dpi = NS_MAX(96.0f, dpi);
+                dpi = PR_MAX(96.0f, dpi);
             }
         } else {
             dpi = 96.0f;
@@ -392,9 +399,12 @@ nsDeviceContext::SetDPI()
         // controls the size of a CSS "px".
         float devPixelsPerCSSPixel = -1.0;
 
-        nsAdoptingCString prefString = Preferences::GetCString("layout.css.devPixelsPerPx");
-        if (!prefString.IsEmpty()) {
-            devPixelsPerCSSPixel = static_cast<float>(atof(prefString));
+        if (prefs) {
+            nsXPIDLCString prefString;
+            nsresult rv = prefs->GetCharPref("layout.css.devPixelsPerPx", getter_Copies(prefString));
+            if (NS_SUCCEEDED(rv) && !prefString.IsEmpty()) {
+                devPixelsPerCSSPixel = static_cast<float>(atof(prefString));
+            }
         }
 
         if (devPixelsPerCSSPixel <= 0) {
@@ -406,7 +416,7 @@ nsDeviceContext::SetDPI()
         }
 
         mAppUnitsPerDevNotScaledPixel =
-            NS_MAX(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
+            PR_MAX(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
     }
 
     NS_ASSERTION(dpi != -1.0, "no dpi set");
@@ -836,5 +846,5 @@ void
 nsDeviceContext::UpdateScaledAppUnits()
 {
     mAppUnitsPerDevPixel =
-        NS_MAX(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
+        PR_MAX(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
 }

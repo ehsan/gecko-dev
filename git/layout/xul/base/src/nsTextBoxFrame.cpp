@@ -70,14 +70,11 @@
 #include "nsCSSRendering.h"
 #include "nsIReflowCallback.h"
 #include "nsBoxFrame.h"
-#include "mozilla/Preferences.h"
 
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
 #include "nsBidiPresUtils.h"
 #endif // IBMBIDI
-
-using namespace mozilla;
 
 #define CROP_LEFT   "left"
 #define CROP_RIGHT  "right"
@@ -185,7 +182,7 @@ nsTextBoxFrame::AlwaysAppendAccessKey()
     gAccessKeyPrefInitialized = PR_TRUE;
 
     const char* prefName = "intl.menuitems.alwaysappendaccesskeys";
-    nsAdoptingString val = Preferences::GetLocalizedString(prefName);
+    nsAdoptingString val = nsContentUtils::GetLocalizedStringPref(prefName);
     gAlwaysAppendAccessKey = val.Equals(NS_LITERAL_STRING("true"));
   }
   return gAlwaysAppendAccessKey;
@@ -199,7 +196,7 @@ nsTextBoxFrame::InsertSeparatorBeforeAccessKey()
     gInsertSeparatorPrefInitialized = PR_TRUE;
 
     const char* prefName = "intl.menuitems.insertseparatorbeforeaccesskeys";
-    nsAdoptingString val = Preferences::GetLocalizedString(prefName);
+    nsAdoptingString val = nsContentUtils::GetLocalizedStringPref(prefName);
     gInsertSeparatorBeforeAccessKey = val.EqualsLiteral("true");
   }
   return gInsertSeparatorBeforeAccessKey;
@@ -347,22 +344,8 @@ public:
 
   virtual void DisableComponentAlpha() { mDisableSubpixelAA = PR_TRUE; }
 
-  void PaintTextToContext(nsRenderingContext* aCtx,
-                          nsPoint aOffset,
-                          const nscolor* aColor);
-
   PRPackedBool mDisableSubpixelAA;
 };
-
-static void
-PaintTextShadowCallback(nsRenderingContext* aCtx,
-                        nsPoint aShadowOffset,
-                        const nscolor& aShadowColor,
-                        void* aData)
-{
-  reinterpret_cast<nsDisplayXULTextBox*>(aData)->
-           PaintTextToContext(aCtx, aShadowOffset, &aShadowColor);
-}
 
 void
 nsDisplayXULTextBox::Paint(nsDisplayListBuilder* aBuilder,
@@ -370,26 +353,8 @@ nsDisplayXULTextBox::Paint(nsDisplayListBuilder* aBuilder,
 {
   gfxContextAutoDisableSubpixelAntialiasing disable(aCtx->ThebesContext(),
                                                     mDisableSubpixelAA);
-
-  // Paint the text shadow before doing any foreground stuff
-  nsRect drawRect = static_cast<nsTextBoxFrame*>(mFrame)->mTextDrawRect +
-                    ToReferenceFrame();
-  nsLayoutUtils::PaintTextShadow(mFrame, aCtx,
-                                 drawRect, mVisibleRect,
-                                 mFrame->GetStyleColor()->mColor,
-                                 PaintTextShadowCallback,
-                                 (void*)this);
-
-  PaintTextToContext(aCtx, nsPoint(0, 0), nsnull);
-}
-
-void
-nsDisplayXULTextBox::PaintTextToContext(nsRenderingContext* aCtx,
-                                        nsPoint aOffset,
-                                        const nscolor* aColor)
-{
   static_cast<nsTextBoxFrame*>(mFrame)->
-    PaintTitle(*aCtx, mVisibleRect, ToReferenceFrame() + aOffset, aColor);
+    PaintTitle(*aCtx, mVisibleRect, ToReferenceFrame());
 }
 
 nsRect
@@ -422,13 +387,28 @@ nsTextBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 void
 nsTextBoxFrame::PaintTitle(nsRenderingContext& aRenderingContext,
                            const nsRect&        aDirtyRect,
-                           nsPoint              aPt,
-                           const nscolor*       aOverrideColor)
+                           nsPoint              aPt)
 {
     if (mTitle.IsEmpty())
         return;
 
-    DrawText(aRenderingContext, mTextDrawRect + aPt, aOverrideColor);
+    nsRect textRect = mTextDrawRect + aPt;
+
+    // Paint the text shadow before doing any foreground stuff
+    const nsStyleText* textStyle = GetStyleText();
+    if (textStyle->mTextShadow) {
+      // Text shadow happens with the last value being painted at the back,
+      // ie. it is painted first.
+      for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
+        PaintOneShadow(aRenderingContext.ThebesContext(),
+                       textRect,
+                       textStyle->mTextShadow->ShadowAt(i - 1),
+                       GetStyleColor()->mColor,
+                       aDirtyRect);
+      }
+    }
+
+    DrawText(aRenderingContext, textRect, nsnull);
 }
 
 void
@@ -555,28 +535,32 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
 
     if (mState & NS_FRAME_IS_BIDI) {
       presContext->SetBidiEnabled();
-      const nsStyleVisibility* vis = GetStyleVisibility();
-      nsBidiDirection direction = (NS_STYLE_DIRECTION_RTL == vis->mDirection) ? NSBIDI_RTL : NSBIDI_LTR;
-      if (mAccessKeyInfo && mAccessKeyInfo->mAccesskeyIndex != kNotFound) {
-          // We let the RenderText function calculate the mnemonic's
-          // underline position for us.
-          nsBidiPositionResolve posResolve;
-          posResolve.logicalIndex = mAccessKeyInfo->mAccesskeyIndex;
-          rv = nsBidiPresUtils::RenderText(mCroppedTitle.get(), mCroppedTitle.Length(), direction,
-                                           presContext, aRenderingContext,
-                                           *refContext,
-                                           aTextRect.x, baseline,
-                                           &posResolve,
-                                           1);
-          mAccessKeyInfo->mBeforeWidth = posResolve.visualLeftTwips;
-          mAccessKeyInfo->mAccessWidth = posResolve.visualWidth;
-      }
-      else
-      {
-          rv = nsBidiPresUtils::RenderText(mCroppedTitle.get(), mCroppedTitle.Length(), direction,
-                                           presContext, aRenderingContext,
-                                           *refContext,
-                                           aTextRect.x, baseline);
+      nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+
+      if (bidiUtils) {
+        const nsStyleVisibility* vis = GetStyleVisibility();
+        nsBidiDirection direction = (NS_STYLE_DIRECTION_RTL == vis->mDirection) ? NSBIDI_RTL : NSBIDI_LTR;
+        if (mAccessKeyInfo && mAccessKeyInfo->mAccesskeyIndex != kNotFound) {
+           // We let the RenderText function calculate the mnemonic's
+           // underline position for us.
+           nsBidiPositionResolve posResolve;
+           posResolve.logicalIndex = mAccessKeyInfo->mAccesskeyIndex;
+           rv = bidiUtils->RenderText(mCroppedTitle.get(), mCroppedTitle.Length(), direction,
+                                      presContext, aRenderingContext,
+                                      *refContext,
+                                      aTextRect.x, baseline,
+                                      &posResolve,
+                                      1);
+           mAccessKeyInfo->mBeforeWidth = posResolve.visualLeftTwips;
+           mAccessKeyInfo->mAccessWidth = posResolve.visualWidth;
+        }
+        else
+        {
+           rv = bidiUtils->RenderText(mCroppedTitle.get(), mCroppedTitle.Length(), direction,
+                                      presContext, aRenderingContext,
+                                      *refContext,
+                                      aTextRect.x, baseline);
+        }
       }
     }
     if (NS_FAILED(rv) )
@@ -620,6 +604,49 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
                         NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH,
                         strikeStyle);
     }
+}
+
+void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
+                                    const nsRect&    aTextRect,
+                                    nsCSSShadowItem* aShadowDetails,
+                                    const nscolor&   aForegroundColor,
+                                    const nsRect&    aDirtyRect) {
+  nsPoint shadowOffset(aShadowDetails->mXOffset,
+                       aShadowDetails->mYOffset);
+  nscoord blurRadius = NS_MAX(aShadowDetails->mRadius, 0);
+
+  nsRect shadowRect(aTextRect);
+  shadowRect.MoveBy(shadowOffset);
+
+  nsContextBoxBlur contextBoxBlur;
+  gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
+                                                  PresContext()->AppUnitsPerDevPixel(),
+                                                  aCtx, aDirtyRect, nsnull);
+
+  if (!shadowContext)
+    return;
+
+  nscolor shadowColor;
+  if (aShadowDetails->mHasColor)
+    shadowColor = aShadowDetails->mColor;
+  else
+    shadowColor = aForegroundColor;
+
+  // Conjure an nsRenderingContext from a gfxContext for DrawText
+  nsRefPtr<nsRenderingContext> renderingContext = new nsRenderingContext();
+  renderingContext->Init(PresContext()->DeviceContext(), shadowContext);
+
+  aCtx->Save();
+  aCtx->NewPath();
+  aCtx->SetColor(gfxRGBA(shadowColor));
+
+  // Draw the text onto our alpha-only surface to capture the alpha
+  // values.  Remember that the box blur context has a device offset
+  // on it, so we don't need to translate any coordinates to fit on
+  // the surface.
+  DrawText(*renderingContext, shadowRect, &shadowColor);
+  contextBoxBlur.DoPaint();
+  aCtx->Restore();
 }
 
 void

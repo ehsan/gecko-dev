@@ -185,6 +185,8 @@ protected:
    */
   ISimpleDOMNode *MakeAccessNode(nsINode *aNode);
 
+    static PRBool gIsEnumVariantSupportDisabled;
+
     /**
      * Used to determine whether an IAccessible2 compatible screen reader is
      * loaded. Currently used for JAWS versions older than 8.0.2173.

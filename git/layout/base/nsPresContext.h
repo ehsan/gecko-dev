@@ -103,7 +103,9 @@ class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
+#ifdef MOZ_CSS_ANIMATIONS
 class nsAnimationManager;
+#endif
 class nsRefreshDriver;
 class imgIContainer;
 class nsIDOMMediaQueryList;
@@ -241,7 +243,9 @@ public:
     { return GetPresShell()->FrameManager(); } 
 
   nsTransitionManager* TransitionManager() { return mTransitionManager; }
+#ifdef MOZ_CSS_ANIMATIONS
   nsAnimationManager* AnimationManager() { return mAnimationManager; }
+#endif
 
   nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
 #endif
@@ -394,6 +398,11 @@ public:
     return PR_FALSE;
   }
 
+  /**
+   * Access Nav's magic font scaler value
+   */
+  PRInt32 FontScaler() const { return mFontScaler; }
+
   /** 
    * Get the default colors
    */
@@ -404,12 +413,6 @@ public:
   const nscolor DefaultVisitedLinkColor() const { return mVisitedLinkColor; }
   const nscolor FocusBackgroundColor() const { return mFocusBackgroundColor; }
   const nscolor FocusTextColor() const { return mFocusTextColor; }
-
-  /**
-   * Body text color, for use in quirks mode only.
-   */
-  const nscolor BodyTextColor() const { return mBodyTextColor; }
-  void SetBodyTextColor(nscolor aColor) { mBodyTextColor = aColor; }
 
   PRBool GetUseFocusColors() const { return mUseFocusColors; }
   PRUint8 FocusRingWidth() const { return mFocusRingWidth; }
@@ -758,6 +761,11 @@ public:
 //Mohamed
 
   /**
+   * Get a Bidi presentation utilities object
+   */
+  NS_HIDDEN_(nsBidiPresUtils*) GetBidiUtils();
+
+  /**
    * Set the Bidi options for the presentation context
    */  
   NS_HIDDEN_(void) SetBidi(PRUint32 aBidiOptions,
@@ -769,6 +777,10 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
+
+  PRUint32 GetBidiMemoryUsed();
+#else
+  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -1001,6 +1013,7 @@ public:
     PRUint32 result = 0;
 
     result += sizeof(nsPresContext);
+    result += GetBidiMemoryUsed();
 
     return result;
   }
@@ -1030,7 +1043,6 @@ protected:
 
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
 
-  void InvalidateThebesLayers();
   void AppUnitsPerDevPixelChanged();
 
   PRBool MayHavePaintEventListener();
@@ -1063,7 +1075,9 @@ protected:
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
+#ifdef MOZ_CSS_ANIMATIONS
   nsRefPtr<nsAnimationManager> mAnimationManager;
+#endif
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
 
@@ -1089,6 +1103,10 @@ protected:
 
   PRInt32               mCurAppUnitsPerDevPixel;
   PRInt32               mAutoQualityMinFontSizePixelsPref;
+
+#ifdef IBMBIDI
+  nsAutoPtr<nsBidiPresUtils> mBidiUtils;
+#endif
 
   nsCOMPtr<nsITheme> mTheme;
   nsCOMPtr<nsILanguageAtomService> mLangService;
@@ -1119,8 +1137,6 @@ protected:
 
   nscolor               mFocusBackgroundColor;
   nscolor               mFocusTextColor;
-
-  nscolor               mBodyTextColor;
 
   ScrollbarStyles       mViewportStyleOverflow;
   PRUint8               mFocusRingWidth;

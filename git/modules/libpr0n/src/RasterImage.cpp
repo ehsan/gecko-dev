@@ -53,6 +53,7 @@
 #include "nsAutoPtr.h"
 #include "nsStringStream.h"
 #include "prmem.h"
+#include "prlog.h"
 #include "prenv.h"
 #include "nsTime.h"
 #include "ImageLogging.h"
@@ -214,7 +215,8 @@ RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
 //******************************************************************************
 RasterImage::~RasterImage()
 {
-  delete mAnim;
+  if (mAnim)
+    delete mAnim;
 
   for (unsigned int i = 0; i < mFrames.Length(); ++i)
     delete mFrames[i];
@@ -679,23 +681,19 @@ RasterImage::GetFrame(PRUint32 aWhichFrame,
 
   nsresult rv = NS_OK;
 
-  if (mDecoded) {
-    // If we have decoded data, and it is not a perfect match for what we are
-    // looking for, we must discard to be able to generate the proper data.
-    PRUint32 desiredDecodeFlags = aFlags & DECODE_FLAGS_MASK;
-    if (desiredDecodeFlags != mFrameDecodeFlags) {
-      // if we can't discard, then we're screwed; we have no way
-      // to re-decode.  Similarly if we aren't allowed to do a sync
-      // decode.
-      if (!(aFlags & FLAG_SYNC_DECODE))
-        return NS_ERROR_NOT_AVAILABLE;
-      if (!CanForciblyDiscard() || mDecoder || mAnim)
-        return NS_ERROR_NOT_AVAILABLE;
-  
-      ForceDiscard();
-  
-      mFrameDecodeFlags = desiredDecodeFlags;
-    }
+  PRUint32 desiredDecodeFlags = aFlags & DECODE_FLAGS_MASK;
+  if (desiredDecodeFlags != mFrameDecodeFlags) {
+    // if we can't discard, then we're screwed; we have no way
+    // to re-decode.  Similarly if we aren't allowed to do a sync
+    // decode.
+    if (!(aFlags & FLAG_SYNC_DECODE))
+      return NS_ERROR_NOT_AVAILABLE;
+    if (!CanForciblyDiscard() || mDecoder || mAnim)
+      return NS_ERROR_NOT_AVAILABLE;
+
+    ForceDiscard();
+
+    mFrameDecodeFlags = desiredDecodeFlags;
   }
 
   // If the caller requested a synchronous decode, do it
@@ -864,6 +862,48 @@ RasterImage::InternalAddFrame(PRUint32 framenum,
 }
 
 nsresult
+RasterImage::AppendFrame(PRInt32 aX, PRInt32 aY, PRInt32 aWidth,
+                         PRInt32 aHeight,
+                         gfxASurface::gfxImageFormat aFormat,
+                         PRUint8 **imageData,
+                         PRUint32 *imageLength)
+{
+  if (mError)
+    return NS_ERROR_FAILURE;
+
+  NS_ENSURE_ARG_POINTER(imageData);
+  NS_ENSURE_ARG_POINTER(imageLength);
+
+  return InternalAddFrame(mFrames.Length(), aX, aY, aWidth, aHeight, aFormat, 
+                          /* aPaletteDepth = */ 0, imageData, imageLength,
+                          /* aPaletteData = */ nsnull, 
+                          /* aPaletteLength = */ nsnull);
+}
+
+nsresult
+RasterImage::AppendPalettedFrame(PRInt32 aX, PRInt32 aY,
+                                 PRInt32 aWidth, PRInt32 aHeight,
+                                 gfxASurface::gfxImageFormat aFormat,
+                                 PRUint8 aPaletteDepth,
+                                 PRUint8 **imageData,
+                                 PRUint32 *imageLength,
+                                 PRUint32 **paletteData,
+                                 PRUint32 *paletteLength)
+{
+  if (mError)
+    return NS_ERROR_FAILURE;
+
+  NS_ENSURE_ARG_POINTER(imageData);
+  NS_ENSURE_ARG_POINTER(imageLength);
+  NS_ENSURE_ARG_POINTER(paletteData);
+  NS_ENSURE_ARG_POINTER(paletteLength);
+
+  return InternalAddFrame(mFrames.Length(), aX, aY, aWidth, aHeight, aFormat, 
+                          aPaletteDepth, imageData, imageLength,
+                          paletteData, paletteLength);
+}
+
+nsresult
 RasterImage::SetSize(PRInt32 aWidth, PRInt32 aHeight)
 {
   if (mError)
@@ -884,11 +924,6 @@ RasterImage::SetSize(PRInt32 aWidth, PRInt32 aHeight)
     else
       NS_WARNING("Multipart channel sent an image of a different size");
 
-    // Make the decoder aware of the error so that it doesn't try to call
-    // FinishInternal during ShutdownDecoder.
-    if (mDecoder)
-      mDecoder->PostResizeError();
-
     DoError();
     return NS_ERROR_UNEXPECTED;
   }
@@ -901,12 +936,10 @@ RasterImage::SetSize(PRInt32 aWidth, PRInt32 aHeight)
 }
 
 nsresult
-RasterImage::EnsureFrame(PRUint32 aFrameNum, PRInt32 aX, PRInt32 aY,
-                         PRInt32 aWidth, PRInt32 aHeight,
-                         gfxASurface::gfxImageFormat aFormat,
-                         PRUint8 aPaletteDepth,
-                         PRUint8 **imageData, PRUint32 *imageLength,
-                         PRUint32 **paletteData, PRUint32 *paletteLength)
+RasterImage::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRInt32 aY,
+                              PRInt32 aWidth, PRInt32 aHeight,
+                              gfxASurface::gfxImageFormat aFormat,
+                              PRUint8 **imageData, PRUint32 *imageLength)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -914,62 +947,39 @@ RasterImage::EnsureFrame(PRUint32 aFrameNum, PRInt32 aX, PRInt32 aY,
   NS_ENSURE_ARG_POINTER(imageData);
   NS_ENSURE_ARG_POINTER(imageLength);
   NS_ABORT_IF_FALSE(aFrameNum <= mFrames.Length(), "Invalid frame index!");
-
-  if (aPaletteDepth > 0) {
-    NS_ENSURE_ARG_POINTER(paletteData);
-    NS_ENSURE_ARG_POINTER(paletteLength);
-  }
-
   if (aFrameNum > mFrames.Length())
     return NS_ERROR_INVALID_ARG;
 
   // Adding a frame that doesn't already exist.
   if (aFrameNum == mFrames.Length())
     return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                            aPaletteDepth, imageData, imageLength,
-                            paletteData, paletteLength);
+                            /* aPaletteDepth = */ 0, imageData, imageLength,
+                            /* aPaletteData = */ nsnull, 
+                            /* aPaletteLength = */ nsnull);
 
   imgFrame *frame = GetImgFrame(aFrameNum);
   if (!frame)
     return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                            aPaletteDepth, imageData, imageLength,
-                            paletteData, paletteLength);
+                            /* aPaletteDepth = */ 0, imageData, imageLength,
+                            /* aPaletteData = */ nsnull, 
+                            /* aPaletteLength = */ nsnull);
 
   // See if we can re-use the frame that already exists.
   nsIntRect rect = frame->GetRect();
   if (rect.x == aX && rect.y == aY && rect.width == aWidth &&
-      rect.height == aHeight && frame->GetFormat() == aFormat &&
-      frame->GetPaletteDepth() == aPaletteDepth) {
-    frame->GetImageData(imageData, imageLength);
-    if (paletteData) {
-      frame->GetPaletteData(paletteData, paletteLength);
-    }
-
+      rect.height == aHeight && frame->GetFormat() == aFormat) {
     // We can re-use the frame if it has image data.
-    if (*imageData && paletteData && *paletteData) {
-      return NS_OK;
-    }
-    if (*imageData && !paletteData) {
+    frame->GetImageData(imageData, imageLength);
+    if (*imageData) {
       return NS_OK;
     }
   }
 
   DeleteImgFrame(aFrameNum);
-  return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat,
-                          aPaletteDepth, imageData, imageLength,
-                          paletteData, paletteLength);
-}
-
-nsresult
-RasterImage::EnsureFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
-                         PRInt32 aWidth, PRInt32 aHeight,
-                         gfxASurface::gfxImageFormat aFormat,
-                         PRUint8** imageData, PRUint32* imageLength)
-{
-  return EnsureFrame(aFramenum, aX, aY, aWidth, aHeight, aFormat,
-                     /* aPaletteDepth = */ 0, imageData, imageLength,
-                     /* aPaletteData = */ nsnull,
-                     /* aPaletteLength = */ nsnull);
+  return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
+                          /* aPaletteDepth = */ 0, imageData, imageLength,
+                          /* aPaletteData = */ nsnull, 
+                          /* aPaletteLength = */ nsnull);
 }
 
 void
@@ -1229,7 +1239,6 @@ RasterImage::AddSourceData(const char *aBuffer, PRUint32 aCount)
     // We're not storing source data, so this data is probably coming straight
     // from the network. In this case, we want to display data as soon as we
     // get it, so we want to flush invalidations after every write.
-    nsRefPtr<Decoder> kungFuDeathGrip = mDecoder;
     mInDecoder = PR_TRUE;
     mDecoder->FlushInvalidations();
     mInDecoder = PR_FALSE;
@@ -1397,7 +1406,7 @@ nsresult
 RasterImage::SetSourceSizeHint(PRUint32 sizeHint)
 {
   if (sizeHint && StoringSourceData())
-    return mSourceData.SetCapacity(sizeHint) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    mSourceData.SetCapacity(sizeHint);
   return NS_OK;
 }
 
@@ -1906,8 +1915,8 @@ RasterImage::DrawFrameTo(imgFrame *aSrc,
 
   if (aSrc->GetIsPaletted()) {
     // Larger than the destination frame, clip it
-    PRInt32 width = NS_MIN(aSrcRect.width, dstRect.width - aSrcRect.x);
-    PRInt32 height = NS_MIN(aSrcRect.height, dstRect.height - aSrcRect.y);
+    PRInt32 width = PR_MIN(aSrcRect.width, dstRect.width - aSrcRect.x);
+    PRInt32 height = PR_MIN(aSrcRect.height, dstRect.height - aSrcRect.y);
 
     // The clipped image must now fully fit within destination image frame
     NS_ASSERTION((aSrcRect.x >= 0) && (aSrcRect.y >= 0) &&
@@ -2199,16 +2208,14 @@ RasterImage::ShutdownDecoder(eShutdownIntent aIntent)
   bool wasSizeDecode = mDecoder->IsSizeDecode();
 
   // Finalize the decoder
-  // null out mDecoder, _then_ check for errors on the close (otherwise the
-  // error routine might re-invoke ShutdownDecoder)
-  nsRefPtr<Decoder> decoder = mDecoder;
-  mDecoder = nsnull;
-
   mInDecoder = PR_TRUE;
-  decoder->Finish();
+  mDecoder->Finish();
   mInDecoder = PR_FALSE;
 
-  nsresult decoderStatus = decoder->GetDecoderError();
+  // null out the decoder, _then_ check for errors on the close (otherwise the
+  // error routine might re-invoke ShutdownDecoder)
+  nsresult decoderStatus = mDecoder->GetDecoderError();
+  mDecoder = nsnull;
   if (NS_FAILED(decoderStatus)) {
     DoError();
     return decoderStatus;
@@ -2253,7 +2260,6 @@ RasterImage::WriteToDecoder(const char *aBuffer, PRUint32 aCount)
   }
 
   // Write
-  nsRefPtr<Decoder> kungFuDeathGrip = mDecoder;
   mInDecoder = PR_TRUE;
   mDecoder->Write(aBuffer, aCount);
   mInDecoder = PR_FALSE;
@@ -2265,9 +2271,6 @@ RasterImage::WriteToDecoder(const char *aBuffer, PRUint32 aCount)
     curframe->UnlockImageData();
   }
 
-  if (!mDecoder)
-    return NS_ERROR_FAILURE;
-    
   CONTAINER_ENSURE_SUCCESS(mDecoder->GetDecoderError());
 
   // Keep track of the total number of bytes written over the lifetime of the
@@ -2415,19 +2418,18 @@ RasterImage::SyncDecode()
   // image as possible. We've send the decoder all of our data, so now's a good
   // time  to flush any invalidations (in case we don't have all the data and what
   // we got left us mid-frame).
-  nsRefPtr<Decoder> kungFuDeathGrip = mDecoder;
   mInDecoder = PR_TRUE;
   mDecoder->FlushInvalidations();
   mInDecoder = PR_FALSE;
 
   // If we finished the decode, shutdown the decoder
-  if (mDecoder && IsDecodeFinished()) {
+  if (IsDecodeFinished()) {
     rv = ShutdownDecoder(eShutdownIntent_Done);
     CONTAINER_ENSURE_SUCCESS(rv);
   }
 
-  // All good if no errors!
-  return mError ? NS_ERROR_FAILURE : NS_OK;
+  // All good!
+  return NS_OK;
 }
 
 //******************************************************************************
@@ -2559,7 +2561,7 @@ RasterImage::DecodeSomeData(PRUint32 aMaxBytes)
 
 
   // write the proper amount of data
-  PRUint32 bytesToDecode = NS_MIN(aMaxBytes,
+  PRUint32 bytesToDecode = PR_MIN(aMaxBytes,
                                   mSourceData.Length() - mBytesDecoded);
   nsresult rv = WriteToDecoder(mSourceData.Elements() + mBytesDecoded,
                                bytesToDecode);
@@ -2658,8 +2660,6 @@ imgDecodeWorker::Run()
   if (!image->mDecoder)
     return NS_OK;
 
-  nsRefPtr<Decoder> decoderKungFuDeathGrip = image->mDecoder;
-
   // Size decodes are cheap and we more or less want them to be
   // synchronous. Write all the data in that case, otherwise write a
   // chunk
@@ -2700,7 +2700,7 @@ imgDecodeWorker::Run()
   }
 
   // If the decode finished, shutdown the decoder
-  if (image->mDecoder && image->IsDecodeFinished()) {
+  if (image->IsDecodeFinished()) {
     rv = image->ShutdownDecoder(RasterImage::eShutdownIntent_Done);
     if (NS_FAILED(rv)) {
       image->DoError();
@@ -2752,15 +2752,10 @@ RasterImage::WriteToRasterImage(nsIInputStream* /* unused */,
   // Retrieve the RasterImage
   RasterImage* image = static_cast<RasterImage*>(aClosure);
 
-  // Copy the source data. Unless we hit OOM, we squelch the return value
-  // here, because returning an error means that ReadSegments stops
-  // reading data, violating our invariant that we read everything we get.
-  // If we hit OOM then we fail and the load is aborted.
-  nsresult rv = image->AddSourceData(aFromRawSegment, aCount);
-  if (rv == NS_ERROR_OUT_OF_MEMORY) {
-    image->DoError();
-    return rv;
-  }
+  // Copy the source data. We squelch the return value here, because returning
+  // an error means that ReadSegments stops reading data, violating our
+  // invariant that we read everything we get.
+  (void) image->AddSourceData(aFromRawSegment, aCount);
 
   // We wrote everything we got
   *aWriteCount = aCount;

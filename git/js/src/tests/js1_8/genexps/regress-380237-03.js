@@ -47,11 +47,12 @@ var expect = '';
 test();
 //-----------------------------------------------------------------------------
 
-expect = 'SyntaxError: yield not in function';
+expect = 'No Error';
 actual = '';
 try
 {
-  eval('((yield i) for (i in [1,2,3]))');
+  var g = ((yield i) for (i in [1,2,3]));
+  actual = 'No Error';
 }
 catch(ex)
 {
@@ -81,8 +82,8 @@ function test()
   actual = f + '';
   compareSource(expect, actual, summary);
 
-  f = (function() { (1 for (w in []) if (false)) });
-  expect = 'function() { (1 for (w in []) if (false)); }';
+  f = (function() { (1 for (w in []) if (0)) });
+  expect = 'function() { (1 for (w in []) if (0)); }';
   actual = f + '';
   compareSource(expect, actual, summary);
 
@@ -101,7 +102,7 @@ function test()
   actual = f + '';
   compareSource(expect, actual, summary);
 
-  expect = 'ReferenceError: invalid assignment left-hand side';
+  expect = 'SyntaxError: invalid assignment left-hand side';
   actual = '';
   try
   {
@@ -118,19 +119,12 @@ function test()
   actual = f + '';
   compareSource(expect, actual, summary);
 
-  expect = 'SyntaxError: illegal use of yield in generator expression';
-  actual = '';
-  try
-  {
-    eval('(function () { (1 for (y in (yield 3))); })');
-  }
-  catch(ex)
-  {
-    actual = ex + '';
-  }
-  reportCompare(expect, actual, summary);
+  f = (function () { (1 for (y in (yield 3))); });
+  expect = 'function () { (1 for (y in yield 3)); }';
+  actual = f + '';
+  compareSource(expect, actual, summary);
    
-  expect = 'ReferenceError: invalid delete operand';
+  expect = 'SyntaxError: invalid delete operand';
   try
   {
     eval('(function () { delete (x for (x in [])); })');
@@ -141,17 +135,10 @@ function test()
   }
   reportCompare(expect, actual, summary + ': Do not Assert: *pc == JSOP_CALL');
 
-  expect = 'SyntaxError: illegal use of yield in generator expression';
-  actual = '';
-  try
-  {
-    eval('(function() { ([yield] for (x in [])); })');
-  }
-  catch(ex)
-  {
-    actual = ex + '';
-  }
-  reportCompare(expect, actual, summary);
+  f = (function() { ([yield] for (x in [])); });
+  expect = 'function() { ([yield] for (x in [])); }';
+  actual = f + '';
+  compareSource(expect, actual, summary);
 
   f = function() { if(1, (x for (x in []))) { } };
   expect = 'function() { if(1, (x for (x in []))) { } }';
@@ -165,17 +152,18 @@ function test()
   actual = f + '';
   compareSource(expect, actual, summary);
 
-  expect = 'SyntaxError: yield not in function';
+  expect = 'No Error';
   actual = '';
   try
   {
-    eval('((yield i) for (i in [1,2,3]))');
+    var g = ((yield i) for (i in [1,2,3]));
+    actual = 'No Error';
   }
   catch(ex)
   {
     actual = ex + '';
   }
-  reportCompare(expect, actual, summary);
+  reportCompare(expect, actual, summary + ': nested');
 
   f = function() { try { } catch(x if (1 for (x in []))) { } finally { } };
   expect = 'function() { try {} catch(x if (1 for (x in []))) {} finally {} }';

@@ -106,9 +106,6 @@
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"
 #include "nsPlacesMacros.h"
-#include "mozilla/Util.h"
-
-using namespace mozilla;
 
 static NS_DEFINE_CID(kParserCID, NS_PARSER_CID);
 
@@ -297,8 +294,8 @@ nsEscapeHTML(const char* string)
         default:
           *ptr++ = *string;
       }
+      *ptr = '\0';
     }
-    *ptr = '\0';
   }
   return escaped;
 }
@@ -674,8 +671,9 @@ BookmarkContentSink::HandleContainerEnd()
     // the addition of items will override the imported field.
     BookmarkImportFrame& prevFrame = PreviousFrame();
     if (prevFrame.mPreviousLastModifiedDate > 0) {
-      (void)mBookmarksService->SetItemLastModified(frame.mContainerID,
-                                                   prevFrame.mPreviousLastModifiedDate);
+      nsresult rv = mBookmarksService->SetItemLastModified(frame.mContainerID,
+                                                           prevFrame.mPreviousLastModifiedDate);
+      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "SetItemLastModified failed");
     }
     PopFrame();
   }
@@ -701,8 +699,8 @@ BookmarkContentSink::HandleHead1Begin(const nsIParserNode& node)
       }
 
       PRInt64 placesRoot;
-      DebugOnly<nsresult> rv = mBookmarksService->GetPlacesRoot(&placesRoot);
-      NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "could not get placesRoot");
+      nsresult rv = mBookmarksService->GetPlacesRoot(&placesRoot);
+      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "could not get placesRoot");
       CurFrame().mContainerID = placesRoot;
       break;
     }
@@ -750,8 +748,8 @@ BookmarkContentSink::HandleHeadBegin(const nsIParserNode& node)
   // processed.
   PRInt32 attrCount = node.GetAttributeCount();
   frame.mLastContainerType = BookmarkImportFrame::Container_Normal;
-  for (PRInt32 i = 0; i < attrCount; ++i) {
-    if (!mFolderSpecified) {
+  if (!mFolderSpecified) {
+    for (PRInt32 i = 0; i < attrCount; i ++) {
       if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_TOOLBARFOLDER_LOWER)) {
         if (mIsImportDefaults)
           frame.mLastContainerType = BookmarkImportFrame::Container_Toolbar;
@@ -772,15 +770,14 @@ BookmarkContentSink::HandleHeadBegin(const nsIParserNode& node)
           frame.mLastContainerType = BookmarkImportFrame::Container_Places;
         break;
       }
-    }
-
-    if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_DATE_ADDED_LOWER)) {
-      frame.mPreviousDateAdded =
-        ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
-    }
-    else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_LAST_MODIFIED_LOWER)) {
-      frame.mPreviousLastModifiedDate =
-        ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
+      else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_DATE_ADDED_LOWER)) {
+        frame.mPreviousDateAdded =
+          ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
+      }
+      else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_LAST_MODIFIED_LOWER)) {
+        frame.mPreviousLastModifiedDate =
+          ConvertImportedDateToInternalDate(NS_ConvertUTF16toUTF8(node.GetValueAt(i)));
+      }
     }
   }
   CurFrame().mPreviousText.Truncate();

@@ -90,8 +90,7 @@ protected:
 
     virtual PPluginIdentifierParent*
     AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt,
-                           const bool& aTemporary);
+                           const int32_t& aInt);
 
     virtual bool
     DeallocPPluginIdentifier(PPluginIdentifierParent* aActor);
@@ -137,16 +136,8 @@ public:
         return !IsOnCxxStack();
     }
 
-    /**
-     * Get an identifier actor for this NPIdentifier. If this is a temporary
-     * identifier, the temporary refcount is increased by one. This method
-     * is intended only for use by StackIdentifier and the scriptable
-     * Enumerate hook.
-     */
-    PluginIdentifierParent*
-    GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
-
-    void ProcessRemoteNativeEventsInRPCCall();
+    PPluginIdentifierParent*
+    GetIdentifierForNPIdentifier(NPIdentifier aIdentifier);
 
 #ifdef OS_MACOSX
     void AddToRefreshTimer(PluginInstanceParent *aInstance);
@@ -194,21 +185,6 @@ protected:
 
     NS_OVERRIDE virtual bool
     RecvPluginHideWindow(const uint32_t& aWindowId);
-
-    NS_OVERRIDE virtual bool
-    RecvSetCursor(const NSCursorInfo& aCursorInfo);
-
-    NS_OVERRIDE virtual bool
-    RecvShowCursor(const bool& aShow);
-
-    NS_OVERRIDE virtual bool
-    RecvPushCursor(const NSCursorInfo& aCursorInfo);
-
-    NS_OVERRIDE virtual bool
-    RecvPopCursor();
-
-    NS_OVERRIDE virtual bool
-    RecvGetNativeCursorsSupported(bool* supported);
 
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);

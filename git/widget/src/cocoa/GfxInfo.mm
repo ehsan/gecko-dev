@@ -44,10 +44,11 @@
 #include "mozilla/FunctionTimer.h"
 #include "nsToolkit.h"
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
+#include "nsIPrefService.h"
 #endif
 
 using namespace mozilla::widget;
@@ -67,7 +68,7 @@ GfxInfo::Init()
   if (CGLQueryRendererInfo(0xffffffff, &renderer, &rendererCount) != kCGLNoError)
     return rv;
 
-  rendererCount = (GLint) NS_MIN(rendererCount, (GLint) NS_ARRAY_LENGTH(mRendererIDs));
+  rendererCount = (GLint) PR_MIN(rendererCount, (GLint) NS_ARRAY_LENGTH(mRendererIDs));
   for (GLint i = 0; i < rendererCount; i++) {
     GLint prop = 0;
 
@@ -101,12 +102,6 @@ GfxInfo::GetD2DEnabled(PRBool *aEnabled)
 }
 
 NS_IMETHODIMP
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
 GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
 {
   return NS_ERROR_FAILURE;
@@ -115,13 +110,6 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
 /* readonly attribute DOMString DWriteVersion; */
 NS_IMETHODIMP
 GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
-{
-  return NS_ERROR_FAILURE;
-}
-
-/* readonly attribute DOMString cleartypeParameters; */
-NS_IMETHODIMP
-GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
 {
   return NS_ERROR_FAILURE;
 }
@@ -185,7 +173,7 @@ GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
 void
 GfxInfo::AddCrashReportAnnotations()
 {
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
   CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterRendererIDs"),
                                      NS_LossyConvertUTF16toASCII(mRendererIDsString));
 

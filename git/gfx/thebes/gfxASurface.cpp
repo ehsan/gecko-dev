@@ -543,31 +543,30 @@ gfxASurface::MovePixels(const nsIntRect& aSourceRect,
 /** Memory reporting **/
 
 static const char *sSurfaceNamesForSurfaceType[] = {
-    "gfx-surface-image",
-    "gfx-surface-pdf",
-    "gfx-surface-ps",
-    "gfx-surface-xlib",
-    "gfx-surface-xcb",
-    "gfx-surface-glitz",
-    "gfx-surface-quartz",
-    "gfx-surface-win32",
-    "gfx-surface-beos",
-    "gfx-surface-directfb",
-    "gfx-surface-svg",
-    "gfx-surface-os2",
-    "gfx-surface-win32printing",
-    "gfx-surface-quartzimage",
-    "gfx-surface-script",
-    "gfx-surface-qpainter",
-    "gfx-surface-recording",
-    "gfx-surface-vg",
-    "gfx-surface-gl",
-    "gfx-surface-drm",
-    "gfx-surface-tee",
-    "gfx-surface-xml",
-    "gfx-surface-skia",
-    "gfx-surface-subsurface",
-    "gfx-surface-d2d"
+    "heap-used/gfx/surface/image",
+    "heap-used/gfx/surface/pdf",
+    "heap-used/gfx/surface/ps",
+    "heap-used/gfx/surface/xlib",
+    "heap-used/gfx/surface/xcb",
+    "heap-used/gfx/surface/glitz",
+    "heap-used/gfx/surface/quartz",
+    "heap-used/gfx/surface/win32",
+    "heap-used/gfx/surface/beos",
+    "heap-used/gfx/surface/directfb",
+    "heap-used/gfx/surface/svg",
+    "heap-used/gfx/surface/os2",
+    "heap-used/gfx/surface/win32printing",
+    "heap-used/gfx/surface/quartzimage",
+    "heap-used/gfx/surface/script",
+    "heap-used/gfx/surface/qpainter",
+    "heap-used/gfx/surface/recording",
+    "heap-used/gfx/surface/vg",
+    "heap-used/gfx/surface/gl",
+    "heap-used/gfx/surface/drm",
+    "heap-used/gfx/surface/tee",
+    "heap-used/gfx/surface/xml",
+    "heap-used/gfx/surface/skia",
+    "heap-used/gfx/surface/d2d"
 };
 
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceNamesForSurfaceType) == gfxASurface::SurfaceTypeMax);
@@ -581,7 +580,7 @@ SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)
 {
     if (aType < 0 ||
         aType >= gfxASurface::SurfaceTypeMax)
-        return "gfx-surface-unknown";
+        return "heap-used/gfx/surface/unknown";
 
     return sSurfaceNamesForSurfaceType[aType];
 }
@@ -600,33 +599,18 @@ public:
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD GetProcess(nsACString &process) {
-        process.Truncate();
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup(SurfaceMemoryReporterPathForType(mType));
         return NS_OK;
     }
 
-    NS_IMETHOD GetPath(nsACString &path) {
-        path.Assign(SurfaceMemoryReporterPathForType(mType));
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Memory used by gfx surface of given type.");
         return NS_OK;
     }
 
-    NS_IMETHOD GetKind(PRInt32 *kind) {
-        *kind = KIND_OTHER;
-        return NS_OK;
-    }
-    
-    NS_IMETHOD GetUnits(PRInt32 *units) {
-        *units = UNITS_BYTES;
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetAmount(PRInt64 *amount) {
-        *amount = gSurfaceMemoryUsed[mType];
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetDescription(nsACString &desc) {
-        desc.AssignLiteral("Memory used by gfx surface of the given type.");
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        *memoryUsed = gSurfaceMemoryUsed[mType];
         return NS_OK;
     }
 

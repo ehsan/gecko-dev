@@ -83,7 +83,13 @@ nsRadioSetValueMissingState::Visit(nsIFormControl* aRadio)
   input->SetValidityState(nsIConstraintValidation::VALIDITY_STATE_VALUE_MISSING,
                           mValidity);
 
-  input->UpdateState(true);
+  nsIDocument* doc = input->GetCurrentDoc();
+  if (mNotify && doc) {
+    doc->ContentStateChanged(input, NS_EVENT_STATE_VALID |
+                                    NS_EVENT_STATE_INVALID |
+                                    NS_EVENT_STATE_MOZ_UI_VALID |
+                                    NS_EVENT_STATE_MOZ_UI_INVALID);
+  }
 
   return PR_TRUE;
 }

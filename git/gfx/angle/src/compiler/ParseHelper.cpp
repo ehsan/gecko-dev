@@ -274,8 +274,6 @@ bool TParseContext::precisionErrorCheck(int line, TPrecision precision, TBasicTy
             return true;
         }
         break;
-    default:
-        return false;
     }
     return false;
 }
@@ -560,7 +558,7 @@ bool TParseContext::constructorErrorCheck(int line, TIntermNode* node, TFunction
         }
     }
 
-    TIntermTyped *typed = node ? node->getAsTyped() : 0;
+    TIntermTyped* typed = node->getAsTyped();
     if (typed == 0) {
         error(line, "constructor argument does not have a type", "constructor", "");
         return true;
@@ -882,17 +880,16 @@ bool TParseContext::nonInitConstErrorCheck(int line, TString& identifier, TPubli
 //
 // Returns true if there was an error.
 //
-bool TParseContext::nonInitErrorCheck(int line, TString& identifier, TPublicType& type, TVariable*& variable)
+bool TParseContext::nonInitErrorCheck(int line, TString& identifier, TPublicType& type)
 {
     if (reservedErrorCheck(line, identifier))
         recover();
 
-    variable = new TVariable(&identifier, TType(type));
+    TVariable* variable = new TVariable(&identifier, TType(type));
 
     if (! symbolTable.insert(*variable)) {
         error(line, "redefinition", variable->getName().c_str(), "");
         delete variable;
-        variable = 0;
         return true;
     }
 

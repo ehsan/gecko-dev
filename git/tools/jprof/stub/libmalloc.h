@@ -52,7 +52,6 @@ typedef unsigned long u_long;
 struct malloc_log_entry {
   u_long delTime;
   u_long numpcs;
-  int thread;
   char* pcs[MAX_STACK_CRAWL];
 };
 

@@ -1,3 +1,4 @@
+/*
 //  qcms
 //  Copyright (C) 2009 Mozilla Corporation
 //  Copyright (C) 1998-2007 Marti Maria
@@ -19,6 +20,7 @@
 // LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION 
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
 
 #include <stdlib.h>
 #include <math.h>
@@ -658,10 +660,10 @@ static uint16_t *build_pow_table(float gamma, int length)
 
 static float clamp_float(float a)
 {
-	if (a > 1.f)
-		return 1.f;
-	else if (a < 0.f)
-		return 0.f;
+	if (a > 1.)
+		return 1.;
+	else if (a < 0)
+		return 0;
 	else
 		return a;
 }

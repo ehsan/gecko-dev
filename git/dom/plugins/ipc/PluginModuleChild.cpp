@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=4 et : */
+/* vim: sw=4 ts=4 et : */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -71,10 +71,9 @@
 #ifdef XP_WIN
 #include "COMMessageFilter.h"
 #include "nsWindowsDllInterceptor.h"
-#include "mozilla/widget/AudioSession.h"
 #endif
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
@@ -254,15 +253,6 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 #  error Please copy the initialization code from nsNPAPIPlugin.cpp
 
 #endif
-
-#ifdef XP_MACOSX
-    nsPluginInfo info = nsPluginInfo();
-    rv = pluginFile.GetPluginInfo(info, &mLibrary);
-    if (rv == NS_OK) {
-        mozilla::plugins::PluginUtilsOSX::SetProcessName(info.fName);
-    }
-#endif
-
     return true;
 }
 
@@ -604,10 +594,6 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 {
     AssertPluginThread();
 
-#if defined XP_WIN && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    mozilla::widget::StopAudioSession();
-#endif
-
     // the PluginModuleParent shuts down this process after this RPC
     // call pops off its stack
 
@@ -661,25 +647,6 @@ PluginModuleChild::AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResu
     NS_Free(result);
 
     return true;
-}
-
-bool
-PluginModuleChild::RecvSetAudioSessionData(const nsID& aId,
-                                           const nsString& aDisplayName,
-                                           const nsString& aIconPath)
-{
-    nsresult rv;
-#if !defined XP_WIN || MOZ_WINSDK_TARGETVER < MOZ_NTDDI_LONGHORN
-    NS_RUNTIMEABORT("Not Reached!");
-    return false;
-#else
-    rv = mozilla::widget::RecvAudioSessionData(aId, aDisplayName, aIconPath);
-    NS_ENSURE_SUCCESS(rv, true); // Bail early if this fails
-
-    // Ignore failures here; we can't really do anything about them
-    mozilla::widget::StartAudioSession();
-    return true;
-#endif
 }
 
 void
@@ -1674,7 +1641,7 @@ _popupcontextmenu(NPP instance, NPMenu* menu)
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
     double pluginX, pluginY; 
     double screenX, screenY;
 
@@ -1808,27 +1775,30 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 
 PPluginIdentifierChild*
 PluginModuleChild::AllocPPluginIdentifier(const nsCString& aString,
-                                          const int32_t& aInt,
-                                          const bool& aTemporary)
+                                          const int32_t& aInt)
 {
-    // We cannot call SetPermanent within this function because Manager() isn't
-    // set up yet.
-    if (aString.IsVoid()) {
-        return new PluginIdentifierChildInt(aInt);
-    }
-    return new PluginIdentifierChildString(aString);
-}
+    // There's a possibility that we already have an actor that wraps the same
+    // string or int because we do all this identifier construction
+    // asynchronously. Check to see if we've already wrapped here, and then set
+    // canonical actor of the new one to the actor already in our hash.
+    PluginIdentifierChild* newActor;
+    PluginIdentifierChild* existingActor;
 
-bool
-PluginModuleChild::RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
-                                                    const nsCString& aString,
-                                                    const int32_t& aInt,
-                                                    const bool& aTemporary)
-{
-    if (!aTemporary) {
-        static_cast<PluginIdentifierChild*>(actor)->MakePermanent();
+    if (aString.IsVoid()) {
+        newActor = new PluginIdentifierChildInt(aInt);
+        if (mIntIdentifiers.Get(aInt, &existingActor))
+            newActor->SetCanonicalIdentifier(existingActor);
+        else
+            mIntIdentifiers.Put(aInt, newActor);
     }
-    return true;
+    else {
+        newActor = new PluginIdentifierChildString(aString);
+        if (mStringIdentifiers.Get(aString, &existingActor))
+            newActor->SetCanonicalIdentifier(existingActor);
+        else
+            mStringIdentifiers.Put(aString, newActor);
+    }
+    return newActor;
 }
 
 bool
@@ -2131,14 +2101,15 @@ PluginModuleChild::NPN_GetStringIdentifier(const NPUTF8* aName)
     PluginModuleChild* self = PluginModuleChild::current();
     nsDependentCString name(aName);
 
-    PluginIdentifierChildString* ident = self->mStringIdentifiers.Get(name);
-    if (!ident) {
+    PluginIdentifierChild* ident;
+    if (!self->mStringIdentifiers.Get(name, &ident)) {
         nsCString nameCopy(name);
 
         ident = new PluginIdentifierChildString(nameCopy);
-        self->SendPPluginIdentifierConstructor(ident, nameCopy, -1, false);
+        self->SendPPluginIdentifierConstructor(ident, nameCopy, -1);
+        self->mStringIdentifiers.Put(nameCopy, ident);
     }
-    ident->MakePermanent();
+
     return ident;
 }
 
@@ -2162,14 +2133,14 @@ PluginModuleChild::NPN_GetStringIdentifiers(const NPUTF8** aNames,
             continue;
         }
         nsDependentCString name(aNames[index]);
-        PluginIdentifierChildString* ident = self->mStringIdentifiers.Get(name);
-        if (!ident) {
+        PluginIdentifierChild* ident;
+        if (!self->mStringIdentifiers.Get(name, &ident)) {
             nsCString nameCopy(name);
 
             ident = new PluginIdentifierChildString(nameCopy);
-            self->SendPPluginIdentifierConstructor(ident, nameCopy, -1, false);
+            self->SendPPluginIdentifierConstructor(ident, nameCopy, -1);
+            self->mStringIdentifiers.Put(nameCopy, ident);
         }
-        ident->MakePermanent();
         aIdentifiers[index] = ident;
     }
 }
@@ -2192,15 +2163,15 @@ PluginModuleChild::NPN_GetIntIdentifier(int32_t aIntId)
 
     PluginModuleChild* self = PluginModuleChild::current();
 
-    PluginIdentifierChildInt* ident = self->mIntIdentifiers.Get(aIntId);
-    if (!ident) {
+    PluginIdentifierChild* ident;
+    if (!self->mIntIdentifiers.Get(aIntId, &ident)) {
         nsCString voidString;
         voidString.SetIsVoid(PR_TRUE);
 
         ident = new PluginIdentifierChildInt(aIntId);
-        self->SendPPluginIdentifierConstructor(ident, voidString, aIntId, false);
+        self->SendPPluginIdentifierConstructor(ident, voidString, aIntId);
+        self->mIntIdentifiers.Put(aIntId, ident);
     }
-    ident->MakePermanent();
     return ident;
 }
 
@@ -2324,21 +2295,7 @@ PluginModuleChild::ResetEventHooks()
 }
 #endif
 
-bool
-PluginModuleChild::RecvProcessNativeEventsInRPCCall()
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(OS_WIN)
-    ProcessNativeEventsInRPCCall();
-    return true;
-#else
-    NS_RUNTIMEABORT(
-        "PluginModuleChild::RecvProcessNativeEventsInRPCCall not implemented!");
-    return false;
-#endif
-}
-
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 void
 PluginModuleChild::ProcessNativeEvents() {
     CallProcessSomeEvents();    

@@ -50,11 +50,15 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIWebBrowserChrome.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIEmbeddingSiteWindow.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
+#include "nsIDOMKeyListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMContextMenuListener.h"
 #include "nsITimer.h"
 #include "nsIPrompt.h"
 #include "nsIAuthPrompt.h"
@@ -62,7 +66,7 @@
 #include "nsITooltipTextProvider.h"
 #include "nsCTooltipTextProvider.h"
 #include "nsIDroppedLinkHandler.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsCommandHandler.h"
 
 class nsWebBrowser;
@@ -173,7 +177,9 @@ protected:
 // with the DOM with AddChromeListeners() and removing itself with
 // RemoveChromeListeners().
 //
-class ChromeTooltipListener : public nsIDOMEventListener
+class ChromeTooltipListener : public nsIDOMMouseListener,
+                                public nsIDOMKeyListener,
+                                public nsIDOMMouseMotionListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -181,8 +187,23 @@ public:
   ChromeTooltipListener ( nsWebBrowser* inBrowser, nsIWebBrowserChrome* inChrome ) ;
   virtual ~ChromeTooltipListener ( ) ;
 
-  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+    // nsIDOMMouseListener
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) {	return NS_OK; }
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);
+
+    // nsIDOMMouseMotionListener
   NS_IMETHOD MouseMove(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragMove(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+
+    // nsIDOMKeyListener
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent) ;
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent) ;
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent) ;
 
     // Add/remove the relevant listeners, based on what interfaces
     // the embedding chrome implements.
@@ -204,7 +225,7 @@ private:
   NS_IMETHOD HideTooltip ( ) ;
 
   nsWebBrowser* mWebBrowser;
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
   nsCOMPtr<nsITooltipTextProvider> mTooltipTextProvider;
   
     // This must be a strong ref in order to make sure we can hide the tooltip
@@ -246,7 +267,7 @@ private:
 // with the DOM with AddChromeListeners() and removing itself with
 // RemoveChromeListeners().
 //
-class ChromeContextMenuListener : public nsIDOMEventListener
+class ChromeContextMenuListener : public nsIDOMContextMenuListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -255,7 +276,8 @@ public:
   virtual ~ChromeContextMenuListener ( ) ;
 
   // nsIDOMContextMenuListener
-  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) {	return NS_OK; }
+  NS_IMETHOD ContextMenu ( nsIDOMEvent* aEvent );
 
   // Add/remove the relevant listeners, based on what interfaces
   // the embedding chrome implements.
@@ -270,7 +292,7 @@ private:
   PRPackedBool mContextMenuListenerInstalled;
 
   nsWebBrowser* mWebBrowser;
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
   nsCOMPtr<nsIWebBrowserChrome> mWebBrowserChrome;
 
 }; // class ChromeContextMenuListener

@@ -161,7 +161,7 @@ public:
   virtual PRBool RestoreState(nsPresState* aState);
   virtual PRBool AllowDrop();
 
-  virtual void FieldSetDisabledChanged(PRBool aNotify);
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
 
   // nsIContent
   virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
@@ -218,7 +218,6 @@ public:
   void GetDisplayFileName(nsAString& aFileName) const;
   const nsCOMArray<nsIDOMFile>& GetFiles() const;
   void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
-  void SetFiles(nsIDOMFileList* aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged() const {
@@ -240,13 +239,13 @@ public:
 
   NS_IMETHOD FireAsyncClickHandler();
 
-  virtual void UpdateEditableState(PRBool aNotify)
+  virtual void UpdateEditableState()
   {
-    return UpdateEditableFormControlState(aNotify);
+    return UpdateEditableFormControlState();
   }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLInputElement,
-                                           nsGenericHTMLFormElement)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLInputElement,
+                                                     nsGenericHTMLFormElement)
 
   static UploadLastDir* gUploadLastDir;
   // create and destroy the static UploadLastDir object for remembering
@@ -457,11 +456,6 @@ protected:
    * Update mFileList with the currently selected file.
    */
   nsresult UpdateFileList();
-
-  /**
-   * Called after calling one of the SetFiles() functions.
-   */
-  void AfterSetFiles(bool aSetValueChanged);
 
   /**
    * Determine whether the editor needs to be initialized explicitly for

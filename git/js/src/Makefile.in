@@ -107,9 +107,6 @@ MODULE_OPTIMIZE_FLAGS = -O2
 endif
 endif
 
-ifeq ($(OS_ARCH),WINNT)
-NO_PROFILE_GUIDED_OPTIMIZE = 1
-endif
 
 # JavaScript must be built shared, even for static builds, as it is used by
 # other modules which are always built shared. Failure to do so results in
@@ -150,7 +147,6 @@ CPPSRCS		= \
 		jsgcmark.cpp \
 		jsgcchunk.cpp \
 		jsgcstats.cpp \
-		jscrashreport.cpp \
 		jshash.cpp \
 		jsinterp.cpp \
 		jsinvoke.cpp \
@@ -186,35 +182,34 @@ CPPSRCS		= \
 		sharkctl.cpp \
 		GlobalObject.cpp \
 		Stack.cpp \
-		String.cpp \
-		ParseMaps.cpp \
 		$(NULL)
 
-# Changes to internal header files, used externally, massively slow down
-# browser builds.  Don't add new files here unless you know what you're
-# doing!
 INSTALLED_HEADERS = \
 		js-config.h \
 		jsautocfg.h \
 		$(CURDIR)/jsautokw.h \
 		js.msg \
 		jsalloc.h \
+		jsanalyze.h \
 		jsapi.h \
+		jsarray.h \
 		jsarena.h \
 		jsatom.h \
 		jsbit.h \
+		jsbool.h \
 		jsclist.h \
 		jsclone.h \
 		jscntxt.h \
 		jscompat.h \
-		jscrashreport.h \
 		jsdate.h \
 		jsdbgapi.h \
 		jsdhash.h \
+		jsdtoa.h \
 		jsemit.h \
 		jsfun.h \
 		jsfriendapi.h \
 		jsgc.h \
+		jsgcmark.h \
 		jscell.h \
 		jsgcchunk.h \
 		jsgcstats.h \
@@ -224,28 +219,38 @@ INSTALLED_HEADERS = \
 		jsinttypes.h \
 		jsiter.h \
 		jslock.h \
+		jslong.h \
+		jsmath.h \
+		jsnum.h \
 		jsobj.h \
+		jsobjinlines.h \
 		json.h \
+		jsonparser.h \
 		jsopcode.tbl \
 		jsopcode.h \
+		jsopcodeinlines.h \
 		jsotypes.h \
 		jsparse.h \
 		jsproxy.h \
 		jsprf.h \
 		jsprobes.h \
 		jspropertycache.h \
+		jspropertycacheinlines.h \
 		jspropertytree.h \
 		jsproto.tbl \
 		jsprvtd.h \
 		jspubtd.h \
 		jsreflect.h \
+		jsregexp.h \
 		jsscan.h \
 		jsscope.h \
 		jsscript.h \
+		jsscriptinlines.h \
 		jsstaticcheck.h \
 		jsstdint.h \
 		jsstr.h \
 		jstracer.h \
+		jshotloop.h \
 		jstypedarray.h \
 		jstypes.h \
 		jsutil.h \
@@ -253,28 +258,28 @@ INSTALLED_HEADERS = \
 		jstl.h \
 		jshashtable.h \
 		jsversion.h \
+		jsweakmap.h \
 		jswrapper.h \
 		jsxdrapi.h \
+		jsxml.h \
 		jsval.h \
 		jsvalue.h \
 		prmjtime.h \
 		$(NULL)
 
-######################################################
-# BEGIN include sources for the engine subdirectories
+###############################################
+# BEGIN include sources for the vm subdirectory
 #
 VPATH		+= \
-		$(srcdir)/vm \
-		$(srcdir)/frontend \
+		$(srcdir)/vm 	\
 		$(NULL)
 
 EXPORTS_NAMESPACES = vm
 
 EXPORTS_vm = \
 		ArgumentsObject.h \
-		GlobalObject.h	 \
-		Stack.h \
-		String.h \
+		GlobalObject.h			\
+		Stack.h			\
 		StringObject.h \
 		$(NULL)
 
@@ -288,8 +293,6 @@ VPATH		+= \
 EXPORTS_NAMESPACES += mozilla
 
 EXPORTS_mozilla = \
-		RangedPtr.h \
-		RefPtr.h	\
 		Types.h		\
 		Util.h          \
 		$(NULL)
@@ -360,6 +363,14 @@ CPPSRCS += 	MethodJIT.cpp \
 		TrampolineCompiler.cpp \
 		$(NULL)
 
+# Ion
+VPATH +=	$(srcdir)/ion
+
+CPPSRCS +=	MIR.cpp \
+		BytecodeAnalyzer.cpp \
+		IonSpew.cpp \
+		$(NULL)
+
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
 ifdef _MSC_VER
@@ -416,18 +427,14 @@ ifeq (,$(filter arm% sparc %86 x86_64,$(TARGET_CPU)))
 
 VPATH +=	$(srcdir)/assembler \
 		$(srcdir)/assembler/wtf \
-		$(srcdir)/yarr\
+		$(srcdir)/yarr/pcre \
 		$(NULL)
 
-CPPSRCS += \
-		Assertions.cpp \
-		OSAllocatorOS2.cpp \
-		OSAllocatorPosix.cpp \
-		OSAllocatorWin.cpp \
-		PageBlock.cpp \
-		YarrInterpreter.cpp \
-		YarrPattern.cpp \
-		YarrSyntaxChecker.cpp \
+CPPSRCS += 	pcre_compile.cpp \
+                pcre_exec.cpp \
+                pcre_tables.cpp \
+                pcre_xclass.cpp \
+                pcre_ucp_searchfuncs.cpp \
 		$(NULL)
 else
 
@@ -440,6 +447,9 @@ VPATH += 	$(srcdir)/assembler \
 		$(srcdir)/assembler/assembler \
 		$(srcdir)/methodjit \
 		$(srcdir)/yarr \
+		$(srcdir)/yarr/yarr \
+		$(srcdir)/yarr/pcre \
+		$(srcdir)/yarr/wtf \
 		$(NONE)
 
 CPPSRCS += 	Assertions.cpp \
@@ -448,17 +458,16 @@ CPPSRCS += 	Assertions.cpp \
 		ExecutableAllocatorOS2.cpp \
 		ExecutableAllocator.cpp \
 		ARMAssembler.cpp \
-        Logging.cpp \
+                Logging.cpp \
 		MacroAssemblerARM.cpp \
 		MacroAssemblerX86Common.cpp \
-		OSAllocatorOS2.cpp \
-		OSAllocatorPosix.cpp \
-		OSAllocatorWin.cpp \
-		PageBlock.cpp \
-		YarrInterpreter.cpp \
-		YarrJIT.cpp \
-		YarrPattern.cpp \
-		YarrSyntaxChecker.cpp \
+		RegexCompiler.cpp \
+		RegexJIT.cpp \
+		pcre_compile.cpp \
+                pcre_exec.cpp \
+                pcre_tables.cpp \
+                pcre_xclass.cpp \
+                pcre_ucp_searchfuncs.cpp \
 		$(NONE)
 
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
@@ -533,15 +542,6 @@ ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
-endif
-
-# for compiler bug (http://support.microsoft.com/kb/982107) for MSVC x64
-ifdef _MSC_VER
-ifneq (,$(filter 1400 1500,$(_MSC_VER)))
-ifeq ($(OS_TEST),x86_64)
-ASFILES += jswin64.asm
-endif
-endif
 endif
 
 include $(topsrcdir)/config/config.mk
@@ -644,7 +644,7 @@ endif
 # don't give different results. We skip the contents of objdirs using |find|
 # (it can't be done with %-expansion, because the files we want to skip aren't
 # in the vpath).
-ALL_FILES=$(shell find $(srcdir) \( -name "*.cpp" -o -name "*.h" \) ! -path "*/dist/*" ! -path "*/config/*")
+ALL_FILES=$(shell find $(srcdir) \( -name "*.cpp" -o -name "*.h" \) -not -path "*/dist/*")
 check-malloc-function-usage: $(filter-out %jsalloc.h %jscntxt.h %jsutil.h, $(ALL_FILES))
 
 	# js_malloc and friends are only used by other memory managers, and should
@@ -663,7 +663,7 @@ check-malloc-function-usage: $(filter-out %jsalloc.h %jscntxt.h %jsutil.h, $(ALL
 	$(srcdir)/config/check_source_count.py OffTheBooks:: 52 \
 		"in Makefile.in" "{cx,rt}->{new_,new_array,malloc_,calloc_,realloc_}" $^
 	# This should go to zero, if possible.
-	$(srcdir)/config/check_source_count.py UnwantedForeground:: 31 \
+	$(srcdir)/config/check_source_count.py UnwantedForeground:: 34 \
 		"in Makefile.in" "{cx,rt}->{free_,delete_,array_delete}" $^
 
 ifneq ($(OS_ARCH),WINNT) # FIXME: this should be made work on Windows too.
@@ -783,11 +783,6 @@ ifdef MOZ_VTUNE
 CXXFLAGS += -IC:/Program\ Files/Intel/VTune/Analyzer/Include
 EXTRA_DSO_LDOPTS += C:/Program\ Files/Intel/VTune/Analyzer/Lib/VtuneApi.lib
 LIBS +=  C:/Program\ Files/Intel/VTune/Analyzer/Lib/VtuneApi.lib
-endif
-
-ifdef MOZ_ETW
-# This will get the ETW provider resources into the library mozjs.dll
-RESFILE = ETWProvider.res
 endif
 
 # HP-UX does not require the extra linking of "-lm"
@@ -1005,22 +1000,6 @@ $(CURDIR)/jsautooplen.h: host_jsoplengen$(HOST_BIN_SUFFIX)
 
 # Force auto-header generation before compiling any source that may use them
 $(patsubst %.cc,%.$(OBJ_SUFFIX),$(CPPSRCS:%.cpp=%.$(OBJ_SUFFIX))): $(CURDIR)/jsautokw.h $(CURDIR)/jsautooplen.h
-
-ifdef MOZ_ETW
-ETWProvider.h ETWProvider.rc ETWProvider.mof: ETWProvider.man
-	$(MC) -um -mof $^
-
-$(CPPSRCS:%.cpp=%.$(OBJ_SUFFIX)): ETWProvider.h
-
-ETWProvider.res: ETWProvider.rc
-	$(RC) -r -i "$(SDKDIR)Include" $^
-
-export:: ETWProvider.res
-
-install:: ETWProvider.mof ETWProvider.man
-	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)
-
-endif
 
 ifdef HAVE_DTRACE
 $(CURDIR)/javascript-trace.h: $(srcdir)/javascript-trace.d

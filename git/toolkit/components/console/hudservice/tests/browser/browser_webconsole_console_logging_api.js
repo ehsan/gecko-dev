@@ -52,10 +52,6 @@ function onLoad() {
 
   openConsole();
 
-  hud = HUDService.getHudByWindow(content);
-  hudId = hud.hudId;
-  outputNode = hud.outputNode;
-
   testConsoleLoggingAPI("log");
   testConsoleLoggingAPI("info");
   testConsoleLoggingAPI("warn");
@@ -66,9 +62,12 @@ function onLoad() {
 }
 
 function testConsoleLoggingAPI(aMethod) {
-  let console = content.wrappedJSObject.console;
+  let hudId = HUDService.displaysIndex()[0];
+  let console = browser.contentWindow.wrappedJSObject.console;
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let outputNode = hudBox.querySelector(".hud-output-node");
 
-  hud.jsterm.clearOutput();
+  HUDService.clearDisplay(hudId);
 
   setStringFilter(hudId, "foo");
   console[aMethod]("foo-bar-baz");
@@ -78,7 +77,7 @@ function testConsoleLoggingAPI(aMethod) {
 
   is(nodes.length, 1, "1 hidden " + aMethod  + " node found (via classList)");
 
-  hud.jsterm.clearOutput();
+  HUDService.clearDisplay(hudId);
 
   // now toggle the current method off - make sure no visible message
 
@@ -90,14 +89,14 @@ function testConsoleLoggingAPI(aMethod) {
 
   is(nodes.length, 1,  aMethod + " logging turned off, 1 message hidden");
 
-  hud.jsterm.clearOutput();
+  HUDService.clearDisplay(hudId);
   HUDService.setFilterState(hudId, aMethod, true);
   console[aMethod]("foo-bar-baz");
   nodes = outputNode.querySelectorAll("description");
 
   is(nodes.length, 1, aMethod + " logging turned on, 1 message shown");
 
-  hud.jsterm.clearOutput();
+  HUDService.clearDisplay(hudId);
   setStringFilter(hudId, "");
 
   // test for multiple arguments.
@@ -109,7 +108,8 @@ function testConsoleLoggingAPI(aMethod) {
 }
 
 function setStringFilter(aId, aValue) {
-  hud.filterBox.value = aValue;
+  let hudBox = HUDService.getHeadsUpDisplay(aId);
+  hudBox.querySelector(".hud-filter-box").value = aValue;
   HUDService.adjustVisibilityOnSearchStringChange(aId, aValue);
 }
 

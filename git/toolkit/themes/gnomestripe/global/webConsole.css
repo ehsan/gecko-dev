@@ -69,12 +69,9 @@
   margin-bottom: 0;
 }
 
-.hud-msg-node {
+.webconsole-msg-icon {
   list-style-image: url(chrome://global/skin/icons/webconsole.png);
   -moz-image-region: rect(0, 1px, 0, 0);
-}
-
-.webconsole-msg-icon {
   margin: 3px 4px;
   width: 8px;
   height: 8px;
@@ -90,7 +87,6 @@
   margin-bottom: 3px;
   -moz-margin-start: 3px;
   -moz-margin-end: 6px;
-  white-space: pre-wrap;
 }
 
 .webconsole-msg-body-piece {
@@ -171,7 +167,7 @@
   -moz-border-start: solid #000 6px;
 }
 
-.webconsole-msg-network.webconsole-msg-error {
+.webconsole-msg-network.webconsole-msg-error > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(0, 16px, 8px, 8px);
 }
 
@@ -184,11 +180,11 @@
   -moz-border-start: solid #00b6f0 6px;
 }
 
-.webconsole-msg-cssparser.webconsole-msg-error {
+.webconsole-msg-cssparser.webconsole-msg-error > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(8px, 16px, 16px, 8px);
 }
 
-.webconsole-msg-cssparser.webconsole-msg-warn {
+.webconsole-msg-cssparser.webconsole-msg-warn > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(8px, 24px, 16px, 16px);
 }
 
@@ -201,11 +197,11 @@
   -moz-border-start: solid #fb9500 6px;
 }
 
-.webconsole-msg-exception.webconsole-msg-error {
+.webconsole-msg-exception.webconsole-msg-error > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(16px, 16px, 24px, 8px);
 }
 
-.webconsole-msg-exception.webconsole-msg-warn {
+.webconsole-msg-exception.webconsole-msg-warn > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(16px, 24px, 24px, 16px);
 }
 
@@ -218,16 +214,16 @@
   -moz-border-start: solid #cbcbcb 6px;
 }
 
-.webconsole-msg-console.webconsole-msg-error,
-.webconsole-msg-output.webconsole-msg-error {
+.webconsole-msg-console.webconsole-msg-error > .webconsole-msg-icon-container > .webconsole-msg-icon,
+.webconsole-msg-output.webconsole-msg-error > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(24px, 16px, 32px, 8px);
 }
 
-.webconsole-msg-console.webconsole-msg-warn {
+.webconsole-msg-console.webconsole-msg-warn > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(24px, 24px, 32px, 16px);
 }
 
-.webconsole-msg-console.webconsole-msg-info {
+.webconsole-msg-console.webconsole-msg-info > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(24px, 32px, 32px, 24px);
 }
 
@@ -237,11 +233,11 @@
   border-left: solid #808080 6px;
 }
 
-.webconsole-msg-input {
+.webconsole-msg-input > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(24px, 40px, 32px, 32px);
 }
 
-.webconsole-msg-output {
+.webconsole-msg-output > .webconsole-msg-icon-container > .webconsole-msg-icon {
   -moz-image-region: rect(24px, 48px, 32px, 40px);
 }
 
@@ -305,13 +301,3 @@
   font-size: 1em;
 }
 
-.web-console-panel {
-  -moz-appearance: none;
-  background-color: white;
-}
-
-.web-console-panel > .hud-box {
-  height: 100%;
-  width: 100%;
-  background-color: white;
-}

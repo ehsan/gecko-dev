@@ -131,8 +131,6 @@ public:
            !AttrSlotIsTaken(ATTRCHILD_ARRAY_MAX_ATTR_COUNT - 1);
   }
 
-  PRInt64 SizeOf() const;
-
 private:
   nsAttrAndChildArray(const nsAttrAndChildArray& aOther); // Not to be implemented
   nsAttrAndChildArray& operator=(const nsAttrAndChildArray& aOther); // Not to be implemented

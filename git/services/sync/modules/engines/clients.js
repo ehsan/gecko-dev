@@ -56,16 +56,14 @@ function ClientsRec(collection, id) {
 }
 ClientsRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Clients",
+  _logName: "Record.Clients",
   ttl: CLIENTS_TTL
 };
 
 Utils.deferGetSet(ClientsRec, "cleartext", ["name", "type", "commands"]);
 
 
-XPCOMUtils.defineLazyGetter(this, "Clients", function () {
-  return new ClientEngine();
-});
+Utils.lazy(this, "Clients", ClientEngine);
 
 function ClientEngine() {
   SyncEngine.call(this, "Clients");
@@ -153,15 +151,12 @@ ClientEngine.prototype = {
       return localName;
 
     // Generate a client name if we don't have a useful one yet
-    let env = Cc["@mozilla.org/process/environment;1"]
-                .getService(Ci.nsIEnvironment);
-    let user = env.get("USER") || env.get("USERNAME") ||
+    let user = Svc.Env.get("USER") || Svc.Env.get("USERNAME") ||
                Svc.Prefs.get("account") || Svc.Prefs.get("username");
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
     let app = brand.get("brandShortName");
 
-    let system = Cc["@mozilla.org/system-info;1"]
-                   .getService(Ci.nsIPropertyBag2).get("device") ||
+    let system = Svc.SysInfo.get("device") ||
                  Cc["@mozilla.org/network/protocol;1?name=http"]
                    .getService(Ci.nsIHttpProtocolHandler).oscpu;
 

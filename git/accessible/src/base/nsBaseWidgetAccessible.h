@@ -55,6 +55,7 @@
 class nsLeafAccessible : public nsAccessibleWrap
 {
 public:
+  using nsAccessible::GetChildAtPoint;
 
   nsLeafAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
@@ -62,8 +63,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                        EWhichChildAtPoint aWhichChild);
 
 protected:
 
@@ -101,16 +102,20 @@ public:
   virtual PRUint64 NativeState();
 
   // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> AnchorURIAt(PRUint32 aAnchorIndex);
+  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
 
 protected:
   // nsAccessible
   virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
 
+  // nsLinkableAccessible
+
   /**
-   * Parent accessible that provides an action for this linkable accessible.
+   * Return an accessible for cached action node.
    */
-  nsAccessible* mActionAcc;
+  nsAccessible *GetActionAccessible() const;
+
+  nsCOMPtr<nsIContent> mActionContent;
   PRPackedBool mIsLink;
   PRPackedBool mIsOnclick;
 };

@@ -54,9 +54,11 @@ EXPORTS_NAMESPACES = mozilla
 
 XPIDLSRCS = \
   nsIHTTPHeaderListener.idl \
+  nsIPlugin.idl \
   nsIPluginDocument.idl \
   nsIPluginHost.idl \
   nsIPluginInputStream.idl \
+  nsIPluginInstance.idl \
   nsIPluginInstanceOwner.idl \
   nsIPluginStreamInfo.idl \
   nsIPluginStreamListener.idl \
@@ -74,12 +76,6 @@ EXPORTS = \
   nsPluginError.h \
   nsPluginNativeWindow.h \
   nsPluginsCID.h \
-  nsNPAPIPluginInstance.h \
-  nsPluginsDir.h \
-  nsPluginTags.h \
-  nsPluginDirServiceProvider.h \
-  nsPluginHost.h \
-  nsPluginInstanceOwner.h \
   $(NULL)
 
 EXPORTS_mozilla = \
@@ -96,10 +92,9 @@ CPPSRCS		= \
 		nsJSNPRuntime.cpp \
 		nsPluginTags.cpp \
 		PluginPRLibrary.cpp \
-		nsPluginInstanceOwner.cpp \
 		$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	CPPSRCS += nsPluginsDirWin.cpp
 	CPPSRCS += nsPluginNativeWindowWin.cpp
 	CPPSRCS += nsPluginDirServiceProvider.cpp
@@ -129,17 +124,41 @@ endif
 
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/base/ \
-  $(MOZ_CAIRO_CFLAGS) \
   $(NULL)
 
-include $(topsrcdir)/dom/dom-config.mk
+ifneq (,$(filter WINNT Darwin,$(OS_ARCH)))
+EXTRA_DSO_LIBS	+= gkgfx
+endif
+
+EXTRA_DSO_LDOPTS = \
+		$(LIBS_DIR) \
+		$(EXTRA_DSO_LIBS) \
+		$(MOZ_NECKO_UTIL_LIBS) \
+		$(MOZ_UNICHARUTIL_LIBS) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(MOZ_JS_LIBS) \
+		$(NULL)
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+EXTRA_DSO_LDOPTS += $(TK_LIBS)
+endif
+
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
+ifeq ($(OS_ARCH),WINNT)
+OS_LIBS		+= $(call EXPAND_LIBNAME,version)
+endif
+
 CXXFLAGS         += $(TK_CFLAGS)
+EXTRA_DSO_LDOPTS += $(TK_LIBS)
 
-$(DIST)/bin/plugins:
-	$(NSINSTALL) -D $@
+ifdef MOZ_ENABLE_GTK2
+EXTRA_DSO_LDOPTS += -lgtkxtbin $(XLDFLAGS) $(XT_LIBS) $(XLIBS) $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
+endif           #MOZ_ENABLE_GTK2
 
-export:: $(DIST)/bin/plugins
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+EXTRA_DSO_LDOPTS += $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
+endif
+

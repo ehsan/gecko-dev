@@ -58,6 +58,8 @@
 #include "nsEditorUtils.h"
 #include "EditTxn.h"
 #include "nsEditProperty.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
@@ -68,10 +70,6 @@
 // for IBMBIDI
 #include "nsFrameSelection.h"
 
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
-
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #define CANCEL_OPERATION_IF_READONLY_OR_DISABLED \
@@ -80,6 +78,16 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
     *aCancel = PR_TRUE; \
     return NS_OK;       \
   };
+
+
+nsresult
+NS_NewTextEditRules(nsIEditRules** aInstancePtrResult)
+{
+  nsTextEditRules * rules = new nsTextEditRules();
+  if (rules)
+    return rules->QueryInterface(NS_GET_IID(nsIEditRules), (void**) aInstancePtrResult);
+  return NS_ERROR_OUT_OF_MEMORY;
+}
 
 
 /********************************************************
@@ -159,8 +167,13 @@ nsTextEditRules::Init(nsPlaintextEditor *aEditor)
     NS_ENSURE_SUCCESS(res, res);
   }
 
-  mDeleteBidiImmediately =
-    Preferences::GetBool("bidi.edit.delete_immediately", PR_FALSE);
+  PRBool deleteBidiImmediately = PR_FALSE;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &res);
+  if (NS_SUCCEEDED(res))
+    prefBranch->GetBoolPref("bidi.edit.delete_immediately",
+                            &deleteBidiImmediately);
+  mDeleteBidiImmediately = deleteBidiImmediately;
 
   return res;
 }
@@ -231,6 +244,22 @@ nsTextEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
 
     // collapse the selection to the trailing BR if it's at the end of our text node
     CollapseSelectionToTrailingBRIfNeeded(selection);
+    
+    /* After inserting text the cursor Bidi level must be set to the level of the inserted text.
+     * This is difficult, because we cannot know what the level is until after the Bidi algorithm
+     * is applied to the whole paragraph.
+     *
+     * So we set the cursor Bidi level to UNDEFINED here, and the caret code will set it correctly later
+     */
+    if (action == nsEditor::kOpInsertText
+        || action == nsEditor::kOpInsertIMEText) {
+      nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(selection));
+      nsCOMPtr<nsFrameSelection> frameSelection;
+      privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));      
+      if (frameSelection) {
+        frameSelection->UndefineCaretBidiLevel();
+      }
+    }
   }
   return res;
 }
@@ -608,9 +637,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   nsresult res = TruncateInsertionIfNeeded(aSelection, inString, outString,
                                            aMaxLength, &truncated);
   NS_ENSURE_SUCCESS(res, res);
-  // If we're exceeding the maxlength when composing IME, we need to clean up
-  // the composing text, so we shouldn't return early.
-  if (truncated && outString->IsEmpty() && aAction != kInsertTextIME) {
+  if (truncated && outString->IsEmpty()) {
     *aCancel = PR_TRUE;
     return NS_OK;
   }

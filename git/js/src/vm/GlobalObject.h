@@ -83,12 +83,12 @@ class GlobalObject : public ::JSObject {
     static const uintN STANDARD_CLASS_SLOTS  = JSProto_LIMIT * 3;
 
     /* One-off properties stored after slots for built-ins. */
-    static const uintN THROWTYPEERROR          = STANDARD_CLASS_SLOTS;
-    static const uintN REGEXP_STATICS          = THROWTYPEERROR + 1;
-    static const uintN FUNCTION_NS             = REGEXP_STATICS + 1;
-    static const uintN RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
-    static const uintN EVAL                    = RUNTIME_CODEGEN_ENABLED + 1;
-    static const uintN FLAGS                   = EVAL + 1;
+    static const uintN THROWTYPEERROR        = STANDARD_CLASS_SLOTS;
+    static const uintN REGEXP_STATICS        = THROWTYPEERROR + 1;
+    static const uintN FUNCTION_NS           = REGEXP_STATICS + 1;
+    static const uintN EVAL_ALLOWED          = FUNCTION_NS + 1;
+    static const uintN EVAL                  = EVAL_ALLOWED + 1;
+    static const uintN FLAGS                 = EVAL + 1;
 
     /* Total reserved-slot count for global objects. */
     static const uintN RESERVED_SLOTS = FLAGS + 1;
@@ -110,23 +110,6 @@ class GlobalObject : public ::JSObject {
 
   public:
     static GlobalObject *create(JSContext *cx, Class *clasp);
-
-    /*
-     * Create a constructor function with the specified name and length using
-     * ctor, a method which creates objects with the given class.
-     */
-    JSFunction *
-    createConstructor(JSContext *cx, Native ctor, Class *clasp, JSAtom *name, uintN length);
-
-    /*
-     * Create an object to serve as [[Prototype]] for instances of the given
-     * class, using |Object.prototype| as its [[Prototype]].  Users creating
-     * prototype objects with particular internal structure (e.g. reserved
-     * slots guaranteed to contain values of particular types) must immediately
-     * complete the minimal initialization to make the returned object safe to
-     * touch.
-     */
-    JSObject *createBlankPrototype(JSContext *cx, js::Class *clasp);
 
     void setThrowTypeError(JSFunction *fun) {
         Value &v = getSlotRef(THROWTYPEERROR);
@@ -150,7 +133,7 @@ class GlobalObject : public ::JSObject {
         return getSlot(FLAGS).toInt32() & FLAGS_CLEARED;
     }
 
-    bool isRuntimeCodeGenEnabled(JSContext *cx);
+    bool isEvalAllowed(JSContext *cx);
 
     const Value &getOriginalEval() const {
         return getSlot(EVAL);
@@ -168,21 +151,6 @@ class GlobalObject : public ::JSObject {
 
     bool initStandardClasses(JSContext *cx);
 };
-
-/*
- * Define ctor.prototype = proto as non-enumerable, non-configurable, and
- * non-writable; define proto.constructor = ctor as non-enumerable but
- * configurable and writable.
- */
-extern bool
-LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto);
-
-/*
- * Define properties, then functions, on the object, then brand for tracing
- * benefits.
- */
-extern bool
-DefinePropertiesAndBrand(JSContext *cx, JSObject *obj, JSPropertySpec *ps, JSFunctionSpec *fs);
 
 } // namespace js
 

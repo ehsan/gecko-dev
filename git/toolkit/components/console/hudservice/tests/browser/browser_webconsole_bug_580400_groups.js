@@ -52,7 +52,9 @@ function testGroups() {
 
   openConsole();
 
-  let HUD = HUDService.getHudByWindow(content);
+  let hudId = HUDService.displaysIndex()[0];
+
+  let HUD = HUDService.hudReferences[hudId];
   let jsterm = HUD.jsterm;
   let outputNode = jsterm.outputNode;
 

@@ -159,12 +159,6 @@ var gPermissionManager = {
     document.getElementById("btnAllow").disabled = !aSiteField.value;
   },
   
-  onWindowKeyPress: function (aEvent)
-  {
-    if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE)
-      window.close();
-  },
-
   onHostKeyPress: function (aEvent)
   {
     if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN)

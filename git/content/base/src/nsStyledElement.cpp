@@ -52,8 +52,10 @@
 #include "mozilla/css/Loader.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsXULElement.h"
+
+#ifdef MOZ_SVG
 #include "nsIDOMSVGStylable.h"
-#include "nsContentUtils.h"
+#endif
 
 namespace css = mozilla::css;
 
@@ -134,7 +136,7 @@ nsStyledElementNotElementCSSInlineStyle::UnsetAttr(PRInt32 aNameSpaceID,
                                                    nsIAtom* aAttribute,
                                                    PRBool aNotify)
 {
-  nsAutoScriptBlocker scriptBlocker;
+  nsAutoRemovableScriptBlocker scriptBlocker;
   if (aAttribute == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
     // Have to do this before clearing flag. See RemoveFromIdTable
     RemoveFromIdTable();

@@ -54,7 +54,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsIScrollableFrame.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsStyleContext.h"
@@ -62,6 +62,7 @@
 #include "nsITimer.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
+#include "nsIDOMNSDocument.h"
 #include "nsPIBoxObject.h"
 #include "nsINodeInfo.h"
 #include "nsLayoutUtils.h"
@@ -78,6 +79,10 @@
  * do this until the timer finally first because the user has stopped moving
  * the mouse. Then do all the queued requests in on shot.
  */
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 // the longest amount of time that can go by before the use
 // notices it as a delay.
@@ -164,7 +169,7 @@ NS_IMPL_ISUPPORTS1(nsListScrollSmoother, nsITimerCallback)
 
 nsListBoxBodyFrame::nsListBoxBodyFrame(nsIPresShell* aPresShell,
                                        nsStyleContext* aContext,
-                                       nsBoxLayout* aLayoutManager)
+                                       nsIBoxLayout* aLayoutManager)
   : nsBoxFrame(aPresShell, aContext, PR_FALSE, aLayoutManager),
     mTopFrame(nsnull),
     mBottomFrame(nsnull),
@@ -214,8 +219,8 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
   nsIScrollableFrame* scrollFrame = nsLayoutUtils::GetScrollableFrameFor(this);
   if (scrollFrame) {
     nsIBox* verticalScrollbar = scrollFrame->GetScrollbarBox(PR_TRUE);
-    nsScrollbarFrame* scrollbarFrame = do_QueryFrame(verticalScrollbar);
-    if (scrollbarFrame) {
+    if (verticalScrollbar) {
+      nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(verticalScrollbar);
       scrollbarFrame->SetScrollbarMediatorContent(GetContent());
     }
   }
@@ -353,7 +358,7 @@ nsListBoxBodyFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 ///////////// nsIScrollbarMediator ///////////////
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::PositionChanged(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
+nsListBoxBodyFrame::PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
 { 
   if (mScrolling || mRowHeight == 0)
     return NS_OK;
@@ -423,7 +428,7 @@ nsListBoxBodyFrame::VisibilityChanged(PRBool aVisible)
 }
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex)
+nsListBoxBodyFrame::ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
   if (aOldIndex == aNewIndex)
     return NS_OK;
@@ -1106,22 +1111,6 @@ nsListBoxBodyFrame::ReverseDestroyRows(PRInt32& aRowsToLose)
                      NS_FRAME_HAS_DIRTY_CHILDREN);
 }
 
-static bool
-IsListItemChild(nsListBoxBodyFrame* aParent, nsIContent* aChild,
-                nsIFrame** aChildFrame)
-{
-  *aChildFrame = nsnull;
-  if (!aChild->IsXUL() || aChild->Tag() != nsGkAtoms::listitem) {
-    return false;
-  }
-  nsIFrame* existingFrame = aChild->GetPrimaryFrame();
-  if (existingFrame && existingFrame->GetParent() != aParent) {
-    return false;
-  }
-  *aChildFrame = existingFrame;
-  return true;
-}
-
 //
 // Get the nsIBox for the first visible listitem, and if none exists,
 // create one.
@@ -1169,14 +1158,6 @@ nsListBoxBodyFrame::GetFirstItemBox(PRInt32 aOffset, PRBool* aCreated)
   }
 
   if (startContent) {  
-    nsIFrame* existingFrame;
-    if (!IsListItemChild(this, startContent, &existingFrame)) {
-      return GetFirstItemBox(++aOffset, aCreated);
-    }
-    if (existingFrame) {
-      return existingFrame->IsBoxFrame() ? existingFrame : nsnull;
-    }
-
     // Either append the new frame, or prepend it (at index 0)
     // XXX check here if frame was even created, it may not have been if
     //     display: none was on listitem content
@@ -1227,16 +1208,21 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
       // There is a content node that wants a frame.
       nsIContent *nextContent = parentContent->GetChildAt(i + aOffset + 1);
 
-      nsIFrame* existingFrame;
-      if (!IsListItemChild(this, nextContent, &existingFrame)) {
+      if (!nextContent->IsXUL() ||
+          nextContent->Tag() != nsGkAtoms::listitem)
         return GetNextItemBox(aBox, ++aOffset, aCreated);
-      }
+
+      nsPresContext* presContext = PresContext();
+      nsIFrame* existingFrame = nextContent->GetPrimaryFrame();
+
+      if (existingFrame && existingFrame->GetParent() != this)
+        return GetNextItemBox(aBox, ++aOffset, aCreated);
+
       if (!existingFrame) {
         // Either append the new frame, or insert it after the current frame
         PRBool isAppend = result != mLinkupFrame && mRowsToPrepend <= 0;
         nsIFrame* prevFrame = isAppend ? nsnull : aBox;
       
-        nsPresContext* presContext = PresContext();
         nsCSSFrameConstructor* fc = presContext->PresShell()->FrameConstructor();
         fc->CreateListBoxContent(presContext, this, prevFrame, nextContent,
                                  &result, isAppend, PR_FALSE, nsnull);
@@ -1527,12 +1513,12 @@ nsListBoxBodyFrame::RemoveChildFrame(nsBoxLayoutState &aState,
 
 // Creation Routines ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsBoxLayout> NS_NewListBoxLayout();
+already_AddRefed<nsIBoxLayout> NS_NewListBoxLayout();
 
 nsIFrame*
 NS_NewListBoxBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  nsCOMPtr<nsBoxLayout> layout = NS_NewListBoxLayout();
+  nsCOMPtr<nsIBoxLayout> layout = NS_NewListBoxLayout();
   if (!layout) {
     return nsnull;
   }

@@ -109,7 +109,7 @@ ContentPermissionPrompt.prototype = {
       }
     }];
 
-    let message = browserBundle.formatStringFromName(entityName + ".wantsTo",
+    let message = browserBundle.formatStringFromName(entityName + ".siteWantsTo",
                                                      [request.uri.host], 1);
     let newBar = notificationBox.appendNotification(message,
                                                     request.type,

@@ -95,8 +95,8 @@
       <property name="visibleTabs" readonly="true">
         <getter><![CDATA[
           return Array.filter(this.tabs, function(tab) {
-            return !tab.hidden && !tab.closing;
-          });
+            return !tab.hidden && this._removingTabs.indexOf(tab) == -1;
+          }, this);
         ]]></getter>
       </property>
       <field name="mURIFixup" readonly="true">
@@ -208,7 +208,7 @@
           //
           // Fixing bug 630826 could make that happen automatically.
           // Fixing bug 630830 could avoid the ugly hack below.
-
+          
           let closeMenuItem = document.getElementById("menu_close");
           let parentPopup = closeMenuItem.parentNode;
           let nextItem = closeMenuItem.nextSibling;
@@ -777,10 +777,12 @@
         <body>
           <![CDATA[
             var newTitle = "";
+            var docTitle;
             var docElement = this.ownerDocument.documentElement;
             var sep = docElement.getAttribute("titlemenuseparator");
 
-            var docTitle = aBrowser.contentTitle;
+            if (aBrowser.docShell.contentViewer)
+              docTitle = aBrowser.contentTitle;
 
             if (!docTitle)
               docTitle = docElement.getAttribute("titledefault");
@@ -857,7 +859,7 @@
             var oldBrowser = this.mCurrentBrowser;
             if (oldBrowser) {
               oldBrowser.setAttribute("type", "content-targetable");
-              oldBrowser.docShellIsActive = false;
+              oldBrowser.docShell.isActive = false;
             }
 
             var updatePageReport = false;
@@ -867,8 +869,7 @@
               updatePageReport = true;
 
             newBrowser.setAttribute("type", "content-primary");
-            newBrowser.docShellIsActive =
-              (window.windowState != window.STATE_MINIMIZED);
+            newBrowser.docShell.isActive = true;
             this.mCurrentBrowser = newBrowser;
             this.mCurrentTab = this.selectedTab;
             this.showTab(this.mCurrentTab);
@@ -879,10 +880,6 @@
             // Update the URL bar.
             var loc = this.mCurrentBrowser.currentURI;
 
-#ifdef MOZ_E10S_COMPAT
-            // Bug 666801 - WebProgress support for e10s and
-            // Bug 666809 - SecurityUI support for e10s
-#else
             var webProgress = this.mCurrentBrowser.webProgress;
             var securityUI = this.mCurrentBrowser.securityUI;
 
@@ -893,7 +890,6 @@
               this._callProgressListeners(null, "onSecurityChange",
                                           [webProgress, null, securityUI.state], true, false);
             }
-#endif
 
             var listener = this.mTabListeners[this.tabContainer.selectedIndex] || null;
             if (listener && listener.mStateFlags) {
@@ -905,11 +901,7 @@
 
             // Don't switch the fast find or update the titlebar (bug 540248) - this tab switch is temporary
             if (!this._previewMode) {
-#ifdef MOZ_E10S_COMPAT
-              // Bug 666816 - TypeAheadFind support for e10s
-#else
               this._fastFind.setDocShell(this.mCurrentBrowser.docShell);
-#endif
 
               this.updateTitlebar();
 
@@ -955,15 +947,7 @@
               this._tabAttrModified(this.mCurrentTab);
 
               // Adjust focus
-              oldBrowser._urlbarFocused = (gURLBar && gURLBar.focused);
               do {
-                // When focus is in the tab bar, retain it there.
-                if (document.activeElement == oldTab) {
-                  // We need to explicitly focus the new tab, because
-                  // tabbox.xml does this only in some cases.
-                  this.mCurrentTab.focus();
-                  break;
-                }
 
                 // If there's a tabmodal prompt showing, focus it.
                 if (newBrowser.hasAttribute("tabmodalPromptShowing")) {
@@ -977,11 +961,8 @@
                 // Focus the location bar if it was previously focused for that tab.
                 // In full screen mode, only bother making the location bar visible
                 // if the tab is a blank one.
+                oldBrowser._urlbarFocused = (gURLBar && gURLBar.focused);
                 if (newBrowser._urlbarFocused && gURLBar) {
-
-                  // Explicitly close the popup if the URL bar retains focus
-                  gURLBar.closePopup();
-
                   if (!window.fullScreen) {
                     gURLBar.focus();
                     break;
@@ -1018,7 +999,7 @@
       <method name="_tabAttrModified">
         <parameter name="aTab"/>
         <body><![CDATA[
-          if (aTab.closing)
+          if (this._removingTabs.indexOf(aTab) > -1)
             return;
 
           // This event should be dispatched when any of these attributes change:
@@ -1271,11 +1252,6 @@
             b.setAttribute("contextmenu", this.getAttribute("contentcontextmenu"));
             b.setAttribute("tooltip", this.getAttribute("contenttooltip"));
 
-            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
-                Services.prefs.getBoolPref("browser.tabs.remote")) {
-              b.setAttribute("remote", "true");
-            }
-
             if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed &&
                 window.windowState == window.STATE_NORMAL) {
               b.setAttribute("showresizer", "true");
@@ -1323,11 +1299,7 @@
             const filter = Components.classes["@mozilla.org/appshell/component/browser-status-filter;1"]
                                      .createInstance(Components.interfaces.nsIWebProgress);
             filter.addProgressListener(tabListener, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
-#ifdef MOZ_E10S_COMPAT
-            // Bug 666801 - WebProgress support for e10s
-#else
             b.webProgress.addProgressListener(filter, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
-#endif
             this.mTabListeners[position] = tabListener;
             this.mTabFilters[position] = filter;
 
@@ -1358,14 +1330,14 @@
                 flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL;
               try {
                 b.loadURIWithFlags(aURI, flags, aReferrerURI, aCharset, aPostData);
-              } catch (ex) {
-                Cu.reportError(ex);
+
               }
+              catch (ex) { }
             }
 
             // We start our browsers out as inactive, and then maintain
             // activeness in the tab switcher.
-            b.docShellIsActive = false;
+            b.docShell.isActive = false;
 
             // Check if we're opening a tab related to the current tab and
             // move it to after the current tab.
@@ -1483,7 +1455,7 @@
             // Handle requests for synchronously removing an already
             // asynchronously closing tab.
             if (!animate &&
-                aTab.closing) {
+                this._removingTabs.indexOf(aTab) > -1) {
               this._endRemoveTab(aTab);
               return;
             }
@@ -1537,7 +1509,7 @@
         <parameter name="aCloseWindowFastpath"/>
         <body>
           <![CDATA[
-            if (aTab.closing || this._windowIsClosing)
+            if (this._removingTabs.indexOf(aTab) > -1 || this._windowIsClosing)
               return false;
 
             var browser = this.getBrowserForTab(aTab);
@@ -1567,12 +1539,9 @@
               newTab = true;
             }
 
-            aTab.closing = true;
             this._removingTabs.push(aTab);
-            if (newTab)
-              this.addTab("about:blank", {skipAnimation: true});
-            else
-              this.tabContainer.updateVisibility();
+
+            this.tabContainer.updateVisibility();
 
             // We're committed to closing the tab now.
             // Dispatch a notification.
@@ -1584,11 +1553,7 @@
 
             // Remove the tab's filter and progress listener.
             const filter = this.mTabFilters[aTab._tPos];
-#ifdef MOZ_E10S_COMPAT
-            // Bug 666801 - WebProgress support for e10s
-#else 
             browser.webProgress.removeProgressListener(filter);
-#endif
             filter.removeProgressListener(this.mTabListeners[aTab._tPos]);
             this.mTabListeners[aTab._tPos].destroy();
 
@@ -1632,6 +1597,8 @@
 
             // update the UI early for responsiveness
             aTab.collapsed = true;
+            if (aNewTab)
+              this.addTab("about:blank", {skipAnimation: true});
             this.tabContainer._fillTrailingGap();
             this._blurTab(aTab);
 
@@ -1710,10 +1677,6 @@
             // a consistent state (tab removed, tab positions updated, etc.).
             panel.removeChild(browser.parentNode);
 
-            // Release the browser in case something is erroneously holding a
-            // reference to the tab after its removal.
-            aTab.linkedBrowser = null;
-
             // As the browser is removed, the removal of a dependent document can
             // cause the whole window to close. So at this point, it's possible
             // that the binding is destructed.
@@ -1744,7 +1707,7 @@
 
             if (aTab.owner &&
                 !aTab.owner.hidden &&
-                !aTab.owner.closing &&
+                this._removingTabs.indexOf(aTab.owner) == -1 &&
                 Services.prefs.getBoolPref("browser.tabs.selectOwnerOnClose")) {
               this.selectedTab = aTab.owner;
               return;
@@ -1755,7 +1718,7 @@
             let numTabs = remainingTabs.length;
             if (numTabs == 0 || numTabs == 1 && remainingTabs[0] == aTab) {
               remainingTabs = Array.filter(this.tabs, function(tab) {
-                return !tab.closing;
+                return this._removingTabs.indexOf(tab) == -1;
               }, this);
             }
 
@@ -1970,7 +1933,7 @@
         <body>
         <![CDATA[
           if (!aTab.hidden && !aTab.pinned && !aTab.selected &&
-              !aTab.closing) {
+              this._removingTabs.indexOf(aTab) == -1) {
             aTab.setAttribute("hidden", "true");
             this.tabContainer.adjustTabstrip();
             let event = document.createEvent("Events");
@@ -2033,18 +1996,13 @@
            in the current window, in which case this will do nothing. -->
       <method name="replaceTabWithWindow">
         <parameter name="aTab"/>
-        <parameter name="aOptions"/>
         <body>
           <![CDATA[
             if (this.tabs.length == 1)
               return null;
 
-            var options = "chrome,dialog=no,all";
-            for (var name in aOptions)
-              options += "," + name + "=" + aOptions[name];
-
             // tell a new window to take the "dropped" tab
-            return window.openDialog(getBrowserURL(), "_blank", options, aTab);
+            return window.openDialog(getBrowserURL(), "_blank", "dialog=no,all", aTab);
           ]]>
         </body>
       </method>
@@ -2464,12 +2422,6 @@
             case "keypress":
               this._handleKeyEvent(aEvent);
               break;
-            case "sizemodechange":
-              if (aEvent.target == window) {
-                this.mCurrentBrowser.docShellIsActive =
-                  (window.windowState != window.STATE_MINIMIZED);
-              }
-              break;
           }
         ]]></body>
       </method>
@@ -2479,7 +2431,6 @@
           this.mCurrentBrowser = this.mPanelContainer.childNodes[0].firstChild.firstChild;
           this.mCurrentTab = this.tabContainer.firstChild;
           document.addEventListener("keypress", this, false);
-          window.addEventListener("sizemodechange", this, false);
 
           var uniqueId = "panel" + Date.now();
           this.mPanelContainer.childNodes[0].id = uniqueId;
@@ -2542,7 +2493,6 @@
             this.mTabListeners[i] = null;
           }
           document.removeEventListener("keypress", this, false);
-          window.removeEventListener("sizemodechange", this, false);
         ]]>
       </destructor>
 
@@ -2952,7 +2902,7 @@
             tabWidth += "px";
             for (let i = numPinned; i < tabs.length; i++) {
               let tab = tabs[i];
-              tab.style.setProperty("max-width", tabWidth, "important");
+              tab.style.maxWidth = tabWidth;
               if (!isEndTab) { // keep tabs the same width
                 tab.style.MozTransition = "none";
                 tab.clientTop; // flush styles to skip animation; see bug 649247
@@ -2998,7 +2948,8 @@
         <body><![CDATA[
           var numPinned = this.tabbrowser._numPinnedTabs;
           var doPosition = this.getAttribute("overflow") == "true" &&
-                           numPinned > 0;
+                           numPinned > 0 &&
+                           numPinned < this.tabbrowser.visibleTabs.length;
 
           if (doPosition) {
             this.setAttribute("positionpinnedtabs", "true");
@@ -3126,7 +3077,7 @@
           var tab = this._getDragTargetTab(event);
           if (window.getComputedStyle(this, null).direction == "ltr") {
             for (let i = tab ? tab._tPos : 0; i < tabs.length; i++)
-              if (event.screenX < tabs[i].boxObject.screenX + tabs[i].boxObject.width / 2)
+              if (event.screenX < tabs[i].boxObject.screenX + tabs[i].boxObject.width / 2) 
                 return i;
           } else {
             for (let i = tab ? tab._tPos : 0; i < tabs.length; i++)
@@ -3191,14 +3142,11 @@
       <method name="_handleNewTab">
         <parameter name="tab"/>
         <body><![CDATA[
-          if (tab.parentNode != this)
-            return;
-
-          this.adjustTabstrip();
-
-          if (tab._fullyOpen)
+          if (tab.parentNode != this || tab._fullyOpen)
             return;
           tab._fullyOpen = true;
+
+          this.adjustTabstrip();
 
           if (tab.getAttribute("selected") == "true") {
             this._fillTrailingGap();
@@ -3220,7 +3168,7 @@
         <parameter name="aTab"/>
         <body>
         <![CDATA[
-          return !aTab.closing;
+          return this.tabbrowser._removingTabs.indexOf(aTab) == -1;
         ]]>
         </body>
       </method>
@@ -3243,29 +3191,24 @@
 
         if (tab.getAttribute("fadein") == "true")
           this._handleNewTab(tab);
-        else if (tab.closing)
+        else if (this.tabbrowser._removingTabs.indexOf(tab) > -1)
           this.tabbrowser._endRemoveTab(tab);
       ]]></handler>
 
       <handler event="dblclick"><![CDATA[
-#ifndef XP_MACOSX
-        // When the tabbar has an unified appearance with the titlebar
-        // and menubar, a double-click in it should have the same behavior
-        // as double-clicking the titlebar
-        if (TabsInTitlebar.enabled ||
-            (TabsOnTop.enabled && this.parentNode._dragBindingAlive))
+#ifdef MOZ_WIDGET_GTK2
+        // Disable this on GTK2 when the menubar is draggable, since (a)
+        // the menubar and tabbbar have unified appearance and should
+        // thus not have different behavior (though this condition alone
+        // applies to more cases) and (b) it interacts badly with the
+        // drag handling that we use for dragging either one.
+        if (this.parentNode._dragBindingAlive)
           return;
 #endif
-
-        if (event.button != 0 ||
-            event.originalTarget.localName != "box")
-          return;
-
         // See hack note in the tabbrowser-close-tab-button binding
-        if (!this._blockDblClick)
+        if (!this._blockDblClick && event.button == 0 &&
+            event.originalTarget.localName == "box")
           BrowserOpenTab();
-
-        event.preventDefault();
       ]]></handler>
 
       <handler event="click"><![CDATA[
@@ -3339,17 +3282,6 @@
 
         let canvas = tabPreviews.capture(tab, false);
         dt.setDragImage(canvas, 0, 0);
-
-        // _dragOffsetX/Y give the coordinates that the mouse should be
-        // positioned relative to the corner of the new window created upon
-        // dragend such that the mouse appears to have the same position
-        // relative to the corner of the dragged tab.
-        function clientX(ele) ele.getBoundingClientRect().left;
-        let tabOffsetX = clientX(tab) -
-                         clientX(this.children[0].pinned ? this.children[0] : this);
-        tab._dragOffsetX = event.screenX - window.screenX - tabOffsetX;
-        tab._dragOffsetY = event.screenY - window.screenY;
-
         event.stopPropagation();
       ]]></handler>
 
@@ -3402,7 +3334,7 @@
         var scrollRect = tabStrip.scrollClientRect;
         var rect = this.getBoundingClientRect();
         var minMargin = scrollRect.left - rect.left;
-        var maxMargin = Math.min(minMargin + scrollRect.width,
+        var maxMargin = Math.min(minMargin + scrollRect.width, 
                                  scrollRect.right);
         if (!ltr)
           [minMargin, maxMargin] = [this.clientWidth - maxMargin,
@@ -3529,11 +3461,6 @@
             }
           }
         }
-
-        // these offsets are only used in dragend, but we need to free them here
-        // as well
-        delete draggedTab._dragOffsetX;
-        delete draggedTab._dragOffsetY;
       ]]></handler>
 
       <handler event="dragend"><![CDATA[
@@ -3548,7 +3475,6 @@
 
         // Disable detach within the browser toolbox
         var eX = event.screenX;
-        var eY = event.screenY;
         var wX = window.screenX;
         // check if the drop point is horizontally within the window
         if (eX > wX && eX < (wX + window.outerWidth)) {
@@ -3556,45 +3482,13 @@
           // also avoid detaching if the the tab was dropped too close to
           // the tabbar (half a tab)
           let endScreenY = bo.screenY + 1.5 * bo.height;
+          let eY = event.screenY;
           if (eY < endScreenY && eY > window.screenY)
             return;
         }
 
         var draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
-        // screen.availLeft et. al. only check the screen that this window is on,
-        // but we want to look at the screen the tab is being dropped onto.
-        var sX = {}, sY = {}, sWidth = {}, sHeight = {};
-        Cc["@mozilla.org/gfx/screenmanager;1"]
-          .getService(Ci.nsIScreenManager)
-          .screenForRect(eX, eY, 1, 1)
-          .GetAvailRect(sX, sY, sWidth, sHeight);
-        // ensure new window entirely within screen
-        var winWidth = Math.min(window.outerWidth, sWidth.value);
-        var winHeight = Math.min(window.outerHeight, sHeight.value);
-        var left = Math.min(Math.max(eX - draggedTab._dragOffsetX, sX.value),
-                            sX.value + sWidth.value - winWidth);
-        var top = Math.min(Math.max(eY - draggedTab._dragOffsetY, sY.value),
-                           sY.value + sHeight.value - winHeight);
-
-        delete draggedTab._dragOffsetX;
-        delete draggedTab._dragOffsetY;
-
-        if (this.tabbrowser.tabs.length == 1) {
-          // resize _before_ move to ensure the window fits the new screen.  if
-          // the window is too large for its screen, the window manager may do
-          // automatic repositioning.
-          window.resizeTo(winWidth, winHeight);
-          window.moveTo(left, top);
-          window.focus();
-        } else {
-          this.tabbrowser.replaceTabWithWindow(draggedTab, { screenX: left,
-                                                             screenY: top,
-#ifndef XP_WIN
-                                                             outerWidth: winWidth,
-                                                             outerHeight: winHeight
-#endif
-                                                             });
-        }
+        this.tabbrowser.replaceTabWithWindow(draggedTab);
         event.stopPropagation();
       ]]></handler>
 
@@ -3738,7 +3632,6 @@
       <field name="mOverCloseButton">false</field>
       <field name="mCorrespondingMenuitem">null</field>
       <field name="_fullyOpen">false</field>
-      <field name="closing">false</field>
     </implementation>
 
     <handlers>
@@ -3760,7 +3653,7 @@
         if (this.mOverCloseButton) {
           event.stopPropagation();
         }
-        else if (this.selected) {
+        else {
           this.style.MozUserFocus = 'ignore';
           this.clientTop; // just using this to flush style updates
         }
@@ -3842,15 +3735,10 @@
 
           var tabstripBO = tabContainer.mTabstrip.scrollBoxObject;
           for (var i = 0; i < this.childNodes.length; i++) {
-            let curTab = this.childNodes[i].tab;
-            if (!curTab) // "Tab Groups" menuitem and its menuseparator
-              continue;
-            let curTabBO = curTab.boxObject;
-            if (!curTabBO) // "Tabs From Other Computers" menuitem
-              continue;
+            var curTabBO = this.childNodes[i].tab.boxObject;
             if (curTabBO.screenX >= tabstripBO.screenX &&
                 curTabBO.screenX + curTabBO.width <= tabstripBO.screenX + tabstripBO.width)
-              this.childNodes[i].setAttribute("tabIsVisible", "true");
+              this.childNodes[i].setAttribute("tabIsVisible", "true"); 
             else
               this.childNodes[i].removeAttribute("tabIsVisible");
           }
@@ -3861,7 +3749,7 @@
         <parameter name="aTab"/>
         <body><![CDATA[
           var menuItem = document.createElementNS(
-            "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+            "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", 
             "menuitem");
 
           menuItem.setAttribute("class", "menuitem-iconic alltabs-item menuitem-with-favicon");
@@ -3924,7 +3812,7 @@
         // clear out the menu popup and remove the listeners
         for (let i = this.childNodes.length - 1; i > 0; i--) {
           let menuItem = this.childNodes[i];
-          if (menuItem.tab) {
+          if (!menuItem.hasAttribute("keepme")) {
             menuItem.removeEventListener("command", this, false);
             menuItem.tab.mCorrespondingMenuitem = null;
             this.removeChild(menuItem);

@@ -151,9 +151,10 @@ Item.prototype = {
     this.dragOptions = {
       cancelClass: 'close stackExpander',
       start: function(e, ui) {
-        UI.setActive(this);
-        if (this.isAGroupItem)
+        if (this.isAGroupItem) {
+          UI.setActive(this);
           this._unfreezeItemSize();
+        }
         // if we start dragging a tab within a group, start with dropSpace on.
         else if (this.parent != null)
           this.parent._dropSpaceActive = true;
@@ -164,13 +165,9 @@ Item.prototype = {
       },
       stop: function() {
         drag.info.stop();
-
-        if (!this.isAGroupItem && !this.parent) {
-          new GroupItem([drag.info.$el], {focusTitle: true});
-          gTabView.firstUseExperienced = true;
-        }
-
         drag.info = null;
+        if (!this.isAGroupItem && !this.parent)
+          gTabView.firstUseExperienced = true;
       },
       // The minimum the mouse must move after mouseDown in order to move an 
       // item
@@ -204,7 +201,8 @@ Item.prototype = {
       minWidth: 90,
       minHeight: 90,
       start: function(e,ui) {
-        UI.setActive(this);
+        if (this.isAGroupItem)
+          UI.setActive(this);
         resize.info = new Drag(this, e);
       },
       resize: function(e,ui) {
@@ -545,7 +543,9 @@ Item.prototype = {
     var defaultRadius = Trenches.defaultRadius;
     Trenches.defaultRadius = 2 * defaultRadius; // bump up from 10 to 20!
 
-    var FauxDragInfo = new Drag(this, {});
+    var event = {startPosition:{}}; // faux event
+    var FauxDragInfo = new Drag(this, event, true);
+    // true == isFauxDrag
     FauxDragInfo.snap('none', false);
     FauxDragInfo.stop(immediately);
 

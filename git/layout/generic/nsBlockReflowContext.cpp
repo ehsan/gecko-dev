@@ -173,6 +173,8 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
               nsSize availSpace(aRS.ComputedWidth(), aRS.ComputedHeight());
               outerReflowState = new nsHTMLReflowState(prescontext,
                                                        aRS, frame, availSpace);
+              if (!outerReflowState)
+                goto done;
             }
             {
               nsSize availSpace(outerReflowState->ComputedWidth(),

@@ -3,7 +3,7 @@ netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 var gWindowUtils;
 
 try {
-  gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
+  gWindowUtils = window.QueryInterface(CI.nsIInterfaceRequestor).getInterface(CI.nsIDOMWindowUtils);
   if (gWindowUtils && !gWindowUtils.compareCanvases)
     gWindowUtils = null;
 } catch (e) {
@@ -36,19 +36,7 @@ function compareSnapshots(s1, s2, expected) {
   var s1Str, s2Str;
   var correct = false;
   if (gWindowUtils) {
-    // First, check that the canvases are the same size.
-    var equal;
-    if (s1.width != s2.width || s1.height != s2.height) {
-      equal = false;
-    } else {
-      try {
-        equal = (gWindowUtils.compareCanvases(s1, s2, {}) == 0);
-      } catch (e) {
-        equal = false;
-        ok(false, "Exception thrown from compareCanvases: " + e);
-      }
-    }
-    correct = (equal == expected);
+    correct = ((gWindowUtils.compareCanvases(s1, s2, {}) == 0) == expected);
   }
 
   if (!correct) {

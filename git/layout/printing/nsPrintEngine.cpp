@@ -113,6 +113,8 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsISelectionListener.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMRange.h"
@@ -121,7 +123,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsContentUtils.h"
 #include "nsIPresShell.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/Preferences.h"
 
 #include "nsViewsCID.h"
 #include "nsWidgetsCID.h"
@@ -164,7 +165,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIURIFixup.h"
 #include "mozilla/dom/Element.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //-----------------------------------------------------
@@ -261,6 +261,7 @@ nsPrintEngine::nsPrintEngine() :
   mIsDoingPrinting(PR_FALSE),
   mIsDoingPrintPreview(PR_FALSE),
   mProgressDialogIsShown(PR_FALSE),
+  mContainer(nsnull),
   mScreenDPI(115.0f),
   mPrt(nsnull),
   mPagePrintTimer(nsnull),
@@ -316,7 +317,7 @@ void nsPrintEngine::DestroyPrintingData()
 
 //--------------------------------------------------------
 nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
-                                   nsIWeakReference*       aContainer,
+                                   nsISupports*            aContainer,
                                    nsIDocument*            aDocument,
                                    float                   aScreenDPI,
                                    FILE*                   aDebugFile)
@@ -326,7 +327,7 @@ nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint,
   NS_ENSURE_ARG_POINTER(aDocument);
 
   mDocViewerPrint = aDocViewerPrint;
-  mContainer      = aContainer;
+  mContainer      = aContainer;      // weak reference
   mDocument       = aDocument;
   mScreenDPI      = aScreenDPI;
 
@@ -365,11 +366,11 @@ void
 nsPrintEngine::InstallPrintPreviewListener()
 {
   if (!mPrt->mPPEventListeners) {
-    nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mContainer);
-    nsCOMPtr<nsPIDOMWindow> win(do_GetInterface(docShell));
-    if (win) {
-      nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(win->GetFrameElementInternal()));
-      mPrt->mPPEventListeners = new nsPrintPreviewListener(target);
+    nsCOMPtr<nsPIDOMWindow> win(do_GetInterface(mContainer));
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(win->GetFrameElementInternal()));
+    mPrt->mPPEventListeners = new nsPrintPreviewListener(target);
+
+    if (mPrt->mPPEventListeners) {
       mPrt->mPPEventListeners->AddListeners();
     }
   }
@@ -502,7 +503,7 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
   if (aIsPrintPreview) {
     SetIsCreatingPrintPreview(PR_TRUE);
     SetIsPrintPreview(PR_TRUE);
-    nsCOMPtr<nsIMarkupDocumentViewer> viewer =
+    nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> viewer =
       do_QueryInterface(mDocViewerPrint);
     if (viewer) {
       viewer->SetTextZoom(1.0f);
@@ -535,7 +536,7 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
   PRBool isSelection = IsThereARangeSelection(mPrt->mCurrentFocusWin);
 
   // Get the docshell for this documentviewer
-  nsCOMPtr<nsIDocShell> webContainer(do_QueryReferent(mContainer, &rv));
+  nsCOMPtr<nsIDocShell> webContainer(do_QueryInterface(mContainer, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mPrt->mPrintObject = new nsPrintObject();
@@ -597,8 +598,8 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
     mPrt->mPrintSettings->GetPrintSilent(&printSilently);
 
     // Check prefs for a default setting as to whether we should print silently
-    printSilently =
-      Preferences::GetBool("print.always_print_silent", printSilently);
+    printSilently = nsContentUtils::GetBoolPref("print.always_print_silent",
+                                                printSilently);
 
     // Ask dialog to be Print Shown via the Plugable Printing Dialog Service
     // This service is for the Print Dialog and the Print Progress Dialog
@@ -766,8 +767,8 @@ nsPrintEngine::PrintPreview(nsIPrintSettings* aPrintSettings,
 {
   // Get the DocShell and see if it is busy
   // (We can't Print Preview this document if it is still busy)
-  nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
-  NS_ENSURE_STATE(docShell);
+  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(mContainer));
+  NS_ASSERTION(docShell, "This has to be a docshell");
 
   PRUint32 busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
   if (NS_FAILED(docShell->GetBusyFlags(&busyFlags)) ||
@@ -791,7 +792,7 @@ nsPrintEngine::PrintPreview(nsIPrintSettings* aPrintSettings,
 NS_IMETHODIMP
 nsPrintEngine::GetIsFramesetDocument(PRBool *aIsFramesetDocument)
 {
-  nsCOMPtr<nsIDocShell> webContainer(do_QueryReferent(mContainer));
+  nsCOMPtr<nsIDocShell> webContainer(do_QueryInterface(mContainer));
   *aIsFramesetDocument = IsParentAFrameSet(webContainer);
   return NS_OK;
 }
@@ -804,7 +805,7 @@ nsPrintEngine::GetIsIFrameSelected(PRBool *aIsIFrameSelected)
   *aIsIFrameSelected = PR_FALSE;
 
   // Get the docshell for this documentviewer
-  nsCOMPtr<nsIDocShell> webContainer(do_QueryReferent(mContainer));
+  nsCOMPtr<nsIDocShell> webContainer(do_QueryInterface(mContainer));
   // Get the currently focused window
   nsCOMPtr<nsIDOMWindow> currentFocusWin = FindFocusedDOMWindow();
   if (currentFocusWin && webContainer) {
@@ -1012,7 +1013,8 @@ nsPrintEngine::ShowPrintProgress(PRBool aIsForPrinting, PRBool& aDoNotify)
   // if it is already being shown then don't bother to find out if it should be
   // so skip this and leave mShowProgressDialog set to FALSE
   if (!mProgressDialogIsShown) {
-    showProgresssDialog = Preferences::GetBool("print.show_print_progress");
+    showProgresssDialog =
+      nsContentUtils::GetBoolPref("print.show_print_progress");
   }
 
   // Turning off the showing of Print Progress in Prefs overrides
@@ -1187,7 +1189,7 @@ nsPrintEngine::GetDocumentTitleAndURL(nsIDocument* aDoc,
   *aURLStr = nsnull;
 
   nsAutoString docTitle;
-  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aDoc);
+  nsCOMPtr<nsIDOMNSDocument> doc = do_QueryInterface(aDoc);
   doc->GetTitle(docTitle);
   if (!docTitle.IsEmpty()) {
     *aTitle = ToNewUnicode(docTitle);
@@ -1912,7 +1914,20 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   } else {
     nscoord pageWidth, pageHeight;
     mPrt->mPrintDC->GetDeviceSurfaceDimensions(pageWidth, pageHeight);
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+    // If we're in landscape mode on Linux, the device surface will have 
+    // been rotated, so for the purposes of reflowing content, we'll 
+    // treat device's height as our width and its width as our height, 
+    PRInt32 orientation;
+    mPrt->mPrintSettings->GetOrientation(&orientation);
+    if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+      adjSize = nsSize(pageHeight, pageWidth);
+    } else {
+      adjSize = nsSize(pageWidth, pageHeight);
+    }
+#else
     adjSize = nsSize(pageWidth, pageHeight);
+#endif // XP_UNIX && !XP_MACOSX
     documentIsTopLevel = PR_TRUE;
 
     if (mIsCreatingPrintPreview) {
@@ -2834,7 +2849,7 @@ nsPrintEngine::IsWindowsInOurSubTree(nsPIDOMWindow * window)
 
     if (docShellAsItem) {
       // get this DocViewer docshell
-      nsCOMPtr<nsIDocShell> thisDVDocShell(do_QueryReferent(mContainer));
+      nsCOMPtr<nsIDocShell> thisDVDocShell(do_QueryInterface(mContainer));
       while (!found) {
         nsCOMPtr<nsIDocShell> parentDocshell(do_QueryInterface(docShellAsItem));
         if (parentDocshell) {

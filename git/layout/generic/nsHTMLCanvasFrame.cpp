@@ -97,8 +97,7 @@ public:
   }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerParameters& aContainerParameters)
+                                             LayerManager* aManager)
   {
     return static_cast<nsHTMLCanvasFrame*>(mFrame)->
       BuildLayer(aBuilder, aManager, this);
@@ -106,9 +105,6 @@ public:
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager)
   {
-    if (CanvasElementFromContent(mFrame->GetContent())->ShouldForceInactiveLayer(aManager))
-      return LAYER_INACTIVE;
-
     // If compositing is cheap, just do that
     if (aManager->IsCompositingCheap())
       return mozilla::LAYER_ACTIVE;
@@ -136,7 +132,7 @@ nsHTMLCanvasFrame::Init(nsIContent* aContent,
   // We can fill in the canvas before the canvas frame is created, in
   // which case we never get around to marking the layer active. Therefore,
   // we mark it active here when we create the frame.
-  MarkLayersActive(nsChangeHint(0));
+  MarkLayersActive();
 
   return rv;
 }

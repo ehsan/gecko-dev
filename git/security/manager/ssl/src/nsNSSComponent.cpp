@@ -74,8 +74,10 @@
 #include "nsDateTimeFormatCID.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMSmartCardEvent.h"
 #include "nsIDOMCrypto.h"
 #include "nsThreadUtils.h"
@@ -391,8 +393,7 @@ nsNSSComponent::nsNSSComponent()
   mIsNetworkDown = PR_FALSE;
 }
 
-void 
-nsNSSComponent::deleteBackgroundThreads()
+nsNSSComponent::~nsNSSComponent()
 {
   if (mSSLThread)
   {
@@ -400,42 +401,15 @@ nsNSSComponent::deleteBackgroundThreads()
     delete mSSLThread;
     mSSLThread = nsnull;
   }
+  
   if (mCertVerificationThread)
   {
     mCertVerificationThread->requestExit();
     delete mCertVerificationThread;
     mCertVerificationThread = nsnull;
   }
-}
 
-void
-nsNSSComponent::createBackgroundThreads()
-{
-  NS_ASSERTION(mSSLThread == nsnull, "SSL thread already created.");
-  NS_ASSERTION(mCertVerificationThread == nsnull,
-               "Cert verification thread already created.");
-
-  mSSLThread = new nsSSLThread;
-  nsresult rv = mSSLThread->startThread();
-  if (NS_FAILED(rv)) {
-    delete mSSLThread;
-    mSSLThread = nsnull;
-    return;
-  }
-
-  mCertVerificationThread = new nsCertVerificationThread;
-  rv = mCertVerificationThread->startThread();
-  if (NS_FAILED(rv)) {
-    delete mCertVerificationThread;
-    mCertVerificationThread = nsnull;
-  }
-}
-
-nsNSSComponent::~nsNSSComponent()
-{
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::dtor\n"));
-
-  deleteBackgroundThreads();
 
   if (mUpdateTimerInitialized) {
     {
@@ -547,13 +521,13 @@ nsNSSComponent::DispatchEventToWindow(nsIDOMWindow *domWin,
   // NOTE: it's not an error to say that we aren't going to dispatch
   // the event.
   {
-    nsCOMPtr<nsIDOMWindow> domWindow = domWin;
-    if (!domWindow) {
+    nsCOMPtr<nsIDOMWindowInternal> intWindow = do_QueryInterface(domWin);
+    if (!intWindow) {
       return NS_OK; // nope, it's not an internal window
     }
 
     nsCOMPtr<nsIDOMCrypto> crypto;
-    domWindow->GetCrypto(getter_AddRefs(crypto));
+    intWindow->GetCrypto(getter_AddRefs(crypto));
     if (!crypto) {
       return NS_OK; // nope, it doesn't have a crypto property
     }
@@ -576,9 +550,14 @@ nsNSSComponent::DispatchEventToWindow(nsIDOMWindow *domWin,
   }
 
   // create the event
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(doc, &rv);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   nsCOMPtr<nsIDOMEvent> event;
-  rv = doc->CreateEvent(NS_LITERAL_STRING("Events"), 
-                        getter_AddRefs(event));
+  rv = docEvent->CreateEvent(NS_LITERAL_STRING("Events"), 
+                             getter_AddRefs(event));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2034,7 +2013,13 @@ nsNSSComponent::Init()
   if (mClientAuthRememberService)
     mClientAuthRememberService->Init();
 
-  createBackgroundThreads();
+  mSSLThread = new nsSSLThread();
+  if (mSSLThread)
+    mSSLThread->startThread();
+  mCertVerificationThread = new nsCertVerificationThread();
+  if (mCertVerificationThread)
+    mCertVerificationThread->startThread();
+
   if (!mSSLThread || !mCertVerificationThread)
   {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, could not create threads\n"));
@@ -2646,9 +2631,14 @@ nsNSSComponent::DoProfileBeforeChange(nsISupports* aSubject)
 void
 nsNSSComponent::DoProfileChangeNetRestore()
 {
-  /* XXX this doesn't work well, since nothing expects null pointers */
-  deleteBackgroundThreads();
-  createBackgroundThreads();
+  delete mSSLThread;
+  mSSLThread = new nsSSLThread();
+  if (mSSLThread)
+    mSSLThread->startThread();
+  delete mCertVerificationThread;
+  mCertVerificationThread = new nsCertVerificationThread();
+  if (mCertVerificationThread)
+    mCertVerificationThread->startThread();
   mIsNetworkDown = PR_FALSE;
 }
 

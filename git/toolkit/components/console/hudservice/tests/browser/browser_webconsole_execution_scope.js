@@ -53,7 +53,10 @@ function testExecutionScope() {
 
   openConsole();
 
-  let jsterm = HUDService.getHudByWindow(content).jsterm;
+  let hudId = HUDService.displaysIndex()[0];
+
+  let HUD = HUDService.hudReferences[hudId];
+  let jsterm = HUD.jsterm;
 
   jsterm.clearOutput();
   jsterm.execute("location;");

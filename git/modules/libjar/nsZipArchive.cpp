@@ -65,7 +65,6 @@
 #if defined(XP_WIN)
 #include <windows.h>
 #endif
-#include "mozilla/Telemetry.h"
 
 /**
  * Global allocator used with zlib. Destroyed in module shutdown.
@@ -619,9 +618,10 @@ MOZ_WIN_MEM_TRY_BEGIN
 
   //-- Read the central directory headers
   buf = startp + centralOffset;
-  PRUint32 sig = 0;
-  while (buf + PRInt32(sizeof(PRUint32)) <= endp &&
-         (sig = xtolong(buf)) == CENTRALSIG) {
+  if (endp - buf < PRInt32(sizeof(PRUint32)))
+      return NS_ERROR_FILE_CORRUPTED;
+  PRUint32 sig = xtolong(buf);
+  while (sig == CENTRALSIG) {
     // Make sure there is enough data available.
     if (endp - buf < ZIPCENTRAL_SIZE)
       return NS_ERROR_FILE_CORRUPTED;
@@ -654,7 +654,7 @@ MOZ_WIN_MEM_TRY_BEGIN
     item->next = mFiles[hash];
     mFiles[hash] = item;
 
-    sig = 0;
+    sig = xtolong(buf);
   } /* while reading central directory records */
 
   if (sig != ENDSIG)
@@ -1080,16 +1080,11 @@ nsZipItemPtr_base::nsZipItemPtr_base(nsZipArchive *aZip, const char * aEntryName
 
   nsZipCursor cursor(item, aZip, mAutoBuf, size, doCRC);
   mReturnBuf = cursor.Read(&mReadlen);
-  if (!mReturnBuf) {
-    Telemetry::Accumulate(Telemetry::ZIPARCHIVE_CRC, false);
+  if (!mReturnBuf)
     return;
-  }
 
   if (mReadlen != item->RealSize()) {
     NS_ASSERTION(mReadlen == item->RealSize(), "nsZipCursor underflow");
     mReturnBuf = nsnull;
-    return;
   }
-
-  Telemetry::Accumulate(Telemetry::ZIPARCHIVE_CRC, true);
 }

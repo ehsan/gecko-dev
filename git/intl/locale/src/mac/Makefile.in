@@ -51,6 +51,7 @@ LIBXUL_LIBRARY  = 1
 CPPSRCS		= \
 		nsCollationMacUC.cpp \
 		nsDateTimeFormatMac.cpp \
+		nsMacLocale.cpp \
 		nsMacCharset.cpp \
 		$(NULL)
 

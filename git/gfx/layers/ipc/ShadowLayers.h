@@ -66,7 +66,6 @@ class ShadowCanvasLayer;
 class SurfaceDescriptor;
 class ThebesBuffer;
 class Transaction;
-class SharedImage;
 
 /**
  * We want to share layer trees across thread contexts and address
@@ -157,6 +156,7 @@ public:
    */
   void CreatedThebesBuffer(ShadowableLayer* aThebes,
                            const nsIntRegion& aFrontValidRegion,
+                           float aXResolution, float aYResolution,
                            const nsIntRect& aBufferRect,
                            const SurfaceDescriptor& aInitialFrontBuffer);
   /**
@@ -165,11 +165,10 @@ public:
    */
   void CreatedImageBuffer(ShadowableLayer* aImage,
                           nsIntSize aSize,
-                          const SharedImage& aInitialFrontImage);
+                          const SurfaceDescriptor& aInitialFrontSurface);
   void CreatedCanvasBuffer(ShadowableLayer* aCanvas,
                            nsIntSize aSize,
-                           const SurfaceDescriptor& aInitialFrontSurface,
-                           bool aNeedYFlip);
+                           const SurfaceDescriptor& aInitialFrontSurface);
 
   /**
    * The specified layer is destroying its buffers.
@@ -226,7 +225,7 @@ public:
    * ImageLayers.  This is slow, and will be optimized.
    */
   void PaintedImage(ShadowableLayer* aImage,
-                    const SharedImage& aNewFrontImage);
+                    const SurfaceDescriptor& aNewFrontSurface);
   void PaintedCanvas(ShadowableLayer* aCanvas,
                      const SurfaceDescriptor& aNewFrontSurface);
 
@@ -493,7 +492,8 @@ public:
    * values.  This is called when a new buffer has been created.
    */
   virtual void SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
-                              const nsIntRegion& aValidRegion) = 0;
+                              const nsIntRegion& aValidRegion,
+                              float aXResolution, float aYResolution) = 0;
 
   virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
@@ -511,6 +511,16 @@ public:
 
   /**
    * CONSTRUCTION PHASE ONLY
+   */
+  virtual void SetResolution(float aXResolution, float aYResolution)
+  {
+    mXResolution = aXResolution;
+    mYResolution = aYResolution;
+    Mutated();
+  }
+
+  /**
+   * CONSTRUCTION PHASE ONLY
    *
    * Publish the remote layer's back ThebesLayerBuffer to this shadow,
    * swapping out the old front ThebesLayerBuffer (the new back buffer
@@ -519,6 +529,7 @@ public:
   virtual void
   Swap(const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
        ThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
+       float* aNewXResolution, float* aNewYResolution,
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion) = 0;
 
   /**
@@ -567,7 +578,7 @@ public:
    * transaction to bring in real pixels.  Init() may only be called
    * once.
    */
-  virtual void Init(const SurfaceDescriptor& front, const nsIntSize& aSize, bool needYFlip) = 0;
+  virtual void Init(const SurfaceDescriptor& front, const nsIntSize& aSize) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -608,13 +619,13 @@ public:
    * transaction to bring in real pixels.  Init() may only be called
    * once.
    */
-  virtual PRBool Init(const SharedImage& front, const nsIntSize& aSize) = 0;
+  virtual PRBool Init(const SurfaceDescriptor& front, const nsIntSize& aSize) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY
    * @see ShadowCanvasLayer::Swap
    */
-  virtual void Swap(const SharedImage& aFront, SharedImage* aNewBack) = 0;
+  virtual void Swap(const SurfaceDescriptor& aFront, SurfaceDescriptor* aNewBack) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY

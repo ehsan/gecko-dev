@@ -42,7 +42,6 @@
 
 #include "jscntxt.h"
 #include "jsexn.h"
-#include "jsmath.h"
 #include "json.h"
 
 #include "jsobjinlines.h"
@@ -111,7 +110,7 @@ GlobalObject::create(JSContext *cx, Class *clasp)
         return NULL;
 
     GlobalObject *globalObj = obj->asGlobal();
-    globalObj->makeVarObj();
+
     globalObj->syncSpecialEquality();
 
     /* Construct a regexp statics object for this global object. */
@@ -173,8 +172,8 @@ GlobalObject::clear(JSContext *cx)
     /* Clear regexp statics. */
     RegExpStatics::extractFrom(this)->clear();
 
-    /* Clear the runtime-codegen-enabled cache. */
-    setSlot(RUNTIME_CODEGEN_ENABLED, UndefinedValue());
+    /* Clear the CSP eval-is-allowed cache. */
+    setSlot(EVAL_ALLOWED, UndefinedValue());
 
     /*
      * Mark global as cleared. If we try to execute any compile-and-go
@@ -186,79 +185,20 @@ GlobalObject::clear(JSContext *cx)
 }
 
 bool
-GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx)
+GlobalObject::isEvalAllowed(JSContext *cx)
 {
-    Value &v = getSlotRef(RUNTIME_CODEGEN_ENABLED);
+    Value &v = getSlotRef(EVAL_ALLOWED);
     if (v.isUndefined()) {
         JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
 
         /*
          * If there are callbacks, make sure that the CSP callback is installed
-         * and that it permits runtime code generation, then cache the result.
+         * and that it permits eval(), then cache the result.
          */
         v.setBoolean((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
                      callbacks->contentSecurityPolicyAllows(cx));
     }
     return !v.isFalse();
-}
-
-JSFunction *
-GlobalObject::createConstructor(JSContext *cx, Native ctor, Class *clasp, JSAtom *name,
-                                uintN length)
-{
-    JSFunction *fun = js_NewFunction(cx, NULL, ctor, length, JSFUN_CONSTRUCTOR, this, name);
-    if (!fun)
-        return NULL;
-
-    /*
-     * Remember the class this function is a constructor for so that we know to
-     * create an object of this class when we call the constructor.
-     */
-    FUN_CLASP(fun) = clasp;
-    return fun;
-}
-
-JSObject *
-GlobalObject::createBlankPrototype(JSContext *cx, Class *clasp)
-{
-    JS_ASSERT(clasp != &js_ObjectClass);
-    JS_ASSERT(clasp != &js_FunctionClass);
-
-    JSObject *objectProto;
-    if (!js_GetClassPrototype(cx, this, JSProto_Object, &objectProto))
-        return NULL;
-
-    JSObject *proto = NewNonFunction<WithProto::Given>(cx, clasp, objectProto, this);
-    if (!proto)
-        return NULL;
-
-    /*
-     * Supply the created prototype object with an empty shape for the benefit
-     * of callers of JSObject::initSharingEmptyShape.
-     */
-    if (!proto->getEmptyShape(cx, clasp, gc::FINALIZE_OBJECT0))
-        return NULL;
-
-    return proto;
-}
-
-bool
-LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto)
-{
-    return ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
-                                ObjectValue(*proto), PropertyStub, StrictPropertyStub,
-                                JSPROP_PERMANENT | JSPROP_READONLY) &&
-           proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                                 ObjectValue(*ctor), PropertyStub, StrictPropertyStub, 0);
-}
-
-bool
-DefinePropertiesAndBrand(JSContext *cx, JSObject *obj, JSPropertySpec *ps, JSFunctionSpec *fs)
-{
-    if ((ps && !JS_DefineProperties(cx, obj, ps)) || (fs && !JS_DefineFunctions(cx, obj, fs)))
-        return false;
-    obj->brand(cx);
-    return true;
 }
 
 } // namespace js

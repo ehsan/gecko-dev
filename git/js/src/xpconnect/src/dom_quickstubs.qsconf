@@ -56,7 +56,7 @@ members = [
     #   - nsIDOMLocation.reload
     #   - nsIDOMNSHistory.go
     #   - nsIDOMJSPluginArray.refresh
-    #   - nsIDOMWindow.postMessage
+    #   - nsIDOMWindowInternal.postMessage
     #   - nsIDOMJSWindow.{prompt,setTimeout,setInterval,open,openDialog}
     #
     # (And nsIDOMModalContentWindow.returnValue is an attribute of type
@@ -72,9 +72,6 @@ members = [
     'nsIDOMWindow.getSelection',
     'nsIDOMWindow.scrollByLines',
     'nsIDOMWindow.getComputedStyle',
-    'nsIDOMWindow.sessionStorage',
-    'nsIDOMWindow.localStorage',
-    'nsIDOMWindow.globalStorage',
     'nsIDOMJSWindow.dump',
     'nsIDOMScreen.top',
     'nsIDOMScreen.height',
@@ -113,18 +110,6 @@ members = [
     'nsIDOMDocument.documentURI',
     'nsIDOMDocument.adoptNode',
     'nsIDOMDocument.defaultView',
-    'nsIDOMDocument.createNodeIterator',
-    'nsIDOMDocument.createEvent',
-    'nsIDOMDocument.getElementsByClassName',
-    'nsIDOMDocument.title',
-    'nsIDOMDocument.referrer',
-    'nsIDOMDocument.hasFocus',
-    # This property is treated specially in nsDOMClassInfo in a way that
-    # would shadow any quick stub.  Also, document.location is a special
-    # case for security.
-    #'nsIDOMDocument.location',
-    'nsIDOMDocument.elementFromPoint',
-    'nsIDOMDocument.activeElement',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -138,11 +123,33 @@ members = [
     'nsIDOMElement.getAttributeNS',
     'nsIDOMNamedNodeMap.item',
     'nsIDOMNamedNodeMap.length',
-    'nsIDOMNode.*',
+    'nsIDOMNode.appendChild',
+    'nsIDOMNode.nextSibling',
+    'nsIDOMNode.cloneNode',
+    'nsIDOMNode.firstChild',
+    'nsIDOMNode.prefix',
+    'nsIDOMNode.nodeValue',
+    'nsIDOMNode.childNodes',
+    'nsIDOMNode.normalize',
+    'nsIDOMNode.nodeName',
+    'nsIDOMNode.namespaceURI',
+    'nsIDOMNode.hasChildNodes',
+    'nsIDOMNode.previousSibling',
+    'nsIDOMNode.nodeType',
+    'nsIDOMNode.insertBefore',
+    'nsIDOMNode.replaceChild',
+    'nsIDOMNode.localName',
+    'nsIDOMNode.lastChild',
+    'nsIDOMNode.ownerDocument',
+    'nsIDOMNode.parentNode',
+    'nsIDOMNode.removeChild',
+    'nsIDOMNode.hasAttributes',
+    'nsIDOMNode.attributes',
     'nsIDOMNodeList.*',
     'nsIDOMNodeSelector.querySelector',
     'nsIDOMNodeSelector.querySelectorAll',
     'nsIDOMText.splitText',
+    'nsIDOM3Node.*',
     'nsIDOMDOMImplementation.*',
     'nsIDOMDOMStringList.*',
     'nsIDOMDOMTokenList.*',
@@ -152,6 +159,15 @@ members = [
     'nsIDOMNameList.containsNS',
     'nsIDOMNameList.length',
     'nsIDOMNameList.getNamespaceURI',
+    'nsIDOMNSDocument.getElementsByClassName',
+    'nsIDOMNSDocument.title',
+    'nsIDOMNSDocument.hasFocus',
+    # This property is treated specially in nsDOMClassInfo in a way that
+    # would shadow any quick stub.  Also, document.location is a special
+    # case for security.
+    #'nsIDOMNSDocument.location',
+    'nsIDOMNSDocument.elementFromPoint',
+    'nsIDOMNSDocument.activeElement',
     'nsIDOMXULDocument.getBoxObjectFor',
     'nsIDOMNSElement.*',
 
@@ -162,9 +178,10 @@ members = [
     'nsIDOMCSSStyleDeclaration.*',
 
     # dom/interfaces/events
-    'nsIDOMEventTarget.addEventListener',
-    'nsIDOMEventTarget.removeEventListener',
     'nsIDOMEventTarget.dispatchEvent',
+    'nsIDOMEventTarget.removeEventListener',
+    'nsIDOMNSEventTarget.addEventListener',
+    'nsIDOMDocumentEvent.*',
 
     'nsIDOMEvent.*',
     'nsIDOMMouseEvent.*',
@@ -217,15 +234,14 @@ members = [
     'nsIDOMHTMLDocument.getElementsByName',
     'nsIDOMHTMLDocument.anchors',
     'nsIDOMHTMLDocument.links',
+    'nsIDOMHTMLDocument.title',
     'nsIDOMHTMLDocument.URL',
+    'nsIDOMHTMLDocument.referrer',
     'nsIDOMHTMLDocument.forms',
     'nsIDOMHTMLDocument.cookie',
     'nsIDOMHTMLDocument.images',
     'nsIDOMHTMLDocument.write',
     'nsIDOMHTMLDocument.writeln',
-    'nsIDOMHTMLDocument.domain',
-    'nsIDOMHTMLDocument.getSelection',
-    'nsIDOMHTMLDocument.designMode',
     'nsIDOMHTMLElement.*',
     'nsIDOMHTMLFormElement.elements',
     'nsIDOMHTMLFormElement.name',
@@ -314,16 +330,14 @@ members = [
     'nsIDOMHTMLTextAreaElement.value',
     'nsIDOMHTMLTextAreaElement.type',
     'nsIDOMHTMLTextAreaElement.select',
-    'nsIDOMHTMLTextAreaElement.setSelectionRange',
-    'nsIDOMHTMLTextAreaElement.selectionStart',
-    'nsIDOMHTMLTextAreaElement.selectionEnd',
-    'nsIDOMHTMLTextAreaElement.textLength',
-    'nsIDOMHTMLTextAreaElement.wrap',
     'nsIDOMHTMLTitleElement.text',
     'nsIDOMHTMLCanvasElement.width',
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMNSHTMLDocument.domain',
+    'nsIDOMNSHTMLDocument.getSelection',
+    'nsIDOMNSHTMLDocument.designMode',
     'nsIDOMNSHTMLElement.contentEditable',
     'nsIDOMNSHTMLElement.isContentEditable',
     'nsIDOMNSHTMLElement.offsetParent',
@@ -336,9 +350,14 @@ members = [
     'nsIDOMNSHTMLFrameElement.contentWindow',
     'nsIDOMNSHTMLOptionCollection.selectedIndex',
     'nsIDOMNSHTMLOptionCollection.add',
+    'nsIDOMNSHTMLTextAreaElement.setSelectionRange',
+    'nsIDOMNSHTMLTextAreaElement.selectionStart',
+    'nsIDOMNSHTMLTextAreaElement.selectionEnd',
+    'nsIDOMNSHTMLTextAreaElement.textLength',
+    'nsIDOMNSHTMLTextAreaElement.wrap',
 
     # dom/interfaces/json - None.
-    # All methods of nsIJSON call GetCurrentNativeCallContext.
+    # All 4 methods of nsIJSON call GetCurrentNativeCallContext.
 
     # dom/interfaces/load-save - None.
 
@@ -360,6 +379,7 @@ members = [
     'nsIDOMStorage.removeItem',
     'nsIDOMStorage.clear',
     'nsIDOMStorageItem.value',
+    'nsIDOMStorageWindow.*',
 
     # dom/interfaces/stylesheets - None.
 
@@ -369,6 +389,7 @@ members = [
     # dom/interfaces/threads - None.
 
     # dom/interfaces/traversal
+    'nsIDOMDocumentTraversal.createNodeIterator',
     'nsIDOMNodeIterator.nextNode',
 
     # dom/interfaces/xbl - None.
@@ -400,9 +421,6 @@ members = [
     'nsIBoxObject.width',
     'nsIBoxObject.height',
 
-    # FileReader
-    'nsIDOMFileReader.*',
-    
     # XHR
     'nsIXMLHttpRequest.*',
     # nsIXMLHttpRequest.channel is not used on the web, and more
@@ -477,8 +495,6 @@ irregularFilenames = {
     'nsIDOMCanvasGradient': 'nsIDOMCanvasRenderingContext2D',
     'nsIDOMCanvasPattern': 'nsIDOMCanvasRenderingContext2D',
 
-    'nsIDOMBlob': 'nsIDOMFile',
-
     'nsIWebGLTexture': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLBuffer': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLProgram': 'nsIDOMWebGLRenderingContext',
@@ -488,7 +504,6 @@ irregularFilenames = {
     'nsIWebGLRenderbuffer': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLActiveInfo': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
-    'nsIWebGLExtension': 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
 
@@ -538,7 +553,7 @@ nsIDOMHTMLDocument_Write_customMethodCallCode = """
       str.Append(next_arg);
     }
 
-    rv = self->%s(arg0, cx);
+    rv = self->%s(arg0);
 """
 
 nsIDOMStorage_Clear_customMethodCallCode = """
@@ -623,17 +638,6 @@ customMethodCalls = {
         },
     'nsIDOMNode_GetNodeType': {
         'thisType': 'nsINode',
-        'code': 'PRUint16 result = self->NodeType();',
-        'canFail': False
-        },
-    'nsIDOMNode_GetNodeName': {
-        'thisType': 'nsINode',
-        'code': 'nsString result = self->NodeName();',
-        'canFail': False
-        },
-    'nsIDOMNode_GetLocalName': {
-        'thisType': 'nsINode',
-        'code': 'nsString result = self->LocalName();',
         'canFail': False
         },
     'nsIDOMNodeList_Item': {
@@ -664,6 +668,9 @@ customMethodCalls = {
         'code': '    nsRefPtr<nsContentList> result = '
                 'self->GetElementsByName(arg0);',
         'canFail': False
+        },
+    'nsIDOMNSHTMLDocument_': {
+        'thisType': 'nsHTMLDocument'
         },
     'nsIDOMStorage_Clear': {
         'code': nsIDOMStorage_Clear_customMethodCallCode
@@ -776,6 +783,19 @@ customMethodCalls = {
         'thisType': 'nsGenericElement',
         'code': '    PRBool result = self->MozMatchesSelector(arg0, &rv);',
         },
+    'nsIDOM3Text_': {
+        'thisType': 'nsGenericTextNode'
+        },
+    'nsIDOM3Text_IsElementContentWhitespace': {
+        'thisType': 'nsGenericTextNode',
+        'code': '    PRBool result = self->IsElementContentWhitespace();',
+        'canFail': False
+        },
+    'nsIDOM3Text_ReplaceWholeText': {
+        'thisType': 'nsGenericTextNode',
+        'code': '    nsIContent* result = '
+                'self->ReplaceWholeText(PromiseFlatString(arg0), &rv);'
+        },
     'nsIDOMNodeSelector_QuerySelector': {
         'thisType': 'nsINode',
         'code': '    nsIContent* result = '
@@ -787,51 +807,49 @@ customMethodCalls = {
                 '    rv = nsGenericElement::doQuerySelectorAll(self, '
                 'arg0, getter_AddRefs(result));'
         },
-    'nsIDOMNode_Normalize': {
+    'nsIDOM3Node_': {
+        'thisType': 'nsINode'
+        },
+    'nsIDOM3Node_GetBaseURI': {
         'thisType': 'nsINode',
         'canFail': False
         },
-    'nsIDOMNode_GetBaseURI': {
+    'nsIDOM3Node_CompareDocumentPosition': {
         'thisType': 'nsINode',
-        'canFail': False
+        'arg0Type': 'nsINode'
         },
-    'nsIDOMNode_CompareDocumentPosition': {
-        'thisType': 'nsINode',
-        'arg0Type': 'nsINode',
-        'code': '    PRUint16 result;\n'
-                '    rv = self->CompareDocPosition(arg0, &result);',
-        'canFail': True
-        },
-    'nsIDOMNode_GetTextContent': {
+    'nsIDOM3Node_GetTextContent': {
         'thisType': 'nsINode',
         'canFail': False
         },
     'nsIDOM3Node_IsSameNode': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
-        'code': '    PRBool result = self == arg0;',
+        'code': '    PRBool result = self->IsSameNode(arg0);',
         'canFail': False
         },
-    'nsIDOMNode_LookupPrefix': {
+    'nsIDOM3Node_LookupPrefix': {
         'thisType': 'nsINode',
         'canFail': False
         },
-    'nsIDOMNode_IsDefaultNamespace': {
+    'nsIDOM3Node_IsDefaultNamespace': {
+        'thisType': 'nsINode',
+        'code': '    PRBool result = self->IsDefaultNamespace(arg0);',
+        'canFail': False
+        },
+    'nsIDOM3Node_LookupNamespaceURI': {
         'thisType': 'nsINode',
         'canFail': False
         },
-    'nsIDOMNode_LookupNamespaceURI': {
-        'thisType': 'nsINode',
-        'canFail': False
-        },
-    'nsIDOMNode_IsEqualNode': {
+    'nsIDOM3Node_IsEqualNode': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
-        'code': '    PRBool result = self->IsEqualTo(arg0);',
+        'code': '    PRBool result = self->IsEqualNode(arg0);',
         'canFail': False
         },
-    'nsIDOMNode_GetUserData': {
+    'nsIDOM3Node_GetUserData': {
         'thisType': 'nsINode',
+        'code': '    nsIVariant *result = self->GetUserData(arg0);',
         'canFail': False
         },
     'nsIDOMNSHTMLElement_': {
@@ -874,13 +892,11 @@ customMethodCalls = {
                 'self->GetElementsByTagNameNS(arg0, arg1);',
         'canFail': False
         },
+    'nsIDOMNSDocument_': {
+        'thisType': 'nsDocument'
+        },
     'nsIDOMElement_': {
         'thisType': 'nsGenericElement'
-        },
-    'nsIDOMElement_GetTagName': {
-        'thisType': 'nsGenericElement',
-        'code': 'nsString result = self->NodeName();',
-        'canFail': False
         },
     'nsIDOMDocument_CreateElement': {
         'thisType': 'nsDocument',

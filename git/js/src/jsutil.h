@@ -45,12 +45,18 @@
 #define jsutil_h___
 
 #include "jstypes.h"
-#include "jscrashreport.h"
 #include "mozilla/Util.h"
 #include <stdlib.h>
 #include <string.h>
 
 JS_BEGIN_EXTERN_C
+
+/*
+ * JS_Assert is present even in release builds, for the benefit of applications
+ * that build DEBUG and link against a non-DEBUG SpiderMonkey library.
+ */
+extern JS_PUBLIC_API(void)
+JS_Assert(const char *s, const char *file, JSIntn ln);
 
 #define JS_CRASH_UNLESS(__cond)                                                 \
     JS_BEGIN_MACRO                                                              \
@@ -59,8 +65,6 @@ JS_BEGIN_EXTERN_C
             ((void(*)())0)(); /* More reliable, but doesn't say CCADBEEF */     \
         }                                                                       \
     JS_END_MACRO
-
-#define JS_FREE_PATTERN 0xDA
 
 #ifdef DEBUG
 
@@ -131,6 +135,10 @@ extern JS_PUBLIC_API(void) JS_Abort(void);
 
 #ifdef DEBUG
 # define JS_BASIC_STATS 1
+#endif
+
+#ifdef DEBUG_brendan
+# define JS_SCOPE_DEPTH_METER 1
 #endif
 
 #ifdef JS_BASIC_STATS
@@ -221,12 +229,6 @@ extern JS_PUBLIC_DATA(JSUint32) OOM_counter; /* data race, who cares. */
 #define JS_OOM_POSSIBLY_FAIL() do {} while(0)
 #endif
 
-static JS_INLINE void *js_record_oom(void *p) {
-    if (!p)
-        js_SnapshotErrorStack();
-    return p;
-}
-
 /*
  * SpiderMonkey code should not be calling these allocation functions directly.
  * Instead, all calls should go through JSRuntime, JSContext or OffTheBooks.
@@ -234,17 +236,17 @@ static JS_INLINE void *js_record_oom(void *p) {
  */
 static JS_INLINE void* js_malloc(size_t bytes) {
     JS_OOM_POSSIBLY_FAIL();
-    return js_record_oom(malloc(bytes));
+    return malloc(bytes);
 }
 
 static JS_INLINE void* js_calloc(size_t bytes) {
     JS_OOM_POSSIBLY_FAIL();
-    return js_record_oom(calloc(bytes, 1));
+    return calloc(bytes, 1);
 }
 
 static JS_INLINE void* js_realloc(void* p, size_t bytes) {
     JS_OOM_POSSIBLY_FAIL();
-    return js_record_oom(realloc(p, bytes));
+    return realloc(p, bytes);
 }
 
 static JS_INLINE void js_free(void* p) {
@@ -357,62 +359,62 @@ JS_END_EXTERN_C
     }\
 \
     template <class T, class P1>\
-    QUALIFIERS T *new_(P1 p1) {\
+    QUALIFIERS T *new_(const P1 &p1) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1))\
     }\
 \
     template <class T, class P1, class P2>\
-    QUALIFIERS T *new_(P1 p1, P2 p2) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2))\
     }\
 \
     template <class T, class P1, class P2, class P3>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6, const P7 &p7) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6, p7))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6, const P7 &p7, const P8 &p8) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6, p7, p8))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8, class P9>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6, const P7 &p7, const P8 &p8, const P9 &p9) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6, p7, p8, p9))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8, class P9, class P10>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6, const P7 &p7, const P8 &p8, const P9 &p9, const P10 &p10) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8, class P9, class P10, class P11>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10, P11 p11) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6, const P7 &p7, const P8 &p8, const P9 &p9, const P10 &p10, const P11 &p11) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11))\
     }\
 \
     template <class T, class P1, class P2, class P3, class P4, class P5, class P6, class P7, class P8, class P9, class P10, class P11, class P12>\
-    QUALIFIERS T *new_(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10, P11 p11, P12 p12) {\
+    QUALIFIERS T *new_(const P1 &p1, const P2 &p2, const P3 &p3, const P4 &p4, const P5 &p5, const P6 &p6, const P7 &p7, const P8 &p8, const P9 &p9, const P10 &p10, const P11 &p11, const P12 &p12) {\
         JS_NEW_BODY(ALLOCATOR, T, (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12))\
     }\
     static const int JSMinAlignment = 8;\
@@ -676,16 +678,6 @@ PodEqual(T *one, T *two, size_t len)
 
     return !memcmp(one, two, len * sizeof(T));
 }
-
-
-/*
- * Ordinarily, a function taking a JSContext* 'cx' paremter reports errors on
- * the context. In some cases, functions optionally report and indicate this by
- * taking a nullable 'maybecx' parameter. In some cases, though, a function
- * always needs a 'cx', but optionally reports. This option is presented by the
- * MaybeReportError.
- */
-enum MaybeReportError { REPORT_ERROR = true, DONT_REPORT_ERROR = false };
 
 } /* namespace js */
 

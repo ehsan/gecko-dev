@@ -88,7 +88,6 @@
 #include "prdtoa.h"
 #include "mozilla/dom/Element.h"
 #include "gfxUtils.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -176,7 +175,7 @@ static const char SMIL_PREF_STR[] = "svg.smil.enabled";
 static int
 SMILPrefChanged(const char *aPref, void *aClosure)
 {
-  PRBool prefVal = Preferences::GetBool(SMIL_PREF_STR);
+  PRBool prefVal = nsContentUtils::GetBoolPref(SMIL_PREF_STR);
   gSMILEnabled = prefVal;
   return 0;
 }
@@ -188,8 +187,8 @@ NS_SMILEnabled()
   
   if (!sInitialized) {
     /* check and register ourselves with the pref */
-    gSMILEnabled = Preferences::GetBool(SMIL_PREF_STR);
-    Preferences::RegisterCallback(SMILPrefChanged, SMIL_PREF_STR);
+    gSMILEnabled = nsContentUtils::GetBoolPref(SMIL_PREF_STR);
+    nsContentUtils::RegisterPrefCallback(SMIL_PREF_STR, SMILPrefChanged, nsnull);
 
     sInitialized = PR_TRUE;
   }
@@ -749,7 +748,7 @@ nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect)
 }
 
 gfxMatrix
-nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
+nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
@@ -763,7 +762,7 @@ nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
 }
 
 gfxMatrix
-nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
+nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
@@ -1300,7 +1299,7 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame)
   if (svg) {
     // It is possible to apply a gradient, pattern, clipping path, mask or
     // filter to text. When one of these facilities is applied to text
-    // the bounding box is the entire text element in all
+    // the bounding box is the entire ‘text’ element in all
     // cases.
     nsSVGTextContainerFrame* metrics = do_QueryFrame(
       GetFirstNonAAncestorFrame(aFrame));

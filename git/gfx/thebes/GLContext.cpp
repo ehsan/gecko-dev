@@ -52,9 +52,6 @@
 #include "GLContextProvider.h"
 
 #include "gfxCrashReporterUtils.h"
-#include "gfxUtils.h"
-
-#include "mozilla/Util.h" // for DebugOnly
 
 namespace mozilla {
 namespace gl {
@@ -386,7 +383,6 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         mViewportStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
 
         fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
-        fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
 
         UpdateActualFormat();
     }
@@ -637,7 +633,7 @@ void
 BasicTextureImage::BindTexture(GLenum aTextureUnit)
 {
     mGLContext->fActiveTexture(aTextureUnit);
-    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, Texture());
     mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
@@ -660,7 +656,7 @@ BasicTextureImage::FinishedSurfaceUpload()
 }
 
 bool 
-BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom /* = nsIntPoint(0, 0) */)
+BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
 {
     nsIntRect bounds = aRegion.GetBounds();
     nsIntRegion region;
@@ -676,7 +672,7 @@ BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
                                            region,
                                            mTexture,
                                            mTextureState == Created,
-                                           bounds.TopLeft() + aFrom,
+                                           bounds.TopLeft(),
                                            PR_FALSE);
     mTextureState = Valid;
     return true;
@@ -703,208 +699,9 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
     mSize = aSize;
 }
 
-TiledTextureImage::TiledTextureImage(GLContext* aGL,
-                                     nsIntSize aSize,
-                                     TextureImage::ContentType aContentType,
-                                     PRBool aUseNearestFilter)
-    : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aUseNearestFilter)
-    , mCurrentImage(0)
-    , mInUpdate(PR_FALSE)
-    , mGL(aGL)
-    , mUseNearestFilter(aUseNearestFilter)
-    , mTextureState(Created)
-{
-    mTileSize = mGL->GetMaxTextureSize();
-    if (aSize != nsIntSize(0,0)) {
-        Resize(aSize);
-    }
-}
-
-TiledTextureImage::~TiledTextureImage()
-{
-}
-
-bool 
-TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom /* = nsIntPoint(0, 0) */)
-{
-    nsIntRect bounds = aRegion.GetBounds();
-    nsIntRegion region;
-    if (mTextureState != Valid) {
-        bounds = nsIntRect(0, 0, mSize.width, mSize.height);
-        region = nsIntRegion(bounds);
-    } else {
-        region = aRegion;
-    }
-
-    PRBool result = PR_TRUE;
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        unsigned int xPos = (i % mColumns) * mTileSize;
-        unsigned int yPos = (i / mColumns) * mTileSize;
-        nsIntRegion tileRegion;
-        tileRegion.And(region, nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize())); // intersect with tile
-        if (tileRegion.IsEmpty())
-            continue;
-        tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
-        result &= mImages[i]->DirectUpdate(aSurf,
-                                           tileRegion,
-                                           aFrom + nsIntPoint(xPos, yPos));
-    }
-    mShaderType = mImages[0]->GetShaderProgramType();
-    mIsRGBFormat = mImages[0]->IsRGB();
-    mTextureState = Valid;
-    return result;
-}
-
-gfxASurface*
-TiledTextureImage::BeginUpdate(nsIntRegion& aRegion)
-{
-    NS_ASSERTION(!mInUpdate, "nested update");
-    mInUpdate = PR_TRUE;
-
-    if (mTextureState != Valid)
-    {
-        // if the texture hasn't been initialized yet, or something important
-        // changed, we need to recreate our backing surface and force the
-        // client to paint everything
-        mUpdateRegion = nsIntRect(nsIntPoint(0, 0), mSize);
-    } else {
-        mUpdateRegion = aRegion;
-    }
-
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        unsigned int xPos = (i % mColumns) * mTileSize;
-        unsigned int yPos = (i / mColumns) * mTileSize;
-        nsIntRegion imageRegion = nsIntRegion(nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize()));
-
-        // a single Image can handle this update request
-        if (imageRegion.Contains(aRegion)) {
-            // adjust for tile offset
-            aRegion.MoveBy(-xPos, -yPos);
-            // forward the actual call
-            nsRefPtr<gfxASurface> surface = mImages[i]->BeginUpdate(aRegion);
-            // caller expects container space
-            aRegion.MoveBy(xPos, yPos);
-            // we don't have a temp surface
-            mUpdateSurface = nsnull;
-            // remember which image to EndUpdate
-            mCurrentImage = i;
-            return surface.get();
-        }
-    }
-    // update covers multiple Images - create a temp surface to paint in
-    gfxASurface::gfxImageFormat format =
-        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
-        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-
-    nsIntRect bounds = aRegion.GetBounds();
-    mUpdateSurface = gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), gfxASurface::ContentFromFormat(format));
-    mUpdateSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));
-    return mUpdateSurface;
-}
-
-void
-TiledTextureImage::EndUpdate()
-{
-    NS_ASSERTION(mInUpdate, "EndUpdate not in update");
-    if (!mUpdateSurface) { // update was to a single TextureImage
-        mImages[mCurrentImage]->EndUpdate();
-        mInUpdate = PR_FALSE;
-        mTextureState = Valid;
-        mShaderType = mImages[mCurrentImage]->GetShaderProgramType();
-        mIsRGBFormat = mImages[mCurrentImage]->IsRGB();
-        return;
-    }
-
-    // upload tiles from temp surface
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        unsigned int xPos = (i % mColumns) * mTileSize;
-        unsigned int yPos = (i / mColumns) * mTileSize;
-        nsIntRect imageRect = nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize());
-        nsIntRegion subregion;
-        subregion.And(mUpdateRegion, imageRect);
-        if (subregion.IsEmpty())
-            continue;
-        subregion.MoveBy(-xPos, -yPos); // Tile-local space
-        // copy tile from temp surface
-        gfxASurface* surf = mImages[i]->BeginUpdate(subregion);
-        nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-        gfxUtils::ClipToRegion(ctx, subregion);
-        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        ctx->SetSource(mUpdateSurface, gfxPoint(-xPos, -yPos));
-        ctx->Paint();
-        mImages[i]->EndUpdate();
-    }
-
-    mUpdateSurface = nsnull;
-    mInUpdate = PR_FALSE;
-    mShaderType = mImages[0]->GetShaderProgramType();
-    mIsRGBFormat = mImages[0]->IsRGB();
-}
-
-void TiledTextureImage::BeginTileIteration()
-{
-    mCurrentImage = 0;
-}
-
-PRBool TiledTextureImage::NextTile()
-{
-    if (mCurrentImage + 1 < mImages.Length()) {
-        mCurrentImage++;
-        return PR_TRUE;
-    }
-    return PR_FALSE;
-}
-
-nsIntRect TiledTextureImage::GetTileRect()
-{
-    nsIntRect rect = mImages[mCurrentImage]->GetTileRect();
-    unsigned int xPos = (mCurrentImage % mColumns) * mTileSize;
-    unsigned int yPos = (mCurrentImage / mColumns) * mTileSize;
-    rect.MoveTo(xPos, yPos);
-    return rect;
-}
-
-void
-TiledTextureImage::BindTexture(GLenum aTextureUnit)
-{
-    mImages[mCurrentImage]->BindTexture(aTextureUnit);
-}
-
-/*
- * simple resize, just discards everything. we can be more clever just
- * adding or discarding tiles, but do we want this?
- */
-void TiledTextureImage::Resize(const nsIntSize& aSize)
-{
-    if (mSize == aSize && mTextureState != Created) {
-        return;
-    }
-    mSize = aSize;
-    mImages.Clear();
-    // calculate rows and columns, rounding up
-    mColumns = (aSize.width  + mTileSize - 1) / mTileSize;
-    mRows    = (aSize.height + mTileSize - 1) / mTileSize;
-
-    for (unsigned int row = 0; row < mRows; row++) {
-      for (unsigned int col = 0; col < mColumns; col++) {
-          nsIntSize size( // use tilesize first, then the remainder
-                  (col+1) * mTileSize > (unsigned int)aSize.width  ? aSize.width  % mTileSize : mTileSize,
-                  (row+1) * mTileSize > (unsigned int)aSize.height ? aSize.height % mTileSize : mTileSize);
-          nsRefPtr<TextureImage> teximg =
-                  mGL->TileGenFunc(size, mContentType, mUseNearestFilter);
-          mImages.AppendElement(teximg.forget());
-      }
-    }
-    mTextureState = Allocated;
-}
-
 PRBool
 GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
 {
-    if (!IsOffscreenSizeAllowed(aSize))
-        return PR_FALSE;
-
     MakeCurrent();
 
     bool alpha = mCreationFormat.alpha > 0;
@@ -1009,22 +806,21 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
             if (mIsGLES2) {
                 if (IsExtensionSupported(OES_depth32)) {
                     depthType = LOCAL_GL_DEPTH_COMPONENT32;
-                    cf.depth = 32;
                 } else if (IsExtensionSupported(OES_depth24)) {
                     depthType = LOCAL_GL_DEPTH_COMPONENT24;
-                    cf.depth = 24;
                 } else {
                     depthType = LOCAL_GL_DEPTH_COMPONENT16;
-                   cf.depth = 16;
                 }
             } else {
                 depthType = LOCAL_GL_DEPTH_COMPONENT24;
-                cf.depth = 24;
             }
 
             fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOffscreenDepthRB);
-            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, depthType,
+            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
+                                 mIsGLES2 ? LOCAL_GL_DEPTH_COMPONENT16
+                                          : LOCAL_GL_DEPTH_COMPONENT24,
                                  aSize.width, aSize.height);
+            cf.depth = mIsGLES2 ? 16 : 24;
         }
 
         if (stencil) {
@@ -1133,83 +929,23 @@ GLContext::DeleteOffscreenFBO()
 void
 GLContext::ClearSafely()
 {
-    // bug 659349 --- we must be very careful here: clearing a GL framebuffer is nontrivial, relies on a lot of state,
-    // and in the case of the backbuffer of a WebGL context, state is exposed to scripts.
-    //
-    // The code here is taken from WebGLContext::ForceClearFramebufferWithDefaultValues, but I didn't find a good way of
-    // sharing code with it. WebGL's code is somewhat performance-critical as it is typically called on every frame, so
-    // WebGL keeps track of GL state to avoid having to query it everytime, and also tries to only do work for actually
-    // present buffers (e.g. stencil buffer). Doing that here seems like premature optimization,
-    // as ClearSafely() is called only when e.g. a canvas is resized, not on every animation frame.
+    GLfloat clearColor[4];
+    GLfloat clearDepth;
+    GLint clearStencil;
 
-    realGLboolean scissorTestEnabled;
-    realGLboolean ditherEnabled;
-    realGLboolean colorWriteMask[4];
-    realGLboolean depthWriteMask;
-    GLint stencilWriteMaskFront, stencilWriteMaskBack;
-    GLfloat colorClearValue[4];
-    GLfloat depthClearValue;
-    GLint stencilClearValue;
+    fGetFloatv(LOCAL_GL_COLOR_CLEAR_VALUE, clearColor);
+    fGetFloatv(LOCAL_GL_DEPTH_CLEAR_VALUE, &clearDepth);
+    fGetIntegerv(LOCAL_GL_STENCIL_CLEAR_VALUE, &clearStencil);
 
-    // save current GL state
-    fGetBooleanv(LOCAL_GL_SCISSOR_TEST, &scissorTestEnabled);
-    fGetBooleanv(LOCAL_GL_DITHER, &ditherEnabled);
-    fGetBooleanv(LOCAL_GL_COLOR_WRITEMASK, colorWriteMask);
-    fGetBooleanv(LOCAL_GL_DEPTH_WRITEMASK, &depthWriteMask);
-    fGetIntegerv(LOCAL_GL_STENCIL_WRITEMASK, &stencilWriteMaskFront);
-    fGetIntegerv(LOCAL_GL_STENCIL_BACK_WRITEMASK, &stencilWriteMaskBack);
-    fGetFloatv(LOCAL_GL_COLOR_CLEAR_VALUE, colorClearValue);
-    fGetFloatv(LOCAL_GL_DEPTH_CLEAR_VALUE, &depthClearValue);
-    fGetIntegerv(LOCAL_GL_STENCIL_CLEAR_VALUE, &stencilClearValue);
-
-    // prepare GL state for clearing
-    fDisable(LOCAL_GL_SCISSOR_TEST);
-    fDisable(LOCAL_GL_DITHER);
-    PushViewportRect(nsIntRect(0, 0, mOffscreenSize.width, mOffscreenSize.height));
-
-    fColorMask(1, 1, 1, 1);
-    fClearColor(0.f, 0.f, 0.f, 0.f);
-
-    fDepthMask(1);
+    fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    fClearStencil(0);
     fClearDepth(1.0f);
 
-    fStencilMask(0xffffffff);
-    fClearStencil(0);
+    fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT | LOCAL_GL_STENCIL_BUFFER_BIT);
 
-    // do clear
-    fClear(LOCAL_GL_COLOR_BUFFER_BIT |
-           LOCAL_GL_DEPTH_BUFFER_BIT |
-           LOCAL_GL_STENCIL_BUFFER_BIT);
-
-    // restore GL state after clearing
-    fColorMask(colorWriteMask[0],
-               colorWriteMask[1],
-               colorWriteMask[2],
-               colorWriteMask[3]);
-    fClearColor(colorClearValue[0],
-                colorClearValue[1],
-                colorClearValue[2],
-                colorClearValue[3]);
-
-    fDepthMask(depthWriteMask);
-    fClearDepth(depthClearValue);
-
-    fStencilMaskSeparate(LOCAL_GL_FRONT, stencilWriteMaskFront);
-    fStencilMaskSeparate(LOCAL_GL_BACK, stencilWriteMaskBack);
-    fClearStencil(stencilClearValue);
-
-    PopViewportRect();
-
-    if (ditherEnabled)
-        fEnable(LOCAL_GL_DITHER);
-    else
-        fDisable(LOCAL_GL_DITHER);
-
-    if (scissorTestEnabled)
-        fEnable(LOCAL_GL_SCISSOR_TEST);
-    else
-        fDisable(LOCAL_GL_SCISSOR_TEST);
-
+    fClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+    fClearStencil(clearStencil);
+    fClearDepth(clearDepth);
 }
 
 void
@@ -1443,9 +1179,6 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     NS_ASSERTION(!aSrc->InUpdate(), "Source texture is in update!");
     NS_ASSERTION(!aDst->InUpdate(), "Destination texture is in update!");
 
-    if (aSrcRect.IsEmpty() || aDstRect.IsEmpty())
-        return;
-
     // only save/restore this stuff on Qualcomm Adreno, to work
     // around an apparent bug
     int savedFb = 0;
@@ -1456,114 +1189,57 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     fDisable(LOCAL_GL_SCISSOR_TEST);
     fDisable(LOCAL_GL_BLEND);
 
-    // 2.0 means scale up by two
-    float blitScaleX = float(aDstRect.width) / float(aSrcRect.width);
-    float blitScaleY = float(aDstRect.height) / float(aSrcRect.height);
+    SetBlitFramebufferForDestTexture(aDst->Texture());
 
-    // We start iterating over all destination tiles
-    aDst->BeginTileIteration();
-    do {
-        // calculate portion of the tile that is going to be painted to
-        nsIntRect dstSubRect;
-        nsIntRect dstTextureRect = aDst->GetTileRect();
-        dstSubRect.IntersectRect(aDstRect, dstTextureRect);
+    UseBlitProgram();
 
-        // this tile is not part of the destination rectangle aDstRect
-        if (dstSubRect.IsEmpty())
-            continue;
+    nsIntSize srcSize = aSrc->GetSize();
+    nsIntSize dstSize = aDst->GetSize();
 
-        // (*) transform the rect of this tile into the rectangle defined by aSrcRect...
-        nsIntRect dstInSrcRect(dstSubRect);
-        dstInSrcRect.MoveBy(-aDstRect.TopLeft());
-        // ...which might be of different size, hence scale accordingly
-        dstInSrcRect.ScaleRoundOut(1.0f / blitScaleX, 1.0f / blitScaleY);
-        dstInSrcRect.MoveBy(aSrcRect.TopLeft());
+    PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
 
-        SetBlitFramebufferForDestTexture(aDst->GetTextureID());
-        UseBlitProgram();
+    float dx0 = 2.0 * float(aDstRect.x) / float(dstSize.width) - 1.0;
+    float dy0 = 2.0 * float(aDstRect.y) / float(dstSize.height) - 1.0;
+    float dx1 = 2.0 * float(aDstRect.x + aDstRect.width) / float(dstSize.width) - 1.0;
+    float dy1 = 2.0 * float(aDstRect.y + aDstRect.height) / float(dstSize.height) - 1.0;
 
-        aSrc->BeginTileIteration();
-        // now iterate over all tiles in the source Image...
-        do {
-            // calculate portion of the source tile that is in the source rect
-            nsIntRect srcSubRect;
-            nsIntRect srcTextureRect = aSrc->GetTileRect();
-            srcSubRect.IntersectRect(aSrcRect, srcTextureRect);
+    RectTriangles rects;
+    if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
+        rects.addRect(/* dest rectangle */
+                      dx0, dy0, dx1, dy1,
+                      /* tex coords */
+                      aSrcRect.x / float(srcSize.width),
+                      aSrcRect.y / float(srcSize.height),
+                      aSrcRect.XMost() / float(srcSize.width),
+                      aSrcRect.YMost() / float(srcSize.height));
+    } else {
+        DecomposeIntoNoRepeatTriangles(aSrcRect, srcSize, rects);
 
-            // this tile is not part of the source rect
-            if (srcSubRect.IsEmpty()) {
-                continue;
-            }
-            // calculate intersection of source rect with destination rect
-            srcSubRect.IntersectRect(srcSubRect, dstInSrcRect);
-            // this tile does not overlap the current destination tile
-            if (srcSubRect.IsEmpty()) {
-                continue;
-            }
-            // We now have the intersection of 
-            //     the current source tile 
-            // and the desired source rectangle
-            // and the destination tile
-            // and the desired destination rectange
-            // in destination space.
-            // We need to transform this back into destination space, inverting the transform from (*)
-            nsIntRect srcSubInDstRect(srcSubRect);
-            srcSubInDstRect.MoveBy(-aSrcRect.TopLeft());
-            srcSubInDstRect.ScaleRoundOut(blitScaleX, blitScaleY);
-            srcSubInDstRect.MoveBy(aDstRect.TopLeft());
+        // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
+        // from the 0..1 that it comes out of decompose
+        GLfloat *v = rects.vertexCoords;
+        for (int i = 0; i < rects.numRects * 6; ++i) {
+            v[i*2] = (v[i*2] * (dx1 - dx0)) + dx0;
+            v[i*2+1] = (v[i*2+1] * (dy1 - dy0)) + dy0;
+        }
+    }
 
-            // we transform these rectangles to be relative to the current src and dst tiles, respectively
-            nsIntSize srcSize = srcTextureRect.Size();
-            nsIntSize dstSize = dstTextureRect.Size();
-            srcSubRect.MoveBy(-srcTextureRect.x, -srcTextureRect.y);
-            srcSubInDstRect.MoveBy(-dstTextureRect.x, -dstTextureRect.y);
 
-            float dx0 = 2.0 * float(srcSubInDstRect.x) / float(dstSize.width) - 1.0;
-            float dy0 = 2.0 * float(srcSubInDstRect.y) / float(dstSize.height) - 1.0;
-            float dx1 = 2.0 * float(srcSubInDstRect.x + srcSubInDstRect.width) / float(dstSize.width) - 1.0;
-            float dy1 = 2.0 * float(srcSubInDstRect.y + srcSubInDstRect.height) / float(dstSize.height) - 1.0;
-            PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, aSrc->Texture());
 
-            RectTriangles rects;
-            if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
-                rects.addRect(/* dest rectangle */
-                        dx0, dy0, dx1, dy1,
-                        /* tex coords */
-                        srcSubRect.x / float(srcSize.width),
-                        srcSubRect.y / float(srcSize.height),
-                        srcSubRect.XMost() / float(srcSize.width),
-                        srcSubRect.YMost() / float(srcSize.height));
-            } else {
-                DecomposeIntoNoRepeatTriangles(srcSubRect, srcSize, rects);
+    fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
-                // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
-                // from the 0..1 that it comes out of decompose
-                RectTriangles::vert_coord* v = (RectTriangles::vert_coord*)rects.vertexPointer();
+    fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.vertexCoords);
+    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.texCoords);
 
-                for (unsigned int i = 0; i < rects.elements(); ++i) {
-                    v[i].x = (v[i].x * (dx1 - dx0)) + dx0;
-                    v[i].y = (v[i].y * (dy1 - dy0)) + dy0;
-                }
-            }
+    fEnableVertexAttribArray(0);
+    fEnableVertexAttribArray(1);
 
-            TextureImage::ScopedBindTexture texBind(aSrc, LOCAL_GL_TEXTURE0);
+    fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.numRects * 6);
 
-            fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-
-            fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.vertexPointer());
-            fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.texCoordPointer());
-
-            fEnableVertexAttribArray(0);
-            fEnableVertexAttribArray(1);
-
-            fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
-
-            fDisableVertexAttribArray(0);
-            fDisableVertexAttribArray(1);
-
-            PopViewportRect();
-        } while (aSrc->NextTile());
-    } while (aDst->NextTile());
+    fDisableVertexAttribArray(0);
+    fDisableVertexAttribArray(1);
 
     fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
     fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
@@ -1583,6 +1259,8 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
 
     fEnable(LOCAL_GL_SCISSOR_TEST);
     fEnable(LOCAL_GL_BLEND);
+
+    PopViewportRect();
 }
 
 static unsigned int 
@@ -1638,8 +1316,7 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
     if (!imageSurface || 
         (imageSurface->Format() != gfxASurface::ImageFormatARGB32 &&
          imageSurface->Format() != gfxASurface::ImageFormatRGB24 &&
-         imageSurface->Format() != gfxASurface::ImageFormatRGB16_565 &&
-         imageSurface->Format() != gfxASurface::ImageFormatA8)) {
+         imageSurface->Format() != gfxASurface::ImageFormatRGB16_565)) {
         // We can't get suitable pixel data for the surface, make a copy
         nsIntRect bounds = aDstRegion.GetBounds();
         imageSurface = 
@@ -1686,12 +1363,6 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
             format = LOCAL_GL_RGB;
             type = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
             shader = RGBALayerProgramType;
-            break;
-        case gfxASurface::ImageFormatA8:
-            format = LOCAL_GL_LUMINANCE;
-            type = LOCAL_GL_UNSIGNED_BYTE;
-            // We don't have a specific luminance shader
-            shader = ShaderProgramType(0);
             break;
         default:
             NS_ASSERTION(false, "Unhandled image surface format!");
@@ -1791,35 +1462,28 @@ void
 GLContext::RectTriangles::addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
                                   GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1)
 {
-    vert_coord v;
-    v.x = x0; v.y = y0;
-    vertexCoords.AppendElement(v);
-    v.x = x1; v.y = y0;
-    vertexCoords.AppendElement(v);
-    v.x = x0; v.y = y1;
-    vertexCoords.AppendElement(v);
+    NS_ASSERTION(numRects < 4, "Overflow in number of rectangles, max 4!");
 
-    v.x = x0; v.y = y1;
-    vertexCoords.AppendElement(v);
-    v.x = x1; v.y = y0;
-    vertexCoords.AppendElement(v);
-    v.x = x1; v.y = y1;
-    vertexCoords.AppendElement(v);
+    GLfloat *v = &vertexCoords[numRects*6*2];
+    GLfloat *t = &texCoords[numRects*6*2];
 
-    tex_coord t;
-    t.u = tx0; t.v = ty0;
-    texCoords.AppendElement(t);
-    t.u = tx1; t.v = ty0;
-    texCoords.AppendElement(t);
-    t.u = tx0; t.v = ty1;
-    texCoords.AppendElement(t);
+    *v++ = x0; *v++ = y0;
+    *v++ = x1; *v++ = y0;
+    *v++ = x0; *v++ = y1;
 
-    t.u = tx0; t.v = ty1;
-    texCoords.AppendElement(t);
-    t.u = tx1; t.v = ty0;
-    texCoords.AppendElement(t);
-    t.u = tx1; t.v = ty1;
-    texCoords.AppendElement(t);
+    *v++ = x0; *v++ = y1;
+    *v++ = x1; *v++ = y0;
+    *v++ = x1; *v++ = y1;
+
+    *t++ = tx0; *t++ = ty0;
+    *t++ = tx1; *t++ = ty0;
+    *t++ = tx0; *t++ = ty1;
+
+    *t++ = tx0; *t++ = ty1;
+    *t++ = tx1; *t++ = ty0;
+    *t++ = tx1; *t++ = ty1;
+
+    numRects++;
 }
 
 static GLfloat
@@ -1995,7 +1659,7 @@ GLContext::UseBlitProgram()
             fGetShaderInfoLog(shaders[i], len, (GLint*) &len, (char*) log.BeginWriting());
             log.SetLength(len);
 
-            printf_stderr("Shader %d compilation failed:\n%s\n", log.get());
+            printf_stderr("Shader %d compilation failed:\n%s\n", nsPromiseFlatCString(log).get());
             return;
         }
 
@@ -2019,7 +1683,7 @@ GLContext::UseBlitProgram()
         fGetProgramInfoLog(mBlitProgram, len, (GLint*) &len, (char*) log.BeginWriting());
         log.SetLength(len);
 
-        printf_stderr("Program linking failed:\n%s\n", log.get());
+        printf_stderr("Program linking failed:\n%s\n", nsPromiseFlatCString(log).get());
         return;
     }
 
@@ -2042,7 +1706,7 @@ GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
                           0);
 
     if (aTexture) {
-        DebugOnly<GLenum> status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+        GLenum status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
 
         // Note: if you are hitting this assertion, it is likely that
         // your texture is not texture complete -- that is, you

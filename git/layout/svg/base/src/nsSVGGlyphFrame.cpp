@@ -415,8 +415,8 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  PRUint16 hitTestFlags = GetHitTestFlags();
-  if (!hitTestFlags) {
+  PRUint16 mask = GetHittestMask();
+  if (!mask) {
     return nsnull;
   }
 
@@ -431,7 +431,7 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
   //
   //   http://www.w3.org/TR/SVG11/interact.html#PointerEventsProperty
   //
-  // Currently we just test the character cells if GetHitTestFlags says we're
+  // Currently we just test the character cells if GetHittestMask says we're
   // supposed to be testing either the fill OR the stroke:
 
   PRInt32 i;
@@ -448,7 +448,7 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
                                    PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   PRBool isHit = PR_FALSE;
-  if (hitTestFlags & SVG_HIT_TEST_FILL || hitTestFlags & SVG_HIT_TEST_STROKE) {
+  if (mask & HITTEST_MASK_FILL || mask & HITTEST_MASK_STROKE) {
     isHit = context->PointInFill(userSpacePoint);
   }
 
@@ -968,7 +968,20 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
   // get the selection details 
   SelectionDetails *details = nsnull;
   {
-    nsRefPtr<nsFrameSelection> frameSelection = presContext->PresShell()->FrameSelection();
+    nsCOMPtr<nsFrameSelection> frameSelection;
+    {
+      nsCOMPtr<nsISelectionController> controller;
+      GetSelectionController(presContext, getter_AddRefs(controller));
+      
+      if (!controller) {
+        NS_ERROR("no selection controller");
+        return NS_ERROR_FAILURE;
+      }
+      frameSelection = do_QueryInterface(controller);
+    }
+    if (!frameSelection) {
+      frameSelection = presContext->PresShell()->FrameSelection();
+    }
     if (!frameSelection) {
       NS_ERROR("no frameselection interface");
       return NS_ERROR_FAILURE;
@@ -1521,45 +1534,48 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     if (!GetCharacterData(text))
       return PR_FALSE;
 
-    nsAutoString visualText;
-      
-    /*
-     * XXXsmontagu: The SVG spec says:
-     *
-     * http://www.w3.org/TR/SVG11/text.html#DirectionProperty
-     *  "For the 'direction' property to have any effect, the 'unicode-bidi'
-     *   property's value must be embed or bidi-override."
-     *
-     * The SVGTiny spec, on the other hand, says 
-     *
-     * http://www.w3.org/TR/SVGTiny12/text.html#DirectionProperty
-     *  "For the 'direction' property to have any effect on an element that 
-     *   does not by itself establish a new text chunk (such as the 'tspan'
-     *   element in SVG 1.2 Tiny), the 'unicode-bidi' property's value must
-     *   be embed or bidi-override."
-     *
-     * Note that this is different from HTML/CSS, where setting the 'dir'
-     *  attribute on an inline element automatically sets unicode-bidi: embed
-     *
-     * Our current implementation of bidi in SVG does not distinguish between
-     * different text elements, but treats every text container frame as a
-     * new text chunk, so we always set the base direction according to the
-     * direction property
-     *
-     * See also XXXsmontagu comments in nsSVGTextFrame::UpdateGlyphPositioning
-     */
-    
-    // Get the unicodeBidi property from the parent, because it doesn't
-    // inherit
-    PRBool bidiOverride = (mParent->GetStyleTextReset()->mUnicodeBidi ==
-                           NS_STYLE_UNICODE_BIDI_OVERRIDE);
-    nsBidiLevel baseDirection =
-      GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL ?
-        NSBIDI_RTL : NSBIDI_LTR;
-    nsBidiPresUtils::CopyLogicalToVisual(text, visualText,
-                                         baseDirection, bidiOverride);
-    if (!visualText.IsEmpty()) {
-      text = visualText;
+    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+    if (bidiUtils) {
+      nsAutoString visualText;
+
+      /*
+       * XXXsmontagu: The SVG spec says:
+       *
+       * http://www.w3.org/TR/SVG11/text.html#DirectionProperty
+       *  "For the 'direction' property to have any effect, the 'unicode-bidi'
+       *   property's value must be embed or bidi-override."
+       *
+       * The SVGTiny spec, on the other hand, says 
+       *
+       * http://www.w3.org/TR/SVGTiny12/text.html#DirectionProperty
+       *  "For the 'direction' property to have any effect on an element that 
+       *   does not by itself establish a new text chunk (such as the 'tspan'
+       *   element in SVG 1.2 Tiny), the 'unicode-bidi' property's value must
+       *   be embed or bidi-override."
+       *
+       * Note that this is different from HTML/CSS, where setting the 'dir'
+       *  attribute on an inline element automatically sets unicode-bidi: embed
+       *
+       * Our current implementation of bidi in SVG does not distinguish between
+       * different text elements, but treats every text container frame as a
+       * new text chunk, so we always set the base direction according to the
+       * direction property
+       *
+       * See also XXXsmontagu comments in nsSVGTextFrame::UpdateGlyphPositioning
+       */
+        
+      // Get the unicodeBidi property from the parent, because it doesn't
+      // inherit
+      PRBool bidiOverride = (mParent->GetStyleTextReset()->mUnicodeBidi ==
+                             NS_STYLE_UNICODE_BIDI_OVERRIDE);
+      nsBidiLevel baseDirection =
+        GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL ?
+          NSBIDI_RTL : NSBIDI_LTR;
+      bidiUtils->CopyLogicalToVisual(text, visualText,
+                                     baseDirection, bidiOverride);
+      if (!visualText.IsEmpty()) {
+        text = visualText;
+      }
     }
 
     gfxMatrix m;

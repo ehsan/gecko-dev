@@ -138,10 +138,6 @@ toolbarbutton.chevron > .toolbarbutton-text {
   display: none;
 }
 
-toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
-  display: -moz-box; /* display chevron icon in text mode */
-}
-
 toolbarbutton.chevron:-moz-locale-dir(rtl) > .toolbarbutton-icon {
   -moz-transform: scaleX(-1);
 }
@@ -241,7 +237,7 @@ toolbarbutton.bookmark-item > menupopup {
 }
 
 .bookmark-item[livemark] .menuitem-iconic {
-  list-style-image: url("chrome://browser/skin/livemark-item.png");
+  list-style-image: url("chrome://browser/skin/places/livemarkItem.png");
 }
 
 .bookmark-item menuitem[openInTabs],
@@ -265,16 +261,6 @@ toolbarbutton.bookmark-item > menupopup {
 .bookmark-item > .menu-iconic-left > .menu-iconic-icon {
   width: 16px;
   height: 16px;
-}
-
-.bookmark-item[cutting] > .toolbarbutton-icon,
-.bookmark-item[cutting] > .menu-iconic-left > .menu-iconic-icon {
-  opacity: 0.5;
-}
-
-.bookmark-item[cutting] > .toolbarbutton-text,
-.bookmark-item[cutting] > .menu-iconic-left > .menu-iconic-text {
-  opacity: 0.7;
 }
 
 #bookmarksToolbarFolderMenu,
@@ -1408,48 +1394,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   text-align: end;
 }
 
-.panel-promo-box {
-  margin: 8px -16px -16px -16px;
-  padding: 8px 16px;
-  background-color: hsla(0,0%,7%,.3);
-  border-top: 1px solid hsla(0,0%,100%,.1);
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
-  box-shadow: 0 1px 1px hsla(0,0%,0%,.25) inset;
-  color: hsl(0,0%,60%);
-}
-
-.panel-promo-message > .text-link {
-  color: hsl(210,100%,75%);
-}
-
-.panel-promo-icon {
-  list-style-image: url("chrome://browser/skin/sync-notification-24.png");
-  -moz-margin-end: 10px;
-  vertical-align: middle;
-}
-
-.panel-promo-closebutton {
-  list-style-image: url("chrome://global/skin/notification/close.png");
-  -moz-image-region: rect(0, 16px, 16px, 0);
-  border: none;
-  -moz-margin-end: -14px;
-  margin-top: -8px;
-}
-
-.panel-promo-closebutton:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
-.panel-promo-closebutton:hover:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
-.panel-promo-closebutton > .toolbarbutton-text {
-  padding: 0;
-  margin: 0;
-}
-
 /* ----- SIDEBAR ELEMENTS ----- */
 
 #sidebar,
@@ -2021,11 +1965,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   list-style-image: url("chrome://global/skin/icons/loading_16.png") !important;
 }
 
-.alltabs-item[tabIsVisible] {
-  /* box-shadow instead of background-color to work around native styling */
-  box-shadow: inset 0 0 0 2em hsla(0,0%,50%,.15);
-}
-
 /* Tabstrip close button */
 .tabs-closebutton {
   -moz-padding-end: 4px;
@@ -2180,10 +2119,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 .geolocation-text-link {
   color: #fff;
   -moz-margin-start: 0; /* override default label margin to match description margin */
-}
-
-.telemetry-text-link {
-  color: #fff;
 }
 
 #addons-notification-icon {
@@ -2507,29 +2442,4 @@ panel[dimmed="true"] {
   border-left-style: solid;
   border-top-left-radius: .3em;
   margin-left: 1em;
-}
-
-
-/* Highlighter */
-
-.highlighter-veil {
-  background-color: rgba(0, 0, 0, 0.5);
-}
-
-#highlighter-close-button {
-  list-style-image: url("chrome://browser/skin/KUI-close.png");
-  top: 12px;
-  right: 12px;
-  cursor: pointer;
-}
-
-#highlighter-close-button:-moz-locale-dir(rtl)  {
-  right: auto;
-  left: 12px;
-}
-
-#highlighter-veil-transparentbox {
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
-  outline: 1px dashed rgba(255,255,255,0.5);
-  outline-offset: -1px;
 }

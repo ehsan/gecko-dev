@@ -88,7 +88,6 @@ fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-filter-size-01.svg lime.svg
 == anim-length-reset-01.svg lime.svg
 == anim-nonpixel-length-reset-01.svg lime.svg
-== anim-use-length-01.svg lime.svg
 
 # animate some <number> attributes:
 == anim-feComponentTransfer-01.svg lime.svg
@@ -98,14 +97,8 @@ fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-offset-01.svg lime.svg
 == anim-pathLength-01.svg anim-pathLength-01-ref.svg
 
-# animate some <number-optional-number> attributes:
-== anim-feGaussianBlur-01.svg lime.svg
-
 # animate some <integer> attributes:
 == anim-feTurbulence-numOctaves-01.svg anim-feTurbulence-numOctaves-01-ref.svg
-
-# animate some <integer-optional-integer> attributes:
-== anim-filter-filterRes-01.svg lime.svg
 
 # animate some <angle> attributes:
 == anim-marker-orient-01.svg lime.svg
@@ -186,7 +179,7 @@ fails == anim-strokecolor-1.svg anim-standard-ref.svg # bug 436296
 == anim-targethref-8.svg anim-standard-ref.svg
 == anim-targethref-9.svg anim-standard-ref.svg
 
-random-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == anim-text-rotate-01.svg anim-text-rotate-01-ref.svg # Bug 645104 for random failure on WinXP
+== anim-text-rotate-01.svg anim-text-rotate-01-ref.svg
 == anim-feFuncR-tableValues-01.svg anim-feFuncR-tableValues-01-ref.svg
 
 random == anim-text-x-y-dx-dy-01.svg anim-text-x-y-dx-dy-01-ref.svg # bug 579588

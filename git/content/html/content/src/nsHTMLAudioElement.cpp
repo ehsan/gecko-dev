@@ -64,6 +64,7 @@
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
 
 using namespace mozilla::dom;
@@ -84,8 +85,7 @@ NS_NewHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::audio, nsnull,
-                                                   kNameSpaceID_XHTML,
-                                                   nsIDOMNode::ELEMENT_NODE);
+                                                   kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 

@@ -55,7 +55,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsILookAndFeel.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsMenuFrame.h"
+#include "nsIMenuFrame.h"
 #include "nsWidgetAtoms.h"
 #include <malloc.h>
 #include "nsWindow.h"
@@ -148,7 +148,7 @@ nsNativeThemeWin::~nsNativeThemeWin() {
 static PRBool IsTopLevelMenu(nsIFrame *aFrame)
 {
   PRBool isTopLevel(PR_FALSE);
-  nsMenuFrame *menuFrame = do_QueryFrame(aFrame);
+  nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
   if (menuFrame) {
     isTopLevel = menuFrame->IsOnMenuBar();
   }
@@ -209,8 +209,8 @@ static SIZE GetGutterSize(HANDLE theme, HDC hdc)
     SIZE itemSize;
     nsUXThemeData::getThemePartSize(theme, hdc, MENU_POPUPITEM, MPI_NORMAL, NULL, TS_TRUE, &itemSize);
 
-    int width = NS_MAX(itemSize.cx, checkboxBGSize.cx + gutterSize.cx);
-    int height = NS_MAX(itemSize.cy, checkboxBGSize.cy);
+    int width = PR_MAX(itemSize.cx, checkboxBGSize.cx + gutterSize.cx);
+    int height = PR_MAX(itemSize.cy, checkboxBGSize.cy);
     SIZE ret;
     ret.cx = width;
     ret.cy = height;
@@ -349,14 +349,18 @@ static CaptionButtonPadding buttonData[3] = {
  * These values are found by experimenting and comparing against native widgets
  * used by the system. They are very unlikely exact but try to not be too wrong.
  */
-// The width of the overlay used to animate the horizontal progress bar (Vista and later).
-static const PRInt32 kProgressHorizontalVistaOverlaySize = 120;
-// The width of the overlay used for the horizontal indeterminate progress bars on XP.
-static const PRInt32 kProgressHorizontalXPOverlaySize = 55;
-// The height of the overlay used to animate the vertical progress bar (Vista and later).
-static const PRInt32 kProgressVerticalOverlaySize = 45;
-// The height of the overlay used for the vertical indeterminate progress bar (Vista and later).
-static const PRInt32 kProgressVerticalIndeterminateOverlaySize = 60;
+// PP_CHUNK is overflowing on the bottom for no appearant reasons.
+// This is a fix around this issue.
+static const PRInt32 kProgressDeterminedXPOverflow = 11;
+// Same thing but for PP_FILL.
+static const PRInt32 kProgressDeterminedVistaOverflow = 4;
+// Same thing but for indeterminate progress bar.
+// The value is the same for PP_CHUNK and PP_MOVEOVERLAY in that case.
+static const PRInt32 kProgressIndeterminateOverflow = 2;
+// The width of the overlay used to animate the progress bar (Vista and later).
+static const PRInt32 kProgressVistaOverlayWidth = 120;
+// The width of the overlay used to for indeterminate progress bars on XP.
+static const PRInt32 kProgressXPOverlayWidth = 55;
 // Speed (px per ms) of the animation for determined Vista and later progress bars.
 static const double kProgressDeterminedVistaSpeed = 0.225;
 // Speed (px per ms) of the animation for indeterminate progress bars.
@@ -515,10 +519,10 @@ nsNativeThemeWin::StandardGetState(nsIFrame* aFrame, PRUint8 aWidgetType,
   nsEventStates eventState = GetContentState(aFrame, aWidgetType);
   if (eventState.HasAllStates(NS_EVENT_STATE_HOVER | NS_EVENT_STATE_ACTIVE))
     return TS_ACTIVE;
-  if (eventState.HasState(NS_EVENT_STATE_HOVER))
-    return TS_HOVER;
   if (wantFocused && eventState.HasState(NS_EVENT_STATE_FOCUS))
     return TS_FOCUSED;
+  if (eventState.HasState(NS_EVENT_STATE_HOVER))
+    return TS_HOVER;
 
   return TS_NORMAL;
 }
@@ -676,24 +680,17 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       return NS_OK;
     }
     case NS_THEME_PROGRESSBAR: {
-      aPart = IsVerticalProgress(aFrame) ? PP_BARVERT : PP_BAR;
+      aPart = PP_BAR;
       aState = TS_NORMAL;
       return NS_OK;
     }
     case NS_THEME_PROGRESSBAR_CHUNK: {
       nsIFrame* stateFrame = aFrame->GetParent();
       nsEventStates eventStates = GetContentState(stateFrame, aWidgetType);
-
-      if (IsIndeterminateProgress(stateFrame, eventStates)) {
-        // If the element is indeterminate, we are going to render it ourself so
-        // we have to return aPart = -1.
-        aPart = -1;
-      } else if (IsVerticalProgress(stateFrame)) {
-        aPart = nsUXThemeData::sIsVistaOrLater ? PP_FILLVERT : PP_CHUNKVERT;
-      } else {
-        aPart = nsUXThemeData::sIsVistaOrLater ? PP_FILL : PP_CHUNK;
-      }
-
+      // If the element is indeterminate, we are going to render it ourself so
+      // we have to return aPart = -1.
+      aPart = IsIndeterminateProgress(stateFrame, eventStates)
+                ? -1 : nsUXThemeData::sIsVistaOrLater ? PP_FILL : PP_CHUNK;
       aState = TS_NORMAL;
       return NS_OK;
     }
@@ -943,13 +940,12 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
     case NS_THEME_DROPDOWN: {
       nsIContent* content = aFrame->GetContent();
       PRBool isHTML = content && content->IsHTML();
-      PRBool useDropBorder = isHTML || IsMenuListEditable(aFrame);
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
 
-      /* On Vista/Win7, we use CBP_DROPBORDER instead of DROPFRAME for HTML
-       * content or for editable menulists; this gives us the thin outline,
-       * instead of the gradient-filled background */
-      if (useDropBorder)
+      /* On vista, in HTML, we use CBP_DROPBORDER instead of DROPFRAME for HTML content;
+       * this gives us the thin outline in HTML content, instead of the gradient-filled
+       * background */
+      if (isHTML)
         aPart = CBP_DROPBORDER;
       else
         aPart = CBP_DROPFRAME;
@@ -961,7 +957,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       } else if (IsOpenButton(aFrame)) {
         aState = TS_ACTIVE;
       } else {
-        if (useDropBorder && (eventState.HasState(NS_EVENT_STATE_FOCUS) || IsFocused(aFrame)))
+        if (isHTML && eventState.HasState(NS_EVENT_STATE_FOCUS))
           aState = TS_ACTIVE;
         else if (eventState.HasAllStates(NS_EVENT_STATE_HOVER | NS_EVENT_STATE_ACTIVE))
           aState = TS_ACTIVE;
@@ -1005,7 +1001,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
         isOpen = IsOpenButton(aFrame);
 
       if (nsUXThemeData::sIsVistaOrLater) {
-        if (isHTML || IsMenuListEditable(aFrame)) {
+        if (isHTML) {
           if (isOpen) {
             /* Hover is propagated, but we need to know whether we're
              * hovering just the combobox frame, not the dropdown frame.
@@ -1062,7 +1058,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       PRBool isTopLevel = PR_FALSE;
       PRBool isOpen = PR_FALSE;
       PRBool isHover = PR_FALSE;
-      nsMenuFrame *menuFrame = do_QueryFrame(aFrame);
+      nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
 
       isTopLevel = IsTopLevelMenu(aFrame);
@@ -1259,11 +1255,6 @@ nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
     dr.y -= 1.0;
     dr.width += 1.0;
     dr.height += 2.0;
-
-    if (IsFrameRTL(aFrame)) {
-      tr.x -= 1.0;
-      dr.x -= 1.0;
-    }
   }
 
   nsRefPtr<gfxContext> ctx = aContext->ThebesContext();
@@ -1330,6 +1321,14 @@ RENDER_AGAIN:
   }
   else if (aWidgetType == NS_THEME_WINDOW_BUTTON_CLOSE) {
     OffsetBackgroundRect(widgetRect, CAPTIONBUTTON_CLOSE);
+  } else if (aWidgetType == NS_THEME_PROGRESSBAR_CHUNK) {
+    nsIFrame* stateFrame = aFrame->GetParent();
+    nsEventStates eventStates = GetContentState(stateFrame, aWidgetType);
+    widgetRect.bottom -= IsIndeterminateProgress(stateFrame, eventStates)
+                           ? kProgressIndeterminateOverflow
+                           : nsUXThemeData::sIsVistaOrLater
+                             ? kProgressDeterminedVistaOverflow
+                             : kProgressDeterminedXPOverflow;
   }
 
   // widgetRect is the bounding box for a widget, yet the scale track is only
@@ -1440,8 +1439,7 @@ RENDER_AGAIN:
   }
   // The following widgets need to be RTL-aware
   else if (aWidgetType == NS_THEME_MENUARROW ||
-           aWidgetType == NS_THEME_RESIZER ||
-           aWidgetType == NS_THEME_DROPDOWN_BUTTON)
+           aWidgetType == NS_THEME_RESIZER)
   {
     DrawThemeBGRTLAware(theme, hdc, part, state,
                         &widgetRect, &clipRect, IsFrameRTL(aFrame));
@@ -1579,75 +1577,43 @@ RENDER_AGAIN:
     nsIFrame* stateFrame = aFrame->GetParent();
     nsEventStates eventStates = GetContentState(stateFrame, aWidgetType);
     bool indeterminate = IsIndeterminateProgress(stateFrame, eventStates);
-    bool vertical = IsVerticalProgress(stateFrame);
 
     if (indeterminate || nsUXThemeData::sIsVistaOrLater) {
       if (!QueueAnimatedContentForRefresh(aFrame->GetContent(), 60)) {
         NS_WARNING("unable to animate progress widget!");
       }
 
-      /**
-       * Unfortunately, vertical progress bar support on Windows seems weak and
-       * PP_MOVEOVERLAYRECT looks really different from PP_MOVEOVERLAY.
-       * Thus, we have to change the size and even don't use it for vertical
-       * indeterminate progress bars.
-       */
-      PRInt32 overlaySize;
-      if (nsUXThemeData::sIsVistaOrLater) {
-        if (vertical) {
-          overlaySize = indeterminate ? kProgressVerticalIndeterminateOverlaySize
-                                      : kProgressVerticalOverlaySize;
-        } else {
-          overlaySize = kProgressHorizontalVistaOverlaySize;
-        }
-      } else {
-        overlaySize = kProgressHorizontalXPOverlaySize;
-      }
-
+      const PRInt32 overlayWidth = nsUXThemeData::sIsVistaOrLater
+                                     ? kProgressVistaOverlayWidth
+                                     : kProgressXPOverlayWidth;
       const double pixelsPerMillisecond = indeterminate
                                             ? kProgressIndeterminateSpeed
                                             : kProgressDeterminedVistaSpeed;
       const PRInt32 delay = indeterminate ? kProgressIndeterminateDelay
                                           : kProgressDeterminedVistaDelay;
 
-      const PRInt32 frameSize = vertical ? widgetRect.bottom - widgetRect.top
-                                         : widgetRect.right - widgetRect.left;
-      const PRInt32 animationSize = frameSize + overlaySize +
+      const PRInt32 frameWidth = widgetRect.right - widgetRect.left;
+      const PRInt32 animationWidth = frameWidth + overlayWidth +
                                      static_cast<PRInt32>(pixelsPerMillisecond * delay);
-      const double interval = animationSize / pixelsPerMillisecond;
+      const double interval = animationWidth / pixelsPerMillisecond;
       // We have to pass a double* to modf and we can't pass NULL.
       double tempValue;
       double ratio = modf(PR_IntervalToMilliseconds(PR_IntervalNow())/interval,
                           &tempValue);
       // If the frame direction is RTL, we want to have the animation going RTL.
       // ratio is in [0.0; 1.0[ range, inverting it reverse the animation.
-      if (!vertical && IsFrameRTL(aFrame)) {
+      if (IsFrameRTL(aFrame)) {
         ratio = 1.0 - ratio;
       }
-      PRInt32 dx = static_cast<PRInt32>(animationSize * ratio) - overlaySize;
+      PRInt32 dx = static_cast<PRInt32>(animationWidth * ratio) - overlayWidth;
 
       RECT overlayRect = widgetRect;
-      if (vertical) {
-        overlayRect.bottom -= dx;
-        overlayRect.top = overlayRect.bottom - overlaySize;
-      } else {
-        overlayRect.left += dx;
-        overlayRect.right = overlayRect.left + overlaySize;
-      }
-
-      PRInt32 overlayPart;
-      if (vertical) {
-        if (nsUXThemeData::sIsVistaOrLater) {
-          overlayPart = indeterminate ? PP_MOVEOVERLAY : PP_MOVEOVERLAYVERT;
-        } else {
-          overlayPart = PP_CHUNKVERT;
-        }
-      } else {
-        overlayPart = nsUXThemeData::sIsVistaOrLater ? PP_MOVEOVERLAY : PP_CHUNK;
-      }
-
-      nsUXThemeData::drawThemeBG(theme, hdc, overlayPart, state, &overlayRect,
-                                 &clipRect);
+      overlayRect.left += dx;
+      overlayRect.right = overlayRect.left + overlayWidth;
+      nsUXThemeData::drawThemeBG(theme, hdc,
+                                 nsUXThemeData::sIsVistaOrLater ? PP_MOVEOVERLAY
+                                                                : PP_CHUNK,
+                                 state, &overlayRect, &clipRect);
     }
   }
 
@@ -1796,7 +1762,7 @@ nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext,
   }
 
   if (!theme)
-    return ClassicGetWidgetPadding(aContext, aFrame, aWidgetType, aResult);
+    return PR_FALSE;
 
   if (aWidgetType == NS_THEME_MENUPOPUP)
   {
@@ -2469,30 +2435,18 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsDeviceContext* aContext,
     case NS_THEME_MENUPOPUP:
       (*aResult).top = (*aResult).left = (*aResult).bottom = (*aResult).right = 3;
       break;
-    default:
-      (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 0;
-      break;
-  }
-  return NS_OK;
-}
-
-PRBool
-nsNativeThemeWin::ClassicGetWidgetPadding(nsDeviceContext* aContext,
-                                   nsIFrame* aFrame,
-                                   PRUint8 aWidgetType,
-                                   nsIntMargin* aResult)
-{
-  switch (aWidgetType) {
     case NS_THEME_MENUITEM:
     case NS_THEME_CHECKMENUITEM:
     case NS_THEME_RADIOMENUITEM: {
       PRInt32 part, state;
       PRBool focused;
+      nsresult rv;
 
-      if (NS_FAILED(ClassicGetThemePartAndState(aFrame, aWidgetType, part, state, focused)))
-        return PR_FALSE;
+      rv = ClassicGetThemePartAndState(aFrame, aWidgetType, part, state, focused);
+      if (NS_FAILED(rv))
+        return rv;
 
-      if (part == 1) { // top-level menu
+      if (part == 1) { // top level menu
         if (nsUXThemeData::sFlatMenus || !(state & DFCS_PUSHED)) {
           (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 2;
         }
@@ -2506,15 +2460,13 @@ nsNativeThemeWin::ClassicGetWidgetPadding(nsDeviceContext* aContext,
         (*aResult).top = 0;
         (*aResult).bottom = (*aResult).left = (*aResult).right = 2;
       }
-      return PR_TRUE;
+      break;
     }
-    case NS_THEME_PROGRESSBAR:
-    case NS_THEME_PROGRESSBAR_VERTICAL:
-      (*aResult).top = (*aResult).left = (*aResult).bottom = (*aResult).right = 1;
-      return PR_TRUE;
     default:
-      return PR_FALSE;
+      (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 0;
+      break;
   }
+  return NS_OK;
 }
 
 nsresult
@@ -2675,7 +2627,6 @@ nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsRenderingContext* aContext, nsIF
 nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
                                  PRInt32& aPart, PRInt32& aState, PRBool& aFocused)
 {  
-  aFocused = PR_FALSE;
   switch (aWidgetType) {
     case NS_THEME_BUTTON: {
       nsEventStates contentState;
@@ -2759,7 +2710,7 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
       PRBool isTopLevel = PR_FALSE;
       PRBool isOpen = PR_FALSE;
       PRBool isContainer = PR_FALSE;
-      nsMenuFrame *menuFrame = do_QueryFrame(aFrame);
+      nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
 
       // We indicate top-level-ness using aPart. 0 is a normal menu item,

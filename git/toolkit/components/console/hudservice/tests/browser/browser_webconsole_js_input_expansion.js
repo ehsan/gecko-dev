@@ -53,7 +53,10 @@ function testJSInputExpansion() {
 
   openConsole();
 
-  let jsterm = HUDService.getHudByWindow(content).jsterm;
+  hudId = HUDService.displaysIndex()[0];
+
+  let HUD = HUDService.hudReferences[hudId];
+  let jsterm = HUD.jsterm;
   let input = jsterm.inputNode;
   input.focus();
 

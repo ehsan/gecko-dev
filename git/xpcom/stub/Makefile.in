@@ -81,13 +81,7 @@ DEPENDENT_LIBS_LIST += \
 	$(DLL_PREFIX)mozalloc$(DLL_SUFFIX) \
 	$(NULL)
 
-ifndef MOZ_NATIVE_SQLITE
-ifeq ($(OS_TARGET),OS2)
-DEPENDENT_LIBS_LIST += mozsqlt3.dll
-else
-DEPENDENT_LIBS_LIST += $(DLL_PREFIX)mozsqlite3$(DLL_SUFFIX)
-endif
-endif
+ifdef MOZ_ENABLE_LIBXUL
 
 DEPENDENT_LIBS_LIST += \
 	$(DLL_PREFIX)nssutil3$(DLL_SUFFIX) \
@@ -101,8 +95,12 @@ ifdef JS_SHARED_LIBRARY
 DEPENDENT_LIBS_LIST += $(DLL_PREFIX)mozjs$(DLL_SUFFIX)
 endif
 
-ifdef MOZ_JPROF
-DEPENDENT_LIBS_LIST += $(DLL_PREFIX)jprof$(DLL_SUFFIX)
+ifndef MOZ_NATIVE_SQLITE
+ifeq ($(OS_TARGET),OS2)
+DEPENDENT_LIBS_LIST += mozsqlt3.dll
+else
+DEPENDENT_LIBS_LIST += $(DLL_PREFIX)mozsqlite3$(DLL_SUFFIX)
+endif
 endif
 
 ifeq (bundle,$(MOZ_FS_LAYOUT))
@@ -112,6 +110,17 @@ else
 EXTRA_DSO_LIBS = xul
 DEPENDENT_LIBS_LIST += $(DLL_PREFIX)xul$(DLL_SUFFIX)
 endif
+
+else #!MOZ_ENABLE_LIBXUL
+
+EXTRA_DSO_LIBS = xpcom_core
+ifeq ($(OS_TARGET),OS2)
+DEPENDENT_LIBS_LIST += xpcomcor.dll
+else
+DEPENDENT_LIBS_LIST += $(DLL_PREFIX)xpcom_core$(DLL_SUFFIX)
+endif
+
+endif #ifdef MOZ_ENABLE_LIBXUL
 
 EXTRA_DSO_LDOPTS +=				\
 	$(EXTRA_DSO_LIBS)			\

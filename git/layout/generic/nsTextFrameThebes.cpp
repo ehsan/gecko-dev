@@ -106,15 +106,15 @@
 #endif
 #include "nsAutoPtr.h"
 
+#include "nsBidiFrames.h"
+#include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
 
 #include "gfxFont.h"
 #include "gfxContext.h"
 #include "gfxTextRunWordCache.h"
 #include "gfxImageSurface.h"
-
 #include "mozilla/dom/Element.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 #ifdef NS_DEBUG
 #undef NOISY_BLINK
@@ -131,7 +131,7 @@ using namespace mozilla::dom;
 
 struct TabWidth {
   TabWidth(PRUint32 aOffset, PRUint32 aWidth)
-    : mOffset(aOffset), mWidth(float(aWidth))
+    : mOffset(aOffset), mWidth(aWidth)
   { }
 
   PRUint32 mOffset; // character offset within the text covered by the
@@ -462,7 +462,7 @@ UnhookTextRunFromFrames(gfxTextRun* aTextRun, nsTextFrame* aStartContinuation)
 
   if (aTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_SIMPLE_FLOW) {
     nsIFrame* userDataFrame = static_cast<nsIFrame*>(aTextRun->GetUserData());
-    DebugOnly<PRBool> found =
+    PRBool found =
       ClearAllTextRunReferences(static_cast<nsTextFrame*>(userDataFrame),
                                 aTextRun, aStartContinuation);
     NS_ASSERTION(!aStartContinuation || found,
@@ -591,9 +591,10 @@ MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
     return textRun.forget();
 }
 
-void
+nsresult
 nsTextFrameTextRunCache::Init() {
     gTextRuns = new FrameTextRunCache();
+    return gTextRuns ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 void
@@ -607,60 +608,20 @@ PRInt32 nsTextFrame::GetContentEnd() const {
   return next ? next->GetContentOffset() : mContent->GetText()->GetLength();
 }
 
-struct FlowLengthProperty {
-  PRInt32 mStartOffset;
-  // The offset of the next fixed continuation after mStartOffset, or
-  // of the end of the text if there is none
-  PRInt32 mEndFlowOffset;
-
-  static void Destroy(void* aObject, nsIAtom* aPropertyName,
-                      void* aPropertyValue, void* aData)
-  {
-    delete static_cast<FlowLengthProperty*>(aPropertyValue);
-  }
-};
-
 PRInt32 nsTextFrame::GetInFlowContentLength() {
-  if (!(mState & NS_FRAME_IS_BIDI)) {
-    return mContent->TextLength() - mContentOffset;
-  }
+#ifdef IBMBIDI
+  nsTextFrame* nextBidi = nsnull;
+  PRInt32      start = -1, end;
 
-  FlowLengthProperty* flowLength =
-    static_cast<FlowLengthProperty*>(mContent->GetProperty(nsGkAtoms::flowlength));
-
-  /**
-   * This frame must start inside the cached flow. If the flow starts at
-   * mContentOffset but this frame is empty, logically it might be before the
-   * start of the cached flow.
-   */
-  if (flowLength && 
-      (flowLength->mStartOffset < mContentOffset ||
-       (flowLength->mStartOffset == mContentOffset && GetContentEnd() > mContentOffset)) &&
-      flowLength->mEndFlowOffset > mContentOffset) {
-#ifdef DEBUG
-    NS_ASSERTION(flowLength->mEndFlowOffset >= GetContentEnd(),
-		 "frame crosses fixed continuation boundary");
-#endif
-    return flowLength->mEndFlowOffset - mContentOffset;
-  }
-
-  nsTextFrame* nextBidi = static_cast<nsTextFrame*>(GetLastInFlow()->GetNextContinuation());
-  PRInt32 endFlow = nextBidi ? nextBidi->GetContentOffset() : mContent->TextLength();
-
-  if (!flowLength) {
-    flowLength = new FlowLengthProperty;
-    if (NS_FAILED(mContent->SetProperty(nsGkAtoms::flowlength, flowLength,
-                                        FlowLengthProperty::Destroy))) {
-      delete flowLength;
-      flowLength = nsnull;
+  if (mState & NS_FRAME_IS_BIDI) {
+    nextBidi = static_cast<nsTextFrame*>(GetLastInFlow()->GetNextContinuation());
+    if (nextBidi) {
+      nextBidi->GetOffsets(start, end);
+      return start - mContentOffset;
     }
   }
-  if (flowLength) {
-    flowLength->mStartOffset = mContentOffset;
-    flowLength->mEndFlowOffset = endFlow;
-  }
-
-  return endFlow - mContentOffset;
+#endif //IBMBIDI
+  return mContent->TextLength() - mContentOffset;
 }
 
 // Smarter versions of XP_IS_SPACE.
@@ -1184,6 +1145,7 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   }
 
   nsPresContext* presContext = aLineContainer->PresContext();
+  nsStyleContext* sc = aForFrame->GetStyleContext();
   BuildTextRunsScanner scanner(presContext, aContext, aLineContainer);
 
   nsBlockFrame* block = nsLayoutUtils::GetAsBlock(aLineContainer);
@@ -2749,7 +2711,7 @@ ComputeTabWidthAppUnits(nsIFrame* aFrame, gfxTextRun* aTextRun)
   // Round the space width when converting to appunits the same way
   // textruns do
   gfxFloat spaceWidthAppUnits =
-    NS_round(GetFirstFontMetrics(
+    NS_roundf(GetFirstFontMetrics(
                 GetFontGroupForFrame(aFrame)).spaceWidth *
               aTextRun->GetAppUnitsPerDevUnit());
   return textStyle->mTabSize * spaceWidthAppUnits;
@@ -2800,7 +2762,7 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
 
   PRUint32 startOffset = mStart.GetSkippedOffset();
   PRUint32 tabsEnd = mTabWidths ?
-    mTabWidths->mLimit : NS_MAX(mTabWidthsAnalyzedLimit, startOffset);
+    mTabWidths->mLimit : PR_MAX(mTabWidthsAnalyzedLimit, startOffset);
 
   if (tabsEnd < aStart + aLength) {
     NS_ASSERTION(mReflowing,
@@ -2829,8 +2791,8 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
         }
         double nextTab = AdvanceToNextTab(mOffsetFromBlockOriginForTabs,
                 mFrame, mTextRun, &tabWidth);
-        mTabWidths->mWidths.AppendElement(TabWidth(i - startOffset, 
-                NSToIntRound(nextTab - mOffsetFromBlockOriginForTabs)));
+        mTabWidths->mWidths.AppendElement(
+          TabWidth(i - startOffset, nextTab - mOffsetFromBlockOriginForTabs));
         mOffsetFromBlockOriginForTabs = nextTab;
       }
 
@@ -2845,7 +2807,7 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
   if (!mTabWidths) {
     // Delete any stale property that may be left on the frame
     mFrame->Properties().Delete(TabWidthProperty());
-    mTabWidthsAnalyzedLimit = NS_MAX(mTabWidthsAnalyzedLimit,
+    mTabWidthsAnalyzedLimit = PR_MAX(mTabWidthsAnalyzedLimit,
                                      aStart + aLength);
   }
 }
@@ -3035,8 +2997,8 @@ public:
 
   NS_DECL_NSITIMERCALLBACK
 
-  static void AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame);
-  static void RemoveBlinkFrame(nsIFrame* aFrame);
+  static nsresult AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame);
+  static nsresult RemoveBlinkFrame(nsIFrame* aFrame);
   
   static PRBool   GetBlinkIsOff() { return sState == 3; }
   
@@ -3160,28 +3122,33 @@ NS_IMETHODIMP nsBlinkTimer::Notify(nsITimer *timer)
 
 
 // static
-void nsBlinkTimer::AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
+nsresult nsBlinkTimer::AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
 {
   if (!sTextBlinker)
   {
     sTextBlinker = new nsBlinkTimer;
+    if (!sTextBlinker) return NS_ERROR_OUT_OF_MEMORY;
   }
-
+  
   NS_ADDREF(sTextBlinker);
 
   sTextBlinker->AddFrame(aPresContext, aFrame);
+  return NS_OK;
 }
 
 
 // static
-void nsBlinkTimer::RemoveBlinkFrame(nsIFrame* aFrame)
+nsresult nsBlinkTimer::RemoveBlinkFrame(nsIFrame* aFrame)
 {
   NS_ASSERTION(sTextBlinker, "Should have blink timer here");
-
+  
   nsBlinkTimer* blinkTimer = sTextBlinker;    // copy so we can call NS_RELEASE on it
-
+  if (!blinkTimer) return NS_OK;
+  
   blinkTimer->RemoveFrame(aFrame);  
   NS_RELEASE(blinkTimer);
+  
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -3200,6 +3167,39 @@ EnsureDifferentColors(nscolor colorA, nscolor colorB)
 }
 
 //-----------------------------------------------------------------------------
+
+static nscolor
+DarkenColor(nscolor aColor)
+{
+  PRUint16  hue, sat, value;
+  PRUint8 alpha;
+
+  // convert the RBG to HSV so we can get the lightness (which is the v)
+  NS_RGB2HSV(aColor, hue, sat, value, alpha);
+
+  // The goal here is to send white to black while letting colored
+  // stuff stay colored... So we adopt the following approach.
+  // Something with sat = 0 should end up with value = 0.  Something
+  // with a high sat can end up with a high value and it's ok.... At
+  // the same time, we don't want to make things lighter.  Do
+  // something simple, since it seems to work.
+  if (value > sat) {
+    value = sat;
+    // convert this color back into the RGB color space.
+    NS_HSV2RGB(aColor, hue, sat, value, alpha);
+  }
+  return aColor;
+}
+
+// Check whether we should darken text colors. We need to do this if
+// background images and colors are being suppressed, because that means
+// light text will not be visible against the (presumed light-colored) background.
+static PRBool
+ShouldDarkenColors(nsPresContext* aPresContext)
+{
+  return !aPresContext->GetBackgroundColorDraw() &&
+    !aPresContext->GetBackgroundImageDraw();
+}
 
 nsTextPaintStyle::nsTextPaintStyle(nsTextFrame* aFrame)
   : mFrame(aFrame),
@@ -3239,7 +3239,11 @@ nsTextPaintStyle::EnsureSufficientContrast(nscolor *aForeColor, nscolor *aBackCo
 nscolor
 nsTextPaintStyle::GetTextColor()
 {
-  return nsLayoutUtils::GetTextColor(mFrame);
+  nscolor color = mFrame->GetVisitedDependentColor(eCSSProperty_color);
+  if (ShouldDarkenColors(mPresContext)) {
+    color = DarkenColor(color);
+  }
+  return color;
 }
 
 PRBool
@@ -3280,14 +3284,10 @@ nsTextPaintStyle::GetURLSecondaryColor(nscolor* aForeColor)
 {
   NS_ASSERTION(aForeColor, "aForeColor is null");
 
-  nscolor textColor = GetTextColor();
-  textColor = NS_RGBA(NS_GET_R(textColor),
-                      NS_GET_G(textColor),
-                      NS_GET_B(textColor),
-                      (PRUint8)(255 * 0.5f));
-  // Don't use true alpha color for readability.
-  InitCommonColors();
-  *aForeColor = NS_ComposeColors(mFrameBackgroundColor, textColor);
+  nsILookAndFeel* look = mPresContext->LookAndFeel();
+  nscolor foreColor;
+  look->GetColor(nsILookAndFeel::eColor_graytext, foreColor);
+  *aForeColor = foreColor;
 }
 
 void
@@ -3650,12 +3650,9 @@ nsTextFrame::Init(nsIContent*      aContent,
   NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eTEXT),
                   "Bogus content!");
 
-  // Remove any NewlineOffsetProperty or InFlowContentLengthProperty since they
-  // might be invalid if the content was modified while there was no frame
+  // Remove any NewlineOffsetProperty since it might be invalid
+  // if the content was modified while there was no frame
   aContent->DeleteProperty(nsGkAtoms::newline);
-  if (PresContext()->BidiEnabled()) {
-    aContent->DeleteProperty(nsGkAtoms::flowlength);
-  }
 
   // Since our content has a frame now, this flag is no longer needed.
   aContent->UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE);
@@ -4047,9 +4044,6 @@ NS_IMETHODIMP
 nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 {
   mContent->DeleteProperty(nsGkAtoms::newline);
-  if (PresContext()->BidiEnabled()) {
-    mContent->DeleteProperty(nsGkAtoms::flowlength);
-  }
 
   // Find the first frame whose text has changed. Frames that are entirely
   // before the text change are completely unaffected.
@@ -4125,10 +4119,10 @@ nsTextFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   ClearTextRun(nsnull);
 } 
 
-class nsDisplayText : public nsCharClipDisplayItem {
+class nsDisplayText : public nsDisplayItem {
 public:
   nsDisplayText(nsDisplayListBuilder* aBuilder, nsTextFrame* aFrame) :
-    nsCharClipDisplayItem(aBuilder, aFrame),
+    nsDisplayItem(aBuilder, aFrame),
     mDisableSubpixelAA(PR_FALSE) {
     MOZ_COUNT_CTOR(nsDisplayText);
   }
@@ -4174,9 +4168,7 @@ nsDisplayText::Paint(nsDisplayListBuilder* aBuilder,
 
   gfxContextAutoDisableSubpixelAntialiasing disable(aCtx->ThebesContext(),
                                                     mDisableSubpixelAA);
-  NS_ASSERTION(mLeftEdge >= 0, "illegal left edge");
-  NS_ASSERTION(mRightEdge >= 0, "illegal right edge");
-  f->PaintText(aCtx, ToReferenceFrame(), extraVisible, *this);
+  f->PaintText(aCtx, ToReferenceFrame(), extraVisible);
 }
 
 NS_IMETHODIMP
@@ -4392,14 +4384,12 @@ nsTextFrame::UnionTextDecorationOverflow(nsPresContext* aPresContext,
 }
 
 void 
-nsTextFrame::PaintTextDecorations(
-               gfxContext* aCtx, const gfxRect& aDirtyRect,
-               const gfxPoint& aFramePt,
-               const gfxPoint& aTextBaselinePt,
-               nsTextPaintStyle& aTextPaintStyle,
-               PropertyProvider& aProvider,
-               const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-               const nscolor* aOverrideColor)
+nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
+                                  const gfxPoint& aFramePt,
+                                  const gfxPoint& aTextBaselinePt,
+                                  nsTextPaintStyle& aTextPaintStyle,
+                                  PropertyProvider& aProvider,
+                                  const nscolor* aOverrideColor)
 {
   TextDecorations decorations =
     GetTextDecorations(aTextPaintStyle.PresContext());
@@ -4417,11 +4407,8 @@ nsTextFrame::PaintTextDecorations(
   gfxFloat app = aTextPaintStyle.PresContext()->AppUnitsPerDevPixel();
 
   // XXX aFramePt is in AppUnits, shouldn't it be nsFloatPoint?
-  nscoord x = NSToCoordRound(aFramePt.x);
-  nscoord width = GetRect().width;
-  aClipEdges.Intersect(&x, &width);
-  gfxPoint pt(x / app, (aTextBaselinePt.y - mAscent) / app);
-  gfxSize size(width / app, 0);
+  gfxPoint pt(aFramePt.x / app, (aTextBaselinePt.y - mAscent) / app);
+  gfxSize size(GetRect().width / app, 0);
   gfxFloat ascent = gfxFloat(mAscent) / app;
 
   nscolor lineColor;
@@ -4660,14 +4647,10 @@ public:
   /**
    * aStart and aLength are in the original string. aSelectionDetails is
    * according to the original string.
-   * @param aXOffset the offset from the origin of the frame to the start
-   * of the text (the left baseline origin for LTR, the right baseline origin
-   * for RTL)
    */
   SelectionIterator(SelectionDetails** aSelectionDetails,
                     PRInt32 aStart, PRInt32 aLength,
-                    PropertyProvider& aProvider, gfxTextRun* aTextRun,
-                    gfxFloat aXOffset);
+                    PropertyProvider& aProvider, gfxTextRun* aTextRun);
 
   /**
    * Returns the next segment of uniformly selected (or not) text.
@@ -4701,11 +4684,11 @@ private:
 
 SelectionIterator::SelectionIterator(SelectionDetails** aSelectionDetails,
     PRInt32 aStart, PRInt32 aLength, PropertyProvider& aProvider,
-    gfxTextRun* aTextRun, gfxFloat aXOffset)
+    gfxTextRun* aTextRun)
   : mSelectionDetails(aSelectionDetails), mProvider(aProvider),
     mTextRun(aTextRun), mIterator(aProvider.GetStart()),
     mOriginalStart(aStart), mOriginalEnd(aStart + aLength),
-    mXOffset(aXOffset)
+    mXOffset(mTextRun->IsRightToLeft() ? aProvider.GetFrame()->GetSize().width : 0)
 {
   mIterator.SetOriginalOffset(aStart);
 }
@@ -4778,9 +4761,7 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
                             nsCSSShadowItem* aShadowDetails,
                             PropertyProvider* aProvider, const nsRect& aDirtyRect,
                             const gfxPoint& aFramePt, const gfxPoint& aTextBaselinePt,
-                            gfxContext* aCtx, const nscolor& aForegroundColor,
-                            const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                            nscoord aLeftSideOffset)
+                            gfxContext* aCtx, const nscolor& aForegroundColor)
 {
   gfxPoint shadowOffset(aShadowDetails->mXOffset, aShadowDetails->mYOffset);
   nscoord blurRadius = NS_MAX(aShadowDetails->mRadius, 0);
@@ -4796,11 +4777,9 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   // The origin of mBoundingBox is the text baseline left, so we must translate it by
   // that much in order to make the origin the top-left corner of the text bounding box.
   gfxRect shadowGfxRect = shadowMetrics.mBoundingBox +
-    gfxPoint(aFramePt.x + aLeftSideOffset, aTextBaselinePt.y) + shadowOffset;
-  nsRect shadowRect(NSToCoordRound(shadowGfxRect.X()),
-                    NSToCoordRound(shadowGfxRect.Y()),
-                    NSToCoordRound(shadowGfxRect.Width()),
-                    NSToCoordRound(shadowGfxRect.Height()));
+     gfxPoint(aFramePt.x, aTextBaselinePt.y) + shadowOffset;
+  nsRect shadowRect(shadowGfxRect.X(), shadowGfxRect.Y(),
+                    shadowGfxRect.Width(), shadowGfxRect.Height());
 
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
@@ -4835,7 +4814,7 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   nsTextPaintStyle textPaintStyle(this);
   PaintTextDecorations(shadowContext, dirtyGfxRect, aFramePt + shadowOffset,
                        aTextBaselinePt + shadowOffset,
-                       textPaintStyle, *aProvider, aClipEdges, &shadowColor);
+                       textPaintStyle, *aProvider, &shadowColor);
 
   contextBoxBlur.DoPaint();
   aCtx->Restore();
@@ -4843,32 +4822,33 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
 
 // Paints selection backgrounds and text in the correct colors. Also computes
 // aAllTypes, the union of all selection types that are applying to this text.
-bool
+void
 nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
     const gfxPoint& aFramePt,
     const gfxPoint& aTextBaselinePt, const gfxRect& aDirtyRect,
-    PropertyProvider& aProvider,
-    PRUint32 aContentOffset, PRUint32 aContentLength,
-    nsTextPaintStyle& aTextPaintStyle, SelectionDetails* aDetails,
-    SelectionType* aAllTypes)
+    PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle,
+    SelectionDetails* aDetails, SelectionType* aAllTypes)
 {
+  PRInt32 contentOffset = aProvider.GetStart().GetOriginalOffset();
+  PRInt32 contentLength = aProvider.GetOriginalLength();
+
   // Figure out which selections control the colors to use for each character.
   nsAutoTArray<SelectionDetails*,BIG_TEXT_NODE_SIZE> prevailingSelectionsBuffer;
-  if (!prevailingSelectionsBuffer.AppendElements(aContentLength))
-    return false;
+  if (!prevailingSelectionsBuffer.AppendElements(contentLength))
+    return;
   SelectionDetails** prevailingSelections = prevailingSelectionsBuffer.Elements();
 
+  PRInt32 i;
   SelectionType allTypes = 0;
-  for (PRUint32 i = 0; i < aContentLength; ++i) {
+  for (i = 0; i < contentLength; ++i) {
     prevailingSelections[i] = nsnull;
   }
 
   SelectionDetails *sdptr = aDetails;
   PRBool anyBackgrounds = PR_FALSE;
   while (sdptr) {
-    PRInt32 start = NS_MAX(0, sdptr->mStart - PRInt32(aContentOffset));
-    PRInt32 end = NS_MIN(PRInt32(aContentLength),
-                         sdptr->mEnd - PRInt32(aContentOffset));
+    PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
+    PRInt32 end = NS_MIN(contentLength, sdptr->mEnd - contentOffset);
     SelectionType type = sdptr->mType;
     if (start < end) {
       allTypes |= type;
@@ -4879,7 +4859,7 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
         if (NS_GET_A(background) > 0) {
           anyBackgrounds = PR_TRUE;
         }
-        for (PRInt32 i = start; i < end; ++i) {
+        for (i = start; i < end; ++i) {
           // Favour normal selection over IME selections
           if (!prevailingSelections[i] ||
               type < prevailingSelections[i]->mType) {
@@ -4892,26 +4872,14 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   }
   *aAllTypes = allTypes;
 
-  if (!allTypes) {
-    // Nothing is selected in the given text range.
-    if (aContentLength == aProvider.GetOriginalLength()) {
-      // It's the full text range so we can remove the FRAME_SELECTED_CONTENT
-      // bit to avoid going through this slow path until something is selected
-      // in this frame again.
-      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
-    }
-    return false;
-  }
-
-  const gfxFloat startXOffset = aTextBaselinePt.x - aFramePt.x;
   gfxFloat xOffset, hyphenWidth;
   PRUint32 offset, length; // in transformed string
   SelectionType type;
   nsTextRangeStyle rangeStyle;
   // Draw background colors
   if (anyBackgrounds) {
-    SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
-                               aProvider, mTextRun, startXOffset);
+    SelectionIterator iterator(prevailingSelections, contentOffset, contentLength,
+                               aProvider, mTextRun);
     while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                    &type, &rangeStyle)) {
       nscolor foreground, background;
@@ -4931,8 +4899,8 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   }
   
   // Draw text
-  SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
-                             aProvider, mTextRun, startXOffset);
+  SelectionIterator iterator(prevailingSelections, contentOffset, contentLength,
+                             aProvider, mTextRun);
   while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                  &type, &rangeStyle)) {
     nscolor foreground, background;
@@ -4950,38 +4918,38 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
     }
     iterator.UpdateWithAdvance(advance);
   }
-  return true;
 }
 
 void
 nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     const gfxPoint& aFramePt,
     const gfxPoint& aTextBaselinePt, const gfxRect& aDirtyRect,
-    PropertyProvider& aProvider,
-    PRUint32 aContentOffset, PRUint32 aContentLength,
-    nsTextPaintStyle& aTextPaintStyle, SelectionDetails* aDetails,
-    SelectionType aSelectionType)
+    PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle,
+    SelectionDetails* aDetails, SelectionType aSelectionType)
 {
   // Hide text decorations if we're currently hiding @font-face fallback text
   if (aProvider.GetFontGroup()->ShouldSkipDrawing())
     return;
 
+  PRInt32 contentOffset = aProvider.GetStart().GetOriginalOffset();
+  PRInt32 contentLength = aProvider.GetOriginalLength();
+
   // Figure out which characters will be decorated for this selection.
   nsAutoTArray<SelectionDetails*, BIG_TEXT_NODE_SIZE> selectedCharsBuffer;
-  if (!selectedCharsBuffer.AppendElements(aContentLength))
+  if (!selectedCharsBuffer.AppendElements(contentLength))
     return;
   SelectionDetails** selectedChars = selectedCharsBuffer.Elements();
-  for (PRUint32 i = 0; i < aContentLength; ++i) {
+  PRInt32 i;
+  for (i = 0; i < contentLength; ++i) {
     selectedChars[i] = nsnull;
   }
 
   SelectionDetails *sdptr = aDetails;
   while (sdptr) {
     if (sdptr->mType == aSelectionType) {
-      PRInt32 start = NS_MAX(0, sdptr->mStart - PRInt32(aContentOffset));
-      PRInt32 end = NS_MIN(PRInt32(aContentLength),
-                           sdptr->mEnd - PRInt32(aContentOffset));
-      for (PRInt32 i = start; i < end; ++i) {
+      PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
+      PRInt32 end = NS_MIN(contentLength, sdptr->mEnd - contentOffset);
+      for (i = start; i < end; ++i) {
         selectedChars[i] = sdptr;
       }
     }
@@ -4995,9 +4963,8 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   decorationMetrics.underlineOffset =
     aProvider.GetFontGroup()->GetUnderlineOffset();
 
-  gfxFloat startXOffset = aTextBaselinePt.x - aFramePt.x;
-  SelectionIterator iterator(selectedChars, aContentOffset, aContentLength,
-                             aProvider, mTextRun, startXOffset);
+  SelectionIterator iterator(selectedChars, contentOffset, contentLength,
+                             aProvider, mTextRun);
   gfxFloat xOffset, hyphenWidth;
   PRUint32 offset, length;
   PRInt32 app = aTextPaintStyle.PresContext()->AppUnitsPerDevPixel();
@@ -5012,7 +4979,7 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     if (type == aSelectionType) {
       pt.x = (aFramePt.x + xOffset -
              (mTextRun->IsRightToLeft() ? advance : 0)) / app;
-      gfxFloat width = NS_ABS(advance) / app;
+      gfxFloat width = PR_ABS(advance) / app;
       DrawSelectionDecorations(aCtx, aSelectionType, this, aTextPaintStyle,
                                selectedStyle,
                                pt, width, mAscent / app, decorationMetrics);
@@ -5021,34 +4988,21 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   }
 }
 
-bool
+PRBool
 nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
     const gfxPoint& aFramePt,
     const gfxPoint& aTextBaselinePt, const gfxRect& aDirtyRect,
-    PropertyProvider& aProvider, PRUint32 aContentOffset, PRUint32 aContentLength,
-    nsTextPaintStyle& aTextPaintStyle,
-    const nsCharClipDisplayItem::ClipEdges& aClipEdges)
+    PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle)
 {
   SelectionDetails* details = GetSelectionDetails();
-  if (!details) {
-    if (aContentLength == aProvider.GetOriginalLength()) {
-      // It's the full text range so we can remove the FRAME_SELECTED_CONTENT
-      // bit to avoid going through this slow path until something is selected
-      // in this frame again.
-      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
-    }
-    return false;
-  }
+  if (!details)
+    return PR_FALSE;
 
   SelectionType allTypes;
-  if (!PaintTextWithSelectionColors(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
-                                    aProvider, aContentOffset, aContentLength,
-                                    aTextPaintStyle, details, &allTypes)) {
-    DestroySelectionDetails(details);
-    return false;
-  }
+  PaintTextWithSelectionColors(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
+                               aProvider, aTextPaintStyle, details, &allTypes);
   PaintTextDecorations(aCtx, aDirtyRect, aFramePt, aTextBaselinePt,
-                       aTextPaintStyle, aProvider, aClipEdges);
+                       aTextPaintStyle, aProvider);
   PRInt32 i;
   // Iterate through just the selection types that paint decorations and
   // paint decorations for any that actually occur in this frame. Paint
@@ -5062,13 +5016,12 @@ nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
       // (there might not be any for this type but that's OK,
       // PaintTextSelectionDecorations will exit early).
       PaintTextSelectionDecorations(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
-                                    aProvider, aContentOffset, aContentLength,
-                                    aTextPaintStyle, details, type);
+                                    aProvider, aTextPaintStyle, details, type);
     }
   }
 
   DestroySelectionDetails(details);
-  return true;
+  return PR_TRUE;
 }
 
 nscolor
@@ -5122,115 +5075,20 @@ ComputeTransformedLength(PropertyProvider& aProvider)
   return iter.GetSkippedOffset() - start;
 }
 
-bool
-nsTextFrame::MeasureCharClippedText(gfxContext* aCtx,
-                                    nscoord aLeftEdge, nscoord aRightEdge,
-                                    nscoord* aSnappedLeftEdge,
-                                    nscoord* aSnappedRightEdge)
+gfxFloat
+nsTextFrame::GetSnappedBaselineY(gfxContext* aContext, gfxFloat aY)
 {
-  // Don't pass in aRenderingContext here, because we need a *reference*
-  // context and aRenderingContext might have some transform in it
-  // XXX get the block and line passed to us somehow! This is slow!
-  gfxSkipCharsIterator iter = EnsureTextRun();
-  if (!mTextRun)
-    return false;
-
-  PropertyProvider provider(this, iter);
-  // Trim trailing whitespace
-  provider.InitializeForDisplay(PR_TRUE);
-
-  PRUint32 startOffset = provider.GetStart().GetSkippedOffset();
-  PRUint32 maxLength = ComputeTransformedLength(provider);
-  return MeasureCharClippedText(aCtx, provider, aLeftEdge, aRightEdge,
-                                &startOffset, &maxLength,
-                                aSnappedLeftEdge, aSnappedRightEdge);
-}
-
-static PRUint32 GetClusterLength(gfxTextRun* aTextRun,
-                                 PRUint32    aStartOffset,
-                                 PRUint32    aMaxLength,
-                                 bool        aIsRTL)
-{
-  PRUint32 clusterLength = aIsRTL ? 0 : 1;
-  while (clusterLength < aMaxLength) {
-    if (aTextRun->IsClusterStart(aStartOffset + clusterLength)) {
-      if (aIsRTL) {
-        ++clusterLength;
-      }
-      break;
-    }
-    ++clusterLength;
-  }
-  return clusterLength;
-}
-
-bool
-nsTextFrame::MeasureCharClippedText(gfxContext* aCtx,
-                                    PropertyProvider& aProvider,
-                                    nscoord aLeftEdge, nscoord aRightEdge,
-                                    PRUint32* aStartOffset,
-                                    PRUint32* aMaxLength,
-                                    nscoord*  aSnappedLeftEdge,
-                                    nscoord*  aSnappedRightEdge)
-{
-  *aSnappedLeftEdge = 0;
-  *aSnappedRightEdge = 0;
-  if (aLeftEdge <= 0 && aRightEdge <= 0) {
-    return true;
-  }
-
-  PRUint32 offset = *aStartOffset;
-  PRUint32 maxLength = *aMaxLength;
-  const nscoord frameWidth = GetSize().width;
-  const PRBool rtl = mTextRun->IsRightToLeft();
-  gfxFloat advanceWidth = 0;
-  const nscoord startEdge = rtl ? aRightEdge : aLeftEdge;
-  if (startEdge > 0) {
-    const gfxFloat maxAdvance = gfxFloat(startEdge);
-    while (maxLength > 0) {
-      PRUint32 clusterLength =
-        GetClusterLength(mTextRun, offset, maxLength, rtl);
-      advanceWidth +=
-        mTextRun->GetAdvanceWidth(offset, clusterLength, &aProvider);
-      maxLength -= clusterLength;
-      offset += clusterLength;
-      if (advanceWidth >= maxAdvance) {
-        break;
-      }
-    }
-    nscoord* snappedStartEdge = rtl ? aSnappedRightEdge : aSnappedLeftEdge;
-    *snappedStartEdge = NSToCoordFloor(advanceWidth);
-    *aStartOffset = offset;
-  }
-
-  const nscoord endEdge = rtl ? aLeftEdge : aRightEdge;
-  if (endEdge > 0) {
-    const gfxFloat maxAdvance = gfxFloat(frameWidth - endEdge);
-    while (maxLength > 0) {
-      PRUint32 clusterLength =
-        GetClusterLength(mTextRun, offset, maxLength, rtl);
-      gfxFloat nextAdvance = advanceWidth +
-        mTextRun->GetAdvanceWidth(offset, clusterLength, &aProvider);
-      if (nextAdvance > maxAdvance) {
-        break;
-      }
-      // This cluster fits, include it.
-      advanceWidth = nextAdvance;
-      maxLength -= clusterLength;
-      offset += clusterLength;
-    }
-    maxLength = offset - *aStartOffset;
-    nscoord* snappedEndEdge = rtl ? aSnappedLeftEdge : aSnappedRightEdge;
-    *snappedEndEdge = NSToCoordFloor(gfxFloat(frameWidth) - advanceWidth);
-  }
-  *aMaxLength = maxLength;
-  return maxLength != 0;
+  gfxFloat appUnitsPerDevUnit = mTextRun->GetAppUnitsPerDevUnit();
+  gfxFloat baseline = aY + mAscent;
+  gfxRect putativeRect(0, baseline/appUnitsPerDevUnit, 1, 1);
+  if (!aContext->UserToDevicePixelSnapped(putativeRect))
+    return baseline;
+  return aContext->DeviceToUser(putativeRect.TopLeft()).y*appUnitsPerDevUnit;
 }
 
 void
 nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
-                       const nsRect& aDirtyRect,
-                       const nsCharClipDisplayItem& aItem)
+                       const nsRect& aDirtyRect)
 {
   // Don't pass in aRenderingContext here, because we need a *reference*
   // context and aRenderingContext might have some transform in it
@@ -5239,28 +5097,23 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
   if (!mTextRun)
     return;
 
+  nsTextPaintStyle textPaintStyle(this);
   PropertyProvider provider(this, iter);
   // Trim trailing whitespace
   provider.InitializeForDisplay(PR_TRUE);
 
   gfxContext* ctx = aRenderingContext->ThebesContext();
-  const PRBool rtl = mTextRun->IsRightToLeft();
-  const nscoord frameWidth = GetSize().width;
+
   gfxPoint framePt(aPt.x, aPt.y);
-  gfxPoint textBaselinePt(rtl ? gfxFloat(aPt.x + frameWidth) : framePt.x,
-             nsLayoutUtils::GetSnappedBaselineY(this, ctx, aPt.y, mAscent));
-  PRUint32 startOffset = provider.GetStart().GetSkippedOffset();
-  PRUint32 maxLength = ComputeTransformedLength(provider);
-  nscoord snappedLeftEdge, snappedRightEdge;
-  if (!MeasureCharClippedText(ctx, provider, aItem.mLeftEdge, aItem.mRightEdge,
-         &startOffset, &maxLength, &snappedLeftEdge, &snappedRightEdge)) {
-    return;
-  }
-  textBaselinePt.x += rtl ? -snappedRightEdge : snappedLeftEdge;
-  nsCharClipDisplayItem::ClipEdges clipEdges(aItem, snappedLeftEdge,
-                                             snappedRightEdge);
-  nsTextPaintStyle textPaintStyle(this);
-  nscolor foregroundColor = textPaintStyle.GetTextColor();
+  gfxPoint textBaselinePt(
+      mTextRun->IsRightToLeft() ? gfxFloat(aPt.x + GetSize().width) : framePt.x,
+      GetSnappedBaselineY(ctx, aPt.y));
+
+  gfxRect dirtyRect(aDirtyRect.x, aDirtyRect.y,
+                    aDirtyRect.width, aDirtyRect.height);
+
+  gfxFloat advanceWidth;
+  gfxRGBA foregroundColor = gfxRGBA(textPaintStyle.GetTextColor());
 
   // Paint the text shadow before doing any foreground stuff
   const nsStyleText* textStyle = GetStyleText();
@@ -5268,34 +5121,29 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
     // Text shadow happens with the last value being painted at the back,
     // ie. it is painted first.
     for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
-      PaintOneShadow(startOffset, maxLength,
+      PaintOneShadow(provider.GetStart().GetSkippedOffset(),
+                     ComputeTransformedLength(provider),
                      textStyle->mTextShadow->ShadowAt(i - 1), &provider,
                      aDirtyRect, framePt, textBaselinePt, ctx,
-                     foregroundColor, clipEdges, snappedLeftEdge);
+                     textPaintStyle.GetTextColor());
     }
   }
 
-  gfxRect dirtyRect(aDirtyRect.x, aDirtyRect.y,
-                    aDirtyRect.width, aDirtyRect.height);
   // Fork off to the (slower) paint-with-selection path if necessary.
   if (nsLayoutUtils::GetNonGeneratedAncestor(this)->GetStateBits() & NS_FRAME_SELECTED_CONTENT) {
-    gfxSkipCharsIterator tmp(provider.GetStart());
-    PRInt32 contentOffset = tmp.ConvertSkippedToOriginal(startOffset);
-    PRInt32 contentLength =
-      tmp.ConvertSkippedToOriginal(startOffset + maxLength) - contentOffset;
-    if (PaintTextWithSelection(ctx, framePt, textBaselinePt, dirtyRect,
-                               provider, contentOffset, contentLength,
-                               textPaintStyle, clipEdges))
+    if (PaintTextWithSelection(ctx, framePt, textBaselinePt,
+                               dirtyRect, provider, textPaintStyle))
       return;
   }
 
-  ctx->SetColor(gfxRGBA(foregroundColor));
+  ctx->SetColor(foregroundColor);
 
-  gfxFloat advanceWidth;
-  DrawText(ctx, textBaselinePt, startOffset, maxLength, &dirtyRect, &provider,
-           advanceWidth, (GetStateBits() & TEXT_HYPHEN_BREAK) != 0);
+  DrawText(ctx, textBaselinePt, provider.GetStart().GetSkippedOffset(),
+           ComputeTransformedLength(provider), &dirtyRect,
+           &provider, advanceWidth,
+           (GetStateBits() & TEXT_HYPHEN_BREAK) != 0);
   PaintTextDecorations(ctx, dirtyRect, framePt, textBaselinePt,
-                       textPaintStyle, provider, clipEdges);
+                       textPaintStyle, provider);
 }
 
 void
@@ -6227,7 +6075,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
       (mTextRun->GetFlags() & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0));
   if (hyphenating) {
     gfxSkipCharsIterator tmp(iter);
-    len = NS_MIN<PRInt32>(GetContentOffset() + GetInFlowContentLength(),
+    len = PR_MIN(GetContentOffset() + GetInFlowContentLength(),
                  tmp.ConvertSkippedToOriginal(flowEndInTextRun)) - iter.GetOriginalOffset();
   }
   PropertyProvider provider(mTextRun, textStyle, frag, this,
@@ -6308,8 +6156,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
       } else if (i < flowEndInTextRun && hyphBreakBefore &&
                  hyphBreakBefore[i - start])
       {
-        aData->OptionallyBreak(aRenderingContext, 
-                               NSToCoordRound(provider.GetHyphenWidth()));
+        aData->OptionallyBreak(aRenderingContext, provider.GetHyphenWidth());
       } {
         aData->OptionallyBreak(aRenderingContext);
       }
@@ -6917,8 +6764,10 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   gfxFont::BoundingBoxType boundingBoxType = IsFloatingFirstLetterChild() ?
                                                gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS :
                                                gfxFont::LOOSE_INK_EXTENTS;
+#ifdef MOZ_MATHML
   NS_ASSERTION(!(NS_REFLOW_CALC_BOUNDING_METRICS & aMetrics.mFlags),
                "We shouldn't be passed NS_REFLOW_CALC_BOUNDING_METRICS anymore");
+#endif
 
   PRInt32 limitLength = length;
   PRInt32 forceBreak = aLineLayout.GetForcedBreakPosition(mContent);
@@ -7165,10 +7014,12 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
        mContentOffset + contentLength <= contentNewLineOffset)) {
     if (!cachedNewlineOffset) {
       cachedNewlineOffset = new NewlineProperty;
-      if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
-                                          NewlineProperty::Destroy))) {
-        delete cachedNewlineOffset;
-        cachedNewlineOffset = nsnull;
+      if (cachedNewlineOffset) {
+        if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
+                                            NewlineProperty::Destroy))) {
+          delete cachedNewlineOffset;
+          cachedNewlineOffset = nsnull;
+        }
       }
     }
     if (cachedNewlineOffset) {
@@ -7618,7 +7469,6 @@ void
 nsTextFrame::AdjustOffsetsForBidi(PRInt32 aStart, PRInt32 aEnd)
 {
   AddStateBits(NS_FRAME_IS_BIDI);
-  mContent->DeleteProperty(nsGkAtoms::flowlength);
 
   /*
    * After Bidi resolution we may need to reassign text runs.
@@ -7639,19 +7489,6 @@ nsTextFrame::AdjustOffsetsForBidi(PRInt32 aStart, PRInt32 aEnd)
 
   mContentOffset = aStart;
   SetLength(aEnd - aStart, nsnull, 0);
-
-  /**
-   * After inserting text the caret Bidi level must be set to the level of the
-   * inserted text.This is difficult, because we cannot know what the level is
-   * until after the Bidi algorithm is applied to the whole paragraph.
-   *
-   * So we set the caret Bidi level to UNDEFINED here, and the caret code will
-   * set it correctly later
-   */
-  nsRefPtr<nsFrameSelection> frameSelection = GetFrameSelection();
-  if (frameSelection) {
-    frameSelection->UndefineCaretBidiLevel();
-  }
 }
 
 /**

@@ -40,13 +40,23 @@
  *  Test we correctly fix broken Library left pane queries names.
  */
 
+var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+         getService(Ci.nsIWindowWatcher);
+
 // Array of left pane queries objects, each one has the following properties:
 // name: query's identifier got from annotations,
 // itemId: query's itemId,
 // correctTitle: original and correct query's title.
 var leftPaneQueries = [];
 
-function onLibraryReady(organizer) {
+function windowObserver(aSubject, aTopic, aData) {
+  if (aTopic != "domwindowopened")
+    return;
+  ww.unregisterNotification(windowObserver);
+  var organizer = aSubject.QueryInterface(Ci.nsIDOMWindow);
+  organizer.addEventListener("load", function onLoad(event) {
+    organizer.removeEventListener("load", onLoad, false);
+    executeSoon(function () {
       // Check titles have been fixed.
       for (var i = 0; i < leftPaneQueries.length; i++) {
         var query = leftPaneQueries[i];
@@ -62,6 +72,8 @@ function onLibraryReady(organizer) {
       organizer.close();
       // No need to cleanup anything, we have a correct left pane now.
       finish();
+    });
+  }, false);
 }
 
 function test() {
@@ -122,5 +134,10 @@ function test() {
   PlacesUIUtils.__defineGetter__("leftPaneFolderId", cachedLeftPaneFolderIdGetter);
 
   // Open Library, this will kick-off left pane code.
-  openLibrary(onLibraryReady);
+  ww.registerNotification(windowObserver);
+  ww.openWindow(null,
+                "chrome://browser/content/places/places.xul",
+                "",
+                "chrome,toolbar=yes,dialog=no,resizable",
+                null);
 }

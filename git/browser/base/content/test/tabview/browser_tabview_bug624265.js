@@ -19,6 +19,15 @@ function test() {
     is(gBrowser.visibleTabs.length, numTabs, 'There should be ' + numTabs + ' visible tabs');
   }
 
+  let restoreTab = function (callback) {
+    let tab = undoCloseTab(0);
+    
+    tab._tabViewTabItem.addSubscriber(tab, 'reconnected', function () {
+      tab._tabViewTabItem.removeSubscriber(tab, 'reconnected');
+      afterAllTabsLoaded(callback);
+    });
+  }
+
   let next = function () {
     while (gBrowser.tabs.length-1)
       gBrowser.removeTab(gBrowser.tabs[1]);
@@ -29,7 +38,6 @@ function test() {
       if (!callback)
         callback = finish;
 
-      assertOneSingleGroupItem();
       callback();
     });
   }
@@ -77,7 +85,7 @@ function test() {
     let tab = gBrowser.loadOneTab('http://mochi.test:8888/#1', {inBackground: true});
     gBrowser.selectedTab = tab;
 
-    afterAllTabsLoaded(function () {
+    let continueTest = function () {
       tab.linkedBrowser.loadURI('http://mochi.test:8888/#2');
 
       afterAllTabsLoaded(function () {
@@ -97,7 +105,13 @@ function test() {
           });
         });
       });
-    });
+    }
+
+    // The executeSoon() call is really needed here because there's probably
+    // some callback waiting to be fired after gBrowser.loadOneTab(). After
+    // that the browser is in a state where loadURI() will create a new entry
+    // in the session history (that is vital for back/forward functionality).
+    afterAllTabsLoaded(function () SimpleTest.executeSoon(continueTest));
   }
 
   // ----------
@@ -119,8 +133,7 @@ function test() {
 
       enterAndLeavePrivateBrowsing(function () {
         assertNumberOfVisibleTabs(2);
-        gBrowser.selectedTab = gBrowser.tabs[0];
-        closeGroupItem(cw.GroupItems.groupItems[1], next);
+        next();
       });
     });
   }
@@ -142,30 +155,45 @@ function test() {
 
 // ----------
 function loadTabView(callback) {
-  showTabView(function () {
-    hideTabView(callback);
-  });
+  window.addEventListener('tabviewshown', function () {
+    window.removeEventListener('tabviewshown', arguments.callee, false);
+
+    hideTabView(function () {
+      window.removeEventListener('tabviewhidden', arguments.callee, false);
+      callback();
+    });
+  }, false);
+
+  TabView.show();
+}
+
+// ----------
+function hideTabView(callback) {
+  if (!TabView.isVisible())
+    return callback();
+
+  window.addEventListener('tabviewhidden', function () {
+    window.removeEventListener('tabviewhidden', arguments.callee, false);
+    callback();
+  }, false);
+
+  TabView.hide();
 }
 
 // ----------
 function enterAndLeavePrivateBrowsing(callback) {
-  togglePrivateBrowsing(function () {
-    togglePrivateBrowsing(callback);
-  });
-}
-
-// ----------
-function togglePrivateBrowsing(callback) {
-  let topic = "private-browsing-transition-complete";
-
   function pbObserver(aSubject, aTopic, aData) {
-    if (aTopic != topic)
+    if (aTopic != "private-browsing-transition-complete")
       return;
 
-    Services.obs.removeObserver(pbObserver, topic, false);
-    afterAllTabsLoaded(callback);
+    if (pb.privateBrowsingEnabled)
+      pb.privateBrowsingEnabled = false;
+    else {
+      Services.obs.removeObserver(pbObserver, "private-browsing-transition-complete");
+      afterAllTabsLoaded(callback);
+    }
   }
 
-  Services.obs.addObserver(pbObserver, topic, false);
-  pb.privateBrowsingEnabled = !pb.privateBrowsingEnabled;
+  Services.obs.addObserver(pbObserver, "private-browsing-transition-complete", false);
+  pb.privateBrowsingEnabled = true;
 }

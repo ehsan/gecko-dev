@@ -40,20 +40,18 @@
 #ifndef nsPIDOMWindow_h__
 #define nsPIDOMWindow_h__
 
-#include "nsIDOMWindow.h"
-
+#include "nsISupports.h"
 #include "nsIDOMLocation.h"
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMEventTarget.h"
+#include "nsIDOMWindowInternal.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
 #include "nsIURI.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
-#define DOM_WINDOW_FROZEN_TOPIC "dom-window-frozen"
-#define DOM_WINDOW_THAWED_TOPIC "dom-window-thawed"
 
 class nsIPrincipal;
 
@@ -80,10 +78,10 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x1bfacc26, 0xad77, 0x42bb, \
-  { 0xb9, 0xbb, 0xa0, 0x19, 0xc8, 0x27, 0x5c, 0x0e } }
+{ 0xafc4849b, 0x21d3, 0x45ea, \
+  { 0x8b, 0xfd, 0x61, 0xec, 0x12, 0x5d, 0x38, 0x64 } }
 
-class nsPIDOMWindow : public nsIDOMWindow
+class nsPIDOMWindow : public nsIDOMWindowInternal
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_PIDOMWINDOW_IID)
@@ -92,7 +90,7 @@ public:
 
   virtual void ActivateOrDeactivate(PRBool aActivate) = 0;
 
-  // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow::GetWindowRoot
+  // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow2::GetWindowRoot
   virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
 
   virtual void SetActive(PRBool aActive)
@@ -105,7 +103,7 @@ public:
     return mIsActive;
   }
 
-  virtual void SetIsBackground(PRBool aIsBackground)
+  void SetIsBackground(PRBool aIsBackground)
   {
     mIsBackground = aIsBackground;
   }
@@ -115,14 +113,14 @@ public:
     return mIsBackground;
   }
 
-  nsIDOMEventTarget* GetChromeEventHandler() const
+  nsPIDOMEventTarget* GetChromeEventHandler() const
   {
     return mChromeEventHandler;
   }
 
-  virtual void SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler) = 0;
+  virtual void SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler) = 0;
 
-  nsIDOMEventTarget* GetParentTarget()
+  nsPIDOMEventTarget* GetParentTarget()
   {
     if (!mParentTarget) {
       UpdateParentTarget();
@@ -396,7 +394,7 @@ public:
    * SetOpenerWindow is called.  It might never be true, of course, if the
    * window does not have an opener when it's created.
    */
-  virtual void SetOpenerWindow(nsIDOMWindow* aOpener,
+  virtual void SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                PRBool aOriginalOpener) = 0;
 
   virtual void EnsureSizeUpToDate() = 0;
@@ -579,12 +577,6 @@ public:
    */
   PRUint64 WindowID() const { return mWindowID; }
 
-  /**
-   * Dispatch a custom event with name aEventName targeted at this window.
-   * Returns whether the default action should be performed.
-   */
-  virtual PRBool DispatchCustomEvent(const char *aEventName) = 0;
-
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
   // be null if and only if the created window itself is an outer
@@ -594,7 +586,7 @@ protected:
 
   ~nsPIDOMWindow();
 
-  void SetChromeEventHandlerInternal(nsIDOMEventTarget* aChromeEventHandler) {
+  void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
     // mParentTarget will be set when the next event is dispatched.
     mParentTarget = nsnull;
@@ -605,10 +597,10 @@ protected:
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
-  nsCOMPtr<nsIDOMEventTarget> mChromeEventHandler; // strong
+  nsCOMPtr<nsPIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
 
-  nsCOMPtr<nsIDOMEventTarget> mParentTarget; // strong
+  nsCOMPtr<nsPIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;

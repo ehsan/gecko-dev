@@ -247,8 +247,7 @@ class Compiler : public BaseCompiler
             return bindNameLabels_;
         }
         ic::ScopeNameLabels &scopeNameLabels() {
-            JS_ASSERT(kind == ic::PICInfo::NAME || kind == ic::PICInfo::CALLNAME ||
-                      kind == ic::PICInfo::XNAME);
+            JS_ASSERT(kind == ic::PICInfo::NAME || kind == ic::PICInfo::XNAME);
             return scopeNameLabels_;
         }
 #else
@@ -265,8 +264,7 @@ class Compiler : public BaseCompiler
             return ic::PICInfo::bindNameLabels_;
         }
         ic::ScopeNameLabels &scopeNameLabels() {
-            JS_ASSERT(kind == ic::PICInfo::NAME || kind == ic::PICInfo::CALLNAME ||
-                      kind == ic::PICInfo::XNAME);
+            JS_ASSERT(kind == ic::PICInfo::NAME || kind == ic::PICInfo::XNAME);
             return ic::PICInfo::scopeNameLabels_;
         }
 #endif
@@ -365,9 +363,6 @@ class Compiler : public BaseCompiler
     bool addTraceHints;
     bool oomInVector;       // True if we have OOM'd appending to a vector. 
     enum { NoApplyTricks, LazyArgsObj } applyTricks;
-#ifdef DEBUG
-    int *pcProfile;
-#endif
 
     Compiler *thisFromCtor() { return this; }
 
@@ -469,7 +464,7 @@ class Compiler : public BaseCompiler
     bool jsop_callprop_str(JSAtom *atom);
     bool jsop_callprop_generic(JSAtom *atom);
     bool jsop_instanceof();
-    void jsop_name(JSAtom *atom, bool isCall);
+    void jsop_name(JSAtom *atom);
     bool jsop_xname(JSAtom *atom);
     void enterBlock(JSObject *obj);
     void leaveBlock();

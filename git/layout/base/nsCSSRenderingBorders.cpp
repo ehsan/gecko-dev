@@ -197,7 +197,6 @@ nsCSSBorderRenderer::nsCSSBorderRenderer(PRInt32 aAppUnitsPerPixel,
 
   mOneUnitBorder = CheckFourFloatsEqual(mBorderWidths, 1.0);
   mNoBorderRadius = AllCornersZeroSize(mBorderRadii);
-  mAvoidStroke = PR_FALSE;
 }
 
 /* static */ void
@@ -561,8 +560,7 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
   // common border styles, such as inset and outset, that are
   // top-left/bottom-right split.
   if (aSides == SIDE_BITS_ALL &&
-      CheckFourFloatsEqual(aBorderSizes, aBorderSizes[0]) &&
-      !mAvoidStroke)
+      CheckFourFloatsEqual(aBorderSizes, aBorderSizes[0]))
   {
     gfxRect r(aOuterRect);
     r.Deflate(aBorderSizes[0] / 2.0);
@@ -637,7 +635,7 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
   for (PRUint32 i = 0; i < 4; i++) {
     if (aSides & (1 << i)) {
       mContext->NewPath();
-      mContext->Rectangle(r[i], PR_TRUE);
+      mContext->Rectangle(r[i]);
       mContext->Fill();
     }
   }
@@ -1381,29 +1379,22 @@ nsCSSBorderRenderer::DrawBorders()
     return;
   }
 
+  // round mOuterRect and mInnerRect; they're already an integer
+  // number of pixels apart and should stay that way after
+  // rounding.
+  mOuterRect.Round();
+  mInnerRect.Round();
+
   gfxMatrix mat = mContext->CurrentMatrix();
 
   // Clamp the CTM to be pixel-aligned; we do this only
   // for translation-only matrices now, but we could do it
   // if the matrix has just a scale as well.  We should not
   // do it if there's a rotation.
-  if (mat.HasNonTranslation()) {
-    if (!mat.HasNonAxisAlignedTransform()) {
-      // Scale + transform. Avoid stroke fast-paths so that we have a chance
-      // of snapping to pixel boundaries.
-      mAvoidStroke = PR_TRUE;
-    }
-  } else {
+  if (!mat.HasNonTranslation()) {
     mat.x0 = floor(mat.x0 + 0.5);
     mat.y0 = floor(mat.y0 + 0.5);
     mContext->SetMatrix(mat);
-
-    // round mOuterRect and mInnerRect; they're already an integer
-    // number of pixels apart and should stay that way after
-    // rounding. We don't do this if there's a scale in the current transform
-    // since this loses information that might be relevant when we're scaling.
-    mOuterRect.Round();
-    mInnerRect.Round();
   }
 
   PRBool allBordersSameWidth = AllBordersSameWidth();
@@ -1424,8 +1415,7 @@ nsCSSBorderRenderer::DrawBorders()
       mCompositeColors[0] == NULL &&
       allBordersSameWidth &&
       mBorderStyles[0] == NS_STYLE_BORDER_STYLE_SOLID &&
-      mNoBorderRadius &&
-      !mAvoidStroke)
+      mNoBorderRadius)
   {
     // Very simple case.
     SetupStrokeStyle(NS_SIDE_TOP);
@@ -1442,8 +1432,7 @@ nsCSSBorderRenderer::DrawBorders()
       allBordersSameWidth &&
       mBorderStyles[0] == NS_STYLE_BORDER_STYLE_DOTTED &&
       mBorderWidths[0] < 3 &&
-      mNoBorderRadius &&
-      !mAvoidStroke)
+      mNoBorderRadius)
   {
     // Very simple case. We draw this rectangular dotted borner without
     // antialiasing. The dots should be pixel aligned.
@@ -1464,8 +1453,7 @@ nsCSSBorderRenderer::DrawBorders()
   if (allBordersSame &&
       allBordersSameWidth &&
       mCompositeColors[0] == NULL &&
-      mBorderStyles[0] == NS_STYLE_BORDER_STYLE_SOLID &&
-      !mAvoidStroke)
+      mBorderStyles[0] == NS_STYLE_BORDER_STYLE_SOLID)
   {
     NS_FOR_CSS_CORNERS(i) {
       if (mBorderRadii[i].width <= mBorderWidths[0]) {
@@ -1507,15 +1495,13 @@ nsCSSBorderRenderer::DrawBorders()
       allBordersSameWidth &&
       mCompositeColors[0] == NULL &&
       mBorderWidths[0] == 1 &&
-      mNoBorderRadius &&
-      !mAvoidStroke)
+      mNoBorderRadius)
   {
     DrawSingleWidthSolidBorder();
     return;
   }
 
-  if (allBordersSolid && !hasCompositeColors &&
-      !mAvoidStroke)
+  if (allBordersSolid && !hasCompositeColors)
   {
     DrawNoCompositeColorSolidBorder();
     return;
@@ -1523,8 +1509,7 @@ nsCSSBorderRenderer::DrawBorders()
 
   if (allBordersSolid &&
       allBordersSameWidth &&
-      mNoBorderRadius &&
-      !mAvoidStroke)
+      mNoBorderRadius)
   {
     // Easy enough to deal with.
     DrawRectangularCompositeColors();

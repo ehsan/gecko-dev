@@ -46,6 +46,7 @@
 #include "mozilla/Mutex.h"
 #include "nsIInterfaceRequestor.h"
 
+#include "nsString.h"
 #include "nsDataHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "SQLiteMutex.h"

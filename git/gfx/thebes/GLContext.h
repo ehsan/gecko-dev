@@ -75,12 +75,8 @@ typedef char realGLboolean;
 #include "GLContextSymbols.h"
 
 namespace mozilla {
-  namespace layers {
-    class LayerManagerOGL;
-    class ColorTextureLayerProgram;
-  };
-
 namespace gl {
+
 class GLContext;
 
 class LibrarySymbolLoader
@@ -160,13 +156,6 @@ class TextureImage
 {
     NS_INLINE_DECL_REFCOUNTING(TextureImage)
 public:
-    enum TextureState
-    {
-      Created, // Texture created, but has not had glTexImage called to initialize it.
-      Allocated,  // Texture memory exists, but contents are invalid.
-      Valid  // Texture fully ready to use.
-    };
-
     typedef gfxASurface::gfxContentType ContentType;
 
     virtual ~TextureImage() {}
@@ -203,22 +192,6 @@ public:
     virtual void EndUpdate() = 0;
 
     /**
-     * The Image may contain several textures for different regions (tiles).
-     * These functions iterate over each sub texture image tile.
-     */
-    virtual void BeginTileIteration() {
-    };
-
-    virtual PRBool NextTile() {
-        return PR_FALSE;
-    };
-
-    virtual nsIntRect GetTileRect() {
-        return nsIntRect(nsIntPoint(0,0), mSize);
-    };
-
-    virtual GLuint GetTextureID() = 0;
-    /**
      * Set this TextureImage's size, and ensure a texture has been
      * allocated.  Must not be called between BeginUpdate and EndUpdate.
      * After a resize, the contents are undefined.
@@ -233,12 +206,7 @@ public:
         EndUpdate();
     }
 
-    /**
-     * aSurf - the source surface to update from
-     * aRegion - the region in this image to update
-     * aFrom - offset in the source to update from
-     */
-    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0)) = 0;
+    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion) =0;
 
     virtual void BindTexture(GLenum aTextureUnit) = 0;
     virtual void ReleaseTexture() {};
@@ -265,6 +233,16 @@ public:
         TextureImage *mTexture;
     };
 
+    /**
+     * Return this TextureImage's texture ID for use with GL APIs.
+     * Callers are responsible for properly binding the texture etc.
+     *
+     * The texture is only texture complete after either Resize
+     * or a matching pair of BeginUpdate/EndUpdate have been called.
+     * Otherwise, a texture ID may be returned, but the texture
+     * may not be texture complete.
+     */
+    GLuint Texture() { return mTexture; }
 
     /**
      * Returns the shader program type that should be used to render
@@ -301,15 +279,17 @@ protected:
      * TextureImage from GLContext::CreateTextureImage().  That is,
      * clients must not be given partially-constructed TextureImages.
      */
-    TextureImage(const nsIntSize& aSize,
+    TextureImage(GLuint aTexture, const nsIntSize& aSize,
                  GLenum aWrapMode, ContentType aContentType,
                  PRBool aIsRGB = PR_FALSE)
-        : mSize(aSize)
+        : mTexture(aTexture)
+        , mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
         , mIsRGBFormat(aIsRGB)
     {}
 
+    GLuint mTexture;
     nsIntSize mSize;
     GLenum mWrapMode;
     ContentType mContentType;
@@ -338,19 +318,25 @@ public:
                       GLenum aWrapMode,
                       ContentType aContentType,
                       GLContext* aContext)
-        : TextureImage(aSize, aWrapMode, aContentType)
-        , mTexture(aTexture)
+        : TextureImage(aTexture, aSize, aWrapMode, aContentType)
         , mTextureState(Created)
         , mGLContext(aContext)
         , mUpdateOffset(0, 0)
     {}
 
+    enum TextureState
+    {
+      Created, // Texture created, but has not had glTexImage called to initialize it.
+      Allocated,  // Texture memory exists, but contents are invalid.
+      Valid  // Texture fully ready to use.
+    };
+    
     virtual void BindTexture(GLenum aTextureUnit);
 
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
     virtual void EndUpdate();
-    virtual bool DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0));
-    virtual GLuint GetTextureID() { return mTexture; };
+    virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion);
+
     // Returns a surface to draw into
     virtual already_AddRefed<gfxASurface>
       GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt);
@@ -368,7 +354,6 @@ public:
     virtual void Resize(const nsIntSize& aSize);
 protected:
 
-    GLuint mTexture;
     TextureState mTextureState;
     GLContext* mGLContext;
     nsRefPtr<gfxASurface> mUpdateSurface;
@@ -376,47 +361,6 @@ protected:
 
     // The offset into the update surface at which the update rect is located.
     nsIntPoint mUpdateOffset;
-};
-
-/**
- * A container class that complements many sub TextureImages into a big TextureImage.
- * Aims to behave just like the real thing.
- */
-
-class TiledTextureImage
-    : public TextureImage
-{
-public:
-    TiledTextureImage(GLContext* aGL, nsIntSize aSize,
-        TextureImage::ContentType aContentType, PRBool aUseNearestFilter = PR_FALSE);
-    ~TiledTextureImage();
-    void DumpDiv();
-    virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
-    virtual void EndUpdate();
-    virtual void Resize(const nsIntSize& aSize);
-    virtual void BeginTileIteration();
-    virtual PRBool NextTile();
-    virtual nsIntRect GetTileRect();
-    virtual GLuint GetTextureID() {
-        return mImages[mCurrentImage]->GetTextureID();
-    };
-    virtual bool DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0));
-    virtual PRBool InUpdate() const { return mInUpdate; };
-    virtual void BindTexture(GLenum);
-protected:
-    unsigned int mCurrentImage;
-    nsTArray< nsRefPtr<TextureImage> > mImages;
-    bool mInUpdate;
-    nsIntSize mSize;
-    unsigned int mTileSize;
-    unsigned int mRows, mColumns;
-    GLContext* mGL;
-    PRBool mUseNearestFilter;
-    // A temporary surface to faciliate cross-tile updates.
-    nsRefPtr<gfxASurface> mUpdateSurface;
-    // The region of update requested
-    nsIntRegion mUpdateRegion;
-    TextureState mTextureState;
 };
 
 struct THEBES_API ContextFormat
@@ -609,7 +553,7 @@ public:
     /**
      * Returns PR_TRUE if either this is the GLES2 API, or had the GL_ARB_ES2_compatibility extension
      */
-    PRBool HasES2Compatibility() {
+    PRBool HasES2Compatibility() const {
         return mIsGLES2 || IsExtensionSupported(ARB_ES2_compatibility);
     }
 
@@ -763,21 +707,6 @@ public:
                        PRBool aUseNearestFilter=PR_FALSE);
 
     /**
-     * In EGL we want to use Tiled Texture Images, which we return
-     * from CreateTextureImage above.
-     * Inside TiledTextureImage we need to create actual images and to
-     * prevent infinite recursion we need to differentiate the two
-     * functions.
-     **/
-    virtual already_AddRefed<TextureImage>
-    TileGenFunc(const nsIntSize& aSize,
-                TextureImage::ContentType aContentType,
-                PRBool aUseNearestFilter = PR_FALSE)
-    {
-        return nsnull;
-    };
-
-    /**
      * Read the image data contained in aTexture, and return it as an ImageSurface.
      * If GL_RGBA is given as the format, a ImageFormatARGB32 surface is returned.
      * Not implemented yet:
@@ -862,37 +791,31 @@ public:
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
                                              bool aPixelBuffer = PR_FALSE);
 
+#ifndef MOZ_ENABLE_LIBXUL
+    virtual ShaderProgramType UploadSurfaceToTextureExternal(gfxASurface *aSurface, 
+                                                             const nsIntRect& aSrcRect,
+                                                             GLuint& aTexture,
+                                                             bool aOverwrite = false,
+                                                             const nsIntPoint& aDstPoint = nsIntPoint(0, 0),
+                                                             bool aPixelBuffer = PR_FALSE)
+    {
+      return UploadSurfaceToTexture(aSurface, aSrcRect, aTexture, aOverwrite,
+                                    aDstPoint, aPixelBuffer);
+    }
+#endif
+
     /** Helper for DecomposeIntoNoRepeatTriangles
      */
     struct RectTriangles {
-        RectTriangles() { }
+        RectTriangles() : numRects(0) { }
 
         void addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
                      GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1);
 
-        /**
-         * these return a float pointer to the start of each array respectively.
-         * Use it for glVertexAttribPointer calls.
-         * We can return NULL if we choose to use Vertex Buffer Objects here.
-         */
-        float* vertexPointer() {
-            return &vertexCoords[0].x;
-        };
-
-        float* texCoordPointer() {
-            return &texCoords[0].u;
-        };
-
-        unsigned int elements() {
-            return vertexCoords.Length();
-        };
-
-        typedef struct { GLfloat x,y; } vert_coord;
-        typedef struct { GLfloat u,v; } tex_coord;
-    private:
-        // default is 4 rectangles, each made up of 2 triangles (3 coord vertices each)
-        nsAutoTArray<vert_coord, 6> vertexCoords;
-        nsAutoTArray<tex_coord, 6>  texCoords;
+        int numRects;
+        /* max is 4 rectangles, each made up of 2 triangles (3 2-coord vertices each) */
+        GLfloat vertexCoords[4*3*2*2];
+        GLfloat texCoords[4*3*2*2];
     };
 
     /**
@@ -940,12 +863,9 @@ public:
         Extensions_Max
     };
 
-    PRBool IsExtensionSupported(GLExtensions aKnownExtension) {
+    PRBool IsExtensionSupported(GLExtensions aKnownExtension) const {
         return mAvailableExtensions[aKnownExtension];
     }
-
-    // for unknown extensions
-    PRBool IsExtensionSupported(const char *extension);
 
     // Shared code for GL extensions and GLX extensions.
     static PRBool ListHasExtension(const GLubyte *extensions,
@@ -953,25 +873,6 @@ public:
 
     GLint GetMaxTextureSize() { return mMaxTextureSize; }
     void SetFlipped(PRBool aFlipped) { mFlipped = aFlipped; }
-
-    // this should just be a std::bitset, but that ended up breaking
-    // MacOS X builds; see bug 584919.  We can replace this with one
-    // later on.  This is handy to use in WebGL contexts as well,
-    // so making it public.
-    template<size_t setlen>
-    struct ExtensionBitset {
-        ExtensionBitset() {
-            for (size_t i = 0; i < setlen; ++i)
-                values[i] = false;
-        }
-
-        bool& operator[](size_t index) {
-            NS_ASSERTION(index < setlen, "out of range");
-            return values[index];
-        }
-
-        bool values[setlen];
-    };
 
 protected:
     PRPackedBool mInitialized;
@@ -1022,6 +923,27 @@ protected:
     GLuint mOffscreenDepthRB;
     GLuint mOffscreenStencilRB;
 
+    // this should just be a std::bitset, but that ended up breaking
+    // MacOS X builds; see bug 584919.  We can replace this with one
+    // later on.
+    template<size_t setlen>
+    struct ExtensionBitset {
+        ExtensionBitset() {
+            for (size_t i = 0; i < setlen; ++i)
+                values[i] = false;
+        }
+
+        bool& operator[](size_t index) {
+            NS_ASSERTION(index < setlen, "out of range");
+            return values[index];
+        }
+
+        const bool& operator[](size_t index) const {
+            return const_cast<ExtensionBitset*>(this)->operator[](index);
+        }
+
+        bool values[setlen];
+    };
     ExtensionBitset<Extensions_Max> mAvailableExtensions;
 
     // Clear to transparent black, with 0 depth and stencil,
@@ -1039,6 +961,7 @@ protected:
     PRBool InitWithPrefix(const char *prefix, PRBool trygl);
 
     void InitExtensions();
+    PRBool IsExtensionSupported(const char *extension);
 
     virtual already_AddRefed<TextureImage>
     CreateBasicTextureImage(GLuint aTexture,
@@ -1052,35 +975,13 @@ protected:
         return teximage.forget();
     }
 
-    bool IsOffscreenSizeAllowed(const gfxIntSize& aSize) const {
-        PRInt32 biggerDimension = NS_MAX(aSize.width, aSize.height);
-        PRInt32 maxAllowed = NS_MIN(mMaxRenderbufferSize, mMaxTextureSize);
-        return biggerDimension <= maxAllowed;
-    }
-
 protected:
     nsTArray<nsIntRect> mViewportStack;
     nsTArray<nsIntRect> mScissorStack;
 
     GLint mMaxTextureSize;
-    GLint mMaxRenderbufferSize;
 
 public:
- 
-    /** \returns the first GL error, and guarantees that all GL error flags are cleared,
-      * i.e. that a subsequent GetError call will return NO_ERROR
-      */
-    GLenum GetAndClearError() {
-        // the first error is what we want to return
-        GLenum error = fGetError();
-        
-        if (error) {
-            // clear all pending errors
-            while(fGetError()) {}
-        }
-        
-        return error;
-    }
 
 #ifdef DEBUG
 
@@ -1098,7 +999,6 @@ protected:
     GLenum mGLError;
 
 public:
-
     void BeforeGLCall(const char* glFunction) {
         if (mDebugMode) {
             // since the static member variable sCurrentGLContext is not thread-local as it should,

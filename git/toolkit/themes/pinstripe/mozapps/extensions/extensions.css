@@ -35,12 +35,29 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-@import url("chrome://global/skin/inContentUI.css");
-
 %include ../../global/shared.inc
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
+
+#addons-page {
+  -moz-appearance: none;
+  padding: 18px;
+  background-image: /* Texture */
+                    url("chrome://mozapps/skin/extensions/background-texture.png"),
+                    /* Gradient */
+                    -moz-linear-gradient(top, #ADB5C2, #BFC6D1);
+}
+
+#view-port-container {
+  /* Needed to allow the radius to clip the inner content, see bug 595656 */
+  /* Disabled because of bug 623615
+  overflow: hidden;
+  */
+  background-image: -moz-linear-gradient(top, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(50, 65, 92, 0.4);
+  border-radius: 5px;
+}
 
 
 /*** global warnings ***/
@@ -83,13 +100,6 @@
     box-shadow: 0px 0px 2px 4px rgba(255, 255, 255, 0.7);
     border-radius: 10px;
   }
-}
-
-/*** global informations ***/
-#addons-page .global-info-container {
-  background-color: #e3e6eb;
-  border-top-right-radius: 5px;
-  border-top-left-radius: 5px;
 }
 
 /* Plugins aren't yet disabled by safemode (bug 342333),
@@ -271,19 +281,19 @@
 #category-discover > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-discover.png");
 }
-#category-locale > .category-icon {
+#category-languages > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-languages.png");
 }
-#category-searchengine > .category-icon {
+#category-searchengines > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-searchengines.png");
 }
-#category-extension > .category-icon {
+#category-extensions > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-extensions.png");
 }
-#category-theme > .category-icon {
+#category-themes > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-themes.png");
 }
-#category-plugin > .category-icon {
+#category-plugins > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-plugins.png");
 }
 #category-availableUpdates > .category-icon {
@@ -877,23 +887,20 @@
   margin-bottom: 2em;
 }
 
-#detail-grid > columns > column:first-child {
-  max-width: 25em;
-}
-
 .detail-row[first-row="true"],
-.detail-row-complex[first-row="true"],
-setting[first-row="true"] {
+.detail-row-complex[first-row="true"] {
   border-top: none;
 }
 
 .detail-row,
-.detail-row-complex,
-setting {
+.detail-row-complex {
   border-top: 2px solid;
   -moz-border-top-colors: rgba(28, 31, 37, 0.2) rgba(255, 255, 255, 0.2);
   -moz-box-align: center;
-  min-height: 30px;
+}
+
+.detail-row-value {
+  -moz-margin-start: 0;
 }
 
 #detail-controls {
@@ -903,21 +910,6 @@ setting {
 #detail-view[active="false"]:not([pending]):not([notification]) {
   background-image: -moz-linear-gradient(rgba(135, 135, 135, 0.1),
                                          rgba(135, 135, 135, 0));
-}
-
-setting[first-row="true"] {
-  margin-top: 2em;
-}
-
-.preferences-description {
-  font-size: 90.9%;
-  color: graytext;
-  margin-top: -2px;
-  -moz-margin-start: 2em;
-}
-
-setting[type="string"] > .setting-input > textbox {
-  -moz-box-flex: 1;
 }
 
 
@@ -937,6 +929,7 @@ setting[type="string"] > .setting-input > textbox {
 /*** rating ***/
 
 .meta-rating {
+  -moz-margin-start: 0;
   -moz-margin-end: 0;
   margin-top: 2px;
 }
@@ -1082,10 +1075,7 @@ setting[type="string"] > .setting-input > textbox {
 
 /*** buttons ***/
 
-.addon-control,
-setting:not([type="integer"]) button,
-setting[type="control"] menulist,
-setting[type="color"] colorpicker[type="button"] {
+.addon-control {
   -moz-appearance: none;
   padding: 1px 4px;
   min-width: 60px;
@@ -1102,16 +1092,7 @@ setting[type="color"] colorpicker[type="button"] {
   display: none;
 }
 
-setting[type="color"] colorpicker[type="button"] {
-  margin: 1px 5px 2px 5px;
-  padding: 3px;
-  height: 25px;
-}
-
-.addon-control:active:hover,
-setting:not([type="integer"]) button:active:hover,
-setting[type="control"] menulist:active:hover,
-setting[type="color"] colorpicker[type="button"]:active:hover {
+.addon-control:active:hover {
   box-shadow: inset 0 1px 3px rgba(0,0,0,.2), 0 1px rgba(255,255,255,0.25);
   background-image: -moz-linear-gradient(rgba(45,54,71,0.3), rgba(45,54,71,0.1));
   border-color: rgba(60,73,97,0.7);

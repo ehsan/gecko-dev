@@ -261,10 +261,10 @@ function UpdateBackForwardCommands(aWebNavigation) {
 function SetClickAndHoldHandlers() {
   var timer;
 
-  function openMenu(aButton) {
-    cancelHold(aButton);
+  function timerCallback(aButton) {
     aButton.firstChild.hidden = false;
     aButton.open = true;
+    timer = null;
   }
 
   function mousedownHandler(aEvent) {
@@ -276,29 +276,7 @@ function SetClickAndHoldHandlers() {
     // Prevent the menupopup from opening immediately
     aEvent.currentTarget.firstChild.hidden = true;
 
-    aEvent.currentTarget.addEventListener("mouseout", mouseoutHandler, false);
-    aEvent.currentTarget.addEventListener("mouseup", mouseupHandler, false);
-    timer = setTimeout(openMenu, 500, aEvent.currentTarget);
-  }
-
-  function mouseoutHandler(aEvent) {
-    let buttonRect = aEvent.currentTarget.getBoundingClientRect();
-    if (aEvent.clientX >= buttonRect.left &&
-        aEvent.clientX <= buttonRect.right &&
-        aEvent.clientY >= buttonRect.bottom)
-      openMenu(aEvent.currentTarget);
-    else
-      cancelHold(aEvent.currentTarget);
-  }
-
-  function mouseupHandler(aEvent) {
-    cancelHold(aEvent.currentTarget);
-  }
-
-  function cancelHold(aButton) {
-    clearTimeout(timer);
-    aButton.removeEventListener("mouseout", mouseoutHandler, false);
-    aButton.removeEventListener("mouseup", mouseupHandler, false);
+    timer = setTimeout(timerCallback, 500, aEvent.currentTarget);
   }
 
   function clickHandler(aEvent) {
@@ -314,33 +292,36 @@ function SetClickAndHoldHandlers() {
     }
   }
 
+  function stopTimer(aEvent) {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+
   function _addClickAndHoldListenersOnElement(aElm) {
     aElm.addEventListener("mousedown", mousedownHandler, true);
+    aElm.addEventListener("mouseup", stopTimer, false);
+    aElm.addEventListener("mouseout", stopTimer, false);
     aElm.addEventListener("click", clickHandler, true);
   }
 
-  // Bug 414797: Clone unified-back-forward-button's context menu into both the
-  // back and the forward buttons.
+  // Bug 414797: Clone the dropmarker's menu into both the back and
+  // the forward buttons.
   var unifiedButton = document.getElementById("unified-back-forward-button");
   if (unifiedButton && !unifiedButton._clickHandlersAttached) {
-    unifiedButton._clickHandlersAttached = true;
-
-    let popup = document.getElementById("backForwardMenu").cloneNode(true);
+    var popup = document.getElementById("backForwardMenu").cloneNode(true);
     popup.removeAttribute("id");
-    // Prevent the context attribute on unified-back-forward-button from being
-    // inherited.
-    popup.setAttribute("context", "");
-
-    let backButton = document.getElementById("back-button");
+    var backButton = document.getElementById("back-button");
     backButton.setAttribute("type", "menu");
     backButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(backButton);
-
-    let forwardButton = document.getElementById("forward-button");
+    var forwardButton = document.getElementById("forward-button");
     popup = popup.cloneNode(true);
     forwardButton.setAttribute("type", "menu");
     forwardButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(forwardButton);
+    unifiedButton._clickHandlersAttached = true;
   }
 }
 
@@ -519,6 +500,13 @@ var gPopupBlockerObserver = {
     else
       blockedPopupAllowSite.removeAttribute("disabled");
 
+    var item = aEvent.target.lastChild;
+    while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
+      var next = item.previousSibling;
+      item.parentNode.removeChild(item);
+      item = next;
+    }
+
     var foundUsablePopupURI = false;
     var pageReport = gBrowser.pageReport;
     if (pageReport) {
@@ -581,13 +569,6 @@ var gPopupBlockerObserver = {
   onPopupHiding: function (aEvent) {
     if (aEvent.target.anchorNode.id == "page-report-button")
       aEvent.target.anchorNode.removeAttribute("open");
-
-    let item = aEvent.target.lastChild;
-    while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
-      let next = item.previousSibling;
-      item.parentNode.removeChild(item);
-      item = next;
-    }
   },
 
   showBlockedPopup: function (aEvent)
@@ -1398,7 +1379,7 @@ function prepareForStartup() {
   gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 #ifdef XP_MACOSX
   gBrowser.addEventListener("npapi-carbon-event-model-failure", gPluginHandler, true);
-#endif
+#endif 
 
   Services.obs.addObserver(gPluginHandler.pluginCrashed, "plugin-crashed", false);
 
@@ -1414,8 +1395,6 @@ function prepareForStartup() {
     window.close(); // Give up.
     return;
   }
-
-  messageManager.loadFrameScript("chrome://browser/content/content.js", true);
 
   // initialize observers and listeners
   // and give C++ access to gBrowser
@@ -1461,13 +1440,9 @@ function prepareForStartup() {
     Components.utils.reportError("Places database may be locked: " + ex);
   }
 
-#ifdef MOZ_E10S_COMPAT
-  // Bug 666801 - WebProgress support for e10s
-#else
   // hook up UI through progress listener
   gBrowser.addProgressListener(window.XULBrowserWindow);
   gBrowser.addTabsProgressListener(window.TabsProgressListener);
-#endif
 
   // setup our common DOMLinkAdded listener
   gBrowser.addEventListener("DOMLinkAdded", DOMLinkHandler, false);
@@ -1589,13 +1564,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
 
-#ifdef MOZ_E10S_COMPAT
-  // Bug 666804 - NetworkPrioritizer support for e10s
-#else
   let NP = {};
   Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
   NP.trackBrowserWindow(window);
-#endif
 
   // initialize the session-restore service (in case it's not already running)
   try {
@@ -1646,12 +1617,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
 
-#ifdef MOZ_E10S_COMPAT
-  // Bug 666808 - AeroPeek support for e10s
-#else
   if (Win7Features)
     Win7Features.onOpenWindow();
-#endif
 
   // called when we go into full screen, even if it is
   // initiated by a web page script
@@ -2271,11 +2238,7 @@ function loadURI(uri, referrer, postData, allowThirdPartyFixup)
   }
 }
 
-function getShortcutOrURI(aURL, aPostDataRef, aMayInheritPrincipal) {
-  // Initialize outparam to false
-  if (aMayInheritPrincipal)
-    aMayInheritPrincipal.value = false;
-
+function getShortcutOrURI(aURL, aPostDataRef) {
   var shortcutURL = null;
   var keyword = aURL;
   var param = "";
@@ -2346,11 +2309,6 @@ function getShortcutOrURI(aURL, aPostDataRef, aMayInheritPrincipal) {
 
     return aURL;
   }
-
-  // This URL came from a bookmark, so it's safe to let it inherit the current
-  // document's principal.
-  if (aMayInheritPrincipal)
-    aMayInheritPrincipal.value = true;
 
   return shortcutURL;
 }
@@ -2631,6 +2589,24 @@ function PageProxyClickHandler(aEvent)
     middleMousePaste(aEvent);
 }
 
+function BrowserImport()
+{
+#ifdef XP_MACOSX
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:MigrationWizard");
+  if (win)
+    win.focus();
+  else {
+    window.openDialog("chrome://browser/content/migration/migration.xul",
+                      "migration", "centerscreen,chrome,resizable=no");
+  }
+#else
+  window.openDialog("chrome://browser/content/migration/migration.xul",
+                    "migration", "modal,centerscreen,chrome,resizable=no");
+#endif
+}
+
 /**
  *  Handle load of some pages (about:*) so that we can make modifications
  *  to the DOM for unprivileged pages.
@@ -2878,7 +2854,7 @@ var PrintPreviewListener = {
     this._printPreviewTab = null;
   },
   _toggleAffectedChrome: function () {
-    gNavToolbox.collapsed = gInPrintPreviewMode;
+    gNavToolbox.hidden = gInPrintPreviewMode;
 
     if (gInPrintPreviewMode)
       this._hideChrome();
@@ -2969,7 +2945,11 @@ function FillInHTMLTooltip(tipElement)
   var titleText = null;
   var XLinkTitleText = null;
   var SVGTitleText = null;
+#ifdef MOZ_SVG
   var lookingForSVGTitle = true;
+#else
+  var lookingForSVGTitle = false;
+#endif // MOZ_SVG
   var direction = tipElement.ownerDocument.dir;
 
   // If the element is invalid per HTML5 Forms specifications and has no title,
@@ -2990,13 +2970,17 @@ function FillInHTMLTooltip(tipElement)
       titleText = tipElement.getAttribute("title");
       if ((tipElement instanceof HTMLAnchorElement && tipElement.href) ||
           (tipElement instanceof HTMLAreaElement && tipElement.href) ||
-          (tipElement instanceof HTMLLinkElement && tipElement.href) ||
-          (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))) {
+          (tipElement instanceof HTMLLinkElement && tipElement.href)
+#ifdef MOZ_SVG
+          || (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))
+#endif // MOZ_SVG
+          ) {
         XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       }
       if (lookingForSVGTitle &&
-          (!(tipElement instanceof SVGElement) ||
-           tipElement.parentNode.nodeType == Node.DOCUMENT_NODE)) {
+          !(tipElement instanceof SVGElement &&
+            tipElement.parentNode instanceof SVGElement &&
+            !(tipElement.parentNode instanceof SVGForeignObjectElement))) {
         lookingForSVGTitle = false;
       }
       if (lookingForSVGTitle) {
@@ -3343,7 +3327,7 @@ const BrowserSearch = {
       var win = getTopWin();
       if (win) {
         // If there's an open browser window, it should handle this command
-        win.focus();
+        win.focus()
         win.BrowserSearch.webSearch();
       } else {
         // If there are no open browser windows, open a new one
@@ -3353,7 +3337,7 @@ const BrowserSearch = {
             Services.obs.removeObserver(observer, "browser-delayed-startup-finished");
           }
         }
-        win = window.openDialog(getBrowserURL(), "_blank",
+        win = window.openDialog("chrome://browser/content/", "_blank",
                                 "chrome,all,dialog=no", "about:blank");
         Services.obs.addObserver(observer, "browser-delayed-startup-finished", false); 
       }
@@ -4134,7 +4118,7 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   isBusy: false,
-  inContentWhitelist: ["about:addons", "about:permissions"],
+  inContentWhitelist: ["about:addons"],
 
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
@@ -4171,15 +4155,11 @@ var XULBrowserWindow = {
   init: function () {
     this.throbberElement = document.getElementById("navigator-throbber");
 
-#ifdef MOZ_E10S_COMPAT
-    // Bug 666809 - SecurityUI support for e10s
-#else
     // Initialize the security button's state and tooltip text.  Remember to reset
     // _hostChanged, otherwise onSecurityChange will short circuit.
     var securityUI = gBrowser.securityUI;
     this._hostChanged = true;
     this.onSecurityChange(null, null, securityUI.state);
-#endif
   },
 
   destroy: function () {
@@ -5092,10 +5072,6 @@ var TabsInTitlebar = {
 #endif
   },
 
-  get enabled() {
-    return document.documentElement.getAttribute("tabsintitlebar") == "true";
-  },
-
 #ifdef CAN_DRAW_IN_TITLEBAR
   observe: function (subject, topic, data) {
     if (topic == "nsPref:changed")
@@ -5121,7 +5097,8 @@ var TabsInTitlebar = {
       break;
     }
 
-    if (allowed == this.enabled)
+    let docElement = document.documentElement;
+    if (allowed == (docElement.getAttribute("tabsintitlebar") == "true"))
       return;
 
     function $(id) document.getElementById(id);
@@ -5142,18 +5119,20 @@ var TabsInTitlebar = {
       titlebar.style.marginBottom = - Math.min(tabsToolbarRect.top - titlebarTop,
                                                tabsToolbarRect.height) + "px";
 
-      document.documentElement.setAttribute("tabsintitlebar", "true");
+      docElement.setAttribute("tabsintitlebar", "true");
 
       if (!this._draghandle) {
         let tmp = {};
         Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm", tmp);
         this._draghandle = new tmp.WindowDraggingElement(tabsToolbar, window);
         this._draghandle.mouseDownCheck = function () {
-          return !this._dragBindingAlive && TabsInTitlebar.enabled;
+          return !this._dragBindingAlive &&
+                 this.ownerDocument.documentElement
+                     .getAttribute("tabsintitlebar") == "true";
         };
       }
     } else {
-      document.documentElement.removeAttribute("tabsintitlebar");
+      docElement.removeAttribute("tabsintitlebar");
 
       titlebar.style.marginBottom = "";
     }
@@ -5480,7 +5459,7 @@ function hrefAndLinkNodeForClickEvent(event)
   // If there is no linkNode, try simple XLink.
   let href, baseURI;
   node = event.target;
-  while (node && !href) {
+  while (node) {
     if (node.nodeType == Node.ELEMENT_NODE) {
       href = node.getAttributeNS("http://www.w3.org/1999/xlink", "href");
       if (href)
@@ -5918,6 +5897,10 @@ var BrowserOffline = {
     }
 
     ioService.offline = !ioService.offline;
+
+    // Save the current state for later use as the initial state
+    // (if there is no netLinkService)
+    gPrefService.setBoolPref("browser.offline", ioService.offline);
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -6709,14 +6692,11 @@ var gPluginHandler = {
   handleEvent : function(event) {
     let self = gPluginHandler;
     let plugin = event.target;
-    let doc = plugin.ownerDocument;
+    let hideBarPrefName;
 
     // We're expecting the target to be a plugin.
     if (!(plugin instanceof Ci.nsIObjectLoadingContent))
       return;
-
-    // Force a style flush, so that we ensure our binding is attached.
-    plugin.clientTop;
 
     switch (event.type) {
       case "PluginCrashed":
@@ -6727,37 +6707,31 @@ var gPluginHandler = {
         // For non-object plugin tags, register a click handler to install the
         // plugin. Object tags can, and often do, deal with that themselves,
         // so don't stomp on the page developers toes.
-        if (!(plugin instanceof HTMLObjectElement)) {
-          // We don't yet check to see if there's actually an installer available.
-          let installStatus = doc.getAnonymousElementByAttribute(plugin, "class", "installStatus");
-          installStatus.setAttribute("status", "ready");
-          let iconStatus = doc.getAnonymousElementByAttribute(plugin, "class", "icon");
-          iconStatus.setAttribute("status", "ready");
-
-          let installLink = doc.getAnonymousElementByAttribute(plugin, "class", "installPluginLink");
-          self.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
-        }
+        if (!(plugin instanceof HTMLObjectElement))
+          self.addLinkClickCallback(plugin, "installSinglePlugin");
         /* FALLTHRU */
-
       case "PluginBlocklisted":
       case "PluginOutdated":
-#ifdef XP_MACOSX
-      case "npapi-carbon-event-model-failure":
-#endif
+        hideBarPrefName = event.type == "PluginOutdated" ?
+                                "plugins.hide_infobar_for_outdated_plugin" :
+                                "plugins.hide_infobar_for_missing_plugin";
+        if (gPrefService.getBoolPref(hideBarPrefName))
+          return;
+
         self.pluginUnavailable(plugin, event.type);
         break;
+#ifdef XP_MACOSX
+      case "npapi-carbon-event-model-failure":
+        hideBarPrefName = "plugins.hide_infobar_for_carbon_failure_plugin";
+        if (gPrefService.getBoolPref(hideBarPrefName))
+          return;
 
-      case "PluginDisabled":
-        let manageLink = doc.getAnonymousElementByAttribute(plugin, "class", "managePluginsLink");
-        self.addLinkClickCallback(manageLink, "managePlugins");
+        self.pluginUnavailable(plugin, event.type);
         break;
-    }
-
-    // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
-    if (event.type != "PluginCrashed") {
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-      if (self.isTooSmall(plugin, overlay))
-          overlay.style.visibility = "hidden";
+#endif
+      case "PluginDisabled":
+        self.addLinkClickCallback(plugin, "managePlugins");
+        break;
     }
   },
 
@@ -6777,10 +6751,10 @@ var gPluginHandler = {
   },
 
   // Callback for user clicking on a missing (unsupported) plugin.
-  installSinglePlugin: function (plugin) {
+  installSinglePlugin: function (aEvent) {
     var missingPluginsArray = {};
 
-    var pluginInfo = getPluginInfo(plugin);
+    var pluginInfo = getPluginInfo(aEvent.target);
     missingPluginsArray[pluginInfo.mimetype] = pluginInfo;
 
     openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
@@ -6830,6 +6804,9 @@ var gPluginHandler = {
     let blockedNotification  = notificationBox.getNotificationWithValue("blocked-plugins");
     let missingNotification  = notificationBox.getNotificationWithValue("missing-plugins");
 
+    // If there is already an outdated plugin notification then do nothing
+    if (outdatedNotification)
+      return;
 
     function showBlocklistInfo() {
       var url = formatURL("extensions.blocklist.detailsURL", true);
@@ -6861,7 +6838,7 @@ var gPluginHandler = {
       let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"].
                          createInstance(Ci.nsISupportsPRBool);
       Services.obs.notifyObservers(cancelQuit, "quit-application-requested", null);
-
+ 
       // Something aborted the quit process.
       if (cancelQuit.data)
         return;
@@ -6915,7 +6892,7 @@ var gPluginHandler = {
       "npapi-carbon-event-model-failure" : {
                                              barID    : "carbon-failure-plugins",
                                              iconURL  : "chrome://mozapps/skin/plugins/notifyPluginGeneric.png",
-                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.message"),
+                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.title"),
                                              buttons: [{
                                                          label     : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.label"),
                                                          accessKey : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.accesskey"),
@@ -6925,17 +6902,10 @@ var gPluginHandler = {
                             }
 #endif
     };
-
-    // If there is already an outdated plugin notification then do nothing
-    if (outdatedNotification)
-      return;
-
 #ifdef XP_MACOSX
     if (eventType == "npapi-carbon-event-model-failure") {
-      if (gPrefService.getBoolPref("plugins.hide_infobar_for_carbon_failure_plugin"))
-        return;
 
-      let carbonFailureNotification =
+      let carbonFailureNotification = 
         notificationBox.getNotificationWithValue("carbon-failure-plugins");
 
       if (carbonFailureNotification)
@@ -6947,18 +6917,11 @@ var gPluginHandler = {
         eventType = "PluginNotFound";
     }
 #endif
-
     if (eventType == "PluginBlocklisted") {
-      if (gPrefService.getBoolPref("plugins.hide_infobar_for_missing_plugin")) // XXX add a new pref?
-        return;
-
       if (blockedNotification || missingNotification)
         return;
     }
     else if (eventType == "PluginOutdated") {
-      if (gPrefService.getBoolPref("plugins.hide_infobar_for_outdated_plugin"))
-        return;
-
       // Cancel any notification about blocklisting/missing plugins
       if (blockedNotification)
         blockedNotification.close();
@@ -6966,9 +6929,6 @@ var gPluginHandler = {
         missingNotification.close();
     }
     else if (eventType == "PluginNotFound") {
-      if (gPrefService.getBoolPref("plugins.hide_infobar_for_missing_plugin"))
-        return;
-
       if (missingNotification)
         return;
 
@@ -7024,6 +6984,9 @@ var gPluginHandler = {
     // Remap the plugin name to a more user-presentable form.
     pluginName = this.makeNicePluginName(pluginName, pluginFilename);
 
+    // Force a style flush, so that we ensure our binding is attached.
+    plugin.clientTop;
+
     let messageString = gNavigatorBundle.getFormattedString("crashedpluginsMessage.title", [pluginName]);
 
     //
@@ -7031,6 +6994,12 @@ var gPluginHandler = {
     //
     let doc = plugin.ownerDocument;
     let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+
+    // The binding has role="link" here, since missing/disabled/blocked
+    // plugin UI has a onclick handler on the whole thing. This isn't needed
+    // for the plugin-crashed UI, because we use actual HTML links in the text.
+    overlay.removeAttribute("role");
+
     let statusDiv = doc.getAnonymousElementByAttribute(plugin, "class", "submitStatus");
 #ifdef MOZ_CRASHREPORTER
     let status;
@@ -7684,6 +7653,12 @@ var gIdentityHandler = {
           icon_label = this.getEffectiveHost();
       }
 
+      // We need a port number for all lookups.  If one hasn't been specified, use
+      // the https default
+      var lookupHost = this._lastLocation.host;
+      if (lookupHost.indexOf(':') < 0)
+        lookupHost += ":443";
+
       // Verifier is either the CA Org, for a normal cert, or a special string
       // for certs that are trusted because of a security exception.
       var tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
@@ -7693,12 +7668,7 @@ var gIdentityHandler = {
       // thing here in terms of converting _lastLocation.port from string to int, but
       // the overrideService doesn't like undefined ports, so make sure we have
       // something in the default case (bug 432241).
-      // .hostname can return an empty string in some exceptional cases -
-      // hasMatchingOverride does not handle that, so avoid calling it.
-      // Updating the tooltip value in those cases isn't critical.
-      // FIXME: Fixing bug 646690 would probably makes this check unnecessary
-      if (this._lastLocation.hostname &&
-          this._overrideService.hasMatchingOverride(this._lastLocation.hostname,
+      if (this._overrideService.hasMatchingOverride(this._lastLocation.hostname,
                                                     (this._lastLocation.port || 443),
                                                     iData.cert, {}, {}))
         tooltip = gNavigatorBundle.getString("identity.identified.verified_by_you");
@@ -8134,6 +8104,8 @@ let gPrivateBrowsingUI = {
 
     this._setPBMenuTitle("stop");
 
+    document.getElementById("menu_import").setAttribute("disabled", "true");
+
     // Disable the Clear Recent History... menu item when in PB mode
     // temporary fix until bug 463607 is fixed
     document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
@@ -8180,6 +8152,8 @@ let gPrivateBrowsingUI = {
     if (gURLBar) {
       gURLBar.editor.transactionManager.clear();
     }
+
+    document.getElementById("menu_import").removeAttribute("disabled");
 
     // Re-enable the Clear Recent History... menu item on exit of PB mode
     // temporary fix until bug 463607 is fixed
@@ -8514,18 +8488,13 @@ var TabContextMenu = {
   updateContextMenu: function updateContextMenu(aPopupMenu) {
     this.contextTab = document.popupNode.localName == "tab" ?
                       document.popupNode : gBrowser.selectedTab;
-    let disabled = gBrowser.tabs.length == 1;
+    let disabled = gBrowser.visibleTabs.length == 1;
 
     // Enable the "Close Tab" menuitem when the window doesn't close with the last tab.
     document.getElementById("context_closeTab").disabled =
       disabled && gBrowser.tabContainer._closeWindowWithLastTab;
 
     var menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple");
-    for (var i = 0; i < menuItems.length; i++)
-      menuItems[i].disabled = disabled;
-
-    disabled = gBrowser.visibleTabs.length == 1;
-    menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple-visible");
     for (var i = 0; i < menuItems.length; i++)
       menuItems[i].disabled = disabled;
 

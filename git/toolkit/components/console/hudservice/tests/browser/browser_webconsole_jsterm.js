@@ -61,7 +61,11 @@ function testJSTerm()
 
   openConsole();
 
-  jsterm = HUDService.getHudByWindow(content).jsterm;
+  hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  hud = HUDService.hudReferences[hudId];
+  jsterm = hud.jsterm;
+  let outputNode = hudBox.querySelector(".hud-output-node");
 
   jsterm.clearOutput();
   jsterm.execute("'id=' + $('header').getAttribute('id')");
@@ -154,6 +158,5 @@ function testJSTerm()
   jsterm.execute("null");
   checkResult("null", "null is null", 1);
 
-  jsterm = null;
   finishTest();
 }

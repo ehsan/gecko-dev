@@ -41,7 +41,6 @@
 // FIXME(bug 332648): Give me a real API please!
 #include "jscntxt.h"
 
-#include "nsIInterfaceRequestorUtils.h"
 #include "nsJSNPRuntime.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
@@ -55,9 +54,6 @@
 #include "nsIDOMElement.h"
 #include "prmem.h"
 #include "nsIContent.h"
-#include "nsIPluginInstanceOwner.h"
-
-#define NPRUNTIME_JSCLASS_NAME "NPObject JS wrapper class"
 
 using namespace mozilla::plugins::parent;
 
@@ -334,11 +330,7 @@ struct AutoCXPusher
   }
 };
 
-namespace mozilla {
-namespace plugins {
-namespace parent {
-
-JSContext *
+static JSContext *
 GetJSContext(NPP npp)
 {
   NS_ENSURE_TRUE(npp, nsnull);
@@ -364,9 +356,6 @@ GetJSContext(NPP npp)
   return (JSContext *)scx->GetNativeContext();
 }
 
-}
-}
-}
 
 static NPP
 LookupNPP(NPObject *npobj);
@@ -996,7 +985,7 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
           return PR_FALSE;
       }
-      id = StringToNPIdentifier(cx, str);
+      id = StringToNPIdentifier(str);
     } else {
       NS_ASSERTION(JSVAL_IS_INT(v),
                    "The element in ida must be either string or int!\n");
@@ -1484,8 +1473,8 @@ CallNPMethodInternal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
     if (npobj->_class->invoke) {
       JSFunction *fun = (JSFunction *)::JS_GetPrivate(cx, funobj);
-      JSString *name = ::JS_InternJSString(cx, ::JS_GetFunctionId(fun));
-      NPIdentifier id = StringToNPIdentifier(cx, name);
+      JSString *name = ::JS_GetFunctionId(fun);
+      NPIdentifier id = StringToNPIdentifier(name);
 
       ok = npobj->_class->invoke(npobj, id, npargs, argc, &v);
     } else {
@@ -2306,11 +2295,6 @@ NPObjectMember_Trace(JSTracer *trc, JSObject *obj)
     (NPObjectMemberPrivate *)::JS_GetPrivate(trc->context, obj);
   if (!memberPrivate)
     return;
-
-  // Our NPIdentifier is not always interned, so we must root it explicitly.
-  jsid id = NPIdentifierToJSId(memberPrivate->methodName);
-  if (JSID_IS_STRING(id))
-    JS_CALL_STRING_TRACER(trc, JSID_TO_STRING(id), "NPObjectMemberPrivate.methodName");
 
   if (!JSVAL_IS_PRIMITIVE(memberPrivate->fieldValue)) {
     JS_CALL_VALUE_TRACER(trc, memberPrivate->fieldValue,

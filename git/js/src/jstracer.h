@@ -280,12 +280,12 @@ extern void FragProfiling_FragFinalizer(nanojit::Fragment* f, TraceMonitor*);
 #define ORACLE_SIZE 4096
 
 class Oracle {
-    nanojit::BitSet _stackDontDemote;
-    nanojit::BitSet _globalDontDemote;
-    nanojit::BitSet _pcDontDemote;
-    nanojit::BitSet _pcSlowZeroTest;
+    avmplus::BitSet _stackDontDemote;
+    avmplus::BitSet _globalDontDemote;
+    avmplus::BitSet _pcDontDemote;
+    avmplus::BitSet _pcSlowZeroTest;
 public:
-    Oracle(VMAllocator* allocator);
+    Oracle();
 
     JS_REQUIRES_STACK void markGlobalSlotUndemotable(JSContext* cx, unsigned slot);
     JS_REQUIRES_STACK bool isGlobalSlotUndemotable(JSContext* cx, unsigned slot) const;
@@ -364,7 +364,6 @@ struct FrameInfo;
 
 struct VMSideExit : public nanojit::SideExit
 {
-    JSScript* script;
     jsbytecode* pc;
     jsbytecode* imacpc;
     intptr_t sp_adj;
@@ -563,8 +562,7 @@ struct TreeFragment : public LinkableFragment
         linkedTrees(alloc),
         sideExits(alloc),
         gcthings(alloc),
-        shapes(alloc),
-        visiting(false)
+        shapes(alloc)
     { }
 
     TreeFragment* first;
@@ -595,9 +593,6 @@ struct TreeFragment : public LinkableFragment
     uintN                   execs;
     /* Gives the total number of iterations executed by the trace (up to a limit). */
     uintN                   iters;
-
-    /* Flag to detect graph cycles when navigating tree fragments. */ 
-    bool                    visiting;
 
     inline unsigned nGlobalTypes() {
         return typeMap.length() - nStackTypes;
@@ -799,7 +794,7 @@ public:
     inline uintN count(OpKind kind) { return allOps[kind]; }
 
     /* Called for every back edge being profiled. */
-    MonitorResult profileLoopEdge(JSContext* cx);
+    MonitorResult profileLoopEdge(JSContext* cx, uintN& inlineCallCount);
     
     /* Called for every instruction being profiled. */
     ProfileAction profileOperation(JSContext *cx, JSOp op);
@@ -1544,9 +1539,11 @@ class TraceRecorder
     JS_REQUIRES_STACK void determineGlobalTypes(JSValueType* typeMap);
     JS_REQUIRES_STACK VMSideExit* downSnapshot(FrameInfo* downFrame);
     JS_REQUIRES_STACK TreeFragment* findNestedCompatiblePeer(TreeFragment* f);
-    JS_REQUIRES_STACK AbortableRecordingStatus attemptTreeCall(TreeFragment* inner);
+    JS_REQUIRES_STACK AbortableRecordingStatus attemptTreeCall(TreeFragment* inner,
+                                                               uintN& inlineCallCount);
 
-    static JS_REQUIRES_STACK MonitorResult recordLoopEdge(JSContext* cx, TraceRecorder* r);
+    static JS_REQUIRES_STACK MonitorResult recordLoopEdge(JSContext* cx, TraceRecorder* r,
+                                                          uintN& inlineCallCount);
 
     /* Allocators associated with this recording session. */
     VMAllocator& tempAlloc() const { return *traceMonitor->tempAlloc; }
@@ -1600,8 +1597,9 @@ class TraceRecorder
     friend class SlotMap;
     friend class DefaultSlotMap;
     friend class DetermineTypesVisitor;
-    friend MonitorResult RecordLoopEdge(JSContext*, TraceMonitor*);
-    friend TracePointAction RecordTracePoint(JSContext*, TraceMonitor*, bool *blacklist);
+    friend MonitorResult RecordLoopEdge(JSContext*, TraceMonitor*, uintN&);
+    friend TracePointAction RecordTracePoint(JSContext*, TraceMonitor*, uintN &inlineCallCount,
+                                             bool *blacklist);
     friend AbortResult AbortRecording(JSContext*, const char*);
     friend class BoxArg;
     friend void TraceMonitor::sweep(JSContext *cx);
@@ -1687,14 +1685,14 @@ class TraceRecorder
 #define TRACE_2(x,a,b)          TRACE_ARGS(x, (a, b))
 
 extern JS_REQUIRES_STACK MonitorResult
-MonitorLoopEdge(JSContext* cx, InterpMode interpMode);
+MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount, InterpMode interpMode);
 
 extern JS_REQUIRES_STACK TracePointAction
-RecordTracePoint(JSContext*, bool* blacklist);
+RecordTracePoint(JSContext*, uintN& inlineCallCount, bool* blacklist);
 
 extern JS_REQUIRES_STACK TracePointAction
-MonitorTracePoint(JSContext*, bool* blacklist, void** traceData, uintN *traceEpoch,
-                  uint32 *loopCounter, uint32 hits);
+MonitorTracePoint(JSContext*, uintN& inlineCallCount, bool* blacklist,
+                  void** traceData, uintN *traceEpoch, uint32 *loopCounter, uint32 hits);
 
 extern JS_REQUIRES_STACK TraceRecorder::AbortResult
 AbortRecording(JSContext* cx, const char* reason);

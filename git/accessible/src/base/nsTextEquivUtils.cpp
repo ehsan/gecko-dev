@@ -297,7 +297,7 @@ nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
   }
 
   //XXX: is it necessary to care the accessible is not a document?
-  if (aAccessible->IsDocumentNode())
+  if (aAccessible->IsDocument())
     return NS_ERROR_UNEXPECTED;
 
   nsIContent *content = aAccessible->GetContent();
@@ -519,7 +519,7 @@ PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
   eNoRule,           // ROLE_AUTOCOMPLETE
   eNoRule,           // ROLE_EDITBAR
   eFromValue,        // ROLE_ENTRY
-  eFromSubtreeIfRec, // ROLE_CAPTION
+  eNoRule,           // ROLE_CAPTION
   eNoRule,           // ROLE_DOCUMENT_FRAME
   eFromSubtreeIfRec, // ROLE_HEADING
   eNoRule,           // ROLE_PAGE

@@ -99,9 +99,6 @@ protected:
      * 
      * @param proxy
      *        The PAC-style proxy string to parse.  This must not be null.
-     * @param aResolveFlags
-     *        The flags passed to Resolve or AsyncResolve that are stored in 
-     *        proxyInfo.
      * @param result
      *        Upon return this points to a newly allocated nsProxyInfo or null
      *        if the proxy string was invalid.
@@ -109,7 +106,6 @@ protected:
      * @return A pointer beyond the parsed proxy string (never null).
      */
     NS_HIDDEN_(const char *) ExtractProxyInfo(const char *proxy,
-                                              PRUint32 aResolveFlags,
                                               nsProxyInfo **result);
 
     /**
@@ -126,14 +122,10 @@ protected:
      *
      * @param pacString
      *        The PAC-style proxy string to parse.  This may be empty.
-     * @param aResolveFlags
-     *        The flags passed to Resolve or AsyncResolve that are stored in 
-     *        proxyInfo.
      * @param result
      *        The resulting list of proxy info objects.
      */
     NS_HIDDEN_(void) ProcessPACString(const nsCString &pacString,
-                                      PRUint32 aResolveFlags,
                                       nsIProxyInfo **result);
 
     /**
@@ -207,8 +199,6 @@ protected:
      *        The failover timeout for this proxy.
      * @param next
      *        The next proxy to try if this one fails.
-     * @param aResolveFlags
-     *        The flags passed to resolve (from nsIProtocolProxyService).
      * @param result
      *        The resulting nsIProxyInfo object.
      */
@@ -218,7 +208,6 @@ protected:
                                                PRUint32 flags,
                                                PRUint32 timeout,
                                                nsIProxyInfo *next,
-                                               PRUint32 aResolveFlags,
                                                nsIProxyInfo **result);
 
     /**

@@ -45,9 +45,6 @@ var EXPORTED_SYMBOLS = [];
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-const URI_EXTENSION_STRINGS  = "chrome://mozapps/locale/extensions/extensions.properties";
-const STRING_TYPE_NAME       = "type.%ID%.name";
-
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
   this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
@@ -236,12 +233,6 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
     return bs.getPluginBlocklistState(aTags[0]);
   });
 
-  this.__defineGetter__("blocklistURL", function() {
-    let bs = Cc["@mozilla.org/extensions/blocklist;1"].
-             getService(Ci.nsIBlocklistService);
-    return bs.getPluginBlocklistURL(aTags[0]);
-  });
-
   this.__defineGetter__("size", function() {
     function getDirectorySize(aFile) {
       let size = 0;
@@ -351,8 +342,4 @@ PluginWrapper.prototype = {
   }
 };
 
-AddonManagerPrivate.registerProvider(PluginProvider, [
-  new AddonManagerPrivate.AddonType("plugin", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 6000)
-]);
+AddonManagerPrivate.registerProvider(PluginProvider);

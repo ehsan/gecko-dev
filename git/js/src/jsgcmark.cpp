@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -45,37 +45,6 @@
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 
-#include "vm/String-inl.h"
-
-/*
- * There are two mostly separate mark paths. The first is a fast path used
- * internally in the GC. The second is a slow path used for root marking and
- * for API consumers like the cycle collector.
- *
- * The fast path uses explicit stacks. The basic marking process during a GC is
- * that all roots are pushed on to a mark stack, and then each item on the
- * stack is scanned (possibly pushing more stuff) until the stack is empty.
- *
- * PushMarkStack pushes a GC thing onto the mark stack. In some cases (shapes
- * or strings) it eagerly marks the object rather than pushing it. Popping is
- * done by the drainMarkStack method. For each thing it pops, drainMarkStack
- * calls ScanObject (or a related function).
- *
- * Most of the marking code outside jsgcmark uses functions like MarkObject,
- * MarkString, etc. These functions check if an object is in the compartment
- * currently being GCed. If it is, they call PushMarkStack. Roots are pushed
- * this way as well as pointers traversed inside trace hooks (for things like
- * js_IteratorClass). It it always valid to call a MarkX function instead of
- * PushMarkStack, although it may be slower.
- *
- * The MarkX functions also handle non-GC object traversal. In this case, they
- * call a callback for each object visited. This is a recursive process; the
- * mark stacks are not involved. These callbacks may ask for the outgoing
- * pointers to be visited. Eventually, this leads to the MarkChildren functions
- * being called. These functions duplicate much of the functionality of
- * ScanObject, but they don't push onto an explicit stack.
- */
-
 using namespace js;
 using namespace js::gc;
 
@@ -109,17 +78,11 @@ Mark(JSTracer *trc, T *thing)
     JS_ASSERT(trc->debugPrinter || trc->debugPrintArg);
 
     JS_ASSERT(!JSAtom::isStatic(thing));
-    JS_ASSERT(thing->isAligned());
+    JS_ASSERT(thing->asFreeCell()->isAligned());
 
     JSRuntime *rt = trc->context->runtime;
     JS_ASSERT(thing->arenaHeader()->compartment);
     JS_ASSERT(thing->arenaHeader()->compartment->rt == rt);
-
-    if (rt->gcCheckCompartment && thing->compartment() != rt->gcCheckCompartment &&
-        thing->compartment() != rt->atomsCompartment)
-    {
-        JS_Assert("compartment mismatch in GC", __FILE__, __LINE__);
-    }
 
     /*
      * Don't mark things outside a compartment if we are in a per-compartment
@@ -162,16 +125,6 @@ MarkObject(JSTracer *trc, JSObject &obj, const char *name)
     JS_ASSERT(&obj);
     JS_SET_TRACING_NAME(trc, name);
     Mark(trc, &obj);
-}
-
-void
-MarkCrossCompartmentObject(JSTracer *trc, JSObject &obj, const char *name)
-{
-    JSRuntime *rt = trc->context->runtime;
-    if (rt->gcCurrentCompartment && rt->gcCurrentCompartment != obj.compartment())
-        return;
-
-    MarkObject(trc, obj, name);
 }
 
 void
@@ -368,22 +321,6 @@ MarkValue(JSTracer *trc, const js::Value &v, const char *name)
 }
 
 void
-MarkCrossCompartmentValue(JSTracer *trc, const js::Value &v, const char *name)
-{
-    if (v.isMarkable()) {
-        js::gc::Cell *cell = (js::gc::Cell *)v.toGCThing();
-        unsigned kind = v.gcKind();
-        if (kind == JSTRACE_STRING && ((JSString *)cell)->isStaticAtom())
-            return;
-        JSRuntime *rt = trc->context->runtime;
-        if (rt->gcCurrentCompartment && cell->compartment() != rt->gcCurrentCompartment)
-            return;
-
-        MarkValue(trc, v, name);
-    }
-}
-
-void
 MarkValueRange(JSTracer *trc, Value *beg, Value *end, const char *name)
 {
     for (Value *vp = beg; vp < end; ++vp) {
@@ -562,47 +499,13 @@ restart:
 }
 
 static inline void
-ScanRope(GCMarker *gcmarker, JSRope *rope)
-{
-    JS_ASSERT_IF(gcmarker->context->runtime->gcCurrentCompartment,
-                 rope->compartment() == gcmarker->context->runtime->gcCurrentCompartment
-                 || rope->compartment() == gcmarker->context->runtime->atomsCompartment);
-    JS_ASSERT(rope->isMarked());
-
-    JSString *leftChild = NULL;
-    do {
-        JSString *rightChild = rope->rightChild();
-
-        if (rightChild->isRope()) {
-            if (rightChild->markIfUnmarked())
-                gcmarker->pushRope(&rightChild->asRope());
-        } else {
-            rightChild->asLinear().mark(gcmarker);
-        }
-        leftChild = rope->leftChild();
-
-        if (leftChild->isLinear()) {
-            leftChild->asLinear().mark(gcmarker);
-            return;
-        }
-        rope = &leftChild->asRope();
-    } while (leftChild->markIfUnmarked());
-}
-
-static inline void
 PushMarkStack(GCMarker *gcmarker, JSString *str)
 {
     JS_ASSERT_IF(gcmarker->context->runtime->gcCurrentCompartment,
                  str->compartment() == gcmarker->context->runtime->gcCurrentCompartment
                  || str->compartment() == gcmarker->context->runtime->atomsCompartment);
 
-    if (str->isLinear()) {
-        str->asLinear().mark(gcmarker);
-    } else {
-        JS_ASSERT(str->isRope());
-        if (str->markIfUnmarked())
-            ScanRope(gcmarker, &str->asRope());
-    }
+    str->mark(gcmarker);
 }
 
 static const uintN LARGE_OBJECT_CHUNK_SIZE = 2048;
@@ -638,6 +541,10 @@ ScanObject(GCMarker *gcmarker, JSObject *obj)
     }
 
     if (obj->isNative()) {
+#ifdef JS_DUMP_SCOPE_METERS
+        js::MeterEntryCount(obj->propertyCount);
+#endif
+
         js::Shape *shape = obj->lastProp;
         PushMarkStack(gcmarker, shape);
 
@@ -729,6 +636,10 @@ MarkChildren(JSTracer *trc, JSObject *obj)
         clasp->trace(trc, obj);
 
     if (obj->isNative()) {
+#ifdef JS_DUMP_SCOPE_METERS
+        js::MeterEntryCount(obj->propertyCount);
+#endif
+
         MarkShape(trc, obj->lastProp, "shape");
 
         if (obj->slotSpan() > 0)
@@ -780,13 +691,7 @@ MarkChildren(JSTracer *trc, JSXML *xml)
 void
 GCMarker::drainMarkStack()
 {
-    JSRuntime *rt = context->runtime;
-    rt->gcCheckCompartment = rt->gcCurrentCompartment;
-
     while (!isMarkStackEmpty()) {
-        while (!ropeStack.isEmpty())
-            ScanRope(this, ropeStack.pop());
-
         while (!objStack.isEmpty())
             ScanObject(this, objStack.pop());
 
@@ -807,8 +712,6 @@ GCMarker::drainMarkStack()
             markDelayedChildren();
         }
     }
-
-    rt->gcCheckCompartment = NULL;
 }
 
 } /* namespace js */

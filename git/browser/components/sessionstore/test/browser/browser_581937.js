@@ -35,8 +35,11 @@
  *
  * ***** END LICENSE BLOCK *****/
 
-// Tests that an about:blank tab with no history will not be saved into
-// session store and thus, it will not show up in Recently Closed Tabs.
+ // Tests that an about:blank tab with no history will not be saved into
+ // session store and thus, it will not show up in Recently Closed Tabs.
+
+ let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+          getService(Ci.nsISessionStore);
 
 let tab;
 function test() {

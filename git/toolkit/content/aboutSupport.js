@@ -73,12 +73,9 @@ const PREFS_WHITELIST = [
   "layout.css.dpi",
   "network.",
   "places.",
-  "plugin.",
-  "plugins.",
   "print.",
   "privacy.",
-  "security.",
-  "webgl."
+  "security."
 ];
 
 // The blacklist, unlike the whitelist, is a list of regular expressions.
@@ -262,17 +259,11 @@ function populateGraphicsSection() {
       try {
         dwEnabled = gfxInfo.DWriteEnabled + " (" + gfxInfo.DWriteVersion + ")";
       } catch(e) {}
-      pushInfoRow(trGraphics, "directWriteEnabled", dwEnabled);  
-
-      var cleartypeParams = "";
-      try {
-        cleartypeParams = gfxInfo.cleartypeParameters;
-      } catch(e) {
-        cleartypeParams = bundle.GetStringFromName("clearTypeParametersNotFound");
-      }
-      pushInfoRow(trGraphics, "clearTypeParameters", cleartypeParams);  
+      trGraphics.push(createParentElement("tr", [
+        createHeader(bundle.GetStringFromName("directWriteEnabled")),
+        createElement("td", dwEnabled),
+      ]));
     }
-
 #endif
 
     var webglrenderer;

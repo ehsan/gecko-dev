@@ -54,43 +54,25 @@
 
 using namespace js;
 
-namespace js {
-
-bool
-WeakMapBase::markAllIteratively(JSTracer *tracer)
-{
-    bool markedAny = false;
-    JSRuntime *rt = tracer->context->runtime;
-    for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next) {
-        if (m->markIteratively(tracer))
-            markedAny = true;
-    }
-    return markedAny;
-}
-
-void
-WeakMapBase::sweepAll(JSTracer *tracer)
-{
-    JSRuntime *rt = tracer->context->runtime;
-    for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
-        m->sweep(tracer);
-}
-
-} /* namespace js */
-
 bool
 JSObject::isWeakMap() const
 {
-    return getClass() == &WeakMapClass;
+    return getClass() == &WeakMap::jsclass;
 }
 
-typedef WeakMap<JSObject *, Value> ObjectValueMap;
+namespace js {
 
-static ObjectValueMap *
-GetObjectMap(JSObject *obj)
+WeakMap::WeakMap(JSContext *cx) :
+    map(cx),
+    next(NULL)
 {
-    JS_ASSERT(obj->isWeakMap());
-    return (ObjectValueMap *)obj->getPrivate();
+}
+
+WeakMap *
+WeakMap::fromJSObject(JSObject *obj)
+{
+    JS_ASSERT(obj->getClass() == &WeakMap::jsclass);
+    return (WeakMap *)obj->getPrivate();
 }
 
 static JSObject *
@@ -103,14 +85,14 @@ NonNullObject(JSContext *cx, Value *vp)
     return &vp->toObject();
 }
 
-static JSBool
-WeakMap_has(JSContext *cx, uintN argc, Value *vp)
+JSBool
+WeakMap::has(JSContext *cx, uintN argc, Value *vp)
 {
     JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
     if (!obj->isWeakMap()) {
-        ReportIncompatibleMethod(cx, vp, &WeakMapClass);
+        ReportIncompatibleMethod(cx, vp, &WeakMap::jsclass);
         return false;
     }
     if (argc < 1) {
@@ -121,9 +103,9 @@ WeakMap_has(JSContext *cx, uintN argc, Value *vp)
     JSObject *key = NonNullObject(cx, &vp[2]);
     if (!key)
         return false;
-    ObjectValueMap *map = GetObjectMap(obj);
-    if (map) {
-        ObjectValueMap::Ptr ptr = map->lookup(key);
+    WeakMap *weakmap = fromJSObject(obj);
+    if (weakmap) {
+        js::HashMap<JSObject *, Value>::Ptr ptr = weakmap->map.lookup(key);
         if (ptr) {
             *vp = BooleanValue(true);
             return true;
@@ -134,14 +116,14 @@ WeakMap_has(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
-static JSBool
-WeakMap_get(JSContext *cx, uintN argc, Value *vp)
+JSBool
+WeakMap::get(JSContext *cx, uintN argc, Value *vp)
 {
     JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
     if (!obj->isWeakMap()) {
-        ReportIncompatibleMethod(cx, vp, &WeakMapClass);
+        ReportIncompatibleMethod(cx, vp, &WeakMap::jsclass);
         return false;
     }
     if (argc < 1) {
@@ -152,9 +134,9 @@ WeakMap_get(JSContext *cx, uintN argc, Value *vp)
     JSObject *key = NonNullObject(cx, &vp[2]);
     if (!key)
         return false;
-    ObjectValueMap *map = GetObjectMap(obj);
-    if (map) {
-        ObjectValueMap::Ptr ptr = map->lookup(key);
+    WeakMap *weakmap = fromJSObject(obj);
+    if (weakmap) {
+        js::HashMap<JSObject *, Value>::Ptr ptr = weakmap->map.lookup(key);
         if (ptr) {
             *vp = ptr->value;
             return true;
@@ -165,14 +147,14 @@ WeakMap_get(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
-static JSBool
-WeakMap_delete(JSContext *cx, uintN argc, Value *vp)
+JSBool
+WeakMap::delete_(JSContext *cx, uintN argc, Value *vp)
 {
     JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
     if (!obj->isWeakMap()) {
-        ReportIncompatibleMethod(cx, vp, &WeakMapClass);
+        ReportIncompatibleMethod(cx, vp, &WeakMap::jsclass);
         return false;
     }
     if (argc < 1) {
@@ -183,11 +165,11 @@ WeakMap_delete(JSContext *cx, uintN argc, Value *vp)
     JSObject *key = NonNullObject(cx, &vp[2]);
     if (!key)
         return false;
-    ObjectValueMap *map = GetObjectMap(obj);
-    if (map) {
-        ObjectValueMap::Ptr ptr = map->lookup(key);
+    WeakMap *weakmap = fromJSObject(obj);
+    if (weakmap) {
+        js::HashMap<JSObject *, Value>::Ptr ptr = weakmap->map.lookup(key);
         if (ptr) {
-            map->remove(ptr);
+            weakmap->map.remove(ptr);
             *vp = BooleanValue(true);
             return true;
         }
@@ -197,14 +179,14 @@ WeakMap_delete(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
-static JSBool
-WeakMap_set(JSContext *cx, uintN argc, Value *vp)
+JSBool
+WeakMap::set(JSContext *cx, uintN argc, Value *vp)
 {
     JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
     if (!obj->isWeakMap()) {
-        ReportIncompatibleMethod(cx, vp, &WeakMapClass);
+        ReportIncompatibleMethod(cx, vp, &WeakMap::jsclass);
         return false;
     }
     if (argc < 1) {
@@ -217,51 +199,111 @@ WeakMap_set(JSContext *cx, uintN argc, Value *vp)
         return false;
     Value value = (argc > 1) ? vp[3] : UndefinedValue();
 
-    ObjectValueMap *map = GetObjectMap(obj);
-    if (!map) {
-        map = cx->new_<ObjectValueMap>(cx);
-        if (!map->init()) {
-            cx->delete_(map);
+    WeakMap *table = (WeakMap *)obj->getPrivate();
+    if (!table) {
+        table = cx->new_<WeakMap>(cx);
+        if (!table->map.init()) {
+            delete table;
             goto out_of_memory;
         }
-        obj->setPrivate(map);
+        obj->setPrivate(table);
     }
 
     *vp = UndefinedValue();
-    if (!map->put(key, value))
-        goto out_of_memory;
-    return true;
+    return table->map.put(key, value) != NULL;
 
   out_of_memory:
     JS_ReportOutOfMemory(cx);
     return false;
 }
 
-static void
-WeakMap_mark(JSTracer *trc, JSObject *obj)
+void
+WeakMap::mark(JSTracer *trc, JSObject *obj)
 {
-    ObjectValueMap *map = GetObjectMap(obj);
-    if (map) {
-        if (IS_GC_MARKING_TRACER(trc) && map->empty()) {
-            trc->context->delete_(map);
-            obj->setPrivate(NULL);
+    WeakMap *table = fromJSObject(obj);
+    if (table) {
+        if (IS_GC_MARKING_TRACER(trc)) {
+            if (table->map.empty()) {
+                delete table;
+                obj->setPrivate(NULL);
+                return;
+            }
+            JSRuntime *rt = trc->context->runtime;
+            table->next = rt->gcWeakMapList;
+            rt->gcWeakMapList = obj;
         } else {
-            map->trace(trc);
+            for (js::HashMap<JSObject *, Value>::Range r = table->map.all(); !r.empty(); r.popFront()) {
+                JSObject *key = r.front().key;
+                Value &value = r.front().value;
+                js::gc::MarkObject(trc, *key, "key");
+                js::gc::MarkValue(trc, value, "value");
+            }
         }
     }
 }
 
-static void
-WeakMap_finalize(JSContext *cx, JSObject *obj)
+/*
+ * Walk through the previously collected list of tables and mark rows
+ * iteratively.
+ */
+bool
+WeakMap::markIteratively(JSTracer *trc)
 {
-    ObjectValueMap *map = GetObjectMap(obj);
-    cx->delete_(map);
+    JSContext *cx = trc->context;
+    JSRuntime *rt = cx->runtime;
+
+    bool again = false;
+    JSObject *obj = rt->gcWeakMapList;
+    while (obj) {
+        WeakMap *table = fromJSObject(obj);
+        for (js::HashMap<JSObject *, Value>::Range r = table->map.all(); !r.empty(); r.popFront()) {
+            JSObject *key = r.front().key;
+            Value &value = r.front().value;
+            if (value.isMarkable() && !IsAboutToBeFinalized(cx, key)) {
+                /* If the key is alive, mark the value if needed. */
+                if (IsAboutToBeFinalized(cx, value.toGCThing())) {
+                    js::gc::MarkValue(trc, value, "value");
+                    /* We revived a value with children, we have to iterate again. */
+                    if (value.isGCThing())
+                        again = true;
+                }
+            }
+        }
+        obj = table->next;
+    }
+    return again;
 }
 
-static JSBool
-WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
+void
+WeakMap::sweep(JSContext *cx)
 {
-    JSObject *obj = NewBuiltinClassInstance(cx, &WeakMapClass);
+    JSRuntime *rt = cx->runtime;
+
+    JSObject *obj = rt->gcWeakMapList;
+    while (obj) {
+        WeakMap *table = fromJSObject(obj);
+        for (js::HashMap<JSObject *, Value>::Enum e(table->map); !e.empty(); e.popFront()) {
+            if (IsAboutToBeFinalized(cx, e.front().key))
+                e.removeFront();
+        }
+        obj = table->next;
+    }
+
+    rt->gcWeakMapList = NULL;
+}
+
+void
+WeakMap::finalize(JSContext *cx, JSObject *obj)
+{
+    WeakMap *table = fromJSObject(obj);
+    if (table)
+        delete table;
+}
+
+JSBool
+WeakMap::construct(JSContext *cx, uintN argc, Value *vp)
+{
+    JSObject *obj = NewBuiltinClassInstance(cx, &WeakMap::jsclass);
     if (!obj)
         return false;
 
@@ -271,9 +313,7 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
-namespace js {
-
-Class WeakMapClass = {
+Class WeakMap::jsclass = {
     "WeakMap",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_WeakMap),
@@ -284,31 +324,31 @@ Class WeakMapClass = {
     EnumerateStub,
     ResolveStub,
     ConvertStub,
-    WeakMap_finalize,
+    WeakMap::finalize,
     NULL,                 /* reserved0   */
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
     NULL,                 /* construct   */
     NULL,                 /* xdrObject   */
     NULL,                 /* hasInstance */
-    WeakMap_mark
+    WeakMap::mark
 };
 
 }
 
-static JSFunctionSpec weak_map_methods[] = {
-    JS_FN("has",    WeakMap_has, 1, 0),
-    JS_FN("get",    WeakMap_get, 2, 0),
-    JS_FN("delete", WeakMap_delete, 1, 0),
-    JS_FN("set",    WeakMap_set, 2, 0),
+JSFunctionSpec WeakMap::methods[] = {
+    JS_FN("has",    WeakMap::has, 1, 0),
+    JS_FN("get",    WeakMap::get, 2, 0),
+    JS_FN("delete", WeakMap::delete_, 1, 0),
+    JS_FN("set",    WeakMap::set, 2, 0),
     JS_FS_END
 };
 
 JSObject *
 js_InitWeakMapClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto = js_InitClass(cx, obj, NULL, &WeakMapClass, WeakMap_construct, 0,
-                                   NULL, weak_map_methods, NULL, NULL);
+    JSObject *proto = js_InitClass(cx, obj, NULL, &WeakMap::jsclass, WeakMap::construct, 0,
+                                   NULL, WeakMap::methods, NULL, NULL);
     if (!proto)
         return NULL;
 

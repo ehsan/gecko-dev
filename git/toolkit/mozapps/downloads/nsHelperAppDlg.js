@@ -189,7 +189,7 @@ nsUnknownContentTypeDialog.prototype = {
   reallyShow: function() {
     try {
       var ir = this.mContext.QueryInterface(Components.interfaces.nsIInterfaceRequestor);
-      var dwi = ir.getInterface(Components.interfaces.nsIDOMWindow);
+      var dwi = ir.getInterface(Components.interfaces.nsIDOMWindowInternal);
       var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                          .getService(Components.interfaces.nsIWindowWatcher);
       this.mDialog = ww.openWindow(dwi,
@@ -279,7 +279,7 @@ nsUnknownContentTypeDialog.prototype = {
     var nsIFilePicker = Components.interfaces.nsIFilePicker;
     var picker = Components.classes["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
     var windowTitle = bundle.GetStringFromName("saveDialogTitle");
-    var parent = aContext.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindow);
+    var parent = aContext.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowInternal);
     picker.init(parent, windowTitle, nsIFilePicker.modeSave);
     picker.defaultString = aDefaultFile;
 
@@ -309,13 +309,9 @@ nsUnknownContentTypeDialog.prototype = {
                             .getService(Components.interfaces.nsIDownloadManager);
     picker.displayDirectory = dnldMgr.userDownloadsDirectory;
 
-    var relatedURI = null;
-    if (aContext.document)
-      relatedURI = aContext.document.documentURIObject;
-
     // The last directory preference may not exist, which will throw.
     try {
-      var lastDir = gDownloadLastDir.getFile(relatedURI);
+      var lastDir = gDownloadLastDir.file;
       if (isUsableDirectory(lastDir))
         picker.displayDirectory = lastDir;
     }
@@ -344,7 +340,7 @@ nsUnknownContentTypeDialog.prototype = {
       var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
 
       // Do not store the last save directory as a pref inside the private browsing mode
-      gDownloadLastDir.setFile(relatedURI, newDir);
+      gDownloadLastDir.file = newDir;
 
       result = this.validateLeafName(newDir, result.leafName, null);
     }

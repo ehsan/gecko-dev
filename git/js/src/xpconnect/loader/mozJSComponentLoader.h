@@ -46,6 +46,7 @@
 #include "nsIXPConnect.h"
 #include "nsIFile.h"
 #include "nsAutoPtr.h"
+#include "nsIFastLoadService.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsITimer.h"
@@ -54,9 +55,11 @@
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsIPrincipal.h"
+#ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
 
 using namespace mozilla::scache;
+#endif
 
 #include "xpcIJSGetFactory.h"
 
@@ -66,6 +69,28 @@ using namespace mozilla::scache;
   {0x6bd13476, 0x1dd2, 0x11b2, \
     { 0xbb, 0xef, 0xf0, 0xcc, 0xb5, 0xfa, 0x64, 0xb6 }}
 #define MOZJSCOMPONENTLOADER_CONTRACTID "@mozilla.org/moz/jsloader;1"
+
+// nsIFastLoadFileIO implementation for component fastload
+class nsXPCFastLoadIO : public nsIFastLoadFileIO
+{
+ public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIFASTLOADFILEIO
+
+    nsXPCFastLoadIO(nsIFile *file) : mFile(file), mTruncateOutputFile(true) {}
+
+    void SetInputStream(nsIInputStream *stream) { mInputStream = stream; }
+    void SetOutputStream(nsIOutputStream *stream) { mOutputStream = stream; }
+
+ private:
+    ~nsXPCFastLoadIO() {}
+
+    nsCOMPtr<nsIFile> mFile;
+    nsCOMPtr<nsIInputStream> mInputStream;
+    nsCOMPtr<nsIOutputStream> mOutputStream;
+    bool mTruncateOutputFile;
+};
+
 
 class mozJSComponentLoader : public mozilla::ModuleLoader,
                              public xpcIJSModuleLoader,
@@ -105,6 +130,13 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
                                JSObject **aGlobal,
                                char **location,
                                jsval *exception);
+
+#ifdef MOZ_ENABLE_LIBXUL
+    nsresult ReadScript(StartupCache *cache, nsIURI *uri, 
+                        JSContext *cx, JSObject **scriptObj);
+    nsresult WriteScript(StartupCache *cache, JSObject *scriptObj,
+                         nsIFile *component, nsIURI *uri, JSContext *cx);
+#endif
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;

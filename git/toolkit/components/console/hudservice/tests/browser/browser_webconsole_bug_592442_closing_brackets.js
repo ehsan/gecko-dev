@@ -22,8 +22,8 @@ function testExtraneousClosingBrackets(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
 
   openConsole();
-
-  let jsterm = HUDService.getHudByWindow(content).jsterm;
+  let hudId = HUDService.displaysIndex()[0];
+  let jsterm = HUDService.hudReferences[hudId].jsterm;
 
   jsterm.setInputValue("document.getElementById)");
 

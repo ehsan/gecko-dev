@@ -50,6 +50,7 @@
 #include "WrapperFactory.h"
 
 #include "jsfriendapi.h"
+#include "jsstr.h"
 
 namespace xpc {
 
@@ -71,14 +72,17 @@ AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
     if (!aprin || !bprin)
         return true;
 
-    PRBool equals;
-    nsresult rv = aprin->EqualsIgnoringDomain(bprin, &equals);
-    if (NS_FAILED(rv)) {
-        NS_ERROR("unable to ask about equality");
-        return false;
-    }
+    nsCOMPtr<nsIURI> auri;
+    aprin->GetURI(getter_AddRefs(auri));
 
-    return equals;
+    nsCOMPtr<nsIURI> buri;
+    bprin->GetURI(getter_AddRefs(buri));
+
+    if (!auri || !buri)
+        return aprin == bprin;
+
+    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+    return !ssm || NS_SUCCEEDED(ssm->CheckSameOriginURI(auri, buri, PR_FALSE));
 }
 
 bool

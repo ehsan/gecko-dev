@@ -53,6 +53,7 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jshashtable.h"
+#include "jsiter.h"
 #include "jsobj.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
@@ -555,6 +556,8 @@ struct Shape : public js::gc::Cell
     bool get(JSContext* cx, JSObject *receiver, JSObject *obj, JSObject *pobj, js::Value* vp) const;
     bool set(JSContext* cx, JSObject *obj, bool strict, js::Value* vp) const;
 
+    inline bool isSharedPermanent() const;
+
     bool hasSlot() const { return (attrs & JSPROP_SHARED) == 0; }
 
     uint8 attributes() const { return attrs; }
@@ -607,7 +610,6 @@ struct Shape : public js::gc::Cell
 
     void finalize(JSContext *cx);
     void removeChild(js::Shape *child);
-    void removeChildSlowly(js::Shape *child);
 };
 
 struct EmptyShape : public js::Shape
@@ -635,11 +637,25 @@ struct EmptyShape : public js::Shape
 
     static inline EmptyShape *getEmptyArgumentsShape(JSContext *cx);
 
-    static inline EmptyShape *getEmptyBlockShape(JSContext *cx);
-    static inline EmptyShape *getEmptyCallShape(JSContext *cx);
-    static inline EmptyShape *getEmptyDeclEnvShape(JSContext *cx);
-    static inline EmptyShape *getEmptyEnumeratorShape(JSContext *cx);
-    static inline EmptyShape *getEmptyWithShape(JSContext *cx);
+    static EmptyShape *getEmptyBlockShape(JSContext *cx) {
+        return ensure(cx, &js_BlockClass, &cx->compartment->emptyBlockShape);
+    }
+
+    static EmptyShape *getEmptyCallShape(JSContext *cx) {
+        return ensure(cx, &js_CallClass, &cx->compartment->emptyCallShape);
+    }
+
+    static EmptyShape *getEmptyDeclEnvShape(JSContext *cx) {
+        return ensure(cx, &js_DeclEnvClass, &cx->compartment->emptyDeclEnvShape);
+    }
+
+    static EmptyShape *getEmptyEnumeratorShape(JSContext *cx) {
+        return ensure(cx, &js_IteratorClass, &cx->compartment->emptyEnumeratorShape);
+    }
+
+    static EmptyShape *getEmptyWithShape(JSContext *cx) {
+        return ensure(cx, &js_WithClass, &cx->compartment->emptyWithShape);
+    }
 };
 
 } /* namespace js */
@@ -677,12 +693,53 @@ js_GenerateShape(JSRuntime *rt);
 extern uint32
 js_GenerateShape(JSContext *cx);
 
+#ifdef DEBUG
+struct JSScopeStats {
+    jsrefcount          searches;
+    jsrefcount          hits;
+    jsrefcount          misses;
+    jsrefcount          hashes;
+    jsrefcount          hashHits;
+    jsrefcount          hashMisses;
+    jsrefcount          steps;
+    jsrefcount          stepHits;
+    jsrefcount          stepMisses;
+    jsrefcount          initSearches;
+    jsrefcount          changeSearches;
+    jsrefcount          tableAllocFails;
+    jsrefcount          toDictFails;
+    jsrefcount          wrapWatchFails;
+    jsrefcount          adds;
+    jsrefcount          addFails;
+    jsrefcount          puts;
+    jsrefcount          redundantPuts;
+    jsrefcount          putFails;
+    jsrefcount          changes;
+    jsrefcount          changePuts;
+    jsrefcount          changeFails;
+    jsrefcount          compresses;
+    jsrefcount          grows;
+    jsrefcount          removes;
+    jsrefcount          removeFrees;
+    jsrefcount          uselessRemoves;
+    jsrefcount          shrinks;
+};
+
+extern JS_FRIEND_DATA(JSScopeStats) js_scope_stats;
+
+# define METER(x)       JS_ATOMIC_INCREMENT(&js_scope_stats.x)
+#else
+# define METER(x)       /* nothing */
+#endif
+
 namespace js {
 
 JS_ALWAYS_INLINE js::Shape **
 Shape::search(JSRuntime *rt, js::Shape **startp, jsid id, bool adding)
 {
     js::Shape *start = *startp;
+    METER(searches);
+
     if (start->hasTable())
         return start->getTable()->search(id, adding);
 
@@ -706,10 +763,21 @@ Shape::search(JSRuntime *rt, js::Shape **startp, jsid id, bool adding)
      */
     js::Shape **spp;
     for (spp = startp; js::Shape *shape = *spp; spp = &shape->parent) {
-        if (shape->propid == id)
+        if (shape->propid == id) {
+            METER(hits);
             return spp;
+        }
     }
+    METER(misses);
     return spp;
+}
+
+#undef METER
+
+inline bool
+Shape::isSharedPermanent() const
+{
+    return (~attrs & (JSPROP_SHARED | JSPROP_PERMANENT)) == 0;
 }
 
 } // namespace js

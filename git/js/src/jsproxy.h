@@ -84,15 +84,10 @@ class JS_FRIEND_API(JSProxyHandler) {
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
     virtual JSString *obj_toString(JSContext *cx, JSObject *proxy);
     virtual JSString *fun_toString(JSContext *cx, JSObject *proxy, uintN indent);
-    virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, js::Value *vp);
     virtual void finalize(JSContext *cx, JSObject *proxy);
     virtual void trace(JSTracer *trc, JSObject *proxy);
 
     virtual bool isOuterWindow() {
-        return false;
-    }
-
-    virtual bool isCrossCompartment() {
         return false;
     }
 
@@ -135,7 +130,6 @@ class JSProxy {
     static JSType typeOf(JSContext *cx, JSObject *proxy);
     static JSString *obj_toString(JSContext *cx, JSObject *proxy);
     static JSString *fun_toString(JSContext *cx, JSObject *proxy, uintN indent);
-    static bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, js::Value *vp);
 };
 
 /* Shared between object and function proxies. */

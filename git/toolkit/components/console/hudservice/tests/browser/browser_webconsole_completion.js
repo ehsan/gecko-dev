@@ -52,7 +52,10 @@ function testCompletion() {
 
   openConsole();
 
-  var jsterm = HUDService.getHudByWindow(content).jsterm;
+  hudId = HUDService.displaysIndex()[0];
+
+  var HUD = HUDService.hudReferences[hudId];
+  var jsterm = HUD.jsterm;
   var input = jsterm.inputNode;
 
   // Test typing 'docu'.
@@ -102,7 +105,7 @@ function testCompletion() {
   jsterm.complete(jsterm.COMPLETE_HINT_ONLY);
   is(jsterm.completeNode.value, "                   \n      e", "multi-line completion");
 
-  jsterm = input = null;
+  HUD = jsterm = input = null;
   finishTest();
 }
 

@@ -60,6 +60,7 @@
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
+#include "nsSVGEffects.h" // For nsSVGEffects::RemoveAllRenderingObservers
 #include "nsContentErrors.h" // For NS_PROPTABLE_PROP_OVERWRITTEN
 
 #ifdef MOZ_SMIL
@@ -393,9 +394,18 @@ nsSVGSVGElement::SuspendRedraw(PRUint32 max_wait_milliseconds, PRUint32 *_retval
     return NS_OK;
 
   nsIFrame* frame = GetPrimaryFrame();
+#ifdef DEBUG
+  // XXX We sometimes hit this assertion when the svg:svg element is
+  // in a binding and svg children are inserted underneath it using
+  // <children/>. If the svg children then call suspendRedraw, the
+  // above function call fails although the svg:svg's frame has been
+  // build. Strange...
+  
+  NS_ASSERTION(frame, "suspending redraw w/o frame");
+#endif
   if (frame) {
     nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
-    // might fail this check if we've failed conditional processing
+    NS_ASSERTION(svgframe, "wrong frame type");
     if (svgframe) {
       svgframe->SuspendRedraw();
     }
@@ -409,6 +419,7 @@ NS_IMETHODIMP
 nsSVGSVGElement::UnsuspendRedraw(PRUint32 suspend_handle_id)
 {
   if (mRedrawSuspendCount == 0) {
+    NS_ASSERTION(1==0, "unbalanced suspend/unsuspend calls");
     return NS_ERROR_FAILURE;
   }
                  
@@ -427,9 +438,12 @@ nsSVGSVGElement::UnsuspendRedrawAll()
   mRedrawSuspendCount = 0;
 
   nsIFrame* frame = GetPrimaryFrame();
+#ifdef DEBUG
+  NS_ASSERTION(frame, "unsuspending redraw w/o frame");
+#endif
   if (frame) {
     nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
-    // might fail this check if we've failed conditional processing
+    NS_ASSERTION(svgframe, "wrong frame type");
     if (svgframe) {
       svgframe->UnsuspendRedraw();
     }
@@ -952,22 +966,22 @@ nsSVGSVGElement::IsEventName(nsIAtom* aName)
 // resolve percentage lengths. (It can only be used to resolve
 // 'em'/'ex'-valued units).
 inline float
-ComputeSynthesizedViewBoxDimension(const nsSVGLength2& aLength,
+ComputeSynthesizedViewBoxDimension(nsSVGLength2& aLength,
                                    float aViewportLength,
-                                   const nsSVGSVGElement* aSelf)
+                                   nsSVGSVGElement* aSelf)
 {
   if (aLength.IsPercentage()) {
     return aViewportLength * aLength.GetAnimValInSpecifiedUnits() / 100.0f;
   }
 
-  return aLength.GetAnimValue(const_cast<nsSVGSVGElement*>(aSelf));
+  return aLength.GetAnimValue(aSelf);
 }
 
 //----------------------------------------------------------------------
 // public helpers:
 
 gfxMatrix
-nsSVGSVGElement::GetViewBoxTransform() const
+nsSVGSVGElement::GetViewBoxTransform()
 {
   // Do we have an override preserveAspectRatio value?
   const SVGPreserveAspectRatio* overridePARPtr =
@@ -1118,13 +1132,17 @@ void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
   nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
-    // might fail this check if we've failed conditional processing
-    if (svgframe) {
-      svgframe->NotifyViewportChange();
-    }
+  nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+  if (svgframe) {
+    svgframe->NotifyViewportChange();
   }
+#ifdef DEBUG
+  else if (frame) {
+    // Uh oh -- we have a primary frame, but it failed the do_QueryFrame to the
+    // expected type!
+    NS_WARNING("wrong frame type");
+  }
+#endif
 }
 
 PRBool
@@ -1178,11 +1196,11 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
 // nsSVGElement methods
 
 /* virtual */ gfxMatrix
-nsSVGSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
+nsSVGSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
   if (IsInner()) {
     float x, y;
-    const_cast<nsSVGSVGElement*>(this)->GetAnimatedLengthValues(&x, &y, nsnull);
+    GetAnimatedLengthValues(&x, &y, nsnull);
     return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
   }
 
@@ -1271,8 +1289,17 @@ nsSVGSVGElement::GetPreserveAspectRatio()
   return &mPreserveAspectRatio;
 }
 
+#ifndef MOZ_ENABLE_LIBXUL
+// XXXdholbert HACK -- see comment w/ this method's declaration in header file.
+void
+nsSVGSVGElement::RemoveAllRenderingObservers()
+{
+  nsSVGEffects::RemoveAllRenderingObservers(this);
+}
+#endif // !MOZ_LIBXUL
+
 PRBool
-nsSVGSVGElement::ShouldSynthesizeViewBox() const
+nsSVGSVGElement::ShouldSynthesizeViewBox()
 {
   NS_ABORT_IF_FALSE(!HasValidViewbox(),
                     "Should only be called if we lack a viewBox");
@@ -1361,7 +1388,7 @@ nsSVGSVGElement::ClearImageOverridePreserveAspectRatio()
 }
 
 const SVGPreserveAspectRatio*
-nsSVGSVGElement::GetImageOverridePreserveAspectRatio() const
+nsSVGSVGElement::GetImageOverridePreserveAspectRatio()
 {
   void* valPtr = GetProperty(nsGkAtoms::overridePreserveAspectRatio);
 #ifdef DEBUG

@@ -51,17 +51,6 @@
 #include <ieeefp.h>
 #endif
 
-//A trick to handle IEEE floating point exceptions on FreeBSD - E.D.
-#ifdef __FreeBSD__
-#include <ieeefp.h>
-#ifdef __alpha__
-static fp_except_t allmask = FP_X_INV|FP_X_OFL|FP_X_UFL|FP_X_DZ|FP_X_IMP;
-#else
-static fp_except_t allmask = FP_X_INV|FP_X_OFL|FP_X_UFL|FP_X_DZ|FP_X_IMP|FP_X_DNML;
-#endif
-static fp_except_t oldmask = fpsetmask(~allmask);
-#endif
-
 #include "nsAString.h"
 #include "nsIStatefulFrame.h"
 #include "nsINodeInfo.h"
@@ -69,6 +58,7 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsContentList.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIXPCScriptable.h"
+#include "nsIDOM3Node.h"
 #include "nsDataHashtable.h"
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
@@ -76,6 +66,7 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsTArray.h"
 #include "nsTextFragment.h"
 #include "nsReadableUtils.h"
+#include "nsIPrefBranch2.h"
 #include "mozilla/AutoRestore.h"
 #include "nsINode.h"
 #include "nsHashtable.h"
@@ -102,6 +93,7 @@ class imgIDecoderObserver;
 class imgIRequest;
 class imgILoader;
 class imgICache;
+class nsIPrefBranch2;
 class nsIImageLoadingContent;
 class nsIDOMHTMLFormElement;
 class nsIDOMDocument;
@@ -112,7 +104,7 @@ class nsIContentPolicy;
 class nsILineBreaker;
 class nsIWordBreaker;
 class nsIJSRuntimeService;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIScriptContext;
 class nsIRunnable;
 class nsIInterfaceRequestor;
@@ -123,8 +115,11 @@ class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
 class nsPIDOMWindow;
+class nsPIDOMEventTarget;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
+class nsPrefOldCallback;
+class nsPrefObserverHashKey;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -139,6 +134,11 @@ class nsAutoScriptBlockerSuppressNodeRemoved;
 struct nsIntMargin;
 class nsPIDOMWindow;
 class nsIDocumentLoaderFactory;
+
+#ifndef have_PrefChangedFunc_typedef
+typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
+#define have_PrefChangedFunc_typedef
+#endif
 
 namespace mozilla {
 
@@ -214,8 +214,7 @@ public:
    * When a document's scope changes (e.g., from document.open(), call this
    * function to move all content wrappers from the old scope to the new one.
    */
-  static nsresult ReparentContentWrappersInScope(JSContext *cx,
-                                                 nsIScriptGlobalObject *aOldScope,
+  static nsresult ReparentContentWrappersInScope(nsIScriptGlobalObject *aOldScope,
                                                  nsIScriptGlobalObject *aNewScope);
 
   static PRBool   IsCallerChrome();
@@ -301,10 +300,10 @@ public:
   static PRBool PositionIsBefore(nsINode* aNode1,
                                  nsINode* aNode2)
   {
-    return (aNode2->CompareDocPosition(aNode1) &
-      (nsIDOMNode::DOCUMENT_POSITION_PRECEDING |
-       nsIDOMNode::DOCUMENT_POSITION_DISCONNECTED)) ==
-      nsIDOMNode::DOCUMENT_POSITION_PRECEDING;
+    return (aNode2->CompareDocumentPosition(aNode1) &
+      (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
+       nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED)) ==
+      nsIDOM3Node::DOCUMENT_POSITION_PRECEDING;
   }
 
   /**
@@ -321,6 +320,20 @@ public:
                                PRBool* aDisconnected = nsnull);
 
   /**
+   * Find the first child of aParent with a resolved tag matching
+   * aNamespace and aTag. Both the explicit and anonymous children of
+   * aParent are examined. The return value is not addrefed.
+   *
+   * XXXndeakin this should return the first child whether in anonymous or
+   * explicit children, but currently XBL doesn't tell us the relative
+   * ordering of anonymous vs explicit children, so instead it searches
+   * the explicit children first then the anonymous children.
+   */
+  static nsIContent* FindFirstChildWithResolvedTag(nsIContent* aParent,
+                                                   PRInt32 aNamespace,
+                                                   nsIAtom* aTag);
+
+  /**
    * Brute-force search of the element subtree rooted at aContent for
    * an element with the given id.  aId must be nonempty, otherwise
    * this method may return nodes even if they have no id!
@@ -333,6 +346,24 @@ public:
   static Element* MatchElementId(nsIContent *aContent, const nsIAtom* aId);
 
   /**
+   * Given a URI containing an element reference (#whatever),
+   * resolve it to the target content element with the given ID.
+   *
+   * If aFromContent is anonymous XBL content then the URI
+   * must refer to its binding document and we will return
+   * a node in the same anonymous content subtree as aFromContent,
+   * if one exists with the correct ID.
+   *
+   * @param aFromContent the context of the reference;
+   *   currently we only support references to elements in the
+   *   same document as the context, so this must be non-null
+   *
+   * @return the element, or nsnull on failure
+   */
+  static nsIContent* GetReferencedElement(nsIURI* aURI,
+                                          nsIContent *aFromContent);
+
+  /**
    * Reverses the document position flags passed in.
    *
    * @param   aDocumentPosition   The document position flags to be reversed.
@@ -340,6 +371,7 @@ public:
    * @return  The reversed document position flags.
    *
    * @see nsIDOMNode
+   * @see nsIDOM3Node
    */
   static PRUint16 ReverseDocumentPosition(PRUint16 aDocumentPosition);
 
@@ -407,6 +439,14 @@ public:
   // Check if the (JS) caller can access aWindow.
   // aWindow can be either outer or inner window.
   static PRBool CanCallerAccess(nsPIDOMWindow* aWindow);
+
+  /**
+   * Get the docshell through the JS context that's currently on the stack.
+   * If there's no JS context currently on the stack aDocShell will be null.
+   *
+   * @param aDocShell The docshell or null if no JS context
+   */
+  static nsIDocShell *GetDocShellFromCaller();
 
   /**
    * Get the window through the JS context that's currently on the stack.
@@ -545,11 +585,31 @@ public:
   static nsresult GetNodeInfoFromQName(const nsAString& aNamespaceURI,
                                        const nsAString& aQualifiedName,
                                        nsNodeInfoManager* aNodeInfoManager,
-                                       PRUint16 aNodeType,
                                        nsINodeInfo** aNodeInfo);
 
   static void SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
                              nsIAtom **aTagName, PRInt32 *aNameSpaceID);
+
+  static nsAdoptingCString GetCharPref(const char *aPref);
+  static PRPackedBool GetBoolPref(const char *aPref,
+                                  PRBool aDefault = PR_FALSE);
+  static PRInt32 GetIntPref(const char *aPref, PRInt32 aDefault = 0);
+  static nsAdoptingString GetLocalizedStringPref(const char *aPref);
+  static nsAdoptingString GetStringPref(const char *aPref);
+  static void RegisterPrefCallback(const char *aPref,
+                                   PrefChangedFunc aCallback,
+                                   void * aClosure);
+  static void UnregisterPrefCallback(const char *aPref,
+                                     PrefChangedFunc aCallback,
+                                     void * aClosure);
+  static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable,
+                                  PRBool aDefault = PR_FALSE);
+  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable,
+                                 PRInt32 aDefault = 0);
+  static nsIPrefBranch2 *GetPrefBranch()
+  {
+    return sPrefBranch;
+  }
 
   // Get a permission-manager setting for the given uri and type.
   // If the pref doesn't exist or if it isn't ALLOW_ACTION, PR_FALSE is
@@ -689,9 +749,7 @@ public:
     nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
 
     *aResult = niMgr->GetNodeInfo(aName, aNodeInfo->GetPrefixAtom(),
-                                  aNodeInfo->NamespaceID(),
-                                  aNodeInfo->NodeType(),
-                                  aNodeInfo->GetExtraName()).get();
+                                  aNodeInfo->NamespaceID()).get();
     return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -752,7 +810,9 @@ public:
     eFORMS_PROPERTIES,
     ePRINTING_PROPERTIES,
     eDOM_PROPERTIES,
+#ifdef MOZ_SVG
     eSVG_PROPERTIES,
+#endif
     eBRAND_PROPERTIES,
     eCOMMON_DIALOG_PROPERTIES,
     PropertiesFile_COUNT
@@ -846,6 +906,16 @@ public:
   static PRBool IsInChromeDocshell(nsIDocument *aDocument);
 
   /**
+   * Release *aSupportsPtr when the shutdown notification is received
+   */
+  static nsresult ReleasePtrOnShutdown(nsISupports** aSupportsPtr) {
+    NS_ASSERTION(aSupportsPtr, "Expect to crash!");
+    NS_ASSERTION(*aSupportsPtr, "Expect to crash!");
+    return sPtrsToPtrsToRelease->AppendElement(aSupportsPtr) != nsnull ? NS_OK :
+      NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  /**
    * Return the content policy service
    */
   static nsIContentPolicy *GetContentPolicy();
@@ -898,7 +968,7 @@ public:
   /**
    * This method creates and dispatches a trusted event.
    * Works only with events which can be created by calling
-   * nsIDOMDocument::CreateEvent() with parameter "Events".
+   * nsIDOMDocumentEvent::CreateEvent() with parameter "Events".
    * @param aDoc           The document which will be used to create the event.
    * @param aTarget        The target of the event, should be QIable to
    *                       nsIDOMEventTarget.
@@ -919,7 +989,7 @@ public:
    * This method creates and dispatches a trusted event to the chrome
    * event handler.
    * Works only with events which can be created by calling
-   * nsIDOMDocument::CreateEvent() with parameter "Events".
+   * nsIDOMDocumentEvent::CreateEvent() with parameter "Events".
    * @param aDocument      The document which will be used to create the event,
    *                       and whose window's chrome handler will be used to
    *                       dispatch the event.
@@ -1000,8 +1070,8 @@ public:
    * @param aCreateIfNotFound If PR_FALSE, returns a listener manager only if
    *                          one already exists.
    */
-  static nsEventListenerManager* GetListenerManager(nsINode* aNode,
-                                                    PRBool aCreateIfNotFound);
+  static nsIEventListenerManager* GetListenerManager(nsINode* aNode,
+                                                     PRBool aCreateIfNotFound);
 
   /**
    * Remove the eventlistener manager for aNode.
@@ -1316,13 +1386,10 @@ public:
    * @param aIsUserTriggered whether the user triggered the link. This would be
    *                         false for loads from auto XLinks or from the
    *                         click() method if we ever implement it.
-   * @param aIsTrusted If PR_FALSE, JS Context will be pushed to stack
-   *                   when the link is triggered.
    */
   static void TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
                           nsIURI *aLinkURI, const nsString& aTargetSpec,
-                          PRBool aClick, PRBool aIsUserTriggered,
-                          PRBool aIsTrusted);
+                          PRBool aClick, PRBool aIsUserTriggered);
 
   /**
    * Return top-level widget in the parent chain.
@@ -1464,6 +1531,29 @@ public:
     return sScriptBlockerCount == 0;
   }
 
+  /**
+   * Get/Set the current number of removable updates. Currently only
+   * UPDATE_CONTENT_MODEL updates are removable, and only when firing mutation
+   * events. These functions should only be called by mozAutoDocUpdateRemover.
+   * The count is also adjusted by the normal calls to BeginUpdate/EndUpdate.
+   */
+  static void AddRemovableScriptBlocker()
+  {
+    AddScriptBlocker();
+    ++sRemovableScriptBlockerCount;
+  }
+  static void RemoveRemovableScriptBlocker()
+  {
+    NS_ASSERTION(sRemovableScriptBlockerCount != 0,
+                "Number of removable blockers should never go below zero");
+    --sRemovableScriptBlockerCount;
+    RemoveScriptBlocker();
+  }
+  static PRUint32 GetRemovableScriptBlockerLevel()
+  {
+    return sRemovableScriptBlockerCount;
+  }
+
   /* Process viewport META data. This gives us information for the scale
    * and zoom of a page on mobile devices. We stick the information in
    * the document header and use it later on after rendering.
@@ -1596,6 +1686,17 @@ public:
   }
 
   static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
+
+  /**
+   * Creates a structured clone of the given jsval according to the algorithm
+   * at:
+   *     http://www.whatwg.org/specs/web-apps/current-work/multipage/
+   *                                   urls.html#safe-passing-of-structured-data
+   *
+   * If the function returns a success code then rval is set to point at the
+   * cloned jsval. rval is not set if the function returns a failure code.
+   */
+  static nsresult CreateStructuredClone(JSContext* cx, jsval val, jsval* rval);
 
   /**
    * Strip all \n, \r and nulls from the given string
@@ -1762,6 +1863,11 @@ private:
   static nsIXTFService *sXTFService;
 #endif
 
+  static nsIPrefBranch2 *sPrefBranch;
+  // For old compatibility of RegisterPrefCallback
+  static nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
+    *sPrefCallbackTable;
+
   static bool sImgLoaderInitialized;
   static void InitImgLoader();
 
@@ -1785,6 +1891,9 @@ private:
   static nsIWordBreaker* sWordBreaker;
   static nsIUGenCategory* sGenCat;
 
+  // Holds pointers to nsISupports* that should be released at shutdown
+  static nsTArray<nsISupports**>* sPtrsToPtrsToRelease;
+
   static nsIScriptRuntime* sScriptRuntimes[NS_STID_ARRAY_UBOUND];
   static PRInt32 sScriptRootCount[NS_STID_ARRAY_UBOUND];
   static PRUint32 sJSGCThingRootCount;
@@ -1795,6 +1904,7 @@ private:
 
   static PRBool sInitialized;
   static PRUint32 sScriptBlockerCount;
+  static PRUint32 sRemovableScriptBlockerCount;
 #ifdef DEBUG
   static PRUint32 sDOMNodeRemovedSuppressCount;
 #endif
@@ -1823,10 +1933,10 @@ public:
   ~nsCxPusher(); // Calls Pop();
 
   // Returns PR_FALSE if something erroneous happened.
-  PRBool Push(nsIDOMEventTarget *aCurrentTarget);
+  PRBool Push(nsPIDOMEventTarget *aCurrentTarget);
   // If nothing has been pushed to stack, this works like Push.
   // Otherwise if context will change, Pop and Push will be called.
-  PRBool RePush(nsIDOMEventTarget *aCurrentTarget);
+  PRBool RePush(nsPIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
   PRBool Push(JSContext *cx, PRBool aRequiresScriptContext = PR_TRUE);
@@ -1862,6 +1972,33 @@ private:
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
+class NS_STACK_CLASS nsAutoRemovableScriptBlocker {
+public:
+  nsAutoRemovableScriptBlocker(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    nsContentUtils::AddRemovableScriptBlocker();
+  }
+  ~nsAutoRemovableScriptBlocker() {
+    nsContentUtils::RemoveRemovableScriptBlocker();
+  }
+private:
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class NS_STACK_CLASS mozAutoRemovableBlockerRemover
+{
+public:
+  mozAutoRemovableBlockerRemover(nsIDocument* aDocument
+                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM);
+  ~mozAutoRemovableBlockerRemover();
+
+private:
+  PRUint32 mNestingLevel;
+  nsCOMPtr<nsIDocument> mDocument;
+  nsCOMPtr<nsIDocumentObserver> mObserver;
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
                           public nsAutoScriptBlocker {
 public:
@@ -1885,88 +2022,6 @@ public:
       return NS_ERROR_OUT_OF_MEMORY;                                          \
     }                                                                         \
   } else
-
-/**
- * Macros to workaround math-bugs bugs in various platforms
- */
-
-/**
- * Stefan Hanske <sh990154@mail.uni-greifswald.de> reports:
- *  ARM is a little endian architecture but 64 bit double words are stored
- * differently: the 32 bit words are in little endian byte order, the two words
- * are stored in big endian`s way.
- */
-
-#if defined(__arm) || defined(__arm32__) || defined(__arm26__) || defined(__arm__)
-#if !defined(__VFP_FP__)
-#define FPU_IS_ARM_FPA
-#endif
-#endif
-
-typedef union dpun {
-    struct {
-#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
-        PRUint32 lo, hi;
-#else
-        PRUint32 hi, lo;
-#endif
-    } s;
-    PRFloat64 d;
-public:
-    operator double() const {
-        return d;
-    }
-} dpun;
-
-/**
- * Utility class for doubles
- */
-#if (__GNUC__ == 2 && __GNUC_MINOR__ > 95) || __GNUC__ > 2
-/**
- * This version of the macros is safe for the alias optimizations
- * that gcc does, but uses gcc-specific extensions.
- */
-#define DOUBLE_HI32(x) (__extension__ ({ dpun u; u.d = (x); u.s.hi; }))
-#define DOUBLE_LO32(x) (__extension__ ({ dpun u; u.d = (x); u.s.lo; }))
-
-#else // __GNUC__
-
-/* We don't know of any non-gcc compilers that perform alias optimization,
- * so this code should work.
- */
-
-#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
-#define DOUBLE_HI32(x)        (((PRUint32 *)&(x))[1])
-#define DOUBLE_LO32(x)        (((PRUint32 *)&(x))[0])
-#else
-#define DOUBLE_HI32(x)        (((PRUint32 *)&(x))[0])
-#define DOUBLE_LO32(x)        (((PRUint32 *)&(x))[1])
-#endif
-
-#endif // __GNUC__
-
-#define DOUBLE_HI32_SIGNBIT   0x80000000
-#define DOUBLE_HI32_EXPMASK   0x7ff00000
-#define DOUBLE_HI32_MANTMASK  0x000fffff
-
-#define DOUBLE_IS_NaN(x)                                                \
-((DOUBLE_HI32(x) & DOUBLE_HI32_EXPMASK) == DOUBLE_HI32_EXPMASK && \
- (DOUBLE_LO32(x) || (DOUBLE_HI32(x) & DOUBLE_HI32_MANTMASK)))
-
-#ifdef IS_BIG_ENDIAN
-#define DOUBLE_NaN {{DOUBLE_HI32_EXPMASK | DOUBLE_HI32_MANTMASK,   \
-                        0xffffffff}}
-#else
-#define DOUBLE_NaN {{0xffffffff,                                         \
-                        DOUBLE_HI32_EXPMASK | DOUBLE_HI32_MANTMASK}}
-#endif
-
-#if defined(XP_WIN)
-#define DOUBLE_COMPARE(LVAL, OP, RVAL)                                  \
-    (!DOUBLE_IS_NaN(LVAL) && !DOUBLE_IS_NaN(RVAL) && (LVAL) OP (RVAL))
-#else
-#define DOUBLE_COMPARE(LVAL, OP, RVAL) ((LVAL) OP (RVAL))
-#endif
 
 /*
  * Check whether a floating point number is finite (not +/-infinity and not a

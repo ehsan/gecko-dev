@@ -99,12 +99,6 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
 
         // Post our size to the superclass
         PostSize(mWidth, mHeight);
-        if (HasError()) {
-          // Setting the size lead to an error; this can happen when for example
-          // a multipart channel sends an image of a different size.
-          mState = iconStateFinished;
-          return;
-        }
 
         // If We're doing a size decode, we're done
         if (IsSizeDecode()) {
@@ -113,7 +107,7 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
         }
 
         // Add the frame and signal
-        rv = mImage->EnsureFrame(0, 0, 0, mWidth, mHeight,
+        rv = mImage->AppendFrame(0, 0, mWidth, mHeight,
                                  gfxASurface::ImageFormatARGB32,
                                  &mImageData, &mPixBytesTotal);
         if (NS_FAILED(rv)) {
@@ -133,7 +127,7 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
       case iconStateReadPixels:
 
         // How many bytes are we reading?
-        bytesToRead = NS_MIN(aCount, mPixBytesTotal - mPixBytesRead);
+        bytesToRead = PR_MIN(aCount, mPixBytesTotal - mPixBytesRead);
 
         // Copy the bytes
         memcpy(mImageData + mPixBytesRead, aBuffer, bytesToRead);

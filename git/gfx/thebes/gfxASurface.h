@@ -98,7 +98,6 @@ public:
         SurfaceTypeTee,
         SurfaceTypeXML,
         SurfaceTypeSkia,
-        SurfaceTypeSubsurface,
         SurfaceTypeD2D,
         SurfaceTypeMax
     } gfxSurfaceType;
@@ -126,8 +125,6 @@ public:
 
     void SetDeviceOffset(const gfxPoint& offset);
     gfxPoint GetDeviceOffset() const;
-
-    virtual PRBool GetRotateForLandscape() { return PR_FALSE; }
 
     void Flush() const;
     void MarkDirty();

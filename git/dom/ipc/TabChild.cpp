@@ -88,7 +88,7 @@
 #include "nsSerializationHelper.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "PCOMContentPermissionRequestChild.h"
 #include "xpcpublic.h"
 
@@ -145,7 +145,6 @@ TabChild::Init()
 }
 
 NS_INTERFACE_MAP_BEGIN(TabChild)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWebBrowserChrome)
   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
   NS_INTERFACE_MAP_ENTRY(nsIEmbeddingSiteWindow)
@@ -284,8 +283,9 @@ TabChild::GetVisibility(PRBool* aVisibility)
 NS_IMETHODIMP
 TabChild::SetVisibility(PRBool aVisibility)
 {
-  // should the platform support this? Bug 666365
-  return NS_OK;
+  NS_NOTREACHED("TabChild::SetVisibility not supported in TabChild");
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -477,7 +477,7 @@ TabChild::~TabChild()
       DestroyCx();
     }
     
-    nsEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
+    nsIEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
     if (elm) {
       elm->Disconnect();
     }
@@ -555,13 +555,6 @@ TabChild::RecvActivate()
   return true;
 }
 
-bool TabChild::RecvDeactivate()
-{
-  nsCOMPtr<nsIWebBrowserFocus> browser = do_QueryInterface(mWebNav);
-  browser->Deactivate();
-  return true;
-}
-
 bool
 TabChild::RecvMouseEvent(const nsString& aType,
                          const float&    aX,
@@ -576,31 +569,6 @@ TabChild::RecvMouseEvent(const nsString& aType,
   NS_ENSURE_TRUE(utils, true);
   utils->SendMouseEvent(aType, aX, aY, aButton, aClickCount, aModifiers,
                         aIgnoreRootScrollFrame);
-  return true;
-}
-
-bool
-TabChild::RecvRealMouseEvent(const nsMouseEvent& event)
-{
-  nsMouseEvent localEvent(event);
-  DispatchWidgetEvent(localEvent);
-  return true;
-}
-
-bool
-TabChild::RecvMouseScrollEvent(const nsMouseScrollEvent& event)
-{
-  nsMouseScrollEvent localEvent(event);
-  DispatchWidgetEvent(localEvent);
-  return true;
-}
-
-
-bool
-TabChild::RecvRealKeyEvent(const nsKeyEvent& event)
-{
-  nsKeyEvent localEvent(event);
-  DispatchWidgetEvent(localEvent);
   return true;
 }
 
@@ -786,11 +754,9 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
                            const nsString& aJSON)
 {
   if (mTabChildGlobal) {
-    nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
-    nsRefPtr<nsFrameMessageManager> mm =
-      static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
-    mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(mTabChildGlobal),
-                       aMessage, PR_FALSE, aJSON, nsnull, nsnull);
+    static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get())->
+      ReceiveMessage(static_cast<nsPIDOMEventTarget*>(mTabChildGlobal),
+                     aMessage, PR_FALSE, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -878,10 +844,10 @@ TabChild::InitTabChildGlobal()
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
   JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+  JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
 
-  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_PRIVATE_IS_NSISUPPORTS);
+  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
-  JS_SetErrorReporter(cx, ContentScriptErrorReporter);
 
   xpc_LocalizeContext(cx);
 
@@ -897,7 +863,7 @@ TabChild::InitTabChildGlobal()
   mTabChildGlobal = scope;
 
   nsISupports* scopeSupports =
-    NS_ISUPPORTS_CAST(nsIDOMEventTarget*, scope);
+    NS_ISUPPORTS_CAST(nsPIDOMEventTarget*, scope);
   JS_SetContextPrivate(cx, scopeSupports);
 
   nsresult rv =

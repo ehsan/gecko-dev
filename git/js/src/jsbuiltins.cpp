@@ -61,10 +61,9 @@
 #include "jsvector.h"
 
 #include "jsatominlines.h"
-#include "jscntxtinlines.h"
-#include "jsnuminlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
+#include "jscntxtinlines.h"
 
 using namespace avmplus;
 using namespace nanojit;
@@ -111,54 +110,50 @@ JS_DEFINE_CALLINFO_2(extern, INT32, js_imod, INT32, INT32, 1, ACCSET_NONE)
 #if JS_BITS_PER_WORD == 32
 
 jsdouble FASTCALL
-js_UnboxNumberAsDouble(uint32 tag, uint32 payload)
+js_UnboxDouble(uint32 tag, uint32 payload)
 {
     if (tag == JSVAL_TAG_INT32)
         return (double)(int32)payload;
 
-    JS_ASSERT(tag <= JSVAL_TAG_CLEAR);
     jsval_layout l;
     l.s.tag = (JSValueTag)tag;
     l.s.payload.u32 = payload;
     return l.asDouble;
 }
-JS_DEFINE_CALLINFO_2(extern, DOUBLE, js_UnboxNumberAsDouble, UINT32, UINT32, 1, ACCSET_NONE)
+JS_DEFINE_CALLINFO_2(extern, DOUBLE, js_UnboxDouble, UINT32, UINT32, 1, ACCSET_NONE)
 
 int32 FASTCALL
-js_UnboxNumberAsInt32(uint32 tag, uint32 payload)
+js_UnboxInt32(uint32 tag, uint32 payload)
 {
     if (tag == JSVAL_TAG_INT32)
         return (int32)payload;
 
-    JS_ASSERT(tag <= JSVAL_TAG_CLEAR);
     jsval_layout l;
     l.s.tag = (JSValueTag)tag;
     l.s.payload.u32 = payload;
     return js_DoubleToECMAInt32(l.asDouble);
 }
-JS_DEFINE_CALLINFO_2(extern, INT32, js_UnboxNumberAsInt32, UINT32, UINT32, 1, ACCSET_NONE)
+JS_DEFINE_CALLINFO_2(extern, INT32, js_UnboxInt32, UINT32, UINT32, 1, ACCSET_NONE)
 
 #elif JS_BITS_PER_WORD == 64
 
 jsdouble FASTCALL
-js_UnboxNumberAsDouble(Value v)
+js_UnboxDouble(Value v)
 {
     if (v.isInt32())
         return (jsdouble)v.toInt32();
-    JS_ASSERT(v.isDouble());
     return v.toDouble();
 }
-JS_DEFINE_CALLINFO_1(extern, DOUBLE, js_UnboxNumberAsDouble, JSVAL, 1, ACCSET_NONE)
+JS_DEFINE_CALLINFO_1(extern, DOUBLE, js_UnboxDouble, JSVAL, 1, ACCSET_NONE)
 
 int32 FASTCALL
-js_UnboxNumberAsInt32(Value v)
+js_UnboxInt32(Value v)
 {
     if (v.isInt32())
         return v.toInt32();
-    JS_ASSERT(v.isDouble());
     return js_DoubleToECMAInt32(v.toDouble());
 }
-JS_DEFINE_CALLINFO_1(extern, INT32, js_UnboxNumberAsInt32, VALUE, 1, ACCSET_NONE)
+JS_DEFINE_CALLINFO_1(extern, INT32, js_UnboxInt32, VALUE, 1, ACCSET_NONE)
 
 #endif
 
@@ -257,7 +252,7 @@ HasProperty(JSContext* cx, JSObject* obj, jsid id)
 
     JSObject* obj2;
     JSProperty* prop;
-    if (!LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
+    if (js_LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) < 0)
         return JS_NEITHER;
     return prop != NULL;
 }
@@ -265,7 +260,7 @@ HasProperty(JSContext* cx, JSObject* obj, jsid id)
 JSBool FASTCALL
 js_HasNamedProperty(JSContext* cx, JSObject* obj, JSString* idstr)
 {
-    JSAtom *atom = js_AtomizeString(cx, idstr);
+    JSAtom *atom = js_AtomizeString(cx, idstr, 0);
     if (!atom)
         return JS_NEITHER;
 

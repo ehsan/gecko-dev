@@ -175,8 +175,7 @@ NS_IMETHODIMP nsFilePickerProxy::Show(PRInt16* aReturn)
     InfallibleTArray<nsString> filePaths;
     
     nsresult rv;
-    cc->SendShowFilePicker(mMode, mSelectedType,
-                           mAddToRecentDocs, mTitle,
+    cc->SendShowFilePicker(mMode, mSelectedType, mTitle,
                            mDefault, mDefaultExtension,
                            mFilters, mFilterNames,
                            &filePaths, aReturn, &rv);

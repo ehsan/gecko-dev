@@ -5,9 +5,13 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
 
-var syncTesting = new SyncTestingInfrastructure();
+function makeSteamEngine() {
+  return new SteamEngine();
+}
 
-add_test(function test_processIncoming_mobile_history_batched() {
+var syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
+
+function test_processIncoming_mobile_history_batched() {
   _("SyncEngine._processIncoming works on history engine.");
 
   let FAKE_DOWNLOAD_LIMIT = 100;
@@ -15,7 +19,7 @@ add_test(function test_processIncoming_mobile_history_batched() {
   Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   Svc.Prefs.set("client.type", "mobile");
-  PlacesUtils.history.removeAllPages();
+  Svc.History.removeAllPages();
   Engines.register(HistoryEngine);
 
   // A collection that logs each GET
@@ -49,6 +53,7 @@ add_test(function test_processIncoming_mobile_history_batched() {
   let server = sync_httpd_setup({
       "/1.1/foo/storage/history": collection.handler()
   });
+  do_test_pending();
 
   let engine = new HistoryEngine("history");
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
@@ -123,15 +128,15 @@ add_test(function test_processIncoming_mobile_history_batched() {
     }
 
   } finally {
-    PlacesUtils.history.removeAllPages();
+    Svc.History.removeAllPages();
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
   }
-});
+}
 
 function run_test() {
   generateNewKeys();
 
-  run_next_test();
+  test_processIncoming_mobile_history_batched();
 }

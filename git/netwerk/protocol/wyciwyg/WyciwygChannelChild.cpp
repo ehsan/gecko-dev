@@ -57,7 +57,8 @@ NS_IMPL_ISUPPORTS3(WyciwygChannelChild,
 
 
 WyciwygChannelChild::WyciwygChannelChild()
-  : mStatus(NS_OK)
+  : ChannelEventQueue<WyciwygChannelChild>(this)
+  , mStatus(NS_OK)
   , mIsPending(PR_FALSE)
   , mCanceled(false)
   , mLoadFlags(LOAD_NORMAL)
@@ -65,7 +66,6 @@ WyciwygChannelChild::WyciwygChannelChild()
   , mCharsetSource(kCharsetUninitialized)
   , mState(WCC_NEW)
   , mIPCOpen(false)
-  , mEventQ(this)
 {
   LOG(("Creating WyciwygChannelChild @%x\n", this));
 }
@@ -138,10 +138,9 @@ WyciwygChannelChild::RecvOnStartRequest(const nsresult& statusCode,
                                         const nsCString& charset,
                                         const nsCString& securityInfo)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new WyciwygStartRequestEvent(this, statusCode,
-                                                 contentLength, source,
-                                                 charset, securityInfo));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new WyciwygStartRequestEvent(this, statusCode, contentLength,
+                                              source, charset, securityInfo));
   } else {
     OnStartRequest(statusCode, contentLength, source, charset, securityInfo);
   }
@@ -168,7 +167,7 @@ WyciwygChannelChild::OnStartRequest(const nsresult& statusCode,
     NS_DeserializeObject(securityInfo, getter_AddRefs(mSecurityInfo));
   }
 
-  AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+  AutoEventEnqueuer ensureSerialDispatch(this);
 
   nsresult rv = mListener->OnStartRequest(this, mListenerContext);
   if (NS_FAILED(rv))
@@ -193,8 +192,8 @@ bool
 WyciwygChannelChild::RecvOnDataAvailable(const nsCString& data,
                                          const PRUint32& offset)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new WyciwygDataAvailableEvent(this, data, offset));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new WyciwygDataAvailableEvent(this, data, offset));
   } else {
     OnDataAvailable(data, offset);
   }
@@ -227,7 +226,7 @@ WyciwygChannelChild::OnDataAvailable(const nsCString& data,
     return;
   }
 
-  AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+  AutoEventEnqueuer ensureSerialDispatch(this);
   
   rv = mListener->OnDataAvailable(this, mListenerContext,
                                   stringStream, offset, data.Length());
@@ -254,8 +253,8 @@ private:
 bool
 WyciwygChannelChild::RecvOnStopRequest(const nsresult& statusCode)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new WyciwygStopRequestEvent(this, statusCode));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new WyciwygStopRequestEvent(this, statusCode));
   } else {
     OnStopRequest(statusCode);
   }
@@ -270,8 +269,8 @@ WyciwygChannelChild::OnStopRequest(const nsresult& statusCode)
 
   { // We need to ensure that all IPDL message dispatching occurs
     // before we delete the protocol below
-    AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-
+    AutoEventEnqueuer ensureSerialDispatch(this);
+    
     mState = WCC_ONSTOP;
 
     mIsPending = PR_FALSE;
@@ -311,8 +310,8 @@ class WyciwygCancelEvent : public ChannelEvent
 bool
 WyciwygChannelChild::RecvCancelEarly(const nsresult& statusCode)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new WyciwygCancelEvent(this, statusCode));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new WyciwygCancelEvent(this, statusCode));
   } else {
     CancelEarly(statusCode);
   }

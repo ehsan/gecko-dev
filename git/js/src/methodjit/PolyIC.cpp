@@ -146,12 +146,10 @@ class PICStubCompiler : public BaseCompiler
     JSScript *script;
     ic::PICInfo &pic;
     void *stub;
-    uint32 gcNumber;
 
   public:
     PICStubCompiler(const char *type, VMFrame &f, JSScript *script, ic::PICInfo &pic, void *stub)
-      : BaseCompiler(f.cx), type(type), f(f), script(script), pic(pic), stub(stub),
-        gcNumber(f.cx->runtime->gcNumber)
+      : BaseCompiler(f.cx), type(type), f(f), script(script), pic(pic), stub(stub)
     { }
 
     bool isCallOp() const {
@@ -177,15 +175,12 @@ class PICStubCompiler : public BaseCompiler
         return pic.disable(cx, reason, stub);
     }
 
-    bool hadGC() {
-        return gcNumber != f.cx->runtime->gcNumber;
-    }
-
   protected:
     void spew(const char *event, const char *op) {
 #ifdef JS_METHODJIT_SPEW
         JaegerSpew(JSpew_PICs, "%s %s: %s (%s: %d)\n",
-                   type, event, op, script->filename, CurrentLine(cx));
+                   type, event, op, script->filename,
+                   js_FramePCToLineNumber(cx, f.fp()));
 #endif
     }
 };
@@ -229,7 +224,7 @@ class SetPropCompiler : public PICStubCompiler
             CodeLocationInstruction istr = labels.getDslotsLoad(pic.fastPathRejoin, pic.u.vr);
             repatcher.repatchLoadPtrToLEA(istr);
 
-            //
+            // 
             // We've patched | mov dslots, [obj + DSLOTS_OFFSET]
             // To:           | lea fslots, [obj + DSLOTS_OFFSET]
             //
@@ -279,9 +274,6 @@ class SetPropCompiler : public PICStubCompiler
 
     LookupStatus generateStub(uint32 initialShape, const Shape *shape, bool adding, bool inlineSlot)
     {
-        if (hadGC())
-            return Lookup_Uncacheable;
-
         /* Exits to the slow path. */
         Vector<Jump, 8> slowExits(cx);
         Vector<Jump, 8> otherGuards(cx);
@@ -632,7 +624,7 @@ class SetPropCompiler : public PICStubCompiler
             shape->hasDefaultSetter() &&
             !obj->isDenseArray()) {
             return patchInline(shape, !obj->hasSlotsArray());
-        }
+        } 
 
         return generateStub(obj->shape(), shape, false, !obj->hasSlotsArray());
     }
@@ -642,13 +634,8 @@ static bool
 IsCacheableProtoChain(JSObject *obj, JSObject *holder)
 {
     while (obj != holder) {
-        /*
-         * We cannot assume that we find the holder object on the prototype
-         * chain and must check for null proto. The prototype chain can be
-         * altered during the lookupProperty call.
-         */
         JSObject *proto = obj->getProto();
-        if (!proto || !proto->isNative())
+        if (!proto->isNative())
             return false;
         obj = proto;
     }
@@ -668,7 +655,7 @@ struct GetPropertyHelper {
     JSObject    *aobj;
     JSObject    *holder;
     JSProperty  *prop;
-
+ 
     // This field is set by |bind| and |lookup| only if they returned
     // Lookup_Cacheable, otherwise it is NULL.
     const Shape *shape;
@@ -789,7 +776,7 @@ class GetPropCompiler : public PICStubCompiler
         Jump overridden = masm.branchTest32(Assembler::NonZero, pic.shapeReg,
                                             Imm32(ArgumentsObject::LENGTH_OVERRIDDEN_BIT));
         masm.rshift32(Imm32(ArgumentsObject::PACKED_BITS_COUNT), pic.objReg);
-
+        
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
@@ -905,8 +892,6 @@ class GetPropCompiler : public PICStubCompiler
             return status;
         if (getprop.obj != getprop.holder)
             return disable("proto walk on String.prototype");
-        if (hadGC())
-            return Lookup_Uncacheable;
 
         Assembler masm;
 
@@ -1019,7 +1004,7 @@ class GetPropCompiler : public PICStubCompiler
             CodeLocationInstruction istr = labels.getDslotsLoad(pic.fastPathRejoin);
             repatcher.repatchLoadPtrToLEA(istr);
 
-            //
+            // 
             // We've patched | mov dslots, [obj + DSLOTS_OFFSET]
             // To:           | lea fslots, [obj + DSLOTS_OFFSET]
             //
@@ -1057,7 +1042,7 @@ class GetPropCompiler : public PICStubCompiler
             start = masm.label();
             shapeGuardJump = masm.testObjClass(Assembler::NotEqual, pic.objReg, obj->getClass());
 
-            /*
+            /* 
              * No need to assert validity of GETPROP_STUB_SHAPE_JUMP in this case:
              * the IC is disabled after a dense array hit, so no patching can occur.
              */
@@ -1160,12 +1145,10 @@ class GetPropCompiler : public PICStubCompiler
         LookupStatus status = getprop.lookupAndTest();
         if (status != Lookup_Cacheable)
             return status;
-        if (hadGC())
-            return Lookup_Uncacheable;
 
         if (obj == getprop.holder && !pic.inlinePathPatched)
             return patchInline(getprop.holder, getprop.shape);
-
+        
         return generateStub(getprop.holder, getprop.shape);
     }
 };
@@ -1173,7 +1156,7 @@ class GetPropCompiler : public PICStubCompiler
 class ScopeNameCompiler : public PICStubCompiler
 {
   private:
-    typedef Vector<Jump, 8> JumpList;
+    typedef Vector<Jump, 8, ContextAllocPolicy> JumpList;
 
     JSObject *scopeChain;
     JSAtom *atom;
@@ -1186,7 +1169,7 @@ class ScopeNameCompiler : public PICStubCompiler
         Repatcher               repatcher(pic.lastCodeBlock(f.jit()));
         CodeLocationLabel       start = pic.lastPathStart();
         JSC::CodeLocationJump   jump;
-
+        
         // Patch either the inline fast path or a generated stub.
         if (pic.stubsGenerated)
             jump = labels.getStubJump(start);
@@ -1215,7 +1198,7 @@ class ScopeNameCompiler : public PICStubCompiler
                 if (!fails.append(j))
                     return error();
             }
-
+            
             /* Guard on intervening shapes. */
             masm.loadShape(pic.objReg, pic.shapeReg);
             Jump j = masm.branch32(Assembler::NotEqual, pic.shapeReg, Imm32(tobj->shape()));
@@ -1251,21 +1234,7 @@ class ScopeNameCompiler : public PICStubCompiler
         JSC::CodeLocationJump inlineJump = labels.getInlineJump(pic.fastPathStart);
         repatcher.relink(inlineJump, pic.slowPathStart);
 
-        VoidStubPIC stub;
-        switch (pic.kind) {
-          case ic::PICInfo::NAME:
-            stub = ic::Name;
-            break;
-          case ic::PICInfo::XNAME:
-            stub = ic::XName;
-            break;
-          case ic::PICInfo::CALLNAME:
-            stub = ic::CallName;
-            break;
-          default:
-            JS_NOT_REACHED("Invalid pic kind in ScopeNameCompiler::reset");
-            return;
-        }
+        VoidStubPIC stub = (pic.kind == ic::PICInfo::NAME) ? ic::Name : ic::XName;
         FunctionPtr target(JS_FUNC_TO_DATA_PTR(void *, stub));
         repatcher.relink(pic.slowPathCall, target);
     }
@@ -1277,7 +1246,7 @@ class ScopeNameCompiler : public PICStubCompiler
         ScopeNameLabels &labels = pic.scopeNameLabels();
 
         /* For GETXPROP, the object is already in objReg. */
-        if (pic.kind == ic::PICInfo::NAME || pic.kind == ic::PICInfo::CALLNAME)
+        if (pic.kind == ic::PICInfo::NAME)
             masm.loadPtr(Address(JSFrameReg, StackFrame::offsetOfScopeChain()), pic.objReg);
 
         JS_ASSERT(obj == getprop.holder);
@@ -1289,49 +1258,12 @@ class ScopeNameCompiler : public PICStubCompiler
 
         /* If a scope chain walk was required, the final object needs a NULL test. */
         MaybeJump finalNull;
-        if (pic.kind == ic::PICInfo::NAME || pic.kind == ic::PICInfo::CALLNAME)
+        if (pic.kind == ic::PICInfo::NAME)
             finalNull = masm.branchTestPtr(Assembler::Zero, pic.objReg, pic.objReg);
         masm.loadShape(pic.objReg, pic.shapeReg);
         Jump finalShape = masm.branch32(Assembler::NotEqual, pic.shapeReg, Imm32(getprop.holder->shape()));
 
         masm.loadObjProp(obj, pic.objReg, getprop.shape, pic.shapeReg, pic.objReg);
-
-        /*
-         * For CALLNAME we have to store the this-value. Guard that the callee's parent is
-         * the global object, so that we can just store undefined.
-         */
-        MaybeJump calleeNotObject;
-        MaybeJump calleeNotFunction;
-        MaybeJump calleeParent;
-        if (pic.kind == ic::PICInfo::CALLNAME) {
-            /* Need compile-and-go to bake in the global. */
-            if (!f.fp()->script()->compileAndGo)
-                return disable("callname global stub without compile-and-go");
-
-            /* Only handle functions here. */
-            Value funval = getprop.holder->nativeGetSlot(getprop.shape->slot);
-            if (!funval.isObject() || !funval.toObject().isFunction())
-                return disable("unsupported value");
-
-            /* Don't handle functions with parent other than the global object. */
-            JSObject *funobj = &funval.toObject();
-            if (funobj->getParent() != getprop.holder)
-                return disable("not scoped to global object");
-
-            /* Guard that the callee is a function. */
-            calleeNotObject = masm.testObject(Assembler::NotEqual, pic.shapeReg);
-            calleeNotFunction = masm.testFunction(Assembler::NotEqual, pic.objReg);
-
-            /* Guard that the callee's parent is the global object. */
-            Address parent(pic.objReg, offsetof(JSObject, parent));
-            calleeParent = masm.branchPtr(Assembler::NotEqual, parent, ImmPtr(getprop.holder));
-
-            /* Store undefined this-value. */
-            Value *thisVp = &cx->regs().sp[1];
-            Address thisSlot(JSFrameReg, StackFrame::offsetOfFixed(thisVp - cx->fp()->slots()));
-            masm.storeValue(UndefinedValue(), thisSlot);
-        }
-
         Jump done = masm.jump();
 
         /* All failures flow to here, so there is a common point to patch. */
@@ -1340,12 +1272,6 @@ class ScopeNameCompiler : public PICStubCompiler
         if (finalNull.isSet())
             finalNull.get().linkTo(masm.label(), &masm);
         finalShape.linkTo(masm.label(), &masm);
-        if (calleeNotObject.isSet())
-            calleeNotObject.get().linkTo(masm.label(), &masm);
-        if (calleeNotFunction.isSet())
-            calleeNotFunction.get().linkTo(masm.label(), &masm);
-        if (calleeParent.isSet())
-            calleeParent.get().linkTo(masm.label(), &masm);
         Label failLabel = masm.label();
         Jump failJump = masm.jump();
 
@@ -1384,11 +1310,11 @@ class ScopeNameCompiler : public PICStubCompiler
     LookupStatus generateCallStub(JSObject *obj)
     {
         Assembler masm;
-        Vector<Jump, 8> fails(cx);
+        Vector<Jump, 8, ContextAllocPolicy> fails(cx);
         ScopeNameLabels &labels = pic.scopeNameLabels();
 
         /* For GETXPROP, the object is already in objReg. */
-        if (pic.kind == ic::PICInfo::NAME || pic.kind == ic::PICInfo::CALLNAME)
+        if (pic.kind == ic::PICInfo::NAME)
             masm.loadPtr(Address(JSFrameReg, StackFrame::offsetOfScopeChain()), pic.objReg);
 
         JS_ASSERT(obj == getprop.holder);
@@ -1410,22 +1336,10 @@ class ScopeNameCompiler : public PICStubCompiler
 
         /* If a scope chain walk was required, the final object needs a NULL test. */
         MaybeJump finalNull;
-        if (pic.kind == ic::PICInfo::NAME || pic.kind == ic::PICInfo::CALLNAME)
+        if (pic.kind == ic::PICInfo::NAME)
             finalNull = masm.branchTestPtr(Assembler::Zero, pic.objReg, pic.objReg);
         masm.loadShape(pic.objReg, pic.shapeReg);
         Jump finalShape = masm.branch32(Assembler::NotEqual, pic.shapeReg, Imm32(getprop.holder->shape()));
-
-        /*
-         * For CALLNAME we have to store the this-value. Since we guarded on
-         * IsCacheableNonGlobalScope it's always undefined. This matches the decision
-         * tree in ComputeImplicitThis.
-         */
-        if (pic.kind == ic::PICInfo::CALLNAME) {
-            JS_ASSERT(obj->getClass() == &js_CallClass);
-            Value *thisVp = &cx->regs().sp[1];
-            Address thisSlot(JSFrameReg, StackFrame::offsetOfFixed(thisVp - cx->fp()->slots()));
-            masm.storeValue(UndefinedValue(), thisSlot);
-        }
 
         /* Get callobj's stack frame. */
         masm.loadObjPrivate(pic.objReg, pic.shapeReg);
@@ -1535,7 +1449,7 @@ class ScopeNameCompiler : public PICStubCompiler
         return disable("scope object not handled yet");
     }
 
-    bool retrieve(Value *vp, Value *thisvp)
+    bool retrieve(Value *vp)
     {
         JSObject *obj = getprop.obj;
         JSObject *holder = getprop.holder;
@@ -1557,25 +1471,19 @@ class ScopeNameCompiler : public PICStubCompiler
 
         // If the property was found, but we decided not to cache it, then
         // take a slow path and do a full property fetch.
-        if (!getprop.shape) {
-            if (!obj->getProperty(cx, ATOM_TO_JSID(atom), vp))
-                return false;
-            if (thisvp)
-                return ComputeImplicitThis(cx, obj, *vp, thisvp);
-            return true;
-        }
+        if (!getprop.shape)
+            return obj->getProperty(cx, ATOM_TO_JSID(atom), vp);
 
         const Shape *shape = getprop.shape;
         JSObject *normalized = obj;
         if (obj->getClass() == &js_WithClass && !shape->hasDefaultGetter())
             normalized = js_UnwrapWithObject(cx, obj);
         NATIVE_GET(cx, normalized, holder, shape, JSGET_METHOD_BARRIER, vp, return false);
-        if (thisvp)
-            return ComputeImplicitThis(cx, normalized, *vp, thisvp);
+
         return true;
     }
 };
-
+ 
 class BindNameCompiler : public PICStubCompiler
 {
     JSObject *scopeChain;
@@ -1606,7 +1514,7 @@ class BindNameCompiler : public PICStubCompiler
         BindNameLabels &labels = pic.bindNameLabels();
         Repatcher repatcher(pic.lastCodeBlock(f.jit()));
         JSC::CodeLocationJump jump;
-
+        
         /* Patch either the inline fast path or a generated stub. */
         if (pic.stubsGenerated)
             jump = labels.getStubJump(pic.lastPathStart());
@@ -1618,7 +1526,7 @@ class BindNameCompiler : public PICStubCompiler
     LookupStatus generateStub(JSObject *obj)
     {
         Assembler masm;
-        Vector<Jump, 8> fails(cx);
+        js::Vector<Jump, 8, ContextAllocPolicy> fails(cx);
 
         BindNameLabels &labels = pic.bindNameLabels();
 
@@ -1830,7 +1738,7 @@ ic::SetProp(VMFrame &f, ic::PICInfo *pic)
         if (status == Lookup_Error)
             THROW();
     }
-
+    
     stub(f, pic);
 }
 
@@ -1978,7 +1886,7 @@ ic::XName(VMFrame &f, ic::PICInfo *pic)
         THROW();
 
     Value rval;
-    if (!cc.retrieve(&rval, NULL))
+    if (!cc.retrieve(&rval))
         THROW();
     f.regs.sp[-1] = rval;
 }
@@ -1995,34 +1903,9 @@ ic::Name(VMFrame &f, ic::PICInfo *pic)
         THROW();
 
     Value rval;
-    if (!cc.retrieve(&rval, NULL))
+    if (!cc.retrieve(&rval))
         THROW();
     f.regs.sp[0] = rval;
-}
-
-static void JS_FASTCALL
-DisabledCallNameIC(VMFrame &f, ic::PICInfo *pic)
-{
-    stubs::CallName(f);
-}
-
-void JS_FASTCALL
-ic::CallName(VMFrame &f, ic::PICInfo *pic)
-{
-    JSScript *script = f.fp()->script();
-
-    ScopeNameCompiler cc(f, script, &f.fp()->scopeChain(), *pic, pic->atom, DisabledCallNameIC);
-
-    LookupStatus status = cc.updateForName();
-    if (status == Lookup_Error)
-        THROW();
-
-    Value rval, thisval;
-    if (!cc.retrieve(&rval, &thisval))
-        THROW();
-
-    f.regs.sp[0] = rval;
-    f.regs.sp[1] = thisval;
 }
 
 static void JS_FASTCALL
@@ -2067,7 +1950,8 @@ BaseIC::spew(JSContext *cx, const char *event, const char *message)
 {
 #ifdef JS_METHODJIT_SPEW
     JaegerSpew(JSpew_PICs, "%s %s: %s (%s: %d)\n",
-               js_CodeName[op], event, message, cx->fp()->script()->filename, CurrentLine(cx));
+               js_CodeName[op], event, message, cx->fp()->script()->filename,
+               js_FramePCToLineNumber(cx, cx->fp()));
 #endif
 }
 
@@ -2248,10 +2132,10 @@ GetElementIC::attachGetProp(JSContext *cx, JSObject *obj, const Value &v, jsid i
 
     CodeLocationLabel cs = buffer.finalize();
 #if DEBUG
-    char *chars = DeflateString(cx, v.toString()->getChars(cx), v.toString()->length());
+    char *chars = js_DeflateString(cx, v.toString()->getChars(cx), v.toString()->length());
     JaegerSpew(JSpew_PICs, "generated %s stub at %p for atom 0x%x (\"%s\") shape 0x%x (%s: %d)\n",
                js_CodeName[op], cs.executableAddress(), id, chars, holder->shape(),
-               cx->fp()->script()->filename, CurrentLine(cx));
+               cx->fp()->script()->filename, js_FramePCToLineNumber(cx, cx->fp()));
     cx->free_(chars);
 #endif
 
@@ -2824,7 +2708,6 @@ JITScript::purgePICs()
             break;
           case ic::PICInfo::NAME:
           case ic::PICInfo::XNAME:
-          case ic::PICInfo::CALLNAME:
             ScopeNameCompiler::reset(repatcher, pic);
             break;
           case ic::PICInfo::BIND:

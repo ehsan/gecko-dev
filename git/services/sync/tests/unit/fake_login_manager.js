@@ -25,8 +25,8 @@ function FakeLoginManager(fakeLogins) {
   let self = this;
 
   // Use a fake nsILoginManager object.
-  delete Services.logins;
-  Services.logins = {
+  delete Svc.Login;
+  Svc.Login = {
       removeAllLogins: function() { self.fakeLogins = []; },
       getAllLogins: function() { return self.fakeLogins; },
       addLogin: function(login) {

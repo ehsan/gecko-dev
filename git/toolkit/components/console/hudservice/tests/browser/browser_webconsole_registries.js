@@ -53,12 +53,14 @@ function testRegistries() {
 
   openConsole();
 
-  let hud = HUDService.getHudByWindow(content);
-  ok(hud, "we have a HUD");
-  ok(HUDService.hudReferences[hud.hudId], "we have a HUD in hudReferences");
+  var displaysIdx = HUDService.displaysIndex();
+  ok(displaysIdx.length == 1, "one display id found");
+
+  var display = displaysIdx[0];
+  ok(HUDService.hudReferences[display], "we have a HUD");
 
   let windowID = HUDService.getWindowId(content);
-  is(HUDService.windowIds[windowID], hud.hudId, "windowIds are working");
+  is(HUDService.windowIds[windowID], display, "windowIds is working");
 
   finishTest();
 }

@@ -63,6 +63,7 @@ class nsApplicationAccessible: public nsAccessibleWrap,
                                public nsIAccessibleApplication
 {
 public:
+  using nsAccessible::GetChildAtPoint;
 
   nsApplicationAccessible();
 
@@ -114,7 +115,7 @@ public:
   NS_DECL_NSIACCESSIBLEAPPLICATION
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual PRBool Init();
   virtual void Shutdown();
   virtual bool IsPrimaryForNode() const;
@@ -125,8 +126,8 @@ public:
   virtual PRUint32 NativeRole();
   virtual PRUint64 State();
   virtual PRUint64 NativeState();
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                        EWhichChildAtPoint aWhichChild);
 
   virtual void InvalidateChildren();
 
@@ -135,7 +136,7 @@ protected:
   // nsAccessible
   virtual void CacheChildren();
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
 
 private:
   nsCOMPtr<nsIXULAppInfo> mAppInfo;

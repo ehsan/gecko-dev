@@ -54,6 +54,7 @@
 #include "nsINativeKeyBindings.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
@@ -61,6 +62,7 @@
 #include "nsContentUtils.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsPIWindowRoot.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -68,9 +70,6 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsISelectionController.h"
 #include "nsGUIEvent.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static nsINativeKeyBindings *sNativeEditorBindings = nsnull;
 
@@ -125,7 +124,7 @@ void nsXBLSpecialDocInfo::LoadDocInfo()
                                       getter_AddRefs(mHTMLBindings));
 
   const nsAdoptingCString& userHTMLBindingStr =
-    Preferences::GetCString("dom.userHTMLBindings.uri");
+    nsContentUtils::GetCharPref("dom.userHTMLBindings.uri");
   if (!userHTMLBindingStr.IsEmpty()) {
     NS_NewURI(getter_AddRefs(bindingURI), userHTMLBindingStr);
     if (!bindingURI) {
@@ -178,7 +177,7 @@ nsXBLSpecialDocInfo* nsXBLWindowKeyHandler::sXBLSpecialDocInfo = nsnull;
 PRUint32 nsXBLWindowKeyHandler::sRefCnt = 0;
 
 nsXBLWindowKeyHandler::nsXBLWindowKeyHandler(nsIDOMElement* aElement,
-                                             nsIDOMEventTarget* aTarget)
+                                             nsPIDOMEventTarget* aTarget)
   : mTarget(aTarget),
     mHandler(nsnull),
     mUserHandler(nsnull)
@@ -200,7 +199,8 @@ nsXBLWindowKeyHandler::~nsXBLWindowKeyHandler()
   }
 }
 
-NS_IMPL_ISUPPORTS1(nsXBLWindowKeyHandler,
+NS_IMPL_ISUPPORTS2(nsXBLWindowKeyHandler,
+                   nsIDOMKeyListener,
                    nsIDOMEventListener)
 
 static void
@@ -391,19 +391,27 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXBLWindowKeyHandler::HandleEvent(nsIDOMEvent* aEvent)
+nsresult nsXBLWindowKeyHandler::KeyUp(nsIDOMEvent* aEvent)
 {
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
   NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  nsCOMPtr<nsIAtom> eventTypeAtom = do_GetAtom(eventType);
-  NS_ENSURE_TRUE(eventTypeAtom, NS_ERROR_OUT_OF_MEMORY);
-
-  return WalkHandlers(keyEvent, eventTypeAtom);
+  return WalkHandlers(keyEvent, nsGkAtoms::keyup);
 }
+
+nsresult nsXBLWindowKeyHandler::KeyDown(nsIDOMEvent* aEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
+  return WalkHandlers(keyEvent, nsGkAtoms::keydown);
+}
+
+nsresult nsXBLWindowKeyHandler::KeyPress(nsIDOMEvent* aEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
+  return WalkHandlers(keyEvent, nsGkAtoms::keypress);
+}
+
 
 //
 // EventMatched
@@ -556,7 +564,7 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
       }
     }
 
-    nsCOMPtr<nsIDOMEventTarget> piTarget;
+    nsCOMPtr<nsPIDOMEventTarget> piTarget;
     nsCOMPtr<nsIDOMElement> element = GetElement();
     if (element) {
       piTarget = do_QueryInterface(commandElt);
@@ -585,7 +593,7 @@ nsXBLWindowKeyHandler::GetElement()
 ///////////////////////////////////////////////////////////////////////////////////
 
 nsresult
-NS_NewXBLWindowKeyHandler(nsIDOMElement* aElement, nsIDOMEventTarget* aTarget,
+NS_NewXBLWindowKeyHandler(nsIDOMElement* aElement, nsPIDOMEventTarget* aTarget,
                           nsXBLWindowKeyHandler** aResult)
 {
   *aResult = new nsXBLWindowKeyHandler(aElement, aTarget);

@@ -616,13 +616,14 @@ NS_NewStreamLoader(nsIStreamLoader        **result,
 
 inline nsresult
 NS_NewUnicharStreamLoader(nsIUnicharStreamLoader        **result,
-                          nsIUnicharStreamLoaderObserver *observer)
+                          nsIUnicharStreamLoaderObserver *observer,
+                          PRUint32                        segmentSize = nsIUnicharStreamLoader::DEFAULT_SEGMENT_SIZE)
 {
     nsresult rv;
     nsCOMPtr<nsIUnicharStreamLoader> loader =
         do_CreateInstance(NS_UNICHARSTREAMLOADER_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-        rv = loader->Init(observer);
+        rv = loader->Init(observer, segmentSize);
         if (NS_SUCCEEDED(rv)) {
             *result = nsnull;
             loader.swap(*result);
@@ -1171,19 +1172,16 @@ NS_NewPostDataStream(nsIInputStream  **result,
 }
 
 inline nsresult
-NS_ReadInputStreamToBuffer(nsIInputStream *aInputStream, 
-                           void** aDest,
+NS_ReadInputStreamToString(nsIInputStream *aInputStream, 
+                           nsACString &aDest,
                            PRUint32 aCount)
 {
     nsresult rv;
 
-    if (!*aDest) {
-        *aDest = malloc(aCount);
-        if (!*aDest)
-            return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    char * p = reinterpret_cast<char*>(*aDest);
+    aDest.SetLength(aCount);
+    if (aDest.Length() != aCount)
+        return NS_ERROR_OUT_OF_MEMORY;
+    char * p = aDest.BeginWriting();
     PRUint32 bytesRead;
     PRUint32 totalRead = 0;
     while (1) {
@@ -1198,18 +1196,6 @@ NS_ReadInputStreamToBuffer(nsIInputStream *aInputStream,
             return NS_ERROR_UNEXPECTED;
     }
     return rv; 
-}
-
-inline nsresult
-NS_ReadInputStreamToString(nsIInputStream *aInputStream, 
-                           nsACString &aDest,
-                           PRUint32 aCount)
-{
-    aDest.SetLength(aCount);
-    if (aDest.Length() != aCount)
-        return NS_ERROR_OUT_OF_MEMORY;
-    void* dest = aDest.BeginWriting();
-    return NS_ReadInputStreamToBuffer(aInputStream, &dest, aCount);
 }
 
 inline nsresult

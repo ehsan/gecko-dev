@@ -50,7 +50,7 @@ function wait_for_install_dialog(aCallback) {
       Services.wm.removeListener(this);
 
       var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindow);
+                                .getInterface(Ci.nsIDOMWindowInternal);
       waitForFocus(function() {
         info("Saw install dialog");
         is(domwindow.document.location.href, XPINSTALL_URL, "Should have seen the right window open");
@@ -96,10 +96,11 @@ function test_disabled_install() {
 
     wait_for_notification_close(function() {
       try {
-        ok(Services.prefs.getBoolPref("xpinstall.enabled"), "Installation should be enabled");
+        Services.prefs.getBoolPref("xpinstall.disabled");
+        ok(false, "xpinstall.disabled should not be set");
       }
       catch (e) {
-        ok(false, "xpinstall.enabled should be set");
+        ok(true, "xpinstall.disabled should not be set");
       }
 
       gBrowser.removeTab(gBrowser.selectedTab);

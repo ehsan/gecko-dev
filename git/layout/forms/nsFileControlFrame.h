@@ -40,15 +40,13 @@
 
 #include "nsBlockFrame.h"
 #include "nsIFormControlFrame.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsICapturePicker.h"
 #include "nsCOMPtr.h"
 
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
-
-class nsIDOMDragEvent;
 
 class nsFileControlFrame : public nsBlockFrame,
                            public nsIFormControlFrame,
@@ -112,7 +110,7 @@ protected:
 
   class MouseListener;
   friend class MouseListener;
-  class MouseListener : public nsIDOMEventListener {
+  class MouseListener : public nsIDOMMouseListener {
   public:
     NS_DECL_ISUPPORTS
     
@@ -123,6 +121,16 @@ protected:
     void ForgetFrame() {
       mFrame = nsnull;
     }
+    
+    // We just want to capture the click events on our browse button
+    // and textfield.
+    NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+    NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent) = 0;
+    NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+    NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+    NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+    NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
 
   protected:
     nsFileControlFrame* mFrame;
@@ -153,16 +161,14 @@ protected:
   public:
     CaptureMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame),
                                                        mMode(0) {};
-    NS_DECL_NSIDOMEVENTLISTENER
+    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
     PRUint32 mMode;
   };
   
   class BrowseMouseListener: public MouseListener {
   public:
     BrowseMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame) {};
-    NS_DECL_NSIDOMEVENTLISTENER
-
-    static PRBool IsValidDropData(nsIDOMDragEvent* aEvent);
+     NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
   };
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const

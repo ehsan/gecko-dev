@@ -197,7 +197,7 @@ static gfxFloat ComputeMaxDescent(const gfxFont::Metrics& aMetrics,
     gfxFloat offset = NS_floor(-aFontGroup->GetUnderlineOffset() + 0.5);
     gfxFloat size = NS_round(aMetrics.underlineSize);
     gfxFloat minDescent = NS_floor(offset + size + 0.5);
-    return NS_MAX(minDescent, aMetrics.maxDescent);
+    return PR_MAX(minDescent, aMetrics.maxDescent);
 }
 
 static gfxFloat ComputeMaxAscent(const gfxFont::Metrics& aMetrics)
@@ -279,7 +279,7 @@ nsFontMetrics::GetMaxStringLength()
     const gfxFont::Metrics& m = GetMetrics();
     const double x = 32767.0 / m.maxAdvance;
     PRInt32 len = (PRInt32)floor(x);
-    return NS_MAX(1, len);
+    return PR_MAX(1, len);
 }
 
 nscoord
@@ -348,6 +348,7 @@ nsFontMetrics::DrawString(const PRUnichar* aString, PRUint32 aLength,
     textRun->Draw(aContext->ThebesContext(), pt, 0, aLength, &provider, nsnull);
 }
 
+#ifdef MOZ_MATHML
 nsBoundingMetrics
 nsFontMetrics::GetBoundingMetrics(const PRUnichar *aString, PRUint32 aLength,
                                   nsRenderingContext *aContext)
@@ -370,3 +371,4 @@ nsFontMetrics::GetBoundingMetrics(const PRUnichar *aString, PRUint32 aLength,
     m.width        = NSToCoordRound( theMetrics.mAdvanceWidth);
     return m;
 }
+#endif /* MOZ_MATHML */

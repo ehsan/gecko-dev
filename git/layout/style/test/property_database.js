@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation (original author)
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -445,8 +444,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1" ],
-		other_values: [ "2", "100", "0" ],
-		invalid_values: [ "1.0", "-1", "-1000" ]
+		other_values: [ "2", "100" ],
+		invalid_values: [ "1.0", "-1", "-1000", "0" ]
 	},
 	"-moz-box-orient": {
 		domProp: "MozBoxOrient",
@@ -1357,7 +1356,8 @@ var gCSSProperties = {
 		domProp: "backgroundPosition",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "top left", "left top", "0% 0%", "0% top", "left 0%" ],
+		/* is "0px 0px" an initial value or not? */
+		initial_values: [ "top left", "left top", "0% 0%", "0% top", "left 0%", "0px 0px" ],
 		other_values: [ "top", "left", "right", "bottom", "center", "center bottom", "bottom center", "center right", "right center", "center top", "top center", "center left", "left center", "right bottom", "bottom right", "50%", "top left, top left", "top left, top right", "top right, top left", "left top, 0% 0%", "10% 20%, 30%, 40%", "top left, bottom right", "right bottom, left top", "0%", "0px", "30px", "0%, 10%, 20%, 30%", "top, top, top, top, top",
 			"-moz-calc(20px)",
 			"-moz-calc(20px) 10px",
@@ -1368,8 +1368,7 @@ var gCSSProperties = {
 			"-moz-calc(20px + 1em) -moz-calc(20px / 2)",
 			"-moz-calc(20px + 50%) -moz-calc(50% - 10px)",
 			"-moz-calc(-20px) -moz-calc(-50%)",
-			"-moz-calc(-20%) -moz-calc(-50%)",
-			"0px 0px"
+			"-moz-calc(-20%) -moz-calc(-50%)"
 		],
 		invalid_values: [ "50% left", "top 50%" ]
 	},
@@ -1793,8 +1792,8 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ (gInitialFontFamilyIsSansSerif ? "sans-serif" : "serif") ],
-		other_values: [ (gInitialFontFamilyIsSansSerif ? "serif" : "sans-serif"), "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy", "\\\"Times New Roman", "\"Times New Roman\"", "Times, \\\"Times New Roman", "Times, \"Times New Roman\"" ],
-		invalid_values: [ "\"Times New\" Roman", "\"Times New Roman\n", "Times, \"Times New Roman\n" ]
+		other_values: [ (gInitialFontFamilyIsSansSerif ? "serif" : "sans-serif"), "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy", "\"Times New Roman", "Times, \"Times New Roman" ],
+		invalid_values: [ "\"Times New\" Roman" ]
 	},
 	"-moz-font-feature-settings": {
 		domProp: "MozFontFeatureSettings",
@@ -2162,14 +2161,6 @@ var gCSSProperties = {
 		other_values: [ "0", "0.4", "0.0000", "-3" ],
 		invalid_values: [ "0px", "1px" ]
 	},
-	"-moz-orient": {
-		domProp: "MozOrient",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "horizontal" ],
-		other_values: [ "vertical" ],
-		invalid_values: [ "auto", "none" ]
-	},
 	"orphans": {
 		domProp: "orphans",
 		inherited: true,
@@ -2498,14 +2489,6 @@ var gCSSProperties = {
 			"-moz-calc(3*25px + 50%)",
 		],
 		invalid_values: []
-	},
-	"text-overflow": {
-		domProp: "textOverflow",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "clip" ],
-		other_values: [ "ellipsis", '""', "''", '"hello"' ],
-		invalid_values: [ "none", "auto" ]
 	},
 	"text-shadow": {
 		domProp: "textShadow",

@@ -71,9 +71,9 @@ static const uintN JS_GCTHING_ALIGN = 8;
 static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
-typedef uint8       jsbytecode;
-typedef uint8       jssrcnote;
-typedef uintptr_t   jsatomid;
+typedef uint8  jsbytecode;
+typedef uint8  jssrcnote;
+typedef uint32 jsatomid;
 
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
@@ -92,10 +92,13 @@ typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
 
 /* Friend "Advanced API" typedefs. */
+typedef struct JSAtomList           JSAtomList;
+typedef struct JSAtomListElement    JSAtomListElement;
 typedef struct JSAtomMap            JSAtomMap;
 typedef struct JSAtomState          JSAtomState;
 typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;
+typedef struct JSRegExpStatics      JSRegExpStatics;
 typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSNativeTraceInfo    JSNativeTraceInfo;
@@ -123,7 +126,6 @@ class JSFixedString;
 class JSStaticAtom;
 class JSRope;
 class JSAtom;
-struct JSDefinition;
 
 namespace js {
 
@@ -155,13 +157,13 @@ class TokenStream;
 struct Token;
 struct TokenPos;
 struct TokenPtr;
-class UpvarCookie;
 
-class TempAllocPolicy;
+class ContextAllocPolicy;
+class SystemAllocPolicy;
 
 template <class T,
           size_t MinInlineCapacity = 0,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class Vector;
 
 template <class>
@@ -170,18 +172,13 @@ struct DefaultHasher;
 template <class Key,
           class Value,
           class HashPolicy = DefaultHasher<Key>,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class HashMap;
 
 template <class T,
           class HashPolicy = DefaultHasher<T>,
-          class AllocPolicy = TempAllocPolicy>
+          class AllocPolicy = ContextAllocPolicy>
 class HashSet;
-
-template <typename K,
-          typename V,
-          size_t InlineElems>
-class InlineMap;
 
 class PropertyCache;
 struct PropertyCacheEntry;
@@ -189,14 +186,6 @@ struct PropertyCacheEntry;
 struct Shape;
 struct EmptyShape;
 class Bindings;
-
-class MultiDeclRange;
-class ParseMapPool;
-class DefnOrHeader;
-typedef InlineMap<JSAtom *, JSDefinition *, 24> AtomDefnMap;
-typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
-typedef InlineMap<JSAtom *, DefnOrHeader, 24> AtomDOHMap;
-typedef Vector<UpvarCookie, 8> UpvarCookies;
 
 } /* namespace js */
 
@@ -253,7 +242,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*

@@ -41,9 +41,7 @@
 
 #include "mozilla/dom/PBrowserChild.h"
 #include "TabChild.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 /* ------------------------------------------------------------------------ */
@@ -111,14 +109,13 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   mOwner = aWindow;
   mScriptContext = aScriptContext;
 
-  if (Preferences::GetBool("notification.disabled", PR_FALSE)) {
+  if (nsContentUtils::GetBoolPref("notification.disabled", PR_FALSE))
     return;
-  }
 
   // If we are in testing mode (running mochitests, for example)
   // and we are suppose to allow requests, then just post an allow event.
-  if (Preferences::GetBool("notification.prompt.testing", PR_FALSE) &&
-      Preferences::GetBool("notification.prompt.testing.allow", PR_TRUE)) {
+  if (nsContentUtils::GetBoolPref("notification.prompt.testing", PR_FALSE) &&
+      nsContentUtils::GetBoolPref("notification.prompt.testing.allow", PR_TRUE)) {
     mAllow = PR_TRUE;
     return;
   }

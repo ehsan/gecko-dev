@@ -44,6 +44,8 @@
 #include "nsReadableUtils.h"
 #include "nsTArray.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "prenv.h" /* for PR_GetEnv */
 #include "prtime.h"
 
@@ -61,10 +63,6 @@
 #include "gfxPDFSurface.h"
 #include "gfxOS2Surface.h"
 #include "nsIPrintSettingsService.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 PRINTDLG nsDeviceContextSpecOS2::PrnDlg;
 
@@ -659,8 +657,9 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
   if (!mGlobalPrinterList) 
      return NS_ERROR_OUT_OF_MEMORY;
 
-  // don't return on failure, optional feature
-  BOOL prefFailed = (Preferences::GetRootBranch() == nsnull);
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> pPrefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  BOOL prefFailed = NS_FAILED(rv); // don't return on failure, optional feature
 
   for (ULONG i = 0; i < mGlobalNumPrinters; i++) {
     nsXPIDLCString printer;
@@ -668,8 +667,8 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
 
     nsAutoChar16Buffer printerName;
     PRInt32 printerNameLength;
-    nsresult rv = MultiByteToWideChar(0, printer, strlen(printer),
-                                      printerName, printerNameLength);
+    rv = MultiByteToWideChar(0, printer, strlen(printer),
+                             printerName, printerNameLength);
     mGlobalPrinterList->AppendElement(nsDependentString(printerName.Elements()));
 
     // store printer description in prefs for the print dialog
@@ -679,10 +678,10 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
        printerDescription += " (";
        printerDescription += nsCAutoString(nsDeviceContextSpecOS2::PrnDlg.GetDriverType(i));
        printerDescription += ")";
-       nsCAutoString prefName("print.printer_");
-       prefName += printer;
-       prefName += ".printer_description";
-       Preferences::SetCString(prefName.get(), printerDescription);
+       pPrefs->SetCharPref(nsPrintfCString(256,
+                                           "print.printer_%s.printer_description",
+                                           printer.get()).get(),
+                           printerDescription.get());
     }
   } 
   return NS_OK;

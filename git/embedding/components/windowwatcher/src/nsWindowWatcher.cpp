@@ -57,6 +57,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMChromeWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMModalContentWindow.h"
 #include "nsIPrompt.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -526,6 +527,9 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
   nameSpecified = PR_FALSE;
   if (aName) {
     CopyUTF8toUTF16(aName, name);
+#ifdef DEBUG
+    CheckWindowName(name);
+#endif
     nameSpecified = PR_TRUE;
   }
 
@@ -943,12 +947,9 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
       }
     }
 
-    newDocShell->LoadURI(uriToLoad,
-                         loadInfo,
-                         windowIsNew
-                           ? static_cast<PRUint32>(nsIWebNavigation::LOAD_FLAGS_FIRST_LOAD)
-                           : static_cast<PRUint32>(nsIWebNavigation::LOAD_FLAGS_NONE),
-                         PR_TRUE);
+    newDocShell->LoadURI(uriToLoad, loadInfo,
+      windowIsNew ? nsIWebNavigation::LOAD_FLAGS_FIRST_LOAD :
+                    nsIWebNavigation::LOAD_FLAGS_NONE, PR_TRUE);
   }
 
   // Copy the current session storage for the current domain.
@@ -1405,6 +1406,31 @@ nsWindowWatcher::URIfromURL(const char *aURL,
   return NS_NewURI(aURI, aURL, baseURI);
 }
 
+#ifdef DEBUG
+/* Check for an illegal name e.g. frame3.1
+   This just prints a warning message an continues; we open the window anyway,
+   (see bug 32898). */
+void nsWindowWatcher::CheckWindowName(nsString& aName)
+{
+  nsReadingIterator<PRUnichar> scan;
+  nsReadingIterator<PRUnichar> endScan;
+
+  aName.EndReading(endScan);
+  for (aName.BeginReading(scan); scan != endScan; ++scan)
+    if (!nsCRT::IsAsciiAlpha(*scan) && !nsCRT::IsAsciiDigit(*scan) &&
+        *scan != '_') {
+
+      // Don't use js_ReportError as this will cause the application
+      // to shut down (JS_ASSERT calls abort())  See bug 32898
+      nsCAutoString warn;
+      warn.AssignLiteral("Illegal character in window name ");
+      AppendUTF16toUTF8(aName, warn);
+      NS_WARNING(warn.get());
+      break;
+    }
+}
+#endif // DEBUG
+
 #define NS_CALCULATE_CHROME_FLAG_FOR(feature, flag)               \
     prefBranch->GetBoolPref(feature, &forceEnable);               \
     if (forceEnable && !(aDialog && isChrome) &&                  \
@@ -1462,12 +1488,10 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
   NS_ENSURE_TRUE(securityManager, NS_ERROR_FAILURE);
 
   PRBool isChrome = PR_FALSE;
-  nsresult rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
-  if (NS_FAILED(rv)) {
-    isChrome = PR_FALSE;
-  }
+  securityManager->SubjectPrincipalIsSystem(&isChrome);
 
   nsCOMPtr<nsIPrefBranch> prefBranch;
+  nsresult rv;
   nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, PR_TRUE);
 
@@ -1777,7 +1801,8 @@ nsWindowWatcher::ReadyOpenedDocShellItem(nsIDocShellTreeItem *aOpenedItem,
   nsCOMPtr<nsPIDOMWindow> piOpenedWindow(do_GetInterface(aOpenedItem));
   if (piOpenedWindow) {
     if (aParent) {
-      piOpenedWindow->SetOpenerWindow(aParent, aWindowIsNew); // damnit
+      nsCOMPtr<nsIDOMWindowInternal> internalParent(do_QueryInterface(aParent));
+      piOpenedWindow->SetOpenerWindow(internalParent, aWindowIsNew); // damnit
 
       if (aWindowIsNew) {
 #ifdef DEBUG
@@ -1987,10 +2012,7 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem *aDocShellItem,
       nsCOMPtr<nsIDOMChromeWindow> chromeWin(do_QueryInterface(aParent));
 
       PRBool isChrome = PR_FALSE;
-      nsresult rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
-      if (NS_FAILED(rv)) {
-        isChrome = PR_FALSE;
-      }
+      securityManager->SubjectPrincipalIsSystem(&isChrome);
 
       // Only enable special priveleges for chrome when chrome calls
       // open() on a chrome window

@@ -86,8 +86,6 @@ public:
   virtual void ReplaceFontEntry(gfxProxyFontEntry *aProxy,
                                 gfxFontEntry *aFontEntry);
 
-  nsCSSFontFaceRule *FindRuleForEntry(gfxFontEntry *aFontEntry);
-
 protected:
   // The font-set keeps track of the collection of rules, and their
   // corresponding font entries (whether proxies or real entries),
@@ -101,11 +99,6 @@ protected:
   void InsertRule(nsCSSFontFaceRule *aRule, PRUint8 aSheetType,
                   nsTArray<FontFaceRuleRecord>& oldRules,
                   PRBool& aFontSetModified);
-
-  virtual nsresult LogMessage(gfxProxyFontEntry *aProxy,
-                              const char *aMessage,
-                              PRUint32 aFlags = nsIScriptError::errorFlag,
-                              nsresult aStatus = 0);
 
   nsPresContext *mPresContext;  // weak reference
 

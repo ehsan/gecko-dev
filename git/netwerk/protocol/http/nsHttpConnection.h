@@ -130,28 +130,18 @@ public:
     nsresult OnHeadersAvailable(nsAHttpTransaction *, nsHttpRequestHead *, nsHttpResponseHead *, PRBool *reset);
     void     CloseTransaction(nsAHttpTransaction *, nsresult reason);
     void     GetConnectionInfo(nsHttpConnectionInfo **ci) { NS_IF_ADDREF(*ci = mConnInfo); }
-    nsresult TakeTransport(nsISocketTransport **,
-                           nsIAsyncInputStream **,
-                           nsIAsyncOutputStream **);
     void     GetSecurityInfo(nsISupports **);
     PRBool   IsPersistent() { return IsKeepAlive(); }
     PRBool   IsReused();
     void     SetIsReusedAfter(PRUint32 afterMilliseconds);
     void     SetIdleTimeout(PRUint16 val) {mIdleTimeout = val;}
-    nsresult PushBack(const char *data, PRUint32 length);
+    nsresult PushBack(const char *data, PRUint32 length) { NS_NOTREACHED("PushBack"); return NS_ERROR_UNEXPECTED; }
     nsresult ResumeSend();
     nsresult ResumeRecv();
     PRInt64  MaxBytesRead() {return mMaxBytesRead;}
 
     static NS_METHOD ReadFromStream(nsIInputStream *, void *, const char *,
                                     PRUint32, PRUint32, PRUint32 *);
-
-    // When a persistent connection is in the connection manager idle 
-    // connection pool, the nsHttpConnection still reads errors and hangups
-    // on the socket so that it can be proactively released if the server
-    // initiates a termination. Only call on socket thread.
-    void BeginIdleMonitoring();
-    void EndIdleMonitoring();
 
 private:
     // called to cause the underlying socket to start speaking SSL
@@ -161,7 +151,7 @@ private:
     nsresult OnSocketWritable();
     nsresult OnSocketReadable();
 
-    nsresult SetupProxyConnect();
+    nsresult SetupSSLProxyConnect();
 
     PRBool   IsAlive();
     PRBool   SupportsPipelining(nsHttpResponseHead *);
@@ -174,7 +164,7 @@ private:
     nsresult                        mSocketInCondition;
     nsresult                        mSocketOutCondition;
 
-    nsCOMPtr<nsIInputStream>        mProxyConnectStream;
+    nsCOMPtr<nsIInputStream>        mSSLProxyConnectStream;
     nsCOMPtr<nsIInputStream>        mRequestStream;
 
     // mTransaction only points to the HTTP Transaction callbacks if the
@@ -194,15 +184,12 @@ private:
     PRInt64                         mCurrentBytesRead;   // data read per activation
     PRInt64                         mMaxBytesRead;       // max read in 1 activation
 
-    nsRefPtr<nsIAsyncInputStream>   mInputOverflow;
-
     PRPackedBool                    mKeepAlive;
     PRPackedBool                    mKeepAliveMask;
     PRPackedBool                    mSupportsPipelining;
     PRPackedBool                    mIsReused;
-    PRPackedBool                    mCompletedProxyConnect;
+    PRPackedBool                    mCompletedSSLConnect;
     PRPackedBool                    mLastTransactionExpectedNoContent;
-    PRPackedBool                    mIdleMonitoring;
 };
 
 #endif // nsHttpConnection_h__

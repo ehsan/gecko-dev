@@ -66,8 +66,7 @@ nsDNSPrefetch::Shutdown()
     return NS_OK;
 }
 
-nsDNSPrefetch::nsDNSPrefetch(nsIURI *aURI, PRBool storeTiming)
-    : mStoreTiming(storeTiming)
+nsDNSPrefetch::nsDNSPrefetch(nsIURI *aURI)
 {
     aURI->GetAsciiHost(mHostname);
 }
@@ -83,12 +82,6 @@ nsDNSPrefetch::Prefetch(PRUint16 flags)
     
     nsCOMPtr<nsICancelable> tmpOutstanding;  
 
-    if (mStoreTiming)
-        mStartTimestamp = mozilla::TimeStamp::Now();
-    // If AsyncResolve fails, for example because prefetching is disabled,
-    // then our timing will be useless. However, in such a case,
-    // mEndTimestamp will be a null timestamp and callers should check
-    // TimingsValid() before using the timing.
     return sDNSService->AsyncResolve(mHostname, flags | nsIDNSService::RESOLVE_SPECULATE,
                                      this, nsnull, getter_AddRefs(tmpOutstanding));
 }
@@ -119,7 +112,5 @@ nsDNSPrefetch::OnLookupComplete(nsICancelable *request,
                                 nsIDNSRecord  *rec,
                                 nsresult       status)
 {
-    if (mStoreTiming)
-        mEndTimestamp = mozilla::TimeStamp::Now();
     return NS_OK;
 }

@@ -257,14 +257,14 @@ void nsMenuBarX::ObserveContentRemoved(nsIDocument* aDocument,
 }
 
 void nsMenuBarX::ObserveContentInserted(nsIDocument* aDocument,
-                                        nsIContent* aContainer,
-                                        nsIContent* aChild)
+                                        nsIContent* aChild, 
+                                        PRInt32 aIndexInContainer)
 {
   nsMenuX* newMenu = new nsMenuX();
   if (newMenu) {
     nsresult rv = newMenu->Create(this, this, aChild);
     if (NS_SUCCEEDED(rv))
-      InsertMenuAtIndex(newMenu, aContainer->IndexOf(aChild));
+      InsertMenuAtIndex(newMenu, aIndexInContainer);
     else
       delete newMenu;
   }

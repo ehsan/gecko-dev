@@ -22,7 +22,7 @@
  *
  * Contributor(s):
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -50,7 +50,6 @@
 #include "nsIAtom.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsCSSColorUtils.h"
 #include "nsIView.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIScrollableFrame.h"
@@ -93,19 +92,18 @@
 #include "nsCOMPtr.h"
 #include "nsListControlFrame.h"
 #include "ImageLayers.h"
-#include "mozilla/arm.h"
 #include "mozilla/dom/Element.h"
 #include "nsCanvasFrame.h"
 #include "gfxDrawable.h"
 #include "gfxUtils.h"
 #include "nsDataHashtable.h"
-#include "nsTextFrame.h"
-#include "nsFontFaceList.h"
 
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGForeignObjectFrame.h"
 #include "nsSVGOuterSVGFrame.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -788,20 +786,13 @@ nsLayoutUtils::GetActiveScrolledRootFor(nsIFrame* aFrame,
 
 nsIFrame*
 nsLayoutUtils::GetActiveScrolledRootFor(nsDisplayItem* aItem,
-                                        nsDisplayListBuilder* aBuilder,
-                                        PRBool* aShouldFixToViewport)
+                                        nsDisplayListBuilder* aBuilder)
 {
   nsIFrame* f = aItem->GetUnderlyingFrame();
-  if (aShouldFixToViewport) {
-    *aShouldFixToViewport = PR_FALSE;
-  }
   if (!f) {
     return nsnull;
   }
   if (aItem->ShouldFixToViewport(aBuilder)) {
-    if (aShouldFixToViewport) {
-      *aShouldFixToViewport = PR_TRUE;
-    }
     // Make its active scrolled root be the active scrolled root of
     // the enclosing viewport, since it shouldn't be scrolled by scrolled
     // frames in its document. InvalidateFixedBackgroundFramesFromList in
@@ -1096,21 +1087,24 @@ nsLayoutUtils::MatrixTransformPoint(const nsPoint &aPoint,
                  NSFloatPixelsToAppUnits(float(image.y), aFactor));
 }
 
-gfxMatrix nsLayoutUtils::GetTransformToAncestor(nsIFrame *aFrame,
-                                                nsIFrame* aStopAtAncestor)
+/**
+ * Returns the CTM at the specified frame.
+ *
+ * @param aFrame The frame at which we should calculate the CTM.
+ * @return The CTM at the specified frame.
+ */
+static gfxMatrix GetCTMAt(nsIFrame *aFrame)
 {
   gfxMatrix ctm;
 
   /* Starting at the specified frame, we'll use the GetTransformMatrix
    * function of the frame, which gives us a matrix from this frame up
-   * to some other ancestor frame. If aStopAtAncestor frame is not reached, 
-   * we stop at root. We get the CTM by simply accumulating all of these
-   * matrices together.
+   * to some other ancestor frame.  Once this function returns null,
+   * we've hit the top of the frame tree and can stop.  We get the CTM
+   * by simply accumulating all of these matrices together.
    */
-  while (aFrame && aFrame != aStopAtAncestor) {
+  while (aFrame)
     ctm *= aFrame->GetTransformMatrix(&aFrame);
-  }
-  NS_ASSERTION(aFrame == aStopAtAncestor, "How did we manage to miss the ancestor?");
   return ctm;
 }
 
@@ -1123,7 +1117,7 @@ nsLayoutUtils::InvertTransformsToRoot(nsIFrame *aFrame,
   /* To invert everything to the root, we'll get the CTM, invert it, and use it to transform
    * the point.
    */
-  gfxMatrix ctm = GetTransformToAncestor(aFrame);
+  gfxMatrix ctm = GetCTMAt(aFrame);
 
   /* If the ctm is singular, hand back (0, 0) as a sentinel. */
   if (ctm.IsSingular())
@@ -1293,7 +1287,7 @@ nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
 
 #ifdef DEBUG
   if (gDumpEventList) {
-    fprintf(stdout, "Event handling --- (%d,%d):\n", aRect.x, aRect.y);
+    fprintf(stderr, "Event handling --- (%d,%d):\n", aRect.x, aRect.y);
     nsFrame::PrintDisplayList(&builder, list);
   }
 #endif
@@ -1453,7 +1447,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::PAINTING,
 		                       !(aFlags & PAINT_HIDE_CARET));
   if (usingDisplayPort) {
-    builder.SetDisplayPort(displayport);
+    builder.SetHasDisplayPort();
   }
 
   nsDisplayList list;
@@ -1602,7 +1596,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
 #ifdef DEBUG
   if (gDumpPaintList) {
-    fprintf(stdout, "Painting --- before optimization (dirty %d,%d,%d,%d):\n",
+    fprintf(stderr, "Painting --- before optimization (dirty %d,%d,%d,%d):\n",
             dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
     nsFrame::PrintDisplayList(&builder, list);
   }
@@ -1638,26 +1632,25 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
   list.PaintRoot(&builder, aRenderingContext, flags);
 
-  // Update the widget's opaque region information. This sets
+  // Update the widget's transparent region information. This sets
   // glass boundaries on Windows.
   if ((aFlags & PAINT_WIDGET_LAYERS) &&
       !willFlushRetainedLayers &&
       !(aFlags & PAINT_DOCUMENT_RELATIVE)) {
     nsIWidget *widget = aFrame->GetNearestWidget();
     if (widget) {
-      nsRegion excludedRegion = builder.GetExcludedGlassRegion();
-      excludedRegion.Sub(excludedRegion, visibleRegion);
-      nsIntRegion windowRegion(excludedRegion.ToNearestPixels(presContext->AppUnitsPerDevPixel()));
-      widget->UpdateOpaqueRegion(windowRegion);
+      PRInt32 pixelRatio = presContext->AppUnitsPerDevPixel();
+      nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
+      widget->UpdateTransparentRegion(visibleWindowRegion);
     }
   }
 
 #ifdef DEBUG
   if (gDumpPaintList) {
-    fprintf(stdout, "Painting --- after optimization:\n");
+    fprintf(stderr, "Painting --- after optimization:\n");
     nsFrame::PrintDisplayList(&builder, list);
 
-    fprintf(stdout, "Painting --- retained layer tree:\n");
+    fprintf(stderr, "Painting --- retained layer tree:\n");
     builder.LayerBuilder()->DumpRetainedLayerTree();
   }
 #endif
@@ -1779,11 +1772,13 @@ struct BoxToBorderRect : public nsLayoutUtils::BoxCallback {
     : mRelativeTo(aRelativeTo), mCallback(aCallback) {}
 
   virtual void AddBox(nsIFrame* aFrame) {
+#ifdef MOZ_SVG
     nsRect r;
     nsIFrame* outer = nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(aFrame, &r);
     if (outer) {
       mCallback->AddRect(r + outer->GetOffsetTo(mRelativeTo));
     } else
+#endif
       mCallback->AddRect(nsRect(aFrame->GetOffsetTo(mRelativeTo), aFrame->GetSize()));
   }
 };
@@ -1811,6 +1806,10 @@ nsLayoutUtils::RectListBuilder::RectListBuilder(nsClientRectList* aList)
 
 void nsLayoutUtils::RectListBuilder::AddRect(const nsRect& aRect) {
   nsRefPtr<nsClientRect> rect = new nsClientRect();
+  if (!rect) {
+    mRV = NS_ERROR_OUT_OF_MEMORY;
+    return;
+  }
 
   rect->SetLayoutRect(aRect);
   mRectList->Append(rect);
@@ -2585,26 +2584,26 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
   PRBool hasIntrinsicWidth, hasIntrinsicHeight;
   nscoord intrinsicWidth, intrinsicHeight;
 
-  if (aIntrinsicSize.width.GetUnit() == eStyleUnit_Coord) {
+  if (aIntrinsicSize.width.GetUnit() == eStyleUnit_Coord ||
+      aIntrinsicSize.width.GetUnit() == eStyleUnit_Percent) {
     hasIntrinsicWidth = PR_TRUE;
-    intrinsicWidth = aIntrinsicSize.width.GetCoordValue();
-    if (intrinsicWidth < 0)
-      intrinsicWidth = 0;
+    intrinsicWidth = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
+                           aFrame, aCBSize.width, 0, boxSizingAdjust.width +
+                           boxSizingToMarginEdgeWidth, aIntrinsicSize.width);
   } else {
-    NS_ASSERTION(aIntrinsicSize.width.GetUnit() == eStyleUnit_None,
-                 "unexpected unit");
     hasIntrinsicWidth = PR_FALSE;
     intrinsicWidth = 0;
   }
 
-  if (aIntrinsicSize.height.GetUnit() == eStyleUnit_Coord) {
+  if (aIntrinsicSize.height.GetUnit() == eStyleUnit_Coord ||
+      (aIntrinsicSize.height.GetUnit() == eStyleUnit_Percent &&
+       aCBSize.height != NS_AUTOHEIGHT)) {
     hasIntrinsicHeight = PR_TRUE;
-    intrinsicHeight = aIntrinsicSize.height.GetCoordValue();
+    intrinsicHeight = nsLayoutUtils::
+      ComputeHeightDependentValue(aCBSize.height, aIntrinsicSize.height);
     if (intrinsicHeight < 0)
       intrinsicHeight = 0;
   } else {
-    NS_ASSERTION(aIntrinsicSize.height.GetUnit() == eStyleUnit_None,
-                 "unexpected unit");
     hasIntrinsicHeight = PR_FALSE;
     intrinsicHeight = 0;
   }
@@ -2787,61 +2786,6 @@ nsLayoutUtils::PrefWidthFromInline(nsIFrame* aFrame,
   return data.prevLines;
 }
 
-static nscolor
-DarkenColor(nscolor aColor)
-{
-  PRUint16  hue, sat, value;
-  PRUint8 alpha;
-
-  // convert the RBG to HSV so we can get the lightness (which is the v)
-  NS_RGB2HSV(aColor, hue, sat, value, alpha);
-
-  // The goal here is to send white to black while letting colored
-  // stuff stay colored... So we adopt the following approach.
-  // Something with sat = 0 should end up with value = 0.  Something
-  // with a high sat can end up with a high value and it's ok.... At
-  // the same time, we don't want to make things lighter.  Do
-  // something simple, since it seems to work.
-  if (value > sat) {
-    value = sat;
-    // convert this color back into the RGB color space.
-    NS_HSV2RGB(aColor, hue, sat, value, alpha);
-  }
-  return aColor;
-}
-
-// Check whether we should darken text colors. We need to do this if
-// background images and colors are being suppressed, because that means
-// light text will not be visible against the (presumed light-colored) background.
-static PRBool
-ShouldDarkenColors(nsPresContext* aPresContext)
-{
-  return !aPresContext->GetBackgroundColorDraw() &&
-    !aPresContext->GetBackgroundImageDraw();
-}
-
-nscolor
-nsLayoutUtils::GetTextColor(nsIFrame* aFrame)
-{
-  nscolor color = aFrame->GetVisitedDependentColor(eCSSProperty_color);
-  if (ShouldDarkenColors(aFrame->PresContext())) {
-    color = DarkenColor(color);
-  }
-  return color;
-}
-
-gfxFloat
-nsLayoutUtils::GetSnappedBaselineY(nsIFrame* aFrame, gfxContext* aContext,
-                                   nscoord aY, nscoord aAscent)
-{
-  gfxFloat appUnitsPerDevUnit = aFrame->PresContext()->AppUnitsPerDevPixel();
-  gfxFloat baseline = gfxFloat(aY) + aAscent;
-  gfxRect putativeRect(0, baseline/appUnitsPerDevUnit, 1, 1);
-  if (!aContext->UserToDevicePixelSnapped(putativeRect, PR_TRUE))
-    return baseline;
-  return aContext->DeviceToUser(putativeRect.TopLeft()).y * appUnitsPerDevUnit;
-}
-
 void
 nsLayoutUtils::DrawString(const nsIFrame*      aFrame,
                           nsRenderingContext* aContext,
@@ -2854,15 +2798,19 @@ nsLayoutUtils::DrawString(const nsIFrame*      aFrame,
   nsresult rv = NS_ERROR_FAILURE;
   nsPresContext* presContext = aFrame->PresContext();
   if (presContext->BidiEnabled()) {
-    if (aDirection == NS_STYLE_DIRECTION_INHERIT) {
-      aDirection = aFrame->GetStyleVisibility()->mDirection;
+    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+
+    if (bidiUtils) {
+      if (aDirection == NS_STYLE_DIRECTION_INHERIT) {
+        aDirection = aFrame->GetStyleVisibility()->mDirection;
+      }
+      nsBidiDirection direction =
+        (NS_STYLE_DIRECTION_RTL == aDirection) ?
+        NSBIDI_RTL : NSBIDI_LTR;
+      rv = bidiUtils->RenderText(aString, aLength, direction,
+                                 presContext, *aContext, *aContext,
+                                 aPoint.x, aPoint.y);
     }
-    nsBidiDirection direction =
-      (NS_STYLE_DIRECTION_RTL == aDirection) ?
-      NSBIDI_RTL : NSBIDI_LTR;
-    rv = nsBidiPresUtils::RenderText(aString, aLength, direction,
-                                     presContext, *aContext, *aContext,
-                                     aPoint.x, aPoint.y);
   }
   if (NS_FAILED(rv))
 #endif // IBMBIDI
@@ -2881,72 +2829,20 @@ nsLayoutUtils::GetStringWidth(const nsIFrame*      aFrame,
 #ifdef IBMBIDI
   nsPresContext* presContext = aFrame->PresContext();
   if (presContext->BidiEnabled()) {
-    const nsStyleVisibility* vis = aFrame->GetStyleVisibility();
-    nsBidiDirection direction =
-      (NS_STYLE_DIRECTION_RTL == vis->mDirection) ?
-      NSBIDI_RTL : NSBIDI_LTR;
-    return nsBidiPresUtils::MeasureTextWidth(aString, aLength,
-                                             direction, presContext, *aContext);
+    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+
+    if (bidiUtils) {
+      const nsStyleVisibility* vis = aFrame->GetStyleVisibility();
+      nsBidiDirection direction =
+        (NS_STYLE_DIRECTION_RTL == vis->mDirection) ?
+        NSBIDI_RTL : NSBIDI_LTR;
+      return bidiUtils->MeasureTextWidth(aString, aLength,
+                                         direction, presContext, *aContext);
+    }
   }
 #endif // IBMBIDI
   aContext->SetTextRunRTL(PR_FALSE);
   return aContext->GetWidth(aString, aLength);
-}
-
-/* static */ void
-nsLayoutUtils::PaintTextShadow(const nsIFrame* aFrame,
-                               nsRenderingContext* aContext,
-                               const nsRect& aTextRect,
-                               const nsRect& aDirtyRect,
-                               const nscolor& aForegroundColor,
-                               TextShadowCallback aCallback,
-                               void* aCallbackData)
-{
-  const nsStyleText* textStyle = aFrame->GetStyleText();
-  if (!textStyle->mTextShadow)
-    return;
-
-  // Text shadow happens with the last value being painted at the back,
-  // ie. it is painted first.
-  gfxContext* aDestCtx = aContext->ThebesContext();
-  for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
-    nsCSSShadowItem* shadowDetails = textStyle->mTextShadow->ShadowAt(i - 1);
-    nsPoint shadowOffset(shadowDetails->mXOffset,
-                         shadowDetails->mYOffset);
-    nscoord blurRadius = NS_MAX(shadowDetails->mRadius, 0);
-
-    nsRect shadowRect(aTextRect);
-    shadowRect.MoveBy(shadowOffset);
-
-    nsPresContext* presCtx = aFrame->PresContext();
-    nsContextBoxBlur contextBoxBlur;
-    gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
-                                                    presCtx->AppUnitsPerDevPixel(),
-                                                    aDestCtx, aDirtyRect, nsnull);
-    if (!shadowContext)
-      continue;
-
-    nscolor shadowColor;
-    if (shadowDetails->mHasColor)
-      shadowColor = shadowDetails->mColor;
-    else
-      shadowColor = aForegroundColor;
-
-    // Conjure an nsRenderingContext from a gfxContext for drawing the text
-    // to blur.
-    nsRefPtr<nsRenderingContext> renderingContext = new nsRenderingContext();
-    renderingContext->Init(presCtx->DeviceContext(), shadowContext);
-
-    aDestCtx->Save();
-    aDestCtx->NewPath();
-    aDestCtx->SetColor(gfxRGBA(shadowColor));
-
-    // The callback will draw whatever we want to blur as a shadow.
-    aCallback(renderingContext, shadowOffset, shadowColor, aCallbackData);
-
-    contextBoxBlur.DoPaint();
-    aDestCtx->Restore();
-  }
 }
 
 /* static */ nscoord
@@ -3160,12 +3056,12 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
 GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
-  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  if (!mozilla::supports_neon()) {
-    defaultFilter = gfxPattern::FILTER_NEAREST;
-  }
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+#else
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #endif
+#ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
     nsCSSRendering::FindBackgroundStyleFrame(aForFrame) : aForFrame;
 
@@ -3179,6 +3075,9 @@ nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
   default:
     return defaultFilter;
   }
+#else
+  return defaultFilter;
+#endif
 }
 
 /**
@@ -3750,6 +3649,7 @@ nsLayoutUtils::GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
   if (IsNonzeroCoord(aStyleText->mLetterSpacing)) {
     result |= gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES;
   }
+#ifdef MOZ_SVG
   switch (aStyleContext->GetStyleSVG()->mTextRendering) {
   case NS_STYLE_TEXT_RENDERING_OPTIMIZESPEED:
     result |= gfxTextRunFactory::TEXT_OPTIMIZE_SPEED;
@@ -3763,6 +3663,7 @@ nsLayoutUtils::GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
   default:
     break;
   }
+#endif
   return result;
 }
 
@@ -3932,8 +3833,12 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     if (wantImageSurface && surf->GetType() != gfxASurface::SurfaceTypeImage) {
       nsRefPtr<gfxImageSurface> imgSurf =
         new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
+      if (!imgSurf)
+        return result;
 
       nsRefPtr<gfxContext> ctx = new gfxContext(imgSurf);
+      if (!ctx)
+        return result;
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
       ctx->DrawSurface(surf, size);
       surf = imgSurf;
@@ -4152,77 +4057,6 @@ nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot)
   } while (childList);
 }
 #endif
-
-/* static */
-nsresult
-nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
-                                     nsFontFaceList* aFontFaceList)
-{
-  NS_PRECONDITION(aFrame, "NULL frame pointer");
-
-  if (aFrame->GetType() == nsGkAtoms::textFrame) {
-    return GetFontFacesForText(aFrame, 0, PR_INT32_MAX, PR_FALSE,
-                               aFontFaceList);
-  }
-
-  while (aFrame) {
-    nsIAtom* childLists[] = { nsnull, nsGkAtoms::popupList };
-    for (int i = 0; i < NS_ARRAY_LENGTH(childLists); ++i) {
-      nsFrameList children(aFrame->GetChildList(childLists[i]));
-      for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
-        nsIFrame* child = e.get();
-        if (child->GetPrevContinuation()) {
-          continue;
-        }
-        child = nsPlaceholderFrame::GetRealFrameFor(child);
-        nsresult rv = GetFontFacesForFrames(child, aFontFaceList);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-    aFrame = GetNextContinuationOrSpecialSibling(aFrame);
-  }
-
-  return NS_OK;
-}
-
-/* static */
-nsresult
-nsLayoutUtils::GetFontFacesForText(nsIFrame* aFrame,
-                                   PRInt32 aStartOffset, PRInt32 aEndOffset,
-                                   PRBool aFollowContinuations,
-                                   nsFontFaceList* aFontFaceList)
-{
-  NS_PRECONDITION(aFrame, "NULL frame pointer");
-
-  if (aFrame->GetType() != nsGkAtoms::textFrame) {
-    return NS_OK;
-  }
-
-  nsTextFrame* curr = static_cast<nsTextFrame*>(aFrame);
-  do {
-    PRInt32 offset = curr->GetContentOffset();
-    PRInt32 fstart = NS_MAX(offset, aStartOffset);
-    PRInt32 fend = NS_MIN(curr->GetContentEnd(), aEndOffset);
-    if (fstart >= fend) {
-      continue;
-    }
-
-    // overlapping with the offset we want
-    curr->EnsureTextRun();
-    gfxTextRun* textRun = curr->GetTextRun();
-    NS_ENSURE_TRUE(textRun, NS_ERROR_OUT_OF_MEMORY);
-
-    gfxSkipCharsIterator iter(textRun->GetSkipChars());
-    PRUint32 skipStart = iter.ConvertOriginalToSkipped(fstart - offset);
-    PRUint32 skipEnd = iter.ConvertOriginalToSkipped(fend - offset);
-    aFontFaceList->AddFontsFromTextRun(textRun,
-                                       skipStart, skipEnd - skipStart,
-                                       curr);
-  } while (aFollowContinuations &&
-           (curr = static_cast<nsTextFrame*>(curr->GetNextContinuation())));
-
-  return NS_OK;
-}
 
 /* static */
 void

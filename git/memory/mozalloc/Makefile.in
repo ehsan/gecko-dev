@@ -65,9 +65,6 @@ ifeq (,$(filter-out Linux,$(OS_TARGET)))
 EXTRA_DSO_LDOPTS += -lpthread
 endif
 endif
-ifeq ($(OS_ARCH),Darwin)
-EXTRA_DSO_LDOPTS += -L$(DIST)/lib -ljemalloc
-endif
 endif
 
 ifeq (,$(filter-out OS2,$(OS_ARCH)))
@@ -116,7 +113,5 @@ SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
 endif
-
-LOCAL_INCLUDES += -I$(DEPTH)/xpcom
 
 include $(topsrcdir)/config/rules.mk

@@ -95,27 +95,24 @@ ConsoleAPI.prototype = {
 
     // We need to return an actual content object here, instead of a wrapped
     // chrome object. This allows things like console.log.bind() to work.
-    let contentObj = Cu.createObjectIn(aWindow);
-    function genPropDesc(fun) {
-      return { enumerable: true, configurable: true, writable: true,
-               value: chromeObject[fun].bind(chromeObject) };
-    }
-    const properties = {
-      log: genPropDesc('log'),
-      info: genPropDesc('info'),
-      warn: genPropDesc('warn'),
-      error: genPropDesc('error'),
-      debug: genPropDesc('debug'),
-      trace: genPropDesc('trace'),
-      __noSuchMethod__: { enumerable: true, configurable: true, writable: true,
-                          value: function() {} },
-      __mozillaConsole__: { value: true }
-    };
+    let sandbox = Cu.Sandbox(aWindow);
+    let contentObject = Cu.evalInSandbox(
+        "(function(x) {\
+          var bind = Function.bind;\
+          var obj = {\
+            log: bind.call(x.log, x),\
+            info: bind.call(x.info, x),\
+            warn: bind.call(x.warn, x),\
+            error: bind.call(x.error, x),\
+            debug: bind.call(x.debug, x),\
+            trace: bind.call(x.trace, x),\
+            __noSuchMethod__: function() {}\
+          };\
+          Object.defineProperty(obj, '__mozillaConsole__', { value: true });\
+          return obj;\
+        })", sandbox)(chromeObject);
 
-    Object.defineProperties(contentObj, properties);
-    Cu.makeObjectPropsNormal(contentObj);
-
-    return contentObj;
+      return contentObject;
   },
 
   /**
@@ -125,15 +122,9 @@ ConsoleAPI.prototype = {
     if (!aID)
       return;
 
-    let stack = this.getStackTrace();
-    // Skip the first frame since it contains an internal call.
-    let frame = stack[1];
     let consoleEvent = {
       ID: aID,
       level: aLevel,
-      filename: frame.filename,
-      lineNumber: frame.lineNumber,
-      functionName: frame.functionName,
       arguments: aArguments
     };
 
@@ -166,7 +157,7 @@ ConsoleAPI.prototype = {
     }
 
     return stack;
-  }
+  },
 };
 
 let NSGetFactory = XPCOMUtils.generateNSGetFactory([ConsoleAPI]);

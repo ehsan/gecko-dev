@@ -1,5 +1,5 @@
 Cu.import("resource://services-sync/log4moz.js");
-Cu.import("resource://services-sync/identity.js");
+Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/jpakeclient.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/util.js");
@@ -112,6 +112,9 @@ const DATA = {"msg": "eggstreamly sekrit"};
 const POLLINTERVAL = 50;
 
 function run_test() {
+  if (DISABLE_TESTS_BUG_618233)
+    return;
+
   Svc.Prefs.set("jpake.serverURL", "http://localhost:8080/");
   Svc.Prefs.set("jpake.pollInterval", POLLINTERVAL);
   Svc.Prefs.set("jpake.maxTries", 5);
@@ -124,11 +127,10 @@ function run_test() {
   // Ensure PSM is initialized.
   Cc["@mozilla.org/psm;1"].getService(Ci.nsISupports);
 
-  // Simulate Sync setup with credentials in place. We want to make
-  // sure the J-PAKE requests don't include those data.
-  let id = new Identity(PWDMGR_PASSWORD_REALM, "johndoe");
-  id.password = "ilovejane";
-  ID.set("WeaveID", id);
+  // Simulate Sync setup with a default authenticator in place. We
+  // want to make sure the J-PAKE requests don't include those data.
+  Auth.defaultAuthenticator = new BasicAuthenticator(
+    new Identity("Some Realm", "johndoe"));
 
   server = httpd_setup({"/new_channel": server_new_channel,
                         "/report":      server_report});
@@ -155,7 +157,8 @@ add_test(function test_success_receiveNoPIN() {
     displayPIN: function displayPIN(pin) {
       _("Received PIN " + pin + ". Entering it in the other computer...");
       this.cid = pin.slice(JPAKE_LENGTH_SECRET);
-      Utils.nextTick(function() { snd.sendWithPIN(pin, DATA); });
+      Utils.delay(function() { snd.sendWithPIN(pin, DATA); }, 0,
+                  this, "_timer");
     },
     onAbort: function onAbort(error) {
       do_throw("Shouldn't have aborted! " + error);
@@ -220,7 +223,8 @@ add_test(function test_wrongPIN() {
       let new_pin = secret + this.cid;
       _("Received PIN " + pin + ", but I'm entering " + new_pin);
 
-      Utils.nextTick(function() { snd.sendWithPIN(new_pin, DATA); });
+      Utils.delay(function() { snd.sendWithPIN(new_pin, DATA); }, 0,
+                  this, "_timer");
     },
     onAbort: function onAbort(error) {
       do_check_eq(error, JPAKE_ERROR_NODATA);
@@ -254,7 +258,8 @@ add_test(function test_abort_receiver() {
     },
     displayPIN: function displayPIN(pin) {
       this.cid = pin.slice(JPAKE_LENGTH_SECRET);
-      Utils.nextTick(function() { rec.abort(); });
+      Utils.delay(function() { rec.abort(); },
+                  0, this, "_timer");
     }
   });
   rec.receiveNoPIN();
@@ -293,9 +298,10 @@ add_test(function test_abort_sender() {
     displayPIN: function displayPIN(pin) {
       _("Received PIN " + pin + ". Entering it in the other computer...");
       this.cid = pin.slice(JPAKE_LENGTH_SECRET);
-      Utils.nextTick(function() { snd.sendWithPIN(pin, DATA); });
-      Utils.namedTimer(function() { snd.abort(); },
-                       POLLINTERVAL, this, "_abortTimer");
+      Utils.delay(function() { snd.sendWithPIN(pin, DATA); }, 0,
+                  this, "_timer");
+      Utils.delay(function() { snd.abort(); },
+                  POLLINTERVAL, this, "_abortTimer");
     }
   });
   rec.receiveNoPIN();

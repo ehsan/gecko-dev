@@ -45,7 +45,6 @@
 #include "nsCoreAnimationSupport.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/mozalloc.h"
 
 namespace mozilla {
 namespace layers {
@@ -162,12 +161,6 @@ public:
    * The Image data must not be modified after this method is called!
    */
   virtual void SetCurrentImage(Image* aImage) = 0;
-
-  /**
-   * Ask any PlanarYCbCr images created by this container to delay
-   * YUV -> RGB conversion until draw time. See PlanarYCbCrImage::SetDelayedConversion.
-   */
-  virtual void SetDelayedConversion(PRBool aDelayed) {}
 
   /**
    * Get the current Image.
@@ -408,12 +401,6 @@ public:
     PRUint32 mPicY;
     gfxIntSize mPicSize;
     StereoMode mStereoMode;
-
-    nsIntRect GetPictureRect() const {
-      return nsIntRect(mPicX, mPicY,
-                       mPicSize.width,
-                       mPicSize.height);
-    }
   };
 
   enum {
@@ -427,32 +414,6 @@ public:
    * does YCbCr conversion here anyway.
    */
   virtual void SetData(const Data& aData) = 0;
-
-  /**
-   * Ask this Image to not convert YUV to RGB during SetData, and make
-   * the original data available through GetData. This is optional,
-   * and not all PlanarYCbCrImages will support it.
-   */
-  virtual void SetDelayedConversion(PRBool aDelayed) { }
-
-  /**
-   * Grab the original YUV data. This is optional.
-   */
-  virtual const Data* GetData() { return nsnull; }
-
-  /**
-   * Make a copy of the YCbCr data.
-   *
-   * @param aDest           Data object to store the plane data in.
-   * @param aDestSize       Size of the Y plane that was copied.
-   * @param aDestBufferSize Number of bytes allocated for storage.
-   * @param aData           Input image data.
-   * @return                Raw data pointer for the planes or nsnull on failure.
-   */
-  PRUint8 *CopyData(Data& aDest, gfxIntSize& aDestSize,
-                    PRUint32& aDestBufferSize, const Data& aData);
-
-  virtual PRUint8* AllocateBuffer(PRUint32 aSize);
 
 protected:
   PlanarYCbCrImage(void* aImplData) : Image(aImplData, PLANAR_YCBCR) {}

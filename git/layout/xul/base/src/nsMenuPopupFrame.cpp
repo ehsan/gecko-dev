@@ -74,6 +74,7 @@
 #include "nsContentUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsEventStateManager.h"
+#include "nsIBoxLayout.h"
 #include "nsIPopupBoxObject.h"
 #include "nsPIWindowRoot.h"
 #include "nsIReflowCallback.h"
@@ -85,9 +86,6 @@
 #include "nsIScreenManager.h"
 #include "nsIServiceManager.h"
 #include "nsThemeConstants.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 PRInt8 nsMenuPopupFrame::sDefaultLevelIsTop = -1;
 
@@ -132,7 +130,7 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   if (sDefaultLevelIsTop >= 0)
     return;
   sDefaultLevelIsTop =
-    Preferences::GetBool("ui.panel.default_level_parent", PR_FALSE);
+    nsContentUtils::GetBoolPref("ui.panel.default_level_parent", PR_FALSE);
 } // ctor
 
 
@@ -835,13 +833,12 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
   // XXX, bug 137033, In Windows, if mouse is outside the window when the menupopup closes, no
   // mouse_enter/mouse_exit event will be fired to clear current hover state, we should clear it manually.
   // This code may not the best solution, but we can leave it here until we find the better approach.
-  NS_ASSERTION(mContent->IsElement(), "How do we have a non-element?");
-  nsEventStates state = mContent->AsElement()->State();
+  nsEventStateManager *esm = PresContext()->EventStateManager();
 
-  if (state.HasState(NS_EVENT_STATE_HOVER)) {
-    nsEventStateManager *esm = PresContext()->EventStateManager();
+  nsEventStates state = esm->GetContentState(mContent);
+
+  if (state.HasState(NS_EVENT_STATE_HOVER))
     esm->SetContentState(nsnull, NS_EVENT_STATE_HOVER);
-  }
 
   nsMenuFrame* menuFrame = GetParentMenu();
   if (menuFrame) {

@@ -46,8 +46,6 @@
 #include "nsRect.h"
 
 struct nsCSSValueList;
-class nsStyleContext;
-class nsPresContext;
 
 /**
  * A class representing a style transformation matrix.  The class actually
@@ -64,6 +62,8 @@ class nsPresContext;
  * Note that unlike the Thebes gfxMatrix, vectors are column vectors and
  * consequently the multiplication of a matrix A and a vector x is Ax, not xA.
  */
+class nsStyleContext;
+class nsPresContext;
 class nsStyleTransformMatrix
 {
  public:

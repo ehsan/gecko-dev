@@ -59,7 +59,6 @@
 #include "prnetdb.h"
 #include "prtpool.h"
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nss.h"
 #include "pk11func.h"
 #include "key.h"
@@ -232,8 +231,8 @@ struct relayBuffer
   }
 
   bool empty() { return bufferhead == buffertail; }
-  size_t areafree() { return bufferend - buffertail; }
-  size_t margin() { return areafree() + BUF_MARGIN; }
+  size_t free() { return bufferend - buffertail; }
+  size_t margin() { return free() + BUF_MARGIN; }
   size_t present() { return buffertail - bufferhead; }
 };
 
@@ -428,7 +427,7 @@ bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, string &cer
 }
 
 /**
- * This function examines the buffer for a Sec-WebSocket-Location: field, 
+ * This function examines the buffer for a S5ec-WebSocket-Location: field, 
  * and if it's present, it replaces the hostname in that field with the
  * value in the server's original_host field.  This function works
  * in the reverse direction as AdjustWebSocketHost(), replacing the real
@@ -501,8 +500,6 @@ bool AdjustWebSocketHost(relayBuffer& buffer, connection_info_t *ci)
   h1 += strlen(HEADER_UPGRADE);
   h1 += strspn(h1, " \t");
   char* h2 = strstr(h1, "WebSocket\r\n");
-  if (!h2) h2 = strstr(h1, "websocket\r\n");
-  if (!h2) h2 = strstr(h1, "Websocket\r\n");
   if (!h2)
     return false;
 
@@ -694,17 +691,17 @@ void HandleConnection(void* data)
           continue;
         } // PR_POLL_EXCEPT, PR_POLL_ERR, PR_POLL_HUP handling
 
-        if (out_flags & PR_POLL_READ && !buffers[s].areafree())
+        if (out_flags & PR_POLL_READ && !buffers[s].free())
         {
            LOG_DEBUG((" no place in read buffer but got read flag, dropping it now!"));
            in_flags &= ~PR_POLL_READ;
         }
 
-        if (out_flags & PR_POLL_READ && buffers[s].areafree())
+        if (out_flags & PR_POLL_READ && buffers[s].free())
         {
           LOG_DEBUG((" :reading"));
           PRInt32 bytesRead = PR_Recv(sockets[s].fd, buffers[s].buffertail, 
-              buffers[s].areafree(), 0, PR_INTERVAL_NO_TIMEOUT);
+              buffers[s].free(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesRead == 0)
           {
@@ -789,7 +786,7 @@ void HandleConnection(void* data)
               break;
             } // end of CONNECT handling
 
-            if (!buffers[s].areafree())
+            if (!buffers[s].free())
             {
               // Do not poll for read when the buffer is full
               LOG_DEBUG((" no place in our read buffer, stop reading"));
@@ -1284,8 +1281,8 @@ int main(int argc, char** argv)
   }
 
   // create a thread pool to handle connections
-  threads = PR_CreateThreadPool(NS_MAX<PRInt32>(INITIAL_THREADS, servers.size()*2),
-                                NS_MAX<PRInt32>(MAX_THREADS, servers.size()*2),
+  threads = PR_CreateThreadPool(PR_MAX(INITIAL_THREADS, servers.size()*2),
+                                PR_MAX(MAX_THREADS, servers.size()*2),
                                 DEFAULT_STACKSIZE);
   if (!threads) {
     LOG_ERROR(("Failed to create thread pool\n"));

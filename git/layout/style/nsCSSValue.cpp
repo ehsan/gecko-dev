@@ -45,7 +45,6 @@
 #include "nsContentUtils.h"
 #include "nsStyleUtil.h"
 #include "CSSCalc.h"
-#include "nsNetUtil.h"
 
 namespace css = mozilla::css;
 
@@ -275,8 +274,7 @@ nscoord nsCSSValue::GetFixedLength(nsPresContext* aPresContext) const
                     "not a fixed length unit");
 
   float inches = mValue.mFloat / MM_PER_INCH_FLOAT;
-  return NSToCoordFloorClamped(inches *
-    float(aPresContext->DeviceContext()->AppUnitsPerPhysicalInch()));
+  return inches * aPresContext->DeviceContext()->AppUnitsPerPhysicalInch();
 }
 
 nscoord nsCSSValue::GetPixelLength() const
@@ -544,7 +542,7 @@ void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
 {
   NS_ABORT_IF_FALSE(eCSSUnit_URL == mUnit, "Not a URL value!");
   nsCSSValue::Image* image =
-    new nsCSSValue::Image(mValue.mURL->GetURI(),
+    new nsCSSValue::Image(mValue.mURL->mURI,
                           mValue.mURL->mString,
                           mValue.mURL->mReferrer,
                           mValue.mURL->mOriginPrincipal,
@@ -1232,25 +1230,12 @@ nsCSSValuePairList::operator==(const nsCSSValuePairList& aOther) const
   return !p1 && !p2; // true if same length, false otherwise
 }
 
-nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString,
-                     nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal)
+nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
+                     nsIPrincipal* aOriginPrincipal)
   : mURI(aURI),
     mString(aString),
     mReferrer(aReferrer),
-    mOriginPrincipal(aOriginPrincipal),
-    mURIResolved(PR_TRUE)
-{
-  NS_ABORT_IF_FALSE(aOriginPrincipal, "Must have an origin principal");
-  mString->AddRef();
-}
-
-nsCSSValue::URL::URL(nsStringBuffer* aString, nsIURI* aBaseURI,
-                     nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal)
-  : mURI(aBaseURI),
-    mString(aString),
-    mReferrer(aReferrer),
-    mOriginPrincipal(aOriginPrincipal),
-    mURIResolved(PR_FALSE)
+    mOriginPrincipal(aOriginPrincipal)
 {
   NS_ABORT_IF_FALSE(aOriginPrincipal, "Must have an origin principal");
   mString->AddRef();
@@ -1267,7 +1252,7 @@ nsCSSValue::URL::operator==(const URL& aOther) const
   PRBool eq;
   return NS_strcmp(GetBufferValue(mString),
                    GetBufferValue(aOther.mString)) == 0 &&
-          (GetURI() == aOther.GetURI() || // handles null == null
+          (mURI == aOther.mURI || // handles null == null
            (mURI && aOther.mURI &&
             NS_SUCCEEDED(mURI->Equals(aOther.mURI, &eq)) &&
             eq)) &&
@@ -1279,10 +1264,8 @@ nsCSSValue::URL::operator==(const URL& aOther) const
 PRBool
 nsCSSValue::URL::URIEquals(const URL& aOther) const
 {
-  NS_ABORT_IF_FALSE(mURIResolved && aOther.mURIResolved,
-                    "How do you know the URIs aren't null?");
   PRBool eq;
-  // Worth comparing GetURI() to aOther.GetURI() and mOriginPrincipal to
+  // Worth comparing mURI to aOther.mURI and mOriginPrincipal to
   // aOther.mOriginPrincipal, because in the (probably common) case when this
   // value was one of the ones that in fact did not change this will be our
   // fast path to equality
@@ -1293,21 +1276,6 @@ nsCSSValue::URL::URIEquals(const URL& aOther) const
                                                  &eq)) && eq));
 }
 
-nsIURI*
-nsCSSValue::URL::GetURI() const
-{
-  if (!mURIResolved) {
-    mURIResolved = PR_TRUE;
-    // Be careful to not null out mURI before we've passed it as the base URI
-    nsCOMPtr<nsIURI> newURI;
-    NS_NewURI(getter_AddRefs(newURI),
-              NS_ConvertUTF16toUTF8(GetBufferValue(mString)), nsnull, mURI);
-    newURI.swap(mURI);
-  }
-
-  return mURI;
-}
-
 nsCSSValue::Image::Image(nsIURI* aURI, nsStringBuffer* aString,
                          nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal,
                          nsIDocument* aDocument)
@@ -1316,10 +1284,10 @@ nsCSSValue::Image::Image(nsIURI* aURI, nsStringBuffer* aString,
   if (aDocument->GetOriginalDocument()) {
     aDocument = aDocument->GetOriginalDocument();
   }
-  if (aURI &&
-      nsContentUtils::CanLoadImage(aURI, aDocument, aDocument,
+  if (mURI &&
+      nsContentUtils::CanLoadImage(mURI, aDocument, aDocument,
                                    aOriginPrincipal)) {
-    nsContentUtils::LoadImage(aURI, aDocument, aOriginPrincipal, aReferrer,
+    nsContentUtils::LoadImage(mURI, aDocument, aOriginPrincipal, aReferrer,
                               nsnull, nsIRequest::LOAD_NORMAL,
                               getter_AddRefs(mRequest));
   }

@@ -537,9 +537,7 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
   SECItem **rawArray;
   int numcerts;
   int i;
-  CERTValOutParam cvout[1];
-  cvout[0].type = cert_po_end;
-
+  
   nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
   if (!inss)
     return nsrv;
@@ -603,6 +601,8 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
    * valid chains, then import them.
    */
   now = PR_Now();
+  CERTValOutParam cvout[1];
+  cvout[0].type = cert_po_end;
 
   for (node = CERT_LIST_HEAD(certList);
        !CERT_LIST_END(node,certList);
@@ -1497,65 +1497,27 @@ NS_IMETHODIMP
 nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEmailAddress, nsIX509Cert **_retval)
 {
   nsNSSShutDownPreventionLock locker;
-  
-  nsCOMPtr<nsINSSComponent> inss;
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  nsresult nsrv;
-  
-  if (nsNSSComponent::globalConstFlagUsePKIXVerification) {
-    inss = do_GetService(kNSSComponentCID, &nsrv);
-    if (!inss)
-      return nsrv;
-    nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-    if (NS_FAILED(nsrv))
-      return nsrv;
-  }
+  CERTCertificate *any_cert = CERT_FindCertByNicknameOrEmailAddr(CERT_GetDefaultCertDB(), (char*)aEmailAddress);
+  if (!any_cert)
+    return NS_ERROR_FAILURE;
 
-  CERTCertList *certlist = PK11_FindCertsFromEmailAddress(aEmailAddress, nsnull);
+  CERTCertificateCleaner certCleaner(any_cert);
+    
+  // any_cert now contains a cert with the right subject, but it might not have the correct usage
+  CERTCertList *certlist = CERT_CreateSubjectCertList(
+    nsnull, CERT_GetDefaultCertDB(), &any_cert->derSubject, PR_Now(), PR_TRUE);
   if (!certlist)
     return NS_ERROR_FAILURE;  
 
-  // certlist now contains certificates with the right email address,
-  // but they might not have the correct usage or might even be invalid
-
   CERTCertListCleaner listCleaner(certlist);
 
-  if (CERT_LIST_END(CERT_LIST_HEAD(certlist), certlist))
-    return NS_ERROR_FAILURE; // no certs found
-
-  CERTCertListNode *node;
-  // search for a valid certificate
-  for (node = CERT_LIST_HEAD(certlist);
-       !CERT_LIST_END(node, certlist);
-       node = CERT_LIST_NEXT(node)) {
-
-    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-      if (CERT_VerifyCert(CERT_GetDefaultCertDB(), node->cert,
-          PR_TRUE, certUsageEmailRecipient, PR_Now(), nsnull, nsnull) == SECSuccess) {
-        // found a valid certificate
-        break;
-      }
-    }
-    else {
-      CERTValOutParam cvout[1];
-      cvout[0].type = cert_po_end;
-      if (CERT_PKIXVerifyCert(node->cert, certificateUsageEmailRecipient,
-                              survivingParams->GetRawPointerForNSS(),
-                              cvout, nsnull)
-          == SECSuccess) {
-        // found a valid certificate
-        break;
-      }
-    }
-  }
-
-  if (CERT_LIST_END(node, certlist)) {
-    // no valid cert found
+  if (SECSuccess != CERT_FilterCertListByUsage(certlist, certUsageEmailRecipient, PR_FALSE))
     return NS_ERROR_FAILURE;
-  }
-
-  // node now contains the first valid certificate with correct usage 
-  nsNSSCertificate *nssCert = nsNSSCertificate::Create(node->cert);
+  
+  if (CERT_LIST_END(CERT_LIST_HEAD(certlist), certlist))
+    return NS_ERROR_FAILURE;
+  
+  nsNSSCertificate *nssCert = nsNSSCertificate::Create(CERT_LIST_HEAD(certlist)->cert);
   if (!nssCert)
     return NS_ERROR_OUT_OF_MEMORY;
 

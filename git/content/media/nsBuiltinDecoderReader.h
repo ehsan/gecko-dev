@@ -54,8 +54,10 @@ class nsBuiltinDecoderStateMachine;
 class nsVideoInfo {
 public:
   nsVideoInfo()
-    : mAudioRate(0),
+    : mPixelAspectRatio(1.0),
+      mAudioRate(0),
       mAudioChannels(0),
+      mFrame(0,0),
       mDisplay(0,0),
       mStereoMode(mozilla::layers::STEREO_MODE_MONO),
       mHasAudio(PR_FALSE),
@@ -65,10 +67,14 @@ public:
   // Returns PR_TRUE if it's safe to use aPicture as the picture to be
   // extracted inside a frame of size aFrame, and scaled up to and displayed
   // at a size of aDisplay. You should validate the frame, picture, and
-  // display regions before using them to display video frames.
+  // display regions before setting them into the mFrame, mPicture and
+  // mDisplay fields of nsVideoInfo.
   static PRBool ValidateVideoRegion(const nsIntSize& aFrame,
                                     const nsIntRect& aPicture,
                                     const nsIntSize& aDisplay);
+
+  // Pixel aspect ratio, as stored in the metadata.
+  float mPixelAspectRatio;
 
   // Samples per second.
   PRUint32 mAudioRate;
@@ -76,8 +82,14 @@ public:
   // Number of audio channels.
   PRUint32 mAudioChannels;
 
-  // Size in pixels at which the video is rendered. This is after it has
-  // been scaled by its aspect ratio.
+  // Dimensions of the video frame.
+  nsIntSize mFrame;
+
+  // The picture region inside the video frame to be displayed.
+  nsIntRect mPicture;
+
+  // Display size of the video frame. The picture region will be scaled
+  // to and displayed at this size.
   nsIntSize mDisplay;
 
   // Indicates the frame layout for single track stereo videos.
@@ -204,8 +216,7 @@ public:
                            PRInt64 aEndTime,
                            const YCbCrBuffer &aBuffer,
                            PRBool aKeyframe,
-                           PRInt64 aTimecode,
-                           nsIntRect aPicture);
+                           PRInt64 aTimecode);
 
   // Constructs a duplicate VideoData object. This intrinsically tells the
   // player that it does not need to update the displayed frame when this
@@ -223,18 +234,13 @@ public:
     MOZ_COUNT_DTOR(VideoData);
   }
 
-  // Dimensions at which to display the video frame. The picture region
-  // will be scaled to this size. This is should be the picture region's
-  // dimensions scaled with respect to its aspect ratio.
-  nsIntSize mDisplay;
-
   // Approximate byte offset of the end of the frame in the media.
   PRInt64 mOffset;
 
   // Start time of frame in microseconds.
   PRInt64 mTime;
 
-  // End time of frame in microseconds.
+  // End time of frame in microseconds;
   PRInt64 mEndTime;
 
   // Codec specific internal time code. For Ogg based codecs this is the
@@ -266,10 +272,8 @@ public:
             PRInt64 aTime,
             PRInt64 aEndTime,
             PRBool aKeyframe,
-            PRInt64 aTimecode,
-            nsIntSize aDisplay)
-    : mDisplay(aDisplay),
-      mOffset(aOffset),
+            PRInt64 aTimecode)
+    : mOffset(aOffset),
       mTime(aTime),
       mEndTime(aEndTime),
       mTimecode(aTimecode),
@@ -398,10 +402,12 @@ private:
   PRBool mEndOfStream;
 };
 
-// Encapsulates the decoding and reading of media data. Reading can only be
-// done on the decode thread thread. Never hold the decoder monitor when
-// calling into this class. Unless otherwise specified, methods and fields of
-// this class can only be accessed on the decode thread.
+// Encapsulates the decoding and reading of media data. Reading can be done
+// on either the state machine thread (when loading and seeking) or on
+// the reader thread (when it's reading and decoding). The reader encapsulates
+// the reading state and maintains it's own monitor to ensure thread safety
+// and correctness. Never hold the nsBuiltinDecoder's monitor when calling into
+// this class.
 class nsBuiltinDecoderReader : public nsRunnable {
 public:
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
@@ -450,12 +456,10 @@ public:
                         PRInt64 aEndTime,
                         PRInt64 aCurrentTime) = 0;
 
-  // Queue of audio samples. This queue is threadsafe, and is accessed from
-  // the audio, decoder, state machine, and main threads.
+  // Queue of audio samples. This queue is threadsafe.
   MediaQueue<SoundData> mAudioQueue;
 
-  // Queue of video samples. This queue is threadsafe, and is accessed from
-  // the decoder, state machine, and main threads.
+  // Queue of video samples. This queue is threadsafe.
   MediaQueue<VideoData> mVideoQueue;
 
   // Populates aBuffered with the time ranges which are buffered. aStartTime
@@ -492,10 +496,16 @@ protected:
     return DecodeVideoFrame(f, 0);
   }
 
-  // Reference to the owning decoder object.
+  // The lock which we hold whenever we read or decode. This ensures the thread
+  // safety of the reader and its data fields.
+  ReentrantMonitor mReentrantMonitor;
+
+  // Reference to the owning decoder object. Do not hold the
+  // reader's monitor when accessing this.
   nsBuiltinDecoder* mDecoder;
 
-  // Stores presentation info required for playback.
+  // Stores presentation info required for playback. The reader's monitor
+  // must be held when accessing this.
   nsVideoInfo mInfo;
 };
 

@@ -115,7 +115,9 @@ function browserWindowsCount(expected, msg) {
       ++count;
   }
   is(count, expected[0], msg + " (nsIWindowMediator)");
-  let state = ss.getBrowserState();
+  let state = Cc["@mozilla.org/browser/sessionstore;1"]
+                .getService(Ci.nsISessionStore)
+                .getBrowserState();
   is(JSON.parse(state).windows.length, expected[1], msg + " (getBrowserState)");
 }
 

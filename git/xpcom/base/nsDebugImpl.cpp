@@ -329,7 +329,7 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_DEBUG_ABORT: {
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
      nsCString note("xpcom_runtime_abort(");
      note += buf.buffer;
      note += ")";
@@ -400,16 +400,7 @@ RealBreak()
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
    asm("int $3");
 #elif defined(__arm__)
-   asm(
-#ifdef __ARM_ARCH_4T__
-/* ARMv4T doesn't support the BKPT instruction, so if the compiler target
- * is ARMv4T, we want to ensure the assembler will understand that ARMv5T
- * instruction, while keeping the resulting object tagged as ARMv4T.
- */
-       ".arch armv5t\n"
-       ".object_arch armv4t\n"
-#endif
-       "BKPT #0");
+   asm("BKPT #0");
 #elif defined(SOLARIS)
 #if defined(__i386__) || defined(__i386) || defined(__x86_64__)
    asm("int $3");

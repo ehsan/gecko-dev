@@ -49,7 +49,6 @@ PROGRAM         = jsapi-tests$(BIN_SUFFIX)
 CPPSRCS = \
   tests.cpp \
   selfTest.cpp \
-  testArgumentsObject.cpp \
   testBug604087.cpp \
   testClassGetter.cpp \
   testCloneScript.cpp \
@@ -61,21 +60,17 @@ CPPSRCS = \
   testDefineProperty.cpp \
   testExtendedEq.cpp \
   testFuncCallback.cpp \
-  testFunctionProperties.cpp \
   testGCChunkAlloc.cpp \
   testGetPropertyDefault.cpp \
   testIntString.cpp \
-  testIntern.cpp \
   testLookup.cpp \
   testLooselyEqual.cpp \
   testNewObject.cpp \
   testOps.cpp \
   testParseJSON.cpp \
   testPropCache.cpp \
-  testRegExp.cpp \
   testResolveRecursion.cpp \
   testSameValue.cpp \
-  testScriptInfo.cpp \
   testScriptObject.cpp \
   testSetProperty.cpp \
   testStringBuffer.cpp \
@@ -87,7 +82,6 @@ CPPSRCS = \
   testXDR.cpp \
   testCustomIterator.cpp \
   testExternalStrings.cpp \
-  testChromeBuffer.cpp \
   $(NULL)
 
 # Disabled: an entirely unrelated test seems to cause this to fail.  Moreover,

@@ -86,6 +86,11 @@ nsBaseComposerCommand::nsBaseComposerCommand()
 NS_IMPL_ISUPPORTS1(nsBaseComposerCommand, nsIControllerCommand)
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 nsBaseStateUpdatingCommand::nsBaseStateUpdatingCommand(const char* aTagName)
 : nsBaseComposerCommand()
 , mTagName(aTagName)
@@ -192,6 +197,10 @@ nsPasteNoFormattingCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED, enabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 nsStyleUpdatingCommand::nsStyleUpdatingCommand(const char* aTagName)
 : nsBaseStateUpdatingCommand(aTagName)
 {
@@ -284,6 +293,9 @@ nsStyleUpdatingCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
 
   return rv;
 }
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsListCommand::nsListCommand(const char* aTagName)
 : nsBaseStateUpdatingCommand(aTagName)
@@ -338,6 +350,10 @@ nsListCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
   
   return rv;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsListItemCommand::nsListItemCommand(const char* aTagName)
 : nsBaseStateUpdatingCommand(aTagName)
@@ -419,6 +435,10 @@ nsListItemCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
   return rv;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 NS_IMETHODIMP
 nsRemoveListCommand::IsCommandEnabled(const char * aCommandName,
                                       nsISupports *refCon,
@@ -476,6 +496,10 @@ nsRemoveListCommand::GetCommandStateParams(const char *aCommandName,
   IsCommandEnabled(aCommandName, refCon, &outCmdEnabled);
   return aParams->SetBooleanValue(STATE_ENABLED,outCmdEnabled);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsIndentCommand::IsCommandEnabled(const char * aCommandName,
@@ -569,6 +593,11 @@ nsOutdentCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED,outCmdEnabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 nsMultiStateCommand::nsMultiStateCommand()
 : nsBaseComposerCommand()
 {
@@ -644,6 +673,10 @@ nsMultiStateCommand::GetCommandStateParams(const char *aCommandName,
   return rv;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 nsParagraphStateCommand::nsParagraphStateCommand()
 : nsMultiStateCommand()
 {
@@ -681,6 +714,10 @@ nsParagraphStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 
   return htmlEditor->SetParagraphFormat(newState);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsFontFaceStateCommand::nsFontFaceStateCommand()
 : nsMultiStateCommand()
@@ -741,6 +778,10 @@ nsFontFaceStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   
   return rv;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsFontSizeStateCommand::nsFontSizeStateCommand()
   : nsMultiStateCommand()
@@ -818,6 +859,9 @@ nsFontSizeStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   return rv;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 nsFontColorStateCommand::nsFontColorStateCommand()
 : nsMultiStateCommand()
 {
@@ -864,6 +908,10 @@ nsFontColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   
   return rv;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsHighlightColorStateCommand::nsHighlightColorStateCommand()
 : nsMultiStateCommand()
@@ -923,6 +971,10 @@ nsHighlightColorStateCommand::IsCommandEnabled(const char * aCommandName,
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 nsBackgroundColorStateCommand::nsBackgroundColorStateCommand()
 : nsMultiStateCommand()
 {
@@ -960,6 +1012,10 @@ nsBackgroundColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 
   return htmlEditor->SetBackgroundColor(newState);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 nsAlignCommand::nsAlignCommand()
 : nsMultiStateCommand()
@@ -1017,6 +1073,12 @@ nsAlignCommand::SetState(nsIEditor *aEditor, nsString& newState)
 
   return htmlEditor->Align(newState);
 }
+
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 
 nsAbsolutePositioningCommand::nsAbsolutePositioningCommand()
 : nsBaseStateUpdatingCommand("")
@@ -1089,6 +1151,10 @@ nsAbsolutePositioningCommand::ToggleState(nsIEditor *aEditor, const char* aTagNa
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 NS_IMETHODIMP
 nsDecreaseZIndexCommand::IsCommandEnabled(const char * aCommandName,
                                           nsISupports *refCon,
@@ -1146,6 +1212,10 @@ nsDecreaseZIndexCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED, enabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 NS_IMETHODIMP
 nsIncreaseZIndexCommand::IsCommandEnabled(const char * aCommandName,
                                           nsISupports *refCon,
@@ -1196,6 +1266,10 @@ nsIncreaseZIndexCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED, enabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 
 NS_IMETHODIMP
 nsRemoveStylesCommand::IsCommandEnabled(const char * aCommandName,
@@ -1243,6 +1317,10 @@ nsRemoveStylesCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED,outCmdEnabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 NS_IMETHODIMP
 nsIncreaseFontSizeCommand::IsCommandEnabled(const char * aCommandName,
                                             nsISupports *refCon,
@@ -1288,6 +1366,10 @@ nsIncreaseFontSizeCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED,outCmdEnabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 NS_IMETHODIMP
 nsDecreaseFontSizeCommand::IsCommandEnabled(const char * aCommandName,
                                             nsISupports *refCon,
@@ -1332,6 +1414,10 @@ nsDecreaseFontSizeCommand::GetCommandStateParams(const char *aCommandName,
   IsCommandEnabled(aCommandName, refCon, &outCmdEnabled);
   return aParams->SetBooleanValue(STATE_ENABLED,outCmdEnabled);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsInsertHTMLCommand::IsCommandEnabled(const char * aCommandName,
@@ -1385,6 +1471,10 @@ nsInsertHTMLCommand::GetCommandStateParams(const char *aCommandName,
   IsCommandEnabled(aCommandName, refCon, &outCmdEnabled);
   return aParams->SetBooleanValue(STATE_ENABLED, outCmdEnabled);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsInsertTagCommand, nsBaseComposerCommand)
 
@@ -1494,6 +1584,9 @@ nsInsertTagCommand::GetCommandStateParams(const char *aCommandName,
   return aParams->SetBooleanValue(STATE_ENABLED, outCmdEnabled);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 /****************************/
 //HELPER METHODS

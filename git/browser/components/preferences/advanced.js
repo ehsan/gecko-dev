@@ -39,6 +39,7 @@
 
 // Load DownloadUtils module for convertByteUnits
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 var gAdvancedPane = {
   _inited: false,
@@ -178,9 +179,8 @@ var gAdvancedPane = {
   updateHardwareAcceleration: function()
   {
 #ifdef XP_WIN
-    var fromPref = document.getElementById("layers.acceleration.disabled");
-    var toPref = document.getElementById("gfx.direct2d.disabled");
-    toPref.value = fromPref.value;
+    var pref = document.getElementById("layers.acceleration.disabled");
+    Services.prefs.setBoolPref("gfx.direct2d.disabled", !pref.value);
 #endif
   },
 

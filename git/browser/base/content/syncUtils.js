@@ -55,8 +55,8 @@ let gSyncUtils = {
     else if (thisDocEl.id == "BrowserPreferences" && !thisDocEl.instantApply)
       openUILinkIn(url, "window");
     else if (document.documentElement.id == "change-dialog")
-      Services.wm.getMostRecentWindow("navigator:browser")
-              .openUILinkIn(url, "tab");
+      Weave.Svc.WinMediator.getMostRecentWindow("navigator:browser")
+        .openUILinkIn(url, "tab");
     else
       openUILinkIn(url, "tab");
   },
@@ -69,7 +69,7 @@ let gSyncUtils = {
 
   openChange: function openChange(type, duringSetup) {
     // Just re-show the dialog if it's already open
-    let openedDialog = Services.wm.getMostRecentWindow("Sync:" + type);
+    let openedDialog = Weave.Svc.WinMediator.getMostRecentWindow("Sync:" + type);
     if (openedDialog != null) {
       openedDialog.focus();
       return;
@@ -78,8 +78,8 @@ let gSyncUtils = {
     // Open up the change dialog
     let changeXUL = "chrome://browser/content/syncGenericChange.xul";
     let changeOpt = "centerscreen,chrome,resizable=no";
-    Services.ww.activeWindow.openDialog(changeXUL, "", changeOpt,
-                                        type, duringSetup);
+    Weave.Svc.WinWatcher.activeWindow.openDialog(changeXUL, "", changeOpt,
+                                                 type, duringSetup);
   },
 
   changePassword: function () {
@@ -194,13 +194,12 @@ let gSyncUtils = {
    */
   passphraseSave: function(elid) {
     let dialogTitle = this.bundle.GetStringFromName("save.synckey.title");
-    let defaultSaveName = this.bundle.GetStringFromName("save.default.label");
     this._preparePPiframe(elid, function(iframe) {
       let filepicker = Cc["@mozilla.org/filepicker;1"]
                          .createInstance(Ci.nsIFilePicker);
       filepicker.init(window, dialogTitle, Ci.nsIFilePicker.modeSave);
       filepicker.appendFilters(Ci.nsIFilePicker.filterHTML);
-      filepicker.defaultString = defaultSaveName;
+      filepicker.defaultString = "Firefox Sync Key.html";
       let rv = filepicker.show();
       if (rv == Ci.nsIFilePicker.returnOK
           || rv == Ci.nsIFilePicker.returnReplace) {

@@ -127,8 +127,6 @@ nsHTTPDownloadEvent::Run()
   ios->NewChannel(mRequestSession->mURL, nsnull, nsnull, getter_AddRefs(chan));
   NS_ENSURE_STATE(chan);
 
-  chan->SetLoadFlags(nsIRequest::LOAD_ANONYMOUS);
-
   // Create a loadgroup for this new channel.  This way if the channel
   // is redirected, we'll have a way to cancel the resulting channel.
   nsCOMPtr<nsILoadGroup> lg = do_CreateInstance(NS_LOADGROUP_CONTRACTID);
@@ -438,7 +436,7 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
 
       if (!request_canceled)
       {
-        PRBool wantExit = nsSSLThread::stoppedOrStopping();
+        PRBool wantExit = nsSSLThread::exitRequested();
         PRBool timeout = 
           (PRIntervalTime)(PR_IntervalNow() - start_time) > mTimeoutInterval;
 
@@ -809,9 +807,7 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
       rv = NS_ERROR_NOT_AVAILABLE;
     }
     else {
-      // Although the exact value is ignored, we must not pass invalid
-      // PRBool values through XPConnect.
-      PRBool checkState = PR_FALSE;
+      PRBool checkState;
       rv = proxyPrompt->PromptPassword(nsnull, promptString.get(),
                                        &password, nsnull, &checkState, &value);
     }

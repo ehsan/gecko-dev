@@ -66,6 +66,7 @@ class nsXULTreeAccessible : public nsAccessibleWrap
 public:
   using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
+  using nsAccessible::GetChildAtPoint;
 
   nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
@@ -79,14 +80,14 @@ public:
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual void Shutdown();
 
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                        EWhichChildAtPoint aWhichChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
@@ -176,10 +177,8 @@ public:
                               nsAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow);
 
-  // nsISupports and cycle collection
+  // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULTreeItemAccessibleBase,
-                                           nsAccessibleWrap)
 
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
@@ -202,13 +201,13 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual void Shutdown();
   virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual PRUint64 NativeState();
-  virtual PRInt32 IndexInParent() const;
+  virtual PRInt32 GetIndexInParent() const;
 
   // nsXULTreeItemAccessibleBase
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEITEMBASEACCESSIBLE_IMPL_CID)
@@ -236,7 +235,7 @@ protected:
   // nsAccessible
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
 
   // nsXULTreeItemAccessibleBase
 
@@ -244,11 +243,6 @@ protected:
    * Return true if the tree item accessible is expandable (contains subrows).
    */
   PRBool IsExpandable();
-
-  /**
-   * Return name for cell at the given column.
-   */
-  void GetCellName(nsITreeColumn* aColumn, nsAString& aName);
 
   nsCOMPtr<nsITreeBoxObject> mTree;
   nsCOMPtr<nsITreeView> mTreeView;
@@ -269,15 +263,10 @@ public:
                           nsAccessible *aParent, nsITreeBoxObject *aTree,
                           nsITreeView *aTreeView, PRInt32 aRow);
 
-  // nsISupports and cycle collection
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULTreeItemAccessible,
-                                           nsXULTreeItemAccessibleBase)
-
   NS_IMETHOD GetName(nsAString& aName);
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual PRBool Init();
   virtual void Shutdown();
 
@@ -310,7 +299,7 @@ protected:
 
   // nsAccessible
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
 };
 
 #endif

@@ -859,30 +859,6 @@ moz_gtk_widget_get_focus(GtkWidget* widget, gboolean* interior_focus,
 }
 
 gint
-moz_gtk_menuitem_get_horizontal_padding(gint* horizontal_padding)
-{
-    ensure_menu_item_widget();
-
-    gtk_widget_style_get (gMenuItemWidget,
-                          "horizontal-padding", horizontal_padding,
-                          NULL);
-
-    return MOZ_GTK_SUCCESS;
-}
-
-gint
-moz_gtk_checkmenuitem_get_horizontal_padding(gint* horizontal_padding)
-{
-    ensure_check_menu_item_widget();
-
-    gtk_widget_style_get (gCheckMenuItemWidget,
-                          "horizontal-padding", horizontal_padding,
-                          NULL);
-
-    return MOZ_GTK_SUCCESS;
-}
-
-gint
 moz_gtk_button_get_default_overflow(gint* border_top, gint* border_left,
                                     gint* border_bottom, gint* border_right)
 {
@@ -2272,38 +2248,28 @@ moz_gtk_progress_chunk_paint(GdkDrawable* drawable, GdkRectangle* rect,
 
     TSOffsetStyleGCs(style, rect->x, rect->y);
 
-    if (widget == MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE ||
-        widget == MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE) {
+    if (widget == MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE) {
       /**
-       * The bar's size and the bar speed are set depending of the progress'
-       * size. These could also be constant for all progress bars easily.
+       * The bar's width and the bar speed are set depending of the progress
+       * bar size. These could also be constant for all progress bars easily.
        */
-      gboolean vertical = (widget == MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE);
-
-      /* The size of the dimension we are going to use for the animation. */
-      const gint progressSize = vertical ? rect->height : rect->width;
 
       /* The bar is using a fifth of the element size, based on GtkProgressBar
        * activity-blocks property. */
-      const gint barSize = MAX(1, progressSize / 5);
+      const gint barWidth = MAX(1, rect->width / 5);
 
       /* Represents the travel that has to be done for a complete cycle. */
-      const gint travel = 2 * (progressSize - barSize);
+      const gint travel = 2 * (rect->width - barWidth);
 
       /* period equals to travel / pixelsPerMillisecond
-       * where pixelsPerMillisecond equals progressSize / 1000.0.
+       * where pixelsPerMillisecond equals rect->width / 1000.0.
        * This is equivalent to 1600. */
-      static const guint period = 1600;
+      const guint period = 1600;
       const gint t = PR_IntervalToMilliseconds(PR_IntervalNow()) % period;
       const gint dx = travel * t / period;
 
-      if (vertical) {
-        rect->y += (dx < travel / 2) ? dx : travel - dx;
-        rect->height = barSize;
-      } else {
-        rect->x += (dx < travel / 2) ? dx : travel - dx;
-        rect->width = barSize;
-      }
+      rect->x += (dx < travel / 2) ? dx : travel - dx;
+      rect->width = barWidth;
     }
 
     gtk_paint_box(style, drawable, GTK_STATE_PRELIGHT, GTK_SHADOW_OUT,
@@ -2712,7 +2678,7 @@ moz_gtk_check_menu_item_paint(GdkDrawable* drawable, GdkRectangle* rect,
     GtkStyle* style;
     GtkShadowType shadow_type = (checked)?GTK_SHADOW_IN:GTK_SHADOW_OUT;
     gint offset;
-    gint indicator_size, horizontal_padding;
+    gint indicator_size;
     gint x, y;
 
     moz_gtk_menu_item_paint(drawable, rect, cliprect, state, FALSE, direction);
@@ -2722,7 +2688,6 @@ moz_gtk_check_menu_item_paint(GdkDrawable* drawable, GdkRectangle* rect,
 
     gtk_widget_style_get (gCheckMenuItemWidget,
                           "indicator-size", &indicator_size,
-                          "horizontal-padding", &horizontal_padding,
                           NULL);
 
     if (checked || GTK_CHECK_MENU_ITEM(gCheckMenuItemWidget)->always_show_toggle) {
@@ -2731,8 +2696,11 @@ moz_gtk_check_menu_item_paint(GdkDrawable* drawable, GdkRectangle* rect,
       offset = GTK_CONTAINER(gCheckMenuItemWidget)->border_width +
              gCheckMenuItemWidget->style->xthickness + 2;
 
+      /* while normally this "3" would be the horizontal-padding style value, passing it to Gecko
+         as the value of menuitem padding causes problems with dropdowns (bug 406129), so in the menu.css
+         file this is hardcoded as 3px. Yes it sucks, but we don't really have a choice. */
       x = (direction == GTK_TEXT_DIR_RTL) ?
-            rect->width - indicator_size - offset - horizontal_padding: rect->x + offset + horizontal_padding;
+            rect->width - indicator_size - offset - 3: rect->x + offset + 3;
       y = rect->y + (rect->height - indicator_size) / 2;
 
       TSOffsetStyleGCs(style, x, y);
@@ -3018,7 +2986,6 @@ moz_gtk_get_widget_border(GtkThemeWidgetType widget, gint* left, gint* top,
     case MOZ_GTK_GRIPPER:
     case MOZ_GTK_PROGRESS_CHUNK:
     case MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE:
-    case MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE:
     case MOZ_GTK_EXPANDER:
     case MOZ_GTK_TREEVIEW_EXPANDER:
     case MOZ_GTK_TOOLBAR_SEPARATOR:
@@ -3366,7 +3333,6 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, GdkDrawable* drawable,
         break;
     case MOZ_GTK_PROGRESS_CHUNK:
     case MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE:
-    case MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE:
         return moz_gtk_progress_chunk_paint(drawable, rect, cliprect,
                                             direction, widget);
         break;

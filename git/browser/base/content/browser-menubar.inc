@@ -108,6 +108,13 @@
                           key="printKb"
                           command="cmd_print"/>
                 <menuseparator/>
+                <menuitem id="menu_import"
+                          label="&import.label;"
+                          accesskey="&import.accesskey;"
+                          oncommand="BrowserImport();"/>
+#ifndef XP_MACOSX
+                <menuseparator/>
+#endif
                 <menuitem id="goOfflineMenuitem"
                           label="&goOfflineCmd.label;"
                           accesskey="&goOfflineCmd.accesskey;"
@@ -379,7 +386,6 @@
                 <menuseparator id="showAllHistorySeparator"/>
 #ifdef MOZ_SERVICES_SYNC
                 <menuitem id="sync-tabs-menuitem"
-                          class="syncTabsMenuItem"
                           label="&syncTabsMenu.label;"
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>
@@ -530,7 +536,7 @@
               <menuseparator id="devToolsSeparator"/>
               <menu id="webDeveloperMenu"
                     label="&webDeveloperMenu.label;"
-                    accesskey="&webDeveloperMenu.accesskey;">
+                    accesskey="webDeveloperMenu.accesskey;">
                 <menupopup id="menuWebDeveloperPopup">
                   <menuitem id="webConsole"
                             label="&webConsoleCmd.label;"
@@ -561,11 +567,6 @@
                             accesskey="&errorConsoleCmd.accesskey;"
                             key="key_errorConsole"
                             oncommand="toJavaScriptConsole();"/>
-                  <menuseparator id="devToolsEndSeparator"/>
-                  <menuitem id="getMoreDevtools"
-                            label="&getMoreDevtoolsCmd.label;"
-                            accesskey="&getMoreDevtoolsCmd.accesskey;"
-                            oncommand="openUILinkIn('https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/', 'tab');"/>
                 </menupopup>
               </menu>
               <menuitem id="menu_pageInfo"

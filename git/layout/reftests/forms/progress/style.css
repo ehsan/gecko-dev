@@ -7,16 +7,11 @@ div.progress-element {
 
   /* Default style in case of there is -moz-appearance: none; */
   border: 2px solid;
-  -moz-border-top-colors: ThreeDShadow #e6e6e6;
-  -moz-border-right-colors: ThreeDHighlight #e6e6e6;
-  -moz-border-bottom-colors: ThreeDHighlight #e6e6e6;
-  -moz-border-left-colors: ThreeDShadow #e6e6e6;
-  background-color: #e6e6e6;
-}
-
-div.progress-element.vertical {
-  height: 10em;
-  width: 1em;
+  -moz-border-top-colors: ThreeDShadow -moz-Dialog;
+  -moz-border-right-colors: ThreeDHighlight -moz-Dialog;
+  -moz-border-bottom-colors: ThreeDHighlight -moz-Dialog;
+  -moz-border-left-colors: ThreeDShadow -moz-Dialog;
+  background-color: -moz-Dialog;
 }
 
 div.progress-bar {
@@ -28,10 +23,8 @@ div.progress-bar {
    * width: 100%;
    */
 
-  -moz-box-sizing: border-box;
-
   /* Default style in case of there is -moz-appearance: none; */
-  background-color: #0064b4;
+  background-color: ThreeDShadow;
 }
 
 progress, progress::-moz-progress-bar, div.progress-element, div.progress-bar {

@@ -17,7 +17,7 @@ function test1() {
     ok(!TabView.isVisible(), "Tab View is not visible");
     showTabView(test2);
   });
-  EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true }, contentWindow);
+  EventUtils.synthesizeKey("E", { accelKey: true, shiftKey: true }, contentWindow);
 }
 
 function test2() {
@@ -36,33 +36,30 @@ function test3() {
   ok(!contentWindow.isSearchEnabled(), "The search is disabled")
 
   is(gBrowser.tabs.length, 1, "There is one tab before cmd/ctrl + t is pressed");
-
-  whenTabViewIsHidden(function() { 
-    is(gBrowser.tabs.length, 2, "There are two tabs after cmd/ctrl + t is pressed");
-
-    gBrowser.tabs[0].linkedBrowser.loadURI("about:robots");
-    gBrowser.tabs[1].linkedBrowser.loadURI("http://example.com/");
-
-    afterAllTabsLoaded(function () {
-      showTabView(test4);
-    });
-  });
   EventUtils.synthesizeKey("t", { accelKey: true }, contentWindow);
+  is(gBrowser.tabs.length, 2, "There are two tabs after cmd/ctrl + t is pressed");
+
+  gBrowser.tabs[0].linkedBrowser.loadURI("about:robots");
+  gBrowser.tabs[1].linkedBrowser.loadURI("http://example.com/");
+
+  afterAllTabsLoaded(function () {
+    showTabView(test4);
+  });
 }
 
 function test4() {
   is(gBrowser.tabs.length, 2, "There are two tabs");
-
+  
   let onTabClose = function() {
     gBrowser.tabContainer.removeEventListener("TabClose", onTabClose, true);
     executeSoon(function() {
       is(gBrowser.tabs.length, 1, "There is one tab after removing one");
 
-      EventUtils.synthesizeKey("t", { accelKey: true, shiftKey: true }, contentWindow);
+      EventUtils.synthesizeKey("T", { accelKey: true, shiftKey: true }, contentWindow);
       is(gBrowser.tabs.length, 2, "There are two tabs after restoring one");
 
       gBrowser.tabs[0].linkedBrowser.loadURI("about:blank");
-      gBrowser.selectedTab = gBrowser.tabs[0];
+      gBrowser.removeTab(gBrowser.tabs[1]);
       test8();
     });
   };
@@ -72,14 +69,14 @@ function test4() {
 
 // below key combination shouldn't trigger actions in tabview UI
 function test8() {
-  showTabView(function() {
-    is(gBrowser.tabs.length, 2, "There are two tabs before cmd/ctrl + w is pressed");
-    EventUtils.synthesizeKey("w", { accelKey: true }, contentWindow);
-    is(gBrowser.tabs.length, 2, "There are two tabs after cmd/ctrl + w is pressed");
+  let newTab = gBrowser.loadOneTab("about:blank", { inBackground: true });
 
-    gBrowser.removeTab(gBrowser.tabs[1]);
-    test9();
-  });
+  is(gBrowser.tabs.length, 2, "There are two tabs before cmd/ctrl + w is pressed");
+  EventUtils.synthesizeKey("w", { accelKey: true }, contentWindow);
+  is(gBrowser.tabs.length, 2, "There are two tabs after cmd/ctrl + w is pressed");
+
+  gBrowser.removeTab(newTab);
+  test9();
 }
 
 function test9() {
@@ -96,7 +93,7 @@ function test9() {
 function test10() {
   is(gBrowser.tabs.length, 1, "There is one tab before cmd/ctrl + shift + a is pressed");
   // it would open about:addons on a new tab if it passes through the white list.
-  EventUtils.synthesizeKey("a", { accelKey: true, shiftKey: true }, contentWindow);
+  EventUtils.synthesizeKey("A", { accelKey: true, shiftKey: true }, contentWindow);
 
   executeSoon(function() {
     is(gBrowser.tabs.length, 1, "There is still one tab after cmd/ctrl + shift + a is pressed");

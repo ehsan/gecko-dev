@@ -149,11 +149,9 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
   // temporary offscreen surface that we'll paint into):
 
   gfxIntSize filterRes;
-  if (filter->mIntegerPairAttributes[nsSVGFilterElement::FILTERRES].IsExplicitlySet()) {
-    PRInt32 filterResX =
-      filter->mIntegerPairAttributes[nsSVGFilterElement::FILTERRES].GetAnimValue(nsSVGIntegerPair::eFirst);
-    PRInt32 filterResY =
-      filter->mIntegerPairAttributes[nsSVGFilterElement::FILTERRES].GetAnimValue(nsSVGIntegerPair::eSecond);
+  if (filter->HasAttr(kNameSpaceID_None, nsGkAtoms::filterRes)) {
+    PRInt32 filterResX, filterResY;
+    filter->GetAnimatedIntegerValues(&filterResX, &filterResY, nsnull);
     // XXX what if the 'filterRes' attribute has a bad value? error console warning?
 
     // We don't care if this overflows, because we can handle upscaling/

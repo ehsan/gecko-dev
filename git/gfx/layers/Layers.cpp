@@ -45,10 +45,8 @@
 #include "gfxPlatform.h"
 #include "ReadbackLayer.h"
 #include "gfxUtils.h"
-#include "mozilla/Util.h"
 
 using namespace mozilla::layers;
-using namespace mozilla::gfx;
 
 typedef FrameMetrics::ViewID ViewID;
 const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
@@ -211,18 +209,14 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
 }
 
-TemporaryRef<DrawTarget>
-LayerManager::CreateDrawTarget(const IntSize &aSize,
-                               SurfaceFormat aFormat)
-{
-  // Right now this doesn't work on the general layer manager.
-  return NULL;
-}
-
 #ifdef DEBUG
 void
 LayerManager::Mutated(Layer* aLayer)
 {
+  NS_ABORT_IF_FALSE(!aLayer->GetTileSourceRect() ||
+                    (LAYERS_BASIC == GetBackendType() &&
+                     Layer::TYPE_IMAGE == aLayer->GetType()),
+                    "Tiling not supported for this manager/layer type");
 }
 #endif  // DEBUG
 
@@ -314,60 +308,44 @@ Layer::SnapTransform(const gfx3DMatrix& aTransform,
 }
 
 nsIntRect 
-Layer::CalculateScissorRect(const nsIntRect& aCurrentScissorRect,
-                            const gfxMatrix* aWorldTransform)
+Layer::CalculateScissorRect(bool aIntermediate,
+                            const nsIntRect& aVisibleRect,
+                            const nsIntRect& aParentScissor,
+                            const gfxMatrix& aTransform)
 {
-  ContainerLayer* container = GetParent();
-  NS_ASSERTION(container, "This can't be called on the root!");
-
-  // Establish initial clip rect: it's either the one passed in, or
-  // if the parent has an intermediate surface, it's the extents of that surface.
-  nsIntRect currentClip;
-  if (container->UseIntermediateSurface()) {
-    currentClip.SizeTo(container->GetIntermediateSurfaceRect().Size());
-  } else {
-    currentClip = aCurrentScissorRect;
-  }
+  nsIntRect scissorRect(aVisibleRect);
 
   const nsIntRect *clipRect = GetEffectiveClipRect();
-  if (!clipRect)
-    return currentClip;
 
-  if (clipRect->IsEmpty()) {
-    // We might have a non-translation transform in the container so we can't
-    // use the code path below.
-    return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
+  if (!aIntermediate && !clipRect) {
+    return aParentScissor;
   }
 
-  nsIntRect scissor = *clipRect;
-  if (!container->UseIntermediateSurface()) {
-    gfxMatrix matrix;
-    DebugOnly<bool> is2D = container->GetEffectiveTransform().Is2D(&matrix);
-    // See DefaultComputeEffectiveTransforms below
-    NS_ASSERTION(is2D && matrix.PreservesAxisAlignedRectangles(),
-                 "Non preserves axis aligned transform with clipped child should have forced intermediate surface");
-    gfxRect r(scissor.x, scissor.y, scissor.width, scissor.height);
-    gfxRect trScissor = matrix.TransformBounds(r);
-    trScissor.Round();
-    if (!gfxUtils::GfxRectToIntRect(trScissor, &scissor)) {
-      return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
+  if (clipRect) {
+    if (clipRect->IsEmpty()) {
+      return *clipRect;
     }
+    scissorRect = *clipRect;
+    if (!aIntermediate) {
+      gfxRect r(scissorRect.x, scissorRect.y, scissorRect.width, scissorRect.height);
+      gfxRect trScissor = aTransform.TransformBounds(r);
+      trScissor.Round();
+      if (!gfxUtils::GfxRectToIntRect(trScissor, &scissorRect)) {
+        scissorRect = aVisibleRect;
+      }
+    }
+  }
+    
+  if (aIntermediate) {
+    scissorRect.MoveBy(- aVisibleRect.TopLeft());
+  } else if (clipRect) {
+    scissorRect.IntersectRect(scissorRect, aParentScissor);
+  }
 
-    // Find the nearest ancestor with an intermediate surface
-    do {
-      container = container->GetParent();
-    } while (container && !container->UseIntermediateSurface());
-  }
-  if (container) {
-    scissor.MoveBy(-container->GetIntermediateSurfaceRect().TopLeft());
-  } else if (aWorldTransform) {
-    gfxRect r(scissor.x, scissor.y, scissor.width, scissor.height);
-    gfxRect trScissor = aWorldTransform->TransformBounds(r);
-    trScissor.Round();
-    if (!gfxUtils::GfxRectToIntRect(trScissor, &scissor))
-      return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
-  }
-  return currentClip.Intersect(scissor);
+  NS_ASSERTION(scissorRect.x >= 0 && scissorRect.y >= 0,
+               "Attempting to scissor out of bounds!");
+
+  return scissorRect;
 }
 
 const gfx3DMatrix&
@@ -422,16 +400,12 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
     useIntermediateSurface = PR_FALSE;
     gfxMatrix contTransform;
     if (!mEffectiveTransform.Is2D(&contTransform) ||
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
         !contTransform.PreservesAxisAlignedRectangles()) {
-#else
-        contTransform.HasNonIntegerTranslation()) {
-#endif
       for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
         const nsIntRect *clipRect = child->GetEffectiveClipRect();
         /* We can't (easily) forward our transform to children with a non-empty clip
-         * rect since it would need to be adjusted for the transform. See
-         * the calculations performed by CalculateScissorRect above.
+         * rect since it would need to be adjusted for the transform.
+         * TODO: This is easily solvable for translation/scaling transforms.
          */
         if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
           useIntermediateSurface = PR_TRUE;
@@ -480,56 +454,6 @@ ContainerLayer::DidInsertChild(Layer* aLayer)
     mMayHaveReadbackChild = PR_TRUE;
   }
 }
-
-PRUint8* 
-PlanarYCbCrImage::AllocateBuffer(PRUint32 aSize)
-{
-  const fallible_t fallible = fallible_t();
-  return new (fallible) PRUint8[aSize]; 
-}
-
-PRUint8*
-PlanarYCbCrImage::CopyData(Data& aDest, gfxIntSize& aDestSize,
-                           PRUint32& aDestBufferSize, const Data& aData)
-{
-  aDest = aData;
-
-  /* We always have a multiple of 16 width so we can force the stride */
-  aDest.mYStride = aDest.mYSize.width;
-  aDest.mCbCrStride = aDest.mCbCrSize.width;
-
-  // update buffer size
-  aDestBufferSize = aDest.mCbCrStride * aDest.mCbCrSize.height * 2 +
-                    aDest.mYStride * aDest.mYSize.height;
-
-  // get new buffer
-  PRUint8* buffer = AllocateBuffer(aDestBufferSize); 
-  if (!buffer)
-    return nsnull;
-
-  aDest.mYChannel = buffer;
-  aDest.mCbChannel = aDest.mYChannel + aDest.mYStride * aDest.mYSize.height;
-  aDest.mCrChannel = aDest.mCbChannel + aDest.mCbCrStride * aDest.mCbCrSize.height;
-
-  for (int i = 0; i < aDest.mYSize.height; i++) {
-    memcpy(aDest.mYChannel + i * aDest.mYStride,
-           aData.mYChannel + i * aData.mYStride,
-           aDest.mYStride);
-  }
-  for (int i = 0; i < aDest.mCbCrSize.height; i++) {
-    memcpy(aDest.mCbChannel + i * aDest.mCbCrStride,
-           aData.mCbChannel + i * aData.mCbCrStride,
-           aDest.mCbCrStride);
-    memcpy(aDest.mCrChannel + i * aDest.mCbCrStride,
-           aData.mCrChannel + i * aData.mCbCrStride,
-           aDest.mCbCrStride);
-  }
-
-  aDestSize = aData.mPicSize;
-  return buffer;
-}
-                         
-
 
 #ifdef MOZ_LAYERS_HAVE_LOG
 
@@ -629,6 +553,9 @@ ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
   Layer::PrintInfo(aTo, aPrefix);
   if (!mValidRegion.IsEmpty()) {
     AppendToString(aTo, mValidRegion, " [valid=", "]");
+  }
+  if (mXResolution != 1.0 || mYResolution != 1.0) {
+    aTo.AppendPrintf(" [xres=%g yres=%g]", mXResolution, mYResolution);
   }
   return aTo;
 }

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Original Author: Daniel Glazman <glazman@netscape.com>
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -63,7 +62,7 @@ typedef void (*nsProcessValueFunc)(const nsAString * aInputString, nsAString & a
 class nsHTMLCSSUtils
 {
 public:
-  explicit nsHTMLCSSUtils(nsHTMLEditor* aEditor);
+  nsHTMLCSSUtils();
   ~nsHTMLCSSUtils();
 
   enum nsCSSEditableProperty {
@@ -99,6 +98,9 @@ public:
     PRBool gettable;
     PRBool caseSensitiveValue;
   };
+
+public:
+  nsresult    Init(nsHTMLEditor * aEditor);
 
   /** answers true if the given combination element_name/attribute_name
     * has a CSS equivalence in this implementation
@@ -177,13 +179,13 @@ public:
     *
     * @param aColor         [OUT] the default color as it is defined in prefs
     */
-  void        GetDefaultBackgroundColor(nsAString & aColor);
+  nsresult    GetDefaultBackgroundColor(nsAString & aColor);
 
   /** Get the default length unit used for CSS Indent/Outdent
     *
     * @param aLengthUnit    [OUT] the default length unit as it is defined in prefs
     */
-  void        GetDefaultLengthUnit(nsAString & aLengthUnit);
+  nsresult    GetDefaultLengthUnit(nsAString & aLengthUnit);
 
   /** asnwers true if the element aElement carries an ID or a class
     *
@@ -399,7 +401,10 @@ private:
 private:
   nsHTMLEditor            *mHTMLEditor;
   PRBool                  mIsCSSPrefChecked; 
+
 };
+
+nsresult NS_NewHTMLCSSUtils(nsHTMLCSSUtils** aInstancePtrResult);
 
 #define NS_EDITOR_INDENT_INCREMENT_IN        0.4134f
 #define NS_EDITOR_INDENT_INCREMENT_CM        1.05f

@@ -79,7 +79,6 @@
 #include "nsIPrefBranch.h"
 #include "nsIPropertyBag2.h"
 #include "nsIWritablePropertyBag2.h"
-#include "nsITimedChannel.h"
 #include "nsChannelProperties.h"
 
 #include "nsISimpleEnumerator.h"
@@ -153,39 +152,6 @@ SetPACFile(const char* pacURL)
   }
   LOG(("connecting using PAC file %s\n", pacURL));
   return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// Timing information
-//-----------------------------------------------------------------------------
-
-void PrintTimingInformation(nsITimedChannel* channel) {
-#define PRINT_VALUE(property)                                              \
-    {                                                                      \
-        PRTime value;                                                      \
-        channel->Get##property(&value);                                    \
-        if (value) {                                                       \
-          PRExplodedTime exploded;                                         \
-          PR_ExplodeTime(value, PR_LocalTimeParameters, &exploded);        \
-          char buf[256];                                                   \
-          PR_FormatTime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &exploded); \
-          LOG(("  " #property ":\t%s (%i usec)", buf, exploded.tm_usec));  \
-        } else {                                                           \
-          LOG(("  " #property ":\t0"));                                    \
-        }                                                                  \
-    }
-    LOG(("Timing data:"));
-    PRINT_VALUE(ChannelCreationTime)
-    PRINT_VALUE(AsyncOpenTime)
-    PRINT_VALUE(DomainLookupStartTime)
-    PRINT_VALUE(DomainLookupEndTime)
-    PRINT_VALUE(ConnectStartTime)
-    PRINT_VALUE(ConnectEndTime)
-    PRINT_VALUE(RequestStartTime)
-    PRINT_VALUE(ResponseStartTime)
-    PRINT_VALUE(ResponseEndTime)
-    PRINT_VALUE(CacheReadStartTime)
-    PRINT_VALUE(CacheReadEndTime)
 }
 
 //-----------------------------------------------------------------------------
@@ -517,7 +483,7 @@ InputTestConsumer::OnDataAvailable(nsIRequest *request,
   URLLoadInfo* info = (URLLoadInfo*)context;
 
   while (aLength) {
-    size = NS_MIN<PRUint32>(aLength, sizeof(buf));
+    size = PR_MIN(aLength, sizeof(buf));
 
     rv = aIStream->Read(buf, size, &amt);
     if (NS_FAILED(rv)) {
@@ -579,10 +545,6 @@ InputTestConsumer::OnStopRequest(nsIRequest *request, nsISupports* context,
     } else {
       LOG(("\tThroughput: REAL FAST!!\n"));
     }
-
-    nsCOMPtr<nsITimedChannel> timed(do_QueryInterface(request));
-    if (timed)
-        PrintTimingInformation(timed);
   } else {
     LOG(("\nFinished loading: UNKNOWN URL. Status Code: %x\n", aStatus));
   }
@@ -668,10 +630,6 @@ nsresult StartLoadingURL(const char* aUrlString)
             LOG(("ERROR: NS_OpenURI failed for %s [rv=%x]\n", aUrlString, rv));
             return rv;
         }
-
-        nsCOMPtr<nsITimedChannel> timed(do_QueryInterface(pChannel));
-        if (timed)
-            timed->SetTimingEnabled(PR_TRUE);
 
         nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(pChannel);
         if (props) {

@@ -78,7 +78,7 @@
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
 #include "nsIServiceManager.h"
-#include "nsBoxLayout.h"
+#include "nsIBoxLayout.h"
 #include "nsSprocketLayout.h"
 #include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
@@ -93,14 +93,12 @@
 #include "nsEventDispatcher.h"
 #include "nsIDOMEvent.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsContentUtils.h"
 #include "nsDisplayList.h"
-#include "mozilla/Preferences.h"
 
 // Needed for Print Preview
 #include "nsIDocument.h"
 #include "nsIURI.h"
-
-using namespace mozilla;
 
 //define DEBUG_REDRAW
 
@@ -120,7 +118,7 @@ nsIBox* nsBoxFrame::mDebugChild = nsnull;
 #endif
 
 nsIFrame*
-NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsBoxLayout* aLayoutManager)
+NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 }
@@ -136,7 +134,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsBoxFrame)
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
                        PRBool aIsRoot,
-                       nsBoxLayout* aLayoutManager) :
+                       nsIBoxLayout* aLayoutManager) :
   nsContainerFrame(aContext)
 {
   mState |= NS_STATE_IS_HORIZONTAL;
@@ -149,7 +147,7 @@ nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
   mHalign = hAlign_Left;
   
   // if no layout manager specified us the static sprocket layout
-  nsCOMPtr<nsBoxLayout> layout = aLayoutManager;
+  nsCOMPtr<nsIBoxLayout> layout = aLayoutManager;
 
   if (layout == nsnull) {
     NS_NewSprocketLayout(aPresShell, layout);
@@ -1248,7 +1246,7 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
 void
 nsBoxFrame::GetDebugPref(nsPresContext* aPresContext)
 {
-    gDebug = Preferences::GetBool("xul.debug.box");
+    gDebug = nsContentUtils::GetBoolPref("xul.debug.box");
 }
 
 class nsDisplayXULDebug : public nsDisplayItem {
@@ -1300,16 +1298,6 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   PRBool forceLayer =
     GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer) &&
     GetContent()->IsXUL();
-
-  // Check for frames that are marked as a part of the region used
-  // in calculating glass margins on Windows.
-  if (GetContent()->IsXUL()) {
-      const nsStyleDisplay* styles = mStyleContext->GetStyleDisplay();
-      if (styles && styles->mAppearance == NS_THEME_WIN_EXCLUDE_GLASS) {
-        nsRect rect = mRect + aBuilder->ToReferenceFrame(GetParent());
-        aBuilder->AddExcludedGlassRegion(rect);
-      }
-  }
 
   nsDisplayListCollection tempLists;
   const nsDisplayListSet& destination = forceLayer ? tempLists : aLists;
@@ -2015,6 +2003,21 @@ nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
 
   nsIFrame* head = MergeSort(aState, mFrames.FirstChild());
   mFrames = nsFrameList(head, nsLayoutUtils::GetLastSibling(head));
+}
+
+NS_IMETHODIMP
+nsBoxFrame::SetLayoutManager(nsIBoxLayout* aLayout)
+{
+  mLayoutManager = aLayout;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsBoxFrame::GetLayoutManager(nsIBoxLayout** aLayout)
+{
+  *aLayout = mLayoutManager;
+  NS_IF_ADDREF(*aLayout);
+  return NS_OK;
 }
 
 nsresult

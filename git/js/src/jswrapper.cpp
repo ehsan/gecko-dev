@@ -122,14 +122,6 @@ JSWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
 static bool
 GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSPropertyDescriptor *desc)
 {
-    // If obj is a proxy, we can do better than just guessing. This is
-    // important for certain types of wrappers that wrap other wrappers.
-    if (obj->isProxy()) {
-        return JSProxy::getOwnPropertyDescriptor(cx, obj, id,
-                                                 flags & JSRESOLVE_ASSIGNING,
-                                                 Valueify(desc));
-    }
-
     if (!JS_GetPropertyDescriptorById(cx, obj, id, flags, desc))
         return false;
     if (desc->obj != obj)
@@ -141,7 +133,7 @@ bool
 JSWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
                                     PropertyDescriptor *desc)
 {
-    desc->obj = NULL; // default result if we refuse to perform this action
+    desc->obj= NULL; // default result if we refuse to perform this action
     CHECKED(GetOwnPropertyDescriptor(cx, wrappedObject(wrapper), id, JSRESOLVE_QUALIFIED,
                                      Jsvalify(desc)), set ? SET : GET);
 }
@@ -269,9 +261,9 @@ JSWrapper::construct(JSContext *cx, JSObject *wrapper, uintN argc, Value *argv, 
 bool
 JSWrapper::hasInstance(JSContext *cx, JSObject *wrapper, const Value *vp, bool *bp)
 {
-    *bp = false; // default result if we refuse to perform this action
+    *bp = true; // default result if we refuse to perform this action
     const jsid id = JSID_VOID;
-    JSBool b = JS_FALSE;
+    JSBool b;
     GET(JS_HasInstance(cx, wrappedObject(wrapper), Jsvalify(*vp), &b) && Cond(b, bp));
 }
 
@@ -315,15 +307,6 @@ JSWrapper::fun_toString(JSContext *cx, JSObject *wrapper, uintN indent)
     JSString *str = JSProxyHandler::fun_toString(cx, wrapper, indent);
     leave(cx, wrapper);
     return str;
-}
-
-bool
-JSWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp)
-{
-    *vp = ObjectValue(*wrappedObject(wrapper));
-    if (hint == JSTYPE_VOID)
-        return ToPrimitive(cx, vp);
-    return ToPrimitive(cx, hint, vp);
 }
 
 void
@@ -374,39 +357,12 @@ TransparentObjectWrapper(JSContext *cx, JSObject *obj, JSObject *wrappedProto, J
 
 }
 
-ForceFrame::ForceFrame(JSContext *cx, JSObject *target)
-    : context(cx),
-      target(target),
-      frame(NULL)
-{
-}
-
-ForceFrame::~ForceFrame()
-{
-    context->delete_(frame);
-}
-
-bool
-ForceFrame::enter()
-{
-    frame = context->new_<DummyFrameGuard>();
-    if (!frame)
-       return false;
-    LeaveTrace(context);
-
-    JS_ASSERT(context->compartment == target->compartment());
-
-    JSObject *scopeChain = target->getGlobal();
-    JS_ASSERT(scopeChain->isNative());
-
-    return context->stack.pushDummyFrame(context, REPORT_ERROR, *scopeChain, frame);
-}
-
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
     : context(cx),
       origin(cx->compartment),
       target(target),
       destination(target->getCompartment()),
+      input(cx),
       entered(false)
 {
 }
@@ -424,23 +380,13 @@ AutoCompartment::enter()
     if (origin != destination) {
         LeaveTrace(context);
 
+        context->compartment = destination;
         JSObject *scopeChain = target->getGlobal();
         JS_ASSERT(scopeChain->isNative());
 
         frame.construct();
-
-        /*
-         * Set the compartment eagerly so that pushDummyFrame associates the
-         * resource allocation request with 'destination' instead of 'origin'.
-         * (This is important when content has overflowed the stack and chrome
-         * is preparing to run JS to throw up a slow script dialog.) However,
-         * if an exception is thrown, we need it to be in origin's compartment
-         * so be careful to only report after restoring.
-         */
-        context->compartment = destination;
-        if (!context->stack.pushDummyFrame(context, DONT_REPORT_ERROR, *scopeChain, &frame.ref())) {
+        if (!context->stack.pushDummyFrame(context, *scopeChain, &frame.ref())) {
             context->compartment = origin;
-            js_ReportOverRecursed(context);
             return false;
         }
 
@@ -752,26 +698,6 @@ JSCrossCompartmentWrapper::fun_toString(JSContext *cx, JSObject *wrapper, uintN 
     if (!call.origin->wrap(cx, &str))
         return NULL;
     return str;
-}
-
-bool
-JSCrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp)
-{
-    AutoCompartment call(cx, wrappedObject(wrapper));
-    if (!call.enter())
-        return false;
-
-    if (!JSWrapper::defaultValue(cx, wrapper, hint, vp))
-        return false;
-
-    call.leave();
-    return call.origin->wrap(cx, vp);
-}
-
-void
-JSCrossCompartmentWrapper::trace(JSTracer *trc, JSObject *wrapper)
-{
-    MarkCrossCompartmentObject(trc, *wrappedObject(wrapper), "wrappedObject");
 }
 
 JSCrossCompartmentWrapper JSCrossCompartmentWrapper::singleton(0u);

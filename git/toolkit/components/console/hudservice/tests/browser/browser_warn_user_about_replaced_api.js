@@ -63,10 +63,11 @@ function testWarningPresent() {
 
 function testOpenWebConsole(shouldWarn) {
   openConsole();
+  is(HUDService.displaysIndex().length, 1, "WebConsole was opened");
 
-  hud = HUDService.getHudByWindow(content);
-  ok(hud, "WebConsole was opened");
+  hudId = HUDService.displaysIndex()[0];
+  hud = HUDService.getHeadsUpDisplay(hudId);
 
   let msg = (shouldWarn ? "found" : "didn't find") + " API replacement warning";
-  testLogEntry(hud.outputNode, "disabled", msg, false, !shouldWarn);
+  testLogEntry(hud, "disabled", msg, false, !shouldWarn);
 }

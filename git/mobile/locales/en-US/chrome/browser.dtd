@@ -50,6 +50,7 @@
 <!ENTITY addonShowPage.label       "Go to Page">
 
 <!ENTITY downloadsHeader.label     "Downloads">
+
 <!ENTITY downloadShowPage.label    "Go to Page">
 <!ENTITY downloadShow2.label       "Find">
 <!ENTITY downloadOpen2.label       "Open">
@@ -106,11 +107,9 @@
 <!ENTITY pageactions.saveas.pdf      "Save As PDF">
 <!ENTITY pageactions.share.page      "Share Page">
 <!ENTITY pageactions.password.forget "Forget Password">
-<!ENTITY pageactions.quit            "Quit">
 <!ENTITY pageactions.reset           "Clear Site Preferences">
 <!ENTITY pageactions.findInPage      "Find In Page">
 <!ENTITY pageactions.search.addNew   "Add Search Engine">
 <!ENTITY pageactions.charEncoding    "Character Encoding">
-<!ENTITY pageactions.webapps.install "Install as App">
 
 <!ENTITY appMenu.siteOptions         "Site Options">

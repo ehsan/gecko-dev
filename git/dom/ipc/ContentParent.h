@@ -51,7 +51,7 @@
 #include "nsIPrefService.h"
 #include "nsIPermissionManager.h"
 #include "nsIDOMGeoPositionCallback.h"
-#include "nsIDeviceMotion.h"
+#include "nsIAccelerometer.h"
 #include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 
@@ -70,7 +70,7 @@ class ContentParent : public PContentParent
                     , public nsIObserver
                     , public nsIThreadObserver
                     , public nsIDOMGeoPositionCallback
-                    , public nsIDeviceMotionListener
+                    , public nsIAccelerationListener
 {
 private:
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
@@ -88,7 +88,7 @@ public:
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
-    NS_DECL_NSIDEVICEMOTIONLISTENER
+    NS_DECL_NSIACCELERATIONLISTENER
 
     TabParent* CreateTab(PRUint32 aChromeFlags);
 
@@ -166,7 +166,6 @@ private:
     virtual bool RecvClipboardHasText(PRBool* hasText);
 
     virtual bool RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors);
-    virtual bool RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits);
 
     virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
@@ -179,7 +178,6 @@ private:
     
     virtual bool RecvShowFilePicker(const PRInt16& mode,
                                     const PRInt16& selectedType,
-                                    const PRBool& addToRecentDocs,
                                     const nsString& title,
                                     const nsString& defaultFile,
                                     const nsString& defaultExtension,
@@ -201,8 +199,8 @@ private:
 
     virtual bool RecvAddGeolocationListener();
     virtual bool RecvRemoveGeolocationListener();
-    virtual bool RecvAddDeviceMotionListener();
-    virtual bool RecvRemoveDeviceMotionListener();
+    virtual bool RecvAddAccelerometerListener();
+    virtual bool RecvRemoveAccelerometerListener();
 
     virtual bool RecvConsoleMessage(const nsString& aMessage);
     virtual bool RecvScriptError(const nsString& aMessage,

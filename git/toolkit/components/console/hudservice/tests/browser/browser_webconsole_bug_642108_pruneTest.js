@@ -44,13 +44,14 @@ function populateConsole(aHudRef) {
 }
 
 function testCSSPruning() {
-  let prefBranch = Services.prefs.getBranch("devtools.hud.loglimit.");
-  prefBranch.setIntPref("cssparser", LOG_LIMIT);
+  let prefBranch = Services.prefs.getBranch("devtools.hud.");
+  prefBranch.setIntPref("loglimit", LOG_LIMIT);
 
   browser.removeEventListener("DOMContentLoaded",testCSSPruning, false);
 
   openConsole();
-  let hudRef = HUDService.getHudByWindow(content);
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hudRef = HUDService.getHudReferenceById(hudId);
 
   populateConsoleRepeats(hudRef);
   ok(hudRef.cssNodes["css log x"], "repeated nodes in cssNodes");
@@ -67,6 +68,7 @@ function testCSSPruning() {
 }
 
 function countMessageNodes() {
-  let outputNode = HUDService.getHudByWindow(content).outputNode;
-  return outputNode.querySelectorAll(".hud-msg-node").length;
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  return hudBox.querySelectorAll(".hud-msg-node").length;
 }

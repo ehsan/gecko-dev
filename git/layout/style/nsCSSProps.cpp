@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -445,6 +445,7 @@ nsCSSProps::OtherNameFor(nsCSSProperty aProperty)
 
 /***************************************************************************/
 
+#ifdef MOZ_CSS_ANIMATIONS
 const PRInt32 nsCSSProps::kAnimationDirectionKTable[] = {
   eCSSKeyword_normal, NS_STYLE_ANIMATION_DIRECTION_NORMAL,
   eCSSKeyword_alternate, NS_STYLE_ANIMATION_DIRECTION_ALTERNATE,
@@ -469,6 +470,7 @@ const PRInt32 nsCSSProps::kAnimationPlayStateKTable[] = {
   eCSSKeyword_paused, NS_STYLE_ANIMATION_PLAY_STATE_PAUSED,
   eCSSKeyword_UNKNOWN,-1
 };
+#endif
 
 const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_none,                   NS_THEME_NONE,
@@ -577,7 +579,6 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_window_button_restore,     NS_THEME_WINDOW_BUTTON_RESTORE,
   eCSSKeyword__moz_window_button_box,         NS_THEME_WINDOW_BUTTON_BOX,
   eCSSKeyword__moz_window_button_box_maximized, NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED,
-  eCSSKeyword__moz_win_exclude_glass,         NS_THEME_WIN_EXCLUDE_GLASS,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1036,12 +1037,6 @@ const PRInt32 nsCSSProps::kListStyleKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kOrientKTable[] = {
-  eCSSKeyword_horizontal, NS_STYLE_ORIENT_HORIZONTAL,
-  eCSSKeyword_vertical,   NS_STYLE_ORIENT_VERTICAL,
-  eCSSKeyword_UNKNOWN,    -1
-};
-
 // Same as kBorderStyleKTable except 'hidden'.
 const PRInt32 nsCSSProps::kOutlineStyleKTable[] = {
   eCSSKeyword_none,   NS_STYLE_BORDER_STYLE_NONE,
@@ -1212,12 +1207,6 @@ const PRInt32 nsCSSProps::kTextDecorationStyleKTable[] = {
   eCSSKeyword_dashed, NS_STYLE_TEXT_DECORATION_STYLE_DASHED,
   eCSSKeyword_wavy, NS_STYLE_TEXT_DECORATION_STYLE_WAVY,
   eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kTextOverflowKTable[] = {
-  eCSSKeyword_clip, NS_STYLE_TEXT_OVERFLOW_CLIP,
-  eCSSKeyword_ellipsis, NS_STYLE_TEXT_OVERFLOW_ELLIPSIS,
-  eCSSKeyword_UNKNOWN, -1
 };
 
 const PRInt32 nsCSSProps::kTextTransformKTable[] = {
@@ -1581,6 +1570,7 @@ const PRUint32 nsCSSProps::kFlagsTable[eCSSProperty_COUNT] = {
 #undef CSS_PROP_SHORTHAND
 };
 
+#ifdef MOZ_CSS_ANIMATIONS
 static const nsCSSProperty gAnimationSubpropTable[] = {
   eCSSProperty_animation_duration,
   eCSSProperty_animation_timing_function,
@@ -1594,6 +1584,7 @@ static const nsCSSProperty gAnimationSubpropTable[] = {
   eCSSProperty_animation_name,
   eCSSProperty_UNKNOWN
 };
+#endif
 
 static const nsCSSProperty gBorderRadiusSubpropTable[] = {
   // Code relies on these being in topleft-topright-bottomright-bottomleft

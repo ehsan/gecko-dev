@@ -335,6 +335,7 @@ public:
   NS_DECL_ISUPPORTS
 
   enum ReporterType {
+    LookAside_Used,
     Cache_Used,
     Schema_Used,
     Stmt_Used
@@ -348,18 +349,17 @@ public:
   }
 
 
-  NS_IMETHOD GetProcess(nsACString &process)
+  NS_IMETHOD GetPath(char **memoryPath)
   {
-    process.Truncate();
-    return NS_OK;
-  }
+    nsCString path;
 
-  NS_IMETHOD GetPath(nsACString &path)
-  {
-    path.AssignLiteral("explicit/storage/sqlite/");
+    path.AppendLiteral("heap-used/storage/");
     path.Append(mDBConn.getFilename());
 
-    if (mType == Cache_Used) {
+    if (mType == LookAside_Used) {
+      path.AppendLiteral("/lookaside-used");
+    }
+    else if (mType == Cache_Used) {
       path.AppendLiteral("/cache-used");
     }
     else if (mType == Schema_Used) {
@@ -368,25 +368,35 @@ public:
     else if (mType == Stmt_Used) {
       path.AppendLiteral("/stmt-used");
     }
+
+    *memoryPath = ::ToNewCString(path);
     return NS_OK;
   }
 
-  NS_IMETHOD GetKind(PRInt32 *kind)
+  NS_IMETHOD GetDescription(char **desc)
   {
-    *kind = KIND_HEAP;
+    if (mType == LookAside_Used) {
+      *desc = ::strdup("Number of lookaside memory slots currently checked out.");
+    }
+    else if (mType == Cache_Used) {
+      *desc = ::strdup("Memory (approximate) used by all pager caches.");
+    }
+    else if (mType == Schema_Used) {
+      *desc = ::strdup("Memory (approximate) used to store the schema for all databases associated with the connection");
+    }
+    else if (mType == Stmt_Used) {
+      *desc = ::strdup("Memory (approximate) used by all prepared statements");
+    }
     return NS_OK;
   }
 
-  NS_IMETHOD GetUnits(PRInt32 *units)
-  {
-    *units = UNITS_BYTES;
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetAmount(PRInt64 *amount)
+  NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed)
   {
     int type = 0;
-    if (mType == Cache_Used) {
+    if (mType == LookAside_Used) {
+      type = SQLITE_DBSTATUS_LOOKASIDE_USED;
+    }
+    else if (mType == Cache_Used) {
       type = SQLITE_DBSTATUS_CACHE_USED;
     }
     else if (mType == Schema_Used) {
@@ -398,25 +408,9 @@ public:
 
     int cur=0, max=0;
     int rc = ::sqlite3_db_status(mDBConn, type, &cur, &max, 0);
-    *amount = cur;
+    *memoryUsed = cur;
     return convertResultCode(rc);
   }
-
-  NS_IMETHOD GetDescription(nsACString &desc)
-  {
-    if (mType == Cache_Used) {
-      desc.AssignLiteral("Memory (approximate) used by all pager caches.");
-    }
-    else if (mType == Schema_Used) {
-      desc.AssignLiteral("Memory (approximate) used to store the schema "
-                          "for all databases associated with the connection");
-    }
-    else if (mType == Stmt_Used) {
-      desc.AssignLiteral("Memory (approximate) used by all prepared statements");
-    }
-    return NS_OK;
-  }
-
   Connection &mDBConn;
   nsCString mFileName;
   ReporterType mType;
@@ -582,7 +576,16 @@ Connection::initialize(nsIFile *aDatabaseFile,
   }
 
   nsRefPtr<nsIMemoryReporter> reporter;
+#if 0
+  // FIXME: Bug 649867 explains why this is disabled.
+  reporter =
+    new StorageMemoryReporter(*this, StorageMemoryReporter::LookAside_Used);
+  mMemoryReporters.AppendElement(reporter);
+#endif
 
+  // FIXME: These reporters overlap with storage/sqlite/pagecache and
+  // storage/sqlite/other, and therefore double-count some memory.  See bug
+  // 653630 for details.
   reporter =
     new StorageMemoryReporter(*this, StorageMemoryReporter::Cache_Used);
   mMemoryReporters.AppendElement(reporter);

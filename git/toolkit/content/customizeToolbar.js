@@ -739,17 +739,15 @@ function onToolbarDragExit(aEvent)
 
 function onToolbarDragStart(aEvent)
 {
+  var documentId = gToolboxDocument.documentElement.id;
+
   var item = aEvent.target;
-  while (item && item.localName != "toolbarpaletteitem") {
-    if (item.localName == "toolbar")
-      return;
+  while (item && item.localName != "toolbarpaletteitem")
     item = item.parentNode;
-  }
 
   item.setAttribute("dragactive", "true");
 
   var dt = aEvent.dataTransfer;
-  var documentId = gToolboxDocument.documentElement.id;
   dt.setData("text/toolbarwrapper-id/" + documentId, item.firstChild.id);
   dt.effectAllowed = "move";
 }

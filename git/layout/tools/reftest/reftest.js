@@ -65,7 +65,6 @@ const NS_OBSERVER_SERVICE_CONTRACTID =
 var gLoadTimeout = 0;
 var gTimeoutHook = null;
 var gRemote = false;
-var gIgnoreWindowSize = false;
 var gTotalChunks = 0;
 var gThisChunk = 0;
 
@@ -157,7 +156,6 @@ var gRecycledCanvases = new Array();
 
 // By default we just log to stdout
 var gDumpLog = dump;
-var gVerbose = false;
 
 // Only dump the sandbox once, because it doesn't depend on the
 // manifest URL (yet!).
@@ -171,18 +169,14 @@ function LogWarning(str)
 
 function LogInfo(str)
 {
-    if (gVerbose)
-        gDumpLog("REFTEST INFO | " + str + "\n");
+//    gDumpLog("REFTEST INFO | " + str + "\n");
     gTestLog.push(str);
 }
 
 function FlushTestLog()
 {
-    if (!gVerbose) {
-        // In verbose mode, we've dumped all these messages already.
-        for (var i = 0; i < gTestLog.length; ++i) {
-            gDumpLog("REFTEST INFO | Saved log: " + gTestLog[i] + "\n");
-        }
+    for (var i = 0; i < gTestLog.length; ++i) {
+        gDumpLog("REFTEST INFO | Saved log: " + gTestLog[i] + "\n");
     }
     gTestLog = [];
 }
@@ -224,10 +218,6 @@ function OnRefTestLoad()
                     .getService(CI.nsIProperties)
                     .get("ProfD", CI.nsIFile);
     gCrashDumpDir.append("minidumps");
-    
-    var env = CC["@mozilla.org/process/environment;1"].
-              getService(CI.nsIEnvironment);
-    gVerbose = !!env.get("MOZ_REFTEST_VERBOSE");
 
     var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                 getService(Components.interfaces.nsIPrefBranch2);
@@ -274,7 +264,6 @@ function InitAndStartRefTests()
         }
       }
       gRemote = prefs.getBoolPref("reftest.remote");
-      gIgnoreWindowSize = prefs.getBoolPref("reftest.ignoreWindowSize");
     }
     catch(e) {
       gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
@@ -558,7 +547,7 @@ function ReadManifest(aURL, inherited_status)
     }
     var streamBuf = getStreamContent(inputStream);
     inputStream.close();
-    var lines = streamBuf.split(/\n|\r|\r\n/);
+    var lines = streamBuf.split(/(\n|\r|\r\n)/);
 
     // Build the sandbox for fails-if(), etc., condition evaluation.
     var sandbox = BuildConditionSandbox(aURL);
@@ -592,7 +581,7 @@ function ReadManifest(aURL, inherited_status)
         var needs_focus = false;
         var slow = false;
         
-        while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|require-or|silentfail)/)) {
+        while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|silentfail)/)) {
             var item = items.shift();
             var stat;
             var cond;
@@ -623,30 +612,6 @@ function ReadManifest(aURL, inherited_status)
             } else if (item == "slow") {
                 cond = false;
                 slow = true;
-            } else if ((m = item.match(/^require-or\((.*?)\)$/))) {
-                var args = m[1].split(/,/);
-                if (args.length != 2) {
-                    throw "Error 7 in manifest file " + aURL.spec + " line " + lineNo + ": wrong number of args to require-or";
-                }
-                var [precondition_str, fallback_action] = args;
-                var preconditions = precondition_str.split(/&&/);
-                cond = false;
-                for each (var precondition in preconditions) {
-                    if (precondition === "debugMode") {
-                        // Currently unimplemented. Requires asynchronous
-                        // JSD call + getting an event while no JS is running
-                        stat = fallback_action;
-                        cond = true;
-                        break;
-                    } else if (precondition === "true") {
-                        // For testing
-                    } else {
-                        // Unknown precondition. Assume it is unimplemented.
-                        stat = fallback_action;
-                        cond = true;
-                        break;
-                    }
-                }
             } else if ((m = item.match(/^slow-if\((.*?)\)$/))) {
                 cond = false;
                 if (Components.utils.evalInSandbox("(" + m[1] + ")", sandbox))
@@ -1001,11 +966,10 @@ function DoDrawWindow(ctx, x, y, w, h)
 {
     var flags = ctx.DRAWWINDOW_DRAW_CARET | ctx.DRAWWINDOW_DRAW_VIEW;
     var testRect = gBrowser.getBoundingClientRect();
-    if (gIgnoreWindowSize ||
-        (0 <= testRect.left &&
-         0 <= testRect.top &&
-         window.innerWidth >= testRect.right &&
-         window.innerHeight >= testRect.bottom)) {
+    if (0 <= testRect.left &&
+        0 <= testRect.top &&
+        window.innerWidth >= testRect.right &&
+        window.innerHeight >= testRect.bottom) {
         // We can use the window's retained layer manager
         // because the window is big enough to display the entire
         // browser element

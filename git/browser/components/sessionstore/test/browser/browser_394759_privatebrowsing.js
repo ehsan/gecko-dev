@@ -37,8 +37,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   /** Private Browsing Test for Bug 394759 **/
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
 
@@ -47,6 +58,8 @@ function test() {
 
   // Set up the browser in a blank state. Popup windows in previous tests result
   // in different states on different platforms.
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   let blankState = JSON.stringify({
     windows: [{
       tabs: [{ entries: [{ url: "about:blank" }] }],
@@ -85,6 +98,8 @@ function continue_test() {
            getService(Ci.nsIPrivateBrowsingService);
   // Ensure Private Browsing mode is disabled.
   ok(!pb.privateBrowsingEnabled, "Private Browsing is disabled");
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
 
   let closedWindowCount = ss.getClosedWindowCount();
   is(closedWindowCount, 0, "Correctly set window count");
@@ -155,7 +170,9 @@ function continue_test() {
                   }
 
                   if (aTestIndex == TESTS.length - 1) {
-                    gPrefService.clearUserPref("browser.sessionstore.interval");
+                    if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
+                      gPrefService.clearUserPref("browser.sessionstore.interval");
+                    is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
                     finish();
                   }
                   else {

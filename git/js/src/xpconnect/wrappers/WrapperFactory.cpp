@@ -136,10 +136,6 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
     return obj;
 }
 
-// DoubleWrap is called from PrepareForWrapping to maintain the state that
-// we're supposed to waive Xray wrappers for the given on. On entrance, it
-// expects |cx->compartment != obj->compartment()|. The returned object will
-// be in the same compartment as |obj|.
 JSObject *
 WrapperFactory::DoubleWrap(JSContext *cx, JSObject *obj, uintN flags)
 {
@@ -240,15 +236,6 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj
     return DoubleWrap(cx, obj, flags);
 }
 
-static XPCWrappedNative *
-GetWrappedNative(JSContext *cx, JSObject *obj)
-{
-    OBJ_TO_INNER_OBJECT(cx, obj);
-    return IS_WN_WRAPPER(obj)
-           ? static_cast<XPCWrappedNative *>(obj->getPrivate())
-           : nsnull;
-}
-
 JSObject *
 WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSObject *parent,
                        uintN flags)
@@ -307,21 +294,8 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                 return nsnull;
             }
         }
-
-        XPCWrappedNative *wn;
-        if (targetdata &&
-            (wn = GetWrappedNative(cx, obj)) &&
-            wn->HasProto() && wn->GetProto()->ClassIsDOMObject()) {
-            typedef XrayWrapper<JSCrossCompartmentWrapper> Xray;
-            wrapper = &FilteringWrapper<Xray,
-                                        CrossOriginAccessiblePropertiesOnly>::singleton;
-            xrayHolder = Xray::createHolder(cx, obj, parent);
-            if (!xrayHolder)
-                return nsnull;
-        } else {
-            wrapper = &FilteringWrapper<JSCrossCompartmentWrapper,
-                                        ExposedPropertiesOnly>::singleton;
-        }
+        wrapper = &FilteringWrapper<JSCrossCompartmentWrapper,
+                                    ExposedPropertiesOnly>::singleton;
     } else if (AccessCheck::isSameOrigin(origin, target)) {
         // Same origin we use a transparent wrapper, unless the compartment asks
         // for an Xray or the wrapper needs a SOW.
@@ -358,7 +332,7 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                 wrapper = &FilteringWrapper<Xray,
                     SameOriginOrCrossOriginAccessiblePropertiesOnly>::singleton;
             } else {
-                wrapper = &FilteringWrapper<Xray,
+                wrapper= &FilteringWrapper<Xray,
                     CrossOriginAccessiblePropertiesOnly>::singleton;
             }
 
@@ -402,22 +376,13 @@ WrapperFactory::WrapLocationObject(JSContext *cx, JSObject *obj)
     return wrapperObj;
 }
 
-// Call WaiveXrayAndWrap when you have a JS object that you don't want to be
-// wrapped in an Xray wrapper. cx->compartment is the compartment that will be
-// using the returned object. If the object to be wrapped is already in the
-// correct compartment, then this returns the unwrapped object.
 bool
 WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
 {
     if (JSVAL_IS_PRIMITIVE(*vp))
         return JS_WrapValue(cx, vp);
 
-    JSObject *obj = JSVAL_TO_OBJECT(*vp)->unwrap();
-    obj = GetCurrentOuter(cx, obj);
-    if (obj->compartment() == cx->compartment) {
-        *vp = OBJECT_TO_JSVAL(obj);
-        return true;
-    }
+    JSObject *obj = JSVAL_TO_OBJECT(*vp);
 
     obj = WaiveXray(cx, obj);
     if (!obj)

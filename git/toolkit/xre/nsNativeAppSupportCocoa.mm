@@ -49,7 +49,7 @@
 #include "nsIAppStartup.h"
 #include "nsIBaseWindow.h"
 #include "nsICommandLineRunner.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -60,7 +60,7 @@
 #include "nsIWindowMediator.h"
 
 nsresult
-GetNativeWindowPointerFromDOMWindow(nsIDOMWindow *a_window, NSWindow **a_nativeWindow)
+GetNativeWindowPointerFromDOMWindow(nsIDOMWindowInternal *a_window, NSWindow **a_nativeWindow)
 {
   *a_nativeWindow = nil;
   if (!a_window)
@@ -187,7 +187,7 @@ nsNativeAppSupportCocoa::ReOpen()
         
     if (!haveNonMiniaturized) {
       // Deminiaturize the most recenty used window
-      nsCOMPtr<nsIDOMWindow> mru;
+      nsCOMPtr<nsIDOMWindowInternal> mru = nsnull;
       wm->GetMostRecentWindow(nsnull, getter_AddRefs(mru));
             
       if (mru) {        

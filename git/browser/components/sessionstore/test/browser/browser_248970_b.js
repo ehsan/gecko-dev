@@ -109,6 +109,10 @@ function test() {
            getService(Ci.nsIPrivateBrowsingService);
   gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
 
+  // sessionstore service
+  let ss = test(function() Cc["@mozilla.org/browser/sessionstore;1"].
+                           getService(Ci.nsISessionStore));
+
   //////////////////////////////////////////////////////////////////
   // Test (B) : Session data restoration between modes            //
   //////////////////////////////////////////////////////////////////

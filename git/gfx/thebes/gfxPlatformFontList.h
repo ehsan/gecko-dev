@@ -79,8 +79,6 @@ public:
         sPlatformFontList = nsnull;
     }
 
-    virtual ~gfxPlatformFontList();
-
     // initialize font lists
     virtual nsresult InitFontList();
 

@@ -168,8 +168,6 @@ public:
    */
   nsTArray<LayerD3D9*> mLayersWithResources;
 
-  PRInt32 GetMaxTextureSize() { return mMaxTextureSize; }
-
 private:
   friend class SwapChainD3D9;
 
@@ -239,8 +237,6 @@ private:
   HMONITOR mDeviceMonitor;
 
   PRUint32 mDeviceResetCount;
-
-  PRUint32 mMaxTextureSize;
 
   /* If this device supports dynamic textures */
   bool mHasDynamicTextures;

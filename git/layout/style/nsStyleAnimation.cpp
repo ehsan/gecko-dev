@@ -282,7 +282,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
           // just like eUnit_Integer.
           PRInt32 startInt = aStartValue.GetIntValue();
           PRInt32 endInt = aEndValue.GetIntValue();
-          aDistance = NS_ABS(endInt - startInt);
+          aDistance = PR_ABS(endInt - startInt);
           return PR_TRUE;
         }
         default:
@@ -293,13 +293,13 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
         aStartValue.GetIntValue() == NS_STYLE_VISIBILITY_VISIBLE;
       PRInt32 endVal =
         aEndValue.GetIntValue() == NS_STYLE_VISIBILITY_VISIBLE;
-      aDistance = NS_ABS(startVal - endVal);
+      aDistance = PR_ABS(startVal - endVal);
       return PR_TRUE;
     }
     case eUnit_Integer: {
       PRInt32 startInt = aStartValue.GetIntValue();
       PRInt32 endInt = aEndValue.GetIntValue();
-      aDistance = NS_ABS(endInt - startInt);
+      aDistance = PR_ABS(endInt - startInt);
       return PR_TRUE;
     }
     case eUnit_Coord: {
@@ -1110,7 +1110,7 @@ DecomposeMatrix(const nsStyleTransformMatrix &aMatrix,
   XYshear /= scaleY;
 
  // A*D - B*C should now be 1 or -1
-  NS_ASSERTION(0.99 < NS_ABS(A*D - B*C) && NS_ABS(A*D - B*C) < 1.01,
+  NS_ASSERTION(0.99 < PR_ABS(A*D - B*C) && PR_ABS(A*D - B*C) < 1.01,
                "determinant should now be 1 or -1");
   if (A * D < B * C) {
     A = -A;
@@ -1422,12 +1422,13 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
       PRInt32 result = NS_floor(aCoeff1 * double(aValue1.GetIntValue()) +
                                 aCoeff2 * double(aValue2.GetIntValue()));
       if (aProperty == eCSSProperty_font_weight) {
+        NS_ASSERTION(result > 0, "unexpected value");
+        result -= result % 100;
         if (result < 100) {
           result = 100;
         } else if (result > 900) {
           result = 900;
         }
-        result -= result % 100;
       } else {
         result = RestrictValue(aProperty, result);
       }
@@ -1849,7 +1850,11 @@ BuildStyleRule(nsCSSProperty aProperty,
   nsCSSParser parser(doc->CSSLoader());
 
   if (aUseSVGMode) {
+#ifdef MOZ_SVG
     parser.SetSVGMode(PR_TRUE);
+#else
+    NS_NOTREACHED("aUseSVGMode should not be set");
+#endif
   }
 
   nsCSSProperty propertyToCheck = nsCSSProps::IsShorthand(aProperty) ?
@@ -2491,25 +2496,27 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
             resultTail = &item->mNext;
 
             const nsStyleBackground::Position &pos = bg->mLayers[i].mPosition;
-            // XXXbz is there a good reason we can't just
-            // SetCalcValue(&pos.mXPosition, item->mXValue) here?
-            if (!pos.mXPosition.mHasPercent) {
-              NS_ABORT_IF_FALSE(pos.mXPosition.mPercent == 0.0f,
-                                "Shouldn't have mPercent!");
-              nscoordToCSSValue(pos.mXPosition.mLength, item->mXValue);
-            } else if (pos.mXPosition.mLength == 0) {
+            if (pos.mXPosition.mLength == 0) {
               item->mXValue.SetPercentValue(pos.mXPosition.mPercent);
+            } else if (pos.mXPosition.mPercent == 0.0f) {
+              nscoordToCSSValue(pos.mXPosition.mLength, item->mXValue);
             } else {
-              SetCalcValue(&pos.mXPosition, item->mXValue);
+              nsStyleCoord::Calc calc;
+              calc.mLength = pos.mXPosition.mLength;
+              calc.mPercent = pos.mXPosition.mPercent;
+              calc.mHasPercent = PR_TRUE;
+              SetCalcValue(&calc, item->mXValue);
             }
-            if (!pos.mYPosition.mHasPercent) {
-              NS_ABORT_IF_FALSE(pos.mYPosition.mPercent == 0.0f,
-                                "Shouldn't have mPercent!");
-              nscoordToCSSValue(pos.mYPosition.mLength, item->mYValue);
-            } else if (pos.mYPosition.mLength == 0) {
+            if (pos.mYPosition.mLength == 0) {
               item->mYValue.SetPercentValue(pos.mYPosition.mPercent);
+            } else if (pos.mYPosition.mPercent == 0.0f) {
+              nscoordToCSSValue(pos.mYPosition.mLength, item->mYValue);
             } else {
-              SetCalcValue(&pos.mYPosition, item->mYValue);
+              nsStyleCoord::Calc calc;
+              calc.mLength = pos.mYPosition.mLength;
+              calc.mPercent = pos.mYPosition.mPercent;
+              calc.mHasPercent = PR_TRUE;
+              SetCalcValue(&calc, item->mYValue);
             }
           }
 
@@ -2539,20 +2546,16 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                 item->mXValue.SetAutoValue();
                 break;
               case nsStyleBackground::Size::eLengthPercentage:
-                // XXXbz is there a good reason we can't just
-                // SetCalcValue(&size.mWidth, item->mXValue) here?
-                if (!size.mWidth.mHasPercent &&
-                    // negative values must have come from calc()
-                    size.mWidth.mLength >= 0) {
-                  NS_ABORT_IF_FALSE(size.mWidth.mPercent == 0.0f,
-                                    "Shouldn't have mPercent");
-                  nscoordToCSSValue(size.mWidth.mLength, item->mXValue);
-                } else if (size.mWidth.mLength == 0 &&
-                           // negative values must have come from calc()
-                           size.mWidth.mPercent >= 0.0f) {
+                if (size.mWidth.mLength == 0) {
                   item->mXValue.SetPercentValue(size.mWidth.mPercent);
+                } else if (size.mWidth.mPercent == 0.0f) {
+                  nscoordToCSSValue(size.mWidth.mLength, item->mXValue);
                 } else {
-                  SetCalcValue(&size.mWidth, item->mXValue);
+                  nsStyleCoord::Calc calc;
+                  calc.mLength = size.mWidth.mLength;
+                  calc.mPercent = size.mWidth.mPercent;
+                  calc.mHasPercent = PR_TRUE;
+                  SetCalcValue(&calc, item->mXValue);
                 }
                 break;
             }
@@ -2566,20 +2569,16 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                 item->mYValue.SetAutoValue();
                 break;
               case nsStyleBackground::Size::eLengthPercentage:
-                // XXXbz is there a good reason we can't just
-                // SetCalcValue(&size.mHeight, item->mYValue) here?
-                if (!size.mHeight.mHasPercent &&
-                    // negative values must have come from calc()
-                    size.mHeight.mLength >= 0) {
-                  NS_ABORT_IF_FALSE(size.mHeight.mPercent == 0.0f,
-                                    "Shouldn't have mPercent");
-                  nscoordToCSSValue(size.mHeight.mLength, item->mYValue);
-                } else if (size.mHeight.mLength == 0 &&
-                           // negative values must have come from calc()
-                           size.mHeight.mPercent >= 0.0f) {
+                if (size.mHeight.mLength == 0) {
                   item->mYValue.SetPercentValue(size.mHeight.mPercent);
+                } else if (size.mHeight.mPercent == 0.0f) {
+                  nscoordToCSSValue(size.mHeight.mLength, item->mYValue);
                 } else {
-                  SetCalcValue(&size.mHeight, item->mYValue);
+                  nsStyleCoord::Calc calc;
+                  calc.mLength = size.mHeight.mLength;
+                  calc.mPercent = size.mHeight.mPercent;
+                  calc.mHasPercent = PR_TRUE;
+                  SetCalcValue(&calc, item->mYValue);
                 }
                 break;
             }

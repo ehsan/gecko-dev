@@ -42,24 +42,6 @@ TestRunner.logger = new Logger();
 // Check the query string for arguments
 var params = parseQueryString(location.search.substring(1), true);
 
-var config = {};
-if (window.readConfig) {
-  config = readConfig();
-}
-
-if (config.testRoot == "chrome" || config.testRoot == "a11y") {
-  for (p in params) {
-    if (params[p] == 1) {
-      config[p] = true;
-    } else if (params[p] == 0) {
-      config[p] = false;
-    } else {
-      config[p] = params[p];
-    }
-  }
-  params = config;
-}
-
 // set the per-test timeout if specified in the query string
 if (params.timeout) {
   TestRunner.timeout = parseInt(params.timeout) * 1000;
@@ -69,19 +51,9 @@ if (params.timeout) {
 var fileLevel =  params.fileLevel || null;
 var consoleLevel = params.consoleLevel || null;
 
-// loop tells us how many times to run the tests
-if (params.loops) {
-  TestRunner.loops = params.loops;
-} 
-
 // closeWhenDone tells us to call quit.js when complete
 if (params.closeWhenDone) {
   TestRunner.onComplete = goQuitApplication;
-}
-
-// hide the test results table if MOZ_HIDE_RESULTS_TABLE=1 was used
-if (params.hideResultsTable) {
-  document.documentElement.classList.add("hide-results-table");
 }
 
 // logFile to write our results
@@ -164,7 +136,6 @@ RunSet.runall = function(e) {
   }
   TestRunner.runTests(my_tests);
 }
-
 RunSet.reloadAndRunAll = function(e) {
   e.preventDefault();
   //window.location.hash = "";
@@ -176,7 +147,8 @@ RunSet.reloadAndRunAll = function(e) {
     window.location.href += "&autorun=1";
   } else {
     window.location.href += "?autorun=1";
-  }  
+  }
+  
 };
 
 // UI Stuff
@@ -215,7 +187,7 @@ function toggleNonTests (e) {
 function hookup() {
   connect("runtests", "onclick", RunSet, "reloadAndRunAll");
   connect("toggleNonTests", "onclick", toggleNonTests);
-  // run automatically if autorun specified
+  // run automatically if
   if (params.autorun) {
     RunSet.runall();
   }

@@ -845,7 +845,7 @@ class Interface(object):
     
     def __init__(self, name, iid=UNRESOLVED_IID, namespace="",
                  resolved=False, parent=None, methods=[], constants=[],
-                 scriptable=False, function=False, builtinclass=False):
+                 scriptable=False, function=False):
         self.resolved = resolved
         #TODO: should validate IIDs!
         self.iid = iid
@@ -857,7 +857,6 @@ class Interface(object):
         self.constants = list(constants)
         self.scriptable = scriptable
         self.function = function
-        self.builtinclass = builtinclass
         # For sanity, if someone constructs an Interface and passes
         # in methods or constants, then it's resolved.
         if self.methods or self.constants:
@@ -923,13 +922,11 @@ class Interface(object):
         (flags, ) = struct.unpack(">B", map[start:start + struct.calcsize(">B")])
         offset = offset + struct.calcsize(">B")
         # only the first two bits are flags
-        flags &= 0xE0
+        flags &= 0xC0
         if flags & 0x80:
             self.scriptable = True
         if flags & 0x40:
             self.function = True
-        if flags & 0x20:
-            self.builtinclass = True
         self.resolved = True
 
     def write_directory_entry(self, file):
@@ -968,8 +965,6 @@ class Interface(object):
             flags |= 0x80
         if self.function:
             flags |= 0x40
-        if self.builtinclass:
-            flags |= 0x20
         file.write(struct.pack(">B", flags))
         
     def write_names(self, file, data_pool_offset):
@@ -1160,11 +1155,9 @@ class Typelib(object):
             for i in self.interfaces:
                 i.write_directory_entry(f)
 
-    def merge(self, other, sanitycheck=True):
+    def merge(self, other):
         """
         Merge the contents of Typelib |other| into this typelib.
-        If |sanitycheck| is False, don't sort the interface table
-        after merging.
 
         """
         # This will be a list of (replaced interface, replaced with)
@@ -1236,8 +1229,7 @@ class Typelib(object):
                     checkType(m.result.type, replaced_from, replaced_to)
                     for p in m.params:
                         checkType(p.type, replaced_from, replaced_to)
-        if sanitycheck:
-            self._sanityCheck()
+        self._sanityCheck()
         #TODO: do we care about annotations? probably not
 
     def dump(self, out):
@@ -1265,9 +1257,7 @@ class Typelib(object):
                                                     i.parent.name))
                 out.write("""      Flags:
          Scriptable: %s
-         BuiltinClass: %s
          Function: %s\n""" % (i.scriptable and "TRUE" or "FALSE",
-                              i.builtinclass and "TRUE" or "FALSE",
                               i.function and "TRUE" or "FALSE"))
                 out.write("      Methods:\n")
                 if len(i.methods) == 0:
@@ -1313,8 +1303,7 @@ def xpt_link(dest, inputs):
     t1 = Typelib.read(inputs[0])
     for f in inputs[1:]:
         t2 = Typelib.read(f)
-        # write will call sanitycheck, so skip it here.
-        t1.merge(t2, sanitycheck=False)
+        t1.merge(t2)
     t1.write(dest)
 
 if __name__ == '__main__':

@@ -55,7 +55,6 @@
 #include "nsNullPrincipal.h"
 #include "nsJSUtils.h"
 #include "mozJSComponentLoader.h"
-#include "nsContentUtils.h"
 
 /***************************************************************************/
 // stuff used by all
@@ -2968,7 +2967,7 @@ SandboxDump(JSContext *cx, uintN argc, jsval *vp)
     if (!cstr)
         return JS_FALSE;
 
-#if defined(XP_MACOSX)
+#if defined(XP_MAC) || defined(XP_MACOSX)
     // Be nice and convert all \r to \n.
     char *c = cstr, *cEnd = cstr + strlen(cstr);
     while (c < cEnd) {
@@ -3018,7 +3017,7 @@ SandboxImport(JSContext *cx, uintN argc, jsval *vp)
         // NB: funobj must only be used to get the JSFunction out.
         JSObject *funobj = JSVAL_TO_OBJECT(argv[0]);
         if (funobj->isProxy()) {
-            funobj = XPCWrapper::UnsafeUnwrapSecurityWrapper(funobj);
+            funobj = XPCWrapper::UnsafeUnwrapSecurityWrapper(cx, funobj);
         }
 
         JSAutoEnterCompartment ac;
@@ -3561,7 +3560,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     }
 #endif
 
-    sandbox = XPCWrapper::UnsafeUnwrapSecurityWrapper(sandbox);
+    sandbox = XPCWrapper::UnsafeUnwrapSecurityWrapper(cx, sandbox);
     if (!sandbox || sandbox->getJSClass() != &SandboxClass) {
         return NS_ERROR_INVALID_ARG;
     }
@@ -3726,18 +3725,6 @@ nsXPCComponents_Utils::Import(const nsACString & registryLocation)
     return moduleloader->Import(registryLocation);
 }
 
-/* unload (in AUTF8String registryLocation);
- */
-NS_IMETHODIMP
-nsXPCComponents_Utils::Unload(const nsACString & registryLocation)
-{
-    nsCOMPtr<xpcIJSModuleLoader> moduleloader =
-        do_GetService(MOZJSCOMPONENTLOADER_CONTRACTID);
-    if (!moduleloader)
-        return NS_ERROR_FAILURE;
-    return moduleloader->Unload(registryLocation);
-}
-
 /* xpcIJSWeakReference getWeakReference (); */
 NS_IMETHODIMP
 nsXPCComponents_Utils::GetWeakReference(xpcIJSWeakReference **_retval)
@@ -3774,48 +3761,6 @@ nsXPCComponents_Utils::ForceGC()
     JS_GC(cx);
 
     return NS_OK;
-}
-
-class PreciseGCRunnable : public nsRunnable
-{
-  public:
-    PreciseGCRunnable(JSContext *aCx, ScheduledGCCallback* aCallback)
-    : mCallback(aCallback), mCx(aCx) {}
-
-    NS_IMETHOD Run()
-    {
-        nsCOMPtr<nsIJSRuntimeService> runtimeSvc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
-        NS_ENSURE_STATE(runtimeSvc);
-
-        JSRuntime* rt = nsnull;
-        runtimeSvc->GetRuntime(&rt);
-        NS_ENSURE_STATE(rt);
-
-        JSContext *cx;
-        JSContext *iter = nsnull;
-        while ((cx = JS_ContextIterator(rt, &iter)) != NULL) {
-            if (JS_IsRunning(cx)) {
-                return NS_DispatchToMainThread(this);
-            }
-        }
-
-        JS_GC(mCx);
-
-        mCallback->Callback();
-        return NS_OK;
-    }
-
-  private:
-    nsRefPtr<ScheduledGCCallback> mCallback;
-    JSContext *mCx;
-};
-
-/* [inline_jscontext] void schedulePreciseGC(in ScheduledGCCallback callback); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::SchedulePreciseGC(ScheduledGCCallback* aCallback, JSContext* aCx)
-{
-    nsRefPtr<PreciseGCRunnable> event = new PreciseGCRunnable(aCx, aCallback);
-    return NS_DispatchToMainThread(event);
 }
 
 /* void getGlobalForObject(); */
@@ -3872,106 +3817,6 @@ nsXPCComponents_Utils::GetGlobalForObject()
 
   cc->SetReturnValueWasSet(PR_TRUE);
   return NS_OK;
-}
-
-/* jsval createObjectIn(in jsval vobj); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::CreateObjectIn(const jsval &vobj, JSContext *cx, jsval *rval)
-{
-    if (!cx)
-        return NS_ERROR_FAILURE;
-
-    // first argument must be an object
-    if(JSVAL_IS_PRIMITIVE(vobj))
-        return NS_ERROR_XPC_BAD_CONVERT_JS;
-
-    JSObject *scope = JSVAL_TO_OBJECT(vobj)->unwrap();
-    JSObject *obj;
-    {
-        JSAutoEnterCompartment ac;
-        if(!ac.enter(cx, scope))
-            return NS_ERROR_FAILURE;
-
-        obj = JS_NewObject(cx, nsnull, nsnull, scope);
-        if (!obj)
-            return NS_ERROR_FAILURE;
-    }
-
-    if (!JS_WrapObject(cx, &obj))
-        return NS_ERROR_FAILURE;
-    *rval = OBJECT_TO_JSVAL(obj);
-    return NS_OK;
-}
-
-JSBool
-FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
-{
-    jsval v;
-    if (!JS_GetReservedSlot(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)), 0, &v))
-        return JS_FALSE;
-    NS_ASSERTION(JSVAL_IS_OBJECT(v), "weird function");
-
-    return JS_CallFunctionValue(cx, JS_THIS_OBJECT(cx, vp), v,
-                                argc, JS_ARGV(cx, vp), vp);
-}
-
-JSBool
-WrapCallable(JSContext *cx, JSObject *obj, jsid id, JSObject *propobj, jsval *vp)
-{
-    JSFunction *fun = JS_NewFunctionById(cx, FunctionWrapper, 0, 0,
-                                         JS_GetGlobalForObject(cx, obj), id);
-    if (!fun)
-        return JS_FALSE;
-
-    JSObject *funobj = JS_GetFunctionObject(fun);
-    if (!JS_SetReservedSlot(cx, funobj, 0, OBJECT_TO_JSVAL(propobj)))
-        return JS_FALSE;
-    *vp = OBJECT_TO_JSVAL(funobj);
-    return JS_TRUE;
-}
-
-/* void makeObjectPropsNormal(jsval vobj); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::MakeObjectPropsNormal(const jsval &vobj, JSContext *cx)
-{
-    if (!cx)
-        return NS_ERROR_FAILURE;
-
-    // first argument must be an object
-    if(JSVAL_IS_PRIMITIVE(vobj))
-        return NS_ERROR_XPC_BAD_CONVERT_JS;
-
-    JSObject *obj = JSVAL_TO_OBJECT(vobj)->unwrap();
-
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, obj))
-        return NS_ERROR_FAILURE;
-
-    js::AutoIdArray ida(cx, JS_Enumerate(cx, obj));
-    if (!ida)
-        return NS_ERROR_FAILURE;
-
-    for (size_t i = 0; i < ida.length(); ++i) {
-        jsid id = ida[i];
-        jsval v;
-
-        if (!JS_GetPropertyById(cx, obj, id, &v))
-            return NS_ERROR_FAILURE;
-
-        if (JSVAL_IS_PRIMITIVE(v))
-            continue;
-
-        JSObject *propobj = JSVAL_TO_OBJECT(v);
-        // TODO Deal with non-functions.
-        if (!propobj->isWrapper() || !JS_ObjectIsCallable(cx, propobj))
-            continue;
-
-        if (!WrapCallable(cx, obj, id, propobj, &v) ||
-            !JS_SetPropertyById(cx, obj, id, &v))
-            return NS_ERROR_FAILURE;
-    }
-
-    return NS_OK;
 }
 
 /* string canCreateWrapper (in nsIIDPtr iid); */

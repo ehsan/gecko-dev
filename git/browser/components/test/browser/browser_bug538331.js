@@ -165,10 +165,7 @@ var gWindowCatcher = {
     this.windowsOpen++;
     let win = subject.QueryInterface(Ci.nsIDOMWindow);
     info("window catcher caught window opening: " + win.document.documentURI);
-    win.addEventListener("load", function () {
-      win.removeEventListener("load", arguments.callee, false);
-      gWindowCatcher.windowLoad(win);
-    }, false);
+    win.addEventListener("load", this.windowLoad.bind(this, win), false);
   }
 };
 
@@ -360,10 +357,7 @@ function testShowNotification()
           // Wait for any windows caught by the windowcatcher to close
           gWindowCatcher.finish(function () {
             button.click();
-            gBrowser.selectedBrowser.addEventListener("load", function () {
-              gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
-              testNotificationURL();
-            }, true);
+            gBrowser.selectedBrowser.addEventListener("load", testNotificationURL, true);
           });
         } else {
           notifyBox.removeAllNotifications(true);

@@ -76,14 +76,14 @@ SYNC_KEY_ENCODED_LENGTH:               26,
 SYNC_KEY_DECODED_LENGTH:               16,
 SYNC_KEY_HYPHENATED_LENGTH:            31,    // 26 chars, 5 hyphens.
 
-NO_SYNC_NODE_INTERVAL:                 10 * 60 * 1000, // 10 minutes
+// Sync intervals for various clients configurations
+SINGLE_USER_SYNC:                      24 * 60 * 60 * 1000, // 1 day
+MULTI_DESKTOP_SYNC:                    60 * 60 * 1000, // 1 hour
+MULTI_MOBILE_SYNC:                     5 * 60 * 1000, // 5 minutes
+PARTIAL_DATA_SYNC:                     60 * 1000, // 1 minute
 
 MAX_ERROR_COUNT_BEFORE_BACKOFF:        3,
 MAX_IGNORE_ERROR_COUNT:                5,
-
-// Backoff intervals
-MINIMUM_BACKOFF_INTERVAL:              15 * 60 * 1000,      // 15 minutes
-MAXIMUM_BACKOFF_INTERVAL:              8 * 60 * 60 * 1000,  // 8 hours 
 
 // HMAC event handling timeout.
 // 10 minutes: a compromise between the multi-desktop sync interval
@@ -111,17 +111,8 @@ PASSWORDS_STORE_BATCH_SIZE:            50, // same as MOBILE_BATCH_SIZE
 
 // score thresholds for early syncs
 SINGLE_USER_THRESHOLD:                 1000,
-MULTI_DEVICE_THRESHOLD:                300,
-
-// Other score increment constants
-SCORE_INCREMENT_SMALL:                 1,
-SCORE_INCREMENT_MEDIUM:                10,
-
-// Instant sync score increment
-SCORE_INCREMENT_XLARGE:                300 + 1, //MULTI_DEVICE_THRESHOLD + 1
-
-// Delay before incrementing global score
-SCORE_UPDATE_DELAY:                    100,
+MULTI_DESKTOP_THRESHOLD:               500,
+MULTI_MOBILE_THRESHOLD:                100,
 
 // File IO Flags
 MODE_RDONLY:                           0x01,
@@ -158,7 +149,7 @@ ENGINE_SUCCEEDED:                      "success.engine",
 
 // login failure status codes:
 LOGIN_FAILED_NO_USERNAME:              "error.login.reason.no_username",
-LOGIN_FAILED_NO_PASSWORD:              "error.login.reason.no_password2",
+LOGIN_FAILED_NO_PASSWORD:              "error.login.reason.no_password",
 LOGIN_FAILED_NO_PASSPHRASE:            "error.login.reason.no_synckey",
 LOGIN_FAILED_NETWORK_ERROR:            "error.login.reason.network",
 LOGIN_FAILED_SERVER_ERROR:             "error.login.reason.server",
@@ -199,6 +190,7 @@ JPAKE_ERROR_USERABORT:                 "jpake.error.userabort",
 // Ways that a sync can be disabled (messages only to be printed in debug log)
 kSyncMasterPasswordLocked:             "User elected to leave Master Password locked",
 kSyncWeaveDisabled:                    "Weave is disabled",
+kSyncNotLoggedIn:                      "User is not logged in",
 kSyncNetworkOffline:                   "Network is offline",
 kSyncBackoffNotMet:                    "Trying to sync before the server said it's okay",
 kFirstSyncChoiceNotMade:               "User has not selected an action for first sync",

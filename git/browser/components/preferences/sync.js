@@ -114,10 +114,10 @@ let gSyncPane = {
                   Services.prompt.BUTTON_POS_1_DEFAULT;
       let buttonChoice =
         Services.prompt.confirmEx(window,
-                                  this._stringBundle.GetStringFromName("syncUnlink.title"),
-                                  this._stringBundle.GetStringFromName("syncUnlink.label"),
+                                  this._stringBundle.GetStringFromName("stopUsingAccount.title"),
+                                  this._stringBundle.GetStringFromName("differentAccount.label"),
                                   flags,
-                                  this._stringBundle.GetStringFromName("syncUnlinkConfirm.label"),
+                                  this._stringBundle.GetStringFromName("differentAccountConfirm.label"),
                                   null, null, null, {});
 
       // If the user selects cancel, just bail

@@ -61,7 +61,6 @@ EXPORTS_mozilla/net = \
 CPPSRCS =               \
   NeckoChild.cpp        \
   NeckoParent.cpp       \
-  ChannelEventQueue.cpp \
   $(NULL)
 
 LOCAL_INCLUDES +=                  \

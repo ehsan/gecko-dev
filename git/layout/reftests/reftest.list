@@ -89,9 +89,6 @@ skip-if(Android) include css-invalid/reftest.list
 # css-submit-invalid
 include css-submit-invalid/reftest.list
 
-# css text-overflow
-include text-overflow/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 
@@ -216,7 +213,7 @@ include percent-overflow-sizing/reftest.list
 include pixel-rounding/reftest.list
 
 # plugin/
-include ../../dom/plugins/test/reftest/reftest.list
+include ../../modules/plugin/test/reftest/reftest.list
 
 # printing
 include printing/reftest.list

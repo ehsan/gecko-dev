@@ -270,7 +270,7 @@ class JaegerCompartment {
  * setting a flag on the compiler when OOM occurs. The compiler is required
  * to check for OOM only before trying to use the contents of the list.
  */
-class CompilerAllocPolicy : public TempAllocPolicy
+class CompilerAllocPolicy : public ContextAllocPolicy
 {
     bool *oomFlag;
 
@@ -282,12 +282,12 @@ class CompilerAllocPolicy : public TempAllocPolicy
 
   public:
     CompilerAllocPolicy(JSContext *cx, bool *oomFlag)
-    : TempAllocPolicy(cx), oomFlag(oomFlag) {}
+    : ContextAllocPolicy(cx), oomFlag(oomFlag) {}
     CompilerAllocPolicy(JSContext *cx, Compiler &compiler);
 
-    void *malloc_(size_t bytes) { return checkAlloc(TempAllocPolicy::malloc_(bytes)); }
-    void *realloc_(void *p, size_t oldBytes, size_t bytes) {
-        return checkAlloc(TempAllocPolicy::realloc_(p, oldBytes, bytes));
+    void *malloc_(size_t bytes) { return checkAlloc(ContextAllocPolicy::malloc_(bytes)); }
+    void *realloc_(void *p, size_t bytes) {
+        return checkAlloc(ContextAllocPolicy::realloc_(p, bytes));
     }
 };
 
@@ -418,6 +418,7 @@ struct JITScript {
     void purgePICs();
 
     size_t scriptDataSize();
+
     jsbytecode *nativeToPC(void *returnAddress) const;
 
   private:
@@ -488,9 +489,6 @@ ResetTraceHint(JSScript *script, jsbytecode *pc, uint16_t index, bool full);
 
 uintN
 GetCallTargetCount(JSScript *script, jsbytecode *pc);
-
-void
-DumpAllProfiles(JSContext *cx);
 
 inline void * bsearch_nmap(NativeMapEntry *nmap, size_t nPairs, size_t bcOff)
 {

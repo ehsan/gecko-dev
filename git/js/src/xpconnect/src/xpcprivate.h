@@ -130,6 +130,13 @@
 
 #include "nsIThreadInternal.h"
 
+#ifdef XPC_IDISPATCH_SUPPORT
+// This goop was added because of EXCEPINFO in ThrowCOMError
+// This include is here, because it needs to occur before the undefines below
+#include <atlbase.h>
+#include "oaidl.h"
+#endif
+
 #ifdef XP_WIN
 // Nasty MS defines
 #ifdef GetClassInfo
@@ -240,20 +247,17 @@ class PtrAndPrincipalHashKey : public PLDHashEntryHdr
     typedef const PtrAndPrincipalHashKey *KeyTypePointer;
 
     PtrAndPrincipalHashKey(const PtrAndPrincipalHashKey *aKey)
-      : mPtr(aKey->mPtr), mPrincipal(aKey->mPrincipal),
-        mSavedHash(aKey->mSavedHash)
+      : mPtr(aKey->mPtr), mURI(aKey->mURI), mSavedHash(aKey->mSavedHash)
     {
         MOZ_COUNT_CTOR(PtrAndPrincipalHashKey);
     }
 
-    PtrAndPrincipalHashKey(nsISupports *aPtr, nsIPrincipal *aPrincipal)
-      : mPtr(aPtr), mPrincipal(aPrincipal)
+    PtrAndPrincipalHashKey(nsISupports *aPtr, nsIURI *aURI)
+      : mPtr(aPtr), mURI(aURI)
     {
         MOZ_COUNT_CTOR(PtrAndPrincipalHashKey);
-        nsCOMPtr<nsIURI> uri;
-        aPrincipal->GetURI(getter_AddRefs(uri));
-        mSavedHash = uri
-                     ? NS_SecurityHashURI(uri)
+        mSavedHash = mURI
+                     ? NS_SecurityHashURI(mURI)
                      : (NS_PTR_TO_UINT32(mPtr.get()) >> 2);
     }
 
@@ -281,7 +285,7 @@ class PtrAndPrincipalHashKey : public PLDHashEntryHdr
 
   protected:
     nsCOMPtr<nsISupports> mPtr;
-    nsCOMPtr<nsIPrincipal> mPrincipal;
+    nsCOMPtr<nsIURI> mURI;
 
     // During shutdown, when we GC, we need to remove these keys from the hash
     // table. However, computing the saved hash, NS_SecurityHashURI calls back
@@ -512,8 +516,6 @@ public:
 
     JSBool IsShuttingDown() const {return mShuttingDown;}
 
-    void EnsureGCBeforeCC() { mNeedGCBeforeCC = JS_TRUE; }
-
     nsresult GetInfoForIID(const nsIID * aIID, nsIInterfaceInfo** info);
     nsresult GetInfoForName(const char * name, nsIInterfaceInfo** info);
 
@@ -548,7 +550,6 @@ public:
     virtual nsresult FinishTraverse();
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
-    virtual bool NeedCollect();
     virtual void Collect();
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p);
@@ -578,6 +579,10 @@ public:
       return gReportAllJSExceptions > 0;
     }
 
+#ifdef XPC_IDISPATCH_SUPPORT
+public:
+    static PRBool IsIDispatchEnabled();
+#endif
 protected:
     nsXPConnect();
 
@@ -594,7 +599,6 @@ private:
     nsIXPCSecurityManager*   mDefaultSecurityManager;
     PRUint16                 mDefaultSecurityManagerFlags;
     JSBool                   mShuttingDown;
-    JSBool                   mNeedGCBeforeCC;
 #ifdef DEBUG_CC
     PLDHashTable             mJSRoots;
 #endif
@@ -753,6 +757,8 @@ public:
 
     nsresult AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
     nsresult RemoveJSHolder(void* aHolder);
+
+    void ClearWeakRoots();
 
     static void SuspectWrappedNative(JSContext *cx, XPCWrappedNative *wrapper,
                                      nsCycleCollectionTraversalCallback &cb);
@@ -1101,6 +1107,15 @@ public:
     XPCReadableJSStringWrapper *NewStringWrapper(const PRUnichar *str, PRUint32 len);
     void DeleteString(nsAString *string);
 
+#ifdef XPC_IDISPATCH_SUPPORT
+    /**
+     * Sets the IDispatch information for the context
+     * This has to be void* because of icky Microsoft macros that
+     * would be introduced if we included the DispatchInterface header
+     */
+    void SetIDispatchInfo(XPCNativeInterface* iface, void * member);
+    void* GetIDispatchMember() const { return mIDispatchMember; }
+#endif
 private:
 
     // no copy ctor or assignment allowed
@@ -1189,6 +1204,9 @@ private:
     jsval*                          mRetVal;
 
     JSBool                          mReturnValueWasSet;
+#ifdef XPC_IDISPATCH_SUPPORT
+    void*                           mIDispatchMember;
+#endif
     PRUint16                        mMethodIndex;
 
 #define XPCCCX_STRING_CACHE_SIZE 2
@@ -1422,6 +1440,10 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
      (clazz) == &XPC_WN_NoMods_NoCall_Proto_JSClass ||                        \
      (clazz) == &XPC_WN_ModsAllowed_WithCall_Proto_JSClass ||                 \
      (clazz) == &XPC_WN_ModsAllowed_NoCall_Proto_JSClass)
+
+// Comes from xpcwrappednativeops.cpp
+extern void
+xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper);
 
 /***************************************************************************/
 
@@ -2339,6 +2361,16 @@ public:
     void Unmark()     {mJSObject = (JSObject*)(((jsword)mJSObject) & ~1);}
     JSBool IsMarked() const {return (JSBool)(((jsword)mJSObject) & 1);}
 
+#ifdef XPC_IDISPATCH_SUPPORT
+    enum JSObject_flags
+    {
+        IDISPATCH_BIT = 2,
+        JSOBJECT_MASK = 3
+    };
+    void                SetIDispatch(JSContext* cx);
+    JSBool              IsIDispatch() const;
+    XPCDispInterface*   GetIDispatchInfo() const;
+#endif
 private:
     XPCWrappedNativeTearOff(const XPCWrappedNativeTearOff& r); // not implemented
     XPCWrappedNativeTearOff& operator= (const XPCWrappedNativeTearOff& r); // not implemented
@@ -2546,8 +2578,6 @@ public:
 
     // If pobj2 is not null and *pobj2 is not null after the call then *pobj2
     // points to an object for which IS_SLIM_WRAPPER_OBJECT is true.
-    // cx is null when invoked from the marking phase of the GC. In this case
-    // fubobj must be null as well.
     static XPCWrappedNative*
     GetWrappedNativeOfJSObject(JSContext* cx, JSObject* obj,
                                JSObject* funobj = nsnull,
@@ -3330,6 +3360,11 @@ public:
     static void Throw(nsresult rv, XPCCallContext& ccx);
     static void ThrowBadResult(nsresult rv, nsresult result, XPCCallContext& ccx);
     static void ThrowBadParam(nsresult rv, uintN paramNum, XPCCallContext& ccx);
+#ifdef XPC_IDISPATCH_SUPPORT
+    static void ThrowCOMError(JSContext* cx, unsigned long COMErrorCode, 
+                              nsresult rv = NS_ERROR_XPC_COM_ERROR,
+                              const EXCEPINFO * exception = nsnull);
+#endif
     static JSBool SetVerbosity(JSBool state)
         {JSBool old = sVerbose; sVerbose = state; return old;}
 
@@ -3521,13 +3556,14 @@ private:
 struct XPCJSContextInfo {
     XPCJSContextInfo(JSContext* aCx) :
         cx(aCx),
-        savedFrameChain(false),
+        frame(nsnull),
         suspendDepth(0)
     {}
     JSContext* cx;
 
-    // Whether the frame chain was saved
-    bool savedFrameChain;
+    // Frame to be restored when this JSContext becomes the topmost
+    // one.
+    JSStackFrame* frame;
 
     // Greater than 0 if a request was suspended.
     jsrefcount suspendDepth;
@@ -4393,7 +4429,6 @@ struct CompartmentPrivate
           waiverWrapperMap(nsnull),
           expandoMap(nsnull)
     {
-        MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
     }
 
     CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
@@ -4404,7 +4439,6 @@ struct CompartmentPrivate
           waiverWrapperMap(nsnull),
           expandoMap(nsnull)
     {
-        MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
     }
 
     ~CompartmentPrivate();
@@ -4467,6 +4501,11 @@ ParticipatesInCycleCollection(JSContext *cx, js::gc::Cell *cell)
 }
 
 }
+
+#ifdef XPC_IDISPATCH_SUPPORT
+// IDispatch specific classes
+#include "XPCDispPrivate.h"
+#endif
 
 /***************************************************************************/
 // Inlines use the above - include last.

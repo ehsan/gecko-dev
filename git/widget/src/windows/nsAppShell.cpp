@@ -38,14 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ipc/RPCChannel.h"
 #include "nsAppShell.h"
 #include "nsToolkit.h"
 #include "nsThreadUtils.h"
 #include "WinTaskbar.h"
 #include "nsString.h"
 #include "nsIMM32Handler.h"
-#include "mozilla/widget/AudioSession.h"
 
 // For skidmark code
 #include <windows.h> 
@@ -245,19 +243,9 @@ nsAppShell::Run(void)
 {
   LoadedModuleInfo modules[NUM_LOADEDMODULEINFO];
   memset(modules, 0, sizeof(modules));
-  sLoadedModules = modules;	
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  // Ignore failure; failing to start the application is not exactly an
-  // appropriate response to failing to start an audio session.
-  mozilla::widget::StartAudioSession();
-#endif
+  sLoadedModules = modules;
 
   nsresult rv = nsBaseAppShell::Run();
-
-#ifdef MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  mozilla::widget::StopAudioSession();
-#endif
 
   // Don't forget to null this out!
   sLoadedModules = nsnull;
@@ -318,9 +306,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
     CollectNewLoadedModules();
   }
 #endif
-
-  // Notify ipc we are spinning a (possibly nested) gecko event loop.
-  mozilla::ipc::RPCChannel::NotifyGeckoEventDispatch();
 
   PRBool gotMessage = PR_FALSE;
 

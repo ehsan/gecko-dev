@@ -477,8 +477,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eSwitchAction,
     eNoLiveAttr,
-    kNoReqStates,
-    eARIASelectable
+    kNoReqStates
   },
   {
     "tablist",

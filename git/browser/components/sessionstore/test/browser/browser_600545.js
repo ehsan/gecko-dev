@@ -35,6 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+         getService(Ci.nsISessionStore);
+
 let stateBackup = ss.getBrowserState();
 
 function test() {
@@ -46,12 +49,6 @@ function test() {
 function testBug600545() {
   // Set the pref to false to cause non-app tabs to be stripped out on a save
   Services.prefs.setBoolPref("browser.sessionstore.resume_from_crash", false);
-  Services.prefs.setIntPref("browser.sessionstore.interval", 2000);
-
-  registerCleanupFunction(function () {
-    Services.prefs.clearUserPref("browser.sessionstore.resume_from_crash");
-    Services.prefs.clearUserPref("browser.sessionstore.interval");
-  });
 
   // This tests the following use case:
   // When multiple windows are open and browser.sessionstore.resume_from_crash
@@ -95,6 +92,11 @@ function testBug600545() {
 }
 
 function done() {
+  // Reset the pref
+  try {
+    Services.prefs.clearUserPref("browser.sessionstore.resume_from_crash");
+  } catch (e) {}
+
   // Enumerate windows and close everything but our primary window. We can't
   // use waitForFocus() because apparently it's buggy. See bug 599253.
   let windowsEnum = Services.wm.getEnumerator("navigator:browser");

@@ -102,8 +102,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Progress)
 nsHTMLProgressElement::nsHTMLProgressElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
 {
-  // We start out indeterminate
-  AddStatesSilently(NS_EVENT_STATE_INDETERMINATE);
 }
 
 nsHTMLProgressElement::~nsHTMLProgressElement()
@@ -186,7 +184,7 @@ nsHTMLProgressElement::GetValue(double* aValue)
   double max;
   GetMax(&max);
 
-  *aValue = NS_MIN(*aValue, max);
+  *aValue = PR_MIN(*aValue, max);
 
   return NS_OK;
 }

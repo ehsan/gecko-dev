@@ -233,7 +233,8 @@ nsSystemPrefService::~nsSystemPrefService()
 {
     mInitialized = PR_FALSE;
 
-    delete mGConf;
+    if (mGConf)
+        delete mGConf;
     if (mObservers) {
         (void)mObservers->EnumerateForwards(sysPrefDeleteObserver, nsnull);
         delete mObservers;

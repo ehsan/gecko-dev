@@ -47,7 +47,6 @@
 #  include <windows.h>          // for DebugBreak
 #elif defined(XP_UNIX)
 #  include <unistd.h>           // for _exit
-#  include <signal.h>
 #endif
 
 #if defined(XP_WIN) || defined(XP_OS2)
@@ -62,9 +61,8 @@ static void
 TouchBadMemory()
 {
     // XXX this should use the frame poisoning code
-    volatile int *p = 0;
-    gDummyCounter += *p;   // TODO annotation saying we know 
-                           // this is crazy
+    gDummyCounter += *((int *) 0);   // TODO annotation saying we know 
+                                     // this is crazy
 }
 
 void
@@ -73,39 +71,19 @@ mozalloc_abort(const char* const msg)
     fputs(msg, stderr);
     fputs("\n", stderr);
 
-#if defined(_MSC_VER)
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+    abort();
+#elif defined(_MSC_VER)
     __debugbreak();
 #elif defined(XP_WIN)
     DebugBreak();
 #endif
+    // abort() doesn't trigger breakpad on Mac, "fall through" to the
+    // fail-safe code
 
-    // On *NIX platforms the prefered way to abort is by touching bad memory,
-    // since this generates a stack trace inside our own code (avoiding
-    // problems with starting the trace inside libc, where we might not have
-    // symbols and can get lost).
-
+    // Still haven't aborted?  Try dereferencing null.
     TouchBadMemory();
-
-    // If we haven't aborted yet, we can try to raise SIGABRT which might work
-    // on some *NIXs, but not OS X (it doesn't trigger breakpad there).
-    // Note that we don't call abort(), since raise is likelier to give us
-    // useful stack data, and also since abort() is redirected to call this
-    // function (see below).
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
-    raise(SIGABRT);
-#endif
 
     // Still haven't aborted?  Try _exit().
     _exit(127);
 }
-
-#if defined(XP_UNIX)
-// Define abort() here, so that it is used instead of the system abort(). This
-// lets us control the behavior when aborting, in order to get better results
-// on *NIX platfrorms. See mozalloc_abort for details.
-void abort(void)
-{
-  mozalloc_abort("Redirecting call to abort() to mozalloc_abort\n");
-}
-#endif
-

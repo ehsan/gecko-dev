@@ -72,7 +72,7 @@ public:
                                       nsPIDOMWindow* aOwner,
                                       IDBTransaction* aTransaction);
 
-  // nsIDOMEventTarget
+  // nsPIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   nsISupports* Source()

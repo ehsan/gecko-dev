@@ -56,7 +56,8 @@ typedef PRUint32 nsUpdateType;
 
 #define UPDATE_CONTENT_MODEL 0x00000001
 #define UPDATE_STYLE         0x00000002
-#define UPDATE_ALL (UPDATE_CONTENT_MODEL | UPDATE_STYLE)
+#define UPDATE_CONTENT_STATE 0x00000004
+#define UPDATE_ALL (UPDATE_CONTENT_MODEL | UPDATE_STYLE | UPDATE_CONTENT_STATE)
 
 // Document observer interface
 class nsIDocumentObserver : public nsIMutationObserver

@@ -383,31 +383,6 @@ nsHttpConnectionMgr::ProcessPendingQ(nsHttpConnectionInfo *ci)
     return rv;
 }
 
-nsresult
-nsHttpConnectionMgr::CloseIdleConnection(nsHttpConnection *conn)
-{
-    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-    LOG(("nsHttpConnectionMgr::CloseIdleConnection %p conn=%p",
-         this, conn));
-
-    nsHttpConnectionInfo *ci = conn->ConnectionInfo();
-    if (!ci)
-        return NS_ERROR_UNEXPECTED;
-
-    nsCStringKey key(ci->HashKey());
-    nsConnectionEntry *ent = (nsConnectionEntry *) mCT.Get(&key);
-
-    if (!ent || !ent->mIdleConns.RemoveElement(conn))
-        return NS_ERROR_UNEXPECTED;
-
-    conn->Close(NS_ERROR_ABORT);
-    NS_RELEASE(conn);
-    mNumIdleConns--;
-    if (0 == mNumIdleConns)
-        StopPruneDeadConnectionsTimer();
-    return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // enumeration callbacks
 
@@ -470,7 +445,7 @@ nsHttpConnectionMgr::PruneDeadConnectionsCB(nsHashKey *key, void *data, void *cl
                 NS_RELEASE(conn);
                 self->mNumIdleConns--;
             } else {
-                timeToNextExpire = NS_MIN(timeToNextExpire, conn->TimeToLive());
+                timeToNextExpire = PR_MIN(timeToNextExpire, conn->TimeToLive());
             }
         }
     }
@@ -714,11 +689,8 @@ nsHttpConnectionMgr::GetConnection(nsConnectionEntry *ent,
                 conn->Close(NS_ERROR_ABORT);
                 NS_RELEASE(conn);
             }
-            else {
+            else
                 LOG(("   reusing connection [conn=%x]\n", conn));
-                conn->EndIdleMonitoring();
-            }
-
             ent->mIdleConns.RemoveElementAt(0);
             mNumIdleConns--;
 
@@ -1119,7 +1091,6 @@ nsHttpConnectionMgr::OnMsgReclaimConnection(PRInt32, void *param)
             NS_ADDREF(conn);
             ent->mIdleConns.InsertElementAt(idx, conn);
             mNumIdleConns++;
-            conn->BeginIdleMonitoring();
 
             // If the added connection was first idle connection or has shortest
             // time to live among the idle connections, pruning dead
@@ -1218,15 +1189,6 @@ nsHttpConnectionMgr::nsConnectionHandle::GetConnectionInfo(nsHttpConnectionInfo 
     mConn->GetConnectionInfo(result);
 }
 
-nsresult
-nsHttpConnectionMgr::
-nsConnectionHandle::TakeTransport(nsISocketTransport  **aTransport,
-                                  nsIAsyncInputStream **aInputStream,
-                                  nsIAsyncOutputStream **aOutputStream)
-{
-    return mConn->TakeTransport(aTransport, aInputStream, aOutputStream);
-}
-
 void
 nsHttpConnectionMgr::nsConnectionHandle::GetSecurityInfo(nsISupports **result)
 {
@@ -1291,8 +1253,7 @@ nsresult
 nsHttpConnectionMgr::
 nsHalfOpenSocket::SetupStreams(nsISocketTransport **transport,
                                nsIAsyncInputStream **instream,
-                               nsIAsyncOutputStream **outstream,
-                               PRBool isBackup)
+                               nsIAsyncOutputStream **outstream)
 {
     nsresult rv;
 
@@ -1320,14 +1281,6 @@ nsHalfOpenSocket::SetupStreams(nsISocketTransport **transport,
 
     if (mTransaction->Caps() & NS_HTTP_LOAD_ANONYMOUS)
         tmpFlags |= nsISocketTransport::ANONYMOUS_CONNECT;
-
-    // For backup connections, we disable IPv6. That's because some users have
-    // broken IPv6 connectivity (leading to very long timeouts), and disabling
-    // IPv6 on the backup connection gives them a much better user experience
-    // with dual-stack hosts, though they still pay the 250ms delay for each new
-    // connection. This strategy is also known as "happy eyeballs".
-    if (isBackup)
-        tmpFlags |= nsISocketTransport::DISABLE_IPV6;
 
     socketTransport->SetConnectionFlags(tmpFlags);
 
@@ -1367,8 +1320,7 @@ nsHttpConnectionMgr::nsHalfOpenSocket::SetupPrimaryStreams()
 {
     nsresult rv = SetupStreams(getter_AddRefs(mSocketTransport),
                                getter_AddRefs(mStreamIn),
-                               getter_AddRefs(mStreamOut),
-                               PR_FALSE);
+                               getter_AddRefs(mStreamOut));
     LOG(("nsHalfOpenSocket::SetupPrimaryStream [this=%p ent=%s rv=%x]",
          this, mEnt->mConnInfo->Host(), rv));
     if (NS_FAILED(rv)) {
@@ -1386,8 +1338,7 @@ nsHttpConnectionMgr::nsHalfOpenSocket::SetupBackupStreams()
 {
     nsresult rv = SetupStreams(getter_AddRefs(mBackupTransport),
                                getter_AddRefs(mBackupStreamIn),
-                               getter_AddRefs(mBackupStreamOut),
-                               PR_TRUE);
+                               getter_AddRefs(mBackupStreamOut));
     LOG(("nsHalfOpenSocket::SetupBackupStream [this=%p ent=%s rv=%x]",
          this, mEnt->mConnInfo->Host(), rv));
     if (NS_FAILED(rv)) {

@@ -110,11 +110,9 @@ function runNextTest() {
 
       let onHidden = onHiddenArray.shift();
       info("[Test #" + gTestIndex + "] popup hidden (" + onHiddenArray.length + " hides remaining)");
-      executeSoon(function () {
-        onHidden.call(nextTest, this);
-        if (!onHiddenArray.length)
-          goNext();
-      });
+      onHidden.call(nextTest, this);
+      if (!onHiddenArray.length)
+        goNext();
     }, onHiddenArray.length);
     info("[Test #" + gTestIndex + "] added listeners; panel state: " + PopupNotifications.isPanelOpen);
   }

@@ -280,15 +280,6 @@ static int EnumSizeForCocoaSize(NSControlSize cocoaControlSize) {
     return regularControlSize;
 }
 
-static NSControlSize CocoaSizeForEnum(PRInt32 enumControlSize) {
-  if (enumControlSize == miniControlSize)
-    return NSMiniControlSize;
-  else if (enumControlSize == smallControlSize)
-    return NSSmallControlSize;
-  else
-    return NSRegularControlSize;
-}
-
 static void InflateControlRect(NSRect* rect, NSControlSize cocoaControlSize, const float marginSet[][3][4])
 {
   if (!marginSet)
@@ -566,49 +557,6 @@ struct CellRenderSettings {
 };
 
 /*
- * This is a helper method that returns the required NSControlSize given a size
- * and the size of the three controls plus a tolerance.
- * size - The width or the height of the element to draw.
- * sizes - An array with the all the width/height of the element for its
- *         different sizes.
- * tolerance - The tolerance as passed to DrawCellWithSnapping.
- * NOTE: returns NSRegularControlSize if all values in 'sizes' are zero.
- */
-static NSControlSize FindControlSize(CGFloat size, CGFloat* sizes, CGFloat tolerance)
-{
-  for (PRUint32 i = miniControlSize; i <= regularControlSize; ++i) {
-    if (sizes[i] == 0) {
-      continue;
-    }
-
-    CGFloat next = 0;
-    // Find next value.
-    for (PRUint32 j = i+1; j <= regularControlSize; ++j) {
-      if (sizes[j] != 0) {
-        next = sizes[j];
-        break;
-      }
-    }
-
-    // If it's the latest value, we pick it.
-    if (next == 0) {
-      return CocoaSizeForEnum(i);
-    }
-
-    if (size <= sizes[i] + tolerance && size < next) {
-      return CocoaSizeForEnum(i);
-    }
-  }
-
-  // If we are here, that means sizes[] was an array with only empty values
-  // or the algorithm above is wrong.
-  // The former can happen but the later would be wrong.
-  NS_ASSERTION(sizes[0] == 0 && sizes[1] == 0 && sizes[2] == 0,
-               "We found no control! We shouldn't be there!");
-  return CocoaSizeForEnum(regularControlSize);
-}
-
-/*
  * Draw the given NSCell into the given cgContext with a nice control size.
  *
  * This function is similar to DrawCellWithScaling, but it decides what
@@ -635,12 +583,18 @@ static void DrawCellWithSnapping(NSCell *cell,
   const NSSize smallSize = sizes[EnumSizeForCocoaSize(NSSmallControlSize)];
   const NSSize regularSize = sizes[EnumSizeForCocoaSize(NSRegularControlSize)];
 
+  NSControlSize controlSizeX = NSRegularControlSize, controlSizeY = NSRegularControlSize;
   HIRect drawRect = destRect;
 
-  CGFloat controlWidths[3] = { miniSize.width, smallSize.width, regularSize.width };
-  NSControlSize controlSizeX = FindControlSize(rectWidth, controlWidths, snapTolerance);
-  CGFloat controlHeights[3] = { miniSize.height, smallSize.height, regularSize.height };
-  NSControlSize controlSizeY = FindControlSize(rectHeight, controlHeights, snapTolerance);
+  if (rectWidth <= miniSize.width + snapTolerance && rectWidth < smallSize.width)
+    controlSizeX = NSMiniControlSize;
+  else if(rectWidth <= smallSize.width + snapTolerance && rectWidth < regularSize.width)
+    controlSizeX = NSSmallControlSize;
+
+  if (rectHeight <= miniSize.height + snapTolerance && rectHeight < smallSize.height)
+    controlSizeY = NSMiniControlSize;
+  else if(rectHeight <= smallSize.height + snapTolerance && rectHeight < regularSize.height)
+    controlSizeY = NSSmallControlSize;
 
   NSControlSize controlSize = NSRegularControlSize;
   int sizeIndex = 0;
@@ -774,7 +728,7 @@ nsNativeThemeCocoa::DrawCheckboxOrRadio(CGContextRef cgContext, PRBool inCheckbo
   [cell setControlTint:(FrameIsInActiveWindow(aFrame) ? [NSColor currentControlTint] : NSClearControlTint)];
 
   // Ensure that the control is square.
-  float length = NS_MIN(inBoxRect.size.width, inBoxRect.size.height);
+  float length = PR_MIN(inBoxRect.size.width, inBoxRect.size.height);
   HIRect drawRect = CGRectMake(inBoxRect.origin.x + (int)((inBoxRect.size.width - length) / 2.0f),
                                inBoxRect.origin.y + (int)((inBoxRect.size.height - length) / 2.0f),
                                length, length);
@@ -1183,82 +1137,40 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static const CellRenderSettings progressSettings[2][2] = {
-  // Vertical progress bar.
+static const CellRenderSettings progressSettings[2] = {
+  // Determined settings.
   {
-    // Determined settings.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(10, 0), // small
-        NSMakeSize(16, 0)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {1, 1, 1, 1}      // regular
-        }
-      }
+      NSZeroSize, // mini
+      NSMakeSize(0, 10), // small
+      NSMakeSize(0, 16)  // regular
     },
-    // There is no horizontal margin in regular undetermined size.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(10, 0), // small
-        NSMakeSize(16, 0)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {1, 0, 1, 0}      // regular
-        }
+      NSZeroSize, NSZeroSize, NSZeroSize
+    },
+    {
+      { // Leopard
+        {0, 0, 0, 0},     // mini
+        {1, 1, 1, 1},     // small
+        {1, 1, 1, 1}      // regular
       }
     }
   },
-  // Horizontal progress bar.
+  // There is no horizontal margin in regular undetermined size.
   {
-    // Determined settings.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(0, 10), // small
-        NSMakeSize(0, 16)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {1, 1, 1, 1}      // regular
-        }
-      }
+      NSZeroSize, // mini
+      NSMakeSize(0, 10), // small
+      NSMakeSize(0, 16)  // regular
     },
-    // There is no horizontal margin in regular undetermined size.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(0, 10), // small
-        NSMakeSize(0, 16)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {0, 1, 0, 1}      // regular
-        }
+      NSZeroSize, NSZeroSize, NSZeroSize
+    },
+    {
+      { // Leopard
+        {0, 0, 0, 0},     // mini
+        {1, 1, 1, 1},     // small
+        {0, 1, 0, 1}      // regular
       }
     }
   }
@@ -1282,7 +1194,7 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect
                                                       : NSClearControlTint)];
 
   DrawCellWithSnapping(cell, cgContext, inBoxRect,
-                       progressSettings[inIsHorizontal][inIsIndeterminate],
+                       progressSettings[inIsIndeterminate],
                        VerticalAlignFactor(aFrame), mCellDrawView,
                        IsFrameRTL(aFrame));
 
@@ -1516,12 +1428,9 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
 
   aTdi.trackInfo.scrollbar.pressState = 0;
 
-  // Only go get these scrollbar button states if we need it. For example,
-  // there's no reason to look up scrollbar button states when we're only
-  // creating a TrackDrawInfo to determine the size of the thumb. There's
-  // also no reason to do this on Lion or later, whose scrollbars have no
-  // arrow buttons.
-  if (aShouldGetButtonStates && !nsToolkit::OnLionOrLater()) {
+  // Only go get these scrollbar button states if we need it. For example, there's no reaon to look up scrollbar button 
+  // states when we're only creating a TrackDrawInfo to determine the size of the thumb.
+  if (aShouldGetButtonStates) {
     nsEventStates buttonStates[4];
     GetScrollbarPressStates(aFrame, buttonStates);
     NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
@@ -1983,8 +1892,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
         NS_WARNING("Unable to animate progressbar!");
       }
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame, eventState),
-                   aFrame->GetStyleDisplay()->mOrient != NS_STYLE_ORIENT_VERTICAL,
-		   GetProgressValue(aFrame), GetProgressMaxValue(aFrame), aFrame);
+                   PR_TRUE, GetProgressValue(aFrame),
+                   GetProgressMaxValue(aFrame), aFrame);
       break;
 
     case NS_THEME_PROGRESSBAR_VERTICAL:
@@ -2246,26 +2155,23 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     {
-      // On Lion and later, scrollbars have no arrows.
-      if (!nsToolkit::OnLionOrLater()) {
-        // There's only an endcap to worry about when both arrows are on the bottom
-        NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
-        if (!buttonPlacement || [buttonPlacement isEqualToString:@"DoubleMax"]) {
-          PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
+      // There's only an endcap to worry about when both arrows are on the bottom
+      NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
+      if (!buttonPlacement || [buttonPlacement isEqualToString:@"DoubleMax"]) {
+        PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
 
-          nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
-          if (!scrollbarFrame) return NS_ERROR_FAILURE;
-          PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
+        nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
+        if (!scrollbarFrame) return NS_ERROR_FAILURE;
+        PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
 
-          // There isn't a metric for this, so just hardcode a best guess at the value.
-          // This value is even less exact due to the fact that the endcap is partially concave.
-          PRInt32 endcapSize = isSmall ? 5 : 6;
+        // There isn't a metric for this, so just hardcode a best guess at the value.
+        // This value is even less exact due to the fact that the endcap is partially concave.
+        PRInt32 endcapSize = isSmall ? 5 : 6;
 
-          if (isHorizontal)
-            aResult->SizeTo(endcapSize, 0, 0, 0);
-          else
-            aResult->SizeTo(0, endcapSize, 0, 0);
-        }
+        if (isHorizontal)
+          aResult->SizeTo(endcapSize, 0, 0, 0);
+        else
+          aResult->SizeTo(0, endcapSize, 0, 0);
       }
       break;
     }
@@ -2787,5 +2693,5 @@ nsNativeThemeCocoa::GetProgressMaxValue(nsIFrame* aFrame)
     }
   }
 
-  return (double)NS_MAX(CheckIntAttr(aFrame, nsWidgetAtoms::max, 100), 1);
+  return (double)PR_MAX(CheckIntAttr(aFrame, nsWidgetAtoms::max, 100), 1);
 }

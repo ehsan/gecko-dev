@@ -2077,12 +2077,6 @@ PR_IMPLEMENT(PRAddrInfo *) PR_GetAddrInfoByName(const char  *hostname,
         hints.ai_socktype = SOCK_STREAM;
 
         rv = GETADDRINFO(hostname, NULL, &hints, &res);
-#ifdef AI_ADDRCONFIG
-        if (rv == EAI_BADFLAGS && (hints.ai_flags & AI_ADDRCONFIG)) {
-            hints.ai_flags &= ~AI_ADDRCONFIG;
-            rv = GETADDRINFO(hostname, NULL, &hints, &res);
-        }
-#endif
         if (rv == 0)
             return (PRAddrInfo *) res;
 

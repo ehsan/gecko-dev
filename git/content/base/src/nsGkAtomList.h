@@ -256,7 +256,6 @@ GK_ATOM(copy, "copy")
 GK_ATOM(copyOf, "copy-of")
 GK_ATOM(count, "count")
 GK_ATOM(crop, "crop")
-GK_ATOM(crossOrigin, "crossOrigin")
 GK_ATOM(curpos, "curpos")
 GK_ATOM(current, "current")
 GK_ATOM(currentloop, "currentloop")
@@ -381,7 +380,6 @@ GK_ATOM(flip, "flip")
 GK_ATOM(floating, "floating")
 GK_ATOM(floatList, "Float-list")
 GK_ATOM(floor, "floor")
-GK_ATOM(flowlength, "flowlength")
 GK_ATOM(focus, "focus")
 GK_ATOM(following, "following")
 GK_ATOM(followingSibling, "following-sibling")
@@ -633,15 +631,15 @@ GK_ATOM(OFF, "OFF")
 GK_ATOM(ol, "ol")
 GK_ATOM(omitXmlDeclaration, "omit-xml-declaration")
 GK_ATOM(onabort, "onabort")
-GK_ATOM(onafterprint, "onafterprint")
 GK_ATOM(onafterscriptexecute, "onafterscriptexecute")
+#ifdef MOZ_CSS_ANIMATIONS
 GK_ATOM(onanimationend, "onanimationend")
 GK_ATOM(onanimationiteration, "onanimationiteration")
 GK_ATOM(onanimationstart, "onanimationstart")
+#endif
 GK_ATOM(onbeforecopy, "onbeforecopy")
 GK_ATOM(onbeforecut, "onbeforecut")
 GK_ATOM(onbeforepaste, "onbeforepaste")
-GK_ATOM(onbeforeprint, "onbeforeprint")
 GK_ATOM(onbeforescriptexecute, "onbeforescriptexecute")
 GK_ATOM(onbeforeunload, "onbeforeunload")
 GK_ATOM(onblur, "onblur")
@@ -691,7 +689,6 @@ GK_ATOM(onLoad, "onLoad")
 GK_ATOM(onload, "onload")
 GK_ATOM(onpopstate, "onpopstate")
 GK_ATOM(only, "only")               // this one is not an event
-GK_ATOM(onmessage, "onmessage")
 GK_ATOM(onmousedown, "onmousedown")
 GK_ATOM(onmousemove, "onmousemove")
 GK_ATOM(onmouseout, "onmouseout")
@@ -704,7 +701,6 @@ GK_ATOM(onMozMousePixelScroll, "onMozMousePixelScroll")
 GK_ATOM(onMozScrolledAreaChanged, "onMozScrolledAreaChanged")
 GK_ATOM(ononline, "ononline")
 GK_ATOM(onoffline, "onoffline")
-GK_ATOM(onopen, "onopen")
 GK_ATOM(onoverflow, "onoverflow")
 GK_ATOM(onoverflowchanged, "onoverflowchanged")
 GK_ATOM(onpagehide, "onpagehide")
@@ -1088,7 +1084,6 @@ GK_ATOM(headerCSP, "x-content-security-policy")
 GK_ATOM(headerCSPReportOnly, "x-content-security-policy-report-only")
 GK_ATOM(headerXFO, "x-frame-options")
 GK_ATOM(xml, "xml")
-GK_ATOM(xml_stylesheet, "xml-stylesheet")
 GK_ATOM(xmlns, "xmlns")
 GK_ATOM(xmp, "xmp")
 GK_ATOM(xulcontentsgenerated, "xulcontentsgenerated")
@@ -1097,6 +1092,7 @@ GK_ATOM(z_index, "z-index")
 GK_ATOM(zeroDigit, "zero-digit")
 
 
+#ifdef MOZ_SVG
 GK_ATOM(percentage, "%")
 GK_ATOM(A, "A")
 GK_ATOM(alignment_baseline, "alignment-baseline")
@@ -1346,13 +1342,13 @@ GK_ATOM(x, "x")
 GK_ATOM(x1, "x1")
 GK_ATOM(x2, "x2")
 GK_ATOM(xChannelSelector, "xChannelSelector")
-GK_ATOM(xor_, "xor")
 GK_ATOM(y, "y")
 GK_ATOM(y1, "y1")
 GK_ATOM(y2, "y2")
 GK_ATOM(yChannelSelector, "yChannelSelector")
 GK_ATOM(z, "z")
 GK_ATOM(zoomAndPan, "zoomAndPan")
+#endif
 
 #ifdef MOZ_SMIL
 GK_ATOM(accumulate, "accumulate")
@@ -1383,6 +1379,7 @@ GK_ATOM(to, "to")
 GK_ATOM(XML, "XML")
 #endif
 
+#ifdef MOZ_MATHML
 // internal MathML attributes: different from columnalign_, columnlines_,
 // fontstyle_, rowalign_ and rowlines_
 GK_ATOM(_moz_math_columnalign_, "_moz-math-columnalign")
@@ -1666,6 +1663,11 @@ GK_ATOM(veryverythinmathspace_, "veryverythinmathspace")
 GK_ATOM(voffset_, "voffset")
 GK_ATOM(xref_, "xref")
 GK_ATOM(math, "math") // the only one without an underscore
+#endif
+
+#if defined(MOZ_SVG) || defined(MOZ_MATHML)
+GK_ATOM(xor_, "xor")
+#endif
 
 #ifndef DISABLE_XFORMS_HOOKS
 GK_ATOM(avg, "avg")
@@ -1698,7 +1700,6 @@ GK_ATOM(onMozTouchUp, "onMozTouchUp")
 
 // orientation support
 GK_ATOM(ondeviceorientation, "ondeviceorientation")
-GK_ATOM(ondevicemotion, "ondevicemotion")
 
 //---------------------------------------------------------------------------
 // Special atoms
@@ -1723,6 +1724,7 @@ GK_ATOM(columnSetFrame, "ColumnSetFrame")
 GK_ATOM(comboboxControlFrame, "ComboboxControlFrame")
 GK_ATOM(comboboxDisplayFrame, "ComboboxDisplayFrame")
 GK_ATOM(deckFrame, "DeckFrame")
+GK_ATOM(directionalFrame, "DirectionalFrame")
 GK_ATOM(fieldSetFrame, "FieldSetFrame")
 GK_ATOM(frameSetFrame, "FrameSetFrame")
 GK_ATOM(gfxButtonControlFrame, "gfxButtonControlFrame")
@@ -1747,7 +1749,6 @@ GK_ATOM(pageBreakFrame, "PageBreakFrame")
 GK_ATOM(pageContentFrame, "PageContentFrame")
 GK_ATOM(placeholderFrame, "PlaceholderFrame")
 GK_ATOM(popupSetFrame, "PopupSetFrame")
-GK_ATOM(positionedInlineFrame, "PositionedInlineFrame")
 GK_ATOM(canvasFrame, "CanvasFrame")
 GK_ATOM(rootFrame, "RootFrame")
 GK_ATOM(scrollFrame, "ScrollFrame")
@@ -1768,6 +1769,7 @@ GK_ATOM(viewportFrame, "ViewportFrame")
 #ifdef MOZ_XUL
 GK_ATOM(XULLabelFrame, "XULLabelFrame")
 #endif
+#ifdef MOZ_SVG
 GK_ATOM(svgAFrame, "SVGAFrame")
 GK_ATOM(svgClipPathFrame, "SVGClipPathFrame")
 GK_ATOM(svgDefsFrame, "SVGDefsFrame")
@@ -1792,6 +1794,7 @@ GK_ATOM(svgTextFrame, "SVGTextFrame")
 GK_ATOM(svgTextPathFrame, "SVGTextPathFrame")
 GK_ATOM(svgTSpanFrame, "SVGTSpanFrame")
 GK_ATOM(svgUseFrame, "SVGUseFrame")
+#endif
 #ifdef MOZ_MEDIA
 GK_ATOM(HTMLVideoFrame, "VideoFrame")
 GK_ATOM(onloadstart, "onloadstart")
@@ -1837,9 +1840,11 @@ GK_ATOM(volumechange, "volumechange")
 #endif
 
 // Content property names
+#ifdef MOZ_CSS_ANIMATIONS
 GK_ATOM(animationsProperty, "AnimationsProperty")        // FrameAnimations*
 GK_ATOM(animationsOfBeforeProperty, "AnimationsOfBeforeProperty") // FrameAnimations*
 GK_ATOM(animationsOfAfterProperty, "AnimationsOfAfterProperty") // FrameAnimations*
+#endif
 GK_ATOM(transitionsProperty, "TransitionsProperty")        // FrameTransitions*
 GK_ATOM(transitionsOfBeforeProperty, "TransitionsOfBeforeProperty") // FrameTransitions*
 GK_ATOM(transitionsOfAfterProperty, "TransitionsOfAfterProperty") // FrameTransitions*

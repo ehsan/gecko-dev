@@ -52,7 +52,7 @@ struct leaky;
 class FunctionCount : public IntCount
 {
 public:
-  void printReport(FILE *fp, leaky *lk, int parent, int total);
+    void printReport(FILE *fp, leaky *lk);
 };
 
 struct Symbol {
@@ -90,7 +90,6 @@ struct leaky {
 
   int   quiet;
   int   showAddress;
-  int   showThreads;
   u_int  stackDepth;
 
   int   mappedLogFile;
@@ -116,7 +115,7 @@ struct leaky {
 
   void LoadMap();
 
-  void analyze(int thread);
+  void analyze();
 
   void dumpEntryToLog(malloc_log_entry* lep);
 
@@ -134,7 +133,7 @@ struct leaky {
   const char* indexToName(int idx) {return externalSymbols[idx].name;}
 
   private:
-  void generateReportHTML(FILE *fp, int *countArray, int count, int thread);
+  void generateReportHTML(FILE *fp, int *countArray, int count);
   int  findSymbolIndex(u_long address);
 };
 

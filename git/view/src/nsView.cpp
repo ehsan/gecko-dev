@@ -1184,13 +1184,12 @@ nsView::GetBoundsInParentUnits() const
 }
 
 nsPoint
-nsIView::ConvertFromParentCoords(nsPoint aPt) const
+nsView::ConvertFromParentCoords(nsPoint aPt) const
 {
-  const nsView* view = static_cast<const nsView*>(this);
-  const nsView* parent = view->GetParent();
+  nsView* parent = GetParent();
   if (parent) {
     aPt = aPt.ConvertAppUnits(parent->GetViewManager()->AppUnitsPerDevPixel(),
-                              view->GetViewManager()->AppUnitsPerDevPixel());
+                              GetViewManager()->AppUnitsPerDevPixel());
   }
   aPt -= GetPosition();
   return aPt;

@@ -126,7 +126,7 @@ function viewSource(url)
 
   gBrowser.addEventListener("pagehide", onUnloadContent, true);
   gBrowser.addEventListener("pageshow", onLoadContent, true);
-  gBrowser.addEventListener("click", onClickContent, false);
+  gBrowser.addEventListener("command", onCommandContent, false);
 
   var loadFromURL = true;
 
@@ -277,11 +277,11 @@ function onUnloadContent()
 }
 
 /**
- * Handle click events bubbling up from error page content
+ * Handle command events bubbling up from error page content
  */
-function onClickContent(event) {
+function onCommandContent(event) {
   // Don't trust synthetic events
-  if (!event.isTrusted || event.target.localName != "button")
+  if (!event.isTrusted)
     return;
 
   var target = event.originalTarget;
@@ -323,7 +323,9 @@ function onClickContent(event) {
         }
       }
     } else if (target == errorDoc.getElementById('ignoreWarningButton')) {
-      // Allow users to override and continue through to the site
+      // Allow users to override and continue through to the site,
+      // but add a notify bar as a reminder, so that they don't lose
+      // track after, e.g., tab switching.
       gBrowser.loadURIWithFlags(content.location.href,
                                 Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
                                 null, null, null);

@@ -60,7 +60,7 @@
 #include "nsScrollbarButtonFrame.h"
 #include "nsISliderListener.h"
 #include "nsIScrollbarMediator.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsILookAndFeel.h"
 #include "nsRepeatService.h"
 #include "nsBoxLayoutState.h"
@@ -70,9 +70,6 @@
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 PRBool nsSliderFrame::gMiddlePref = PR_FALSE;
 PRInt32 nsSliderFrame::gSnapMultiplier;
@@ -120,8 +117,8 @@ nsSliderFrame::Init(nsIContent*      aContent,
   if (!gotPrefs) {
     gotPrefs = PR_TRUE;
 
-    gMiddlePref = Preferences::GetBool("middlemouse.scrollbarPosition");
-    gSnapMultiplier = Preferences::GetInt("slider.snapMultiplier");
+    gMiddlePref = nsContentUtils::GetBoolPref("middlemouse.scrollbarPosition");
+    gSnapMultiplier = nsContentUtils::GetIntPref("slider.snapMultiplier");
   }
 
   mCurPos = GetCurrentPosition(aContent);
@@ -297,7 +294,7 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
             current = max;
 
         // set the new position and notify observers
-        nsScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+        nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
         if (scrollbarFrame) {
           nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
           if (mediator) {
@@ -812,7 +809,7 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
 
   mUserChanged = PR_TRUE;
 
-  nsScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+  nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
   if (scrollbarFrame) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
@@ -859,11 +856,21 @@ nsSliderFrame::SetInitialChildList(nsIAtom*        aListName,
 }
 
 nsresult
-nsSliderMediator::HandleEvent(nsIDOMEvent* aEvent)
+nsSliderMediator::MouseDown(nsIDOMEvent* aMouseEvent)
 {
   // Only process the event if the thumb is not being dragged.
   if (mSlider && !mSlider->isDraggingThumb())
-    return mSlider->MouseDown(aEvent);
+    return mSlider->MouseDown(aMouseEvent);
+
+  return NS_OK;
+}
+
+nsresult
+nsSliderMediator::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+  // Only process the event if the thumb is not being dragged.
+  if (mSlider && !mSlider->isDraggingThumb())
+    return mSlider->MouseUp(aMouseEvent);
 
   return NS_OK;
 }
@@ -875,14 +882,11 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   printf("Begin dragging\n");
 #endif
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
-  if (!mouseEvent)
-    return NS_OK;
-
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled,
                             nsGkAtoms::_true, eCaseMatters))
     return NS_OK;
 
+  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
   PRUint16 button = 0;
   mouseEvent->GetButton(&button);
   if (!(button == 0 || (button == 1 && gMiddlePref)))
@@ -948,6 +952,16 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
+nsresult
+nsSliderFrame::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+#ifdef DEBUG_SLIDER
+  printf("Finish dragging\n");
+#endif
+
+  return NS_OK;
+}
+
 void
 nsSliderFrame::DragThumb(PRBool aGrabMouseEvents)
 {
@@ -981,8 +995,7 @@ nsSliderFrame::AddListener()
   nsIFrame* thumbFrame = mFrames.FirstChild();
   if (thumbFrame) {
     thumbFrame->GetContent()->
-      AddEventListener(NS_LITERAL_STRING("mousedown"), mMediator, PR_FALSE,
-                       PR_FALSE);
+      AddEventListenerByIID(mMediator, NS_GET_IID(nsIDOMMouseListener));
   }
 }
 
@@ -996,7 +1009,7 @@ nsSliderFrame::RemoveListener()
     return;
 
   thumbFrame->GetContent()->
-    RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMediator, PR_FALSE);
+    RemoveEventListenerByIID(mMediator, NS_GET_IID(nsIDOMMouseListener));
 }
 
 NS_IMETHODIMP
@@ -1044,7 +1057,7 @@ nsSliderFrame::HandleRelease(nsPresContext* aPresContext,
 {
   StopRepeat();
 
-  return nsBoxFrame::HandleRelease(aPresContext, aEvent, aEventStatus);
+  return NS_OK;
 }
 
 void
@@ -1138,5 +1151,6 @@ void nsSliderFrame::Notify(void)
     }
 }
 
-NS_IMPL_ISUPPORTS1(nsSliderMediator,
+NS_IMPL_ISUPPORTS2(nsSliderMediator,
+                   nsIDOMMouseListener,
                    nsIDOMEventListener)

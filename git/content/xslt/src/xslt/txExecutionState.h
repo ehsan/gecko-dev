@@ -163,7 +163,6 @@ public:
 
     txAXMLEventHandler* mOutputHandler;
     txAXMLEventHandler* mResultHandler;
-    nsAutoPtr<txAXMLEventHandler> mObsoleteHandler;
     txAOutputHandlerFactory* mOutputHandlerFactory;
 
     nsAutoPtr<txVariableMap> mTemplateParams;

@@ -238,12 +238,6 @@ NS_IMETHODIMP nsSmartCardEvent::PreventDefault()
   return mInner->PreventDefault();
 }
 
-NS_IMETHODIMP nsSmartCardEvent::GetDefaultPrevented(PRBool* aReturn)
-{
-  NS_ASSERTION(mInner, "SmartCardEvent called without Init");
-  return mInner->GetDefaultPrevented(aReturn);
-}
-
 NS_IMETHODIMP nsSmartCardEvent::InitEvent(const nsAString & eventTypeArg, PRBool canBubbleArg, PRBool cancelableArg)
 {
   NS_ASSERTION(mInner, "SmartCardEvent called without Init");

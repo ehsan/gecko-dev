@@ -41,7 +41,6 @@
 #include "jstl.h"
 
 #include "jscompartment.h"
-#include "jsiter.h"
 #include "Writer.h"
 #include "nanojit.h"
 
@@ -377,7 +376,7 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         // ins  = ldp.regs base[<disp within FrameRegs>]
         ok = op == LIR_ldp &&
              dispWithin(FrameRegs) && 
-             match(base, LIR_ldp, ACCSET_SEG, StackSegment::offsetOfRegs());
+             match(base, LIR_ldp, ACCSET_CX, offsetof(JSContext, stack) + ContextStack::offsetOfRegs());
         break;
 
       case ACCSET_STACKFRAME:
@@ -551,12 +550,6 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         ok = (isConstPrivatePtr(base, ArgumentsObject::DATA_SLOT) ||
               (base->isop(LIR_addp) &&
                isConstPrivatePtr(base->oprnd1(), ArgumentsObject::DATA_SLOT)));
-        break;
-
-      case ACCSET_SEG:
-        // Match the ACCSET_SEG load that comes out of ldpContextRegs
-        ok = dispWithin(StackSegment) &&
-             match(base, LIR_ldp, ACCSET_CX, offsetof(JSContext, stack) + ContextStack::offsetOfSeg());
         break;
 
       default:

@@ -155,23 +155,16 @@ void Blit::initGeometry()
 
     IDirect3DDevice9 *device = getDevice();
 
-    HRESULT result = device->CreateVertexBuffer(sizeof(quad), D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &mQuadVertexBuffer, NULL);
+    HRESULT hr = device->CreateVertexBuffer(sizeof(quad), D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &mQuadVertexBuffer, NULL);
 
-    if (FAILED(result))
+    if (FAILED(hr))
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
+        ASSERT(hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
         return error(GL_OUT_OF_MEMORY);
     }
 
-    void *lockPtr = NULL;
-    result = mQuadVertexBuffer->Lock(0, 0, &lockPtr, 0);
-
-    if (FAILED(result) || lockPtr == NULL)
-    {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-        return error(GL_OUT_OF_MEMORY);
-    }
-
+    void *lockPtr;
+    mQuadVertexBuffer->Lock(0, 0, &lockPtr, 0);
     memcpy(lockPtr, quad, sizeof(quad));
     mQuadVertexBuffer->Unlock();
 
@@ -181,11 +174,10 @@ void Blit::initGeometry()
         D3DDECL_END()
     };
 
-    result = device->CreateVertexDeclaration(elements, &mQuadVertexDeclaration);
-
-    if (FAILED(result))
+    hr = device->CreateVertexDeclaration(elements, &mQuadVertexDeclaration);
+    if (FAILED(hr))
     {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
+        ASSERT(hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
         return error(GL_OUT_OF_MEMORY);
     }
 }
@@ -291,34 +283,6 @@ bool Blit::boxFilter(IDirect3DSurface9 *source, IDirect3DSurface9 *dest)
     texture->Release();
 
     restoreState();
-
-    return true;
-}
-
-bool Blit::copy(IDirect3DSurface9 *source, const RECT &sourceRect, GLenum destFormat, GLint xoffset, GLint yoffset, IDirect3DSurface9 *dest)
-{
-    IDirect3DDevice9 *device = getDevice();
-
-    D3DSURFACE_DESC sourceDesc;
-    D3DSURFACE_DESC destDesc;
-    source->GetDesc(&sourceDesc);
-    dest->GetDesc(&destDesc);
-
-    if (sourceDesc.Format == destDesc.Format && destDesc.Usage & D3DUSAGE_RENDERTARGET)   // Can use StretchRect
-    {
-        RECT destRect = {xoffset, yoffset, xoffset + (sourceRect.right - sourceRect.left), yoffset + (sourceRect.bottom - sourceRect.top)};
-        HRESULT result = device->StretchRect(source, &sourceRect, dest, &destRect, D3DTEXF_POINT);
-
-        if (FAILED(result))
-        {
-            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-            return error(GL_OUT_OF_MEMORY, false);
-        }
-    }
-    else
-    {
-        return formatConvert(source, sourceRect, destFormat, xoffset, yoffset, dest);
-    }
 
     return true;
 }

@@ -43,7 +43,6 @@
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
 #include "gfxContext.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 
@@ -84,8 +83,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGImageElementBase)
 nsSVGImageElement::nsSVGImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGImageElementBase(aNodeInfo)
 {
-  // We start out broken
-  AddStatesSilently(NS_EVENT_STATE_BROKEN);
 }
 
 nsSVGImageElement::~nsSVGImageElement()
@@ -173,7 +170,7 @@ nsSVGImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   if (aNamespaceID == kNameSpaceID_XLink && aName == nsGkAtoms::href) {
     // If caller is not chrome and dom.disable_image_src_set is true,
     // prevent setting image.src by exiting early
-    if (Preferences::GetBool("dom.disable_image_src_set") &&
+    if (nsContentUtils::GetBoolPref("dom.disable_image_src_set") &&
         !nsContentUtils::IsCallerChrome()) {
       return NS_OK;
     }
@@ -191,7 +188,7 @@ nsSVGImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 void
 nsSVGImageElement::MaybeLoadSVGImage()
 {
-  if (mStringAttributes[HREF].IsExplicitlySet() &&
+  if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href) &&
       (NS_FAILED(LoadSVGImage(PR_FALSE, PR_TRUE)) ||
        !LoadingEnabled())) {
     CancelImageRequests(PR_TRUE);
@@ -208,11 +205,8 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mStringAttributes[HREF].IsExplicitlySet()) {
-    // FIXME: Bug 660963 it would be nice if we could just have
-    // ClearBrokenState update our state and do it fast...
+  if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
     ClearBrokenState();
-    RemoveStatesSilently(NS_EVENT_STATE_BROKEN);
     nsContentUtils::AddScriptRunner(
       NS_NewRunnableMethod(this, &nsSVGImageElement::MaybeLoadSVGImage));
   }

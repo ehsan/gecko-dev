@@ -272,9 +272,12 @@ tests.push({
 
     // Remove the root.
     mDBConn.executeSimpleSQL("DELETE FROM moz_bookmarks WHERE parent = 0");
-    let stmt = mDBConn.createStatement("SELECT id FROM moz_bookmarks WHERE parent = 0");
-    do_check_false(stmt.executeStep());
-    stmt.finalize();
+    try {
+      bs.getFolderIdForItem(bs.placesRoot);
+      do_throw("Places root should not exist now!");
+    } catch(e) {
+      // Root has been removed so this call should throw.
+    }
   },
 
   check: function() {

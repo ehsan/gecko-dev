@@ -149,7 +149,18 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
         return;
     }
 
-    ComputeMetrics(anAAOption);
+    if ((anAAOption == gfxFont::kAntialiasDefault &&
+         UsingClearType() &&
+         (gfxWindowsPlatform::GetPlatform()->DWriteMeasuringMode() ==
+          DWRITE_MEASURING_MODE_NATURAL)) ||
+        anAAOption == gfxFont::kAntialiasSubpixel)
+    {
+        mUseSubpixelPositions = PR_TRUE;
+        // note that this may be reset to FALSE if we determine that a bitmap
+        // strike is going to be used
+    }
+
+    ComputeMetrics();
 
     if (FontCanSupportHarfBuzz()) {
         mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
@@ -205,7 +216,7 @@ gfxDWriteFont::GetFakeMetricsForArialBlack(DWRITE_FONT_METRICS *aFontMetrics)
 }
 
 void
-gfxDWriteFont::ComputeMetrics(AntialiasOption anAAOption)
+gfxDWriteFont::ComputeMetrics()
 {
     DWRITE_FONT_METRICS fontMetrics;
     if (!(mFontEntry->Weight() == 900 &&
@@ -222,17 +233,6 @@ gfxDWriteFont::ComputeMetrics(AntialiasOption anAAOption)
         mAdjustedSize = mStyle.GetAdjustedSize(aspect);
     } else {
         mAdjustedSize = mStyle.size;
-    }
-
-    // Note that GetMeasuringMode depends on mAdjustedSize
-    if ((anAAOption == gfxFont::kAntialiasDefault &&
-         UsingClearType() &&
-         GetMeasuringMode() == DWRITE_MEASURING_MODE_NATURAL) ||
-        anAAOption == gfxFont::kAntialiasSubpixel)
-    {
-        mUseSubpixelPositions = PR_TRUE;
-        // note that this may be reset to FALSE if we determine that a bitmap
-        // strike is going to be used
     }
 
     gfxDWriteFontEntry *fe =
@@ -597,11 +597,6 @@ gfxDWriteFont::CairoScaledFont()
 
         cairo_dwrite_scaled_font_allow_manual_show_glyphs(mCairoScaledFont,
                                                           mAllowManualShowGlyphs);
-
-        gfxDWriteFontEntry *fe =
-            static_cast<gfxDWriteFontEntry*>(mFontEntry.get());
-        cairo_dwrite_scaled_font_set_force_GDI_classic(mCairoScaledFont,
-                                                       GetForceGDIClassic());
     }
 
     NS_ASSERTION(mAdjustedSize == 0.0 ||
@@ -610,33 +605,6 @@ gfxDWriteFont::CairoScaledFont()
                  "Failed to make scaled font");
 
     return mCairoScaledFont;
-}
-
-gfxFont::RunMetrics
-gfxDWriteFont::Measure(gfxTextRun *aTextRun,
-                    PRUint32 aStart, PRUint32 aEnd,
-                    BoundingBoxType aBoundingBoxType,
-                    gfxContext *aRefContext,
-                    Spacing *aSpacing)
-{
-    gfxFont::RunMetrics metrics =
-        gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing);
-
-    // if aBoundingBoxType is LOOSE_INK_EXTENTS
-    // and the underlying cairo font may be antialiased,
-    // we can't trust Windows to have considered all the pixels
-    // so we need to add "padding" to the bounds.
-    // (see bugs 475968, 439831, compare also bug 445087)
-    if (aBoundingBoxType == LOOSE_INK_EXTENTS &&
-        mAntialiasOption != kAntialiasNone &&
-        GetMeasuringMode() == DWRITE_MEASURING_MODE_GDI_CLASSIC &&
-        metrics.mBoundingBox.width > 0) {
-        metrics.mBoundingBox.x -= aTextRun->GetAppUnitsPerDevUnit();
-        metrics.mBoundingBox.width += aTextRun->GetAppUnitsPerDevUnit() * 3;
-    }
-
-    return metrics;
 }
 
 // Access to font tables packaged in hb_blob_t form
@@ -717,23 +685,6 @@ gfxDWriteFont::GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
     return width;
 }
 
-bool
-gfxDWriteFont::GetForceGDIClassic()
-{
-    return static_cast<gfxDWriteFontEntry*>(mFontEntry.get())->GetForceGDIClassic() &&
-         cairo_dwrite_get_cleartype_rendering_mode() < 0 &&
-         GetAdjustedSize() <=
-            gfxDWriteFontList::PlatformFontList()->GetForceGDIClassicMaxFontSize();
-}
-
-DWRITE_MEASURING_MODE
-gfxDWriteFont::GetMeasuringMode()
-{
-    return GetForceGDIClassic()
-        ? DWRITE_MEASURING_MODE_GDI_CLASSIC
-        : gfxWindowsPlatform::GetPlatform()->DWriteMeasuringMode();
-}
-
 gfxFloat
 gfxDWriteFont::MeasureGlyphWidth(PRUint16 aGlyph)
 {
@@ -747,7 +698,8 @@ gfxDWriteFont::MeasureGlyphWidth(PRUint16 aGlyph)
     } else {
         hr = mFontFace->GetGdiCompatibleGlyphMetrics(
                   FLOAT(mAdjustedSize), 1.0f, nsnull,
-                  GetMeasuringMode() == DWRITE_MEASURING_MODE_GDI_NATURAL,
+                  gfxWindowsPlatform::GetPlatform()->DWriteMeasuringMode() ==
+                      DWRITE_MEASURING_MODE_GDI_NATURAL,
                   &aGlyph, 1, &metrics, FALSE);
         if (SUCCEEDED(hr)) {
             return NS_lround(metrics.advanceWidth * mFUnitsConvFactor);

@@ -56,10 +56,9 @@
           <body>
           <![CDATA[
               var timeString;
-              time = Math.round(time / 1000);
-              var hours = Math.floor(time / 3600);
-              var mins  = Math.floor((time % 3600) / 60);
-              var secs  = Math.floor(time % 60);
+              var hours = Math.floor(time / 3600000);
+              var mins  = Math.floor(time % 3600000 / 60000);
+              var secs  = Math.floor(time % 60000 / 1000);
               if (secs < 10)
                   secs = "0" + secs;
               if (hours || this.showHours) {
@@ -296,7 +295,6 @@
                 progressBar    : null,
                 bufferBar      : null,
                 statusOverlay  : null,
-                controlsSpacer : null,
 
                 randomID : 0,
                 videoEvents : ["play", "pause", "ended", "volumechange", "loadeddata",
@@ -418,9 +416,6 @@
                         case "play":
                             this.setPlayButtonState(false);
                             this.setupStatusFader();
-                            if (!this._triggeredByControls && this.dynamicControls && this.videocontrols.isTouchControl)
-                                this.startFadeOut(this.controlBar);
-                            this._triggeredByControls = false;
                             break;
                         case "pause":
                             // Little white lie: if we've internally paused the video
@@ -545,10 +540,9 @@
                 
                 formatTime : function(aTime) {
                     // Format the duration as "h:mm:ss" or "m:ss"
-                    aTime = Math.round(aTime / 1000);
-                    let hours = Math.floor(aTime / 3600);
-                    let mins  = Math.floor((aTime % 3600) / 60);
-                    let secs  = Math.floor(aTime % 60);
+                    let hours = Math.floor(aTime / 3600000);
+                    let mins  = Math.floor(aTime % 3600000 / 60000);
+                    let secs  = Math.floor(aTime % 60000 / 1000);
                     let timeString;
                     if (secs < 10)
                         secs = "0" + secs;
@@ -742,15 +736,11 @@
                     element.setAttribute("hidden", true);
                 },
 
-                _triggeredByControls: false,
-
                 togglePause : function () {
-                    if (this.video.paused || this.video.ended) {
-                        this._triggeredByControls = true;
+                    if (this.video.paused || this.video.ended)
                         this.video.play();
-                    } else {
+                    else
                         this.video.pause();
-                    }
 
                     // We'll handle style changes in the event listener for
                     // the "play" and "pause" events, same as if content
@@ -919,7 +909,6 @@
                     this.durationLabel = document.getAnonymousElementByAttribute(binding, "class", "durationLabel");
                     this.positionLabel = document.getAnonymousElementByAttribute(binding, "class", "positionLabel");
                     this.statusOverlay = document.getAnonymousElementByAttribute(binding, "class", "statusOverlay");
-                    this.controlsSpacer = document.getAnonymousElementByAttribute(binding, "class", "controlsSpacer")
 
                     this.setupInitialState();
 
@@ -945,7 +934,6 @@
                     var self = this;
                     this.muteButton.addEventListener("command", function() { self.toggleMute(); }, false);
                     this.playButton.addEventListener("command", function() { self.togglePause(); }, false);
-                    this.controlsSpacer.addEventListener("click", function(e) { if (e.button == 0) { self.togglePause(); } }, false);
                     if (!this.isAudioOnly) {
                       this.muteButton.addEventListener("mouseover",  function(e) { self.onVolumeMouseInOut(e); }, false);
                       this.muteButton.addEventListener("mouseout",   function(e) { self.onVolumeMouseInOut(e); }, false);
@@ -964,18 +952,15 @@
             }) ]]>
         </field>
 
-        <field readonly="true" name="isTouchControl">false</field>
 
     </implementation>
 
     <handlers>
         <handler event="mouseover">
-            if (!this.isTouchControl)
-                this.Utils.onMouseInOut(event);
+            this.Utils.onMouseInOut(event);
         </handler>
         <handler event="mouseout">
-            if (!this.isTouchControl)
-                this.Utils.onMouseInOut(event);
+            this.Utils.onMouseInOut(event);
         </handler>
     </handlers>
   </binding>
@@ -1022,8 +1007,6 @@
 
     <implementation>
 
-        <field readonly="true" name="isTouchControl">true</field>
-
         <constructor>
           this.TouchUtils.init(this);
         </constructor>
@@ -1038,10 +1021,9 @@
             get Utils() {
               return this.videocontrols.Utils;
             },
-
+            
             get visible() {
-              return !this.Utils.controlBar.hasAttribute("fadeout") &&
-                     !(this.Utils.controlBar.getAttribute("hidden") == "true");
+              return !this.Utils.controlBar.hasAttribute("fadeout") || !this.Utils.controlBar.hasAttribute("hidden");
             },
 
             _firstShow: false,
@@ -1059,10 +1041,11 @@
             },
 
             showControls : function() {
-              if (this.Utils.dynamicControls) {
-                this.Utils.startFadeIn(this.Utils.controlBar);
-                this.delayHideControls(this.controlsTimeout);
-              }
+              let event = document.createEvent("MouseEvents");
+              event.initEvent("mouseover", true, true);
+              this.Utils.videocontrols.dispatchEvent(event);
+
+              this.delayHideControls(this.controlsTimeout);
             },
             
             delayHideControls : function(aTimeout) {
@@ -1077,7 +1060,10 @@
             },
 
             hideControls : function() {
-              this.Utils.startFadeOut(this.Utils.controlBar);
+              let event = document.createEvent("MouseEvents");
+              event.initEvent("mouseout", true, true);
+              this.Utils.videocontrols.dispatchEvent(event);
+
               if (this.firstShow)
                 this.videocontrols.addEventListener("transitionend", this, false);
             },

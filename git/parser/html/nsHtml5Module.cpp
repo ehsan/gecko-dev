@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsContentUtils.h"
 #include "nsHtml5AttributeName.h"
 #include "nsHtml5ElementName.h"
 #include "nsHtml5HtmlAttributes.h"
@@ -48,9 +49,6 @@
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 // static
 PRBool nsHtml5Module::sEnabled = PR_FALSE;
@@ -62,8 +60,8 @@ nsIThread* nsHtml5Module::sMainThread = nsnull;
 void
 nsHtml5Module::InitializeStatics()
 {
-  Preferences::AddBoolVarCache(&sEnabled, "html5.parser.enable");
-  Preferences::AddBoolVarCache(&sOffMainThread, "html5.offmainthread");
+  nsContentUtils::AddBoolPrefVarCache("html5.parser.enable", &sEnabled);
+  nsContentUtils::AddBoolPrefVarCache("html5.offmainthread", &sOffMainThread);
   nsHtml5Atoms::AddRefAtoms();
   nsHtml5AttributeName::initializeStatics();
   nsHtml5ElementName::initializeStatics();

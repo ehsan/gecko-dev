@@ -6,7 +6,6 @@ function numClosedTabs()
 function isUndoCloseEnabled() {
   document.popupNode = gBrowser.tabs[0];
   TabContextMenu.updateContextMenu(document.getElementById("tabContextMenu"));
-  TabContextMenu.contextTab = null;
   return !document.getElementById("context_undoCloseTab").disabled;
 }
 
@@ -21,11 +20,8 @@ function test() {
   var tab = gBrowser.addTab("http://mochi.test:8888/");
   var browser = gBrowser.getBrowserForTab(tab);
   browser.addEventListener("load", function() {
-    browser.removeEventListener("load", arguments.callee, true);
-
     gBrowser.removeTab(tab);
     ok(isUndoCloseEnabled(), "Undo Close Tab should be enabled.");
-
     finish();
   }, true);
 }

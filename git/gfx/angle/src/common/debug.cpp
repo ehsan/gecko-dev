@@ -72,8 +72,7 @@ bool perfActive()
 #if defined(ANGLE_DISABLE_PERF)
     return false;
 #else
-    static bool active = D3DPERF_GetStatus() != 0;
-    return active;
+    return D3DPERF_GetStatus() != 0;
 #endif
 }
 

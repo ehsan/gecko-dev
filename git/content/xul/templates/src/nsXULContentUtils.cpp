@@ -328,29 +328,34 @@ nsXULContentUtils::MakeElementURI(nsIDocument* aDocument,
     // Convert an element's ID to a URI that can be used to refer to
     // the element in the XUL graph.
 
-    nsIURI *docURI = aDocument->GetDocumentURI();
-    NS_ENSURE_TRUE(docURI, NS_ERROR_UNEXPECTED);
+    nsIURI *docURL = aDocument->GetDocumentURI();
+    NS_ENSURE_TRUE(docURL, NS_ERROR_UNEXPECTED);
 
-    nsRefPtr<nsIURI> docURIClone;
-    nsresult rv = docURI->Clone(getter_AddRefs(docURIClone));
+    nsCOMPtr<nsIURI> docURIClone;
+    nsresult rv = docURL->Clone(getter_AddRefs(docURIClone));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = docURIClone->SetRef(NS_ConvertUTF16toUTF8(aElementID));
-    if (NS_SUCCEEDED(rv)) {
-        return docURIClone->GetSpec(aURI);
+    nsCOMPtr<nsIURL> mutableURL(do_QueryInterface(docURIClone));
+    if (!mutableURL) {
+        nsCString uri;
+        rv = docURL->GetSpec(aURI);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCAutoString ref;
+        NS_EscapeURL(NS_ConvertUTF16toUTF8(aElementID), esc_FilePath | esc_AlwaysCopy, ref);
+
+        aURI.Append('#');
+        aURI.Append(ref);
+
+        return NS_OK;
     }
 
-    // docURIClone is apparently immutable. Fine - we can append ref manually.
-    rv = docURI->GetSpec(aURI);
+    NS_ENSURE_TRUE(mutableURL, NS_ERROR_NOT_AVAILABLE);
+
+    rv = mutableURL->SetRef(NS_ConvertUTF16toUTF8(aElementID));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString ref;
-    NS_EscapeURL(NS_ConvertUTF16toUTF8(aElementID), esc_FilePath | esc_AlwaysCopy, ref);
-
-    aURI.Append('#');
-    aURI.Append(ref);
-
-    return NS_OK;
+    return mutableURL->GetSpec(aURI);
 }
 
 
@@ -385,9 +390,27 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
                             aDocument->GetDocumentCharacterSet().get());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString ref;
-    uri->GetRef(ref);
-    CopyUTF8toUTF16(ref, aElementID);
+    nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
+    if (url) {
+        nsCAutoString ref;
+        url->GetRef(ref);
+        CopyUTF8toUTF16(ref, aElementID);
+    } else {
+        const char* start = aURI.BeginReading();
+        const char* end = aURI.EndReading();
+        const char* chr = end;
+
+        while (--chr >= start) {
+            if (*chr == '#') {
+                nsDependentCSubstring ref = Substring(chr + 1, end);
+                nsCAutoString unescaped;
+                CopyUTF8toUTF16(NS_UnescapeURL(ref, esc_FilePath, unescaped), aElementID);
+                return NS_OK;
+            }
+        }
+
+        aElementID.Truncate();
+    }
 
     return NS_OK;
 }

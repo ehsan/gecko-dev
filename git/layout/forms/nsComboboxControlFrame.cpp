@@ -59,7 +59,7 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsEventDispatcher.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMNode.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsISelectControlFrame.h"
@@ -90,9 +90,8 @@
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
 #include "nsRenderingContext.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -127,12 +126,19 @@ const PRInt32 kSizeNotSet = -1;
  * combo box is toggled to open or close. this is used by Accessibility which presses
  * that button Programmatically.
  */
-class nsComboButtonListener : public nsIDOMEventListener
+class nsComboButtonListener: public nsIDOMMouseListener
 {
-public:
-  NS_DECL_ISUPPORTS
+  public:
 
-  NS_IMETHOD HandleEvent(nsIDOMEvent*)
+  NS_DECL_ISUPPORTS
+  NS_IMETHOD HandleEvent(nsIDOMEvent* anEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent) { return PR_FALSE; }
+
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent) 
   {
     mComboBox->ShowDropDown(!mComboBox->IsDroppedDown());
     return NS_OK; 
@@ -148,7 +154,8 @@ public:
   nsComboboxControlFrame* mComboBox;
 };
 
-NS_IMPL_ISUPPORTS1(nsComboButtonListener,
+NS_IMPL_ISUPPORTS2(nsComboButtonListener,
+                   nsIDOMMouseListener,
                    nsIDOMEventListener)
 
 // static class data member for Bug 32920
@@ -741,7 +748,7 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(PRBool aDoDropDown) 
 {
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return;
   }
@@ -941,7 +948,7 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
@@ -1021,8 +1028,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::button, nsnull, kNameSpaceID_XHTML,
-                                nsIDOMNode::ELEMENT_NODE);
+  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::button, nsnull, kNameSpaceID_XHTML);
 
   // create button which drops the list down
   NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo.forget(),
@@ -1033,8 +1039,8 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // make someone to listen to the button. If its pressed by someone like Accessibility
   // then open or close the combo box.
   mButtonListener = new nsComboButtonListener(this);
-  mButtonContent->AddEventListener(NS_LITERAL_STRING("click"), mButtonListener,
-                                   PR_FALSE, PR_FALSE);
+  mButtonContent->AddEventListenerByIID(mButtonListener,
+                                        NS_GET_IID(nsIDOMMouseListener));
 
   mButtonContent->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                           NS_LITERAL_STRING("button"), PR_FALSE);
@@ -1398,7 +1404,7 @@ void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
                                         nsPoint aPt)
 {
   /* Do we need to do anything? */
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED) || mFocused != this)
     return;
 
@@ -1512,10 +1518,6 @@ nsComboboxControlFrame::RestoreState(nsPresState* aState)
 PRBool
 nsComboboxControlFrame::ToolkitHasNativePopup()
 {
-#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
-  return PR_TRUE;
-#else
-  return PR_FALSE;
-#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
+  return nsContentUtils::GetBoolPref("ui.use_native_popup_windows");
 }
 

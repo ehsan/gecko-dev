@@ -2643,7 +2643,8 @@ nsHTMLEditor::GetCellIndexes(nsIDOMElement *aCell,
   }
 
   NS_ENSURE_TRUE(mDocWeak, NS_ERROR_NOT_INITIALIZED);
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIContent> nodeAsContent( do_QueryInterface(aCell) );
@@ -2660,10 +2661,11 @@ nsHTMLEditor::GetCellIndexes(nsIDOMElement *aCell,
 NS_IMETHODIMP
 nsHTMLEditor::GetTableLayoutObject(nsIDOMElement* aTable, nsITableLayout **tableLayoutObject)
 {
-  *tableLayoutObject = nsnull;
+  *tableLayoutObject=nsnull;
   NS_ENSURE_TRUE(aTable, NS_ERROR_NOT_INITIALIZED);
   NS_ENSURE_TRUE(mDocWeak, NS_ERROR_NOT_INITIALIZED);
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIContent> nodeAsContent( do_QueryInterface(aTable) );
@@ -2950,9 +2952,7 @@ nsHTMLEditor::GetCellFromRange(nsIDOMRange *aRange, nsIDOMElement **aCell)
 
   nsCOMPtr<nsIDOMNode> childNode = GetChildAt(startParent, startOffset);
   // This means selection is probably at a text node (or end of doc?)
-  if (!childNode) {
-    return NS_ERROR_FAILURE;
-  }
+  NS_ENSURE_TRUE(childNode, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMNode> endParent;
   res = aRange->GetEndContainer(getter_AddRefs(endParent));
@@ -3002,13 +3002,9 @@ nsHTMLEditor::GetFirstSelectedCell(nsIDOMRange **aRange, nsIDOMElement **aCell)
   res = GetCellFromRange(range, aCell);
   // Failure here probably means selection is in a text node,
   //  so there's no selected cell
-  if (NS_FAILED(res)) {
-    return NS_EDITOR_ELEMENT_NOT_FOUND;
-  }
+  NS_ENSURE_SUCCESS(res, NS_EDITOR_ELEMENT_NOT_FOUND);
   // No cell means range was collapsed (cell was deleted)
-  if (!*aCell) {
-    return NS_EDITOR_ELEMENT_NOT_FOUND;
-  }
+  NS_ENSURE_TRUE(*aCell, NS_EDITOR_ELEMENT_NOT_FOUND);
 
   if (aRange)
   {

@@ -51,16 +51,18 @@
 #include "mozilla/css/Loader.h"
 #include "nsIRunnable.h"
 #include "nsIUnicharStreamLoader.h"
-#include "nsSyncLoadService.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsString.h"
 #include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsIDOMNode.h"
-#include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
+#include "nsIDocument.h"
+#include "nsIDOMNSDocumentStyle.h"
+#include "nsIUnicharInputStream.h"
+#include "nsIConverterInputStream.h"
 #include "nsICharsetAlias.h"
+#include "nsUnicharUtils.h"
 #include "nsHashtable.h"
 #include "nsIURI.h"
 #include "nsIServiceManager.h"
@@ -74,6 +76,7 @@
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
 #include "nsIAtom.h"
+#include "nsIDOM3Node.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsICSSLoaderObserver.h"
@@ -456,7 +459,7 @@ Loader::Loader(nsIDocument* aDocument)
   // We can just use the preferred set, since there are no sheets in the
   // document yet (if there are, how did they get there? _we_ load the sheets!)
   // and hence the selected set makes no sense at this time.
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(mDocument);
+  nsCOMPtr<nsIDOMNSDocumentStyle> domDoc(do_QueryInterface(mDocument));
   if (domDoc) {
     domDoc->GetPreferredStyleSheetSet(mPreferredSheet);
   }
@@ -510,7 +513,7 @@ nsresult
 Loader::SetPreferredSheet(const nsAString& aTitle)
 {
 #ifdef DEBUG
-  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(mDocument);
+  nsCOMPtr<nsIDOMNSDocumentStyle> doc(do_QueryInterface(mDocument));
   if (doc) {
     nsAutoString currentPreferred;
     doc->GetLastStyleSheetSet(currentPreferred);
@@ -629,7 +632,8 @@ static nsresult GetCharsetFromData(const unsigned char* aStyleSheetData,
 NS_IMETHODIMP
 SheetLoadData::OnDetermineCharset(nsIUnicharStreamLoader* aLoader,
                                   nsISupports* aContext,
-                                  nsACString const& aSegment,
+                                  const char* aData,
+                                  PRUint32 aDataLength,
                                   nsACString& aCharset)
 {
   NS_PRECONDITION(!mOwningElement || mCharsetHint.IsEmpty(),
@@ -667,8 +671,8 @@ SheetLoadData::OnDetermineCharset(nsIUnicharStreamLoader* aLoader,
   if (aCharset.IsEmpty()) {
     //  We have no charset
     //  Try @charset rule and BOM
-    result = GetCharsetFromData((const unsigned char*)aSegment.BeginReading(),
-                                aSegment.Length(), aCharset);
+    result = GetCharsetFromData((const unsigned char*)aData,
+                                aDataLength, aCharset);
 #ifdef PR_LOGGING
     if (NS_SUCCEEDED(result)) {
       LOG(("  Setting from @charset rule or BOM: %s",
@@ -746,7 +750,7 @@ NS_IMETHODIMP
 SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
                                 nsISupports* aContext,
                                 nsresult aStatus,
-                                const nsAString& aBuffer)
+                                nsIUnicharInputStream* aDataStream)
 {
   LOG(("SheetLoadData::OnStreamComplete"));
   NS_ASSERTION(!mLoader->mSyncCallback, "Synchronous callback from necko");
@@ -801,11 +805,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
   result = NS_ERROR_NOT_AVAILABLE;
   if (secMan) {  // Could be null if we already shut down
-    if (mUseSystemPrincipal) {
-      result = secMan->GetSystemPrincipal(getter_AddRefs(principal));
-    } else {
-      result = secMan->GetChannelPrincipal(channel, getter_AddRefs(principal));
-    }
+    result = secMan->GetChannelPrincipal(channel, getter_AddRefs(principal));
   }
 
   if (NS_FAILED(result)) {
@@ -832,6 +832,12 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
       mLoader->SheetComplete(this, NS_ERROR_NOT_AVAILABLE);
       return NS_OK;
     }
+  }
+
+  if (!aDataStream) {
+    LOG_WARN(("  No data stream; bailing"));
+    mLoader->SheetComplete(this, NS_ERROR_NOT_AVAILABLE);
+    return NS_OK;
   }
 
   nsCAutoString contentType;
@@ -896,9 +902,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
   mSheet->SetURIs(channelURI, originalURI, channelURI);
 
   PRBool completed;
-  result = mLoader->ParseSheet(aBuffer, this, completed);
-  NS_ASSERTION(completed || !mSyncLoad, "sync load did not complete");
-  return result;
+  return mLoader->ParseSheet(aDataStream, this, completed);
 }
 
 #ifdef MOZ_XUL
@@ -1343,17 +1347,6 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     NS_ASSERTION(aSheetState == eSheetNeedsParser,
                  "Sync loads can't reuse existing async loads");
 
-    // Create a nsIUnicharStreamLoader instance to which we will feed
-    // the data from the sync load.  Do this before creating the
-    // channel to make error recovery simpler.
-    nsCOMPtr<nsIUnicharStreamLoader> streamLoader;
-    rv = NS_NewUnicharStreamLoader(getter_AddRefs(streamLoader), aLoadData);
-    if (NS_FAILED(rv)) {
-      LOG_ERROR(("  Failed to create stream loader for sync load"));
-      SheetComplete(aLoadData, rv);
-      return rv;
-    }
-
     // Just load it
     nsCOMPtr<nsIInputStream> stream;
     nsCOMPtr<nsIChannel> channel;
@@ -1368,18 +1361,53 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
 
     NS_ASSERTION(channel, "NS_OpenURI lied?");
 
-    // Force UA sheets to be UTF-8.
-    // XXX this is only necessary because the default in
-    // SheetLoadData::OnDetermineCharset is wrong (bug 521039).
-    channel->SetContentCharset(NS_LITERAL_CSTRING("UTF-8"));
+    // Get the principal for this sheet
+    nsCOMPtr<nsIPrincipal> principal;
+    if (aLoadData->mUseSystemPrincipal) {
+      rv = nsContentUtils::GetSecurityManager()->
+        GetSystemPrincipal(getter_AddRefs(principal));
+    } else {
+      rv = nsContentUtils::GetSecurityManager()->
+        GetChannelPrincipal(channel, getter_AddRefs(principal));
+    }
 
-    // Manually feed the streamloader the contents of the stream we
-    // got from NS_OpenURI.  This will call back into OnStreamComplete
-    // and thence to ParseSheet.  Regardless of whether this fails,
-    // SheetComplete has been called.
-    return nsSyncLoadService::PushSyncStreamToListener(stream,
-                                                       streamLoader,
-                                                       channel);
+    if (NS_FAILED(rv)) {
+      LOG_ERROR(("  Failed to get a principal for the sheet"));
+      SheetComplete(aLoadData, rv);
+      return rv;
+    }
+
+    aLoadData->mSheet->SetPrincipal(principal);
+
+    nsCOMPtr<nsIConverterInputStream> converterStream =
+      do_CreateInstance("@mozilla.org/intl/converter-input-stream;1", &rv);
+
+    if (NS_FAILED(rv)) {
+      LOG_ERROR(("  Failed to create converter stream"));
+      SheetComplete(aLoadData, rv);
+      return rv;
+    }
+
+    // This forces UA sheets to be UTF-8.  We should really look for
+    // @charset rules here via ReadSegments on the raw stream...
+
+    // 8192 is a nice magic number that happens to be what a lot of
+    // other things use for buffer sizes.
+    rv = converterStream->Init(stream, "UTF-8",
+                               8192,
+                               nsIConverterInputStream::
+                                    DEFAULT_REPLACEMENT_CHARACTER);
+
+    if (NS_FAILED(rv)) {
+      LOG_ERROR(("  Failed to initialize converter stream"));
+      SheetComplete(aLoadData, rv);
+      return rv;
+    }
+
+    PRBool completed;
+    rv = ParseSheet(converterStream, aLoadData, completed);
+    NS_ASSERTION(completed, "sync load did not complete");
+    return rv;
   }
 
   SheetLoadData* existingData = nsnull;
@@ -1528,11 +1556,12 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
  * correctly.
  */
 nsresult
-Loader::ParseSheet(const nsAString& aInput,
+Loader::ParseSheet(nsIUnicharInputStream* aStream,
                    SheetLoadData* aLoadData,
                    PRBool& aCompleted)
 {
   LOG(("css::Loader::ParseSheet"));
+  NS_PRECONDITION(aStream, "Must have data to parse");
   NS_PRECONDITION(aLoadData, "Must have load data");
   NS_PRECONDITION(aLoadData->mSheet, "Must have sheet to parse into");
 
@@ -1550,10 +1579,10 @@ Loader::ParseSheet(const nsAString& aInput,
   mParsingDatas.AppendElement(aLoadData);
   nsIURI* sheetURI = aLoadData->mSheet->GetSheetURI();
   nsIURI* baseURI = aLoadData->mSheet->GetBaseURI();
-  nsresult rv = parser.ParseSheet(aInput, sheetURI, baseURI,
-                                  aLoadData->mSheet->Principal(),
-                                  aLoadData->mLineNumber,
-                                  aLoadData->mAllowUnsafeRules);
+  nsresult rv = parser.Parse(aStream, sheetURI, baseURI,
+                             aLoadData->mSheet->Principal(),
+                             aLoadData->mLineNumber,
+                             aLoadData->mAllowUnsafeRules);
   mParsingDatas.RemoveElementAt(mParsingDatas.Length() - 1);
 
   if (NS_FAILED(rv)) {
@@ -1716,7 +1745,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
 
 nsresult
 Loader::LoadInlineStyle(nsIContent* aElement,
-                        const nsAString& aBuffer,
+                        nsIUnicharInputStream* aStream,
                         PRUint32 aLineNumber,
                         const nsAString& aTitle,
                         const nsAString& aMedia,
@@ -1725,6 +1754,7 @@ Loader::LoadInlineStyle(nsIContent* aElement,
                         PRBool* aIsAlternate)
 {
   LOG(("css::Loader::LoadInlineStyle"));
+  NS_PRECONDITION(aStream, "Must have a stream to parse!");
   NS_ASSERTION(mParsingDatas.Length() == 0, "We're in the middle of a parse?");
 
   *aCompleted = PR_TRUE;
@@ -1773,7 +1803,7 @@ Loader::LoadInlineStyle(nsIContent* aElement,
   NS_ADDREF(data);
   data->mLineNumber = aLineNumber;
   // Parse completion releases the load data
-  rv = ParseSheet(aBuffer, data, *aCompleted);
+  rv = ParseSheet(aStream, data, *aCompleted);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // If aCompleted is true, |data| may well be deleted by now.

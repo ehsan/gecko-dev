@@ -72,17 +72,20 @@
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIDOMDocumentTraversal.h"
 #include "nsIDOMTreeWalker.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNodeList.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIWebProgressListener.h"
 #include "nsIAuthPrompt.h"
 #include "nsIPrompt.h"
 #include "nsISHEntry.h"
 #include "nsIWebPageDescriptor.h"
 #include "nsIFormControl.h"
+#include "nsIDOM3Node.h"
 
 #include "nsIDOMNodeFilter.h"
 #include "nsIDOMProcessingInstruction.h"
@@ -106,8 +109,10 @@
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMText.h"
+#ifdef MOZ_SVG
 #include "nsIDOMSVGImageElement.h"
 #include "nsIDOMSVGScriptElement.h"
+#endif // MOZ_SVG
 #ifdef MOZ_MEDIA
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLMediaElement.h"
@@ -210,7 +215,12 @@ struct CleanupData
 // volume / server dependent but it is difficult to obtain
 // that information. Instead this constant is a reasonable value that
 // modern systems should able to cope with.
+
+#ifdef XP_MAC
+const PRUint32 kDefaultMaxFilenameLength = 31;
+#else
 const PRUint32 kDefaultMaxFilenameLength = 64;
+#endif
 
 // Default flags for persistence
 const PRUint32 kDefaultPersistFlags = 
@@ -1017,7 +1027,6 @@ NS_IMETHODIMP nsWebBrowserPersist::OnStatus(
         switch ( status )
         {
         case NS_NET_STATUS_RESOLVING_HOST:
-        case NS_NET_STATUS_RESOLVED_HOST:
         case NS_NET_STATUS_BEGIN_FTP_TRANSACTION:
         case NS_NET_STATUS_END_FTP_TRANSACTION:
         case NS_NET_STATUS_CONNECTING_TO:
@@ -1463,9 +1472,15 @@ nsWebBrowserPersist::GetDocEncoderContentType(nsIDOMDocument *aDocument, const P
     else
     {
         // Get the content type from the document
-        nsAutoString type;
-        if (NS_SUCCEEDED(aDocument->GetContentType(type)) && !type.IsEmpty())
-            contentType.Assign(type);
+        nsCOMPtr<nsIDOMNSDocument> nsDoc = do_QueryInterface(aDocument);
+        if (nsDoc)
+        {
+            nsAutoString type;
+            if (NS_SUCCEEDED(nsDoc->GetContentType(type)) && !type.IsEmpty())
+            {
+                contentType.Assign(type);
+            }
+        }
     }
 
     // Check that an encoder actually exists for the desired output type. The
@@ -1634,8 +1649,10 @@ nsresult nsWebBrowserPersist::SaveDocumentInternal(
         mDocList.AppendElement(docData);
 
         // Walk the DOM gathering a list of externally referenced URIs in the uri map
+        nsCOMPtr<nsIDOMDocumentTraversal> trav = do_QueryInterface(docData->mDocument, &rv);
+        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
         nsCOMPtr<nsIDOMTreeWalker> walker;
-        rv = aDocument->CreateTreeWalker(docAsNode, 
+        rv = trav->CreateTreeWalker(docAsNode, 
             nsIDOMNodeFilter::SHOW_ELEMENT |
                 nsIDOMNodeFilter::SHOW_DOCUMENT |
                 nsIDOMNodeFilter::SHOW_PROCESSING_INSTRUCTION,
@@ -2572,7 +2589,10 @@ nsWebBrowserPersist::EnumCleanupOutputMap(nsHashKey *aKey, void *aData, void* cl
         channel->Cancel(NS_BINDING_ABORTED);
     }
     OutputData *data = (OutputData *) aData;
-    delete data;
+    if (data)
+    {
+        delete data;
+    }
     return PR_TRUE;
 }
 
@@ -2581,7 +2601,10 @@ PRBool
 nsWebBrowserPersist::EnumCleanupURIMap(nsHashKey *aKey, void *aData, void* closure)
 {
     URIData *data = (URIData *) aData;
-    delete data; // Delete data associated with key
+    if (data)
+    {
+        delete data; // Delete data associated with key
+    }
     return PR_TRUE;
 }
 
@@ -2597,7 +2620,10 @@ nsWebBrowserPersist::EnumCleanupUploadList(nsHashKey *aKey, void *aData, void* c
         channel->Cancel(NS_BINDING_ABORTED);
     }
     UploadData *data = (UploadData *) aData;
-    delete data; // Delete data associated with key
+    if (data)
+    {
+        delete data; // Delete data associated with key
+    }
     return PR_TRUE;
 }
 
@@ -2766,12 +2792,14 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGImageElement> nodeAsSVGImage = do_QueryInterface(aNode);
     if (nodeAsSVGImage)
     {
         StoreURIAttributeNS(aNode, "http://www.w3.org/1999/xlink", "href");
         return NS_OK;
     }
+#endif // MOZ_SVG
 
 #ifdef MOZ_MEDIA
     nsCOMPtr<nsIDOMHTMLMediaElement> nodeAsMedia = do_QueryInterface(aNode);
@@ -2823,12 +2851,14 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGScriptElement> nodeAsSVGScript = do_QueryInterface(aNode);
     if (nodeAsSVGScript)
     {
         StoreURIAttributeNS(aNode, "http://www.w3.org/1999/xlink", "href");
         return NS_OK;
     }
+#endif // MOZ_SVG
 
     nsCOMPtr<nsIDOMHTMLEmbedElement> nodeAsEmbed = do_QueryInterface(aNode);
     if (nodeAsEmbed)
@@ -3161,6 +3191,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
     }
 #endif // MOZ_MEDIA
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGImageElement> nodeAsSVGImage = do_QueryInterface(aNodeIn);
     if (nodeAsSVGImage)
     {
@@ -3178,6 +3209,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         }
         return rv;
     }
+#endif // MOZ_SVG
 
     nsCOMPtr<nsIDOMHTMLScriptElement> nodeAsScript = do_QueryInterface(aNodeIn);
     if (nodeAsScript)
@@ -3190,6 +3222,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         return rv;
     }
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGScriptElement> nodeAsSVGScript = do_QueryInterface(aNodeIn);
     if (nodeAsSVGScript)
     {
@@ -3200,6 +3233,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         }
         return rv;
     }
+#endif // MOZ_SVG
 
     nsCOMPtr<nsIDOMHTMLEmbedElement> nodeAsEmbed = do_QueryInterface(aNodeIn);
     if (nodeAsEmbed)
@@ -3353,7 +3387,8 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
             nsAutoString valueStr;
             nodeAsTextArea->GetValue(valueStr);
             
-            (*aNodeOut)->SetTextContent(valueStr);
+            nsCOMPtr<nsIDOM3Node> out = do_QueryInterface(*aNodeOut);
+            out->SetTextContent(valueStr);
         }
         return rv;
     }

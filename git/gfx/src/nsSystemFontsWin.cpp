@@ -112,6 +112,15 @@ nsresult nsSystemFontsWin::GetSysFontInfo(HDC aHDC, nsSystemFontID anID,
   LOGFONTW logFont;
   LOGFONTW* ptrLogFont = NULL;
 
+#ifdef WINCE
+  hGDI = ::GetStockObject(SYSTEM_FONT);
+  if (hGDI == NULL)
+    return NS_ERROR_UNEXPECTED;
+  
+  if (::GetObjectW(hGDI, sizeof(logFont), &logFont) > 0)
+    ptrLogFont = &logFont;
+#else
+
   NONCLIENTMETRICSW ncm;
 
   BOOL status;
@@ -187,6 +196,8 @@ nsresult nsSystemFontsWin::GetSysFontInfo(HDC aHDC, nsSystemFontID anID,
       }
       break;
   } // switch 
+
+#endif // WINCE
 
   if (nsnull == ptrLogFont)
   {

@@ -46,7 +46,7 @@
 
 #include "GfxInfoX11.h"
 
-#ifdef MOZ_CRASHREPORTER
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #endif
@@ -165,7 +165,7 @@ GfxInfo::GetData()
             mAdapterDescription.Append(nsDependentCString(buf));
             mAdapterDescription.AppendLiteral("\n");
         }
-#ifdef MOZ_CRASHREPORTER
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
         CrashReporter::AppendAppNotesToCrashReport(mAdapterDescription);
 #endif
         return;
@@ -181,7 +181,7 @@ GfxInfo::GetData()
     note.Append(" -- ");
     note.Append(mVersion);
     note.Append("\n");
-#ifdef MOZ_CRASHREPORTER
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
     CrashReporter::AppendAppNotesToCrashReport(note);
 #endif
 
@@ -261,6 +261,12 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
             *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
             aSuggestedDriverVersion.AssignLiteral("Mesa 7.10");
         }
+        else if (strstr(mRenderer.get(), "Gallium")) {
+            // see bug 624935
+            // and http://marc.info/?l=mesa3d-dev&m=126525088903956&w=2
+            *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
+            aSuggestedDriverVersion.AssignLiteral("<NOT Gallium>");
+        }
     } else if (mIsNVIDIA) {
         if (version(mMajorVersion, mMinorVersion) < version(257,21)) {
             *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
@@ -293,22 +299,9 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute DOMString DWriteVersion; */
 NS_IMETHODIMP
 GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
-{
-  return NS_ERROR_FAILURE;
-}
-
-/* readonly attribute DOMString cleartypeParameters; */
-NS_IMETHODIMP
-GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
 {
   return NS_ERROR_FAILURE;
 }

@@ -98,7 +98,9 @@ function checkNodeKeyValue(aPanel, aId, aKey, aValue) {
 }
 
 function testGen() {
-  let filterBox = HUDService.getHudByWindow(content).filterBox;
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let filterBox = hudBox.querySelector(".hud-filter-box");
 
   var httpActivity = {
     url: "http://www.testpage.com",

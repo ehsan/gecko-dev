@@ -11,8 +11,8 @@
 #include "libGLESv2/Buffer.h"
 
 #include "libGLESv2/main.h"
-#include "libGLESv2/VertexDataManager.h"
-#include "libGLESv2/IndexDataManager.h"
+#include "libGLESv2/geometry/VertexDataManager.h"
+#include "libGLESv2/geometry/IndexDataManager.h"
 
 namespace gl
 {
@@ -23,16 +23,15 @@ Buffer::Buffer(GLuint id) : RefCountObject(id)
     mSize = 0;
     mUsage = GL_DYNAMIC_DRAW;
 
-    mStaticVertexBuffer = NULL;
-    mStaticIndexBuffer = NULL;
-    mUnmodifiedDataUse = 0;
+    mVertexBuffer = NULL;
+    mIndexBuffer = NULL;
 }
 
 Buffer::~Buffer()
 {
     delete[] mContents;
-    delete mStaticVertexBuffer;
-    delete mStaticIndexBuffer;
+    delete mVertexBuffer;
+    delete mIndexBuffer;
 }
 
 void Buffer::bufferData(const void *data, GLsizeiptr size, GLenum usage)
@@ -61,55 +60,47 @@ void Buffer::bufferData(const void *data, GLsizeiptr size, GLenum usage)
 
     if (usage == GL_STATIC_DRAW)
     {
-        mStaticVertexBuffer = new StaticVertexBuffer(getDevice());
-        mStaticIndexBuffer = new StaticIndexBuffer(getDevice());
+        mVertexBuffer = new StaticVertexBuffer(getDevice());
+        mIndexBuffer = new StaticIndexBuffer(getDevice());
     }
 }
 
 void Buffer::bufferSubData(const void *data, GLsizeiptr size, GLintptr offset)
 {
     memcpy(mContents + offset, data, size);
-    
-    if ((mStaticVertexBuffer && mStaticVertexBuffer->size() != 0) || (mStaticIndexBuffer && mStaticIndexBuffer->size() != 0))
+
+    if ((mVertexBuffer && mVertexBuffer->size() != 0) || (mIndexBuffer && mIndexBuffer->size() != 0))
     {
         invalidateStaticData();
+
+        if (mUsage == GL_STATIC_DRAW)
+        {
+            // If applications update the buffer data after it has already been used in a draw call,
+            // it most likely isn't used as a static buffer so we should fall back to streaming usage
+            // for best performance. So ignore the usage hint and don't create new static buffers.
+        //  mVertexBuffer = new StaticVertexBuffer(getDevice());
+        //  mIndexBuffer = new StaticIndexBuffer(getDevice());
+        }
     }
 }
 
-StaticVertexBuffer *Buffer::getStaticVertexBuffer()
+StaticVertexBuffer *Buffer::getVertexBuffer()
 {
-    return mStaticVertexBuffer;
+    return mVertexBuffer;
 }
 
-StaticIndexBuffer *Buffer::getStaticIndexBuffer()
+StaticIndexBuffer *Buffer::getIndexBuffer()
 {
-    return mStaticIndexBuffer;
+    return mIndexBuffer;
 }
 
 void Buffer::invalidateStaticData()
 {
-    delete mStaticVertexBuffer;
-    mStaticVertexBuffer = NULL;
+    delete mVertexBuffer;
+    mVertexBuffer = NULL;
 
-    delete mStaticIndexBuffer;
-    mStaticIndexBuffer = NULL;
-
-    mUnmodifiedDataUse = 0;
-}
-
-// Creates static buffers if sufficient used data has been left unmodified
-void Buffer::promoteStaticUsage(int dataSize)
-{
-    if (!mStaticVertexBuffer && !mStaticIndexBuffer)
-    {
-        mUnmodifiedDataUse += dataSize;
-
-        if (mUnmodifiedDataUse > 3 * mSize)
-        {
-            mStaticVertexBuffer = new StaticVertexBuffer(getDevice());
-            mStaticIndexBuffer = new StaticIndexBuffer(getDevice());
-        }
-    }
+    delete mIndexBuffer;
+    mIndexBuffer = NULL;
 }
 
 }

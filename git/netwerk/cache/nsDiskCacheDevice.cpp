@@ -348,7 +348,6 @@ nsDiskCache::Truncate(PRFileDesc *  fd, PRUint32  newEOF)
 
 nsDiskCacheDevice::nsDiskCacheDevice()
     : mCacheCapacity(0)
-    , mMaxEntrySize(-1) // -1 means "no limit"
     , mInitialized(PR_FALSE)
 {
 }
@@ -864,10 +863,8 @@ nsDiskCacheDevice::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
 
     PRUint32  sizeK = ((entry->DataSize() + 0x03FF) >> 10); // round up to next 1k
 
-    // In total count we ignore anything over kMaxDataSizeK (bug #651100), so
-    // the target capacity should be calculated the same way.
-    if (sizeK > kMaxDataSizeK) sizeK = kMaxDataSizeK;
-    if (newSizeK > kMaxDataSizeK) newSizeK = kMaxDataSizeK;
+    NS_ASSERTION(sizeK <= USHRT_MAX, "data size out of range");
+    NS_ASSERTION(newSizeK <= USHRT_MAX, "data size out of range");
 
     // pre-evict entries to make space for new data
     PRUint32  targetCapacity = mCacheCapacity > (newSizeK - sizeK)
@@ -938,15 +935,12 @@ nsDiskCacheDevice::Visit(nsICacheVisitor * visitor)
     return NS_OK;
 }
 
-// Max allowed size for an entry is currently MIN(mMaxEntrySize, 1/8 CacheCapacity)
+// Max allowed size for an entry is currently MIN(5MB, 1/8 CacheCapacity)
 bool
 nsDiskCacheDevice::EntryIsTooBig(PRInt64 entrySize)
 {
-    if (mMaxEntrySize == -1) // no limit
-        return entrySize > (static_cast<PRInt64>(mCacheCapacity) * 1024 / 8);
-    else 
-        return entrySize > mMaxEntrySize ||
-               entrySize > (static_cast<PRInt64>(mCacheCapacity) * 1024 / 8);
+    return entrySize > kMaxDataFileSize
+           || entrySize > (static_cast<PRInt64>(mCacheCapacity) * 1024 / 8);
 }
 
 nsresult
@@ -1146,15 +1140,4 @@ PRUint32 nsDiskCacheDevice::getCacheSize()
 PRUint32 nsDiskCacheDevice::getEntryCount()
 {
     return mCacheMap.EntryCount();
-}
-
-void
-nsDiskCacheDevice::SetMaxEntrySize(PRInt32 maxSizeInKilobytes)
-{
-    // Internal units are bytes. Changing this only takes effect *after* the
-    // change and has no consequences for existing cache-entries
-    if (maxSizeInKilobytes >= 0)
-        mMaxEntrySize = maxSizeInKilobytes * 1024;
-    else
-        mMaxEntrySize = -1;
 }

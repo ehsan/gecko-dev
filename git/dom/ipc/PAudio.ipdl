@@ -52,7 +52,6 @@ parent:
 
   SetVolume(float aVolume);
 
-  MinWriteSample();
   Drain();
 
   Pause();
@@ -64,7 +63,6 @@ parent:
   __delete__();
 
   SampleOffsetUpdate(PRInt64 offset, PRInt64 time);
-  MinWriteSampleDone(PRInt32 sampleCount);
   DrainDone();
 
 };

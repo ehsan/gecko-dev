@@ -44,6 +44,7 @@ function test() {
 
   // Check the context menu with two tabs
   popup(origTab);
+  is(TabContextMenu.contextTab, origTab, "TabContextMenu context is the original tab");
   is(document.getElementById("context_closeTab").disabled, false, "Close Tab is enabled");
   is(document.getElementById("context_reloadAllTabs").disabled, false, "Reload All Tabs is enabled");
 
@@ -54,7 +55,8 @@ function test() {
   
   // Check the context menu with one tab.
   popup(testTab);
-  is(document.getElementById("context_closeTab").disabled, false, "Close Tab is enabled when more than one tab exists");
+  is(TabContextMenu.contextTab, testTab, "TabContextMenu context is the test tab");
+  is(document.getElementById("context_closeTab").disabled, true, "Close Tab is disabled");
   is(document.getElementById("context_reloadAllTabs").disabled, true, "Reload All Tabs is disabled");
   
   // Add a tab that will get pinned
@@ -65,6 +67,7 @@ function test() {
 
   // Check the context menu on the unpinned visible tab
   popup(testTab);
+  is(TabContextMenu.contextTab, testTab, "TabContextMenu context is again the test tab");
   is(document.getElementById("context_closeOtherTabs").disabled, true, "Close Other Tabs is disabled");
 
   // Show all tabs
@@ -73,6 +76,7 @@ function test() {
 
   // Check the context menu now
   popup(testTab);
+  is(TabContextMenu.contextTab, testTab, "TabContextMenu context is yet again the test tab");
   is(document.getElementById("context_closeOtherTabs").disabled, false, "Close Other Tabs is enabled");
   
   gBrowser.removeTab(testTab);
@@ -82,6 +86,4 @@ function test() {
 function popup(tab) {
   document.popupNode = tab;
   TabContextMenu.updateContextMenu(document.getElementById("tabContextMenu"));
-  is(TabContextMenu.contextTab, tab, "TabContextMenu context is the expected tab");
-  TabContextMenu.contextTab = null;
 }

@@ -334,8 +334,6 @@ class Automation(object):
     part = """\
 user_pref("browser.console.showInPanel", true);
 user_pref("browser.dom.window.dump.enabled", true);
-user_pref("browser.firstrun.show.localepicker", false);
-user_pref("browser.firstrun.show.uidiscovery", false);
 user_pref("dom.allow_scripts_to_close_windows", true);
 user_pref("dom.disable_open_during_load", false);
 user_pref("dom.max_script_run_time", 0); // no slow script dialogs
@@ -367,7 +365,6 @@ user_pref("security.warn_viewing_mixed", false);
 user_pref("app.update.enabled", false);
 user_pref("browser.panorama.experienced_first_run", true); // Assume experienced
 user_pref("dom.w3c_touch_events.enabled", true);
-user_pref("toolkit.telemetry.prompted", true);
 
 // Only load extensions from the application and user profile
 // AddonManager.SCOPE_PROFILE + AddonManager.SCOPE_APPLICATION
@@ -444,23 +441,20 @@ function FindProxyForURL(url, host)
   var isHttp = matches[1] == 'http';
   var isHttps = matches[1] == 'https';
   var isWebSocket = matches[1] == 'ws';
-  var isWebSocketSSL = matches[1] == 'wss';
   if (!matches[3])
   {
     if (isHttp | isWebSocket) matches[3] = '80';
-    if (isHttps | isWebSocketSSL) matches[3] = '443';
+    if (isHttps) matches[3] = '443';
   }
   if (isWebSocket)
     matches[1] = 'http';
-  if (isWebSocketSSL)
-    matches[1] = 'https';
 
   var origin = matches[1] + '://' + matches[2] + ':' + matches[3];
   if (origins.indexOf(origin) < 0)
     return 'DIRECT';
   if (isHttp)
     return 'PROXY %(remote)s:%(httpport)s';
-  if (isHttps || isWebSocket || isWebSocketSSL)
+  if (isHttps || isWebSocket)
     return 'PROXY %(remote)s:%(sslport)s';
   return 'DIRECT';
 }""" % { "origins": origins,
@@ -730,7 +724,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     stackFixerProcess = None
     stackFixerFunction = None
     didTimeout = False
-    hitMaxTime = False
     if proc.stdout is None:
       self.log.info("TEST-INFO: Not logging stdout or stderr due to debugger connection")
     else:
@@ -758,12 +751,13 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
         logsource = stackFixerProcess.stdout
 
       (line, didTimeout) = self.readWithTimeout(logsource, timeout)
+      hitMaxTime = False
       while line != "" and not didTimeout:
         if "TEST-START" in line and "|" in line:
           self.lastTestSeen = line.split("|")[1].strip()
         if stackFixerFunction:
           line = stackFixerFunction(line)
-        self.log.info(line.rstrip().decode("UTF-8", "ignore"))
+        self.log.info(line.rstrip())
         if self.UNIXISH and not debuggerInfo and not self.haveDumpedScreen and "TEST-UNEXPECTED-FAIL" in line and "Test timed out" in line:
           self.dumpScreen(utilityPath)
 

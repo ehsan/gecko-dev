@@ -336,9 +336,7 @@ iQClass.prototype = {
   // ----------
   // Function: remove
   // Removes the receiver from the DOM.
-  remove: function iQClass_remove(options) {
-    if (!options || !options.preserveEventHandlers)
-      this.unbindAll();
+  remove: function iQClass_remove() {
     for (let i = 0; this[i] != null; i++) {
       let elem = this[i];
       if (elem.parentNode) {
@@ -355,7 +353,6 @@ iQClass.prototype = {
     for (let i = 0; this[i] != null; i++) {
       let elem = this[i];
       while (elem.firstChild) {
-        iQ(elem.firstChild).unbindAll();
         elem.removeChild(elem.firstChild);
       }
     }
@@ -611,7 +608,7 @@ iQClass.prototype = {
     });
 
     this.css({
-      '-moz-transition-property': Object.keys(css).join(", "),
+      '-moz-transition-property': 'all', // TODO: just animate the properties we're changing
       '-moz-transition-duration': (duration / 1000) + 's',
       '-moz-transition-timing-function': easing
     });
@@ -747,28 +744,6 @@ iQClass.prototype = {
       }
 
       elem.removeEventListener(type, handler, false);
-    }
-
-    return this;
-  },
-
-  // ----------
-  // Function: unbindAll
-  // Unbinds all event handlers.
-  unbindAll: function iQClass_unbindAll() {
-    for (let i = 0; this[i] != null; i++) {
-      let elem = this[i];
-
-      for (let j = 0; j < elem.childElementCount; j++)
-        iQ(elem.children[j]).unbindAll();
-
-      if (!elem.iQEventData)
-        continue;
-
-      for (let type in elem.iQEventData) {
-        while (elem.iQEventData[type].length)
-          this.unbind(type, elem.iQEventData[type][0].original);
-      }
     }
 
     return this;

@@ -209,7 +209,9 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , PRInt32 aSou
  */
 nsScanner::~nsScanner() {
 
-  delete mSlidingBuffer;
+  if (mSlidingBuffer) {
+    delete mSlidingBuffer;
+  }
 
   MOZ_COUNT_DTOR(nsScanner);
 }
@@ -301,13 +303,14 @@ nsresult nsScanner::Append(const nsAString& aBuffer) {
 nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
                            nsIRequest *aRequest)
 {
-  nsresult res = NS_OK;
+  nsresult res=NS_OK;
+  PRUnichar *unichars, *start;
   if (mUnicodeDecoder) {
     PRInt32 unicharBufLen = 0;
     mUnicodeDecoder->GetMaxLength(aBuffer, aLen, &unicharBufLen);
     nsScannerString::Buffer* buffer = nsScannerString::AllocBuffer(unicharBufLen + 1);
     NS_ENSURE_TRUE(buffer,NS_ERROR_OUT_OF_MEMORY);
-    PRUnichar *unichars = buffer->DataStart();
+    start = unichars = buffer->DataStart();
 
     PRInt32 totalChars = 0;
     PRInt32 unicharLength = unicharBufLen;

@@ -45,6 +45,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsIPluginTag.h"
+#include "nsIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsISupportsArray.h"
 
@@ -99,14 +100,20 @@ public:
   PRBool IsEnabled();
   void RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
                                    nsRegisterType aType = ePluginRegister);
+
+  // Remove the MIME/description/extension entry associated with the magic Java sentinel
+  // which informs us that the Java plugin is NPAPI-enabled. If sentinelIndex is -1, no
+  // action will be performed.
+  void RemoveJavaSentinel(PRInt32 sentinelIndex);
   
   nsRefPtr<nsPluginTag> mNext;
   nsPluginHost *mPluginHost;
   nsCString     mName; // UTF-8
   nsCString     mDescription; // UTF-8
-  nsTArray<nsCString> mMimeTypes; // UTF-8
-  nsTArray<nsCString> mMimeDescriptions; // UTF-8
-  nsTArray<nsCString> mExtensions; // UTF-8
+  PRInt32       mVariants;
+  char          **mMimeTypeArray;
+  nsTArray<nsCString> mMimeDescriptionArray; // UTF-8
+  char          **mExtensionsArray;
   PRLibrary     *mLibrary;
   nsRefPtr<nsNPAPIPlugin> mEntryPoint;
   PRPackedBool  mCanUnloadLibrary;

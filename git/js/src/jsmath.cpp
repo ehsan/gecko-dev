@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include "jstypes.h"
 #include "jsstdint.h"
+#include "jslong.h"
 #include "prmjtime.h"
 #include "jsapi.h"
 #include "jsatom.h"
@@ -124,7 +125,7 @@ js_math_abs(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = fabs(x);
     vp->setNumber(z);
@@ -140,7 +141,7 @@ math_acos(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
 #if defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
@@ -165,7 +166,7 @@ math_asin(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
 #if defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
@@ -190,7 +191,7 @@ math_atan(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -239,7 +240,9 @@ math_atan2(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x) || !ToNumber(cx, vp[3], &y))
+    if (!ValueToNumber(cx, vp[2], &x))
+        return JS_FALSE;
+    if (!ValueToNumber(cx, vp[3], &y))
         return JS_FALSE;
     z = math_atan2_kernel(x, y);
     vp->setDouble(z);
@@ -265,7 +268,7 @@ js_math_ceil(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = js_math_ceil_impl(x);
     vp->setNumber(z);
@@ -281,7 +284,7 @@ math_cos(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -314,7 +317,7 @@ math_exp(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -339,7 +342,7 @@ js_math_floor(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = js_math_floor_impl(x);
     vp->setNumber(z);
@@ -355,7 +358,7 @@ math_log(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
 #if defined(SOLARIS) && defined(__GNUC__)
     if (x < 0) {
@@ -384,7 +387,7 @@ js_math_max(JSContext *cx, uintN argc, Value *vp)
     }
     argv = vp + 2;
     for (i = 0; i < argc; i++) {
-        if (!ToNumber(cx, argv[i], &x))
+        if (!ValueToNumber(cx, argv[i], &x))
             return JS_FALSE;
         if (JSDOUBLE_IS_NaN(x)) {
             vp->setDouble(js_NaN);
@@ -414,7 +417,7 @@ js_math_min(JSContext *cx, uintN argc, Value *vp)
     }
     argv = vp + 2;
     for (i = 0; i < argc; i++) {
-        if (!ToNumber(cx, argv[i], &x))
+        if (!ValueToNumber(cx, argv[i], &x))
             return JS_FALSE;
         if (JSDOUBLE_IS_NaN(x)) {
             vp->setDouble(js_NaN);
@@ -468,7 +471,9 @@ math_pow(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x) || !ToNumber(cx, vp[3], &y))
+    if (!ValueToNumber(cx, vp[2], &x))
+        return JS_FALSE;
+    if (!ValueToNumber(cx, vp[3], &y))
         return JS_FALSE;
     /*
      * Special case for square roots. Note that pow(x, 0.5) != sqrt(x)
@@ -590,7 +595,7 @@ js_math_round(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = js_copysign(floor(x + 0.5), x);
     vp->setNumber(z);
@@ -606,7 +611,7 @@ math_sin(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -625,7 +630,7 @@ math_sqrt(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -644,7 +649,7 @@ math_tan(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)

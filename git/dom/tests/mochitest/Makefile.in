@@ -55,7 +55,6 @@ DIRS	+= \
 	geolocation \
 	globalstorage \
 	localstorage \
-	orientation \
 	sessionstorage \
 	storageevent \
 	$(NULL)

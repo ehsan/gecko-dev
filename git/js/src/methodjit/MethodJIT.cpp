@@ -57,7 +57,7 @@ using namespace js::mjit;
 
 
 js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
-: TempAllocPolicy(cx),
+: ContextAllocPolicy(cx),
   oomFlag(&compiler.oomInVector)
 {
 }
@@ -118,14 +118,14 @@ extern "C" void JaegerTrampolineReturn();
 extern "C" void JS_FASTCALL
 PushActiveVMFrame(VMFrame &f)
 {
-    f.entryfp->script()->compartment->jaegerCompartment()->pushActiveFrame(&f);
+    f.entryfp->script()->compartment->jaegerCompartment->pushActiveFrame(&f);
     f.regs.fp()->setNativeReturnAddress(JS_FUNC_TO_DATA_PTR(void*, JaegerTrampolineReturn));
 }
 
 extern "C" void JS_FASTCALL
 PopActiveVMFrame(VMFrame &f)
 {
-    f.entryfp->script()->compartment->jaegerCompartment()->popActiveFrame();
+    f.entryfp->script()->compartment->jaegerCompartment->popActiveFrame();
 }
 
 extern "C" void JS_FASTCALL
@@ -631,8 +631,7 @@ JaegerCompartment::Initialize()
     
     TrampolineCompiler tc(execAlloc_, &trampolines);
     if (!tc.compile()) {
-        js::Foreground::delete_(execAlloc_);
-        execAlloc_ = NULL;
+        delete execAlloc_;
         return false;
     }
 
@@ -682,7 +681,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
     JSBool ok;
     {
         AssertCompartmentUnchanged pcc(cx);
-        JSAutoResolveFlags rf(cx, RESOLVE_INFER);
+        JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
         ok = JaegerTrampoline(cx, fp, code, stackLimit);
     }
 
@@ -709,7 +708,7 @@ CheckStackAndEnterMethodJIT(JSContext *cx, StackFrame *fp, void *code)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-    Value *stackLimit = cx->stack.space().getStackLimit(cx, REPORT_ERROR);
+    Value *stackLimit = cx->stack.space().getStackLimit(cx);
     if (!stackLimit)
         return false;
 
@@ -797,7 +796,7 @@ JITScript::monoICSectionsLimit() const
 char *
 JITScript::monoICSectionsLimit() const
 {
-    return nmapSectionLimit();
+    return nmapSectionsLimit();
 }
 #endif  // JS_MONOIC
 
@@ -847,7 +846,12 @@ static inline void Destroy(T &t)
 
 mjit::JITScript::~JITScript()
 {
-    code.release();
+#if defined DEBUG && (defined JS_CPU_X86 || defined JS_CPU_X64) 
+    void *addr = code.m_code.executableAddress();
+    memset(addr, 0xcc, code.m_size);
+#endif
+
+    code.m_executablePool->release();
 
 #if defined JS_POLYIC
     ic::GetElementIC *getElems_ = getElems();
@@ -873,17 +877,6 @@ mjit::JITScript::~JITScript()
     for (uint32 i = 0; i < nCallICs; i++)
         callICs_[i].releasePools();
 #endif
-}
-
-size_t
-JSScript::jitDataSize()
-{
-    size_t n = 0;
-    if (jitNormal)
-        n += jitNormal->scriptDataSize(); 
-    if (jitCtor)
-        n += jitCtor->scriptDataSize(); 
-    return n;
 }
 
 /* Please keep in sync with Compiler::finishThisUp! */
@@ -916,6 +909,8 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     JITScript *jscr;
 
     if ((jscr = script->jitNormal)) {
+        cx->runtime->mjitDataSize -= jscr->scriptDataSize();
+
         jscr->~JITScript();
         cx->free_(jscr);
         script->jitNormal = NULL;
@@ -923,6 +918,8 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     }
 
     if ((jscr = script->jitCtor)) {
+        cx->runtime->mjitDataSize -= jscr->scriptDataSize();
+
         jscr->~JITScript();
         cx->free_(jscr);
         script->jitCtor = NULL;
@@ -1018,3 +1015,4 @@ JITScript::nativeToPC(void *returnAddress) const
     JS_ASSERT((uint8*)ic.funGuard.executableAddress() + ic.joinPointOffset == returnAddress);
     return ic.pc;
 }
+

@@ -114,15 +114,18 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLVideoElement.idl		\
 	nsIDOMHTMLAudioElement.idl		\
 	nsIDOMValidityState.idl		\
-	nsIDOMDOMStringMap.idl		\
 	$(NULL)
 
 XPIDLSRCS = 					\
 	nsIDOMHTMLCanvasElement.idl		\
 	nsIDOMHTMLUnknownElement.idl \
+	nsIDOMNSHTMLDocument.idl		\
 	nsIDOMNSHTMLElement.idl			\
+	nsIDOMNSHTMLFormElement.idl		\
 	nsIDOMNSHTMLFrameElement.idl		\
+	nsIDOMNSHTMLHRElement.idl		\
 	nsIDOMNSHTMLOptionCollectn.idl		\
+	nsIDOMNSHTMLTextAreaElement.idl		\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

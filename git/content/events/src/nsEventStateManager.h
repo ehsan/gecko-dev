@@ -49,7 +49,6 @@
 #include "nsCOMPtr.h"
 #include "nsIDocument.h"
 #include "nsCOMArray.h"
-#include "nsIFrameLoader.h"
 #include "nsIFrame.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
@@ -119,6 +118,19 @@ public:
 
   nsIFrame* GetEventTarget();
   already_AddRefed<nsIContent> GetEventTargetContent(nsEvent* aEvent);
+
+  /**
+   * Returns the content state of aContent.
+   * @param aContent      The control whose state is requested.
+   * @param aFollowLabels Whether to reflect a label's content state on its
+   *                      associated control. If aFollowLabels is true and
+   *                      aContent is a control which has a label that has the 
+   *                      hover or active content state set, GetContentState
+   *                      will pretend that those states are also set on aContent.
+   * @return              The content state.
+   */
+  virtual nsEventStates GetContentState(nsIContent *aContent,
+                                        PRBool aFollowLabels = PR_FALSE);
 
   /**
    * Notify that the given NS_EVENT_STATE_* bit has changed for this content.
@@ -312,57 +324,15 @@ protected:
                             nsMouseScrollEvent* aEvent,
                             nsPresContext* aPresContext,
                             nsEventStatus* aStatus);
-  /**
-   * @param aQueryEvent If you set vailid pointer for this, DoScrollText()
-   *                    computes the line-height and page size of current
-   *                    mouse wheel scroll target and sets it to the event.
-   *                    And then, this method does NOT scroll any scrollable
-   *                    elements.  I.e., you can just query the scroll target
-   *                    information.
-   */
   nsresult DoScrollText(nsIFrame* aTargetFrame,
                         nsMouseScrollEvent* aMouseEvent,
                         nsIScrollableFrame::ScrollUnit aScrollQuantity,
-                        PRBool aAllowScrollSpeedOverride,
-                        nsQueryContentEvent* aQueryEvent = nsnull);
+                        PRBool aAllowScrollSpeedOverride);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);
   nsresult ChangeTextSize(PRInt32 change);
   nsresult ChangeFullZoom(PRInt32 change);
-  /**
-   * Computes actual delta value used for scrolling.  If user customized the
-   * scrolling speed and/or direction, this would return the customized value.
-   * Otherwise, it would return the original delta value of aMouseEvent.
-   */
-  PRInt32 ComputeWheelDeltaFor(nsMouseScrollEvent* aMouseEvent);
-  /**
-   * Computes the action for the aMouseEvent with prefs.  The result is
-   * MOUSE_SCROLL_N_LINES, MOUSE_SCROLL_PAGE, MOUSE_SCROLL_HISTORY,
-   * MOUSE_SCROLL_ZOOM, MOUSE_SCROLL_PIXELS or -1.
-   * When the result is -1, nothing happens for the event.
-   *
-   * @param aUseSystemSettings    Set the result of UseSystemScrollSettingFor().
-   */
-  PRInt32 ComputeWheelActionFor(nsMouseScrollEvent* aMouseEvent,
-                                PRBool aUseSystemSettings);
-  /**
-   * Gets the wheel action for the aMouseEvent ONLY with the pref.
-   * When you actually do something for the event, probably you should use
-   * ComputeWheelActionFor().
-   */
-  PRInt32 GetWheelActionFor(nsMouseScrollEvent* aMouseEvent);
-  /**
-   * Gets the pref value for line scroll amount for the aMouseEvent.
-   * Note that this method doesn't check whether the aMouseEvent is line scroll
-   * event and doesn't use system settings.
-   */
-  PRInt32 GetScrollLinesFor(nsMouseScrollEvent* aMouseEvent);
-  /**
-   * Whether use system scroll settings or settings in our prefs for the event.
-   * TRUE, if use system scroll settings.  Otherwise, FALSE.
-   */
-  PRBool UseSystemScrollSettingFor(nsMouseScrollEvent* aMouseEvent);
   // end mousewheel functions
 
   /*
@@ -427,28 +397,9 @@ protected:
   nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
   nsresult DoContentCommandScrollEvent(nsContentCommandEvent* aEvent);
 
-  void DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
-                               nsIFrame* aTargetFrame);
-
   PRBool RemoteQueryContentEvent(nsEvent *aEvent);
   mozilla::dom::TabParent *GetCrossProcessTarget();
   PRBool IsTargetCrossProcess(nsGUIEvent *aEvent);
-
-  void DispatchCrossProcessEvent(nsEvent* aEvent, nsIFrameLoader* remote);
-  PRBool IsRemoteTarget(nsIContent* target);
-  PRBool HandleCrossProcessEvent(nsEvent *aEvent,
-                                 nsIFrame* aTargetFrame,
-                                 nsEventStatus *aStatus);
-
-private:
-  static inline void DoStateChange(mozilla::dom::Element* aElement,
-                                   nsEventStates aState, PRBool aAddState);
-  static inline void DoStateChange(nsIContent* aContent, nsEventStates aState,
-                                   PRBool aAddState);
-  static void UpdateAncestorState(nsIContent* aStartNode,
-                                  nsIContent* aStopBefore,
-                                  nsEventStates aState,
-                                  PRBool aAddState);
 
   PRInt32     mLockCursor;
 

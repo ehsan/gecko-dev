@@ -111,9 +111,6 @@ public:
                                  guint             info,
                                  guint32           aTime);
 
-    // set the drag icon during drag-begin
-    void SetDragIcon(GdkDragContext* aContext);
-
 private:
 
     // target side vars
@@ -145,9 +142,6 @@ private:
     GtkWidget     *mGrabWidget;
     // our source data items
     nsCOMPtr<nsISupportsArray> mSourceDataItems;
-
-    nsCOMPtr<nsIScriptableRegion> mSourceRegion;
-
     // get a list of the sources in gtk's format
     GtkTargetList *GetSourceList(void);
 

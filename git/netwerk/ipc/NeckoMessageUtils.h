@@ -48,7 +48,6 @@
 #include "nsNetUtil.h"
 #include "nsStringStream.h"
 #include "prio.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 namespace IPC {
 
@@ -107,7 +106,10 @@ struct ParamTraits<URI>
     nsCOMPtr<nsIClassInfo> classInfo = do_QueryInterface(aParam.mURI);
     char cidStr[NSID_LENGTH];
     nsCID cid;
-    mozilla::DebugOnly<nsresult> rv = classInfo->GetClassIDNoAlloc(&cid);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+    classInfo->GetClassIDNoAlloc(&cid);
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "All IPDL URIs must report a valid class ID");
     
     cid.ToProvidedString(cidStr);
@@ -214,8 +216,7 @@ struct ParamTraits<InputStream>
 
       aParam.mStream->Available(&bytes);
       if (bytes > 0) {
-        mozilla::DebugOnly<nsresult> rv =
-          NS_ReadInputStreamToString(aParam.mStream, streamString, bytes);
+        nsresult rv = NS_ReadInputStreamToString(aParam.mStream, streamString, bytes);
         NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Can't read input stream into a string!");
       }
 
@@ -226,7 +227,7 @@ struct ParamTraits<InputStream>
     nsCOMPtr<nsIClassInfo> classInfo = do_QueryInterface(aParam.mStream);
     char cidStr[NSID_LENGTH];
     nsCID cid;
-    mozilla::DebugOnly<nsresult> rv = classInfo->GetClassIDNoAlloc(&cid);
+    nsresult rv = classInfo->GetClassIDNoAlloc(&cid);
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "All IPDL streams must report a valid class ID");
 
     cid.ToProvidedString(cidStr);
@@ -344,9 +345,6 @@ struct ParamTraits<PRNetAddr>
       WriteParam(aMsg, aParam.ipv6.scope_id);
 #if defined(XP_UNIX) || defined(XP_OS2)
     } else if (aParam.raw.family == PR_AF_LOCAL) {
-      // Train's already off the rails:  let's get a stack trace at least...
-      NS_RUNTIMEABORT("Error: please post stack trace to "
-                      "https://bugzilla.mozilla.org/show_bug.cgi?id=661158");
       aMsg->WriteBytes(aParam.local.path, sizeof(aParam.local.path));
 #endif
     }

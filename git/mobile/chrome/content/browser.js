@@ -81,10 +81,6 @@ function onDebugKeyPress(aEvent) {
   if (!aEvent.ctrlKey)
     return;
 
-  // prevent the keypress from being triggered twice when page is local - bug 655501
-  if (aEvent.originalTarget.nodeName == "html")
-    return;
-
   function doSwipe(aDirection) {
     let evt = document.createEvent("SimpleGestureEvent");
     evt.initSimpleGestureEvent("MozSwipeGesture", true, true, window, null,
@@ -270,7 +266,7 @@ var Browser = {
       ViewableAreaObserver.update();
 
       // Restore the previous scroll position
-      let restorePosition = Browser.controlsPosition || { hideSidebars: true };
+      let restorePosition = Browser.controlsPosition;
       if (restorePosition.hideSidebars) {
         restorePosition.hideSidebars = false;
         Browser.hideSidebars();
@@ -325,7 +321,6 @@ var Browser = {
 #if MOZ_PLATFORM_MAEMO == 6
     os.addObserver(ViewableAreaObserver, "softkb-change", false);
 #endif
-   messageManager.addMessageListener("Content:IsKeyboardOpened", ViewableAreaObserver);
 
     window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = new nsBrowserAccess();
 
@@ -344,26 +339,24 @@ var Browser = {
     // Should we restore the previous session (crash or some other event)
     let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
     if (ss.shouldRestore()) {
-      let bringFront = false;
-      // First open any commandline URLs, except the homepage
-      if (commandURL && commandURL != this.getHomePage()) {
+      // Initial window resizes call functions that assume a tab is in the tab list
+      // and restored tabs are added too late. We add a dummy to to satisfy the resize
+      // code and then remove the dummy after the session has been restored.
+      let dummy = this.addTab("about:blank");
+      let dummyCleanup = {
+        observe: function() {
+          Services.obs.removeObserver(dummyCleanup, "sessionstore-windows-restored");
+          dummy.chromeTab.ignoreUndo = true;
+          Browser.closeTab(dummy, { forceClose: true });
+        }
+      };
+      Services.obs.addObserver(dummyCleanup, "sessionstore-windows-restored", false);
+
+      ss.restoreLastSession();
+
+      // Also open any commandline URLs, except the homepage
+      if (commandURL && commandURL != this.getHomePage())
         this.addTab(commandURL, true);
-      } else {
-        bringFront = true;
-        // Initial window resizes call functions that assume a tab is in the tab list
-        // and restored tabs are added too late. We add a dummy to to satisfy the resize
-        // code and then remove the dummy after the session has been restored.
-        let dummy = this.addTab("about:blank");
-        let dummyCleanup = {
-          observe: function() {
-            Services.obs.removeObserver(dummyCleanup, "sessionstore-windows-restored");
-            dummy.chromeTab.ignoreUndo = true;
-            Browser.closeTab(dummy, { forceClose: true });
-          }
-        };
-        Services.obs.addObserver(dummyCleanup, "sessionstore-windows-restored", false);
-      }
-      ss.restoreLastSession(bringFront);
     } else {
       this.addTab(commandURL || this.getHomePage(), true);
     }
@@ -378,31 +371,16 @@ var Browser = {
     messageManager.addMessageListener("Browser:CertException", this);
     messageManager.addMessageListener("Browser:BlockedSite", this);
 
-    // Broadcast a UIReady message so add-ons know we are finished with startup
+    // broadcast a UIReady message so add-ons know we are finished with startup
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
-
-    // If we have an opener this was not the first window opened and will not
-    // receive an initial resize event. instead we fire the resize handler manually
-    // Bug 610834
-    if (window.opener)
-      resizeHandler({ target: window });
   },
 
   _alertShown: function _alertShown() {
     // ensure that the full notification still visible, even if the urlbar is floating
     if (BrowserUI.isToolbarLocked())
       Browser.pageScrollboxScroller.scrollTo(0, 0);
-  },
-
-  quit: function quit() {
-    // NOTE: onclose seems to be called only when using OS chrome to close a window,
-    // so we need to handle the Browser.closing check ourselves.
-    if (this.closing()) {
-      window.QueryInterface(Ci.nsIDOMChromeWindow).minimize();
-      window.close();
-    }
   },
 
   _waitingToClose: false,
@@ -942,7 +920,7 @@ var Browser = {
     function visibility(aSidebarRect, aVisibleRect) {
       let width = aSidebarRect.width;
       aSidebarRect.restrictTo(aVisibleRect);
-      return (width ? aSidebarRect.width / width : 0);
+      return aSidebarRect.width / width;
     }
 
     if (!dx) dx = 0;
@@ -1126,7 +1104,7 @@ var Browser = {
     if (prefValue > 0)
       return prefValue / 100;
 
-    let dpi = Util.displayDPI;
+    let dpi = this.windowUtils.displayDPI;
     if (dpi < 200) // Includes desktop displays, and LDPI and MDPI Android devices
       return 1;
     else if (dpi < 300) // Includes Nokia N900, and HDPI Android devices
@@ -1493,7 +1471,6 @@ Browser.WebProgress.prototype = {
           tab.hostChanged = true;
           tab.browser.lastLocation = location;
           tab.browser.userTypedValue = "";
-          tab.browser.appIcon = { href: null, size:-1 };
 
 #ifdef MOZ_CRASH_REPORTER
           if (CrashReporter.enabled)
@@ -1578,8 +1555,6 @@ Browser.WebProgress.prototype = {
 };
 
 
-const OPEN_APPTAB = 100; // Hack until we get a real API
-
 function nsBrowserAccess() { }
 
 nsBrowserAccess.prototype = {
@@ -1622,31 +1597,13 @@ nsBrowserAccess.prototype = {
         tab.closeOnExit = true;
       browser = tab.browser;
       BrowserUI.hidePanel();
-    } else if (aWhere == OPEN_APPTAB) {
-      Browser.tabs.forEach(function(aTab) {
-        if ("appURI" in aTab.browser && aTab.browser.appURI.spec == aURI.spec) {
-          Browser.selectedTab = aTab;
-          browser = aTab.browser;
-        }
-      });
-
-      if (!browser) {
-        // Make a new tab to hold the app
-        let tab = Browser.addTab("about:blank", true, null, { getAttention: true });
-        browser = tab.browser;
-        browser.appURI = aURI;
-      } else {
-        // Just use the existing browser, but return null to keep the system from trying to load the URI again
-        browser = null;
-      }
-      BrowserUI.hidePanel();
     } else { // OPEN_CURRENTWINDOW and illegal values
       browser = Browser.selectedBrowser;
     }
 
     try {
       let referrer;
-      if (aURI && browser) {
+      if (aURI) {
         if (aOpener) {
           location = aOpener.location;
           referrer = Services.io.newURI(location, null, null);
@@ -1785,8 +1742,6 @@ const ContentTouchHandler = {
           let event = document.createEvent("Events");
           event.initEvent("CancelTouchSequence", true, false);
           document.dispatchEvent(event);
-        } else {
-          SelectionHelper.showPopup(contextMenu);
         }
         break;
       case "Browser:CaptureEvents": {
@@ -1846,7 +1801,7 @@ const ContentTouchHandler = {
   panningPrevented: false,
 
   updateCanCancel: function(aX, aY) {
-    let dpi = Util.displayDPI;
+    let dpi = Browser.windowUtils.displayDPI;
 
     const kSafetyX = Services.prefs.getIntPref("dom.w3c_touch_events.safetyX") / 240 * dpi;
     const kSafetyY = Services.prefs.getIntPref("dom.w3c_touch_events.safetyY") / 240 * dpi;
@@ -1862,8 +1817,13 @@ const ContentTouchHandler = {
   },
 
   tapDown: function tapDown(aX, aY) {
+    // Ensure that the content process has gets an activate event
     let browser = getBrowser();
+    let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
     browser.focus();
+    try {
+      fl.activateRemoteFrame();
+    } catch (e) {}
 
     // if the page might capture touch events, we give it the option
     this.updateCanCancel(aX, aY);
@@ -2215,10 +2175,6 @@ IdentityHandler.prototype = {
    * Click handler for the identity-box element in primary chrome.
    */
   handleIdentityButtonEvent: function(aEvent) {
-    let broadcaster = document.getElementById("bcast_uidiscovery");
-    if (broadcaster && broadcaster.getAttribute("mode") == "discovery")
-      return;
-
     aEvent.stopPropagation();
 
     if ((aEvent.type == "click" && aEvent.button != 0) ||
@@ -2375,7 +2331,7 @@ var XPInstallObserver = {
             buttons = [];
           }
           else {
-            messageString = strings.formatStringFromName("xpinstallDisabledMessage2", [brandShortName, host], 2);
+            messageString = strings.formatStringFromName("xpinstallDisabledMessage", [brandShortName, host], 2);
             buttons = [{
               label: strings.GetStringFromName("xpinstallDisabledButton"),
               accessKey: null,
@@ -2389,7 +2345,7 @@ var XPInstallObserver = {
         }
         else {
           notificationName = "xpinstall";
-          messageString = strings.formatStringFromName("xpinstallPromptWarning2", [brandShortName, host], 2);
+          messageString = strings.formatStringFromName("xpinstallPromptWarning", [brandShortName, host], 2);
 
           buttons = [{
             label: strings.GetStringFromName("xpinstallPromptAllowButton"),
@@ -2535,16 +2491,8 @@ var ContentCrashObserver = {
 
 var MemoryObserver = {
   observe: function mo_observe(aSubject, aTopic, aData) {
-    function gc() {
-      window.QueryInterface(Ci.nsIInterfaceRequestor)
-            .getInterface(Ci.nsIDOMWindowUtils).garbageCollect();
-      Cu.forceGC();
-    };
-
     if (aData == "heap-minimize") {
-      // The JS engine would normally GC on this notification, but since we
-      // disabled that in favor of this method (bug 669346), we should gc here.
-      gc();
+      // do non-destructive stuff here.
       return;
     }
 
@@ -2555,9 +2503,9 @@ var MemoryObserver = {
       tab.resurrect();
     }
 
-    // gc *after* throwing out the tabs so we can reclaim that memory.
-    gc();
-
+    window.QueryInterface(Ci.nsIInterfaceRequestor)
+          .getInterface(Ci.nsIDOMWindowUtils).garbageCollect();
+    Cu.forceGC();
     // Bug 637582 - The low memory condition throws out some stuff that we still
     // need, re-selecting the active tab gets us back to where we need to be.
     let sTab = Browser.selectedTab;
@@ -2780,8 +2728,7 @@ Tab.prototype = {
 
     try {
       let flags = aParams.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-      let postData = aParams.postData ? aParams.postData.value : null;
-      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, postData);
+      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, aParams.postData);
     } catch(e) {
       dump("Error: " + e + "\n");
     }
@@ -2845,7 +2792,6 @@ Tab.prototype = {
 
     let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
     fl.renderMode = Ci.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL;
-    fl.eventMode = Ci.nsIFrameLoader.EVENT_MODE_DONT_FORWARD_TO_CHILD;
 
     return browser;
   },
@@ -2994,7 +2940,12 @@ Tab.prototype = {
       Elements.browsers.selectedPanel = notification;
       browser.active = true;
       document.getElementById("tabs").selectedTab = this._chromeTab;
-      browser.focus();
+
+      // Ensure that the content process has gets an activate event
+      try {
+        let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
+        fl.activateRemoteFrame();
+      } catch (e) {}
     } else {
       browser.messageManager.sendAsyncMessage("Browser:Blur", { });
       browser.setAttribute("type", "content");
@@ -3066,37 +3017,6 @@ var ViewableAreaObserver = {
     return (this._height || window.innerHeight);
   },
 
-  _isKeyboardOpened: true,
-  get isKeyboardOpened() {
-    return this._isKeyboardOpened;
-  },
-
-  set isKeyboardOpened(aValue) {
-    if (!this.hasVirtualKeyboard())
-      return this._isKeyboardOpened;
-
-    let oldValue = this._isKeyboardOpened;
-
-    if (oldValue != aValue) {
-      this._isKeyboardOpened = aValue;
-
-      let event = document.createEvent("UIEvents");
-      event.initUIEvent("KeyboardChanged", true, false, window, aValue);
-      window.dispatchEvent(event);
-    }
-  },
-
-  hasVirtualKeyboard: function va_hasVirtualKeyboard() {
-#ifndef ANDROID
-#ifndef MOZ_PLATFORM_MAEMO
-    return false;
-#endif
-#endif
-
-    return true;
-  },
-
-
   observe: function va_observe(aSubject, aTopic, aData) {
 #if MOZ_PLATFORM_MAEMO == 6
     let rect = Rect.fromRect(JSON.parse(aData));
@@ -3114,10 +3034,6 @@ var ViewableAreaObserver = {
 #endif
   },
 
-  receiveMessage: function receiveMessage(aMessage) {
-    return this.isKeyboardOpened;
-  },
-
   update: function va_update() {
     let oldHeight = parseInt(Browser.styles["viewable-height"].height);
     let oldWidth = parseInt(Browser.styles["viewable-width"].width);
@@ -3126,9 +3042,6 @@ var ViewableAreaObserver = {
     let newHeight = this.height;
     if (newHeight == oldHeight && newWidth == oldWidth)
       return;
-
-    // Guess if the window has been resize to handle a virtual keyboard
-    this.isKeyboardOpened = (newHeight < oldHeight && newWidth == oldWidth);
 
     Browser.styles["viewable-height"].height = newHeight + "px";
     Browser.styles["viewable-height"].maxHeight = newHeight + "px";
@@ -3161,4 +3074,3 @@ var ViewableAreaObserver = {
     }, 0);
   }
 };
-

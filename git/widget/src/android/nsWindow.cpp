@@ -43,7 +43,6 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
@@ -53,6 +52,7 @@ using mozilla::unused;
 #include "nsIdleService.h"
 #include "nsWindow.h"
 #include "nsIObserverService.h"
+#include "nsIPrefService.h"
 
 #include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
@@ -987,54 +987,27 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     AndroidBridge::Bridge()->HideProgressDialogOnce();
 
     if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_BASIC) {
-        if (AndroidBridge::Bridge()->HasNativeBitmapAccess()) {
-            jobject bitmap = sview.GetSoftwareDrawBitmap();
-            if (!bitmap) {
-                ALOG("no bitmap to draw into - skipping draw");
-                return;
-            }
-
-            if (!AndroidBridge::Bridge()->ValidateBitmap(bitmap, mBounds.width, mBounds.height))
-                return;
-
-            void *buf = AndroidBridge::Bridge()->LockBitmap(bitmap);
-            if (buf == nsnull) {
-                ALOG("### Software drawing, but failed to lock bitmap.");
-                return;
-            }
-
-            nsRefPtr<gfxImageSurface> targetSurface =
-                new gfxImageSurface((unsigned char *)buf,
-                                    gfxIntSize(mBounds.width, mBounds.height),
-                                    mBounds.width * 2,
-                                    gfxASurface::ImageFormatRGB16_565);
-            DrawTo(targetSurface);
-
-            AndroidBridge::Bridge()->UnlockBitmap(bitmap);
-            sview.Draw2D(bitmap, mBounds.width, mBounds.height);
-        } else {
-            jobject bytebuf = sview.GetSoftwareDrawBuffer();
-            if (!bytebuf) {
-                ALOG("no buffer to draw into - skipping draw");
-                return;
-            }
-
-            void *buf = AndroidBridge::JNI()->GetDirectBufferAddress(bytebuf);
-            int cap = AndroidBridge::JNI()->GetDirectBufferCapacity(bytebuf);
-            if (!buf || cap != (mBounds.width * mBounds.height * 2)) {
-                ALOG("### Software drawing, but unexpected buffer size %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
-                return;
-            }
-
-            nsRefPtr<gfxImageSurface> targetSurface =
-                new gfxImageSurface((unsigned char *)buf,
-                                    gfxIntSize(mBounds.width, mBounds.height),
-                                    mBounds.width * 2,
-                                    gfxASurface::ImageFormatRGB16_565);
-            DrawTo(targetSurface);
-
-            sview.Draw2D(bytebuf, mBounds.width * 2);
+        jobject bytebuf = sview.GetSoftwareDrawBuffer();
+        if (!bytebuf) {
+            ALOG("no buffer to draw into - skipping draw");
+            return;
         }
+
+        void *buf = AndroidBridge::JNI()->GetDirectBufferAddress(bytebuf);
+        int cap = AndroidBridge::JNI()->GetDirectBufferCapacity(bytebuf);
+        if (!buf || cap != (mBounds.width * mBounds.height * 2)) {
+            ALOG("### Software drawing, but unexpected buffer size %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
+            return;
+        }
+
+        nsRefPtr<gfxImageSurface> targetSurface =
+            new gfxImageSurface((unsigned char *)buf,
+                                gfxIntSize(mBounds.width, mBounds.height),
+                                mBounds.width * 2,
+                                gfxASurface::ImageFormatRGB16_565);
+
+        DrawTo(targetSurface);
+        sview.Draw2D(bytebuf, mBounds.width * 2);
     } else {
         int drawType = sview.BeginDrawing();
 
@@ -1682,7 +1655,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             selEvent.mOffset = PRUint32(ae->Count() >= 0 ?
                                         ae->Offset() :
                                         ae->Offset() + ae->Count());
-            selEvent.mLength = PRUint32(NS_ABS(ae->Count()));
+            selEvent.mLength = PRUint32(PR_ABS(ae->Count()));
             selEvent.mReversed = ae->Count() >= 0 ? PR_FALSE : PR_TRUE;
 
             DispatchEvent(&selEvent);
@@ -1776,10 +1749,14 @@ nsWindow::SetInputMode(const IMEContext& aContext)
     // IMEContext depending on the content.ime.strict.policy pref
     if (aContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
         aContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
-      if (Preferences::GetBool("content.ime.strict_policy", PR_FALSE) &&
-          !aContext.FocusMovedByUser() &&
-          aContext.FocusMovedInContentProcess()) {
-        return NS_OK;
+      nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+
+      PRBool useStrictPolicy = PR_FALSE;
+      if (NS_SUCCEEDED(prefs->GetBoolPref("content.ime.strict_policy", &useStrictPolicy))) {
+        if (useStrictPolicy && !aContext.FocusMovedByUser() && 
+            aContext.FocusMovedInContentProcess()) {
+          return NS_OK;
+        }
       }
     }
 

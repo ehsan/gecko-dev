@@ -35,10 +35,17 @@ function WifiGeoAddressObject(streetNumber, street, premises, city, county, regi
 
 WifiGeoAddressObject.prototype = {
 
-    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionAddress]),
+    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionAddress, Ci.nsIClassInfo]),
 
-    classInfo: XPCOMUtils.generateCI({interfaces: [Ci.nsIDOMGeoPositionAddress],
-                                      flags: Ci.nsIClassInfo.DOM_OBJECT})
+    getInterfaces: function(countRef) {
+        var interfaces = [Ci.nsIDOMGeoPositionAddress, Ci.nsIClassInfo, Ci.nsISupports];
+        countRef.value = interfaces.length;
+        return interfaces;
+    },
+
+    getHelperForLanguage: function(language) null,
+    implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+    flags: Ci.nsIClassInfo.DOM_OBJECT,
 };
 
 function WifiGeoCoordsObject(lat, lon, acc, alt, altacc) {
@@ -51,11 +58,18 @@ function WifiGeoCoordsObject(lat, lon, acc, alt, altacc) {
 
 WifiGeoCoordsObject.prototype = {
 
-    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionCoords]),
+    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionCoords, Ci.nsIClassInfo]),
 
-    classInfo: XPCOMUtils.generateCI({interfaces: [Ci.nsIDOMGeoPositionCoords],
-                                      flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                      classDescription: "wifi geo position coords object"}),
+    getInterfaces: function(countRef) {
+        var interfaces = [Ci.nsIDOMGeoPositionCoords, Ci.nsIClassInfo, Ci.nsISupports];
+        countRef.value = interfaces.length;
+        return interfaces;
+    },
+
+    getHelperForLanguage: function(language) null,
+    classDescription: "wifi geo position coords object",
+    implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+    flags: Ci.nsIClassInfo.DOM_OBJECT,
 
     latitude: 0,
     longitude: 0,
@@ -93,12 +107,19 @@ function WifiGeoPositionObject(location) {
 
 WifiGeoPositionObject.prototype = {
 
-    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPosition]),
+    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPosition, Ci.nsIClassInfo]),
 
     // Class Info is required to be able to pass objects back into the DOM.
-    classInfo: XPCOMUtils.generateCI({interfaces: [Ci.nsIDOMGeoPosition],
-                                      flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                      classDescription: "wifi geo location position object"}),
+    getInterfaces: function(countRef) {
+        var interfaces = [Ci.nsIDOMGeoPosition, Ci.nsIClassInfo, Ci.nsISupports];
+        countRef.value = interfaces.length;
+        return interfaces;
+    },
+
+    getHelperForLanguage: function(language) null,
+    classDescription: "wifi geo location position object",
+    implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+    flags: Ci.nsIClassInfo.DOM_OBJECT,
 
     coords: null,
     timestamp: 0,

@@ -53,10 +53,10 @@ namespace nanojit
         static const int64_t ONE = 1;
         static const int SHIFT = 6;
 
-        inline int bitnum2word(int i) const {
+        inline int bitnum2word(int i) {
             return i >> 6;
         }
-        inline int64_t bitnum2mask(int i) const {
+        inline int64_t bitnum2mask(int i) {
             return ONE << (i & 63);
         }
 
@@ -69,16 +69,12 @@ namespace nanojit
         /** clear all bits */
         void reset();
 
-        /** allocates new bits and clears them;  any old bits are lost and will
-         * be freed according to their allocator's policy. */
-        void resetAndAlloc();
-
         /** perform a bitwise or with BitSet other, return true if
          *  this bitset was modified */
         bool setFrom(BitSet& other);
 
         /** return bit i as a bool */
-        bool get(int i) const {
+        bool get(int i) {
             NanoAssert(i >= 0);
             int w = bitnum2word(i);
             if (w < cap)

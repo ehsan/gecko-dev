@@ -58,14 +58,11 @@ Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/PropertyPanel.jsm");
 
 const SCRATCHPAD_CONTEXT_CONTENT = 1;
-const SCRATCHPAD_CONTEXT_BROWSER = 2;
+const SCRATCHPAD_CONTEXT_CHROME = 2;
 const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/scratchpad.xul";
 const SCRATCHPAD_L10N = "chrome://browser/locale/scratchpad.properties";
 const SCRATCHPAD_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 const DEVTOOLS_CHROME_ENABLED = "devtools.chrome.enabled";
-
-const PREF_TABSIZE = "devtools.editor.tabsize";
-const PREF_EXPANDTAB = "devtools.editor.expandtab";
 
 /**
  * The scratchpad object handles the Scratchpad window functionality.
@@ -78,7 +75,7 @@ var Scratchpad = {
    * Possible values:
    *   - SCRATCHPAD_CONTEXT_CONTENT to execute code in the context of the current
    *   tab content window object.
-   *   - SCRATCHPAD_CONTEXT_BROWSER to execute code in the context of the
+   *   - SCRATCHPAD_CONTEXT_CHROME to execute code in the context of the
    *   currently active chrome window object.
    */
   executionContext: SCRATCHPAD_CONTEXT_CONTENT,
@@ -124,11 +121,6 @@ var Scratchpad = {
     return recentWin ? recentWin.gBrowser : null;
   },
 
-  insertIntro: function SP_insertIntro()
-  {
-    this.textbox.value = this.strings.GetStringFromName("scratchpadIntro");
-  },
-
   /**
    * Cached Cu.Sandbox object for the active tab content window object.
    */
@@ -137,9 +129,8 @@ var Scratchpad = {
   /**
    * Get the Cu.Sandbox object for the active tab content window object. Note
    * that the returned object is cached for later reuse. The cached object is
-   * kept only for the current location in the current tab of the current
-   * browser window and it is reset for each context switch,
-   * navigator:browser window switch, tab switch or navigation.
+   * kept only for the current browser window and it is reset for each context
+   * switch or navigator:browser window switch.
    */
   get contentSandbox()
   {
@@ -150,16 +141,12 @@ var Scratchpad = {
     }
 
     if (!this._contentSandbox ||
-        this.browserWindow != this._previousBrowserWindow ||
-        this._previousBrowser != this.gBrowser.selectedBrowser ||
-        this._previousLocation != this.gBrowser.contentWindow.location.href) {
+        this.browserWindow != this._previousBrowserWindow) {
       let contentWindow = this.gBrowser.selectedBrowser.contentWindow;
       this._contentSandbox = new Cu.Sandbox(contentWindow,
         { sandboxPrototype: contentWindow, wantXrays: false });
 
       this._previousBrowserWindow = this.browserWindow;
-      this._previousBrowser = this.gBrowser.selectedBrowser;
-      this._previousLocation = contentWindow.location.href;
     }
 
     return this._contentSandbox;
@@ -296,7 +283,7 @@ var Scratchpad = {
    * Execute the selected text (if any) or the entire textbox content in the
    * current context.
    */
-  run: function SP_run()
+  execute: function SP_execute()
   {
     let selection = this.selectedText || this.textbox.value;
     let result = this.evalForContext(selection);
@@ -311,7 +298,7 @@ var Scratchpad = {
    */
   inspect: function SP_inspect()
   {
-    let [selection, result] = this.run();
+    let [selection, result] = this.execute();
 
     if (result) {
       this.openPropertyPanel(selection, result);
@@ -320,11 +307,11 @@ var Scratchpad = {
 
   /**
    * Execute the selected text (if any) or the entire textbox content in the
-   * current context. The evaluation result is inserted into the textbox after
+   * current context. The evaluation result is "printed" in the textbox after
    * the selected text, or at the end of the textbox value if there is no
    * selected text.
    */
-  display: function SP_display()
+  print: function SP_print()
   {
     let selectionStart = this.textbox.selectionStart;
     let selectionEnd = this.textbox.selectionEnd;
@@ -332,7 +319,7 @@ var Scratchpad = {
       selectionEnd = this.textbox.value.length;
     }
 
-    let [selection, result] = this.run();
+    let [selection, result] = this.execute();
     if (!result) {
       return;
     }
@@ -569,23 +556,23 @@ var Scratchpad = {
   setContentContext: function SP_setContentContext()
   {
     let content = document.getElementById("sp-menu-content");
-    document.getElementById("sp-menu-browser").removeAttribute("checked");
+    document.getElementById("sp-menu-chrome").removeAttribute("checked");
     content.setAttribute("checked", true);
-    this.executionContext = SCRATCHPAD_CONTEXT_CONTENT;
     this.statusbarStatus.label = content.getAttribute("label");
+    this.executionContext = SCRATCHPAD_CONTEXT_CONTENT;
     this.resetContext();
   },
 
   /**
    * Set the current execution context to be the most recent chrome window.
    */
-  setBrowserContext: function SP_setBrowserContext()
+  setChromeContext: function SP_setChromeContext()
   {
-    let browser = document.getElementById("sp-menu-browser");
+    let chrome = document.getElementById("sp-menu-chrome");
     document.getElementById("sp-menu-content").removeAttribute("checked");
-    browser.setAttribute("checked", true);
-    this.executionContext = SCRATCHPAD_CONTEXT_BROWSER;
-    this.statusbarStatus.label = browser.getAttribute("label");
+    chrome.setAttribute("checked", true);
+    this.statusbarStatus.label = chrome.getAttribute("label");
+    this.executionContext = SCRATCHPAD_CONTEXT_CHROME;
     this.resetContext();
   },
 
@@ -597,8 +584,6 @@ var Scratchpad = {
     this._chromeSandbox = null;
     this._contentSandbox = null;
     this._previousWindow = null;
-    this._previousBrowser = null;
-    this._previousLocation = null;
   },
 
   /**
@@ -619,10 +604,10 @@ var Scratchpad = {
    */
   onLoad: function SP_onLoad()
   {
-    let chromeContextMenu = document.getElementById("sp-menu-browser");
+    let chromeContextMenu = document.getElementById("sp-menu-chrome");
     let errorConsoleMenu = document.getElementById("sp-menu-errorConsole");
     let errorConsoleCommand = document.getElementById("sp-cmd-errorConsole");
-    let chromeContextCommand = document.getElementById("sp-cmd-browserContext");
+    let chromeContextCommand = document.getElementById("sp-cmd-chromeContext");
 
     let chrome = Services.prefs.getBoolPref(DEVTOOLS_CHROME_ENABLED);
     if (chrome) {
@@ -631,56 +616,6 @@ var Scratchpad = {
       errorConsoleCommand.removeAttribute("disabled");
       chromeContextCommand.removeAttribute("disabled");
     }
-
-    let tabsize = Services.prefs.getIntPref(PREF_TABSIZE);
-    if (tabsize < 1) {
-      // tabsize is invalid, clear back to the default value.
-      Services.prefs.clearUserPref(PREF_TABSIZE);
-      tabsize = Services.prefs.getIntPref(PREF_TABSIZE);
-    }
-
-    let expandtab = Services.prefs.getBoolPref(PREF_EXPANDTAB);
-    this._tabCharacter = expandtab ? (new Array(tabsize + 1)).join(" ") : "\t";
-    this.textbox.style.MozTabSize = tabsize;
-
-    // Force LTR direction (otherwise the textbox inherits the locale direction)
-    this.textbox.style.direction = "ltr";
-
-    this.insertIntro();
-
-    // Make the Tab key work.
-    this.textbox.addEventListener("keypress", this.onKeypress.bind(this), false);
-
-    this.textbox.focus();
-  },
-
-  /**
-   * The textbox keypress event handler which allows users to indent code using
-   * the Tab key.
-   *
-   * @param nsIDOMEvent aEvent
-   */
-  onKeypress: function SP_onKeypress(aEvent)
-  {
-    if (aEvent.keyCode == aEvent.DOM_VK_TAB) {
-      this.insertTextAtCaret(this._tabCharacter);
-      aEvent.preventDefault();
-    }
-  },
-
-  /**
-   * Insert text at the current caret location.
-   *
-   * @param string aText
-   */
-  insertTextAtCaret: function SP_insertTextAtCaret(aText)
-  {
-    let firstPiece = this.textbox.value.substring(0, this.textbox.selectionStart);
-    let lastPiece = this.textbox.value.substring(this.textbox.selectionEnd);
-    this.textbox.value = firstPiece + aText + lastPiece;
-
-    let newCaretPosition = firstPiece.length + aText.length;
-    this.selectRange(newCaretPosition, newCaretPosition);
   },
 };
 

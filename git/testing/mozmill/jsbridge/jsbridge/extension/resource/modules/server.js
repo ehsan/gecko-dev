@@ -49,6 +49,13 @@ var hwindow = Components.classes["@mozilla.org/appshell/appShellService;1"]
     .getService(Components.interfaces.nsIAppShellService)
     .hiddenDOMWindow;
     
+var nativeJSON = Components.classes["@mozilla.org/dom/json;1"]
+    .createInstance(Components.interfaces.nsIJSON);
+
+var json2 = Components.utils.import("resource://jsbridge/modules/json2.js");
+
+var jsonEncode = json2.JSON.stringify;    
+
 var uuidgen = Components.classes["@mozilla.org/uuid-generator;1"]
     .getService(Components.interfaces.nsIUUIDGenerator);
 
@@ -226,14 +233,14 @@ Session.prototype.onQuit = function() {
 };
 Session.prototype.encodeOut = function (obj) {
   try {
-    this.onOutput(JSON.stringify(obj));
+    this.onOutput(jsonEncode(obj));
   } catch(e) {
     if (typeof(e) == "string") {
       var exception = e;
     } else {
       var exception = {'name':e.name, 'message':e.message};
     }
-    this.onOutput(JSON.stringify({'result':false, 'exception':exception}));
+    this.onOutput(jsonEncode({'result':false, 'exception':exception}));
   }
   
 }

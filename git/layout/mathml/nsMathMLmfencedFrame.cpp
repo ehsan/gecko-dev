@@ -24,7 +24,6 @@
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Frederic Wang <fred.wang@free.fr>
- *   Florian Scholz <elchi3@elchi3.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -75,9 +74,6 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
 
   mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
 
-  RemoveFencesAndSeparators();
-  CreateFencesAndSeparators(PresContext());
-
   return NS_OK;
 }
 
@@ -89,10 +85,6 @@ nsMathMLmfencedFrame::SetInitialChildList(nsIAtom*        aListName,
   nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListName, aChildList);
   if (NS_FAILED(rv)) return rv;
 
-  // InheritAutomaticData will not get called if our parent is not a mathml
-  // frame, so initialize NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY for
-  // GetPreferredStretchSize() from Reflow().
-  mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
   // No need to track the style contexts given to our MathML chars. 
   // The Style System will use Get/SetAdditionalStyleContext() to keep them
   // up-to-date if dynamic changes arise.
@@ -124,8 +116,8 @@ nsMathMLmfencedFrame::ChildListChanged(PRInt32 aModType)
 void
 nsMathMLmfencedFrame::RemoveFencesAndSeparators()
 {
-  delete mOpenChar;
-  delete mCloseChar;
+  if (mOpenChar) delete mOpenChar;
+  if (mCloseChar) delete mCloseChar;
   if (mSeparatorsChar) delete[] mSeparatorsChar;
 
   mOpenChar = nsnull;
@@ -315,6 +307,8 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   nsBoundingMetrics containerSize;
   nsStretchDirection stretchDir = NS_STRETCH_DIRECTION_VERTICAL;
 
+  nsPresentationData presentationData;
+  GetPresentationData(presentationData);
   GetPreferredStretchSize(*aReflowState.rendContext,
                           0, /* i.e., without embellishments */
                           stretchDir, containerSize);
@@ -352,10 +346,12 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   // adjust the origin of children.
 
   // we need to center around the axis
-  nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
-                         containerSize.descent + axisHeight);
-  containerSize.ascent = delta + axisHeight;
-  containerSize.descent = delta - axisHeight;
+  if (firstChild) { // do nothing for an empty <mfenced></mfenced>
+    nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
+                           containerSize.descent + axisHeight);
+    containerSize.ascent = delta + axisHeight;
+    containerSize.descent = delta - axisHeight;
+  }
 
   /////////////////
   // opening fence ...

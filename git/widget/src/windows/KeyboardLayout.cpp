@@ -35,12 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "KeyboardLayout.h"
-
 #include "nsMemory.h"
+#include "KeyboardLayout.h"
 #include "nsToolkit.h"
 #include "nsQuickSort.h"
-#include "nsAlgorithm.h"
 
 #include <winuser.h>
 
@@ -331,7 +329,7 @@ KeyboardLayout::GetUniChars(PRUnichar* aUniChars,
                             PRUint8* aShiftStates,
                             PRUint32 aMaxChars) const
 {
-  PRUint32 chars = NS_MIN<PRUint32>(mNumOfChars, aMaxChars);
+  PRUint32 chars = PR_MIN(mNumOfChars, aMaxChars);
 
   memcpy(aUniChars, mChars, chars * sizeof(PRUnichar));
   memcpy(aShiftStates, mShiftStates, chars);
@@ -353,7 +351,7 @@ KeyboardLayout::GetUniCharsWithShiftState(PRUint8 aVirtualKey,
   PRUnichar uniChars[5];
   PRUint32 numOfBaseChars =
     mVirtualKeys[key].GetUniChars(aShiftStates, uniChars, &finalShiftState);
-  PRUint32 chars = NS_MIN(numOfBaseChars, aMaxChars);
+  PRUint32 chars = PR_MIN(numOfBaseChars, aMaxChars);
   memcpy(aUniChars, uniChars, chars * sizeof(PRUnichar));
   return chars;
 }

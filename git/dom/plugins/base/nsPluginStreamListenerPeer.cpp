@@ -49,7 +49,6 @@
 #include "nsNetCID.h"
 #include "nsPluginLogging.h"
 #include "nsIURI.h"
-#include "nsIURL.h"
 #include "nsPluginHost.h"
 #include "nsIByteRangeRequest.h"
 #include "nsIMultiPartChannel.h"
@@ -59,8 +58,6 @@
 #include "nsIDocument.h"
 #include "nsIWebNavigation.h"
 #include "nsContentUtils.h"
-#include "nsNetUtil.h"
-#include "nsPluginNativeWindow.h"
 
 #define MAGIC_REQUEST_CONTEXT 0x01020304
 
@@ -646,17 +643,31 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
   // NOTE: we don't want to try again if we didn't get the MIME type this time
   
   if (!mPluginInstance && mOwner && !aContentType.IsEmpty()) {
-    nsRefPtr<nsNPAPIPluginInstance> pluginInstRefPtr;
-    mOwner->GetInstance(getter_AddRefs(pluginInstRefPtr));
-    mPluginInstance = pluginInstRefPtr.get();
+    nsCOMPtr<nsIPluginInstance> pluginInstCOMPtr;
+    mOwner->GetInstance(getter_AddRefs(pluginInstCOMPtr));
+    mPluginInstance = static_cast<nsNPAPIPluginInstance*>(pluginInstCOMPtr.get());
 
     mOwner->GetWindow(window);
     if (!mPluginInstance && window) {
       nsRefPtr<nsPluginHost> pluginHost = dont_AddRef(nsPluginHost::GetInst());
-      rv = pluginHost->SetUpPluginInstance(aContentType.get(), aURL, mOwner);
-      if (NS_SUCCEEDED(rv)) {
-        mOwner->GetInstance(getter_AddRefs(pluginInstRefPtr));
-        mPluginInstance = pluginInstRefPtr.get();
+      
+      // determine if we need to try embedded again. FullPage takes a different code path
+      PRInt32 mode;
+      mOwner->GetMode(&mode);
+      if (mode == NP_EMBED) {
+        // Make sure to not allow new streams to be opened here; we've
+        // already got a stream for this data; we just need a properly
+        // set up plugin instance.
+        rv = pluginHost->InstantiateEmbeddedPlugin(aContentType.get(), aURL,
+                                                   mOwner, PR_FALSE);
+      }
+      else {
+        rv = pluginHost->SetUpPluginInstance(aContentType.get(), aURL, mOwner);
+      }
+      
+      if (NS_OK == rv) {
+        mOwner->GetInstance(getter_AddRefs(pluginInstCOMPtr));
+        mPluginInstance = static_cast<nsNPAPIPluginInstance*>(pluginInstCOMPtr.get());
         if (mPluginInstance) {
           mPluginInstance->Start();
           mOwner->CreateWidget();

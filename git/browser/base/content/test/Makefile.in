@@ -40,10 +40,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = browser/base/content/test
 
-DIRS += \
-		tabview \
-		inspector \
-		$(NULL)
+DIRS += tabview
 
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
@@ -115,7 +112,7 @@ _BROWSER_FILES = \
                  browser_bug416661.js \
                  browser_bug417483.js \
                  browser_bug419612.js \
-                 browser_identity_UI.js \
+                 browser_bug420160.js \
                  browser_bug422590.js \
                  browser_bug424101.js \
                  browser_bug427559.js \
@@ -173,11 +170,7 @@ _BROWSER_FILES = \
                  browser_bug616836.js \
                  browser_bug623893.js \
                  browser_bug624734.js \
-                 browser_bug647886.js \
-                 browser_bug655584.js \
-                 browser_bug664672.js \
                  browser_findbarClose.js \
-                 browser_keywordBookmarklets.js \
                  browser_contextSearchTabPosition.js \
                  browser_ctrlTab.js \
                  browser_customize_popupNotification.js \
@@ -187,17 +180,26 @@ _BROWSER_FILES = \
                  browser_gestureSupport.js \
                  browser_getshortcutoruri.js \
                  browser_hide_removing.js \
+                 browser_inspector_initialization.js \
+                 browser_inspector_treeSelection.js \
+                 browser_inspector_highlighter.js \
+                 browser_inspector_stylePanel.js \
+                 browser_inspector_domPanel.js \
+                 browser_inspector_iframeTest.js \
+                 browser_inspector_scrolling.js \
+                 browser_inspector_store.js \
+                 browser_inspector_tab_switch.js \
+                 browser_inspector_treePanel_output.js \
+                 browser_inspector_treePanel_input.html \
+                 browser_inspector_treePanel_result.html \
                  browser_scratchpad_initialization.js \
                  browser_scratchpad_contexts.js \
-                 browser_scratchpad_tab_switch.js \
                  browser_scratchpad_execute_print.js \
                  browser_scratchpad_inspect.js \
                  browser_scratchpad_files.js \
                  browser_scratchpad_ui.js \
                  browser_scratchpad_bug_646070_chrome_context_pref.js \
-                 browser_scratchpad_bug_660560_tab.js \
                  browser_overflowScroll.js \
-                 browser_locationBarExternalLoad.js \
                  browser_pageInfo.js \
                  browser_page_style_menu.js \
                  browser_pinnedTabs.js \
@@ -220,8 +222,6 @@ _BROWSER_FILES = \
                  browser_tabfocus.js \
                  browser_tabs_isActive.js \
                  browser_tabs_owner.js \
-                 browser_urlbarCopying.js \
-                 browser_urlbarTrimURLs.js \
                  browser_urlHighlight.js \
                  browser_visibleFindSelection.js \
                  browser_visibleTabs.js \
@@ -229,6 +229,7 @@ _BROWSER_FILES = \
                  browser_visibleTabs_bookmarkAllPages.js \
                  browser_visibleTabs_bookmarkAllTabs.js \
                  browser_visibleTabs_tabPreview.js \
+                 browser_webdev_menu.js \
                  bug592338.html \
                  disablechrome.html \
                  discovery.html \
@@ -256,7 +257,6 @@ _BROWSER_FILES = \
                  browser_addon_bar_shortcut.js \
                  browser_addon_bar_aomlistener.js \
                  test_bug628179.html \
-                 browser_minimize.js \
                  $(NULL)
 
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))

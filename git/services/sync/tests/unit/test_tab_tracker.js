@@ -5,8 +5,8 @@ Cu.import("resource://services-sync/util.js");
 function fakeSvcWinMediator() {
   // actions on windows are captured in logs
   let logs = [];
-  delete Services.wm;
-  Services.wm = {
+  delete Svc.WinMediator;
+  Svc.WinMediator = {
     getEnumerator: function() {
       return {
         cnt: 2,

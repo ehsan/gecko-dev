@@ -298,7 +298,7 @@ private:
 
   // mGlobalObjectRef ensures that the outer window stays alive as long as the
   // context does. It is eventually collected by the cycle collector.
-  nsCOMPtr<nsIScriptGlobalObject> mGlobalObjectRef;
+  nsCOMPtr<nsISupports> mGlobalObjectRef;
 
   static int JSOptionChangedCallback(const char *pref, void *data);
 
@@ -362,15 +362,5 @@ nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime);
 
 /* prototypes */
 void NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);
-
-JSObject* NS_DOMReadStructuredClone(JSContext* cx,
-                                    JSStructuredCloneReader* reader, uint32 tag,
-                                    uint32 data, void* closure);
-
-JSBool NS_DOMWriteStructuredClone(JSContext* cx,
-                                  JSStructuredCloneWriter* writer,
-                                  JSObject* obj, void *closure);
-
-void NS_DOMStructuredCloneError(JSContext* cx, uint32 errorid);
 
 #endif /* nsJSEnvironment_h___ */

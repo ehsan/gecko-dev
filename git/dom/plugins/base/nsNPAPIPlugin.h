@@ -38,6 +38,7 @@
 #ifndef nsNPAPIPlugin_h_
 #define nsNPAPIPlugin_h_
 
+#include "nsIPlugin.h"
 #include "prlink.h"
 #include "npfunctions.h"
 #include "nsPluginHost.h"
@@ -71,7 +72,7 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* 
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) ();
 
-class nsNPAPIPlugin : public nsISupports
+class nsNPAPIPlugin : public nsIPlugin
 {
 private:
   typedef mozilla::PluginLibrary PluginLibrary;
@@ -81,6 +82,7 @@ public:
   virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIPLUGIN
 
   // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
   // will prevent this from calling NP_Initialize.
@@ -103,9 +105,6 @@ public:
   
   static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
 
-  nsresult CreatePluginInstance(nsNPAPIPluginInstance **aResult);
-  nsresult Shutdown();
-
 protected:
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;
@@ -117,7 +116,7 @@ namespace parent {
 
 JS_STATIC_ASSERT(sizeof(NPIdentifier) == sizeof(jsid));
 
-inline jsid
+static inline jsid
 NPIdentifierToJSId(NPIdentifier id)
 {
     jsid tmp;
@@ -125,59 +124,52 @@ NPIdentifierToJSId(NPIdentifier id)
     return tmp;
 }
 
-inline NPIdentifier
+static inline NPIdentifier
 JSIdToNPIdentifier(jsid id)
 {
     return (NPIdentifier)JSID_BITS(id);
 }
 
-inline bool
+static inline bool
 NPIdentifierIsString(NPIdentifier id)
 {
     return JSID_IS_STRING(NPIdentifierToJSId(id));
 }
 
-inline JSString *
+static inline JSString *
 NPIdentifierToString(NPIdentifier id)
 {
     return JSID_TO_STRING(NPIdentifierToJSId(id));
 }
 
-inline NPIdentifier
-StringToNPIdentifier(JSContext *cx, JSString *str)
+static inline NPIdentifier
+StringToNPIdentifier(JSString *str)
 {
-    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(cx, str));
+    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(str));
 }
 
-inline bool
+static inline bool
 NPIdentifierIsInt(NPIdentifier id)
 {
     return JSID_IS_INT(NPIdentifierToJSId(id));
 }
 
-inline jsint
+static inline jsint
 NPIdentifierToInt(NPIdentifier id)
 {
     return JSID_TO_INT(NPIdentifierToJSId(id));
 }
 
-inline NPIdentifier
+static inline NPIdentifier
 IntToNPIdentifier(jsint i)
 {
     return JSIdToNPIdentifier(INT_TO_JSID(i));
 }
 
-JSContext* GetJSContext(NPP npp);
-
-inline bool
-NPStringIdentifierIsPermanent(NPP npp, NPIdentifier id)
+static inline bool
+NPIdentifierIsVoid(NPIdentifier id)
 {
-  JSContext* cx = GetJSContext(npp);
-  if (!cx) // OOM?
-    return false;
-
-  JSAutoRequest ar(cx);
-  return JS_StringHasBeenInterned(cx, NPIdentifierToString(id));
+    return JSID_IS_VOID(NPIdentifierToJSId(id));
 }
 
 #define NPIdentifier_VOID (JSIdToNPIdentifier(JSID_VOID))

@@ -127,12 +127,16 @@ ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
         if (JSInterpreterHook hook = cx->debugHooks->callHook)
             fp->setHookData(hook(cx, Jsvalify(fp), true, 0, cx->debugHooks->callHookData));
     }
+
+    Probes::enterJSFun(cx, fp->maybeFun(), fp->script());
 }
 
 bool
 ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
 {
     JSBool ok = okArg;
+
+    Probes::exitJSFun(cx, fp->maybeFun(), fp->script());
 
     if (void *hookData = fp->maybeHookData()) {
         if (fp->isFramePushedByExecute()) {
@@ -166,9 +170,9 @@ CompartmentHasLiveScripts(JSCompartment *comp)
         if (JS_GetContextThread(icx) != currentThreadId)
             continue;
 #endif
-        for (FrameRegsIter i(icx); !i.done(); ++i) {
-            JSScript *script = i.fp()->script();
-            if (script->compartment == comp)
+        for (AllFramesIter i(icx); !i.done(); ++i) {
+            JSScript *script = i.fp()->maybeScript();
+            if (script && script->compartment == comp)
                 return JS_TRUE;
         }
     }
@@ -1095,10 +1099,11 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
         JSWatchPoint *wp = FindWatchPoint(rt, obj, propid);
         if (!wp) {
             /* Make a new property in obj so we can watch for the first set. */
-            shape = DefineNativeProperty(cx, obj, propid, UndefinedValue(), NULL, NULL,
-                                         JSPROP_ENUMERATE, 0, 0);
-            if (!shape)
+            if (!js_DefineNativeProperty(cx, obj, propid, UndefinedValue(), NULL, NULL,
+                                         JSPROP_ENUMERATE, 0, 0, &prop)) {
                 return false;
+            }
+            shape = (Shape *) prop;
         }
     } else if (pobj != obj) {
         /* Clone the prototype property so we can watch the right object. */
@@ -1136,10 +1141,12 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
         }
 
         /* Recall that obj is native, whether or not pobj is native. */
-        shape = DefineNativeProperty(cx, obj, propid, valroot.value(), getter, setter,
-                                     attrs, flags, shortid);
-        if (!shape)
+        if (!js_DefineNativeProperty(cx, obj, propid, valroot.value(),
+                                     getter, setter, attrs, flags,
+                                     shortid, &prop)) {
             return false;
+        }
+        shape = (Shape *) prop;
     }
 
     /*
@@ -1295,59 +1302,6 @@ JS_EndPC(JSContext *cx, JSScript *script)
     return script->code + script->length;
 }
 
-JS_PUBLIC_API(JSBool)
-JS_GetLinePCs(JSContext *cx, JSScript *script,
-              uintN startLine, uintN maxLines,
-              uintN* count, uintN** retLines, jsbytecode*** retPCs)
-{
-    uintN* lines;
-    jsbytecode** pcs;
-    size_t len = (script->length > maxLines ? maxLines : script->length);
-    lines = (uintN*) cx->malloc_(len * sizeof(uintN));
-    if (!lines)
-        return JS_FALSE;
-
-    pcs = (jsbytecode**) cx->malloc_(len * sizeof(jsbytecode*));
-    if (!pcs) {
-        cx->free_(lines);
-        return JS_FALSE;
-    }
-
-    uintN lineno = script->lineno;
-    uintN offset = 0;
-    uintN i = 0;
-    for (jssrcnote *sn = script->notes(); !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn)) {
-        offset += SN_DELTA(sn);
-        JSSrcNoteType type = (JSSrcNoteType) SN_TYPE(sn);
-        if (type == SRC_SETLINE || type == SRC_NEWLINE) {
-            if (type == SRC_SETLINE)
-                lineno = (uintN) js_GetSrcNoteOffset(sn, 0);
-            else
-                lineno++;
-
-            if (lineno >= startLine) {
-                lines[i] = lineno;
-                pcs[i] = script->code + offset;
-                if (++i >= maxLines)
-                    break;
-            }
-        }
-    }
-
-    *count = i;
-    if (retLines)
-        *retLines = lines;
-    else
-        cx->free_(lines);
-
-    if (retPCs)
-        *retPCs = pcs;
-    else
-        cx->free_(pcs);
-
-    return JS_TRUE;
-}
-
 JS_PUBLIC_API(uintN)
 JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun)
 {
@@ -1363,22 +1317,8 @@ JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 extern JS_PUBLIC_API(jsuword *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
-    Vector<JSAtom *> localNames(cx);
-    if (!fun->script()->bindings.getLocalNameArray(cx, &localNames))
-        return NULL;
-
-    /* Munge data into the API this method implements.  Avert your eyes! */
     *markp = JS_ARENA_MARK(&cx->tempPool);
-
-    jsuword *names;
-    JS_ARENA_ALLOCATE_CAST(names, jsuword *, &cx->tempPool, localNames.length() * sizeof *names);
-    if (!names) {
-        js_ReportOutOfMemory(cx);
-        return NULL;
-    }
-
-    memcpy(names, localNames.begin(), localNames.length() * sizeof(jsuword));
-    return names;
+    return fun->script()->bindings.getLocalNameArray(cx, &cx->tempPool);
 }
 
 extern JS_PUBLIC_API(JSAtom *)
@@ -1439,7 +1379,7 @@ JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsbytecode *)
 JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    return Valueify(fp)->pcQuadratic(cx);
+    return Valueify(fp)->pc(cx);
 }
 
 JS_PUBLIC_API(JSStackFrame *)
@@ -1501,7 +1441,7 @@ JS_PUBLIC_API(JSObject *)
 JS_GetFrameScopeChain(JSContext *cx, JSStackFrame *fpArg)
 {
     StackFrame *fp = Valueify(fpArg);
-    JS_ASSERT(cx->stack.containsSlow(fp));
+    JS_ASSERT(cx->stack.contains(fp));
 
     js::AutoCompartment ac(cx, &fp->scopeChain());
     if (!ac.enter())
@@ -1516,7 +1456,7 @@ JS_PUBLIC_API(JSObject *)
 JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fpArg)
 {
     StackFrame *fp = Valueify(fpArg);
-    JS_ASSERT(cx->stack.containsSlow(fp));
+    JS_ASSERT(cx->stack.contains(fp));
 
     if (!fp->isFunctionFrame())
         return NULL;
@@ -1578,7 +1518,7 @@ JS_IsConstructorFrame(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameCalleeObject(JSContext *cx, JSStackFrame *fp)
 {
-    return Valueify(fp)->maybeCalleev().toObjectOrNull();
+    return Valueify(fp)->maybeCallee();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -1588,7 +1528,6 @@ JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp)
 
     if (!Valueify(fp)->getValidCalleeObject(cx, &v))
         return false;
-    *vp = v.isObject() ? Jsvalify(v) : JSVAL_VOID;
     *vp = Jsvalify(v);
     return true;
 }
@@ -1597,12 +1536,6 @@ JS_PUBLIC_API(JSBool)
 JS_IsDebuggerFrame(JSContext *cx, JSStackFrame *fp)
 {
     return Valueify(fp)->isDebuggerFrame();
-}
-
-JS_PUBLIC_API(JSBool)
-JS_IsGlobalFrame(JSContext *cx, JSStackFrame *fp)
-{
-    return Valueify(fp)->isGlobalFrame();
 }
 
 JS_PUBLIC_API(jsval)
@@ -1701,7 +1634,8 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fpArg,
     if (!script)
         return false;
 
-    bool ok = Execute(cx, script, *scobj, fp->thisValue(), EXECUTE_DEBUG, fp, Valueify(rval));
+    uintN evalFlags = StackFrame::DEBUGGER | StackFrame::EVAL;
+    bool ok = Execute(cx, *scobj, script, fp, evalFlags, Valueify(rval));
 
     js_DestroyScript(cx, script);
     return ok;
@@ -1720,7 +1654,7 @@ JS_EvaluateInStackFrame(JSContext *cx, JSStackFrame *fp,
     if (!CheckDebugMode(cx))
         return JS_FALSE;
 
-    chars = InflateString(cx, bytes, &len);
+    chars = js_InflateString(cx, bytes, &len);
     if (!chars)
         return JS_FALSE;
     length = (uintN) len;
@@ -1962,7 +1896,7 @@ JS_GetFunctionTotalSize(JSContext *cx, JSFunction *fun)
     nbytes = sizeof *fun;
     nbytes += JS_GetObjectTotalSize(cx, FUN_OBJECT(fun));
     if (FUN_INTERPRETED(fun))
-        nbytes += JS_GetScriptTotalSize(cx, fun->script());
+        nbytes += JS_GetScriptTotalSize(cx, fun->u.i.script);
     if (fun->atom)
         nbytes += GetAtomTotalSize(cx, fun->atom);
     return nbytes;
@@ -1974,6 +1908,7 @@ JS_PUBLIC_API(size_t)
 JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 {
     size_t nbytes, pbytes;
+    jsatomid i;
     jssrcnote *sn, *notes;
     JSObjectArray *objarray;
     JSPrincipals *principals;
@@ -1984,7 +1919,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 
     nbytes += script->length * sizeof script->code[0];
     nbytes += script->atomMap.length * sizeof script->atomMap.vector[0];
-    for (size_t i = 0; i < script->atomMap.length; i++)
+    for (i = 0; i < script->atomMap.length; i++)
         nbytes += GetAtomTotalSize(cx, script->atomMap.vector[i]);
 
     if (script->filename)
@@ -1997,7 +1932,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 
     if (JSScript::isValidOffset(script->objectsOffset)) {
         objarray = script->objects();
-        size_t i = objarray->length;
+        i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
         do {
             nbytes += JS_GetObjectTotalSize(cx, objarray->vector[--i]);
@@ -2006,7 +1941,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 
     if (JSScript::isValidOffset(script->regexpsOffset)) {
         objarray = script->regexps();
-        size_t i = objarray->length;
+        i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
         do {
             nbytes += JS_GetObjectTotalSize(cx, objarray->vector[--i]);
@@ -2253,7 +2188,7 @@ js_StartVtune(JSContext *cx, uintN argc, jsval *vp)
     jsval *argv = JS_ARGV(cx, vp);
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        params.tb5Filename = DeflateString(cx, str->chars(), str->length());
+        params.tb5Filename = js_DeflateString(cx, str->chars(), str->length());
     }
 
     status = VTStartSampling(&params);
@@ -2492,9 +2427,9 @@ jstv_Filename(JSStackFrame *fp)
 inline uintN
 jstv_Lineno(JSContext *cx, JSStackFrame *fp)
 {
-    while (fp && fp->pcQuadratic(cx) == NULL)
+    while (fp && fp->pc(cx) == NULL)
         fp = fp->prev();
-    return (fp && fp->pcQuadratic(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
+    return (fp && fp->pc(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
 }
 
 /* Collect states here and distribute to a matching buffer, if any */
@@ -2591,7 +2526,7 @@ ethogram_addScript(JSContext *cx, uintN argc, jsval *vp)
     }
     if (JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        filename = DeflateString(cx, str->chars(), str->length());
+        filename = js_DeflateString(cx, str->chars(), str->length());
         if (!filename)
             return false;
     }
@@ -2775,33 +2710,3 @@ JS_GetFunctionCallback(JSContext *cx)
 
 #endif /* MOZ_TRACE_JSCALLS */
 
-JS_PUBLIC_API(void)
-JS_DumpProfile(JSContext *cx, JSScript *script)
-{
-    JS_ASSERT(!cx->runtime->gcRunning);
-
-#if defined(DEBUG)
-    if (script->pcCounters) {
-        // Display hit counts for every JS code line
-        AutoArenaAllocator mark(&cx->tempPool);
-        Sprinter sprinter;
-        INIT_SPRINTER(cx, &sprinter, &cx->tempPool, 0);
-
-        fprintf(stdout, "--- PC COUNTS %s:%d ---\n", script->filename, script->lineno);
-        js_Disassemble(cx, script, true, &sprinter);
-        fprintf(stdout, "%s\n", sprinter.base);
-        fprintf(stdout, "--- END PC COUNTS %s:%d ---\n", script->filename, script->lineno);
-    }
-#endif
-}
-
-JS_PUBLIC_API(void)
-JS_DumpAllProfiles(JSContext *cx)
-{
-    for (JSScript *script = (JSScript *) JS_LIST_HEAD(&cx->compartment->scripts);
-         script != (JSScript *) &cx->compartment->scripts;
-         script = (JSScript *) JS_NEXT_LINK((JSCList *)script))
-    {
-        JS_DumpProfile(cx, script);
-    }
-}

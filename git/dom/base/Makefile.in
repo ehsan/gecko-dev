@@ -85,7 +85,6 @@ EXPORTS = \
   nsWrapperCache.h \
   nsContentPermissionHelper.h \
   nsStructuredCloneContainer.h \
-  nsDOMMemoryReporter.h \
   $(NULL)
 
 CPPSRCS =			\
@@ -111,9 +110,6 @@ CPPSRCS =			\
 	nsQueryContentEventResult.cpp \
 	nsContentPermissionHelper.cpp \
 	nsStructuredCloneContainer.cpp \
-	nsDOMNavigationTiming.cpp \
-	nsPerformance.cpp	\
-	nsDOMMemoryReporter.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk
@@ -130,7 +126,6 @@ include $(topsrcdir)/config/rules.mk
 LOCAL_INCLUDES += \
 		-I$(srcdir)/../../js/src/xpconnect/src \
 		-I$(srcdir)/../../js/src/xpconnect/wrappers \
-		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
 ifdef MOZ_X11

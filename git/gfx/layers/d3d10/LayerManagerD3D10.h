@@ -115,15 +115,6 @@ public:
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
-  // D3D10 guarantees textures can be at least this size
-  enum {
-    MAX_TEXTURE_SIZE = 8192
-  };
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
-  {
-    return aSize <= gfxIntSize(MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE);
-  }
-
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
@@ -141,10 +132,6 @@ public:
   virtual already_AddRefed<gfxASurface>
     CreateOptimalSurface(const gfxIntSize &aSize,
                          gfxASurface::gfxImageFormat imageFormat);
-
-  virtual TemporaryRef<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
-                     mozilla::gfx::SurfaceFormat aFormat);
 
   virtual LayersBackend GetBackendType() { return LAYERS_D3D10; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 10"); }
@@ -169,7 +156,7 @@ public:
    */
   Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; }
 
-  static void ReportFailure(const nsACString &aMsg, HRESULT aCode);
+  static void LayerManagerD3D10::ReportFailure(const nsACString &aMsg, HRESULT aCode);
 
 private:
   void SetupPipeline();

@@ -402,9 +402,9 @@ PlacesViewBase.prototype = {
     let as = PlacesUtils.annotations;
 
     let lmStatus = null;
-    if (as.itemHasAnnotation(itemId, PlacesUtils.LMANNO_LOADFAILED))
+    if (as.itemHasAnnotation(itemId, "livemark/loadfailed"))
       lmStatus = "bookmarksLivemarkFailed";
-    else if (as.itemHasAnnotation(itemId, PlacesUtils.LMANNO_LOADING))
+    else if (as.itemHasAnnotation(itemId, "livemark/loading"))
       lmStatus = "bookmarksLivemarkLoading";
 
     let lmStatusElt = aPopup._lmStatusMenuItem;
@@ -428,19 +428,6 @@ PlacesViewBase.prototype = {
       aPopup.removeChild(aPopup._lmStatusMenuItem);
       aPopup._lmStatusMenuItem = null;
       aPopup._startMarker--;
-    }
-  },
-
-  toggleCutNode: function PVB_toggleCutNode(aNode, aValue) {
-    let elt = aNode._DOMElement;
-    if (elt) {
-      // We may get the popup for menus, but we need the menu itself.
-      if (elt.localName == "menupopup")
-        elt = elt.parentNode;
-      if (aValue)
-        elt.setAttribute("cutting", "true");
-      else
-        elt.removeAttribute("cutting");
     }
   },
 
@@ -479,21 +466,17 @@ PlacesViewBase.prototype = {
 
   nodeAnnotationChanged:
   function PVB_nodeAnnotationChanged(aPlacesNode, aAnno) {
-    let elt = aPlacesNode._DOMElement;
-    if (!elt)
-      throw "aPlacesNode must have _DOMElement set";
-
-    // All livemarks have a feedURI, so use it as our indicator of a livemark
-    // being modified.
+    // All livemarks have a feedURI, so use it as our indicator.
     if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
+      let elt = aPlacesNode._DOMElement;
+      if (!elt)
+        throw "aPlacesNode must have _DOMElement set";
+
       let menu = elt.parentNode;
       if (!menu.hasAttribute("livemark"))
         menu.setAttribute("livemark", "true");
-    }
 
-    if ([PlacesUtils.LMANNO_LOADING,
-         PlacesUtils.LMANNO_LOADFAILED].indexOf(aAnno) != -1) {
-      // Loading status changed, update the livemark status menuitem.
+      // Add or remove the livemark status menuitem.
       this._ensureLivemarkStatusMenuItem(elt);
     }
   },
@@ -670,12 +653,6 @@ PlacesViewBase.prototype = {
       this._result = null;
     }
 
-    if (this._controller) {
-      this._controller.terminate();
-      this._viewElt.controllers.removeController(this._controller);
-      this._controller = null;
-    }
-
     delete this._viewElt._placesView;
   },
 
@@ -772,8 +749,7 @@ PlacesViewBase.prototype = {
       aPopup._endOptOpenAllInTabs = document.createElement("menuitem");
       aPopup._endOptOpenAllInTabs.className = "openintabs-menuitem";
       aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
-        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event, " +
-                                               "PlacesUIUtils.getViewForNode(this));");
+        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event);");
       aPopup._endOptOpenAllInTabs.setAttribute("onclick",
         "checkForMiddleClick(this, event); event.stopPropagation();");
       aPopup._endOptOpenAllInTabs.setAttribute("label",
@@ -1187,17 +1163,10 @@ PlacesToolbar.prototype = {
       if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
         elt.setAttribute("livemark", true);
       }
+      return;
+    }
 
-      if ([PlacesUtils.LMANNO_LOADING,
-           PlacesUtils.LMANNO_LOADFAILED].indexOf(aAnno) != -1) {
-        // Loading status changed, update the livemark status menuitem.
-        this._ensureLivemarkStatusMenuItem(elt.firstChild);
-      }
-    }
-    else {
-      // Node is in a submenu.
-      PlacesViewBase.prototype.nodeAnnotationChanged.apply(this, arguments);
-    }
+    PlacesViewBase.prototype.nodeAnnotationChanged.apply(this, arguments);
   },
 
   nodeTitleChanged: function PT_nodeTitleChanged(aPlacesNode, aNewTitle) {

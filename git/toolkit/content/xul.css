@@ -189,6 +189,7 @@ iframe {
 notificationbox {
   -moz-binding: url("chrome://global/content/bindings/notification.xml#notificationbox");
   -moz-box-orient: vertical;
+  overflow-y: hidden;
 }
 
 notification {

@@ -51,20 +51,8 @@
 #include "mozqorientationsensorfilter.h"
 #endif
 
-#ifdef MOZ_ENABLE_QMSYSTEM2
-#include <qmdisplaystate.h>
-using namespace mozilla;
-
-const int DISPLAY_BLANK_TIMEOUT = 10800; /*3 * 60 * 60 seconds*/
-const int DISPLAY_DIM_TIMEOUT = 10620; /*3 * 59 * 60 seconds*/
-
-#endif
-
 nsScreenQt::nsScreenQt(int aScreen)
     : mScreen(aScreen)
-#ifdef MOZ_ENABLE_QMSYSTEM2
-    , mDisplayState(nsnull)
-#endif
 {
     // nothing else to do. I guess we could cache a bunch of information
     // here, but we want to ask the device at runtime in case anything
@@ -73,18 +61,11 @@ nsScreenQt::nsScreenQt(int aScreen)
 
 nsScreenQt::~nsScreenQt()
 {
-#ifdef MOZ_ENABLE_QMSYSTEM2
-    delete mDisplayState;
-    mDisplayState = nsnull;
-#endif
+    // nothing to see here.
 }
 
 // addref, release, QI
-#ifdef MOZ_ENABLE_QMSYSTEM2
-NS_IMPL_ISUPPORTS2(nsScreenQt, nsIScreen, nsIScreen_MOZILLA_2_0_BRANCH)
-#else
 NS_IMPL_ISUPPORTS1(nsScreenQt, nsIScreen)
-#endif
 
 NS_IMETHODIMP
 nsScreenQt::GetRect(PRInt32 *outLeft,PRInt32 *outTop,
@@ -134,27 +115,3 @@ nsScreenQt::GetColorDepth(PRInt32 *aColorDepth)
     // ###############
     return GetPixelDepth(aColorDepth);
 }
-
-#ifdef MOZ_ENABLE_QMSYSTEM2
-void
-nsScreenQt::ApplyMinimumBrightness(PRUint32 aType)
-{
-    // resets all we did before,
-    // 1) there is no interface to get default values
-    // 2) user might have changed system settings while fennec is running
-    //    there is no notification about that.
-    delete mDisplayState;
-    mDisplayState = nsnull;
-
-    if( aType == BRIGHTNESS_FULL) {
-        mDisplayState = new MeeGo::QmDisplayState();
-
-        // no way to keep display from blanking than setting a huge timeout
-        // parameter is seconds. setting timeout to huge time this should work for 99.9% of our usecases
-        mDisplayState->setDisplayBlankTimeout( DISPLAY_BLANK_TIMEOUT /*in seconds*/ );
-        mDisplayState->setDisplayDimTimeout( DISPLAY_DIM_TIMEOUT /*in seconds*/ );
-        mDisplayState->setDisplayBrightnessValue( mDisplayState->getMaxDisplayBrightnessValue() );
-        mDisplayState->set(MeeGo::QmDisplayState::On);
-     }
-}
-#endif

@@ -180,11 +180,6 @@ public:
 
   NS_DECL_QUERYFRAME
 
-  // Temp reference to scriptrunner
-  // We could make these auto-Revoking via the "delete" entry for safety
-  NS_DECLARE_FRAME_PROPERTY(TextControlInitializer, nsnull)
-
-
 public: //for methods who access nsTextControlFrame directly
   void FireOnInput(PRBool aTrusted);
   void SetValueChanged(PRBool aValueChanged);
@@ -291,33 +286,23 @@ protected:
   class EditorInitializer : public nsRunnable {
   public:
     EditorInitializer(nsTextControlFrame* aFrame) :
+      mWeakFrame(aFrame),
       mFrame(aFrame) {}
 
     NS_IMETHOD Run() {
-      if (mFrame) {
-        // need to block script to avoid bug 669767
-        nsAutoScriptBlocker scriptBlocker;
-
+      if (mWeakFrame) {
         nsCOMPtr<nsIPresShell> shell =
-          mFrame->PresContext()->GetPresShell();
+          mWeakFrame.GetFrame()->PresContext()->GetPresShell();
         PRBool observes = shell->ObservesNativeAnonMutationsForPrint();
         shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
-        // This can cause the frame to be destroyed (and call Revoke()
         mFrame->EnsureEditorInitialized();
         shell->ObserveNativeAnonMutationsForPrint(observes);
-
-        NS_ASSERTION(mFrame,"Frame destroyed even though we had a scriptblocker");
-        mFrame->FinishedInitializer();
       }
       return NS_OK;
     }
 
-    // avoids use of nsWeakFrame
-    void Revoke() {
-      mFrame = nsnull;
-    }
-
   private:
+    nsWeakFrame mWeakFrame;
     nsTextControlFrame* mFrame;
   };
 
@@ -402,10 +387,6 @@ private:
    * Return the root DOM element, and implicitly initialize the editor if needed.
    */
   nsresult GetRootNodeAndInitializeEditor(nsIDOMElement **aRootElement);
-
-  void FinishedInitializer() {
-    Properties().Delete(TextControlInitializer());
-  }
 
 private:
   // these packed bools could instead use the high order bits on mState, saving 4 bytes 

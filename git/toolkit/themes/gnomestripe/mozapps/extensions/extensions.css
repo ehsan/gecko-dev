@@ -35,7 +35,25 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-@import url("chrome://global/skin/inContentUI.css");
+#addons-page {
+  -moz-appearance: none;
+  padding: 18px;
+  background-color: Window;  
+  background-image: -moz-linear-gradient(top, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 160px),
+                    -moz-linear-gradient(-moz-dialog, Window 160px);
+  color: WindowText;
+}
+
+#view-port-container {
+  /* Needed to allow the radius to clip the inner content, see bug 595656 */
+  /* Disabled because of bug 623615
+  overflow: hidden;
+  */
+  background-color: -moz-Field;
+  color: -moz-FieldText;
+  border: 1px solid ThreeDShadow;
+  border-radius: 5px;
+}
 
 
 /*** global warnings ***/
@@ -238,19 +256,19 @@
 #category-discover > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-discover.png");
 }
-#category-locale > .category-icon {
+#category-languages > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-languages.png");
 }
-#category-searchengine > .category-icon {
+#category-searchengines > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-searchengines.png");
 }
-#category-extension > .category-icon {
+#category-extensions > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-extensions.png");
 }
-#category-theme > .category-icon {
+#category-themes > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-themes.png");
 }
-#category-plugin > .category-icon {
+#category-plugins > .category-icon {
   list-style-image: url("chrome://mozapps/skin/extensions/category-plugins.png");
 }
 #category-availableUpdates > .category-icon {
@@ -699,22 +717,19 @@
   margin-bottom: 2em;
 }
 
-#detail-grid > columns > column:first-child {
-  max-width: 25em;
-}
-
 .detail-row[first-row="true"],
-.detail-row-complex[first-row="true"],
-setting[first-row="true"] {
+.detail-row-complex[first-row="true"] {
   border-top: none;
 }
 
 .detail-row,
-.detail-row-complex,
-setting {
+.detail-row-complex {
   border-top: 1px solid ThreeDShadow;
   -moz-box-align: center;
-  min-height: 33px;
+}
+
+.detail-row-value {
+  -moz-margin-start: 0;
 }
 
 #detail-controls {
@@ -726,30 +741,6 @@ setting {
                                          rgba(135, 135, 135, 0));
 }
 
-setting[first-row="true"] {
-  margin-top: 2em;
-}
-
-.preferences-description {
-  font-size: 90.9%;
-  color: graytext;
-  margin-top: -2px;
-  -moz-margin-start: 2em;
-}
-
-setting[type="string"] > .setting-input > textbox {
-  -moz-box-flex: 1;
-}
-
-menulist { /* Fixes some styling inconsistencies */
-  font-size: 100%;
-  margin: 1px 5px 2px 5px;
-}
-
-colorpicker[type="button"] { /* Fixes some styling inconsistencies */
-  height: 29px;
-  margin: 1px 5px 2px 5px;
-}
 
 /*** creator ***/
 
@@ -767,6 +758,7 @@ colorpicker[type="button"] { /* Fixes some styling inconsistencies */
 /*** rating ***/
 
 .meta-rating {
+  -moz-margin-start: 0;
   -moz-margin-end: 0;
   vertical-align: text-top;
 }

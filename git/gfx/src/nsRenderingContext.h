@@ -132,8 +132,10 @@ public:
     nscoord GetWidth(const char* aString, PRUint32 aLength);
     nscoord GetWidth(const PRUnichar *aString, PRUint32 aLength);
 
+#ifdef MOZ_MATHML
     nsBoundingMetrics GetBoundingMetrics(const PRUnichar *aString,
                                          PRUint32 aLength);
+#endif
 
     void DrawString(const nsString& aString, nscoord aX, nscoord aY);
     void DrawString(const char *aString, PRUint32 aLength,

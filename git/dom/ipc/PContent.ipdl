@@ -123,7 +123,7 @@ child:
     // nsIPermissionManager messages
     AddPermission(Permission permission);
 
-    DeviceMotionChanged(long type, double x, double y, double z);
+    AccelerationChanged(double x, double y, double z);
 
     ScreenSizeChanged(gfxIntSize size);
 
@@ -144,7 +144,7 @@ parent:
     async SetURITitle(URI uri, nsString title);
     
     // filepicker remoting
-    sync ShowFilePicker(PRInt16 mode, PRInt16 selectedType, PRBool addToRecentDocs,
+    sync ShowFilePicker(PRInt16 mode, PRInt16 selectedType, 
                         nsString title, nsString defaultFile, nsString defaultExtension,
                         nsString[] filters, nsString[] filterNames)
         returns (nsString[] files, PRInt16 retValue, nsresult result);
@@ -172,8 +172,8 @@ parent:
     
     AddGeolocationListener();
     RemoveGeolocationListener();
-    AddDeviceMotionListener();
-    RemoveDeviceMotionListener();
+    AddAccelerometerListener();
+    RemoveAccelerometerListener();
 
     ConsoleMessage(nsString message);
     ScriptError(nsString message, nsString sourceName, nsString sourceLine,
@@ -196,9 +196,6 @@ parent:
 
     sync GetSystemColors(PRUint32 colorsCount)
         returns (PRUint32[] colors);
-
-    sync GetIconForExtension(nsCString aFileExt, PRUint32 aIconSize)
-        returns (PRUint8[] bits);
 
 both:
      AsyncMessage(nsString aMessage, nsString aJSON);

@@ -199,8 +199,6 @@ GLXLibrary::EnsureInitialized()
         // Not possible to query for extensions.
         return PR_FALSE;
 
-    extensionsStr = xQueryExtensionsString(display, screen);
-
     LibrarySymbolLoader::SymLoadStruct *sym13;
     if (!GLXVersionCheck(1, 3)) {
         // Even if we don't have 1.3, we might have equivalent extensions
@@ -234,12 +232,9 @@ GLXLibrary::EnsureInitialized()
     }
 
     if (HasExtension(extensionsStr, "GLX_EXT_texture_from_pixmap") &&
-        LibrarySymbolLoader::LoadSymbols(mOGLLibrary, symbols_texturefrompixmap, 
-                                         (LibrarySymbolLoader::PlatformLookupFunction)xGetProcAddress))
+        LibrarySymbolLoader::LoadSymbols(mOGLLibrary, symbols_texturefrompixmap))
     {
         mHasTextureFromPixmap = PR_TRUE;
-    } else {
-        NS_WARNING("Texture from pixmap disabled");
     }
 
     gIsATI = serverVendor && DoesVendorStringMatch(serverVendor, "ATI");
@@ -252,24 +247,14 @@ GLXLibrary::EnsureInitialized()
     return PR_TRUE;
 }
 
-PRBool
-GLXLibrary::SupportsTextureFromPixmap(gfxASurface* aSurface)
-{
-    if (!EnsureInitialized()) {
-        return PR_FALSE;
-    }
-    
-    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mHasTextureFromPixmap) {
-        return PR_FALSE;
-    }
-
-    return PR_TRUE;
-}
-
 GLXPixmap 
 GLXLibrary::CreatePixmap(gfxASurface* aSurface)
 {
-    if (!SupportsTextureFromPixmap(aSurface)) {
+    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mHasTextureFromPixmap) {
+        return 0;
+    }
+
+    if (!EnsureInitialized()) {
         return 0;
     }
 
@@ -416,14 +401,6 @@ TRY_AGAIN_NO_SHARING:
     {
         MarkDestroyed();
 
-        // see bug 659842 comment 76
-#ifdef DEBUG
-        bool success =
-#endif
-        sGLXLibrary.xMakeCurrent(mDisplay, None, nsnull);
-        NS_ABORT_IF_FALSE(success,
-            "glXMakeCurrent failed to release GL context before we call glXDestroyContext!");
-
         sGLXLibrary.xDestroyContext(mDisplay, mContext);
 
         if (mDeleteDrawable) {
@@ -565,12 +542,11 @@ public:
         mInUpdate = PR_FALSE;
     }
 
-
-    virtual bool DirectUpdate(gfxASurface* aSurface, const nsIntRegion& aRegion, const nsIntPoint& aFrom)
+    virtual bool DirectUpdate(gfxASurface* aSurface, const nsIntRegion& aRegion)
     {
         nsRefPtr<gfxContext> ctx = new gfxContext(mUpdateSurface);
         gfxUtils::ClipToRegion(ctx, aRegion);
-        ctx->SetSource(aSurface, aFrom);
+        ctx->SetSource(aSurface);
         ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
         ctx->Paint();
         return true;
@@ -579,7 +555,7 @@ public:
     virtual void BindTexture(GLenum aTextureUnit)
     {
         mGLContext->fActiveTexture(aTextureUnit);
-        mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+        mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, Texture());
         sGLXLibrary.BindTexImage(mPixmap);
         mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
     }
@@ -597,10 +573,6 @@ public:
 
     virtual PRBool InUpdate() const { return mInUpdate; }
 
-    virtual GLuint GetTextureID() {
-        return mTexture;
-    };
-
 private:
    TextureImageGLX(GLuint aTexture,
                    const nsIntSize& aSize,
@@ -609,12 +581,11 @@ private:
                    GLContext* aContext,
                    gfxASurface* aSurface,
                    GLXPixmap aPixmap)
-        : TextureImage(aSize, aWrapMode, aContentType)
+        : TextureImage(aTexture, aSize, aWrapMode, aContentType)
         , mGLContext(aContext)
         , mUpdateSurface(aSurface)
         , mPixmap(aPixmap)
         , mInUpdate(PR_FALSE)
-        , mTexture(aTexture)
     {
         if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
             mShaderType = gl::RGBALayerProgramType;
@@ -627,7 +598,6 @@ private:
     nsRefPtr<gfxASurface> mUpdateSurface;
     GLXPixmap mPixmap;
     PRPackedBool mInUpdate;
-    GLuint mTexture;
 };
 
 already_AddRefed<TextureImage>

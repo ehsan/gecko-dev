@@ -67,9 +67,10 @@ nsUniversalDetector::nsUniversalDetector(PRUint32 aLanguageFilter)
 nsUniversalDetector::~nsUniversalDetector() 
 {
   for (PRInt32 i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
-    delete mCharSetProbers[i];
-
-  delete mEscCharSetProber;
+    if (mCharSetProbers[i])      
+      delete mCharSetProbers[i];
+  if (mEscCharSetProber)
+    delete mEscCharSetProber;
 }
 
 void 

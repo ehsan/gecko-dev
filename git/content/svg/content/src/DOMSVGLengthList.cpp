@@ -119,7 +119,7 @@ DOMSVGLengthList::InternalListLengthWillChange(PRUint32 aNewLength)
   }
 
   nsRefPtr<DOMSVGLengthList> kungFuDeathGrip;
-  if (aNewLength < oldLength) {
+  if (oldLength && !aNewLength) {
     // RemovingFromList() might clear last reference to |this|.
     // Retain a temporary reference to keep from dying before returning.
     kungFuDeathGrip = this;

@@ -230,31 +230,29 @@ public:
    */
   nsresult SetSize(PRInt32 aWidth, PRInt32 aHeight);
 
+  nsresult EnsureCleanFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
+                            PRInt32 aWidth, PRInt32 aHeight,
+                            gfxASurface::gfxImageFormat aFormat,
+                            PRUint8** imageData,
+                            PRUint32* imageLength);
 
   /**
-   * Ensures that a given frame number exists with the given parameters, and
-   * returns pointers to the data storage for that frame.
-   * It is not possible to create sparse frame arrays; you can only append
-   * frames to the current frame array.
+   * Adds to the end of the list of frames.
    */
-  nsresult EnsureFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
-                       PRInt32 aWidth, PRInt32 aHeight,
-                       gfxASurface::gfxImageFormat aFormat,
-                       PRUint8 aPaletteDepth,
-                       PRUint8** imageData,
-                       PRUint32* imageLength,
-                       PRUint32** paletteData,
-                       PRUint32* paletteLength);
-
-  /**
-   * A shorthand for EnsureFrame, above, with aPaletteDepth = 0 and paletteData
-   * and paletteLength set to null.
-   */
-  nsresult EnsureFrame(PRUint32 aFramenum, PRInt32 aX, PRInt32 aY,
+  nsresult AppendFrame(PRInt32 aX, PRInt32 aY,
                        PRInt32 aWidth, PRInt32 aHeight,
                        gfxASurface::gfxImageFormat aFormat,
                        PRUint8** imageData,
                        PRUint32* imageLength);
+
+  nsresult AppendPalettedFrame(PRInt32 aX, PRInt32 aY,
+                               PRInt32 aWidth, PRInt32 aHeight,
+                               gfxASurface::gfxImageFormat aFormat,
+                               PRUint8 aPaletteDepth,
+                               PRUint8**  imageData,
+                               PRUint32*  imageLength,
+                               PRUint32** paletteData,
+                               PRUint32*  paletteLength);
 
   void FrameUpdated(PRUint32 aFrameNum, nsIntRect& aUpdatedRect);
 
@@ -278,10 +276,10 @@ public:
   nsresult AddSourceData(const char *aBuffer, PRUint32 aCount);
 
   /* Called after the all the source data has been added with addSourceData. */
-  nsresult SourceDataComplete();
+  virtual nsresult SourceDataComplete();
 
   /* Called for multipart images when there's a new source image to add. */
-  nsresult NewSourceData();
+  virtual nsresult NewSourceData();
 
   /**
    * A hint of the number of bytes of source data that the image contains. If
@@ -294,7 +292,7 @@ public:
    * Thus, pre-allocation simplifies code and reduces the total number of
    * allocations.
    */
-  nsresult SetSourceSizeHint(PRUint32 sizeHint);
+  virtual nsresult SetSourceSizeHint(PRUint32 sizeHint);
 
   // "Blend" method indicates how the current image is combined with the
   // previous image.
@@ -488,7 +486,7 @@ private: // data
   DiscardTrackerNode         mDiscardTrackerNode;
 
   // Source data members
-  FallibleTArray<char>       mSourceData;
+  nsTArray<char>             mSourceData;
   nsCString                  mSourceDataMimeType;
   nsCString                  mURIString;
 

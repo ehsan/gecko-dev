@@ -22,28 +22,10 @@ var gTests = [];
 var gStart = 0;
 var gLast = 0;
 
-var HTTPObserver = {
-  observeActivity: function(aChannel, aType, aSubtype, aTimestamp, aSizeData,
-                            aStringData) {
-    aChannel.QueryInterface(Ci.nsIChannel);
-
-    dump("*** HTTP Activity 0x" + aType.toString(16) + " 0x" + aSubtype.toString(16) +
-         " " + aChannel.URI.spec + "\n");
-  }
-};
-
 function test() {
   gStart = Date.now();
   requestLongerTimeout(4);
   waitForExplicitFinish();
-
-  let observerService = Cc["@mozilla.org/network/http-activity-distributor;1"].
-                        getService(Ci.nsIHttpActivityDistributor);
-  observerService.addObserver(HTTPObserver);
-
-  registerCleanupFunction(function() {
-    observerService.removeObserver(HTTPObserver);
-  });
 
   run_next_test();
 }
@@ -67,7 +49,7 @@ function add_update_test(mainURL, redirectURL, expectedStatus) {
 }
 
 function run_update_tests(callback) {
-  function run_next_update_test() {
+  function run_next_update_test(pos) {
     if (gTests.length == 0) {
       callback();
       return;
@@ -89,7 +71,7 @@ function run_update_tests(callback) {
     AddonUpdateChecker.checkForUpdates("addon1@tests.mozilla.org", "extension",
                                        null, url, {
       onUpdateCheckComplete: function(updates) {
-        is(updates.length, 1, "Should be the right number of results");
+        is(updates.length, 1);
         is(SUCCESS, expectedStatus, message);
         info("Update test ran in " + (Date.now() - gLast) + "ms");
         run_next_update_test();

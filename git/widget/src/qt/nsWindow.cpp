@@ -102,8 +102,9 @@ using namespace QtMobility;
 #include "nsWidgetsCID.h"
 #include "nsQtKeyUtils.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
 
@@ -309,8 +310,8 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nsnull)
             return true;
     }
 
-    gBufferMaxSize.width = NS_MAX(gBufferMaxSize.width, size.width);
-    gBufferMaxSize.height = NS_MAX(gBufferMaxSize.height, size.height);
+    gBufferMaxSize.width = PR_MAX(gBufferMaxSize.width, size.width);
+    gBufferMaxSize.height = PR_MAX(gBufferMaxSize.height, size.height);
 
     // Check if system depth has related gfxImage format
     gfxASurface::gfxImageFormat format =
@@ -464,8 +465,14 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     if (parent) {
         parent->RemoveChild(this);
     }
-    ReparentNativeWidget(aNewParent);
-    aNewParent->AddChild(this);
+    if (aNewParent) {
+        ReparentNativeWidget(aNewParent);
+        aNewParent->AddChild(this);
+        return NS_OK;
+    }
+    if (mWidget) {
+        mWidget->setParentItem(0);
+    }
     return NS_OK;
 }
 
@@ -1478,26 +1485,14 @@ is_latin_shortcut_key(quint32 aKeyval)
             (Qt::Key_A <= aKeyval && aKeyval <= Qt::Key_Z));
 }
 
-nsEventStatus
+PRBool
 nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 {
     nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, aCommand, this);
 
-    nsEventStatus status;
-    DispatchEvent(&event, status);
+    DispatchEvent(&event);
 
-    return status;
-}
-
-nsEventStatus
-nsWindow::DispatchContentCommandEvent(PRInt32 aMsg)
-{
-    nsContentCommandEvent event(PR_TRUE, aMsg, this);
-
-    nsEventStatus status;
-    DispatchEvent(&event, status);
-
-    return status;
+    return PR_TRUE;
 }
 
 nsEventStatus
@@ -1633,46 +1628,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
             nsEventStatus_eConsumeNoDefault :
             nsEventStatus_eIgnore;
     }
-
-    // Look for specialized app-command keys
-    switch (aEvent->key()) {
-        case Qt::Key_Back:
-            return DispatchCommandEvent(nsWidgetAtoms::Back);
-        case Qt::Key_Forward:
-            return DispatchCommandEvent(nsWidgetAtoms::Forward);
-        case Qt::Key_Refresh:
-            return DispatchCommandEvent(nsWidgetAtoms::Reload);
-        case Qt::Key_Stop:
-            return DispatchCommandEvent(nsWidgetAtoms::Stop);
-        case Qt::Key_Search:
-            return DispatchCommandEvent(nsWidgetAtoms::Search);
-        case Qt::Key_Favorites:
-            return DispatchCommandEvent(nsWidgetAtoms::Bookmarks);
-        case Qt::Key_HomePage:
-            return DispatchCommandEvent(nsWidgetAtoms::Home);
-        case Qt::Key_Copy:
-        case Qt::Key_F16: // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
-        case Qt::Key_Cut:
-        case Qt::Key_F20:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_CUT);
-        case Qt::Key_Paste:
-        case Qt::Key_F18:
-        case Qt::Key_F9:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_PASTE);
-        case Qt::Key_F14:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
-    }
-
-#ifdef MOZ_X11
-    // Qt::Key_Redo and Qt::Key_Undo are not available yet.
-    if (aEvent->nativeVirtualKey() == 0xff66) {
-        return DispatchContentCommandEvent(NS_CONTENT_COMMAND_REDO);
-    }
-    if (aEvent->nativeVirtualKey() == 0xff65) {
-        return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
-    }
-#endif // MOZ_X11
 
     nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
     InitKeyEvent(event, aEvent);
@@ -2548,9 +2503,15 @@ nsresult
 initialize_prefs(void)
 {
     // check to see if we should set our raise pref
-    gDisableNativeTheme =
-        Preferences::GetBool("mozilla.widget.disable-native-theme",
-                             gDisableNativeTheme);
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return NS_OK;
+
+    PRBool val = PR_TRUE;
+    nsresult rv;
+    rv = prefs->GetBoolPref("mozilla.widget.disable-native-theme", &val);
+    if (NS_SUCCEEDED(rv))
+        gDisableNativeTheme = val;
 
     return NS_OK;
 }
@@ -2648,12 +2609,7 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     // create a QGraphicsView if this is a new toplevel window
 
     if (mIsTopLevel) {
-        QGraphicsView* newView = nsnull;
-#if defined MOZ_ENABLE_MEEGOTOUCH
-        newView = new MozMGraphicsView(widget, parentWidget);
-#else
-        newView = new MozQGraphicsView(widget, parentWidget);
-#endif
+        QGraphicsView* newView = new MozQGraphicsView(widget, parentWidget);
 
         if (!newView) {
             delete widget;
@@ -3097,8 +3053,11 @@ nsWindow::SetInputMode(const IMEContext& aContext)
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
             {
-                PRInt32 openDelay =
-                    Preferences::GetInt("ui.vkb.open.delay", 200);
+                PRInt32 openDelay = 200;
+                nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+                if (prefs)
+                  prefs->GetIntPref("ui.vkb.open.delay", &openDelay);
+
                 mWidget->requestVKB(openDelay);
             }
             break;

@@ -92,25 +92,16 @@
 #define JSDOUBLE_SIGNBIT (((uint64) 1) << 63)
 #define JSDOUBLE_EXPMASK (((uint64) 0x7ff) << 52)
 #define JSDOUBLE_MANTMASK ((((uint64) 1) << 52) - 1)
-#define JSDOUBLE_HI32_SIGNBIT   0x80000000
 
 static JS_ALWAYS_INLINE JSBool
 JSDOUBLE_IS_NEGZERO(jsdouble d)
 {
-    if (d != 0)
-        return false;
     union {
-        struct {
-#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
-            uint32 lo, hi;
-#else
-            uint32 hi, lo;
-#endif
-        } s;
         jsdouble d;
+        uint64 bits;
     } x;
     x.d = d;
-    return (x.s.hi & JSDOUBLE_HI32_SIGNBIT) != 0;
+    return x.bits == JSDOUBLE_SIGNBIT;
 }
 
 static inline bool

@@ -43,8 +43,6 @@ function test() {
   Services.prefs.setBoolPref(backgroundPref, true);
   
   function mainPart() {
-    newTab.linkedBrowser.removeEventListener("load", mainPart, true);
-
     gBrowser.pinTab(newTab);
     gBrowser.selectedTab = newTab;
     

@@ -780,11 +780,11 @@ nsresult
 GetHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
-  bool result = IDBObjectStore::DeserializeValue(aCx, mCloneBuffer, aVal);
+  nsresult rv = ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
 
   mCloneBuffer.clear(aCx);
 
-  NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
 

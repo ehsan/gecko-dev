@@ -64,7 +64,6 @@ class nsIEditor;
 struct nsRect;
 struct nsSize;
 class nsHTMLFormElement;
-class nsIDOMDOMStringMap;
 
 typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
@@ -116,8 +115,8 @@ public:
   nsresult SetTitle(const nsAString& aTitle);
   nsresult GetLang(nsAString& aLang);
   nsresult SetLang(const nsAString& aLang);
-  NS_IMETHOD GetDir(nsAString& aDir);
-  NS_IMETHOD SetDir(const nsAString& aDir);
+  nsresult GetDir(nsAString& aDir);
+  nsresult SetDir(const nsAString& aDir);
   nsresult GetClassName(nsAString& aClassName);
   nsresult SetClassName(const nsAString& aClassName);
 
@@ -151,9 +150,6 @@ public:
   nsresult GetContentEditable(nsAString& aContentEditable);
   nsresult GetIsContentEditable(PRBool* aContentEditable);
   nsresult SetContentEditable(const nsAString &aContentEditable);
-  nsresult GetDataset(nsIDOMDOMStringMap** aDataset);
-  // Callback for destructor of of dataset to ensure to null out weak pointer.
-  nsresult ClearDataset();
 
   // Implementation for nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -196,16 +192,15 @@ public:
   nsresult PostHandleEventForAnchors(nsEventChainPostVisitor& aVisitor);
   PRBool IsHTMLLink(nsIURI** aURI) const;
 
+  // As above, but makes sure to return a URI object that we can mutate with
+  // impunity without changing our current URI.  That is, if the URI is cached
+  // it clones it and returns the clone.
+  void GetHrefURIToMutate(nsIURI** aURI);
+
   // HTML element methods
   void Compact() { mAttrsAndChildren.Compact(); }
 
-  virtual void UpdateEditableState(PRBool aNotify);
-
-  // Helper for setting our editable flag and notifying
-  void DoSetEditableFlag(PRBool aEditable, bool aNotify) {
-    SetEditableFlag(aEditable);
-    UpdateState(aNotify);
-  }
+  virtual void UpdateEditableState();
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -580,7 +575,7 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
 
   virtual nsresult
-    GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+    GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
                                    nsISupports** aTarget,
                                    PRBool* aDefer);
 
@@ -608,6 +603,19 @@ protected:
    * @param aResult  result value [out]
    */
   NS_HIDDEN_(nsresult) SetAttrHelper(nsIAtom* aAttr, const nsAString& aValue);
+
+  /**
+   * Helper method for NS_IMPL_STRING_ATTR_DEFAULT_VALUE macro.
+   * Gets the value of an attribute, returns specified default value if the
+   * attribute isn't set. Only works for attributes in null namespace.
+   *
+   * @param aAttr    name of attribute.
+   * @param aDefault default-value to return if attribute isn't set.
+   * @param aResult  result value [out]
+   */
+  NS_HIDDEN_(nsresult) GetStringAttrWithDefault(nsIAtom* aAttr,
+                                                const char* aDefault,
+                                                nsAString& aResult);
 
   /**
    * Helper method for NS_IMPL_BOOL_ATTR macro.
@@ -700,9 +708,13 @@ protected:
    * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
    * nsIURI in the out param.
    *
+   * @param aCloneIfCached if true, clone the URI before returning if
+   * it's cached.
+   *
    * @return PR_TRUE if we had the attr, PR_FALSE otherwise.
    */
-  NS_HIDDEN_(PRBool) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aURI) const;
+  NS_HIDDEN_(PRBool) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
+                                PRBool aCloneIfCached, nsIURI** aURI) const;
 
   /**
    * This method works like GetURIAttr, except that it supports multiple
@@ -863,18 +875,22 @@ public:
   }
 
   /**
-   * This callback is called by a fieldest on all its elements whenever its
-   * disabled attribute is changed so the element knows its disabled state
+   * This callback is called by a fieldest on all it's elements whenever it's
+   * disabled attribute is changed so the element knows it's disabled state
    * might have changed.
    *
-   * @note Classes redefining this method should not do any content
-   * state updates themselves but should just make sure to call into
-   * nsGenericHTMLFormElement::FieldSetDisabledChanged.
+   * @param aStates States for which a change should be notified.
+   * @note Classes redefining this method should not call ContentStatesChanged
+   * but they should pass aStates instead.
    */
-  virtual void FieldSetDisabledChanged(PRBool aNotify);
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
 
   void FieldSetFirstLegendChanged(PRBool aNotify) {
-    UpdateFieldSet(aNotify);
+    UpdateFieldSet();
+
+    // The disabled state may have change because the element might not be in
+    // the first legend anymore.
+    FieldSetDisabledChanged(nsEventStates(), aNotify);
   }
 
   /**
@@ -905,7 +921,7 @@ protected:
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
 
-  void UpdateEditableFormControlState(PRBool aNotify);
+  void UpdateEditableFormControlState();
 
   /**
    * This method will update the form owner, using @form or looking to a parent.
@@ -923,7 +939,7 @@ protected:
   /**
    * This method will update mFieldset and set it to the first fieldset parent.
    */
-  void UpdateFieldSet(PRBool aNotify);
+  void UpdateFieldSet();
 
   /**
    * Add a form id observer which will observe when the element with the id in
@@ -1069,6 +1085,23 @@ protected:
   _class::Set##_method(const nsAString& aValue)                      \
   {                                                                  \
     return SetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+  }
+
+/**
+ * A macro to implement the getter and setter for a given string
+ * valued content property with a default value.
+ * The method uses the generic GetAttr and SetAttr methods.
+ */
+#define NS_IMPL_STRING_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+  NS_IMETHODIMP                                                      \
+  _class::Get##_method(nsAString& aValue)                            \
+  {                                                                  \
+    return GetStringAttrWithDefault(nsGkAtoms::_atom, _default, aValue);\
+  }                                                                  \
+  NS_IMETHODIMP                                                      \
+  _class::Set##_method(const nsAString& aValue)                      \
+  {                                                                  \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                \
   }
 
 /**

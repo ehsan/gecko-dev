@@ -73,6 +73,9 @@ pref("toolkit.zoomManager.zoomValues", ".2,.3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
 
+/* use custom widget for html:select */
+pref("ui.use_native_popup_windows", true);
+
 /* allow scrollbars to float above chrome ui */
 pref("ui.scrollbarsCanOverlapContent", 1);
 
@@ -137,13 +140,12 @@ pref("browser.sessionstore.resume_session_once", false);
 pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_from_crash_timeout", 60); // minutes
 pref("browser.sessionstore.interval", 10000); // milliseconds
-pref("browser.sessionstore.max_tabs_undo", 1);
+pref("browser.sessionstore.max_tabs_undo", 5);
 
 /* these should help performance */
 pref("mozilla.widget.force-24bpp", true);
 pref("mozilla.widget.use-buffer-pixmap", true);
 pref("mozilla.widget.disable-native-theme", true);
-pref("layout.reflow.synthMouseMove", false);
 
 /* download manager (don't show the window or alert) */
 pref("browser.download.useDownloadDir", true);
@@ -170,8 +172,7 @@ pref("signon.expireMasterPassword", false);
 pref("signon.SignonFileName", "signons.txt");
 
 /* form helper */
-// 0 = disabled, 1 = enabled, 2 = dynamic depending on screen size
-pref("formhelper.mode", 2);
+pref("formhelper.enabled", true);
 pref("formhelper.autozoom", true);
 pref("formhelper.autozoom.caret", true);
 pref("formhelper.restore", false);
@@ -211,9 +212,6 @@ pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCAL
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%");
 pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/mobile/");
 pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/guid:%IDS%?src=mobile&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
-
-/* preference for the locale picker */
-pref("extensions.getLocales.get.url", "");
 
 /* blocklist preferences */
 pref("extensions.blocklist.enabled", true);
@@ -382,11 +380,8 @@ pref("content.sink.pending_event_mode", 0);
 pref("content.sink.perf_deflect_count", 1000000);
 pref("content.sink.perf_parse_time", 50000000);
 
+pref("javascript.options.mem.gc_frequency", 300);
 pref("javascript.options.mem.high_water_mark", 32);
-
-// Disable the JS engine's gc on memory pressure, since we do one in the mobile
-// browser (bug 669346).
-pref("javascript.options.gc_on_memory_pressure", false);
 
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
 pref("dom.max_script_run_time", 20);
@@ -429,7 +424,7 @@ pref("dom.ipc.plugins.enabled", true);
 
 // process priority
 // higher values give content process less CPU time
-#if MOZ_PLATFORM_MAEMO == 5
+#if MOZ_PLATFORM_MAEMO
 pref("dom.ipc.content.nice", 10);
 #else
 pref("dom.ipc.content.nice", 1);
@@ -504,6 +499,7 @@ pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
 pref("app.update.mode", 1);
 pref("app.update.silent", false);
 pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
+pref("app.update.nagTimer.restart", 86400);
 pref("app.update.promptWaitTime", 43200);
 pref("app.update.idletime", 60);
 pref("app.update.showInstalledUI", false);
@@ -587,7 +583,7 @@ pref("widget.ime.android.fullscreen_threshold", 250); // in hundreths of inches
 // optimize images memory usage
 pref("image.mem.decodeondraw", true);
 pref("content.image.allow_locking", false);
-pref("image.mem.min_discard_timeout_ms", 10000);
+pref("image.mem.min_discard_timeout_ms", 20000);
 
 // enable touch events interfaces
 pref("dom.w3c_touch_events.enabled", true);
@@ -645,9 +641,3 @@ pref("urlclassifier.updatecachemax", 4194304);
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
 #endif
 
-// True if this is the first time we are showing about:firstrun
-pref("browser.firstrun.show.uidiscovery", true);
-pref("browser.firstrun.show.localepicker", true);
-
-// initiated by a user
-pref("content.ime.strict_policy", true);

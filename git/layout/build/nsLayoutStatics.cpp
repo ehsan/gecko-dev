@@ -57,6 +57,7 @@
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
+#include "nsGenericElement.h"  // for nsDOMEventRTTearoff
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
@@ -79,6 +80,8 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCrossSiteListenerProxy.h"
+#include "nsWebSocket.h"
+#include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
 #include "nsCrossSiteListenerProxy.h"
@@ -86,9 +89,9 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsHTMLInputElement.h"
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
-#include "nsMathMLAtoms.h"
-#include "nsMathMLOperators.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -98,6 +101,11 @@
 #include "nsXULTooltipListener.h"
 
 #include "inDOMView.h"
+#endif
+
+#ifdef MOZ_MATHML
+#include "nsMathMLAtoms.h"
+#include "nsMathMLOperators.h"
 #endif
 
 #include "nsHTMLEditor.h"
@@ -119,9 +127,9 @@
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"
 #include "nsRefreshDriver.h"
+#include "CanvasImageCache.h"
 
 #include "nsHyphenationManager.h"
-#include "nsDOMMemoryReporter.h"
 
 extern void NS_ShutdownChainItemPool();
 
@@ -175,11 +183,23 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCellMap::Init();
+  rv = nsCellMap::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCellMap");
+    return rv;
+  }
 
-  nsCSSRendering::Init();
+  rv = nsCSSRendering::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRendering");
+    return rv;
+  }
 
-  nsTextFrameTextRunCache::Init();
+  rv = nsTextFrameTextRunCache::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize textframe textrun cache");
+    return rv;
+  }
 
   rv = nsHTMLDNSPrefetch::Initialize();
   if (NS_FAILED(rv)) {
@@ -198,7 +218,9 @@ nsLayoutStatics::Initialize()
 
 #endif
 
+#ifdef MOZ_MATHML
   nsMathMLOperators::AddRefTable();
+#endif
 
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
@@ -257,16 +279,13 @@ nsLayoutStatics::Initialize()
 
   nsCORSListenerProxy::Startup();
 
-  nsFrameList::Init();
+  rv = nsFrameList::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsFrameList");
+    return rv;
+  }
 
   NS_SealStaticAtomTable();
-
-// TODO: DOM_MEMORY_REPORTER should not be defined in a regular build for the
-// moment. This protection will be removed when bug 663271 will be close enough
-// to a shippable state.
-#ifdef DOM_MEMORY_REPORTER
-  nsDOMMemoryReporter::Init();
-#endif
 
   return NS_OK;
 }
@@ -274,9 +293,7 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-  // Don't need to shutdown nsDOMMemoryReporter, that will be done by the memory
-  // reporter manager.
-
+  CanvasImageCache::Shutdown();
   nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
@@ -285,6 +302,7 @@ nsLayoutStatics::Shutdown()
   nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
   nsDOMAttribute::Shutdown();
+  nsDOMEventRTTearoff::Shutdown();
   nsEventListenerManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
   nsCSSParser::Shutdown();
@@ -313,13 +331,17 @@ nsLayoutStatics::Shutdown()
   nsSprocketLayout::Shutdown();
 #endif
 
+#ifdef MOZ_MATHML
   nsMathMLOperators::ReleaseTable();
+#endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
   nsFloatManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
   nsCSSScanner::ReleaseGlobals();
+
+  NS_IF_RELEASE(nsRuleNode::gLangService);
 
   nsTextFragment::Shutdown();
 
@@ -339,11 +361,15 @@ nsLayoutStatics::Shutdown()
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
 
+  nsDOMThreadService::Shutdown();
+
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();
 #endif
 
   nsCORSListenerProxy::Shutdown();
+  
+  nsWebSocket::ReleaseGlobals();
   
   nsIPresShell::ReleaseStatics();
 

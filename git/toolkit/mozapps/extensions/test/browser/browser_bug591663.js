@@ -33,12 +33,7 @@ let gExtensionProperties = {
 function test() {
   waitForExplicitFinish();
 
-  gProvider = new MockProvider(true, [{
-    id: "mock-addon",
-    name: "Mock Add-ons",
-    uiPriority: 4500,
-    flags: AddonManager.TYPE_UI_VIEW_LIST
-  }]);
+  gProvider = new MockProvider();
 
   open_manager(VIEW_ID, function(aWindow) {
     gManagerWindow = aWindow;

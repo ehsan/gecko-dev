@@ -268,7 +268,17 @@ function testSortByDir(aOrganizerWin, aPlaceContentTree, aUnsortFirst) {
 function test() {
   waitForExplicitFinish();
 
-  openLibrary(function (win) {
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
+
+  function windowObserver(aSubject, aTopic, aData) {
+    if (aTopic != "domwindowopened")
+      return;
+    ww.unregisterNotification(windowObserver);
+    let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+    win.addEventListener("load", function onLoad(event) {
+      win.removeEventListener("load", onLoad, false);
+      executeSoon(function () {
         let tree = win.document.getElementById("placeContent");
         isnot(tree, null, "sanity check: placeContent tree should exist");
         // Run the tests.
@@ -282,5 +292,14 @@ function test() {
         // Close the window and finish.
         win.close();
         finish();
-  });
+      });
+    }, false);
+  }
+
+  ww.registerNotification(windowObserver);
+  ww.openWindow(null,
+                "chrome://browser/content/places/places.xul",
+                "",
+                "chrome,toolbar=yes,dialog=no,resizable",
+                null);
 }

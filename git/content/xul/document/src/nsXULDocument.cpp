@@ -128,9 +128,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
@@ -280,8 +278,9 @@ nsXULDocument::~nsXULDocument()
 
     delete mTemplateBuilderTable;
 
-    Preferences::UnregisterCallback(nsXULDocument::DirectionChanged,
-                                    "intl.uidirection.", this);
+    nsContentUtils::UnregisterPrefCallback("intl.uidirection.",
+                                           nsXULDocument::DirectionChanged,
+                                           this);
 
     if (--gRefCnt == 0) {
         NS_IF_RELEASE(gRDFService);
@@ -290,11 +289,12 @@ nsXULDocument::~nsXULDocument()
         NS_IF_RELEASE(kNC_attribute);
         NS_IF_RELEASE(kNC_value);
 
-        // Remove the current document here from the table in
+        // Remove the current document here from the FastLoad table in
         // case the document did not make it past StartLayout in
-        // ResumeWalk. 
+        // ResumeWalk. The FastLoad table must be clear of entries so
+        // that the FastLoad file footer can be properly written.
         if (mDocumentURI)
-            nsXULPrototypeCache::GetInstance()->RemoveFromCacheSet(mDocumentURI);
+            nsXULPrototypeCache::GetInstance()->RemoveFromFastLoadSet(mDocumentURI);
     }
 }
 
@@ -391,8 +391,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     delete tmp->mTemplateBuilderTable;
     tmp->mTemplateBuilderTable = nsnull;
-
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCommandDispatcher)
     //XXX We should probably unlink all the objects we traverse.
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -453,7 +451,7 @@ nsXULDocument::SetContentType(const nsAString& aContentType)
 }
 
 // This is called when the master document begins loading, whether it's
-// being cached or not.
+// fastloaded or not.
 nsresult
 nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
                                  nsILoadGroup* aLoadGroup,
@@ -496,9 +494,9 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     // to trigger the fail-safe parse-from-disk solution. Example failure cases
     // (for reference) include:
     //
-    // NS_ERROR_NOT_AVAILABLE: the URI cannot be found in the startup cache,
+    // NS_ERROR_NOT_AVAILABLE: the URI cannot be found in the FastLoad cache,
     //                         parse from disk
-    // other: the startup cache file could not be found, probably
+    // other: the FastLoad cache file, XUL.mfl, could not be found, probably
     //        due to being accessed before a profile has been selected (e.g.
     //        loading chrome for the profile manager itself). This must be
     //        parsed from disk.
@@ -1719,7 +1717,8 @@ nsXULDocument::AddElementToDocumentPost(Element* aElement)
         // Create our XUL key listener and hook it up.
         nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
         if (xblService) {
-            xblService->AttachGlobalKeyHandler(aElement);
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->AttachGlobalKeyHandler(piTarget);
         }
     }
 
@@ -1794,7 +1793,8 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aContent)
     if (aElement->NodeInfo()->Equals(nsGkAtoms::keyset, kNameSpaceID_XUL)) {
         nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
         if (xblService) {
-            xblService->DetachGlobalKeyHandler(aElement);
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->DetachGlobalKeyHandler(piTarget);
         }
     }
 
@@ -1984,8 +1984,9 @@ nsXULDocument::Init()
         }
     }
 
-    Preferences::RegisterCallback(nsXULDocument::DirectionChanged,
-                                  "intl.uidirection.", this);
+    nsContentUtils::RegisterPrefCallback("intl.uidirection.",
+                                         nsXULDocument::DirectionChanged,
+                                         this);
 
 #ifdef PR_LOGGING
     if (! gXULLog)
@@ -3703,8 +3704,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         nsCOMPtr<nsINodeInfo> newNodeInfo;
         newNodeInfo = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
                                                     aPrototype->mNodeInfo->GetPrefixAtom(),
-                                                    aPrototype->mNodeInfo->NamespaceID(),
-                                                    nsIDOMNode::ELEMENT_NODE);
+                                                    aPrototype->mNodeInfo->NamespaceID());
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
         nsCOMPtr<nsIContent> content;
         PRInt32 ns = newNodeInfo->NamespaceID();

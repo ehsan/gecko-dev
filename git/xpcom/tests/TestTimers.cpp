@@ -89,7 +89,9 @@ public:
   }
 
   ~AutoCreateAndDestroyReentrantMonitor() {
-    delete mReentrantMonitor;
+    if (mReentrantMonitor) {
+      delete mReentrantMonitor;
+    }
   }
 
   operator ReentrantMonitor* () {

@@ -61,10 +61,11 @@
 #  include "nsIOS2Locale.h"
 #elif defined(XP_MACOSX)
 #  include <Carbon/Carbon.h>
+#  include "nsIMacLocale.h"
 #elif defined(XP_UNIX)
 #  include <locale.h>
 #  include <stdlib.h>
-#  include "nsPosixLocale.h"
+#  include "nsIPosixLocale.h"
 #endif
 
 //
@@ -157,47 +158,55 @@ nsLocaleService::nsLocaleService(void)
     NS_ENSURE_SUCCESS(rv, );
 #endif
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-    nsRefPtr<nsLocale> resultLocale(new nsLocale());
-    NS_ENSURE_TRUE(resultLocale, );
-
-#ifdef MOZ_WIDGET_QT
-    const char* lang = QLocale::system().name().toAscii();
-#else
-    // Get system configuration
-    const char* lang = getenv("LANG");
-#endif
+    nsCOMPtr<nsIPosixLocale> posixConverter = do_GetService(NS_POSIXLOCALE_CONTRACTID);
 
     nsAutoString xpLocale, platformLocale;
-    nsAutoString category, category_platform;
-    int i;
+    if (posixConverter) {
+        nsAutoString category, category_platform;
+        int i;
 
-    for( i = 0; i < LocaleListLength; i++ ) {
-        nsresult result;
-        // setlocale( , "") evaluates LC_* and LANG
-        char* lc_temp = setlocale(posix_locale_category[i], "");
-        CopyASCIItoUTF16(LocaleList[i], category);
-        category_platform = category;
-        category_platform.AppendLiteral("##PLATFORM");
-        if (lc_temp != nsnull) {
-            result = nsPosixLocale::GetXPLocale(lc_temp, xpLocale);
-            CopyASCIItoUTF16(lc_temp, platformLocale);
-        } else {
-            if ( lang == nsnull ) {
-                platformLocale.AssignLiteral("en_US");
-                result = nsPosixLocale::GetXPLocale("en-US", xpLocale);
+        nsRefPtr<nsLocale> resultLocale(new nsLocale());
+        if ( resultLocale == NULL ) { 
+            return; 
+        }
+
+
+#ifdef MOZ_WIDGET_QT
+        const char* lang = QLocale::system().name().toAscii();
+#else
+        // Get system configuration
+        const char* lang = getenv("LANG");
+#endif
+
+        for( i = 0; i < LocaleListLength; i++ ) {
+            nsresult result;
+            // setlocale( , "") evaluates LC_* and LANG
+            char* lc_temp = setlocale(posix_locale_category[i], "");
+            CopyASCIItoUTF16(LocaleList[i], category);
+            category_platform = category;
+            category_platform.AppendLiteral("##PLATFORM");
+            if (lc_temp != nsnull) {
+                result = posixConverter->GetXPLocale(lc_temp, xpLocale);
+                CopyASCIItoUTF16(lc_temp, platformLocale);
             } else {
-                CopyASCIItoUTF16(lang, platformLocale);
-                result = nsPosixLocale::GetXPLocale(lang, xpLocale);
+                if ( lang == nsnull ) {
+                    platformLocale.AssignLiteral("en_US");
+                    result = posixConverter->GetXPLocale("en-US", xpLocale);
+                }
+                else {
+                    CopyASCIItoUTF16(lang, platformLocale);
+                    result = posixConverter->GetXPLocale(lang, xpLocale);
+                }
             }
+            if (NS_FAILED(result)) {
+                return;
+            }
+            resultLocale->AddCategory(category, xpLocale);
+            resultLocale->AddCategory(category_platform, platformLocale);
         }
-        if (NS_FAILED(result)) {
-            return;
-        }
-        resultLocale->AddCategory(category, xpLocale);
-        resultLocale->AddCategory(category_platform, platformLocale);
-    }
-    mSystemLocale = do_QueryInterface(resultLocale);
-    mApplicationLocale = do_QueryInterface(resultLocale);
+        mSystemLocale = do_QueryInterface(resultLocale);
+        mApplicationLocale = do_QueryInterface(resultLocale);
+    }  // if ( NS_SUCCEEDED )...
        
 #endif // XP_UNIX
 #ifdef XP_OS2

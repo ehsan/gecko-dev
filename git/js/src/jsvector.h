@@ -158,8 +158,7 @@ struct VectorImpl<T, N, AP, true>
     static inline bool growTo(Vector<T,N,AP> &v, size_t newcap) {
         JS_ASSERT(!v.usingInlineStorage());
         size_t bytes = sizeof(T) * newcap;
-        size_t oldBytes = sizeof(T) * v.mCapacity;
-        T *newbuf = reinterpret_cast<T *>(v.realloc_(v.mBegin, oldBytes, bytes));
+        T *newbuf = reinterpret_cast<T *>(v.realloc_(v.mBegin, bytes));
         if (!newbuf)
             return false;
         v.mBegin = newbuf;
@@ -182,7 +181,7 @@ struct VectorImpl<T, N, AP, true>
  * N requirements:
  *  - any value, however, N is clamped to min/max values
  * AllocPolicy:
- *  - see "Allocation policies" in jsalloc.h (default js::TempAllocPolicy)
+ *  - see "Allocation policies" in jstl.h (default ContextAllocPolicy)
  *
  * N.B: Vector is not reentrant: T member functions called during Vector member
  *      functions must not call back into the same object.
@@ -209,30 +208,12 @@ class Vector : private AllocPolicy
 
     /* compute constants */
 
-    /*
-     * Consider element size to be 1 for buffer sizing if there are
-     * 0 inline elements. This allows us to compile when the definition
-     * of the element type is not visible here.
-     *
-     * Explicit specialization is only allowed at namespace scope, so
-     * in order to keep everything here, we use a dummy template
-     * parameter with partial specialization.
-     */
-    template <int M, int Dummy>
-    struct ElemSize {
-        static const size_t result = sizeof(T);
-    };
-    template <int Dummy>
-    struct ElemSize<0, Dummy> {
-        static const size_t result = 1;
-    };
-
     static const size_t sInlineCapacity =
-        tl::Min<N, sMaxInlineBytes / ElemSize<N, 0>::result>::result;
+        tl::Min<N, sMaxInlineBytes / sizeof(T)>::result;
 
     /* Calculate inline buffer size; avoid 0-sized array. */
     static const size_t sInlineBytes =
-        tl::Max<1, sInlineCapacity * ElemSize<N, 0>::result>::result;
+        tl::Max<1, sInlineCapacity * sizeof(T)>::result;
 
     /* member data */
 
@@ -303,10 +284,6 @@ class Vector : private AllocPolicy
     /* accessors */
 
     const AllocPolicy &allocPolicy() const {
-        return *this;
-    }
-
-    AllocPolicy &allocPolicy() {
         return *this;
     }
 
@@ -382,9 +359,6 @@ class Vector : private AllocPolicy
 
     /* Shorthand for shrinkBy(length()). */
     void clear();
-
-    /* Clears and releases any heap-allocated storage. */
-    void clearAndFree();
 
     /* Potentially fallible append operations. */
     bool append(const T &t);
@@ -659,23 +633,6 @@ Vector<T,N,AP>::clear()
     REENTRANCY_GUARD_ET_AL;
     Impl::destroy(beginNoCheck(), endNoCheck());
     mLength = 0;
-}
-
-template <class T, size_t N, class AP>
-inline void
-Vector<T,N,AP>::clearAndFree()
-{
-    clear();
-
-    if (usingInlineStorage())
-        return;
-
-    this->free_(beginNoCheck());
-    mBegin = (T *)storage.addr();
-    mCapacity = sInlineCapacity;
-#ifdef DEBUG
-    mReserved = 0;
-#endif
 }
 
 template <class T, size_t N, class AP>

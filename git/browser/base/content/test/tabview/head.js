@@ -45,19 +45,14 @@ function createGroupItemWithBlankTabs(win, width, height, padding, numNewTabs, a
 
 // ----------
 function closeGroupItem(groupItem, callback) {
-  groupItem.addSubscriber(groupItem, "close", function () {
-    groupItem.removeSubscriber(groupItem, "close");
-    if ("function" == typeof callback)
-      executeSoon(callback);
-  });
-
-  if (groupItem.getChildren().length) {
-    groupItem.addSubscriber(groupItem, "groupHidden", function () {
-      groupItem.removeSubscriber(groupItem, "groupHidden");
-      groupItem.closeHidden();
+  groupItem.addSubscriber(groupItem, "groupHidden", function() {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
+    groupItem.addSubscriber(groupItem, "close", function() {
+      groupItem.removeSubscriber(groupItem, "close");
+      callback();
     });
-  }
-
+    groupItem.closeHidden();
+  });
   groupItem.closeAll();
 }
 
@@ -81,43 +76,37 @@ function newWindowWithTabView(shownCallback, loadCallback, width, height) {
   let win = window.openDialog(getBrowserURL(), "_blank",
                               "chrome,all,dialog=no,height=" + winHeight +
                               ",width=" + winWidth);
-
-  whenWindowLoaded(win, function () {
-    if (loadCallback)
+  let onLoad = function() {
+    win.removeEventListener("load", onLoad, false);
+    if (typeof loadCallback == "function")
       loadCallback(win);
-  });
 
-  whenDelayedStartupFinished(win, function () {
-    showTabView(function () shownCallback(win), win);
-  });
+    let onShown = function() {
+      win.removeEventListener("tabviewshown", onShown, false);
+      shownCallback(win);
+    };
+    win.addEventListener("tabviewshown", onShown, false);
+    win.TabView.toggle();
+  }
+  win.addEventListener("load", onLoad, false);
 }
 
 // ----------
 function afterAllTabsLoaded(callback, win) {
-  const TAB_STATE_NEEDS_RESTORE = 1;
-
   win = win || window;
 
   let stillToLoad = 0;
-  let restoreHiddenTabs = Services.prefs.getBoolPref(
-                          "browser.sessionstore.restore_hidden_tabs");
 
   function onLoad() {
     this.removeEventListener("load", onLoad, true);
     stillToLoad--;
     if (!stillToLoad)
-      executeSoon(callback);
+      callback();
   }
 
   for (let a = 0; a < win.gBrowser.tabs.length; a++) {
-    let tab = win.gBrowser.tabs[a];
-    let browser = tab.linkedBrowser;
-
-    let isRestorable = !(tab.hidden && !restoreHiddenTabs &&
-                         browser.__SS_restoreState &&
-                         browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE);
-
-    if (isRestorable && browser.contentDocument.readyState != "complete" ||
+    let browser = win.gBrowser.tabs[a].linkedBrowser;
+    if (browser.contentDocument.readyState != "complete" ||
         browser.webProgress.isLoadingDocument) {
       stillToLoad++;
       browser.addEventListener("load", onLoad, true);
@@ -125,7 +114,7 @@ function afterAllTabsLoaded(callback, win) {
   }
 
   if (!stillToLoad)
-    executeSoon(callback);
+    callback();
 }
 
 // ----------
@@ -188,7 +177,7 @@ function whenTabViewIsShown(callback, win) {
 function showSearch(callback, win) {
   win = win || window;
 
-  let contentWindow = win.TabView.getContentWindow();
+  let contentWindow = win.document.getElementById("tab-view").contentWindow;
   if (contentWindow.isSearchEnabled()) {
     callback();
     return;
@@ -202,7 +191,7 @@ function showSearch(callback, win) {
 function hideSearch(callback, win) {
   win = win || window;
 
-  let contentWindow = win.TabView.getContentWindow();
+  let contentWindow = win.document.getElementById("tab-view").contentWindow;
   if (!contentWindow.isSearchEnabled()) {
     callback();
     return;
@@ -216,7 +205,7 @@ function hideSearch(callback, win) {
 function whenSearchIsEnabled(callback, win) {
   win = win || window;
 
-  let contentWindow = win.TabView.getContentWindow();
+  let contentWindow = win.document.getElementById("tab-view").contentWindow;
   if (contentWindow.isSearchEnabled()) {
     callback();
     return;
@@ -232,7 +221,7 @@ function whenSearchIsEnabled(callback, win) {
 function whenSearchIsDisabled(callback, win) {
   win = win || window;
 
-  let contentWindow = win.TabView.getContentWindow();
+  let contentWindow = win.document.getElementById("tab-view").contentWindow;
   if (!contentWindow.isSearchEnabled()) {
     callback();
     return;
@@ -271,79 +260,4 @@ function unhideGroupItem(groupItem, callback) {
     callback();
   });
   groupItem._unhide();
-}
-
-// ----------
-function whenWindowLoaded(win, callback) {
-  win.addEventListener("load", function onLoad() {
-    win.removeEventListener("load", onLoad, false);
-    executeSoon(callback);
-  }, false);
-}
-
-// ----------
-function whenWindowStateReady(win, callback) {
-  win.addEventListener("SSWindowStateReady", function onReady() {
-    win.removeEventListener("SSWindowStateReady", onReady, false);
-    executeSoon(callback);
-  }, false);
-}
-
-// ----------
-function whenDelayedStartupFinished(win, callback) {
-  let topic = "browser-delayed-startup-finished";
-  Services.obs.addObserver(function onStartup(aSubject) {
-    if (win != aSubject)
-      return;
-
-    Services.obs.removeObserver(onStartup, topic, false);
-    executeSoon(callback);
-  }, topic, false);
-}
-
-// ----------
-function newWindowWithState(state, callback) {
-  const ss = Cc["@mozilla.org/browser/sessionstore;1"]
-             .getService(Ci.nsISessionStore);
-
-  let opts = "chrome,all,dialog=no,height=800,width=800";
-  let win = window.openDialog(getBrowserURL(), "_blank", opts);
-
-  let numConditions = 2;
-  let check = function () {
-    if (!--numConditions)
-      callback(win);
-  };
-
-  whenWindowLoaded(win, function () {
-    whenWindowStateReady(win, function () {
-      afterAllTabsLoaded(check, win);
-    });
-
-    ss.setWindowState(win, JSON.stringify(state), true);
-  });
-
-  whenDelayedStartupFinished(win, check);
-}
-
-// ----------
-function restoreTab(callback, index, win) {
-  win = win || window;
-
-  let tab = win.undoCloseTab(index || 0);
-  let tabItem = tab._tabViewTabItem;
-
-  let finalize = function () {
-    afterAllTabsLoaded(function () callback(tab), win);
-  };
-
-  if (tabItem._reconnected) {
-    finalize();
-    return;
-  }
-
-  tab._tabViewTabItem.addSubscriber(tab, "reconnected", function onReconnected() {
-    tab._tabViewTabItem.removeSubscriber(tab, "reconnected");
-    finalize();
-  });
 }

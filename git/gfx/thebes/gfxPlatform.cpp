@@ -44,7 +44,6 @@
 
 #if defined(XP_WIN)
 #include "gfxWindowsPlatform.h"
-#include "gfxD2DSurface.h"
 #elif defined(XP_MACOSX)
 #include "gfxPlatformMac.h"
 #elif defined(MOZ_WIDGET_GTK2)
@@ -80,16 +79,17 @@
 #include "qcms.h"
 
 #include "plstr.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsCRT.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
 
 #include "nsIGfxInfo.h"
-
-using namespace mozilla;
 
 gfxPlatform *gPlatform = nsnull;
 static bool gEverInitialized = false;
@@ -115,8 +115,6 @@ static const char *CMForceSRGBPrefName = "gfx.color_management.force_srgb";
 static void ShutdownCMS();
 static void MigratePrefs();
 
-#include "mozilla/gfx/2D.h"
-using namespace mozilla::gfx;
 
 // logs shared across gfx
 #ifdef PR_LOGGING
@@ -156,12 +154,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 #define GFX_PREF_HARFBUZZ_SCRIPTS "gfx.font_rendering.harfbuzz.scripts"
 #define HARFBUZZ_SCRIPTS_DEFAULT  gfxUnicodeProperties::SHAPING_DEFAULT
 
-static const char* kObservedPrefs[] = {
-    "gfx.downloadable_fonts.",
-    "gfx.font_rendering.",
-    nsnull
-};
-
 class FontPrefsObserver : public nsIObserver
 {
 public:
@@ -176,12 +168,14 @@ FontPrefsObserver::Observe(nsISupports *aSubject,
                            const char *aTopic,
                            const PRUnichar *someData)
 {
-    if (!someData) {
+    nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(aSubject);
+    if (!branch || someData == nsnull) {
         NS_ERROR("font pref observer code broken");
         return NS_ERROR_UNEXPECTED;
     }
-    NS_ASSERTION(gfxPlatform::GetPlatform(), "the singleton instance has gone");
-    gfxPlatform::GetPlatform()->FontsPrefsChanged(NS_ConvertUTF16toUTF8(someData).get());
+    
+    gfxPlatform::GetPlatform()->FontsPrefsChanged(branch, 
+        NS_ConvertUTF16toUTF8(someData).get());
 
     return NS_OK;
 }
@@ -321,11 +315,15 @@ gfxPlatform::Init()
     MigratePrefs();
 
     /* Create and register our CMS Override observer. */
-    gPlatform->mSRGBOverrideObserver = new SRGBOverrideObserver();
-    Preferences::AddWeakObserver(gPlatform->mSRGBOverrideObserver, CMForceSRGBPrefName);
+    gPlatform->overrideObserver = new SRGBOverrideObserver();
+    FontPrefsObserver *fontPrefObserver = new FontPrefsObserver();
 
-    gPlatform->mFontPrefsObserver = new FontPrefsObserver();
-    Preferences::AddStrongObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs) {
+        prefs->AddObserver(CMForceSRGBPrefName, gPlatform->overrideObserver, PR_TRUE);
+        prefs->AddObserver("gfx.downloadable_fonts.", fontPrefObserver, PR_FALSE);
+        prefs->AddObserver("gfx.font_rendering.", fontPrefObserver, PR_FALSE);
+    }
 
     // Force registration of the gfx component, thus arranging for
     // ::Shutdown to be called.
@@ -349,18 +347,10 @@ gfxPlatform::Shutdown()
     // Free the various non-null transforms and loaded profiles
     ShutdownCMS();
 
-    // In some cases, gPlatform may not be created but Shutdown() called,
-    // e.g., during xpcshell tests.
-    if (gPlatform) {
-        /* Unregister our CMS Override callback. */
-        NS_ASSERTION(gPlatform->mSRGBOverrideObserver, "mSRGBOverrideObserver has alreay gone");
-        Preferences::RemoveObserver(gPlatform->mSRGBOverrideObserver, CMForceSRGBPrefName);
-        gPlatform->mSRGBOverrideObserver = nsnull;
-
-        NS_ASSERTION(gPlatform->mFontPrefsObserver, "mFontPrefsObserver has alreay gone");
-        Preferences::RemoveObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
-        gPlatform->mFontPrefsObserver = nsnull;
-    }
+    /* Unregister our CMS Override callback. */
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs)
+        prefs->RemoveObserver(CMForceSRGBPrefName, gPlatform->overrideObserver);
 
     mozilla::gl::GLContextProvider::Shutdown();
 
@@ -415,101 +405,6 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
     return ret;
 }
 
-cairo_user_data_key_t kDrawTarget;
-
-RefPtr<DrawTarget>
-gfxPlatform::CreateDrawTargetForSurface(gfxASurface *aSurface)
-{
-#ifdef XP_WIN
-  if (aSurface->GetType() == gfxASurface::SurfaceTypeD2D) {
-    RefPtr<DrawTarget> drawTarget =
-      Factory::CreateDrawTargetForD3D10Texture(static_cast<gfxD2DSurface*>(aSurface)->GetTexture(), FORMAT_B8G8R8A8);
-    aSurface->SetData(&kDrawTarget, drawTarget, NULL);
-    return drawTarget;
-  }
-#endif
-
-  // Can't create a draw target for general cairo surfaces yet.
-  return NULL;
-}
-
-cairo_user_data_key_t kSourceSurface;
-
-void SourceBufferDestroy(void *srcBuffer)
-{
-  static_cast<SourceSurface*>(srcBuffer)->Release();
-}
-
-RefPtr<SourceSurface>
-gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurface)
-{
-  void *userData = aSurface->GetData(&kSourceSurface);
-
-  if (userData) {
-    return static_cast<SourceSurface*>(userData);
-  }
-
-  SurfaceFormat format;
-  if (aSurface->GetContentType() == gfxASurface::CONTENT_ALPHA) {
-    format = FORMAT_A8;
-  } else if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR) {
-    format = FORMAT_B8G8R8X8;
-  } else {
-    format = FORMAT_B8G8R8A8;
-  }
-
-  RefPtr<SourceSurface> srcBuffer;
-
-#ifdef XP_WIN
-  if (aSurface->GetType() == gfxASurface::SurfaceTypeD2D) {
-    NativeSurface surf;
-    surf.mFormat = format;
-    surf.mType = NATIVE_SURFACE_D3D10_TEXTURE;
-    surf.mSurface = static_cast<gfxD2DSurface*>(aSurface)->GetTexture();
-    mozilla::gfx::DrawTarget *dt = static_cast<mozilla::gfx::DrawTarget*>(aSurface->GetData(&kDrawTarget));
-    if (dt) {
-      dt->Flush();
-    }
-    srcBuffer = aTarget->CreateSourceSurfaceFromNativeSurface(surf);
-  }
-#endif
-
-  if (!srcBuffer) {
-    nsRefPtr<gfxImageSurface> imgSurface = aSurface->GetAsImageSurface();
-
-    if (!imgSurface) {
-      imgSurface = new gfxImageSurface(aSurface->GetSize(), gfxASurface::FormatFromContent(aSurface->GetContentType()));
-      nsRefPtr<gfxContext> ctx = new gfxContext(imgSurface);
-      ctx->SetSource(aSurface);
-      ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-      ctx->Paint();
-    }
-
-    srcBuffer = aTarget->CreateSourceSurfaceFromData(imgSurface->Data(),
-                                                     IntSize(imgSurface->GetSize().width, imgSurface->GetSize().height),
-                                                     imgSurface->Stride(),
-                                                     format);
-  }
-
-  srcBuffer->AddRef();
-  aSurface->SetData(&kSourceSurface, srcBuffer, SourceBufferDestroy);
-
-  return srcBuffer;
-}
-
-RefPtr<ScaledFont>
-gfxPlatform::GetScaledFontForFont(gfxFont *aFont)
-{
-  return NULL;
-}
-
-already_AddRefed<gfxASurface>
-gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
-{
-  // Don't know how to do this outside of Windows with D2D yet.
-  return NULL;
-}
-
 nsresult
 gfxPlatform::GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -524,12 +419,26 @@ gfxPlatform::UpdateFontList()
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+PRBool 
+gfxPlatform::GetBoolPref(const char *aPref, PRBool aDefault)
+{
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs) {
+        PRBool allow;
+        nsresult rv = prefs->GetBoolPref(aPref, &allow);
+        if (NS_SUCCEEDED(rv))
+            return allow;
+    }
+
+    return aDefault;
+}
+
 PRBool
 gfxPlatform::DownloadableFontsEnabled()
 {
     if (mAllowDownloadableFonts == UNINITIALIZED_VALUE) {
         mAllowDownloadableFonts =
-            Preferences::GetBool(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
+            GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
     }
 
     return mAllowDownloadableFonts;
@@ -540,7 +449,7 @@ gfxPlatform::SanitizeDownloadedFonts()
 {
     if (mDownloadableFontsSanitize == UNINITIALIZED_VALUE) {
         mDownloadableFontsSanitize =
-            Preferences::GetBool(GFX_DOWNLOADABLE_FONTS_SANITIZE, PR_TRUE);
+            GetBoolPref(GFX_DOWNLOADABLE_FONTS_SANITIZE, PR_TRUE);
     }
 
     return mDownloadableFontsSanitize;
@@ -550,7 +459,15 @@ PRBool
 gfxPlatform::UseHarfBuzzForScript(PRInt32 aScriptCode)
 {
     if (mUseHarfBuzzScripts == UNINITIALIZED_VALUE) {
-        mUseHarfBuzzScripts = Preferences::GetInt(GFX_PREF_HARFBUZZ_SCRIPTS, HARFBUZZ_SCRIPTS_DEFAULT);
+        mUseHarfBuzzScripts = HARFBUZZ_SCRIPTS_DEFAULT;
+        nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRInt32 scripts;
+            nsresult rv = prefs->GetIntPref(GFX_PREF_HARFBUZZ_SCRIPTS, &scripts);
+            if (NS_SUCCEEDED(rv)) {
+                mUseHarfBuzzScripts = scripts;
+            }
+        }
     }
 
     PRInt32 shapingType = gfxUnicodeProperties::ScriptShapingType(aScriptCode);
@@ -577,9 +494,14 @@ gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 static void
 AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGenericName)
 {
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), );
+    nsresult rv;
+
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (!prefs)
+        return;
 
     nsCAutoString prefName, langGroupString;
+    nsXPIDLCString nameValue, nameListValue;
 
     aLangGroup->ToUTF8String(langGroupString);
 
@@ -589,7 +511,7 @@ AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGe
     } else {
         prefName.AssignLiteral("font.default.");
         prefName.Append(langGroupString);
-        genericDotLang = Preferences::GetCString(prefName.get());
+        prefs->GetCharPref(prefName.get(), getter_Copies(genericDotLang));
     }
 
     genericDotLang.AppendLiteral(".");
@@ -598,21 +520,21 @@ AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGe
     // fetch font.name.xxx value                   
     prefName.AssignLiteral("font.name.");
     prefName.Append(genericDotLang);
-    nsAdoptingString nameValue = Preferences::GetString(prefName.get());
-    if (nameValue) {
+    rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameValue));
+    if (NS_SUCCEEDED(rv)) {
         if (!aFonts.IsEmpty())
             aFonts.AppendLiteral(", ");
-        aFonts += nameValue;
+        aFonts.Append(NS_ConvertUTF8toUTF16(nameValue));
     }
 
     // fetch font.name-list.xxx value                   
     prefName.AssignLiteral("font.name-list.");
     prefName.Append(genericDotLang);
-    nsAdoptingString nameListValue = Preferences::GetString(prefName.get());
-    if (nameListValue && !nameListValue.Equals(nameValue)) {
+    rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameListValue));
+    if (NS_SUCCEEDED(rv) && !nameListValue.Equals(nameValue)) {
         if (!aFonts.IsEmpty())
             aFonts.AppendLiteral(", ");
-        aFonts += nameListValue;
+        aFonts.Append(NS_ConvertUTF8toUTF16(nameListValue));
     }
 }
 
@@ -629,18 +551,25 @@ gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, PRBool aAppendUn
 PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
                                     void *aClosure)
 {
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), PR_FALSE);
+    nsresult rv;
+
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (!prefs)
+        return PR_FALSE;
 
     PRUint32    i;
+    
     for (i = 0; i < aLangArrayLen; i++) {
         eFontPrefLang prefLang = aLangArray[i];
         const char *langGroup = GetPrefLangName(prefLang);
         
         nsCAutoString prefName;
+        nsXPIDLCString nameValue, nameListValue;
     
+        nsCAutoString genericDotLang;
         prefName.AssignLiteral("font.default.");
         prefName.Append(langGroup);
-        nsAdoptingCString genericDotLang = Preferences::GetCString(prefName.get());
+        prefs->GetCharPref(prefName.get(), getter_Copies(genericDotLang));
     
         genericDotLang.AppendLiteral(".");
         genericDotLang.Append(langGroup);
@@ -648,8 +577,8 @@ PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangAr
         // fetch font.name.xxx value                   
         prefName.AssignLiteral("font.name.");
         prefName.Append(genericDotLang);
-        nsAdoptingCString nameValue = Preferences::GetCString(prefName.get());
-        if (nameValue) {
+        rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameValue));
+        if (NS_SUCCEEDED(rv)) {
             if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(nameValue), aClosure))
                 return PR_FALSE;
         }
@@ -657,8 +586,8 @@ PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangAr
         // fetch font.name-list.xxx value                   
         prefName.AssignLiteral("font.name-list.");
         prefName.Append(genericDotLang);
-        nsAdoptingCString nameListValue = Preferences::GetCString(prefName.get());
-        if (nameListValue && !nameListValue.Equals(nameValue)) {
+        rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameListValue));
+        if (NS_SUCCEEDED(rv) && !nameListValue.Equals(nameValue)) {
             const char kComma = ',';
             const char *p, *p_end;
             nsCAutoString list(nameListValue);
@@ -784,6 +713,8 @@ gfxPlatform::GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefL
 void
 gfxPlatform::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang)
 {
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+
     // prefer the lang specified by the page *if* CJK
     if (IsLangCJK(aPageLang)) {
         AppendPrefLang(aPrefLangs, aLen, aPageLang);
@@ -797,7 +728,20 @@ gfxPlatform::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFon
         PRUint32 tempLen = 0;
         
         // Add the CJK pref fonts from accept languages, the order should be same order
-        nsAdoptingCString list = Preferences::GetLocalizedCString("intl.accept_languages");
+        nsCAutoString list;
+        if (prefs) {
+            nsCOMPtr<nsIPrefLocalizedString> prefString;
+            nsresult rv =
+                prefs->GetComplexValue("intl.accept_languages",
+                                       NS_GET_IID(nsIPrefLocalizedString),
+                                       getter_AddRefs(prefString));
+            if (NS_SUCCEEDED(rv) && prefString) {
+                nsAutoString temp;
+                prefString->ToString(getter_Copies(temp));
+                LossyCopyUTF16toASCII(temp, list);
+            }
+        }
+        
         if (!list.IsEmpty()) {
             const char kComma = ',';
             const char *p, *p_end;
@@ -911,10 +855,14 @@ gfxPlatform::GetCMSMode()
 {
     if (gCMSInitialized == PR_FALSE) {
         gCMSInitialized = PR_TRUE;
-        PRInt32 mode;
-        nsresult rv = Preferences::GetInt(CMPrefName, &mode);
-        if (NS_SUCCEEDED(rv) && (mode >= 0) && (mode < eCMSMode_AllCount)) {
-            gCMSMode = static_cast<eCMSMode>(mode);
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRInt32 mode;
+            nsresult rv =
+                prefs->GetIntPref(CMPrefName, &mode);
+            if (NS_SUCCEEDED(rv) && (mode >= 0) && (mode < eCMSMode_AllCount)) {
+                gCMSMode = static_cast<eCMSMode>(mode);
+            }
         }
     }
     return gCMSMode;
@@ -933,21 +881,25 @@ gfxPlatform::GetRenderingIntent()
     if (gCMSIntent == -2) {
 
         /* Try to query the pref system for a rendering intent. */
-        PRInt32 pIntent;
-        if (NS_SUCCEEDED(Preferences::GetInt(CMIntentPrefName, &pIntent))) {
-            /* If the pref is within range, use it as an override. */
-            if ((pIntent >= INTENT_MIN) && (pIntent <= INTENT_MAX)) {
-                gCMSIntent = pIntent;
-            }
-            /* If the pref is out of range, use embedded profile. */
-            else {
-                gCMSIntent = -1;
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRInt32 pIntent;
+            nsresult rv = prefs->GetIntPref(CMIntentPrefName, &pIntent);
+            if (NS_SUCCEEDED(rv)) {
+              
+                /* If the pref is within range, use it as an override. */
+                if ((pIntent >= INTENT_MIN) && (pIntent <= INTENT_MAX))
+                    gCMSIntent = pIntent;
+
+                /* If the pref is out of range, use embedded profile. */
+                else
+                    gCMSIntent = -1;
             }
         }
+
         /* If we didn't get a valid intent from prefs, use the default. */
-        else {
+        if (gCMSIntent == -2) 
             gCMSIntent = INTENT_DEFAULT;
-        }
     }
     return gCMSIntent;
 }
@@ -994,21 +946,31 @@ gfxPlatform::GetCMSOutputProfile()
     if (!gCMSOutputProfile) {
         NS_TIME_FUNCTION;
 
-        /* Determine if we're using the internal override to force sRGB as
-           an output profile for reftests. See Bug 452125.
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
 
-           Note that we don't normally (outside of tests) set a
-           default value of this preference, which means nsIPrefBranch::GetBoolPref
-           will typically throw (and leave its out-param untouched).
-         */
-        if (Preferences::GetBool(CMForceSRGBPrefName, PR_FALSE)) {
-            gCMSOutputProfile = GetCMSsRGBProfile();
-        }
+            nsresult rv;
 
-        if (!gCMSOutputProfile) {
-            nsAdoptingCString fname = Preferences::GetCString(CMProfilePrefName);
-            if (!fname.IsEmpty()) {
-                gCMSOutputProfile = qcms_profile_from_path(fname);
+            /* Determine if we're using the internal override to force sRGB as
+               an output profile for reftests. See Bug 452125.
+
+               Note that we don't normally (outside of tests) set a
+               default value of this preference, which means GetBoolPref
+               will typically throw (and leave its out-param untouched).
+             */
+            PRBool doSRGBOverride;
+            rv = prefs->GetBoolPref(CMForceSRGBPrefName, &doSRGBOverride);
+            if (NS_SUCCEEDED(rv) && doSRGBOverride)
+                gCMSOutputProfile = GetCMSsRGBProfile();
+
+            if (!gCMSOutputProfile) {
+
+                nsXPIDLCString fname;
+                rv = prefs->GetCharPref(CMProfilePrefName,
+                                        getter_Copies(fname));
+                if (NS_SUCCEEDED(rv) && !fname.IsEmpty()) {
+                    gCMSOutputProfile = qcms_profile_from_path(fname);
+                }
             }
         }
 
@@ -1142,14 +1104,26 @@ static void ShutdownCMS()
 
 static void MigratePrefs()
 {
+
+    /* Load the pref service. If we don't get it die quietly since this isn't
+       critical code. */
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return;
+
     /* Migrate from the boolean color_management.enabled pref - we now use
        color_management.mode. */
-    if (Preferences::HasUserValue(CMPrefNameOld)) {
-        if (Preferences::GetBool(CMPrefNameOld, PR_FALSE)) {
-            Preferences::SetInt(CMPrefName, static_cast<PRInt32>(eCMSMode_All));
-        }
-        Preferences::ClearUser(CMPrefNameOld);
+    PRBool hasOldCMPref;
+    nsresult rv =
+        prefs->PrefHasUserValue(CMPrefNameOld, &hasOldCMPref);
+    if (NS_SUCCEEDED(rv) && (hasOldCMPref == PR_TRUE)) {
+        PRBool CMWasEnabled;
+        rv = prefs->GetBoolPref(CMPrefNameOld, &CMWasEnabled);
+        if (NS_SUCCEEDED(rv) && (CMWasEnabled == PR_TRUE))
+            prefs->SetIntPref(CMPrefName, eCMSMode_All);
+        prefs->ClearUserPref(CMPrefNameOld);
     }
+
 }
 
 // default SetupClusterBoundaries, based on Unicode properties;
@@ -1270,7 +1244,7 @@ gfxPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aStri
 }
 
 void
-gfxPlatform::FontsPrefsChanged(const char *aPref)
+gfxPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
 {
     NS_ASSERTION(aPref != nsnull, "null preference");
     if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {

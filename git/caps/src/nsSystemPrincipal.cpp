@@ -111,12 +111,6 @@ nsSystemPrincipal::Equals(nsIPrincipal *other, PRBool *result)
 }
 
 NS_IMETHODIMP
-nsSystemPrincipal::EqualsIgnoringDomain(nsIPrincipal *other, PRBool *result)
-{
-    return Equals(other, result);
-}
-
-NS_IMETHODIMP
 nsSystemPrincipal::Subsumes(nsIPrincipal *other, PRBool *result)
 {
     *result = PR_TRUE;
@@ -308,13 +302,10 @@ nsSystemPrincipal::nsSystemPrincipal()
 {
 }
 
-// Don't rename the system principal!
-// The JS engine (NewCompartment) relies on this name. 
-// XXX: bug 669123 will fix this hack.
 #define SYSTEM_PRINCIPAL_SPEC "[System Principal]"
 
 nsresult
-nsSystemPrincipal::Init(JSPrincipals **jsprin)
+nsSystemPrincipal::Init()
 {
     // Use an nsCString so we only do the allocation once here and then
     // share with nsJSPrincipals
@@ -323,12 +314,8 @@ nsSystemPrincipal::Init(JSPrincipals **jsprin)
         NS_WARNING("Out of memory initializing system principal");
         return NS_ERROR_OUT_OF_MEMORY;
     }
-
-    nsresult rv = mJSPrincipals.Init(this, str);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    *jsprin = &mJSPrincipals;
-    return NS_OK;
+    
+    return mJSPrincipals.Init(this, str);
 }
 
 nsSystemPrincipal::~nsSystemPrincipal(void)

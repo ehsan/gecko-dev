@@ -47,8 +47,6 @@ using NPError;
 using NPNVariable;
 using base::FileDescriptor;
 using mozilla::plugins::NativeThreadId;
-using mac_plugin_interposing::NSCursorInfo;
-using nsID;
 
 namespace mozilla {
 namespace plugins {
@@ -66,17 +64,9 @@ both:
    * constructor with the same string or int argument then we create two actors
    * and detect the second instance in the child. We prevent the parent's actor
    * from leaking out to plugin code and only allow the child's to be used.
-   *
-   * When calling into the plugin, the parent may create a "temporary"
-   * identifier which is only valid for the lifetime of the current RPC frame.
    */
   async PPluginIdentifier(nsCString aString,
-                          int32_t aInt,
-                          bool temporary);
-
-  // Window-specific message which instructs the RPC mechanism to enter
-  // a nested event loop for the current RPC call.
-  async ProcessNativeEventsInRPCCall();
+                          int32_t aInt);
 
 child:
   // Forces the child process to update its plugin function table.
@@ -106,11 +96,6 @@ child:
   rpc NPP_GetSitesWithData()
     returns (nsCString[] sites);
 
-  // Windows specific message to set up an audio session in the plugin process
-  async SetAudioSessionData(nsID aID,
-                            nsString aDisplayName,
-                            nsString aIconPath);
-
 parent:
   /**
    * This message is only used on X11 platforms.
@@ -138,6 +123,10 @@ parent:
   // native events, then "livelock" and some other glitches can occur.
   rpc ProcessSomeEvents();
 
+  // Window-specific message which instructs the RPC mechanism to enter
+  // a nested event loop for the current RPC call.
+  async ProcessNativeEventsInRPCCall();
+
   sync AppendNotesToCrashReport(nsCString aNotes);
 
   // OS X Specific calls to manage the plugin's window
@@ -146,13 +135,6 @@ parent:
                          int32_t aX, int32_t aY,
                          size_t aWidth, size_t aHeight);
   async PluginHideWindow(uint32_t aWindowId);
-
-  // OS X Specific calls to allow the plugin to manage the cursor.
-  async SetCursor(NSCursorInfo cursorInfo);
-  async ShowCursor(bool show);
-  async PushCursor(NSCursorInfo cursorInfo);
-  async PopCursor();
-  sync GetNativeCursorsSupported() returns (bool supported);
 };
 
 } // namespace plugins

@@ -2,16 +2,8 @@ let gTests = [];
 let gCurrentTest = null;
 let Panels = [AllPagesList, HistoryList, BookmarkList];
 
-let removedForTestButtons = [];
-
 function test() {
   waitForExplicitFinish();
-
-  // Make sure we start the test with less than a full menu
-  let menu = document.getElementById("appmenu");
-  while (menu.children.length > 5)
-    removedForTestButtons.push(menu.removeChild(menu.lastChild));
-
   setTimeout(runNextTest, 200);
 }
 
@@ -24,12 +16,6 @@ function runNextTest() {
     info(gCurrentTest.desc);
     gCurrentTest.run();
   } else {
-    // Add back any removed buttons
-    let menu = document.getElementById("appmenu");
-    removedForTestButtons.forEach(function(aButton) {
-      menu.appendChild(aButton);
-    });
-
     // Close the awesome panel just in case
     BrowserUI.activePanel = null;
     finish();
@@ -61,7 +47,7 @@ gTests.push({
   popupOpened: function() {
     removeEventListener("PopupChanged", gCurrentTest.popupOpened, false);
     let menu = document.getElementById("appmenu");
-    ok(!menu.hidden, "App menu is shown");
+    ok(!document.getElementById("appmenu").hidden, "App menu is shown");
 
     let more = document.getElementById("appmenu-more-button");
     if (menu.children.length > 6) {
@@ -99,7 +85,7 @@ gTests.push({
     ok(document.getElementById("appmenu").hidden, "Clicking more button hides menu");
 
     removeEventListener("PopupChanged", gCurrentTest.moreShown, false);
-    let listbox = document.getElementById("appmenu-overflow-commands");
+    let listbox = document.getElementById("menulist-popup").lastChild;
     is(listbox.childNodes.length, (menu.childNodes.length - 5), "Menu popup only shows overflow children");
 
     addEventListener("PopupChanged", gCurrentTest.popupClosed, false);
@@ -125,15 +111,13 @@ gTests.push({
   popupClosedAgain: function() {
     removeEventListener("PopupChanged", gCurrentTest.popupClosedAgain, false)
     let menu = document.getElementById("appmenu");
-    while (gCurrentTest.hidden > 0) {
+    while (gCurrentTest.hidden > -1) {
       gCurrentTest.hidden--;
-      menu.children[gCurrentTest.hidden].hidden = false;
+      menu.children[gCurrentTest.hidden] = false;
     }
-
     gCurrentTest.newButtons.forEach(function(aButton) {
       menu.removeChild(aButton);
-    });
-
+    })
     runNextTest();
   }
 });

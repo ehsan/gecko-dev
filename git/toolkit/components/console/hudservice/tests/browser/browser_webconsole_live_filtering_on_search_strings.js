@@ -54,8 +54,10 @@ function testLiveFilteringOnSearchStrings() {
 
   openConsole();
 
-  hud = HUDService.getHudByWindow(content);
+  hudId = HUDService.displaysIndex()[0];
   let console = browser.contentWindow.wrappedJSObject.console;
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let outputNode = hudBox.querySelector(".hud-output-node");
 
   for (let i = 0; i < 50; i++) {
     console.log("http://www.example.com/");
@@ -105,11 +107,13 @@ function testLiveFilteringOnSearchStrings() {
 }
 
 function countMessageNodes() {
-  let outputNode = hud.outputNode;
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let outputNode = hudBox.querySelector(".hud-output-node");
 
   let messageNodes = outputNode.querySelectorAll(".hud-log");
   let displayedMessageNodes = 0;
-  let view = hud.chromeWindow;
+  let view = outputNode.ownerDocument.defaultView;
   for (let i = 0; i < messageNodes.length; i++) {
     let computedStyle = view.getComputedStyle(messageNodes[i], null);
     if (computedStyle.display !== "none") {
@@ -122,7 +126,10 @@ function countMessageNodes() {
 
 function setStringFilter(aValue)
 {
-  hud.filterBox.value = aValue;
-  HUDService.adjustVisibilityOnSearchStringChange(hud.hudId, aValue);
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+
+  hudBox.querySelector(".hud-filter-box").value = aValue;
+  HUDService.adjustVisibilityOnSearchStringChange(hudId, aValue);
 }
 

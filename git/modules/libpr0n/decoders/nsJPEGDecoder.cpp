@@ -40,7 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsJPEGDecoder.h"
-#include "ImageLogging.h"
 
 #include "imgIContainerObserver.h"
 
@@ -48,6 +47,7 @@
 
 #include "nspr.h"
 #include "nsCRT.h"
+#include "ImageLogging.h"
 #include "gfxColor.h"
 
 #include "jerror.h"
@@ -256,12 +256,6 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
 
     // Post our size to the superclass
     PostSize(mInfo.image_width, mInfo.image_height);
-    if (HasError()) {
-      // Setting the size lead to an error; this can happen when for example
-      // a multipart channel sends an image of a different size.
-      mState = JPEG_ERROR;
-      return;
-    }
 
     /* If we're doing a size decode, we're done. */
     if (IsSizeDecode())
@@ -385,10 +379,13 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
     /* Used to set up image size so arrays can be allocated */
     jpeg_calc_output_dimensions(&mInfo);
 
+
+    // Use EnsureCleanFrame so we don't create a new frame if we're being
+    // reused for e.g. multipart/x-replace
     PRUint32 imagelength;
-    if (NS_FAILED(mImage->EnsureFrame(0, 0, 0, mInfo.image_width, mInfo.image_height,
-                                      gfxASurface::ImageFormatRGB24,
-                                      &mImageData, &imagelength))) {
+    if (NS_FAILED(mImage->EnsureCleanFrame(0, 0, 0, mInfo.image_width, mInfo.image_height,
+                                           gfxASurface::ImageFormatRGB24,
+                                           &mImageData, &imagelength))) {
       mState = JPEG_ERROR;
       PostDecoderError(NS_ERROR_OUT_OF_MEMORY);
       PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,

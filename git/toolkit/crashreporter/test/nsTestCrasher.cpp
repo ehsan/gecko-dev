@@ -1,8 +1,5 @@
-#include <stdio.h>
-
 #include "nscore.h"
 #include "nsXULAppAPI.h"
-#include "nsExceptionHandler.h"
 
 /*
  * This pure virtual call example is from MSDN
@@ -69,21 +66,4 @@ nsISupports* LockDir(nsILocalFile *directory)
   nsISupports* lockfile = nsnull;
   XRE_LockProfileDirectory(directory, &lockfile);
   return lockfile;
-}
-
-char testData[32];
-
-extern "C" NS_EXPORT
-PRUint64 SaveAppMemory()
-{
-  for (size_t i=0; i<sizeof(testData); i++)
-    testData[i] = i;
-
-  FILE *fp = fopen("crash-addr", "w");
-  if (!fp)
-    return 0;
-  fprintf(fp, "%p\n", (void *)testData);
-  fclose(fp);
-
-  return (PRInt64)testData;
 }

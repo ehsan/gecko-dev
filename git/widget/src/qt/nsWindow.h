@@ -345,8 +345,7 @@ private:
     nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &event, QGraphicsSceneMouseEvent *aEvent, int aClickCount = 1);
-    nsEventStatus      DispatchCommandEvent(nsIAtom* aCommand);
-    nsEventStatus      DispatchContentCommandEvent(PRInt32 aMsg);
+    PRBool             DispatchCommandEvent(nsIAtom* aCommand);
     MozQWidget*        createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData);
 
     PRBool             IsAcceleratedQView(QGraphicsView* aView);

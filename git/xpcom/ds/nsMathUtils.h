@@ -44,10 +44,6 @@
 #include <math.h>
 #include <float.h>
 
-#ifdef SOLARIS
-#include <ieeefp.h>
-#endif
-
 /*
  * round
  */

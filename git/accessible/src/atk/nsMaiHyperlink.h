@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim:expandtab:shiftwidth=2:tabstop=2: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -58,8 +58,9 @@ public:
 
 public:
     AtkHyperlink *GetAtkHyperlink(void);
-  nsAccessible* GetAccHyperlink()
-  { return mHyperlink && mHyperlink->IsLink() ? mHyperlink : nsnull; }
+    nsAccessible* GetAccHyperlink(void) {
+        return mHyperlink && mHyperlink->IsHyperLink() ? mHyperlink : nsnull;
+    }
 
 protected:
     nsAccessible* mHyperlink;

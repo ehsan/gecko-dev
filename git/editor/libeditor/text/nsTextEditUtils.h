@@ -53,6 +53,7 @@ public:
   static PRBool IsBreak(nsIDOMNode *aNode);
   static PRBool IsMozBR(nsIDOMNode *aNode);
   static PRBool HasMozAttr(nsIDOMNode *aNode);
+  static PRBool InBody(nsIDOMNode *aNode, nsIEditor *aEditor);
 };
 
 /***************************************************************************

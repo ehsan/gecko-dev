@@ -1,4 +1,4 @@
-# Copyright 2011, Google Inc.
+# Copyright 2009, Google Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,15 +28,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-"""Dispatch WebSocket request.
+"""Dispatch Web Socket request.
 """
 
 
-import logging
 import os
 import re
 
-from mod_pywebsocket import common
 from mod_pywebsocket import msgutil
 from mod_pywebsocket import util
 
@@ -48,7 +46,7 @@ _TRANSFER_DATA_HANDLER_NAME = 'web_socket_transfer_data'
 
 
 class DispatchError(Exception):
-    """Exception in dispatching WebSocket request."""
+    """Exception in dispatching Web Socket request."""
 
     pass
 
@@ -65,18 +63,15 @@ def _normalize_path(path):
     """
 
     path = path.replace('\\', os.path.sep)
-    # do not normalize away symlinks in mochitest
-    # path = os.path.realpath(path)
+    #path = os.path.realpath(path)
     path = path.replace('\\', '/')
     return path
 
 
-def _create_path_to_resource_converter(base_dir):
+def _path_to_resource_converter(base_dir):
     base_dir = _normalize_path(base_dir)
-
     base_len = len(base_dir)
     suffix_len = len(_SOURCE_SUFFIX)
-
     def converter(path):
         if not path.endswith(_SOURCE_SUFFIX):
             return None
@@ -84,14 +79,11 @@ def _create_path_to_resource_converter(base_dir):
         if not path.startswith(base_dir):
             return None
         return path[base_len:-suffix_len]
-
     return converter
 
 
-def _enumerate_handler_file_paths(directory):
-    """Returns a generator that enumerates WebSocket Handler source file names
-    in the given directory.
-    """
+def _source_file_paths(directory):
+    """Yield Web Socket Handler source file names in the given directory."""
 
     for root, unused_dirs, files in os.walk(directory):
         for base in files:
@@ -100,38 +92,20 @@ def _enumerate_handler_file_paths(directory):
                 yield path
 
 
-class _HandlerSuite(object):
-    """A handler suite holder class."""
-
-    def __init__(self, do_extra_handshake, transfer_data):
-        self.do_extra_handshake = do_extra_handshake
-        self.transfer_data = transfer_data
-
-
-def _source_handler_file(handler_definition):
-    """Source a handler definition string.
-
-    Args:
-        handler_definition: a string containing Python statements that define
-                            handler functions.
-    """
+def _source(source_str):
+    """Source a handler definition string."""
 
     global_dic = {}
     try:
-        exec handler_definition in global_dic
+        exec source_str in global_dic
     except Exception:
         raise DispatchError('Error in sourcing handler:' +
                             util.get_stack_trace())
-    return _HandlerSuite(
-        _extract_handler(global_dic, _DO_EXTRA_HANDSHAKE_HANDLER_NAME),
-        _extract_handler(global_dic, _TRANSFER_DATA_HANDLER_NAME))
+    return (_extract_handler(global_dic, _DO_EXTRA_HANDSHAKE_HANDLER_NAME),
+            _extract_handler(global_dic, _TRANSFER_DATA_HANDLER_NAME))
 
 
 def _extract_handler(dic, name):
-    """Extracts a callable with the specified name from the given dictionary
-    dic.
-    """
-
     if name not in dic:
         raise DispatchError('%s is not defined.' % name)
     handler = dic[name]
@@ -141,7 +115,7 @@ def _extract_handler(dic, name):
 
 
 class Dispatcher(object):
-    """Dispatches WebSocket requests.
+    """Dispatches Web Socket requests.
 
     This class maintains a map from resource name to handlers.
     """
@@ -159,9 +133,7 @@ class Dispatcher(object):
                       scan time when root_dir contains many subdirectories.
         """
 
-        self._logger = util.get_class_logger(self)
-
-        self._handler_suite_map = {}
+        self._handlers = {}
         self._source_warnings = []
         if scan_dir is None:
             scan_dir = root_dir
@@ -169,7 +141,7 @@ class Dispatcher(object):
                 os.path.realpath(root_dir)):
             raise DispatchError('scan_dir:%s must be a directory under '
                                 'root_dir:%s.' % (scan_dir, root_dir))
-        self._source_handler_files_in_dir(root_dir, scan_dir)
+        self._source_files_in_dir(root_dir, scan_dir)
 
     def add_resource_path_alias(self,
                                 alias_resource_path, existing_resource_path):
@@ -183,8 +155,8 @@ class Dispatcher(object):
             existing_resource_path: existing resource path
         """
         try:
-            handler_suite = self._handler_suite_map[existing_resource_path]
-            self._handler_suite_map[alias_resource_path] = handler_suite
+            handler = self._handlers[existing_resource_path]
+            self._handlers[alias_resource_path] = handler
         except KeyError:
             raise DispatchError('No handler for: %r' % existing_resource_path)
 
@@ -194,7 +166,7 @@ class Dispatcher(object):
         return self._source_warnings
 
     def do_extra_handshake(self, request):
-        """Do extra checking in WebSocket handshake.
+        """Do extra checking in Web Socket handshake.
 
         Select a handler based on request.uri and call its
         web_socket_do_extra_handshake function.
@@ -203,8 +175,7 @@ class Dispatcher(object):
             request: mod_python request.
         """
 
-        do_extra_handshake_ = self._get_handler_suite(
-            request).do_extra_handshake
+        do_extra_handshake_, unused_transfer_data = self._handler(request)
         try:
             do_extra_handshake_(request)
         except Exception, e:
@@ -216,7 +187,7 @@ class Dispatcher(object):
             raise
 
     def transfer_data(self, request):
-        """Let a handler transfer_data with a WebSocket client.
+        """Let a handler transfer_data with a Web Socket client.
 
         Select a handler based on request.ws_resource and call its
         web_socket_transfer_data function.
@@ -225,58 +196,50 @@ class Dispatcher(object):
             request: mod_python request.
         """
 
-        transfer_data_ = self._get_handler_suite(request).transfer_data
-        # TODO(tyoshino): Terminate underlying TCP connection if possible.
+        unused_do_extra_handshake, transfer_data_ = self._handler(request)
         try:
-            transfer_data_(request)
-            if not request.server_terminated:
-                request.ws_stream.close_connection()
-        # Catch non-critical exceptions the handler didn't handle.
-        except msgutil.BadOperationException, e:
-            self._logger.debug('%s', e)
-            request.ws_stream.close_connection(common.STATUS_GOING_AWAY)
-        except msgutil.InvalidFrameException, e:
-            # InvalidFrameException must be caught before
-            # ConnectionTerminatedException that catches InvalidFrameException.
-            self._logger.debug('%s', e)
-            request.ws_stream.close_connection(common.STATUS_PROTOCOL_ERROR)
-        except msgutil.UnsupportedFrameException, e:
-            self._logger.debug('%s', e)
-            request.ws_stream.close_connection(common.STATUS_UNSUPPORTED)
-        except msgutil.ConnectionTerminatedException, e:
-            self._logger.debug('%s', e)
-        except Exception, e:
-            util.prepend_message_to_exception(
-                '%s raised exception for %s: ' % (
+            try:
+                request.client_terminated = False
+                request.server_terminated = False
+                transfer_data_(request)
+            except msgutil.ConnectionTerminatedException, e:
+                util.prepend_message_to_exception(
+                    'client initiated closing handshake for %s: ' % (
+                    request.ws_resource),
+                    e)
+                raise
+            except Exception, e:
+                print 'exception: %s' % type(e)
+                util.prepend_message_to_exception(
+                    '%s raised exception for %s: ' % (
                     _TRANSFER_DATA_HANDLER_NAME, request.ws_resource),
-                e)
-            raise
+                    e)
+                raise
+        finally:
+            msgutil.close_connection(request)
 
-    def _get_handler_suite(self, request):
-        """Retrieves two handlers (one for extra handshake processing, and one
-        for data transfer) for the given request as a HandlerSuite object.
-        """
 
+    def _handler(self, request):
         try:
             ws_resource_path = request.ws_resource.split('?', 1)[0]
-            return self._handler_suite_map[ws_resource_path]
+            return self._handlers[ws_resource_path]
         except KeyError:
             raise DispatchError('No handler for: %r' % request.ws_resource)
 
-    def _source_handler_files_in_dir(self, root_dir, scan_dir):
+    def _source_files_in_dir(self, root_dir, scan_dir):
         """Source all the handler source files in the scan_dir directory.
 
         The resource path is determined relative to root_dir.
         """
 
-        convert = _create_path_to_resource_converter(root_dir)
-        for path in _enumerate_handler_file_paths(scan_dir):
+        to_resource = _path_to_resource_converter(root_dir)
+        for path in _source_file_paths(scan_dir):
             try:
-                handler_suite = _source_handler_file(open(path).read())
+                handlers = _source(open(path).read())
             except DispatchError, e:
                 self._source_warnings.append('%s: %s' % (path, e))
                 continue
-            self._handler_suite_map[convert(path)] = handler_suite
+            self._handlers[to_resource(path)] = handlers
 
 
 # vi:sts=4 sw=4 et

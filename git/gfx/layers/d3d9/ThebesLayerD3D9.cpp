@@ -35,10 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
-#include "ShadowBufferD3D9.h"
-
 #include "ThebesLayerD3D9.h"
 #include "gfxPlatform.h"
 
@@ -81,7 +77,8 @@ ThebesLayerD3D9::InvalidateRegion(const nsIntRegion &aRegion)
 void
 ThebesLayerD3D9::CopyRegion(IDirect3DTexture9* aSrc, const nsIntPoint &aSrcOffset,
                             IDirect3DTexture9* aDest, const nsIntPoint &aDestOffset,
-                            const nsIntRegion &aCopyRegion, nsIntRegion* aValidRegion)
+                            const nsIntRegion &aCopyRegion, nsIntRegion* aValidRegion,
+                            float aXRes, float aYRes)
 {
   nsRefPtr<IDirect3DSurface9> srcSurface, dstSurface;
   aSrc->GetSurfaceLevel(0, getter_AddRefs(srcSurface));
@@ -95,16 +92,17 @@ ThebesLayerD3D9::CopyRegion(IDirect3DTexture9* aSrc, const nsIntPoint &aSrcOffse
       RECT oldRect, newRect;
 
       // Calculate the retained rectangle's position on the old and the new
-      // surface.
-      oldRect.left = r->x - aSrcOffset.x;
-      oldRect.top = r->y - aSrcOffset.y;
-      oldRect.right = oldRect.left + r->width;
-      oldRect.bottom = oldRect.top + r->height;
+      // surface. We need to scale these rectangles since the visible
+      // region is in unscaled units, and the texture size has been scaled.
+      oldRect.left = UINT(floor((r->x - aSrcOffset.x) * aXRes));
+      oldRect.top = UINT(floor((r->y - aSrcOffset.y) * aYRes));
+      oldRect.right = oldRect.left + UINT(ceil(r->width * aXRes));
+      oldRect.bottom = oldRect.top + UINT(ceil(r->height * aYRes));
 
-      newRect.left = r->x - aDestOffset.x;
-      newRect.top = r->y - aDestOffset.y;
-      newRect.right = newRect.left + r->width;
-      newRect.bottom = newRect.top + r->height;
+      newRect.left = UINT(floor((r->x - aDestOffset.x) * aXRes));
+      newRect.top = UINT(floor((r->y - aDestOffset.y) * aYRes));
+      newRect.right = newRect.left + UINT(ceil(r->width * aXRes));
+      newRect.bottom = newRect.top + UINT(ceil(r->height * aYRes));
 
       // Copy data from our old texture to the new one
       HRESULT hr = device()->
@@ -130,6 +128,15 @@ ThebesLayerD3D9::UpdateTextures(SurfaceMode aMode)
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
+  float xres, yres;
+  GetDesiredResolutions(xres, yres);
+
+  // If our resolution changed, we need new sized textures, delete the old ones.
+  if (ResolutionChanged(xres, yres)) {
+      mTexture = nsnull;
+      mTextureOnWhite = nsnull;
+  }
+
   if (HaveTextures(aMode)) {
     if (!mTextureRect.IsEqualInterior(visibleRect)) {
       nsRefPtr<IDirect3DTexture9> oldTexture = mTexture;
@@ -152,10 +159,10 @@ ThebesLayerD3D9::UpdateTextures(SurfaceMode aMode)
         mValidRegion.SetEmpty();
       } else {
         CopyRegion(oldTexture, mTextureRect.TopLeft(), mTexture, visibleRect.TopLeft(),
-                   retainRegion, &mValidRegion);
+                   retainRegion, &mValidRegion, xres, yres);
         if (aMode == SURFACE_COMPONENT_ALPHA) {
           CopyRegion(oldTextureOnWhite, mTextureRect.TopLeft(), mTextureOnWhite, visibleRect.TopLeft(),
-                     retainRegion, &mValidRegion);
+                     retainRegion, &mValidRegion, xres, yres);
         }
       }
 
@@ -362,7 +369,7 @@ public:
   OpaqueRenderer(const nsIntRegion& aUpdateRegion) :
     mUpdateRegion(aUpdateRegion), mDC(NULL) {}
   ~OpaqueRenderer() { End(); }
-  already_AddRefed<gfxWindowsSurface> Begin(LayerD3D9* aLayer);
+  already_AddRefed<gfxWindowsSurface> Begin(LayerD3D9* aLayer, float aXRes, float aYRes);
   void End();
   IDirect3DTexture9* GetTexture() { return mTmpTexture; }
 
@@ -374,12 +381,15 @@ private:
 };
 
 already_AddRefed<gfxWindowsSurface>
-OpaqueRenderer::Begin(LayerD3D9* aLayer)
+OpaqueRenderer::Begin(LayerD3D9* aLayer, float aXRes, float aYRes)
 {
   nsIntRect bounds = mUpdateRegion.GetBounds();
+  gfxIntSize scaledSize;
+  scaledSize.width = PRInt32(ceil(bounds.width * aXRes));
+  scaledSize.height = PRInt32(ceil(bounds.height * aYRes));
 
   HRESULT hr = aLayer->device()->
-      CreateTexture(bounds.width, bounds.height, 1, 0, D3DFMT_X8R8G8B8,
+      CreateTexture(scaledSize.width, scaledSize.height, 1, 0, D3DFMT_X8R8G8B8,
                     D3DPOOL_SYSTEMMEM, getter_AddRefs(mTmpTexture), NULL);
 
   if (FAILED(hr)) {
@@ -417,9 +427,11 @@ OpaqueRenderer::End()
 
 static void
 FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
-            const nsIntPoint& aOffset, const gfxRGBA& aColor)
+            const nsIntPoint& aOffset, const gfxRGBA& aColor,
+            float aXRes, float aYRes)
 {
   nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
+  ctx->Scale(aXRes, aYRes);
   ctx->Translate(-gfxPoint(aOffset.x, aOffset.y));
   gfxUtils::ClipToRegion(ctx, aRegion);
   ctx->SetColor(aColor);
@@ -432,9 +444,14 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
 {
   HRESULT hr;
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
+  float xres, yres;
+  GetDesiredResolutions(xres, yres);
 
   nsRefPtr<gfxASurface> destinationSurface;
   nsIntRect bounds = aRegion.GetBounds();
+  gfxIntSize scaledSize;
+  scaledSize.width = PRInt32(ceil(bounds.width * xres));
+  scaledSize.height = PRInt32(ceil(bounds.height * yres));
   nsRefPtr<IDirect3DTexture9> tmpTexture;
   OpaqueRenderer opaqueRenderer(aRegion);
   OpaqueRenderer opaqueRendererOnWhite(aRegion);
@@ -442,11 +459,11 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
   switch (aMode)
   {
     case SURFACE_OPAQUE:
-      destinationSurface = opaqueRenderer.Begin(this);
+      destinationSurface = opaqueRenderer.Begin(this, xres, yres);
       break;
 
     case SURFACE_SINGLE_CHANNEL_ALPHA: {
-      hr = device()->CreateTexture(bounds.width, bounds.height, 1,
+      hr = device()->CreateTexture(scaledSize.width, scaledSize.height, 1,
                                    0, D3DFMT_A8R8G8B8,
                                    D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), NULL);
 
@@ -459,7 +476,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
       // of our DEFAULT texture and then use UpdateTexture and add dirty rects
       // to update in a single call.
       nsRefPtr<gfxWindowsSurface> dest = new gfxWindowsSurface(
-          gfxIntSize(bounds.width, bounds.height), gfxASurface::ImageFormatARGB32);
+          gfxIntSize(scaledSize.width, scaledSize.height), gfxASurface::ImageFormatARGB32);
       // If the contents of this layer don't require component alpha in the
       // end of rendering, it's safe to enable Cleartype since all the Cleartype
       // glyphs must be over (or under) opaque pixels.
@@ -469,11 +486,11 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
     }
 
     case SURFACE_COMPONENT_ALPHA: {
-      nsRefPtr<gfxWindowsSurface> onBlack = opaqueRenderer.Begin(this);
-      nsRefPtr<gfxWindowsSurface> onWhite = opaqueRendererOnWhite.Begin(this);
+      nsRefPtr<gfxWindowsSurface> onBlack = opaqueRenderer.Begin(this, xres, yres);
+      nsRefPtr<gfxWindowsSurface> onWhite = opaqueRendererOnWhite.Begin(this, xres, yres);
       if (onBlack && onWhite) {
-        FillSurface(onBlack, aRegion, bounds.TopLeft(), gfxRGBA(0.0, 0.0, 0.0, 1.0));
-        FillSurface(onWhite, aRegion, bounds.TopLeft(), gfxRGBA(1.0, 1.0, 1.0, 1.0));
+        FillSurface(onBlack, aRegion, bounds.TopLeft(), gfxRGBA(0.0, 0.0, 0.0, 1.0), xres, yres);
+        FillSurface(onWhite, aRegion, bounds.TopLeft(), gfxRGBA(1.0, 1.0, 1.0, 1.0), xres, yres);
         gfxASurface* surfaces[2] = { onBlack.get(), onWhite.get() };
         destinationSurface = new gfxTeeSurface(surfaces, NS_ARRAY_LENGTH(surfaces));
         // Using this surface as a source will likely go horribly wrong, since
@@ -489,7 +506,10 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
     return;
 
   nsRefPtr<gfxContext> context = new gfxContext(destinationSurface);
+  // Draw content scaled at our current resolution.
+  context->Scale(xres, yres);
   context->Translate(gfxPoint(-bounds.x, -bounds.y));
+  aRegion.ExtendForScaling(xres, yres);
   LayerManagerD3D9::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
   cbInfo.Callback(this, context, aRegion, nsIntRegion(), cbInfo.CallbackData);
 
@@ -520,17 +540,12 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
       break;
 
     case SURFACE_SINGLE_CHANNEL_ALPHA: {
-      LockTextureRectD3D9 textureLock(tmpTexture);
-      if (!textureLock.HasLock()) {
-        NS_WARNING("Failed to lock ThebesLayer tmpTexture texture.");
-        return;
-      }
-
-      D3DLOCKED_RECT r = textureLock.GetLockRect();
+      D3DLOCKED_RECT r;
+      tmpTexture->LockRect(0, &r, NULL, 0);
 
       nsRefPtr<gfxImageSurface> imgSurface =
         new gfxImageSurface((unsigned char *)r.pBits,
-                            bounds.Size(),
+                            scaledSize,
                             r.Pitch,
                             gfxASurface::ImageFormatARGB32);
 
@@ -542,6 +557,8 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
       }
 
       imgSurface = NULL;
+
+      tmpTexture->UnlockRect(0);
 
       srcTextures.AppendElement(tmpTexture);
       destTextures.AppendElement(mTexture);
@@ -560,7 +577,8 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
   }
   NS_ASSERTION(srcTextures.Length() == destTextures.Length(), "Mismatched lengths");
 
-  // Copy to the texture.
+  // Copy to the texture. We need to scale these rectangles since the visible
+  // region is in unscaled units, and the texture sizes have been scaled.
   for (PRUint32 i = 0; i < srcTextures.Length(); ++i) {
     nsRefPtr<IDirect3DSurface9> srcSurface;
     nsRefPtr<IDirect3DSurface9> dstSurface;
@@ -572,14 +590,16 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
     const nsIntRect *iterRect;
     while ((iterRect = iter.Next())) {
       RECT rect;
-      rect.left = iterRect->x - bounds.x;
-      rect.top = iterRect->y - bounds.y;
-      rect.right = iterRect->XMost() - bounds.x;
-      rect.bottom = iterRect->YMost() - bounds.y;
+      rect.left = NS_MAX<LONG>(0, LONG(floor((iterRect->x - bounds.x) * xres)));
+      rect.top = NS_MAX<LONG>(0, LONG(floor((iterRect->y - bounds.y) * yres)));
+      rect.right = NS_MIN<LONG>(scaledSize.width,
+                                LONG(ceil((iterRect->XMost() - bounds.x) * xres)));
+      rect.bottom = NS_MIN<LONG>(scaledSize.height,
+                                 LONG(ceil((iterRect->YMost() - bounds.y) * yres)));
 
       POINT point;
-      point.x = iterRect->x - visibleRect.x;
-      point.y = iterRect->y - visibleRect.y;
+      point.x = NS_MAX<LONG>(0, LONG(floor((iterRect->x - visibleRect.x) * xres)));
+      point.y = NS_MAX<LONG>(0, LONG(floor((iterRect->y - visibleRect.y) * yres)));
       device()->UpdateSurface(srcSurface, &rect, dstSurface, &point);
     }
   }
@@ -594,108 +614,52 @@ ThebesLayerD3D9::CreateNewTextures(const gfxIntSize &aSize,
     return;
   }
 
+  // Scale the requested size (in unscaled units) to the actual
+  // texture size we require.
+  gfxIntSize scaledSize;
+  float xres, yres;
+  GetDesiredResolutions(xres, yres);
+  scaledSize.width = PRInt32(ceil(aSize.width * xres));
+  scaledSize.height = PRInt32(ceil(aSize.height * yres));
+
   mTexture = nsnull;
   mTextureOnWhite = nsnull;
-  device()->CreateTexture(aSize.width, aSize.height, 1,
+  device()->CreateTexture(scaledSize.width, scaledSize.height, 1,
                           D3DUSAGE_RENDERTARGET,
                           aMode != SURFACE_SINGLE_CHANNEL_ALPHA ? D3DFMT_X8R8G8B8 : D3DFMT_A8R8G8B8,
                           D3DPOOL_DEFAULT, getter_AddRefs(mTexture), NULL);
   if (aMode == SURFACE_COMPONENT_ALPHA) {
-    device()->CreateTexture(aSize.width, aSize.height, 1,
+    device()->CreateTexture(scaledSize.width, scaledSize.height, 1,
                             D3DUSAGE_RENDERTARGET,
                             D3DFMT_X8R8G8B8,
                             D3DPOOL_DEFAULT, getter_AddRefs(mTextureOnWhite), NULL);
   }
+
+  mXResolution = xres;
+  mYResolution = yres;
 }
 
-ShadowThebesLayerD3D9::ShadowThebesLayerD3D9(LayerManagerD3D9 *aManager)
-  : ShadowThebesLayer(aManager, nsnull)
-  , LayerD3D9(aManager)
+void 
+ThebesLayerD3D9::GetDesiredResolutions(float& aXRes, float& aYRes)
 {
-  mImplData = static_cast<LayerD3D9*>(this);
-}
-
-ShadowThebesLayerD3D9::~ShadowThebesLayerD3D9()
-{}
-
-void
-ShadowThebesLayerD3D9::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
-                                     const nsIntRegion& aValidRegion)
-{
-  if (!mBuffer) {
-    mBuffer = new ShadowBufferD3D9(this);
+  const gfx3DMatrix& transform = GetLayer()->GetEffectiveTransform();
+  gfxMatrix transform2d;
+  if (transform.Is2D(&transform2d)) {     
+    //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
+    gfxSize scale = transform2d.ScaleFactors(PR_TRUE);
+    aXRes = gfxUtils::ClampToScaleFactor(scale.width);
+    aYRes = gfxUtils::ClampToScaleFactor(scale.height);
+  } else {
+    aXRes = 1.0;
+    aYRes = 1.0;
   }
-
-  NS_ASSERTION(OptionalThebesBuffer::Tnull_t == aNewFront.type(),
-               "Only one system-memory buffer expected");
 }
 
-void
-ShadowThebesLayerD3D9::Swap(const ThebesBuffer& aNewFront,
-                           const nsIntRegion& aUpdatedRegion,
-                           ThebesBuffer* aNewBack,
-                           nsIntRegion* aNewBackValidRegion,
-                           OptionalThebesBuffer* aReadOnlyFront,
-                           nsIntRegion* aFrontUpdatedRegion)
+bool 
+ThebesLayerD3D9::ResolutionChanged(float aXRes, float aYRes)
 {
-  if (mBuffer) {
-    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
-    mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
-  }
-
-  *aNewBack = aNewFront;
-  *aNewBackValidRegion = mValidRegion;
-  *aReadOnlyFront = null_t();
-  aFrontUpdatedRegion->SetEmpty();
-}
-
-void
-ShadowThebesLayerD3D9::DestroyFrontBuffer()
-{
-  mBuffer = nsnull;
-}
-
-void
-ShadowThebesLayerD3D9::Disconnect()
-{
-  mBuffer = nsnull;
-}
-
-Layer*
-ShadowThebesLayerD3D9::GetLayer()
-{
-  return this;
-}
-
-PRBool
-ShadowThebesLayerD3D9::IsEmpty()
-{
-  return !mBuffer;
-}
-
-void
-ShadowThebesLayerD3D9::RenderThebesLayer()
-{
-  if (!mBuffer) {
-    return;
-  }
-  NS_ABORT_IF_FALSE(mBuffer, "should have a buffer here");
-
-  mBuffer->RenderTo(mD3DManager, GetEffectiveVisibleRegion());
-}
-
-void
-ShadowThebesLayerD3D9::CleanResources()
-{
-  mBuffer = nsnull;
-  mValidRegion.SetEmpty();
-}
-
-void
-ShadowThebesLayerD3D9::LayerManagerDestroyed()
-{
-  mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
-  mD3DManager = nsnull;
+  return aXRes != mXResolution ||
+         aYRes != mYResolution;
 }
 
 } /* namespace layers */

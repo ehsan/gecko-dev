@@ -331,10 +331,7 @@ mjit::Compiler::jsop_bitop(JSOp op)
 {
     FrameEntry *rhs = frame.peek(-1);
     FrameEntry *lhs = frame.peek(-2);
-    
-    if (tryBinaryConstantFold(cx, frame, op, lhs, rhs))
-        return;
-    
+
     VoidStub stub;
     switch (op) {
       case JSOP_BITOR:
@@ -356,26 +353,14 @@ mjit::Compiler::jsop_bitop(JSOp op)
         JS_NOT_REACHED("wat");
         return;
     }
-    
-    int32_t rhsInt = 0;
-    int32_t lhsInt = 0;
-    bool rhsConstant = false;
-    bool lhsConstant = false;
-    
-    if (rhs->isConstant() && rhs->getValue().isPrimitive()) {
-        ValueToECMAInt32(cx, rhs->getValue(), &rhsInt);
-        rhsConstant = true;
-    }
-    if (lhs->isConstant() && lhs->getValue().isPrimitive()) {
-        ValueToECMAInt32(cx, lhs->getValue(), &lhsInt);
-        lhsConstant = true;
-    }    
 
     bool lhsIntOrDouble = !(lhs->isNotType(JSVAL_TYPE_DOUBLE) && 
                             lhs->isNotType(JSVAL_TYPE_INT32));
     
     /* Fast-path double to int conversion. */
-    if (rhsConstant && rhsInt == 0 && lhsIntOrDouble  && (op == JSOP_BITOR || op == JSOP_LSH)) {
+    if (!lhs->isConstant() && rhs->isConstant() && lhsIntOrDouble &&
+        rhs->isType(JSVAL_TYPE_INT32) && rhs->getValue().toInt32() == 0 &&
+        (op == JSOP_BITOR || op == JSOP_LSH)) {
         RegisterID reg = frame.copyDataIntoReg(lhs);
         if (lhs->isType(JSVAL_TYPE_INT32)) {
             frame.popn(2);
@@ -405,9 +390,8 @@ mjit::Compiler::jsop_bitop(JSOp op)
     }
 
     /* We only want to handle integers here. */
-    if ((!rhsConstant && rhs->isNotType(JSVAL_TYPE_INT32)) || 
-        (!lhsConstant && lhs->isNotType(JSVAL_TYPE_INT32)) || 
-        (op == JSOP_URSH && rhsConstant && rhsInt % 32 == 0)) {
+    if (rhs->isNotType(JSVAL_TYPE_INT32) || lhs->isNotType(JSVAL_TYPE_INT32) || 
+        (op == JSOP_URSH && rhs->isConstant() && rhs->getValue().toInt32() % 32 == 0)) {
         prepareStubCall(Uses(2));
         INLINE_STUBCALL(stub);
         frame.popn(2);
@@ -432,6 +416,38 @@ mjit::Compiler::jsop_bitop(JSOp op)
         stubNeeded = true;
     }
 
+    if (lhs->isConstant() && rhs->isConstant()) {
+        int32 L = lhs->getValue().toInt32();
+        int32 R = rhs->getValue().toInt32();
+
+        frame.popn(2);
+        switch (op) {
+          case JSOP_BITOR:
+            frame.push(Int32Value(L | R));
+            return;
+          case JSOP_BITXOR:
+            frame.push(Int32Value(L ^ R));
+            return;
+          case JSOP_BITAND:
+            frame.push(Int32Value(L & R));
+            return;
+          case JSOP_LSH:
+            frame.push(Int32Value(L << R));
+            return;
+          case JSOP_URSH: 
+          {
+            uint32 unsignedL;
+            if (ValueToECMAUint32(cx, lhs->getValue(), (uint32_t*)&unsignedL)) {
+                frame.push(NumberValue(uint32(unsignedL >> (R & 31))));
+                return;
+            }
+            break;
+          }
+          default:
+            JS_NOT_REACHED("say wat");
+        }
+    }
+
     RegisterID reg;
 
     switch (op) {
@@ -440,24 +456,21 @@ mjit::Compiler::jsop_bitop(JSOp op)
       case JSOP_BITAND:
       {
         /* Commutative, and we're guaranteed both are ints. */
-        if (lhsConstant) {
+        if (lhs->isConstant()) {
             JS_ASSERT(!rhs->isConstant());
             FrameEntry *temp = rhs;
             rhs = lhs;
             lhs = temp;
-            
-            rhsInt = lhsInt;
-            rhsConstant = true;
         }
 
         reg = frame.ownRegForData(lhs);
-        if (rhsConstant) {
+        if (rhs->isConstant()) {
             if (op == JSOP_BITAND)
-                masm.and32(Imm32(rhsInt), reg);
+                masm.and32(Imm32(rhs->getValue().toInt32()), reg);
             else if (op == JSOP_BITXOR)
-                masm.xor32(Imm32(rhsInt), reg);
+                masm.xor32(Imm32(rhs->getValue().toInt32()), reg);
             else
-                masm.or32(Imm32(rhsInt), reg);
+                masm.or32(Imm32(rhs->getValue().toInt32()), reg);
         } else if (frame.shouldAvoidDataRemat(rhs)) {
             if (op == JSOP_BITAND)
                 masm.and32(masm.payloadOf(frame.addressOf(rhs)), reg);
@@ -482,9 +495,9 @@ mjit::Compiler::jsop_bitop(JSOp op)
       case JSOP_URSH:
       {
         /* Not commutative. */
-        if (rhsConstant) {
+        if (rhs->isConstant()) {
             RegisterID reg = frame.ownRegForData(lhs);
-            int shift = rhsInt & 0x1F;
+            int shift = rhs->getValue().toInt32() & 0x1F;
 
             if (shift) {
                 if (op == JSOP_LSH)
@@ -523,9 +536,9 @@ mjit::Compiler::jsop_bitop(JSOp op)
                 masm.move(rr, reg);
         } else {
             frame.pinReg(rr);
-            if (lhsConstant) {
+            if (lhs->isConstant()) {
                 reg = frame.allocReg();
-                masm.move(Imm32(lhsInt), reg);
+                masm.move(Imm32(lhs->getValue().toInt32()), reg);
             } else {
                 reg = frame.copyDataIntoReg(lhs);
             }
@@ -554,8 +567,9 @@ mjit::Compiler::jsop_bitop(JSOp op)
         OOL_STUBCALL(stub);
     }
 
-    frame.popn(2);
-    
+    frame.pop();
+    frame.pop();
+
     if (op == JSOP_URSH)
         frame.pushNumber(reg, true);
     else
@@ -1795,11 +1809,11 @@ mjit::Compiler::jsop_initprop()
     JSObject *holder;
     JSProperty *prop = NULL;
 #ifdef DEBUG
-    bool res =
+    int res =
 #endif
-    LookupPropertyWithFlags(cx, baseobj, ATOM_TO_JSID(atom),
-                            JSRESOLVE_QUALIFIED, &holder, &prop);
-    JS_ASSERT(res && prop && holder == baseobj);
+    js_LookupPropertyWithFlags(cx, baseobj, ATOM_TO_JSID(atom),
+                               JSRESOLVE_QUALIFIED, &holder, &prop);
+    JS_ASSERT(res >= 0 && prop && holder == baseobj);
 
     RegisterID objReg = frame.copyDataIntoReg(obj);
     masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);

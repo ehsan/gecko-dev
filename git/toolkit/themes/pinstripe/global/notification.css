@@ -91,7 +91,7 @@ notification[type="warning"] .messageCloseButton {
 /* Popup notification */
 
 .popup-notification-description {
-  max-width: 24em;
+  max-width: 248px;
 }
 
 .popup-notification-button-container {

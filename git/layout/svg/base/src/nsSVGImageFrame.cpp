@@ -91,7 +91,7 @@ public:
 
   // nsSVGPathGeometryFrame methods:
   NS_IMETHOD UpdateCoveredRegion();
-  virtual PRUint16 GetHitTestFlags();
+  virtual PRUint16 GetHittestMask();
 
   // nsIFrame interface:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
@@ -460,9 +460,9 @@ nsSVGImageFrame::UpdateCoveredRegion()
 }
 
 PRUint16
-nsSVGImageFrame::GetHitTestFlags()
+nsSVGImageFrame::GetHittestMask()
 {
-  PRUint16 flags = 0;
+  PRUint16 mask = 0;
 
   switch(GetStyleVisibility()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
@@ -471,31 +471,31 @@ nsSVGImageFrame::GetHitTestFlags()
     case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible()) {
         /* XXX: should check pixel transparency */
-        flags |= SVG_HIT_TEST_FILL;
+        mask |= HITTEST_MASK_FILL;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEFILL:
     case NS_STYLE_POINTER_EVENTS_VISIBLESTROKE:
     case NS_STYLE_POINTER_EVENTS_VISIBLE:
       if (GetStyleVisibility()->IsVisible()) {
-        flags |= SVG_HIT_TEST_FILL;
+        mask |= HITTEST_MASK_FILL;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_PAINTED:
       /* XXX: should check pixel transparency */
-      flags |= SVG_HIT_TEST_FILL;
+      mask |= HITTEST_MASK_FILL;
       break;
     case NS_STYLE_POINTER_EVENTS_FILL:
     case NS_STYLE_POINTER_EVENTS_STROKE:
     case NS_STYLE_POINTER_EVENTS_ALL:
-      flags |= SVG_HIT_TEST_FILL;
+      mask |= HITTEST_MASK_FILL;
       break;
     default:
       NS_ERROR("not reached");
       break;
   }
 
-  return flags;
+  return mask;
 }
 
 //----------------------------------------------------------------------

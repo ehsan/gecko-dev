@@ -19,7 +19,8 @@ function tabLoad(aEvent) {
     let hudId = HUDService.getHudIdByWindow(content);
     HUD = HUDService.hudReferences[hudId];
 
-    inputNode = HUD.jsterm.inputNode;
+    let display = HUDService.getOutputNodeById(hudId);
+    inputNode = display.querySelector(".jsterm-input-node");
 
     inputNode.focus();
 

@@ -51,6 +51,7 @@ function test() {
 function onLoad(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
   openConsole();
+  hudId = HUDService.displaysIndex()[0];
 
   browser.addEventListener("load", testBasicNetLogging, true);
   content.location = TEST_NETWORK_URI;
@@ -59,7 +60,7 @@ function onLoad(aEvent) {
 function testBasicNetLogging(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  outputNode = HUDService.getHudByWindow(content).outputNode;
+  outputNode = HUDService.hudReferences[hudId].outputNode;
 
   executeSoon(function() {
     findLogEntry("test-network.html");

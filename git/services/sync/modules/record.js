@@ -62,7 +62,7 @@ function WBORecord(collection, id) {
   this.id = id;                      // Optional.
 }
 WBORecord.prototype = {
-  _logName: "Sync.Record.WBO",
+  _logName: "Record.WBO",
 
   get sortindex() {
     if (this.data.sortindex)
@@ -123,9 +123,7 @@ WBORecord.prototype = {
 
 Utils.deferGetSet(WBORecord, "data", ["id", "modified", "sortindex", "payload"]);
 
-XPCOMUtils.defineLazyGetter(this, "Records", function () {
-  return new RecordManager();
-});
+Utils.lazy(this, 'Records', RecordManager);
 
 function RecordManager() {
   this._log = Log4Moz.repository.getLogger(this._logName);
@@ -133,7 +131,7 @@ function RecordManager() {
 }
 RecordManager.prototype = {
   _recordType: WBORecord,
-  _logName: "Sync.RecordManager",
+  _logName: "RecordMgr",
 
   import: function RecordMgr_import(url) {
     this._log.trace("Importing record: " + (url.spec ? url.spec : url));
@@ -192,7 +190,7 @@ function CryptoWrapper(collection, id) {
 }
 CryptoWrapper.prototype = {
   __proto__: WBORecord.prototype,
-  _logName: "Sync.Record.CryptoWrapper",
+  _logName: "Record.CryptoWrapper",
 
   ciphertextHMAC: function ciphertextHMAC(keyBundle) {
     let hasher = keyBundle.sha256HMACHasher;
@@ -281,9 +279,7 @@ CryptoWrapper.prototype = {
 Utils.deferGetSet(CryptoWrapper, "payload", ["ciphertext", "IV", "hmac"]);
 Utils.deferGetSet(CryptoWrapper, "cleartext", "deleted");
 
-XPCOMUtils.defineLazyGetter(this, "CollectionKeys", function () {
-  return new CollectionKeyManager();
-});
+Utils.lazy(this, "CollectionKeys", CollectionKeyManager);
 
 
 /**
@@ -298,7 +294,7 @@ function CollectionKeyManager() {
   this._collections = {};
   this._default = null;
 
-  this._log = Log4Moz.repository.getLogger("Sync.CollectionKeys");
+  this._log = Log4Moz.repository.getLogger("CollectionKeys");
 }
 
 // TODO: persist this locally as an Identity. Bug 610913.
@@ -596,7 +592,7 @@ KeyBundle.prototype = {
 };
 
 function BulkKeyBundle(realm, collectionName) {
-  let log = Log4Moz.repository.getLogger("Sync.BulkKeyBundle");
+  let log = Log4Moz.repository.getLogger("BulkKeyBundle");
   log.info("BulkKeyBundle being created for " + collectionName);
   KeyBundle.call(this, realm, collectionName);
 }
@@ -635,7 +631,7 @@ BulkKeyBundle.prototype = {
 };
 
 function SyncKeyBundle(realm, collectionName, syncKey) {
-  let log = Log4Moz.repository.getLogger("Sync.SyncKeyBundle");
+  let log = Log4Moz.repository.getLogger("SyncKeyBundle");
   log.info("SyncKeyBundle being created for " + collectionName);
   KeyBundle.call(this, realm, collectionName, syncKey);
   if (syncKey)
@@ -731,7 +727,7 @@ function Collection(uri, recordObj) {
 }
 Collection.prototype = {
   __proto__: Resource.prototype,
-  _logName: "Sync.Collection",
+  _logName: "Collection",
 
   _rebuildURL: function Coll__rebuildURL() {
     // XXX should consider what happens if it's not a URL...

@@ -5,7 +5,6 @@
  *
  * Contributor(s):
  *  Patrick Walton <pcwalton@mozilla.com>
- *  Mihai Șucan <mihai.sucan@gmail.com>
  *
  * ***** END LICENSE BLOCK ***** */
 
@@ -25,11 +24,12 @@ function testLineLimit() {
 
   openConsole();
 
+  hudId = HUDService.displaysIndex()[0];
   let console = browser.contentWindow.wrappedJSObject.console;
-  outputNode = HUDService.getHudByWindow(content).outputNode;
+  hudBox = HUDService.getHeadsUpDisplay(hudId);
 
-  let prefBranch = Services.prefs.getBranch("devtools.hud.loglimit.");
-  prefBranch.setIntPref("console", 20);
+  let prefBranch = Services.prefs.getBranch("devtools.hud.");
+  prefBranch.setIntPref("loglimit", 20);
 
   for (let i = 0; i < 20; i++) {
     console.log("foo #" + i); // must change message to prevent repeats
@@ -42,7 +42,7 @@ function testLineLimit() {
   is(countMessageNodes(), 20, "there are still 20 message nodes in the " +
      "output when adding one more");
 
-  prefBranch.setIntPref("console", 30);
+  prefBranch.setIntPref("loglimit", 30);
   for (let i = 0; i < 20; i++) {
     console.log("boo #" + i); // must change message to prevent repeats
   }
@@ -50,17 +50,19 @@ function testLineLimit() {
   is(countMessageNodes(), 30, "there are 30 message nodes in the output " +
      "when the log limit is set to 30");
 
-  prefBranch.setIntPref("console", 0);
+  prefBranch.setIntPref("loglimit", 0);
   console.log("baz");
   is(countMessageNodes(), 0, "there are no message nodes in the output when " +
      "the log limit is set to zero");
 
-  prefBranch.clearUserPref("console");
-  prefBranch = console = outputNode = null;
+  prefBranch.clearUserPref("loglimit");
+  prefBranch = console = null;
   finishTest();
 }
 
 function countMessageNodes() {
-  return outputNode.querySelectorAll(".hud-msg-node").length;
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  return hudBox.querySelectorAll(".hud-msg-node").length;
 }
 

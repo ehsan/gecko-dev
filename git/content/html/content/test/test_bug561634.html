@@ -12,7 +12,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=561634
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=561634">Mozilla Bug 561634</a>
 <p id="display"></p>
-<div id="content" style="display: none;">
+<!--<div id="content" style="display: none">-->
+<div id="content">
   <form>
   </form>
 </div>
@@ -71,6 +72,12 @@ function checkInvalid()
   ok(!f.checkValidity(),
      "A form with at least one invalid element is invalid");
 
+  // Check event is fired
+  i.addEventListener("invalid", function (e) {
+    ok(true, "invalid event should have been fired on invalid elements");
+    SimpleTest.finish();
+  }, false);
+
   f.removeChild(i2);
   f.removeChild(i);
 }
@@ -100,26 +107,22 @@ function checkInvalidEvent()
 
   f.checkValidity();
 
-  setTimeout(function() {
+  SimpleTest.executeSoon(function () {
     ok(invalidEventForInvalidElement,
        "invalid event should be fired on invalid elements");
     ok(!invalidEventForValidElement,
        "invalid event should not be fired on valid elements");
+  });
 
-    f.removeChild(i2);
-    f.removeChild(i);
-
-    SimpleTest.finish();
-  }, 0);
+  f.removeChild(i2);
+  f.removeChild(i);
 }
-
-SimpleTest.waitForExplicitFinish();
 
 checkEmptyForm();
 checkBarredFromConstraintValidation();
 checkValid();
 checkInvalid();
-checkInvalidEvent(); // will call finish().
+checkInvalidEvent();
 
 </script>
 </pre>

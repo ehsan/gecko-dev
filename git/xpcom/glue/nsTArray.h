@@ -42,7 +42,6 @@
 #include <string.h>
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nscore.h"
 #include "nsQuickSort.h"
 #include "nsDebug.h"

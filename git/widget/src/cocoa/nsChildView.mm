@@ -55,18 +55,21 @@
 #include "nsCOMPtr.h"
 #include "nsToolkit.h"
 #include "nsCRT.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 
 #include "nsFontMetrics.h"
 #include "nsIRegion.h"
 #include "nsIRollupListener.h"
 #include "nsIViewManager.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIServiceManager.h"
 #include "nsILocalFile.h"
 #include "nsILocalFileMac.h"
 #include "nsGfxCIID.h"
 #include "nsIMenuRollup.h"
 #include "nsIDOMSimpleGestureEvent.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsThemeConstants.h"
 
 #include "nsDragService.h"
@@ -87,8 +90,6 @@
 #include "LayerManagerOGL.h"
 #include "GLContext.h"
 
-#include "mozilla/Preferences.h"
-
 #include <dlfcn.h>
 
 #include <ApplicationServices/ApplicationServices.h>
@@ -96,7 +97,6 @@
 using namespace mozilla::layers;
 using namespace mozilla::gl;
 using namespace mozilla::widget;
-using namespace mozilla;
 
 #undef DEBUG_IME
 #undef DEBUG_UPDATE
@@ -324,14 +324,6 @@ ConvertGeckoRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
   outMacRect.bottom = aRect.y + aRect.height;
 }
 
-static inline void
-InitPluginEvent(nsPluginEvent &aEvent, NPCocoaEvent &aCocoaEvent)
-{
-  aEvent.time = PR_IntervalNow();
-  aEvent.pluginEvent = (void*)&aCocoaEvent;
-  aEvent.retargetToFocusedDocument = PR_FALSE;
-}
-
 // Flips a screen coordinate from a point in the cocoa coordinate system (bottom-left rect) to a point
 // that is a "flipped" cocoa coordinate system (starts in the top-left).
 static inline void
@@ -356,18 +348,6 @@ static void DebugPrintAllKeyboardLayouts()
 
 #endif // defined(DEBUG) && defined(PR_LOGGING)
 
-void EnsureLogInitialized()
-{
-#ifdef PR_LOGGING
-  if (!sCocoaLog) {
-    sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
-#ifdef DEBUG
-    DebugPrintAllKeyboardLayouts();
-#endif // DEBUG
-  }
-#endif // PR_LOGGING
-}
-
 #pragma mark -
 
 nsChildView::nsChildView() : nsBaseWidget()
@@ -380,7 +360,14 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mIsDispatchPaint(PR_FALSE)
 , mPluginInstanceOwner(nsnull)
 {
-  EnsureLogInitialized();
+#ifdef PR_LOGGING
+  if (!sCocoaLog) {
+    sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
+#ifdef DEBUG
+    DebugPrintAllKeyboardLayouts();
+#endif // DEBUG
+  }
+#endif // PR_LOGGING
 
   memset(&mPluginCGContext, 0, sizeof(mPluginCGContext));
 #ifndef NP_NO_QUICKDRAW
@@ -722,8 +709,8 @@ void nsChildView::HidePlugin()
       [(ChildView*)mView pluginDrawingModel] == NPDrawingModelQuickDraw) {
     NPWindow* window;
     mPluginInstanceOwner->GetWindow(window);
-    nsRefPtr<nsNPAPIPluginInstance> instance;
-    mPluginInstanceOwner->GetInstance(getter_AddRefs(instance));
+    nsCOMPtr<nsIPluginInstance> instance;
+    mPluginInstanceOwner->GetInstance(*getter_AddRefs(instance));
     if (window && instance) {
        window->clipRect.top = 0;
        window->clipRect.left = 0;
@@ -1187,8 +1174,8 @@ void nsChildView::PaintQD()
   updateEvent.what = updateEvt;
   updateEvent.message = UInt32(window);
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-  mPluginInstanceOwner->GetInstance(getter_AddRefs(instance));
+  nsCOMPtr<nsIPluginInstance> instance;
+  mPluginInstanceOwner->GetInstance(*getter_AddRefs(instance));
 
   instance->HandleEvent(&updateEvent, nsnull);
   EndDrawPlugin();
@@ -1234,54 +1221,44 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   // visible region to be the entire port every time. It is necessary to set up our
   // window's port even for CoreGraphics plugins, because they may still use Carbon
   // internally (see bug #420527 for details).
-  //
-  // Don't use this code if any of the QuickDraw APIs it currently requires are
-  // missing (as they probably will be on OS X 10.8 and up).
-  if (::NewRgn && ::GetQDGlobalsThePort && ::GetGWorld && ::SetGWorld &&
-      ::IsPortOffscreen && ::GetMainDevice && ::SetOrigin && ::RectRgn &&
-      ::SetPortVisibleRegion && ::SetPortClipRegion && ::DisposeRgn) {
-    CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
-    if (isQDPlugin) {
-      port = mPluginQDPort.port;
+  CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
+  if (isQDPlugin) {
+    port = mPluginQDPort.port;
+  }
+
+  RgnHandle pluginRegion = ::NewRgn();
+  if (pluginRegion) {
+    PRBool portChanged = (port != CGrafPtr(GetQDGlobalsThePort()));
+    CGrafPtr oldPort;
+    GDHandle oldDevice;
+
+    if (portChanged) {
+      ::GetGWorld(&oldPort, &oldDevice);
+      ::SetGWorld(port, ::IsPortOffscreen(port) ? nsnull : ::GetMainDevice());
     }
 
-    RgnHandle pluginRegion = ::NewRgn();
-    if (pluginRegion) {
-      PRBool portChanged = (port != CGrafPtr(::GetQDGlobalsThePort()));
-      CGrafPtr oldPort;
-      GDHandle oldDevice;
+    ::SetOrigin(0, 0);
+    
+    nsIntRect clipRect; // this is in native window coordinates
+    nsIntPoint origin;
+    PRBool visible;
+    GetPluginClipRect(clipRect, origin, visible);
+    
+    // XXX if we're not visible, set an empty clip region?
+    Rect pluginRect;
+    ConvertGeckoRectToMacRect(clipRect, pluginRect);
+    
+    ::RectRgn(pluginRegion, &pluginRect);
+    ::SetPortVisibleRegion(port, pluginRegion);
+    ::SetPortClipRegion(port, pluginRegion);
+    
+    // now set up the origin for the plugin
+    ::SetOrigin(origin.x, origin.y);
+    
+    ::DisposeRgn(pluginRegion);
 
-      if (portChanged) {
-        ::GetGWorld(&oldPort, &oldDevice);
-        ::SetGWorld(port, ::IsPortOffscreen(port) ? nsnull : ::GetMainDevice());
-      }
-
-      ::SetOrigin(0, 0);
-
-      nsIntRect clipRect; // this is in native window coordinates
-      nsIntPoint origin;
-      PRBool visible;
-      GetPluginClipRect(clipRect, origin, visible);
-
-      // XXX if we're not visible, set an empty clip region?
-      Rect pluginRect;
-      ConvertGeckoRectToMacRect(clipRect, pluginRect);
-
-      ::RectRgn(pluginRegion, &pluginRect);
-      ::SetPortVisibleRegion(port, pluginRegion);
-      ::SetPortClipRegion(port, pluginRegion);
-
-      // now set up the origin for the plugin
-      ::SetOrigin(origin.x, origin.y);
-
-      ::DisposeRgn(pluginRegion);
-
-      if (portChanged) {
-        ::SetGWorld(oldPort, oldDevice);
-      }
-    }
-  } else {
-    NS_WARNING("Cannot set plugin's visible region -- required QuickDraw APIs are missing!");
+    if (portChanged)
+      ::SetGWorld(oldPort, oldDevice);
   }
 #endif
 
@@ -2078,7 +2055,8 @@ nsChildView::DrawOver(LayerManager* aManager, nsIntRect aRect)
   float bottomX = aRect.x + aRect.width;
   float bottomY = aRect.y + aRect.height;
 
-  TextureImage::ScopedBindTexture texBind(mResizerImage, LOCAL_GL_TEXTURE0);
+  manager->gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  manager->gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mResizerImage->Texture());
 
   ColorTextureLayerProgram *program =
     manager->GetColorTextureLayerProgram(mResizerImage->GetShaderProgramType());
@@ -2346,11 +2324,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #ifndef NP_NO_QUICKDRAW
   // This sets the current port to _savePort.
   // todo: Only do if a Quickdraw plugin is present in the hierarchy!
-  // Check if ::SetPort() is available -- it probably won't be on
-  // OS X 10.8 and up.
-  if (::SetPort) {
-    ::SetPort(NULL);
-  }
+  ::SetPort(NULL);
 #endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -2361,12 +2335,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGeckoChild)
     return;
 
-  nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_FOCUS_EVENT, mGeckoChild);
+  nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
   NPCocoaEvent cocoaEvent;
   InitNPCocoaEvent(&cocoaEvent);
   cocoaEvent.type = NPCocoaEventWindowFocusChanged;
   cocoaEvent.data.focus.hasFocus = hasMain;
-  InitPluginEvent(pluginEvent, cocoaEvent);
+  pluginEvent.pluginEvent = &cocoaEvent;
   mGeckoChild->DispatchWindowEvent(pluginEvent);
 }
 
@@ -2660,10 +2634,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // Set the current GrafPort to a "safe" port before calling [NSQuickDrawView lockFocus],
   // so that the NSQuickDrawView stashes a pointer to this known-good port internally.
   // It will set the port back to this port on destruction.
-  // Check if ::SetPort() is available -- it probably won't be on OS X 10.8 and up.
-  if (::SetPort) {
-    ::SetPort(NULL);  // todo: only do if a Quickdraw plugin is present in the hierarchy!
-  }
+  ::SetPort(NULL);  // todo: only do if a Quickdraw plugin is present in the hierarchy!
 #endif
 
   [super lockFocus];
@@ -2959,9 +2930,13 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!gRollupWidget)
     return;
 
-#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
-  return;
-#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    PRBool useNativeContextMenus;
+    nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows", &useNativeContextMenus);
+    if (NS_SUCCEEDED(rv) && useNativeContextMenus)
+      return;
+  }
 
   NSWindow *popupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
   if (!popupWindow || ![popupWindow isKindOfClass:[PopupWindow class]])
@@ -3649,12 +3624,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
     geckoEvent.pluginEvent = &cocoaEvent;
   }
 
-  mGeckoChild->DispatchWindowEvent(geckoEvent);
+  PRBool handled = mGeckoChild->DispatchWindowEvent(geckoEvent);
   if (!mGeckoChild)
     return;
 
-  // Let the superclass do the context menu stuff.
-  [super rightMouseDown:theEvent];
+  if (!handled)
+    [super rightMouseDown:theEvent]; // let the superview do context menu stuff
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3783,8 +3758,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   float scrollDelta = 0;
   float scrollDeltaPixels = 0;
-  PRBool checkPixels =
-    Preferences::GetBool("mousewheel.enable_pixel_scrolling", PR_TRUE);
+  PRBool checkPixels = PR_TRUE;
+
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs)
+    prefs->GetBoolPref("mousewheel.enable_pixel_scrolling", &checkPixels);
 
   // Calling deviceDeltaX or deviceDeltaY on theEvent will trigger a Cocoa
   // assertion and an Objective-C NSInternalInconsistencyException if the
@@ -4699,9 +4677,10 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     cocoaTextEvent.type = NPCocoaEventTextInput;
     cocoaTextEvent.data.text.text = (NPNSString*)text;
 
-    nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
-    InitPluginEvent(pluginEvent, cocoaTextEvent);
-    mGeckoChild->DispatchWindowEvent(pluginEvent);
+    nsGUIEvent pluginTextEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
+    pluginTextEvent.time = PR_IntervalNow();
+    pluginTextEvent.pluginEvent = (void*)&cocoaTextEvent;
+    mGeckoChild->DispatchWindowEvent(pluginTextEvent);
 
     ::CFRelease(text);
     free(chars);
@@ -5220,10 +5199,11 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   InitNPCocoaEvent(&cocoaTextEvent);
   cocoaTextEvent.type = NPCocoaEventTextInput;
   cocoaTextEvent.data.text.text = (NPNSString*)string;
-
-  nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
-  InitPluginEvent(pluginEvent, cocoaTextEvent);
-  mGeckoChild->DispatchWindowEvent(pluginEvent);
+  
+  nsGUIEvent pluginTextEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
+  pluginTextEvent.time = PR_IntervalNow();
+  pluginTextEvent.pluginEvent = (void*)&cocoaTextEvent;
+  mGeckoChild->DispatchWindowEvent(pluginTextEvent);
 }
 
 - (void)keyDown:(NSEvent*)theEvent
@@ -5253,10 +5233,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       mPluginComplexTextInputRequested = NO;
 
       // Send key down event to the plugin.
-      nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
+      nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
       NPCocoaEvent cocoaEvent;
       ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-      InitPluginEvent(pluginEvent, cocoaEvent);
+      pluginEvent.pluginEvent = &cocoaEvent;
       mGeckoChild->DispatchWindowEvent(pluginEvent);
       if (!mGeckoChild) {
         return;
@@ -5295,10 +5275,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
         mPluginComplexTextInputRequested = NO;
 
         // Send key down event to the plugin.
-        nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
+        nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
         NPCocoaEvent cocoaEvent;
         ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-        InitPluginEvent(pluginEvent, cocoaEvent);
+        pluginEvent.pluginEvent = &cocoaEvent;
         mGeckoChild->DispatchWindowEvent(pluginEvent);
         if (!mGeckoChild) {
           return;
@@ -5621,12 +5601,12 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     return NO;
 
   if (mPluginEventModel == NPEventModelCocoa) {
-    nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_FOCUS_EVENT, mGeckoChild);
+    nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
     NPCocoaEvent cocoaEvent;
     InitNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = NPCocoaEventFocusChanged;
     cocoaEvent.data.focus.hasFocus = getFocus;
-    InitPluginEvent(pluginEvent, cocoaEvent);
+    pluginEvent.pluginEvent = &cocoaEvent;
     mGeckoChild->DispatchWindowEvent(pluginEvent);
 
     if (getFocus)
@@ -6344,6 +6324,7 @@ ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
 
 static CGWindowLevel kDockWindowLevel = 0;
 static CGWindowLevel kPopupWindowLevel = 0;
+static CGWindowLevel kFloatingWindowLevel = 0;
 
 static BOOL WindowNumberIsUnderPoint(NSInteger aWindowNumber, NSPoint aPoint) {
   NSWindow* window = [NSApp windowWithWindowNumber:aWindowNumber];
@@ -6358,12 +6339,14 @@ static BOOL WindowNumberIsUnderPoint(NSInteger aWindowNumber, NSPoint aPoint) {
     // These constants are in fact function calls, so cache them.
     kDockWindowLevel = kCGDockWindowLevel;
     kPopupWindowLevel = kCGPopUpMenuWindowLevel;
+    kFloatingWindowLevel = kCGFloatingWindowLevel;
   }
 
   // Some things put transparent windows on top of everything. Ignore them.
   CGWindowLevel level;
   if ((kCGErrorSuccess == CGSGetWindowLevel(cid, aWindowNumber, &level)) &&
       (level == kDockWindowLevel ||     // Transparent layer, spanning the whole screen
+       level == kFloatingWindowLevel || // invisible Jing window
        level > kPopupWindowLevel))      // Snapz Pro X while recording a screencast
     return false;
 

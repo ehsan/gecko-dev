@@ -241,7 +241,7 @@ public:
                                          gint             aX,
                                          gint             aY,
                                          guint            aTime,
-                                         gpointer         aData);
+                                         void            *aData);
     void               OnDragLeaveEvent(GtkWidget *      aWidget,
                                         GdkDragContext   *aDragContext,
                                         guint            aTime,
@@ -251,7 +251,7 @@ public:
                                        gint             aX,
                                        gint             aY,
                                        guint            aTime,
-                                       gpointer         aData);
+                                       gpointer         *aData);
     void               OnDragDataReceivedEvent(GtkWidget       *aWidget,
                                                GdkDragContext  *aDragContext,
                                                gint             aX,
@@ -382,7 +382,6 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    PRBool             DispatchContentCommandEvent(PRInt32 aMsg);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            PRBool aIntersectWithExisting);
     PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,

@@ -184,7 +184,7 @@ public:
 #ifdef MOZ_XUL
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
-  virtual void            UpdateOpaqueRegion(const nsIntRegion& aOpaqueRegion);
+  virtual void            UpdateTransparentRegion(const nsIntRegion& aTransparentRegion);
 #endif // MOZ_XUL
 #ifdef NS_ENABLE_TSF
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus);
@@ -261,21 +261,6 @@ public:
    *                      is triggered by timeout and not user/web interaction.
    */
   static void             StartAllowingD3D9(bool aReinitialize);
-
-  /**
-   * AssociateDefaultIMC() associates or disassociates the default IMC for
-   * the window.
-   *
-   * @param aAssociate    TRUE, associates the default IMC with the window.
-   *                      Otherwise, disassociates the default IMC from the
-   *                      window.
-   * @return              TRUE if this method associated the default IMC with
-   *                      disassociated window or disassociated the default IMC
-   *                      from associated window.
-   *                      Otherwise, i.e., if this method did nothing actually,
-   *                      FALSE.
-   */
-  PRBool                  AssociateDefaultIMC(PRBool aAssociate);
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
@@ -426,8 +411,8 @@ protected:
   BOOL                    OnInputLangChange(HKL aHKL);
   PRBool                  OnPaint(HDC aDC, PRUint32 aNestingLevel);
   void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
-  PRBool                  OnMouseWheel(UINT aMessage, WPARAM aWParam,
-                                       LPARAM aLParam, PRBool& aHandled,
+  PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
+                                       PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
 
@@ -519,6 +504,7 @@ protected:
   PRUint32              mBlurSuppressLevel;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
+  HIMC                  mOldIMC;
   IMEContext            mIMEContext;
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
@@ -540,8 +526,7 @@ protected:
   static int            sTrimOnMinimize;
   static PRBool         sDefaultTrackPointHack;
   static const char*    sDefaultMainWindowClass;
-  static PRBool         sUseElantechSwipeHack;
-  static PRBool         sUseElantechPinchHack;
+  static PRBool         sUseElantechGestureHacks;
   static bool           sAllowD3D9;
 
   // Always use the helper method to read this property.  See bug 603793.
@@ -631,21 +616,6 @@ protected:
   // was reirected to SendInput() API by OnKeyDown().
   static MSG            sRedirectedKeyDown;
 
-  static PRBool sEnablePixelScrolling;
-  static PRBool sNeedsToInitMouseWheelSettings;
-  static ULONG sMouseWheelScrollLines;
-  static ULONG sMouseWheelScrollChars;
-  static void InitMouseWheelScrollData();
-
-  static HWND sLastMouseWheelWnd;
-  static PRInt32 sRemainingDeltaForScroll;
-  static PRInt32 sRemainingDeltaForPixel;
-  static PRBool sLastMouseWheelDeltaIsPositive;
-  static PRBool sLastMouseWheelOrientationIsVertical;
-  static PRBool sLastMouseWheelUnitIsPage;
-  static PRUint32 sLastMouseWheelTime; // in milliseconds
-  static void ResetRemainingWheelDelta();
-
   // If a window receives WM_KEYDOWN message or WM_SYSKEYDOWM message which is
   // redirected message, OnKeyDowm() prevents to dispatch NS_KEY_DOWN event
   // because it has been dispatched before the message was redirected.
@@ -679,6 +649,7 @@ protected:
     nsRefPtr<nsWindow> mWindow;
     const MSG &mMsg;
   };
+
 };
 
 /**

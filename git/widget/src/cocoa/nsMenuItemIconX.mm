@@ -341,7 +341,7 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
 
   // Passing in null for channelPolicy here since nsMenuItemIconX::LoadIcon is
   // not exposed to web content
-  rv = loader->LoadImage(aIconURI, nsnull, nsnull, nsnull, loadGroup, this,
+  rv = loader->LoadImage(aIconURI, nsnull, nsnull, loadGroup, this,
                          nsnull, nsIRequest::LOAD_NORMAL, nsnull, nsnull,
                          nsnull, getter_AddRefs(mIconRequest));
   if (NS_FAILED(rv)) return rv;
@@ -548,7 +548,8 @@ NS_IMETHODIMP
 nsMenuItemIconX::OnStopRequest(imgIRequest* aRequest,
                               PRBool       aIsLastPart)
 {
-  if (mIconRequest && mIconRequest == aRequest) {
+  NS_ASSERTION(mIconRequest, "NULL mIconRequest!  Multiple calls to OnStopRequest()?");
+  if (mIconRequest) {
     mIconRequest->Cancel(NS_BINDING_ABORTED);
     mIconRequest = nsnull;
   }

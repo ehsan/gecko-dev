@@ -92,7 +92,6 @@ CPPSRCS		= \
 		nsDataDocumentContentPolicy.cpp \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
-		nsDOMBlobBuilder.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
@@ -114,6 +113,7 @@ CPPSRCS		= \
 		nsHTMLContentSerializer.cpp \
 		nsImageLoadingContent.cpp \
 		nsLineBreaker.cpp \
+		nsLoadListenerProxy.cpp \
 		nsMappedAttributeElement.cpp \
 		nsMappedAttributes.cpp \
 		nsNameSpaceManager.cpp \
@@ -129,6 +129,7 @@ CPPSRCS		= \
 		nsRange.cpp \
 		nsReferencedElement.cpp \
 		nsScriptElement.cpp \
+		nsScriptEventManager.cpp \
 		nsScriptLoader.cpp \
 		nsStubDocumentObserver.cpp \
 		nsStubImageDecoderObserver.cpp \
@@ -150,7 +151,6 @@ CPPSRCS		= \
 		nsFrameMessageManager.cpp \
 		nsInProcessTabChildGlobal.cpp \
 		ThirdPartyUtil.cpp \
-		nsEventSource.cpp \
 		$(NULL)
 
 # Are we targeting x86-32 or x86-64?  If so, we want to include SSE2 code for
@@ -209,7 +209,6 @@ INCLUDES	+= \
 		-I$(topsrcdir)/js/src/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
 		-I$(topsrcdir)/netwerk/base/src \
-		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

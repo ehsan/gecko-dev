@@ -24,7 +24,9 @@ let PlacesOrganizer;
 
 function test() {
   waitForExplicitFinish();
-  gLibrary = openLibrary(onLibraryReady);
+  gLibrary = window.openDialog("chrome://browser/content/places/places.xul",
+                               "", "chrome,toolbar=yes,dialog=no,resizable");
+  waitForFocus(onLibraryReady, gLibrary);
 }
 
 function onLibraryReady() {

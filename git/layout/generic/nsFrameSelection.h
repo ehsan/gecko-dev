@@ -210,8 +210,9 @@ class nsIScrollableFrame;
  * or they may cause other objects to be deleted.
  */
 
-class NS_FINAL_CLASS nsFrameSelection : public nsISupports {
+class nsFrameSelection : public nsISupports {
 public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_FRAME_SELECTION_IID)
   enum HINT { HINTLEFT = 0, HINTRIGHT = 1};  //end of this line or beginning of next
   /*interfaces for addref and release and queryinterface*/
   
@@ -368,20 +369,6 @@ public:
    * @param aState will hold the state of mousedown
    */
   PRBool GetMouseDownState() const { return mMouseDownState; }
-
-  /**
-   * GetMouseDownedFrameSelection returns an instance which is handling
-   * mouse dragging.
-   */
-  static nsFrameSelection* GetMouseDownFrameSelection()
-  {
-    return sDraggingFrameSelection;
-  }
-
-  /**
-   * Call AbortDragForSelection() when we abort handling the drag as selecting.
-   */
-  void AbortDragForSelection();
 
   /**
     if we are in table cell selection mode. aka ctrl click in table cell
@@ -612,7 +599,6 @@ public:
 
 
   nsFrameSelection();
-  virtual ~nsFrameSelection();
 
   void StartBatchChanges();
   void EndBatchChanges();
@@ -621,11 +607,7 @@ public:
 
   nsIPresShell *GetShell()const  { return mShell; }
 
-  void DisconnectFromPresShell()
-  {
-    AbortDragForSelection();
-    mShell = nsnull;
-  }
+  void DisconnectFromPresShell() { StopAutoScrollTimer(); mShell = nsnull; }
 private:
   nsresult TakeFocus(nsIContent *aNewFocus,
                      PRUint32 aContentOffset,
@@ -715,8 +697,6 @@ private:
   nsresult CreateAndAddRange(nsINode *aParentNode, PRInt32 aOffset);
   nsresult ClearNormalSelection();
 
-  static nsFrameSelection* sDraggingFrameSelection;
-
   nsCOMPtr<nsINode> mCellParent; //used to snap to table selection
   nsCOMPtr<nsIContent> mStartSelectedCell;
   nsCOMPtr<nsIContent> mEndSelectedCell;
@@ -760,5 +740,7 @@ private:
 
   PRInt8 mCaretMovementStyle;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsFrameSelection, NS_FRAME_SELECTION_IID)
 
 #endif /* nsFrameSelection_h___ */

@@ -192,19 +192,12 @@ InsideOutBox.prototype =
    *        Force the object box open by expanding all elements in the tree?
    * @param scrollIntoView
    *        Scroll the objectBox into view?
-   * @returns nsIDOMNode|null
-   *          A DOM node that represents the "object box", the element that
-   *          holds/displays the given aObject representation in the tree. If
-   *          the object cannot be selected, if it is a stale object, null is
-   *          returned.
+   * @returns objectBox
    */
   select:
   function IOBox_select(aObject, makeBoxVisible, forceOpen, scrollIntoView)
   {
     let objectBox = this.createObjectBox(aObject);
-    if (!objectBox) {
-      return null;
-    }
     this.selectObjectBox(objectBox, forceOpen);
     if (makeBoxVisible) {
       this.openObjectBox(objectBox);

@@ -192,11 +192,11 @@
     /**
      * Load wrong URI what results in error page loading.
      */
-    function loadErrorPageInvoker(aURL, aURLDescr)
+    function loadErrorPageInvoker()
     {
       this.invoke = function loadErrorPageInvoker_invoke()
       {
-        gTabBrowser.loadURI(aURL);
+        gTabBrowser.loadURI("www.wronguri.wronguri");
       }
 
       this.eventSeq = [
@@ -209,7 +209,7 @@
 
       this.getID = function loadErrorPageInvoker_getID()
       {
-        return "load error page: '" + aURLDescr + "'";
+        return "load error page";
       }
     }
 
@@ -230,11 +230,7 @@
       gQueue.push(new clickReloadBtnInvoker());
       gQueue.push(new loadURIInvoker("about:mozilla"));
       gQueue.push(new reloadInvoker());
-      gQueue.push(new loadErrorPageInvoker("www.wronguri.wronguri",
-                                           "Server not found"));
-      gQueue.push(new loadErrorPageInvoker("https://nocert.example.com:443",
-                                          "Untrusted Connection"));
-
+      gQueue.push(new loadErrorPageInvoker());
       gQueue.onFinish = function() { window.close(); }
       gQueue.invoke();
     }

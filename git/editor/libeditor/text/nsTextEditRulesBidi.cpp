@@ -56,8 +56,10 @@ nsTextEditRules::CheckBidiLevelForDeletion(nsISelection         *aSelection,
   NS_ENSURE_ARG_POINTER(aCancel);
   *aCancel = PR_FALSE;
 
-  nsCOMPtr<nsIPresShell> shell = mEditor->GetPresShell();
-  NS_ENSURE_TRUE(shell, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIPresShell> shell;
+  nsresult res = mEditor->GetPresShell(getter_AddRefs(shell));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(shell, NS_ERROR_NULL_POINTER);
   
   nsPresContext *context = shell->GetPresContext();
   NS_ENSURE_TRUE(context, NS_ERROR_NULL_POINTER);
@@ -74,7 +76,7 @@ nsTextEditRules::CheckBidiLevelForDeletion(nsISelection         *aSelection,
   nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(aSelection));
   NS_ENSURE_TRUE(privateSelection, NS_ERROR_NULL_POINTER);
   
-  nsRefPtr<nsFrameSelection> frameSelection;
+  nsCOMPtr<nsFrameSelection> frameSelection;
   privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
   NS_ENSURE_TRUE(frameSelection, NS_ERROR_NULL_POINTER);
   

@@ -43,7 +43,8 @@
 #include "nsWebMReader.h"
 #include "VideoUtils.h"
 #include "nsTimeRanges.h"
-#include "mozilla/Preferences.h"
+#include "nsIServiceManager.h"
+#include "nsIPrefService.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
@@ -209,7 +210,8 @@ void nsWebMReader::Cleanup()
 
 nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   nestegg_io io;
   io.read = webm_read;
@@ -224,7 +226,8 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
   uint64_t duration = 0;
   r = nestegg_duration(mContext, &duration);
   if (r == 0) {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+    ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
+    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
     mDecoder->GetStateMachine()->SetDuration(duration / NS_PER_USEC);
   }
 
@@ -255,9 +258,9 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
       // Picture region, taking into account cropping, before scaling
       // to the display size.
       nsIntRect pictureRect(params.crop_left,
-                            params.crop_top,
-                            params.width - (params.crop_right + params.crop_left),
-                            params.height - (params.crop_bottom + params.crop_top));
+                        params.crop_top,
+                        params.width - (params.crop_right + params.crop_left),
+                        params.height - (params.crop_bottom + params.crop_top));
 
       // If the cropping data appears invalid then use the frame data
       if (pictureRect.width <= 0 ||
@@ -279,14 +282,15 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
         // Video track's frame sizes will overflow. Ignore the video track.
         continue;
       }
-
+          
       mVideoTrack = track;
       mHasVideo = PR_TRUE;
       mInfo.mHasVideo = PR_TRUE;
-
+      mInfo.mPicture = pictureRect;
       mInfo.mDisplay = displaySize;
-      mPicture = pictureRect;
-      mInitialFrame = frameSize;
+      mInfo.mFrame = frameSize;
+      mInfo.mPixelAspectRatio = (static_cast<float>(params.display_width) / mInfo.mPicture.width) /
+                                (static_cast<float>(params.display_height) / mInfo.mPicture.height);
 
       switch (params.stereo_mode) {
       case NESTEGG_VIDEO_MONO:
@@ -306,9 +310,9 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
         break;
       }
 
+      nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
       PRInt32 forceStereoMode;
-      if (NS_SUCCEEDED(Preferences::GetInt("media.webm.force_stereo_mode",
-                                           &forceStereoMode))) {
+      if (NS_SUCCEEDED(prefs->GetIntPref("media.webm.force_stereo_mode", &forceStereoMode))) {
         switch (forceStereoMode) {
         case 1:
           mInfo.mStereoMode = STEREO_MODE_LEFT_RIGHT;
@@ -409,7 +413,7 @@ ogg_packet nsWebMReader::InitOggPacket(unsigned char* aData,
  
 PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  mReentrantMonitor.AssertCurrentThreadIn();
 
   int r = 0;
   unsigned int count = 0;
@@ -587,8 +591,9 @@ nsReturnRef<NesteggPacketHolder> nsWebMReader::NextPacket(TrackType aTrackType)
 
 PRBool nsWebMReader::DecodeAudioData()
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
+    "Should be on state machine thread or decode thread.");
   nsAutoRef<NesteggPacketHolder> holder(NextPacket(AUDIO));
   if (!holder) {
     mAudioQueue.Finish();
@@ -601,7 +606,9 @@ PRBool nsWebMReader::DecodeAudioData()
 PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                       PRInt64 aTimeThreshold)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
+               "Should be on state machine or decode thread.");
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
@@ -647,6 +654,7 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
       }
       mVideoPackets.PushFront(next_holder.disown());
     } else {
+      ReentrantMonitorAutoExit exitMon(mReentrantMonitor);
       ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
       nsBuiltinDecoderStateMachine* s =
         static_cast<nsBuiltinDecoderStateMachine*>(mDecoder->GetStateMachine());
@@ -716,17 +724,6 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
       b.mPlanes[2].mHeight = img->d_h >> img->y_chroma_shift;
       b.mPlanes[2].mWidth = img->d_w >> img->x_chroma_shift;
   
-      nsIntRect picture = mPicture;
-      if (img->d_w != mInitialFrame.width || img->d_h != mInitialFrame.height) {
-        // Frame size is different from what the container reports. This is legal
-        // in WebM, and we will preserve the ratio of the crop rectangle as it
-        // was reported relative to the picture size reported by the container.
-        picture.x = (mPicture.x * img->d_w) / mInitialFrame.width;
-        picture.y = (mPicture.y * img->d_h) / mInitialFrame.height;
-        picture.width = (img->d_w * mPicture.width) / mInitialFrame.width;
-        picture.height = (img->d_h * mPicture.height) / mInitialFrame.height;
-      }
-
       VideoData *v = VideoData::Create(mInfo,
                                        mDecoder->GetImageContainer(),
                                        holder->mOffset,
@@ -734,8 +731,7 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                        next_tstamp / NS_PER_USEC,
                                        b,
                                        si.is_kf,
-                                       -1,
-                                       picture);
+                                       -1);
       if (!v) {
         return PR_FALSE;
       }
@@ -750,19 +746,32 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   return PR_TRUE;
 }
 
+PRBool nsWebMReader::CanDecodeToTarget(PRInt64 aTarget,
+                                       PRInt64 aCurrentTime)
+{
+  return aTarget >= aCurrentTime &&
+         aTarget - aCurrentTime < SEEK_DECODE_MARGIN;
+}
+
 nsresult nsWebMReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime,
                             PRInt64 aCurrentTime)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lldms", mDecoder, aTarget));
-  if (NS_FAILED(ResetDecode())) {
-    return NS_ERROR_FAILURE;
-  }
-  PRUint32 trackToSeek = mHasVideo ? mVideoTrack : mAudioTrack;
-  int r = nestegg_track_seek(mContext, trackToSeek, aTarget * NS_PER_USEC);
-  if (r != 0) {
-    return NS_ERROR_FAILURE;
+  if (CanDecodeToTarget(aTarget, aCurrentTime)) {
+    LOG(PR_LOG_DEBUG, ("%p Seek target (%lld) is close to current time (%lld), "
+                       "will just decode to it", mDecoder, aCurrentTime, aTarget));
+  } else {
+    if (NS_FAILED(ResetDecode())) {
+      return NS_ERROR_FAILURE;
+    }
+    PRUint32 trackToSeek = mHasVideo ? mVideoTrack : mAudioTrack;
+    int r = nestegg_track_seek(mContext, trackToSeek, aTarget * NS_PER_USEC);
+    if (r != 0) {
+      return NS_ERROR_FAILURE;
+    }
   }
   return DecodeToTarget(aTarget);
 }

@@ -72,7 +72,7 @@ class nsIDOMSVGTransformList;
 class nsIDOMWindow;
 class nsIForm;
 class nsIHTMLDocument;
-class nsNPAPIPluginInstance;
+class nsIPluginInstance;
 class nsSVGTransformList;
 
 struct nsDOMClassInfoData;
@@ -202,7 +202,8 @@ protected:
 
   static inline PRBool IsReadonlyReplaceable(jsid id)
   {
-    return (id == sParent_id       ||
+    return (id == sTop_id          ||
+            id == sParent_id       ||
             id == sScrollbars_id   ||
             id == sContent_id      ||
             id == sMenubar_id      ||
@@ -245,6 +246,7 @@ protected:
   static PRBool sDisableGlobalScopePollutionSupport;
 
 public:
+  static jsid sTop_id;
   static jsid sParent_id;
   static jsid sScrollbars_id;
   static jsid sLocation_id;
@@ -310,6 +312,7 @@ public:
   static jsid sScrollY_id;
   static jsid sScrollMaxX_id;
   static jsid sScrollMaxY_id;
+  static jsid sOpen_id;
   static jsid sItem_id;
   static jsid sNamedItem_id;
   static jsid sEnumerate_id;
@@ -364,11 +367,6 @@ public:
   static jsid sOntouchenter_id;
   static jsid sOntouchleave_id;
   static jsid sOntouchcancel_id;
-  static jsid sOnbeforeprint_id;
-  static jsid sOnafterprint_id;
-
-  static jsid sOndevicemotion_id;
-  static jsid sOndeviceorientation_id;
 
 protected:
   static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
@@ -898,43 +896,6 @@ public:
 };
 
 
-// DOMStringMap helper for .dataset property on elements.
-
-class nsDOMStringMapSH : public nsDOMGenericSH
-{
-public:
-  nsDOMStringMapSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
-  {
-  }
-
-  virtual ~nsDOMStringMapSH()
-  {
-  }
-
-public:
-  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsid id, PRUint32 flags,
-                        JSObject **objp, PRBool *_retval);
-  NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                       JSObject *obj, PRBool *_retval);
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-  NS_IMETHOD DelProperty(nsIXPConnectWrappedNative *wrapper,
-                         JSContext *cx, JSObject *obj, jsid id,
-                         jsval *vp, PRBool *_retval);
-  NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsid id, jsval *vp, PRBool *_retval);
-  NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsid id, jsval *vp, PRBool *_retval);
-
-  bool JSIDToProp(const jsid& aId, nsAString& aResult);
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsDOMStringMapSH(aData);
-  }
-};
-
 
 // Document helper, for document.location and document.on*
 
@@ -981,6 +942,7 @@ protected:
   {
   }
 
+  static JSBool DocumentOpen(JSContext *cx, uintN argc, jsval *vp);
   static JSBool GetDocumentAllNodeList(JSContext *cx, JSObject *obj,
                                        nsDocument *doc,
                                        nsContentList **nodeList);
@@ -1131,10 +1093,10 @@ protected:
 
   static nsresult GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *aWrapper,
                                           JSObject *obj,
-                                          nsNPAPIPluginInstance **aResult);
+                                          nsIPluginInstance **aResult);
 
   static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
-                                    nsNPAPIPluginInstance *plugin_inst,
+                                    nsIPluginInstance *plugin_inst,
                                     JSObject **plugin_obj,
                                     JSObject **plugin_proto);
 

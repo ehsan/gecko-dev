@@ -41,9 +41,6 @@ fails-if(Android) == conditions-01.svg pass.svg # bug 652050
 == currentColor-01.svg pass.svg
 == currentColor-02.svg pass.svg
 == currentColor-03.svg pass.svg
-== data-uri-with-filter-01.xhtml data-uri-with-filter-01-ref.svg
-== data-uri-with-gradient-01.xhtml data-uri-with-gradient-01-ref.svg
-== data-uri-with-pattern-01.xhtml pass.svg
 == dynamic-attr-removal-1.svg pass.svg
 == dynamic-attr-removal-2.svg pass.svg
 == dynamic-attr-change-1.svg pass.svg
@@ -92,12 +89,9 @@ fails-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == dynamic-text-04.svg dynam
 == dynamic-textPath-01.svg dynamic-textPath-01-ref.svg
 == dynamic-use-01.svg pass.svg
 == dynamic-use-02.svg pass.svg
-== dynamic-use-03.svg pass.svg
-== dynamic-use-04.svg pass.svg
 random == dynamic-use-nested-01.svg dynamic-use-nested-01-ref.svg # bug 467498
 == dynamic-use-remove-width.svg dynamic-use-remove-width-ref.svg
 == linked-pattern-01.svg pass.svg
-== use-01.svg pass.svg
 == use-01-extref.svg pass.svg
 == use-02-extref.svg use-02-extref-ref.svg
 == use-children.svg pass.svg
@@ -123,10 +117,10 @@ random == dynamic-use-nested-01.svg dynamic-use-nested-01-ref.svg # bug 467498
 == foreignObject-start-hidden-01.svg pass.svg # followup from Bug 596765
 == foreignObject-start-hidden-02.svg pass.svg
 == getElementById-a-element-01.svg pass.svg
-== gradient-live-01a.svg gradient-live-01-ref.svg
-== gradient-live-01b.svg gradient-live-01-ref.svg
-== gradient-live-01c.svg gradient-live-01-ref.svg
-== gradient-live-01d.svg gradient-live-01-ref.svg
+fails-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == gradient-live-01a.svg gradient-live-01-ref.svg # bug 623403
+fails-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == gradient-live-01b.svg gradient-live-01-ref.svg # bug 623403
+fails-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == gradient-live-01c.svg gradient-live-01-ref.svg # bug 623403
+fails-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == gradient-live-01d.svg gradient-live-01-ref.svg # bug 623403
 fails == inline-in-xul-basic-01.xul pass.svg
 == invalid-text-01.svg pass.svg
 == linearGradient-basic-01.svg pass.svg
@@ -158,7 +152,6 @@ random-if(gtk2Widget) == objectBoundingBox-and-fePointLight-01.svg objectBoundin
 == path-02.svg pass.svg
 == path-03.svg pass.svg
 == path-04.svg pass.svg
-== path-05.svg pass.svg
 == pathLength-01.svg pass.svg
 == pathLength-02.svg pass.svg
 == pattern-invalid-01.svg pattern-invalid-01-ref.svg

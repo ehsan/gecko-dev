@@ -1,5 +1,4 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -48,19 +47,14 @@
 PRBool
 xpc::PtrAndPrincipalHashKey::KeyEquals(const PtrAndPrincipalHashKey* aKey) const
 {
-    if(aKey->mPtr != mPtr)
-        return PR_FALSE;
-    if(aKey->mPrincipal == mPrincipal)
-        return PR_TRUE;
+  if(aKey->mPtr != mPtr)
+    return PR_FALSE;
 
-    PRBool equals;
-    if(NS_FAILED(mPrincipal->EqualsIgnoringDomain(aKey->mPrincipal, &equals)))
-    {
-        NS_ERROR("we failed, guessing!");
-        return PR_FALSE;
-    }
+  if(!mURI || !aKey->mURI)
+      return mURI == aKey->mURI;
 
-    return equals;
+  nsIScriptSecurityManager *ssm = nsXPConnect::gScriptSecurityManager;
+  return !ssm || NS_SUCCEEDED(ssm->CheckSameOriginURI(mURI, aKey->mURI, PR_FALSE));
 }
 
 inline void
@@ -271,7 +265,11 @@ XPCCallContext::GetMember() const
 inline JSBool
 XPCCallContext::HasInterfaceAndMember() const
 {
-    return mState >= HAVE_NAME && mInterface && mMember;
+    return mState >= HAVE_NAME && mInterface && (mMember
+#ifdef XPC_IDISPATCH_SUPPORT
+        || mIDispatchMember
+#endif
+        );
 }
 
 inline jsid
@@ -608,19 +606,65 @@ inline void XPCNativeSet::ASSERT_NotMarked()
 inline
 JSObject* XPCWrappedNativeTearOff::GetJSObject() const
 {
+#ifdef XPC_IDISPATCH_SUPPORT
+    if(IsIDispatch())
+    {
+        XPCDispInterface * iface = GetIDispatchInfo();
+        return iface ? iface->GetJSObject() : nsnull;
+    }
+#endif
     return mJSObject;
 }
 
 inline
 void XPCWrappedNativeTearOff::SetJSObject(JSObject*  JSObj)
 {
+#ifdef XPC_IDISPATCH_SUPPORT
+    if(IsIDispatch())
+    {
+        XPCDispInterface* iface = GetIDispatchInfo();
+        if(iface)
+            iface->SetJSObject(JSObj);
+    }
+    else
+#endif
         mJSObject = JSObj;
 }
+
+#ifdef XPC_IDISPATCH_SUPPORT
+inline void
+XPCWrappedNativeTearOff::SetIDispatch(JSContext* cx)
+{
+    mJSObject = (JSObject*)(((jsword)
+        ::XPCDispInterface::NewInstance(cx,
+                                          mNative)) | 2);
+}
+
+inline XPCDispInterface* 
+XPCWrappedNativeTearOff::GetIDispatchInfo() const
+{
+    NS_ASSERTION((jsword)mJSObject & 2, "XPCWrappedNativeTearOff::GetIDispatchInfo "
+                                "called on a non IDispatch interface");
+    return reinterpret_cast<XPCDispInterface*>
+                           ((((jsword)mJSObject) & ~JSOBJECT_MASK));
+}
+
+inline JSBool
+XPCWrappedNativeTearOff::IsIDispatch() const
+{
+    return (JSBool)(((jsword)mJSObject) & IDISPATCH_BIT);
+}
+
+#endif
 
 inline
 XPCWrappedNativeTearOff::~XPCWrappedNativeTearOff()
 {
     NS_ASSERTION(!(GetInterface()||GetNative()||GetJSObject()), "tearoff not empty in dtor");
+#ifdef XPC_IDISPATCH_SUPPORT
+    if(IsIDispatch())
+        delete GetIDispatchInfo();
+#endif
 }
 
 /***************************************************************************/

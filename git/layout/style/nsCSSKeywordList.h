@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -222,7 +221,6 @@ CSS_KEY(center, center)
 CSS_KEY(ch, ch)
 CSS_KEY(circle, circle)
 CSS_KEY(cjk-ideographic, cjk_ideographic)
-CSS_KEY(clip, clip)
 CSS_KEY(close-quote, close_quote)
 CSS_KEY(closest-corner, closest_corner)
 CSS_KEY(closest-side, closest_side)
@@ -259,7 +257,6 @@ CSS_KEY(ease-out, ease_out)
 CSS_KEY(element, element)
 CSS_KEY(elements, elements)
 CSS_KEY(ellipse, ellipse)
-CSS_KEY(ellipsis, ellipsis)
 CSS_KEY(em, em)
 CSS_KEY(embed, embed)
 CSS_KEY(enabled, enabled)
@@ -586,7 +583,6 @@ CSS_KEY(-moz-window-button-restore, _moz_window_button_restore)
 CSS_KEY(-moz-window-button-box, _moz_window_button_box)
 CSS_KEY(-moz-window-button-box-maximized, _moz_window_button_box_maximized)
 CSS_KEY(-moz-mac-unified-toolbar, _moz_mac_unified_toolbar)
-CSS_KEY(-moz-win-exclude-glass, _moz_win_exclude_glass)
 CSS_KEY(alphabetic, alphabetic)
 CSS_KEY(bevel, bevel)
 CSS_KEY(butt, butt)

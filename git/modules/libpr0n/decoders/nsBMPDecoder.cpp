@@ -48,7 +48,8 @@
 #include "nsIInputStream.h"
 #include "RasterImage.h"
 #include "imgIContainerObserver.h"
-#include "ImageLogging.h"
+
+#include "prlog.h"
 
 namespace mozilla {
 namespace imagelib {
@@ -195,11 +196,6 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
 
         // Post our size to the superclass
         PostSize(mBIH.width, real_height);
-        if (HasError()) {
-          // Setting the size lead to an error; this can happen when for example
-          // a multipart channel sends an image of a different size.
-          return;
-        }
 
         // We have the size. If we're doing a size decode, we got what
         // we came for.
@@ -228,7 +224,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
 
         PRUint32 imageLength;
         if ((mBIH.compression == BI_RLE8) || (mBIH.compression == BI_RLE4)) {
-            rv = mImage->EnsureFrame(0, 0, 0, mBIH.width, real_height, gfxASurface::ImageFormatARGB32,
+            rv = mImage->AppendFrame(0, 0, mBIH.width, real_height, gfxASurface::ImageFormatARGB32,
                                      (PRUint8**)&mImageData, &imageLength);
         } else {
             // mRow is not used for RLE encoded images
@@ -240,7 +236,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
                 PostDecoderError(NS_ERROR_OUT_OF_MEMORY);
                 return;
             }
-            rv = mImage->EnsureFrame(0, 0, 0, mBIH.width, real_height, gfxASurface::ImageFormatRGB24,
+            rv = mImage->AppendFrame(0, 0, mBIH.width, real_height, gfxASurface::ImageFormatRGB24,
                                      (PRUint8**)&mImageData, &imageLength);
         }
         if (NS_FAILED(rv) || !mImageData) {
@@ -423,7 +419,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
                             // the second byte
                             // Work around bitmaps that specify too many pixels
                             mState = eRLEStateInitial;
-                            PRUint32 pixelsNeeded = NS_MIN<PRUint32>(mBIH.width - mCurPos, mStateData);
+                            PRUint32 pixelsNeeded = PR_MIN((PRUint32)(mBIH.width - mCurPos), mStateData);
                             if (pixelsNeeded) {
                                 PRUint32* d = mImageData + PIXEL_OFFSET(mCurLine, mCurPos);
                                 mCurPos += pixelsNeeded;
@@ -503,7 +499,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
                         byte = *aBuffer++;
                         aCount--;
                         mState = eRLEStateInitial;
-                        mCurLine -= NS_MIN<PRInt32>(byte, mCurLine);
+                        mCurLine -= PR_MIN(byte, mCurLine);
                         break;
 
                     case eRLEStateAbsoluteMode: // Absolute Mode

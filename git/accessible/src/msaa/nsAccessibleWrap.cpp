@@ -58,6 +58,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
+#include "nsIPrefService.h"
 #include "nsRootAccessible.h"
 #include "nsIServiceManager.h"
 #include "nsTextFormatter.h"
@@ -118,7 +119,7 @@ __try {
 
   if (IID_IUnknown == iid || IID_IDispatch == iid || IID_IAccessible == iid)
     *ppv = static_cast<IAccessible*>(this);
-  else if (IID_IEnumVARIANT == iid) {
+  else if (IID_IEnumVARIANT == iid && !gIsEnumVariantSupportDisabled) {
     long numChildren;
     get_accChildCount(&numChildren);
     if (numChildren > 0)  // Don't support this interface for leaf elements
@@ -484,22 +485,18 @@ STDMETHODIMP nsAccessibleWrap::get_accKeyboardShortcut(
       /* [retval][out] */ BSTR __RPC_FAR *pszKeyboardShortcut)
 {
 __try {
-  if (!pszKeyboardShortcut)
-    return E_INVALIDARG;
-
   *pszKeyboardShortcut = NULL;
   nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
-    return E_FAIL;
+  if (xpAccessible) {
+    nsAutoString shortcut;
+    nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
+    if (NS_FAILED(rv))
+      return E_FAIL;
 
-  nsAutoString shortcut;
-  nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
-
-  *pszKeyboardShortcut = ::SysAllocStringLen(shortcut.get(),
-                                             shortcut.Length());
-  return *pszKeyboardShortcut ? S_OK : E_OUTOFMEMORY;
+    *pszKeyboardShortcut = ::SysAllocStringLen(shortcut.get(),
+                                               shortcut.Length());
+    return *pszKeyboardShortcut ? S_OK : E_OUTOFMEMORY;
+  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -903,20 +900,38 @@ STDMETHODIMP nsAccessibleWrap::accHitTest(
 {
 __try {
   VariantInit(pvarChild);
-  if (IsDefunct())
-    return E_FAIL;
 
-  nsAccessible* accessible = ChildAtPoint(xLeft, yTop, eDirectChild);
+  // convert to window coords
+  nsCOMPtr<nsIAccessible> xpAccessible;
+
+  xLeft = xLeft;
+  yTop = yTop;
+
+  if (nsAccUtils::MustPrune(this)) {
+    xpAccessible = this;
+  }
+  else {
+    GetChildAtPoint(xLeft, yTop, getter_AddRefs(xpAccessible));
+  }
 
   // if we got a child
-  if (accessible) {
+  if (xpAccessible) {
     // if the child is us
-    if (accessible == this) {
+    if (xpAccessible == static_cast<nsIAccessible*>(this)) {
       pvarChild->vt = VT_I4;
       pvarChild->lVal = CHILDID_SELF;
     } else { // its not create an Accessible for it.
       pvarChild->vt = VT_DISPATCH;
-      pvarChild->pdispVal = NativeAccessible(accessible);
+      pvarChild->pdispVal = NativeAccessible(xpAccessible);
+      nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(xpAccessible));
+      NS_ASSERTION(accessNode, "Unable to QI to nsIAccessNode");
+      nsCOMPtr<nsIDOMNode> domNode;
+      accessNode->GetDOMNode(getter_AddRefs(domNode));
+      if (!domNode) {
+        // Has already been shut down
+        pvarChild->vt = VT_EMPTY;
+        return E_FAIL;
+      }
     }
   } else {
     // no child at that point
@@ -1368,18 +1383,19 @@ STDMETHODIMP
 nsAccessibleWrap::get_indexInParent(long *aIndexInParent)
 {
 __try {
-  if (!aIndexInParent)
-    return E_INVALIDARG;
-
   *aIndexInParent = -1;
-  if (IsDefunct())
-    return E_FAIL;
 
-  *aIndexInParent = IndexInParent();
-  if (*aIndexInParent == -1)
+  PRInt32 index = -1;
+  nsresult rv = GetIndexInParent(&index);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (index == -1)
     return S_FALSE;
 
+  *aIndexInParent = index;
   return S_OK;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -1745,38 +1761,6 @@ nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
 
   if (nsAccUtils::MustPrune(this))
     return nsnull;
-
-  // If lVal negative then it is treated as child ID and we should look for
-  // accessible through whole accessible subtree including subdocuments.
-  // Otherwise we treat lVal as index in parent.
-
-  if (aVarChild.lVal < 0) {
-    // Convert child ID to unique ID.
-    void* uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
-
-    // Document.
-    if (IsDoc())
-      return AsDoc()->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-    // ARIA document.
-    if (ARIARole() == nsIAccessibleRole::ROLE_DOCUMENT) {
-      nsDocAccessible* document = GetDocAccessible();
-      nsAccessible* child =
-        document->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-      // Check whether the accessible for the given ID is a child of ARIA
-      // document.
-      nsAccessible* parent = child ? child->GetParent() : nsnull;
-      while (parent && parent != document) {
-        if (parent == this)
-          return child;
-
-        parent = parent->GetParent();
-      }
-    }
-
-    return nsnull;
-  }
 
   // Gecko child indices are 0-based in contrast to indices used in MSAA.
   return GetChildAt(aVarChild.lVal - 1);

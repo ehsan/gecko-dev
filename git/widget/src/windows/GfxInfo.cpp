@@ -47,12 +47,12 @@
 #include "prenv.h"
 #include "prprf.h"
 #include "GfxDriverInfo.h"
-#include "mozilla/Preferences.h"
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
+#include "nsIPrefService.h"
 #endif
 
 
@@ -98,106 +98,12 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
   return NS_OK;
 }
 
-nsresult
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
-{
-  *aEnabled = PR_FALSE;
-
-  PRBool d2dEnabled = 
-    gfxWindowsPlatform::GetPlatform()->GetRenderMode() == gfxWindowsPlatform::RENDER_DIRECT2D;
-
-  if (d2dEnabled) {
-    PRBool azure = PR_FALSE;
-    nsresult rv = mozilla::Preferences::GetBool("gfx.canvas.azure.enabled", &azure);
-
-    if (NS_SUCCEEDED(rv) && azure) {
-      *aEnabled = PR_TRUE;
-    }
-  }
-
-  return NS_OK;
-}
-
 /* readonly attribute DOMString DWriteVersion; */
 NS_IMETHODIMP
 GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
 {
   gfxWindowsPlatform::GetDLLVersion(L"dwrite.dll", aDwriteVersion);
   return NS_OK;
-}
-
-#define PIXEL_STRUCT_RGB  1
-#define PIXEL_STRUCT_BGR  2
-
-/* readonly attribute DOMString cleartypeParameters; */
-NS_IMETHODIMP
-GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
-{
-  nsTArray<ClearTypeParameterInfo> clearTypeParams;
-
-  gfxWindowsPlatform::GetPlatform()->GetCleartypeParams(clearTypeParams);
-  PRUint32 d, numDisplays = clearTypeParams.Length();
-  bool displayNames = (numDisplays > 1);
-  bool foundData = false;
-  nsString outStr;
-  WCHAR valStr[256];
-
-  for (d = 0; d < numDisplays; d++) {
-    ClearTypeParameterInfo& params = clearTypeParams[d];
-
-    if (displayNames) {
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"%s [ ", params.displayName.get());
-      outStr.Append(valStr);
-    }
-
-    if (params.gamma >= 0) {
-      foundData = true;
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"Gamma: %d ", params.gamma);
-      outStr.Append(valStr);
-    }
-
-    if (params.pixelStructure >= 0) {
-      foundData = true;
-      if (params.pixelStructure == PIXEL_STRUCT_RGB ||
-          params.pixelStructure == PIXEL_STRUCT_BGR)
-      {
-        swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                   L"Pixel Structure: %s ",
-                   (params.pixelStructure == PIXEL_STRUCT_RGB ?
-                      L"RGB" : L"BGR"));
-      } else {
-        swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                   L"Pixel Structure: %d ", params.pixelStructure);
-      }
-      outStr.Append(valStr);
-    }
-
-    if (params.clearTypeLevel >= 0) {
-      foundData = true;
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"ClearType Level: %d ", params.clearTypeLevel);
-      outStr.Append(valStr);
-    }
-
-    if (params.enhancedContrast >= 0) {
-      foundData = true;
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"Enhanced Contrast: %d ", params.enhancedContrast);
-      outStr.Append(valStr);
-    }
-
-    if (displayNames) {
-      outStr.Append(L"] ");
-    }
-  }
-
-  if (foundData) {
-    aCleartypeParams.Assign(outStr);
-    return NS_OK;
-  }
-  return NS_ERROR_FAILURE;
 }
 
 /* XXX: GfxInfo doesn't handle multiple GPUs. We should try to do that. Bug #591057 */
@@ -374,7 +280,9 @@ GfxInfo::Init()
         setupGetDeviceRegistryProperty &&
         setupDestroyDeviceInfoList) {
       /* create a device information set composed of the current display device */
-      HDEVINFO devinfo = setupGetClassDevs(NULL, mDeviceID.get(), NULL,
+      HDEVINFO devinfo = setupGetClassDevs(NULL,
+                                           PromiseFlatString(mDeviceID).get(),
+                                           NULL,
                                            DIGCF_PRESENT | DIGCF_PROFILE | DIGCF_ALLCLASSES);
 
       if (devinfo != INVALID_HANDLE_VALUE) {
@@ -551,7 +459,7 @@ GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
   return NS_OK;
 }
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 /* Cisco's VPN software can cause corruption of the floating point state.
  * Make a note of this in our crash reports so that some weird crashes
  * make more sense */
@@ -571,7 +479,7 @@ CheckForCiscoVPN() {
 void
 GfxInfo::AddCrashReportAnnotations()
 {
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
   CheckForCiscoVPN();
 
   nsCAutoString deviceIDString, vendorIDString;
@@ -668,6 +576,17 @@ static const PRUint32 deviceFamilyIntelGMAX3000[] = {
     0
 };
 
+// see bug 595364 comment 10
+static const PRUint32 deviceFamilyIntelBlockDirect2D[] = {
+    0x2982, /* IntelG35_1 */
+    0x2983, /* IntelG35_2 */
+    0x2A02, /* IntelGL960_1 */
+    0x2A03, /* IntelGL960_2 */
+    0x2A12, /* IntelGM965_1 */
+    0x2A13, /* IntelGM965_2 */
+    0
+};
+
 static const PRUint32 deviceFamilyIntelGMAX4500HD[] = {
     0x2A42, /* IntelGMA4500MHD_1 */
     0x2A43, /* IntelGMA4500MHD_2 */
@@ -710,6 +629,7 @@ static const PRUint32 deviceFamilyNvidiaBlockD3D9Layers[] = {
     0x0222, /* NV44 [GeForce 6200 A-LE (TM)] */
     0x0240, /* C51PV [GeForce 6150 (TM)] */
     0x0241, /* C51 [GeForce 6150 LE (TM)] */
+    0x0242, /* C51G [GeForce 6100 (TM)] */
     0x0244, /* C51 [Geforce Go 6150 (TM)] */
     0x0245, /* C51 [Quadro NVS 210S/GeForce 6150LE (TM)] */
     0x0247, /* C51 [GeForce Go 6100 (TM)] */
@@ -787,6 +707,14 @@ static const GfxDriverInfo gDriverInfo[] = {
   /*
    * Intel entries
    */
+
+  /*
+   * Implement special Direct2D blocklist from bug 595364
+   */
+  GfxDriverInfo( DRIVER_OS_ALL,
+    vendorIntel, (GfxDeviceFamily) deviceFamilyIntelBlockDirect2D,
+    nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
+    DRIVER_LESS_THAN, allDriverVersions ),
 
   /* implement the blocklist from bug 594877
    * Block all features on any drivers before this, as there's a crash when a MS Hotfix is installed.

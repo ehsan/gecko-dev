@@ -135,12 +135,12 @@ JSObject::finalize(JSContext *cx)
     if (isNewborn())
         return;
 
-    js::Probes::finalizeObject(this);
-
     /* Finalize obj first, in case it needs map and slots. */
     js::Class *clasp = getClass();
     if (clasp->finalize)
         clasp->finalize(cx, this);
+
+    js::Probes::finalizeObject(this);
 
     finish(cx);
 }
@@ -238,6 +238,16 @@ JSObject::methodReadBarrier(JSContext *cx, const js::Shape &shape, js::Value *vp
     JS_ASSERT(newshape->slot == slot);
     vp->setObject(*funobj);
     nativeSetSlot(slot, *vp);
+
+#ifdef DEBUG
+    if (cx->runtime->functionMeterFilename) {
+        JS_FUNCTION_METER(cx, mreadbarrier);
+
+        typedef JSRuntime::FunctionCountMap::Ptr Ptr;
+        if (Ptr p = cx->runtime->methodReadBarrierCountMap.lookupWithDefault(fun, 0))
+            ++p->value;
+    }
+#endif
     return newshape;
 }
 
@@ -255,8 +265,10 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
     if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
         const js::Value &prev = nativeGetSlot(shape.slot);
 
-        if (ChangesMethodValue(prev, v))
+        if (ChangesMethodValue(prev, v)) {
+            JS_FUNCTION_METER(cx, mwritebarrier);
             return methodShapeChange(cx, shape);
+        }
     }
     return &shape;
 }
@@ -267,8 +279,10 @@ JSObject::methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v)
     if (brandedOrHasMethodBarrier()) {
         const js::Value &prev = nativeGetSlot(slot);
 
-        if (ChangesMethodValue(prev, v))
+        if (ChangesMethodValue(prev, v)) {
+            JS_FUNCTION_METER(cx, mwslotbarrier);
             return methodShapeChange(cx, slot);
+        }
     }
     return true;
 }
@@ -336,7 +350,7 @@ JSObject::slotsAndStructSize(uint32 nslots) const
     int nfslots = isFun ? 0 : numFixedSlots();
 
     return sizeof(js::Value) * (ndslots + nfslots)
-           + (isFun ? sizeof(JSFunction) : sizeof(JSObject));
+           + isFun ? sizeof(JSFunction) : sizeof(JSObject);
 }
 
 inline uint32
@@ -1100,9 +1114,10 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::FinalizeKind kind)
 
     /* NB: inline-expanded and specialized version of js_GetClassPrototype. */
     JSObject *global;
-    if (!cx->hasfp()) {
+    if (!cx->running()) {
         global = cx->globalObject;
-        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
+        OBJ_TO_INNER_OBJECT(cx, global);
+        if (!global)
             return NULL;
     } else {
         global = cx->fp()->scopeChain().getGlobal();
@@ -1240,16 +1255,6 @@ out:
 } /* namespace detail */
 
 static JS_ALWAYS_INLINE JSObject *
-NewFunction(JSContext *cx, js::GlobalObject &global)
-{
-    JSObject *proto;
-    if (!js_GetClassPrototype(cx, &global, JSProto_Function, &proto))
-        return NULL;
-    return detail::NewObject<WithProto::Given, true>(cx, &js_FunctionClass, proto, &global,
-                                                     gc::FINALIZE_OBJECT2);
-}
-
-static JS_ALWAYS_INLINE JSObject *
 NewFunction(JSContext *cx, JSObject *parent)
 {
     return detail::NewObject<WithProto::Class, true>(cx, &js_FunctionClass, NULL, parent,
@@ -1355,10 +1360,33 @@ CopyInitializerObject(JSContext *cx, JSObject *baseobj)
     return obj;
 }
 
+/*
+ * When we have an object of a builtin class, we don't quite know what its
+ * valueOf/toString methods are, since these methods may have been overwritten
+ * or shadowed. However, we can still do better than js_TryMethod by
+ * hard-coding the necessary properties for us to find the native we expect.
+ *
+ * TODO: a per-thread shape-based cache would be faster and simpler.
+ */
+static JS_ALWAYS_INLINE bool
+ClassMethodIsNative(JSContext *cx, JSObject *obj, Class *clasp, jsid methodid,
+                    Native native)
+{
+    JS_ASSERT(obj->getClass() == clasp);
+
+    if (HasNativeMethod(obj, methodid, native))
+        return true;
+
+    JSObject *pobj = obj->getProto();
+    return pobj && pobj->getClass() == clasp &&
+           HasNativeMethod(pobj, methodid, native);
+}
+
 inline bool
-DefineConstructorAndPrototype(JSContext *cx, GlobalObject *global,
+DefineConstructorAndPrototype(JSContext *cx, JSObject *global,
                               JSProtoKey key, JSFunction *ctor, JSObject *proto)
 {
+    JS_ASSERT(global->isGlobal());
     JS_ASSERT(!global->nativeEmpty()); /* reserved slots already allocated */
     JS_ASSERT(ctor);
     JS_ASSERT(proto);

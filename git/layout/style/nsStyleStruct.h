@@ -78,20 +78,20 @@ struct nsCSSValueList;
 
 // Bits for each struct.
 // NS_STYLE_INHERIT_BIT defined in nsStyleStructFwd.h
-#define NS_STYLE_INHERIT_MASK             0x007fffff
+#define NS_STYLE_INHERIT_MASK             0x00ffffff
 
 // Additional bits for nsStyleContext's mBits:
 // See nsStyleContext::HasTextDecorationLines
-#define NS_STYLE_HAS_TEXT_DECORATION_LINES 0x00800000
+#define NS_STYLE_HAS_TEXT_DECORATION_LINES 0x01000000
 // See nsStyleContext::HasPseudoElementData.
-#define NS_STYLE_HAS_PSEUDO_ELEMENT_DATA  0x01000000
+#define NS_STYLE_HAS_PSEUDO_ELEMENT_DATA  0x02000000
 // See nsStyleContext::RelevantLinkIsVisited
-#define NS_STYLE_RELEVANT_LINK_VISITED    0x02000000
+#define NS_STYLE_RELEVANT_LINK_VISITED    0x04000000
 // See nsStyleContext::IsStyleIfVisited
-#define NS_STYLE_IS_STYLE_IF_VISITED      0x04000000
+#define NS_STYLE_IS_STYLE_IF_VISITED      0x08000000
 // See nsStyleContext::GetPseudoEnum
-#define NS_STYLE_CONTEXT_TYPE_MASK        0xf8000000
-#define NS_STYLE_CONTEXT_TYPE_SHIFT       27
+#define NS_STYLE_CONTEXT_TYPE_MASK        0xf0000000
+#define NS_STYLE_CONTEXT_TYPE_SHIFT       28
 
 // Additional bits for nsRuleNode's mDependentBits:
 #define NS_RULE_NODE_GC_MARK              0x02000000
@@ -138,12 +138,14 @@ struct nsStyleFont {
   PRUint8 mGenericID;   // [inherited] generic CSS font family, if any;
                         // value is a kGenericFont_* constant, see nsFont.h.
 
+#ifdef MOZ_MATHML
   // MathML scriptlevel support
   PRInt8  mScriptLevel;          // [inherited]
   // The value mSize would have had if scriptminsize had never been applied
   nscoord mScriptUnconstrainedSize;
   nscoord mScriptMinSize;        // [inherited] length
   float   mScriptSizeMultiplier; // [inherited]
+#endif
 };
 
 struct nsStyleGradientStop {
@@ -349,7 +351,17 @@ struct nsStyleBackground {
   struct Position;
   friend struct Position;
   struct Position {
-    typedef nsStyleCoord::Calc PositionCoord;
+    struct PositionCoord {
+      // A 'background-position' can be a linear combination of length
+      // and percent (thanks to calc(), which can combine them).
+      nscoord mLength;
+      float   mPercent;
+
+      bool operator==(const PositionCoord& aOther) const
+        { return mLength == aOther.mLength && mPercent == aOther.mPercent; }
+      bool operator!=(const PositionCoord& aOther) const
+        { return !(*this == aOther); }
+    };
     PositionCoord mXPosition, mYPosition;
 
     // Initialize nothing
@@ -376,7 +388,17 @@ struct nsStyleBackground {
   struct Size;
   friend struct Size;
   struct Size {
-    typedef nsStyleCoord::Calc Dimension;
+    struct Dimension {
+      // A 'background-size' can be a linear combination of length
+      // and percent (thanks to calc(), which can combine them).
+      nscoord mLength;
+      float   mPercent;
+
+      bool operator==(const Dimension& aOther) const
+        { return mLength == aOther.mLength && mPercent == aOther.mPercent; }
+      bool operator!=(const Dimension& aOther) const
+        { return !(*this == aOther); }
+    };
     Dimension mWidth, mHeight;
 
     // Except for eLengthPercentage, Dimension types which might change
@@ -1130,22 +1152,6 @@ private:
   }
 };
 
-struct nsStyleTextOverflow {
-  nsStyleTextOverflow() : mType(NS_STYLE_TEXT_OVERFLOW_CLIP) {}
-
-  bool operator==(const nsStyleTextOverflow& aOther) const {
-    return mType == aOther.mType &&
-           (mType != NS_STYLE_TEXT_OVERFLOW_STRING ||
-            mString == aOther.mString);
-  }
-  bool operator!=(const nsStyleTextOverflow& aOther) const {
-    return !(*this == aOther);
-  }
-
-  nsString mString;
-  PRUint8  mType;
-};
-
 struct nsStyleTextReset {
   nsStyleTextReset(void);
   nsStyleTextReset(const nsStyleTextReset& aOther);
@@ -1203,7 +1209,6 @@ struct nsStyleTextReset {
   static PRBool ForceCompare() { return PR_FALSE; }
 
   nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, calc, enum (see nsStyleConsts.h)
-  nsStyleTextOverflow mTextOverflow;    // [reset] enum, string
 
   PRUint8 mTextBlink;                   // [reset] see nsStyleConsts.h
   PRUint8 mTextDecorationLine;          // [reset] see nsStyleConsts.h
@@ -1428,6 +1433,7 @@ private:
                                       // eCSSProperty_UNKNOWN
 };
 
+#ifdef MOZ_CSS_ANIMATIONS
 struct nsAnimation {
   nsAnimation() { /* leaves uninitialized; see also SetInitialValues */ }
   explicit nsAnimation(const nsAnimation& aCopy);
@@ -1468,6 +1474,7 @@ private:
   PRUint8 mPlayState;
   float mIterationCount; // NS_IEEEPositiveInfinity() means infinite
 };
+#endif
 
 struct nsStyleDisplay {
   nsStyleDisplay();
@@ -1490,7 +1497,7 @@ struct nsStyleDisplay {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  // We guarantee that if mBinding is non-null, so are mBinding->GetURI() and
+  // We guarantee that if mBinding is non-null, so are mBinding->mURI and
   // mBinding->mOriginPrincipal.
   nsRefPtr<nsCSSValue::URL> mBinding;    // [reset]
   nsRect    mClip;              // [reset] offsets from upper-left border edge
@@ -1507,7 +1514,6 @@ struct nsStyleDisplay {
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
   PRUint8 mResize;              // [reset] see nsStyleConsts.h
   PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
-  PRUint8 mOrient;              // [reset] see nsStyleConsts.h
 
   // mSpecifiedTransform is the list of transform functions as
   // specified, or null to indicate there is no transform.  (inherit or
@@ -1525,6 +1531,7 @@ struct nsStyleDisplay {
            mTransitionDelayCount,
            mTransitionPropertyCount;
 
+#ifdef MOZ_CSS_ANIMATIONS
   nsAutoTArray<nsAnimation, 1> mAnimations; // [reset]
   // The number of elements in mAnimations that are not from repeating
   // a list due to another property being longer.
@@ -1536,6 +1543,7 @@ struct nsStyleDisplay {
            mAnimationFillModeCount,
            mAnimationPlayStateCount,
            mAnimationIterationCountCount;
+#endif
 
   PRBool IsBlockInside() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||

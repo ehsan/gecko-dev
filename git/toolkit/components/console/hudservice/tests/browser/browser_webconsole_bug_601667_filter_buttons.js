@@ -14,9 +14,8 @@ function testFilterButtons() {
   browser.removeEventListener("load", testFilterButtons, true);
   openConsole();
 
-  let hud = HUDService.getHudByWindow(content);
-  hudId = hud.hudId;
-  hudBox = hud.HUDBox;
+  hudId = HUDService.displaysIndex()[0];
+  hudBox = HUDService.hudReferences[hudId].HUDBox;
 
   testMenuFilterButton("net");
   testMenuFilterButton("css");

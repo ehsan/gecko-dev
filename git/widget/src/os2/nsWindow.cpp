@@ -75,6 +75,7 @@
 #include "nsGfxCIID.h"
 #include "nsHashKeys.h"
 #include "nsIMenuRollup.h"
+#include "nsIPrefService.h"
 #include "nsIRollupListener.h"
 #include "nsIScreenManager.h"
 #include "nsOS2Uni.h"
@@ -82,10 +83,6 @@
 #include "nsToolkit.h"
 #include "nsWidgetAtoms.h"
 #include "wdgtos2rc.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 //=============================================================================
 //  Macros
@@ -312,8 +309,14 @@ void nsWindow::InitGlobals()
   // it scroll messages. Needless to say, no Mozilla window has real scroll
   // bars. So if you have the "os2.trackpoint" preference set, we put an
   // invisible scroll bar on every child window so we can scroll.
-  if (Preferences::GetBool("os2.trackpoint", PR_FALSE)) {
-    gOS2Flags |= kIsTrackPoint;
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+  if (NS_SUCCEEDED(rv) && prefs) {
+    PRBool isTrackPoint = PR_FALSE;
+    prefs->GetBoolPref("os2.trackpoint", &isTrackPoint);
+    if (isTrackPoint) {
+      gOS2Flags |= kIsTrackPoint;
+    }
   }
 }
 

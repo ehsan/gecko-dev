@@ -86,9 +86,7 @@ nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kNC_BookmarkSeparator;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kRDF_type;
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateQueryProcessorRDF)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateQueryProcessorRDF)
-    tmp->Done();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsXULTemplateQueryProcessorRDF)
 
 static PLDHashOperator
 BindingDependenciesTraverser(nsISupports* key,
@@ -1058,7 +1056,7 @@ nsXULTemplateQueryProcessorRDF::SynchronizeAll(nsIRDFResource* aSource,
     // Get all the matches whose assignments are currently supported
     // by aSource and aProperty: we'll need to recompute them.
     nsCOMArray<nsXULTemplateResultRDF>* results;
-    if (!mBindingDependencies.Get(aSource, &results) || !mBuilder)
+    if (!mBindingDependencies.Get(aSource, &results))
         return NS_OK;
 
     PRUint32 length = results->Count();
@@ -1127,7 +1125,6 @@ nsXULTemplateQueryProcessorRDF::CheckContainer(nsIRDFResource* aResource,
                                                PRBool* aIsContainer)
 {
     NS_ENSURE_ARG_POINTER(aIsContainer);
-    NS_ENSURE_STATE(mDB);
 
     // We have to look at all of the arcs extending out of the
     // resource: if any of them are that "containment" property, then
@@ -1162,7 +1159,6 @@ nsresult
 nsXULTemplateQueryProcessorRDF::CheckEmpty(nsIRDFResource* aResource,
                                            PRBool* aIsEmpty)
 {
-    NS_ENSURE_STATE(mDB);
     *aIsEmpty = PR_TRUE;
 
     for (nsResourceSet::ConstIterator property = mContainmentProperties.First();
@@ -1190,7 +1186,6 @@ nsresult
 nsXULTemplateQueryProcessorRDF::CheckIsSeparator(nsIRDFResource* aResource,
                                                  PRBool* aIsSeparator)
 {
-    NS_ENSURE_STATE(mDB);
     return mDB->HasAssertion(aResource, kRDF_type, kNC_BookmarkSeparator,
                              PR_TRUE, aIsSeparator);
 }
@@ -1908,7 +1903,7 @@ nsXULTemplateQueryProcessorRDF::GetContainerIndexOf(nsIXULTemplateResult* aResul
     nsCOMPtr<nsISupports> ref;
     nsresult rv = aResult->GetBindingObjectFor(mRefVariable,
                                                getter_AddRefs(ref));
-    if (NS_FAILED(rv) || !mDB)
+    if (NS_FAILED(rv))
         return -1;
 
     nsCOMPtr<nsIRDFResource> container = do_QueryInterface(ref);
@@ -1945,7 +1940,7 @@ nsXULTemplateQueryProcessorRDF::GetSortValue(nsIXULTemplateResult* aResult,
         return rv;
     
     nsCOMPtr<nsIRDFNode> value;
-    if (source && mDB) {
+    if (source) {
         // first check predicate?sort=true so that datasources may use a
         // custom value for sorting
         rv = mDB->GetTarget(source, aSortPredicate, PR_TRUE,

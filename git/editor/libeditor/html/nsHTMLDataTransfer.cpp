@@ -103,6 +103,7 @@
 
 // for relativization
 #include "nsUnicharUtils.h"
+#include "nsIDOMDocumentTraversal.h"
 #include "nsIDOMTreeWalker.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIDOMNamedNodeMap.h"
@@ -121,6 +122,8 @@
 // Misc
 #include "TextEditorTest.h"
 #include "nsEditorUtils.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsIContentFilter.h"
 #include "nsEventDispatcher.h"
 #include "plbase64.h"
@@ -129,9 +132,6 @@
 #include "nsIPrincipal.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 const PRUnichar nbsp = 160;
 
@@ -949,13 +949,15 @@ nsHTMLEditor::RelativizeURIInFragmentList(const nsCOMArray<nsIDOMNode> &aNodeLis
   // determine destination URL
   nsCOMPtr<nsIDOMDocument> domDoc;
   GetDocument(getter_AddRefs(domDoc));
-  NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDocument> destDoc = do_QueryInterface(domDoc);
   NS_ENSURE_TRUE(destDoc, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIURL> destURL = do_QueryInterface(destDoc->GetDocBaseURI());
   NS_ENSURE_TRUE(destURL, NS_ERROR_FAILURE);
+
+  nsresult rv;
+  nsCOMPtr<nsIDOMDocumentTraversal> trav = do_QueryInterface(domDoc, &rv);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   PRInt32 listCount = aNodeList.Count();
   PRInt32 j;
@@ -964,10 +966,8 @@ nsHTMLEditor::RelativizeURIInFragmentList(const nsCOMArray<nsIDOMNode> &aNodeLis
     nsIDOMNode* somenode = aNodeList[j];
 
     nsCOMPtr<nsIDOMTreeWalker> walker;
-    nsresult rv = domDoc->CreateTreeWalker(somenode,
-                                           nsIDOMNodeFilter::SHOW_ELEMENT,
-                                           nsnull, PR_TRUE,
-                                           getter_AddRefs(walker));
+    rv = trav->CreateTreeWalker(somenode, nsIDOMNodeFilter::SHOW_ELEMENT,
+                                nsnull, PR_TRUE, getter_AddRefs(walker));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDOMNode> currentNode;
@@ -1126,24 +1126,31 @@ NS_IMETHODIMP nsHTMLEditor::PrepareHTMLTransferable(nsITransferable **aTransfera
       (*aTransferable)->AddDataFlavor(kHTMLMime);
       (*aTransferable)->AddDataFlavor(kFileMime);
 
-      switch (Preferences::GetInt("clipboard.paste_image_type", 1))
+      nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+      PRInt32 clipboardPasteOrder = 1; // order of image-encoding preference
+
+      if (prefs)
       {
-        case 0:  // prefer JPEG over PNG over GIF encoding
-          (*aTransferable)->AddDataFlavor(kJPEGImageMime);
-          (*aTransferable)->AddDataFlavor(kPNGImageMime);
-          (*aTransferable)->AddDataFlavor(kGIFImageMime);
-          break;
-        case 1:  // prefer PNG over JPEG over GIF encoding (default)
-        default:
-          (*aTransferable)->AddDataFlavor(kPNGImageMime);
-          (*aTransferable)->AddDataFlavor(kJPEGImageMime);
-          (*aTransferable)->AddDataFlavor(kGIFImageMime);
-          break;
-        case 2:  // prefer GIF over JPEG over PNG encoding
-          (*aTransferable)->AddDataFlavor(kGIFImageMime);
-          (*aTransferable)->AddDataFlavor(kJPEGImageMime);
-          (*aTransferable)->AddDataFlavor(kPNGImageMime);
-          break;
+        prefs->GetIntPref("clipboard.paste_image_type", &clipboardPasteOrder);
+        switch (clipboardPasteOrder)
+        {
+          case 0:  // prefer JPEG over PNG over GIF encoding
+            (*aTransferable)->AddDataFlavor(kJPEGImageMime);
+            (*aTransferable)->AddDataFlavor(kPNGImageMime);
+            (*aTransferable)->AddDataFlavor(kGIFImageMime);
+            break;
+          case 1:  // prefer PNG over JPEG over GIF encoding (default)
+          default:
+            (*aTransferable)->AddDataFlavor(kPNGImageMime);
+            (*aTransferable)->AddDataFlavor(kJPEGImageMime);
+            (*aTransferable)->AddDataFlavor(kGIFImageMime);
+            break;
+          case 2:  // prefer GIF over JPEG over PNG encoding
+            (*aTransferable)->AddDataFlavor(kGIFImageMime);
+            (*aTransferable)->AddDataFlavor(kJPEGImageMime);
+            (*aTransferable)->AddDataFlavor(kPNGImageMime);
+            break;
+        }
       }
     }
     (*aTransferable)->AddDataFlavor(kUnicodeMime);
@@ -1563,7 +1570,7 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
       nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aDropEvent));
       if (mouseEvent)
 
-#if defined(XP_MACOSX)
+#if defined(XP_MAC) || defined(XP_MACOSX)
         mouseEvent->GetAltKey(&userWantsCopy);
 #else
         mouseEvent->GetCtrlKey(&userWantsCopy);

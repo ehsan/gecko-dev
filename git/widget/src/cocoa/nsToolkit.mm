@@ -69,10 +69,8 @@ extern "C" {
 
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 
 // defined in nsChildView.mm
 extern nsIRollupListener * gRollupListener;
@@ -271,10 +269,14 @@ nsToolkit::RegisterForAllProcessMouseEvents()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   // Don't do this for apps that (like Camino) use native context menus.
-#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
-  return;
-#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
-
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    PRBool useNativeContextMenus;
+    nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows",
+                                     &useNativeContextMenus);
+    if (NS_SUCCEEDED(rv) && useNativeContextMenus)
+      return;
+  }
   if (!mEventMonitorHandler) {
     EventTypeSpec kEvents[] = {{kEventClassMouse, kEventMouseMoved}};
     InstallEventHandler(GetEventMonitorTarget(), EventMonitorHandler,
@@ -403,11 +405,6 @@ PRInt32 nsToolkit::OSXVersion()
 PRBool nsToolkit::OnSnowLeopardOrLater()
 {
   return (OSXVersion() >= MAC_OS_X_VERSION_10_6_HEX);
-}
-
-PRBool nsToolkit::OnLionOrLater()
-{
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_7_HEX);
 }
 
 // An alternative to [NSObject poseAsClass:] that isn't deprecated on OS X

@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -326,11 +326,13 @@ public:
        *iter_ != eCSSProperty_UNKNOWN; ++iter_)
 
   // Keyword/Enum value tables
+#ifdef MOZ_CSS_ANIMATIONS
   static const PRInt32 kAnimationDirectionKTable[];
   static const PRInt32 kAnimationFillModeKTable[];
   static const PRInt32 kAnimationIterationCountKTable[];
   static const PRInt32 kAnimationPlayStateKTable[];
   static const PRInt32 kAnimationTimingFunctionKTable[];
+#endif
   static const PRInt32 kAppearanceKTable[];
   static const PRInt32 kAzimuthKTable[];
   static const PRInt32 kBackgroundAttachmentKTable[];
@@ -381,7 +383,6 @@ public:
   static const PRInt32 kLineHeightKTable[];
   static const PRInt32 kListStylePositionKTable[];
   static const PRInt32 kListStyleKTable[];
-  static const PRInt32 kOrientKTable[];
   static const PRInt32 kOutlineStyleKTable[];
   static const PRInt32 kOutlineColorKTable[];
   static const PRInt32 kOverflowKTable[];
@@ -407,7 +408,6 @@ public:
   static const PRInt32 kTextBlinkKTable[];
   static const PRInt32 kTextDecorationLineKTable[];
   static const PRInt32 kTextDecorationStyleKTable[];
-  static const PRInt32 kTextOverflowKTable[];
   static const PRInt32 kTextTransformKTable[];
   static const PRInt32 kTransitionTimingFunctionKTable[];
   static const PRInt32 kUnicodeBidiKTable[];

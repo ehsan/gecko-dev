@@ -51,7 +51,6 @@ const CONSOLEAPI_CLASS_ID = "{b49c18f8-3379-4fc0-8c90-d7772c1a9ff3}";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/NetworkHelper.jsm");
-Cu.import("resource:///modules/PropertyPanel.jsm");
 
 var EXPORTED_SYMBOLS = ["HUDService", "ConsoleUtils"];
 
@@ -87,17 +86,6 @@ XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
   return obj.PropertyPanel;
 });
 
-XPCOMUtils.defineLazyGetter(this, "AutocompletePopup", function () {
-  var obj = {};
-  try {
-    Cu.import("resource://gre/modules/AutocompletePopup.jsm", obj);
-  }
-  catch (err) {
-    Cu.reportError(err);
-  }
-  return obj.AutocompletePopup;
-});
-
 XPCOMUtils.defineLazyGetter(this, "namesAndValuesOf", function () {
   var obj = {};
   Cu.import("resource:///modules/PropertyPanel.jsm", obj);
@@ -129,9 +117,9 @@ const NEW_GROUP_DELAY = 5000;
 // search.
 const SEARCH_DELAY = 200;
 
-// The number of lines that are displayed in the console output by default, for
-// each category. The user can change this number by adjusting the hidden
-// "devtools.hud.loglimit.{network,cssparser,exception,console}" preferences.
+// The number of lines that are displayed in the console output by default.
+// The user can change this number by adjusting the hidden
+// "devtools.hud.loglimit" preference.
 const DEFAULT_LOG_LIMIT = 200;
 
 // The various categories of messages. We start numbering at zero so we can
@@ -536,10 +524,8 @@ ResponseListener.prototype =
 function createElement(aDocument, aTag, aAttributes)
 {
   let node = aDocument.createElement(aTag);
-  if (aAttributes) {
-    for (let attr in aAttributes) {
-      node.setAttribute(attr, aAttributes[attr]);
-    }
+  for (var attr in aAttributes) {
+    node.setAttribute(attr, aAttributes[attr]);
   }
   return node;
 }
@@ -1194,37 +1180,33 @@ NetworkPanel.prototype =
 //// Private utility functions for the HUD service
 
 /**
- * Ensures that the number of message nodes of type aCategory don't exceed that
- * category's line limit by removing old messages as needed.
+ * Destroys lines of output if more lines than the allowed log limit are
+ * present.
  *
- * @param aHUDId aHUDId
- *        The HeadsUpDisplay ID.
- * @param integer aCategory
- *        The category of message nodes to limit.
+ * @param nsIDOMNode aConsoleNode
+ *        The DOM node (richlistbox aka outputNode) that holds the output of the
+ *        console.
  * @return number
  *         The current user-selected log limit.
  */
-function pruneConsoleOutputIfNecessary(aHUDId, aCategory)
+function pruneConsoleOutputIfNecessary(aConsoleNode)
 {
   // Get the log limit, either from the pref or from the constant.
   let logLimit;
   try {
-    let prefName = CATEGORY_CLASS_FRAGMENTS[aCategory];
-    logLimit = Services.prefs.getIntPref("devtools.hud.loglimit." + prefName);
+    let prefBranch = Services.prefs.getBranch("devtools.hud.");
+    logLimit = prefBranch.getIntPref("loglimit");
   } catch (e) {
     logLimit = DEFAULT_LOG_LIMIT;
   }
 
-  let hudRef = HUDService.getHudReferenceById(aHUDId);
-  let outputNode = hudRef.outputNode;
-
-  let scrollBox = outputNode.scrollBoxObject.element;
+  let scrollBox = aConsoleNode.scrollBoxObject.element;
   let oldScrollHeight = scrollBox.scrollHeight;
-  let scrolledToBottom = ConsoleUtils.isOutputScrolledToBottom(outputNode);
+  let scrolledToBottom = ConsoleUtils.isOutputScrolledToBottom(aConsoleNode);
+  let hudRef = HUDService.getHudReferenceForOutputNode(aConsoleNode);
 
   // Prune the nodes.
-  let messageNodes = outputNode.querySelectorAll(".webconsole-msg-" +
-      CATEGORY_CLASS_FRAGMENTS[aCategory]);
+  let messageNodes = aConsoleNode.querySelectorAll(".hud-msg-node");
   let removeNodes = messageNodes.length - logLimit;
   for (let i = 0; i < removeNodes; i++) {
     if (messageNodes[i].classList.contains("webconsole-msg-cssparser")) {
@@ -1443,11 +1425,8 @@ HUD_SERVICE.prototype =
     this.registerActiveContext(nBox.id);
     this.windowInitializer(window);
 
-    let hudId = "hud_" + nBox.id;
-    let hudRef = this.hudReferences[hudId];
-
-    if (!aAnimated || hudRef.consolePanel) {
-      this.disableAnimation(hudId);
+    if (!aAnimated) {
+      this.disableAnimation("hud_" + nBox.id);
     }
   },
 
@@ -1462,10 +1441,10 @@ HUD_SERVICE.prototype =
   {
     let browser = aContext.linkedBrowser;
     let window = browser.contentWindow;
-    let chromeDocument = aContext.ownerDocument;
-    let nBox = chromeDocument.defaultView.getNotificationBox(window);
+    let nBox = aContext.ownerDocument.defaultView.
+      getNotificationBox(window);
     let hudId = "hud_" + nBox.id;
-    let displayNode = chromeDocument.getElementById(hudId);
+    let displayNode = nBox.querySelector("#" + hudId);
 
     if (hudId in this.hudReferences && displayNode) {
       if (!aAnimated) {
@@ -1476,10 +1455,39 @@ HUD_SERVICE.prototype =
       browser.webProgress.removeProgressListener(hud.progressListener);
       delete hud.progressListener;
 
-      this.unregisterDisplay(hudId);
+      this.unregisterDisplay(displayNode);
 
       window.focus();
     }
+  },
+
+  /**
+   * Clear the specified HeadsUpDisplay
+   *
+   * @param string|nsIDOMNode aHUD
+   *        Either the ID of a HUD or the DOM node corresponding to an outer
+   *        HUD box.
+   * @returns void
+   */
+  clearDisplay: function HS_clearDisplay(aHUD)
+  {
+    if (typeof(aHUD) === "string") {
+      aHUD = this.getOutputNodeById(aHUD);
+    }
+
+    let hudRef = HUDService.getHudReferenceForOutputNode(aHUD);
+
+    if (hudRef) {
+      hudRef.cssNodes = {};
+    }
+
+    var outputNode = aHUD.querySelector(".hud-output-node");
+
+    while (outputNode.firstChild) {
+      outputNode.removeChild(outputNode.firstChild);
+    }
+
+    aHUD.lastTimestamp = 0;
   },
 
   /**
@@ -1595,7 +1603,8 @@ HUD_SERVICE.prototype =
   adjustVisibilityForMessageType:
   function HS_adjustVisibilityForMessageType(aHUDId, aPrefKey, aState)
   {
-    let outputNode = this.getHudReferenceById(aHUDId).outputNode;
+    let displayNode = this.getOutputNodeById(aHUDId);
+    let outputNode = displayNode.querySelector(".hud-output-node");
     let doc = outputNode.ownerDocument;
 
     // Look for message nodes ("hud-msg-node") with the given preference key
@@ -1654,7 +1663,9 @@ HUD_SERVICE.prototype =
   adjustVisibilityOnSearchStringChange:
   function HS_adjustVisibilityOnSearchStringChange(aHUDId, aSearchString)
   {
-    let outputNode = this.getHudReferenceById(aHUDId).outputNode;
+    let displayNode = this.getOutputNodeById(aHUDId);
+    let outputNode = displayNode.querySelector(".hud-output-node");
+    let doc = outputNode.ownerDocument;
 
     let nodes = outputNode.querySelectorAll(".hud-msg-node");
 
@@ -1712,65 +1723,68 @@ HUD_SERVICE.prototype =
   /**
    * When a display is being destroyed, unregister it first
    *
-   * @param string aHUDId
-   *        The ID of a HUD.
+   * @param string|nsIDOMNode aHUD
+   *        Either the ID of a HUD or the DOM node corresponding to an outer
+   *        HUD box.
    * @returns void
    */
-  unregisterDisplay: function HS_unregisterDisplay(aHUDId)
+  unregisterDisplay: function HS_unregisterDisplay(aHUD)
   {
-    let hud = this.getHudReferenceById(aHUDId);
-
     // Remove children from the output. If the output is not cleared, there can
     // be leaks as some nodes has node.onclick = function; set and GC can't
     // remove the nodes then.
-    hud.jsterm.clearOutput();
+    HUDService.clearDisplay(aHUD);
 
-    // Make sure that the console panel does not try to call
-    // deactivateHUDForContext() again.
-    hud.consoleWindowUnregisterOnHide = false;
-
-    // Remove the HUDBox and the consolePanel if the Web Console is inside a
-    // floating xul:panel.
-    hud.HUDBox.parentNode.removeChild(hud.HUDBox);
-    if (hud.consolePanel) {
-      hud.consolePanel.parentNode.removeChild(hud.consolePanel);
+    var id, outputNode;
+    if (typeof(aHUD) === "string") {
+      id = aHUD;
+      outputNode = this.getHeadsUpDisplay(aHUD);
+    }
+    else {
+      id = aHUD.getAttribute("id");
+      outputNode = aHUD;
     }
 
-    if (hud.splitter.parentNode) {
-      hud.splitter.parentNode.removeChild(hud.splitter);
+    // remove HUD DOM node and
+    // remove display references from local registries get the outputNode
+    var parent = outputNode.parentNode;
+    var splitters = parent.querySelectorAll("splitter");
+    var len = splitters.length;
+    for (var i = 0; i < len; i++) {
+      if (splitters[i].getAttribute("class") == "hud-splitter") {
+        splitters[i].parentNode.removeChild(splitters[i]);
+        break;
+      }
     }
+    // remove the DOM Nodes
+    parent.removeChild(outputNode);
 
-    hud.jsterm.autocompletePopup.destroy();
-
-    delete this.hudReferences[aHUDId];
-
+    // remove the HeadsUpDisplay object from memory
+    if ("cssNodes" in this.hudReferences[id]) {
+      delete this.hudReferences[id].cssNodes;
+    }
+    delete this.hudReferences[id];
     // remove the related storage object
-    this.storage.removeDisplay(aHUDId);
+    this.storage.removeDisplay(id);
 
     for (let windowID in this.windowIds) {
-      if (this.windowIds[windowID] == aHUDId) {
+      if (this.windowIds[windowID] == id) {
         delete this.windowIds[windowID];
       }
     }
 
-    this.unregisterActiveContext(aHUDId);
+    this.unregisterActiveContext(id);
 
-    let popupset = hud.chromeDocument.getElementById("mainPopupSet");
-    let panels = popupset.querySelectorAll("panel[hudId=" + aHUDId + "]");
+    let popupset = outputNode.ownerDocument.getElementById("mainPopupSet");
+    let panels = popupset.querySelectorAll("panel[hudId=" + id + "]");
     for (let i = 0; i < panels.length; i++) {
       panels[i].hidePopup();
     }
 
-    let id = ConsoleUtils.supString(aHUDId);
+    let id = ConsoleUtils.supString(id);
     Services.obs.notifyObservers(id, "web-console-destroyed", null);
 
     if (Object.keys(this.hudReferences).length == 0) {
-      let autocompletePopup = hud.chromeDocument.
-                              getElementById("webConsole_autocompletePopup");
-      if (autocompletePopup) {
-        autocompletePopup.parentNode.removeChild(autocompletePopup);
-      }
-
       this.suspend();
     }
   },
@@ -1834,20 +1848,8 @@ HUD_SERVICE.prototype =
   shutdown: function HS_shutdown()
   {
     for (let hudId in this.hudReferences) {
-      this.deactivateHUDForContext(this.hudReferences[hudId].tab, false);
+      this.unregisterDisplay(hudId);
     }
-  },
-
-  /**
-   * Returns the HeadsUpDisplay object associated to a content window.
-   *
-   * @param nsIDOMWindow aContentWindow
-   * @returns object
-   */
-  getHudByWindow: function HS_getHudByWindow(aContentWindow)
-  {
-    let hudId = this.getHudIdByWindow(aContentWindow);
-    return hudId ? this.hudReferences[hudId] : null;
   },
 
   /**
@@ -1864,6 +1866,27 @@ HUD_SERVICE.prototype =
   },
 
   /**
+   * Returns the hudReference for a given output node.
+   *
+   * @param nsIDOMNode aNode (currently either a xul:vbox as returned by
+   *        getOutputNodeById() or a richlistbox).
+   * @returns a HUD | null
+   */
+  getHudReferenceForOutputNode: function HS_getHudReferenceForOutputNode(aNode)
+  {
+    let node = aNode;
+    // starting from richlistbox, need to find hudbox
+    while (!node.id && !node.classList.contains("hud-box")) {
+      if (node.parentNode) {
+        node = node.parentNode;
+      } else {
+        return null;
+      }
+    }
+    return this.getHudReferenceById(node.id);
+  },
+
+  /**
    * Returns the hudReference for a given id.
    *
    * @param string aId
@@ -1872,6 +1895,38 @@ HUD_SERVICE.prototype =
   getHudReferenceById: function HS_getHudReferenceById(aId)
   {
     return aId in this.hudReferences ? this.hudReferences[aId] : null;
+  },
+
+  /**
+   * Gets the Web Console DOM node, the .hud-box.
+   *
+   * @param string id
+   *        The Heads Up Display DOM Id
+   * @returns nsIDOMNode
+   */
+  getHeadsUpDisplay: function HS_getHeadsUpDisplay(aId)
+  {
+    return aId in this.hudReferences ? this.hudReferences[aId].HUDBox : null;
+  },
+
+  /**
+   * Gets the Web Console DOM node, the .hud-box.
+   *
+   * @param string aId
+   * @returns nsIDOMNode
+   */
+  getOutputNodeById: function HS_getOutputNodeById(aId)
+  {
+    return this.getHeadsUpDisplay(aId);
+  },
+
+  /**
+   * Gets an array that contains all the HUD IDs.
+   * @returns array
+   */
+  displaysIndex: function HS_displaysIndex()
+  {
+    return Object.keys(this.hudReferences);
   },
 
   /**
@@ -1893,7 +1948,9 @@ HUD_SERVICE.prototype =
    * @returns string
    */
   getFilterStringByHUDId: function HS_getFilterStringbyHUDId(aHUDId) {
-    return this.getHudReferenceById(aHUDId).filterBox.value;
+    var hud = this.getHeadsUpDisplay(aHUDId);
+    var filterStr = hud.querySelectorAll(".hud-filter-box")[0].value;
+    return filterStr;
   },
 
   /**
@@ -1915,11 +1972,16 @@ HUD_SERVICE.prototype =
    *
    * @param string aHUDId
    *        The ID of the Web Console to which to send the message.
-   * @param object aMessage
-   *        The message reported by the console service.
+   * @param string aLevel
+   *        The level reported by the console service. This will be one of the
+   *        strings "error", "warn", "info", or "log".
+   * @param Array<string> aArguments
+   *        The list of arguments reported by the console service.
    * @return void
    */
-  logConsoleAPIMessage: function HS_logConsoleAPIMessage(aHUDId, aMessage)
+  logConsoleAPIMessage: function HS_logConsoleAPIMessage(aHUDId,
+                                                         aLevel,
+                                                         aArguments)
   {
     // Pipe the message to createMessageNode().
     let hud = HUDService.hudReferences[aHUDId];
@@ -1931,36 +1993,32 @@ HUD_SERVICE.prototype =
     let clipboardText = null;
     let sourceURL = null;
     let sourceLine = 0;
-    let level = aMessage.level;
-    let args = aMessage.arguments;
 
-    switch (level) {
+    switch (aLevel) {
       case "log":
       case "info":
       case "warn":
       case "error":
       case "debug":
-        let mappedArguments = Array.map(args, formatResult);
+        let mappedArguments = Array.map(aArguments, formatResult);
         body = Array.join(mappedArguments, " ");
-        sourceURL = aMessage.filename;
-        sourceLine = aMessage.lineNumber;
         break;
 
       case "trace":
-        let filename = ConsoleUtils.abbreviateSourceURL(args[0].filename);
-        let functionName = args[0].functionName ||
+        let filename = ConsoleUtils.abbreviateSourceURL(aArguments[0].filename);
+        let functionName = aArguments[0].functionName ||
                            this.getStr("stacktrace.anonymousFunction");
-        let lineNumber = args[0].lineNumber;
+        let lineNumber = aArguments[0].lineNumber;
 
         body = this.getFormatStr("stacktrace.outputMessage",
                                  [filename, functionName, lineNumber]);
 
-        sourceURL = args[0].filename;
-        sourceLine = args[0].lineNumber;
+        sourceURL = aArguments[0].filename;
+        sourceLine = aArguments[0].lineNumber;
 
         clipboardText = "";
 
-        args.forEach(function(aFrame) {
+        aArguments.forEach(function(aFrame) {
           clipboardText += aFrame.filename + " :: " +
                            aFrame.functionName + " :: " +
                            aFrame.lineNumber + "\n";
@@ -1970,13 +2028,13 @@ HUD_SERVICE.prototype =
         break;
 
       default:
-        Cu.reportError("Unknown Console API log level: " + level);
+        Cu.reportError("Unknown Console API log level: " + aLevel);
         return;
     }
 
     let node = ConsoleUtils.createMessageNode(hud.outputNode.ownerDocument,
                                               CATEGORY_WEBDEV,
-                                              LEVELS[level],
+                                              LEVELS[aLevel],
                                               body,
                                               sourceURL,
                                               sourceLine,
@@ -1984,8 +2042,8 @@ HUD_SERVICE.prototype =
 
     // Make the node bring up the property panel, to allow the user to inspect
     // the stack trace.
-    if (level == "trace") {
-      node._stacktrace = args;
+    if (aLevel == "trace") {
+      node._stacktrace = aArguments;
 
       let linkNode = node.querySelector(".webconsole-msg-body");
       linkNode.classList.add("hud-clickable");
@@ -2014,6 +2072,18 @@ HUD_SERVICE.prototype =
     }
 
     ConsoleUtils.outputMessageNode(node, aHUDId);
+  },
+
+  /**
+   * Get OutputNode by Id
+   *
+   * @param string aId
+   * @returns nsIDOMNode (richlistbox)
+   */
+  getConsoleOutputNode: function HS_getConsoleOutputNode(aId)
+  {
+    let displayNode = this.getHeadsUpDisplay(aId);
+    return displayNode.querySelector(".hud-output-node");
   },
 
   /**
@@ -2102,6 +2172,23 @@ HUD_SERVICE.prototype =
    * @returns Specific Gecko 'ApplicationHooks' Object/Mixin
    */
   applicationHooks: null,
+
+  getChromeWindowFromContentWindow:
+  function HS_getChromeWindowFromContentWindow(aContentWindow)
+  {
+    if (!aContentWindow) {
+      throw new Error("Cannot get contentWindow via nsILoadContext");
+    }
+    var win = aContentWindow.QueryInterface(Ci.nsIDOMWindow)
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIWebNavigation)
+      .QueryInterface(Ci.nsIDocShellTreeItem)
+      .rootTreeItem
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindow)
+      .QueryInterface(Ci.nsIDOMChromeWindow);
+    return win;
+  },
 
   /**
    * Requests that haven't finished yet.
@@ -2426,7 +2513,6 @@ HUD_SERVICE.prototype =
         0x5006: "TRANSACTION_CLOSE",
 
         0x804b0003: "STATUS_RESOLVING",
-        0x804b000b: "STATUS_RESOLVED",
         0x804b0007: "STATUS_CONNECTING_TO",
         0x804b0004: "STATUS_CONNECTED_TO",
         0x804b0005: "STATUS_SENDING_TO",
@@ -2573,6 +2659,29 @@ HUD_SERVICE.prototype =
   },
 
   /**
+   * Passed a HUDId, the corresponding window is returned
+   *
+   * @param string aHUDId
+   * @returns nsIDOMWindow
+   */
+  getContentWindowFromHUDId: function HS_getContentWindowFromHUDId(aHUDId)
+  {
+    var hud = this.getHeadsUpDisplay(aHUDId);
+    var nodes = hud.parentNode.childNodes;
+
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+
+      if (node.localName == "stack" &&
+          node.firstChild &&
+          node.firstChild.contentWindow) {
+        return node.firstChild.contentWindow;
+      }
+    }
+    throw new Error("HS_getContentWindowFromHUD: Cannot get contentWindow");
+  },
+
+  /**
    * Creates a generator that always returns a unique number for use in the
    * indexes
    *
@@ -2681,15 +2790,6 @@ HUD_SERVICE.prototype =
     let nBox = gBrowser.getNotificationBox(_browser);
     let nBoxId = nBox.getAttribute("id");
     let hudId = "hud_" + nBoxId;
-    let windowUI = nBox.ownerDocument.getElementById("console_window_" + hudId);
-    if (windowUI) {
-      // The Web Console popup is already open, no need to continue.
-      if (aContentWindow == aContentWindow.top) {
-        let hud = this.hudReferences[hudId];
-        hud.reattachConsole(aContentWindow);
-      }
-      return;
-    }
 
     if (!this.canActivateContext(hudId)) {
       return;
@@ -2772,7 +2872,7 @@ HUD_SERVICE.prototype =
    */
   animate: function HS_animate(aHUDId, aDirection, aCallback)
   {
-    let hudBox = this.getHudReferenceById(aHUDId).HUDBox;
+    let hudBox = this.getOutputNodeById(aHUDId);
     if (!hudBox.classList.contains("animated")) {
       if (aCallback) {
         aCallback();
@@ -2818,14 +2918,15 @@ HUD_SERVICE.prototype =
   resetHeight: function HS_resetHeight(aHUDId)
   {
     let HUD = this.hudReferences[aHUDId];
+
     let innerHeight = HUD.contentWindow.innerHeight;
-    let chromeWindow = HUD.chromeDocument.defaultView;
-    if (!HUD.consolePanel) {
-      let splitterStyle = chromeWindow.getComputedStyle(HUD.splitter, null);
-      innerHeight += parseInt(splitterStyle.height) +
-                     parseInt(splitterStyle.borderTopWidth) +
-                     parseInt(splitterStyle.borderBottomWidth);
-    }
+    let splitter = HUD.HUDBox.parentNode.querySelector(".hud-splitter");
+    let chromeWindow = splitter.ownerDocument.defaultView;
+
+    let splitterStyle = chromeWindow.getComputedStyle(splitter, null);
+    innerHeight += parseInt(splitterStyle.height) +
+                   parseInt(splitterStyle.borderTopWidth) +
+                   parseInt(splitterStyle.borderBottomWidth);
 
     let boxStyle = chromeWindow.getComputedStyle(HUD.HUDBox, null);
     innerHeight += parseInt(boxStyle.height) +
@@ -3001,22 +3102,27 @@ function HeadsUpDisplay(aConfig)
       throw new Error(this.ERRORS.PARENTNODE_NOT_FOUND);
     }
     this.parentNode = parentNode;
-    this.notificationBox = parentNode;
   }
 
   // create textNode Factory:
   this.textFactory = NodeFactory("text", "xul", this.chromeDocument);
 
-  this.chromeWindow = this.chromeDocument.defaultView;
+  this.chromeWindow = HUDService.getChromeWindowFromContentWindow(this.contentWindow);
 
   // create a panel dynamically and attach to the parentNode
-  this.createHUD();
+  let hudBox = this.createHUD();
+
+  let splitter = this.chromeDocument.createElement("splitter");
+  splitter.setAttribute("class", "hud-splitter");
+
+  this.notificationBox.insertBefore(splitter,
+                                    this.notificationBox.childNodes[1]);
 
   this.HUDBox.lastTimestamp = 0;
   // create the JSTerm input element
   try {
     this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
-    this.jsterm.inputNode.focus();
+    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
   }
   catch (ex) {
     Cu.reportError(ex);
@@ -3027,302 +3133,6 @@ function HeadsUpDisplay(aConfig)
 }
 
 HeadsUpDisplay.prototype = {
-
-  consolePanel: null,
-
-  get mainPopupSet()
-  {
-    return this.chromeDocument.getElementById("mainPopupSet");
-  },
-
-  /**
-   * Get the tab associated to the HeadsUpDisplay object.
-   */
-  get tab()
-  {
-    // TODO: we should only keep a reference to the xul:tab object and use
-    // getters to determine the rest of objects we need - the chrome window,
-    // document, etc. We should simplify the entire code to use only a single
-    // tab object ref. See bug 656231.
-    let tab = null;
-    let id = this.notificationBox.id;
-    Array.some(this.chromeDocument.defaultView.gBrowser.tabs, function(aTab) {
-      if (aTab.linkedPanel == id) {
-        tab = aTab;
-        return true;
-      }
-    });
-
-    return tab;
-  },
-
-  /**
-   * Create a panel to open the web console if it should float above
-   * the content in its own window.
-   */
-  createOwnWindowPanel: function HUD_createOwnWindowPanel()
-  {
-    if (this.uiInOwnWindow) {
-      return this.consolePanel;
-    }
-
-    let width = 0;
-    try {
-      width = Services.prefs.getIntPref("devtools.webconsole.width");
-    }
-    catch (ex) {}
-
-    if (width < 1) {
-      width = this.HUDBox.clientWidth || this.contentWindow.innerWidth;
-    }
-
-    let height = this.HUDBox.clientHeight;
-
-    let top = 0;
-    try {
-      top = Services.prefs.getIntPref("devtools.webconsole.top");
-    }
-    catch (ex) {}
-
-    let left = 0;
-    try {
-      left = Services.prefs.getIntPref("devtools.webconsole.left");
-    }
-    catch (ex) {}
-
-    let panel = this.chromeDocument.createElementNS(XUL_NS, "panel");
-
-    let config = { id: "console_window_" + this.hudId,
-                   label: this.getPanelTitle(),
-                   titlebar: "normal",
-                   noautohide: "true",
-                   norestorefocus: "true",
-                   close: "true",
-                   flex: "1",
-                   hudId: this.hudId,
-                   width: width,
-                   position: "overlap",
-                   top: top,
-                   left: left,
-                 };
-
-    for (let attr in config) {
-      panel.setAttribute(attr, config[attr]);
-    }
-
-    panel.classList.add("web-console-panel");
-
-    let onPopupShown = (function HUD_onPopupShown() {
-      panel.removeEventListener("popupshown", onPopupShown, false);
-
-      // Make sure that the HUDBox size updates when the panel is resized.
-
-      let height = panel.clientHeight;
-
-      this.HUDBox.style.height = "auto";
-      this.HUDBox.setAttribute("flex", "1");
-
-      panel.setAttribute("height", height);
-
-      // Scroll the outputNode back to the last location.
-      if (lastIndex > -1 && lastIndex < this.outputNode.getRowCount()) {
-        this.outputNode.ensureIndexIsVisible(lastIndex);
-      }
-
-      if (this.jsterm) {
-        this.jsterm.inputNode.focus();
-      }
-    }).bind(this);
-
-    panel.addEventListener("popupshown", onPopupShown,false);
-
-    let onPopupHiding = (function HUD_onPopupHiding(aEvent) {
-      if (aEvent.target != panel) {
-        return;
-      }
-
-      panel.removeEventListener("popuphiding", onPopupHiding, false);
-
-      let width = 0;
-      try {
-        width = Services.prefs.getIntPref("devtools.webconsole.width");
-      }
-      catch (ex) { }
-
-      if (width > -1) {
-        Services.prefs.setIntPref("devtools.webconsole.width", panel.clientWidth);
-      }
-
-      Services.prefs.setIntPref("devtools.webconsole.top", panel.popupBoxObject.y);
-      Services.prefs.setIntPref("devtools.webconsole.left", panel.popupBoxObject.x);
-
-      // Make sure we are not going to close again, drop the hudId reference of
-      // the panel.
-      panel.removeAttribute("hudId");
-
-      if (this.consoleWindowUnregisterOnHide) {
-        HUDService.deactivateHUDForContext(this.tab, false);
-      }
-      else {
-        this.consoleWindowUnregisterOnHide = true;
-      }
-
-      this.consolePanel = null;
-    }).bind(this);
-
-    panel.addEventListener("popuphiding", onPopupHiding, false);
-
-    let onPopupHidden = (function HUD_onPopupHidden(aEvent) {
-      if (aEvent.target != panel) {
-        return;
-      }
-
-      panel.removeEventListener("popuphidden", onPopupHidden, false);
-      if (panel.parentNode) {
-        panel.parentNode.removeChild(panel);
-      }
-    }).bind(this);
-
-    panel.addEventListener("popuphidden", onPopupHidden, false);
-
-    let lastIndex = -1;
-
-    if (this.outputNode.getIndexOfFirstVisibleRow) {
-      lastIndex = this.outputNode.getIndexOfFirstVisibleRow() +
-                  this.outputNode.getNumberOfVisibleRows() - 1;
-    }
-
-    if (this.splitter.parentNode) {
-      this.splitter.parentNode.removeChild(this.splitter);
-    }
-    panel.appendChild(this.HUDBox);
-
-    let space = this.chromeDocument.createElement("spacer");
-    space.setAttribute("flex", "1");
-
-    let bottomBox = this.chromeDocument.createElement("hbox");
-    space.setAttribute("flex", "1");
-
-    let resizer = this.chromeDocument.createElement("resizer");
-    resizer.setAttribute("dir", "bottomend");
-    resizer.setAttribute("element", config.id);
-
-    bottomBox.appendChild(space);
-    bottomBox.appendChild(resizer);
-
-    panel.appendChild(bottomBox);
-
-    this.mainPopupSet.appendChild(panel);
-
-    Services.prefs.setCharPref("devtools.webconsole.position", "window");
-
-    panel.openPopup(null, "overlay", left, top, false, false);
-
-    this.consolePanel = panel;
-    this.consoleWindowUnregisterOnHide = true;
-
-    return panel;
-  },
-
-  /**
-   * Retrieve the Web Console panel title.
-   *
-   * @return string
-   *         The Web Console panel title.
-   */
-  getPanelTitle: function HUD_getPanelTitle()
-  {
-    return this.getFormatStr("webConsoleWindowTitleAndURL", [this.uriSpec]);
-  },
-
-  positions: {
-    above: 0, // the childNode index
-    below: 2,
-    window: null
-  },
-
-  consoleWindowUnregisterOnHide: true,
-
-  /**
-   * Re-position the console
-   */
-  positionConsole: function HUD_positionConsole(aPosition)
-  {
-    if (!(aPosition in this.positions)) {
-      throw new Error("Incorrect argument: " + aPosition  + ". Cannot position Web Console");
-    }
-
-    if (aPosition == "window") {
-      this.createOwnWindowPanel();
-      this.positionMenuitems.window.setAttribute("checked", true);
-      if (this.positionMenuitems.last) {
-        this.positionMenuitems.last.setAttribute("checked", false);
-      }
-      this.positionMenuitems.last = this.positionMenuitems[aPosition];
-      this.uiInOwnWindow = true;
-      return;
-    }
-
-    let height = this.HUDBox.clientHeight;
-
-    // get the node position index
-    let nodeIdx = this.positions[aPosition];
-    let nBox = this.notificationBox;
-    let node = nBox.childNodes[nodeIdx];
-
-    // check to see if console is already positioned in aPosition
-    if (node == this.HUDBox) {
-      return;
-    }
-
-    let lastIndex = -1;
-
-    if (this.outputNode.getIndexOfFirstVisibleRow) {
-      lastIndex = this.outputNode.getIndexOfFirstVisibleRow() +
-                  this.outputNode.getNumberOfVisibleRows() - 1;
-    }
-
-    // remove the console and splitter and reposition
-    if (this.splitter.parentNode) {
-      this.splitter.parentNode.removeChild(this.splitter);
-    }
-
-    if (aPosition == "below") {
-      nBox.appendChild(this.splitter);
-      nBox.appendChild(this.HUDBox);
-    }
-    else {
-      nBox.insertBefore(this.splitter, node);
-      nBox.insertBefore(this.HUDBox, this.splitter);
-    }
-
-    this.positionMenuitems[aPosition].setAttribute("checked", true);
-    if (this.positionMenuitems.last) {
-      this.positionMenuitems.last.setAttribute("checked", false);
-    }
-    this.positionMenuitems.last = this.positionMenuitems[aPosition];
-
-    Services.prefs.setCharPref("devtools.webconsole.position", aPosition);
-
-    if (lastIndex > -1 && lastIndex < this.outputNode.getRowCount()) {
-      this.outputNode.ensureIndexIsVisible(lastIndex);
-    }
-
-    this.uiInOwnWindow = false;
-    if (this.consolePanel) {
-      this.HUDBox.removeAttribute("flex");
-      this.HUDBox.removeAttribute("height");
-      this.HUDBox.style.height = height + "px";
-
-      // must destroy the consolePanel
-      this.consoleWindowUnregisterOnHide = false;
-      this.consolePanel.hidePopup();
-    }
-
-    if (this.jsterm) {
-      this.jsterm.inputNode.focus();
-    }
-  },
 
   /**
    * L10N shortcut function
@@ -3386,10 +3196,6 @@ HeadsUpDisplay.prototype = {
     this.contentDocument = this.contentWindow.document;
     this.uriSpec = this.contentWindow.location.href;
 
-    if (this.consolePanel) {
-      this.consolePanel.label = this.getPanelTitle();
-    }
-
     if (!this.jsterm) {
       this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
     }
@@ -3420,10 +3226,6 @@ HeadsUpDisplay.prototype = {
   makeHUDNodes: function HUD_makeHUDNodes()
   {
     let self = this;
-
-    this.splitter = this.makeXULNode("splitter");
-    this.splitter.setAttribute("class", "hud-splitter");
-
     this.HUDBox = this.makeXULNode("vbox");
     this.HUDBox.setAttribute("id", this.hudId);
     this.HUDBox.setAttribute("class", "hud-box animated");
@@ -3570,70 +3372,10 @@ HeadsUpDisplay.prototype = {
     }
 
     toolbar.appendChild(this.filterSpacer);
-
-    let positionUI = this.createPositionUI();
-    toolbar.appendChild(positionUI);
-
     toolbar.appendChild(this.filterBox);
     this.makeClearConsoleButton(toolbar);
 
     return toolbar;
-  },
-
-  /**
-   * Creates the UI for re-positioning the console
-   *
-   * @return nsIDOMNode
-   *         The xul:toolbarbutton which holds the menu that allows the user to
-   *         change the console position.
-   */
-  createPositionUI: function HUD_createPositionUI()
-  {
-    let self = this;
-
-    let button = this.makeXULNode("toolbarbutton");
-    button.setAttribute("type", "menu");
-    button.setAttribute("label", this.getStr("webConsolePosition"));
-    button.setAttribute("tooltip", this.getStr("webConsolePositionTooltip"));
-
-    let menuPopup = this.makeXULNode("menupopup");
-    button.appendChild(menuPopup);
-
-    let itemAbove = this.makeXULNode("menuitem");
-    itemAbove.setAttribute("label", this.getStr("webConsolePositionAbove"));
-    itemAbove.setAttribute("type", "checkbox");
-    itemAbove.setAttribute("autocheck", "false");
-    itemAbove.addEventListener("command", function() {
-      self.positionConsole("above");
-    }, false);
-    menuPopup.appendChild(itemAbove);
-
-    let itemBelow = this.makeXULNode("menuitem");
-    itemBelow.setAttribute("label", this.getStr("webConsolePositionBelow"));
-    itemBelow.setAttribute("type", "checkbox");
-    itemBelow.setAttribute("autocheck", "false");
-    itemBelow.addEventListener("command", function() {
-      self.positionConsole("below");
-    }, false);
-    menuPopup.appendChild(itemBelow);
-
-    let itemWindow = this.makeXULNode("menuitem");
-    itemWindow.setAttribute("label", this.getStr("webConsolePositionWindow"));
-    itemWindow.setAttribute("type", "checkbox");
-    itemWindow.setAttribute("autocheck", "false");
-    itemWindow.addEventListener("command", function() {
-      self.positionConsole("window");
-    }, false);
-    menuPopup.appendChild(itemWindow);
-
-    this.positionMenuitems = {
-      last: null,
-      above: itemAbove,
-      below: itemBelow,
-      window: itemWindow,
-    };
-
-    return button;
   },
 
   /**
@@ -3749,15 +3491,22 @@ HeadsUpDisplay.prototype = {
    */
   makeCloseButton: function HUD_makeCloseButton(aToolbar)
   {
-    let onCommand = (function HUD_closeButton_onCommand() {
-      HUDService.animate(this.hudId, ANIMATE_OUT, (function() {
-        HUDService.deactivateHUDForContext(this.tab, true);
-      }).bind(this));
-    }).bind(this);
+    let hudId = this.hudId;
+
+    function HUD_closeButton_onCommand() {
+      let ownerDocument = this.ownerDocument;
+      let tab = ownerDocument.defaultView.gBrowser.selectedTab;
+      HUDService.animate(hudId, ANIMATE_OUT, function() {
+        if (ownerDocument.getElementById(hudId)) {
+          HUDService.deactivateHUDForContext(tab, true);
+        }
+      });
+    }
 
     let closeButton = this.makeXULNode("toolbarbutton");
     closeButton.classList.add("webconsole-close-button");
-    closeButton.addEventListener("command", onCommand, false);
+    closeButton.addEventListener("command", HUD_closeButton_onCommand, false);
+
     aToolbar.appendChild(closeButton);
   },
 
@@ -3774,7 +3523,7 @@ HeadsUpDisplay.prototype = {
   {
     let hudId = this.hudId;
     function HUD_clearButton_onCommand() {
-      HUDService.getHudReferenceById(hudId).jsterm.clearOutput();
+      HUDService.clearDisplay(hudId);
     }
 
     let clearButton = this.makeXULNode("toolbarbutton");
@@ -3785,23 +3534,21 @@ HeadsUpDisplay.prototype = {
     aToolbar.appendChild(clearButton);
   },
 
-  /**
-   * Create the Web Console UI.
-   *
-   * @return nsIDOMNode
-   *         The Web Console container element (HUDBox).
-   */
   createHUD: function HUD_createHUD()
   {
-    if (!this.HUDBox) {
-      this.makeHUDNodes();
-      let positionPref = Services.prefs.getCharPref("devtools.webconsole.position");
-      this.positionConsole(positionPref);
+    let self = this;
+    if (this.HUDBox) {
+      return this.HUDBox;
     }
-    return this.HUDBox;
-  },
+    else  {
+      this.makeHUDNodes();
 
-  uiInOwnWindow: false,
+      let nodes = this.notificationBox.insertBefore(this.HUDBox,
+        this.notificationBox.childNodes[0]);
+
+      return this.HUDBox;
+    }
+  },
 
   get console() { return this.contentWindow.wrappedJSObject.console; },
 
@@ -3851,7 +3598,7 @@ let ConsoleAPIObserver = {
       if (!hudId)
         return;
 
-      HUDService.logConsoleAPIMessage(hudId, aMessage);
+      HUDService.logConsoleAPIMessage(hudId, aMessage.level, aMessage.arguments);
     }
     else if (aTopic == "quit-application-granted") {
       HUDService.shutdown();
@@ -4063,34 +3810,30 @@ function JSPropertyProvider(aScope, aInputValue)
   let properties = completionPart.split('.');
   let matchProp;
   if (properties.length > 1) {
-    matchProp = properties.pop().trimLeft();
-    for (let i = 0; i < properties.length; i++) {
-      let prop = properties[i].trim();
+      matchProp = properties[properties.length - 1].trimLeft();
+      properties.pop();
+      for each (var prop in properties) {
+        prop = prop.trim();
 
-      // If obj is undefined or null, then there is no chance to run completion
-      // on it. Exit here.
-      if (typeof obj === "undefined" || obj === null) {
-        return null;
-      }
+        // If obj is undefined or null, then there is no change to run
+        // completion on it. Exit here.
+        if (typeof obj === "undefined" || obj === null) {
+          return null;
+        }
 
-      // Check if prop is a getter function on obj. Functions can change other
-      // stuff so we can't execute them to get the next object. Stop here.
-      if (isNonNativeGetter(obj, prop)) {
-        return null;
-      }
-      try {
+        // Check if prop is a getter function on obj. Functions can change other
+        // stuff so we can't execute them to get the next object. Stop here.
+        if (obj.__lookupGetter__(prop)) {
+          return null;
+        }
         obj = obj[prop];
       }
-      catch (ex) {
-        return null;
-      }
-    }
   }
   else {
     matchProp = properties[0].trimLeft();
   }
 
-  // If obj is undefined or null, then there is no chance to run
+  // If obj is undefined or null, then there is no change to run
   // completion on it. Exit here.
   if (typeof obj === "undefined" || obj === null) {
     return null;
@@ -4102,15 +3845,17 @@ function JSPropertyProvider(aScope, aInputValue)
   }
 
   let matches = [];
-  for (let prop in obj) {
-    if (prop.indexOf(matchProp) == 0) {
-      matches.push(prop);
-    }
+  for (var prop in obj) {
+    matches.push(prop);
   }
+
+  matches = matches.filter(function(item) {
+    return item.indexOf(matchProp) == 0;
+  }).sort();
 
   return {
     matchProp: matchProp,
-    matches: matches.sort(),
+    matches: matches
   };
 }
 
@@ -4126,16 +3871,10 @@ function isIteratorOrGenerator(aObject)
       return true;
     }
 
-    try {
-      let str = aObject.toString();
-      if (typeof aObject.next == "function" &&
-          str.indexOf("[object Generator") == 0) {
-        return true;
-      }
-    }
-    catch (ex) {
-      // window.history.next throws in the typeof check above.
-      return false;
+    let str = aObject.toString();
+    if (typeof aObject.next == "function" &&
+        str.indexOf("[object Generator") == 0) {
+      return true;
     }
   }
 
@@ -4378,9 +4117,6 @@ function JSTerm(aContext, aParentNode, aMixin, aConsole)
   this.historyIndex = 0;
   this.historyPlaceHolder = 0;  // this.history.length;
   this.log = LogFactory("*** JSTerm:");
-  this.autocompletePopup = new AutocompletePopup(aParentNode.ownerDocument);
-  this.autocompletePopup.onSelect = this.onAutocompleteSelect.bind(this);
-  this.autocompletePopup.onClick = this.acceptProposedCompletion.bind(this);
   this.init();
 }
 
@@ -4395,21 +4131,19 @@ JSTerm.prototype = {
   init: function JST_init()
   {
     this.createSandbox();
-
     this.inputNode = this.mixins.inputNode;
+    let eventHandlerKeyDown = this.keyDown();
+    this.inputNode.addEventListener('keypress', eventHandlerKeyDown, false);
+    let eventHandlerInput = this.inputEventHandler();
+    this.inputNode.addEventListener('input', eventHandlerInput, false);
     this.outputNode = this.mixins.outputNode;
     this.completeNode = this.mixins.completeNode;
-
-    this.inputNode.addEventListener("keypress",
-      this.keyPress.bind(this), false);
-    this.inputNode.addEventListener("input",
-      this.inputEventHandler.bind(this), false);
-    this.inputNode.addEventListener("keyup",
-      this.inputEventHandler.bind(this), false);
   },
 
   get codeInputString()
   {
+    // TODO: filter the input for windows line breaks, conver to unix
+    // see bug 572812
     return this.inputNode.value;
   },
 
@@ -4434,11 +4168,12 @@ JSTerm.prototype = {
 
   get _window()
   {
-    return this.context.get().QueryInterface(Ci.nsIDOMWindow);
+    return this.context.get().QueryInterface(Ci.nsIDOMWindowInternal);
   },
 
   /**
-   * Evaluates a string in the sandbox.
+   * Evaluates a string in the sandbox. The string is currently wrapped by a
+   * with(window) { aString } construct, see bug 574033.
    *
    * @param string aString
    *        String to evaluate in the sandbox.
@@ -4516,7 +4251,6 @@ JSTerm.prototype = {
     this.historyIndex++;
     this.historyPlaceHolder = this.history.length;
     this.setInputValue("");
-    this.clearCompletion();
   },
 
   /**
@@ -4771,14 +4505,22 @@ JSTerm.prototype = {
 
   clearOutput: function JST_clearOutput()
   {
-    let hud = HUDService.getHudReferenceById(this.hudId);
-    hud.cssNodes = {};
+    let outputNode = this.outputNode;
+    let hudRef = HUDService.getHudReferenceForOutputNode(outputNode);
 
-    while (hud.outputNode.firstChild) {
-      hud.outputNode.removeChild(hud.outputNode.firstChild);
+    if (hudRef) {
+      hudRef.cssNodes = {};
     }
 
-    hud.HUDBox.lastTimestamp = 0;
+    while (outputNode.firstChild) {
+      outputNode.removeChild(outputNode.firstChild);
+    }
+
+    let hudBox = outputNode;
+    while (!hudBox.classList.contains("hud-box")) {
+      hudBox = hudBox.parentNode;
+    }
+    hudBox.lastTimestamp = 0;
   },
 
   /**
@@ -4813,113 +4555,125 @@ JSTerm.prototype = {
   setInputValue: function JST_setInputValue(aNewValue)
   {
     this.inputNode.value = aNewValue;
-    this.lastInputValue = aNewValue;
     this.completeNode.value = "";
     this.resizeInput();
   },
 
-  /**
-   * The inputNode "input" and "keyup" event handler.
-   *
-   * @param nsIDOMEvent aEvent
-   */
-  inputEventHandler: function JSTF_inputEventHandler(aEvent)
+  inputEventHandler: function JSTF_inputEventHandler()
   {
-    if (this.lastInputValue != this.inputNode.value) {
-      this.resizeInput();
-      this.complete(this.COMPLETE_HINT_ONLY);
-      this.lastInputValue = this.inputNode.value;
+    var self = this;
+    function handleInputEvent(aEvent) {
+      self.resizeInput();
     }
+    return handleInputEvent;
   },
 
-  /**
-   * The inputNode "keypress" event handler.
-   *
-   * @param nsIDOMEvent aEvent
-   */
-  keyPress: function JSTF_keyPress(aEvent)
+  keyDown: function JSTF_keyDown(aEvent)
   {
-    if (aEvent.ctrlKey) {
-      switch (aEvent.charCode) {
-        case 97:
-          // control-a
-          this.inputNode.setSelectionRange(0, 0);
-          aEvent.preventDefault();
-          break;
-        case 101:
-          // control-e
-          this.inputNode.setSelectionRange(this.inputNode.value.length,
-                                           this.inputNode.value.length);
-          aEvent.preventDefault();
-          break;
-        default:
-          break;
+    var self = this;
+    function handleKeyDown(aEvent) {
+      // ctrl-a
+      var setTimeout = aEvent.target.ownerDocument.defaultView.setTimeout;
+      var target = aEvent.target;
+      var tmp;
+
+      if (aEvent.ctrlKey) {
+        switch (aEvent.charCode) {
+          case 97:
+            // control-a
+            tmp = self.codeInputString;
+            setTimeout(function() {
+              self.setInputValue(tmp);
+              self.inputNode.setSelectionRange(0, 0);
+            }, 0);
+            break;
+          case 101:
+            // control-e
+            tmp = self.codeInputString;
+            self.setInputValue("");
+            setTimeout(function(){
+              self.setInputValue(tmp);
+            }, 0);
+            break;
+          default:
+            return;
+        }
+        return;
       }
-      return;
+      else if (aEvent.shiftKey &&
+          aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
+        // shift return
+        // TODO: expand the inputNode height by one line
+        return;
+      }
+      else {
+        switch(aEvent.keyCode) {
+          case Ci.nsIDOMKeyEvent.DOM_VK_RETURN:
+            self.execute();
+            aEvent.preventDefault();
+            break;
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_UP:
+            // history previous
+            if (self.canCaretGoPrevious()) {
+              let updated = self.historyPeruse(HISTORY_BACK);
+              if (updated && aEvent.cancelable) {
+                aEvent.preventDefault();
+              }
+            }
+            break;
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_DOWN:
+            // history next
+            if (self.canCaretGoNext()) {
+              let updated = self.historyPeruse(HISTORY_FORWARD);
+              if (updated && aEvent.cancelable) {
+                aEvent.preventDefault();
+              }
+            }
+            break;
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_RIGHT:
+            // accept proposed completion
+            self.acceptProposedCompletion();
+            break;
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_TAB:
+            // If there are more than one possible completion, pressing tab
+            // means taking the next completion, shift_tab means taking
+            // the previous completion.
+            var completionResult;
+            if (aEvent.shiftKey) {
+              completionResult = self.complete(self.COMPLETE_BACKWARD);
+            }
+            else {
+              completionResult = self.complete(self.COMPLETE_FORWARD);
+            }
+            if (completionResult) {
+              if (aEvent.cancelable) {
+                aEvent.preventDefault();
+              }
+              aEvent.target.focus();
+            }
+            break;
+
+          default:
+            // Store the current inputNode value. If the value is the same
+            // after keyDown event was handled (after 0ms) then the user
+            // moved the cursor. If the value changed, then call the complete
+            // function to show completion on new value.
+            var value = self.inputNode.value;
+            setTimeout(function() {
+              if (self.inputNode.value !== value) {
+                self.complete(self.COMPLETE_HINT_ONLY);
+              }
+            }, 0);
+            break;
+        }
+        return;
+      }
     }
-    else if (aEvent.shiftKey &&
-        aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
-      // shift return
-      // TODO: expand the inputNode height by one line
-      return;
-    }
-
-    let inputUpdated = false;
-
-    switch(aEvent.keyCode) {
-      case Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE:
-        if (this.autocompletePopup.isOpen) {
-          this.clearCompletion();
-          aEvent.preventDefault();
-        }
-        break;
-
-      case Ci.nsIDOMKeyEvent.DOM_VK_RETURN:
-        if (this.autocompletePopup.isOpen) {
-          this.acceptProposedCompletion();
-        }
-        else {
-          this.execute();
-        }
-        aEvent.preventDefault();
-        break;
-
-      case Ci.nsIDOMKeyEvent.DOM_VK_UP:
-        if (this.autocompletePopup.isOpen) {
-          inputUpdated = this.complete(this.COMPLETE_BACKWARD);
-        }
-        else if (this.canCaretGoPrevious()) {
-          inputUpdated = this.historyPeruse(HISTORY_BACK);
-        }
-        if (inputUpdated) {
-          aEvent.preventDefault();
-        }
-        break;
-
-      case Ci.nsIDOMKeyEvent.DOM_VK_DOWN:
-        if (this.autocompletePopup.isOpen) {
-          inputUpdated = this.complete(this.COMPLETE_FORWARD);
-        }
-        else if (this.canCaretGoNext()) {
-          inputUpdated = this.historyPeruse(HISTORY_FORWARD);
-        }
-        if (inputUpdated) {
-          aEvent.preventDefault();
-        }
-        break;
-
-      case Ci.nsIDOMKeyEvent.DOM_VK_TAB:
-        // Generate a completion and accept the first proposed value.
-        if (this.complete(this.COMPLETE_HINT_ONLY) &&
-            this.lastCompletion &&
-            this.acceptProposedCompletion()) {
-          aEvent.preventDefault();
-        }
-        break;
-
-      default:
-        break;
-    }
+    return handleKeyDown;
   },
 
   /**
@@ -5057,127 +4811,95 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
-      this.clearCompletion();
+      this.updateCompleteNode("");
       return false;
     }
 
     // Only complete if the selection is empty and at the end of the input.
     if (inputNode.selectionStart == inputNode.selectionEnd &&
         inputNode.selectionEnd != inputValue.length) {
-      this.clearCompletion();
+      // TODO: shouldnt we do this in the other 'bail' cases?
+      this.lastCompletion = null;
+      this.updateCompleteNode("");
       return false;
     }
 
-    let popup = this.autocompletePopup;
+    let matches;
+    let matchIndexToUse;
+    let matchOffset;
 
-    if (!this.lastCompletion || this.lastCompletion.value != inputValue) {
-      let properties = this.propertyProvider(this.sandbox.window, inputValue);
-      if (!properties || !properties.matches.length) {
-        this.clearCompletion();
+    // If there is a saved completion from last time and the used value for
+    // completion stayed the same, then use the stored completion.
+    if (this.lastCompletion && inputValue == this.lastCompletion.value) {
+      matches = this.lastCompletion.matches;
+      matchOffset = this.lastCompletion.matchOffset;
+      if (type === this.COMPLETE_BACKWARD) {
+        this.lastCompletion.index --;
+      }
+      else if (type === this.COMPLETE_FORWARD) {
+        this.lastCompletion.index ++;
+      }
+      matchIndexToUse = this.lastCompletion.index;
+    }
+    else {
+      // Look up possible completion values.
+      let completion = this.propertyProvider(this.sandbox.window, inputValue);
+      if (!completion) {
+        this.updateCompleteNode("");
         return false;
       }
+      matches = completion.matches;
+      matchIndexToUse = 0;
+      matchOffset = completion.matchProp.length;
+      // Store this match;
+      this.lastCompletion = {
+        index: 0,
+        value: inputValue,
+        matches: matches,
+        matchOffset: matchOffset
+      };
+    }
 
-      let items = properties.matches.map(function(aMatch) {
-        return {label: aMatch};
-      });
-      popup.setItems(items);
-      this.lastCompletion = {value: inputValue,
-                             matchProp: properties.matchProp};
-
-      if (items.length > 1 && !popup.isOpen) {
-        popup.openPopup(this.inputNode);
-      }
-      else if (items.length < 2 && popup.isOpen) {
-        popup.hidePopup();
-      }
-
-      if (items.length > 0) {
-        popup.selectedIndex = 0;
-        if (items.length == 1) {
-          // onSelect is not fired when the popup is not open.
-          this.onAutocompleteSelect();
+    if (type != this.COMPLETE_HINT_ONLY && matches.length == 1) {
+      this.acceptProposedCompletion();
+      return true;
+    }
+    else if (matches.length != 0) {
+      // Ensure that the matchIndexToUse is always a valid array index.
+      if (matchIndexToUse < 0) {
+        matchIndexToUse = matches.length + (matchIndexToUse % matches.length);
+        if (matchIndexToUse == matches.length) {
+          matchIndexToUse = 0;
         }
       }
-    }
+      else {
+        matchIndexToUse = matchIndexToUse % matches.length;
+      }
 
-    let accepted = false;
-
-    if (type != this.COMPLETE_HINT_ONLY && popup.itemCount == 1) {
-      this.acceptProposedCompletion();
-      accepted = true;
-    }
-    else if (type == this.COMPLETE_BACKWARD) {
-      this.autocompletePopup.selectPreviousItem();
-    }
-    else if (type == this.COMPLETE_FORWARD) {
-      this.autocompletePopup.selectNextItem();
-    }
-
-    return accepted || popup.itemCount > 0;
-  },
-
-  onAutocompleteSelect: function JSTF_onAutocompleteSelect()
-  {
-    let currentItem = this.autocompletePopup.selectedItem;
-    if (currentItem && this.lastCompletion) {
-      let suffix = currentItem.label.substring(this.lastCompletion.
-                                               matchProp.length);
-      this.updateCompleteNode(suffix);
+      let completionStr = matches[matchIndexToUse].substring(matchOffset);
+      this.updateCompleteNode(completionStr);
+      return completionStr ? true : false;
     }
     else {
       this.updateCompleteNode("");
     }
+
+    return false;
   },
 
-  /**
-   * Clear the current completion information and close the autocomplete popup,
-   * if needed.
-   */
-  clearCompletion: function JSTF_clearCompletion()
-  {
-    this.autocompletePopup.clearItems();
-    this.lastCompletion = null;
-    this.updateCompleteNode("");
-    if (this.autocompletePopup.isOpen) {
-      this.autocompletePopup.hidePopup();
-    }
-  },
-
-  /**
-   * Accept the proposed input completion.
-   *
-   * @return boolean
-   *         True if there was a selected completion item and the input value
-   *         was updated, false otherwise.
-   */
   acceptProposedCompletion: function JSTF_acceptProposedCompletion()
   {
-    let updated = false;
-
-    let currentItem = this.autocompletePopup.selectedItem;
-    if (currentItem && this.lastCompletion) {
-      let suffix = currentItem.label.substring(this.lastCompletion.
-                                               matchProp.length);
-      this.setInputValue(this.inputNode.value + suffix);
-      updated = true;
-    }
-
-    this.clearCompletion();
-
-    return updated;
+    this.setInputValue(this.inputNode.value + this.completionValue);
+    this.updateCompleteNode("");
   },
 
-  /**
-   * Update the node that displays the currently selected autocomplete proposal.
-   *
-   * @param string aSuffix
-   *        The proposed suffix for the inputNode value.
-   */
-  updateCompleteNode: function JSTF_updateCompleteNode(aSuffix)
+  updateCompleteNode: function JSTF_updateCompleteNode(suffix)
   {
+    this.completionValue = suffix;
+
     // completion prefix = input, with non-control chars replaced by spaces
-    let prefix = aSuffix ? this.inputNode.value.replace(/[\S]/g, " ") : "";
-    this.completeNode.value = prefix + aSuffix;
+    let prefix = this.inputNode.value.replace(/[\S]/g, " ");
+    this.completeNode.value = prefix + this.completionValue;
   },
 };
 
@@ -5538,13 +5260,6 @@ ConsoleUtils = {
 
     // Make the location clickable.
     locationNode.addEventListener("click", function() {
-      if (aSourceURL == "Scratchpad") {
-        let win = Services.wm.getMostRecentWindow("devtools:scratchpad");
-        if (win) {
-          win.focus();
-        }
-        return;
-      }
       let viewSourceUtils = aDocument.defaultView.gViewSourceUtils;
       viewSourceUtils.viewSource(aSourceURL, null, aDocument, aSourceLine);
     }, true);
@@ -5702,7 +5417,7 @@ ConsoleUtils = {
 
     HUDService.regroupOutput(outputNode);
 
-    if (pruneConsoleOutputIfNecessary(aHUDId, aNode.category) == 0) {
+    if (pruneConsoleOutputIfNecessary(outputNode) == 0) {
       // We can't very well scroll to make the message node visible if the log
       // limit is zero and the node was destroyed in the first place.
       return;
@@ -5788,25 +5503,18 @@ HeadsUpDisplayUICommands = {
     var hudId = "hud_" + tabId;
     var ownerDocument = gBrowser.selectedTab.ownerDocument;
     var hud = ownerDocument.getElementById(hudId);
-    var hudRef = HUDService.hudReferences[hudId];
+    if (hud) {
+      HUDService.storeHeight(hudId);
 
-    if (hudRef && hud) {
-      if (hudRef.consolePanel) {
-        HUDService.deactivateHUDForContext(gBrowser.selectedTab, false);
-      }
-      else {
-        HUDService.storeHeight(hudId);
-
-        HUDService.animate(hudId, ANIMATE_OUT, function() {
-          // If the user closes the console while the console is animating away,
-          // then these callbacks will queue up, but all the callbacks after the
-          // first will have no console to operate on. This test handles this
-          // case gracefully.
-          if (ownerDocument.getElementById(hudId)) {
-            HUDService.deactivateHUDForContext(gBrowser.selectedTab, true);
-          }
-        });
-      }
+      HUDService.animate(hudId, ANIMATE_OUT, function() {
+        // If the user closes the console while the console is animating away,
+        // then these callbacks will queue up, but all the callbacks after the
+        // first will have no console to operate on. This test handles this
+        // case gracefully.
+        if (ownerDocument.getElementById(hudId)) {
+          HUDService.deactivateHUDForContext(gBrowser.selectedTab, true);
+        }
+      });
     }
     else {
       HUDService.activateHUDForContext(gBrowser.selectedTab, true);

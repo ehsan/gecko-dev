@@ -37,16 +37,13 @@
 # ***** END LICENSE BLOCK *****
 */
 
-(function(){
-
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 const MSG_INSTALL_ENABLED  = "WebInstallerIsInstallEnabled";
 const MSG_INSTALL_ADDONS   = "WebInstallerInstallAddonsFromWebpage";
 const MSG_INSTALL_CALLBACK = "WebInstallerInstallCallback";
-const MSG_JAR_FLUSH        = "AddonJarFlush";
 
 var gIoService = Components.classes["@mozilla.org/network/io-service;1"]
                            .getService(Components.interfaces.nsIIOService);
@@ -190,22 +187,18 @@ function createInstallTrigger(window) {
     }
   };
 
-  let obj = Cu.createObjectIn(window);
-  function genPropDesc(fun) {
-    return { enumerable: true, configurable: true, writable: true,
-             value: chromeObject[fun].bind(chromeObject) };
-  }
-  const properties = {
-    'enabled': genPropDesc('enabled'),
-    'updateEnabled': genPropDesc('updateEnabled'),
-    'install': genPropDesc('install'),
-    'installChrome': genPropDesc('installChrome'),
-    'startSoftwareUpdate': genPropDesc('startSoftwareUpdate')
-  };
-
-  Object.defineProperties(obj, properties);
-
-  Cu.makeObjectPropsNormal(obj);
+  let sandbox = Cu.Sandbox(window);
+  let obj = Cu.evalInSandbox(
+    "(function (x) {\
+       var bind = Function.bind;\
+       return {\
+         enabled: bind.call(x.enabled, x),\
+         updateEnabled: bind.call(x.updateEnabled, x),\
+         install: bind.call(x.install, x),\
+         installChrome: bind.call(x.installChrome, x),\
+         startSoftwareUpdate: bind.call(x.startSoftwareUpdate, x)\
+       };\
+     })", sandbox)(chromeObject);
 
   obj.SKIN = chromeObject.SKIN;
   obj.LOCALE = chromeObject.LOCALE;
@@ -228,22 +221,7 @@ function InstallTriggerManager() {
   this.callbacks = {};
 
   addMessageListener(MSG_INSTALL_CALLBACK, this);
-  
-  try {
-    // only if we live in a child process...
-    if (Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).processType !== Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT) {
-      // ... propagate JAR cache flush notifications across process boundaries
-      addMessageListener(MSG_JAR_FLUSH, function(msg) {
-        let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
-        file.initWithPath(msg.json);
-        Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService)
-          .notifyObservers(file, "flush-cache-entry", null);
-      });
-    }
-  } catch(e) {
-    Cu.reportError(e);
-  }
-    
+
   addEventListener("DOMWindowCreated", this, false);
 
   var self = this;
@@ -330,4 +308,3 @@ InstallTriggerManager.prototype = {
 
 var manager = new InstallTriggerManager();
 
-})();

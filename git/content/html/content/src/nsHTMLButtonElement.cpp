@@ -64,8 +64,6 @@
 #include "nsIConstraintValidation.h"
 #include "mozAutoDocUpdate.h"
 
-using namespace mozilla::dom;
-
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
 
@@ -86,8 +84,7 @@ class nsHTMLButtonElement : public nsGenericHTMLFormElement,
 public:
   using nsIConstraintValidation::GetValidationMessage;
 
-  nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      FromParser aFromParser = NOT_FROM_PARSER);
+  nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLButtonElement();
 
   // nsISupports
@@ -134,12 +131,6 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                              nsIContent* aBindingParent,
-                              PRBool aCompileEventHandlers);
-  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
-                              PRBool aNullParent = PR_TRUE);
-
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual void DoneCreatingElement();
   virtual nsXPCClassInfo* GetClassInfo();
@@ -148,7 +139,6 @@ protected:
   PRUint8 mType;
   PRPackedBool mDisabledChanged;
   PRPackedBool mInInternalActivate;
-  PRPackedBool mInhibitStateRestoration;
 
 private:
   // The analogue of defaultValue in the DOM for input and textarea
@@ -160,22 +150,17 @@ private:
 // Construction, destruction
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Button)
+NS_IMPL_NS_NEW_HTML_ELEMENT(Button)
 
 
-nsHTMLButtonElement::nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         FromParser aFromParser)
+nsHTMLButtonElement::nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo),
     mType(kButtonDefaultType->value),
     mDisabledChanged(PR_FALSE),
-    mInInternalActivate(PR_FALSE),
-    mInhibitStateRestoration(!!(aFromParser & FROM_PARSER_FRAGMENT))
+    mInInternalActivate(PR_FALSE)
 {
   // <button> is always barred from constraint validation.
   SetBarredFromConstraintValidation(PR_TRUE);
-
-  // Set up our default state: enabled
-  AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
 
 nsHTMLButtonElement::~nsHTMLButtonElement()
@@ -496,31 +481,6 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-nsHTMLButtonElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                                nsIContent* aBindingParent,
-                                PRBool aCompileEventHandlers)
-{
-  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
-                                                     aBindingParent,
-                                                     aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Update our state; we may now be the default submit element
-  UpdateState(false);
-
-  return NS_OK;
-}
-
-void
-nsHTMLButtonElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
-{
-  nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
-
-  // Update our state; we may no longer be the default submit element
-  UpdateState(false);
-}
-
-nsresult
 nsHTMLButtonElement::GetDefaultValue(nsAString& aDefaultValue)
 {
   GetAttr(kNameSpaceID_None, nsGkAtoms::value, aDefaultValue);
@@ -585,10 +545,8 @@ nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 void
 nsHTMLButtonElement::DoneCreatingElement()
 {
-  if (!mInhibitStateRestoration) {
-    // Restore state as needed.
-    RestoreFormControlState(this, this);
-  }
+  // Restore state as needed.
+  RestoreFormControlState(this, this);
 }
 
 nsresult
@@ -608,13 +566,23 @@ nsresult
 nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify)
 {
+  nsEventStates states;
+
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::type) {
       if (!aValue) {
         mType = kButtonDefaultType->value;
       }
 
-      UpdateState(aNotify);
+      states |= NS_EVENT_STATE_MOZ_SUBMITINVALID;
+    }
+
+    if (aNotify && !states.IsEmpty()) {
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+        doc->ContentStateChanged(this, states);
+      }
     }
   }
 

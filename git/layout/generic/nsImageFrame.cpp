@@ -74,6 +74,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsIDOMHTMLMapElement.h"
+#include "nsImageMapUtils.h"
 #include "nsIScriptSecurityManager.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -88,6 +89,8 @@
 #include "imgILoader.h"
 
 #include "nsCSSFrameConstructor.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefService.h"
 #include "nsIDOMRange.h"
 
 #include "nsIContentPolicy.h"
@@ -99,11 +102,6 @@
 
 #include "gfxRect.h"
 #include "ImageLayers.h"
-
-#include "mozilla/Preferences.h"
-#include "mozilla/Util.h" // for DebugOnly
-
-using namespace mozilla;
 
 // sizes (pixels) for image icon, padding and border frame
 #define ICON_SIZE        (16)
@@ -118,7 +116,6 @@ using namespace mozilla;
 #define ALIGN_UNSET PRUint8(-1)
 
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 // static icon information
 nsImageFrame::IconLoad* nsImageFrame::gIconLoad = nsnull;
@@ -249,6 +246,7 @@ nsImageFrame::Init(nsIContent*      aContent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   mListener = new nsImageListener(this);
+  if (!mListener) return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aContent);
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
@@ -473,10 +471,10 @@ nsImageFrame::SourceRectToDest(const nsIntRect& aRect)
 
 /* static */
 PRBool
-nsImageFrame::ShouldCreateImageFrameFor(Element* aElement,
+nsImageFrame::ShouldCreateImageFrameFor(nsIContent* aContent,
                                         nsStyleContext* aStyleContext)
 {
-  nsEventStates state = aElement->State();
+  nsEventStates state = aContent->IntrinsicState();
   if (IMAGE_OK(state,
                HaveFixedSize(aStyleContext->GetStylePosition()))) {
     // Image is fine; do the image frame thing
@@ -510,12 +508,12 @@ nsImageFrame::ShouldCreateImageFrameFor(Element* aElement,
     else {
       // We are in quirks mode, so we can just check the tag name; no need to
       // check the namespace.
-      nsIAtom *localName = aElement->Tag();
+      nsIAtom *localName = aContent->NodeInfo()->NameAtom();
 
       // Use a sized box if we have no alt text.  This means no alt attribute
       // and the node is not an object or an input (since those always have alt
       // text).
-      if (!aElement->HasAttr(kNameSpaceID_None, nsGkAtoms::alt) &&
+      if (!aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::alt) &&
           localName != nsGkAtoms::object &&
           localName != nsGkAtoms::input) {
         useSizedBox = PR_TRUE;
@@ -773,7 +771,7 @@ nsImageFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   // XXX The caller doesn't account for constraints of the height,
   // min-height, and max-height properties.
-  DebugOnly<nscoord> result;
+  nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
   nsPresContext *presContext = PresContext();
   EnsureIntrinsicSizeAndRatio(presContext);
@@ -786,7 +784,7 @@ nsImageFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   // XXX The caller doesn't account for constraints of the height,
   // min-height, and max-height properties.
-  DebugOnly<nscoord> result;
+  nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
   nsPresContext *presContext = PresContext();
   EnsureIntrinsicSizeAndRatio(presContext);
@@ -1003,17 +1001,21 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
     nsresult rv = NS_ERROR_FAILURE;
 
     if (aPresContext->BidiEnabled()) {
-      const nsStyleVisibility* vis = GetStyleVisibility();
-      if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
-        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_RTL,
-                                         aPresContext, aRenderingContext,
-                                         aRenderingContext,
-                                         aRect.XMost() - strWidth, y + maxAscent);
-      else
-        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_LTR,
-                                         aPresContext, aRenderingContext,
-                                         aRenderingContext,
-                                         aRect.x, y + maxAscent);
+      nsBidiPresUtils* bidiUtils =  aPresContext->GetBidiUtils();
+      
+      if (bidiUtils) {
+        const nsStyleVisibility* vis = GetStyleVisibility();
+        if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+          rv = bidiUtils->RenderText(str, maxFit, NSBIDI_RTL,
+                                     aPresContext, aRenderingContext,
+                                     aRenderingContext,
+                                     aRect.XMost() - strWidth, y + maxAscent);
+        else
+          rv = bidiUtils->RenderText(str, maxFit, NSBIDI_LTR,
+                                     aPresContext, aRenderingContext,
+                                     aRenderingContext,
+                                     aRect.x, y + maxAscent);
+      }
     }
     if (NS_FAILED(rv))
       aRenderingContext.DrawString(str, maxFit, aRect.x, y + maxAscent);
@@ -1160,10 +1162,9 @@ static void PaintAltFeedback(nsIFrame* aFrame, nsRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt)
 {
   nsImageFrame* f = static_cast<nsImageFrame*>(aFrame);
-  nsEventStates state = f->GetContent()->AsElement()->State();
   f->DisplayAltFeedback(*aCtx,
                         aDirtyRect,
-                        IMAGE_OK(state, PR_TRUE)
+                        IMAGE_OK(f->GetContent()->IntrinsicState(), PR_TRUE)
                            ? nsImageFrame::gIconLoad->mLoadingImage
                            : nsImageFrame::gIconLoad->mBrokenImage,
                         aPt);
@@ -1324,7 +1325,7 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               getter_AddRefs(currentRequest));
     }
 
-    nsEventStates contentState = mContent->AsElement()->State();
+    nsEventStates contentState = mContent->IntrinsicState();
     PRBool imageOK = IMAGE_OK(contentState, PR_TRUE);
 
     nsCOMPtr<imgIContainer> imgCon;
@@ -1455,11 +1456,13 @@ nsImageFrame::GetImageMap(nsPresContext* aPresContext)
     nsAutoString usemap;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::usemap, usemap);
 
-    nsCOMPtr<nsIContent> map = doc->FindImageMap(usemap);
+    nsCOMPtr<nsIDOMHTMLMapElement> map = nsImageMapUtils::FindImageMap(doc,usemap);
     if (map) {
       mImageMap = new nsImageMap();
-      NS_ADDREF(mImageMap);
-      mImageMap->Init(aPresContext->PresShell(), this, map);
+      if (mImageMap) {
+        NS_ADDREF(mImageMap);
+        mImageMap->Init(aPresContext->PresShell(), this, map);
+      }
     }
   }
 
@@ -1623,7 +1626,7 @@ nsImageFrame::HandleEvent(nsPresContext* aPresContext,
             clicked = PR_TRUE;
           }
           nsContentUtils::TriggerLink(anchorNode, aPresContext, uri, target,
-                                      clicked, PR_TRUE, PR_TRUE);
+                                      clicked, PR_TRUE);
         }
       }
     }
@@ -1790,7 +1793,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                                        relevant for cookies, so does not
                                        apply to icons. */
                        nsnull,      /* referrer (not relevant for icons) */
-                       nsnull,      /* principal (not relevant for icons) */
                        loadGroup,
                        gIconLoad,
                        nsnull,      /* Not associated with any particular document */
@@ -1854,6 +1856,8 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
   NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre-resources/broken-image.png");
 
   gIconLoad = new IconLoad();
+  if (!gIconLoad) 
+    return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(gIconLoad);
 
   nsresult rv;
@@ -1874,33 +1878,22 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
 NS_IMPL_ISUPPORTS2(nsImageFrame::IconLoad, nsIObserver,
                    imgIDecoderObserver)
 
-static const char* kIconLoadPrefs[] = {
+static const char kIconLoadPrefs[][40] = {
   "browser.display.force_inline_alttext",
-  "browser.display.show_image_placeholders",
-  nsnull
+  "browser.display.show_image_placeholders"
 };
 
 nsImageFrame::IconLoad::IconLoad()
 {
-  // register observers
-  Preferences::AddStrongObservers(this, kIconLoadPrefs);
+  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  if (prefBranch) {
+    // register observers
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kIconLoadPrefs); ++i)
+      prefBranch->AddObserver(kIconLoadPrefs[i], this, PR_FALSE);
+  }
   GetPrefs();
 }
 
-void
-nsImageFrame::IconLoad::Shutdown()
-{
-  Preferences::RemoveObservers(this, kIconLoadPrefs);
-  // in case the pref service releases us later
-  if (mLoadingImage) {
-    mLoadingImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
-    mLoadingImage = nsnull;
-  }
-  if (mBrokenImage) {
-    mBrokenImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
-    mBrokenImage = nsnull;
-  }
-}
 
 NS_IMETHODIMP
 nsImageFrame::IconLoad::Observe(nsISupports *aSubject, const char* aTopic,
@@ -1923,10 +1916,11 @@ nsImageFrame::IconLoad::Observe(nsISupports *aSubject, const char* aTopic,
 void nsImageFrame::IconLoad::GetPrefs()
 {
   mPrefForceInlineAltText =
-    Preferences::GetBool("browser.display.force_inline_alttext");
+    nsContentUtils::GetBoolPref("browser.display.force_inline_alttext");
 
   mPrefShowPlaceholders =
-    Preferences::GetBool("browser.display.show_image_placeholders", PR_TRUE);
+    nsContentUtils::GetBoolPref("browser.display.show_image_placeholders",
+                                PR_TRUE);
 }
 
 

@@ -60,6 +60,7 @@ EXPORTS = \
 		nsIRadioGroupContainer.h \
 		nsITextControlElement.h \
 		nsFormSubmission.h \
+		nsIFrameSetElement.h \
 		nsHTMLAudioElement.h \
 		nsHTMLCanvasElement.h \
 		nsHTMLMediaElement.h \

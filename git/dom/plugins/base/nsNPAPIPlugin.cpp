@@ -49,7 +49,6 @@
 
 #include "jscntxt.h"
 
-#include "nsPluginHost.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsNPAPIPluginStreamListener.h"
@@ -81,7 +80,7 @@
 #include "nsIObserverService.h"
 #include <prinrval.h>
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include <Carbon/Carbon.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <OpenGL/OpenGL.h>
@@ -234,7 +233,7 @@ static void CheckClassInitialized()
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL,("NPN callbacks initialized\n"));
 }
 
-NS_IMPL_ISUPPORTS0(nsNPAPIPlugin)
+NS_IMPL_ISUPPORTS1(nsNPAPIPlugin, nsIPlugin)
 
 nsNPAPIPlugin::nsNPAPIPlugin()
 {
@@ -535,8 +534,8 @@ nsNPAPIPlugin::PluginFuncs()
   return &mPluginFuncs;
 }
 
-nsresult
-nsNPAPIPlugin::CreatePluginInstance(nsNPAPIPluginInstance **aResult)
+NS_IMETHODIMP
+nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 {
   if (!aResult)
     return NS_ERROR_NULL_POINTER;
@@ -548,7 +547,7 @@ nsNPAPIPlugin::CreatePluginInstance(nsNPAPIPluginInstance **aResult)
     return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(inst);
-  *aResult = inst;
+  *aResult = static_cast<nsIPluginInstance*>(inst);
   return NS_OK;
 }
 
@@ -582,11 +581,9 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   if (!inst || !inst->IsRunning())
     return NPERR_INVALID_INSTANCE_ERROR;
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
-    return NPERR_GENERIC_ERROR;
-  }
+  nsCOMPtr<nsIPluginHost> pluginHost = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
+  NS_ASSERTION(pluginHost, "failed to get plugin host");
+  if (!pluginHost) return NPERR_GENERIC_ERROR;
 
   nsCOMPtr<nsIPluginStreamListener> listener;
   // Set aCallNotify here to false.  If pluginHost->GetURL or PostURL fail,
@@ -628,7 +625,7 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   return NPERR_NO_ERROR;
 }
 
-#if defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
 extern "C" size_t malloc_usable_size(const void *ptr);
 #endif
 
@@ -738,10 +735,10 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   if (!str)
     return NULL;
 
-  return StringToNPIdentifier(cx, str);
+  return StringToNPIdentifier(str);
 }
 
-#if defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
 BOOL
 InHeap(HANDLE hHeap, LPVOID lpMem)
 {
@@ -1051,7 +1048,7 @@ _newstream(NPP npp, NPMIMEType type, const char* target, NPStream* *result)
 
   NPError err = NPERR_INVALID_INSTANCE_ERROR;
   if (npp && npp->ndata) {
-    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+    nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
     PluginDestructionGuard guard(inst);
 
@@ -1171,7 +1168,7 @@ _status(NPP npp, const char *message)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1236,7 +1233,7 @@ _invalidaterect(NPP npp, NPRect *invalidRect)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1259,7 +1256,7 @@ _invalidateregion(NPP npp, NPRegion invalidRegion)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *)npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1280,7 +1277,7 @@ _forceredraw(NPP npp)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1922,7 +1919,7 @@ _releasevariantvalue(NPVariant* variant)
       const NPString *s = &NPVARIANT_TO_STRING(*variant);
 
       if (s->UTF8Characters) {
-#if defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
         if (malloc_usable_size((void *)s->UTF8Characters) != 0) {
           PR_Free((void *)s->UTF8Characters);
         } else {
@@ -2159,6 +2156,13 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_GENERIC_ERROR;
   }
 
+#if (MOZ_PLATFORM_MAEMO == 5)
+  case NPNVSupportsWindowlessLocal: {
+    *(NPBool*)result = PR_TRUE;
+    return NPERR_NO_ERROR;
+  }
+#endif
+
 #ifdef XP_MACOSX
   case NPNVpluginDrawingModel: {
     if (npp) {
@@ -2221,11 +2225,44 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-  // we no longer hand out any XPCOM objects
+  // we no longer hand out any XPCOM objects, except on WINCE,
+  // where it's needed for the ActiveX shunt that makes Flash
+  // work until we get an NPAPI plugin there.
+#ifdef WINCE
+  case NPNVDOMWindow: {
+    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
+    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
+
+    nsIDOMWindow *domWindow = inst->GetDOMWindow().get();
+
+    if (domWindow) {
+      // Pass over ownership of domWindow to the caller.
+      (*(nsIDOMWindow**)result) = domWindow;
+      return NPERR_NO_ERROR;
+    }
+
+    return NPERR_GENERIC_ERROR;
+  }
+
+  case NPNVDOMElement: {
+    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
+    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
+
+    nsCOMPtr<nsIDOMElement> e;
+    inst->GetDOMElement(getter_AddRefs(e));
+    if (e) {
+      NS_ADDREF(*(nsIDOMElement**)result = e.get());
+      return NPERR_NO_ERROR;
+    }
+
+    return NPERR_GENERIC_ERROR;
+  }
+#else
   case NPNVDOMElement:
     // fall through
   case NPNVDOMWindow:
     // fall through
+#endif /* WINCE */
   case NPNVserviceManager:
     // old XPCOM objects, no longer supported, but null out the out
     // param to avoid crashing plugins that still try to use this.
@@ -2275,6 +2312,12 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       return inst->SetWindowless(bWindowless);
 #endif
     }
+#if (MOZ_PLATFORM_MAEMO == 5)
+    case NPPVpluginWindowlessLocalBool: {
+      NPBool bWindowlessLocal = (result != nsnull);
+      return inst->SetWindowlessLocal(bWindowlessLocal);
+    }
+#endif
     case NPPVpluginTransparentBool: {
       NPBool bTransparent = (result != nsnull);
       return inst->SetTransparent(bTransparent);
@@ -2300,9 +2343,13 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       }
 
     case NPPVpluginKeepLibraryInMemory: {
-      // This variable is not supported any more but we'll pretend it is
-      // so that plugins don't fail on an error return.
-      return NS_OK;
+      NPBool bCached = (result != nsnull);
+      return inst->SetCached(bCached);
+    }
+
+    case NPPVpluginWantsAllNetworkStreams: {
+      PRBool bWantsAllNetworkStreams = (result != nsnull);
+      return inst->SetWantsAllNetworkStreams(bWantsAllNetworkStreams);
     }
 
     case NPPVpluginUsesDOMForCursorBool: {
@@ -2396,11 +2443,9 @@ _useragent(NPP npp)
   }
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_UserAgent: npp=%p\n", (void*)npp));
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
+  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if (!pluginHost)
     return nsnull;
-  }
 
   const char *retstr;
   nsresult rv = pluginHost->UserAgent(&retstr);
@@ -2489,8 +2534,8 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
   switch (variable) {
   case NPNURLVProxy:
     {
-      nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-      nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
+      nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+
       if (pluginHost && NS_SUCCEEDED(pluginHost->FindProxyForURL(url, value))) {
         *len = *value ? PL_strlen(*value) : 0;
         return NPERR_NO_ERROR;

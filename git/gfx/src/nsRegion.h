@@ -185,10 +185,8 @@ public:
   nsRegion ConvertAppUnitsRoundOut (PRInt32 aFromAPP, PRInt32 aToAPP) const;
   nsRegion ConvertAppUnitsRoundIn (PRInt32 aFromAPP, PRInt32 aToAPP) const;
   nsRegion& ScaleRoundOut(float aXScale, float aYScale);
-  nsRegion& ScaleInverseRoundOut(float aXScale, float aYScale);
-  nsIntRegion ScaleToOutsidePixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
   nsIntRegion ToOutsidePixels (nscoord aAppUnitsPerPixel) const;
-  nsIntRegion ToNearestPixels (nscoord aAppUnitsPerPixel) const;
+  nsRegion& ExtendForScaling (float aXMult, float aYMult);
 
   /**
    * Gets the largest rectangle contained in the region.
@@ -264,7 +262,6 @@ private:
   void MoveInto (nsRegion& aDestRegion, const RgnRect* aStartRect);
   void MoveInto (nsRegion& aDestRegion)
   {    MoveInto (aDestRegion, mRectListHead.next);  }
-  nsIntRegion ToPixels(nscoord aAppUnitsPerPixel, bool aOutsidePixels) const;
 };
 
 
@@ -446,6 +443,12 @@ public:
   nsIntRegion& ScaleRoundOut (float aXScale, float aYScale)
   {
     mImpl.ScaleRoundOut(aXScale, aYScale);
+    return *this;
+  }
+
+  nsIntRegion& ExtendForScaling (float aXMult, float aYMult)
+  {
+    mImpl.ExtendForScaling(aXMult, aYMult);
     return *this;
   }
 

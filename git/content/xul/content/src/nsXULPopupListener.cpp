@@ -57,7 +57,7 @@
 #include "nsXULPopupManager.h"
 #include "nsEventStateManager.h"
 #include "nsIScriptContext.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDocument.h"
 #include "nsIDOMNSUIEvent.h"
@@ -70,7 +70,6 @@
 #include "nsFrameManager.h"
 #include "nsHTMLReflowState.h"
 #include "nsIObjectLoadingContent.h"
-#include "mozilla/Preferences.h"
 
 // for event firing in context menus
 #include "nsPresContext.h"
@@ -79,8 +78,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
 #include "nsDOMError.h"
-
-using namespace mozilla;
+#include "nsIMenuFrame.h"
 
 // on win32 and os/2, context menus come up on mouse up. On other platforms,
 // they appear on mouse down. Certain bits of code care about this difference.
@@ -103,26 +101,39 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULPopupListener)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPopupListener)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPopupListener)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMContextMenuListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMMouseListener)
 NS_INTERFACE_MAP_END
 
 ////////////////////////////////////////////////////////////////
-// nsIDOMEventListener
+// nsIDOMMouseListener
 
 nsresult
-nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
+nsXULPopupListener::MouseDown(nsIDOMEvent* aMouseEvent)
 {
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-
-  if(!((eventType.EqualsLiteral("mousedown") && !mIsContext) ||
-       (eventType.EqualsLiteral("contextmenu") && mIsContext)))
+  if(!mIsContext)
+    return PreLaunchPopup(aMouseEvent);
+  else
     return NS_OK;
+}
 
+nsresult
+nsXULPopupListener::ContextMenu(nsIDOMEvent* aMouseEvent)
+{
+  if(mIsContext)
+    return PreLaunchPopup(aMouseEvent);
+  else 
+    return NS_OK;
+}
+
+nsresult
+nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
+{
   PRUint16 button;
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aEvent);
+  nsCOMPtr<nsIDOMMouseEvent> mouseEvent;
+  mouseEvent = do_QueryInterface(aMouseEvent);
   if (!mouseEvent) {
     //non-ui event passed in.  bad things.
     return NS_OK;
@@ -164,7 +175,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.
     PRBool eventEnabled =
-      Preferences::GetBool("dom.event.contextmenu.enabled", PR_TRUE);
+      nsContentUtils::GetBoolPref("dom.event.contextmenu.enabled", PR_TRUE);
     if (!eventEnabled) {
       // If the target node is for plug-in, we should not open XUL context
       // menu on windowless plug-ins.
@@ -209,7 +220,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
       return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aEvent);
+  nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(aMouseEvent));
 
   if (mIsContext) {
 #ifndef NS_CONTEXT_MENU_IS_MOUSEUP
@@ -226,9 +237,9 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   // Open the popup and cancel the default handling of the event.
-  LaunchPopup(aEvent, targetContent);
-  aEvent->StopPropagation();
-  aEvent->PreventDefault();
+  LaunchPopup(aMouseEvent, targetContent);
+  aMouseEvent->StopPropagation();
+  aMouseEvent->PreventDefault();
 
   return NS_OK;
 }
@@ -459,4 +470,18 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
   }
 
   return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////
+nsresult
+NS_NewXULPopupListener(nsIDOMElement* aElement, PRBool aIsContext,
+                       nsIDOMEventListener** aListener)
+{
+    nsXULPopupListener* pl = new nsXULPopupListener(aElement, aIsContext);
+    if (!pl)
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    *aListener = static_cast<nsIDOMMouseListener *>(pl);
+    NS_ADDREF(*aListener);
+    return NS_OK;
 }

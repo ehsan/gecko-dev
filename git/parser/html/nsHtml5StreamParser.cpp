@@ -52,9 +52,6 @@
 #include "nsHtml5Module.h"
 #include "nsHtml5RefPtr.h"
 #include "nsIScriptError.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static NS_DEFINE_CID(kCharsetAliasCID, NS_CHARSETALIAS_CID);
 
@@ -65,10 +62,10 @@ PRInt32 nsHtml5StreamParser::sTimerSubsequentDelay = 120;
 void
 nsHtml5StreamParser::InitializeStatics()
 {
-  Preferences::AddIntVarCache(&sTimerInitialDelay,
-                              "html5.flushtimer.initialdelay");
-  Preferences::AddIntVarCache(&sTimerSubsequentDelay,
-                              "html5.flushtimer.subsequentdelay");
+  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.initialdelay",
+                                     &sTimerInitialDelay);
+  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.subsequentdelay",
+                                     &sTimerSubsequentDelay);
 }
 
 /*
@@ -203,12 +200,12 @@ nsHtml5StreamParser::nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
   // Chardet is initialized here even if it turns out to be useless
   // to make the chardet refcount its observer (nsHtml5StreamParser)
   // on the main thread.
-  const nsAdoptingCString& detectorName =
-    Preferences::GetLocalizedCString("intl.charset.detector");
+  const nsAdoptingString& detectorName = 
+    nsContentUtils::GetLocalizedStringPref("intl.charset.detector");
   if (!detectorName.IsEmpty()) {
     nsCAutoString detectorContractID;
     detectorContractID.AssignLiteral(NS_CHARSET_DETECTOR_CONTRACTID_BASE);
-    detectorContractID += detectorName;
+    AppendUTF16toUTF8(detectorName, detectorContractID);
     if ((mChardet = do_CreateInstance(detectorContractID.get()))) {
       (void) mChardet->Init(this);
       mFeedChardet = PR_TRUE;
@@ -1162,11 +1159,13 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mSpeculations.RemoveElementAt(0);
       if (mSpeculations.IsEmpty()) {
         // yes, it was still the only speculation. Now stop speculating
-        // However, before telling the executor to read from stage, flush
-        // any pending ops straight to the executor, because otherwise
-        // they remain unflushed until we get more data from the network.
-        mTreeBuilder->SetOpSink(mExecutor);
-        mTreeBuilder->Flush(PR_TRUE);
+        if (mTreeBuilder->IsDiscretionaryFlushSafe()) {
+          // However, before telling the executor to read from stage, flush
+          // any pending ops straight to the executor, because otherwise
+          // they remain unflushed until we get more data from the network.
+          mTreeBuilder->SetOpSink(mExecutor);
+          mTreeBuilder->Flush();
+        }
         mTreeBuilder->SetOpSink(mExecutor->GetStage());
         mExecutor->StartReadingFromStage();
         mSpeculating = PR_FALSE;
@@ -1269,9 +1268,15 @@ nsHtml5StreamParser::TimerFlush()
 
   // we aren't speculating and we don't know when new data is
   // going to arrive. Send data to the main thread.
-  if (mTreeBuilder->Flush(PR_TRUE)) {
-    if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
-      NS_WARNING("failed to dispatch executor flush event");
+  // However, don't do if the current element on the stack is a 
+  // foster-parenting element and there's pending text, because flushing in 
+  // that case would make the tree shape dependent on where the flush points 
+  // fall.
+  if (mTreeBuilder->IsDiscretionaryFlushSafe()) {
+    if (mTreeBuilder->Flush()) {
+      if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
+        NS_WARNING("failed to dispatch executor flush event");
+      }
     }
   }
 }

@@ -169,8 +169,8 @@ nsApplicationAccessible::GroupPosition(PRInt32 *aGroupLevel,
 }
 
 nsAccessible*
-nsApplicationAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      EWhichChildAtPoint aWhichChild)
+nsApplicationAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                         EWhichChildAtPoint aWhichChild)
 {
   return nsnull;
 }
@@ -332,8 +332,8 @@ nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
-bool
-nsApplicationAccessible::IsDefunct() const
+PRBool
+nsApplicationAccessible::IsDefunct()
 {
   return nsAccessibilityService::IsShutdown();
 }
@@ -428,9 +428,15 @@ nsApplicationAccessible::CacheChildren()
 }
 
 nsAccessible*
-nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                            nsresult* aError) const
+nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 

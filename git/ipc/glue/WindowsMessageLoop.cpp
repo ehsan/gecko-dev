@@ -584,7 +584,6 @@ TimeoutHasExpired(const TimeoutData& aData)
 RPCChannel::SyncStackFrame::SyncStackFrame(SyncChannel* channel, bool rpc)
   : mRPC(rpc)
   , mSpinNestedEvents(false)
-  , mListenerNotified(false)
   , mChannel(channel)
   , mPrev(mChannel->mTopFrame)
   , mStaticPrev(sStaticTopFrame)
@@ -618,29 +617,11 @@ RPCChannel::SyncStackFrame::~SyncStackFrame()
 
 SyncChannel::SyncStackFrame* SyncChannel::sStaticTopFrame;
 
-// nsAppShell's notification that gecko events are being processed.
-// If we are here and there is an RPC Incall active, we are spinning
-// a nested gecko event loop. In which case the remote process needs
-// to know about it.
-void /* static */
-RPCChannel::NotifyGeckoEventDispatch()
-{
-  // sStaticTopFrame is only valid for RPC channels
-  if (!sStaticTopFrame || sStaticTopFrame->mListenerNotified)
-    return;
-
-  sStaticTopFrame->mListenerNotified = true;
-  RPCChannel* channel = static_cast<RPCChannel*>(sStaticTopFrame->mChannel);
-  channel->Listener()->ProcessRemoteNativeEventsInRPCCall();
-}
-
-// invoked by the module that receives the spin event loop
-// message.
 void
 RPCChannel::ProcessNativeEventsInRPCCall()
 {
   if (!mTopFrame) {
-    NS_ERROR("Spin logic error: no RPC frame");
+    NS_ERROR("Child logic error: no RPC frame");
     return;
   }
 
@@ -1015,30 +996,19 @@ DeferredRedrawMessage::Run()
   NS_ASSERTION(ret, "RedrawWindow failed!");
 }
 
-DeferredUpdateMessage::DeferredUpdateMessage(HWND aHWnd)
-{
-  mWnd = aHWnd;
-  if (!GetUpdateRect(mWnd, &mUpdateRect, FALSE)) {
-    memset(&mUpdateRect, 0, sizeof(RECT));
-    return;
-  }
-  ValidateRect(mWnd, &mUpdateRect);
-}
-
 void
 DeferredUpdateMessage::Run()
 {
-  AssertWindowIsNotNeutered(mWnd);
-  if (!IsWindow(mWnd)) {
+  AssertWindowIsNotNeutered(hWnd);
+  if (!IsWindow(hWnd)) {
     NS_ERROR("Invalid window!");
     return;
   }
 
-  InvalidateRect(mWnd, &mUpdateRect, FALSE);
 #ifdef DEBUG
   BOOL ret =
 #endif
-  UpdateWindow(mWnd);
+  UpdateWindow(hWnd);
   NS_ASSERTION(ret, "UpdateWindow failed!");
 }
 

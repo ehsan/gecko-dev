@@ -47,7 +47,7 @@ SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])
 from runreftest import RefTest
 from runreftest import ReftestOptions
 from automation import Automation
-import devicemanager, devicemanagerADB, devicemanagerSUT
+from devicemanager import DeviceManager
 from remoteautomation import RemoteAutomation
 
 class RemoteOptions(ReftestOptions):
@@ -110,11 +110,6 @@ class RemoteOptions(ReftestOptions):
                     type = "string", dest = "pidFile",
                     help = "name of the pidfile to generate")
         defaults["pidFile"] = ""
-
-        self.add_option("--dm_trans", action="store",
-                    type = "string", dest = "dm_trans",
-                    help = "the transport to use to communicate with device: [adb|sut]; default=sut")
-        defaults["dm_trans"] = "sut"
 
         defaults["localLogName"] = None
 
@@ -193,7 +188,6 @@ class ReftestServer:
         self.webServer = options.remoteWebServer
         self.httpPort = options.httpPort
         self.scriptDir = scriptDir
-        self.pidFile = options.pidFile
         self.shutdownURL = "http://%(server)s:%(port)s/server/shutdown" % { "server" : self.webServer, "port" : self.httpPort }
 
     def start(self):
@@ -219,11 +213,6 @@ class ReftestServer:
             print "Error starting server."
             sys.exit(2)
         self._automation.log.info("INFO | remotereftests.py | Server pid: %d", pid)
-
-        if (self.pidFile != ""):
-            f = open(self.pidFile + ".xpcshell.pid", 'w')
-            f.write("%s" % pid)
-            f.close()
 
     def ensureReady(self, timeout):
         assert timeout >= 0
@@ -375,12 +364,11 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
         if (self.pidFile != ""):
             try:
                 os.remove(self.pidFile)
-                os.remove(self.pidFile + ".xpcshell.pid")
             except:
                 print "Warning: cleaning up pidfile '%s' was unsuccessful from the test harness" % self.pidFile
 
 def main():
-    dm_none = devicemanagerADB.DeviceManagerADB(None, None)
+    dm_none = DeviceManager(None, None)
     automation = RemoteAutomation(dm_none)
     parser = RemoteOptions(automation)
     options, args = parser.parse_args()
@@ -389,14 +377,7 @@ def main():
         print "Error: you must provide a device IP to connect to via the --device option"
         sys.exit(1)
 
-    if (options.dm_trans == "adb"):
-        if (options.deviceIP):
-            dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, packageName=options.app)
-        else:
-            dm = dm_none
-            dm.verifyPackage(options.app)
-    else:
-         dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
+    dm = DeviceManager(options.deviceIP, options.devicePort)
     automation.setDeviceManager(dm)
 
     if (options.remoteProductName != None):
@@ -408,13 +389,12 @@ def main():
         print "ERROR: Invalid options specified, use --help for a list of valid options"
         sys.exit(1)
 
-    if not options.ignoreWindowSize:
-        parts = dm.getInfo('screen')['screen'][0].split()
-        width = int(parts[0].split(':')[1])
-        height = int(parts[1].split(':')[1])
-        if (width < 1050 or height < 1050):
-            print "ERROR: Invalid screen resolution %sx%s, please adjust to 1366x1050 or higher" % (width, height)
-            sys.exit(1)
+    parts = dm.getInfo('screen')['screen'][0].split()
+    width = int(parts[0].split(':')[1])
+    height = int(parts[1].split(':')[1])
+    if (width < 1050 or height < 1050):
+        print "ERROR: Invalid screen resolution %sx%s, please adjust to 1366x1050 or higher" % (width, height)
+        sys.exit(1)
 
     automation.setAppName(options.app)
     automation.setRemoteProfile(options.remoteProfile)

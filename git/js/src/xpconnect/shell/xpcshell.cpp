@@ -265,10 +265,10 @@ GetLine(JSContext *cx, char *bufp, FILE *file, const char *prompt) {
     } else
 #endif
     {
-        char line[256] = { '\0' };
+        char line[256];
         fputs(prompt, gOutFile);
         fflush(gOutFile);
-        if (!fgets(line, sizeof line, file) && errno != EINTR || feof(file))
+        if (!fgets(line, sizeof line, file))
             return JS_FALSE;
         strcpy(bufp, line);
     }
@@ -548,6 +548,14 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     rt = cx->runtime;
     preBytes = rt->gcBytes;
     JS_GC(cx);
+    fprintf(gOutFile, "before %lu, after %lu, break %08lx\n",
+           (unsigned long)preBytes, (unsigned long)rt->gcBytes,
+#if defined(XP_UNIX) && !defined(__SYMBIAN32__)
+           (unsigned long)sbrk(0)
+#else
+           0
+#endif
+           );
 #ifdef JS_GCMETER
     js_DumpGCStats(rt, stdout);
 #endif
@@ -563,7 +571,7 @@ GCZeal(JSContext *cx, uintN argc, jsval *vp)
     if (!JS_ValueToECMAUint32(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID, &zeal))
         return JS_FALSE;
 
-    JS_SetGCZeal(cx, (PRUint8)zeal, JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
+    JS_SetGCZeal(cx, (PRUint8)zeal);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
@@ -720,6 +728,7 @@ static const struct {
     const char  *name;
     uint32      flag;
 } js_options[] = {
+    {"anonfunfix",      JSOPTION_ANONFUNFIX},
     {"atline",          JSOPTION_ATLINE},
     {"jit",             JSOPTION_JIT},
     {"relimit",         JSOPTION_RELIMIT},
@@ -1141,7 +1150,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-a appdir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
+    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
     return 2;
 }
 
@@ -1744,12 +1753,6 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
     return true;
 }
 
-static JSPrincipals *
-FindObjectPrincipals(JSContext *cx, JSObject *obj)
-{
-    return gJSPrincipals;
-}
-
 int
 main(int argc, char **argv, char **envp)
 {
@@ -1801,23 +1804,6 @@ main(int argc, char **argv, char **envp)
         argv += 2;
     }
 
-    if (argc > 1 && !strcmp(argv[1], "-a")) {
-        if (argc < 3)
-            return usage();
-
-        nsCOMPtr<nsILocalFile> dir;
-        rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(dir));
-        if (NS_SUCCEEDED(rv)) {
-            appDir = do_QueryInterface(dir, &rv);
-        }
-        if (NS_FAILED(rv)) {
-            printf("Couldn't use given appdir.\n");
-            return 1;
-        }
-        argc -= 2;
-        argv += 2;
-    }
-
     while (argc > 1 && !strcmp(argv[1], "-r")) {
         if (argc < 3)
             return usage();
@@ -1862,7 +1848,9 @@ main(int argc, char **argv, char **envp)
             return 1;
         }
 
+#ifdef MOZ_ENABLE_LIBXUL
         xpc_LocalizeContext(cx);
+#endif
 
         nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
         if (!xpc) {
@@ -1900,11 +1888,6 @@ main(int argc, char **argv, char **envp)
                 fprintf(gErrFile, "+++ Failed to get ScriptSecurityManager service, running without principals");
             }
         }
-
-        JSSecurityCallbacks *cb = JS_GetRuntimeSecurityCallbacks(rt);
-        NS_ASSERTION(cb, "We are assuming that nsScriptSecurityManager::Init() has been run");
-        NS_ASSERTION(!cb->findObjectPrincipals, "Your pigeon is in my hole!");
-        cb->findObjectPrincipals = FindObjectPrincipals;
 
 #ifdef TEST_TranslateThis
         nsCOMPtr<nsIXPCFunctionThisTranslator>

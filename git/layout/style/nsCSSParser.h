@@ -49,9 +49,12 @@
 class nsCSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
+class nsIUnicharInputStream;
 struct nsCSSSelectorList;
 class nsMediaList;
+#ifdef MOZ_CSS_ANIMATIONS
 class nsCSSKeyframeRule;
+#endif
 
 namespace mozilla {
 namespace css {
@@ -86,8 +89,10 @@ public:
   // Set whether or not to emulate Nav quirks
   nsresult SetQuirkMode(PRBool aQuirkMode);
 
+#ifdef  MOZ_SVG
   // Set whether or not we are in an SVG element
   nsresult SetSVGMode(PRBool aSVGMode);
+#endif
 
   // Set loader to use for child sheets
   nsresult SetChildLoader(mozilla::css::Loader* aChildLoader);
@@ -108,12 +113,12 @@ public:
    * @param aAllowUnsafeRules see aEnableUnsafeRules in
    *                          mozilla::css::Loader::LoadSheetSync
    */
-  nsresult ParseSheet(const nsAString& aInput,
-                      nsIURI*          aSheetURL,
-                      nsIURI*          aBaseURI,
-                      nsIPrincipal*    aSheetPrincipal,
-                      PRUint32         aLineNumber,
-                      PRBool           aAllowUnsafeRules);
+  nsresult Parse(nsIUnicharInputStream* aInput,
+                 nsIURI*                aSheetURL,
+                 nsIURI*                aBaseURI,
+                 nsIPrincipal*          aSheetPrincipal,
+                 PRUint32               aLineNumber,
+                 PRBool                 aAllowUnsafeRules);
 
   // Parse HTML style attribute or its equivalent in other markup
   // languages.  aBaseURL is the base url to use for relative links in
@@ -188,6 +193,7 @@ public:
                                PRUint32            aLineNumber,
                                nsCSSSelectorList** aSelectorList);
 
+#ifdef MOZ_CSS_ANIMATIONS
   /*
    * Parse a keyframe rule (which goes inside an @keyframes rule).
    * Return it if the parse was successful.
@@ -205,6 +211,7 @@ public:
                                    nsIURI*            aURL,
                                    PRUint32           aLineNumber,
                                    nsTArray<float>&   aSelectorList);
+#endif
 
 protected:
   // This is a CSSParserImpl*, but if we expose that type name in this

@@ -23,7 +23,6 @@
  *   Jim Nance
  *   L. David Baron - JP_REALTIME, JPROF_PTHREAD_HACK, and SIGUSR1 handling
  *   Mike Shaver - JP_RTC_HZ support
- *   Randell Jesup - glibc backtrace() support
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -62,9 +61,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <ucontext.h>
-#include <execinfo.h>
 
 #include "libmalloc.h"
 #include "jprof.h"
@@ -80,10 +77,6 @@ extern r_debug _r_debug;
 #include <link.h>
 #endif
 
-#define USE_GLIBC_BACKTRACE 1
-// To debug, use #define JPROF_STATIC
-#define JPROF_STATIC //static
-
 static int gLogFD = -1;
 static pthread_t main_thread;
 
@@ -92,51 +85,11 @@ static int enableRTCSignals(bool enable);
 
 
 //----------------------------------------------------------------------
-// replace use of atexit()
-
-static void DumpAddressMap();
-
-struct JprofShutdown {
-    JprofShutdown() {}
-    ~JprofShutdown() {
-        DumpAddressMap();
-    }
-};
-
-static void RegisterJprofShutdown() {
-    // This instanciates the dummy class above, and will trigger the class
-    // destructor when libxul is unloaded. This is equivalent to atexit(),
-    // but gracefully handles dlclose().
-    static JprofShutdown t;
-}
 
 #if defined(i386) || defined(_i386) || defined(__x86_64__)
-JPROF_STATIC void CrawlStack(malloc_log_entry* me,
-                             void* stack_top, void* top_instr_ptr)
+static void CrawlStack(malloc_log_entry* me,
+                       void* stack_top, void* top_instr_ptr)
 {
-#if USE_GLIBC_BACKTRACE
-    // This probably works on more than x86!  But we need a way to get the
-    // top instruction pointer, which is kindof arch-specific
-    void *array[500];
-    int cnt, i;
-    u_long numpcs = 0;
-    bool tracing = false;
-
-    // This is from glibc.  A more generic version might use
-    // libunwind and/or CaptureStackBackTrace() on Windows
-    cnt = backtrace(&array[0],sizeof(array)/sizeof(array[0]));
-
-    // StackHook->JprofLog->CrawlStack
-    // Then we have sigaction, which replaced top_instr_ptr
-    array[3] = top_instr_ptr;
-    for (i = 3; i < cnt; i++)
-    {
-        me->pcs[numpcs++] = (char *) array[i];
-    }
-    me->numpcs = numpcs;
-
-#else
-  // original code - this breaks on many platforms
   void **bp;
 #if defined(__i386)
   __asm__( "movl %%ebp, %0" : "=g"(bp));
@@ -149,7 +102,6 @@ JPROF_STATIC void CrawlStack(malloc_log_entry* me,
   bp = __builtin_frame_address(0);
 #endif
   u_long numpcs = 0;
-  bool tracing = false;
 
   me->pcs[numpcs++] = (char*) top_instr_ptr;
 
@@ -159,17 +111,13 @@ JPROF_STATIC void CrawlStack(malloc_log_entry* me,
     if (nextbp < bp) {
       break;
     }
-    if (tracing) {
+    if (bp > stack_top) {
       // Skip the signal handling.
       me->pcs[numpcs++] = (char*) pc;
-    }
-    else if (pc == top_instr_ptr) {
-      tracing = true;
     }
     bp = nextbp;
   }
   me->numpcs = numpcs;
-#endif
 }
 #endif
 
@@ -221,14 +169,13 @@ static void EndProfilingHook(int signum)
 
 //----------------------------------------------------------------------
 
-JPROF_STATIC void
-JprofLog(u_long aTime, void* stack_top, void* top_instr_ptr)
+static void
+Log(u_long aTime, void* stack_top, void* top_instr_ptr)
 {
   // Static is simply to make debugging tollerable
   static malloc_log_entry me;
 
   me.delTime = aTime;
-  me.thread = syscall(SYS_gettid); //gettid();
 
   CrawlStack(&me, stack_top, top_instr_ptr);
 
@@ -334,7 +281,7 @@ static int enableRTCSignals(bool enable)
 }
 #endif
 
-JPROF_STATIC void StackHook(
+static void StackHook(
 int signum,
 siginfo_t *info,
 void *ucontext)
@@ -378,9 +325,9 @@ void *ucontext)
 
     gregset_t &gregs = ((ucontext_t*)ucontext)->uc_mcontext.gregs;
 #ifdef __x86_64__
-    JprofLog(millisec, (void*)gregs[REG_RSP], (void*)gregs[REG_RIP]);
+    Log(millisec, (void*)gregs[REG_RSP], (void*)gregs[REG_RIP]);
 #else
-    JprofLog(millisec, (void*)gregs[REG_ESP], (void*)gregs[REG_EIP]);
+    Log(millisec, (void*)gregs[REG_ESP], (void*)gregs[REG_EIP]);
 #endif
 
     if (!rtcHz)
@@ -424,26 +371,21 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 
 	    char *delay = strstr(tst,"JP_PERIOD=");
 	    if(delay) {
-                double tmp = strtod(delay+strlen("JP_PERIOD="), NULL);
-                if (tmp>=1e-3) {
+	        double tmp = strtod(delay+10, NULL);
+		if(tmp>1e-3) {
 		    timerMiliSec = static_cast<unsigned long>(1000 * tmp);
-                } else {
-                    fprintf(stderr,
-                            "JP_PERIOD of %g less than 0.001 (1ms), using 1ms\n",
-                            tmp);
-                    timerMiliSec = 1;
-                }
+		}
 	    }
 
 	    char *first = strstr(tst, "JP_FIRST=");
 	    if(first) {
-                firstDelay = atol(first+strlen("JP_FIRST="));
+	        firstDelay = atol(first+9);
 	    }
 
             char *rtc = strstr(tst, "JP_RTC_HZ=");
             if (rtc) {
 #if defined(linux)
-                rtcHz = atol(rtc+strlen("JP_RTC_HZ="));
+                rtcHz = atol(rtc+10);
                 timerMiliSec = 0; /* This makes JP_FIRST work right. */
                 realTime = 1; /* It's the _R_TC and all.  ;) */
 
@@ -475,11 +417,9 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 		    sigset_t mset;
 
 		    // Dump out the address map when we terminate
-		    RegisterJprofShutdown();
+		    atexit(DumpAddressMap);
 
 		    main_thread = pthread_self();
-                    //fprintf(stderr,"jprof: main_thread = %u\n",
-                    //        (unsigned int)main_thread);
 
 		    sigemptyset(&mset);
 		    action.sa_handler = NULL;

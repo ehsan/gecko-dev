@@ -77,7 +77,6 @@
 #if defined(ANDROID) || defined(LINUX)
 #include <sys/time.h>
 #include <sys/resource.h>
-#include "nsSystemInfo.h"
 #endif
 
 #ifdef MOZ_PERMISSIONS
@@ -93,7 +92,7 @@
 #include "mozilla/dom/StorageParent.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
-#include "nsDeviceMotion.h"
+#include "nsAccelerometer.h"
 
 #include "nsIMemoryReporter.h"
 #include "nsMemoryReporterManager.h"
@@ -220,17 +219,8 @@ ContentParent::OnChannelConnected(int32 pid)
             nice = atoi(relativeNicenessStr);
         }
 
-        /* make the GUI thread have higher priority on single-cpu devices */
-        nsCOMPtr<nsIPropertyBag2> infoService = do_GetService(NS_SYSTEMINFO_CONTRACTID);
-        if (infoService) {
-            PRInt32 cpus;
-            nsresult rv = infoService->GetPropertyAsInt32(NS_LITERAL_STRING("cpucount"), &cpus);
-            if (NS_FAILED(rv)) {
-                cpus = 1;
-            }
-            if (nice != 0 && cpus == 1) {
-                setpriority(PRIO_PROCESS, pid, getpriority(PRIO_PROCESS, pid) + nice);
-            }
+        if (nice != 0) {
+            setpriority(PRIO_PROCESS, pid, getpriority(PRIO_PROCESS, pid) + nice);
         }
 #endif
     }
@@ -271,7 +261,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     }
 
     RecvRemoveGeolocationListener();
-    RecvRemoveDeviceMotionListener();
+    RecvRemoveAccelerometerListener();
 
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
@@ -562,20 +552,6 @@ ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray
     return true;
 }
 
-bool
-ContentParent::RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits)
-{
-#ifdef ANDROID
-    if (!AndroidBridge::Bridge())
-        return false;
-
-    bits->AppendElements(aIconSize * aIconSize * 4);
-
-    AndroidBridge::Bridge()->GetIconForExtension(aFileExt, aIconSize, bits->Elements());
-#endif
-    return true;
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
@@ -708,24 +684,23 @@ ContentParent::DeallocPMemoryReportRequest(PMemoryReportRequestParent* actor)
 void
 ContentParent::SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report)
 {
-    nsCOMPtr<nsIMemoryReporterManager> mgr =
-        do_GetService("@mozilla.org/memory-reporter-manager;1");
+    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
     for (PRInt32 i = 0; i < mMemoryReporters.Count(); i++)
         mgr->UnregisterReporter(mMemoryReporters[i]);
 
     for (PRUint32 i = 0; i < report.Length(); i++) {
-        nsCString process  = report[i].process();
-        nsCString path     = report[i].path();
-        PRInt32   kind     = report[i].kind();
-        PRInt32   units    = report[i].units();
-        PRInt64   amount   = report[i].amount();
-        nsCString desc     = report[i].desc();
-        
-        nsRefPtr<nsMemoryReporter> r =
-            new nsMemoryReporter(process, path, kind, units, amount, desc);
 
-        mMemoryReporters.AppendObject(r);
-        mgr->RegisterReporter(r);
+        nsCString prefix = report[i].prefix();
+        nsCString path   = report[i].path();
+        nsCString desc   = report[i].desc();
+        PRInt64 memoryUsed = report[i].memoryUsed();
+        
+        nsRefPtr<nsMemoryReporter> r = new nsMemoryReporter(prefix,
+                                                            path,
+                                                            desc,
+                                                            memoryUsed);
+      mMemoryReporters.AppendObject(r);
+      mgr->RegisterReporter(r);
     }
 
     nsCOMPtr<nsIObserverService> obs =
@@ -890,7 +865,6 @@ ContentParent::RecvSetURITitle(const IPC::URI& uri,
 bool
 ContentParent::RecvShowFilePicker(const PRInt16& mode,
                                   const PRInt16& selectedType,
-                                  const PRBool& addToRecentDocs,
                                   const nsString& title,
                                   const nsString& defaultFile,
                                   const nsString& defaultExtension,
@@ -916,9 +890,7 @@ ContentParent::RecvShowFilePicker(const PRInt16& mode,
     *result = filePicker->Init(window, title, mode);
     if (NS_FAILED(*result))
         return true;
-
-    filePicker->SetAddToRecentDocs(addToRecentDocs);
-
+    
     PRUint32 count = filters.Length();
     for (PRUint32 i = 0; i < count; ++i) {
         filePicker->AppendFilter(filterNames[i], filters[i]);
@@ -1085,22 +1057,22 @@ ContentParent::RecvRemoveGeolocationListener()
 }
 
 bool
-ContentParent::RecvAddDeviceMotionListener()
+ContentParent::RecvAddAccelerometerListener()
 {
-    nsCOMPtr<nsIDeviceMotion> dm = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dm)
-        dm->AddListener(this);
+    nsCOMPtr<nsIAccelerometer> ac = 
+        do_GetService(NS_ACCELEROMETER_CONTRACTID);
+    if (ac)
+        ac->AddListener(this);
     return true;
 }
 
 bool
-ContentParent::RecvRemoveDeviceMotionListener()
+ContentParent::RecvRemoveAccelerometerListener()
 {
-    nsCOMPtr<nsIDeviceMotion> dm = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dm)
-        dm->RemoveListener(this);
+    nsCOMPtr<nsIAccelerometer> ac = 
+        do_GetService(NS_ACCELEROMETER_CONTRACTID);
+    if (ac)
+        ac->RemoveListener(this);
     return true;
 }
 
@@ -1147,15 +1119,14 @@ ContentParent::RecvScriptError(const nsString& aMessage,
 }
 
 NS_IMETHODIMP
-ContentParent::OnMotionChange(nsIDeviceMotionData *aDeviceData) {
-    PRUint32 type;
-    double x, y, z;
-    aDeviceData->GetType(&type);
-    aDeviceData->GetX(&x);
-    aDeviceData->GetY(&y);
-    aDeviceData->GetZ(&z);
+ContentParent::OnAccelerationChange(nsIAcceleration *aAcceleration)
+{
+    double alpha, beta, gamma;
+    aAcceleration->GetAlpha(&alpha);
+    aAcceleration->GetBeta(&beta);
+    aAcceleration->GetGamma(&gamma);
 
-    unused << SendDeviceMotionChanged(type, x, y, z);
+    unused << SendAccelerationChanged(alpha, beta, gamma);
     return NS_OK;
 }
 

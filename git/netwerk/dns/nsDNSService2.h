@@ -55,7 +55,7 @@ public:
     ~nsDNSService();
 
 private:
-    PRUint16 GetAFForLookup(const nsACString &host, PRUint32 flags);
+    PRUint16 GetAFForLookup(const nsACString &host);
 
     nsRefPtr<nsHostResolver>  mResolver;
     nsCOMPtr<nsIIDNService>   mIDN;

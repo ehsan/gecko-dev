@@ -112,9 +112,68 @@ function TabItem(tab, options) {
 
   // ___ drag/drop
   // override dropOptions with custom tabitem methods
+  // This is mostly to support the phantom groupItems.
   this.dropOptions.drop = function(e) {
-    let groupItem = drag.info.item.parent;
-    groupItem.add(drag.info.$el);
+    var $target = this.$container;
+    this.isDropTarget = false;
+
+    var phantom = $target.data("phantomGroupItem");
+
+    var groupItem = drag.info.item.parent;
+    if (groupItem) {
+      groupItem.add(drag.info.$el);
+    } else {
+      phantom.removeClass("phantom acceptsDrop");
+      new GroupItem([$target, drag.info.$el], {container:phantom, bounds:phantom.bounds()});
+    }
+  };
+
+  this.dropOptions.over = function(e) {
+    var $target = this.$container;
+    this.isDropTarget = true;
+
+    $target.removeClass("acceptsDrop");
+
+    var phantomMargin = 40;
+
+    var groupItemBounds = this.getBounds();
+    groupItemBounds.inset(-phantomMargin, -phantomMargin);
+
+    iQ(".phantom").remove();
+    var phantom = iQ("<div>")
+      .addClass("groupItem phantom acceptsDrop")
+      .css({
+        position: "absolute",
+        zIndex: -99
+      })
+      .css(groupItemBounds)
+      .hide()
+      .appendTo("body");
+
+    var defaultRadius = Trenches.defaultRadius;
+    // Extend the margin so that it covers the case where the target tab item
+    // is right next to a trench.
+    Trenches.defaultRadius = phantomMargin + 1;
+    var updatedBounds = drag.info.snapBounds(groupItemBounds,'none');
+    Trenches.defaultRadius = defaultRadius;
+
+    // Utils.log('updatedBounds:',updatedBounds);
+    if (updatedBounds)
+      phantom.css(updatedBounds);
+
+    phantom.fadeIn();
+
+    $target.data("phantomGroupItem", phantom);
+  };
+
+  this.dropOptions.out = function(e) {
+    this.isDropTarget = false;
+    var phantom = this.$container.data("phantomGroupItem");
+    if (phantom) {
+      phantom.fadeOut(function() {
+        iQ(this).remove();
+      });
+    }
   };
 
   this.draggable();
@@ -141,6 +200,7 @@ function TabItem(tab, options) {
     }
   });
 
+  this.setResizable(true, options.immediately);
   this.droppable(true);
 
   TabItems.register(this);
@@ -228,6 +288,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     }
 
     return {
+      bounds: this.getBounds(),
+      userSize: (Utils.isPoint(this.userSize) ? new Point(this.userSize) : null),
       url: this.tab.linkedBrowser.currentURI.spec,
       groupID: (this.parent ? this.parent.id : 0),
       imageData: imageData,
@@ -265,11 +327,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let tabData = null;
     let self = this;
     let imageDataCb = function(imageData) {
-      // we could have been unlinked while waiting for the thumbnail to load
-      if (!self.tab)
-        return;
-
       Utils.assertThrow(tabData, "tabData");
+      
       tabData.imageData = imageData;
 
       let currentUrl = self.tab.linkedBrowser.currentURI.spec;
@@ -288,33 +347,47 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (self.parent)
         self.parent.remove(self, {immediately: true});
 
-      let groupItem;
+      self.setBounds(tabData.bounds, true);
+
+      if (Utils.isPoint(tabData.userSize))
+        self.userSize = new Point(tabData.userSize);
 
       if (tabData.groupID) {
-        groupItem = GroupItems.groupItem(tabData.groupID);
+        var groupItem = GroupItems.groupItem(tabData.groupID);
+        if (groupItem) {
+          groupItem.add(self, {immediately: true});
+
+          // if it matches the selected tab or no active tab and the browser
+          // tab is hidden, the active group item would be set.
+          if (self.tab == gBrowser.selectedTab ||
+              (!GroupItems.getActiveGroupItem() && !self.tab.hidden))
+            UI.setActive(self.parent);
+        }
       } else {
-        groupItem = new GroupItem([], {immediately: true, bounds: tabData.bounds});
-      }
-
-      if (groupItem) {
-        groupItem.add(self, {immediately: true});
-
-        // if it matches the selected tab or no active tab and the browser
-        // tab is hidden, the active group item would be set.
-        if (self.tab == gBrowser.selectedTab ||
-            (!GroupItems.getActiveGroupItem() && !self.tab.hidden))
-          UI.setActive(self.parent);
+        // When duplicating a non-blank orphaned tab, create a group including both of them.
+        // This prevents overlaid tabs in Tab View (only one tab appears to be there).
+        // In addition, as only one active orphaned tab is shown when Tab View is hidden
+        // and there are two tabs shown after the duplication, it also prevents
+        // the inactive tab to suddenly disappear when toggling Tab View twice.
+        //
+        // Fixes:
+        //   Bug 645653 - Middle-click on reload button to duplicate orphan tabs does not create a group
+        //   Bug 643119 - Ctrl+Drag to duplicate does not work for orphaned tabs
+        //   ... (and any other way of duplicating a non-blank orphaned tab).
+        if (GroupItems.getActiveGroupItem() == null)
+          GroupItems.newTab(self, {immediately: true});
       }
     } else {
-      // create tab group by double click is handled in UI_init().
-      GroupItems.newTab(self, {immediately: true});
+      // create tab by double click is handled in UI_init().
+      if (!TabItems.creatingNewOrphanTab)
+        GroupItems.newTab(self, {immediately: true});
     }
 
     self._reconnected = true;
     self.save();
     self._sendToSubscribers("reconnected");
   },
-
+  
   // ----------
   // Function: setHidden
   // Hide/unhide this item
@@ -490,7 +563,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         });
         group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
       }
-      group.newTab(null, { closedLastTab: true });
+      group.newTab();
     }
     // when "TabClose" event is fired, the browser tab is about to close and our 
     // item "close" is fired before the browser tab actually get closed. 
@@ -518,6 +591,24 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Removes the specified CSS class from this item's container DOM element.
   removeClass: function TabItem_removeClass(className) {
     this.$container.removeClass(className);
+  },
+
+  // ----------
+  // Function: setResizable
+  // If value is true, makes this item resizable, otherwise non-resizable.
+  // Shows/hides a visible resize handle as appropriate.
+  setResizable: function TabItem_setResizable(value, immediately) {
+    var $resizer = iQ('.expander', this.container);
+
+    if (value) {
+      this.resizeOptions.minWidth = TabItems.minTabWidth;
+      this.resizeOptions.minHeight = TabItems.minTabHeight;
+      immediately ? $resizer.show() : $resizer.fadeIn();
+      this.resizable(true);
+    } else {
+      immediately ? $resizer.hide() : $resizer.fadeOut();
+      this.resizable(false);
+    }
   },
 
   // ----------
@@ -574,8 +665,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       }
       if (self.parent && self.parent.expanded)
         self.parent.collapse();
-
-      self._sendToSubscribers("zoomedIn");
     }
 
     let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
@@ -714,6 +803,7 @@ let TabItems = {
   _lastUpdateTime: Date.now(),
   _eventListeners: [],
   _pauseUpdateForTest: false,
+  creatingNewOrphanTab: false,
   tempCanvas: null,
   _reconnectingPaused: false,
   tabItemPadding: {},
@@ -820,7 +910,8 @@ let TabItems = {
             "<img class='cached-thumb' style='display:none'/><canvas moz-opaque/></div>" +
             "<div class='favicon'><img/></div>" +
             "<span class='tab-title'>&nbsp;</span>" +
-            "<div class='close'></div>";
+            "<div class='close'></div>" +
+            "<div class='expander'></div>";
     this._fragment = document.createDocumentFragment();
     this._fragment.appendChild(div);
 
@@ -980,15 +1071,15 @@ let TabItems = {
       Utils.assertThrow(tab._tabViewTabItem, "should already be linked");
       // note that it's ok to unlink an app tab; see .handleTabUnpin
 
+      if (tab._tabViewTabItem == UI.getActiveOrphanTab())
+        UI.setActive(null, { onlyRemoveActiveTab: true });
+
       this.unregister(tab._tabViewTabItem);
       tab._tabViewTabItem._sendToSubscribers("close");
       tab._tabViewTabItem.$container.remove();
       tab._tabViewTabItem.removeTrenches();
       Items.unsquish(null, tab._tabViewTabItem);
 
-      tab._tabViewTabItem.tab = null;
-      tab._tabViewTabItem.tabCanvas.tab = null;
-      tab._tabViewTabItem.tabCanvas = null;
       tab._tabViewTabItem = null;
       Storage.saveTab(tab, null);
 
@@ -1169,9 +1260,15 @@ let TabItems = {
   // Function: storageSanity
   // Checks the specified data (as returned by TabItem.getStorageData or loaded from storage)
   // and returns true if it looks valid.
-  // TODO: this is a stub, please implement
+  // TODO: check everything
   storageSanity: function TabItems_storageSanity(data) {
-    return true;
+    var sane = true;
+    if (!Utils.isRect(data.bounds)) {
+      Utils.log('TabItems.storageSanity: bad bounds', data.bounds);
+      sane = false;
+    }
+
+    return sane;
   },
 
   // ----------
@@ -1461,6 +1558,6 @@ TabCanvas.prototype = {
   // ----------
   // Function: toImageData
   toImageData: function TabCanvas_toImageData() {
-    return this.canvas.toDataURL("image/png");
+    return this.canvas.toDataURL("image/png", "");
   }
 };

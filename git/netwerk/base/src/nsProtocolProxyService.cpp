@@ -94,11 +94,9 @@ public:
     NS_DECL_ISUPPORTS
 
     nsAsyncResolveRequest(nsProtocolProxyService *pps, nsIURI *uri,
-                          PRUint32 aResolveFlags,
                           nsIProtocolProxyCallback *callback)
         : mStatus(NS_OK)
         , mDispatched(PR_FALSE)
-        , mResolveFlags(0)
         , mPPS(pps)
         , mURI(uri)
         , mCallback(callback)
@@ -174,8 +172,7 @@ private:
     {
         // Generate proxy info from the PAC string if appropriate
         if (NS_SUCCEEDED(mStatus) && !mProxyInfo && !mPACString.IsEmpty())
-            mPPS->ProcessPACString(mPACString, mResolveFlags,
-                                   getter_AddRefs(mProxyInfo));
+            mPPS->ProcessPACString(mPACString, getter_AddRefs(mProxyInfo));
 
         // Now apply proxy filters
         if (NS_SUCCEEDED(mStatus)) {
@@ -196,7 +193,6 @@ private:
     nsresult  mStatus;
     nsCString mPACString;
     PRBool    mDispatched;
-    PRUint32  mResolveFlags;
 
     nsRefPtr<nsProtocolProxyService>   mPPS;
     nsCOMPtr<nsIURI>                   mURI;
@@ -588,9 +584,7 @@ static const char kProxyType_DIRECT[]  = "direct";
 static const char kProxyType_UNKNOWN[] = "unknown";
 
 const char *
-nsProtocolProxyService::ExtractProxyInfo(const char *start,
-                                         PRUint32 aResolveFlags,
-                                         nsProxyInfo **result)
+nsProtocolProxyService::ExtractProxyInfo(const char *start, nsProxyInfo **result)
 {
     *result = nsnull;
     PRUint32 flags = 0;
@@ -657,7 +651,6 @@ nsProtocolProxyService::ExtractProxyInfo(const char *start,
         if (pi) {
             pi->mType = type;
             pi->mFlags = flags;
-            pi->mResolveFlags = aResolveFlags;
             pi->mTimeout = mFailedProxyTimeout;
             // YES, it is ok to specify a null proxy host.
             if (host) {
@@ -787,7 +780,6 @@ nsProtocolProxyService::ConfigureFromPAC(const nsCString &spec,
 
 void
 nsProtocolProxyService::ProcessPACString(const nsCString &pacString,
-                                         PRUint32 aResolveFlags,
                                          nsIProxyInfo **result)
 {
     if (pacString.IsEmpty()) {
@@ -799,7 +791,7 @@ nsProtocolProxyService::ProcessPACString(const nsCString &pacString,
 
     nsProxyInfo *pi = nsnull, *first = nsnull, *last = nsnull;
     while (*proxies) {
-        proxies = ExtractProxyInfo(proxies, aResolveFlags, &pi);
+        proxies = ExtractProxyInfo(proxies, &pi);
         if (pi) {
             if (last) {
                 NS_ASSERTION(last->mNext == nsnull, "leaking nsProxyInfo");
@@ -863,12 +855,12 @@ nsProtocolProxyService::Resolve(nsIURI *uri, PRUint32 flags,
         nsCString pacString;
         rv = mPACMan->GetProxyForURI(uri, pacString);
         if (NS_SUCCEEDED(rv))
-            ProcessPACString(pacString, flags, result);
+            ProcessPACString(pacString, result);
         else if (rv == NS_ERROR_IN_PROGRESS) {
             // Construct a special UNKNOWN proxy entry that informs the caller
             // that the proxy info is yet to be determined.
             rv = NewProxyInfo_Internal(kProxyType_UNKNOWN, EmptyCString(), -1,
-                                       0, 0, nsnull, flags, result);
+                                       0, 0, nsnull, result);
             if (NS_FAILED(rv))
                 return rv;
         }
@@ -886,7 +878,7 @@ nsProtocolProxyService::AsyncResolve(nsIURI *uri, PRUint32 flags,
                                      nsICancelable **result)
 {
     nsRefPtr<nsAsyncResolveRequest> ctx =
-        new nsAsyncResolveRequest(this, uri, flags, callback);
+            new nsAsyncResolveRequest(this, uri, callback);
     if (!ctx)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -948,7 +940,7 @@ nsProtocolProxyService::NewProxyInfo(const nsACString &aType,
         aPort = -1;
 
     return NewProxyInfo_Internal(type, aHost, aPort, aFlags, aFailoverTimeout,
-                                 aFailoverProxy, 0, aResult);
+                                 aFailoverProxy, aResult);
 }
 
 NS_IMETHODIMP
@@ -1176,7 +1168,8 @@ nsProtocolProxyService::LoadHostFilters(const char *filters)
         mHostFiltersArray.AppendElement(hinfo);
         hinfo = nsnull;
 loser:
-        delete hinfo;
+        if (hinfo)
+            delete hinfo;
     }
 }
 
@@ -1213,7 +1206,6 @@ nsProtocolProxyService::NewProxyInfo_Internal(const char *aType,
                                               PRUint32 aFlags,
                                               PRUint32 aFailoverTimeout,
                                               nsIProxyInfo *aFailoverProxy,
-                                              PRUint32 aResolveFlags,
                                               nsIProxyInfo **aResult)
 {
     nsCOMPtr<nsProxyInfo> failover;
@@ -1230,7 +1222,6 @@ nsProtocolProxyService::NewProxyInfo_Internal(const char *aType,
     proxyInfo->mHost = aHost;
     proxyInfo->mPort = aPort;
     proxyInfo->mFlags = aFlags;
-    proxyInfo->mResolveFlags = aResolveFlags;
     proxyInfo->mTimeout = aFailoverTimeout == PR_UINT32_MAX
         ? mFailedProxyTimeout : aFailoverTimeout;
     failover.swap(proxyInfo->mNext);
@@ -1261,7 +1252,7 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
             nsCAutoString proxy;
             nsresult rv = mSystemProxySettings->GetProxyForURI(uri, proxy);
             if (NS_SUCCEEDED(rv)) {
-                ProcessPACString(proxy, flags, result);
+                ProcessPACString(proxy, result);
                 return NS_OK;
             }
             // no proxy, stop search
@@ -1354,8 +1345,7 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
 
     if (type) {
         nsresult rv = NewProxyInfo_Internal(type, *host, port, proxyFlags,
-                                            PR_UINT32_MAX, nsnull, flags,
-                                            result);
+                                            PR_UINT32_MAX, nsnull, result);
         if (NS_FAILED(rv))
             return rv;
     }

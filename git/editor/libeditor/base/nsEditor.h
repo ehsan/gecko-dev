@@ -62,7 +62,7 @@
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
 #include "nsIInlineSpellChecker.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsStubMutationObserver.h"
 #include "nsIViewManager.h"
 #include "nsCycleCollectionParticipant.h"
@@ -145,8 +145,8 @@ public:
                                            nsIEditor)
 
   /* ------------ utility methods   -------------- */
-  already_AddRefed<nsIPresShell> GetPresShell();
-  void NotifyEditorObservers();
+  NS_IMETHOD GetPresShell(nsIPresShell **aPS);
+  void NotifyEditorObservers(void);
 
   /* ------------ nsIEditor methods -------------- */
   NS_DECL_NSIEDITOR
@@ -372,7 +372,7 @@ protected:
   // install the event listeners for the editor 
   virtual nsresult InstallEventListeners();
 
-  virtual void CreateEventListeners();
+  virtual nsresult CreateEventListeners();
 
   // unregister and release our event listeners
   virtual void RemoveEventListeners();
@@ -566,8 +566,7 @@ public:
   
   static PRInt32 GetIndexOf(nsIDOMNode *aParent, nsIDOMNode *aChild);
   static nsCOMPtr<nsIDOMNode> GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset);
-  static nsCOMPtr<nsIDOMNode> GetNodeAtRangeOffsetPoint(nsIDOMNode* aParentOrNode, PRInt32 aOffset);
-
+  
   static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outStartNode, PRInt32 *outStartOffset);
   static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outEndNode, PRInt32 *outEndOffset);
 #if DEBUG_JOE
@@ -614,7 +613,7 @@ public:
                                     nsIDOMNode *aEndNode,
                                     PRInt32 aEndOffset);
 
-  virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget() = 0;
+  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget() = 0;
 
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
@@ -765,7 +764,7 @@ protected:
   PRInt8                        mDocDirtyState;		// -1 = not initialized
   nsWeakPtr        mDocWeak;  // weak reference to the nsIDOMDocument
   // The form field as an event receiver
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
 
   nsString* mPhonetic;
 
