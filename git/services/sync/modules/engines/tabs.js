@@ -200,12 +200,16 @@ TabStore.prototype = {
     while (enumerator.hasMoreElements()) {
       let window = enumerator.getNext();
       let tabContainer = window.getBrowser().tabContainer;
-
-      // Grab each tab child from the array-like child NodeList
-      for each (let tab in Array.slice(tabContainer.childNodes)) {
-        if (!(tab instanceof Ci.nsIDOMNode))
+      for each (let tabChild in tabContainer.childNodes) {
+        if (!tabChild) {
+          this._log.warn("Undefined item in tabContainer.childNodes.");
           continue;
-
+        }
+        if (!tabChild.QueryInterface)
+          continue;
+        let tab = tabChild.QueryInterface(Ci.nsIDOMNode);
+        if (!tab)
+          continue;
         let tabState = JSON.parse(this._sessionStore.getTabState(tab));
 	// Skip empty (i.e. just-opened, no history yet) tabs:
 	if (tabState.entries.length == 0)
@@ -376,24 +380,14 @@ TabTracker.prototype = {
     }
   },
 
-  _getBrowser: function TabTracker__getBrowser(window) {
-    // Make sure the window is browser-like
-    if (typeof window.getBrowser != "function")
-      return null;
-
-    // Make sure it's a tabbrowser-like window
-    let browser = window.getBrowser();
-    if (browser == null || typeof browser.tabContainer != "object")
-      return null;
-
-    return browser;
-  },
-
   _registerListenersForWindow: function TabTracker__registerListen(window) {
-    let browser = this._getBrowser(window);
-    if (browser == null)
+    if (! window.getBrowser) {
       return;
-
+    }
+    let browser = window.getBrowser();
+    if (! browser.tabContainer) {
+      return;
+    }
     //this._log.trace("Registering tab listeners in new window.\n");
     //dump("Tab listeners registered!\n");
     let container = browser.tabContainer;
@@ -403,10 +397,13 @@ TabTracker.prototype = {
   },
 
   _unRegisterListenersForWindow: function TabTracker__unregister(window) {
-    let browser = this._getBrowser(window);
-    if (browser == null)
+    if (! window.getBrowser) {
       return;
-
+    }
+    let browser = window.getBrowser();
+    if (! browser.tabContainer) {
+      return;
+    }
     let container = browser.tabContainer;
     container.removeEventListener("TabOpen", this.onTabOpened, false);
     container.removeEventListener("TabClose", this.onTabClosed, false);

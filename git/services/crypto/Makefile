@@ -89,9 +89,6 @@ else
 ifeq ($(machine), i686)
   arch = x86
 else
-ifeq ($(machine), ppc)
-  arch = ppc
-else
 ifeq ($(machine), Power Macintosh)
   arch = ppc
 else
@@ -99,7 +96,6 @@ ifeq ($(machine), x86_64)
   arch = x86_64
 else
   $(error: Sorry, your architecture is unknown/unsupported: $(machine))
-endif
 endif
 endif
 endif

@@ -69,17 +69,6 @@ Cu.import("resource://weave/type_records/bookmark.js");
 
 Function.prototype.async = Async.sugar;
 
-// Lazily initialize the special top level folders
-let kSpecialIds = {};
-[["menu", "bookmarksMenuFolder"],
- ["places", "placesRoot"],
- ["tags", "tagsFolder"],
- ["toolbar", "toolbarFolder"],
- ["unfiled", "unfiledBookmarksFolder"],
-].forEach(function([weaveId, placeName]) {
-  Utils.lazy2(kSpecialIds, weaveId, function() Svc.Bookmark[placeName]);
-});
-
 function BookmarksEngine() {
   this._init();
 }
@@ -95,10 +84,19 @@ BookmarksEngine.prototype = {
 
 function BookmarksStore() {
   this._init();
+
+  // Initialize the special top level folders
+  [["menu", "bookmarksMenuFolder"],
+   ["places", "placesRoot"],
+   ["tags", "tagsFolder"],
+   ["toolbar", "toolbarFolder"],
+   ["unfiled", "unfiledBookmarksFolder"],
+  ].forEach(function(top) this.specialIds[top[0]] = this._bms[top[1]], this);
 }
 BookmarksStore.prototype = {
   __proto__: Store.prototype,
   _logName: "BStore",
+  specialIds: {},
 
   __bms: null,
   get _bms() {
@@ -155,14 +153,14 @@ BookmarksStore.prototype = {
   },
 
   _getItemIdForGUID: function BStore__getItemIdForGUID(GUID) {
-    if (GUID in kSpecialIds)
-      return kSpecialIds[GUID];
+    if (GUID in this.specialIds)
+      return this.specialIds[GUID];
 
     return this._bms.getItemIdForGUID(GUID);
   },
 
   _getWeaveIdForItem: function BStore__getWeaveIdForItem(placeId) {
-    for (let [weaveId, id] in Iterator(kSpecialIds))
+    for (let [weaveId, id] in Iterator(this.specialIds))
       if (placeId == id)
         return weaveId;
 
@@ -170,7 +168,7 @@ BookmarksStore.prototype = {
   },
 
   _isToplevel: function BStore__isToplevel(placeId) {
-    for (let [weaveId, id] in Iterator(kSpecialIds))
+    for (let [weaveId, id] in Iterator(this.specialIds))
       if (placeId == id)
         return true;
 
@@ -211,10 +209,6 @@ BookmarksStore.prototype = {
                                     record.description, 0,
                                    this._ans.EXPIRE_NEVER);
       }
-
-      if (record.loadInSidebar)
-        this._ans.setItemAnnotation(newId, "bookmarkProperties/loadInSidebar",
-          true, 0, this._ans.EXPIRE_NEVER);
 
       if (record.type == "microsummary") {
         this._log.debug("   \-> is a microsummary");
@@ -292,13 +286,15 @@ BookmarksStore.prototype = {
       let cur = this._bms.getItemGUID(newId);
       if (cur == record.id)
         this._log.warn("Item " + newId + " already has GUID " + record.id);
-      else
+      else {
         this._bms.setItemGUID(newId, record.id);
+        Engines.get("bookmarks")._tracker._all[newId] = record.id; // HACK - see tracker
+      }
     }
   },
 
   remove: function BStore_remove(record) {
-    if (record.id in kSpecialIds) {
+    if (record.id in this.specialIds) {
       this._log.warn("Attempted to remove root node (" + record.id +
                      ").  Skipping record removal.");
       return;
@@ -334,7 +330,7 @@ BookmarksStore.prototype = {
   update: function BStore_update(record) {
     let itemId = this._getItemIdForGUID(record.id);
 
-    if (record.id in kSpecialIds) {
+    if (record.id in this.specialIds) {
       this._log.debug("Skipping update for root node.");
       return;
     }
@@ -375,13 +371,6 @@ BookmarksStore.prototype = {
         this._ans.setItemAnnotation(itemId, "bookmarkProperties/description",
                                     val, 0,
                                     this._ans.EXPIRE_NEVER);
-        break;
-      case "loadInSidebar":
-        if (val)
-          this._ans.setItemAnnotation(itemId, "bookmarkProperties/loadInSidebar",
-            true, 0, this._ans.EXPIRE_NEVER);
-        else
-          this._ans.removeItemAnnotation(itemId, "bookmarkProperties/loadInSidebar");
         break;
       case "generatorUri": {
         try {
@@ -441,6 +430,7 @@ BookmarksStore.prototype = {
 
     this._log.debug("Changing GUID " + oldID + " to " + newID);
     this._bms.setItemGUID(itemId, newID);
+    Engines.get("bookmarks")._tracker._all[itemId] = newID; // HACK - see tracker
   },
 
   _getNode: function BStore__getNode(folder) {
@@ -472,10 +462,6 @@ BookmarksStore.prototype = {
     } catch (e) {
       return undefined;
     }
-  },
-
-  _isLoadInSidebar: function BStore__isLoadInSidebar(id) {
-    return this._ans.itemHasAnnotation(id, "bookmarkProperties/loadInSidebar");
   },
 
   _getStaticTitle: function BStore__getStaticTitle(id) {
@@ -518,7 +504,6 @@ BookmarksStore.prototype = {
       record.tags = this._getTags(record.bmkUri);
       record.keyword = this._bms.getKeywordForBookmark(placeId);
       record.description = this._getDescription(placeId);
-      record.loadInSidebar = this._isLoadInSidebar(placeId);
       break;
 
     case this._bms.TYPE_FOLDER:
@@ -620,7 +605,7 @@ BookmarksStore.prototype = {
 
   getAllIDs: function BStore_getAllIDs() {
     let items = {};
-    for (let [weaveId, id] in Iterator(kSpecialIds))
+    for (let [weaveId, id] in Iterator(this.specialIds))
       if (weaveId != "places" && weaveId != "tags")
         this._getChildren(weaveId, true, items);
     return items;
@@ -633,7 +618,7 @@ BookmarksStore.prototype = {
   },
 
   wipe: function BStore_wipe() {
-    for (let [weaveId, id] in Iterator(kSpecialIds))
+    for (let [weaveId, id] in Iterator(this.specialIds))
       if (weaveId != "places")
         this._bms.removeFolderChildren(id);
   }
@@ -661,30 +646,36 @@ BookmarksTracker.prototype = {
     return ls;
   },
 
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsINavBookmarkObserver,
-    Ci.nsINavBookmarkObserver_MOZILLA_1_9_1_ADDITIONS
-  ]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsINavBookmarkObserver]),
 
   _init: function BMT__init() {
     this.__proto__.__proto__._init.call(this);
 
-    // Ignore changes to the special roots
-    for (let [weaveId, id] in Iterator(kSpecialIds))
-      this.ignoreID(this._bms.getItemGUID(id));
+    // NOTE: since the callbacks give us item IDs (not GUIDs), we use
+    // getItemGUID to get it within the callback.  For removals, however,
+    // that doesn't work because the item is already gone! (and worse, Places
+    // has a bug where it will generate a new one instead of throwing).
+    // Our solution: cache item IDs -> GUIDs
+
+let before = new Date();
+    // FIXME: very roundabout way of getting id -> guid mapping!
+    let store = new BookmarksStore();
+    let all = store.getAllIDs();
+    this._all = {};
+    for (let guid in all) {
+      this._all[this._bms.getItemIdForGUID(guid)] = guid;
+    }
+let after = new Date();
+dump((after - before) + "ms spent mapping id -> guid for " + [key for (key in all)].length + " bookmark items\n");
+
+    // Ignore changes to the special roots. We use special names for them, so
+    // ignore their "real" places guid as well as ours, just in case
+    for (let [weaveId, id] in Iterator(store.specialIds)) {
+      this.ignoreID(weaveId);
+      this.ignoreID(this._all[id]);
+    }
 
     this._bms.addObserver(this, false);
-  },
-
-  /**
-   * Add a bookmark (places) id to be uploaded and bump up the sync score
-   *
-   * @param itemId
-   *        Places internal id of the bookmark to upload
-   */
-  _addId: function BMT__addId(itemId) {
-    if (this.addChangedID(this._bms.getItemGUID(itemId)))
-      this._upScore();
   },
 
   /* Every add/remove/change is worth 10 points */
@@ -696,19 +687,13 @@ BookmarksTracker.prototype = {
    * Determine if a change should be ignored: we're ignoring everything or the
    * folder is for livemarks
    *
-   * @param itemId
-   *        Item under consideration to ignore
-   * @param folder (optional)
+   * @param folder
    *        Folder of the item being changed
    */
-  _ignore: function BMT__ignore(itemId, folder) {
+  _ignore: function BMT__ignore(folder) {
     // Ignore unconditionally if the engine tells us to
     if (this.ignoreAll)
       return true;
-
-    // Get the folder id if we weren't given one
-    if (folder == null)
-      folder = this._bms.getFolderIdForItem(itemId);
 
     let tags = this._bms.tagsFolder;
     // Ignore changes to tags (folders under the tags folder)
@@ -724,48 +709,64 @@ BookmarksTracker.prototype = {
   },
 
   onItemAdded: function BMT_onEndUpdateBatch(itemId, folder, index) {
-    if (this._ignore(itemId, folder))
+    if (this._ignore(folder))
       return;
 
     this._log.trace("onItemAdded: " + itemId);
-    this._addId(itemId);
+
+    this._all[itemId] = this._bms.getItemGUID(itemId);
+    if (this.addChangedID(this._all[itemId]))
+      this._upScore();
   },
 
-  onBeforeItemRemoved: function BMT_onBeforeItemRemoved(itemId) {
-    if (this._ignore(itemId))
+  onItemRemoved: function BMT_onItemRemoved(itemId, folder, index) {
+    if (this._ignore(folder))
       return;
 
-    this._log.trace("onBeforeItemRemoved: " + itemId);
-    this._addId(itemId);
+    this._log.trace("onItemRemoved: " + itemId);
+
+    if (this.addChangedID(this._all[itemId]))
+      this._upScore();
+    delete this._all[itemId];
   },
 
   onItemChanged: function BMT_onItemChanged(itemId, property, isAnno, value) {
-    if (this._ignore(itemId))
+    let folder = this._bms.getFolderIdForItem(itemId);
+    if (this._ignore(folder))
       return;
 
     // ignore annotations except for the ones that we sync
-    let annos = ["bookmarkProperties/description",
-      "bookmarkProperties/loadInSidebar", "bookmarks/staticTitle",
-      "livemark/feedURI", "livemark/siteURI", "microsummary/generatorURI"];
-    if (isAnno && annos.indexOf(property) == -1)
-      return;
+    if (isAnno && (property != "livemark/feedURI" ||
+		   property != "livemark/siteURI" ||
+		   property != "microsummary/generatorURI"))
+	return;
 
     this._log.trace("onItemChanged: " + itemId +
                     (", " + property + (isAnno? " (anno)" : "")) +
                     (value? (" = \"" + value + "\"") : ""));
-    this._addId(itemId);
+    // 1) notifications for already-deleted items are ignored
+    // 2) note that engine/store are responsible for manually updating the
+    //    tracker's placesId->weaveId cache
+    if ((itemId in this._all) &&
+        (this._bms.getItemGUID(itemId) == this._all[itemId]) &&
+        this.addChangedID(this._all[itemId]))
+      this._upScore();
   },
 
   onItemMoved: function BMT_onItemMoved(itemId, oldParent, oldIndex, newParent, newIndex) {
-    if (this._ignore(itemId))
+    let folder = this._bms.getFolderIdForItem(itemId);
+    if (this._ignore(folder))
       return;
 
     this._log.trace("onItemMoved: " + itemId);
-    this._addId(itemId);
+
+    if (!this._all[itemId])
+      this._all[itemId] = this._bms.itemGUID(itemId);
+    if (this.addChangedID(this._all[itemId]))
+      this._upScore();
   },
 
   onBeginUpdateBatch: function BMT_onBeginUpdateBatch() {},
   onEndUpdateBatch: function BMT_onEndUpdateBatch() {},
-  onItemRemoved: function BMT_onItemRemoved(itemId, folder, index) {},
   onItemVisited: function BMT_onItemVisited(itemId, aVisitID, time) {}
 };

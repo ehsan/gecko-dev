@@ -72,7 +72,7 @@ WBORecord.prototype = {
     if (typeof(value) != "string")
       value = value.spec;
     let foo = value.split('/');
-    this.id = foo.pop();
+    this.data.id = foo.pop();
     this.baseUri = Utils.makeURI(foo.join('/') + '/');
   },
 
