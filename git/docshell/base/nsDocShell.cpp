@@ -8337,7 +8337,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 window->DispatchSyncPopState();
 
                 if (doHashchange)
-                  window->DispatchAsyncHashchange();
+                  window->DispatchSyncHashchange();
             }
 
             return NS_OK;
