@@ -163,7 +163,6 @@ WebGLContext::WebGLContext()
     mGLMaxTextureUnits = 0;
     mGLMaxTextureSize = 0;
     mGLMaxCubeMapTextureSize = 0;
-    mGLMaxRenderbufferSize = 0;
     mGLMaxTextureImageUnits = 0;
     mGLMaxVertexTextureImageUnits = 0;
     mGLMaxVaryingVectors = 0;

@@ -114,15 +114,13 @@ public:
   {
       if (!mGLContext)
           return false;
-      int32_t maxSize = GetMaxTextureSize();
+      int32_t maxSize = mGLContext->GetMaxTextureSize();
       return aSize <= gfxIntSize(maxSize, maxSize);
   }
 
   virtual int32_t GetMaxTextureSize() const
   {
-    int32_t maxSize;
-    mGLContext->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &maxSize);
-    return maxSize;
+    return mGLContext->GetMaxTextureSize();
   }
 
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
