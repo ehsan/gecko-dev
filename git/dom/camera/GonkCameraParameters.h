@@ -102,7 +102,6 @@ protected:
   nsTArray<int> mZoomRatios;
   nsTArray<nsString> mIsoModes;
   nsTArray<nsString> mSceneModes;
-  nsTArray<nsString> mMeteringModes;
   nsClassHashtable<nsStringHashKey, nsCString> mIsoModeMap;
 
   // This subclass of android::CameraParameters just gives

@@ -28,7 +28,6 @@ function logEvent(ev,msg) {
 document.onclick = function(event) { logEvent(event,"document"); }
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 
 function finishTest() {
   if (!timeout) return;

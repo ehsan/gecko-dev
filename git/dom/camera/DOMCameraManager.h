@@ -29,7 +29,7 @@ namespace mozilla {
   }
 }
 
-typedef nsTArray<nsWeakPtr> CameraControls;
+typedef nsTArray<nsRefPtr<mozilla::nsDOMCameraControl> > CameraControls;
 typedef nsClassHashtable<nsUint64HashKey, CameraControls> WindowTable;
 
 class nsDOMCameraManager MOZ_FINAL

@@ -12,8 +12,6 @@
 <img src="#" alt="This image is going to load" id="testimage"/>
 <script class="testbody" type="text/javascript;version=1.7">
 
-const Cr = Components.results;
-
 var whichCamera = navigator.mozCameras.getListOfCameras()[0];
 var config = {
   mode: 'picture',
@@ -57,25 +55,15 @@ var tests = [
   {
     key: "set-picture-size-after-release",
     func: function testSetPictureSize(camera) {
-      try {
-        camera.setPictureSize({ width: 0, height: 0 });
-      } catch(e) {
-        ok(e.result === SpecialPowers.Cr.NS_ERROR_NOT_AVAILABLE,
-          "setPictureSize() failed with: " + e.name);
-        next();
-      }
+      camera.setPictureSize({ width: 0, height: 0 });
+      next();
     }
   },
   {
     key: "set-thumbnail-size-after-release",
     func: function testSetThumbnailSize(camera) {
-      try {
-        camera.setThumbnailSize({ width: 0, height: 0 });
-      } catch(e) {
-        ok(e.result === SpecialPowers.Cr.NS_ERROR_NOT_AVAILABLE,
-          "setThumbnailSize() failed with: " + e.name);
-        next();
-      }
+      camera.setThumbnailSize({ width: 0, height: 0 });
+      next();
     }
   },
   {
@@ -88,13 +76,8 @@ var tests = [
   {
     key: "resume-preview-after-release",
     func: function testResumePreview(camera) {
-      try {
-        camera.resumePreview();
-      } catch(e) {
-        ok(e.result === SpecialPowers.Cr.NS_ERROR_NOT_AVAILABLE,
-          "resumePreview() failed with: " + e.name);
-        next();
-      }
+      camera.resumePreview();
+      next();
     }
   },
   {
@@ -104,8 +87,7 @@ var tests = [
         ok(false, "autoFocus() succeeded incorrectly");
       }
       function onError(error) {
-        ok(error.name === "NS_ERROR_NOT_AVAILABLE",
-          "autoFocus() failed with: " + error.name);
+        ok(error.name === "NS_ERROR_NOT_INITIALIZED", "autoFocus() failed with: " + error);
         next();
       }
       camera.autoFocus().then(onSuccess, onError);
@@ -118,8 +100,7 @@ var tests = [
         ok(false, "takePicture() succeeded incorrectly");
       }
       function onError(error) {
-        ok(error.name === "NS_ERROR_NOT_AVAILABLE",
-          "takePicture() failed with: " + error.name);
+        ok(error.name === "NS_ERROR_NOT_INITIALIZED", "takePicture() failed with: " + error);
         next();
       }
       camera.takePicture(null).then(onSuccess, onError);
@@ -132,8 +113,7 @@ var tests = [
         ok(false, "startRecording() process succeeded incorrectly");
       }
       function onError(error) {
-        ok(error.name === "NS_ERROR_NOT_AVAILABLE",
-          "startRecording() failed with: " + error.name);
+        ok(error.name === "NS_ERROR_FAILURE", "startRecording() failed with: " + error);
         next();
       }
       var recordingOptions = {
@@ -148,13 +128,8 @@ var tests = [
   {
     key: "stop-recording-after-release",
     func: function testStopRecording(camera) {
-      try {
-        camera.stopRecording();
-      } catch(e) {
-        ok(e.result === SpecialPowers.Cr.NS_ERROR_NOT_AVAILABLE,
-          "stopRecording() failed with: " + e.name);
-        next();
-      }
+      camera.stopRecording();
+      next();
     }
   },
   {
@@ -164,8 +139,7 @@ var tests = [
         ok(false, "setConfiguration() process succeeded incorrectly");
       }
       function onError(error) {
-        ok(error.name === "NS_ERROR_NOT_AVAILABLE",
-          "setConfiguration() failed with: " + error.name);
+        ok(error.name === "NS_ERROR_NOT_INITIALIZED", "setConfiguration() failed with: " + error);
         next();
       }
       camera.setConfiguration(config).then(onSuccess, onError);

@@ -361,13 +361,12 @@ MediaStreamTrack*
 DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
 {
   MediaStreamTrack* track = nullptr;
-  bool bindSuccess = false;
   switch (aType) {
   case MediaSegment::AUDIO: {
     for (size_t i = 0; i < mTracks.Length(); ++i) {
       track = mTracks[i]->AsAudioStreamTrack();
-      if (track && track->GetTrackID() == aTrackID) {
-        bindSuccess = true;
+      if (track) {
+        track->BindTrackID(aTrackID);
         mTrackTypesAvailable |= HINT_CONTENTS_AUDIO;
         break;
       }
@@ -377,8 +376,8 @@ DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
   case MediaSegment::VIDEO: {
     for (size_t i = 0; i < mTracks.Length(); ++i) {
       track = mTracks[i]->AsVideoStreamTrack();
-      if (track && track->GetTrackID() == aTrackID) {
-        bindSuccess = true;
+      if (track) {
+        track->BindTrackID(aTrackID);
         mTrackTypesAvailable |= HINT_CONTENTS_VIDEO;
         break;
       }
@@ -388,10 +387,10 @@ DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
   default:
     MOZ_CRASH("Unhandled track type");
   }
-  if (bindSuccess) {
+  if (track) {
     CheckTracksAvailable();
   }
-  return bindSuccess ? track : nullptr;
+  return track;
 }
 
 MediaStreamTrack*
@@ -536,8 +535,6 @@ DOMMediaStream::DisconnectTrackListListeners(const AudioTrackList* aAudioTrackLi
 void
 DOMMediaStream::NotifyMediaStreamTrackCreated(MediaStreamTrack* aTrack)
 {
-  MOZ_ASSERT(aTrack);
-
   for (uint32_t i = 0; i < mMediaTrackListListeners.Length(); ++i) {
     if (AudioStreamTrack* t = aTrack->AsAudioStreamTrack()) {
       nsRefPtr<AudioTrack> track = CreateAudioTrack(t);
@@ -552,8 +549,6 @@ DOMMediaStream::NotifyMediaStreamTrackCreated(MediaStreamTrack* aTrack)
 void
 DOMMediaStream::NotifyMediaStreamTrackEnded(MediaStreamTrack* aTrack)
 {
-  MOZ_ASSERT(aTrack);
-
   nsAutoString id;
   aTrack->GetId(id);
   for (uint32_t i = 0; i < mMediaTrackListListeners.Length(); ++i) {

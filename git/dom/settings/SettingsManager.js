@@ -4,14 +4,6 @@
 
 "use strict";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
-
 let DEBUG = false;
 let VERBOSE = false;
 
@@ -25,6 +17,14 @@ try {
 function debug(s) {
   dump("-*- SettingsManager: " + s + "\n");
 }
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(Services, "DOMRequest",
                                    "@mozilla.org/dom/dom-request-service;1",

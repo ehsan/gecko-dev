@@ -4,17 +4,6 @@
 
 "use strict";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-
-this.EXPORTED_SYMBOLS = [];
-
-Cu.import("resource://gre/modules/SettingsDB.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PermissionsTable.jsm");
-
 let DEBUG = false;
 let VERBOSE = false;
 
@@ -25,9 +14,18 @@ try {
     Services.prefs.getBoolPref("dom.mozSettings.SettingsRequestManager.verbose.enabled");
 } catch (ex) { }
 
-function debug(s) {
-  dump("-*- SettingsRequestManager: " + s + "\n");
-}
+function debug(s) { dump("-*- SettingsRequestManager: " + s + "\n"); }
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+this.EXPORTED_SYMBOLS = [];
+
+Cu.import("resource://gre/modules/SettingsDB.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PermissionsTable.jsm");
 
 const kXpcomShutdownObserverTopic      = "xpcom-shutdown";
 const kInnerWindowDestroyed            = "inner-window-destroyed";
