@@ -87,6 +87,7 @@
 #include "nsIDOMEventListener.h"//observe documents to send onchangenotifications
 #include "nsGUIEvent.h"
 #include "nsIDOMNSEvent.h"
+#include "nsIDOMNSUIEvent.h"
 
 #include "nsIDOMCharacterData.h" //for selection setting helper func
 #include "nsIDOMNodeList.h" //for selection setting helper func

@@ -35,6 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if !defined(XPCONNECT_STANDALONE)
+
 #include "nsAutoPtr.h"
 #include "nsScriptLoader.h"
 
@@ -189,3 +191,5 @@ WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSObject 
     rv = cache->PutBuffer(PromiseFlatCString(uri).get(), buf, len);
     return rv;
 }
+
+#endif /* XPCONNECT_STANDALONE */

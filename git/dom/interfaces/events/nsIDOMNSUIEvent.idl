@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -14,12 +14,14 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is the Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Neil Deakin <enndeakin@gmail.com>
+ *   Tom Pixley <joki@netscape.com> (original author)
+ *   Johnny Stenback <jst@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,30 +37,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "domstubs.idl"
-#include "nsIDOMMouseEvent.idl"
+#include "nsIDOMNSEvent.idl"
 
-interface nsIDOMDataTransfer;
-
-[scriptable, uuid(0f4fef03-c0e9-406c-a754-c01148e431ae)]
-interface nsIDOMDragEvent : nsIDOMMouseEvent
+[scriptable, uuid(72c9f79c-98cd-4224-a467-86b59c0a38f7)]
+interface nsIDOMNSUIEvent : nsIDOMNSEvent
 {
-  readonly attribute nsIDOMDataTransfer dataTransfer;
+  const long SCROLL_PAGE_UP = -32768;
+  const long SCROLL_PAGE_DOWN = 32768;
 
-  void initDragEvent(in DOMString typeArg,
-                     in boolean canBubbleArg,
-                     in boolean cancelableArg,
-                     in nsIDOMWindow aView,
-                     in long aDetail,
-                     in long aScreenX,
-                     in long aScreenY,
-                     in long aClientX,
-                     in long aClientY,
-                     in boolean aCtrlKey,
-                     in boolean aAltKey,
-                     in boolean aShiftKey,
-                     in boolean aMetaKey,
-                     in unsigned short aButton,
-                     in nsIDOMEventTarget aRelatedTarget,
-                     in nsIDOMDataTransfer aDataTransfer);
+  readonly attribute long             layerX;
+  readonly attribute long             layerY;
+  readonly attribute long             pageX;
+  readonly attribute long             pageY;
+  readonly attribute unsigned long    which;
+  readonly attribute nsIDOMNode       rangeParent;
+  readonly attribute long             rangeOffset;
+
+           attribute boolean          cancelBubble;
+
+  readonly attribute boolean          isChar;
 };
