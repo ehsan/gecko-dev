@@ -5,23 +5,24 @@
 
 package org.mozilla.gecko;
 
-import java.util.HashSet;
-import java.util.List;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.prompts.PromptInput;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.ArrowPopup;
 import org.mozilla.gecko.widget.DoorHanger;
+import org.mozilla.gecko.prompts.PromptInput;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
+
+import java.util.HashSet;
+import java.util.List;
 
 public class DoorHangerPopup extends ArrowPopup
                              implements GeckoEventListener,
@@ -310,13 +311,13 @@ public class DoorHangerPopup extends ArrowPopup
         // Make the popup focusable for accessibility. This gets done here
         // so the node can be accessibility focused, but on pre-ICS devices this
         // causes crashes, so it is done after the popup is shown.
-        if (Versions.feature14Plus) {
+        if (Build.VERSION.SDK_INT >= 14) {
             setFocusable(true);
         }
 
         show();
 
-        if (Versions.preICS) {
+        if (Build.VERSION.SDK_INT < 14) {
             // Make the popup focusable for keyboard accessibility.
             setFocusable(true);
         }

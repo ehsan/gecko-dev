@@ -28,7 +28,7 @@ function getWindow(anchor) {
     let anchorDocument = anchorWindow.document;
 
     // loop thru supported windows
-    for (let enumWindow of windows) {
+    for each(let enumWindow in windows) {
       // Check if the anchor is in this browser window.
       if (enumWindow == anchorWindow) {
         window = anchorWindow;

@@ -5,10 +5,10 @@
 
 package org.mozilla.gecko.menu;
 
-import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.R;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.ViewGroup;
@@ -41,10 +41,8 @@ public class MenuPanel extends LinearLayout {
 
     @Override
     public boolean dispatchPopulateAccessibilityEvent (AccessibilityEvent event) {
-        if (Versions.feature14Plus) {
+        if (Build.VERSION.SDK_INT >= 14) // Build.VERSION_CODES.ICE_CREAM_SANDWICH
             onPopulateAccessibilityEvent(event);
-        }
-
         return true;
     }
 }

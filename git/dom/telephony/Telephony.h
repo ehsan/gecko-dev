@@ -105,7 +105,6 @@ public:
   already_AddRefed<TelephonyCallGroup>
   ConferenceGroup() const;
 
-  IMPL_EVENT_HANDLER(ready)
   IMPL_EVENT_HANDLER(incoming)
   IMPL_EVENT_HANDLER(callschanged)
   IMPL_EVENT_HANDLER(remoteheld)
@@ -186,16 +185,13 @@ private:
              bool aSwitchable = true, bool aMergeable = true);
 
   nsresult
-  NotifyEvent(const nsAString& aType);
-
-  nsresult
   NotifyCallsChanged(TelephonyCall* aCall);
 
   nsresult
   DispatchCallEvent(const nsAString& aType, TelephonyCall* aCall);
 
   void
-  EnqueueEnumerationAck(const nsAString& aType);
+  EnqueueEnumerationAck();
 
   already_AddRefed<TelephonyCall>
   GetCall(uint32_t aServiceId, uint32_t aCallIndex);

@@ -83,19 +83,19 @@ function updateUI() {
     document.querySelector("#type").classList.remove("hidden");
 
     if (project.type == "runtimeApp") {
-      let manifestURL = AppManager.getProjectManifestURL(project);
+      let manifest = AppManager.getProjectManifestURL(project);
       document.querySelector("#type").textContent = manifest.type || "web";
       document.querySelector("#manifestURLHeader").classList.remove("hidden");
-      document.querySelector("#manifestURL").textContent = manifestURL;
+      document.querySelector("#manifestURL").textContent = manifest;
     } else {
       document.querySelector("#type").textContent = project.type + " " + (manifest.type || "web");
     }
 
     if (project.type == "packaged") {
-      let manifestURL = AppManager.getProjectManifestURL(project);
-      if (manifestURL) {
+      let manifest = AppManager.getProjectManifestURL(project);
+      if (manifest) {
         document.querySelector("#manifestURLHeader").classList.remove("hidden");
-        document.querySelector("#manifestURL").textContent = manifestURL;
+        document.querySelector("#manifestURL").textContent = manifest;
       }
     }
   }

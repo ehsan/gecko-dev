@@ -5,22 +5,15 @@
 
 package org.mozilla.gecko;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
-
-import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
 
+import org.json.JSONObject;
+
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -36,6 +29,14 @@ import android.text.style.CharacterStyle;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
 
 // interface for the IC thread
 interface GeckoEditableClient {
@@ -250,8 +251,8 @@ final class GeckoEditable
             try {
                 if (mKeyMap == null) {
                     mKeyMap = KeyCharacterMap.load(
-                        Versions.preHC ? KeyCharacterMap.ALPHA :
-                                         KeyCharacterMap.VIRTUAL_KEYBOARD);
+                        Build.VERSION.SDK_INT < 11 ? KeyCharacterMap.ALPHA :
+                                                     KeyCharacterMap.VIRTUAL_KEYBOARD);
                 }
             } catch (Exception e) {
                 // KeyCharacterMap.UnavailableExcepton is not found on Gingerbread;
@@ -487,9 +488,8 @@ final class GeckoEditable
                 }
                 int tpUnderlineColor = 0;
                 float tpUnderlineThickness = 0.0f;
-
-                // These TextPaint fields only exist on Android ICS+ and are not in the SDK.
-                if (Versions.feature14Plus) {
+                // These TextPaint fields only exist on Android ICS+ and are not in the SDK
+                if (Build.VERSION.SDK_INT >= 14) {
                     tpUnderlineColor = (Integer)getField(tp, "underlineColor", 0);
                     tpUnderlineThickness = (Float)getField(tp, "underlineThickness", 0.0f);
                 }

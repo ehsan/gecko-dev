@@ -9,35 +9,31 @@
 #ifndef mozilla_ipc_Nfc_h
 #define mozilla_ipc_Nfc_h 1
 
+#include <mozilla/dom/workers/Workers.h>
 #include <mozilla/ipc/UnixSocket.h>
 
 namespace mozilla {
 namespace ipc {
 
-class NfcSocketListener
-{
-public:
-  virtual void ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aData) = 0;
-};
-
 class NfcConsumer : public mozilla::ipc::UnixSocketConsumer
 {
 public:
-  NfcConsumer(NfcSocketListener* aListener);
   virtual ~NfcConsumer() { }
 
-  void Shutdown();
-  bool PostToNfcDaemon(const uint8_t* aData, size_t aSize);
+  static nsresult Register(mozilla::dom::workers::WorkerCrossThreadDispatcher* aDispatcher);
+  static void Shutdown();
 
 private:
-  virtual void ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aData);
+  NfcConsumer(mozilla::dom::workers::WorkerCrossThreadDispatcher* aDispatcher);
+
+  virtual void ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage);
 
   virtual void OnConnectSuccess();
   virtual void OnConnectError();
   virtual void OnDisconnect();
 
 private:
-  NfcSocketListener* mListener;
+  nsRefPtr<mozilla::dom::workers::WorkerCrossThreadDispatcher> mDispatcher;
   nsCString mAddress;
   bool mShutdown;
 };

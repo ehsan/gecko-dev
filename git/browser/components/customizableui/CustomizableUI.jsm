@@ -52,7 +52,7 @@ const kSubviewEvents = [
  * The current version. We can use this to auto-add new default widgets as necessary.
  * (would be const but isn't because of testing purposes)
  */
-let kVersion = 1;
+let kVersion = 0;
 
 /**
  * gPalette is a map of every widget that CustomizableUI.jsm knows about, keyed

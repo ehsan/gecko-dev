@@ -111,7 +111,6 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
     },
 
     _shutdown: function _shutdown() {
-      this.nfc.shutdown();
       this.nfc = null;
 
       Services.obs.removeObserver(this, NFC.TOPIC_XPCOM_SHUTDOWN);
@@ -420,22 +419,18 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 });
 
 function Nfc() {
-  debug("Starting Nfc Service");
-
-  let nfcService = Cc["@mozilla.org/nfc/service;1"].getService(Ci.nsINfcService);
-  if (!nfcService) {
-    debug("No nfc service component available!");
-    return;
-  }
-
-  nfcService.start(this);
-  this.nfcService = nfcService;
+  debug("Starting Worker");
+  this.worker = new ChromeWorker("resource://gre/modules/nfc_worker.js");
+  this.worker.onerror = this.onerror.bind(this);
+  this.worker.onmessage = this.onmessage.bind(this);
 
   gMessageManager.init(this);
 
   // Maps sessionId (that are generated from nfcd) with a unique guid : 'SessionToken'
   this.sessionTokenMap = {};
   this.targetsByRequestId = {};
+
+  gSystemWorkerManager.registerNfcWorker(this.worker);
 }
 
 Nfc.prototype = {
@@ -443,26 +438,32 @@ Nfc.prototype = {
   classID:   NFC_CID,
   classInfo: XPCOMUtils.generateCI({classID: NFC_CID,
                                     classDescription: "Nfc",
-                                    interfaces: [Ci.nsINfcService]}),
+                                    interfaces: [Ci.nsIWorkerHolder]}),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsINfcEventListener]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWorkerHolder, Ci.nsIObserver]),
 
   _currentSessionId: null,
 
   powerLevel: NFC.NFC_POWER_LEVEL_UNKNOWN,
 
+  onerror: function onerror(event) {
+    debug("Got an error: " + event.filename + ":" +
+          event.lineno + ": " + event.message + "\n");
+    event.preventDefault();
+  },
+
   /**
-   * Send arbitrary message to Nfc service.
+   * Send arbitrary message to worker.
    *
    * @param nfcMessageType
    *        A text message type.
    * @param message [optional]
    *        An optional message object to send.
    */
-  sendToNfcService: function sendToNfcService(nfcMessageType, message) {
+  sendToWorker: function sendToWorker(nfcMessageType, message) {
     message = message || {};
     message.type = nfcMessageType;
-    this.nfcService.sendCommand(message);
+    this.worker.postMessage(message);
   },
 
   /**
@@ -489,11 +490,11 @@ Nfc.prototype = {
   },
 
   /**
-   * Process the incoming message from the NFC Service.
+   * Process the incoming message from the NFC worker
    */
-  onEvent: function onEvent(event) {
-    let message = Cu.cloneInto(event, this);
-    debug("Received message from NFC Service: " + JSON.stringify(message));
+  onmessage: function onmessage(event) {
+    let message = event.data;
+    debug("Received message from NFC worker: " + JSON.stringify(message));
 
     // mapping error code to error message
     if (message.status !== undefined && message.status !== NFC.NFC_SUCCESS) {
@@ -501,11 +502,7 @@ Nfc.prototype = {
     }
 
     switch (message.type) {
-      case "InitializedNotification":
-        // Do nothing.
-        break;
-      case "TechDiscoveredNotification":
-        message.type = "techDiscovered";
+      case "techDiscovered":
         this._currentSessionId = message.sessionId;
 
         // Check if the session token already exists. If exists, continue to use the same one.
@@ -520,8 +517,7 @@ Nfc.prototype = {
 
         gSystemMessenger.broadcastMessage("nfc-manager-tech-discovered", message);
         break;
-      case "TechLostNotification":
-        message.type = "techLost";
+      case "techLost":
         gMessageManager._unregisterMessageTarget(this.sessionTokenMap[this._currentSessionId], null);
 
         // Update the upper layers with a session token (alias)
@@ -566,7 +562,8 @@ Nfc.prototype = {
     }
   },
 
-  nfcService: null,
+  // nsINfcWorker
+  worker: null,
 
   sessionTokenMap: null,
 
@@ -615,22 +612,22 @@ Nfc.prototype = {
 
     switch (message.name) {
       case "NFC:GetDetailsNDEF":
-        this.sendToNfcService("getDetailsNDEF", message.json);
+        this.sendToWorker("getDetailsNDEF", message.json);
         break;
       case "NFC:ReadNDEF":
-        this.sendToNfcService("readNDEF", message.json);
+        this.sendToWorker("readNDEF", message.json);
         break;
       case "NFC:WriteNDEF":
-        this.sendToNfcService("writeNDEF", message.json);
+        this.sendToWorker("writeNDEF", message.json);
         break;
       case "NFC:MakeReadOnlyNDEF":
-        this.sendToNfcService("makeReadOnlyNDEF", message.json);
+        this.sendToWorker("makeReadOnlyNDEF", message.json);
         break;
       case "NFC:Connect":
-        this.sendToNfcService("connect", message.json);
+        this.sendToWorker("connect", message.json);
         break;
       case "NFC:Close":
-        this.sendToNfcService("close", message.json);
+        this.sendToWorker("close", message.json);
         break;
       case "NFC:SendFile":
         // Chrome process is the arbitrator / mediator between
@@ -661,12 +658,7 @@ Nfc.prototype = {
   },
 
   setConfig: function setConfig(prop) {
-    this.sendToNfcService("config", prop);
-  },
-
-  shutdown: function shutdown() {
-    this.nfcService.shutdown();
-    this.nfcService = null;
+    this.sendToWorker("config", prop);
   }
 };
 
