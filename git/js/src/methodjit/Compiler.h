@@ -62,27 +62,6 @@ struct InvariantCodePatch {
     InvariantCodePatch() : hasPatch(false) {}
 };
 
-struct JSActiveFrame {
-    JSActiveFrame *parent;
-    jsbytecode *parentPC;
-    JSScript *script;
-
-    /*
-     * Index into inlineFrames or OUTER_FRAME, matches this frame's index in
-     * the cross script SSA.
-     */
-    uint32_t inlineIndex;
-
-    /* JIT code generation tracking state */
-    size_t mainCodeStart;
-    size_t stubCodeStart;
-    size_t mainCodeEnd;
-    size_t stubCodeEnd;
-    size_t inlinePCOffset;
-
-    JSActiveFrame();
-};
-
 class Compiler : public BaseCompiler
 {
     friend class StubCompiler;
@@ -376,11 +355,25 @@ class Compiler : public BaseCompiler
      */
 
 public:
-    struct ActiveFrame : public JSActiveFrame {
+    struct ActiveFrame {
+        ActiveFrame *parent;
+        jsbytecode *parentPC;
+        JSScript *script;
         Label *jumpMap;
+
+        /*
+         * Index into inlineFrames or OUTER_FRAME, matches this frame's index
+         * in the cross script SSA.
+         */
+        uint32_t inlineIndex;
 
         /* Current types for non-escaping vars in the script. */
         VarType *varTypes;
+
+        /* JIT code generation tracking state */
+        size_t mainCodeStart;
+        size_t stubCodeStart;
+        size_t inlinePCOffset;
 
         /* State for managing return from inlined frames. */
         bool needReturnValue;          /* Return value will be used. */
@@ -477,7 +470,7 @@ private:
             return PC;
         ActiveFrame *scan = a;
         while (scan && scan->parent != outer)
-            scan = static_cast<ActiveFrame *>(scan->parent);
+            scan = scan->parent;
         return scan->parentPC;
     }
 
@@ -498,7 +491,7 @@ private:
         while (na->parent) {
             if (na->exitState)
                 return true;
-            na = static_cast<ActiveFrame *>(na->parent);
+            na = na->parent;
         }
         return false;
     }
