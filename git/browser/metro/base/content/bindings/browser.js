@@ -552,7 +552,7 @@ let ContentScroll =  {
   _scrollOffset: { x: 0, y: 0 },
 
   init: function() {
-    addMessageListener("Content:SetDisplayPort", this);
+    addMessageListener("Content:SetCacheViewport", this);
     addMessageListener("Content:SetWindowSize", this);
 
     if (Services.prefs.getBoolPref("layers.async-pan-zoom.enabled")) {
@@ -587,9 +587,7 @@ let ContentScroll =  {
   receiveMessage: function(aMessage) {
     let json = aMessage.json;
     switch (aMessage.name) {
-      // Sent to us from chrome when the the apz has requested that the
-      // display port be updated and that content should repaint.
-      case "Content:SetDisplayPort": {
+      case "Content:SetCacheViewport": {
         // Set resolution for root view
         let rootCwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         if (json.id == 1) {
@@ -661,7 +659,7 @@ let ContentScroll =  {
         break;
 
       case "scroll": {
-        this.notifyChromeAboutContentScroll(aEvent.target);
+        this.sendScroll(aEvent.target);
         break;
       }
 
@@ -688,13 +686,7 @@ let ContentScroll =  {
     }
   },
 
-  /*
-  * DOM scroll handler - if we receive this, content or the dom scrolled
-  * content without going through the apz. This can happen in a lot of
-  * cases, keyboard shortcuts, scroll wheel, or content script. Messages
-  * chrome via a sync call which messages the apz about the update.
-  */
-  notifyChromeAboutContentScroll: function (target) {
+  sendScroll: function sendScroll(target) {
     let isRoot = false;
     if (target instanceof Ci.nsIDOMDocument) {
       var window = target.defaultView;
@@ -721,13 +713,11 @@ let ContentScroll =  {
     let presShellId = {};
     utils.getPresShellId(presShellId);
     let viewId = utils.getViewId(element);
-    // Must be synchronous to prevent redraw getting out of sync from
-    // composition.
-    sendSyncMessage("Browser:ContentScroll",
-      { presShellId: presShellId.value,
-        viewId: viewId,
-        scrollOffset: scrollOffset,
-        isRoot: isRoot });
+
+    sendAsyncMessage("scroll", { presShellId: presShellId.value,
+                                 viewId: viewId,
+                                 scrollOffset: scrollOffset,
+                                 isRoot: isRoot });
   }
 };
 

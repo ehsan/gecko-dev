@@ -255,7 +255,7 @@ this.DownloadIntegration = {
    * Returns the system downloads directory asynchronously.
    *
    * @return {Promise}
-   * @resolves The downloads directory string path.
+   * @resolves The nsIFile of downloads directory.
    */
   getSystemDownloadsDirectory: function DI_getSystemDownloadsDirectory() {
     return Task.spawn(function() {
@@ -267,40 +267,41 @@ this.DownloadIntegration = {
         throw new Task.Result(this._downloadsDirectory);
       }
 
-      let directoryPath = null;
+      let directory = null;
 #ifdef XP_MACOSX
-      directoryPath = this._getDirectory("DfltDwnld");
+      directory = this._getDirectory("DfltDwnld");
 #elifdef XP_WIN
       // For XP/2K, use My Documents/Downloads. Other version uses
       // the default Downloads directory.
       let version = parseFloat(Services.sysinfo.getProperty("version"));
       if (version < 6) {
-        directoryPath = yield this._createDownloadsDirectory("Pers");
+        directory = yield this._createDownloadsDirectory("Pers");
       } else {
-        directoryPath = this._getDirectory("DfltDwnld");
+        directory = this._getDirectory("DfltDwnld");
       }
 #elifdef XP_UNIX
 #ifdef ANDROID
       // Android doesn't have a $HOME directory, and by default we only have
       // write access to /data/data/org.mozilla.{$APP} and /sdcard
-      directoryPath = gEnvironment.get("DOWNLOADS_DIRECTORY");
+      let directoryPath = gEnvironment.get("DOWNLOADS_DIRECTORY");
       if (!directoryPath) {
         throw new Components.Exception("DOWNLOADS_DIRECTORY is not set.",
                                        Cr.NS_ERROR_FILE_UNRECOGNIZED_PATH);
       }
+      directory = new FileUtils.File(directoryPath);
 #else
       // For Linux, use XDG download dir, with a fallback to Home/Downloads
       // if the XDG user dirs are disabled.
       try {
-        directoryPath = this._getDirectory("DfltDwnld");
+        directory = this._getDirectory("DfltDwnld");
       } catch(e) {
-        directoryPath = yield this._createDownloadsDirectory("Home");
+        directory = yield this._createDownloadsDirectory("Home");
       }
 #endif
 #else
-      directoryPath = yield this._createDownloadsDirectory("Home");
+      directory = yield this._createDownloadsDirectory("Home");
 #endif
-      this._downloadsDirectory = directoryPath;
+      this._downloadsDirectory = directory;
       throw new Task.Result(this._downloadsDirectory);
     }.bind(this));
   },
@@ -310,11 +311,11 @@ this.DownloadIntegration = {
    * Returns the user downloads directory asynchronously.
    *
    * @return {Promise}
-   * @resolves The downloads directory string path.
+   * @resolves The nsIFile of downloads directory.
    */
   getPreferredDownloadsDirectory: function DI_getPreferredDownloadsDirectory() {
     return Task.spawn(function() {
-      let directoryPath = null;
+      let directory = null;
       let prefValue = 1;
 
       try {
@@ -323,26 +324,25 @@ this.DownloadIntegration = {
 
       switch(prefValue) {
         case 0: // Desktop
-          directoryPath = this._getDirectory("Desk");
+          directory = this._getDirectory("Desk");
           break;
         case 1: // Downloads
-          directoryPath = yield this.getSystemDownloadsDirectory();
+          directory = yield this.getSystemDownloadsDirectory();
           break;
         case 2: // Custom
           try {
-            let directory = Services.prefs.getComplexValue("browser.download.dir",
-                                                           Ci.nsIFile);
-            directoryPath = directory.path;
-            yield OS.File.makeDir(directoryPath, { ignoreExisting: true });
+            directory = Services.prefs.getComplexValue("browser.download.dir",
+                                                       Ci.nsIFile);
+            yield OS.File.makeDir(directory.path, { ignoreExisting: true });
           } catch(ex) {
             // Either the preference isn't set or the directory cannot be created.
-            directoryPath = yield this.getSystemDownloadsDirectory();
+            directory = yield this.getSystemDownloadsDirectory();
           }
           break;
         default:
-          directoryPath = yield this.getSystemDownloadsDirectory();
+          directory = yield this.getSystemDownloadsDirectory();
       }
-      throw new Task.Result(directoryPath);
+      throw new Task.Result(directory);
     }.bind(this));
   },
 
@@ -350,25 +350,25 @@ this.DownloadIntegration = {
    * Returns the temporary downloads directory asynchronously.
    *
    * @return {Promise}
-   * @resolves The downloads directory string path.
+   * @resolves The nsIFile of downloads directory.
    */
   getTemporaryDownloadsDirectory: function DI_getTemporaryDownloadsDirectory() {
     return Task.spawn(function() {
-      let directoryPath = null;
+      let directory = null;
 #ifdef XP_MACOSX
-      directoryPath = yield this.getPreferredDownloadsDirectory();
+      directory = yield this.getPreferredDownloadsDirectory();
 #elifdef ANDROID
-      directoryPath = yield this.getSystemDownloadsDirectory();
+      directory = yield this.getSystemDownloadsDirectory();
 #else
       // For Metro mode on Windows 8,  we want searchability for documents
       // that the user chose to open with an external application.
       if (this._isImmersiveProcess()) {
-        directoryPath = yield this.getSystemDownloadsDirectory();
+        directory = yield this.getSystemDownloadsDirectory();
       } else {
-        directoryPath = this._getDirectory("TmpD");
+        directory = this._getDirectory("TmpD");
       }
 #endif
-      throw new Task.Result(directoryPath);
+      throw new Task.Result(directory);
     }.bind(this));
   },
 
@@ -649,19 +649,20 @@ this.DownloadIntegration = {
    * nsIFile for the downloads directory.
    *
    * @return {Promise}
-   * @resolves The directory string path.
+   * @resolves The nsIFile directory.
    */
   _createDownloadsDirectory: function DI_createDownloadsDirectory(aName) {
+    let directory = this._getDirectory(aName);
+
     // We read the name of the directory from the list of translated strings
     // that is kept by the UI helper module, even if this string is not strictly
     // displayed in the user interface.
-    let directoryPath = OS.Path.join(this._getDirectory(aName),
-                                     DownloadUIHelper.strings.downloadsFolder);
+    directory.append(DownloadUIHelper.strings.downloadsFolder);
 
     // Create the Downloads folder and ignore if it already exists.
-    return OS.File.makeDir(directoryPath, { ignoreExisting: true }).
+    return OS.File.makeDir(directory.path, { ignoreExisting: true }).
              then(function() {
-               return directoryPath;
+               return directory;
              });
   },
 
@@ -669,10 +670,10 @@ this.DownloadIntegration = {
    * Calls the directory service and returns an nsIFile for the requested
    * location name.
    *
-   * @return The directory string path.
+   * @return The nsIFile directory.
    */
   _getDirectory: function DI_getDirectory(aName) {
-    return Services.dirsvc.get(this.testMode ? "TmpD" : aName, Ci.nsIFile).path;
+    return Services.dirsvc.get(this.testMode ? "TmpD" : aName, Ci.nsIFile);
   },
 
   /**

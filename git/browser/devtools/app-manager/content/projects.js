@@ -81,21 +81,19 @@ let UI = {
     return null;
   },
 
-  addPackaged: function(folder) {
-    if (!folder) {
-      folder = this._selectFolder();
-    }
+  addPackaged: function() {
+    let folder = this._selectFolder();
     if (!folder)
       return;
-    return AppProjects.addPackaged(folder)
-                      .then(function (project) {
-                        UI.validate(project);
-                        UI.selectProject(project.location);
-                      });
+    AppProjects.addPackaged(folder)
+               .then(function (project) {
+                 UI.validate(project);
+                 UI.selectProject(project.location);
+               });
   },
 
   addHosted: function() {
-    let form = document.querySelector("#new-hosted-project-wrapper");
+    let form = document.querySelector("#new-hosted-project-wrapper")
     if (!form.checkValidity())
       return;
 

@@ -68,7 +68,9 @@ DebuggerTransport.prototype = {
    * they are passed to this method.
    */
   send: function DT_send(aPacket) {
-    let data = JSON.stringify(aPacket);
+    let data = wantLogging
+      ? JSON.stringify(aPacket, null, 2)
+      : JSON.stringify(aPacket);
     data = this._converter.ConvertFromUnicode(data);
     data = data.length + ':' + data;
     this._outgoing += data;
@@ -190,9 +192,7 @@ DebuggerTransport.prototype = {
       return true;
     }
 
-    if (wantLogging) {
-      dumpn("Got: " + JSON.stringify(parsed, null, 2));
-    }
+    dumpn("Got: " + packet);
     let self = this;
     Services.tm.currentThread.dispatch(makeInfallible(function() {
       // Ensure the hooks are still around by the time this runs (they will go

@@ -975,9 +975,6 @@ class Mochitest(MochitestUtilsMixin):
       options.browserArgs.extend(('-firefoxpath', options.app))
       options.app = self.immersiveHelperPath
 
-    if options.jsdebugger:
-      options.browserArgs.extend(['-jsdebugger'])
-
     # Remove the leak detection file so it can't "leak" to the tests run.
     # The file is not there if leak logging was not enabled in the application build.
     if os.path.exists(self.leak_report_file):
