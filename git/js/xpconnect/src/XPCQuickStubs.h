@@ -12,7 +12,7 @@
 class qsObjectHelper;
 namespace mozilla {
 namespace dom {
-struct NativePropertiesHolder;
+class NativePropertiesHolder;
 }
 }
 

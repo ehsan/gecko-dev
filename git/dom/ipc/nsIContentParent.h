@@ -31,7 +31,7 @@ class CpowEntry;
 } // namespace jsipc
 
 namespace dom {
-class IPCTabContext;
+struct IPCTabContext;
 class ContentParent;
 
 class nsIContentParent : public nsISupports

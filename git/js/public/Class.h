@@ -24,12 +24,12 @@
  * object behavior and, e.g., allows custom slow layout.
  */
 
-struct JSFreeOp;
+class JSFreeOp;
 struct JSFunctionSpec;
 
 namespace js {
 
-struct Class;
+class Class;
 class FreeOp;
 class PropertyName;
 class Shape;

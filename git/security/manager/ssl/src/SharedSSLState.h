@@ -20,6 +20,7 @@ class SharedSSLState {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(SharedSSLState)
   SharedSSLState();
+  ~SharedSSLState();
 
   static void GlobalInit();
   static void GlobalCleanup();
@@ -48,8 +49,6 @@ public:
   bool IsOCSPStaplingEnabled() const { return mOCSPStaplingEnabled; }
 
 private:
-  ~SharedSSLState();
-
   void Cleanup();
 
   nsCOMPtr<nsIObserver> mObserver;

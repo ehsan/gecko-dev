@@ -20,7 +20,7 @@
 namespace mozilla {
 namespace dom {
 
-struct MediaKeyMessageEventInit;
+class MediaKeyMessageEventInit;
 
 class MediaKeyMessageEvent MOZ_FINAL : public Event
 {

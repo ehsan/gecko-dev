@@ -31,7 +31,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Vector.h"
 #include "prerror.h"
-#include "seccomon.h"
 
 namespace mozilla { namespace psm {
 

@@ -19,7 +19,7 @@ class SVGAnimatedTransformList;
 class SVGGraphicsElement;
 class SVGMatrix;
 class SVGIRect;
-struct SVGBoundingBoxOptions;
+class SVGBoundingBoxOptions;
 
 class SVGTransformableElement : public nsSVGElement
 {

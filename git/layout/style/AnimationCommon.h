@@ -23,7 +23,7 @@
 class nsIFrame;
 class nsPresContext;
 class nsStyleChangeList;
-struct ElementPropertyTransition;
+class ElementPropertyTransition;
 
 
 namespace mozilla {
@@ -282,10 +282,6 @@ struct ComputedTiming
  */
 struct ElementAnimation
 {
-protected:
-  virtual ~ElementAnimation() { }
-
-public:
   ElementAnimation()
     : mIsRunningOnCompositor(false)
     , mLastNotification(LAST_NOTIFICATION_NONE)
@@ -295,6 +291,7 @@ public:
   // FIXME: If we succeed in moving transition-specific code to a type of
   // AnimationEffect (as per the Web Animations API) we should remove these
   // virtual methods.
+  virtual ~ElementAnimation() { }
   virtual ElementPropertyTransition* AsTransition() { return nullptr; }
   virtual const ElementPropertyTransition* AsTransition() const {
     return nullptr;

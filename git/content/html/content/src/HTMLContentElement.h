@@ -9,7 +9,7 @@
 #include "nsINodeList.h"
 #include "nsGenericHTMLElement.h"
 
-struct nsCSSSelectorList;
+class nsCSSSelectorList;
 
 namespace mozilla {
 namespace dom {

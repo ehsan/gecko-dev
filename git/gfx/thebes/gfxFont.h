@@ -78,7 +78,6 @@ struct gfxFontStyle {
                  gfxFloat aSize, nsIAtom *aLanguage,
                  float aSizeAdjust, bool aSystemFont,
                  bool aPrinterFont, bool aSmallCaps,
-                 bool aWeightSynthesis, bool aStyleSynthesis,
                  const nsString& aLanguageOverride);
     gfxFontStyle(const gfxFontStyle& aStyle);
 
@@ -147,10 +146,6 @@ struct gfxFontStyle {
     // otherwise using a synthetic small-caps implementation
     bool smallCaps : 1;
 
-    // Whether synthetic styles are allowed
-    bool allowSyntheticWeight : 1;
-    bool allowSyntheticStyle : 1;
-
     // The style of font (normal, italic, oblique)
     uint8_t style : 2;
 
@@ -176,8 +171,6 @@ struct gfxFontStyle {
              *reinterpret_cast<const uint64_t*>(&other.size)) &&
             (style == other.style) &&
             (smallCaps == other.smallCaps) &&
-            (allowSyntheticWeight == other.allowSyntheticWeight) &&
-            (allowSyntheticStyle == other.allowSyntheticStyle) &&
             (systemFont == other.systemFont) &&
             (printerFont == other.printerFont) &&
             (useGrayscaleAntialiasing == other.useGrayscaleAntialiasing) &&

@@ -321,7 +321,6 @@ interface TestExampleInterface {
   void passOptionalByteString(optional ByteString arg);
   void passOptionalNullableByteString(optional ByteString? arg);
   void passVariadicByteString(ByteString... arg);
-  void passUnionByteString((ByteString or long) arg);
 
   // Enumerated types
   void passEnum(TestEnum arg);

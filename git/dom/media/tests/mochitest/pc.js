@@ -1,4 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -1113,36 +1113,29 @@ DataChannelTest.prototype = Object.create(PeerConnectionTest.prototype, {
 
       function dataChannelConnected(channel) {
         clearTimeout(dcConnectionTimeout);
-        is(channel.readyState, "open", peer + " dataChannels[0] switched to state: 'open'");
+        is(channel.readyState, "open", peer + " dataChannels[0] is in state: 'open'");
         onSuccess();
       }
 
-      if (peer.dataChannels.length >= 1) {
-        if (peer.dataChannels[0].readyState === "open") {
-          is(peer.dataChannels[0].readyState, "open", peer + " dataChannels[0] is already in state: 'open'");
-          onSuccess();
-          return;
-        } else {
-          is(peer.dataChannels[0].readyState, "connecting", peer + " dataChannels[0] is in state: 'connecting'");
-        }
-      } else {
-        info(peer + "'s dataChannels[] is empty");
+      if ((peer.dataChannels.length >= 1) &&
+          (peer.dataChannels[0].readyState === "open")) {
+        is(peer.dataChannels[0].readyState, "open", peer + " dataChannels[0] is in state: 'open'");
+        onSuccess();
+        return;
       }
 
       // TODO: drno: convert dataChannels into an object and make
-      //             registerDataChannelOpenEvent a generic function
+      //             registerDataChannelOPenEvent a generic function
       if (peer == this.pcLocal) {
         peer.dataChannels[0].onopen = dataChannelConnected;
       } else {
         peer.registerDataChannelOpenEvents(dataChannelConnected);
       }
 
-      if (onFailure) {
-        dcConnectionTimeout = setTimeout(function () {
-          info(peer + " timed out while waiting for dataChannels[0] to connect");
-          onFailure();
-        }, 60000);
-      }
+      dcConnectionTimeout = setTimeout(function () {
+        info(peer + " timed out while waiting for dataChannels[0] to connect");
+        onFailure();
+      }, 60000);
     }
   }
 

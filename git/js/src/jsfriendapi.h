@@ -37,7 +37,7 @@ class JSAtom;
 struct JSErrorFormatString;
 class JSLinearString;
 struct JSJitInfo;
-struct JSErrorReport;
+class JSErrorReport;
 
 namespace JS {
 template <class T>
@@ -688,7 +688,7 @@ NotifyAnimationActivity(JSObject *obj);
  * thus it will really return the outermost enclosing function *since the
  * innermost eval*.
  */
-JS_FRIEND_API(JSFunction *)
+JS_FRIEND_API(JSScript *)
 GetOutermostEnclosingFunctionOfScriptedCaller(JSContext *cx);
 
 JS_FRIEND_API(JSFunction *)

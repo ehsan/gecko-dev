@@ -37,7 +37,7 @@
  */
 namespace js {
 
-struct MatchPair;
+class MatchPair;
 class MatchPairs;
 class RegExpShared;
 
@@ -113,27 +113,25 @@ class RegExpShared
     bool               marked_;
 
 #ifdef JS_ION
-    HeapPtrJitCode     jitCodeLatin1;
-    HeapPtrJitCode     jitCodeTwoByte;
+    HeapPtrJitCode     jitCode;
 #endif
-    uint8_t            *byteCodeLatin1;
-    uint8_t            *byteCodeTwoByte;
+    uint8_t            *byteCode;
 
     // Tables referenced by JIT code.
     Vector<uint8_t *, 0, SystemAllocPolicy> tables;
 
     /* Internal functions. */
-    bool compile(JSContext *cx, HandleLinearString input);
-    bool compile(JSContext *cx, HandleAtom pattern, HandleLinearString input);
+    bool compile(JSContext *cx, HandleLinearString sample);
+    bool compile(JSContext *cx, HandleAtom pattern, HandleLinearString sample);
 
-    bool compileIfNecessary(JSContext *cx, HandleLinearString input);
+    bool compileIfNecessary(JSContext *cx, HandleLinearString sample);
 
   public:
     RegExpShared(JSAtom *source, RegExpFlag flags);
     ~RegExpShared();
 
     /* Primary interface: run this regular expression on the given string. */
-    RegExpRunStatus execute(JSContext *cx, HandleLinearString input, size_t *lastIndex,
+    RegExpRunStatus execute(JSContext *cx, HandleLinearString str, size_t *lastIndex,
                             MatchPairs &matches);
 
     // Register a table with this RegExpShared, and take ownership.
@@ -158,37 +156,19 @@ class RegExpShared
     bool multiline() const              { return flags & MultilineFlag; }
     bool sticky() const                 { return flags & StickyFlag; }
 
-    bool hasJitCodeLatin1() const {
+    bool hasJitCode() const {
 #ifdef JS_ION
-        return jitCodeLatin1 != nullptr;
+        return jitCode != nullptr;
 #else
         return false;
 #endif
     }
-    bool hasJitCodeTwoByte() const {
-#ifdef JS_ION
-        return jitCodeTwoByte != nullptr;
-#else
-        return false;
-#endif
-    }
-    bool hasByteCodeLatin1() const {
-        return byteCodeLatin1 != nullptr;
-    }
-    bool hasByteCodeTwoByte() const {
-        return byteCodeTwoByte != nullptr;
-    }
-    uint8_t *maybeByteCode(bool latin1) const {
-        return latin1 ? byteCodeLatin1 : byteCodeTwoByte;
+    bool hasByteCode() const {
+        return byteCode != nullptr;
     }
 
-    bool isCompiled(bool latin1) const {
-        if (latin1)
-            return hasJitCodeLatin1() || hasByteCodeLatin1();
-        return hasJitCodeTwoByte() || hasByteCodeTwoByte();
-    }
     bool isCompiled() const {
-        return isCompiled(true) || isCompiled(false);
+        return hasJitCode() || hasByteCode();
     }
 
     void trace(JSTracer *trc);

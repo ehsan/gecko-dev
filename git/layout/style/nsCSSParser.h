@@ -23,7 +23,7 @@ struct nsCSSSelectorList;
 class nsMediaList;
 class nsCSSKeyframeRule;
 class nsCSSValue;
-struct nsRuleData;
+class nsRuleData;
 
 namespace mozilla {
 class CSSVariableValues;

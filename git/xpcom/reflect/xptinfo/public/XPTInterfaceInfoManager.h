@@ -17,8 +17,8 @@
 
 template<typename T> class nsCOMArray;
 class nsIMemoryReporter;
-struct XPTHeader;
-struct XPTInterfaceDirectoryEntry;
+class XPTHeader;
+class XPTInterfaceDirectoryEntry;
 class xptiInterfaceEntry;
 class xptiInterfaceInfo;
 class xptiTypelibGuts;

@@ -13,7 +13,7 @@
 
 BEGIN_TELEPHONY_NAMESPACE
 
-class IPCTelephonyRequest;
+struct IPCTelephonyRequest;
 class PTelephonyChild;
 
 class TelephonyIPCService MOZ_FINAL : public nsITelephonyService

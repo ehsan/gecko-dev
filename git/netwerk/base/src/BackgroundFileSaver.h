@@ -25,7 +25,7 @@
 class nsIAsyncInputStream;
 class nsIThread;
 class nsIX509CertList;
-struct PRLogModuleInfo;
+class PRLogModuleInfo;
 
 namespace mozilla {
 namespace net {

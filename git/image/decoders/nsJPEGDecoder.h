@@ -47,7 +47,7 @@ typedef enum {
 } jstate;
 
 class RasterImage;
-struct Orientation;
+class Orientation;
 
 class nsJPEGDecoder : public Decoder
 {

@@ -479,7 +479,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(CategoryManagerMallocSizeOf)
 
 NS_IMETHODIMP
 nsCategoryManager::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                  nsISupports* aData, bool aAnonymize)
+                                  nsISupports* aData)
 {
   return MOZ_COLLECT_REPORT(
     "explicit/xpcom/category-manager", KIND_HEAP, UNITS_BYTES,

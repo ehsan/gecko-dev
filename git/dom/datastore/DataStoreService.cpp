@@ -476,8 +476,6 @@ public:
 class RevisionAddedEnableStoreCallback MOZ_FINAL :
   public DataStoreRevisionCallback
 {
-private:
-  ~RevisionAddedEnableStoreCallback() {}
 public:
   NS_INLINE_DECL_REFCOUNTING(RevisionAddedEnableStoreCallback);
 
@@ -642,8 +640,6 @@ NS_IMPL_ISUPPORTS(FirstRevisionIdCallback, nsIDOMEventListener)
 // created, but they don't know its value yet.
 class RetrieveRevisionsCounter
 {
-private:
-  ~RetrieveRevisionsCounter() {}
 public:
   NS_INLINE_DECL_REFCOUNTING(RetrieveRevisionsCounter);
 
@@ -903,7 +899,7 @@ DataStoreService::GetDataStores(nsIDOMWindow* aWindow,
       return NS_OK;
     }
 
-    rv = GetDataStoreInfos(aName, appId, principal, stores);
+    rv = GetDataStoreInfos(aName, appId, stores);
     if (NS_FAILED(rv)) {
       RejectPromise(window, promise, rv);
       promise.forget(aDataStores);
@@ -1043,7 +1039,6 @@ DataStoreService::GetDataStoresResolve(nsPIDOMWindow* aWindow,
 nsresult
 DataStoreService::GetDataStoreInfos(const nsAString& aName,
                                     uint32_t aAppId,
-                                    nsIPrincipal* aPrincipal,
                                     nsTArray<DataStoreInfo>& aStores)
 {
   AssertIsInMainProcess();
@@ -1065,7 +1060,15 @@ DataStoreService::GetDataStoreInfos(const nsAString& aName,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  if (!DataStoreService::CheckPermission(aPrincipal)) {
+  uint16_t status;
+  rv = app->GetAppStatus(&status);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  if (status != nsIPrincipal::APP_STATUS_CERTIFIED &&
+      !Preferences::GetBool("dom.testing.datastore_enabled_for_hosted_apps",
+                            false)) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -1085,45 +1088,6 @@ DataStoreService::GetDataStoreInfos(const nsAString& aName,
 
   GetDataStoreInfosData data(mAccessStores, aName, aAppId, aStores);
   apps->EnumerateRead(GetDataStoreInfosEnumerator, &data);
-  return NS_OK;
-}
-
-bool
-DataStoreService::CheckPermission(nsIPrincipal* aPrincipal)
-{
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.datastore.enabled", &enabled);
-  if (!enabled) {
-    return false;
-  }
-
-  // Just for testing, we can enable DataStore for any kind of app.
-  if (Preferences::GetBool("dom.testing.datastore_enabled_for_hosted_apps", false)) {
-    return true;
-  }
-
-  if (!aPrincipal) {
-    return false;
-  }
-
-  uint16_t status;
-  if (NS_FAILED(aPrincipal->GetAppStatus(&status))) {
-    return false;
-  }
-
-  // Only support DataStore API for certified apps for now.
-  return status == nsIPrincipal::APP_STATUS_CERTIFIED;
-}
-
-NS_IMETHODIMP
-DataStoreService::CheckPermission(nsIPrincipal* aPrincipal,
-                                  bool* aResult)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  *aResult = DataStoreService::CheckPermission(aPrincipal);
-
   return NS_OK;
 }
 
@@ -1343,7 +1307,7 @@ DataStoreService::GetDataStoresFromIPC(const nsAString& aName,
   }
 
   nsTArray<DataStoreInfo> stores;
-  rv = GetDataStoreInfos(aName, appId, aPrincipal, stores);
+  rv = GetDataStoreInfos(aName, appId, stores);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }

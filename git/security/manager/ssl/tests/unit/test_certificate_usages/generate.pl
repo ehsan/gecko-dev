@@ -23,7 +23,7 @@ my @base_usages=("",
 
 my @ee_usages=("",
                "digitalSignature,keyEncipherment,dataEncipherment",
-               "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment,keyAgreement",
+               "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment,keyAgreement,certSigning,crlSigning",
                "certSigning");
 my @eku_usages=("serverAuth,clientAuth,codeSigning,emailProtection,timeStamp,ocspResponder,stepUp,msTrustListSign",
                 "serverAuth,clientAuth",

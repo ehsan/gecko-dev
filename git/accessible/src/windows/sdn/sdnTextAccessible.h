@@ -13,7 +13,7 @@
 #include "AccessibleWrap.h"
 
 class nsIFrame;
-struct nsPoint;
+class nsPoint;
 
 namespace mozilla {
 namespace a11y {

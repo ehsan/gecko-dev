@@ -83,10 +83,8 @@ struct URLValue {
   URLValue(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
            nsIPrincipal* aOriginPrincipal);
 
-protected:
   ~URLValue();
 
-public:
   bool operator==(const URLValue& aOther) const;
 
   // URIEquals only compares URIs and principals (unlike operator==, which
@@ -126,10 +124,8 @@ struct ImageValue : public URLValue {
   // aString must not be null.
   ImageValue(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
              nsIPrincipal* aOriginPrincipal, nsIDocument* aDocument);
-private:
   ~ImageValue();
 
-public:
   // Inherit operator== from URLValue
 
   nsRefPtrHashtable<nsPtrHashKey<nsISupports>, imgRequestProxy> mRequests; 

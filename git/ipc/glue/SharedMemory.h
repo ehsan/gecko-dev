@@ -25,17 +25,6 @@ enum Rights {
 }
 
 namespace mozilla {
-
-namespace ipc {
-class SharedMemory;
-}
-
-template<>
-struct HasDangerousPublicDestructor<mozilla::ipc::SharedMemory>
-{
-  static const bool value = true;
-};
-
 namespace ipc {
 
 class SharedMemory

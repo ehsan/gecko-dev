@@ -44,8 +44,7 @@ private:
   MOZ_DEFINE_MALLOC_SIZE_OF_ON_FREE(MallocSizeOfOnFree)
 
   NS_IMETHODIMP
-  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,
-                 bool aAnonymize);
+  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData);
 };
 
 } // namespace mozilla

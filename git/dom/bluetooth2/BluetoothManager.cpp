@@ -247,29 +247,31 @@ BluetoothManager::DispatchAttributeEvent()
   MOZ_ASSERT(NS_IsMainThread());
   BT_API2_LOGR();
 
+  // Wrap default adapter
   AutoJSContext cx;
   JS::Rooted<JS::Value> value(cx, JS::NullValue());
+  if (DefaultAdapterExists()) {
+    BluetoothAdapter* adapter = mAdapters[mDefaultAdapterIndex];
+    nsCOMPtr<nsIGlobalObject> global =
+      do_QueryInterface(adapter->GetParentObject());
+    NS_ENSURE_TRUE_VOID(global);
 
-  nsCOMPtr<nsIGlobalObject> global =
-    do_QueryInterface(GetOwner());
-  NS_ENSURE_TRUE_VOID(global);
+    JS::Rooted<JSObject*> scope(cx, global->GetGlobalJSObject());
+    NS_ENSURE_TRUE_VOID(scope);
 
-  JS::Rooted<JSObject*> scope(cx, global->GetGlobalJSObject());
-  NS_ENSURE_TRUE_VOID(scope);
+    JSAutoCompartment ac(cx, scope);
+    if (!ToJSValue(cx, mAdapters[mDefaultAdapterIndex], &value)) {
+      JS_ClearPendingException(cx);
+      return;
+    }
 
-  JSAutoCompartment ac(cx, scope);
-
-  nsTArray<nsString> types;
-  types.AppendElement(NS_LITERAL_STRING("DefaultAdapter"));
-
-  if (!ToJSValue(cx, types, &value)) {
-    JS_ClearPendingException(cx);
-    return;
+    BT_API2_LOGR("Default adapter is wrapped");
   }
 
   // Notify application of default adapter change
   RootedDictionary<BluetoothAttributeEventInit> init(cx);
-  init.mAttrs = value;
+  init.mAttr = (uint16_t)BluetoothManagerAttribute::DefaultAdapter;
+  init.mValue = value;
   nsRefPtr<BluetoothAttributeEvent> event =
     BluetoothAttributeEvent::Constructor(this,
                                          NS_LITERAL_STRING("attributechanged"),

@@ -24,27 +24,26 @@
 
 namespace mozilla {
 
-/** Set the contents of |aT| to 0. */
+/** Set the contents of |t| to 0. */
 template<typename T>
 static MOZ_ALWAYS_INLINE void
-PodZero(T* aT)
+PodZero(T* t)
 {
-  memset(aT, 0, sizeof(T));
+  memset(t, 0, sizeof(T));
 }
 
-/** Set the contents of |aNElem| elements starting at |aT| to 0. */
+/** Set the contents of |nelem| elements starting at |t| to 0. */
 template<typename T>
 static MOZ_ALWAYS_INLINE void
-PodZero(T* aT, size_t aNElem)
+PodZero(T* t, size_t nelem)
 {
   /*
-   * This function is often called with 'aNElem' small; we use an inline loop
+   * This function is often called with 'nelem' small; we use an inline loop
    * instead of calling 'memset' with a non-constant length.  The compiler
    * should inline the memset call with constant size, though.
    */
-  for (T* end = aT + aNElem; aT < end; aT++) {
-    memset(aT, 0, sizeof(T));
-  }
+  for (T* end = t + nelem; t < end; t++)
+    memset(t, 0, sizeof(T));
 }
 
 /*
@@ -55,116 +54,107 @@ PodZero(T* aT, size_t aNElem)
  * compile error involving PodZero and array types, use PodArrayZero instead.
  */
 template<typename T, size_t N>
-static void PodZero(T (&aT)[N]) MOZ_DELETE;
+static void PodZero(T (&t)[N]) MOZ_DELETE;
 template<typename T, size_t N>
-static void PodZero(T (&aT)[N], size_t aNElem) MOZ_DELETE;
+static void PodZero(T (&t)[N], size_t nelem) MOZ_DELETE;
 
-/** Set the contents of the array |aT| to zero. */
+/** Set the contents of the array |t| to zero. */
 template <class T, size_t N>
 static MOZ_ALWAYS_INLINE void
-PodArrayZero(T (&aT)[N])
+PodArrayZero(T (&t)[N])
 {
-  memset(aT, 0, N * sizeof(T));
+  memset(t, 0, N * sizeof(T));
 }
 
 template <typename T, size_t N>
 static MOZ_ALWAYS_INLINE void
-PodArrayZero(Array<T, N>& aArr)
+PodArrayZero(Array<T, N>& arr)
 {
-  memset(&aArr[0], 0, N * sizeof(T));
+  memset(&arr[0], 0, N * sizeof(T));
 }
 
 /**
- * Assign |*aSrc| to |*aDst|.  The locations must not be the same and must not
+ * Assign |*src| to |*dst|.  The locations must not be the same and must not
  * overlap.
  */
 template<typename T>
 static MOZ_ALWAYS_INLINE void
-PodAssign(T* aDst, const T* aSrc)
+PodAssign(T* dst, const T* src)
 {
-  MOZ_ASSERT(aDst != aSrc);
-  MOZ_ASSERT_IF(aSrc < aDst,
-                PointerRangeSize(aSrc, static_cast<const T*>(aDst)) >= 1);
-  MOZ_ASSERT_IF(aDst < aSrc,
-                PointerRangeSize(static_cast<const T*>(aDst), aSrc) >= 1);
-  memcpy(reinterpret_cast<char*>(aDst), reinterpret_cast<const char*>(aSrc),
-         sizeof(T));
+  MOZ_ASSERT(dst != src);
+  MOZ_ASSERT_IF(src < dst, PointerRangeSize(src, static_cast<const T*>(dst)) >= 1);
+  MOZ_ASSERT_IF(dst < src, PointerRangeSize(static_cast<const T*>(dst), src) >= 1);
+  memcpy(reinterpret_cast<char*>(dst), reinterpret_cast<const char*>(src), sizeof(T));
 }
 
 /**
- * Copy |aNElem| T elements from |aSrc| to |aDst|.  The two memory ranges must
- * not overlap!
+ * Copy |nelem| T elements from |src| to |dst|.  The two memory ranges must not
+ * overlap!
  */
 template<typename T>
 static MOZ_ALWAYS_INLINE void
-PodCopy(T* aDst, const T* aSrc, size_t aNElem)
+PodCopy(T* dst, const T* src, size_t nelem)
 {
-  MOZ_ASSERT(aDst != aSrc);
-  MOZ_ASSERT_IF(aSrc < aDst,
-                PointerRangeSize(aSrc, static_cast<const T*>(aDst)) >= aNElem);
-  MOZ_ASSERT_IF(aDst < aSrc,
-                PointerRangeSize(static_cast<const T*>(aDst), aSrc) >= aNElem);
+  MOZ_ASSERT(dst != src);
+  MOZ_ASSERT_IF(src < dst, PointerRangeSize(src, static_cast<const T*>(dst)) >= nelem);
+  MOZ_ASSERT_IF(dst < src, PointerRangeSize(static_cast<const T*>(dst), src) >= nelem);
 
-  if (aNElem < 128) {
+  if (nelem < 128) {
     /*
      * Avoid using operator= in this loop, as it may have been
      * intentionally deleted by the POD type.
      */
-    for (const T* srcend = aSrc + aNElem; aSrc < srcend; aSrc++, aDst++) {
-      PodAssign(aDst, aSrc);
-    }
+    for (const T* srcend = src + nelem; src < srcend; src++, dst++)
+      PodAssign(dst, src);
   } else {
-    memcpy(aDst, aSrc, aNElem * sizeof(T));
+    memcpy(dst, src, nelem * sizeof(T));
   }
 }
 
 template<typename T>
 static MOZ_ALWAYS_INLINE void
-PodCopy(volatile T* aDst, const volatile T* aSrc, size_t aNElem)
+PodCopy(volatile T* dst, const volatile T* src, size_t nelem)
 {
-  MOZ_ASSERT(aDst != aSrc);
-  MOZ_ASSERT_IF(aSrc < aDst,
-    PointerRangeSize(aSrc, static_cast<const volatile T*>(aDst)) >= aNElem);
-  MOZ_ASSERT_IF(aDst < aSrc,
-    PointerRangeSize(static_cast<const volatile T*>(aDst), aSrc) >= aNElem);
+  MOZ_ASSERT(dst != src);
+  MOZ_ASSERT_IF(src < dst,
+                PointerRangeSize(src, static_cast<const volatile T*>(dst)) >= nelem);
+  MOZ_ASSERT_IF(dst < src,
+                PointerRangeSize(static_cast<const volatile T*>(dst), src) >= nelem);
 
   /*
-   * Volatile |aDst| requires extra work, because it's undefined behavior to
+   * Volatile |dst| requires extra work, because it's undefined behavior to
    * modify volatile objects using the mem* functions.  Just write out the
    * loops manually, using operator= rather than memcpy for the same reason,
    * and let the compiler optimize to the extent it can.
    */
-  for (const volatile T* srcend = aSrc + aNElem;
-       aSrc < srcend;
-       aSrc++, aDst++) {
-    *aDst = *aSrc;
-  }
+  for (const volatile T* srcend = src + nelem; src < srcend; src++, dst++)
+    *dst = *src;
 }
 
 /*
- * Copy the contents of the array |aSrc| into the array |aDst|, both of size N.
+ * Copy the contents of the array |src| into the array |dst|, both of size N.
  * The arrays must not overlap!
  */
 template <class T, size_t N>
 static MOZ_ALWAYS_INLINE void
-PodArrayCopy(T (&aDst)[N], const T (&aSrc)[N])
+PodArrayCopy(T (&dst)[N], const T (&src)[N])
 {
-  PodCopy(aDst, aSrc, N);
+  PodCopy(dst, src, N);
 }
 
 /**
- * Copy the memory for |aNElem| T elements from |aSrc| to |aDst|.  If the two
- * memory ranges overlap, then the effect is as if the |aNElem| elements are
- * first copied from |aSrc| to a temporary array, and then from the temporary
- * array to |aDst|.
+ * Copy the memory for |nelem| T elements from |src| to |dst|.  If the two
+ * memory ranges overlap, then the effect is as if the |nelem| elements are
+ * first copied from |src| to a temporary array, and then from the temporary
+ * array to |dst|.
  */
 template<typename T>
 static MOZ_ALWAYS_INLINE void
-PodMove(T* aDst, const T* aSrc, size_t aNElem)
+PodMove(T* dst, const T* src, size_t nelem)
 {
-  MOZ_ASSERT(aNElem <= SIZE_MAX / sizeof(T),
+  MOZ_ASSERT(nelem <= SIZE_MAX / sizeof(T),
              "trying to move an impossible number of elements");
-  memmove(aDst, aSrc, aNElem * sizeof(T));
+  memmove(dst, src, nelem * sizeof(T));
 }
 
 /**
@@ -180,9 +170,8 @@ PodEqual(const T* one, const T* two, size_t len)
     const T* p1 = one;
     const T* p2 = two;
     for (; p1 < p1end; p1++, p2++) {
-      if (*p1 != *p2) {
+      if (*p1 != *p2)
         return false;
-      }
     }
     return true;
   }

@@ -816,7 +816,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(ScriptNameSpaceManagerMallocSizeOf)
 
 NS_IMETHODIMP
 nsScriptNameSpaceManager::CollectReports(
-  nsIHandleReportCallback* aHandleReport, nsISupports* aData, bool aAnonymize)
+  nsIHandleReportCallback* aHandleReport, nsISupports* aData)
 {
   return MOZ_COLLECT_REPORT(
     "explicit/script-namespace-manager", KIND_HEAP, UNITS_BYTES,

@@ -39,7 +39,7 @@ typedef uint32_t SequenceNumber;
 class APZTestData {
   typedef FrameMetrics::ViewID ViewID;
   friend struct IPC::ParamTraits<APZTestData>;
-  friend struct APZTestDataToJSConverter;
+  friend class APZTestDataToJSConverter;
 public:
   void StartNewPaint(SequenceNumber aSequenceNumber) {
     mPaints.insert(DataStore::value_type(aSequenceNumber, Bucket()));

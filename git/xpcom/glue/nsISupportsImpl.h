@@ -404,14 +404,6 @@ public:
  */
 #define NS_INIT_ISUPPORTS() ((void)0)
 
-namespace mozilla {
-template <typename T>
-struct HasDangerousPublicDestructor
-{
-  static const bool value = false;
-};
-}
-
 /**
  * Use this macro to declare and implement the AddRef & Release methods for a
  * given non-XPCOM <i>_class</i>.

@@ -39,7 +39,7 @@ class nsITimer;
 class nsIURI;
 
 namespace JS {
-struct RuntimeStats;
+class RuntimeStats;
 }
 
 namespace mozilla {
@@ -948,7 +948,7 @@ public:
   ScheduleDeletion(WorkerRanOrNot aRanOrNot);
 
   bool
-  BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats, bool aAnonymize);
+  BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats);
 
 #ifdef JS_GC_ZEAL
   void

@@ -21,31 +21,31 @@ namespace mozilla {
 // Greatest Common Divisor
 template<typename IntegerType>
 MOZ_ALWAYS_INLINE IntegerType
-EuclidGCD(IntegerType aA, IntegerType aB)
+EuclidGCD(IntegerType a, IntegerType b)
 {
   // Euclid's algorithm; O(N) in the worst case.  (There are better
   // ways, but we don't need them for the current use of this algo.)
-  MOZ_ASSERT(aA > IntegerType(0));
-  MOZ_ASSERT(aB > IntegerType(0));
+  MOZ_ASSERT(a > IntegerType(0));
+  MOZ_ASSERT(b > IntegerType(0));
 
-  while (aA != aB) {
-    if (aA > aB) {
-      aA = aA - aB;
+  while (a != b) {
+    if (a > b) {
+      a = a - b;
     } else {
-      aB = aB - aA;
+      b = b - a;
     }
   }
 
-  return aA;
+  return a;
 }
 
 // Least Common Multiple
 template<typename IntegerType>
 MOZ_ALWAYS_INLINE IntegerType
-EuclidLCM(IntegerType aA, IntegerType aB)
+EuclidLCM(IntegerType a, IntegerType b)
 {
   // Divide first to reduce overflow risk.
-  return (aA / EuclidGCD(aA, aB)) * aB;
+  return (a / EuclidGCD(a, b)) * b;
 }
 
 namespace detail {
@@ -68,7 +68,7 @@ template<> struct AllowDeprecatedAbs<long> : TrueType {};
 // to Abs below, and it will be removed when all callers have been changed.
 template<typename T>
 inline typename mozilla::EnableIf<detail::AllowDeprecatedAbs<T>::value, T>::Type
-DeprecatedAbs(const T aValue)
+DeprecatedAbs(const T t)
 {
   // The absolute value of the smallest possible value of a signed-integer type
   // won't fit in that type (on twos-complement systems -- and we're blithely
@@ -79,10 +79,10 @@ DeprecatedAbs(const T aValue)
   // value in the range [-maxvalue, 0]), then negating (giving a value in the
   // range [0, maxvalue]), doesn't produce maxvalue (because in twos-complement,
   // (minvalue + 1) == -maxvalue).
-  MOZ_ASSERT(aValue >= 0 ||
-             -(aValue + 1) != T((1ULL << (CHAR_BIT * sizeof(T) - 1)) - 1),
+  MOZ_ASSERT(t >= 0 ||
+             -(t + 1) != T((1ULL << (CHAR_BIT * sizeof(T) - 1)) - 1),
              "You can't negate the smallest possible negative integer!");
-  return aValue >= 0 ? aValue : -aValue;
+  return t >= 0 ? t : -t;
 }
 
 namespace detail {
@@ -116,31 +116,31 @@ template<> struct AbsReturnType<long double> { typedef long double Type; };
 
 template<typename T>
 inline typename detail::AbsReturnType<T>::Type
-Abs(const T aValue)
+Abs(const T t)
 {
   typedef typename detail::AbsReturnType<T>::Type ReturnType;
-  return aValue >= 0 ? ReturnType(aValue) : ~ReturnType(aValue) + 1;
+  return t >= 0 ? ReturnType(t) : ~ReturnType(t) + 1;
 }
 
 template<>
 inline float
-Abs<float>(const float aFloat)
+Abs<float>(const float f)
 {
-  return std::fabs(aFloat);
+  return std::fabs(f);
 }
 
 template<>
 inline double
-Abs<double>(const double aDouble)
+Abs<double>(const double d)
 {
-  return std::fabs(aDouble);
+  return std::fabs(d);
 }
 
 template<>
 inline long double
-Abs<long double>(const long double aLongDouble)
+Abs<long double>(const long double d)
 {
-  return std::fabs(aLongDouble);
+  return std::fabs(d);
 }
 
 } // namespace mozilla
@@ -164,62 +164,60 @@ namespace detail {
 
 #if defined(MOZ_BITSCAN_WINDOWS)
 
-inline uint_fast8_t
-CountLeadingZeroes32(uint32_t aValue)
-{
-  unsigned long index;
-  _BitScanReverse(&index, static_cast<unsigned long>(aValue));
-  return uint_fast8_t(31 - index);
-}
-
-
-inline uint_fast8_t
-CountTrailingZeroes32(uint32_t aValue)
-{
-  unsigned long index;
-  _BitScanForward(&index, static_cast<unsigned long>(aValue));
-  return uint_fast8_t(index);
-}
-
-inline uint_fast8_t
-CountPopulation32(uint32_t aValue)
-{
-  uint32_t x = aValue - ((aValue >> 1) & 0x55555555);
-  x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
-  return (((x + (x >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
-}
-
-inline uint_fast8_t
-CountLeadingZeroes64(uint64_t aValue)
-{
-#if defined(MOZ_BITSCAN_WINDOWS64)
-  unsigned long index;
-  _BitScanReverse64(&index, static_cast<unsigned __int64>(aValue));
-  return uint_fast8_t(63 - index);
-#else
-  uint32_t hi = uint32_t(aValue >> 32);
-  if (hi != 0) {
-    return CountLeadingZeroes32(hi);
+  inline uint_fast8_t
+  CountLeadingZeroes32(uint32_t u)
+  {
+    unsigned long index;
+    _BitScanReverse(&index, static_cast<unsigned long>(u));
+    return uint_fast8_t(31 - index);
   }
-  return 32u + CountLeadingZeroes32(uint32_t(aValue));
-#endif
-}
 
-inline uint_fast8_t
-CountTrailingZeroes64(uint64_t aValue)
-{
-#if defined(MOZ_BITSCAN_WINDOWS64)
-  unsigned long index;
-  _BitScanForward64(&index, static_cast<unsigned __int64>(aValue));
-  return uint_fast8_t(index);
-#else
-  uint32_t lo = uint32_t(aValue);
-  if (lo != 0) {
-    return CountTrailingZeroes32(lo);
+
+  inline uint_fast8_t
+  CountTrailingZeroes32(uint32_t u)
+  {
+    unsigned long index;
+    _BitScanForward(&index, static_cast<unsigned long>(u));
+    return uint_fast8_t(index);
   }
-  return 32u + CountTrailingZeroes32(uint32_t(aValue >> 32));
-#endif
-}
+
+  inline uint_fast8_t
+  CountPopulation32(uint32_t u)
+  {
+    uint32_t x = u - ((u >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    return (((x + (x >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
+  }
+
+  inline uint_fast8_t
+  CountLeadingZeroes64(uint64_t u)
+  {
+#  if defined(MOZ_BITSCAN_WINDOWS64)
+    unsigned long index;
+    _BitScanReverse64(&index, static_cast<unsigned __int64>(u));
+    return uint_fast8_t(63 - index);
+#  else
+    uint32_t hi = uint32_t(u >> 32);
+    if (hi != 0)
+      return CountLeadingZeroes32(hi);
+    return 32u + CountLeadingZeroes32(uint32_t(u));
+#  endif
+  }
+
+  inline uint_fast8_t
+  CountTrailingZeroes64(uint64_t u)
+  {
+#  if defined(MOZ_BITSCAN_WINDOWS64)
+    unsigned long index;
+    _BitScanForward64(&index, static_cast<unsigned __int64>(u));
+    return uint_fast8_t(index);
+#  else
+    uint32_t lo = uint32_t(u);
+    if (lo != 0)
+      return CountTrailingZeroes32(lo);
+    return 32u + CountTrailingZeroes32(uint32_t(u >> 32));
+#  endif
+  }
 
 #  ifdef MOZ_HAVE_BITSCAN64
 #    undef MOZ_HAVE_BITSCAN64
@@ -235,52 +233,52 @@ CountTrailingZeroes64(uint64_t aValue)
      // gcc has had __builtin_clz and friends since 3.4: no need to check.
 #  endif
 
-inline uint_fast8_t
-CountLeadingZeroes32(uint32_t aValue)
-{
-  return __builtin_clz(aValue);
-}
+  inline uint_fast8_t
+  CountLeadingZeroes32(uint32_t u)
+  {
+    return __builtin_clz(u);
+  }
 
-inline uint_fast8_t
-CountTrailingZeroes32(uint32_t aValue)
-{
-  return __builtin_ctz(aValue);
-}
+  inline uint_fast8_t
+  CountTrailingZeroes32(uint32_t u)
+  {
+    return __builtin_ctz(u);
+  }
 
-inline uint_fast8_t
-CountPopulation32(uint32_t aValue)
-{
-  return __builtin_popcount(aValue);
-}
+  inline uint_fast8_t
+  CountPopulation32(uint32_t u)
+  {
+    return __builtin_popcount(u);
+  }
 
-inline uint_fast8_t
-CountLeadingZeroes64(uint64_t aValue)
-{
-  return __builtin_clzll(aValue);
-}
+  inline uint_fast8_t
+  CountLeadingZeroes64(uint64_t u)
+  {
+    return __builtin_clzll(u);
+  }
 
-inline uint_fast8_t
-CountTrailingZeroes64(uint64_t aValue)
-{
-  return __builtin_ctzll(aValue);
-}
+  inline uint_fast8_t
+  CountTrailingZeroes64(uint64_t u)
+  {
+    return __builtin_ctzll(u);
+  }
 
 #else
 #  error "Implement these!"
-inline uint_fast8_t CountLeadingZeroes32(uint32_t aValue) MOZ_DELETE;
-inline uint_fast8_t CountTrailingZeroes32(uint32_t aValue) MOZ_DELETE;
-inline uint_fast8_t CountPopulation32(uint32_t aValue) MOZ_DELETE;
-inline uint_fast8_t CountLeadingZeroes64(uint64_t aValue) MOZ_DELETE;
-inline uint_fast8_t CountTrailingZeroes64(uint64_t aValue) MOZ_DELETE;
+  inline uint_fast8_t CountLeadingZeroes32(uint32_t u) MOZ_DELETE;
+  inline uint_fast8_t CountTrailingZeroes32(uint32_t u) MOZ_DELETE;
+  inline uint_fast8_t CountPopulation32(uint32_t u) MOZ_DELETE;
+  inline uint_fast8_t CountLeadingZeroes64(uint64_t u) MOZ_DELETE;
+  inline uint_fast8_t CountTrailingZeroes64(uint64_t u) MOZ_DELETE;
 #endif
 
 } // namespace detail
 
 /**
- * Compute the number of high-order zero bits in the NON-ZERO number |aValue|.
- * That is, looking at the bitwise representation of the number, with the
- * highest- valued bits at the start, return the number of zeroes before the
- * first one is observed.
+ * Compute the number of high-order zero bits in the NON-ZERO number |u|.  That
+ * is, looking at the bitwise representation of the number, with the highest-
+ * valued bits at the start, return the number of zeroes before the first one
+ * is observed.
  *
  * CountLeadingZeroes32(0xF0FF1000) is 0;
  * CountLeadingZeroes32(0x7F8F0001) is 1;
@@ -288,17 +286,17 @@ inline uint_fast8_t CountTrailingZeroes64(uint64_t aValue) MOZ_DELETE;
  * CountLeadingZeroes32(0x1FF50010) is 3; and so on.
  */
 inline uint_fast8_t
-CountLeadingZeroes32(uint32_t aValue)
+CountLeadingZeroes32(uint32_t u)
 {
-  MOZ_ASSERT(aValue != 0);
-  return detail::CountLeadingZeroes32(aValue);
+  MOZ_ASSERT(u != 0);
+  return detail::CountLeadingZeroes32(u);
 }
 
 /**
- * Compute the number of low-order zero bits in the NON-ZERO number |aValue|.
- * That is, looking at the bitwise representation of the number, with the
- * lowest- valued bits at the start, return the number of zeroes before the
- * first one is observed.
+ * Compute the number of low-order zero bits in the NON-ZERO number |u|.  That
+ * is, looking at the bitwise representation of the number, with the lowest-
+ * valued bits at the start, return the number of zeroes before the first one
+ * is observed.
  *
  * CountTrailingZeroes32(0x0100FFFF) is 0;
  * CountTrailingZeroes32(0x7000FFFE) is 1;
@@ -306,35 +304,35 @@ CountLeadingZeroes32(uint32_t aValue)
  * CountTrailingZeroes32(0x0080FFF8) is 3; and so on.
  */
 inline uint_fast8_t
-CountTrailingZeroes32(uint32_t aValue)
+CountTrailingZeroes32(uint32_t u)
 {
-  MOZ_ASSERT(aValue != 0);
-  return detail::CountTrailingZeroes32(aValue);
+  MOZ_ASSERT(u != 0);
+  return detail::CountTrailingZeroes32(u);
 }
 
 /**
- * Compute the number of one bits in the number |aValue|,
+ * Compute the number of one bits in the number |u|,
  */
 inline uint_fast8_t
-CountPopulation32(uint32_t aValue)
+CountPopulation32(uint32_t u)
 {
-  return detail::CountPopulation32(aValue);
+  return detail::CountPopulation32(u);
 }
 
 /** Analogous to CountLeadingZeroes32, but for 64-bit numbers. */
 inline uint_fast8_t
-CountLeadingZeroes64(uint64_t aValue)
+CountLeadingZeroes64(uint64_t u)
 {
-  MOZ_ASSERT(aValue != 0);
-  return detail::CountLeadingZeroes64(aValue);
+  MOZ_ASSERT(u != 0);
+  return detail::CountLeadingZeroes64(u);
 }
 
 /** Analogous to CountTrailingZeroes32, but for 64-bit numbers. */
 inline uint_fast8_t
-CountTrailingZeroes64(uint64_t aValue)
+CountTrailingZeroes64(uint64_t u)
 {
-  MOZ_ASSERT(aValue != 0);
-  return detail::CountTrailingZeroes64(aValue);
+  MOZ_ASSERT(u != 0);
+  return detail::CountTrailingZeroes64(u);
 }
 
 namespace detail {
@@ -345,29 +343,27 @@ class CeilingLog2;
 template<typename T>
 class CeilingLog2<T, 4>
 {
-public:
-  static uint_fast8_t compute(const T aValue)
-  {
-    // Check for <= 1 to avoid the == 0 undefined case.
-    return aValue <= 1 ? 0u : 32u - CountLeadingZeroes32(aValue - 1);
-  }
+  public:
+    static uint_fast8_t compute(const T t) {
+      // Check for <= 1 to avoid the == 0 undefined case.
+      return t <= 1 ? 0u : 32u - CountLeadingZeroes32(t - 1);
+    }
 };
 
 template<typename T>
 class CeilingLog2<T, 8>
 {
-public:
-  static uint_fast8_t compute(const T aValue)
-  {
-    // Check for <= 1 to avoid the == 0 undefined case.
-    return aValue <= 1 ? 0 : 64 - CountLeadingZeroes64(aValue - 1);
-  }
+  public:
+    static uint_fast8_t compute(const T t) {
+      // Check for <= 1 to avoid the == 0 undefined case.
+      return t <= 1 ? 0 : 64 - CountLeadingZeroes64(t - 1);
+    }
 };
 
 } // namespace detail
 
 /**
- * Compute the log of the least power of 2 greater than or equal to |aValue|.
+ * Compute the log of the least power of 2 greater than or equal to |t|.
  *
  * CeilingLog2(0..1) is 0;
  * CeilingLog2(2) is 1;
@@ -377,16 +373,16 @@ public:
  */
 template<typename T>
 inline uint_fast8_t
-CeilingLog2(const T aValue)
+CeilingLog2(const T t)
 {
-  return detail::CeilingLog2<T>::compute(aValue);
+  return detail::CeilingLog2<T>::compute(t);
 }
 
 /** A CeilingLog2 variant that accepts only size_t. */
 inline uint_fast8_t
-CeilingLog2Size(size_t aValue)
+CeilingLog2Size(size_t n)
 {
-  return CeilingLog2(aValue);
+  return CeilingLog2(n);
 }
 
 namespace detail {
@@ -397,27 +393,25 @@ class FloorLog2;
 template<typename T>
 class FloorLog2<T, 4>
 {
-public:
-  static uint_fast8_t compute(const T aValue)
-  {
-    return 31u - CountLeadingZeroes32(aValue | 1);
-  }
+  public:
+    static uint_fast8_t compute(const T t) {
+      return 31u - CountLeadingZeroes32(t | 1);
+    }
 };
 
 template<typename T>
 class FloorLog2<T, 8>
 {
-public:
-  static uint_fast8_t compute(const T aValue)
-  {
-    return 63u - CountLeadingZeroes64(aValue | 1);
-  }
+  public:
+    static uint_fast8_t compute(const T t) {
+      return 63u - CountLeadingZeroes64(t | 1);
+    }
 };
 
 } // namespace detail
 
 /**
- * Compute the log of the greatest power of 2 less than or equal to |aValue|.
+ * Compute the log of the greatest power of 2 less than or equal to |t|.
  *
  * FloorLog2(0..1) is 0;
  * FloorLog2(2..3) is 1;
@@ -426,16 +420,16 @@ public:
  */
 template<typename T>
 inline uint_fast8_t
-FloorLog2(const T aValue)
+FloorLog2(const T t)
 {
-  return detail::FloorLog2<T>::compute(aValue);
+  return detail::FloorLog2<T>::compute(t);
 }
 
 /** A FloorLog2 variant that accepts only size_t. */
 inline uint_fast8_t
-FloorLog2Size(size_t aValue)
+FloorLog2Size(size_t n)
 {
-  return FloorLog2(aValue);
+  return FloorLog2(n);
 }
 
 /*
@@ -443,11 +437,11 @@ FloorLog2Size(size_t aValue)
  * be so great that the computed value would overflow |size_t|.
  */
 inline size_t
-RoundUpPow2(size_t aValue)
+RoundUpPow2(size_t x)
 {
-  MOZ_ASSERT(aValue <= (size_t(1) << (sizeof(size_t) * CHAR_BIT - 1)),
+  MOZ_ASSERT(x <= (size_t(1) << (sizeof(size_t) * CHAR_BIT - 1)),
              "can't round up -- will overflow!");
-  return size_t(1) << CeilingLog2(aValue);
+  return size_t(1) << CeilingLog2(x);
 }
 
 /**
@@ -455,11 +449,11 @@ RoundUpPow2(size_t aValue)
  */
 template<typename T>
 inline T
-RotateLeft(const T aValue, uint_fast8_t aShift)
+RotateLeft(const T t, uint_fast8_t shift)
 {
-  MOZ_ASSERT(aShift < sizeof(T) * CHAR_BIT, "Shift value is too large!");
+  MOZ_ASSERT(shift < sizeof(T) * CHAR_BIT, "Shift value is too large!");
   static_assert(IsUnsigned<T>::value, "Rotates require unsigned values");
-  return (aValue << aShift) | (aValue >> (sizeof(T) * CHAR_BIT - aShift));
+  return (t << shift) | (t >> (sizeof(T) * CHAR_BIT - shift));
 }
 
 /**
@@ -467,11 +461,11 @@ RotateLeft(const T aValue, uint_fast8_t aShift)
  */
 template<typename T>
 inline T
-RotateRight(const T aValue, uint_fast8_t aShift)
+RotateRight(const T t, uint_fast8_t shift)
 {
-  MOZ_ASSERT(aShift < sizeof(T) * CHAR_BIT, "Shift value is too large!");
+  MOZ_ASSERT(shift < sizeof(T) * CHAR_BIT, "Shift value is too large!");
   static_assert(IsUnsigned<T>::value, "Rotates require unsigned values");
-  return (aValue >> aShift) | (aValue << (sizeof(T) * CHAR_BIT - aShift));
+  return (t >> shift) | (t << (sizeof(T) * CHAR_BIT - shift));
 }
 
 } /* namespace mozilla */

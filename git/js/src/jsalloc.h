@@ -19,7 +19,7 @@
 
 namespace js {
 
-struct ContextFriendFields;
+class ContextFriendFields;
 
 /* Policy for using system memory functions and doing no error reporting. */
 class SystemAllocPolicy

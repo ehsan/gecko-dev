@@ -2234,7 +2234,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(HistoryMallocSizeOf)
 
 NS_IMETHODIMP
 History::CollectReports(nsIHandleReportCallback* aHandleReport,
-                        nsISupports* aData, bool aAnonymize)
+                        nsISupports* aData)
 {
   return MOZ_COLLECT_REPORT(
     "explicit/history-links-hashtable", KIND_HEAP, UNITS_BYTES,

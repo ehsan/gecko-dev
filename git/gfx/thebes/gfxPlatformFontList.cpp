@@ -128,8 +128,9 @@ MOZ_DEFINE_MALLOC_SIZE_OF(FontListMallocSizeOf)
 NS_IMPL_ISUPPORTS(gfxPlatformFontList::MemoryReporter, nsIMemoryReporter)
 
 NS_IMETHODIMP
-gfxPlatformFontList::MemoryReporter::CollectReports(
-    nsIMemoryReporterCallback* aCb, nsISupports* aClosure, bool aAnonymize)
+gfxPlatformFontList::MemoryReporter::CollectReports
+    (nsIMemoryReporterCallback* aCb,
+     nsISupports* aClosure)
 {
     FontListSizes sizes;
     sizes.mFontListSize = 0;
@@ -139,20 +140,17 @@ gfxPlatformFontList::MemoryReporter::CollectReports(
     gfxPlatformFontList::PlatformFontList()->AddSizeOfIncludingThis(&FontListMallocSizeOf,
                                                                     &sizes);
 
-    nsresult rv;
-    rv = aCb->Callback(EmptyCString(),
-                       NS_LITERAL_CSTRING("explicit/gfx/font-list"),
-                       KIND_HEAP, UNITS_BYTES, sizes.mFontListSize,
-                       NS_LITERAL_CSTRING("Memory used to manage the list of font families and faces."),
-                       aClosure);
-    NS_ENSURE_SUCCESS(rv, rv);
+    aCb->Callback(EmptyCString(),
+                  NS_LITERAL_CSTRING("explicit/gfx/font-list"),
+                  KIND_HEAP, UNITS_BYTES, sizes.mFontListSize,
+                  NS_LITERAL_CSTRING("Memory used to manage the list of font families and faces."),
+                  aClosure);
 
-    rv = aCb->Callback(EmptyCString(),
-                       NS_LITERAL_CSTRING("explicit/gfx/font-charmaps"),
-                       KIND_HEAP, UNITS_BYTES, sizes.mCharMapsSize,
-                       NS_LITERAL_CSTRING("Memory used to record the character coverage of individual fonts."),
-                       aClosure);
-    NS_ENSURE_SUCCESS(rv, rv);
+    aCb->Callback(EmptyCString(),
+                  NS_LITERAL_CSTRING("explicit/gfx/font-charmaps"),
+                  KIND_HEAP, UNITS_BYTES, sizes.mCharMapsSize,
+                  NS_LITERAL_CSTRING("Memory used to record the character coverage of individual fonts."),
+                  aClosure);
 
     if (sizes.mFontTableCacheSize) {
         aCb->Callback(EmptyCString(),

@@ -1745,9 +1745,7 @@ PLDHashOperator ReportStorageMemory(const nsACString& aKey,
                                             CacheStorageService::MallocSizeOf,
                                             aTable);
 
-  ReportStorageMemoryData& data =
-    *static_cast<ReportStorageMemoryData*>(aClosure);
-  // These key names are not privacy-sensitive.
+  ReportStorageMemoryData& data = *static_cast<ReportStorageMemoryData*>(aClosure);
   data.mHandleReport->Callback(
     EmptyCString(),
     nsPrintfCString("explicit/network/cache2/%s-storage(%s)",
@@ -1765,8 +1763,7 @@ PLDHashOperator ReportStorageMemory(const nsACString& aKey,
 } // anon
 
 NS_IMETHODIMP
-CacheStorageService::CollectReports(nsIMemoryReporterCallback* aHandleReport,
-                                    nsISupports* aData, bool aAnonymize)
+CacheStorageService::CollectReports(nsIMemoryReporterCallback* aHandleReport, nsISupports* aData)
 {
   nsresult rv;
 

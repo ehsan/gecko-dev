@@ -12,11 +12,10 @@ namespace mozilla {
 namespace layers {
 
 class TransactionIdAllocator {
-protected:
-  virtual ~TransactionIdAllocator() {}
-
 public:
   NS_INLINE_DECL_REFCOUNTING(TransactionIdAllocator)
+
+  virtual ~TransactionIdAllocator() {}
 
   /**
    * Allocate a unique id number for the current refresh tick, can

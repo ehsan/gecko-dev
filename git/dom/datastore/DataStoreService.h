@@ -48,8 +48,6 @@ public:
 
   static void Shutdown();
 
-  static bool CheckPermission(nsIPrincipal* principal);
-
   nsresult GenerateUUID(nsAString& aID);
 
   nsresult GetDataStoresFromIPC(const nsAString& aName,
@@ -84,7 +82,6 @@ private:
                             const nsTArray<DataStoreInfo>& aStores);
 
   nsresult GetDataStoreInfos(const nsAString& aName, uint32_t aAppId,
-                             nsIPrincipal* aPrincipal,
                              nsTArray<DataStoreInfo>& aStores);
 
   void DeleteDataStores(uint32_t aAppId);

@@ -147,28 +147,27 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    // Return error if BluetoothService is unavailable
-    BluetoothService* bs = BluetoothService::Get();
-    NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-
-    // Cleanup static adapter properties and notify adapter.
+    /*
+     * Cleanup static adapter properties and notify adapter to clean them
+     *
+     * TODO: clean up and notify Discovering also
+     */
     sAdapterBdAddress.Truncate();
     sAdapterBdName.Truncate();
+    sAdapterDiscoverable = false;
 
     InfallibleTArray<BluetoothNamedValue> props;
     BT_APPEND_NAMED_VALUE(props, "Name", sAdapterBdName);
     BT_APPEND_NAMED_VALUE(props, "Address", sAdapterBdAddress);
-    if (sAdapterDiscoverable) {
-      sAdapterDiscoverable = false;
-      BT_APPEND_NAMED_VALUE(props, "Discoverable", false);
-    }
-    if (sAdapterDiscovering) {
-      sAdapterDiscovering = false;
-      BT_APPEND_NAMED_VALUE(props, "Discovering", false);
-    }
-
+    BT_APPEND_NAMED_VALUE(props, "Discoverable",
+                          BluetoothValue(sAdapterDiscoverable));
+    BluetoothValue value(props);
     BluetoothSignal signal(NS_LITERAL_STRING("PropertyChanged"),
-                           NS_LITERAL_STRING(KEY_ADAPTER), props);
+                           NS_LITERAL_STRING(KEY_ADAPTER), value);
+
+    BluetoothService* bs = BluetoothService::Get();
+    NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
+
     bs->DistributeSignal(signal);
 
     // Cleanup bluetooth interfaces after BT state becomes BT_STATE_OFF.
@@ -409,7 +408,7 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
       propertyValue = sAdapterBondedAddressArray;
       BT_APPEND_NAMED_VALUE(props, "Devices", propertyValue);
     } else if (p.type == BT_PROPERTY_UUIDS) {
-      // FIXME: Later patchset will implement this.
+      //FIXME: This will be implemented in the later patchset
       continue;
     } else {
       BT_LOGD("Unhandled adapter property type: %d", p.type);
@@ -578,19 +577,6 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    // Return error if BluetoothService is unavailable
-    BluetoothService* bs = BluetoothService::Get();
-    NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-
-    // Fire PropertyChanged of Discovering
-    InfallibleTArray<BluetoothNamedValue> props;
-    BT_APPEND_NAMED_VALUE(props, "Discovering", sAdapterDiscovering);
-
-    BluetoothSignal signal(NS_LITERAL_STRING("PropertyChanged"),
-                           NS_LITERAL_STRING(KEY_ADAPTER), props);
-    bs->DistributeSignal(signal);
-
-    // Reply that Promise is resolved
     if (!sChangeDiscoveryRunnableArray.IsEmpty()) {
       BluetoothValue values(true);
       DispatchBluetoothReply(sChangeDiscoveryRunnableArray[0],
@@ -963,15 +949,17 @@ BluetoothServiceBluedroid::GetAdaptersInternal(
     BluetoothValue properties = InfallibleTArray<BluetoothNamedValue>();
 
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "State", sAdapterEnabled);
+                          "State", BluetoothValue(sAdapterEnabled));
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
                           "Address", sAdapterBdAddress);
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
                           "Name", sAdapterBdName);
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "Discoverable", sAdapterDiscoverable);
+                          "Discoverable",
+                          BluetoothValue(sAdapterDiscoverable));
     BT_APPEND_NAMED_VALUE(properties.get_ArrayOfBluetoothNamedValue(),
-                          "Discovering", sAdapterDiscovering);
+                          "Discovering",
+                          BluetoothValue(sAdapterDiscovering));
 
     BT_APPEND_NAMED_VALUE(adaptersProperties.get_ArrayOfBluetoothNamedValue(),
                           "Adapter", properties);

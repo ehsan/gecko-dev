@@ -17,7 +17,7 @@ namespace layers {
 
 class ClientTiledThebesLayer;
 
-struct SimpleTiledLayerTile;
+class SimpleTiledLayerTile;
 class SimpleTiledLayerBuffer;
 class SimpleClientTiledThebesLayer;
 class SimpleTiledLayerBuffer;

@@ -33,7 +33,7 @@ class SVGImageContext;
 
 namespace mozilla {
 namespace image {
-struct Orientation;
+class Orientation;
 }
 }
 

@@ -26,10 +26,10 @@ namespace mozilla {
 
 namespace dom {
   class CameraCapabilities;
-  struct CameraPictureOptions;
-  struct CameraStartRecordingOptions;
-  struct CameraRegion;
-  struct CameraSize;
+  class CameraPictureOptions;
+  class CameraStartRecordingOptions;
+  class CameraRegion;
+  class CameraSize;
   template<typename T> class Optional;
 }
 class ErrorResult;

@@ -56,9 +56,8 @@ class DumpMemoryInfoToTempDirRunnable : public nsRunnable
 {
 public:
   DumpMemoryInfoToTempDirRunnable(const nsAString& aIdentifier,
-                                  bool aAnonymize, bool aMinimizeMemoryUsage)
+                                  bool aMinimizeMemoryUsage)
     : mIdentifier(aIdentifier)
-    , mAnonymize(aAnonymize)
     , mMinimizeMemoryUsage(aMinimizeMemoryUsage)
   {
   }
@@ -67,14 +66,12 @@ public:
   {
     nsCOMPtr<nsIMemoryInfoDumper> dumper =
       do_GetService("@mozilla.org/memory-info-dumper;1");
-    dumper->DumpMemoryInfoToTempDir(mIdentifier, mAnonymize,
-                                    mMinimizeMemoryUsage);
+    dumper->DumpMemoryInfoToTempDir(mIdentifier, mMinimizeMemoryUsage);
     return NS_OK;
   }
 
 private:
   const nsString mIdentifier;
-  const bool mAnonymize;
   const bool mMinimizeMemoryUsage;
 };
 
@@ -160,12 +157,11 @@ static uint8_t sGCAndCCDumpSignum;             // SIGRTMIN + 2
 void doMemoryReport(const uint8_t aRecvSig)
 {
   // Dump our memory reports (but run this on the main thread!).
-  bool minimize = aRecvSig == sDumpAboutMemoryAfterMMUSignum;
+  bool doMMUFirst = aRecvSig == sDumpAboutMemoryAfterMMUSignum;
   LOG("SignalWatcher(sig %d) dispatching memory report runnable.", aRecvSig);
   nsRefPtr<DumpMemoryInfoToTempDirRunnable> runnable =
     new DumpMemoryInfoToTempDirRunnable(/* identifier = */ EmptyString(),
-                                        /* anonymize = */ false,
-                                        minimize);
+                                        doMMUFirst);
   NS_DispatchToMainThread(runnable);
 }
 
@@ -190,12 +186,11 @@ namespace {
 void
 doMemoryReport(const nsCString& aInputStr)
 {
-  bool minimize = aInputStr.EqualsLiteral("minimize memory report");
+  bool doMMUMemoryReport = aInputStr.EqualsLiteral("minimize memory report");
   LOG("FifoWatcher(command:%s) dispatching memory report runnable.", aInputStr.get());
   nsRefPtr<DumpMemoryInfoToTempDirRunnable> runnable =
     new DumpMemoryInfoToTempDirRunnable(/* identifier = */ EmptyString(),
-                                        /* anonymize = */ false,
-                                        minimize);
+                                        doMMUMemoryReport);
   NS_DispatchToMainThread(runnable);
 }
 
@@ -598,7 +593,6 @@ NS_IMPL_ISUPPORTS(TempDirMemoryFinishCallback, nsIFinishReportingCallback)
 
 NS_IMETHODIMP
 nsMemoryInfoDumper::DumpMemoryInfoToTempDir(const nsAString& aIdentifier,
-                                            bool aAnonymize,
                                             bool aMinimizeMemoryUsage)
 {
   nsString identifier(aIdentifier);
@@ -664,7 +658,6 @@ nsMemoryInfoDumper::DumpMemoryInfoToTempDir(const nsAString& aIdentifier,
     new TempDirMemoryFinishCallback(mrWriter, mrTmpFile, mrFilename, identifier);
   rv = mgr->GetReportsExtended(dumpReport, nullptr,
                                finishReport, nullptr,
-                               aAnonymize,
                                aMinimizeMemoryUsage,
                                identifier);
   return rv;
@@ -833,8 +826,7 @@ NS_IMETHODIMP
 nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(
   const nsAString& aFilename,
   nsIFinishDumpingCallback* aFinishDumping,
-  nsISupports* aFinishDumpingData,
-  bool aAnonymize)
+  nsISupports* aFinishDumpingData)
 {
   MOZ_ASSERT(!aFilename.IsEmpty());
 
@@ -883,8 +875,7 @@ nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(
     new FinishReportingCallback(aFinishDumping, aFinishDumpingData);
   nsCOMPtr<nsIMemoryReporterManager> mgr =
     do_GetService("@mozilla.org/memory-reporter-manager;1");
-  return mgr->GetReports(dumpReport, nullptr, finishReporting, mrWriter,
-                         aAnonymize);
+  return mgr->GetReports(dumpReport, nullptr, finishReporting, mrWriter);
 }
 
 #undef DUMP

@@ -188,8 +188,7 @@ FT2FontEntry::CreateScaledFont(const gfxFontStyle *aStyle)
 
     // synthetic oblique by skewing via the font matrix
     bool needsOblique = !IsItalic() &&
-            (aStyle->style & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE)) &&
-            aStyle->allowSyntheticStyle;
+            (aStyle->style & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE));
 
     if (needsOblique) {
         const double kSkewFactor = 0.25;

@@ -28,8 +28,7 @@ SpdyZlibReporter::Free(void*, void* p)
 }
 
 NS_IMETHODIMP
-SpdyZlibReporter::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                 nsISupports* aData, bool aAnonymize)
+SpdyZlibReporter::CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData)
 {
   return MOZ_COLLECT_REPORT(
     "explicit/network/spdy-zlib-buffers", KIND_HEAP, UNITS_BYTES, sAmount,
