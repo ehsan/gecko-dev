@@ -15,19 +15,15 @@ var gInstanceUID;
  *    - stop, when user wants to stop profiling.
  *    - disabled, when the profiler was disabled
  *    - enabled, when the profiler was enabled
- *    - displaysource, when user wants to display source
- * @param object data (optional)
- *    Additional data to send to the parent page.
  */
-function notifyParent(status, data={}) {
+function notifyParent(status) {
   if (!gInstanceUID) {
     gInstanceUID = window.location.search.substr(1);
   }
 
   window.parent.postMessage({
     uid: gInstanceUID,
-    status: status,
-    data: data
+    status: status
   }, "*");
 }
 
@@ -201,7 +197,7 @@ function enterFinishedProfileUI() {
 
   var currentBreadcrumb = gSampleFilters;
   gBreadcrumbTrail.add({
-    title: gStrings["Complete Profile"],
+    title: "Complete Profile",
     enterCallback: function () {
       gSampleFilters = [];
       filtersChanged();
