@@ -135,7 +135,6 @@ webidl_files = \
   HTMLTitleElement.webidl \
   HTMLUListElement.webidl \
   HTMLVideoElement.webidl \
-  IDBFactory.webidl \
   IDBVersionChangeEvent.webidl \
   ImageData.webidl \
   InspectorUtils.webidl \

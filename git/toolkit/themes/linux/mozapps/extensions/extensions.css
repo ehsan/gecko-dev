@@ -292,12 +292,6 @@
   margin: 0;
 }
 
-@media (max-width: 600px) {
-  #header-search {
-    width: 12em;
-  }
-}
-
 .view-header {
   padding: 4px;
   margin: 0;
