@@ -44,6 +44,43 @@ enum AsmJSMathBuiltinFunction
     AsmJSMathBuiltin_fround, AsmJSMathBuiltin_min, AsmJSMathBuiltin_max
 };
 
+// Static-link data is used to patch a module either after it has been
+// compiled or deserialized with various absolute addresses (of code or
+// data in the process) or relative addresses (of code or data in the same
+// AsmJSModule). Since AsmJSStaticLinkData can be serialized alongside the
+// AsmJSModule and isn't needed after compilation/deserialization, it
+// doesn't need to be stored in the AsmJSModule.
+struct AsmJSStaticLinkData
+{
+    struct RelativeLink
+    {
+        uint32_t patchAtOffset;
+        uint32_t targetOffset;
+    };
+
+    typedef Vector<RelativeLink> RelativeLinkVector;
+
+    struct AbsoluteLink
+    {
+        jit::CodeOffsetLabel patchAt;
+        jit::AsmJSImmKind target;
+    };
+
+    typedef Vector<AbsoluteLink> AbsoluteLinkVector;
+
+    uint32_t operationCallbackExitOffset;
+    RelativeLinkVector relativeLinks;
+    AbsoluteLinkVector absoluteLinks;
+
+    AsmJSStaticLinkData(ExclusiveContext *cx)
+      : relativeLinks(cx), absoluteLinks(cx)
+    {}
+
+    size_t serializedSize() const;
+    uint8_t *serialize(uint8_t *cursor) const;
+    const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
+};
+
 // An asm.js module represents the collection of functions nested inside a
 // single outer "use asm" function. For example, this asm.js module:
 //   function() { "use asm"; function f() {} function g() {} return f }
@@ -169,7 +206,6 @@ class AsmJSModule
         size_t serializedSize() const;
         uint8_t *serialize(uint8_t *cursor) const;
         const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
-        bool clone(ExclusiveContext *cx, Global *out) const;
     };
 
     class Exit
@@ -205,7 +241,6 @@ class AsmJSModule
         size_t serializedSize() const;
         uint8_t *serialize(uint8_t *cursor) const;
         const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
-        bool clone(ExclusiveContext *cx, Exit *out) const;
     };
     typedef int32_t (*CodePtr)(uint64_t *args, uint8_t *global);
 
@@ -277,7 +312,6 @@ class AsmJSModule
         size_t serializedSize() const;
         uint8_t *serialize(uint8_t *cursor) const;
         const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
-        bool clone(ExclusiveContext *cx, ExportedFunction *out) const;
     };
 
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
@@ -328,40 +362,6 @@ class AsmJSModule
     };
 #endif
 
-    struct RelativeLink
-    {
-        uint32_t patchAtOffset;
-        uint32_t targetOffset;
-    };
-
-    typedef Vector<RelativeLink, 0, SystemAllocPolicy> RelativeLinkVector;
-
-    struct AbsoluteLink
-    {
-        jit::CodeOffsetLabel patchAt;
-        jit::AsmJSImmKind target;
-    };
-
-    typedef Vector<AbsoluteLink, 0, SystemAllocPolicy> AbsoluteLinkVector;
-
-    // Static-link data is used to patch a module either after it has been
-    // compiled or deserialized with various absolute addresses (of code or
-    // data in the process) or relative addresses (of code or data in the same
-    // AsmJSModule).
-    struct StaticLinkData
-    {
-        uint32_t operationCallbackExitOffset;
-        RelativeLinkVector relativeLinks;
-        AbsoluteLinkVector absoluteLinks;
-
-        size_t serializedSize() const;
-        uint8_t *serialize(uint8_t *cursor) const;
-        const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
-        bool clone(ExclusiveContext *cx, StaticLinkData *out) const;
-
-        size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
-    };
-
   private:
     typedef Vector<ExportedFunction, 0, SystemAllocPolicy> ExportedFunctionVector;
     typedef Vector<Global, 0, SystemAllocPolicy> GlobalVector;
@@ -406,8 +406,7 @@ class AsmJSModule
     uint8_t *                             code_;
     uint8_t *                             operationCallbackExit_;
 
-    StaticLinkData                        staticLinkData_;
-    bool                                  dynamicallyLinked_;
+    bool                                  linked_;
     bool                                  loadedFromCache_;
     HeapPtr<ArrayBufferObject>            maybeHeap_;
 
@@ -725,21 +724,7 @@ class AsmJSModule
     }
 
     bool allocateAndCopyCode(ExclusiveContext *cx, jit::MacroAssembler &masm);
-
-    // StaticLinkData setters (called after finishing compilation, before
-    // staticLink).
-    bool addRelativeLink(RelativeLink link) {
-        return staticLinkData_.relativeLinks.append(link);
-    }
-    bool addAbsoluteLink(AbsoluteLink link) {
-        return staticLinkData_.absoluteLinks.append(link);
-    }
-    void setOperationCallbackOffset(uint32_t offset) {
-        staticLinkData_.operationCallbackExitOffset = offset;
-    }
-
-    void restoreToInitialState(ArrayBufferObject *maybePrevBuffer, ExclusiveContext *cx);
-    void staticallyLink(ExclusiveContext *cx);
+    void staticallyLink(const AsmJSStaticLinkData &linkData, ExclusiveContext *cx);
 
     uint8_t *codeBase() const {
         JS_ASSERT(code_);
@@ -751,23 +736,23 @@ class AsmJSModule
         return operationCallbackExit_;
     }
 
-    void setIsDynamicallyLinked() {
-        JS_ASSERT(!dynamicallyLinked_);
-        dynamicallyLinked_ = true;
+    void setIsLinked() {
+        JS_ASSERT(!linked_);
+        linked_ = true;
     }
-    bool isDynamicallyLinked() const {
-        return dynamicallyLinked_;
+    bool isLinked() const {
+        return linked_;
     }
     uint8_t *maybeHeap() const {
-        JS_ASSERT(dynamicallyLinked_);
+        JS_ASSERT(linked_);
         return heapDatum();
     }
     ArrayBufferObject *maybeHeapBufferObject() const {
-        JS_ASSERT(dynamicallyLinked_);
+        JS_ASSERT(linked_);
         return maybeHeap_;
     }
     size_t heapLength() const {
-        JS_ASSERT(dynamicallyLinked_);
+        JS_ASSERT(linked_);
         return maybeHeap_ ? maybeHeap_->byteLength() : 0;
     }
 
@@ -805,14 +790,13 @@ class AsmJSModule
     uint8_t *serialize(uint8_t *cursor) const;
     const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor);
     bool loadedFromCache() const { return loadedFromCache_; }
-
-    bool clone(ExclusiveContext *cx, ScopedJSDeletePtr<AsmJSModule> *moduleOut) const;
 };
 
 // Store the just-parsed module in the cache using AsmJSCacheOps.
 extern bool
 StoreAsmJSModuleInCache(AsmJSParser &parser,
                         const AsmJSModule &module,
+                        const AsmJSStaticLinkData &linkData,
                         ExclusiveContext *cx);
 
 // Attempt to load the asm.js module that is about to be parsed from the cache

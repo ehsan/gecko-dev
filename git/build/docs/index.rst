@@ -22,8 +22,6 @@ Important Concepts
    mozinfo
    preprocessor
    jar-manifests
-   visualstudio
-   androideclipse
 
 mozbuild
 ========

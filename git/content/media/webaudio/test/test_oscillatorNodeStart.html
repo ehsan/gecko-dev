@@ -3,6 +3,7 @@
 <head>
   <title>Test the OscillatorNode interface</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="webaudio.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
@@ -27,26 +28,25 @@ addLoadEvent(function() {
       }
     }
     sp.onaudioprocess = null;
-    dump("audioprocess received\n");
     ok(isSilent, "OscillatorNode should be silent before calling start.");
     SimpleTest.finish();
   }
 
   // Debug Logging for bug 966322
 
-  dump("Load event ran\n");
+  ok(true, "Load event ran");
 
   var bs = context.createBufferSource();
   bs.buffer = context.createBuffer(1, 1, context.sampleRate);
   bs.start();
   bs.onended = function() {
-    dump("Graph is running\n");
+    ok(true, "Graph is running");
   }
 
 });
 
 // Debug Logging for bug 966322
-dump("script ran\n");
+ok(true, "script ran");
 
 </script>
 </pre>
