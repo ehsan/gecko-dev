@@ -483,11 +483,11 @@ using namespace mozilla::dom;
 #include "mozilla/dom/indexedDB/IDBRequest.h"
 #include "mozilla/dom/indexedDB/IDBDatabase.h"
 #include "mozilla/dom/indexedDB/IDBEvents.h"
-#include "mozilla/dom/indexedDB/IDBObjectStoreRequest.h"
+#include "mozilla/dom/indexedDB/IDBObjectStore.h"
 #include "mozilla/dom/indexedDB/IDBTransaction.h"
-#include "mozilla/dom/indexedDB/IDBCursorRequest.h"
+#include "mozilla/dom/indexedDB/IDBCursor.h"
 #include "mozilla/dom/indexedDB/IDBKeyRange.h"
-#include "mozilla/dom/indexedDB/IDBIndexRequest.h"
+#include "mozilla/dom/indexedDB/IDBIndex.h"
 
 static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
@@ -1430,15 +1430,15 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBTransactionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBObjectStoreRequest, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(IDBObjectStore, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBTransaction, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBCursorRequest, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(IDBCursor, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBKeyRange, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBIndexRequest, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(IDBIndex, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
@@ -3956,8 +3956,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(IDBObjectStoreRequest, nsIIDBObjectStoreRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBObjectStoreRequest)
+  DOM_CLASSINFO_MAP_BEGIN(IDBObjectStore, nsIIDBObjectStore)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBObjectStore)
   DOM_CLASSINFO_MAP_END
 
@@ -3967,8 +3966,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(IDBCursorRequest, nsIIDBCursorRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBCursorRequest)
+  DOM_CLASSINFO_MAP_BEGIN(IDBCursor, nsIIDBCursor)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBCursor)
   DOM_CLASSINFO_MAP_END
 
@@ -3976,8 +3974,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBKeyRange)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(IDBIndexRequest, nsIIDBIndexRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBIndexRequest)
+  DOM_CLASSINFO_MAP_BEGIN(IDBIndex, nsIIDBIndex)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBIndex)
   DOM_CLASSINFO_MAP_END
 

@@ -54,12 +54,12 @@ EXPORTS_NAMESPACES = mozilla/dom/indexedDB
 CPPSRCS = \
   AsyncConnectionHelper.cpp \
   DatabaseInfo.cpp \
-  IDBCursorRequest.cpp \
+  IDBCursor.cpp \
   IDBDatabase.cpp \
   IDBEvents.cpp \
-  IDBIndexRequest.cpp \
+  IDBIndex.cpp \
   IDBKeyRange.cpp \
-  IDBObjectStoreRequest.cpp \
+  IDBObjectStore.cpp \
   IDBRequest.cpp \
   IDBTransaction.cpp \
   IDBFactory.cpp \
@@ -68,12 +68,12 @@ CPPSRCS = \
   $(NULL)
 
 EXPORTS_mozilla/dom/indexedDB = \
-  IDBCursorRequest.h \
+  IDBCursor.h \
   IDBDatabase.h \
   IDBEvents.h \
-  IDBIndexRequest.h \
+  IDBIndex.h \
   IDBKeyRange.h \
-  IDBObjectStoreRequest.h \
+  IDBObjectStore.h \
   IDBRequest.h \
   IDBTransaction.h \
   IndexedDatabase.h \
@@ -93,16 +93,13 @@ DEFINES += -D_IMPL_NS_LAYOUT
 # js/src/xpconnect/src/dom_quickstubs.qsconf.
 XPIDLSRCS = \
   nsIIDBCursor.idl \
-  nsIIDBCursorRequest.idl \
   nsIIDBDatabase.idl \
   nsIIDBDatabaseException.idl \
   nsIIDBEvent.idl \
   nsIIDBErrorEvent.idl \
   nsIIDBIndex.idl \
-  nsIIDBIndexRequest.idl \
   nsIIDBKeyRange.idl \
   nsIIDBObjectStore.idl \
-  nsIIDBObjectStoreRequest.idl \
   nsIIDBRequest.idl \
   nsIIDBSuccessEvent.idl \
   nsIIDBTransaction.idl \

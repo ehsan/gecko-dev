@@ -461,16 +461,13 @@ members = [
 
     # dom/indexedDB
     'nsIIDBCursor.*',
-    'nsIIDBCursorRequest.*',
     'nsIIDBDatabase.*',
     'nsIIDBDatabaseException.*',
     'nsIIDBEvent.*',
     'nsIIDBErrorEvent.*',
     'nsIIDBIndex.*',
-    'nsIIDBIndexRequest.*',
     'nsIIDBKeyRange.*',
     'nsIIDBObjectStore.*',
-    'nsIIDBObjectStoreRequest.*',
     'nsIIDBRequest.*',
 # Remove once XPIDL can handle jsvals
 #    'nsIIDBSuccessEvent.*',
@@ -478,14 +475,14 @@ members = [
     'nsIIDBTransactionEvent.*',
     'nsIIDBFactory.*',
 # Remove once XPIDL can handle jsvals
-    '-nsIIDBObjectStoreRequest.add',
-    '-nsIIDBObjectStoreRequest.modify',
-    '-nsIIDBObjectStoreRequest.addOrModify',
-    '-nsIIDBCursorRequest.continue',
-    '-nsIIDBCursorRequest.value',
-    '-nsIIDBCursorRequest.update',
-    '-nsIIDBIndexRequest.openCursor',
-    '-nsIIDBIndexRequest.openObjectCursor'
+    '-nsIIDBObjectStore.add',
+    '-nsIIDBObjectStore.modify',
+    '-nsIIDBObjectStore.addOrModify',
+    '-nsIIDBCursor.continue',
+    '-nsIIDBCursor.value',
+    '-nsIIDBCursor.update',
+    '-nsIIDBIndex.openCursor',
+    '-nsIIDBIndex.openObjectCursor'
     ]
 
 # Most interfaces can be found by searching the includePath; to find
