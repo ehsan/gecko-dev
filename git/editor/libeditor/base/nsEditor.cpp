@@ -43,7 +43,9 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIMEStateManager.h"
 #include "nsFocusManager.h"
 #include "nsUnicharUtils.h"
@@ -58,6 +60,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMHTMLBRElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDocument.h"
 #include "nsITransactionManager.h"
 #include "nsIAbsorbingTransaction.h"
@@ -5234,7 +5237,7 @@ nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
 already_AddRefed<nsIContent>
 nsEditor::GetFocusedContent()
 {
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
   if (!piTarget) {
     return nsnull;
   }
@@ -5249,7 +5252,7 @@ nsEditor::GetFocusedContent()
 PRBool
 nsEditor::IsActiveInDOMWindow()
 {
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
   if (!piTarget) {
     return PR_FALSE;
   }

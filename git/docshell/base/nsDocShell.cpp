@@ -70,6 +70,7 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIWebBrowserChrome.h"
@@ -1772,12 +1773,14 @@ nsDocShell::GetContentViewer(nsIContentViewer ** aContentViewer)
 NS_IMETHODIMP
 nsDocShell::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
 {
+    nsCOMPtr<nsPIDOMEventTarget> piTarget =
+      do_QueryInterface(aChromeEventHandler);
     // Weak reference. Don't addref.
-    mChromeEventHandler = aChromeEventHandler;
+    mChromeEventHandler = piTarget;
 
     nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mScriptGlobal));
     if (win) {
-        win->SetChromeEventHandler(aChromeEventHandler);
+        win->SetChromeEventHandler(piTarget);
     }
 
     return NS_OK;

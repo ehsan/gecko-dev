@@ -86,7 +86,7 @@
 #include "gfxPlatform.h"
 #include "nsCSSRules.h"
 #include "nsFontFaceLoader.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsStyleStructInlines.h"
 #include "nsIAppShell.h"
 #include "prenv.h"
@@ -1711,7 +1711,7 @@ nsPresContext::MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData)
 
     if (!notifyList.IsEmpty()) {
       nsPIDOMWindow *win = mDocument->GetInnerWindow();
-      nsCOMPtr<nsIDOMEventTarget> et = do_QueryInterface(win);
+      nsCOMPtr<nsPIDOMEventTarget> et = do_QueryInterface(win);
       nsCxPusher pusher;
 
       for (PRUint32 i = 0, i_end = notifyList.Length(); i != i_end; ++i) {
@@ -2066,11 +2066,11 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (aInnerWindow->HasPaintEventListeners())
     return PR_TRUE;
 
-  nsIDOMEventTarget* parentTarget = aInnerWindow->GetParentTarget();
+  nsPIDOMEventTarget* parentTarget = aInnerWindow->GetParentTarget();
   if (!parentTarget)
     return PR_FALSE;
 
-  nsEventListenerManager* manager = nsnull;
+  nsIEventListenerManager* manager = nsnull;
   if ((manager = parentTarget->GetListenerManager(PR_FALSE)) &&
       manager->MayHavePaintEventListener()) {
     return PR_TRUE;
@@ -2096,7 +2096,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
     return MayHavePaintEventListener(window);
 
   nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(parentTarget);
-  nsIDOMEventTarget* tabChildGlobal;
+  nsPIDOMEventTarget* tabChildGlobal;
   return root &&
          (tabChildGlobal = root->GetParentTarget()) &&
          (manager = tabChildGlobal->GetListenerManager(PR_FALSE)) &&

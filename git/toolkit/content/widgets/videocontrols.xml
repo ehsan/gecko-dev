@@ -295,7 +295,6 @@
                 progressBar    : null,
                 bufferBar      : null,
                 statusOverlay  : null,
-                controlsSpacer : null,
 
                 randomID : 0,
                 videoEvents : ["play", "pause", "ended", "volumechange", "loadeddata",
@@ -910,7 +909,6 @@
                     this.durationLabel = document.getAnonymousElementByAttribute(binding, "class", "durationLabel");
                     this.positionLabel = document.getAnonymousElementByAttribute(binding, "class", "positionLabel");
                     this.statusOverlay = document.getAnonymousElementByAttribute(binding, "class", "statusOverlay");
-                    this.controlsSpacer = document.getAnonymousElementByAttribute(binding, "class", "controlsSpacer")
 
                     this.setupInitialState();
 
@@ -936,7 +934,6 @@
                     var self = this;
                     this.muteButton.addEventListener("command", function() { self.toggleMute(); }, false);
                     this.playButton.addEventListener("command", function() { self.togglePause(); }, false);
-                    this.controlsSpacer.addEventListener("click", function() { self.togglePause(); }, false);
                     if (!this.isAudioOnly) {
                       this.muteButton.addEventListener("mouseover",  function(e) { self.onVolumeMouseInOut(e); }, false);
                       this.muteButton.addEventListener("mouseout",   function(e) { self.onVolumeMouseInOut(e); }, false);

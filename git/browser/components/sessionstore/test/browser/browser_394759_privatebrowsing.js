@@ -37,8 +37,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   /** Private Browsing Test for Bug 394759 **/
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
 
@@ -159,7 +170,9 @@ function continue_test() {
                   }
 
                   if (aTestIndex == TESTS.length - 1) {
-                    gPrefService.clearUserPref("browser.sessionstore.interval");
+                    if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
+                      gPrefService.clearUserPref("browser.sessionstore.interval");
+                    is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
                     finish();
                   }
                   else {
