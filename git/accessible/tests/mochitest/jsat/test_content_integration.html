@@ -179,15 +179,16 @@
           [ContentMessages.clearCursor, 'AccessFu:CursorCleared'],
 
           // Open dialog in outer doc, while cursor is also in outer doc
-          [ContentMessages.simpleMoveLast,
-           new ExpectedCursorChange(['Home', {'string': 'pushbutton'}])],
+          [ContentMessages.simpleMoveNext,
+           new ExpectedCursorChange(['Phone status bar', 'Traversal Rule test document'])],
           [doc.defaultView.showAlert,
             new ExpectedCursorChange(['This is an alert!',
               {'string': 'headingLevel', 'args': [1]},
               {'string': 'dialog'}])],
 
           [doc.defaultView.hideAlert,
-           new ExpectedCursorChange(['Home', {'string': 'pushbutton'}])],
+           new ExpectedCursorChange(["wow",
+            {"string": "headingLevel", "args": [1]}, "such app"])],
 
           [ContentMessages.clearCursor, 'AccessFu:CursorCleared'],
 
@@ -203,12 +204,8 @@
                     {'string': 'headingLevel', 'args': [1]},
                     {'string': 'dialog'}])],
 
-          [ContentMessages.simpleMoveNext,
-            new ExpectedCursorChange(['Do you agree?'])],
-          [ContentMessages.simpleMoveNext,
-            new ExpectedCursorChange(['Yes', {'string': 'pushbutton'}])],
-          [ContentMessages.activateCurrent(),
-           new ExpectedClickAction(),
+          // XXX: Place cursor back where it was.
+          [doc.defaultView.hideAlert,
            new ExpectedCursorChange(
             ['wow', {'string': 'headingLevel', 'args': [1]}, 'such app'])],
 

@@ -285,13 +285,6 @@ public:
 
   void NotifyMediaTrackEnabled(MediaTrack* aTrack);
 
-  /**
-   * Called by a DOMMediaStream when it has tracks available.
-   * This allows us to setup audio and video outputs after the stream
-   * has already reported that playback started, in case they are added late.
-   */
-  void NotifyMediaStreamTracksAvailable(DOMMediaStream* aStream);
-
   virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
 
   /**
@@ -552,11 +545,6 @@ public:
 
 
   bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
-
-  // Returns the principal of the "top level" document; the origin displayed
-  // in the URL bar of the browser window.
-  already_AddRefed<nsIPrincipal> GetTopLevelPrincipal();
-
 #endif // MOZ_EME
 
   bool MozAutoplayEnabled() const
@@ -623,7 +611,6 @@ protected:
 
   class MediaLoadListener;
   class StreamListener;
-  class MediaStreamTracksAvailableCallback;
 
   virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
@@ -1025,9 +1012,6 @@ protected:
   //   http://www.whatwg.org/specs/web-apps/current-work/#video)
   nsMediaNetworkState mNetworkState;
   nsMediaReadyState mReadyState;
-
-  // Last value passed from codec or stream source to UpdateReadyStateForData.
-  NextFrameStatus mLastNextFrameStatus;
 
   enum LoadAlgorithmState {
     // No load algorithm instance is waiting for a source to be added to the

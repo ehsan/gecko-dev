@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include "jsfriendapi.h"
+#include "js/OldDebugAPI.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"

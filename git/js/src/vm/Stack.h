@@ -17,6 +17,7 @@
 #ifdef CHECK_OSIPOINT_REGISTERS
 #include "jit/Registers.h" // for RegisterDump
 #endif
+#include "js/OldDebugAPI.h"
 
 struct JSCompartment;
 struct JSGenerator;

@@ -44,6 +44,7 @@
 #include "gc/Marking.h"
 #include "jit/BaselineJIT.h"
 #include "js/MemoryMetrics.h"
+#include "js/OldDebugAPI.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Interpreter.h"
 #include "vm/ProxyObject.h"
