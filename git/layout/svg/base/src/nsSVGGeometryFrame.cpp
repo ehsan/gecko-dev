@@ -98,9 +98,6 @@ nsSVGGeometryFrame::GetStrokeWidth()
 nsresult
 nsSVGGeometryFrame::GetStrokeDashArray(gfxFloat **aDashes, PRUint32 *aCount)
 {
-  nsSVGElement *ctx = static_cast<nsSVGElement*>
-                                 (GetType() == nsGkAtoms::svgGlyphFrame ?
-                                     mContent->GetParent() : mContent);
   *aDashes = nsnull;
   *aCount = 0;
 
@@ -117,7 +114,7 @@ nsSVGGeometryFrame::GetStrokeDashArray(gfxFloat **aDashes, PRUint32 *aCount)
       for (PRUint32 i = 0; i < count; i++) {
         dashes[i] =
           nsSVGUtils::CoordToFloat(presContext,
-                                   ctx,
+                                   static_cast<nsSVGElement*>(mContent),
                                    dasharray[i]);
         if (dashes[i] < 0.0f) {
           delete [] dashes;
@@ -144,13 +141,9 @@ nsSVGGeometryFrame::GetStrokeDashArray(gfxFloat **aDashes, PRUint32 *aCount)
 float
 nsSVGGeometryFrame::GetStrokeDashoffset()
 {
-  nsSVGElement *ctx = static_cast<nsSVGElement*>
-                                 (GetType() == nsGkAtoms::svgGlyphFrame ?
-                                     mContent->GetParent() : mContent);
-
   return
     nsSVGUtils::CoordToFloat(PresContext(),
-                             ctx,
+                             static_cast<nsSVGElement*>(mContent),
                              GetStyleSVG()->mStrokeDashoffset);
 }
 
