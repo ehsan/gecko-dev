@@ -92,20 +92,23 @@ function removeTab(aTab, aWindow) {
 function closeDebuggerAndFinish(aRemoteFlag, aCallback, aWindow) {
   let debuggerClosed = false;
   let debuggerDisconnected = false;
+  // let targetWindow = aWindow || window;
   ok(gTab, "There is a gTab to use for getting a toolbox reference");
   let target = TargetFactory.forTab(gTab);
 
+  // let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
   window.addEventListener("Debugger:Shutdown", function cleanup() {
     window.removeEventListener("Debugger:Shutdown", cleanup, false);
     debuggerDisconnected = true;
     _maybeFinish();
   }, false);
 
-  let toolbox = gDevTools.getToolbox(target);
-  toolbox.destroy().then(function() {
+  let toolbox = gDevTools.getToolboxForTarget(target);
+  toolbox.once("destroyed", function() {
     debuggerClosed = true;
     _maybeFinish();
   });
+  toolbox.destroy();
 
   function _maybeFinish() {
     if (debuggerClosed && debuggerDisconnected) {
@@ -159,13 +162,11 @@ function attach_thread_actor_for_url(aClient, aURL, aCallback) {
 
 function wait_for_connect_and_resume(aOnDebugging, aTab) {
   let target = TargetFactory.forTab(aTab);
-  gDevTools.showToolbox(target, "jsdebugger").then(function(toolbox) {
-    let dbg = toolbox.getCurrentPanel();
-    dbg.once("connected", function dbgConnected() {
-      // Wait for the initial resume...
-      dbg.panelWin.gClient.addOneTimeListener("resumed", function() {
-        aOnDebugging();
-      });
+  let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
+  dbg.once("connected", function dbgConnected() {
+    // Wait for the initial resume...
+    dbg.panelWin.gClient.addOneTimeListener("resumed", function() {
+      aOnDebugging();
     });
   });
 }
@@ -176,9 +177,9 @@ function debug_tab_pane(aURL, aOnDebugging) {
     let debuggee = gBrowser.selectedTab.linkedBrowser.contentWindow.wrappedJSObject;
 
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-
-    gDevTools.showToolbox(target, "jsdebugger").then(function(toolbox) {
-      let dbg = toolbox.getCurrentPanel();
+    let toolbox = gDevTools.openToolboxForTab(target, "jsdebugger");
+    toolbox.once("jsdebugger-ready", function dbgReady() {
+      let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
       dbg.once("connected", function() {
         // Wait for the initial resume...
         dbg.panelWin.gClient.addOneTimeListener("resumed", function() {

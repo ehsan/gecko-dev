@@ -35,8 +35,9 @@ function createDocument()
   doc.title = "Rule view context menu test";
 
   let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-    inspector = toolbox.getCurrentPanel();
+  let toolbox = gDevTools.openToolboxForTab(target, "inspector");
+  toolbox.once("inspector-selected", function SE_selected(id, aInspector) {
+    inspector = aInspector;
     inspector.sidebar.select("ruleview");
     win = inspector.sidebar.getWindowForTab("ruleview");
     highlightNode();

@@ -219,11 +219,9 @@
                        tabindex="0"/>
       </hbox>
       <menulist id="chrome-globals"
-                class="devtools-menulist"
-                sizetopopup="none" hidden="true"/>
+                class="devtools-menulist" hidden="true"/>
       <menulist id="sources"
-                class="devtools-menulist"
-                sizetopopup="none"/>
+                class="devtools-menulist"/>
       <textbox id="searchbox"
                class="devtools-searchinput" type="search"/>
       <spacer flex="1"/>

@@ -24,7 +24,7 @@ function test() {
 
   addTabAndLaunchStyleEditorChromeWhenLoaded(function (aChrome) {
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    toolbox = gDevTools.getToolbox(target);
+    toolbox = gDevTools.getToolboxForTarget(target);
 
     aChrome.addChromeListener({
       onEditorAdded: function (aChrome, aEditor) {

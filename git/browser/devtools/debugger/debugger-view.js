@@ -11,10 +11,8 @@ const PANES_APPEARANCE_DELAY = 50; // ms
 const BREAKPOINT_LINE_TOOLTIP_MAX_LENGTH = 1000; // chars
 const BREAKPOINT_CONDITIONAL_POPUP_POSITION = "after_start";
 const BREAKPOINT_CONDITIONAL_POPUP_OFFSET = 50; // px
-const FILTERED_SOURCES_POPUP_POSITION = "before_start";
-const FILTERED_SOURCES_MAX_RESULTS = 10;
-const GLOBAL_SEARCH_EXPAND_MAX_RESULTS = 50;
 const GLOBAL_SEARCH_LINE_MAX_LENGTH = 300; // chars
+const GLOBAL_SEARCH_EXPAND_MAX_RESULTS = 50;
 const GLOBAL_SEARCH_ACTION_MAX_DELAY = 1500; // ms
 const SEARCH_GLOBAL_FLAG = "!";
 const SEARCH_TOKEN_FLAG = "#";
@@ -42,7 +40,6 @@ let DebuggerView = {
     this.ChromeGlobals.initialize();
     this.Sources.initialize();
     this.Filtering.initialize();
-    this.FilteredSources.initialize();
     this.StackFrames.initialize();
     this.Breakpoints.initialize();
     this.WatchExpressions.initialize();
@@ -73,7 +70,6 @@ let DebuggerView = {
     this.ChromeGlobals.destroy();
     this.Sources.destroy();
     this.Filtering.destroy();
-    this.FilteredSources.destroy();
     this.StackFrames.destroy();
     this.Breakpoints.destroy();
     this.WatchExpressions.destroy();
@@ -474,7 +470,6 @@ let DebuggerView = {
 
     if (this.editor) {
       this.editor.setText("");
-      this.editor.focus();
       this._editorSource = null;
     }
   },
@@ -941,7 +936,7 @@ MenuContainer.prototype = {
   },
 
   /**
-   * Gets the total number of items in this container.
+   * Gets the total items in this container.
    * @return number
    */
   get totalItems() {
@@ -949,17 +944,15 @@ MenuContainer.prototype = {
   },
 
   /**
-   * Returns a list of all the visible (non-hidden) items in this container.
-   * @return array
+   * Gets the total visible (non-hidden) items in this container.
+   * @return number
    */
   get visibleItems() {
-    let items = [];
-    for (let [element, item] of this._itemsByElement) {
-      if (!element.hidden) {
-        items.push(item);
-      }
+    let count = 0;
+    for (let [element] of this._itemsByElement) {
+      count += element.hidden ? 0 : 1;
     }
-    return items;
+    return count;
   },
 
   /**
@@ -1140,6 +1133,8 @@ MenuContainer.prototype = {
  * set permaText(aValue:string)
  * set itemType(aType:string)
  * set itemFactory(aCallback:function)
+ *
+ * TODO: Use this in #796135 - "Provide some obvious UI for scripts filtering".
  *
  * @param nsIDOMNode aAssociatedNode
  *        The element associated with the displayed container.

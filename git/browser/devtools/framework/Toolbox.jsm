@@ -8,7 +8,6 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
 Cu.import("resource:///modules/devtools/EventEmitter.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 
@@ -27,70 +26,6 @@ let CommandOutputManager = require('gcli/canon').CommandOutputManager;
 
 this.EXPORTED_SYMBOLS = [ "Toolbox" ];
 
-// This isn't the best place for this, but I don't know what is right now
-
-/**
- * Implementation of 'promised', while we wait for bug 790195 to be fixed.
- * @see Consuming promises in https://addons.mozilla.org/en-US/developers/docs/sdk/latest/packages/api-utils/promise.html
- * @see https://bugzilla.mozilla.org/show_bug.cgi?id=790195
- * @see https://github.com/mozilla/addon-sdk/blob/master/packages/api-utils/lib/promise.js#L179
- */
-Promise.promised = (function() {
-  // Note: Define shortcuts and utility functions here in order to avoid
-  // slower property accesses and unnecessary closure creations on each
-  // call of this popular function.
-
-  var call = Function.call;
-  var concat = Array.prototype.concat;
-
-  // Utility function that does following:
-  // execute([ f, self, args...]) => f.apply(self, args)
-  function execute(args) { return call.apply(call, args); }
-
-  // Utility function that takes promise of `a` array and maybe promise `b`
-  // as arguments and returns promise for `a.concat(b)`.
-  function promisedConcat(promises, unknown) {
-    return promises.then(function(values) {
-      return Promise.resolve(unknown).then(function(value) {
-        return values.concat([ value ]);
-      });
-    });
-  }
-
-  return function promised(f, prototype) {
-    /**
-    Returns a wrapped `f`, which when called returns a promise that resolves to
-    `f(...)` passing all the given arguments to it, which by the way may be
-    promises. Optionally second `prototype` argument may be provided to be used
-    a prototype for a returned promise.
-
-    ## Example
-
-    var promise = promised(Array)(1, promise(2), promise(3))
-    promise.then(console.log) // => [ 1, 2, 3 ]
-    **/
-
-    return function promised() {
-      // create array of [ f, this, args... ]
-      return concat.apply([ f, this ], arguments).
-          // reduce it via `promisedConcat` to get promised array of fulfillments
-          reduce(promisedConcat, Promise.resolve([], prototype)).
-          // finally map that to promise of `f.apply(this, args...)`
-          then(execute);
-    };
-  };
-})();
-
-/**
- * Convert an array of promises to a single promise, which is resolved (with an
- * array containing resolved values) only when all the component promises are
- * resolved.
- */
-Promise.all = Promise.promised(Array);
-
-
-
-
 /**
  * A "Toolbox" is the component that holds all the tools for one specific
  * target. Visually, it's a document that includes the tools tabs and all
@@ -98,15 +33,16 @@ Promise.all = Promise.promised(Array);
  *
  * @param {object} target
  *        The object the toolbox is debugging.
- * @param {string} selectedTool
- *        Tool to select initially
  * @param {Toolbox.HostType} hostType
  *        Type of host that will host the toolbox (e.g. sidebar, window)
+ * @param {string} selectedTool
+ *        Tool to select initially
  */
-this.Toolbox = function Toolbox(target, selectedTool, hostType) {
+this.Toolbox = function Toolbox(target, hostType, selectedTool) {
   this._target = target;
   this._toolPanels = new Map();
 
+  this._onLoad = this._onLoad.bind(this);
   this._toolRegistered = this._toolRegistered.bind(this);
   this._toolUnregistered = this._toolUnregistered.bind(this);
   this.destroy = this.destroy.bind(this);
@@ -170,22 +106,6 @@ Toolbox.prototype = {
   },
 
   /**
-   * Access the panel for a given tool
-   */
-  getPanel: function TBOX_getPanel(id) {
-    return this.getToolPanels().get(id);
-  },
-
-  /**
-   * This is a shortcut for getPanel(currentToolId) because it is much more
-   * likely that we're going to want to get the panel that we've just made
-   * visible
-   */
-  getCurrentPanel: function TBOX_getCurrentPanel() {
-    return this.getToolPanels().get(this.currentToolId);
-  },
-
-  /**
    * Get/alter the target of a Toolbox so we're debugging something different.
    * See Target.jsm for more details.
    * TODO: Do we allow |toolbox.target = null;| ?
@@ -194,12 +114,20 @@ Toolbox.prototype = {
     return this._target;
   },
 
+  set target(value) {
+    this._target = value;
+  },
+
   /**
    * Get/alter the host of a Toolbox, i.e. is it in browser or in a separate
    * tab. See HostType for more details.
    */
   get hostType() {
     return this._host.type;
+  },
+
+  set hostType(value) {
+    this._switchToHost(value);
   },
 
   /**
@@ -231,32 +159,12 @@ Toolbox.prototype = {
    * Open the toolbox
    */
   open: function TBOX_open() {
-    let deferred = Promise.defer();
-
-    this._host.open().then(function(iframe) {
-      let onload = function() {
-        iframe.removeEventListener("DOMContentLoaded", onload, true);
-
-        this.isReady = true;
-
-        let closeButton = this.doc.getElementById("toolbox-close");
-        closeButton.addEventListener("command", this.destroy, true);
-
-        this._buildDockButtons();
-        this._buildTabs();
-        this._buildButtons(this.frame);
-
-        this.selectTool(this._defaultToolId).then(function(panel) {
-          this.emit("ready");
-          deferred.resolve();
-        }.bind(this));
-      }.bind(this);
-
-      iframe.addEventListener("DOMContentLoaded", onload, true);
+    this._host.once("ready", function(event, iframe) {
+      iframe.addEventListener("DOMContentLoaded", this._onLoad, true);
       iframe.setAttribute("src", this._URL);
     }.bind(this));
 
-    return deferred.promise;
+    this._host.open();
   },
 
   /**
@@ -282,11 +190,31 @@ Toolbox.prototype = {
       button.id = "toolbox-dock-" + position;
       button.className = "toolbox-dock-button";
       button.addEventListener("command", function(position) {
-        this.switchHost(position);
+        this.hostType = position;
       }.bind(this, position));
 
       dockBox.appendChild(button);
     }
+  },
+
+  /**
+   * Onload handler for the toolbox's iframe
+   */
+  _onLoad: function TBOX_onLoad() {
+    this.frame.removeEventListener("DOMContentLoaded", this._onLoad, true);
+    this.isReady = true;
+
+    let closeButton = this.doc.getElementById("toolbox-close");
+    closeButton.addEventListener("command", this.destroy, true);
+
+    this._buildDockButtons();
+
+    this._buildTabs();
+    this._buildButtons(this.frame);
+
+    this.selectTool(this._defaultToolId);
+
+    this.emit("ready");
   },
 
   /**
@@ -305,10 +233,6 @@ Toolbox.prototype = {
    *        The iframe to contain the buttons
    */
   _buildButtons: function TBOX_buildButtons(frame) {
-    if (this.target.isRemote) {
-      return;
-    }
-
     let toolbarSpec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
     let environment = { chromeDocument: frame.ownerDocument };
     let requisition = new Requisition(environment);
@@ -368,8 +292,6 @@ Toolbox.prototype = {
    *        The id of the tool to switch to
    */
   selectTool: function TBOX_selectTool(id) {
-    let deferred = Promise.defer();
-
     if (!this.isReady) {
       throw new Error("Can't select tool, wait for toolbox 'ready' event");
     }
@@ -410,17 +332,21 @@ Toolbox.prototype = {
 
       let boundLoad = function() {
         iframe.removeEventListener("DOMContentLoaded", boundLoad, true);
+        let panel = definition.build(iframe.contentWindow, this);
+        this._toolPanels.set(id, panel);
 
-        definition.build(iframe.contentWindow, this).then(function(panel) {
-          this._toolPanels.set(id, panel);
-
+        let panelReady = function() {
           this.emit(id + "-ready", panel);
           this.emit("select", id);
           this.emit(id + "-selected", panel);
           gDevTools.emit(id + "-ready", this, panel);
+        }.bind(this);
 
-          deferred.resolve(panel);
-        }.bind(this));
+        if (panel.isReady) {
+          panelReady();
+        } else {
+          panel.once("ready", panelReady);
+        }
       }.bind(this);
 
       iframe.addEventListener("DOMContentLoaded", boundLoad, true);
@@ -431,15 +357,12 @@ Toolbox.prototype = {
       if (panel) {
         this.emit("select", id);
         this.emit(id + "-selected", panel);
-        deferred.resolve(panel);
       }
     }
 
     Services.prefs.setCharPref(this._prefs.LAST_TOOL, id);
 
     this._currentToolId = id;
-
-    return deferred.promise;
   },
 
   /**
@@ -471,15 +394,16 @@ Toolbox.prototype = {
    * @param {string} hostType
    *        The host type of the new host object
    */
-  switchHost: function TBOX_switchHost(hostType) {
+  _switchToHost: function TBOX_switchToHost(hostType) {
     if (hostType == this._host.type) {
       return;
     }
 
     let newHost = this._createHost(hostType);
-    return newHost.open().then(function(iframe) {
+
+    newHost.once("ready", function(event, iframe) {
       // change toolbox document's parent to the new host
-      iframe.QueryInterface(Ci.nsIFrameLoaderOwner);
+      iframe.QueryInterface(Components.interfaces.nsIFrameLoaderOwner);
       iframe.swapFrameLoaders(this.frame);
 
       this._host.off("window-closed", this.destroy);
@@ -493,6 +417,8 @@ Toolbox.prototype = {
 
       this.emit("host-changed");
     }.bind(this));
+
+    newHost.open();
   },
 
   /**
@@ -574,38 +500,26 @@ Toolbox.prototype = {
    * Remove all UI elements, detach from target and clear up
    */
   destroy: function TBOX_destroy() {
-    // If several things call destroy then we give them all the same
-    // destruction promise so we're sure to destroy only once
-    if (this._destroyer) {
-      return this._destroyer;
+    if (this._destroyed) {
+      return;
     }
-
-    let outstanding = [];
 
     // Remote targets need to be notified that the toolbox is being torn down.
     if (this._target && this._target.isRemote) {
-      outstanding.push(this._target.destroy());
+      this._target.destroy();
     }
     this._target = null;
 
     for (let [id, panel] of this._toolPanels) {
-      outstanding.push(panel.destroy());
+      panel.destroy();
     }
 
-    outstanding.push(this._host.destroy());
+    this._host.destroy();
 
     gDevTools.off("tool-registered", this._toolRegistered);
     gDevTools.off("tool-unregistered", this._toolUnregistered);
 
-    this._destroyer = Promise.all(outstanding);
-    this._destroyer.then(function() {
-      this.emit("destroyed");
-    }.bind(this));
-
-    return this._destroyer.then(function() {
-      // Ensure that the promise resolves to nothing, rather than an array of
-      // several nothings, which is what we get from Promise.all
-      return undefined;
-    });
+    this._destroyed = true;
+    this.emit("destroyed");
   }
 };

@@ -81,12 +81,6 @@ this.CommandUtils = {
         if (command.buttonClass != null) {
           button.className = command.buttonClass;
         }
-        if (command.tooltipText != null) {
-          button.setAttribute("tooltiptext", command.tooltipText);
-        }
-        else if (command.description != null) {
-          button.setAttribute("tooltiptext", command.description);
-        }
 
         button.addEventListener("click", function() {
           requisition.update(buttonSpec.typed);

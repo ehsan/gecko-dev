@@ -27,6 +27,7 @@ gcli.addCommand({
   manual: gcli.lookup("breakManual")
 });
 
+
 /**
  * 'break list' command
  */
@@ -35,9 +36,12 @@ gcli.addCommand({
   description: gcli.lookup("breaklistDesc"),
   returnType: "html",
   exec: function(args, context) {
-    let dbg = getPanel(context, "jsdebugger");
+    let gBrowser = context.environment.chromeDocument.defaultView.gBrowser;
+    let target = TargetFactory.forTab(gBrowser.selectedTab);
+    let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
+
     if (!dbg) {
-      return gcli.lookup("debuggerStopped");
+      return gcli.lookup("breakaddDebuggerStopped");
     }
 
     let breakpoints = dbg.getAllBreakpoints();
@@ -59,6 +63,7 @@ gcli.addCommand({
   }
 });
 
+
 /**
  * 'break add' command
  */
@@ -79,9 +84,12 @@ gcli.addCommand({
       name: "file",
       type: {
         name: "selection",
-        data: function(args, context) {
+        data: function() {
+          let gBrowser = HUDService.currentContext().gBrowser;
+          let target = TargetFactory.forTab(gBrowser.selectedTab);
+          let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
+
           let files = [];
-          let dbg = getPanel(context, "jsdebugger");
           if (dbg) {
             let sourcesView = dbg.panelWin.DebuggerView.Sources;
             for (let item in sourcesView) {
@@ -103,20 +111,23 @@ gcli.addCommand({
   exec: function(args, context) {
     args.type = "line";
 
-    let dbg = getPanel(context, "jsdebugger");
+    let gBrowser = context.environment.chromeDocument.defaultView.gBrowser;
+    let target = TargetFactory.forTab(gBrowser.selectedTab);
+    let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
+
     if (!dbg) {
-      return gcli.lookup("debuggerStopped");
+      return gcli.lookup("breakaddDebuggerStopped");
     }
-    var deferred = context.defer();
+    var promise = context.createPromise();
     let position = { url: args.file, line: args.line };
     dbg.addBreakpoint(position, function(aBreakpoint, aError) {
       if (aError) {
-        deferred.resolve(gcli.lookupFormat("breakaddFailed", [aError]));
+        promise.resolve(gcli.lookupFormat("breakaddFailed", [aError]));
         return;
       }
-      deferred.resolve(gcli.lookup("breakaddAdded"));
+      promise.resolve(gcli.lookup("breakaddAdded"));
     });
-    return deferred.promise;
+    return promise;
   }
 });
 
@@ -133,11 +144,15 @@ gcli.addCommand({
       type: {
         name: "number",
         min: 0,
-        max: function(args, context) {
-          let dbg = getPanel(context, "jsdebugger");
-          return dbg == null ?
-              null :
-              Object.keys(dbg.getAllBreakpoints()).length - 1;
+        max: function() {
+          let gBrowser = context.environment.chromeDocument.defaultView.gBrowser;
+          let target = TargetFactory.forTab(gBrowser.selectedTab);
+          let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
+
+          if (!dbg) {
+            return gcli.lookup("breakaddDebuggerStopped");
+          }
+          return Object.keys(dbg.getAllBreakpoints()).length - 1;
         },
       },
       description: gcli.lookup("breakdelBreakidDesc")
@@ -145,9 +160,12 @@ gcli.addCommand({
   ],
   returnType: "html",
   exec: function(args, context) {
-    let dbg = getPanel(context, "jsdebugger");
+    let gBrowser = context.environment.chromeDocument.defaultView.gBrowser;
+    let target = TargetFactory.forTab(gBrowser.selectedTab);
+    let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
+
     if (!dbg) {
-      return gcli.lookup("debuggerStopped");
+      return gcli.lookup("breakaddDebuggerStopped");
     }
 
     let breakpoints = dbg.getAllBreakpoints();
@@ -156,29 +174,15 @@ gcli.addCommand({
       return gcli.lookup("breakNotFound");
     }
 
-    let deferred = context.defer();
+    let promise = context.createPromise();
     try {
       dbg.removeBreakpoint(breakpoints[id], function() {
-        deferred.resolve(gcli.lookup("breakdelRemoved"));
+        promise.resolve(gcli.lookup("breakdelRemoved"));
       });
     } catch (ex) {
       // If the debugger has been closed already, don't scare the user.
-      deferred.resolve(gcli.lookup("breakdelRemoved"));
+      promise.resolve(gcli.lookup("breakdelRemoved"));
     }
-    return deferred.promise;
+    return promise;
   }
 });
-
-/**
- * A helper to go from a command context to a debugger panel
- */
-function getPanel(context, id) {
-  if (context == null) {
-    return undefined;
-  }
-
-  let gBrowser = context.environment.chromeDocument.defaultView.gBrowser;
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  let toolbox = gDevTools.getToolbox(target);
-  return toolbox == null ? undefined : toolbox.getPanel(id);
-}

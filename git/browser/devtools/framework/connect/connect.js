@@ -95,6 +95,6 @@ function submit() {
 
 function connect(form, chrome=false) {
   let target = TargetFactory.forRemote(form, gClient, chrome);
-  gDevTools.showToolbox(target, "webconsole", Toolbox.HostType.WINDOW);
+  gDevTools.openToolbox(target, Toolbox.HostType.WINDOW, "webconsole");
   window.close();
 }
