@@ -263,11 +263,9 @@ nsXPCComponents_Interfaces::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
                 JSString* idstr;
                 const char* name;
 
-                JS::Rooted<jsid> id(cx);
                 if (NS_SUCCEEDED(interface->GetNameShared(&name)) && name &&
                         nullptr != (idstr = JS_NewStringCopyZ(cx, name)) &&
-                        JS_ValueToId(cx, StringValue(idstr), &id)) {
-                    *idp = id;
+                        JS_ValueToId(cx, STRING_TO_JSVAL(idstr), idp)) {
                     return NS_OK;
                 }
             }
@@ -514,9 +512,7 @@ nsXPCComponents_InterfacesByID::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
                 if (NS_SUCCEEDED(interface->GetIIDShared(&iid))) {
                     iid->ToProvidedString(idstr);
                     jsstr = JS_NewStringCopyZ(cx, idstr);
-                    JS::Rooted<jsid> id(cx);
-                    if (jsstr && JS_ValueToId(cx, StringValue(jsstr), &id)) {
-                        *idp = id;
+                    if (jsstr && JS_ValueToId(cx, STRING_TO_JSVAL(jsstr), idp)) {
                         return NS_OK;
                     }
                 }
@@ -770,10 +766,8 @@ nsXPCComponents_Classes::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
                     nsAutoCString name;
                     if (NS_SUCCEEDED(holder->GetData(name))) {
                         JSString* idstr = JS_NewStringCopyN(cx, name.get(), name.Length());
-                        JS::Rooted<jsid> id(cx);
                         if (idstr &&
-                            JS_ValueToId(cx, StringValue(idstr), &id)) {
-                            *idp = id;
+                            JS_ValueToId(cx, STRING_TO_JSVAL(idstr), idp)) {
                             return NS_OK;
                         }
                     }
@@ -1012,10 +1006,8 @@ nsXPCComponents_ClassesByID::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
                     if (NS_SUCCEEDED(holder->ToString(&name)) && name) {
                         JSString* idstr = JS_NewStringCopyZ(cx, name);
                         nsMemory::Free(name);
-                        JS::Rooted<jsid> id(cx);
                         if (idstr &&
-                            JS_ValueToId(cx, StringValue(idstr), &id)) {
-                            *idp = id;
+                            JS_ValueToId(cx, STRING_TO_JSVAL(idstr), idp)) {
                             return NS_OK;
                         }
                     }
@@ -1266,11 +1258,8 @@ nsXPCComponents_Results::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
             iter = (const void**) JSVAL_TO_PRIVATE(*statep);
             if (nsXPCException::IterateNSResults(nullptr, &name, nullptr, iter)) {
                 JSString* idstr = JS_NewStringCopyZ(cx, name);
-                JS::Rooted<jsid> id(cx);
-                if (idstr && JS_ValueToId(cx, StringValue(idstr), &id)) {
-                    *idp = id;
+                if (idstr && JS_ValueToId(cx, STRING_TO_JSVAL(idstr), idp))
                     return NS_OK;
-                }
             }
             // else... FALL THROUGH
         }
@@ -2410,7 +2399,7 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
         RootedString str(cx, ToString(cx, args[1]));
         RootedId id(cx);
-        if (!str || !JS_ValueToId(cx, StringValue(str), &id))
+        if (!str || !JS_ValueToId(cx, StringValue(str), id.address()))
             return ThrowAndFail(NS_ERROR_XPC_BAD_CONVERT_JS, cx, _retval);
 
         RootedValue val(cx);
@@ -2458,7 +2447,7 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
         RootedString str(cx, ToString(cx, args[0]));
         RootedId id(cx);
-        if (!str || !JS_ValueToId(cx, StringValue(str), &id))
+        if (!str || !JS_ValueToId(cx, StringValue(str), id.address()))
             return ThrowAndFail(NS_ERROR_XPC_BAD_CONVERT_JS, cx, _retval);
 
         RootedValue val(cx);

@@ -335,7 +335,7 @@ nsXPCWrappedJSClass::GetNamedPropertyAsVariant(XPCCallContext& ccx,
 
     RootedId id(cx);
     nsresult rv = NS_OK;
-    if (!JS_ValueToId(cx, value, &id) ||
+    if (!JS_ValueToId(cx, value, id.address()) ||
         !GetNamedPropertyAsVariantRaw(ccx, aJSObj, id, aResult, &rv)) {
         if (NS_FAILED(rv))
             return rv;
@@ -378,7 +378,7 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
         }
 
         RootedValue jsvalName(cx);
-        if (!JS_IdToValue(cx, idName, &jsvalName))
+        if (!JS_IdToValue(cx, idName, jsvalName.address()))
             return NS_ERROR_FAILURE;
 
         JSString* name = ToString(cx, jsvalName);

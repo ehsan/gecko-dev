@@ -127,14 +127,13 @@ ImageLayerD3D10::GetImageSRView(Image* aImage, bool& aHasAlpha, IDXGIKeyedMutex 
     CairoImage *cairoImage =
       static_cast<CairoImage*>(aImage);
 
-    nsRefPtr<gfxASurface> surf = cairoImage->DeprecatedGetAsSurface();
-    if (!surf) {
+    if (!cairoImage->mSurface) {
       return nullptr;
     }
 
     if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D10)) {
       nsAutoPtr<TextureD3D10BackendData> dat(new TextureD3D10BackendData());
-      dat->mTexture = SurfaceToTexture(device(), surf, cairoImage->GetSize());
+      dat->mTexture = SurfaceToTexture(device(), cairoImage->mSurface, cairoImage->mSize);
 
       if (dat->mTexture) {
         device()->CreateShaderResourceView(dat->mTexture, nullptr, getter_AddRefs(dat->mSRView));
@@ -142,7 +141,7 @@ ImageLayerD3D10::GetImageSRView(Image* aImage, bool& aHasAlpha, IDXGIKeyedMutex 
       }
     }
 
-    aHasAlpha = surf->GetContentType() == GFX_CONTENT_COLOR_ALPHA;
+    aHasAlpha = cairoImage->mSurface->GetContentType() == GFX_CONTENT_COLOR_ALPHA;
   } else if (aImage->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE) {
     if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D10)) {
       // Use resource sharing to open the D3D9 texture as a D3D10 texture,
@@ -213,14 +212,14 @@ ImageLayerD3D10::RenderLayer()
 
   ID3D10EffectTechnique *technique;
   nsRefPtr<IDXGIKeyedMutex> keyedMutex;
-  nsRefPtr<gfxASurface> surf = image->DeprecatedGetAsSurface();
 
   if (image->GetFormat() == ImageFormat::CAIRO_SURFACE ||
       image->GetFormat() == ImageFormat::REMOTE_IMAGE_BITMAP ||
       image->GetFormat() == ImageFormat::REMOTE_IMAGE_DXGI_TEXTURE ||
       image->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE) {
     NS_ASSERTION(image->GetFormat() != ImageFormat::CAIRO_SURFACE ||
-                 !surf || surf->GetContentType() != GFX_CONTENT_ALPHA,
+                 !static_cast<CairoImage*>(image)->mSurface ||
+                 static_cast<CairoImage*>(image)->mSurface->GetContentType() != GFX_CONTENT_ALPHA,
                  "Image layer has alpha image");
     bool hasAlpha = false;
 

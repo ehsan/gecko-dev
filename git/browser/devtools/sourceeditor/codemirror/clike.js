@@ -203,34 +203,18 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
     return "string";
   }
 
-  function def(mimes, mode) {
-    var words = [];
-    function add(obj) {
-      if (obj) for (var prop in obj) if (obj.hasOwnProperty(prop))
-        words.push(prop);
-    }
-    add(mode.keywords);
-    add(mode.builtin);
-    add(mode.atoms);
-    if (words.length) {
-      mode.helperType = mimes[0];
-      CodeMirror.registerHelper("hintWords", mimes[0], words);
-    }
-
-    for (var i = 0; i < mimes.length; ++i)
-      CodeMirror.defineMIME(mimes[i], mode);
+  function mimes(ms, mode) {
+    for (var i = 0; i < ms.length; ++i) CodeMirror.defineMIME(ms[i], mode);
   }
 
-  def(["text/x-csrc", "text/x-c", "text/x-chdr"], {
+  mimes(["text/x-csrc", "text/x-c", "text/x-chdr"], {
     name: "clike",
     keywords: words(cKeywords),
     blockKeywords: words("case do else for if switch while struct"),
     atoms: words("null"),
-    hooks: {"#": cppHook},
-    modeProps: {fold: ["brace", "include"]}
+    hooks: {"#": cppHook}
   });
-
-  def(["text/x-c++src", "text/x-c++hdr"], {
+  mimes(["text/x-c++src", "text/x-c++hdr"], {
     name: "clike",
     keywords: words(cKeywords + " asm dynamic_cast namespace reinterpret_cast try bool explicit new " +
                     "static_cast typeid catch operator template typename class friend private " +
@@ -238,8 +222,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
                     "wchar_t"),
     blockKeywords: words("catch class do else finally for if struct switch try while"),
     atoms: words("true false null"),
-    hooks: {"#": cppHook},
-    modeProps: {fold: ["brace", "include"]}
+    hooks: {"#": cppHook}
   });
   CodeMirror.defineMIME("text/x-java", {
     name: "clike",
@@ -255,8 +238,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
         stream.eatWhile(/[\w\$_]/);
         return "meta";
       }
-    },
-    modeProps: {fold: ["brace", "import"]}
+    }
   });
   CodeMirror.defineMIME("text/x-csharp", {
     name: "clike",
@@ -321,7 +303,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
       }
     }
   });
-  def(["x-shader/x-vertex", "x-shader/x-fragment"], {
+  mimes(["x-shader/x-vertex", "x-shader/x-fragment"], {
     name: "clike",
     keywords: words("float int bool void " +
                     "vec2 vec3 vec4 ivec2 ivec3 ivec4 bvec2 bvec3 bvec4 " +
@@ -375,7 +357,6 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
                 "gl_MaxVertexTextureImageUnits gl_MaxTextureImageUnits " +
                 "gl_MaxFragmentUniformComponents gl_MaxCombineTextureImageUnits " +
                 "gl_MaxDrawBuffers"),
-    hooks: {"#": cppHook},
-    modeProps: {fold: ["brace", "include"]}
+    hooks: {"#": cppHook}
   });
 }());

@@ -128,12 +128,10 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
       NS_ENSURE_TRUE(jsname, NS_ERROR_OUT_OF_MEMORY);
 
       // Set our name.
-      JS::Rooted<jsid> id(aCtx);
-      if (!::JS_ValueToId(aCtx, JS::StringValue(jsname), &id)) {
+      if (!::JS_ValueToId(aCtx, STRING_TO_JSVAL(jsname), _idp)) {
         *_retval = false;
         return NS_OK;
       }
-      *_idp = id;
 
       // And increment our index.
       *_statep = INT_TO_JSVAL(++index);

@@ -17,7 +17,6 @@
 #include "builtin/Intl.h"
 #include "builtin/TypedObject.h"
 #include "gc/Marking.h"
-#include "vm/Compression.h"
 #include "vm/ForkJoin.h"
 #include "vm/Interpreter.h"
 

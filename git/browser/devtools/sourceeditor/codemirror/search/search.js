@@ -7,15 +7,7 @@
 // Ctrl-G.
 
 (function() {
-  function searchOverlay(query, caseInsensitive) {
-    var startChar;
-    if (typeof query == "string") {
-      startChar = query.charAt(0);
-      query = new RegExp("^" + query.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&"),
-                         caseInsensitive ? "i" : "");
-    } else {
-      query = new RegExp("^(?:" + query.source + ")", query.ignoreCase ? "i" : "");
-    }
+  function searchOverlay(query) {
     if (typeof query == "string") return {token: function(stream) {
       if (stream.match(query)) return "searching";
       stream.next();
@@ -25,8 +17,6 @@
       if (stream.match(query)) return "searching";
       while (!stream.eol()) {
         stream.next();
-        if (startChar)
-          stream.skipTo(startChar) || stream.skipToEnd();
         if (stream.match(query, false)) break;
       }
     }};
@@ -39,16 +29,13 @@
   function getSearchState(cm) {
     return cm.state.search || (cm.state.search = new SearchState());
   }
-  function queryCaseInsensitive(query) {
-    return typeof query == "string" && query == query.toLowerCase();
-  }
   function getSearchCursor(cm, query, pos) {
     // Heuristic: if the query string is all lowercase, do a case insensitive search.
-    return cm.getSearchCursor(query, pos, queryCaseInsensitive(query));
+    return cm.getSearchCursor(query, pos, typeof query == "string" && query == query.toLowerCase());
   }
-  function dialog(cm, text, shortText, deflt, f) {
-    if (cm.openDialog) cm.openDialog(text, f, {value: deflt});
-    else f(prompt(shortText, deflt));
+  function dialog(cm, text, shortText, f) {
+    if (cm.openDialog) cm.openDialog(text, f);
+    else f(prompt(shortText, ""));
   }
   function confirmDialog(cm, text, shortText, fs) {
     if (cm.openConfirm) cm.openConfirm(text, fs);
@@ -58,16 +45,29 @@
     var isRE = query.match(/^\/(.*)\/([a-z]*)$/);
     return isRE ? new RegExp(isRE[1], isRE[2].indexOf("i") == -1 ? "" : "i") : query;
   }
-  var queryDialog =
-    'Search: <input type="text" style="width: 10em"/> <span style="color: #888">(Use /re/ syntax for regexp search)</span>';
+  var queryDialog;
   function doSearch(cm, rev) {
+    if (!queryDialog) {
+      let doc = cm.getWrapperElement().ownerDocument;
+      let inp = doc.createElement("input");
+      let txt = doc.createTextNode(cm.l10n("findCmd.promptMessage"));
+
+      inp.type = "text";
+      inp.style.width = "10em";
+      inp.style.MozMarginStart = "1em";
+
+      queryDialog = doc.createElement("div");
+      queryDialog.appendChild(txt);
+      queryDialog.appendChild(inp);
+    }
+
     var state = getSearchState(cm);
     if (state.query) return findNext(cm, rev);
-    dialog(cm, queryDialog, "Search for:", cm.getSelection(), function(query) {
+    dialog(cm, queryDialog, cm.l10n('findCmd.promptMessage'), function(query) {
       cm.operation(function() {
         if (!query || state.query) return;
         state.query = parseQuery(query);
-        cm.removeOverlay(state.overlay, queryCaseInsensitive(state.query));
+        cm.removeOverlay(state.overlay);
         state.overlay = searchOverlay(state.query);
         cm.addOverlay(state.overlay);
         state.posFrom = state.posTo = cm.getCursor();
@@ -98,10 +98,10 @@
   var replacementQueryDialog = 'With: <input type="text" style="width: 10em"/>';
   var doReplaceConfirm = "Replace? <button>Yes</button> <button>No</button> <button>Stop</button>";
   function replace(cm, all) {
-    dialog(cm, replaceQueryDialog, "Replace:", cm.getSelection(), function(query) {
+    dialog(cm, replaceQueryDialog, "Replace:", function(query) {
       if (!query) return;
       query = parseQuery(query);
-      dialog(cm, replacementQueryDialog, "Replace with:", "", function(text) {
+      dialog(cm, replacementQueryDialog, "Replace with:", function(text) {
         if (all) {
           cm.operation(function() {
             for (var cursor = getSearchCursor(cm, query); cursor.findNext();) {

@@ -15,6 +15,9 @@ const STATE_STOPPED = 0;
 const STATE_RUNNING = 1;
 const STATE_QUITTING = -1;
 
+const STATE_STOPPED_STR = "stopped";
+const STATE_RUNNING_STR = "running";
+
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
@@ -49,6 +52,11 @@ const WINDOW_HIDEABLE_FEATURES = [
 ];
 
 const MESSAGES = [
+  // The content script tells us that its form data (or that of one of its
+  // subframes) might have changed. This can be the contents or values of
+  // standard form fields or of ContentEditables.
+  "SessionStore:input",
+
   // The content script has received a pageshow event. This happens when a
   // page is loaded from bfcache without any network activity, i.e. when
   // clicking the back or forward button.
@@ -121,8 +129,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "Telemetry",
 
 XPCOMUtils.defineLazyModuleGetter(this, "console",
   "resource://gre/modules/devtools/Console.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "GlobalState",
-  "resource:///modules/sessionstore/GlobalState.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Messenger",
   "resource:///modules/sessionstore/Messenger.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
@@ -315,8 +321,6 @@ let SessionStoreInternal = {
   // set default load state
   _loadState: STATE_STOPPED,
 
-  _globalState: new GlobalState(),
-
   // During the initial restore and setBrowserState calls tracks the number of
   // windows yet to be restored
   _restoreCount: -1,
@@ -405,10 +409,7 @@ let SessionStoreInternal = {
     this._initialized = true;
   },
 
-  /**
-   * Initialize the session using the state provided by SessionStartup
-   */
-  initSession: function () {
+  initSession: function ssi_initSession() {
     let state;
     let ss = gSessionStartup;
 
@@ -441,7 +442,10 @@ let SessionStoreInternal = {
           // restore it
           LastSession.setState(state.lastSessionState);
 
-          if (ss.previousSessionCrashed) {
+          let lastSessionCrashed =
+            state.session && state.session.state &&
+            state.session.state == STATE_RUNNING_STR;
+          if (lastSessionCrashed) {
             this._recentCrashes = (state.session &&
                                    state.session.recentCrashes || 0) + 1;
 
@@ -610,6 +614,9 @@ let SessionStoreInternal = {
       case "SessionStore:pageshow":
         this.onTabLoad(win, browser);
         break;
+      case "SessionStore:input":
+        this.onTabInput(win, browser);
+        break;
       case "SessionStore:loadStart":
         TabStateCache.delete(browser);
         break;
@@ -629,30 +636,6 @@ let SessionStoreInternal = {
         if (this.isCurrentEpoch(browser, aMessage.data.epoch)) {
           // Notify the tabbrowser that the tab chrome has been restored.
           let tab = this._getTabForBrowser(browser);
-          let tabData = browser.__SS_data;
-
-          // wall-paper fix for bug 439675: make sure that the URL to be loaded
-          // is always visible in the address bar
-          let activePageData = tabData.entries[tabData.index - 1] || null;
-          let uri = activePageData ? activePageData.url || null : null;
-          browser.userTypedValue = uri;
-
-          // If the page has a title, set it.
-          if (activePageData) {
-            if (activePageData.title) {
-              tab.label = activePageData.title;
-              tab.crop = "end";
-            } else if (activePageData.url != "about:blank") {
-              tab.label = activePageData.url;
-              tab.crop = "center";
-            }
-          }
-
-          // Restore the tab icon.
-          if ("image" in tabData) {
-            win.gBrowser.setIcon(tab, tabData.image);
-          }
-
           let event = win.document.createEvent("Events");
           event.initEvent("SSTabRestoring", true, false);
           tab.dispatchEvent(event);
@@ -849,11 +832,16 @@ let SessionStoreInternal = {
 
           // global data must be restored before restoreWindow is called so that
           // it happens before observers are notified
-          this._globalState.setFromState(aInitialState);
+          GlobalState.setFromState(aInitialState);
 
           let overwrite = this._isCmdLineEmpty(aWindow, aInitialState);
           let options = {firstWindow: true, overwriteTabs: overwrite};
           this.restoreWindow(aWindow, aInitialState, options);
+
+          // _loadState changed from "stopped" to "running". Save the session's
+          // load state immediately so that crashes happening during startup
+          // are correctly counted.
+          SessionFile.writeLoadStateOnceAfterStartup(STATE_RUNNING_STR);
         }
       }
       else {
@@ -878,7 +866,7 @@ let SessionStoreInternal = {
 
       // global data must be restored before restoreWindow is called so that
       // it happens before observers are notified
-      this._globalState.setFromState(this._deferredInitialState);
+      GlobalState.setFromState(this._deferredInitialState);
 
       this._restoreCount = this._deferredInitialState.windows ?
         this._deferredInitialState.windows.length : 0;
@@ -1457,6 +1445,18 @@ let SessionStoreInternal = {
   },
 
   /**
+   * Called when a browser sends the "input" notification
+   * @param aWindow
+   *        Window reference
+   * @param aBrowser
+   *        Browser reference
+   */
+  onTabInput: function ssi_onTabInput(aWindow, aBrowser) {
+    TabStateCache.delete(aBrowser);
+    this.saveStateDelayed(aWindow);
+  },
+
+  /**
    * When a tab is selected, save session data
    * @param aWindow
    *        Window reference
@@ -1578,7 +1578,7 @@ let SessionStoreInternal = {
 
     // global data must be restored before restoreWindow is called so that
     // it happens before observers are notified
-    this._globalState.setFromState(state);
+    GlobalState.setFromState(state);
 
     // restore to the given state
     this.restoreWindow(window, state, {overwriteTabs: true});
@@ -1883,16 +1883,16 @@ let SessionStoreInternal = {
   },
 
   getGlobalValue: function ssi_getGlobalValue(aKey) {
-    return this._globalState.get(aKey);
+    return GlobalState.get(aKey);
   },
 
   setGlobalValue: function ssi_setGlobalValue(aKey, aStringValue) {
-    this._globalState.set(aKey, aStringValue);
+    GlobalState.set(aKey, aStringValue);
     this.saveStateDelayed();
   },
 
   deleteGlobalValue: function ssi_deleteGlobalValue(aKey) {
-    this._globalState.delete(aKey);
+    GlobalState.delete(aKey);
     this.saveStateDelayed();
   },
 
@@ -1945,7 +1945,7 @@ let SessionStoreInternal = {
 
     // global data must be restored before restoreWindow is called so that
     // it happens before observers are notified
-    this._globalState.setFromState(lastSessionState);
+    GlobalState.setFromState(lastSessionState);
 
     // Restore into windows or open new ones as needed.
     for (let i = 0; i < lastSessionState.windows.length; i++) {
@@ -2250,6 +2250,7 @@ let SessionStoreInternal = {
       ix = -1;
 
     let session = {
+      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
       lastUpdate: Date.now(),
       startTime: this._sessionStartTime,
       recentCrashes: this._recentCrashes
@@ -2264,7 +2265,7 @@ let SessionStoreInternal = {
       _closedWindows: lastClosedWindowsCopy,
       session: session,
       scratchpads: scratchpads,
-      global: this._globalState.getState()
+      global: GlobalState.state
     };
 
     // Persist the last session if we deferred restoring it
@@ -2738,7 +2739,6 @@ let SessionStoreInternal = {
       TabStateCache.updatePersistent(browser, {
         scroll: tabData.scroll || null,
         storage: tabData.storage || null,
-        formdata: tabData.formdata || null,
         disallow: tabData.disallow || null,
         pageStyle: tabData.pageStyle || null
       });
@@ -2746,9 +2746,31 @@ let SessionStoreInternal = {
       browser.messageManager.sendAsyncMessage("SessionStore:restoreHistory",
                                               {tabData: tabData, epoch: epoch});
 
+      // wall-paper fix for bug 439675: make sure that the URL to be loaded
+      // is always visible in the address bar
+      let activePageData = tabData.entries[activeIndex] || null;
+      let uri = activePageData ? activePageData.url || null : null;
+      browser.userTypedValue = uri;
+
+      // If the page has a title, set it.
+      if (activePageData) {
+        if (activePageData.title) {
+          tab.label = activePageData.title;
+          tab.crop = "end";
+        } else if (activePageData.url != "about:blank") {
+          tab.label = activePageData.url;
+          tab.crop = "center";
+        }
+      }
+
       // Restore tab attributes.
       if ("attributes" in tabData) {
         TabAttributes.set(tab, tabData.attributes);
+      }
+
+      // Restore the tab icon.
+      if ("image" in tabData) {
+        tabbrowser.setIcon(tab, tabData.image);
       }
 
       // This could cause us to ignore MAX_CONCURRENT_TAB_RESTORES a bit, but
@@ -3830,5 +3852,64 @@ let LastSession = {
       this._state = null;
       Services.obs.notifyObservers(null, NOTIFY_LAST_SESSION_CLEARED, null);
     }
+  }
+};
+
+/**
+ * Module that contains global session data.
+ */
+let GlobalState = {
+
+  // Storage for global state.
+  state: {},
+
+  /**
+   * Clear all currently stored global state.
+   */
+  clear: function() {
+    this.state = {};
+  },
+
+  /**
+   * Retrieve a value from the global state.
+   *
+   * @param aKey
+   *        A key the value is stored under.
+   * @return The value stored at aKey, or an empty string if no value is set.
+   */
+  get: function(aKey) {
+    return this.state[aKey] || "";
+  },
+
+  /**
+   * Set a global value.
+   *
+   * @param aKey
+   *        A key to store the value under.
+   */
+  set: function(aKey, aStringValue) {
+    this.state[aKey] = aStringValue;
+  },
+
+  /**
+   * Delete a global value.
+   *
+   * @param aKey
+   *        A key to delete the value for.
+   */
+  delete: function(aKey) {
+    delete this.state[aKey];
+  },
+
+  /**
+   * Set the current global state from a state object. Any previous global
+   * state will be removed, even if the new state does not contain a matching
+   * key.
+   *
+   * @param aState
+   *        A state object to extract global state from to be set.
+   */
+  setFromState: function (aState) {
+    this.state = (aState && aState.global) || {};
   }
 };

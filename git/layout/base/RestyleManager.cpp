@@ -623,11 +623,7 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 
     if ((hint & nsChangeHint_AddOrRemoveTransform) && frame &&
         !(hint & nsChangeHint_ReconstructFrame)) {
-      if (NeedToReframeForAddingOrRemovingTransform(frame) ||
-          frame->GetType() == nsGkAtoms::fieldSetFrame ||
-          frame->GetContentInsertionFrame() != frame) {
-        // The frame has positioned children that need to be reparented, or
-        // it can't easily be converted to/from being an abs-pos container correctly.
+      if (NeedToReframeForAddingOrRemovingTransform(frame)) {
         NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
       } else {
         for (nsIFrame *cont = frame; cont;

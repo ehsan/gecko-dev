@@ -230,6 +230,7 @@ CRITICAL_SECTION gDbgHelpCS;
 }
 
 // Routine to print an error message to standard error.
+// Will also call callback with error, if data supplied.
 void PrintError(const char *prefix)
 {
     LPVOID lpMsgBuf;

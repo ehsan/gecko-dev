@@ -37,6 +37,7 @@ extern "C" {
     // to missing the classpath
     MOZ_ASSERT(NS_IsMainThread());
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
+    if (!env) return nullptr;
     return env->FindClass(className);
   }
 
@@ -75,6 +76,7 @@ extern "C" {
                           const char *methodName,
                           const char *signature) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
+    if (!env) return nullptr;
     return env->GetStaticMethodID(methodClass, methodName, signature);
   }
 
@@ -82,6 +84,7 @@ extern "C" {
   bool
   jsjni_ExceptionCheck() {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
+    if (!env) return nullptr;
     return env->ExceptionCheck();
   }
 
@@ -91,6 +94,7 @@ extern "C" {
                               jmethodID method,
                               jvalue *values) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
+    if (!env) return;
 
     mozilla::AutoLocalJNIFrame jniFrame(env);
     env->CallStaticVoidMethodA(cls, method, values);
@@ -102,6 +106,7 @@ extern "C" {
                              jmethodID method,
                              jvalue *values) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
+    if (!env) return -1;
 
     mozilla::AutoLocalJNIFrame jniFrame(env);
     return env->CallStaticIntMethodA(cls, method, values);

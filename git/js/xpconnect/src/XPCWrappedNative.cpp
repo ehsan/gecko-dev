@@ -1156,6 +1156,14 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
     if (!flat)
         return NS_OK;
 
+    // ReparentWrapperIfFound is really only meant to be called from DOM code
+    // which must happen only on the main thread. Bail if we're on some other
+    // thread or have a non-main-thread-only wrapper.
+    if (wrapper->GetProto() &&
+        !wrapper->GetProto()->ClassIsMainThreadOnly()) {
+        return NS_ERROR_FAILURE;
+    }
+
     JSAutoCompartment ac(cx, aNewScope->GetGlobalJSObject());
 
     if (aOldScope != aNewScope) {

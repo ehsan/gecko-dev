@@ -240,12 +240,6 @@ SharedRGBImage::DeprecatedGetAsSurface()
   return nullptr;
 }
 
-TemporaryRef<gfx::SourceSurface>
-SharedRGBImage::GetAsSourceSurface()
-{
-  return nullptr;
-}
-
 
 } // namespace layers
 } // namespace mozilla

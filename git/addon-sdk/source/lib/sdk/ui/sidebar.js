@@ -24,7 +24,7 @@ const { isBrowser, getMostRecentBrowserWindow, windows, isWindowPrivate } = requ
 const { ns } = require('../core/namespace');
 const { remove: removeFromArray } = require('../util/array');
 const { show, hide, toggle } = require('./sidebar/actions');
-const { Worker } = require('../content/worker');
+const { Worker: WorkerTrait } = require('../content/worker');
 const { contract: sidebarContract } = require('./sidebar/contract');
 const { create, dispose, updateTitle, updateURL, isSidebarShowing, showSidebar, hideSidebar } = require('./sidebar/view');
 const { defer } = require('../core/promise');
@@ -33,6 +33,12 @@ const { isLocalURL } = require('../url');
 const { ensure } = require('../system/unload');
 const { identify } = require('./id');
 const { uuid } = require('../util/uuid');
+
+const Worker = WorkerTrait.resolve({
+  _injectInDocument: '__injectInDocument'
+}).compose({
+  get _injectInDocument() true
+});
 
 const sidebarNS = ns();
 
@@ -112,8 +118,7 @@ const Sidebar = Class({
             }
 
             let worker = windowNS(window).worker = Worker({
-              window: panelBrowser.contentWindow,
-              injectInDocument: true
+              window: panelBrowser.contentWindow
             });
 
             function onWebPanelSidebarUnload() {

@@ -610,21 +610,18 @@ public:
     MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);
   }
 
+  void SaveZoomConstraints(const ZoomConstraints& aConstraints)
+  {
+    mHaveZoomConstraints = true;
+    mZoomConstraints = aConstraints;
+  }
+
   virtual bool GetRootZoomConstraints(ZoomConstraints* aOutConstraints)
   {
     if (mHaveZoomConstraints && aOutConstraints) {
       *aOutConstraints = mZoomConstraints;
     }
     return mHaveZoomConstraints;
-  }
-
-  virtual bool GetTouchSensitiveRegion(CSSRect* aOutRegion)
-  {
-    if (mTouchSensitiveRegion.IsEmpty())
-      return false;
-
-    *aOutRegion = CSSRect::FromAppUnits(mTouchSensitiveRegion.GetBounds());
-    return true;
   }
 
   virtual void NotifyTransformBegin(const ScrollableLayerGuid& aGuid)
@@ -657,18 +654,6 @@ public:
     }
   }
 
-  // Methods used by RenderFrameParent to set fields stored here.
-
-  void SaveZoomConstraints(const ZoomConstraints& aConstraints)
-  {
-    mHaveZoomConstraints = true;
-    mZoomConstraints = aConstraints;
-  }
-
-  void SetTouchSensitiveRegion(const nsRegion& aRegion)
-  {
-    mTouchSensitiveRegion = aRegion;
-  }
 private:
   void DoRequestContentRepaint(const FrameMetrics& aFrameMetrics)
   {
@@ -683,7 +668,6 @@ private:
 
   bool mHaveZoomConstraints;
   ZoomConstraints mZoomConstraints;
-  nsRegion mTouchSensitiveRegion;
 };
 
 RenderFrameParent::RenderFrameParent()
@@ -957,13 +941,6 @@ bool
 RenderFrameParent::RecvUpdateHitRegion(const nsRegion& aRegion)
 {
   mTouchRegion = aRegion;
-  if (mContentController) {
-    // Tell the content controller about the touch-sensitive region, so
-    // that it can provide it to APZ. This is required for APZ to do
-    // correct hit testing for a remote 'mozpasspointerevents' iframe
-    // until bug 928833 is fixed.
-    mContentController->SetTouchSensitiveRegion(aRegion);
-  }
   return true;
 }
 

@@ -12,7 +12,6 @@ module.metadata = {
 };
 
 const { Cc, Ci } = require("chrome");
-const { on } = require("sdk/event/core");
 const { setTimeout } = require("sdk/timers");
 const { LoaderWithHookedConsole } = require("sdk/test/loader");
 const { Worker } = require("sdk/content/worker");
@@ -117,8 +116,6 @@ exports["test:sample"] = WorkerTest(
 
     assert.equal(worker.url, window.location.href,
                      "worker.url works");
-    assert.equal(worker.contentURL, window.location.href,
-                     "worker.contentURL works");
     worker.postMessage("hi!");
   }
 );
@@ -229,7 +226,7 @@ exports["test:post-json-values-only"] = WorkerTest(
             self.postMessage([ message.fun === undefined,
                                typeof message.w,
                                message.w && "port" in message.w,
-                               message.w._url,
+                               message.w.url,
                                Array.isArray(message.array),
                                JSON.stringify(message.array)]);
           });
@@ -250,10 +247,6 @@ exports["test:post-json-values-only"] = WorkerTest(
                        "Array is correctly serialized");
       done();
     });
-    // Add a new url property sa the Class function used by 
-    // Worker doesn't set enumerables to true for non-functions
-    worker._url = DEFAULT_CONTENT_URL;
-
     worker.postMessage({ fun: function () {}, w: worker, array: array });
   }
 );
@@ -271,7 +264,7 @@ exports["test:emit-json-values-only"] = WorkerTest(
                             fun === null,
                             typeof w,
                             "port" in w,
-                            w._url,
+                            w.url,
                             "fun" in obj,
                             Object.keys(obj.dom).length,
                             Array.isArray(array),
@@ -302,9 +295,6 @@ exports["test:emit-json-values-only"] = WorkerTest(
       fun: function () {},
       dom: browser.contentWindow.document.createElement("div")
     };
-    // Add a new url property sa the Class function used by 
-    // Worker doesn't set enumerables to true for non-functions
-    worker._url = DEFAULT_CONTENT_URL;
     worker.port.emit("addon-to-content", function () {}, worker, obj, array);
   }
 );
@@ -838,38 +828,5 @@ exports['test:conentScriptFile as URL instance'] = WorkerTest(
     });
   }
 );
-
-exports.testWorkerEvents = WorkerTest(DEFAULT_CONTENT_URL, function (assert, browser, done) {
-  let window = browser.contentWindow;
-  let events = [];
-  let worker = Worker({
-    window: window,
-    contentScript: 'new ' + function WorkerScope() {
-      self.postMessage('start');
-    },
-    onAttach: win => {
-      events.push('attach');
-      assert.pass('attach event called when attached');
-      assert.equal(window, win, 'attach event passes in attached window');
-    },
-    onError: err => {
-      assert.equal(err.message, 'Custom',
-        'Error passed into error event');
-      worker.detach();
-    },
-    onMessage: msg => {
-      assert.pass('`onMessage` handles postMessage')
-      throw new Error('Custom');
-    },
-    onDetach: _ => {
-      assert.pass('`onDetach` called when worker detached');
-      done();
-    }
-  });
-  // `attach` event is called synchronously during instantiation,
-  // so we can't listen to that, TODO FIX?
-  //  worker.on('attach', obj => console.log('attach', obj));
-});
-
 
 require("test").run(exports);

@@ -33,14 +33,10 @@ public class PanelManager implements GeckoEventListener {
     public class PanelInfo {
         public final String id;
         public final String title;
-        public final String layout;
-        public final JSONArray views;
 
-        public PanelInfo(String id, String title, String layout, JSONArray views) {
+        public PanelInfo(String id, String title) {
             this.id = id;
             this.title = title;
-            this.layout = layout;
-            this.views = views;
         }
     }
 
@@ -111,11 +107,6 @@ public class PanelManager implements GeckoEventListener {
     }
 
     private PanelInfo getPanelInfoFromJSON(JSONObject jsonPanelInfo) throws JSONException {
-        final String id = jsonPanelInfo.getString("id");
-        final String title = jsonPanelInfo.getString("title");
-        final String layout = jsonPanelInfo.getString("layout");
-        final JSONArray views = jsonPanelInfo.getJSONArray("views");
-
-        return new PanelInfo(id, title, layout, views);
+        return new PanelInfo(jsonPanelInfo.getString("id"), jsonPanelInfo.getString("title"));
     }
 }

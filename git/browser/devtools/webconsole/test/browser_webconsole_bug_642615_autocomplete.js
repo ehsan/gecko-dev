@@ -35,22 +35,32 @@ function consoleOpened(HUD) {
   }
 
   function onClipboardCopy() {
-    info("wait for completion update after clipboard paste");
-    jsterm.once("autocomplete-updated", onClipboardPaste);
-
     updateEditUIVisibility();
     goDoCommand("cmd_paste");
+
+    waitForSuccess(waitForPaste);
   }
 
+  let waitForPaste = {
+    name: "no completion value after paste",
+    validatorFn: function()
+    {
+      return !jsterm.completeNode.value;
+    },
+    successFn: onClipboardPaste,
+    failureFn: finishTest,
+  };
+
   function onClipboardPaste() {
-    ok(!jsterm.completeNode.value, "no completion value after paste");
-
-    info("wait for completion update after undo");
-    jsterm.once("autocomplete-updated", onCompletionValueAfterUndo);
-
-    // Get out of the webconsole event loop.
-    executeSoon(() => {
-      goDoCommand("cmd_undo");
+    goDoCommand("cmd_undo");
+    waitForSuccess({
+      name: "completion value for 'docu' after undo",
+      validatorFn: function()
+      {
+        return !!jsterm.completeNode.value;
+      },
+      successFn: onCompletionValueAfterUndo,
+      failureFn: finishTest,
     });
   }
 
@@ -58,24 +68,29 @@ function consoleOpened(HUD) {
     is(jsterm.completeNode.value, completionValue,
        "same completeNode.value after undo");
 
-    info("wait for completion update after clipboard paste (ctrl-v)");
-    jsterm.once("autocomplete-updated", () => {
-      ok(!jsterm.completeNode.value, "no completion value after paste (ctrl-v)");
-
-      // using executeSoon() to get out of the webconsole event loop.
-      executeSoon(finishTest);
-    });
-
-    // Get out of the webconsole event loop.
-    executeSoon(() => {
-      EventUtils.synthesizeKey("v", {accelKey: true});
+    EventUtils.synthesizeKey("v", {accelKey: true});
+    waitForSuccess({
+      name: "no completion after ctrl-v (paste)",
+      validatorFn: function()
+      {
+        return !jsterm.completeNode.value;
+      },
+      successFn: finishTest,
+      failureFn: finishTest,
     });
   }
 
-  info("wait for completion value after typing 'docu'");
-  jsterm.once("autocomplete-updated", onCompletionValue);
-
   EventUtils.synthesizeKey("u", {});
+
+  waitForSuccess({
+    name: "completion value for 'docu'",
+    validatorFn: function()
+    {
+      return !!jsterm.completeNode.value;
+    },
+    successFn: onCompletionValue,
+    failureFn: finishTest,
+  });
 }
 
 function test() {

@@ -84,7 +84,6 @@
     { keys: ['<End>'], type: 'keyToKey', toKeys: ['$'] },
     { keys: ['<PageUp>'], type: 'keyToKey', toKeys: ['<C-b>'] },
     { keys: ['<PageDown>'], type: 'keyToKey', toKeys: ['<C-f>'] },
-    { keys: ['<CR>'], type: 'keyToKey', toKeys: ['j', '^'], context: 'normal' },
     // Motions
     { keys: ['H'], type: 'motion',
         motion: 'moveToTopLine',
@@ -248,12 +247,6 @@
         actionArgs: { forward: true }},
     { keys: ['<C-o>'], type: 'action', action: 'jumpListWalk',
         actionArgs: { forward: false }},
-    { keys: ['<C-e>'], type: 'action',
-        action: 'scroll',
-        actionArgs: { forward: true, linewise: true }},
-    { keys: ['<C-y>'], type: 'action',
-        action: 'scroll',
-        actionArgs: { forward: false, linewise: true }},
     { keys: ['a'], type: 'action', action: 'enterInsertMode', isEdit: true,
         actionArgs: { insertAt: 'charAfter' }},
     { keys: ['A'], type: 'action', action: 'enterInsertMode', isEdit: true,
@@ -331,16 +324,12 @@
     CodeMirror.defineOption('vimMode', false, function(cm, val) {
       if (val) {
         cm.setOption('keyMap', 'vim');
-        cm.setOption('disableInput', true);
         CodeMirror.signal(cm, "vim-mode-change", {mode: "normal"});
         cm.on('beforeSelectionChange', beforeSelectionChange);
         maybeInitVimState(cm);
-        CodeMirror.on(cm.getInputField(), 'paste', getOnPasteFn(cm));
       } else if (cm.state.vim) {
         cm.setOption('keyMap', 'default');
-        cm.setOption('disableInput', false);
         cm.off('beforeSelectionChange', beforeSelectionChange);
-        CodeMirror.off(cm.getInputField(), 'paste', getOnPasteFn(cm));
         cm.state.vim = null;
       }
     });
@@ -352,18 +341,6 @@
       if (head.ch && head.ch == cm.doc.getLine(head.line).length) {
         head.ch--;
       }
-    }
-    function getOnPasteFn(cm) {
-      var vim = cm.state.vim;
-      if (!vim.onPasteFn) {
-        vim.onPasteFn = function() {
-          if (!vim.insertMode) {
-            cm.setCursor(offsetCursor(cm.getCursor(), 0, 1));
-            actions.enterInsertMode(cm, {}, vim);
-          }
-        };
-      }
-      return vim.onPasteFn;
     }
 
     var numberRegex = /[\d]/;
@@ -572,9 +549,9 @@
       maybeInitVimState_: maybeInitVimState,
 
       InsertModeKey: InsertModeKey,
-      map: function(lhs, rhs, ctx) {
+      map: function(lhs, rhs) {
         // Add user defined key bindings.
-        exCommandDispatcher.map(lhs, rhs, ctx);
+        exCommandDispatcher.map(lhs, rhs);
       },
       defineEx: function(name, prefix, func){
         if (name.indexOf(prefix) !== 0) {
@@ -856,17 +833,11 @@
         } else {
           // Find the best match in the list of matchedCommands.
           var context = vim.visualMode ? 'visual' : 'normal';
-          var bestMatch; // Default to first in the list.
+          var bestMatch = matchedCommands[0]; // Default to first in the list.
           for (var i = 0; i < matchedCommands.length; i++) {
-            var current = matchedCommands[i];
-            if (current.context == context) {
-              bestMatch = current;
+            if (matchedCommands[i].context == context) {
+              bestMatch = matchedCommands[i];
               break;
-            } else if (!bestMatch && !current.context) {
-              // Only set an imperfect match to best match if no best match is
-              // set and the imperfect match is not restricted to another
-              // context.
-              bestMatch = current;
             }
           }
           return getFullyMatchedCommandOrNull(bestMatch);
@@ -1665,43 +1636,6 @@
         markPos = markPos ? markPos : cm.getCursor();
         cm.setCursor(markPos);
       },
-      scroll: function(cm, actionArgs, vim) {
-        if (vim.visualMode) {
-          return;
-        }
-        var repeat = actionArgs.repeat || 1;
-        var lineHeight = cm.defaultTextHeight();
-        var top = cm.getScrollInfo().top;
-        var delta = lineHeight * repeat;
-        var newPos = actionArgs.forward ? top + delta : top - delta;
-        var cursor = cm.getCursor();
-        var cursorCoords = cm.charCoords(cursor, 'local');
-        if (actionArgs.forward) {
-          if (newPos > cursorCoords.top) {
-             cursor.line += (newPos - cursorCoords.top) / lineHeight;
-             cursor.line = Math.ceil(cursor.line);
-             cm.setCursor(cursor);
-             cursorCoords = cm.charCoords(cursor, 'local');
-             cm.scrollTo(null, cursorCoords.top);
-          } else {
-             // Cursor stays within bounds.  Just reposition the scroll window.
-             cm.scrollTo(null, newPos);
-          }
-        } else {
-          var newBottom = newPos + cm.getScrollInfo().clientHeight;
-          if (newBottom < cursorCoords.bottom) {
-             cursor.line -= (cursorCoords.bottom - newBottom) / lineHeight;
-             cursor.line = Math.floor(cursor.line);
-             cm.setCursor(cursor);
-             cursorCoords = cm.charCoords(cursor, 'local');
-             cm.scrollTo(
-                 null, cursorCoords.bottom - cm.getScrollInfo().clientHeight);
-          } else {
-             // Cursor stays within bounds.  Just reposition the scroll window.
-             cm.scrollTo(null, newPos);
-          }
-        }
-      },
       scrollToCursor: function(cm, actionArgs) {
         var lineNum = cm.getCursor().line;
         var charCoords = cm.charCoords({line: lineNum, ch: 0}, 'local');
@@ -1757,7 +1691,6 @@
           cm.setCursor(motions.moveToFirstNonWhiteSpaceCharacter(cm));
         }
         cm.setOption('keyMap', 'vim-insert');
-        cm.setOption('disableInput', false);
         if (actionArgs && actionArgs.replace) {
           // Handle Replace-mode as a special case of insert mode.
           cm.toggleOverwrite(true);
@@ -2963,16 +2896,14 @@
     // pair of commands that have a shared prefix, at least one of their
     // shortNames must not match the prefix of the other command.
     var defaultExCommandMap = [
-      { name: 'map' },
-      { name: 'nmap', shortName: 'nm' },
-      { name: 'vmap', shortName: 'vm' },
-      { name: 'write', shortName: 'w' },
-      { name: 'undo', shortName: 'u' },
-      { name: 'redo', shortName: 'red' },
-      { name: 'sort', shortName: 'sor' },
-      { name: 'substitute', shortName: 's' },
-      { name: 'nohlsearch', shortName: 'noh' },
-      { name: 'delmarks', shortName: 'delm' }
+      { name: 'map', type: 'builtIn' },
+      { name: 'write', shortName: 'w', type: 'builtIn' },
+      { name: 'undo', shortName: 'u', type: 'builtIn' },
+      { name: 'redo', shortName: 'red', type: 'builtIn' },
+      { name: 'sort', shortName: 'sor', type: 'builtIn'},
+      { name: 'substitute', shortName: 's', type: 'builtIn'},
+      { name: 'nohlsearch', shortName: 'noh', type: 'builtIn'},
+      { name: 'delmarks', shortName: 'delm', type: 'builtin'}
     ];
     Vim.ExCommandDispatcher = function() {
       this.buildCommandMap_();
@@ -3024,7 +2955,6 @@
           exCommands[commandName](cm, params);
         } catch(e) {
           showConfirm(cm, e);
-          throw e;
         }
       },
       parseInput_: function(cm, inputStream, result) {
@@ -3107,9 +3037,8 @@
           this.commandMap_[key] = command;
         }
       },
-      map: function(lhs, rhs, ctx) {
+      map: function(lhs, rhs) {
         if (lhs != ':' && lhs.charAt(0) == ':') {
-          if (ctx) { throw Error('Mode not supported for ex mappings'); }
           var commandName = lhs.substring(1);
           if (rhs != ':' && rhs.charAt(0) == ':') {
             // Ex to Ex mapping
@@ -3129,21 +3058,17 @@
         } else {
           if (rhs != ':' && rhs.charAt(0) == ':') {
             // Key to Ex mapping.
-            var mapping = {
+            defaultKeymap.unshift({
               keys: parseKeyString(lhs),
               type: 'keyToEx',
-              exArgs: { input: rhs.substring(1) }};
-            if (ctx) { mapping.context = ctx; }
-            defaultKeymap.unshift(mapping);
+              exArgs: { input: rhs.substring(1) }});
           } else {
             // Key to key mapping
-            var mapping = {
+            defaultKeymap.unshift({
               keys: parseKeyString(lhs),
               type: 'keyToKey',
               toKeys: parseKeyString(rhs)
-            };
-            if (ctx) { mapping.context = ctx; }
-            defaultKeymap.unshift(mapping);
+            });
           }
         }
       }
@@ -3165,7 +3090,7 @@
     }
 
     var exCommands = {
-      map: function(cm, params, ctx) {
+      map: function(cm, params) {
         var mapArgs = params.args;
         if (!mapArgs || mapArgs.length < 2) {
           if (cm) {
@@ -3173,10 +3098,8 @@
           }
           return;
         }
-        exCommandDispatcher.map(mapArgs[0], mapArgs[1], ctx);
+        exCommandDispatcher.map(mapArgs[0], mapArgs[1], cm);
       },
-      nmap: function(cm, params) { this.map(cm, params, 'normal'); },
-      vmap: function(cm, params) { this.map(cm, params, 'visual'); },
       move: function(cm, params) {
         commandDispatcher.processCommand(cm, cm.state.vim, {
             type: 'motion',
@@ -3192,7 +3115,7 @@
             var args = new CodeMirror.StringStream(params.argString);
             if (args.eat('!')) { reverse = true; }
             if (args.eol()) { return; }
-            if (!args.eatSpace()) { return 'Invalid arguments'; }
+            if (!args.eatSpace()) { throw new Error('invalid arguments ' + args.match(/.*/)[0]); }
             var opts = args.match(/[a-z]+/);
             if (opts) {
               opts = opts[0];
@@ -3201,17 +3124,13 @@
               var decimal = opts.indexOf('d') != -1 && 1;
               var hex = opts.indexOf('x') != -1 && 1;
               var octal = opts.indexOf('o') != -1 && 1;
-              if (decimal + hex + octal > 1) { return 'Invalid arguments'; }
+              if (decimal + hex + octal > 1) { throw new Error('invalid arguments'); }
               number = decimal && 'decimal' || hex && 'hex' || octal && 'octal';
             }
-            if (args.eatSpace() && args.match(/\/.*\//)) { 'patterns not supported'; }
+            if (args.eatSpace() && args.match(/\/.*\//)) { throw new Error('patterns not supported'); }
           }
         }
-        var err = parseArgs();
-        if (err) {
-          showConfirm(cm, err + ': ' + params.argString);
-          return;
-        }
+        parseArgs();
         var lineStart = params.line || cm.firstLine();
         var lineEnd = params.lineEnd || params.line || cm.lastLine();
         if (lineStart == lineEnd) { return; }
@@ -3332,13 +3251,13 @@
         clearSearchHighlight(cm);
       },
       delmarks: function(cm, params) {
-        if (!params.argString || !trim(params.argString)) {
+        if (!params.argString || !params.argString.trim()) {
           showConfirm(cm, 'Argument required');
           return;
         }
 
         var state = cm.state.vim;
-        var stream = new CodeMirror.StringStream(trim(params.argString));
+        var stream = new CodeMirror.StringStream(params.argString.trim());
         while (!stream.eol()) {
           stream.eatSpace();
 
@@ -3475,8 +3394,7 @@
       // Actually do replace.
       next();
       if (done) {
-        showConfirm(cm, 'No matches for ' + query.source);
-        return;
+        throw new Error('No matches for ' + query.source);
       }
       if (!confirm) {
         replaceAll();
@@ -3527,6 +3445,7 @@
 
       var cmToVimKeymap = {
         'nofallthrough': true,
+        'disableInput': true,
         'style': 'fat-cursor'
       };
       function bindKeys(keys, modifier) {
@@ -3573,7 +3492,6 @@
       cm.setCursor(cm.getCursor().line, cm.getCursor().ch-1, true);
       vim.insertMode = false;
       cm.setOption('keyMap', 'vim');
-      cm.setOption('disableInput', true);
       cm.toggleOverwrite(false); // exit replace mode if we were in it.
       CodeMirror.signal(cm, "vim-mode-change", {mode: "normal"});
     }

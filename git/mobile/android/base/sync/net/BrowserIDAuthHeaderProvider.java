@@ -30,7 +30,7 @@ public class BrowserIDAuthHeaderProvider implements AuthHeaderProvider {
 
   @Override
   public Header getAuthHeader(HttpRequestBase request, BasicHttpContext context, DefaultHttpClient client) {
-    Header header = new BasicHeader("Authorization", "BrowserID " + assertion);
+    Header header = new BasicHeader("Authorization", "Browser-ID " + assertion);
 
     return header;
   }

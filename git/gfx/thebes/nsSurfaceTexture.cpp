@@ -27,12 +27,15 @@ public:
   {
   }
 
+  
   bool EnsureInitialized()
   {
     if (mInitialized)
       return true;
 
     JNIEnv* env = GetJNIForThread();
+    if (!env)
+      return false;
 
     AutoLocalJNIFrame jniFrame(env);
 
@@ -51,6 +54,8 @@ public:
       return nullptr;
 
     JNIEnv* env = GetJNIForThread();
+    if (!env)
+      return nullptr;
 
     AutoLocalJNIFrame jniFrame(env);
 
@@ -60,6 +65,8 @@ public:
   void ReleaseSurfaceTexture(jobject aSurfaceTexture)
   {
     JNIEnv* env = GetJNIForThread();
+    if (!env)
+      return;
 
     env->DeleteGlobalRef(aSurfaceTexture);
   }
@@ -67,6 +74,8 @@ public:
   void UpdateTexImage(jobject aSurfaceTexture)
   {
     JNIEnv* env = GetJNIForThread();
+    if (!env)
+      return;
 
     AutoLocalJNIFrame jniFrame(env);
     env->CallObjectMethod(aSurfaceTexture, jSurfaceTexture_updateTexImage);
@@ -75,6 +84,8 @@ public:
   bool GetTransformMatrix(jobject aSurfaceTexture, gfx3DMatrix& aMatrix)
   {
     JNIEnv* env = GetJNIForThread();
+    if (!env)
+      return false;
 
     AutoLocalJNIFrame jniFrame(env);
 
@@ -161,6 +172,8 @@ nsSurfaceTexture::Init(GLuint aTexture)
     return false;
 
   JNIEnv* env = GetJNIForThread();
+  if (!env)
+    return false;
 
   mSurfaceTexture = sJNIFunctions.CreateSurfaceTexture(aTexture);
   if (!mSurfaceTexture)
@@ -191,8 +204,10 @@ nsSurfaceTexture::~nsSurfaceTexture()
   }
 
   JNIEnv* env = GetJNIForThread();
+  if (!env)
+    return;
 
-  if (mSurfaceTexture) {
+  if (mSurfaceTexture && env) {
     GeckoAppShell::UnregisterSurfaceTextureFrameListener(mSurfaceTexture);
 
     env->DeleteGlobalRef(mSurfaceTexture);

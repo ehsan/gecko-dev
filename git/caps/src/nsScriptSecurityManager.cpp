@@ -100,7 +100,7 @@ IDToString(JSContext *cx, jsid id_)
         return JS_GetInternedStringChars(JSID_TO_STRING(id));
 
     JS::Rooted<JS::Value> idval(cx);
-    if (!JS_IdToValue(cx, id, &idval))
+    if (!JS_IdToValue(cx, id, idval.address()))
         return nullptr;
     JSString *str = JS::ToString(cx, idval);
     if(!str)

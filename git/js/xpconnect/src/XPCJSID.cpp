@@ -617,20 +617,24 @@ nsJSCID::NewID(const char* str)
     }
 
     nsRefPtr<nsJSCID> idObj = new nsJSCID();
+    bool success = false;
+
     if (str[0] == '{') {
-        NS_ENSURE_SUCCESS(idObj->Initialize(str), nullptr);
+        if (NS_SUCCEEDED(idObj->Initialize(str)))
+            success = true;
     } else {
         nsCOMPtr<nsIComponentRegistrar> registrar;
         NS_GetComponentRegistrar(getter_AddRefs(registrar));
-        NS_ENSURE_TRUE(registrar, nullptr);
-
-        nsCID *cid;
-        NS_ENSURE_SUCCESS(registrar->ContractIDToCID(str, &cid), nullptr);
-        bool success = idObj->mDetails.InitWithName(*cid, str);
-        nsMemory::Free(cid);
-        if (!success)
-            return nullptr;
+        if (registrar) {
+            nsCID *cid;
+            if (NS_SUCCEEDED(registrar->ContractIDToCID(str, &cid))) {
+                success = idObj->mDetails.InitWithName(*cid, str);
+                nsMemory::Free(cid);
+            }
+        }
     }
+    if (!success)
+        return nullptr;
     return idObj.forget();
 }
 

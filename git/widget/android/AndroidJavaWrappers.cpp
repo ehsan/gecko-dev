@@ -968,6 +968,10 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
     JNIEnv *jni = jenv;
     if (!jni) {
         jni = AndroidBridge::GetJNIEnv();
+        if (!jni) {
+            SetIsVoid(true);
+            return;
+        }
     }
     const jchar* jCharPtr = jni->GetStringChars(jstr, nullptr);
 

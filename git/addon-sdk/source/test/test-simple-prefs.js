@@ -5,7 +5,7 @@
 
 const { Loader } = require("sdk/test/loader");
 const { setTimeout } = require("sdk/timers");
-const { emit } = require("sdk/system/events");
+const { notify } = require("sdk/deprecated/observer-service");
 const { id } = require("sdk/self");
 const simplePrefs = require("sdk/simple-prefs");
 const { prefs: sp } = simplePrefs;
@@ -132,7 +132,7 @@ exports.testBtnListener = function(assert, done) {
     assert.pass("Button press event was heard");
     done();
   });
-  emit((id + "-cmdPressed"), { subject: "", data: name });
+  notify((id + "-cmdPressed"), "", name);
 };
 
 exports.testPrefRemoveListener = function(assert, done) {

@@ -170,7 +170,7 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
     }
 
     RootedId id(cx);
-    if (!JS_ValueToId(cx, StringValue(funname), &id))
+    if (!JS_ValueToId(cx, StringValue(funname), id.address()))
         return false;
 
     // We need to resolve the this object, because this function is used
@@ -294,7 +294,7 @@ ExportFunction(JSContext *cx, HandleValue vfunction, HandleValue vscope, HandleV
 
             RootedValue vname(cx);
             vname.setString(funName);
-            if (!JS_ValueToId(cx, vname, &id))
+            if (!JS_ValueToId(cx, vname, id.address()))
                 return false;
         }
         MOZ_ASSERT(JSID_IS_STRING(id));
@@ -1447,7 +1447,7 @@ OptionsBase::ParseId(const char *name, MutableHandleId prop)
     if (!found)
         return true;
 
-    return JS_ValueToId(mCx, value, prop);
+    return JS_ValueToId(mCx, value, prop.address());
 }
 
 /*

@@ -16,7 +16,6 @@ const { ns } = require('../core/namespace');
 const event = ns();
 
 const EVENT_TYPE_PATTERN = /^on([A-Z]\w+$)/;
-exports.EVENT_TYPE_PATTERN = EVENT_TYPE_PATTERN;
 
 // Utility function to access given event `target` object's event listeners for
 // the specific event `type`. If listeners for this type does not exists they
@@ -162,10 +161,9 @@ function setListeners(target, listeners) {
   Object.keys(listeners || {}).forEach(key => {
     let match = EVENT_TYPE_PATTERN.exec(key);
     let type = match && match[1].toLowerCase();
-    if (!type) return;
-
     let listener = listeners[key];
-    if (typeof(listener) === 'function')
+
+    if (type && typeof(listener) === 'function')
       on(target, type, listener);
   });
 }

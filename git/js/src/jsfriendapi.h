@@ -1448,13 +1448,11 @@ typedef bool
                   void *specializedThis, const JSJitMethodCallArgs& args);
 
 struct JSJitInfo {
-    enum OpType {
+    enum OpType MOZ_ENUM_TYPE(uint8_t) {
         Getter,
         Setter,
         Method,
-        ParallelNative,
-        // Must be last
-        OpTypeCount
+        ParallelNative
     };
 
     enum ArgType {
@@ -1478,7 +1476,7 @@ struct JSJitInfo {
         ArgTypeListEnd = (1 << 31)
     };
 
-    enum AliasSet {
+    enum AliasSet MOZ_ENUM_TYPE(uint8_t) {
         // An enum that describes what this getter/setter/method aliases.  This
         // determines what things can be hoisted past this call, and if this
         // call is movable what it can be hoisted past.
@@ -1493,40 +1491,22 @@ struct JSJitInfo {
 
         // Alias the world.  Calling this can change arbitrary values anywhere
         // in the system.  Most things fall in this bucket.
-        AliasEverything,
-
-        // Must be last.
-        AliasSetCount
+        AliasEverything
     };
 
     bool hasParallelNative() const
     {
-        return type() == ParallelNative;
+        return type == ParallelNative;
     }
 
     bool isDOMJitInfo() const
     {
-        return type() != ParallelNative;
+        return type != ParallelNative;
     }
 
     bool isTypedMethodJitInfo() const
     {
         return isTypedMethod;
-    }
-
-    OpType type() const
-    {
-        return OpType(type_);
-    }
-
-    AliasSet aliasSet() const
-    {
-        return AliasSet(aliasSet_);
-    }
-
-    JSValueType returnType() const
-    {
-        return JSValueType(returnType_);
     }
 
     union {
@@ -1539,52 +1519,29 @@ struct JSJitInfo {
 
     uint16_t protoID;
     uint16_t depth;
-
-    // These fields are carefully packed to take up 4 bytes.  If you need more
-    // bits for whatever reason, please see if you can steal bits from existing
-    // fields before adding more members to this structure.
-
-#define JITINFO_OP_TYPE_BITS 4
-#define JITINFO_ALIAS_SET_BITS 4
-#define JITINFO_RETURN_TYPE_BITS 8
-
-    // If this field is not ParallelNative, then this is a DOM method.
-    // If you change that, come up with a different way of implementing
+    // type not being ParallelNative means this is a DOM method.  If you
+    // change that, come up with a different way of implementing
     // isDOMJitInfo().
-    uint32_t type_ : JITINFO_OP_TYPE_BITS;
-
-    // The alias set for this op.  This is a _minimal_ alias set; in
-    // particular for a method it does not include whatever argument
-    // conversions might do.  That's covered by argTypes and runtime
-    // analysis of the actual argument types being passed in.
-    uint32_t aliasSet_ : JITINFO_ALIAS_SET_BITS;
-
-    // The return type tag.  Might be JSVAL_TYPE_UNKNOWN.
-    uint32_t returnType_ : JITINFO_RETURN_TYPE_BITS;
-
-    static_assert(OpTypeCount <= (1 << JITINFO_OP_TYPE_BITS),
-                  "Not enough space for OpType");
-    static_assert(AliasSetCount <= (1 << JITINFO_ALIAS_SET_BITS),
-                  "Not enough space for AliasSet");
-    static_assert((sizeof(JSValueType) * 8) <= JITINFO_RETURN_TYPE_BITS,
-                  "Not enough space for JSValueType");
-
-#undef JITINFO_RETURN_TYPE_BITS
-#undef JITINFO_ALIAS_SET_BITS
-#undef JITINFO_OP_TYPE_BITS
-
-    uint32_t isInfallible : 1; /* Is op fallible? False in setters. */
-    uint32_t isMovable : 1;    /* Is op movable?  To be movable the op must
+    OpType type;
+    JSValueType returnType; /* The return type tag.  Might be JSVAL_TYPE_UNKNOWN */
+    uint16_t isInfallible : 1; /* Is op fallible? False in setters. */
+    uint16_t isMovable : 1;    /* Is op movable?  To be movable the op must
                                   not AliasEverything, but even that might
                                   not be enough (e.g. in cases when it can
                                   throw). */
     // XXXbz should we have a JSValueType for the type of the member?
-    uint32_t isInSlot : 1;     /* True if this is a getter that can get a member
+    uint16_t isInSlot : 1;     /* True if this is a getter that can get a member
                                   from a slot of the "this" object directly. */
-    uint32_t isTypedMethod : 1; /* True if this is an instance of
+    uint16_t isTypedMethod : 1; /* True if this is an instance of
                                    JSTypedMethodJitInfo. */
-    uint32_t slotIndex : 12;   /* If isInSlot is true, the index of the slot to
+    uint16_t slotIndex : 12;   /* If isInSlot is true, the index of the slot to
                                   get the value from.  Otherwise 0. */
+
+    AliasSet aliasSet;      /* The alias set for this op.  This is a _minimal_
+                               alias set; in particular for a method it does not
+                               include whatever argument conversions might do.
+                               That's covered by argTypes and runtime analysis
+                               of the actual argument types being passed in. */
 
 private:
     static void staticAsserts()
@@ -1597,12 +1554,6 @@ private:
         JS_STATIC_ASSERT(Any & Null);
     }
 };
-
-static_assert(sizeof(JSJitInfo) == (sizeof(void*) + 2 * sizeof(uint32_t)),
-              "There are several thousand instances of JSJitInfo stored in "
-              "a binary. Please don't increase its space requirements without "
-              "verifying that there is no other way forward (better packing, "
-              "smaller datatypes for fields, subclassing, etc.).");
 
 struct JSTypedMethodJitInfo
 {
@@ -1653,7 +1604,7 @@ inline int CheckIsParallelNative(JSParallelNative parallelNative);
  */
 #define JS_JITINFO_NATIVE_PARALLEL(infoName, parallelOp)                \
     const JSJitInfo infoName =                                          \
-        {{JS_CAST_PARALLEL_NATIVE_TO(parallelOp, JSJitGetterOp)},0,0,JSJitInfo::ParallelNative,JSJitInfo::AliasEverything,JSVAL_TYPE_MISSING,false,false,false,false,0}
+        {{JS_CAST_PARALLEL_NATIVE_TO(parallelOp, JSJitGetterOp)},0,0,JSJitInfo::ParallelNative,JSVAL_TYPE_MISSING,false,false,false,false,0,JSJitInfo::AliasEverything}
 
 #define JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(infoName, wrapperName, serialOp) \
     bool wrapperName##_ParallelNativeThreadSafeWrapper(js::ForkJoinSlice *slice, unsigned argc, \

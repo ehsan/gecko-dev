@@ -413,7 +413,7 @@ struct SourceCompressionTask
         complete();
     }
 
-    bool work();
+    bool compress();
     bool complete();
     void abort() { abort_ = 1; }
     bool active() const { return !!ss; }

@@ -4,16 +4,9 @@
 
 <hbox id="customization-container" flex="1" hidden="true">
   <vbox flex="1" id="customization-palette-container">
-    <label id="customization-header">
-      &customizeMode.menuAndToolbars.header;
-    </label>
+    <label id="customization-header" value="&customizeMode.menuAndToolbars.header;"/>
     <vbox id="customization-palette" flex="1"/>
-    <spacer flex="1"/>
-    <hbox>
-      <button id="customization-toolbar-visibility-button" label="&customizeMode.toolbars;" class="customizationmode-button" type="menu">
-        <menupopup id="customization-toolbar-menu" onpopupshowing="onViewToolbarsPopupShowing(event)"/>
-      </button>
-      <spacer flex="1"/>
+    <hbox pack="start">
       <button id="customization-reset-button" oncommand="gCustomizeMode.reset();" label="&customizeMode.restoreDefaults;" class="customizationmode-button"/>
     </hbox>
   </vbox>

@@ -502,7 +502,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* nameStr)
     /* Not found in property list, look it up explicitly */
 
     nameval = STRING_TO_JSVAL(name);
-    if(!JS_ValueToId(cx, nameval, &nameid))
+    if(!JS_ValueToId(cx, nameval, nameid.address()))
         return nullptr;
 
     if(!(obj = JSVAL_TO_OBJECT(jsdval->val)))
@@ -544,7 +544,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* nameStr)
         }
     }
 
-    if (!JS_IdToValue(cx, nameid, &propId))
+    if (!JS_IdToValue(cx, nameid, propId.address()))
         return nullptr;
 
     propAlias = JSVAL_NULL;

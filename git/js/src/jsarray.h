@@ -140,6 +140,13 @@ ArrayShiftMoveElements(JSObject *obj);
 extern bool
 array_shift(JSContext *cx, unsigned argc, js::Value *vp);
 
+} /* namespace js */
+
+#ifdef DEBUG
+extern bool
+js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
+#endif
+
 /*
  * Append the given (non-hole) value to the end of an array.  The array must be
  * a newborn array -- that is, one which has not been exposed to script for
@@ -148,14 +155,7 @@ array_shift(JSContext *cx, unsigned argc, js::Value *vp);
  * sparse, which requires that the array be completely filled.)
  */
 extern bool
-NewbornArrayPush(JSContext *cx, HandleObject obj, const Value &v);
-
-} /* namespace js */
-
-#ifdef DEBUG
-extern bool
-js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
-#endif
+js_NewbornArrayPush(JSContext *cx, js::HandleObject obj, const js::Value &v);
 
 /* Array constructor native. Exposed only so the JIT can know its address. */
 bool
