@@ -1138,30 +1138,14 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_LAMBDA)
           {
             JSFunction *fun = script->getFunction(fullAtomIndex(PC));
-
-            JSObjStubFun stub = stubs::Lambda;
-            uint32 uses = 0;
-
-            JSOp next = JSOp(PC[JSOP_LAMBDA_LENGTH]);
-            if (next == JSOP_INITMETHOD) {
-                stub = stubs::LambdaForInit;
-            } else if (next == JSOP_SETMETHOD) {
-                stub = stubs::LambdaForSet;
-                uses = 1;
-            } else if (fun->joinable()) {
-                if (next == JSOP_CALL) {
-                    stub = stubs::LambdaJoinableForCall;
-                    uses = frame.frameDepth();
-                } else if (next == JSOP_NULL) {
-                    stub = stubs::LambdaJoinableForNull;
-                }
-            }
-
-            prepareStubCall(Uses(uses));
+            prepareStubCall(Uses(0));
             masm.move(ImmPtr(fun), Registers::ArgReg1);
 
-            stubCall(stub);
-
+            JSOp next = JSOp(PC[JSOP_LAMBDA_LENGTH]);
+            if (next == JSOP_INITMETHOD)
+                stubCall(stubs::LambdaForInit);
+            else
+                stubCall(stubs::Lambda);
             frame.takeReg(Registers::ReturnReg);
             frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
           }

@@ -144,13 +144,9 @@ BytecodeAnalyzer::analyze(uint32 index)
 
           case JSOP_IFEQX:
           case JSOP_IFNEX:
-            if (!addEdge(pc, GET_JUMPX_OFFSET(pc), stackDepth))
-                return false;
-            break;
-
           case JSOP_ORX:
           case JSOP_ANDX:
-            if (!addEdge(pc, GET_JUMPX_OFFSET(pc), stackDepth + 1))
+            if (!addEdge(pc, GET_JUMPX_OFFSET(pc), stackDepth))
                 return false;
             break;
 

@@ -1782,7 +1782,9 @@ ic::SetProp(VMFrame &f, uint32 index)
     }
     
     Value rval = f.regs.sp[-1];
-    stub(f, index);
+    if (!obj->setProperty(f.cx, ATOM_TO_JSID(atom), &f.regs.sp[-1]))
+        THROW();
+    f.regs.sp[-2] = rval;
 }
 
 static void JS_FASTCALL
