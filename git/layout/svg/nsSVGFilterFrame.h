@@ -18,6 +18,7 @@ class nsIFrame;
 class nsIPresShell;
 class nsRenderingContext;
 class nsStyleContext;
+class nsSVGFilterPaintCallback;
 class nsSVGIntegerPair;
 class nsSVGLength2;
 

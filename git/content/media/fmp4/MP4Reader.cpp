@@ -381,10 +381,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     NS_ENSURE_TRUE(mAudio.mDecoder != nullptr, NS_ERROR_FAILURE);
     nsresult rv = mAudio.mDecoder->Init();
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // Decode one audio frame to detect potentially incorrect channels count or
-    // sampling rate from demuxer.
-    Decode(kAudio);
   }
 
   if (HasVideo()) {
@@ -589,15 +585,7 @@ MP4Reader::Output(TrackType aTrack, MediaData* aSample)
   switch (aTrack) {
     case kAudio: {
       MOZ_ASSERT(aSample->mType == MediaData::AUDIO_SAMPLES);
-      AudioData* audioData = static_cast<AudioData*>(aSample);
-      AudioQueue().Push(audioData);
-      if (audioData->mChannels != mInfo.mAudio.mChannels ||
-          audioData->mRate != mInfo.mAudio.mRate) {
-        LOG("MP4Reader::Output change of sampling rate:%d->%d",
-            mInfo.mAudio.mRate, audioData->mRate);
-        mInfo.mAudio.mRate = audioData->mRate;
-        mInfo.mAudio.mChannels = audioData->mChannels;
-      }
+      AudioQueue().Push(static_cast<AudioData*>(aSample));
       break;
     }
     case kVideo: {

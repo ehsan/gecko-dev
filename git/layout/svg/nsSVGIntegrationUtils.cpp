@@ -515,7 +515,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
    */
   if (clipPathFrame && isTrivialClip) {
     gfx->Save();
-    clipPathFrame->ApplyClipOrPaintClipMask(aCtx, aFrame, cssPxToDevPxMatrix);
+    clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
   }
 
   /* Paint the child */
@@ -552,7 +552,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (clipPathFrame && !isTrivialClip) {
     gfx->PushGroup(gfxContentType::COLOR_ALPHA);
 
-    nsresult rv = clipPathFrame->ApplyClipOrPaintClipMask(aCtx, aFrame, cssPxToDevPxMatrix);
+    nsresult rv = clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
     clipMaskSurface = gfx->PopGroup();
 
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {

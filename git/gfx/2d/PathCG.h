@@ -25,7 +25,7 @@ public:
       mCGPath = aPath;
   }
 
-  explicit PathBuilderCG(FillRule aFillRule)
+  PathBuilderCG(FillRule aFillRule)
     : mFillRule(aFillRule)
   {
       mCGPath = CGPathCreateMutable();

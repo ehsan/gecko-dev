@@ -2676,14 +2676,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   if (!aState) {
     if (reUseInnerWindow) {
-
       if (newInnerWindow->mDoc != aDocument) {
         newInnerWindow->mDoc = aDocument;
-
-        // The storage objects contain the URL of the window. We have to
-        // recreate them when the innerWindow is reused.
-        newInnerWindow->mLocalStorage = nullptr;
-        newInnerWindow->mSessionStorage = nullptr;
 
         if (newInnerWindow->IsDOMBinding()) {
           WindowBinding::ClearCachedDocumentValue(cx, newInnerWindow);
@@ -11466,15 +11460,11 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
 
     // Clone the storage event included in the observer notification. We want
     // to dispatch clones rather than the original event.
-    ErrorResult error;
     nsRefPtr<StorageEvent> newEvent =
       CloneStorageEvent(fireMozStorageChanged ?
                           NS_LITERAL_STRING("MozStorageChanged") :
                           NS_LITERAL_STRING("storage"),
-                        event, error);
-    if (error.Failed()) {
-      return error.ErrorCode();
-    }
+                        event);
 
     newEvent->SetTrusted(true);
 
@@ -11570,8 +11560,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
 
 already_AddRefed<StorageEvent>
 nsGlobalWindow::CloneStorageEvent(const nsAString& aType,
-                                  const nsRefPtr<StorageEvent>& aEvent,
-                                  ErrorResult& aRv)
+                                  const nsRefPtr<StorageEvent>& aEvent)
 {
   MOZ_ASSERT(IsInnerWindow());
 
@@ -11583,26 +11572,7 @@ nsGlobalWindow::CloneStorageEvent(const nsAString& aType,
   aEvent->GetOldValue(dict.mOldValue);
   aEvent->GetNewValue(dict.mNewValue);
   aEvent->GetUrl(dict.mUrl);
-
-  nsRefPtr<DOMStorage> storageArea = aEvent->GetStorageArea();
-  MOZ_ASSERT(storageArea);
-
-  nsRefPtr<DOMStorage> storage;
-  if (storageArea->GetType() == DOMStorage::LocalStorage) {
-    storage = GetLocalStorage(aRv);
-  } else {
-    MOZ_ASSERT(storageArea->GetType() == DOMStorage::SessionStorage);
-    storage = GetSessionStorage(aRv);
-  }
-
-  if (aRv.Failed() || !storage) {
-    return nullptr;
-  }
-
-  MOZ_ASSERT(storage);
-  MOZ_ASSERT(storage->IsForkOf(storageArea));
-
-  dict.mStorageArea = storage;
+  dict.mStorageArea = aEvent->GetStorageArea();
 
   nsRefPtr<StorageEvent> event = StorageEvent::Constructor(this, aType, dict);
   return event.forget();
@@ -11798,7 +11768,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
         // so that whatever popup blocker UI the app has will be visible.
         if (mContext == GetScriptContextFromJSContext(aJSCallerContext)) {
           mBlockScriptedClosingFlag = true;
-          closeUnblocker.emplace(this);
+          closeUnblocker.construct(this);
         }
       }
 
@@ -11847,7 +11817,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
       // arguments. That whole setup just really needs to be rewritten. :-(
       Maybe<AutoNoJSAPI> nojsapi;
       if (!aContentModal) {
-        nojsapi.emplace();
+        nojsapi.construct();
       }
 
 

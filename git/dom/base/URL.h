@@ -12,7 +12,6 @@
 #include "nsString.h"
 
 class nsIDOMBlob;
-class nsIPrincipal;
 class nsISupports;
 class nsIURI;
 
@@ -69,9 +68,6 @@ public:
                               ErrorResult& aError);
   static void RevokeObjectURL(const GlobalObject& aGlobal,
                               const nsAString& aURL);
-  static nsIPrincipal* GetPrincipalFromURL(const GlobalObject& aGlobal,
-                                           const nsAString& aURL,
-                                           ErrorResult& aError);
 
   void GetHref(nsString& aHref, ErrorResult& aRv) const;
 

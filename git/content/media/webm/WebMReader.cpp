@@ -613,12 +613,11 @@ bool WebMReader::DecodeAudioPacket(nestegg_packet* aPacket, int64_t aOffset)
 
         total_frames += frames;
         AudioQueue().Push(new AudioData(aOffset,
-                                        time.value(),
-                                        duration.value(),
-                                        frames,
-                                        buffer.forget(),
-                                        mChannels,
-                                        rate));
+                                       time.value(),
+                                       duration.value(),
+                                       frames,
+                                       buffer.forget(),
+                                       mChannels));
         mAudioFrames += frames;
         if (vorbis_synthesis_read(&mVorbisDsp, frames) != 0) {
           return false;
@@ -739,12 +738,11 @@ bool WebMReader::DecodeAudioPacket(nestegg_packet* aPacket, int64_t aOffset)
         return false;
       };
       AudioQueue().Push(new AudioData(mDecoder->GetResource()->Tell(),
-                                      time.value(),
-                                      duration.value(),
-                                      frames,
-                                      buffer.forget(),
-                                      mChannels,
-                                      rate));
+                                     time.value(),
+                                     duration.value(),
+                                     frames,
+                                     buffer.forget(),
+                                     mChannels));
 
       mAudioFrames += frames;
 #else

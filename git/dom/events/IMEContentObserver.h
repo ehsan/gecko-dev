@@ -38,8 +38,6 @@ class IMEContentObserver MOZ_FINAL : public nsISelectionListener
                                    , public nsSupportsWeakReference
                                    , public nsIEditorObserver
 {
-  friend class AsyncMergeableNotificationsFlusher;
-
 public:
   IMEContentObserver();
 
@@ -221,7 +219,6 @@ private:
   bool mIsSelectionChangeEventPending;
   bool mSelectionChangeCausedOnlyByComposition;
   bool mIsPositionChangeEventPending;
-  bool mIsFlushingPendingNotifications;
 };
 
 } // namespace mozilla

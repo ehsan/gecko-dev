@@ -56,7 +56,6 @@ typedef void (*EnterJitCode)(void *code, unsigned argc, Value *argv, Interpreter
                              size_t numStackValues, Value *vp);
 
 class IonBuilder;
-class JitcodeGlobalTable;
 
 // ICStubSpace is an abstraction for allocation policy and storage for stub data.
 // There are two kinds of stubs: optimized stubs and fallback stubs (the latter
@@ -233,9 +232,6 @@ class JitRuntime
     // their callee.
     js::Value ionReturnOverride_;
 
-    // Global table of jitcode native address => bytecode address mappings.
-    JitcodeGlobalTable *jitcodeGlobalTable_;
-
   private:
     JitCode *generateExceptionTailStub(JSContext *cx);
     JitCode *generateBailoutTailStub(JSContext *cx);
@@ -384,23 +380,6 @@ class JitRuntime
         JS_ASSERT(!hasIonReturnOverride());
         JS_ASSERT(!v.isMagic());
         ionReturnOverride_ = v;
-    }
-
-    bool hasJitcodeGlobalTable() const {
-        return jitcodeGlobalTable_ != nullptr;
-    }
-
-    JitcodeGlobalTable *getJitcodeGlobalTable() {
-        JS_ASSERT(hasJitcodeGlobalTable());
-        return jitcodeGlobalTable_;
-    }
-
-    bool isNativeToBytecodeMapEnabled(JSRuntime *rt) {
-#ifdef DEBUG
-        return true;
-#else // DEBUG
-        return rt->spsProfiler.enabled();
-#endif // DEBUG
     }
 };
 

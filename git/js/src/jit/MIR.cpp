@@ -30,7 +30,6 @@ using namespace js::jit;
 using mozilla::NumbersAreIdentical;
 using mozilla::IsFloat32Representable;
 using mozilla::Maybe;
-using mozilla::DebugOnly;
 
 #ifdef DEBUG
 size_t MUse::index() const
@@ -587,39 +586,6 @@ MConstant::canProduceFloat32() const
     if (type() == MIRType_Double)
         return IsFloat32Representable(value_.toDouble());
     return true;
-}
-
-MDefinition*
-MSimdValueX4::foldsTo(TempAllocator &alloc)
-{
-    DebugOnly<MIRType> scalarType = SimdTypeToScalarType(type());
-    for (size_t i = 0; i < 4; ++i) {
-        MDefinition *op = getOperand(i);
-        if (!op->isConstant())
-            return this;
-        JS_ASSERT(op->type() == scalarType);
-    }
-
-    SimdConstant cst;
-    switch (type()) {
-      case MIRType_Int32x4: {
-        int32_t a[4];
-        for (size_t i = 0; i < 4; ++i)
-            a[i] = getOperand(i)->toConstant()->value().toInt32();
-        cst = SimdConstant::CreateX4(a);
-        break;
-      }
-      case MIRType_Float32x4: {
-        float a[4];
-        for (size_t i = 0; i < 4; ++i)
-            a[i] = getOperand(i)->toConstant()->value().toNumber();
-        cst = SimdConstant::CreateX4(a);
-        break;
-      }
-      default: MOZ_ASSUME_UNREACHABLE("unexpected type in MSimdValueX4::foldsTo");
-    }
-
-    return MSimdConstant::New(alloc, cst, type());
 }
 
 MCloneLiteral *
@@ -3455,32 +3421,6 @@ MBoundsCheck::foldsTo(TempAllocator &alloc)
     return this;
 }
 
-MDefinition *
-MArrayJoin::foldsTo(TempAllocator &alloc) {
-    MDefinition *arr = array();
-
-    if (!arr->isStringSplit())
-        return this;
-
-    this->setRecoveredOnBailout();
-    if (arr->hasLiveDefUses()) {
-        this->setNotRecoveredOnBailout();
-        return this;
-    }
-
-    // We're replacing foo.split(bar).join(baz) by
-    // foo.replace(bar, baz).  MStringSplit could be recovered by
-    // a bailout.  As we are removing its last use, and its result
-    // could be captured by a resume point, this MStringSplit will
-    // be executed on the bailout path.
-    MDefinition *string = arr->toStringSplit()->string();
-    MDefinition *pattern = arr->toStringSplit()->separator();
-    MDefinition *replacement = sep();
-
-    setNotRecoveredOnBailout();
-    return MStringReplace::New(alloc, string, pattern, replacement);
-}
-
 bool
 jit::ElementAccessIsDenseNative(MDefinition *obj, MDefinition *id)
 {
@@ -3844,20 +3784,20 @@ TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *c
         // potentially be removed.
         property.freeze(constraints);
 
-        if (!aggregateProperty) {
-            aggregateProperty.emplace(property);
+        if (aggregateProperty.empty()) {
+            aggregateProperty.construct(property);
         } else {
-            if (!aggregateProperty->maybeTypes()->isSubset(property.maybeTypes()) ||
-                !property.maybeTypes()->isSubset(aggregateProperty->maybeTypes()))
+            if (!aggregateProperty.ref().maybeTypes()->isSubset(property.maybeTypes()) ||
+                !property.maybeTypes()->isSubset(aggregateProperty.ref().maybeTypes()))
             {
                 return false;
             }
         }
     }
 
-    JS_ASSERT(aggregateProperty);
+    JS_ASSERT(!aggregateProperty.empty());
 
-    MIRType propertyType = aggregateProperty->knownMIRType(constraints);
+    MIRType propertyType = aggregateProperty.ref().knownMIRType(constraints);
     switch (propertyType) {
       case MIRType_Boolean:
       case MIRType_Int32:
@@ -3883,7 +3823,7 @@ TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *c
     if ((*pvalue)->type() != MIRType_Value)
         return false;
 
-    types::TemporaryTypeSet *types = aggregateProperty->maybeTypes()->clone(alloc.lifoAlloc());
+    types::TemporaryTypeSet *types = aggregateProperty.ref().maybeTypes()->clone(alloc.lifoAlloc());
     if (!types)
         return false;
 

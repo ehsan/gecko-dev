@@ -243,8 +243,7 @@ bool WaveReader::DecodeAudioData()
                                  static_cast<int64_t>(readSizeTime * USECS_PER_S),
                                  static_cast<int32_t>(frames),
                                  sampleBuffer.forget(),
-                                 mChannels,
-                                 mSampleRate));
+                                 mChannels));
 
   return true;
 }

@@ -2802,8 +2802,7 @@ MediaDecoderStateMachine::DropAudioUpToSeekTarget(AudioData* aSample)
                                           duration.value(),
                                           frames,
                                           audioData.forget(),
-                                          channels,
-                                          audio->mRate));
+                                          channels));
   AudioQueue().PushFront(data.forget());
 
   return NS_OK;

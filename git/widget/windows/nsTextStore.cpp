@@ -2408,7 +2408,7 @@ nsTextStore::RetrieveRequestedAttrs(ULONG ulCount,
 
   if (count) {
     *pcFetched = count;
-    return S_OK;
+    return NS_OK;
   }
 
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,

@@ -171,7 +171,7 @@ struct BlurCacheKey : public PLDHashEntryHdr {
     , mBackend(aBackend)
   { }
 
-  explicit BlurCacheKey(const BlurCacheKey* aOther)
+  BlurCacheKey(const BlurCacheKey* aOther)
     : mRect(aOther->mRect)
     , mBlurRadius(aOther->mBlurRadius)
     , mSkipRect(aOther->mSkipRect)

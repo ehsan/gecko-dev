@@ -61,15 +61,8 @@ XPCOMUtils.defineLazyModuleGetter(this, 'clearTimeout', // jshint ignore:line
 XPCOMUtils.defineLazyModuleGetter(this, 'Promise', // jshint ignore:line
   'resource://gre/modules/Promise.jsm');
 
-// Default maximum duration of swipe
-const SWIPE_MAX_DURATION = 200;
-// Default maximum amount of time allowed for a gesture to be considered a
-// multitouch
-const MAX_MULTITOUCH = 125;
-// Default maximum consecutive pointer event timeout
-const MAX_CONSECUTIVE_GESTURE_DELAY = 200;
-// Default delay before tap turns into dwell
-const DWELL_THRESHOLD = 250;
+// Maximum amount of time allowed for a gesture to be considered a multitouch.
+const MAX_MULTITOUCH = 250;
 // Minimal swipe distance in inches
 const SWIPE_MIN_DISTANCE = 0.4;
 // Maximum distance the pointer could move during a tap in inches
@@ -87,8 +80,6 @@ const ANDROID_TRIPLE_SWIPE_DELAY = 50;
 const MOUSE_ID = 'mouse';
 // Amount in inches from the edges of the screen for it to be an edge swipe
 const EDGE = 0.1;
-// Multiply timeouts by this constant, x2 works great too for slower users.
-const TIMEOUT_MULTIPLIER = 1;
 
 /**
  * A point object containing distance travelled data.
@@ -151,26 +142,19 @@ this.GestureSettings = { // jshint ignore:line
    * Maximum duration of swipe
    * @type {Number}
    */
-  swipeMaxDuration: SWIPE_MAX_DURATION * TIMEOUT_MULTIPLIER,
-
-  /**
-   * Maximum amount of time allowed for a gesture to be considered a multitouch.
-   * @type {Number}
-   */
-  maxMultitouch: MAX_MULTITOUCH * TIMEOUT_MULTIPLIER,
+  swipeMaxDuration: 400,
 
   /**
    * Maximum consecutive pointer event timeout.
    * @type {Number}
    */
-  maxConsecutiveGestureDelay:
-    MAX_CONSECUTIVE_GESTURE_DELAY * TIMEOUT_MULTIPLIER,
+  maxConsecutiveGestureDelay: 400,
 
   /**
    * Delay before tap turns into dwell
    * @type {Number}
    */
-  dwellThreshold: DWELL_THRESHOLD * TIMEOUT_MULTIPLIER,
+  dwellThreshold: 500,
 
   /**
    * Minimum distance that needs to be travelled for the pointer move to be
@@ -459,7 +443,7 @@ Gesture.prototype = {
   pointerdown: function Gesture_pointerdown(aPoints, aTimeStamp) {
     this._inProgress = true;
     this._update(aPoints, 'pointerdown',
-      aTimeStamp - this.startTime < GestureSettings.maxMultitouch);
+      aTimeStamp - this.startTime < MAX_MULTITOUCH);
   },
 
   /**

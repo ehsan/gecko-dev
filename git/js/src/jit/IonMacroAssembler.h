@@ -210,7 +210,7 @@ class MacroAssembler : public MacroAssemblerSpecific
 
         if (!icx->temp) {
             JS_ASSERT(cx);
-            alloc_.emplace(cx);
+            alloc_.construct(cx);
         }
 
         moveResolver_.setAllocator(*icx->temp);
@@ -228,9 +228,9 @@ class MacroAssembler : public MacroAssemblerSpecific
         sps_(nullptr)
     {
         constructRoot(cx);
-        ionContext_.emplace(cx, (js::jit::TempAllocator *)nullptr);
-        alloc_.emplace(cx);
-        moveResolver_.setAllocator(*ionContext_->temp);
+        ionContext_.construct(cx, (js::jit::TempAllocator *)nullptr);
+        alloc_.construct(cx);
+        moveResolver_.setAllocator(*ionContext_.ref().temp);
 #ifdef JS_CODEGEN_ARM
         initWithAllocator();
         m_buffer.id = GetIonContext()->getNextAssemblerId();
@@ -241,8 +241,8 @@ class MacroAssembler : public MacroAssemblerSpecific
                 // We have to update the SPS pc when this IC stub calls into
                 // the VM.
                 spsPc_ = pc;
-                spsInstrumentation_.emplace(&cx->runtime()->spsProfiler, &spsPc_);
-                sps_ = spsInstrumentation_.ptr();
+                spsInstrumentation_.construct(&cx->runtime()->spsProfiler, &spsPc_);
+                sps_ = spsInstrumentation_.addr();
                 sps_->setPushed(script);
             }
         }
@@ -271,7 +271,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void constructRoot(JSContext *cx) {
-        autoRooter_.emplace(cx, this);
+        autoRooter_.construct(cx, this);
     }
 
     MoveResolver &moveResolver() {

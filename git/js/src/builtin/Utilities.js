@@ -183,6 +183,7 @@ function ForkJoinMode(mode) {
     return 4;
   }
   ThrowError(JSMSG_PAR_ARRAY_BAD_ARG);
+  return undefined;
 }
 
 #endif

@@ -16,6 +16,7 @@
 
 class nsIFrame;
 class nsSVGFilterFrame;
+class nsSVGFilterPaintCallback;
 
 namespace mozilla {
 namespace dom {

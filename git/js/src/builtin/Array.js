@@ -789,6 +789,8 @@ function ArrayMapPar(func, mode) {
     }
     return sliceId;
   }
+
+  return undefined;
 }
 
 /**
@@ -843,6 +845,8 @@ function ArrayReducePar(func, mode) {
     }
     return sliceId;
   }
+
+  return undefined;
 }
 
 /**
@@ -992,6 +996,8 @@ function ArrayScanPar(func, mode) {
     }
     return sliceId;
   }
+
+  return undefined;
 }
 
 /**
@@ -1073,6 +1079,8 @@ function ArrayScatterPar(targets, defaultValue, conflictFunc, length, mode) {
     // It's not enough to return t, as -0 | 0 === -0.
     return TO_INT32(t);
   }
+
+  return undefined;
 }
 
 /**
@@ -1181,6 +1189,8 @@ function ArrayFilterPar(func, mode) {
 
     return sliceId;
   }
+
+  return undefined;
 }
 
 /**
@@ -1241,6 +1251,8 @@ function ArrayStaticBuildPar(length, func, mode) {
     }
     return sliceId;
   }
+
+  return undefined;
 }
 
 /*

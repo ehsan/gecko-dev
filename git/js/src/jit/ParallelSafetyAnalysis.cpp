@@ -112,10 +112,7 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     // obviously safe for now.  We can loosen as we need.
 
     SAFE_OP(Constant)
-    SAFE_OP(SimdValueX4)
-    SAFE_OP(SimdConstant)
     SAFE_OP(SimdExtractElement)
-    SAFE_OP(SimdBinaryArith)
     UNSAFE_OP(CloneLiteral)
     SAFE_OP(Parameter)
     SAFE_OP(Callee)
@@ -199,7 +196,6 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     UNSAFE_OP(InitProp)
     UNSAFE_OP(InitPropGetterSetter)
     SAFE_OP(Start)
-    SAFE_OP(PcOffset)
     UNSAFE_OP(OsrEntry)
     SAFE_OP(Nop)
     SAFE_OP(LimitedTruncate)
@@ -291,7 +287,6 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     SAFE_OP(NewCallObjectPar)
     SAFE_OP(LambdaPar)
     UNSAFE_OP(ArrayConcat)
-    UNSAFE_OP(ArrayJoin)
     UNSAFE_OP(GetDOMProperty)
     UNSAFE_OP(GetDOMMember)
     UNSAFE_OP(SetDOMProperty)

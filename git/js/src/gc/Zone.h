@@ -399,37 +399,37 @@ class CompartmentsIterT
       : zone(rt)
     {
         if (zone.done())
-            comp.emplace();
+            comp.construct();
         else
-            comp.emplace(zone);
+            comp.construct(zone);
     }
 
     CompartmentsIterT(JSRuntime *rt, ZoneSelector selector)
       : zone(rt, selector)
     {
         if (zone.done())
-            comp.emplace();
+            comp.construct();
         else
-            comp.emplace(zone);
+            comp.construct(zone);
     }
 
     bool done() const { return zone.done(); }
 
     void next() {
         JS_ASSERT(!done());
-        JS_ASSERT(!comp->done());
-        comp->next();
-        if (comp->done()) {
-            comp.reset();
+        JS_ASSERT(!comp.ref().done());
+        comp.ref().next();
+        if (comp.ref().done()) {
+            comp.destroy();
             zone.next();
             if (!zone.done())
-                comp.emplace(zone);
+                comp.construct(zone);
         }
     }
 
     JSCompartment *get() const {
         JS_ASSERT(!done());
-        return *comp;
+        return comp.ref();
     }
 
     operator JSCompartment *() const { return get(); }

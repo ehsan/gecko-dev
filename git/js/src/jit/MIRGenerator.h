@@ -76,21 +76,7 @@ class MIRGenerator
     }
 
     bool instrumentedProfiling() {
-        if (!instrumentedProfilingIsCached_) {
-            instrumentedProfiling_ = GetIonContext()->runtime->spsProfiler().enabled();
-            instrumentedProfilingIsCached_ = true;
-        }
-        return instrumentedProfiling_;
-    }
-
-    bool isNativeToBytecodeMapEnabled() {
-        if (compilingAsmJS())
-            return false;
-#ifdef DEBUG
-        return true;
-#else
-        return instrumentedProfiling();
-#endif
+        return GetIonContext()->runtime->spsProfiler().enabled();
     }
 
     // Whether the main thread is trying to cancel this build.
@@ -180,9 +166,6 @@ class MIRGenerator
     // RegAlloc needs to know this as spilling values back to their register
     // slots is not compatible with that.
     bool modifiesFrameArguments_;
-
-    bool instrumentedProfiling_;
-    bool instrumentedProfilingIsCached_;
 
 #if defined(JS_ION_PERF)
     AsmJSPerfSpewer asmJSPerfSpewer_;

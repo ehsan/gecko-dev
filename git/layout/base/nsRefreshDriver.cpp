@@ -1335,8 +1335,8 @@ nsRefreshDriver::StartTableRefresh(const uint32_t& aDelay,
   ImageRequestParameters* parms =
     static_cast<ImageRequestParameters*> (aUserArg);
 
-  if (aData->mStartTime) {
-    TimeStamp& start = *aData->mStartTime;
+  if (!aData->mStartTime.empty()) {
+    TimeStamp& start = aData->mStartTime.ref();
     TimeDuration prev = parms->mPrevious - start;
     TimeDuration curr = parms->mCurrent - start;
     uint32_t prevMultiple = static_cast<uint32_t>(prev.ToMilliseconds()) / aDelay;
@@ -1355,7 +1355,7 @@ nsRefreshDriver::StartTableRefresh(const uint32_t& aDelay,
     // table to the main requests table.
     parms->mDesired = parms->mCurrent;
     aData->mEntries.EnumerateEntries(nsRefreshDriver::BeginRefreshingImages, parms);
-    aData->mStartTime.emplace(parms->mCurrent);
+    aData->mStartTime.construct(parms->mCurrent);
   }
 
   return PL_DHASH_NEXT;

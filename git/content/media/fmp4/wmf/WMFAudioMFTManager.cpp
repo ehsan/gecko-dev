@@ -263,8 +263,7 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
                            duration,
                            numFrames,
                            audioData.forget(),
-                           mAudioChannels,
-                           mAudioRate);
+                           mAudioChannels);
 
   #ifdef LOG_SAMPLE_DECODE
   LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",

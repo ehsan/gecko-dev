@@ -36,7 +36,7 @@ nsresult CentralizedAdminPrefManagerInit()
     nsresult rv;
 
     // If the sandbox is already created, no need to create it again.
-    if (autoconfigSb)
+    if (!autoconfigSb.empty())
         return NS_OK;
 
     // Grab XPConnect.
@@ -58,16 +58,16 @@ nsresult CentralizedAdminPrefManagerInit()
 
     // Unwrap, store and root the sandbox.
     NS_ENSURE_STATE(sandbox->GetJSObject());
-    autoconfigSb.emplace(cx, js::UncheckedUnwrap(sandbox->GetJSObject()));
+    autoconfigSb.construct(cx, js::UncheckedUnwrap(sandbox->GetJSObject()));
 
     return NS_OK;
 }
 
 nsresult CentralizedAdminPrefManagerFinish()
 {
-    if (autoconfigSb) {
+    if (!autoconfigSb.empty()) {
         AutoSafeJSContext cx;
-        autoconfigSb.reset();
+        autoconfigSb.destroy();
         JS_MaybeGC(cx);
     }
     return NS_OK;
@@ -108,12 +108,12 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
     }
 
     AutoSafeJSContext cx;
-    JSAutoCompartment ac(cx, *autoconfigSb);
+    JSAutoCompartment ac(cx, autoconfigSb.ref());
 
     nsAutoCString script(js_buffer, length);
     JS::RootedValue v(cx);
     rv = xpc->EvalInSandboxObject(NS_ConvertASCIItoUTF16(script), filename, cx,
-                                  *autoconfigSb, &v);
+                                  autoconfigSb.ref(), &v);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;

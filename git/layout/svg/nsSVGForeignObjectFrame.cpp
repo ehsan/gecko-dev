@@ -570,14 +570,11 @@ nsSVGForeignObjectFrame::DoReflow()
 nsRect
 nsSVGForeignObjectFrame::GetInvalidRegion()
 {
-  MOZ_ASSERT(!NS_SVGDisplayListPaintingEnabled(),
-             "Only called by nsDisplayOuterSVG code");
-
   nsIFrame* kid = GetFirstPrincipalChild();
   if (kid->HasInvalidFrameInSubtree()) {
     gfxRect r(mRect.x, mRect.y, mRect.width, mRect.height);
     r.Scale(1.0 / nsPresContext::AppUnitsPerCSSPixel());
-    nsRect rect = nsSVGUtils::ToCanvasBounds(r, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
+    nsRect rect = nsSVGUtils::ToCanvasBounds(r, GetCanvasTM(FOR_PAINTING), PresContext());
     rect = nsSVGUtils::GetPostFilterVisualOverflowRect(this, rect);
     return rect;
   }
