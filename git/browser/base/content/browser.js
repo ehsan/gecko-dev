@@ -3702,8 +3702,10 @@ var XULBrowserWindow = {
 
         // Update starring UI
         BookmarkingUI.updateStarState();
-        SocialMark.updateMarkState();
-        SocialShare.update();
+        if (SocialUI.enabled) {
+          SocialMark.updateMarkState();
+          SocialShare.update();
+        }
       }
 
       // Utility functions for disabling find
