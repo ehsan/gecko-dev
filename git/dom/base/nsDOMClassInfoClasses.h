@@ -513,10 +513,6 @@ DOMCI_CLASS(IDBDatabaseException)
 
 DOMCI_CLASS(EventException)
 
-DOMCI_CLASS(Touch)
-DOMCI_CLASS(TouchList)
-DOMCI_CLASS(TouchEvent)
-
 #ifdef MOZ_CSS_ANIMATIONS
 DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)

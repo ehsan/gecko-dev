@@ -65,10 +65,6 @@ let modules = {
 #endif
     privileged: false
   },
-  blocked: {
-    uri: "chrome://browser/content/blockedSite.xhtml",
-    privileged: true
-  },
   certerror: {
     uri: "chrome://browser/content/aboutCertError.xhtml",
     privileged: true
@@ -156,12 +152,6 @@ AboutHome.prototype = {
   classID: Components.ID("{b071364f-ab68-4669-a9db-33fca168271a}")
 }
 
-function AboutBlocked() {}
-AboutBlocked.prototype = {
-  __proto__: AboutGeneric.prototype,
-  classID: Components.ID("{88fd40b6-c5c2-4120-9238-f2cb9ff98928}")
-}
-
 const components = [AboutEmpty, AboutFirstrun, AboutFennec, AboutRights,
-                    AboutCertError, AboutFirefox, AboutHome, AboutBlocked];
+                    AboutCertError, AboutFirefox, AboutHome];
 const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

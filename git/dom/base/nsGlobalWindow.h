@@ -589,7 +589,6 @@ private:
 
 protected:
   friend class HashchangeCallback;
-  friend class nsBarProp;
 
   // Object Management
   virtual ~nsGlobalWindow();

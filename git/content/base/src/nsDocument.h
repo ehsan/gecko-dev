@@ -109,7 +109,6 @@
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
 #include "nsIDOMDOMImplementation.h"
-#include "nsIDOMTouchEvent.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -167,7 +166,7 @@ public:
 
   void SetInvalidName();
   PRBool IsInvalidName();
-  void AddNameElement(nsIDocument* aDocument, Element* aElement);
+  void AddNameElement(Element* aElement);
   void RemoveNameElement(Element* aElement);
   PRBool IsEmpty();
   nsBaseContentList* GetNameContentList() {
@@ -510,8 +509,7 @@ class nsDocument : public nsIDocument,
                    public nsIScriptObjectPrincipal,
                    public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH,
                    public nsIApplicationCacheContainer,
-                   public nsStubMutationObserver,
-                   public nsIDOMDocumentTouch
+                   public nsStubMutationObserver
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -842,9 +840,6 @@ public:
 
   // nsIApplicationCacheContainer
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
-
-  // nsIDOMDocumentTouch
-  NS_DECL_NSIDOMDOCUMENTTOUCH
 
   virtual nsresult Init();
   

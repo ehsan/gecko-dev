@@ -55,7 +55,7 @@ namespace nj = nanojit;
 #define JS_JIT_SPEW
 #endif
 
-#if defined(JS_JIT_SPEW)
+#if defined(JS_JIT_SPEW) || defined(NJ_NO_VARIADIC_MACROS)
 
 enum LC_TMBits {
     /*

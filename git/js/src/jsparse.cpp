@@ -65,8 +65,6 @@
 #include "jsversion.h"
 #include "jsemit.h"
 #include "jsfun.h"
-#include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -192,7 +190,7 @@ Parser::Parser(JSContext *cx, JSPrincipals *prin, JSStackFrame *cfp)
     tokenStream(cx),
     principals(NULL),
     callerFrame(cfp),
-    callerVarObj(cfp ? &cfp->varobj(cx->stack().containingSegment(cfp)) : NULL),
+    callerVarObj(cfp ? &cfp->varobj(cx->containingSegment(cfp)) : NULL),
     nodeList(NULL),
     functionCount(0),
     traceListHead(NULL),
@@ -3406,7 +3404,7 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
     if (!outertc->inFunction() && bodyLevel && funAtom && !lambda && outertc->compiling()) {
         JS_ASSERT(pn->pn_cookie.isFree());
         if (!DefineGlobal(pn, outertc->asCodeGenerator(), funAtom))
-            return NULL;
+            return false;
     }
 
     pn->pn_blockid = outertc->blockid();
@@ -4265,6 +4263,146 @@ BindDestructuringLHS(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
     return JS_TRUE;
 }
 
+typedef struct FindPropValData {
+    uint32          numvars;    /* # of destructuring vars in left side */
+    uint32          maxstep;    /* max # of steps searching right side */
+    JSDHashTable    table;      /* hash table for O(1) right side search */
+} FindPropValData;
+
+typedef struct FindPropValEntry {
+    JSDHashEntryHdr hdr;
+    JSParseNode     *pnkey;
+    JSParseNode     *pnval;
+} FindPropValEntry;
+
+#define ASSERT_VALID_PROPERTY_KEY(pnkey)                                      \
+    JS_ASSERT(((pnkey)->pn_arity == PN_NULLARY &&                             \
+               ((pnkey)->pn_type == TOK_NUMBER ||                             \
+                (pnkey)->pn_type == TOK_STRING ||                             \
+                (pnkey)->pn_type == TOK_NAME)) ||                             \
+               ((pnkey)->pn_arity == PN_NAME && (pnkey)->pn_type == TOK_NAME))
+
+static JSDHashNumber
+HashFindPropValKey(JSDHashTable *table, const void *key)
+{
+    const JSParseNode *pnkey = (const JSParseNode *)key;
+
+    ASSERT_VALID_PROPERTY_KEY(pnkey);
+    return (pnkey->pn_type == TOK_NUMBER)
+           ? (JSDHashNumber) JS_HASH_DOUBLE(pnkey->pn_dval)
+           : ATOM_HASH(pnkey->pn_atom);
+}
+
+static JSBool
+MatchFindPropValEntry(JSDHashTable *table,
+                      const JSDHashEntryHdr *entry,
+                      const void *key)
+{
+    const FindPropValEntry *fpve = (const FindPropValEntry *)entry;
+    const JSParseNode *pnkey = (const JSParseNode *)key;
+
+    ASSERT_VALID_PROPERTY_KEY(pnkey);
+    return pnkey->pn_type == fpve->pnkey->pn_type &&
+           ((pnkey->pn_type == TOK_NUMBER)
+            ? pnkey->pn_dval == fpve->pnkey->pn_dval
+            : pnkey->pn_atom == fpve->pnkey->pn_atom);
+}
+
+static const JSDHashTableOps FindPropValOps = {
+    JS_DHashAllocTable,
+    JS_DHashFreeTable,
+    HashFindPropValKey,
+    MatchFindPropValEntry,
+    JS_DHashMoveEntryStub,
+    JS_DHashClearEntryStub,
+    JS_DHashFinalizeStub,
+    NULL
+};
+
+#define STEP_HASH_THRESHOLD     10
+#define BIG_DESTRUCTURING        5
+#define BIG_OBJECT_INIT         20
+
+static JSParseNode *
+FindPropertyValue(JSParseNode *pn, JSParseNode *pnid, FindPropValData *data)
+{
+    FindPropValEntry *entry;
+    JSParseNode *pnhit, *pnhead, *pnprop, *pnkey;
+    uint32 step;
+
+    /* If we have a hash table, use it as the sole source of truth. */
+    if (data->table.ops) {
+        entry = (FindPropValEntry *)
+                JS_DHashTableOperate(&data->table, pnid, JS_DHASH_LOOKUP);
+        return JS_DHASH_ENTRY_IS_BUSY(&entry->hdr) ? entry->pnval : NULL;
+    }
+
+    /* If pn is not an object initialiser node, we can't do anything here. */
+    if (pn->pn_type != TOK_RC)
+        return NULL;
+
+    /*
+     * We must search all the way through pn's list, to handle the case of an
+     * id duplicated for two or more property initialisers.
+     */
+    pnhit = NULL;
+    step = 0;
+    ASSERT_VALID_PROPERTY_KEY(pnid);
+    pnhead = pn->pn_head;
+    if (pnid->pn_type == TOK_NUMBER) {
+        for (pnprop = pnhead; pnprop; pnprop = pnprop->pn_next) {
+            JS_ASSERT(pnprop->pn_type == TOK_COLON);
+            if (pnprop->pn_op == JSOP_NOP) {
+                pnkey = pnprop->pn_left;
+                ASSERT_VALID_PROPERTY_KEY(pnkey);
+                if (pnkey->pn_type == TOK_NUMBER &&
+                    pnkey->pn_dval == pnid->pn_dval) {
+                    pnhit = pnprop;
+                }
+                ++step;
+            }
+        }
+    } else {
+        for (pnprop = pnhead; pnprop; pnprop = pnprop->pn_next) {
+            JS_ASSERT(pnprop->pn_type == TOK_COLON);
+            if (pnprop->pn_op == JSOP_NOP) {
+                pnkey = pnprop->pn_left;
+                ASSERT_VALID_PROPERTY_KEY(pnkey);
+                if (pnkey->pn_type == pnid->pn_type &&
+                    pnkey->pn_atom == pnid->pn_atom) {
+                    pnhit = pnprop;
+                }
+                ++step;
+            }
+        }
+    }
+    if (!pnhit)
+        return NULL;
+
+    /* Hit via full search -- see whether it's time to create the hash table. */
+    JS_ASSERT(!data->table.ops);
+    if (step > data->maxstep) {
+        data->maxstep = step;
+        if (step >= STEP_HASH_THRESHOLD &&
+            data->numvars >= BIG_DESTRUCTURING &&
+            pn->pn_count >= BIG_OBJECT_INIT &&
+            JS_DHashTableInit(&data->table, &FindPropValOps, pn,
+                              sizeof(FindPropValEntry),
+                              JS_DHASH_DEFAULT_CAPACITY(pn->pn_count)))
+        {
+            for (pn = pnhead; pn; pn = pn->pn_next) {
+                JS_ASSERT(pnprop->pn_type == TOK_COLON);
+                ASSERT_VALID_PROPERTY_KEY(pn->pn_left);
+                entry = (FindPropValEntry *)
+                        JS_DHashTableOperate(&data->table, pn->pn_left,
+                                             JS_DHASH_ADD);
+                entry->pnval = pn->pn_right;
+            }
+        }
+    }
+    return pnhit->pn_right;
+}
+
 /*
  * Destructuring patterns can appear in two kinds of contexts:
  *
@@ -4288,7 +4426,7 @@ BindDestructuringLHS(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
  * into the appropriate use chains; creates placeholder definitions;
  * and so on.  CheckDestructuring is called with |data| NULL (since we
  * won't be binding any new names), and we specialize lvalues as
- * appropriate.
+ * appropriate.  If right is NULL, we just check for well-formed lvalues.
  *
  * In declaration-like contexts, the normal variable reference
  * processing would just be an obstruction, because we're going to
@@ -4305,59 +4443,87 @@ BindDestructuringLHS(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
  * either of these functions, you might have to change the other to
  * match.
  */
-static bool
-CheckDestructuring(JSContext *cx, BindData *data, JSParseNode *left, JSTreeContext *tc)
+static JSBool
+CheckDestructuring(JSContext *cx, BindData *data,
+                   JSParseNode *left, JSParseNode *right,
+                   JSTreeContext *tc)
 {
-    bool ok;
+    JSBool ok;
+    FindPropValData fpvd;
+    JSParseNode *lhs, *rhs, *pn, *pn2;
 
     if (left->pn_type == TOK_ARRAYCOMP) {
         ReportCompileErrorNumber(cx, TS(tc->parser), left, JSREPORT_ERROR,
                                  JSMSG_ARRAY_COMP_LEFTSIDE);
-        return false;
+        return JS_FALSE;
     }
 
+#if JS_HAS_DESTRUCTURING_SHORTHAND
+    if (right && right->pn_arity == PN_LIST && (right->pn_xflags & PNX_DESTRUCT)) {
+        ReportCompileErrorNumber(cx, TS(tc->parser), right, JSREPORT_ERROR,
+                                 JSMSG_BAD_OBJECT_INIT);
+        return JS_FALSE;
+    }
+#endif
+
+    fpvd.table.ops = NULL;
+    lhs = left->pn_head;
     if (left->pn_type == TOK_RB) {
-        for (JSParseNode *pn = left->pn_head; pn; pn = pn->pn_next) {
+        rhs = (right && right->pn_type == left->pn_type)
+              ? right->pn_head
+              : NULL;
+
+        while (lhs) {
+            pn = lhs, pn2 = rhs;
+
             /* Nullary comma is an elision; binary comma is an expression.*/
             if (pn->pn_type != TOK_COMMA || pn->pn_arity != PN_NULLARY) {
                 if (pn->pn_type == TOK_RB || pn->pn_type == TOK_RC) {
-                    ok = CheckDestructuring(cx, data, pn, tc);
+                    ok = CheckDestructuring(cx, data, pn, pn2, tc);
                 } else {
                     if (data) {
-                        if (pn->pn_type != TOK_NAME) {
-                            ReportCompileErrorNumber(cx, TS(tc->parser), pn, JSREPORT_ERROR,
-                                                     JSMSG_NO_VARIABLE_NAME);
-                            return false;
-                        }
+                        if (pn->pn_type != TOK_NAME)
+                            goto no_var_name;
+
                         ok = BindDestructuringVar(cx, data, pn, tc);
                     } else {
                         ok = BindDestructuringLHS(cx, pn, tc);
                     }
                 }
                 if (!ok)
-                    return false;
+                    goto out;
             }
+
+            lhs = lhs->pn_next;
+            if (rhs)
+                rhs = rhs->pn_next;
         }
     } else {
         JS_ASSERT(left->pn_type == TOK_RC);
-        for (JSParseNode *pair = left->pn_head; pair; pair = pair->pn_next) {
-            JS_ASSERT(pair->pn_type == TOK_COLON);
-            JSParseNode *pn = pair->pn_right;
+        fpvd.numvars = left->pn_count;
+        fpvd.maxstep = 0;
+        rhs = NULL;
+
+        while (lhs) {
+            JS_ASSERT(lhs->pn_type == TOK_COLON);
+            pn = lhs->pn_right;
 
             if (pn->pn_type == TOK_RB || pn->pn_type == TOK_RC) {
-                ok = CheckDestructuring(cx, data, pn, tc);
+                if (right)
+                    rhs = FindPropertyValue(right, lhs->pn_left, &fpvd);
+                ok = CheckDestructuring(cx, data, pn, rhs, tc);
             } else if (data) {
-                if (pn->pn_type != TOK_NAME) {
-                    ReportCompileErrorNumber(cx, TS(tc->parser), pn, JSREPORT_ERROR,
-                                             JSMSG_NO_VARIABLE_NAME);
-                    return false;
-                }
+                if (pn->pn_type != TOK_NAME)
+                    goto no_var_name;
+
                 ok = BindDestructuringVar(cx, data, pn, tc);
             } else {
                 ok = BindDestructuringLHS(cx, pn, tc);
             }
             if (!ok)
-                return false;
+                goto out;
+
+            lhs = lhs->pn_next;
         }
     }
 
@@ -4381,26 +4547,38 @@ CheckDestructuring(JSContext *cx, BindData *data, JSParseNode *left, JSTreeConte
      */
     if (data &&
         data->binder == BindLet &&
-        OBJ_BLOCK_COUNT(cx, tc->blockChain()) == 0 &&
-        !js_DefineNativeProperty(cx, tc->blockChain(),
-                                 ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
-                                 UndefinedValue(), NULL, NULL,
-                                 JSPROP_ENUMERATE | JSPROP_PERMANENT,
-                                 Shape::HAS_SHORTID, 0, NULL)) {
-        return false;
+        OBJ_BLOCK_COUNT(cx, tc->blockChain()) == 0) {
+        ok = !!js_DefineNativeProperty(cx, tc->blockChain(),
+                                       ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
+                                       UndefinedValue(), NULL, NULL,
+                                       JSPROP_ENUMERATE | JSPROP_PERMANENT,
+                                       Shape::HAS_SHORTID, 0, NULL);
+        if (!ok)
+            goto out;
     }
 
-    return true;
+    ok = JS_TRUE;
+
+  out:
+    if (fpvd.table.ops)
+        JS_DHashTableFinish(&fpvd.table);
+    return ok;
+
+  no_var_name:
+    ReportCompileErrorNumber(cx, TS(tc->parser), pn, JSREPORT_ERROR,
+                             JSMSG_NO_VARIABLE_NAME);
+    ok = JS_FALSE;
+    goto out;
 }
 
 /*
- * Extend the pn_pos.end source coordinate of each name in a destructuring
- * binding such as
+ * This is a greatly pared down version of CheckDestructuring that extends the
+ * pn_pos.end source coordinate of each name in a destructuring binding such as
  *
  *   var [x, y] = [function () y, 42];
  *
- * to cover the entire initializer, so that the initialized bindings do not
- * appear to dominate any closures in the initializer. See bug 496134.
+ * to cover its corresponding initializer, so that the initialized binding does
+ * not appear to dominate any closures in its initializer. See bug 496134.
  *
  * The quick-and-dirty dominance computation in Parser::setFunctionKinds is not
  * very precise. With one-pass SSA construction from structured source code
@@ -4410,31 +4588,67 @@ CheckDestructuring(JSContext *cx, BindData *data, JSParseNode *left, JSTreeConte
  * See CheckDestructuring, immediately above. If you change either of these
  * functions, you might have to change the other to match.
  */
-static void
-UndominateInitializers(JSParseNode *left, const TokenPtr &end, JSTreeContext *tc)
+static JSBool
+UndominateInitializers(JSParseNode *left, JSParseNode *right, JSTreeContext *tc)
 {
+    FindPropValData fpvd;
+    JSParseNode *lhs, *rhs;
+
+    JS_ASSERT(left->pn_type != TOK_ARRAYCOMP);
+    JS_ASSERT(right);
+
+#if JS_HAS_DESTRUCTURING_SHORTHAND
+    if (right->pn_arity == PN_LIST && (right->pn_xflags & PNX_DESTRUCT)) {
+        ReportCompileErrorNumber(tc->parser->context, TS(tc->parser), right, JSREPORT_ERROR,
+                                 JSMSG_BAD_OBJECT_INIT);
+        return JS_FALSE;
+    }
+#endif
+
+    if (right->pn_type != left->pn_type)
+        return JS_TRUE;
+
+    fpvd.table.ops = NULL;
+    lhs = left->pn_head;
     if (left->pn_type == TOK_RB) {
-        for (JSParseNode *pn = left->pn_head; pn; pn = pn->pn_next) {
+        rhs = right->pn_head;
+
+        while (lhs && rhs) {
             /* Nullary comma is an elision; binary comma is an expression.*/
-            if (pn->pn_type != TOK_COMMA || pn->pn_arity != PN_NULLARY) {
-                if (pn->pn_type == TOK_RB || pn->pn_type == TOK_RC)
-                    UndominateInitializers(pn, end, tc);
-                else
-                    pn->pn_pos.end = end;
+            if (lhs->pn_type != TOK_COMMA || lhs->pn_arity != PN_NULLARY) {
+                if (lhs->pn_type == TOK_RB || lhs->pn_type == TOK_RC) {
+                    if (!UndominateInitializers(lhs, rhs, tc))
+                        return JS_FALSE;
+                } else {
+                    lhs->pn_pos.end = rhs->pn_pos.end;
+                }
             }
+
+            lhs = lhs->pn_next;
+            rhs = rhs->pn_next;
         }
     } else {
         JS_ASSERT(left->pn_type == TOK_RC);
+        fpvd.numvars = left->pn_count;
+        fpvd.maxstep = 0;
 
-        for (JSParseNode *pair = left->pn_head; pair; pair = pair->pn_next) {
-            JS_ASSERT(pair->pn_type == TOK_COLON);
-            JSParseNode *pn = pair->pn_right;
-            if (pn->pn_type == TOK_RB || pn->pn_type == TOK_RC)
-                UndominateInitializers(pn, end, tc);
-            else
-                pn->pn_pos.end = end;
+        while (lhs) {
+            JS_ASSERT(lhs->pn_type == TOK_COLON);
+            JSParseNode *pn = lhs->pn_right;
+
+            rhs = FindPropertyValue(right, lhs->pn_left, &fpvd);
+            if (pn->pn_type == TOK_RB || pn->pn_type == TOK_RC) {
+                if (rhs && !UndominateInitializers(pn, rhs, tc))
+                    return JS_FALSE;
+            } else {
+                if (rhs)
+                    pn->pn_pos.end = rhs->pn_pos.end;
+            }
+
+            lhs = lhs->pn_next;
         }
     }
+    return JS_TRUE;
 }
 
 JSParseNode *
@@ -4447,7 +4661,7 @@ Parser::destructuringExpr(BindData *data, TokenKind tt)
     tc->flags &= ~TCF_DECL_DESTRUCTURING;
     if (!pn)
         return NULL;
-    if (!CheckDestructuring(context, data, pn, tc))
+    if (!CheckDestructuring(context, data, pn, NULL, tc))
         return NULL;
     return pn;
 }
@@ -4844,6 +5058,77 @@ NewBindingNode(JSAtom *atom, JSTreeContext *tc, bool let = false)
     return pn;
 }
 
+#if JS_HAS_BLOCK_SCOPE
+static bool
+RebindLets(JSParseNode *pn, JSTreeContext *tc)
+{
+    if (!pn)
+        return true;
+
+    switch (pn->pn_arity) {
+      case PN_LIST:
+        for (JSParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
+            RebindLets(pn2, tc);
+        break;
+
+      case PN_TERNARY:
+        RebindLets(pn->pn_kid1, tc);
+        RebindLets(pn->pn_kid2, tc);
+        RebindLets(pn->pn_kid3, tc);
+        break;
+
+      case PN_BINARY:
+        RebindLets(pn->pn_left, tc);
+        RebindLets(pn->pn_right, tc);
+        break;
+
+      case PN_UNARY:
+        RebindLets(pn->pn_kid, tc);
+        break;
+
+      case PN_FUNC:
+        RebindLets(pn->pn_body, tc);
+        break;
+
+      case PN_NAME:
+        RebindLets(pn->maybeExpr(), tc);
+
+        if (pn->pn_defn) {
+            JS_ASSERT(pn->pn_blockid > tc->topStmt->blockid);
+        } else if (pn->pn_used) {
+            if (pn->pn_lexdef->pn_blockid == tc->topStmt->blockid) {
+                ForgetUse(pn);
+
+                JSAtomListElement *ale = tc->decls.lookup(pn->pn_atom);
+                if (ale) {
+                    while ((ale = ALE_NEXT(ale)) != NULL) {
+                        if (ALE_ATOM(ale) == pn->pn_atom) {
+                            LinkUseToDef(pn, ALE_DEFN(ale), tc);
+                            return true;
+                        }
+                    }
+                }
+
+                ale = tc->lexdeps.lookup(pn->pn_atom);
+                if (!ale) {
+                    ale = MakePlaceholder(pn, tc);
+                    if (!ale)
+                        return NULL;
+                }
+                LinkUseToDef(pn, ALE_DEFN(ale), tc);
+            }
+        }
+        break;
+
+      case PN_NAMESET:
+        RebindLets(pn->pn_tree, tc);
+        break;
+    }
+
+    return true;
+}
+#endif /* JS_HAS_BLOCK_SCOPE */
+
 JSParseNode *
 Parser::switchStatement()
 {
@@ -5178,7 +5463,7 @@ Parser::forStatement()
           case TOK_RB:
           case TOK_RC:
             /* Check for valid lvalues in var-less destructuring for-in. */
-            if (pn1 == pn2 && !CheckDestructuring(context, NULL, pn2, tc))
+            if (pn1 == pn2 && !CheckDestructuring(context, NULL, pn2, NULL, tc))
                 return NULL;
 
             if (versionNumber() == JSVERSION_1_7) {
@@ -6112,7 +6397,7 @@ Parser::variables(bool inLetHead)
             if (!pn2)
                 return NULL;
 
-            if (!CheckDestructuring(context, &data, pn2, tc))
+            if (!CheckDestructuring(context, &data, pn2, NULL, tc))
                 return NULL;
             if ((tc->flags & TCF_IN_FOR_INIT) &&
                 tokenStream.peekToken() == TOK_IN) {
@@ -6138,9 +6423,8 @@ Parser::variables(bool inLetHead)
             }
 #endif
 
-            if (!init)
+            if (!init || !UndominateInitializers(pn2, init, tc))
                 return NULL;
-            UndominateInitializers(pn2, init->pn_pos.end, tc);
 
             pn2 = JSParseNode::newBinaryOrAppend(TOK_ASSIGN, JSOP_NOP, pn2, init, tc);
             if (!pn2)
@@ -6479,7 +6763,7 @@ Parser::assignExpr()
             return NULL;
         }
         JSParseNode *rhs = assignExpr();
-        if (!rhs || !CheckDestructuring(context, NULL, pn, tc))
+        if (!rhs || !CheckDestructuring(context, NULL, pn, rhs, tc))
             return NULL;
         return JSParseNode::newBinaryOrAppend(TOK_ASSIGN, op, pn, rhs, tc);
       }
@@ -7066,7 +7350,7 @@ Parser::comprehensionTail(JSParseNode *kid, uintN blockid,
 #if JS_HAS_DESTRUCTURING
           case TOK_LB:
           case TOK_LC:
-            if (!CheckDestructuring(context, &data, pn3, tc))
+            if (!CheckDestructuring(context, &data, pn3, NULL, tc))
                 return NULL;
 
             if (versionNumber() == JSVERSION_1_7) {

@@ -113,7 +113,7 @@ mMimeTypeArray(nsnull),
 mExtensionsArray(nsnull),
 mLibrary(nsnull),
 #ifdef XP_MACOSX
-mCanUnloadLibrary(PR_FALSE),
+mCanUnloadLibrary(!aPluginInfo->fBundle),
 #else
 mCanUnloadLibrary(PR_TRUE),
 #endif

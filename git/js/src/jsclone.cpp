@@ -468,7 +468,7 @@ JSStructuredCloneWriter::startObject(JSObject *obj)
     JS_ASSERT(obj->isArray() || obj->isObject());
 
     /* Fail if obj is already on the stack. */
-    MemorySet::AddPtr p = memory.lookupForAdd(obj);
+    HashSet<JSObject *>::AddPtr p = memory.lookupForAdd(obj);
     if (p) {
         JSContext *cx = context();
         if (callbacks && callbacks->reportError)

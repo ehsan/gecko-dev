@@ -363,7 +363,8 @@ SanitizeOpenTypeData(const PRUint8* aData, PRUint32 aLength,
     // limit output/expansion to 256MB
     ExpandingMemoryStream output(aIsCompressed ? aLength * 2 : aLength,
                                  1024 * 1024 * 256);
-    if (ots::Process(&output, aData, aLength)) {
+    if (ots::Process(&output, aData, aLength,
+        gfxPlatform::GetPlatform()->PreserveOTLTablesWhenSanitizing())) {
         aSaneLength = output.Tell();
         return static_cast<PRUint8*>(output.forget());
     } else {
@@ -461,10 +462,20 @@ CacheLayoutTablesFromWOFF(const PRUint8* aFontData, PRUint32 aLength,
 // Ownership of aFontData passes in here, and the font set must
 // ensure that it is eventually deleted via NS_Free().
 PRBool 
-gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
+gfxUserFontSet::OnLoadComplete(gfxFontEntry *aFontToLoad,
                                const PRUint8 *aFontData, PRUint32 aLength, 
                                nsresult aDownloadStatus)
 {
+    NS_ASSERTION(aFontToLoad->mIsProxy,
+                 "trying to load font data for wrong font entry type");
+
+    if (!aFontToLoad->mIsProxy) {
+        NS_Free((void*)aFontData);
+        return PR_FALSE;
+    }
+
+    gfxProxyFontEntry *pe = static_cast<gfxProxyFontEntry*> (aFontToLoad);
+
     // download successful, make platform font using font data
     if (NS_SUCCEEDED(aDownloadStatus)) {
         gfxFontEntry *fe = nsnull;
@@ -486,14 +497,14 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
             if (!saneData) {
                 char buf[1000];
                 sprintf(buf, "downloaded font rejected for \"%s\"",
-                        NS_ConvertUTF16toUTF8(aProxy->FamilyName()).get());
+                        NS_ConvertUTF16toUTF8(pe->FamilyName()).get());
                 NS_WARNING(buf);
             }
 #endif
             if (saneData) {
                 // Here ownership of saneData is passed to the platform,
                 // which will delete it when no longer required
-                fe = gfxPlatform::GetPlatform()->MakePlatformFont(aProxy,
+                fe = gfxPlatform::GetPlatform()->MakePlatformFont(pe,
                                                                   saneData,
                                                                   saneLen);
                 if (fe) {
@@ -527,7 +538,7 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
                 if (gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength)) {
                     // Here ownership of aFontData is passed to the platform,
                     // which will delete it when no longer required
-                    fe = gfxPlatform::GetPlatform()->MakePlatformFont(aProxy,
+                    fe = gfxPlatform::GetPlatform()->MakePlatformFont(pe,
                                                                       aFontData,
                                                                       aLength);
                     aFontData = nsnull; // we must NOT free this below!
@@ -547,32 +558,30 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
         if (fe) {
             // copy OpenType feature/language settings from the proxy to the
             // newly-created font entry
-            fe->mFeatureSettings.AppendElements(aProxy->mFeatureSettings);
-            fe->mLanguageOverride = aProxy->mLanguageOverride;
+            fe->mFeatureSettings.AppendElements(pe->mFeatureSettings);
+            fe->mLanguageOverride = pe->mLanguageOverride;
 
+            ReplaceFontEntry(pe, fe);
+            IncrementGeneration();
 #ifdef PR_LOGGING
-            // must do this before ReplaceFontEntry() because that will
-            // clear the proxy's mFamily pointer!
             if (LOG_ENABLED()) {
                 nsCAutoString fontURI;
-                aProxy->mSrcList[aProxy->mSrcIndex].mURI->GetSpec(fontURI);
+                pe->mSrcList[pe->mSrcIndex].mURI->GetSpec(fontURI);
                 LOG(("userfonts (%p) [src %d] loaded uri: (%s) for (%s) gen: %8.8x\n",
-                     this, aProxy->mSrcIndex, fontURI.get(),
-                     NS_ConvertUTF16toUTF8(aProxy->mFamily->Name()).get(),
+                     this, pe->mSrcIndex, fontURI.get(),
+                     NS_ConvertUTF16toUTF8(pe->mFamily->Name()).get(),
                      PRUint32(mGeneration)));
             }
 #endif
-            ReplaceFontEntry(aProxy, fe);
-            IncrementGeneration();
             return PR_TRUE;
         } else {
 #ifdef PR_LOGGING
             if (LOG_ENABLED()) {
                 nsCAutoString fontURI;
-                aProxy->mSrcList[aProxy->mSrcIndex].mURI->GetSpec(fontURI);
+                pe->mSrcList[pe->mSrcIndex].mURI->GetSpec(fontURI);
                 LOG(("userfonts (%p) [src %d] failed uri: (%s) for (%s) error making platform font\n",
-                     this, aProxy->mSrcIndex, fontURI.get(),
-                     NS_ConvertUTF16toUTF8(aProxy->mFamily->Name()).get()));
+                     this, pe->mSrcIndex, fontURI.get(),
+                     NS_ConvertUTF16toUTF8(pe->mFamily->Name()).get()));
             }
 #endif
         }
@@ -581,10 +590,10 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
 #ifdef PR_LOGGING
         if (LOG_ENABLED()) {
             nsCAutoString fontURI;
-            aProxy->mSrcList[aProxy->mSrcIndex].mURI->GetSpec(fontURI);
+            pe->mSrcList[pe->mSrcIndex].mURI->GetSpec(fontURI);
             LOG(("userfonts (%p) [src %d] failed uri: (%s) for (%s) error %8.8x downloading font data\n",
-                 this, aProxy->mSrcIndex, fontURI.get(),
-                 NS_ConvertUTF16toUTF8(aProxy->mFamily->Name()).get(),
+                 this, pe->mSrcIndex, fontURI.get(),
+                 NS_ConvertUTF16toUTF8(pe->mFamily->Name()).get(),
                  aDownloadStatus));
         }
 #endif
@@ -597,7 +606,7 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
     // error occurred, load next src
     LoadStatus status;
 
-    status = LoadNext(aProxy);
+    status = LoadNext(pe);
 
     // Even if loading failed, we need to bump the font-set generation
     // and return true in order to trigger reflow, so that fallback
@@ -722,4 +731,14 @@ gfxUserFontSet::GetFamily(const nsAString& aFamilyName) const
     ToLowerCase(key);
 
     return mFontFamilies.GetWeak(key);
+}
+
+
+void 
+gfxUserFontSet::RemoveFamily(const nsAString& aFamilyName)
+{
+    nsAutoString key(aFamilyName);
+    ToLowerCase(key);
+
+    mFontFamilies.Remove(key);
 }

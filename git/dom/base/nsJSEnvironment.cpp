@@ -123,9 +123,11 @@ static PRLogModuleInfo* gJSDiagnostics;
 #endif
 
 // Thank you Microsoft!
+#ifndef WINCE
 #ifdef CompareString
 #undef CompareString
 #endif
+#endif // WINCE
 
 // The amount of time we wait between a request to GC (due to leaving
 // a page) and doing the actual GC.
@@ -3993,8 +3995,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSArgArray)
     for (end = argv + tmp->mArgc; argv < end; ++argv) {
       if (JSVAL_IS_GCTHING(*argv))
         NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(JAVASCRIPT,
-                                                JSVAL_TO_GCTHING(*argv),
-                                                "mArgv[i]")
+                                                JSVAL_TO_GCTHING(*argv))
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END

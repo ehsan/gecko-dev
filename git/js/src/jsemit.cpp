@@ -850,7 +850,9 @@ OptimizeSpanDeps(JSContext *cx, JSCodeGenerator *cg)
     JSSrcNoteSpec *spec;
     uintN i, n, noteIndex;
     JSTryNode *tryNode;
-    DebugOnly<int> passes = 0;
+#ifdef DEBUG_brendan
+    int passes = 0;
+#endif
 
     base = CG_BASE(cg);
     sdbase = cg->spanDeps;
@@ -4692,7 +4694,10 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             if (!EmitFunctionDefNop(cx, cg, index))
                 return JS_FALSE;
         } else {
-            DebugOnly<BindingKind> kind = cg->bindings.lookup(cx, fun->atom, &slot);
+#ifdef DEBUG
+            BindingKind kind =
+#endif
+                cg->bindings.lookup(cx, fun->atom, &slot);
             JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
             JS_ASSERT(index < JS_BIT(20));
             pn->pn_index = index;

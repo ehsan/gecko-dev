@@ -947,8 +947,6 @@ DocumentRule::List(FILE* out, PRInt32 aIndent) const
         break;
       case eDomain:
         str.AppendLiteral("domain(\"");
-      case eRegExp:
-        str.AppendLiteral("regexp(\"");
         break;
     }
     nsCAutoString escapedURL(url->url);
@@ -999,9 +997,6 @@ DocumentRule::GetCssText(nsAString& aCssText)
         break;
       case eDomain:
         aCssText.AppendLiteral("domain(");
-        break;
-      case eRegExp:
-        aCssText.AppendLiteral("regexp(");
         break;
     }
     nsStyleUtil::AppendEscapedCSSString(NS_ConvertUTF8toUTF16(url->url),
@@ -1054,10 +1049,9 @@ DocumentRule::DeleteRule(PRUint32 aIndex)
 // GroupRule interface
 /* virtual */ PRBool
 DocumentRule::UseForPresentation(nsPresContext* aPresContext,
-                                 nsMediaQueryResultCacheKey& aKey)
+                                      nsMediaQueryResultCacheKey& aKey)
 {
-  nsIDocument *doc = aPresContext->Document();
-  nsIURI *docURI = doc->GetDocumentURI();
+  nsIURI *docURI = aPresContext->Document()->GetDocumentURI();
   nsCAutoString docURISpec;
   if (docURI)
     docURI->GetSpec(docURISpec);
@@ -1084,13 +1078,6 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
           if (StringEndsWith(host, url->url) &&
               host.CharAt(lenDiff - 1) == '.')
             return PR_TRUE;
-        }
-      } break;
-      case eRegExp: {
-        NS_ConvertUTF8toUTF16 spec(docURISpec);
-        NS_ConvertUTF8toUTF16 regex(url->url);
-        if (nsContentUtils::IsPatternMatching(spec, regex, doc)) {
-          return PR_TRUE;
         }
       } break;
     }
@@ -1734,10 +1721,19 @@ nsCSSKeyframeStyleDeclaration::GetCSSDeclaration(PRBool aAllocate)
   }
 }
 
-void
-nsCSSKeyframeStyleDeclaration::GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv)
+/*
+ * This is a utility function.  It will only fail if it can't get a
+ * parser.  This means it can return NS_OK without aURI or aCSSLoader
+ * being initialized.
+ */
+nsresult
+nsCSSKeyframeStyleDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
+                                                nsIURI** aBaseURI,
+                                                nsIPrincipal** aSheetPrincipal,
+                                                css::Loader** aCSSLoader)
 {
-  GetCSSParsingEnvironmentForRule(mRule, aCSSParseEnv);
+  return GetCSSParsingEnvironmentForRule(mRule, aSheetURI, aBaseURI,
+                                         aSheetPrincipal, aCSSLoader);
 }
 
 NS_IMETHODIMP

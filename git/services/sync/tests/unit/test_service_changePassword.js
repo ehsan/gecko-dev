@@ -43,11 +43,10 @@ function run_test() {
     do_check_eq(logins[0].password, "ILoveJane83");
 
     _("A non-ASCII password is UTF-8 encoded.");
-    const moneyPassword = "moneyislike$£¥";
-    res = Weave.Service.changePassword(moneyPassword);
+    res = Weave.Service.changePassword("moneyislike$\u20ac\xa5\u5143");
     do_check_true(res);
-    do_check_eq(Weave.Service.password, moneyPassword);
-    do_check_eq(requestBody, Utils.encodeUTF8(moneyPassword));
+    do_check_eq(Weave.Service.password, "moneyislike$\u20ac\xa5\u5143");
+    do_check_eq(requestBody, Utils.encodeUTF8("moneyislike$\u20ac\xa5\u5143"));
 
     _("changePassword() returns false for a server error, the password won't change.");
     Weave.Svc.Login.removeAllLogins();

@@ -66,6 +66,9 @@ struct nsPluginInfo {
 	char* fFileName;
 	char* fFullPath;
 	char* fVersion;
+#ifdef XP_MACOSX
+  PRBool fBundle;
+#endif
 };
 
 /**
@@ -102,6 +105,9 @@ public:
 	 * Should be called after GetPluginInfo to free all allocated stuff
 	 */
 	nsresult FreePluginInfo(nsPluginInfo &PluginInfo);
+
+	// Open the resource fork for the plugin
+	short OpenPluginResource(void);
 };
 
 #endif /* nsPluginsDir_h_ */

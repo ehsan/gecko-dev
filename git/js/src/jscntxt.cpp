@@ -65,7 +65,6 @@
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsiter.h"
 #include "jslock.h"
 #include "jsmath.h"
@@ -109,40 +108,29 @@
 using namespace js;
 using namespace js::gc;
 
+#ifdef DEBUG
 JS_REQUIRES_STACK bool
 StackSegment::contains(const JSStackFrame *fp) const
 {
     JS_ASSERT(inContext());
-
-    if (fp < initialFrame)
-        return false;
-
     JSStackFrame *start;
+    JSStackFrame *stop;
     if (isActive()) {
-        JS_ASSERT(cx->hasfp() && this == cx->activeSegment());
+        JS_ASSERT(cx->hasfp());
         start = cx->fp();
+        stop = cx->activeSegment()->initialFrame->prev();
     } else {
         JS_ASSERT(suspendedRegs && suspendedRegs->fp);
         start = suspendedRegs->fp;
+        stop = initialFrame->prev();
     }
-
-    if (fp > start)
-        return false;
-
-#ifdef DEBUG
-    bool found = false;
-    JSStackFrame *stop = initialFrame->prev();
-    for (JSStackFrame *f = start; !found && f != stop; f = f->prev()) {
-        if (f == fp) {
-            found = true;
-            break;
-        }
+    for (JSStackFrame *f = start; f != stop; f = f->prev()) {
+        if (f == fp)
+            return true;
     }
-    JS_ASSERT(found);
-#endif
-
-    return true;
+    return false;
 }
+#endif
 
 JSStackFrame *
 StackSegment::computeNextFrame(JSStackFrame *fp) const
@@ -302,7 +290,8 @@ StackSpace::pushSegmentForInvoke(JSContext *cx, uintN argc, InvokeArgsGuard *ag)
 
     ag->cx = cx;
     ag->seg = seg;
-    ImplicitCast<CallArgs>(*ag) = CallArgsFromVp(argc, seg->valueRangeBegin());
+    ag->argv_ = seg->valueRangeBegin() + 2;
+    ag->argc_ = argc;
 
     /* Use invokeArgEnd to root [vp, vpend) until the frame is pushed. */
 #ifdef DEBUG
@@ -1000,7 +989,10 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
              * JSCONTEXT_DESTROY callback is not allowed to fail and must
              * return true.
              */
-            DebugOnly<JSBool> callbackStatus = cxCallback(cx, JSCONTEXT_DESTROY);
+#ifdef DEBUG
+            JSBool callbackStatus =
+#endif
+            cxCallback(cx, JSCONTEXT_DESTROY);
             JS_ASSERT(callbackStatus);
         }
     }
@@ -1027,9 +1019,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         JS_ASSERT(!rt->gcRunning);
 
         JS_UNLOCK_GC(rt);
-#ifdef JS_THREADSAFE
-        rt->gcHelperThread.waitBackgroundSweepEnd(rt);
-#endif
 
         if (last) {
 #ifdef JS_THREADSAFE
@@ -1098,9 +1087,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     cx->dstOffsetCache.dumpStats();
 #endif
     JS_UNLOCK_GC(rt);
-#ifdef JS_THREADSAFE
-    rt->gcHelperThread.waitBackgroundSweepEnd(rt);
-#endif
     Foreground::delete_(cx);
 }
 
@@ -1681,13 +1667,6 @@ js_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
     return NULL;
 }
 
-bool
-checkOutOfMemory(JSRuntime *rt)
-{
-    AutoLockGC lock(rt);
-    return rt->gcBytes > rt->gcMaxBytes;
-}
-
 JSBool
 js_InvokeOperationCallback(JSContext *cx)
 {
@@ -1716,24 +1695,16 @@ js_InvokeOperationCallback(JSContext *cx)
          * On trace we can exceed the GC quota, see comments in NewGCArena. So
          * we check the quota and report OOM here when we are off trace.
          */
-        if (checkOutOfMemory(rt)) {
-#ifdef JS_THREADSAFE
-            /*
-            * We have to wait until the background thread is done in order
-            * to get a correct answer.
-            */
-            rt->gcHelperThread.waitBackgroundSweepEnd(rt);
-            if (checkOutOfMemory(rt)) {
-                js_ReportOutOfMemory(cx);
-                return false;
-            }
-#else
+        bool delayedOutOfMemory;
+        JS_LOCK_GC(rt);
+        delayedOutOfMemory = (rt->gcBytes > rt->gcMaxBytes);
+        JS_UNLOCK_GC(rt);
+        if (delayedOutOfMemory) {
             js_ReportOutOfMemory(cx);
             return false;
-#endif
         }
     }
-
+    
 #ifdef JS_THREADSAFE
     /*
      * We automatically yield the current context every time the operation
@@ -2050,13 +2021,36 @@ JSContext::generatorFor(JSStackFrame *fp) const
 }
 
 StackSegment *
-StackSpace::containingSegment(const JSStackFrame *target)
+JSContext::containingSegment(const JSStackFrame *target)
 {
-    for (StackSegment *seg = currentSegment; seg; seg = seg->getPreviousInMemory()) {
-        if (seg->contains(target))
-            return seg;
+    /* The context may have nothing running. */
+    StackSegment *seg = currentSegment;
+    if (!seg)
+        return NULL;
+
+    /* The active segments's top frame is cx->regs->fp. */
+    if (regs) {
+        JS_ASSERT(regs->fp);
+        JS_ASSERT(activeSegment() == seg);
+        JSStackFrame *f = regs->fp;
+        JSStackFrame *stop = seg->getInitialFrame()->prev();
+        for (; f != stop; f = f->prev()) {
+            if (f == target)
+                return seg;
+        }
+        seg = seg->getPreviousInContext();
     }
-    JS_NOT_REACHED("frame not in stack space");
+
+    /* A suspended segment's top frame is its suspended frame. */
+    for (; seg; seg = seg->getPreviousInContext()) {
+        JSStackFrame *f = seg->getSuspendedFrame();
+        JSStackFrame *stop = seg->getInitialFrame()->prev();
+        for (; f != stop; f = f->prev()) {
+            if (f == target)
+                return seg;
+        }
+    }
+
     return NULL;
 }
 

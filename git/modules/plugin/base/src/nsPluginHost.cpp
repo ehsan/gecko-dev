@@ -965,10 +965,18 @@ NS_IMETHODIMP nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
   return NewEmbeddedPluginStreamListener(uri, aOwner, nsnull, aListener);
 }
 
+// Called by nsPluginInstanceOwner
+NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
+                                                      nsIURI* aURL,
+                                                      nsIPluginInstanceOwner *aOwner)
+{
+  return DoInstantiateEmbeddedPlugin(aMimeType, aURL, aOwner, PR_TRUE);
+}
+
 nsresult
-nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
-                                        nsIPluginInstanceOwner* aOwner,
-                                        PRBool aAllowOpeningStreams)
+nsPluginHost::DoInstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
+                                          nsIPluginInstanceOwner* aOwner,
+                                          PRBool aAllowOpeningStreams)
 {
   NS_ENSURE_ARG_POINTER(aOwner);
 
@@ -1131,10 +1139,11 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
   return rv;
 }
 
-nsresult nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
-                                                 nsIURI* aURI,
-                                                 nsIPluginInstanceOwner *aOwner,
-                                                 nsIStreamListener **aStreamListener)
+// Called by full-page case
+NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
+                                                      nsIURI* aURI,
+                                                      nsIPluginInstanceOwner *aOwner,
+                                                      nsIStreamListener **aStreamListener)
 {
 #ifdef PLUGIN_LOGGING
   nsCAutoString urlSpec;
@@ -1641,24 +1650,27 @@ nsPluginTag*
 nsPluginHost::FindPluginForType(const char* aMimeType,
                                 PRBool aCheckEnabled)
 {
-  if (!aMimeType) {
-    return nsnull;
-  }
+  nsPluginTag *plugins = nsnull;
+  PRInt32     variants, cnt;
 
   LoadPlugins();
 
-  nsPluginTag *plugin = mPlugins;
-  while (plugin) {
-    if (!aCheckEnabled || plugin->IsEnabled()) {
-      PRInt32 mimeCount = plugin->mVariants;
-      for (PRInt32 i = 0; i < mimeCount; i++) {
-        if (plugin->mMimeTypeArray[i] &&
-            (0 == PL_strcasecmp(plugin->mMimeTypeArray[i], aMimeType))) {
-          return plugin;
+  // if we have a mimetype passed in, search the mPlugins
+  // linked list for a match
+  if (aMimeType) {
+    plugins = mPlugins;
+
+    while (plugins) {
+      variants = plugins->mVariants;
+      for (cnt = 0; cnt < variants; cnt++) {
+        if ((!aCheckEnabled || plugins->IsEnabled()) &&
+            plugins->mMimeTypeArray[cnt] &&
+            (0 == PL_strcasecmp(plugins->mMimeTypeArray[cnt], aMimeType))) {
+          return plugins;
         }
       }
+      plugins = plugins->mNext;
     }
-    plugin = plugin->mNext;
   }
 
   return nsnull;
@@ -1757,7 +1769,24 @@ static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
     fullPath = aPluginTag->mFullPath;
   }
 
+#if defined(XP_MACOSX) && !defined(__LP64__)
+  short appRefNum = ::CurResFile();
+  nsCOMPtr<nsILocalFile> pluginPath;
+  NS_NewNativeLocalFile(nsDependentCString(fullPath.get()), PR_TRUE,
+                        getter_AddRefs(pluginPath));
+  nsPluginFile pluginFile(pluginPath);
+  short pluginRefNum = pluginFile.OpenPluginResource();
+#endif
+
   rv = nsNPAPIPlugin::CreatePlugin(aPluginTag, aOutNPAPIPlugin);
+
+#if defined(XP_MACOSX) && !defined(__LP64__)
+  if (NS_SUCCEEDED(rv))
+    (*aOutNPAPIPlugin)->SetPluginRefNum(pluginRefNum);
+  else if (pluginRefNum > 0)
+    ::CloseResFile(pluginRefNum);
+  ::UseResFile(appRefNum);
+#endif
 
   return rv;
 }

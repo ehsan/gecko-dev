@@ -19,8 +19,6 @@ const PREF_GETADDONS_GETSEARCHRESULTS    = "extensions.getAddons.search.url";
 const PREF_GETADDONS_GETRECOMMENDED      = "extensions.getAddons.recommended.url";
 const PREF_GETADDONS_BROWSERECOMMENDED   = "extensions.getAddons.recommended.browseURL";
 const PREF_GETADDONS_UPDATE              = "extensions.update.url";
-const PREF_ADDONS_LOGGING                = "extensions.logging.enabled";
-const PREF_ADDONS_SECURITY               = "extensions.checkUpdateSecurity";
 const SEARCH_URL = TESTROOT + "browser_details.xml";
 const ADDON_IMG = "chrome://browser/skin/images/alert-addons-30.png";
 
@@ -78,8 +76,7 @@ function test() {
   Services.prefs.setCharPref(PREF_GETADDONS_BROWSESEARCHRESULTS, TESTROOT + "browser_install.xml");
   Services.prefs.setCharPref(PREF_GETADDONS_GETSEARCHRESULTS,    TESTROOT + "browser_install.xml");
   Services.prefs.setCharPref(PREF_GETADDONS_UPDATE,              TESTROOT + "browser_upgrade.rdf");
-  Services.prefs.setBoolPref(PREF_ADDONS_SECURITY, false);
-  Services.prefs.setBoolPref(PREF_ADDONS_LOGGING, true);
+  Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
   run_next_test();
 }
 
@@ -87,14 +84,10 @@ function end_test() {
   close_manager();
   Services.prefs.clearUserPref(PREF_GETADDONS_GETRECOMMENDED);
   Services.prefs.clearUserPref(PREF_GETADDONS_BROWSERECOMMENDED);
-  Services.prefs.clearUserPref(PREF_GETADDONS_BROWSESEARCHRESULTS);
   Services.prefs.clearUserPref(PREF_GETADDONS_GETSEARCHRESULTS);
-  Services.prefs.clearUserPref(PREF_GETADDONS_UPDATE);
-  Services.prefs.clearUserPref(PREF_ADDONS_SECURITY);
-  Services.prefs.clearUserPref(PREF_ADDONS_LOGGING);
+  Services.prefs.clearUserPref(PREF_GETADDONS_BROWSESEARCHRESULTS);
+  finish();
 }
-
-registerCleanupFunction(end_test);
 
 function add_test(test) {
   gPendingTests.push(test);
@@ -105,7 +98,8 @@ function run_next_test() {
     info("Test " + gTestsRun + " took " + (Date.now() - gTestStart) + "ms");
 
   if (gPendingTests.length == 0) {
-    finish();
+    end_test();
+    return;
   }
 
   gTestsRun++;
@@ -362,10 +356,6 @@ function installFromURLBar(aAddon) {
   return function() {
     loadUrl(gTestURL, function() {
       loadUrl(aAddon.sourceURL, null, false);
-      let elt = get_addon_element(aAddon.id);
-      ok(!elt, "Addon element is not present before installation");
-      if (elt)
-        info("unexpectedly found element in: " + elt.parentNode.id);
       checkInstallAlert(true, function() {
         checkDownloadNotification(function() {
           checkInstallPopup(aAddon.name, function() {
@@ -373,7 +363,6 @@ function installFromURLBar(aAddon) {
               open_manager(true, function() {
                 isRestartShown(!aAddon.bootstrapped, false, function() {
                   let elt = get_addon_element(aAddon.id);
-                  info("elt.id is " + aAddon.id);
                   if (aAddon.bootstrapped) {
                     checkAddonListing(aAddon, elt, "local");
                     var button = document.getAnonymousElementByAttribute(elt, "anonid", "uninstall-button");
@@ -383,16 +372,14 @@ function installFromURLBar(aAddon) {
                     is(updateButton.disabled, false, "Update button is enabled");
 
                     ExtensionsView.uninstall(elt);
-                    waitForAndContinue(function() {
-                      let elt = get_addon_element(aAddon.id);
-                      ok(!elt, "Addon element removed during uninstall");
+                    setTimeout(function() {
+                      elt = get_addon_element(aAddon.id);
+                      ok(!elt || !elt.addon, "Addon element removed during uninstall");
+                      if (elt && !elt.addon)
+                        info("Element is still visible in search area");
                       Browser.closeTab(gCurrentTab);
                       close_manager(run_next_test);
-                    }, function() {
-                      let elt = get_addon_element(aAddon.id);
-                      info("Looking for element with id " + aAddon.id + ": " + elt);
-                      return !elt;
-                    });
+                    }, 0);
                   } else {
                     ok(!elt, "Extension not in list");
                     AddonManager.getAllInstalls(function(aInstalls) {

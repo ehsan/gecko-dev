@@ -41,7 +41,6 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsiter.h"
 #include "jsproxy.h"
 #include "jsscope.h"
@@ -169,7 +168,7 @@ bool
 JSCompartment::arenaListsAreEmpty()
 {
   for (unsigned i = 0; i < FINALIZE_LIMIT; i++) {
-       if (!arenas[i].isEmpty() || arenas[i].hasToBeFinalized)
+       if (!arenas[i].isEmpty())
            return false;
   }
   return true;

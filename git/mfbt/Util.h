@@ -40,8 +40,6 @@
 #ifndef mozilla_Util_h_
 #define mozilla_Util_h_
 
-#ifdef __cplusplus
-
 namespace mozilla {
 
 /**
@@ -83,16 +81,12 @@ struct DebugOnly
     DebugOnly& operator=(const T&) {}   
 #endif
 
-    /*
-     * DebugOnly must always have a destructor or else it will
-     * generate "unused variable" warnings, exactly what it's intended
-     * to avoid!
-     */
+    // DebugOnly must always have a destructor or else it will
+    // generate "unused variable" warnings, exactly what it's intended
+    // to avoid!
     ~DebugOnly() {}
 };
 
-} /* namespace mozilla */
+} // namespace mozilla
 
-#endif /* __cplusplus */
-
-#endif  /* mozilla_Util_h_ */
+#endif  // mozilla_Util_h_

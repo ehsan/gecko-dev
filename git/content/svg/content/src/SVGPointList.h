@@ -40,7 +40,6 @@
 #include "SVGPoint.h"
 #include "nsTArray.h"
 #include "nsSVGElement.h"
-#include "nsIWeakReferenceUtils.h"
 
 namespace mozilla {
 
@@ -185,16 +184,15 @@ class SVGPointListAndInfo : public SVGPointList
 public:
 
   SVGPointListAndInfo(nsSVGElement *aElement = nsnull)
-    : mElement(do_GetWeakReference(static_cast<nsINode*>(aElement)))
+    : mElement(aElement)
   {}
 
   void SetInfo(nsSVGElement *aElement) {
-    mElement = do_GetWeakReference(static_cast<nsINode*>(aElement));
+    mElement = aElement;
   }
 
   nsSVGElement* Element() const {
-    nsCOMPtr<nsIContent> e = do_QueryReferent(mElement);
-    return static_cast<nsSVGElement*>(e.get());
+    return mElement;
   }
 
   nsresult CopyFrom(const SVGPointListAndInfo& rhs) {
@@ -221,11 +219,10 @@ public:
   }
 
 private:
-  // We must keep a weak reference to our element because we may belong to a
+  // We must keep a strong reference to our element because we may belong to a
   // cached baseVal nsSMILValue. See the comments starting at:
   // https://bugzilla.mozilla.org/show_bug.cgi?id=515116#c15
-  // See also https://bugzilla.mozilla.org/show_bug.cgi?id=653497
-  nsWeakPtr mElement;
+  nsRefPtr<nsSVGElement> mElement;
 };
 
 } // namespace mozilla

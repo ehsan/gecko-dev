@@ -197,8 +197,6 @@ NS_IMETHODIMP
 nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
                                   const nsIntRect *aDirtyRect)
 {
-  NS_ABORT_IF_FALSE(aDirtyRect, "We expect aDirtyRect to be non-null");
-
   if (IsDisabled())
     return NS_OK;
 
@@ -217,9 +215,11 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   }
 
   /* Check if we need to draw anything. */
-  PRInt32 appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-  if (!mRect.ToOutsidePixels(appUnitsPerDevPx).Intersects(*aDirtyRect))
-    return NS_OK;
+  if (aDirtyRect) {
+    PRInt32 appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
+    if (!mRect.ToOutsidePixels(appUnitsPerDevPx).Intersects(*aDirtyRect))
+      return NS_OK;
+  }
 
   gfxContext *gfx = aContext->GetGfxContext();
 

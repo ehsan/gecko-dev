@@ -284,9 +284,10 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             TakeMinidump(getter_AddRefs(crashDump)) &&
                 CrashReporter::GetIDFromMinidump(crashDump, dumpID);
 
-            props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
-
             if (!dumpID.IsEmpty()) {
+                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"),
+                                            dumpID);
+
                 CrashReporter::AnnotationTable notes;
                 notes.Init();
                 notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));

@@ -196,8 +196,7 @@ var PageActions = {
   updateSiteMenu: function updateSiteMenu() {
     this._handlers.forEach(function(action) {
       let node = document.getElementById(action.id);
-      if (node)
-        node.hidden = !action.callback.call(action.obj, node);
+      node.hidden = !action.callback.call(action.obj, node);
     });
     this._updateAttributes();
   },

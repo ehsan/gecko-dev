@@ -2592,8 +2592,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
             for (i = 0; i < elem->mNumAttributes; ++i) {
                 void *handler = elem->mAttributes[i].mEventHandler;
                 NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(elem->mScriptTypeID,
-                                                        handler,
-                                                        "mAttributes[i].mEventHandler")
+                                                        handler)
             }
         }
     }
@@ -2601,8 +2600,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
         NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(script->mScriptObject.mLangID,
-                                                script->mScriptObject.mObject,
-                                                "mScriptObject.mObject")
+                                                script->mScriptObject.mObject)
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsXULPrototypeNode, AddRef)

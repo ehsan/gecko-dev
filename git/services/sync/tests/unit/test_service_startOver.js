@@ -19,13 +19,6 @@ Engines.register(BlaEngine);
 
 function test_removeClientData() {
   let engine = Engines.get("bla");
-
-  // No cluster URL = no removal.
-  do_check_false(engine.removed);
-  Service.startOver();
-  do_check_false(engine.removed);
-
-  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   do_check_false(engine.removed);
   Service.startOver();
   do_check_true(engine.removed);
@@ -33,7 +26,5 @@ function test_removeClientData() {
 
 
 function run_test() {
-  initTestLogging("Trace");
-
   test_removeClientData();
 }

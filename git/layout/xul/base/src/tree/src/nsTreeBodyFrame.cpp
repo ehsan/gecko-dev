@@ -107,7 +107,7 @@
 #include "nsRenderingContext.h"
 
 #ifdef IBMBIDI
-#include "nsBidiPresUtils.h"
+#include "nsBidiUtils.h"
 #endif
 
 // Enumeration function that cancels all the image requests in our cache

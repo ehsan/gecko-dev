@@ -57,7 +57,7 @@ class nsIAccessible;
 #endif
 
 class nsPluginInstanceOwner;
-class nsPluginHost;
+class nsIPluginHost;
 class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
@@ -220,7 +220,7 @@ protected:
                       const nsHTMLReflowState& aReflowState,
                       nsHTMLReflowMetrics& aDesiredSize);
 
-  nsresult InstantiatePlugin(nsPluginHost* aPluginHost, 
+  nsresult InstantiatePlugin(nsIPluginHost* aPluginHost, 
                              const char* aMimetype,
                              nsIURI* aURL);
 

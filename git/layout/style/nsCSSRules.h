@@ -156,8 +156,7 @@ public:
   enum Function {
     eURL,
     eURLPrefix,
-    eDomain,
-    eRegExp
+    eDomain
   };
 
   struct URL {
@@ -330,7 +329,10 @@ public:
   void DropReference() { mRule = nsnull; }
   virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool aAllocate);
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
-  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
+  virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
+                                            nsIURI** aBaseURI,
+                                            nsIPrincipal** aSheetPrincipal,
+                                            mozilla::css::Loader** aCSSLoader);
   virtual nsIDocument* DocToUpdate();
 
   NS_IMETHOD_(nsrefcnt) AddRef();

@@ -83,9 +83,9 @@ static PRLogModuleInfo *gFontDownloaderLog = PR_NewLogModule("fontdownloader");
 #define LOG_ENABLED() PR_LOG_TEST(gFontDownloaderLog, PR_LOG_DEBUG)
 
 
-nsFontFaceLoader::nsFontFaceLoader(gfxProxyFontEntry *aProxy, nsIURI *aFontURI,
+nsFontFaceLoader::nsFontFaceLoader(gfxFontEntry *aFontToLoad, nsIURI *aFontURI,
                                    nsUserFontSet *aFontSet, nsIChannel *aChannel)
-  : mFontEntry(aProxy), mFontURI(aFontURI), mFontSet(aFontSet),
+  : mFontEntry(aFontToLoad), mFontURI(aFontURI), mFontSet(aFontSet),
     mChannel(aChannel)
 {
 }
@@ -118,7 +118,9 @@ nsFontFaceLoader::StartedLoading(nsIStreamLoader *aStreamLoader)
                                        nsITimer::TYPE_ONE_SHOT);
     }
   } else {
-    mFontEntry->mLoadingState = gfxProxyFontEntry::LOADING_SLOWLY;
+    gfxProxyFontEntry *pe =
+      static_cast<gfxProxyFontEntry*>(mFontEntry.get());
+    pe->mLoadingState = gfxProxyFontEntry::LOADING_SLOWLY;
   }
   mStreamLoader = aStreamLoader;
 }
@@ -128,7 +130,12 @@ nsFontFaceLoader::LoadTimerCallback(nsITimer *aTimer, void *aClosure)
 {
   nsFontFaceLoader *loader = static_cast<nsFontFaceLoader*>(aClosure);
 
-  gfxProxyFontEntry *pe = loader->mFontEntry.get();
+  if (!loader->mFontEntry->mIsProxy) {
+    return;
+  }
+
+  gfxProxyFontEntry *pe =
+    static_cast<gfxProxyFontEntry*>(loader->mFontEntry.get());
   bool updateUserFontSet = true;
 
   // If the entry is loading, check whether it's >75% done; if so,
@@ -234,7 +241,6 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
 void
 nsFontFaceLoader::Cancel()
 {
-  mFontEntry->mLoadingState = gfxProxyFontEntry::NOT_LOADING;
   mFontSet = nsnull;
   if (mLoadTimer) {
     mLoadTimer->Cancel();
@@ -313,8 +319,8 @@ nsUserFontSet::RemoveLoader(nsFontFaceLoader *aLoader)
 }
 
 nsresult 
-nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
-                         const gfxFontFaceSrc *aFontFaceSrc)
+nsUserFontSet::StartLoad(gfxFontEntry *aFontToLoad, 
+                          const gfxFontFaceSrc *aFontFaceSrc)
 {
   nsresult rv;
   
@@ -382,7 +388,7 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<nsFontFaceLoader> fontLoader =
-    new nsFontFaceLoader(aProxy, aFontFaceSrc->mURI, this, channel);
+    new nsFontFaceLoader(aFontToLoad, aFontFaceSrc->mURI, this, channel);
 
   if (!fontLoader)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -436,10 +442,6 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
 PRBool
 nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
 {
-  // destroy any current loaders, as the entries they refer to
-  // may be about to get replaced
-  mLoaders.EnumerateEntries(DestroyIterator, nsnull);
-
   nsTArray<FontFaceRuleRecord> oldRules;
   mRules.SwapElements(oldRules);
 

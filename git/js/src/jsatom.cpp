@@ -52,7 +52,6 @@
 #include "jsbit.h"
 #include "jscntxt.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsparse.h"
@@ -212,9 +211,7 @@ const char *const js_common_atom_names[] = {
     "has",                      /* hasAtom                      */
     "hasOwn",                   /* hasOwnAtom                   */
     "keys",                     /* keysAtom                     */
-    "iterate",                  /* iterateAtom                  */
-
-    "WeakMap"                   /* WeakMapAtom                  */
+    "iterate"                   /* iterateAtom                  */
 };
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(js_common_atom_names) * sizeof(JSAtom *) ==

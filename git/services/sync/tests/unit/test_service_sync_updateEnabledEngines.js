@@ -49,8 +49,6 @@ let upd = collectionsHelper.with_updated_collection;
 function sync_httpd_setup(handlers) {
     
   handlers["/1.1/johndoe/info/collections"] = collectionsHelper.handler;
-  delete collectionsHelper.collections.crypto;
-  delete collectionsHelper.collections.meta;
   
   let cr = new ServerWBO("keys");
   handlers["/1.1/johndoe/storage/crypto/keys"] =
@@ -73,13 +71,14 @@ function setUp() {
 
 const PAYLOAD = 42;
 
-add_test(function test_newAccount() {
+function test_newAccount() {
   _("Test: New account does not disable locally enabled engines.");
   let engine = Engines.get("steam");
   let server = sync_httpd_setup({
     "/1.1/johndoe/storage/meta/global": new ServerWBO("global", {}).handler(),
     "/1.1/johndoe/storage/steam": new ServerWBO("steam", {}).handler()
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -95,12 +94,12 @@ add_test(function test_newAccount() {
     _("Engine continues to be enabled.");
     do_check_true(engine.enabled);
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_enabledLocally() {
+function test_enabledLocally() {
   _("Test: Engine is disabled on remote clients and enabled locally");
   Service.syncID = "abcdefghij";
   let engine = Engines.get("steam");
@@ -111,6 +110,7 @@ add_test(function test_enabledLocally() {
     "/1.1/johndoe/storage/meta/global": metaWBO.handler(),
     "/1.1/johndoe/storage/steam": new ServerWBO("steam", {}).handler()
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -127,12 +127,12 @@ add_test(function test_enabledLocally() {
     _("Engine continues to be enabled.");
     do_check_true(engine.enabled);
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_disabledLocally() {
+function test_disabledLocally() {
   _("Test: Engine is enabled on remote clients and disabled locally");
   Service.syncID = "abcdefghij";
   let engine = Engines.get("steam");
@@ -147,6 +147,7 @@ add_test(function test_disabledLocally() {
     "/1.1/johndoe/storage/meta/global": metaWBO.handler(),
     "/1.1/johndoe/storage/steam": steamCollection.handler()
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -169,12 +170,12 @@ add_test(function test_disabledLocally() {
     _("Engine continues to be disabled.");
     do_check_false(engine.enabled);
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_enabledRemotely() {
+function test_enabledRemotely() {
   _("Test: Engine is disabled locally and enabled on a remote client");
   Service.syncID = "abcdefghij";
   let engine = Engines.get("steam");
@@ -185,22 +186,13 @@ add_test(function test_enabledRemotely() {
                       version: engine.version}}
   });
   let server = sync_httpd_setup({
-    "/1.1/johndoe/storage/meta/global":
-    upd("meta", metaWBO.handler()),
-      
-    "/1.1/johndoe/storage/steam":
-    upd("steam", new ServerWBO("steam", {}).handler())
+    "/1.1/johndoe/storage/meta/global": metaWBO.handler(),
+    "/1.1/johndoe/storage/steam": new ServerWBO("steam", {}).handler()
   });
+  do_test_pending();
   setUp();
 
-  // We need to be very careful how we do this, so that we don't trigger a
-  // fresh start!
   try {
-    _("Upload some keys to avoid a fresh start.");
-    let wbo = CollectionKeys.generateNewKeysWBO();
-    wbo.encrypt(Service.syncKeyBundle);
-    do_check_eq(200, wbo.upload(Service.cryptoKeysURL).status);
-
     _("Engine is disabled.");
     do_check_false(engine.enabled);
 
@@ -214,12 +206,12 @@ add_test(function test_enabledRemotely() {
     _("Meta record still present.");
     do_check_eq(metaWBO.data.engines.steam.syncID, engine.syncID);
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_disabledRemotelyTwoClients() {
+function test_disabledRemotelyTwoClients() {
   _("Test: Engine is enabled locally and disabled on a remote client... with two clients.");
   Service.syncID = "abcdefghij";
   let engine = Engines.get("steam");
@@ -233,6 +225,7 @@ add_test(function test_disabledRemotelyTwoClients() {
     "/1.1/johndoe/storage/steam":
     upd("steam", new ServerWBO("steam", {}).handler())
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -259,12 +252,12 @@ add_test(function test_disabledRemotelyTwoClients() {
     do_check_false(engine.enabled);
     
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_disabledRemotely() {
+function test_disabledRemotely() {
   _("Test: Engine is enabled locally and disabled on a remote client");
   Service.syncID = "abcdefghij";
   let engine = Engines.get("steam");
@@ -275,6 +268,7 @@ add_test(function test_disabledRemotely() {
     "/1.1/johndoe/storage/meta/global": metaWBO.handler(),
     "/1.1/johndoe/storage/steam": new ServerWBO("steam", {}).handler()
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -291,12 +285,12 @@ add_test(function test_disabledRemotely() {
     do_check_true(engine.enabled);
     
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_dependentEnginesEnabledLocally() {
+function test_dependentEnginesEnabledLocally() {
   _("Test: Engine is disabled on remote clients and enabled locally");
   Service.syncID = "abcdefghij";
   let steamEngine = Engines.get("steam");
@@ -309,6 +303,7 @@ add_test(function test_dependentEnginesEnabledLocally() {
     "/1.1/johndoe/storage/steam": new ServerWBO("steam", {}).handler(),
     "/1.1/johndoe/storage/stirling": new ServerWBO("stirling", {}).handler()
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -327,12 +322,12 @@ add_test(function test_dependentEnginesEnabledLocally() {
     do_check_true(steamEngine.enabled);
     do_check_true(stirlingEngine.enabled);
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
-add_test(function test_dependentEnginesDisabledLocally() {
+function test_dependentEnginesDisabledLocally() {
   _("Test: Two dependent engines are enabled on remote clients and disabled locally");
   Service.syncID = "abcdefghij";
   let steamEngine = Engines.get("steam");
@@ -353,6 +348,7 @@ add_test(function test_dependentEnginesDisabledLocally() {
     "/1.1/johndoe/storage/steam":           steamCollection.handler(),
     "/1.1/johndoe/storage/stirling":        stirlingCollection.handler()
   });
+  do_test_pending();
   setUp();
 
   try {
@@ -380,14 +376,21 @@ add_test(function test_dependentEnginesDisabledLocally() {
     do_check_false(steamEngine.enabled);
     do_check_false(stirlingEngine.enabled);
   } finally {
+    server.stop(do_test_finished);
     Service.startOver();
-    server.stop(run_next_test);
   }
-});
+}
 
 function run_test() {
   if (DISABLE_TESTS_BUG_604565)
     return;
 
-  run_next_test();
+  test_newAccount();
+  test_enabledLocally();
+  test_disabledLocally();
+  test_enabledRemotely();
+  test_disabledRemotely();
+  test_disabledRemotelyTwoClients();
+  test_dependentEnginesEnabledLocally();
+  test_dependentEnginesDisabledLocally();
 }

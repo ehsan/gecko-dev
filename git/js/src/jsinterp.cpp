@@ -74,11 +74,10 @@
 #include "jstracer.h"
 #include "jslibmath.h"
 #include "jsvector.h"
-#ifdef JS_METHODJIT
 #include "methodjit/MethodJIT.h"
 #include "methodjit/MethodJIT-inl.h"
 #include "methodjit/Logging.h"
-#endif
+
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
 #include "jsinterpinlines.h"
@@ -115,7 +114,7 @@ JSStackFrame::pc(JSContext *cx, JSStackFrame *next)
 {
     JS_ASSERT_IF(next, next->prev_ == this);
 
-    StackSegment *seg = cx->stack().containingSegment(this);
+    StackSegment *seg = cx->containingSegment(this);
     JSFrameRegs *regs = seg->getCurrentRegs();
     if (regs->fp == this)
         return regs->pc;
@@ -411,6 +410,31 @@ CallThisObjectHook(JSContext *cx, JSObject *obj, Value *argv)
     return thisp;
 }
 
+/*
+ * ECMA requires "the global object", but in embeddings such as the browser,
+ * which have multiple top-level objects (windows, frames, etc. in the DOM),
+ * we prefer fun's parent.  An example that causes this code to run:
+ *
+ *   // in window w1
+ *   function f() { return this }
+ *   function g() { return f }
+ *
+ *   // in window w2
+ *   var h = w1.g()
+ *   alert(h() == w1)
+ *
+ * The alert should display "true".
+ */
+JS_STATIC_INTERPRET bool
+ComputeGlobalThis(JSContext *cx, Value *vp)
+{
+    JSObject *thisp = vp[0].toObject().getGlobal()->thisObject(cx);
+    if (!thisp)
+        return false;
+    vp[1].setObject(*thisp);
+    return true;
+}
+
 namespace js {
 
 void
@@ -454,46 +478,24 @@ ReportIncompatibleMethod(JSContext *cx, Value *vp, Class *clasp)
     }
 }
 
-/*
- * ECMA requires "the global object", but in embeddings such as the browser,
- * which have multiple top-level objects (windows, frames, etc. in the DOM),
- * we prefer fun's parent.  An example that causes this code to run:
- *
- *   // in window w1
- *   function f() { return this }
- *   function g() { return f }
- *
- *   // in window w2
- *   var h = w1.g()
- *   alert(h() == w1)
- *
- * The alert should display "true".
- */
 bool
-BoxNonStrictThis(JSContext *cx, const CallReceiver &call)
+BoxThisForVp(JSContext *cx, Value *vp)
 {
     /*
      * Check for SynthesizeFrame poisoning and fast constructors which
-     * didn't check their callee properly.
+     * didn't check their vp properly.
      */
-    Value &thisv = call.thisv();
-    JS_ASSERT(!thisv.isMagic());
-
+    JS_ASSERT(!vp[1].isMagic());
 #ifdef DEBUG
-    JSFunction *fun = call.callee().isFunction() ? call.callee().getFunctionPrivate() : NULL;
+    JSFunction *fun = vp[0].toObject().isFunction() ? vp[0].toObject().getFunctionPrivate() : NULL;
     JS_ASSERT_IF(fun && fun->isInterpreted(), !fun->inStrictMode());
 #endif
 
-    if (thisv.isNullOrUndefined()) {
-        JSObject *thisp = call.callee().getGlobal()->thisObject(cx);
-        if (!thisp)
-            return false;
-        call.thisv().setObject(*thisp);
-        return true;
-    }
+    if (vp[1].isNullOrUndefined())
+        return ComputeGlobalThis(cx, vp);
 
-    if (!thisv.isObject())
-        return !!js_PrimitiveToObject(cx, &thisv);
+    if (!vp[1].isObject())
+        return !!js_PrimitiveToObject(cx, &vp[1]);
 
     return true;
 }
@@ -584,7 +586,7 @@ NoSuchMethod(JSContext *cx, uintN argc, Value *vp, uint32 flags)
     JSObject *obj = &vp[0].toObject();
     JS_ASSERT(obj->getClass() == &js_NoSuchMethodClass);
 
-    args.calleev() = obj->getSlot(JSSLOT_FOUND_FUNCTION);
+    args.callee() = obj->getSlot(JSSLOT_FOUND_FUNCTION);
     args.thisv() = vp[1];
     args[0] = obj->getSlot(JSSLOT_SAVED_ID);
     JSObject *argsobj = NewDenseCopiedArray(cx, argc, vp + 2);
@@ -614,7 +616,8 @@ RunScript(JSContext *cx, JSScript *script, JSStackFrame *fp)
 
     /* FIXME: Once bug 470510 is fixed, make this an assert. */
     if (script->compileAndGo) {
-        if (fp->scopeChain().getGlobal()->isCleared()) {
+        int32 flags = fp->scopeChain().getGlobal()->getReservedSlot(JSRESERVED_GLOBAL_FLAGS).toInt32();
+        if (flags & JSGLOBAL_FLAGS_CLEARED) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CLEARED_SCOPE);
             return false;
         }
@@ -647,12 +650,12 @@ Invoke(JSContext *cx, const CallArgs &argsRef, uint32 flags)
     CallArgs args = argsRef;
     JS_ASSERT(args.argc() <= JS_ARGS_LENGTH_MAX);
 
-    if (args.calleev().isPrimitive()) {
-        js_ReportIsNotFunction(cx, &args.calleev(), flags & JSINVOKE_FUNFLAGS);
+    if (args.callee().isPrimitive()) {
+        js_ReportIsNotFunction(cx, &args.callee(), flags & JSINVOKE_FUNFLAGS);
         return false;
     }
 
-    JSObject &callee = args.callee();
+    JSObject &callee = args.callee().toObject();
     Class *clasp = callee.getClass();
 
     /* Invoke non-functions. */
@@ -663,7 +666,7 @@ Invoke(JSContext *cx, const CallArgs &argsRef, uint32 flags)
 #endif
         JS_ASSERT_IF(flags & JSINVOKE_CONSTRUCT, !clasp->construct);
         if (!clasp->call) {
-            js_ReportIsNotFunction(cx, &args.calleev(), flags);
+            js_ReportIsNotFunction(cx, &args.callee(), flags);
             return false;
         }
         return CallJSNative(cx, clasp->call, args.argc(), args.base());
@@ -734,7 +737,7 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
         return false;
 
     /* Callees may clobber 'this' or 'callee'. */
-    savedCallee_ = args_.calleev() = calleev;
+    savedCallee_ = args_.callee() = calleev;
     savedThis_ = args_.thisv() = thisv;
 
     do {
@@ -817,7 +820,7 @@ ExternalInvoke(JSContext *cx, const Value &thisv, const Value &fval,
     if (!cx->stack().pushInvokeArgs(cx, argc, &args))
         return false;
 
-    args.calleev() = fval;
+    args.callee() = fval;
     args.thisv() = thisv;
     memcpy(args.argv(), argv, argc * sizeof(Value));
 
@@ -850,7 +853,7 @@ ExternalInvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *a
     if (!cx->stack().pushInvokeArgs(cx, argc, &args))
         return false;
 
-    args.calleev() = fval;
+    args.callee() = fval;
     args.thisv().setMagic(JS_THIS_POISON);
     memcpy(args.argv(), argv, argc * sizeof(Value));
 
@@ -905,12 +908,11 @@ InitSharpSlots(JSContext *cx, JSStackFrame *fp)
 #endif
 
 bool
-Execute(JSContext *cx, JSObject &chain, JSScript *script,
+Execute(JSContext *cx, JSObject *chain, JSScript *script,
         JSStackFrame *prev, uintN flags, Value *result)
 {
+    JS_ASSERT(chain);
     JS_ASSERT_IF(prev, !prev->isDummyFrame());
-    JS_ASSERT_IF(prev, prev->compartment() == cx->compartment);
-    JS_ASSERT(script->compartment == cx->compartment);
 
     if (script->isEmpty()) {
         if (result)
@@ -936,16 +938,16 @@ Execute(JSContext *cx, JSObject &chain, JSScript *script,
     /* Initialize frame and locals. */
     JSObject *initialVarObj;
     if (prev) {
-        JS_ASSERT(chain == prev->scopeChain());
+        JS_ASSERT(chain == &prev->scopeChain());
         frame.fp()->initEvalFrame(cx, script, prev, flags);
 
         /* NB: prev may not be in cx->currentSegment. */
         initialVarObj = (prev == cx->maybefp())
                         ? &prev->varobj(cx)
-                        : &prev->varobj(cx->stack().containingSegment(prev));
+                        : &prev->varobj(cx->containingSegment(prev));
     } else {
         /* The scope chain could be anything, so innerize just in case. */
-        JSObject *innerizedChain = &chain;
+        JSObject *innerizedChain = chain;
         OBJ_TO_INNER_OBJECT(cx, innerizedChain);
         if (!innerizedChain)
             return false;
@@ -960,14 +962,14 @@ Execute(JSContext *cx, JSObject &chain, JSScript *script,
         frame.fp()->initGlobalFrame(script, *innerizedChain, flags);
 
         /* If scope chain is an inner window, outerize for 'this'. */
-        JSObject *thisp = chain.thisObject(cx);
+        JSObject *thisp = chain->thisObject(cx);
         if (!thisp)
             return false;
         frame.fp()->globalThis().setObject(*thisp);
 
         initialVarObj = cx->hasRunOption(JSOPTION_VAROBJFIX)
-                        ? chain.getGlobal()
-                        : &chain;
+                        ? chain->getGlobal()
+                        : chain;
     }
     JS_ASSERT(!initialVarObj->getOps()->defineProperty);
 
@@ -1168,7 +1170,7 @@ StrictlyEqual(JSContext *cx, const Value &lref, const Value &rref, JSBool *equal
             return true;
         }
         if (lval.isObject()) {
-            *equal = lval.toObject() == rval.toObject();
+            *equal = &lval.toObject() == &rval.toObject();
             return true;
         }
         if (lval.isUndefined()) {
@@ -1250,36 +1252,56 @@ InvokeConstructor(JSContext *cx, const CallArgs &argsRef)
     JS_ASSERT(!js_FunctionClass.construct);
     CallArgs args = argsRef;
 
-    if (args.calleev().isObject()) {
-        JSObject *callee = &args.callee();
-        Class *clasp = callee->getClass();
-        if (clasp == &js_FunctionClass) {
-            JSFunction *fun = callee->getFunctionPrivate();
-
-            if (fun->isConstructor()) {
-                args.thisv().setMagicWithObjectOrNullPayload(NULL);
-                return CallJSNativeConstructor(cx, fun->u.n.native, args.argc(), args.base());
-            }
-
-            if (!fun->isInterpretedConstructor())
-                goto error;
-
-            if (!Invoke(cx, args, JSINVOKE_CONSTRUCT))
-                return false;
-
-            JS_ASSERT(args.rval().isObject());
-            JS_RUNTIME_METER(cx->runtime, constructs);
-            return true;
-        }
-        if (clasp->construct) {
-            args.thisv().setMagicWithObjectOrNullPayload(NULL);
-            return CallJSNativeConstructor(cx, clasp->construct, args.argc(), args.base());
-        }
+    JSObject *callee;
+    if (args.callee().isPrimitive() || !(callee = &args.callee().toObject())->getParent()) {
+        js_ReportIsNotFunction(cx, &args.callee(), JSV2F_CONSTRUCT);
+        return false;
     }
 
-error:
-    js_ReportIsNotFunction(cx, &args.calleev(), JSV2F_CONSTRUCT);
-    return false;
+    /* Handle the fast-constructors cases before falling into the general case . */
+    Class *clasp = callee->getClass();
+    JSFunction *fun = NULL;
+    if (clasp == &js_FunctionClass) {
+        fun = callee->getFunctionPrivate();
+        if (fun->isConstructor()) {
+            args.thisv().setMagicWithObjectOrNullPayload(NULL);
+            return CallJSNativeConstructor(cx, fun->u.n.native, args.argc(), args.base());
+        }
+    } else if (clasp->construct) {
+        args.thisv().setMagicWithObjectOrNullPayload(NULL);
+        return CallJSNativeConstructor(cx, clasp->construct, args.argc(), args.base());
+    }
+
+    /* Scripts create their own |this| in JSOP_BEGIN */
+    if (!fun || !fun->isInterpreted()) {
+        JSObject *obj = js_CreateThis(cx, callee);
+        if (!obj)
+            return false;
+        args.thisv().setObject(*obj);
+    }
+
+    if (!Invoke(cx, args, JSINVOKE_CONSTRUCT))
+        return false;
+
+    if (args.rval().isPrimitive()) {
+        if (clasp != &js_FunctionClass) {
+            /* native [[Construct]] returning primitive is error */
+            JSAutoByteString bytes;
+            if (js_ValueToPrintable(cx, args.rval(), &bytes)) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                     JSMSG_BAD_NEW_RESULT, bytes.ptr());
+                return false;
+            }
+        }
+
+        /* The interpreter fixes rval for us. */
+        JS_ASSERT(!fun->isInterpreted());
+
+        args.rval() = args.thisv();
+    }
+
+    JS_RUNTIME_METER(cx->runtime, constructs);
+    return true;
 }
 
 bool
@@ -1292,7 +1314,7 @@ InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fv
     if (!cx->stack().pushInvokeArgs(cx, argc, &args))
         return JS_FALSE;
 
-    args.calleev() = fval;
+    args.callee() = fval;
     /* Initialize args.thisv on all paths below. */
     memcpy(args.argv(), argv, argc * sizeof(Value));
 
@@ -1314,6 +1336,26 @@ InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fv
 
     *rval = args.rval();
     return ok;
+}
+
+bool
+DirectEval(JSContext *cx, uint32 argc, Value *vp)
+{
+    JS_ASSERT(vp == cx->regs->sp - argc - 2);
+    JS_ASSERT(vp[0].isObject());
+    JS_ASSERT(vp[0].toObject().isFunction());
+
+    JSStackFrame *caller = cx->fp();
+    JS_ASSERT(caller->isScriptFrame());
+    JS_ASSERT(IsBuiltinEvalForScope(&caller->scopeChain(), vp[0]));
+    AutoFunctionCallProbe callProbe(cx, vp[0].toObject().getFunctionPrivate(), caller->script());
+
+    JSObject *scopeChain =
+        GetScopeChainFast(cx, caller, JSOP_EVAL, JSOP_EVAL_LENGTH + JSOP_LINENO_LENGTH);
+    if (!scopeChain || !EvalKernel(cx, argc, vp, DIRECT_EVAL, caller, scopeChain))
+        return false;
+    cx->regs->sp = vp + 1;
+    return true;
 }
 
 bool
@@ -1473,7 +1515,7 @@ js::GetUpvar(JSContext *cx, uintN closureLevel, UpvarCookie cookie)
     } else if (slot < fp->numFormalArgs()) {
         vp = fp->formalArgs();
     } else if (slot == UpvarCookie::CALLEE_SLOT) {
-        vp = &fp->calleev();
+        vp = &fp->calleeValue();
         slot = 0;
     } else {
         slot -= fp->numFormalArgs();
@@ -2052,7 +2094,7 @@ AssertValidPropertyCacheHit(JSContext *cx, JSScript *script, JSFrameRegs& regs,
     } else if (entry->vword.isShape()) {
         JS_ASSERT(entry->vword.toShape() == shape);
         JS_ASSERT_IF(shape->isMethod(),
-                     shape->methodObject() == pobj->nativeGetSlot(shape->slot).toObject());
+                     &shape->methodObject() == &pobj->nativeGetSlot(shape->slot).toObject());
     } else {
         Value v;
         JS_ASSERT(entry->vword.isFunObj());
@@ -2061,11 +2103,11 @@ AssertValidPropertyCacheHit(JSContext *cx, JSScript *script, JSFrameRegs& regs,
         JS_ASSERT(shape->hasDefaultGetterOrIsMethod());
         JS_ASSERT(pobj->containsSlot(shape->slot));
         v = pobj->nativeGetSlot(shape->slot);
-        JS_ASSERT(entry->vword.toFunObj() == v.toObject());
+        JS_ASSERT(&entry->vword.toFunObj() == &v.toObject());
 
         if (shape->isMethod()) {
             JS_ASSERT(js_CodeSpec[*regs.pc].format & JOF_CALLOP);
-            JS_ASSERT(shape->methodObject() == v.toObject());
+            JS_ASSERT(&shape->methodObject() == &v.toObject());
         }
     }
 
@@ -2816,7 +2858,7 @@ BEGIN_CASE(JSOP_ENTERWITH)
 END_CASE(JSOP_ENTERWITH)
 
 BEGIN_CASE(JSOP_LEAVEWITH)
-    JS_ASSERT(regs.sp[-1].toObject() == regs.fp->scopeChain());
+    JS_ASSERT(&regs.sp[-1].toObject() == &regs.fp->scopeChain());
     regs.sp--;
     js_LeaveWith(cx);
 END_CASE(JSOP_LEAVEWITH)
@@ -3902,26 +3944,19 @@ do_incop:
     const JSCodeSpec *cs = &js_CodeSpec[op];
     JS_ASSERT(cs->ndefs == 1);
     JS_ASSERT((cs->format & JOF_TMPSLOT_MASK) >= JOF_TMPSLOT2);
-
-    uint32 format = cs->format;
-    uint32 setPropFlags = (JOF_MODE(format) == JOF_NAME)
-                          ? JSRESOLVE_ASSIGNING
-                          : JSRESOLVE_ASSIGNING | JSRESOLVE_QUALIFIED;
-
     Value &ref = regs.sp[-1];
     int32_t tmp;
     if (JS_LIKELY(ref.isInt32() && CanIncDecWithoutOverflow(tmp = ref.toInt32()))) {
-        int incr = (format & JOF_INC) ? 1 : -1;
-        if (format & JOF_POST)
+        int incr = (cs->format & JOF_INC) ? 1 : -1;
+        if (cs->format & JOF_POST)
             ref.getInt32Ref() = tmp + incr;
         else
             ref.getInt32Ref() = tmp += incr;
-
-        {
-            JSAutoResolveFlags rf(cx, setPropFlags);
-            if (!obj->setProperty(cx, id, &ref, script->strictModeCode))
-                goto error;
-        }
+        regs.fp->setAssigning();
+        JSBool ok = obj->setProperty(cx, id, &ref, script->strictModeCode);
+        regs.fp->clearAssigning();
+        if (!ok)
+            goto error;
 
         /*
          * We must set regs.sp[-1] to tmp for both post and pre increments
@@ -3933,13 +3968,11 @@ do_incop:
         PUSH_NULL();
         if (!js_DoIncDec(cx, cs, &regs.sp[-2], &regs.sp[-1]))
             goto error;
-
-        {
-            JSAutoResolveFlags rf(cx, setPropFlags);
-            if (!obj->setProperty(cx, id, &regs.sp[-1], script->strictModeCode))
-                goto error;
-        }
-
+        regs.fp->setAssigning();
+        JSBool ok = obj->setProperty(cx, id, &regs.sp[-1], script->strictModeCode);
+        regs.fp->clearAssigning();
+        if (!ok)
+            goto error;
         regs.sp--;
     }
 
@@ -4014,14 +4047,14 @@ BEGIN_CASE(JSOP_LOCALINC)
 }
 
 BEGIN_CASE(JSOP_THIS)
-    if (!ComputeThis(cx, regs.fp))
+    if (!regs.fp->computeThis(cx))
         goto error;
     PUSH_COPY(regs.fp->thisValue());
 END_CASE(JSOP_THIS)
 
 BEGIN_CASE(JSOP_UNBRANDTHIS)
 {
-    if (!ComputeThis(cx, regs.fp))
+    if (!regs.fp->computeThis(cx))
         goto error;
     Value &thisv = regs.fp->thisValue();
     if (thisv.isObject()) {
@@ -4038,7 +4071,7 @@ END_CASE(JSOP_UNBRANDTHIS)
     jsint i;
 
 BEGIN_CASE(JSOP_GETTHISPROP)
-    if (!ComputeThis(cx, regs.fp))
+    if (!regs.fp->computeThis(cx))
         goto error;
     i = 0;
     PUSH_COPY(regs.fp->thisValue());
@@ -4560,13 +4593,14 @@ BEGIN_CASE(JSOP_NEW)
     argc = GET_ARGC(regs.pc);
     vp = regs.sp - (2 + argc);
     JS_ASSERT(vp >= regs.fp->base());
+
     /*
      * Assign lval, callee, and newfun exactly as the code at inline_call: expects to
      * find them, to avoid nesting a js_Interpret call via js_InvokeConstructor.
      */
     if (IsFunctionObject(vp[0], &callee)) {
         newfun = callee->getFunctionPrivate();
-        if (newfun->isInterpretedConstructor()) {
+        if (newfun->isInterpreted()) {
             if (newfun->u.i.script->isEmpty()) {
                 JSObject *obj2 = js_CreateThisForFunction(cx, callee);
                 if (!obj2)
@@ -4599,10 +4633,8 @@ BEGIN_CASE(JSOP_EVAL)
     if (!IsBuiltinEvalForScope(&regs.fp->scopeChain(), *vp))
         goto call_using_invoke;
 
-    if (!DirectEval(cx, CallArgsFromVp(argc, vp)))
+    if (!DirectEval(cx, argc, vp))
         goto error;
-
-    regs.sp = vp + 1;
 }
 END_CASE(JSOP_EVAL)
 
@@ -6449,7 +6481,7 @@ END_CASE(JSOP_XMLPI)
 BEGIN_CASE(JSOP_GETFUNNS)
 {
     Value rval;
-    if (!cx->fp()->scopeChain().getGlobal()->getFunctionNamespace(cx, &rval))
+    if (!js_GetFunctionNamespace(cx, &rval))
         goto error;
     PUSH_COPY(rval);
 }

@@ -10,7 +10,7 @@ Cu.import("resource://services-sync/log4moz.js");
   
 Engines.register(TabEngine);
 
-add_test(function v4_upgrade() {
+function v4_upgrade(next) {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
 
   let clients = new ServerCollection();
@@ -184,11 +184,11 @@ add_test(function v4_upgrade() {
     
   } finally {
     Weave.Svc.Prefs.resetBranch("");
-    server.stop(run_next_test);
+    server.stop(next);
   }
-});
+}
 
-add_test(function v5_upgrade() {
+function v5_upgrade(next) {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
 
   // Tracking info/collections.
@@ -249,7 +249,7 @@ add_test(function v5_upgrade() {
 
     _("Testing v4 -> v5 (or similar) upgrade.");
     function update_server_keys(syncKeyBundle, wboName, collWBO) {
-      generateNewKeys();
+      CollectionKeys.generateNewKeys();
       serverKeys = CollectionKeys.asWBO("crypto", wboName);
       serverKeys.encrypt(syncKeyBundle);
       do_check_true(serverKeys.upload(Weave.Service.storageURL + collWBO).success);
@@ -271,7 +271,7 @@ add_test(function v5_upgrade() {
     update_server_keys(badKeys, "bulk", "crypto/bulk");  // v5
     
     // ... and get new ones.
-    generateNewKeys();
+    CollectionKeys.generateNewKeys();
     
     // Now sync and see what happens. It should be a version fail, not a crypto
     // fail.
@@ -292,13 +292,15 @@ add_test(function v5_upgrade() {
     
   } finally {
     Weave.Svc.Prefs.resetBranch("");
-    server.stop(run_next_test);
+    server.stop(next);
   }
-});
+}
 
 function run_test() {
   let logger = Log4Moz.repository.rootLogger;
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
-
-  run_next_test();
+  
+  do_test_pending();
+  Utils.asyncChain(v4_upgrade, v5_upgrade,
+                   do_test_finished)();
 }

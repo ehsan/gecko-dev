@@ -21,7 +21,9 @@ function server_open(metadata, response) {
 function server_protected(metadata, response) {
   let body;
 
-  if (basic_auth_matches(metadata, "guest", "guest")) {
+  // no btoa() in xpcshell.  it's guest:guest
+  if (metadata.hasHeader("Authorization") &&
+      metadata.getHeader("Authorization") == "Basic Z3Vlc3Q6Z3Vlc3Q=") {
     body = "This path exists and is protected";
     response.setStatusLine(metadata.httpVersion, 200, "OK, authorized");
     response.setHeader("WWW-Authenticate", 'Basic realm="secret"', false);
