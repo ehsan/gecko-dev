@@ -341,9 +341,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
     }
   }
 
-  // Set the style rule refresh time to null so that EnsureStyleRuleFor
-  // creates a new style rule.
-  collection->mStyleRuleRefreshTime = TimeStamp();
+  collection->mStyleRule = nullptr;
 
   return coverRule.forget();
 }

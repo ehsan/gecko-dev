@@ -9,7 +9,7 @@ interface nsIInputStream;
 interface nsIDOMDocument;
 interface nsIURI;
 interface nsIPrincipal;
-interface nsIGlobalObject;
+interface nsIScriptGlobalObject;
 
 /**
  * The nsIDOMParser interface is a non-SAX interface that can be used
@@ -89,7 +89,7 @@ interface nsIDOMParser : nsISupports
   [noscript] void init(in nsIPrincipal principal,
                        in nsIURI documentURI,
                        in nsIURI baseURI,
-                       in nsIGlobalObject scriptObject);
+                       in nsIScriptGlobalObject scriptObject);
 };
 
 %{ C++

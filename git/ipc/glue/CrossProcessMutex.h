@@ -49,13 +49,13 @@ public:
    * CrossProcessMutex
    * @param name A name which can reference this lock (currently unused)
    **/
-  explicit CrossProcessMutex(const char* aName);
+  CrossProcessMutex(const char* aName);
   /**
    * CrossProcessMutex
    * @param handle A handle of an existing cross process mutex that can be
    *               opened.
    */
-  explicit CrossProcessMutex(CrossProcessMutexHandle aHandle);
+  CrossProcessMutex(CrossProcessMutexHandle aHandle);
 
   /**
    * ~CrossProcessMutex

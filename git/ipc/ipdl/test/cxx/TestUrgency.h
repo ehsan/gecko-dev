@@ -18,7 +18,7 @@ public:
     virtual ~TestUrgencyParent();
 
     static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return false; }
+    static bool RunTestInThreads() { return true; }
 
     void Main();
 
@@ -35,6 +35,8 @@ public:
     }
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
     {
+        if (AbnormalShutdown != why)
+            fail("unexpected destruction!");  
         passed("ok");
         QuitParent();
     }
@@ -59,6 +61,8 @@ public:
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
     {
+        if (AbnormalShutdown != why)
+            fail("unexpected destruction!");
         QuitChild();
     }
 

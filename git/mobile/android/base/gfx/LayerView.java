@@ -138,7 +138,6 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         setFocusableInTouchMode(true);
 
         GeckoAccessibility.setDelegate(this);
-        GeckoAccessibility.setAccessibilityStateChangeListener(getContext());
     }
 
     private static Point getEventRadius(MotionEvent event) {

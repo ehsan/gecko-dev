@@ -32,10 +32,8 @@ loop.shared.models = (function() {
                                    // requires.
       callType:     undefined,     // The type of incoming call selected by
                                    // other peer ("audio" or "audio-video")
-      selectedCallType: undefined, // The selected type for the call that was
+      selectedCallType: undefined  // The selected type for the call that was
                                    // initiated ("audio" or "audio-video")
-      callToken:    undefined      // Incoming call token.
-                                   // Used for blocking a call url
     },
 
     /**
@@ -170,8 +168,7 @@ loop.shared.models = (function() {
         callId:         sessionData.callId,
         progressURL:    sessionData.progressURL,
         websocketToken: sessionData.websocketToken.toString(16),
-        callType:       sessionData.callType || "audio-video",
-        callToken:      sessionData.callToken
+        callType:       sessionData.callType || "audio-video"
       });
     },
 

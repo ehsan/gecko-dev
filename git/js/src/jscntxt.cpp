@@ -1165,6 +1165,12 @@ JSContext::leaveGenerator(JSGenerator *gen)
 
 
 bool
+JSContext::runningWithTrustedPrincipals() const
+{
+    return !compartment() || compartment()->principals == runtime()->trustedPrincipals();
+}
+
+bool
 JSContext::saveFrameChain()
 {
     if (!savedFrameChains_.append(SavedFrameChain(compartment(), enterCompartmentDepth_)))

@@ -24,7 +24,7 @@ class CloseFileRunnable MOZ_FINAL : public nsIRunnable
   FileDescriptor mFileDescriptor;
 
 public:
-  explicit CloseFileRunnable(const FileDescriptor& aFileDescriptor)
+  CloseFileRunnable(const FileDescriptor& aFileDescriptor)
 #ifdef DEBUG
   ;
 #else

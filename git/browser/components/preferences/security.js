@@ -111,7 +111,7 @@ var gSecurityPane = {
   {
     document.documentElement.openWindow("Toolkit:PasswordManagerExceptions",
                                         "chrome://passwordmgr/content/passwordManagerExceptions.xul",
-                                        "resizable", null);
+                                        "", null);
   },
 
   /**
@@ -221,7 +221,7 @@ var gSecurityPane = {
   {
     document.documentElement.openWindow("Toolkit:PasswordManager",
                                         "chrome://passwordmgr/content/passwordManager.xul",
-                                        "resizable", null);
+                                        "", null);
   }
 
 };

@@ -120,19 +120,6 @@ TestOpensOpenedParent::AnswerHelloRpc()
     return CallHiRpc();
 }
 
-static void
-ShutdownTestOpensOpenedParent(TestOpensOpenedParent* parent,
-                              Transport* transport)
-{
-    delete parent;
-
-    // Now delete the transport, which has to happen after the
-    // top-level actor is deleted.
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        new DeleteTask<Transport>(transport));
-}
-
 void
 TestOpensOpenedParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -144,10 +131,12 @@ TestOpensOpenedParent::ActorDestroy(ActorDestroyReason why)
     // ActorDestroy() is just a callback from IPDL-generated code,
     // which needs the top-level actor (this) to stay alive a little
     // longer so other things can be cleaned up.
-    gMainThread->PostTask(
+    MessageLoop::current()->PostTask(
         FROM_HERE,
-        NewRunnableFunction(ShutdownTestOpensOpenedParent,
-                            this, mTransport));
+        new DeleteTask<TestOpensOpenedParent>(this));
+    XRE_GetIOMessageLoop()->PostTask(
+        FROM_HERE,
+        new DeleteTask<Transport>(mTransport));
 }
 
 //-----------------------------------------------------------------------------
@@ -281,7 +270,7 @@ TestOpensOpenedChild::ActorDestroy(ActorDestroyReason why)
     // which needs the top-level actor (this) to stay alive a little
     // longer so other things can be cleaned up.  Defer shutdown to
     // let cleanup finish.
-    gMainThread->PostTask(
+    MessageLoop::current()->PostTask(
         FROM_HERE,
         NewRunnableFunction(ShutdownTestOpensOpenedChild,
                             this, mTransport));

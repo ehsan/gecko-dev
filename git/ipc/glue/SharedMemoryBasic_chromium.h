@@ -30,7 +30,7 @@ public:
   {
   }
 
-  explicit SharedMemoryBasic(const Handle& aHandle)
+  SharedMemoryBasic(const Handle& aHandle)
     : mSharedMemory(aHandle, false)
   {
   }

@@ -979,37 +979,27 @@ public class GeckoAppShell
     }
 
     static boolean hasHandlersForIntent(Intent intent) {
-        try {
-            PackageManager pm = getContext().getPackageManager();
-            List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
-            return !list.isEmpty();
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "Exception in GeckoAppShell.hasHandlersForIntent");
-            return false;
-        }
+        PackageManager pm = getContext().getPackageManager();
+        List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
+        return !list.isEmpty();
     }
 
     static String[] getHandlersForIntent(Intent intent) {
-        try {
-            PackageManager pm = getContext().getPackageManager();
-            List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
-            int numAttr = 4;
-            String[] ret = new String[list.size() * numAttr];
-            for (int i = 0; i < list.size(); i++) {
-                ResolveInfo resolveInfo = list.get(i);
-                ret[i * numAttr] = resolveInfo.loadLabel(pm).toString();
-                if (resolveInfo.isDefault)
-                    ret[i * numAttr + 1] = "default";
-                else
-                    ret[i * numAttr + 1] = "";
-                ret[i * numAttr + 2] = resolveInfo.activityInfo.applicationInfo.packageName;
-                ret[i * numAttr + 3] = resolveInfo.activityInfo.name;
-            }
-            return ret;
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "Exception in GeckoAppShell.getHandlersForIntent");
-            return new String[0];
+        PackageManager pm = getContext().getPackageManager();
+        List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
+        int numAttr = 4;
+        String[] ret = new String[list.size() * numAttr];
+        for (int i = 0; i < list.size(); i++) {
+            ResolveInfo resolveInfo = list.get(i);
+            ret[i * numAttr] = resolveInfo.loadLabel(pm).toString();
+            if (resolveInfo.isDefault)
+                ret[i * numAttr + 1] = "default";
+            else
+                ret[i * numAttr + 1] = "";
+            ret[i * numAttr + 2] = resolveInfo.activityInfo.applicationInfo.packageName;
+            ret[i * numAttr + 3] = resolveInfo.activityInfo.name;
         }
+        return ret;
     }
 
     static Intent getIntentForActionString(String aAction) {

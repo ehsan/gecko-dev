@@ -424,11 +424,10 @@ TiledContentHost::RenderTile(const TileHost& aTile,
   }
 
   nsIntRect screenBounds = aScreenRegion.GetBounds();
-  Rect layerQuad(screenBounds.x, screenBounds.y, screenBounds.width, screenBounds.height);
-  RenderTargetRect quad = RenderTargetRect::FromUnknown(aTransform.TransformBounds(layerQuad));
+  Rect quad(screenBounds.x, screenBounds.y, screenBounds.width, screenBounds.height);
+  quad = aTransform.TransformBounds(quad);
 
-  if (!quad.Intersects(mCompositor->ClipRectInLayersCoordinates(
-        RenderTargetIntRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height)))) {
+  if (!quad.Intersects(mCompositor->ClipRectInLayersCoordinates(aClipRect))) {
     return;
   }
 

@@ -111,7 +111,6 @@ AppleVTDecoder::Input(mp4_demuxer::MP4Sample* aSample)
 nsresult
 AppleVTDecoder::Flush()
 {
-  mTaskQueue->Flush();
   nsresult rv = WaitForAsynchronousFrames();
   if (NS_FAILED(rv)) {
     LOG("AppleVTDecoder::Drain failed waiting for platform decoder.");

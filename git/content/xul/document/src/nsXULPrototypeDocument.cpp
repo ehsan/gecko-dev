@@ -27,6 +27,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "xpcpublic.h"
 #include "mozilla/dom/BindingUtils.h"
 

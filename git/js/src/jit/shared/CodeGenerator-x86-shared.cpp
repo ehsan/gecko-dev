@@ -1338,7 +1338,7 @@ CodeGeneratorX86Shared::visitBitOpI(LBitOpI *ins)
                 masm.andl(ToOperand(rhs), ToRegister(lhs));
             break;
         default:
-            MOZ_CRASH("unexpected binary opcode");
+            MOZ_ASSUME_UNREACHABLE("unexpected binary opcode");
     }
 
     return true;
@@ -1372,7 +1372,7 @@ CodeGeneratorX86Shared::visitShiftI(LShiftI *ins)
             }
             break;
           default:
-            MOZ_CRASH("Unexpected shift op");
+            MOZ_ASSUME_UNREACHABLE("Unexpected shift op");
         }
     } else {
         JS_ASSERT(ToRegister(rhs) == ecx);
@@ -1393,7 +1393,7 @@ CodeGeneratorX86Shared::visitShiftI(LShiftI *ins)
             }
             break;
           default:
-            MOZ_CRASH("Unexpected shift op");
+            MOZ_ASSUME_UNREACHABLE("Unexpected shift op");
         }
     }
 
@@ -1535,7 +1535,7 @@ CodeGeneratorX86Shared::visitMathD(LMathD *math)
         masm.divsd(rhs, lhs);
         break;
       default:
-        MOZ_CRASH("unexpected opcode");
+        MOZ_ASSUME_UNREACHABLE("unexpected opcode");
     }
     return true;
 }
@@ -1562,7 +1562,8 @@ CodeGeneratorX86Shared::visitMathF(LMathF *math)
         masm.divss(rhs, lhs);
         break;
       default:
-        MOZ_CRASH("unexpected opcode");
+        MOZ_ASSUME_UNREACHABLE("unexpected opcode");
+        return false;
     }
     return true;
 }
@@ -2108,7 +2109,7 @@ CodeGeneratorX86Shared::visitSimdValueX4(LSimdValueX4 *ins)
         masm.loadAlignedFloat32x4(Address(StackPointer, 0), output);
         break;
       }
-      default: MOZ_CRASH("Unknown SIMD kind");
+      default: MOZ_ASSUME_UNREACHABLE("Unknown SIMD kind");
     }
 
     masm.freeStack(Simd128DataSize);
@@ -2176,7 +2177,7 @@ CodeGeneratorX86Shared::visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *ins)
         // x86 doesn't have SIMD i32 div.
         break;
     }
-    MOZ_CRASH("unexpected SIMD op");
+    MOZ_ASSUME_UNREACHABLE("unexpected SIMD op");
 }
 
 bool
@@ -2201,7 +2202,7 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
         masm.packedDivFloat32(rhs, lhs);
         return true;
     }
-    MOZ_CRASH("unexpected SIMD op");
+    MOZ_ASSUME_UNREACHABLE("unexpected SIMD op");
 }
 
 bool
