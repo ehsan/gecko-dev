@@ -62,6 +62,11 @@ else
 EXEC			= exec
 endif
 
+# Don't copy xulrunner files at install time, when using system xulrunner
+ifdef SYSTEM_LIBXUL
+  SKIP_COPY_XULRUNNER=1
+endif
+
 # ELOG prints out failed command when building silently (gmake -s).
 ifneq (,$(findstring -s,$(MAKEFLAGS)))
   ELOG := $(EXEC) sh $(BUILD_TOOLS)/print-failed-commands.sh
@@ -1926,7 +1931,10 @@ endif
 endif
 
 ifneq ($(DIST_FILES),)
-libs:: $(DIST_FILES)
+$(DIST)/bin:
+	$(NSINSTALL) -D $@
+
+libs:: $(DIST_FILES) $(DIST)/bin
 	@$(EXIT_ON_ERROR) \
 	for f in $(DIST_FILES); do \
 	  dest=$(FINAL_TARGET)/`basename $$f`; \

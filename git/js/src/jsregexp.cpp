@@ -64,6 +64,7 @@
 #include "jsregexp.h"
 #include "jsscan.h"
 #include "jsscope.h"
+#include "jsstaticcheck.h"
 #include "jsstr.h"
 
 #ifdef JS_TRACER
@@ -3831,11 +3832,19 @@ MatchRegExp(REGlobalData *gData, REMatchState *x)
         (native = GetNativeRegExp(gData->cx, gData->regexp))) {
         gData->skipped = (ptrdiff_t) x->cp;
 
-        debug_only_v(printf("entering REGEXP trace at %s:%u@%u, code: %p\n",
-                            gData->cx->fp->script->filename,
-                            js_FramePCToLineNumber(gData->cx, gData->cx->fp),
-                            FramePCOffset(gData->cx->fp),
-                            native););
+#ifdef JS_JIT_SPEW
+        debug_only_v({
+            VOUCH_DOES_NOT_REQUIRE_STACK();
+            JSStackFrame *caller = (JS_ON_TRACE(gData->cx))
+                                   ? NULL
+                                   : js_GetScriptedCaller(gData->cx, NULL);
+            printf("entering REGEXP trace at %s:%u@%u, code: %p\n",
+                   caller ? caller->script->filename : "<unknown>",
+                   caller ? js_FramePCToLineNumber(gData->cx, caller) : 0,
+                   caller ? FramePCOffset(caller) : 0,
+                   (void *) native);
+        })
+#endif
 
 #if defined(JS_NO_FASTCALL) && defined(NANOJIT_IA32)
         SIMULATE_FASTCALL(result, x, gData, native);
@@ -4814,7 +4823,7 @@ Regexp_p_test(JSContext* cx, JSObject* regexp, JSString* str)
 }
 
 JS_DEFINE_TRCINFO_1(regexp_test,
-    (3, (static, BOOL_FAIL, Regexp_p_test, CONTEXT, THIS, STRING,  1, 1)))
+    (3, (static, BOOL_RETRY, Regexp_p_test, CONTEXT, THIS, STRING,  1, 1)))
 
 #endif
 

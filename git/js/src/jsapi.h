@@ -596,8 +596,10 @@ JS_StringToVersion(const char *string);
                                                    will be passed to each call
                                                    to JS_ExecuteScript. */
 #define JSOPTION_UNROOTED_GLOBAL JS_BIT(13)     /* The GC will not root the
-                                                   global objects leaving
-                                                   that up to the embedding. */
+                                                   contexts' global objects
+                                                   (see JS_GetGlobalObject),
+                                                   leaving that up to the
+                                                   embedding. */
 
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
@@ -1137,11 +1139,30 @@ typedef enum JSGCParamKey {
     JSGC_MAX_MALLOC_BYTES   = 1,
 
     /* Hoard stackPools for this long, in ms, default is 30 seconds. */
-    JSGC_STACKPOOL_LIFESPAN = 2
+    JSGC_STACKPOOL_LIFESPAN = 2,
+
+    /*
+     * The factor that defines when the GC is invoked. The factor is a
+     * percent of the memory allocated by the GC after the last run of
+     * the GC. When the current memory allocated by the GC is more than
+     * this percent then the GC is invoked. The factor cannot be less
+     * than 100 since the current memory allocated by the GC cannot be less
+     * than the memory allocated after the last run of the GC.
+     */
+    JSGC_TRIGGER_FACTOR = 3,
+
+    /* Amount of bytes allocated by the GC. */
+    JSGC_BYTES = 4,
+
+    /* Number of times when GC was invoked. */
+    JSGC_NUMBER = 5
 } JSGCParamKey;
 
 extern JS_PUBLIC_API(void)
 JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value);
+
+extern JS_PUBLIC_API(uint32)
+JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key);
 
 /*
  * Add a finalizer for external strings created by JS_NewExternalString (see
@@ -1602,6 +1623,13 @@ JS_GetPropertyAttrsGetterAndSetter(JSContext *cx, JSObject *obj,
                                    uintN *attrsp, JSBool *foundp,
                                    JSPropertyOp *getterp,
                                    JSPropertyOp *setterp);
+
+extern JS_PUBLIC_API(JSBool)
+JS_GetPropertyAttrsGetterAndSetterById(JSContext *cx, JSObject *obj,
+                                       jsid id,
+                                       uintN *attrsp, JSBool *foundp,
+                                       JSPropertyOp *getterp,
+                                       JSPropertyOp *setterp);
 
 /*
  * Set the attributes of a property on a given object.

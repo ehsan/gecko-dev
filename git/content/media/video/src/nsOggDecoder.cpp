@@ -594,7 +594,11 @@ void nsOggDecodeStateMachine::HandleVideoData(FrameData* aFrame, int aTrackNum, 
   rgb.rgb_width = aFrame->mVideoWidth;
   rgb.rgb_height = aFrame->mVideoHeight;
 
+#ifdef IS_BIG_ENDIAN
+  oggplay_yuv2argb(&yuv, &rgb);
+#else
   oggplay_yuv2bgr(&yuv, &rgb);
+#endif
 }
 
 void nsOggDecodeStateMachine::HandleAudioData(FrameData* aFrame, OggPlayAudioData* aAudioData, int aSize) {
@@ -702,7 +706,7 @@ void nsOggDecodeStateMachine::OpenAudioStream()
     LOG(PR_LOG_ERROR, ("Could not create audio stream"));
   }
   else {
-    mAudioStream->Init(mAudioChannels, mAudioRate, nsAudioStream::FORMAT_FLOAT32_LE);
+    mAudioStream->Init(mAudioChannels, mAudioRate, nsAudioStream::FORMAT_FLOAT32);
     mAudioStream->SetVolume(mVolume);
   }
 }
@@ -1094,11 +1098,20 @@ void nsOggDecodeStateMachine::LoadOggHeaders()
       if (mVideoTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_THEORA) {
         oggplay_set_callback_num_frames(mPlayer, i, 1);
         mVideoTrack = i;
+
         int fpsd, fpsn;
         oggplay_get_video_fps(mPlayer, i, &fpsd, &fpsn);
         mFramerate = fpsd == 0 ? 0.0 : float(fpsn)/float(fpsd);
         mCallbackPeriod = 1.0 / mFramerate;
         LOG(PR_LOG_DEBUG, ("Frame rate: %f", mFramerate));
+
+        int y_width;
+        int y_height;
+        oggplay_get_video_y_size(mPlayer, i, &y_width, &y_height);
+        {
+          nsAutoLock lock(mDecoder->mVideoUpdateLock);
+          mDecoder->SetRGBData(y_width, y_height, mFramerate, nsnull);
+        }
       }
       else if (mAudioTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_VORBIS) {
         mAudioTrack = i;
@@ -1447,6 +1460,9 @@ void nsOggDecoder::MetadataLoaded()
   }
 
   if (mElement && notifyElement) {
+    // Make sure the element and the frame (if any) are told about
+    // our new size.
+    Invalidate();
     mElement->MetadataLoaded();
   }
 

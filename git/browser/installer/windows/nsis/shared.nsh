@@ -46,19 +46,32 @@
   ${UpdateProtocolHandlers}
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
+  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all    ; Set SHCTX to all users (e.g. HKLM)
-    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
+    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${RegCleanMain} "Software\Mozilla"
     ${RegCleanUninstall}
-    ${SetStartMenuInternet}
-    ${FixShellIconHandler}
-    ${SetUninstallKeys}
     ${UpdateProtocolHandlers}
+    ${FixShellIconHandler}
+
+    ; Only update the Clients\StartMenuInternet registry key values if they
+    ; don't exist or this installation is the same as the one set in those keys.
+    ${StrFilter} "${FileMainEXE}" "+" "" "" $1
+    ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$1\DefaultIcon" ""
+    ${GetPathFromString} "$0" $0
+    ${GetParent} "$0" $0
+    ${If} ${FileExists} "$0"
+      ${GetLongPath} "$0" $0
+    ${EndIf}
+    ${If} "$0" == "$INSTDIR"
+      ${SetStartMenuInternet}
+    ${EndIf}
+
+    ${SetUninstallKeys}
 
     ReadRegStr $0 HKLM "Software\mozilla.org\Mozilla" "CurrentVersion"
     ${If} "$0" != "${GREVersion}"
@@ -512,7 +525,7 @@
   ${GetShortcutsLogPath} $0
   ${Unless} ${FileExists} "$0"
     ; Default to ${BrandFullName} for the Start Menu Folder
-    StrCpy $TmpVal ${BrandFullName}
+    StrCpy $TmpVal "${BrandFullName}"
     ; Prior to Firefox 3.1 the Start Menu directory was written to the registry and
     ; this value can be used to set the Start Menu directory.
     ClearErrors

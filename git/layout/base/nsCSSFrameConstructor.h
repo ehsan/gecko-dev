@@ -61,13 +61,13 @@ class nsStyleContext;
 struct nsStyleContent;
 struct nsStyleDisplay;
 class nsIPresShell;
-class nsVoidArray;
 class nsFrameManager;
 class nsIDOMHTMLSelectElement;
 class nsPresContext;
 class nsStyleChangeList;
 class nsIFrame;
 struct nsGenConInitializer;
+class ChildIterator;
 
 struct nsFindFrameHint
 {
@@ -262,10 +262,10 @@ public:
 
   nsresult RemoveMappingsForFrameSubtree(nsIFrame* aRemovedFrame);
 
-  // This is misnamed! This returns the outermost frame for the root element
-  nsIFrame* GetInitialContainingBlock() { return mInitialContainingBlock; }
+  // GetInitialContainingBlock() is deprecated in favor of GetRootElementFrame();
+  // nsIFrame* GetInitialContainingBlock() { return mRootElementFrame; }
   // This returns the outermost frame for the root element
-  nsIFrame* GetRootElementFrame() { return mInitialContainingBlock; }
+  nsIFrame* GetRootElementFrame() { return mRootElementFrame; }
   // This returns the frame for the root element that does not
   // have a psuedo-element style
   nsIFrame* GetRootElementStyleFrame() { return mRootElementStyleFrame; }
@@ -791,6 +791,7 @@ private:
   static const FrameConstructionData* FindHTMLData(nsIContent* aContent,
                                                    nsIAtom* aTag,
                                                    PRInt32 aNameSpaceID,
+                                                   nsIFrame* aParentFrame,
                                                    nsStyleContext* aStyleContext);
   // HTML data-finding helper functions
   static const FrameConstructionData*
@@ -1281,16 +1282,17 @@ private:
                                        PRUint8& aTargetContentDisplay,
                                        PRBool aPrevSibling);
 
-  // Find the ``rightmost'' frame for the content immediately preceding
-  // aIndexInContainer, following continuations if necessary.
-  nsIFrame* FindPreviousSibling(nsIContent* aContainer,
-                                PRInt32     aIndexInContainer,
-                                nsIContent* aChild);
+  // Find the ``rightmost'' frame for the content immediately preceding the one
+  // aIter points to, following continuations if necessary.  aIter is passed by
+  // value on purpose, so as not to modify the callee's iterator.
+  nsIFrame* FindPreviousSibling(const ChildIterator& aFirst,
+                                ChildIterator aIter);
 
-  // Find the frame for the content node immediately following aIndexInContainer.
-  nsIFrame* FindNextSibling(nsIContent* aContainer,
-                            PRInt32     aIndexInContainer,
-                            nsIContent* aChild);
+  // Find the frame for the content node immediately following the one aIter
+  // points to, following continuations if necessary.  aIter is passed by value
+  // on purpose, so as not to modify the callee's iterator.
+  nsIFrame* FindNextSibling(ChildIterator aIter,
+                            const ChildIterator& aLast);
 
   // see if aContent and aSibling are legitimate siblings due to restrictions
   // imposed by table columns
@@ -1300,22 +1302,6 @@ private:
                         nsIContent*            aContent,
                         PRUint8&               aDisplay);
   
-  /**
-   * Find the ``rightmost'' frame for the anonymous content immediately
-   * preceding aChild, following continuation if necessary.
-   */
-  nsIFrame*
-  FindPreviousAnonymousSibling(nsIContent*   aContainer,
-                               nsIContent*   aChild);
-
-  /**
-   * Find the frame for the anonymous content immediately following
-   * aChild.
-   */
-  nsIFrame*
-  FindNextAnonymousSibling(nsIContent*   aContainer,
-                           nsIContent*   aChild);
-
   void QuotesDirty() {
     NS_PRECONDITION(mUpdateCount != 0, "Instant quote updates are bad news");
     mQuotesDirty = PR_TRUE;
@@ -1385,9 +1371,8 @@ private:
   // See the comment at the start of ConstructRootFrame for more details
   // about the following frames.
   
-  // This is not the real CSS 2.1 "initial containing block"! It is just
-  // the outermost frame for the root element.
-  nsIFrame*           mInitialContainingBlock;
+  // This is just the outermost frame for the root element.
+  nsIFrame*           mRootElementFrame;
   // This is the frame for the root element that has no pseudo-element style.
   nsIFrame*           mRootElementStyleFrame;
   // This is the containing block for fixed-pos frames --- the viewport

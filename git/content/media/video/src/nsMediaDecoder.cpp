@@ -51,6 +51,7 @@
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
 #include "nsMediaDecoder.h"
+#include "nsDOMError.h"
 
 // Number of milliseconds between progress events as defined by spec
 #define PROGRESS_MS 350
@@ -101,6 +102,10 @@ void nsMediaDecoder::Shutdown()
   mElement = nsnull;
 }
 
+nsHTMLMediaElement* nsMediaDecoder::GetMediaElement()
+{
+  return mElement;
+}
 nsresult nsMediaDecoder::InitLogger() 
 {
 #ifdef PR_LOGGING
@@ -203,10 +208,15 @@ void nsMediaDecoder::SetRGBData(PRInt32 aWidth, PRInt32 aHeight, float aFramerat
   }
   mFramerate = aFramerate;
 
-  if (!mRGB) 
-    mRGB = new unsigned char[aWidth * aHeight * 4];
-  if (mRGB && aRGBBuffer) {
-    memcpy(mRGB.get(), aRGBBuffer, aWidth*aHeight*4);
+  if (aRGBBuffer) {
+    if (!mRGB) {
+      mRGB = new unsigned char[aWidth * aHeight * 4];
+    }
+    if (mRGB) {
+      memcpy(mRGB.get(), aRGBBuffer, aWidth*aHeight*4);
+    }
+  } else {
+    mRGB = nsnull;
   }
 }
 
