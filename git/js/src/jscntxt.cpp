@@ -434,7 +434,7 @@ void
 FrameRegsIter::incSlow(JSStackFrame *fp, JSStackFrame *prev)
 {
     JS_ASSERT(prev);
-    JS_ASSERT(curpc == curfp->pc(cx, fp));
+    JS_ASSERT(curpc == prev->savedpc_);
     JS_ASSERT(fp == curseg->getInitialFrame());
 
     /*
@@ -2035,10 +2035,16 @@ void
 JSContext::pushSegmentAndFrame(js::StackSegment *newseg, JSFrameRegs &newregs)
 {
     JS_ASSERT(regs != &newregs);
-    if (hasActiveSegment())
+    if (hasActiveSegment()) {
+        JS_ASSERT(regs->fp->savedpc_ == JSStackFrame::sInvalidpc);
+        regs->fp->savedpc_ = regs->pc;
         currentSegment->suspend(regs);
+    }
     newseg->setPreviousInContext(currentSegment);
     currentSegment = newseg;
+#ifdef DEBUG
+    newregs.fp->savedpc_ = JSStackFrame::sInvalidpc;
+#endif
     setCurrentRegs(&newregs);
     newseg->joinContext(this, newregs.fp);
 }
@@ -2048,6 +2054,7 @@ JSContext::popSegmentAndFrame()
 {
     JS_ASSERT(currentSegment->maybeContext() == this);
     JS_ASSERT(currentSegment->getInitialFrame() == regs->fp);
+    JS_ASSERT(regs->fp->savedpc_ == JSStackFrame::sInvalidpc);
     currentSegment->leaveContext();
     currentSegment = currentSegment->getPreviousInContext();
     if (currentSegment) {
@@ -2056,6 +2063,9 @@ JSContext::popSegmentAndFrame()
         } else {
             setCurrentRegs(currentSegment->getSuspendedRegs());
             currentSegment->resume();
+#ifdef DEBUG
+            regs->fp->savedpc_ = JSStackFrame::sInvalidpc;
+#endif
         }
     } else {
         JS_ASSERT(regs->fp->prev() == NULL);
@@ -2068,6 +2078,8 @@ JSContext::saveActiveSegment()
 {
     JS_ASSERT(hasActiveSegment());
     currentSegment->save(regs);
+    JS_ASSERT(regs->fp->savedpc_ == JSStackFrame::sInvalidpc);
+    regs->fp->savedpc_ = regs->pc;
     setCurrentRegs(NULL);
 }
 
@@ -2077,6 +2089,9 @@ JSContext::restoreSegment()
     js::StackSegment *ccs = currentSegment;
     setCurrentRegs(ccs->getSuspendedRegs());
     ccs->restore();
+#ifdef DEBUG
+    regs->fp->savedpc_ = JSStackFrame::sInvalidpc;
+#endif
 }
 
 JSGenerator *
@@ -2198,7 +2213,7 @@ JSContext::updateJITEnabled()
 #endif
 #ifdef JS_METHODJIT
     methodJitEnabled = (options & JSOPTION_METHODJIT)
-# if defined JS_CPU_X86 || defined JS_CPU_X64
+# ifdef JS_CPU_X86
                        && JSC::MacroAssemblerX86Common::getSSEState() >=
                           JSC::MacroAssemblerX86Common::HasSSE2
 # endif

@@ -86,7 +86,6 @@
 #include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
 #include "jscntxtinlines.h"
-#include "jsopcodeinlines.h"
 
 #include "jsautooplen.h"        // generated headers last
 #include "imacros.c.out"
@@ -2515,7 +2514,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* anchor, VMFragment* frag
             LIns *branch = lir->insBranch(LIR_jf, test, NULL);
             counterValue = lir->ins2(LIR_addi, counterValue, INS_CONST(1));
             lir->insStore(counterValue, counterPtr, 0, ACCSET_OTHER);
-            label(branch);
+            branch->setTarget(lir->ins0(LIR_label));
         }
 #endif
     }
@@ -2586,7 +2585,7 @@ TraceRecorder::finishSuccessfully()
 }
 
 /* This function aborts a recorder and any pending outer recorders. */
-JS_REQUIRES_STACK TraceRecorder::AbortResult
+JS_REQUIRES_STACK AbortableRecordingStatus
 TraceRecorder::finishAbort(const char* reason)
 {
     JS_ASSERT(traceMonitor->recorder == this);
@@ -2628,11 +2627,9 @@ TraceRecorder::finishAbort(const char* reason)
 
     localtm->recorder = NULL;
     delete this;
-    if (localtm->outOfMemory() || OverfullJITCache(localtm)) {
+    if (localtm->outOfMemory() || OverfullJITCache(localtm))
         ResetJIT(localcx, FR_OOM);
-        return JIT_RESET;
-    }
-    return NORMAL_ABORT;
+    return ARECORD_ABORTED;
 }
 
 /* Add debug information to a LIR instruction as we emit it. */
@@ -4355,6 +4352,9 @@ TraceRecorder::snapshot(ExitType exitType)
                                            nativeStackOffset(&cx->fp()->calleeValue()) / sizeof(double) :
                                            0;
     exit->exitType = exitType;
+    exit->block = fp->maybeBlockChain();
+    if (fp->hasBlockChain())
+        tree->gcthings.addUnique(ObjectValue(*fp->blockChain()));
     exit->pc = pc;
     exit->imacpc = fp->maybeImacropc();
     exit->sp_adj = (stackSlots * sizeof(double)) - tree->nativeStackBase;
@@ -5364,7 +5364,7 @@ TraceRecorder::emitTreeCall(TreeFragment* inner, VMSideExit* exit)
      * and we unwind the tree call stack. We store the first (innermost) tree call guard in state
      * and we will try to grow the outer tree the failing call was in starting at that guard.
      */
-    label(nested);
+    nested->setTarget(lir->ins0(LIR_label));
     LIns* done2 = lir->insBranch(LIR_jf,
                                  lir->insEqP_0(lir->insLoad(LIR_ldp,
                                                             lirbuf->state,
@@ -5382,7 +5382,9 @@ TraceRecorder::emitTreeCall(TreeFragment* inner, VMSideExit* exit)
                                                      sizeof(void*) == 4 ? 2 : 3))),
                    lirbuf->state,
                    offsetof(TracerState, rpAtLastTreeCall), ACCSET_OTHER);
-    label(done1, done2);
+    LIns* label = lir->ins0(LIR_label);
+    done1->setTarget(label);
+    done2->setTarget(label);
 
     /*
      * Keep updating outermostTreeExit so that TracerState always contains the most recent
@@ -5732,6 +5734,7 @@ SynthesizeFrame(JSContext* cx, const FrameInfo& fi, JSObject* callee)
     regs->pc = fi.pc;
     if (fi.imacpc)
         fp->setImacropc(fi.imacpc);
+    fp->setBlockChain(fi.block);
 
     /* Set argc/flags then mimic JSOP_CALL. */
     uintN argc = fi.get_argc();
@@ -6125,9 +6128,7 @@ TraceRecorder::recordLoopEdge(JSContext* cx, TraceRecorder* r, uintN& inlineCall
         jsbytecode* outer = (jsbytecode*) outerFragment->ip;
         uint32 outerArgc = outerFragment->argc;
         JS_ASSERT(entryFrameArgc(cx) == first->argc);
-
-        if (AbortRecording(cx, "No compatible inner tree") == JIT_RESET)
-            return MONITOR_NOT_RECORDING;
+        AbortRecording(cx, "No compatible inner tree");
 
         return RecordingIfTrue(RecordTree(cx, first, outer, outerArgc, globalSlots));
     }
@@ -6194,13 +6195,10 @@ TraceRecorder::attemptTreeCall(TreeFragment* f, uintN& inlineCallCount)
       case LOOP_EXIT:
         /* If the inner tree exited on an unknown loop exit, grow the tree around it. */
         if (innermostNestedGuard) {
-            if (AbortRecording(cx, "Inner tree took different side exit, abort current "
-                                   "recording and grow nesting tree") == JIT_RESET) {
-                return ARECORD_ABORTED;
-            }
-            return AttemptToExtendTree(localCx, innermostNestedGuard, lr, outer)
-                   ? ARECORD_CONTINUE
-                   : ARECORD_ABORTED;
+            AbortRecording(cx, "Inner tree took different side exit, abort current "
+                              "recording and grow nesting tree");
+            return AttemptToExtendTree(localCx, innermostNestedGuard, lr, outer) ?
+                ARECORD_CONTINUE : ARECORD_ABORTED;
         }
 
         JS_ASSERT(oldInlineCallCount == inlineCallCount);
@@ -6213,31 +6211,23 @@ TraceRecorder::attemptTreeCall(TreeFragment* f, uintN& inlineCallCount)
       {
         /* Abort recording so the inner loop can become type stable. */
         JSObject* _globalObj = globalObj;
-        if (AbortRecording(cx, "Inner tree is trying to stabilize, "
-                               "abort outer recording") == JIT_RESET) {
-            return ARECORD_ABORTED;
-        }
-        return AttemptToStabilizeTree(localCx, _globalObj, lr, outer, outerFragment->argc)
-               ? ARECORD_CONTINUE
-               : ARECORD_ABORTED;
+        AbortRecording(cx, "Inner tree is trying to stabilize, abort outer recording");
+        return AttemptToStabilizeTree(localCx, _globalObj, lr, outer, outerFragment->argc) ?
+            ARECORD_CONTINUE : ARECORD_ABORTED;
       }
 
       case OVERFLOW_EXIT:
         traceMonitor->oracle->markInstructionUndemotable(cx->regs->pc);
         /* FALL THROUGH */
       case BRANCH_EXIT:
-      case CASE_EXIT:
+      case CASE_EXIT: {
         /* Abort recording the outer tree, extend the inner tree. */
-        if (AbortRecording(cx, "Inner tree is trying to grow, "
-                               "abort outer recording") == JIT_RESET) {
-            return ARECORD_ABORTED;
-        }
-        return AttemptToExtendTree(localCx, lr, NULL, outer)
-               ? ARECORD_CONTINUE
-               : ARECORD_ABORTED;
+        AbortRecording(cx, "Inner tree is trying to grow, abort outer recording");
+        return AttemptToExtendTree(localCx, lr, NULL, outer) ? ARECORD_CONTINUE : ARECORD_ABORTED;
+      }
 
       case NESTED_EXIT:
-        JS_NOT_REACHED("NESTED_EXIT should be replaced by innermost side exit");
+          JS_NOT_REACHED("NESTED_EXIT should be replaced by innermost side exit");
       default:
         debug_only_printf(LC_TMTracer, "exit_type=%s\n", getExitName(lr->exitType));
         AbortRecording(cx, "Inner tree not suitable for calling");
@@ -6927,9 +6917,13 @@ LeaveTree(TraceMonitor *tm, TracerState& state, VMSideExit* lr)
     /*
      * Adjust sp and pc relative to the tree we exited from (not the tree we
      * entered into).  These are our final values for sp and pc since
-     * SynthesizeFrame has already taken care of all frames in between.
+     * SynthesizeFrame has already taken care of all frames in between. But
+     * first we recover fp->blockChain, which comes from the side exit
+     * struct.
      */
     JSStackFrame* const fp = cx->fp();
+
+    fp->setBlockChain(innermost->block);
 
     /*
      * If we are not exiting from an inlined frame, the state->sp is spbase.
@@ -7368,14 +7362,14 @@ TraceRecorder::monitorRecording(JSOp op)
     return status;
 }
 
-JS_REQUIRES_STACK TraceRecorder::AbortResult
+JS_REQUIRES_STACK void
 AbortRecording(JSContext* cx, const char* reason)
 {
 #ifdef DEBUG
     JS_ASSERT(TRACE_RECORDER(cx));
-    return TRACE_RECORDER(cx)->finishAbort(reason);
+    TRACE_RECORDER(cx)->finishAbort(reason);
 #else
-    return TRACE_RECORDER(cx)->finishAbort("[no reason]");
+    TRACE_RECORDER(cx)->finishAbort("[no reason]");
 #endif
 }
 
@@ -8387,7 +8381,7 @@ TraceRecorder::alu(LOpcode v, jsdouble v0, jsdouble v1, LIns* s0, LIns* s1)
             guard(false, lir->ins2(LIR_andi,
                                    lir->ins2ImmI(LIR_eqi, d0, 0x80000000),
                                    lir->ins2ImmI(LIR_eqi, d1, -1)), exit);
-            label(gt);
+            gt->setTarget(lir->ins0(LIR_label));
         } else {
             if (d1->immI() == -1)
                 guard(false, lir->ins2ImmI(LIR_eqi, d0, 0x80000000), exit);
@@ -8420,7 +8414,7 @@ TraceRecorder::alu(LOpcode v, jsdouble v0, jsdouble v1, LIns* s0, LIns* s1)
          * the result is -0 in this case, which is not in the integer domain.
          */
         guard(false, lir->ins2ImmI(LIR_lti, d0, 0), exit);
-        label(branch);
+        branch->setTarget(lir->ins0(LIR_label));
         break;
       }
 #endif
@@ -8456,27 +8450,6 @@ TraceRecorder::alu(LOpcode v, jsdouble v0, jsdouble v1, LIns* s0, LIns* s1)
     JS_ASSERT_IF(d0->isImmI() && d1->isImmI(),
                  result->isImmI() && result->immI() == jsint(r));
     return lir->ins1(LIR_i2d, result);
-}
-
-/* Inserts a label and updates 'branch' to branch to it, if 'branch' is non-NULL. */
-void
-TraceRecorder::label(LIns* br)
-{
-    if (br)
-        br->setTarget(lir->ins0(LIR_label));
-}
-
-/* Similar to the other label(), but for two branches. */
-void
-TraceRecorder::label(LIns* br1, LIns* br2)
-{
-    if (br1 || br2) {
-        LIns* label = lir->ins0(LIR_label);
-        if (br1)
-            br1->setTarget(label);
-        if (br2)
-            br2->setTarget(label);
-    }
 }
 
 LIns*
@@ -10543,12 +10516,14 @@ TraceRecorder::record_JSOP_ARGUMENTS()
         lir->insStore(a_ins, mem_ins, 0, ACCSET_OTHER);
         LIns* br2 = lir->insBranch(LIR_j, NULL, NULL);
 
-        label(br1);
+        LIns* label1 = lir->ins0(LIR_label);
+        br1->setTarget(label1);
 
         LIns* call_ins = newArguments(callee_ins, strict);
         lir->insStore(call_ins, mem_ins, 0, ACCSET_OTHER);
 
-        label(br2);
+        LIns* label2 = lir->ins0(LIR_label);
+        br2->setTarget(label2);
 
         args_ins = lir->insLoad(LIR_ldp, mem_ins, 0, ACCSET_OTHER);
     }
@@ -12465,7 +12440,7 @@ TraceRecorder::getCharCodeAt(JSString *str, LIns* str_ins, LIns* idx_ins)
                                                       INS_CONSTWORD(JSString::ROPE_BIT))),
                               NULL);
     lir->insCall(&js_Flatten_ci, &str_ins);
-    label(br);
+    br->setTarget(lir->ins0(LIR_label));
 
     guard(true,
           lir->ins2(LIR_ltup, idx_ins, lir->ins2ImmI(LIR_rshup, length_ins, JSString::FLAGS_LENGTH_SHIFT)),
@@ -12490,7 +12465,7 @@ TraceRecorder::getCharAt(JSString *str, LIns* str_ins, LIns* idx_ins, JSOp mode)
                                                       INS_CONSTWORD(JSString::ROPE_BIT))),
                               NULL);
     lir->insCall(&js_Flatten_ci, &str_ins);
-    label(br);
+    br->setTarget(lir->ins0(LIR_label));
 
     LIns *phi_ins = NULL;
     if (mode == JSOP_GETELEM) {
@@ -12528,7 +12503,7 @@ TraceRecorder::getCharAt(JSString *str, LIns* str_ins, LIns* idx_ins, JSOp mode)
         return unitstr_ins;
 
     lir->insStore(LIR_stp, unitstr_ins, phi_ins, 0, ACCSET_OTHER);
-    label(br);
+    br->setTarget(lir->ins0(LIR_label));
 
     return lir->insLoad(LIR_ldp, phi_ins, 0, ACCSET_OTHER);
 }
@@ -12982,7 +12957,7 @@ TraceRecorder::setElem(int lval_spindex, int idx_spindex, int v_spindex)
         LIns* args[] = { idx_ins, obj_ins, cx_ins };
         LIns* res_ins = lir->insCall(&js_EnsureDenseArrayCapacity_ci, args);
         guard(false, lir->insEqI_0(res_ins), mismatchExit);
-        label(br);
+        br->setTarget(lir->ins0(LIR_label));
 
         // Get the address of the element.
         LIns *dslots_ins =
@@ -13010,7 +12985,7 @@ TraceRecorder::setElem(int lval_spindex, int idx_spindex, int v_spindex)
         LIns* res_ins2 = addName(lir->insCall(&js_Array_dense_setelem_hole_ci, args2),
                                  "hasNoIndexedProperties");
         guard(false, lir->insEqI_0(res_ins2), mismatchExit);
-        label(br2);
+        br2->setTarget(lir->ins0(LIR_label));
 
         // Right, actually set the element.
         box_value_into(v, v_ins, addr_ins, 0, ACCSET_OTHER);
@@ -13329,6 +13304,9 @@ TraceRecorder::interpretedFunctionCall(Value& fval, JSFunction* fun, uintN argc,
     JS_ASSERT(argc < FrameInfo::CONSTRUCTING_FLAG);
 
     tree->gcthings.addUnique(fval);
+    fi->block = fp->maybeBlockChain();
+    if (fp->hasBlockChain())
+        tree->gcthings.addUnique(ObjectValue(*fp->blockChain()));
     fi->pc = cx->regs->pc;
     fi->imacpc = fp->maybeImacropc();
     fi->spdist = cx->regs->sp - fp->slots();
@@ -13849,7 +13827,7 @@ TraceRecorder::denseArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_
     LIns* dslots_ins =
         addName(lir->insLoad(LIR_ldp, obj_ins, offsetof(JSObject, dslots), ACCSET_OTHER), "dslots");
     vp = &obj->dslots[jsuint(idx)];
-    JS_ASSERT(sizeof(Value) == 8); // The |3| in the following statement requires this.
+	JS_ASSERT(sizeof(Value) == 8); // The |3| in the following statement requires this.
     addr_ins = lir->ins2(LIR_addp, dslots_ins,
                          lir->ins2ImmI(LIR_lshp, lir->insUI2P(idx_ins), 3));
     v_ins = unbox_value(*vp, addr_ins, 0, branchExit);
@@ -14915,18 +14893,6 @@ TraceRecorder::record_JSOP_LINENO()
 }
 
 JS_REQUIRES_STACK AbortableRecordingStatus
-TraceRecorder::record_JSOP_BLOCKCHAIN()
-{
-    return ARECORD_CONTINUE;
-}
-
-JS_REQUIRES_STACK AbortableRecordingStatus
-TraceRecorder::record_JSOP_NULLBLOCKCHAIN()
-{
-    return ARECORD_CONTINUE;
-}
-
-JS_REQUIRES_STACK AbortableRecordingStatus
 TraceRecorder::record_JSOP_CONDSWITCH()
 {
     return ARECORD_CONTINUE;
@@ -15026,7 +14992,7 @@ TraceRecorder::record_JSOP_LAMBDA()
         if (FUN_OBJECT(fun)->getParent() != globalObj)
             RETURN_STOP_A("Null closure function object parent must be global object");
 
-        jsbytecode *pc2 = js_AdvanceOverBlockchain(cx->regs->pc + JSOP_LAMBDA_LENGTH);
+        jsbytecode *pc2 = cx->regs->pc + JSOP_LAMBDA_LENGTH;
         JSOp op2 = JSOp(*pc2);
 
         if (op2 == JSOP_INITMETHOD) {
@@ -15090,7 +15056,7 @@ TraceRecorder::record_JSOP_LAMBDA()
         return ARECORD_CONTINUE;
     }
 
-    if (js_GetBlockChainFast(cx, cx->fp(), JSOP_LAMBDA, JSOP_LAMBDA_LENGTH))
+    if (cx->fp()->hasBlockChain())
         RETURN_STOP_A("Unable to trace creating lambda in let");
 
     LIns *proto_ins;
@@ -15116,7 +15082,7 @@ TraceRecorder::record_JSOP_LAMBDA_FC()
     if (FUN_OBJECT(fun)->getParent() != globalObj)
         return ARECORD_STOP;
 
-    if (js_GetBlockChainFast(cx, cx->fp(), JSOP_LAMBDA_FC, JSOP_LAMBDA_FC_LENGTH))
+    if (cx->fp()->hasBlockChain())
         RETURN_STOP_A("Unable to trace creating lambda in let");
 
     LIns* args[] = {
@@ -15242,7 +15208,8 @@ TraceRecorder::record_JSOP_ARGCNT()
     if (callDepth == 0) {
         LIns *br = lir->insBranch(LIR_jt, lir->insEqP_0(a_ins), NULL);
         guardArgsLengthNotAssigned(a_ins);
-        label(br);
+        LIns *label = lir->ins0(LIR_label);
+        br->setTarget(label);
     }
     stack(0, lir->insImmD(fp->numActualArgs()));
     return ARECORD_CONTINUE;
@@ -15805,6 +15772,12 @@ JS_REQUIRES_STACK AbortableRecordingStatus
 TraceRecorder::record_JSOP_GETARGPROP()
 {
     return getProp(argval(GET_ARGNO(cx->regs->pc)));
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_DEFUPVAR()
+{
+    return ARECORD_CONTINUE;
 }
 
 JS_REQUIRES_STACK AbortableRecordingStatus
