@@ -50,7 +50,7 @@ Cu.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
-const PREF_CHECK_COMPATIBILITY = "extensions.checkCompatibility";
+const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
 const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
@@ -59,6 +59,14 @@ const PREF_UI_TYPE_HIDDEN = "extensions.ui.%TYPE%.hidden";
 const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
+
+#ifdef MOZ_COMPATABILITY_NIGHTLY
+const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
+                                 ".nightly";
+#else
+const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE + "." +
+                                 Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+#endif
 
 const LOADING_MSG_DELAY = 100;
 
@@ -306,7 +314,6 @@ else {
 var gEventManager = {
   _listeners: {},
   _installListeners: [],
-  checkCompatibilityPref: "",
 
   initialize: function() {
     var self = this;
@@ -329,11 +336,8 @@ var gEventManager = {
     });
     AddonManager.addInstallListener(this);
     AddonManager.addAddonListener(this);
-    
-    var version = Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-    this.checkCompatibilityPref = PREF_CHECK_COMPATIBILITY + "." + version;
 
-    Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
+    Services.prefs.addObserver(PREF_CHECK_COMPATIBILITY, this, false);
     Services.prefs.addObserver(PREF_CHECK_UPDATE_SECURITY, this, false);
     Services.prefs.addObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
@@ -361,7 +365,7 @@ var gEventManager = {
   },
 
   shutdown: function() {
-    Services.prefs.removeObserver(this.checkCompatibilityPref, this);
+    Services.prefs.removeObserver(PREF_CHECK_COMPATIBILITY, this);
     Services.prefs.removeObserver(PREF_CHECK_UPDATE_SECURITY, this);
     Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
@@ -462,7 +466,7 @@ var gEventManager = {
 
     var checkCompatibility = true;
     try {
-      checkCompatibility = Services.prefs.getBoolPref(this.checkCompatibilityPref);
+      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
     } catch(e) { }
     if (!checkCompatibility) {
       page.setAttribute("warning", "checkcompatibility");
@@ -485,7 +489,7 @@ var gEventManager = {
   
   observe: function(aSubject, aTopic, aData) {
     switch (aData) {
-    case this.checkCompatibilityPref:
+    case PREF_CHECK_COMPATIBILITY:
     case PREF_CHECK_UPDATE_SECURITY:
       this.refreshGlobalWarning();
       break;
@@ -720,7 +724,7 @@ var gViewController = {
     cmd_enableCheckCompatibility: {
       isEnabled: function() true,
       doCommand: function() {
-        Services.prefs.clearUserPref(gEventManager.checkCompatibilityPref);
+        Services.prefs.clearUserPref(PREF_CHECK_COMPATIBILITY);
       }
     },
 
@@ -920,12 +924,25 @@ var gViewController = {
 
     cmd_showItemPreferences: {
       isEnabled: function(aAddon) {
-        if (!aAddon)
+        if (!aAddon || !aAddon.isActive || !aAddon.optionsURL)
           return false;
-        return aAddon.isActive && !!aAddon.optionsURL;
+        if (gViewController.currentViewObj == gDetailView &&
+            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
+          return false;
+        }
+        return true;
       },
       doCommand: function(aAddon) {
+        if (gViewController.currentViewObj == gListView &&
+            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
+          gViewController.commands.cmd_showItemDetails.doCommand(aAddon);
+          return;
+        }
         var optionsURL = aAddon.optionsURL;
+        if (aAddon.optionsType == AddonManager.OPTIONS_TYPE_TAB &&
+            openOptionsInTab(optionsURL)) {
+          return;
+        }
         var windows = Services.wm.getEnumerator(null);
         while (windows.hasMoreElements()) {
           var win = windows.getNext();
@@ -1185,6 +1202,18 @@ var gViewController = {
   onEvent: function() {}
 };
 
+function openOptionsInTab(optionsURL) {
+  var mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIWebNavigation)
+                         .QueryInterface(Ci.nsIDocShellTreeItem)
+                         .rootTreeItem.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindow); 
+  if ("switchToTabHavingURI" in mainWindow) {
+    mainWindow.switchToTabHavingURI(optionsURL, true);
+    return true;
+  }
+  return false;
+}
 
 function formatDate(aDate) {
   return Cc["@mozilla.org/intl/scriptabledateformat;1"]
@@ -2650,7 +2679,8 @@ var gDetailView = {
       document.getElementById("detail-findUpdates-btn").hidden = false;
     }
 
-    document.getElementById("detail-prefs-btn").hidden = !aIsRemote && !aAddon.optionsURL;
+    document.getElementById("detail-prefs-btn").hidden = !aIsRemote &&
+      !gViewController.commands.cmd_showItemPreferences.isEnabled(aAddon);
     
     var gridRows = document.querySelectorAll("#detail-grid rows row");
     for (var i = 0, first = true; i < gridRows.length; ++i) {
@@ -2661,6 +2691,8 @@ var gDetailView = {
         gridRows[i].removeAttribute("first-row");
       }
     }
+
+    this.fillSettingsRows();
 
     this.updateState();
 
@@ -2747,7 +2779,7 @@ var gDetailView = {
         );
         var errorLink = document.getElementById("detail-error-link");
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.blocked.link");
-        errorLink.href = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
+        errorLink.href = this._addon.blocklistURL;
         errorLink.hidden = false;
       } else if (!this._addon.isCompatible) {
         this.node.setAttribute("notification", "warning");
@@ -2764,7 +2796,7 @@ var gDetailView = {
         );
         var warningLink = document.getElementById("detail-warning-link");
         warningLink.value = gStrings.ext.GetStringFromName("details.notification.softblocked.link");
-        warningLink.href = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
+        warningLink.href = this._addon.blocklistURL;
         warningLink.hidden = false;
       } else if (this._addon.blocklistState == Ci.nsIBlocklistService.STATE_OUTDATED) {
         this.node.setAttribute("notification", "warning");
@@ -2793,6 +2825,81 @@ var gDetailView = {
     this.node.removeAttribute("loading-extended");
   },
 
+  emptySettingsRows: function () {
+    var lastRow = document.getElementById("detail-downloads");
+    var rows = lastRow.parentNode;
+    while (lastRow.nextSibling)
+      rows.removeChild(rows.lastChild);
+  },
+
+  fillSettingsRows: function () {
+    this.emptySettingsRows();
+    if (this._addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE)
+      return;
+
+    // This function removes and returns the text content of aNode without
+    // removing any child elements. Removing the text nodes ensures any XBL
+    // bindings apply properly.
+    function stripTextNodes(aNode) {
+      var text = '';
+      for (var i = 0; i < aNode.childNodes.length; i++) {
+        if (aNode.childNodes[i].nodeType != document.ELEMENT_NODE) {
+          text += aNode.childNodes[i].textContent;
+          aNode.removeChild(aNode.childNodes[i--]);
+        } else {
+          text += stripTextNodes(aNode.childNodes[i]);
+        }
+      }
+      return text;
+    }
+
+    var rows = document.getElementById("detail-downloads").parentNode;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", this._addon.optionsURL, false);
+    xhr.send();
+
+    var xml = xhr.responseXML;
+    var settings = xml.querySelectorAll(":root > setting");
+
+    for (var i = 0, first = true; i < settings.length; i++) {
+      var setting = settings[i];
+
+      // Remove setting description, for replacement later
+      var desc = stripTextNodes(setting).trim();
+      if (setting.hasAttribute("desc")) {
+        desc = setting.getAttribute("desc").trim();
+        setting.removeAttribute("desc");
+      }
+
+      var type = setting.getAttribute("type");
+      if (type == "file" || type == "directory")
+        setting.setAttribute("fullpath", "true");
+
+      rows.appendChild(setting);
+      var visible = window.getComputedStyle(setting, null).getPropertyValue("display") != "none";
+      if (first && visible) {
+        setting.setAttribute("first-row", true);
+        first = false;
+      }
+
+      // Add a new row containing the description
+      if (desc) {
+        var row = document.createElement("row");
+        if (!visible) {
+          row.setAttribute("unsupported", "true");
+        }
+        var label = document.createElement("label");
+        label.className = "preferences-description";
+        label.textContent = desc;
+        row.appendChild(label);
+        rows.appendChild(row);
+      }
+    }
+
+    Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
+  },
+
   getSelectedAddon: function() {
     return this._addon;
   },
@@ -2803,6 +2910,7 @@ var gDetailView = {
 
   onEnabled: function() {
     this.updateState();
+    this.fillSettingsRows();
   },
 
   onDisabling: function() {
@@ -2811,6 +2919,7 @@ var gDetailView = {
 
   onDisabled: function() {
     this.updateState();
+    this.emptySettingsRows();
   },
 
   onUninstalling: function() {

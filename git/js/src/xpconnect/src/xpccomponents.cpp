@@ -55,6 +55,7 @@
 #include "nsNullPrincipal.h"
 #include "nsJSUtils.h"
 #include "mozJSComponentLoader.h"
+#include "nsContentUtils.h"
 
 /***************************************************************************/
 // stuff used by all
@@ -3017,7 +3018,7 @@ SandboxImport(JSContext *cx, uintN argc, jsval *vp)
         // NB: funobj must only be used to get the JSFunction out.
         JSObject *funobj = JSVAL_TO_OBJECT(argv[0]);
         if (funobj->isProxy()) {
-            funobj = XPCWrapper::UnsafeUnwrapSecurityWrapper(cx, funobj);
+            funobj = XPCWrapper::UnsafeUnwrapSecurityWrapper(funobj);
         }
 
         JSAutoEnterCompartment ac;
@@ -3560,7 +3561,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     }
 #endif
 
-    sandbox = XPCWrapper::UnsafeUnwrapSecurityWrapper(cx, sandbox);
+    sandbox = XPCWrapper::UnsafeUnwrapSecurityWrapper(sandbox);
     if (!sandbox || sandbox->getJSClass() != &SandboxClass) {
         return NS_ERROR_INVALID_ARG;
     }
@@ -3725,6 +3726,18 @@ nsXPCComponents_Utils::Import(const nsACString & registryLocation)
     return moduleloader->Import(registryLocation);
 }
 
+/* unload (in AUTF8String registryLocation);
+ */
+NS_IMETHODIMP
+nsXPCComponents_Utils::Unload(const nsACString & registryLocation)
+{
+    nsCOMPtr<xpcIJSModuleLoader> moduleloader =
+        do_GetService(MOZJSCOMPONENTLOADER_CONTRACTID);
+    if (!moduleloader)
+        return NS_ERROR_FAILURE;
+    return moduleloader->Unload(registryLocation);
+}
+
 /* xpcIJSWeakReference getWeakReference (); */
 NS_IMETHODIMP
 nsXPCComponents_Utils::GetWeakReference(xpcIJSWeakReference **_retval)
@@ -3761,6 +3774,48 @@ nsXPCComponents_Utils::ForceGC()
     JS_GC(cx);
 
     return NS_OK;
+}
+
+class PreciseGCRunnable : public nsRunnable
+{
+  public:
+    PreciseGCRunnable(JSContext *aCx, ScheduledGCCallback* aCallback)
+    : mCallback(aCallback), mCx(aCx) {}
+
+    NS_IMETHOD Run()
+    {
+        nsCOMPtr<nsIJSRuntimeService> runtimeSvc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
+        NS_ENSURE_STATE(runtimeSvc);
+
+        JSRuntime* rt = nsnull;
+        runtimeSvc->GetRuntime(&rt);
+        NS_ENSURE_STATE(rt);
+
+        JSContext *cx;
+        JSContext *iter = nsnull;
+        while ((cx = JS_ContextIterator(rt, &iter)) != NULL) {
+            if (JS_IsRunning(cx)) {
+                return NS_DispatchToMainThread(this);
+            }
+        }
+
+        JS_GC(mCx);
+
+        mCallback->Callback();
+        return NS_OK;
+    }
+
+  private:
+    nsRefPtr<ScheduledGCCallback> mCallback;
+    JSContext *mCx;
+};
+
+/* [inline_jscontext] void schedulePreciseGC(in ScheduledGCCallback callback); */
+NS_IMETHODIMP
+nsXPCComponents_Utils::SchedulePreciseGC(ScheduledGCCallback* aCallback, JSContext* aCx)
+{
+    nsRefPtr<PreciseGCRunnable> event = new PreciseGCRunnable(aCx, aCallback);
+    return NS_DispatchToMainThread(event);
 }
 
 /* void getGlobalForObject(); */

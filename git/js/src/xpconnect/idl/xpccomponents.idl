@@ -121,9 +121,18 @@ interface nsIXPCComponents_utils_Sandbox : nsISupports
 };
 
 /**
+ * interface for callback to be passed to Cu.schedulePreciseGC
+ */
+[scriptable, function, uuid(71000535-b0fd-44d1-8ce0-909760e3953c)]
+interface ScheduledGCCallback : nsISupports
+{
+    void callback();
+};
+
+/**
 * interface of Components.utils
 */
-[scriptable, uuid(c1d616fa-1875-49ba-b7b8-5861dab31a42)]
+[scriptable, uuid(fed2d752-6cb3-4135-97b0-2c290e541e2d)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -205,6 +214,16 @@ interface nsIXPCComponents_Utils : nsISupports
                                /*, [optional] in JSObject targetObj */);
 
     /*
+     * Unloads the JS module at 'registryLocation'. Existing references to the
+     * module will continue to work but any subsequent import of the module will
+     * reload it and give new reference. If the JS module hasn't yet been
+     * imported then this method will do nothing.
+     *
+     * @param resourceURI A resource:// URI string to unload the module from.
+     */
+    void unload(in AUTF8String registryLocation);
+
+    /*
      * To be called from JS only.
      *
      * Return a weak reference for the given JS object.
@@ -217,6 +236,13 @@ interface nsIXPCComponents_Utils : nsISupports
      * Force an immediate garbage collection cycle.
      */
     void forceGC();
+
+    /*
+     * Schedule a garbage collection cycle for a point in the future when no JS
+     * is running. Call the provided function once this has occurred.
+     */
+    [implicit_jscontext]
+    void schedulePreciseGC(in ScheduledGCCallback callback);
 
     /*
      * To be called from JS only.

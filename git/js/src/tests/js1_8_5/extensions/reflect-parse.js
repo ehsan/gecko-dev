@@ -154,6 +154,10 @@ function assertGlobalDecl(src, patt) {
     program([patt]).assert(Reflect.parse(src));
 }
 
+function assertProg(src, patt) {
+    program(patt).assert(Reflect.parse(src));
+}
+
 function assertStmt(src, patt) {
     assertLocalStmt(src, patt);
     assertGlobalStmt(src, patt);
@@ -329,6 +333,21 @@ assertExpr("({'x':1, 'y':2, 3:3})", objExpr([{ key: lit("x"), value: lit(1) },
                                              { key: lit("y"), value: lit(2) },
                                              { key: lit(3), value: lit(3) } ]));
 
+// Bug 571617: eliminate constant-folding
+assertExpr("2 + 3", binExpr("+", lit(2), lit(3)));
+
+// Bug 632026: constant-folding
+assertExpr("typeof(0?0:a)", unExpr("typeof", condExpr(lit(0), lit(0), ident("a"))));
+
+// Bug 632029: constant-folding
+assertExpr("[x for each (x in y) if (false)]", compExpr(ident("x"), [compEachBlock(ident("x"), ident("y"))], lit(false)));
+
+// Bug 632056: constant-folding
+program([exprStmt(ident("f")),
+         ifStmt(lit(1),
+                funDecl(ident("f"), [], blockStmt([])),
+                null)]).assert(Reflect.parse("f; if (1) function f(){}"));
+
 // statements
 
 assertStmt("throw 42", throwStmt(lit(42)));
@@ -400,6 +419,17 @@ assertStmt("try { } catch (e if foo) { } catch (e if bar) { } catch (e) { } fina
                      catchClause(ident("e"), null, blockStmt([])) ],
                    blockStmt([])));
 
+// Bug 632028: yield outside of a function should throw
+(function() {
+    var threw = false;
+    try {
+        Reflect.parse("yield 0");
+    } catch (expected) {
+        threw = true;
+    }
+    assertEq(threw, true);
+})();
+
 // redeclarations (TOK_NAME nodes with lexdef)
 
 assertStmt("function f() { function g() { } function g() { } }",
@@ -417,6 +447,15 @@ assertStmt("function f() { var x = 42; var x = 43; }",
 
 assertDecl("var {x:y} = foo;", varDecl([{ id: objPatt([{ key: ident("x"), value: ident("y") }]),
                                           init: ident("foo") }]));
+
+// Bug 632030: redeclarations between var and funargs, var and function
+assertStmt("function g(x) { var x }",
+           funDecl(ident("g"), [ident("x")], blockStmt([varDecl[{ id: ident("x"), init: null }]])));
+assertProg("f.p = 1; var f; f.p; function f(){}",
+           [exprStmt(aExpr("=", dotExpr(ident("f"), ident("p")), lit(1))),
+            varDecl([{ id: ident("f"), init: null }]),
+            exprStmt(dotExpr(ident("f"), ident("p"))),
+            funDecl(ident("f"), [], blockStmt([]))]);
 
 // global let is var
 assertGlobalDecl("let {x:y} = foo;", varDecl([{ id: objPatt([{ key: ident("x"), value: ident("y") }]),
@@ -772,6 +811,12 @@ assertStmt("let (x = 1, y = x) { }", letStmt([{ id: ident("x"), init: lit(1) },
                                               { id: ident("y"), init: ident("x") }],
                                              blockStmt([])));
 assertError("let (x = 1, x = 2) { }", TypeError);
+
+
+// Bug 632024: no crashing on stack overflow
+try {
+    Reflect.parse(Array(3000).join("x + y - ") + "z")
+} catch (e) { }
 
 
 // E4X

@@ -51,7 +51,7 @@ native PRNetAddr(union PRNetAddr);
  * NOTE: This is a free-threaded interface, meaning that the methods on
  * this interface may be called from any thread.
  */
-[scriptable, uuid(bbee8fef-6ac2-4819-9089-61169bdf5074)]
+[scriptable, uuid(19c37caa-fb41-4c32-bbf1-c6b31b75d789)]
 interface nsISocketTransport : nsITransport 
 {
     /**
@@ -95,12 +95,8 @@ interface nsISocketTransport : nsITransport
    
     /**
      * Test if this socket transport is (still) connected.
-     *
-     * @param aPassive indicates that the IsAlive() method should not
-     *                 read, even non-destructively, from the network.
-     *                 SSL based transports may deadlock if called without this.
      */
-    boolean isAlive(in boolean aPassive);
+    boolean isAlive();
 
     /**
      * Socket timeouts in seconds.  To specify no timeout, pass PR_UINT32_MAX
@@ -142,7 +138,7 @@ interface nsISocketTransport : nsITransport
 
     /**
      * connectionFlags is a bitmask that can be used to modify underlying 
-     * behavior of the socket connection.
+     * behavior of the socket connection. See the flags below.
      */
     attribute unsigned long connectionFlags;
 
@@ -162,6 +158,12 @@ interface nsISocketTransport : nsITransport
      * if this flag is set.
      */
     const unsigned long ANONYMOUS_CONNECT = (1 << 1);
+
+    /**
+     * If set, we will skip all IPv6 addresses the host may have and only
+     * connect to IPv4 ones.
+     */
+    const unsigned long DISABLE_IPV6 = (1 << 2);
 
     /**
      * Socket QoS/ToS markings. Valid values are IPTOS_DSCP_AFxx or
