@@ -384,7 +384,7 @@ LIRGeneratorMIPS::visitGuardObjectType(MGuardObjectType *ins)
 
     LDefinition tempObj = temp(LDefinition::OBJECT);
     LGuardObjectType *guard = new(alloc()) LGuardObjectType(useRegister(ins->obj()), tempObj);
-    assignSnapshot(guard, ins->bailoutKind());
+    assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard);
     add(guard, ins);
     redefine(ins, ins->obj());
 }

@@ -694,8 +694,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     template<typename T>
-    void loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp, Label *fail,
-                            bool canonicalizeDoubles = true);
+    void loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp, Label *fail);
 
     template<typename T>
     void loadFromTypedArray(Scalar::Type arrayType, const T &src, const ValueOperand &dest, bool allowDouble,
@@ -732,17 +731,6 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const BaseIndex &dest);
     void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const Address &dest);
-
-    // Load a property from an UnboxedPlainObject.
-    template <typename T>
-    void loadUnboxedProperty(T address, JSValueType type, TypedOrValueRegister output);
-
-    // Store a property to an UnboxedPlainObject, without triggering barriers.
-    // If failure is null, the value definitely has a type suitable for storing
-    // in the property.
-    template <typename T>
-    void storeUnboxedProperty(T address, JSValueType type,
-                              ConstantOrRegister value, Label *failure);
 
     Register extractString(const Address &address, Register scratch) {
         return extractObject(address, scratch);
@@ -816,7 +804,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     void createGCObject(Register result, Register temp, JSObject *templateObj,
                         gc::InitialHeap initialHeap, Label *fail, bool initFixedSlots = true);
 
-    void newGCThing(Register result, Register temp, JSObject *templateObj,
+    void newGCThing(Register result, Register temp, NativeObject *templateObj,
                      gc::InitialHeap initialHeap, Label *fail);
     void initGCThing(Register obj, Register temp, JSObject *templateObj,
                      bool initFixedSlots = true);

@@ -732,7 +732,7 @@ nsContentUtils::Atob(const nsAString& aAsciiBase64String,
   const char16_t* start = aAsciiBase64String.BeginReading();
   const char16_t* end = aAsciiBase64String.EndReading();
   nsString trimmedString;
-  if (!trimmedString.SetCapacity(aAsciiBase64String.Length(), fallible)) {
+  if (!trimmedString.SetCapacity(aAsciiBase64String.Length(), fallible_t())) {
     return NS_ERROR_DOM_INVALID_CHARACTER_ERR;
   }
   while (start < end) {
@@ -4425,20 +4425,20 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
 
 static bool
 AppendNodeTextContentsRecurse(nsINode* aNode, nsAString& aResult,
-                              const fallible_t& aFallible)
+                              const mozilla::fallible_t&)
 {
   for (nsIContent* child = aNode->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
     if (child->IsElement()) {
       bool ok = AppendNodeTextContentsRecurse(child, aResult,
-                                              aFallible);
+                                              mozilla::fallible_t());
       if (!ok) {
         return false;
       }
     }
     else if (child->IsNodeOfType(nsINode::eTEXT)) {
-      bool ok = child->AppendTextTo(aResult, aFallible);
+      bool ok = child->AppendTextTo(aResult, mozilla::fallible_t());
       if (!ok) {
         return false;
       }
@@ -4452,21 +4452,21 @@ AppendNodeTextContentsRecurse(nsINode* aNode, nsAString& aResult,
 bool
 nsContentUtils::AppendNodeTextContent(nsINode* aNode, bool aDeep,
                                       nsAString& aResult,
-                                      const fallible_t& aFallible)
+                                      const mozilla::fallible_t&)
 {
   if (aNode->IsNodeOfType(nsINode::eTEXT)) {
     return static_cast<nsIContent*>(aNode)->AppendTextTo(aResult,
-                                                         aFallible);
+                                                         mozilla::fallible_t());
   }
   else if (aDeep) {
-    return AppendNodeTextContentsRecurse(aNode, aResult, aFallible);
+    return AppendNodeTextContentsRecurse(aNode, aResult, mozilla::fallible_t());
   }
   else {
     for (nsIContent* child = aNode->GetFirstChild();
          child;
          child = child->GetNextSibling()) {
       if (child->IsNodeOfType(nsINode::eTEXT)) {
-        bool ok = child->AppendTextTo(aResult, fallible);
+        bool ok = child->AppendTextTo(aResult, mozilla::fallible_t());
         if (!ok) {
             return false;
         }
@@ -6242,7 +6242,7 @@ void nsContentUtils::RemoveNewlines(nsString &aString)
 void
 nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
 {
-  if (!PlatformToDOMLineBreaks(aString, fallible)) {
+  if (!PlatformToDOMLineBreaks(aString, mozilla::fallible_t())) {
     aString.AllocFailed(aString.Length());
   }
 }
@@ -6962,7 +6962,7 @@ bool
 nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult)
 {
   aResult.Truncate();
-  return AppendNodeTextContent(aNode, aDeep, aResult, fallible);
+  return AppendNodeTextContent(aNode, aDeep, aResult, mozilla::fallible_t());
 }
 
 void

@@ -7,6 +7,8 @@
 #include "nsMemory.h"
 #include "prprf.h"
 
+using mozilla::fallible_t;
+
 /***************************************************************************/
 
 NS_IMPL_ISUPPORTS(nsSupportsIDImpl, nsISupportsID, nsISupportsPrimitive)
@@ -105,7 +107,7 @@ nsSupportsCStringImpl::ToString(char** aResult)
 NS_IMETHODIMP
 nsSupportsCStringImpl::SetData(const nsACString& aData)
 {
-  bool ok = mData.Assign(aData, mozilla::fallible);
+  bool ok = mData.Assign(aData, fallible_t());
   if (!ok) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -150,7 +152,7 @@ nsSupportsStringImpl::ToString(char16_t** aResult)
 NS_IMETHODIMP
 nsSupportsStringImpl::SetData(const nsAString& aData)
 {
-  bool ok = mData.Assign(aData, mozilla::fallible);
+  bool ok = mData.Assign(aData, fallible_t());
   if (!ok) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

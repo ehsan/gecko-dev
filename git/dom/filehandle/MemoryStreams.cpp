@@ -26,7 +26,7 @@ MemoryOutputStream::Create(uint64_t aSize)
   nsRefPtr<MemoryOutputStream> stream = new MemoryOutputStream();
 
   char* dummy;
-  uint32_t length = stream->mData.GetMutableData(&dummy, aSize, fallible);
+  uint32_t length = stream->mData.GetMutableData(&dummy, aSize, fallible_t());
   NS_ENSURE_TRUE(length == aSize, nullptr);
 
   return stream.forget();

@@ -490,7 +490,7 @@ CreateBitmapInfo(BITMAPINFOHEADER* aHeader, size_t aColorTableSize)
 {
   BITMAPINFO* bmi = (BITMAPINFO*) ::operator new(sizeof(BITMAPINFOHEADER) +
                                                  aColorTableSize,
-                                                 mozilla::fallible);
+                                                 mozilla::fallible_t());
   if (bmi) {
     memcpy(bmi, aHeader, sizeof(BITMAPINFOHEADER));
     memset(bmi->bmiColors, 0, aColorTableSize);

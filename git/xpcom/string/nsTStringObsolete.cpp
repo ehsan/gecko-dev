@@ -464,18 +464,18 @@ nsTString_CharT::ReplaceSubstring(const char_type* aTarget,
 bool
 nsTString_CharT::ReplaceSubstring(const char_type* aTarget,
                                   const char_type* aNewValue,
-                                  const fallible_t& aFallible)
+                                  const fallible_t& fallible)
 {
   return ReplaceSubstring(nsTDependentString_CharT(aTarget),
                           nsTDependentString_CharT(aNewValue),
-                          aFallible);
+                          fallible);
 }
 
 void
 nsTString_CharT::ReplaceSubstring(const self_type& aTarget,
                                   const self_type& aNewValue)
 {
-  if (!ReplaceSubstring(aTarget, aNewValue, mozilla::fallible)) {
+  if (!ReplaceSubstring(aTarget, aNewValue, fallible_t())) {
     // Note that this may wildly underestimate the allocation that failed, as
     // we could have been replacing multiple copies of aTarget.
     AllocFailed(mLength + (aNewValue.Length() - aTarget.Length()));

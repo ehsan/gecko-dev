@@ -6204,7 +6204,7 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
       touchPoint.ScreenToClient(mWnd);
       nsRefPtr<Touch> touch =
         new Touch(pInputs[i].dwID,
-                  LayoutDeviceIntPoint::FromUntyped(touchPoint),
+                  touchPoint,
                   /* radius, if known */
                   pInputs[i].dwFlags & TOUCHINPUTMASKF_CONTACTAREA ?
                     nsIntPoint(

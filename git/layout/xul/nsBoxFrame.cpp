@@ -2095,15 +2095,14 @@ nsBoxFrame::WrapListsInRedirector(nsDisplayListBuilder*   aBuilder,
 
 bool
 nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, nsPoint &aPoint) {
-  LayoutDeviceIntPoint refPoint;
+  nsIntPoint refPoint;
   bool res = GetEventPoint(aEvent, refPoint);
-  aPoint = nsLayoutUtils::GetEventCoordinatesRelativeTo(
-    aEvent, refPoint, this);
+  aPoint = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, refPoint, this);
   return res;
 }
 
 bool
-nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, LayoutDeviceIntPoint& aPoint) {
+nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, nsIntPoint &aPoint) {
   NS_ENSURE_TRUE(aEvent, false);
 
   WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
@@ -2120,7 +2119,7 @@ nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, LayoutDeviceIntPoint& aPoint) 
     }
     aPoint = touch->mRefPoint;
   } else {
-    aPoint = aEvent->refPoint;
+    aPoint = LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
   }
   return true;
 }

@@ -690,8 +690,7 @@ protected:
   bool AdjustContextMenuKeyEvent(mozilla::WidgetMouseEvent* aEvent);
 
   //
-  bool PrepareToUseCaretPosition(nsIWidget* aEventWidget,
-                                 mozilla::LayoutDeviceIntPoint& aTargetPt);
+  bool PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTargetPt);
 
   // Get the selected item and coordinates in device pixels relative to root
   // document's root view for element, first ensuring the element is onscreen

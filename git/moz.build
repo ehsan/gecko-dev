@@ -43,7 +43,6 @@ if not CONFIG['LIBXUL_SDK']:
 
         DIRS += [
             'mozglue',
-            'memory/fallible',
             'memory/mozalloc',
             'memory/volatile',
         ]

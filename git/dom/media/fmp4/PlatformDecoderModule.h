@@ -245,7 +245,6 @@ public:
   virtual void AllocateMediaResources() {}
   virtual void ReleaseMediaResources() {}
   virtual void ReleaseDecoder() {}
-  virtual bool IsHardwareAccelerated() const { return false; }
 };
 
 } // namespace mozilla

@@ -2233,62 +2233,33 @@ CodeGenerator::emitGetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
                                           const TypedOrValueRegister &output)
 {
     MGetPropertyPolymorphic *mir = ins->mirRaw()->toGetPropertyPolymorphic();
+    MOZ_ASSERT(mir->numShapes() > 1);
 
-    size_t total = mir->numUnboxedTypes() + mir->numShapes();
-    MOZ_ASSERT(total > 1);
-
-    bool typeInScratch = mir->numUnboxedTypes() > 1;
-    bool shapeInScratch = mir->numShapes() > 1;
+    masm.loadObjShape(obj, scratch);
 
     Label done;
-
-    for (size_t i = 0; i < total; i++) {
-        bool unboxedType = i < mir->numUnboxedTypes();
-
-        ImmGCPtr comparePtr = unboxedType
-                              ? ImmGCPtr(mir->unboxedType(i))
-                              : ImmGCPtr(mir->objShape(i - mir->numUnboxedTypes()));
-        Address addr(obj, unboxedType ? JSObject::offsetOfType() : JSObject::offsetOfShape());
-
-        if ((i == 0 && typeInScratch) || (i == mir->numUnboxedTypes() && shapeInScratch))
-            masm.loadPtr(addr, scratch);
-
-        bool inScratch = unboxedType ? typeInScratch : shapeInScratch;
-
+    for (size_t i = 0; i < mir->numShapes(); i++) {
         Label next;
-        if (i == total - 1) {
-            if (inScratch)
-                bailoutCmpPtr(Assembler::NotEqual, scratch, comparePtr, ins->snapshot());
-            else
-                bailoutCmpPtr(Assembler::NotEqual, addr, comparePtr, ins->snapshot());
+        if (i == mir->numShapes() - 1) {
+            bailoutCmpPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)),
+                          ins->snapshot());
         } else {
-            if (inScratch)
-                masm.branchPtr(Assembler::NotEqual, scratch, comparePtr, &next);
-            else
-                masm.branchPtr(Assembler::NotEqual, addr, comparePtr, &next);
+            masm.branchPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)), &next);
         }
 
-        if (unboxedType) {
-            const UnboxedLayout::Property *property =
-                mir->unboxedType(i)->unboxedLayout().lookup(mir->name());
-            Address propertyAddr(obj, UnboxedPlainObject::offsetOfData() + property->offset);
-
-            masm.loadUnboxedProperty(propertyAddr, property->type, output);
+        Shape *shape = mir->shape(i);
+        if (shape->slot() < shape->numFixedSlots()) {
+            // Fixed slot.
+            masm.loadTypedOrValue(Address(obj, NativeObject::getFixedSlotOffset(shape->slot())),
+                                  output);
         } else {
-            Shape *shape = mir->shape(i - mir->numUnboxedTypes());
-            if (shape->slot() < shape->numFixedSlots()) {
-                // Fixed slot.
-                masm.loadTypedOrValue(Address(obj, NativeObject::getFixedSlotOffset(shape->slot())),
-                                      output);
-            } else {
-                // Dynamic slot.
-                uint32_t offset = (shape->slot() - shape->numFixedSlots()) * sizeof(js::Value);
-                masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), scratch);
-                masm.loadTypedOrValue(Address(scratch, offset), output);
-            }
+            // Dynamic slot.
+            uint32_t offset = (shape->slot() - shape->numFixedSlots()) * sizeof(js::Value);
+            masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), scratch);
+            masm.loadTypedOrValue(Address(scratch, offset), output);
         }
 
-        if (i != total - 1)
+        if (i != mir->numShapes() - 1)
             masm.jump(&done);
         masm.bind(&next);
     }
@@ -2320,72 +2291,37 @@ CodeGenerator::emitSetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
                                           const ConstantOrRegister &value)
 {
     MSetPropertyPolymorphic *mir = ins->mirRaw()->toSetPropertyPolymorphic();
+    MOZ_ASSERT(mir->numShapes() > 1);
 
-    size_t total = mir->numUnboxedTypes() + mir->numShapes();
-    MOZ_ASSERT(total > 1);
-
-    bool typeInScratch = mir->numUnboxedTypes() > 1;
-    bool shapeInScratch = mir->numShapes() > 1;
+    masm.loadObjShape(obj, scratch);
 
     Label done;
-    for (size_t i = 0; i < total; i++) {
-        bool unboxedType = i < mir->numUnboxedTypes();
-
-        ImmGCPtr comparePtr = unboxedType
-                              ? ImmGCPtr(mir->unboxedType(i))
-                              : ImmGCPtr(mir->objShape(i - mir->numUnboxedTypes()));
-        Address addr(obj, unboxedType ? JSObject::offsetOfType() : JSObject::offsetOfShape());
-
-        if ((i == 0 && typeInScratch) || (i == mir->numUnboxedTypes() && shapeInScratch))
-            masm.loadPtr(addr, scratch);
-
-        bool inScratch = unboxedType ? typeInScratch : shapeInScratch;
-
+    for (size_t i = 0; i < mir->numShapes(); i++) {
         Label next;
-        if (i == total - 1) {
-            if (inScratch)
-                bailoutCmpPtr(Assembler::NotEqual, scratch, comparePtr, ins->snapshot());
-            else
-                bailoutCmpPtr(Assembler::NotEqual, addr, comparePtr, ins->snapshot());
+        if (i == mir->numShapes() - 1) {
+            bailoutCmpPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)),
+                          ins->snapshot());
         } else {
-            if (inScratch)
-                masm.branchPtr(Assembler::NotEqual, scratch, comparePtr, &next);
-            else
-                masm.branchPtr(Assembler::NotEqual, addr, comparePtr, &next);
+            masm.branchPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)), &next);
         }
 
-        if (unboxedType) {
-            const UnboxedLayout::Property *property =
-                mir->unboxedType(i)->unboxedLayout().lookup(mir->name());
-            Address propertyAddr(obj, UnboxedPlainObject::offsetOfData() + property->offset);
-
-            if (property->type == JSVAL_TYPE_OBJECT)
-                masm.patchableCallPreBarrier(propertyAddr, MIRType_Object);
-            else if (property->type == JSVAL_TYPE_STRING)
-                masm.patchableCallPreBarrier(propertyAddr, MIRType_String);
-            else
-                MOZ_ASSERT(!UnboxedTypeNeedsPreBarrier(property->type));
-
-            masm.storeUnboxedProperty(propertyAddr, property->type, value, nullptr);
+        Shape *shape = mir->shape(i);
+        if (shape->slot() < shape->numFixedSlots()) {
+            // Fixed slot.
+            Address addr(obj, NativeObject::getFixedSlotOffset(shape->slot()));
+            if (mir->needsBarrier())
+                emitPreBarrier(addr);
+            masm.storeConstantOrRegister(value, addr);
         } else {
-            Shape *shape = mir->shape(i - mir->numUnboxedTypes());
-            if (shape->slot() < shape->numFixedSlots()) {
-                // Fixed slot.
-                Address addr(obj, NativeObject::getFixedSlotOffset(shape->slot()));
-                if (mir->needsBarrier())
-                    emitPreBarrier(addr);
-                masm.storeConstantOrRegister(value, addr);
-            } else {
-                // Dynamic slot.
-                masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), scratch);
-                Address addr(scratch, (shape->slot() - shape->numFixedSlots()) * sizeof(js::Value));
-                if (mir->needsBarrier())
-                    emitPreBarrier(addr);
-                masm.storeConstantOrRegister(value, addr);
-            }
+            // Dynamic slot.
+            masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), scratch);
+            Address addr(scratch, (shape->slot() - shape->numFixedSlots()) * sizeof(js::Value));
+            if (mir->needsBarrier())
+                emitPreBarrier(addr);
+            masm.storeConstantOrRegister(value, addr);
         }
 
-        if (i != total - 1)
+        if (i != mir->numShapes() - 1)
             masm.jump(&done);
         masm.bind(&next);
     }
@@ -4637,7 +4573,7 @@ static const VMFunction NewGCObjectInfo =
 void
 CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
 {
-    JSObject *templateObject = lir->mir()->templateObject();
+    PlainObject *templateObject = lir->mir()->templateObject();
     gc::AllocKind allocKind = templateObject->asTenured().getAllocKind();
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
     const js::Class *clasp = templateObject->type()->clasp();
@@ -4655,8 +4591,7 @@ CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
     // Initialize based on the templateObject.
     masm.bind(ool->rejoin());
 
-    bool initFixedSlots = !templateObject->is<PlainObject>() ||
-                          ShouldInitFixedSlots(lir, &templateObject->as<PlainObject>());
+    bool initFixedSlots = ShouldInitFixedSlots(lir, templateObject);
     masm.initGCThing(objReg, tempReg, templateObject, initFixedSlots);
 }
 
@@ -8438,8 +8373,8 @@ CodeGenerator::visitLoadUnboxedPointerT(LLoadUnboxedPointerT *lir)
     bool bailOnNull;
     int32_t offsetAdjustment;
     if (lir->mir()->isLoadUnboxedObjectOrNull()) {
-        bailOnNull = lir->mir()->toLoadUnboxedObjectOrNull()->nullBehavior() !=
-                     MLoadUnboxedObjectOrNull::NullNotPossible;
+        MOZ_ASSERT(lir->mir()->toLoadUnboxedObjectOrNull()->bailOnNull());
+        bailOnNull = true;
         offsetAdjustment = lir->mir()->toLoadUnboxedObjectOrNull()->offsetAdjustment();
     } else if (lir->mir()->isLoadUnboxedString()) {
         bailOnNull = false;
@@ -8476,13 +8411,11 @@ CodeGenerator::visitLoadTypedArrayElement(LLoadTypedArrayElement *lir)
     Label fail;
     if (lir->index()->isConstant()) {
         Address source(elements, ToInt32(lir->index()) * width + lir->mir()->offsetAdjustment());
-        masm.loadFromTypedArray(arrayType, source, out, temp, &fail,
-                                lir->mir()->canonicalizeDoubles());
+        masm.loadFromTypedArray(arrayType, source, out, temp, &fail);
     } else {
         BaseIndex source(elements, ToRegister(lir->index()), ScaleFromElemWidth(width),
                          lir->mir()->offsetAdjustment());
-        masm.loadFromTypedArray(arrayType, source, out, temp, &fail,
-                                lir->mir()->canonicalizeDoubles());
+        masm.loadFromTypedArray(arrayType, source, out, temp, &fail);
     }
 
     if (fail.used())
