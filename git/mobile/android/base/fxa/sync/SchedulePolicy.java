@@ -26,10 +26,9 @@ public interface SchedulePolicy {
    * mutated, and additional side-effects (such as scheduling periodic syncs) can
    * occur.
    *
-   * @param rateHandler the backoff handler to configure for basic rate limiting.
-   * @param backgroundHandler the backoff handler to configure for background operations.
+   * @param backoffHandler the backoff handler to configure.
    */
-  public abstract void configureBackoffMillisBeforeSyncing(BackoffHandler rateHandler, BackoffHandler backgroundHandler);
+  public abstract void configureBackoffMillisBeforeSyncing(BackoffHandler backoffHandler);
 
   /**
    * We received an explicit backoff instruction, typically from a server.

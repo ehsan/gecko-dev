@@ -11,7 +11,6 @@
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDOMFile.h"
 #include "nsPIDOMWindow.h"
 #include "nsWrapperCache.h"
 
@@ -27,7 +26,6 @@ namespace dom {
 
 class FileSystemBase;
 class Promise;
-class StringOrFileOrDirectory;
 
 class Directory MOZ_FINAL
   : public nsISupports
@@ -61,16 +59,7 @@ public:
   already_AddRefed<Promise>
   Get(const nsAString& aPath);
 
-  already_AddRefed<Promise>
-  Remove(const StringOrFileOrDirectory& aPath);
-
-  already_AddRefed<Promise>
-  RemoveDeep(const StringOrFileOrDirectory& aPath);
-
   // =========== End WebIDL bindings.============
-
-  FileSystemBase*
-  GetFileSystem() const;
 private:
   static bool
   IsValidRelativePath(const nsString& aPath);
@@ -81,9 +70,6 @@ private:
    */
   bool
   DOMPathToRealPath(const nsAString& aPath, nsAString& aRealPath) const;
-
-  already_AddRefed<Promise>
-  RemoveInternal(const StringOrFileOrDirectory& aPath, bool aRecursive);
 
   nsRefPtr<FileSystemBase> mFileSystem;
   nsString mPath;

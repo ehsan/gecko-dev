@@ -318,13 +318,7 @@ InspectorPanel.prototype = {
     this._destroyMarkup();
     this.isDirty = false;
 
-    let onNodeSelected = defaultNode => {
-      // Cancel this promise resolution as a new one had
-      // been queued up.
-      if (this._pendingSelection != onNodeSelected) {
-        return;
-      }
-      this._pendingSelection = null;
+    this._getDefaultNodeForSelection().then(defaultNode => {
       this.selection.setNodeFront(defaultNode, "navigateaway");
 
       this._initMarkup();
@@ -336,9 +330,7 @@ InspectorPanel.prototype = {
         this.setupSearchBox();
         this.emit("new-root");
       });
-    };
-    this._pendingSelection = onNodeSelected;
-    this._getDefaultNodeForSelection().then(onNodeSelected);
+    });
   },
 
   _selectionCssSelector: null,

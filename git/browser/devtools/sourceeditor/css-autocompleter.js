@@ -766,7 +766,7 @@ CSSCompleter.prototype = {
   completeProperties: function(startProp) {
     let finalList = [];
     if (!startProp)
-      return Promise.resolve(finalList);
+      return finalList;
 
     let length = propertyNames.length;
     let i = 0, count = 0;
