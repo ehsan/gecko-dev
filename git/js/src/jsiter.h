@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -33,7 +33,7 @@ struct NativeIterator {
     HeapPtr<JSFlatString> *props_array;
     HeapPtr<JSFlatString> *props_cursor;
     HeapPtr<JSFlatString> *props_end;
-    Shape **shapes_array;
+    const Shape **shapes_array;
     uint32_t  shapes_length;
     uint32_t  shapes_key;
     uint32_t  flags;
@@ -246,7 +246,7 @@ class ForOfIterator {
     {
         RootedValue iterv(cx, iterable);
         ok = ValueToIterator(cx, JSITER_FOR_OF, iterv.address());
-        iterator = ok ? &iterv.get().toObject() : NULL;
+        iterator = ok ? &iterv.reference().toObject() : NULL;
     }
 
     ~ForOfIterator() {
@@ -257,13 +257,13 @@ class ForOfIterator {
     bool next() {
         JS_ASSERT(!closed);
         ok = ok && Next(cx, iterator, currentValue.address());
-        return ok && !currentValue.get().isMagic(JS_NO_ITER_VALUE);
+        return ok && !currentValue.reference().isMagic(JS_NO_ITER_VALUE);
     }
 
     Value &value() {
         JS_ASSERT(ok);
         JS_ASSERT(!closed);
-        return currentValue.get();
+        return currentValue.reference();
     }
 
     bool close() {
@@ -313,13 +313,6 @@ struct JSGenerator
 
 extern JSObject *
 js_NewGenerator(JSContext *cx);
-
-namespace js {
-
-bool
-GeneratorHasMarkableFrame(JSGenerator *gen);
-
-} /* namespace js */
 #endif
 
 extern JSObject *

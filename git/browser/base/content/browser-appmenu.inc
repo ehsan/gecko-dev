@@ -118,7 +118,7 @@
                 command="Browser:SavePage"
                 key="key_savePage"/>
       <menuitem id="appmenu_sendLink"
-                label="&emailPageCmd.label;"
+                label="&sendPageCmd.label;"
                 command="Browser:SendLink"/>
       <splitmenu id="appmenu_print"
                  iconic="true"
@@ -187,7 +187,6 @@
                     command="Tools:Scratchpad"/>
           <menuitem id="appmenu_styleeditor"
                     hidden="true"
-                    type="checkbox"
                     label="&styleeditor.label;"
                     key="key_styleeditor"
                     command="Tools:StyleEditor"/>

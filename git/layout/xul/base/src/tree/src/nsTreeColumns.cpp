@@ -7,6 +7,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMElement.h"
 #include "nsIBoxObject.h"
+#include "nsIDocument.h"
 #include "nsTreeColumns.h"
 #include "nsTreeUtils.h"
 #include "nsStyleContext.h"

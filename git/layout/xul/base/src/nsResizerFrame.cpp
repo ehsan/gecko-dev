@@ -8,6 +8,7 @@
 #include "nsResizerFrame.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
+#include "nsIDOMXULDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"

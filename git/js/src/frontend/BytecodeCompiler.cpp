@@ -22,12 +22,12 @@ using namespace js;
 using namespace js::frontend;
 
 bool
-MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
+MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script_)
 {
-    AssertRootingUnnecessary safe(cx);
+    Rooted<JSScript*> script(cx, script_);
 
     Vector<JSScript *, 16> worklist(cx);
-    if (!worklist.append(script))
+    if (!worklist.append(script.reference()))
         return false;
 
     while (worklist.length()) {
@@ -66,16 +66,14 @@ MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
 }
 
 JSScript *
-frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
+frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerFrame,
                         JSPrincipals *principals, JSPrincipals *originPrincipals,
                         bool compileAndGo, bool noScriptRval, bool needScriptGlobal,
                         const jschar *chars, size_t length,
                         const char *filename, unsigned lineno, JSVersion version,
-                        JSString *source_ /* = NULL */,
+                        JSString *source /* = NULL */,
                         unsigned staticLevel /* = 0 */)
 {
-    RootedString source(cx, source_);
-
     class ProbesManager
     {
         const char* filename;
@@ -97,13 +95,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
     Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
-                  /* foldConstants = */ true, compileAndGo);
+                  callerFrame, /* foldConstants = */ true, compileAndGo);
     if (!parser.init())
         return NULL;
 
     SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL);
 
-    TreeContext tc(&parser, &sc, staticLevel, /* bodyid = */ 0);
+    TreeContext tc(&parser, &sc, staticLevel);
     if (!tc.init())
         return NULL;
 
@@ -115,15 +113,20 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!script)
         return NULL;
 
-    // We can specialize a bit for the given scope chain if that scope chain is the global object.
-    JSObject *globalScope = scopeChain && scopeChain == &scopeChain->global() ? (JSObject*) scopeChain : NULL;
-    JS_ASSERT_IF(globalScope, globalScope->isNative());
-    JS_ASSERT_IF(globalScope, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalScope->getClass()));
-
-    BytecodeEmitter bce(/* parent = */ NULL, &parser, &sc, script, callerFrame, !!globalScope,
-                        lineno);
+    BytecodeEmitter bce(&parser, &sc, script, lineno);
     if (!bce.init())
         return NULL;
+
+    // We can specialize a bit for the given scope chain if that scope chain is the global object.
+    JSObject *globalObj = scopeChain && scopeChain == &scopeChain->global()
+                          ? &scopeChain->global()
+                          : NULL;
+
+    JS_ASSERT_IF(globalObj, globalObj->isNative());
+    JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
+
+    GlobalScope globalScope(cx, globalObj);
+    bce.globalScope = &globalScope;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
     if (callerFrame && callerFrame->isScriptFrame() && callerFrame->script()->strictModeCode)
@@ -156,6 +159,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         }
     }
 
+    /*
+     * Inline this->statements to emit as we go to save AST space. We must
+     * generate our script-body blockid since we aren't calling Statements.
+     */
+    if (!GenerateBlockId(&sc, sc.bodyid))
+        return NULL;
+
     ParseNode *pn;
 #if JS_HAS_XML_SUPPORT
     pn = NULL;
@@ -182,10 +192,10 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         if (inDirectivePrologue && !parser.recognizeDirectivePrologue(pn, &inDirectivePrologue))
             return NULL;
 
-        if (!FoldConstants(cx, pn, &parser))
+        if (!FoldConstants(cx, pn, bce.parser))
             return NULL;
 
-        if (!AnalyzeFunctions(&parser, callerFrame))
+        if (!AnalyzeFunctions(bce.parser))
             return NULL;
         tc.functionList = NULL;
 
@@ -196,7 +206,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         if (!pn->isKind(PNK_SEMI) || !pn->pn_kid || !pn->pn_kid->isXMLItem())
             onlyXML = false;
 #endif
-        parser.freeTree(pn);
+        bce.parser->freeTree(pn);
     }
 
 #if JS_HAS_XML_SUPPORT
@@ -207,23 +217,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
      * https://bugzilla.mozilla.org/show_bug.cgi?id=336551
      */
     if (pn && onlyXML && !callerFrame) {
-        parser.reportError(NULL, JSMSG_XML_WHOLE_PROGRAM);
+        parser.reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_XML_WHOLE_PROGRAM);
         return NULL;
     }
 #endif
 
-    // It's an error to use |arguments| in a function that has a rest parameter.
-    if (callerFrame && callerFrame->isFunctionFrame() && callerFrame->fun()->hasRest()) {
-        PropertyName *arguments = cx->runtime->atomState.argumentsAtom;
-        for (AtomDefnRange r = tc.lexdeps->all(); !r.empty(); r.popFront()) {
-            if (r.front().key() == arguments) {
-                parser.reportError(NULL, JSMSG_ARGUMENTS_AND_REST);
-                return NULL;
-            }
-        }
-        // We're not in a function context, so we don't expect any bindings.
-        JS_ASSERT(sc.bindings.lookup(cx, arguments, NULL) == NONE);
-    }
+    if (!parser.checkForArgumentsAndRest())
+        return NULL;
 
     /*
      * Nowadays the threaded interpreter needs a stop instruction, so we
@@ -235,8 +235,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!script->fullyInitFromEmitter(cx, &bce))
         return NULL;
 
-    bce.tellDebuggerAboutCompiledScript(cx);
-
     if (!MarkInnerAndOuterFunctions(cx, script))
         return NULL;
 
@@ -246,23 +244,22 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 // Compile a JS function body, which might appear as the value of an event
 // handler attribute in an HTML <INPUT> tag, or in a Function() constructor.
 bool
-frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
+frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
                               JSPrincipals *principals, JSPrincipals *originPrincipals,
                               Bindings *bindings, const jschar *chars, size_t length,
                               const char *filename, unsigned lineno, JSVersion version)
 {
     Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
-                  /* foldConstants = */ true, /* compileAndGo = */ false);
+                  /* callerFrame = */ NULL, /* foldConstants = */ true,
+                  /* compileAndGo = */ false);
     if (!parser.init())
         return false;
 
     JS_ASSERT(fun);
     SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL);
-    funsc.bindings.transfer(bindings);
-    fun->setArgCount(funsc.bindings.numArgs());
 
     unsigned staticLevel = 0;
-    TreeContext funtc(&parser, &funsc, staticLevel, /* bodyid = */ 0);
+    TreeContext funtc(&parser, &funsc, staticLevel);
     if (!funtc.init())
         return false;
 
@@ -274,10 +271,13 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
     if (!script)
         return false;
 
-    StackFrame *nullCallerFrame = NULL;
-    BytecodeEmitter funbce(/* parent = */ NULL, &parser, &funsc, script, nullCallerFrame,
-                           /* hasGlobalScope = */ false, lineno);
+    BytecodeEmitter funbce(&parser, &funsc, script, lineno);
     if (!funbce.init())
+        return false;
+
+    funsc.bindings.transfer(cx, bindings);
+    fun->setArgCount(funsc.bindings.numArgs());
+    if (!GenerateBlockId(&funsc, funsc.bodyid))
         return false;
 
     /* FIXME: make Function format the source for a function definition. */
@@ -321,14 +321,14 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
         return false;
 
     if (!parser.tokenStream.matchToken(TOK_EOF)) {
-        parser.reportError(NULL, JSMSG_SYNTAX_ERROR);
+        parser.reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_SYNTAX_ERROR);
         return false;
     }
 
     if (!FoldConstants(cx, pn, &parser))
         return false;
 
-    if (!AnalyzeFunctions(&parser, nullCallerFrame))
+    if (!AnalyzeFunctions(&parser))
         return false;
 
     if (fn->pn_body) {

@@ -574,7 +574,6 @@ abstract public class BrowserApp extends GeckoApp
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
         MenuItem findInPage = aMenu.findItem(R.id.find_in_page);
-        MenuItem desktopMode = aMenu.findItem(R.id.desktop_mode);
 
         if (tab == null || tab.getURL() == null) {
             bookmark.setEnabled(false);
@@ -586,7 +585,7 @@ abstract public class BrowserApp extends GeckoApp
             return true;
         }
 
-        bookmark.setEnabled(!tab.getURL().startsWith("about:reader"));
+        bookmark.setEnabled(true);
         bookmark.setCheckable(true);
         
         if (tab.isBookmark()) {
@@ -609,7 +608,6 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         forward.setEnabled(tab.canDoForward());
-        desktopMode.setChecked(tab.getDesktopMode());
 
         // Disable share menuitem for about:, chrome:, file:, and resource: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
@@ -621,7 +619,8 @@ abstract public class BrowserApp extends GeckoApp
                                tab.getContentType().equals("application/vnd.mozilla.xul+xml")));
 
         // Disable find in page for about:home, since it won't work on Java content
-        findInPage.setEnabled(!tab.getURL().equals("about:home"));
+        if (!tab.getURL().equals("about:home"))
+            findInPage.setEnabled(true);
 
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 

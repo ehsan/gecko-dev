@@ -53,8 +53,8 @@
                           key="key_savePage"
                           command="Browser:SavePage"/>
                 <menuitem id="menu_sendLink"
-                          label="&emailPageCmd.label;"
-                          accesskey="&emailPageCmd.accesskey;"
+                          label="&sendPageCmd.label;"
+                          accesskey="&sendPageCmd.accesskey;"
                           command="Browser:SendLink"/>
                 <menuseparator/>
                 <menuitem id="menu_printSetup"
@@ -519,6 +519,7 @@
                             autocheck="false"
                             hidden="true"
                             label="&devToolbarMenu.label;"
+                            accesskey="&devToolbarMenu.accesskey;"
                             key="key_devToolbar"
                             command="Tools:DevToolbar"/>
                   <menuitem id="webConsole"
@@ -562,7 +563,6 @@
                             key="key_scratchpad"
                             command="Tools:Scratchpad"/>
                   <menuitem id="menu_styleeditor"
-                            type="checkbox"
                             hidden="true"
                             label="&styleeditor.label;"
                             accesskey="&styleeditor.accesskey;"

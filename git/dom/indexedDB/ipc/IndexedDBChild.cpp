@@ -337,6 +337,7 @@ IndexedDBDatabaseChild::RecvSuccess(
 
   if (openHelper) {
     request->Reset();
+    database->ExitSetVersionTransaction();
   }
   else {
     openHelper = new IPCOpenDatabaseHelper(mDatabase, request);
@@ -369,6 +370,7 @@ IndexedDBDatabaseChild::RecvError(const nsresult& aRv)
 
   if (openHelper) {
     request->Reset();
+    database->ExitSetVersionTransaction();
   }
   else {
     openHelper = new IPCOpenDatabaseHelper(NULL, request);
@@ -470,7 +472,6 @@ IndexedDBDatabaseChild::RecvPIndexedDBTransactionConstructor(
     new IPCSetVersionHelper(actor, transaction, mRequest, oldVersion, mVersion);
 
   mDatabase->EnterSetVersionTransaction();
-  mDatabase->mPreviousDatabaseInfo->version = oldVersion;
 
   MainThreadEventTarget target;
   if (NS_FAILED(versionHelper->Dispatch(&target))) {
@@ -539,9 +540,12 @@ IndexedDBTransactionChild::FireCompleteEvent(nsresult aRv)
   nsRefPtr<IDBTransaction> transaction;
   mStrongTransaction.swap(transaction);
 
-  if (transaction->GetMode() == IDBTransaction::VERSION_CHANGE) {
-    transaction->Database()->ExitSetVersionTransaction();
-  }
+  // This is where we should allow the database to start issuing new
+  // transactions once we fix the main thread. E.g.:
+  //
+  //   if (transaction->GetMode() == IDBTransaction::VERSION_CHANGE) {
+  //     transaction->Database()->ExitSetVersionTransaction();
+  //   }
 
   nsRefPtr<CommitHelper> helper = new CommitHelper(transaction, aRv);
 

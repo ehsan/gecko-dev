@@ -8,12 +8,10 @@
 #include "DatabaseInfo.h"
 
 #include "nsIAtom.h"
-#include "nsIConsoleService.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsIFile.h"
 #include "nsIFileStorage.h"
 #include "nsIObserverService.h"
-#include "nsIScriptError.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsISHEntry.h"
@@ -28,7 +26,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsContentUtils.h"
 #include "nsDirectoryServiceUtils.h"
-#include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 #include "nsXPCOMPrivate.h"
@@ -217,10 +214,8 @@ IndexedDatabaseManager::GetOrCreate()
 
     if (sIsMainProcess) {
       nsCOMPtr<nsIFile> dbBaseDirectory;
-      rv = NS_GetSpecialDirectory(NS_APP_INDEXEDDB_PARENT_DIR, getter_AddRefs(dbBaseDirectory));
-      if (NS_FAILED(rv)) {
-          rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(dbBaseDirectory));
-      }
+      rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
+                                  getter_AddRefs(dbBaseDirectory));
       NS_ENSURE_SUCCESS(rv, nsnull);
 
       rv = dbBaseDirectory->Append(NS_LITERAL_STRING("indexedDB"));
@@ -317,86 +312,6 @@ IndexedDatabaseManager::GetDatabaseId(const nsACString& aOrigin,
   NS_ENSURE_TRUE(atom, nsnull);
 
   return atom.forget();
-}
-
-// static
-nsresult
-IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
-                                          nsEventChainPostVisitor& aVisitor)
-{
-  NS_ENSURE_TRUE(aVisitor.mDOMEvent, NS_ERROR_UNEXPECTED);
-  if (!aOwner) {
-    return NS_OK;
-  }
-
-  if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault) {
-    return NS_OK;
-  }
-
-  nsString type;
-  nsresult rv = aVisitor.mDOMEvent->GetType(type);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!type.EqualsLiteral(ERROR_EVT_STR)) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDOMEventTarget> eventTarget;
-  rv = aVisitor.mDOMEvent->GetTarget(getter_AddRefs(eventTarget));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIIDBRequest> strongRequest = do_QueryInterface(eventTarget);
-  IDBRequest* request = static_cast<IDBRequest*>(strongRequest.get());
-  NS_ENSURE_TRUE(request, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIDOMDOMError> error;
-  rv = request->GetError(getter_AddRefs(error));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsString errorName;
-  if (error) {
-    rv = error->GetName(errorName);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  nsScriptErrorEvent event(true, NS_LOAD_ERROR);
-  request->FillScriptErrorEvent(&event);
-  event.errorMsg = errorName.get();
-
-  nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aOwner));
-  NS_ASSERTION(sgo, "How can this happen?!");
-
-  nsEventStatus status = nsEventStatus_eIgnore;
-  if (NS_FAILED(sgo->HandleScriptError(&event, &status))) {
-    NS_WARNING("Failed to dispatch script error event");
-    status = nsEventStatus_eIgnore;
-  }
-
-  bool preventDefaultCalled = status == nsEventStatus_eConsumeNoDefault;
-  if (preventDefaultCalled) {
-    return NS_OK;
-  }
-
-  // Log an error to the error console.
-  nsCOMPtr<nsIScriptError> scriptError =
-    do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (NS_FAILED(scriptError->InitWithWindowID(event.errorMsg,
-                                              event.fileName,
-                                              nsnull, event.lineNr,
-                                              nsnull, 0,
-                                              "IndexedDB",
-                                              aOwner->WindowID()))) {
-    NS_WARNING("Failed to init script error!");
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIConsoleService> consoleService =
-    do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return consoleService->LogMessage(scriptError);
 }
 
 bool
@@ -1246,14 +1161,22 @@ IndexedDatabaseManager::GetUsageForURI(
   // Non-standard URIs can't create databases anyway so fire the callback
   // immediately.
   if (origin.EqualsLiteral("null")) {
-    return runnable->TakeShortcut();
+    rv = NS_DispatchToCurrentThread(runnable);
+    NS_ENSURE_SUCCESS(rv, rv);
+    return NS_OK;
   }
 
-  // Otherwise put the computation runnable in the queue.
-  rv = WaitForOpenAllowed(origin, nsnull, runnable);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // See if we're currently clearing the databases for this origin. If so then
+  // we pretend that we've already deleted everything.
+  if (IsClearOriginPending(origin)) {
+    rv = NS_DispatchToCurrentThread(runnable);
+    NS_ENSURE_SUCCESS(rv, rv);
+    return NS_OK;
+  }
 
-  runnable->AdvanceState();
+  // Otherwise dispatch to the IO thread to actually compute the usage.
+  rv = mIOThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
@@ -1554,8 +1477,7 @@ IndexedDatabaseManager::AsyncUsageRunnable::AsyncUsageRunnable(
   mCallback(aCallback),
   mUsage(0),
   mFileUsage(0),
-  mCanceled(0),
-  mCallbackState(Pending)
+  mCanceled(0)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aURI, "Null pointer!");
@@ -1585,101 +1507,49 @@ IncrementUsage(PRUint64* aUsage, PRUint64 aDelta)
 }
 
 nsresult
-IndexedDatabaseManager::AsyncUsageRunnable::TakeShortcut()
-{
-  NS_ASSERTION(mCallbackState == Pending, "Huh?");
-
-  nsresult rv = NS_DispatchToCurrentThread(this);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mCallbackState = Shortcut;
-  return NS_OK;
-}
-
-nsresult
 IndexedDatabaseManager::AsyncUsageRunnable::RunInternal()
 {
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never fail!");
 
+  if (NS_IsMainThread()) {
+    // Call the callback unless we were canceled.
+    if (!mCanceled) {
+      PRUint64 usage = mUsage;
+      IncrementUsage(&usage, mFileUsage);
+      mCallback->OnUsageResult(mURI, usage, mFileUsage);
+    }
+
+    // Clean up.
+    mURI = nsnull;
+    mCallback = nsnull;
+
+    // And tell the IndexedDatabaseManager that we're done.
+    mgr->OnUsageCheckComplete(this);
+
+    return NS_OK;
+  }
+
   if (mCanceled) {
     return NS_OK;
   }
 
-  switch (mCallbackState) {
-    case Pending: {
-      NS_NOTREACHED("Should never get here without being dispatched!");
-      return NS_ERROR_UNEXPECTED;
-    }
+  // Get the directory that contains all the database files we care about.
+  nsCOMPtr<nsIFile> directory;
+  nsresult rv = mgr->GetDirectoryForOrigin(mOrigin, getter_AddRefs(directory));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    case OpenAllowed: {
-      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  bool exists;
+  rv = directory->Exists(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-      AdvanceState();
-
-      if (NS_FAILED(mgr->IOThread()->Dispatch(this, NS_DISPATCH_NORMAL))) {
-        NS_WARNING("Failed to dispatch to the IO thread!");
-      }
-
-      return NS_OK;
-    }
-
-    case IO: {
-      NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-      AdvanceState();
-
-      // Get the directory that contains all the database files we care about.
-      nsCOMPtr<nsIFile> directory;
-      nsresult rv = mgr->GetDirectoryForOrigin(mOrigin, getter_AddRefs(directory));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      bool exists;
-      rv = directory->Exists(&exists);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      // If the directory exists then enumerate all the files inside, adding up the
-      // sizes to get the final usage statistic.
-      if (exists && !mCanceled) {
-        rv = GetUsageForDirectory(directory, &mUsage);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      // Run dispatches us back to the main thread.
-      return NS_OK;
-    }
-
-    case Complete: // Fall through
-    case Shortcut: {
-      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-      // Call the callback unless we were canceled.
-      if (!mCanceled) {
-        PRUint64 usage = mUsage;
-        IncrementUsage(&usage, mFileUsage);
-        mCallback->OnUsageResult(mURI, usage, mFileUsage);
-      }
-
-      // Clean up.
-      mURI = nsnull;
-      mCallback = nsnull;
-
-      // And tell the IndexedDatabaseManager that we're done.
-      mgr->OnUsageCheckComplete(this);
-      if (mCallbackState == Complete) {
-        mgr->AllowNextSynchronizedOp(mOrigin, nsnull);
-      }
-
-      return NS_OK;
-    }
-
-    default:
-      NS_ERROR("Unknown state value!");
-      return NS_ERROR_UNEXPECTED;
+  // If the directory exists then enumerate all the files inside, adding up the
+  // sizes to get the final usage statistic.
+  if (exists && !mCanceled) {
+    rv = GetUsageForDirectory(directory, &mUsage);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  NS_NOTREACHED("Should never get here!");
-  return NS_ERROR_UNEXPECTED;
+  return NS_OK;
 }
 
 nsresult
@@ -1755,6 +1625,7 @@ IndexedDatabaseManager::AsyncUsageRunnable::Run()
     }
   }
 
+  NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
 
@@ -1910,11 +1781,11 @@ IndexedDatabaseManager::InitWindowless(const jsval& aObj, JSContext* aCx)
 
   NS_ASSERTION(factory, "This should never fail for chrome!");
 
-  jsval indexedDBVal;
-  rv = nsContentUtils::WrapNative(aCx, obj, factory, &indexedDBVal);
+  jsval mozIndexedDBVal;
+  rv = nsContentUtils::WrapNative(aCx, obj, factory, &mozIndexedDBVal);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!JS_DefineProperty(aCx, obj, "indexedDB", indexedDBVal, nsnull,
+  if (!JS_DefineProperty(aCx, obj, "mozIndexedDB", mozIndexedDBVal, nsnull,
                          nsnull, JSPROP_ENUMERATE)) {
     return NS_ERROR_FAILURE;
   }

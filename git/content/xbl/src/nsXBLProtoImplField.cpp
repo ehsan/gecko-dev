@@ -6,11 +6,13 @@
 #include "nsIAtom.h"
 #include "nsString.h"
 #include "jsapi.h"
+#include "nsIContent.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsXBLProtoImplField.h"
 #include "nsIScriptContext.h"
+#include "nsContentUtils.h"
 #include "nsIURI.h"
 #include "nsXBLSerialize.h"
 #include "nsXBLPrototypeBinding.h"
@@ -86,8 +88,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   *aDidInstall = false;
 
-  // Empty fields are treated as not actually present.
-  if (IsEmpty()) {
+  if (mFieldTextLength == 0) {
     return NS_OK;
   }
 

@@ -56,7 +56,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGGradientFrame)
 /* virtual */ void
 nsSVGGradientFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsSVGEffects::InvalidateDirectRenderingObservers(this);
+  nsSVGEffects::InvalidateRenderingObservers(this);
   nsSVGGradientFrameBase::DidSetStyleContext(aOldStyleContext);
 }
 
@@ -69,14 +69,14 @@ nsSVGGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
       (aAttribute == nsGkAtoms::gradientUnits ||
        aAttribute == nsGkAtoms::gradientTransform ||
        aAttribute == nsGkAtoms::spreadMethod)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // Blow away our reference, if any
     Properties().Delete(nsSVGEffects::HrefProperty());
     mNoHRefURI = false;
     // And update whoever references us
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGGradientFrameBase::AttributeChanged(aNameSpaceID,
@@ -426,7 +426,7 @@ nsSVGLinearGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
        aAttribute == nsGkAtoms::y1 ||
        aAttribute == nsGkAtoms::x2 ||
        aAttribute == nsGkAtoms::y2)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGGradientFrame::AttributeChanged(aNameSpaceID,
@@ -528,7 +528,7 @@ nsSVGRadialGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
        aAttribute == nsGkAtoms::cy ||
        aAttribute == nsGkAtoms::fx ||
        aAttribute == nsGkAtoms::fy)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGGradientFrame::AttributeChanged(aNameSpaceID,

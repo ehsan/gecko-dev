@@ -9,6 +9,7 @@
 #include "nsINodeInfo.h"
 #include "nsGkAtoms.h"
 #include "nsContentDLF.h"
+#include "nsContentUtils.h"
 #include "nsSVGUtils.h"
 #include "nsDebug.h"
 

@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGDocument.h"
+#include "nsContentUtils.h"
 #include "nsString.h"
 #include "nsLiteralString.h"
 #include "nsIDOMSVGSVGElement.h"
@@ -105,13 +106,20 @@ nsSVGDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 nsresult
 NS_NewSVGDocument(nsIDocument** aInstancePtrResult)
 {
-  nsRefPtr<nsSVGDocument> doc = new nsSVGDocument();
+  *aInstancePtrResult = nsnull;
+  nsSVGDocument* doc = new nsSVGDocument();
 
+  if (!doc)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(doc);
   nsresult rv = doc->Init();
+
   if (NS_FAILED(rv)) {
+    NS_RELEASE(doc);
     return rv;
   }
 
-  *aInstancePtrResult = doc.forget().get();
+  *aInstancePtrResult = doc;
   return rv;
 }

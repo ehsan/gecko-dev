@@ -5,7 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsanalyze.h"
 #include "jscntxt.h"
 #include "jsscope.h"
 #include "jsobj.h"
@@ -14,13 +13,12 @@
 #include "jsnum.h"
 #include "jsxml.h"
 #include "jsbool.h"
-#include "jstypes.h"
-
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/CodeLocation.h"
-#include "builtin/Eval.h"
+#include "jstypes.h"
 #include "methodjit/StubCalls.h"
 #include "methodjit/MonoIC.h"
+#include "jsanalyze.h"
 #include "methodjit/BaseCompiler.h"
 #include "methodjit/ICRepatcher.h"
 #include "vm/Debugger.h"
@@ -31,7 +29,6 @@
 #include "jsobjinlines.h"
 #include "jscntxtinlines.h"
 #include "jsatominlines.h"
-
 #include "StubCalls-inl.h"
 
 #include "jsautooplen.h"
@@ -126,7 +123,7 @@ FindExceptionHandler(JSContext *cx)
 void JS_FASTCALL
 stubs::SlowCall(VMFrame &f, uint32_t argc)
 {
-    if (*f.regs.pc == JSOP_FUNAPPLY && !GuardFunApplyArgumentsOptimization(f.cx))
+    if (*f.regs.pc == JSOP_FUNAPPLY && !GuardFunApplySpeculation(f.cx, f.regs))
         THROW();
 
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
@@ -610,7 +607,7 @@ stubs::CreateThis(VMFrame &f, JSObject *proto)
 void JS_FASTCALL
 stubs::ScriptDebugPrologue(VMFrame &f)
 {
-    Probes::enterScript(f.cx, f.script(), f.script()->function(), f.fp());
+    Probes::enterJSFun(f.cx, f.fp()->maybeFun(), f.fp()->script());
     JSTrapStatus status = js::ScriptDebugPrologue(f.cx, f.fp());
     switch (status) {
       case JSTRAP_CONTINUE:
@@ -629,6 +626,7 @@ stubs::ScriptDebugPrologue(VMFrame &f)
 void JS_FASTCALL
 stubs::ScriptDebugEpilogue(VMFrame &f)
 {
+    Probes::exitJSFun(f.cx, f.fp()->maybeFun(), f.fp()->script());
     if (!js::ScriptDebugEpilogue(f.cx, f.fp(), JS_TRUE))
         THROW();
 }
@@ -636,13 +634,13 @@ stubs::ScriptDebugEpilogue(VMFrame &f)
 void JS_FASTCALL
 stubs::ScriptProbeOnlyPrologue(VMFrame &f)
 {
-    Probes::enterScript(f.cx, f.script(), f.script()->function(), f.fp());
+    Probes::enterJSFun(f.cx, f.fp()->fun(), f.fp()->script());
 }
 
 void JS_FASTCALL
 stubs::ScriptProbeOnlyEpilogue(VMFrame &f)
 {
-    Probes::exitScript(f.cx, f.script(), f.script()->function(), f.fp());
+    Probes::exitJSFun(f.cx, f.fp()->fun(), f.fp()->script());
 }
 
 void JS_FASTCALL
@@ -867,7 +865,8 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
             return js_InternalThrow(f);
         fp->thisValue() = ObjectValue(*obj);
 
-        Probes::enterScript(f.cx, f.script(), f.script()->function(), fp);
+        if (Probes::callTrackingActive(cx))
+            Probes::enterJSFun(f.cx, f.fp()->maybeFun(), f.fp()->script());
 
         if (script->debugMode) {
             JSTrapStatus status = js::ScriptDebugPrologue(f.cx, f.fp());
@@ -923,8 +922,8 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
         }
         /* FALLTHROUGH */
       case REJOIN_EVAL_PROLOGUE:
-        Probes::enterScript(cx, f.script(), f.script()->function(), fp);
         if (cx->compartment->debugMode()) {
+            Probes::enterJSFun(cx, fp->maybeFun(), fp->script());
             JSTrapStatus status = ScriptDebugPrologue(cx, fp);
             switch (status) {
               case JSTRAP_CONTINUE:

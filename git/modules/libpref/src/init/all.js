@@ -324,9 +324,6 @@ pref("toolkit.telemetry.infoURL", "http://www.mozilla.com/legal/privacy/firefox.
 // i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
 pref("toolkit.telemetry.debugSlowSql", false);
 
-// Identity module
-pref("toolkit.identity.debug", false);
-
 // Disable remote debugging protocol logging
 pref("devtools.debugger.log", false);
 // Disable remote debugging connections
@@ -647,9 +644,6 @@ pref("dom.min_background_timeout_value", 1000);
 pref("dom.new_bindings", true);
 pref("dom.experimental_bindings", true);
 
-// Don't use new input types
-pref("dom.experimental_forms", false);
-
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN
 pref("content.sink.pending_event_mode", 0);
@@ -924,10 +918,6 @@ pref("network.websocket.max-connections", 200);
 // by default scripts loaded from a https:// origin can only open secure
 // (i.e. wss://) websockets.
 pref("network.websocket.allowInsecureFromHTTPS", false);
-
-// by default we delay websocket reconnects to same host/port if previous
-// connection failed, per RFC 6455 section 7.2.3 
-pref("network.websocket.delay-failed-reconnects", true);
 
 // </ws>
 
@@ -1629,8 +1619,6 @@ pref("dom.ipc.plugins.parentTimeoutSecs", 0);
 // conflicts with our implementation, at least on Windows).
 pref("dom.ipc.plugins.java.enabled", false);
 
-pref("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", true);
-
 #ifndef ANDROID
 #ifndef XP_MACOSX
 #ifdef XP_UNIX
@@ -2279,13 +2267,15 @@ pref("font.name-list.monospace.x-baltic", "Courier");
 pref("font.name-list.cursive.x-baltic", "Apple Chancery");
 pref("font.name-list.fantasy.x-baltic", "Papyrus");
 
+// no suitable fonts for bengali ship with mac os x
+// however two can be freely downloaded
 // SolaimanLipi, Rupali http://ekushey.org/?page/mac_download
-pref("font.name.serif.x-beng", "Bangla MN");
-pref("font.name.sans-serif.x-beng", "Bangla Sangam MN");
-pref("font.name.monospace.x-beng", "Bangla Sangam MN");
-pref("font.name-list.serif.x-beng", "Bangla MN");
-pref("font.name-list.sans-serif.x-beng", "Bangla Sangam MN");
-pref("font.name-list.monospace.x-beng", "Bangla Sangam MN");
+pref("font.name.serif.x-beng", "সোলাইমান লিপি");
+pref("font.name.sans-serif.x-beng", "রূপালী");
+pref("font.name.monospace.x-beng", "রূপালী");
+pref("font.name-list.serif.x-beng", "সোলাইমান লিপি");
+pref("font.name-list.sans-serif.x-beng", "রূপালী");
+pref("font.name-list.monospace.x-beng", "রূপালী");
 
 pref("font.name.serif.x-cans", "Euphemia UCAS");
 pref("font.name.sans-serif.x-cans", "Euphemia UCAS");
@@ -2317,19 +2307,21 @@ pref("font.name-list.cursive.x-cyrillic", "Geneva");
 pref("font.name-list.fantasy.x-cyrillic", "Charcoal CY");
 
 pref("font.name.serif.x-devanagari", "Devanagari MT");
-pref("font.name.sans-serif.x-devanagari", "Devanagari Sangam MN");
-pref("font.name.monospace.x-devanagari", "Devanagari Sangam MN");
+pref("font.name.sans-serif.x-devanagari", "Devanagari MT");
+pref("font.name.monospace.x-devanagari", "Devanagari MT");
 pref("font.name-list.serif.x-devanagari", "Devanagari MT");
-pref("font.name-list.sans-serif.x-devanagari", "Devanagari Sangam MN,Devanagari MT");
-pref("font.name-list.monospace.x-devanagari", "Devanagari Sangam MN,Devanagari MT");
+pref("font.name-list.sans-serif.x-devanagari", "Devanagari MT");
+pref("font.name-list.monospace.x-devanagari", "Devanagari MT");
 
+// no suitable fonts for ethiopic ship with mac os x
+// however one can be freely downloaded
 // Abyssinica SIL http://scripts.sil.org/AbyssinicaSIL_Download
-pref("font.name.serif.x-ethi", "Kefa");
-pref("font.name.sans-serif.x-ethi", "Kefa");
-pref("font.name.monospace.x-ethi", "Kefa");
-pref("font.name-list.serif.x-ethi", "Kefa,Abyssinica SIL");
-pref("font.name-list.sans-serif.x-ethi", "Kefa,Abyssinica SIL");
-pref("font.name-list.monospace.x-ethi", "Kefa,Abyssinica SIL");
+pref("font.name.serif.x-ethi", "Abyssinica SIL");
+pref("font.name.sans-serif.x-ethi", "Abyssinica SIL");
+pref("font.name.monospace.x-ethi", "Abyssinica SIL");
+pref("font.name-list.serif.x-ethi", "Abyssinica SIL");
+pref("font.name-list.sans-serif.x-ethi", "Abyssinica SIL");
+pref("font.name-list.monospace.x-ethi", "Abyssinica SIL");
 
 // no suitable fonts for georgian ship with mac os x
 // however some can be freely downloaded
@@ -2343,11 +2335,11 @@ pref("font.name-list.sans-serif.x-geor", "Zuzumbo");
 pref("font.name-list.monospace.x-geor", "Zuzumbo");
 
 pref("font.name.serif.x-gujr", "Gujarati MT");
-pref("font.name.sans-serif.x-gujr", "Gujarati Sangam MN");
-pref("font.name.monospace.x-gujr", "Gujarati Sangam MN");
+pref("font.name.sans-serif.x-gujr", "Gujarati MT");
+pref("font.name.monospace.x-gujr", "Gujarati MT");
 pref("font.name-list.serif.x-gujr", "Gujarati MT"); 
-pref("font.name-list.sans-serif.x-gujr", "Gujarati Sangam MN,Gujarati MT");
-pref("font.name-list.monospace.x-gujr", "Gujarati Sangam MN,Gujarati MT");
+pref("font.name-list.sans-serif.x-gujr", "Gujarati MT");
+pref("font.name-list.monospace.x-gujr", "Gujarati MT");
 
 pref("font.name.serif.x-guru", "Gurmukhi MT");
 pref("font.name.sans-serif.x-guru", "Gurmukhi MT");
@@ -2356,49 +2348,37 @@ pref("font.name-list.serif.x-guru", "Gurmukhi MT");
 pref("font.name-list.sans-serif.x-guru", "Gurmukhi MT");
 pref("font.name-list.monospace.x-guru", "Gurmukhi MT");
 
-pref("font.name.serif.x-khmr", "Khmer MN");
-pref("font.name.sans-serif.x-khmr", "Khmer Sangam MN");
-pref("font.name.monospace.x-khmr", "Khmer Sangam MN");
-pref("font.name-list.serif.x-khmr", "Khmer MN"); 
-pref("font.name-list.sans-serif.x-khmr", "Khmer Sangam MN");
-pref("font.name-list.monospace.x-khmr", "Khmer Sangam MN");
+// no suitable fonts for khmer ship with mac os x
+// add this section when fonts exist
 
-pref("font.name.serif.x-mlym", "Malayalam MN");
-pref("font.name.sans-serif.x-mlym", "Malayalam Sangam MN");
-pref("font.name.monospace.x-mlym", "Malayalam Sangam MN");
-pref("font.name-list.serif.x-mlym", "Malayalam MN"); 
-pref("font.name-list.sans-serif.x-mlym", "Malayalam Sangam MN");
-pref("font.name-list.monospace.x-mlym", "Malayalam Sangam MN");
+// no suitable fonts for malayalam ship with mac os x
+// add this section when fonts exist
 
-pref("font.name.serif.x-orya", "Oriya MN");
-pref("font.name.sans-serif.x-orya", "Oriya Sangam MN");
-pref("font.name.monospace.x-orya", "Oriya Sangam MN");
-pref("font.name-list.serif.x-orya", "Oriya MN"); 
-pref("font.name-list.sans-serif.x-orya", "Oriya Sangam MN");
-pref("font.name-list.monospace.x-orya", "Oriya Sangam MN");
+// no suitable fonts for oriya ship with mac os x
+// add this section when fonts exist
 
+// no suitable fonts for telugu ship with mac os x
+// however one can be freely downloaded
 // Pothana http://web.nickshanks.com/typography/telugu/
-pref("font.name.serif.x-telu", "Telugu MN");
-pref("font.name.sans-serif.x-telu", "Telugu Sangam MN");
-pref("font.name.monospace.x-telu", "Telugu Sangam MN");
-pref("font.name-list.serif.x-telu", "Telugu MN,Pothana");
-pref("font.name-list.sans-serif.x-telu", "Telugu Sangam MN,Pothana");
-pref("font.name-list.monospace.x-telu", "Telugu Sangam MN,Pothana");
+pref("font.name.serif.x-telu", "Pothana");
+pref("font.name.sans-serif.x-telu", "Pothana");
+pref("font.name.monospace.x-telu", "Pothana");
+pref("font.name-list.serif.x-telu", "Pothana");
+pref("font.name-list.sans-serif.x-telu", "Pothana");
+pref("font.name-list.monospace.x-telu", "Pothana");
 
+// no suitable fonts for kannada ship with mac os x
+// however one can be freely downloaded
 // Kedage http://web.nickshanks.com/typography/kannada/
-pref("font.name.serif.x-knda", "Kannada MN");
-pref("font.name.sans-serif.x-knda", "Kannada Sangam MN");
-pref("font.name.monospace.x-knda", "Kannada Sangam MN");
-pref("font.name-list.serif.x-knda", "Kannada MN,Kedage");
-pref("font.name-list.sans-serif.x-knda", "Kannada Sangam MN,Kedage");
-pref("font.name-list.monospace.x-knda", "Kannada Sangam MN,Kedage");
+pref("font.name.serif.x-knda", "Kedage");
+pref("font.name.sans-serif.x-knda", "Kedage");
+pref("font.name.monospace.x-knda", "Kedage");
+pref("font.name-list.serif.x-knda", "Kedage");
+pref("font.name-list.sans-serif.x-knda", "Kedage");
+pref("font.name-list.monospace.x-knda", "Kedage");
 
-pref("font.name.serif.x-sinh", "Sinhala MN");
-pref("font.name.sans-serif.x-sinh", "Sinhala Sangam MN");
-pref("font.name.monospace.x-sinh", "Sinhala Sangam MN");
-pref("font.name-list.serif.x-sinh", "Sinhala MN");
-pref("font.name-list.sans-serif.x-sinh", "Sinhala Sangam MN");
-pref("font.name-list.monospace.x-sinh", "Sinhala Sangam MN");
+// no suitable fonts for sinhala ship with mac os x
+// add this section when fonts exist
 
 pref("font.name.serif.x-tamil", "InaiMathi");
 pref("font.name.sans-serif.x-tamil", "InaiMathi");
@@ -2833,6 +2813,9 @@ pref("middlemouse.paste", true);
 pref("middlemouse.contentLoadURL", true);
 pref("middlemouse.openNewWindow", true);
 pref("middlemouse.scrollbarPosition", true);
+
+// Clipboard behavior
+pref("clipboard.autocopy", true);
 
 pref("browser.urlbar.clickSelectsAll", false);
 
@@ -3553,9 +3536,6 @@ pref("full-screen-api.allow-trusted-requests-only", true);
 pref("full-screen-api.exit-on-deactivate", true);
 pref("full-screen-api.pointer-lock.enabled", true);
 
-// DOM idle observers API
-pref("dom.idle-observers-api.enabled", true);
-
 // Time limit, in milliseconds, for nsEventStateManager::IsHandlingUserInput().
 // Used to detect long running handlers of user-generated events.
 pref("dom.event.handling-user-input-time-limit", 1000);
@@ -3577,9 +3557,6 @@ pref("dom.sms.whitelist", "");
 // WebContacts
 pref("dom.mozContacts.enabled", false);
 pref("dom.mozContacts.whitelist", "");
-
-// WebAlarms
-pref("dom.mozAlarms.enabled", false);
 
 // WebSettings
 pref("dom.mozSettings.enabled", false);

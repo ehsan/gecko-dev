@@ -16,15 +16,22 @@
 #include "nsICSSLoaderObserver.h"
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"
+#include "nsCOMArray.h"
 #include "nsString.h"
 #include "nsAutoPtr.h"
 #include "nsGkAtoms.h"
+#include "nsTHashtable.h"
+#include "nsHashKeys.h"
+#include "nsTArray.h"
 #include "nsITimer.h"
 #include "nsStubDocumentObserver.h"
+#include "nsIParserService.h"
 #include "nsIContentSink.h"
 #include "prlog.h"
+#include "nsIRequest.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsThreadUtils.h"
+#include "nsIScriptElement.h"
 
 class nsIDocument;
 class nsIURI;
@@ -45,7 +52,7 @@ class Loader;
 }
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 
 extern PRLogModuleInfo* gContentSinkLogModuleInfo;
 

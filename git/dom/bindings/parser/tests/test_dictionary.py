@@ -1,3 +1,5 @@
+import WebIDL
+
 def WebIDLTest(parser, harness):
     parser.parse("""
       dictionary Dict2 : Dict1 {
@@ -27,7 +29,7 @@ def WebIDLTest(parser, harness):
                   "'a' really comes before 'c'")
 
     # Now reset our parser
-    parser = parser.reset()
+    parser = WebIDL.Parser()
     threw = False
     try:
         parser.parse("""
@@ -43,7 +45,7 @@ def WebIDLTest(parser, harness):
     harness.ok(threw, "Should not allow name duplication in a dictionary")
 
     # Now reset our parser again
-    parser = parser.reset()
+    parser = WebIDL.Parser()
     threw = False
     try:
         parser.parse("""
@@ -65,7 +67,7 @@ def WebIDLTest(parser, harness):
                "its ancestor")
 
     # More reset
-    parser = parser.reset()
+    parser = WebIDL.Parser()
     threw = False
     try:
         parser.parse("""
@@ -81,7 +83,7 @@ def WebIDLTest(parser, harness):
     harness.ok(threw, "Should not allow non-dictionary parents for dictionaries")
 
     # Even more reset
-    parser = parser.reset()
+    parser = WebIDL.Parser()
     threw = False
     try:
         parser.parse("""
@@ -93,31 +95,3 @@ def WebIDLTest(parser, harness):
         threw = True
 
     harness.ok(threw, "Should not allow cycles in dictionary inheritance chains")
-
-    parser = parser.reset()
-    threw = False
-    try:
-        parser.parse("""
-            dictionary A {
-              [TreatNullAs=EmptyString] DOMString foo;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Should not allow [TreatNullAs] on dictionary members");
-
-    parser = parser.reset()
-    threw = False
-    try:
-        parser.parse("""
-            dictionary A {
-              [TreatUndefinedAs=EmptyString] DOMString foo;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Should not allow [TreatUndefinedAs] on dictionary members");

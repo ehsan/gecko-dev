@@ -55,8 +55,7 @@ public:
     /* if you remove this, please talk to cjones or dougt */
     virtual bool RecvDummy(Shmem& foo) { return true; }
 
-    virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
-                                         const bool& aIsBrowserFrame);
+    virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
     virtual PCrashReporterChild*

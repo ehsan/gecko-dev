@@ -102,7 +102,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		file_bug645998-1.css \
 		file_bug645998-2.css \
 		test_bug716226.html \
-		test_bug765590.html \
 		test_cascade.html \
 		test_ch_ex_no_infloops.html \
 		test_compute_data_with_start_struct.html \
@@ -201,14 +200,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_load_events_on_stylesheets.html \
 		test_bug721136.html \
 		$(NULL)
-
-ifdef MOZ_FLEXBOX
-_TEST_FILES +=	\
-		test_flexbox_align_self_auto.html \
-		test_flexbox_flex_grow_and_shrink.html \
-		test_flexbox_flex_shorthand.html \
-		$(NULL)
-endif
 
 _VISITED_REFTEST_FILES = \
 		$(shell find $(topsrcdir)/layout/reftests/css-visited/ -name '*.html' -o -name '*.xhtml') \

@@ -35,8 +35,7 @@ public:
   static
   already_AddRefed<IDBRequest> Create(nsISupports* aSource,
                                       IDBWrapperCache* aOwnerCache,
-                                      IDBTransaction* aTransaction,
-                                      JSContext* aCallingCx);
+                                      IDBTransaction* aTransaction);
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -79,13 +78,28 @@ public:
     return mActorParent;
   }
 
-  void CaptureCaller(JSContext* aCx);
-
-  void FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const;
-
 protected:
   IDBRequest();
   ~IDBRequest();
+
+  virtual void RootResultValInternal();
+  virtual void UnrootResultValInternal();
+
+  void RootResultVal()
+  {
+    if (!mRooted) {
+      RootResultValInternal();
+      mRooted = true;
+    }
+  }
+
+  void UnrootResultVal()
+  {
+    if (mRooted) {
+      UnrootResultValInternal();
+      mRooted = false;
+    }
+  }
 
   nsCOMPtr<nsISupports> mSource;
   nsRefPtr<IDBTransaction> mTransaction;
@@ -101,9 +115,7 @@ protected:
 
   nsresult mErrorCode;
   bool mHaveResultOrErrorCode;
-
-  nsString mFilename;
-  PRUint32 mLineNo;
+  bool mRooted;
 };
 
 class IDBOpenDBRequest : public IDBRequest,
@@ -118,8 +130,15 @@ public:
   static
   already_AddRefed<IDBOpenDBRequest>
   Create(nsPIDOMWindow* aOwner,
-         JSObject* aScriptOwner,
-         JSContext* aCallingCx);
+         JSObject* aScriptOwner);
+
+  static
+  already_AddRefed<IDBOpenDBRequest>
+  Create(IDBWrapperCache* aOwnerCache)
+  {
+    return Create(aOwnerCache->GetOwner(),
+                  aOwnerCache->GetScriptOwner());
+  }
 
   void SetTransaction(IDBTransaction* aTransaction);
 
@@ -128,6 +147,9 @@ public:
 
 protected:
   ~IDBOpenDBRequest();
+
+  virtual void RootResultValInternal();
+  virtual void UnrootResultValInternal();
 
   // Only touched on the main thread.
   NS_DECL_EVENT_HANDLER(blocked)

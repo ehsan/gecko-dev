@@ -7,6 +7,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
+#include "nsIDOMHTMLDocument.h"
 #include "nsContentUtils.h"
 
 class nsHTMLTitleElement : public nsGenericHTMLElement,

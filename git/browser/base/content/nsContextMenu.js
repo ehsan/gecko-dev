@@ -148,9 +148,8 @@ nsContextMenu.prototype = {
                        this.onTextInput);
     this.showItem("context-back", shouldShow);
     this.showItem("context-forward", shouldShow);
-    var shouldShowReload = XULBrowserWindow.stopCommand.getAttribute("disabled") == "true";
-    this.showItem("context-reload", shouldShow && shouldShowReload);
-    this.showItem("context-stop", shouldShow && !shouldShowReload);
+    this.showItem("context-reload", shouldShow);
+    this.showItem("context-stop", shouldShow);
     this.showItem("context-sep-stop", shouldShow);
 
     // XXX: Stop is determined in browser.js; the canStop broadcaster is broken
@@ -172,9 +171,11 @@ nsContextMenu.prototype = {
                        this.isContentSelected || this.onImage ||
                        this.onCanvas || this.onVideo || this.onAudio);
     this.showItem("context-savepage", shouldShow);
+    this.showItem("context-sendpage", shouldShow);
 
-    // Save link depends on whether we're in a link, or selected text matches valid URL pattern.
+    // Save+Send link depends on whether we're in a link, or selected text matches valid URL pattern.
     this.showItem("context-savelink", this.onSaveableLink || this.onPlainTextLink);
+    this.showItem("context-sendlink", this.onSaveableLink || this.onPlainTextLink);
 
     // Save image depends on having loaded its content, video and audio don't.
     this.showItem("context-saveimage", this.onLoadedImage || this.onCanvas);
@@ -1049,6 +1050,11 @@ nsContextMenu.prototype = {
     this.saveHelper(this.linkURL, linkText, null, true, doc);
   },
 
+  sendLink: function() {
+    // we don't know the title of the link so pass in an empty string
+    MailIntegration.sendMessage( this.linkURL, "" );
+  },
+
   // Backwards-compatibility wrapper
   saveImage : function() {
     if (this.onCanvas || this.onImage)
@@ -1111,7 +1117,7 @@ nsContextMenu.prototype = {
 
     var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                     getService(Ci.nsIClipboardHelper);
-    clipboard.copyString(addresses, document);
+    clipboard.copyString(addresses);
   },
 
   ///////////////
@@ -1397,6 +1403,10 @@ nsContextMenu.prototype = {
     saveDocument(this.browser.contentDocument);
   },
 
+  sendPage: function CM_sendPage() {
+    MailIntegration.sendLinkForWindow(this.browser.contentWindow);  
+  },
+
   printFrame: function CM_printFrame() {
     PrintUtils.print(this.target.ownerDocument.defaultView);
   },
@@ -1443,7 +1453,7 @@ nsContextMenu.prototype = {
   copyMediaLocation : function () {
     var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                     getService(Ci.nsIClipboardHelper);
-    clipboard.copyString(this.mediaURL, document);
+    clipboard.copyString(this.mediaURL);
   },
 
   get imageURL() {

@@ -8,6 +8,7 @@
 
 #include "nsISupports.h"
 
+class nsIDocument;
 class nsICSSLoaderObserver;
 class nsIURI;
 

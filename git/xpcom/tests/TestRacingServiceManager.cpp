@@ -15,7 +15,6 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "prmon.h"
-#include "mozilla/Attributes.h"
 
 #include "mozilla/ReentrantMonitor.h"
 using namespace mozilla;
@@ -84,7 +83,7 @@ private:
   ReentrantMonitor** mReentrantMonitorPtr;
 };
 
-class Factory MOZ_FINAL : public nsIFactory
+class Factory : public nsIFactory
 {
 public:
   NS_DECL_ISUPPORTS
@@ -104,7 +103,7 @@ public:
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(Factory, nsIFactory)
 
-class Component1 MOZ_FINAL : public nsISupports
+class Component1 : public nsISupports
 {
 public:
   NS_DECL_ISUPPORTS
@@ -124,7 +123,7 @@ NS_INTERFACE_MAP_BEGIN(Component1)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-class Component2 MOZ_FINAL : public nsISupports
+class Component2 : public nsISupports
 {
 public:
   NS_DECL_ISUPPORTS

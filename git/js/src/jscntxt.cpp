@@ -291,7 +291,7 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
     JS_REMOVE_LINK(&cx->link);
     bool last = !rt->hasContexts();
     if (last) {
-        JS_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(!rt->gcRunning);
 
         /*
          * Dump remaining type inference results first. This printing
@@ -311,7 +311,7 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
         PrepareForFullGC(rt);
         GC(rt, GC_NORMAL, gcreason::LAST_CONTEXT);
     } else if (mode == DCM_FORCE_GC) {
-        JS_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(!rt->gcRunning);
         PrepareForFullGC(rt);
         GC(rt, GC_NORMAL, gcreason::DESTROY_CONTEXT);
     }
@@ -362,15 +362,6 @@ ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
         !js_ErrorToException(cx, message, reportp, callback, userRef)) {
         js_ReportErrorAgain(cx, message, reportp);
     } else if (JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook) {
-        /*
-         * If we've already chewed up all the C stack, don't call into the
-         * error reporter since this may trigger an infinite recursion where
-         * the reporter triggers an over-recursion.
-         */
-        int stackDummy;
-        if (!JS_CHECK_STACK_SIZE(cx->runtime->nativeStackLimit, &stackDummy))
-            return;
-
         if (cx->errorReporter)
             hook(cx, message, reportp, cx->runtime->debugHooks.debugErrorHookData);
     }
@@ -542,7 +533,7 @@ ReportUsageError(JSContext *cx, JSObject *callee, const char *msg)
 {
     const char *usageStr = "usage";
     PropertyName *usageAtom = js_Atomize(cx, usageStr, strlen(usageStr))->asPropertyName();
-    DebugOnly<Shape *> shape = callee->nativeLookup(cx, NameToId(usageAtom));
+    DebugOnly<const Shape *> shape = callee->nativeLookup(cx, NameToId(usageAtom));
     JS_ASSERT(!shape->configurable());
     JS_ASSERT(!shape->writable());
     JS_ASSERT(shape->hasDefaultGetter());
@@ -978,9 +969,6 @@ JSContext::JSContext(JSRuntime *rt)
     localeCallbacks(NULL),
     resolvingList(NULL),
     generatingError(false),
-#ifdef DEBUG
-    rootingUnnecessary(false),
-#endif
     compartment(NULL),
     stack(thisDuringConstruction()),  /* depends on cx->thread_ */
     parseMapPool_(NULL),
@@ -1040,22 +1028,6 @@ JSContext::~JSContext()
 
     JS_ASSERT(!resolvingList);
 }
-
-#ifdef DEBUG
-namespace JS {
-JS_FRIEND_API(void)
-SetRootingUnnecessaryForContext(JSContext *cx, bool value)
-{
-    cx->rootingUnnecessary = value;
-}
-
-JS_FRIEND_API(bool)
-IsRootingUnnecessaryForContext(JSContext *cx)
-{
-    return cx->rootingUnnecessary;
-}
-} /* namespace JS */
-#endif
 
 void
 JSContext::resetCompartment()
@@ -1166,7 +1138,7 @@ JSRuntime::onTooMuchMalloc()
 JS_FRIEND_API(void *)
 JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
 {
-    if (isHeapBusy())
+    if (gcRunning)
         return NULL;
 
     /*
@@ -1174,7 +1146,10 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
      * all the allocations and released the empty GC chunks.
      */
     ShrinkGCBuffers(this);
-    gcHelperThread.waitBackgroundSweepOrAllocEnd();
+    {
+        AutoLockGC lock(this);
+        gcHelperThread.waitBackgroundSweepOrAllocEnd();
+    }
     if (!p)
         p = OffTheBooks::malloc_(nbytes);
     else if (p == reinterpret_cast<void *>(1))
@@ -1313,7 +1288,7 @@ namespace JS {
 AutoCheckRequestDepth::AutoCheckRequestDepth(JSContext *cx)
     : cx(cx)
 {
-    JS_ASSERT(cx->runtime->requestDepth || cx->runtime->isHeapBusy());
+    JS_ASSERT(cx->runtime->requestDepth || cx->runtime->gcRunning);
     JS_ASSERT(cx->runtime->onOwnerThread());
     cx->runtime->checkRequestDepth++;
 }

@@ -94,7 +94,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
   
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD  GetFrameName(nsAString& aResult) const;
 #endif
 

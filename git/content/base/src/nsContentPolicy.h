@@ -31,8 +31,7 @@ class nsContentPolicy : public nsIContentPolicy
     NS_STDCALL_FUNCPROTO(nsresult, CPMethod, nsIContentPolicy,
                          ShouldProcess,
                          (PRUint32, nsIURI*, nsIURI*, nsISupports*,
-                           const nsACString &, nsISupports*, nsIPrincipal*,
-                           PRInt16*));
+                           const nsACString &, nsISupports*, PRInt16*));
 
     //Helper method that applies policyMethod across all policies in mPolicies
     // with the given parameters
@@ -40,7 +39,6 @@ class nsContentPolicy : public nsIContentPolicy
                          nsIURI *aURI, nsIURI *origURI,
                          nsISupports *requestingContext,
                          const nsACString &mimeGuess, nsISupports *extra,
-                         nsIPrincipal *requestPrincipal,
                          PRInt16 *decision);
 };
 

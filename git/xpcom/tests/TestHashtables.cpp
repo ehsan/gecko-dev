@@ -12,7 +12,6 @@
 #include "nsCOMPtr.h"
 #include "nsISupports.h"
 #include "nsCOMArray.h"
-#include "mozilla/Attributes.h"
 
 #include <stdio.h>
 
@@ -192,7 +191,7 @@ nsCEnum(const nsACString& aKey, nsAutoPtr<TestUniChar>& aData, void* userArg) {
 { 0x6f7652e0,  0xee43, 0x11d1, \
  { 0x9c, 0xc3, 0x00, 0x60, 0x08, 0x8c, 0xa6, 0xb3 } }
 
-class IFoo MOZ_FINAL : public nsISupports
+class IFoo : public nsISupports
   {
     public:
       NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFOO_IID)

@@ -8,7 +8,7 @@
 
 #if defined(XP_UNIX)
 
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
 #include <gdk/gdkx.h>
 // we're using default display for now
 #define GET_NATIVE_WINDOW(aWidget) (EGLNativeWindowType)GDK_WINDOW_XID((GdkWindow *) aWidget->GetNativeData(NS_NATIVE_WINDOW))
@@ -326,6 +326,14 @@ public:
 
         PR_STATIC_ASSERT(sizeof(GLint) >= sizeof(int32_t));
         mMaxTextureImageSize = PR_INT32_MAX;
+#if 0
+        if (ok) {
+            EGLint v;
+            sEGLLibrary.fQueryContext(EGL_DISPLAY(), mContext, LOCAL_EGL_RENDER_BUFFER, &v);
+            if (v == LOCAL_EGL_BACK_BUFFER)
+                mIsDoubleBuffered = true;
+        }
+#endif
 
         if (ok)
             InitFramebuffers();
@@ -755,8 +763,6 @@ GLFormatForImage(gfxASurface::gfxImageFormat aFormat)
         return LOCAL_GL_RGBA;
     case gfxASurface::ImageFormatRGB16_565:
         return LOCAL_GL_RGB;
-    case gfxASurface::ImageFormatA8:
-        return LOCAL_GL_LUMINANCE;
     default:
         NS_WARNING("Unknown GL format for Image format");
     }
@@ -774,8 +780,6 @@ PixelFormatForImage(gfxASurface::gfxImageFormat aFormat)
         return PIXEL_FORMAT_RGBX_8888;
     case gfxASurface::ImageFormatRGB16_565:
         return PIXEL_FORMAT_RGB_565;
-    case gfxASurface::ImageFormatA8:
-        return PIXEL_FORMAT_L_8;
     default:
         MOZ_NOT_REACHED("Unknown gralloc pixel format for Image format");
     }
@@ -789,7 +793,6 @@ GLTypeForImage(gfxASurface::gfxImageFormat aFormat)
     switch (aFormat) {
     case gfxASurface::ImageFormatARGB32:
     case gfxASurface::ImageFormatRGB24:
-    case gfxASurface::ImageFormatA8:
         return LOCAL_GL_UNSIGNED_BYTE;
     case gfxASurface::ImageFormatRGB16_565:
         return LOCAL_GL_UNSIGNED_SHORT_5_6_5;
@@ -1498,14 +1501,6 @@ static const EGLint kEGLConfigAttribsRGB16[] = {
     LOCAL_EGL_NONE
 };
 
-static const EGLint kEGLConfigAttribsRGB24[] = {
-    LOCAL_EGL_SURFACE_TYPE,    LOCAL_EGL_WINDOW_BIT,
-    LOCAL_EGL_RENDERABLE_TYPE, LOCAL_EGL_OPENGL_ES2_BIT,
-    LOCAL_EGL_RED_SIZE,        8,
-    LOCAL_EGL_GREEN_SIZE,      8,
-    LOCAL_EGL_BLUE_SIZE,       8,
-    LOCAL_EGL_NONE
-};
 
 static const EGLint kEGLConfigAttribsRGBA32[] = {
     LOCAL_EGL_SURFACE_TYPE,    LOCAL_EGL_WINDOW_BIT,
@@ -1521,23 +1516,9 @@ static bool
 CreateConfig(EGLConfig* aConfig, PRInt32 depth)
 {
     EGLConfig configs[64];
-    const EGLint* attribs;
+    const EGLint* attribs = depth == 16 ? kEGLConfigAttribsRGB16 :
+                                          kEGLConfigAttribsRGBA32;
     EGLint ncfg = ArrayLength(configs);
-
-    switch (depth) {
-        case 16:
-            attribs = kEGLConfigAttribsRGB16;
-            break;
-        case 24:
-            attribs = kEGLConfigAttribsRGB24;
-            break;
-        case 32:
-            attribs = kEGLConfigAttribsRGBA32;
-            break;
-        default:
-            NS_ERROR("Unknown pixel depth");
-            return false;
-    }
 
     if (!sEGLLibrary.fChooseConfig(EGL_DISPLAY(), attribs,
                                    configs, ncfg, &ncfg) ||
@@ -1558,8 +1539,7 @@ CreateConfig(EGLConfig* aConfig, PRInt32 depth)
             sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
                                          LOCAL_EGL_ALPHA_SIZE, &a) &&
             ((depth == 16 && r == 5 && g == 6 && b == 5) ||
-             (depth == 24 && r == 8 && g == 8 && b == 8) ||
-             (depth == 32 && r == 8 && g == 8 && b == 8 && a == 8)))
+             (depth == 24 && r == 8 && g == 8 && b == 8 && a == 8)))
         {
             *aConfig = config;
             return true;
@@ -1642,7 +1622,11 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         return nsnull;
     }
 
+#if defined(XP_WIN) || defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
     bool doubleBuffered = true;
+#else
+    bool doubleBuffered = false;
+#endif
 
     void* currentContext = sEGLLibrary.fGetCurrentContext();
     if (aWidget->HasGLContext() && currentContext) {

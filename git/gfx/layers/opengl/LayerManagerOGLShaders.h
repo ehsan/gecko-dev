@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 /* AUTOMATICALLY GENERATED from LayerManagerOGLShaders.txt */
 /* DO NOT EDIT! */
 
@@ -147,7 +151,7 @@ uniform sampler2D uMaskTexture;\n\
 uniform vec4 uRenderColor;\n\
 void main()\n\
 {\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = mask * uRenderColor;\n\
 }\n\
@@ -198,7 +202,7 @@ uniform sampler2D uMaskTexture;\n\
 uniform sampler2D uTexture;\n\
 void main()\n\
 {\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = texture2D(uTexture, vTexCoord) * uLayerOpacity * mask;\n\
 }\n\
@@ -226,7 +230,7 @@ uniform sampler2D uTexture;\n\
 void main()\n\
 {\n\
 vec2 maskCoords = vMaskCoord.xy / vMaskCoord.z;\n\
-float mask = texture2D(uMaskTexture, maskCoords).r;\n\
+float mask = texture2D(uMaskTexture, maskCoords).a;\n\
 \n\
 gl_FragColor = texture2D(uTexture, vTexCoord) * uLayerOpacity * mask;\n\
 }\n\
@@ -291,7 +295,7 @@ uniform sampler2DRect uTexture;\n\
 uniform vec2 uTexCoordMultiplier;\n\
 void main()\n\
 {\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = texture2DRect(uTexture, vec2(vTexCoord * uTexCoordMultiplier)) * uLayerOpacity * mask;\n\
 }\n\
@@ -329,7 +333,7 @@ uniform vec2 uTexCoordMultiplier;\n\
 void main()\n\
 {\n\
 vec2 maskCoords = vMaskCoord.xy / vMaskCoord.z;\n\
-float mask = texture2D(uMaskTexture, maskCoords).r;\n\
+float mask = texture2D(uMaskTexture, maskCoords).a;\n\
 \n\
 gl_FragColor = texture2DRect(uTexture, vec2(vTexCoord * uTexCoordMultiplier)) * uLayerOpacity * mask;\n\
 }\n\
@@ -386,7 +390,7 @@ uniform sampler2D uMaskTexture;\n\
 uniform sampler2D uTexture;\n\
 void main()\n\
 {\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = texture2D(uTexture, vTexCoord).bgra * uLayerOpacity * mask;\n\
 }\n\
@@ -437,7 +441,7 @@ uniform sampler2D uMaskTexture;\n\
 uniform sampler2D uTexture;\n\
 void main()\n\
 {\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = vec4(texture2D(uTexture, vTexCoord).rgb, 1.0) * uLayerOpacity * mask;\n\
 }\n\
@@ -488,7 +492,7 @@ uniform sampler2D uMaskTexture;\n\
 uniform sampler2D uTexture;\n\
 void main()\n\
 {\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = vec4(texture2D(uTexture, vTexCoord).bgr, 1.0) * uLayerOpacity * mask;\n\
 }\n\
@@ -517,16 +521,14 @@ uniform sampler2D uCbTexture;\n\
 uniform sampler2D uCrTexture;\n\
 void main()\n\
 {\n\
+vec4 yuv;\n\
 vec4 color;\n\
-float y = texture2D(uYTexture, vTexCoord).r;\n\
-float cb = texture2D(uCbTexture, vTexCoord).r;\n\
-float cr = texture2D(uCrTexture, vTexCoord).r;\n\
-y = (y - 0.0625) * 1.164;\n\
-cb = cb - 0.5;\n\
-cr = cr - 0.5;\n\
-color.r = y + cr * 1.596;\n\
-color.g = y - 0.813 * cr - 0.391 * cb;\n\
-color.b = y + cb * 2.018;\n\
+yuv.r = texture2D(uCrTexture, vTexCoord).r - 0.5;\n\
+yuv.g = texture2D(uYTexture, vTexCoord).r - 0.0625;\n\
+yuv.b = texture2D(uCbTexture, vTexCoord).r - 0.5;\n\
+color.r = yuv.g * 1.164 + yuv.r * 1.596;\n\
+color.g = yuv.g * 1.164 - 0.813 * yuv.r - 0.391 * yuv.b;\n\
+color.b = yuv.g * 1.164 + yuv.b * 2.018;\n\
 color.a = 1.0;\n\
 float mask = 1.0;\n\
 \n\
@@ -560,18 +562,16 @@ uniform sampler2D uCbTexture;\n\
 uniform sampler2D uCrTexture;\n\
 void main()\n\
 {\n\
+vec4 yuv;\n\
 vec4 color;\n\
-float y = texture2D(uYTexture, vTexCoord).r;\n\
-float cb = texture2D(uCbTexture, vTexCoord).r;\n\
-float cr = texture2D(uCrTexture, vTexCoord).r;\n\
-y = (y - 0.0625) * 1.164;\n\
-cb = cb - 0.5;\n\
-cr = cr - 0.5;\n\
-color.r = y + cr * 1.596;\n\
-color.g = y - 0.813 * cr - 0.391 * cb;\n\
-color.b = y + cb * 2.018;\n\
+yuv.r = texture2D(uCrTexture, vTexCoord).r - 0.5;\n\
+yuv.g = texture2D(uYTexture, vTexCoord).r - 0.0625;\n\
+yuv.b = texture2D(uCbTexture, vTexCoord).r - 0.5;\n\
+color.r = yuv.g * 1.164 + yuv.r * 1.596;\n\
+color.g = yuv.g * 1.164 - 0.813 * yuv.r - 0.391 * yuv.b;\n\
+color.b = yuv.g * 1.164 + yuv.b * 2.018;\n\
 color.a = 1.0;\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = color * uLayerOpacity * mask;\n\
 }\n\
@@ -630,7 +630,7 @@ void main()\n\
 vec3 onBlack = texture2D(uBlackTexture, vTexCoord).bgr;\n\
 vec3 onWhite = texture2D(uWhiteTexture, vTexCoord).bgr;\n\
 vec4 alphas = (1.0 - onWhite + onBlack).rgbg;\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = alphas * uLayerOpacity * mask;\n\
 }\n\
@@ -689,7 +689,7 @@ void main()\n\
 vec3 onBlack = texture2D(uBlackTexture, vTexCoord).bgr;\n\
 vec3 onWhite = texture2D(uWhiteTexture, vTexCoord).bgr;\n\
 vec4 alphas = (1.0 - onWhite + onBlack).rgbg;\n\
-float mask = texture2D(uMaskTexture, vMaskCoord).r;\n\
+float mask = texture2D(uMaskTexture, vMaskCoord).a;\n\
 \n\
 gl_FragColor = vec4(onBlack, alphas.a) * uLayerOpacity * mask;\n\
 }\n\

@@ -140,13 +140,7 @@ class TabChild : public PBrowserChild,
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
 
 public:
-    /**
-     * Create a new TabChild object.
-     *
-     * |aIsBrowserFrame| indicates whether the TabChild is inside an
-     * <iframe mozbrowser>.
-     */
-    TabChild(PRUint32 aChromeFlags, bool aIsBrowserFrame);
+    TabChild(PRUint32 aChromeFlags);
     virtual ~TabChild();
     nsresult Init();
 
@@ -272,7 +266,6 @@ private:
     nsIntRect mOuterRect;
     nscolor mLastBackgroundColor;
     bool mDidFakeShow;
-    bool mIsBrowserFrame;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

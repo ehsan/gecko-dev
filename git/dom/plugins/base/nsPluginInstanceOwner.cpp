@@ -58,6 +58,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIDOMDragEvent.h"
 #include "nsIScrollableFrame.h"
 #include "nsIImageLoadingContent.h"
+#include "nsIObjectLoadingContent.h"
 #include "nsIDocShell.h"
 
 #include "nsContentCID.h"
@@ -733,7 +734,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   }
 
   return rv;
-#elif (defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_QT)) && defined(MOZ_X11)
+#elif (defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)) && defined(MOZ_X11)
   // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
   nsIWidget* win = mObjectFrame->GetNearestWidget();
   if (!win)
@@ -1206,6 +1207,31 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
     mNumCachedAttrs++;
   }
 
+  // Some plugins (java, bug 406541) don't canonicalize the 'codebase' attribute
+  // in a standard way - codebase="" results in / (domain root), but
+  // codebase="blah" results in ./blah; codebase="file:" results in "file:///".
+  // We canonicalize codebase here to ensure the codebase we run security checks
+  // against is the same codebase java uses.
+  // Note that GetObjectBaseURI mimics some of java's quirks for maximal
+  // compatibility.
+  const char* mime = nsnull;
+  bool addCodebase = false;
+  nsCAutoString codebaseSpec;
+  if (mInstance && NS_SUCCEEDED(mInstance->GetMIMEType(&mime)) && mime &&
+      strcmp(mime, "application/x-java-vm") == 0) {
+    addCodebase = true;
+    nsCOMPtr<nsIObjectLoadingContent> objlContent = do_QueryInterface(mContent);
+    nsCOMPtr<nsIURI> codebaseURI;
+    objlContent->GetObjectBaseURI(nsCString(mime), getter_AddRefs(codebaseURI));
+    nsresult rv = codebaseURI->GetSpec(codebaseSpec);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Make space if codebase isn't already set
+    if (!mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::codebase)) {
+      mNumCachedAttrs++;
+    }
+  }
+
   mCachedAttrParamNames  = (char**)NS_Alloc(sizeof(char*) * (mNumCachedAttrs + 1 + mNumCachedParams));
   NS_ENSURE_TRUE(mCachedAttrParamNames,  NS_ERROR_OUT_OF_MEMORY);
   mCachedAttrParamValues = (char**)NS_Alloc(sizeof(char*) * (mNumCachedAttrs + 1 + mNumCachedParams));
@@ -1259,9 +1285,19 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
         mNumCachedAttrs--;
         wmodeSet = true;
       }
+    } else if (addCodebase && 0 == PL_strcasecmp(mCachedAttrParamNames[nextAttrParamIndex], "codebase")) {
+      mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(codebaseSpec));
+      addCodebase = false;
     } else {
       mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(value);
     }
+    nextAttrParamIndex++;
+  }
+
+  // Pontentially add CODEBASE attribute
+  if (addCodebase) {
+    mCachedAttrParamNames [nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING("codebase"));
+    mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(codebaseSpec));
     nextAttrParamIndex++;
   }
 
@@ -2396,7 +2432,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         nsIntPoint rootPoint(-1,-1);
         if (widget)
           rootPoint = anEvent.refPoint + widget->WidgetToScreenOffset();
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
         Window root = GDK_ROOT_WINDOW();
 #elif defined(MOZ_WIDGET_QT)
         Window root = RootWindowOfScreen(DefaultScreenOfDisplay(mozilla::DefaultXDisplay()));
@@ -2484,7 +2520,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
       if (anEvent.pluginEvent)
         {
           XKeyEvent &event = pluginEvent.xkey;
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
           event.root = GDK_ROOT_WINDOW();
           event.time = anEvent.time;
           const GdkEventKey* gdkEvent =
@@ -3010,11 +3046,17 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   aContext->Translate(pluginRect.TopLeft());
 
   Renderer renderer(window, this, pluginSize, pluginDirtyRect);
-
+#ifdef MOZ_WIDGET_GTK2
+  // This is the visual used by the widgets, 24-bit if available.
+  GdkVisual* gdkVisual = gdk_rgb_get_visual();
+  Visual* visual = gdk_x11_visual_get_xvisual(gdkVisual);
+  Screen* screen =
+    gdk_x11_screen_get_xscreen(gdk_visual_get_screen(gdkVisual));
+#else
   Display* dpy = mozilla::DefaultXDisplay();
   Screen* screen = DefaultScreenOfDisplay(dpy);
   Visual* visual = DefaultVisualOfScreen(screen);
-
+#endif
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
                 rendererFlags, screen, visual, nsnull);
 }

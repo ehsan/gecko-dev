@@ -90,27 +90,36 @@ class Bindings
 
     inline Shape *initialShape(JSContext *cx) const;
   public:
-    inline Bindings();
+    inline Bindings(JSContext *cx);
 
     /*
      * Transfers ownership of bindings data from bindings into this fresh
      * Bindings instance. Once such a transfer occurs, the old bindings must
      * not be used again.
      */
-    inline void transfer(Bindings *bindings);
+    inline void transfer(JSContext *cx, Bindings *bindings);
+
+    /*
+     * Clones bindings data from bindings, which must be immutable, into this
+     * fresh Bindings instance. A Bindings instance may be cloned multiple
+     * times.
+     */
+    inline void clone(JSContext *cx, Bindings *bindings);
 
     uint16_t numArgs() const { return nargs; }
     uint16_t numVars() const { return nvars; }
     unsigned count() const { return nargs + nvars; }
 
     /*
-     * The VM's StackFrame allocates a Value for each formal and variable.
-     * A (formal|var)Index is the index passed to fp->unaliasedFormal/Var to
-     * access this variable. These two functions convert between formal/var
-     * indices and the corresponding slot in the CallObject.
+     * These functions map between argument/var indices [0, nargs/nvars) and
+     * and Bindings indices [0, nargs + nvars).
      */
-    inline uint16_t formalIndexToSlot(uint16_t i);
-    inline uint16_t varIndexToSlot(uint16_t i);
+    bool slotIsArg(uint16_t i) const { return i < nargs; }
+    bool slotIsLocal(uint16_t i) const { return i >= nargs; }
+    uint16_t argToSlot(uint16_t i) { JS_ASSERT(i < nargs); return i; }
+    uint16_t localToSlot(uint16_t i) { return i + nargs; }
+    uint16_t slotToArg(uint16_t i) { JS_ASSERT(slotIsArg(i)); return i; }
+    uint16_t slotToLocal(uint16_t i) { JS_ASSERT(slotIsLocal(i)); return i - nargs; }
 
     /* Ensure these bindings have a shape lineage. */
     inline bool ensureShape(JSContext *cx);
@@ -166,8 +175,7 @@ class Bindings
     }
     bool addDestructuring(JSContext *cx, uint16_t *slotp) {
         *slotp = nargs;
-        Rooted<JSAtom*> atom(cx, NULL);
-        return add(cx, atom, ARGUMENT);
+        return add(cx, RootedAtom(cx), ARGUMENT);
     }
 
     void noteDup() { hasDup_ = true; }
@@ -186,9 +194,6 @@ class Bindings
         return lookup(cx, name, NULL) != NONE;
     }
 
-    /* Convenience method to get the var index of 'arguments'. */
-    inline unsigned argumentsVarIndex(JSContext *cx) const;
-
     /*
      * This method returns the local variable, argument, etc. names used by a
      * script.  This function must be called only when count() > 0.
@@ -201,15 +206,23 @@ class Bindings
     bool getLocalNameArray(JSContext *cx, BindingNames *namesp);
 
     /*
-     * This method provides direct access to the shape path normally
-     * encapsulated by js::Bindings. This method may be used to make a
+     * Protect stored bindings from mutation.  Subsequent attempts to add
+     * bindings will copy the existing bindings before adding to them, allowing
+     * the original bindings to be safely shared.
+     */
+    void makeImmutable();
+
+    /*
+     * These methods provide direct access to the shape path normally
+     * encapsulated by js::Bindings. These methods may be used to make a
      * Shape::Range for iterating over the relevant shapes from youngest to
      * oldest (i.e., last or right-most to first or left-most in source order).
      *
      * Sometimes iteration order must be from oldest to youngest, however. For
      * such cases, use js::Bindings::getLocalNameArray.
      */
-    js::Shape *lastVariable() const;
+    const js::Shape *lastArgument() const;
+    const js::Shape *lastVariable() const;
 
     void trace(JSTracer *trc);
 
@@ -234,6 +247,9 @@ class Bindings
 };
 
 } /* namespace js */
+
+#define JS_OBJECT_ARRAY_SIZE(length)                                          \
+    (offsetof(ObjectArray, vector) + sizeof(JSObject *) * (length))
 
 #ifdef JS_METHODJIT
 namespace JSC {
@@ -449,6 +465,10 @@ struct JSScript : public js::gc::Cell
                                  * or has had backedges taken. Reset if the
                                  * script's JIT code is forcibly discarded. */
 
+#if JS_BITS_PER_WORD == 32
+    uint32_t        pad32;
+#endif
+
 #ifdef DEBUG
     // Unique identifier within the compartment for this script, used for
     // printing analysis information.
@@ -471,6 +491,9 @@ struct JSScript : public js::gc::Cell
 
     uint16_t        nslots;     /* vars plus maximum stack depth */
     uint16_t        staticLevel;/* static level for display maintenance */
+
+  private:
+    uint16_t        argsLocal_; /* local holding 'arguments' (if argumentsHasLocalBindings) */
 
     // 8-bit fields.
 
@@ -533,7 +556,7 @@ struct JSScript : public js::gc::Cell
 
   private:
     /* See comments below. */
-    bool            argsHasVarBinding_:1;
+    bool            argsHasLocalBinding_:1;
     bool            needsArgsAnalysis_:1;
     bool            needsArgsObj_:1;
 
@@ -561,9 +584,10 @@ struct JSScript : public js::gc::Cell
     void setVersion(JSVersion v) { version = v; }
 
     /* See ContextFlags::funArgumentsHasLocalBinding comment. */
-    bool argumentsHasVarBinding() const { return argsHasVarBinding_; }
+    bool argumentsHasLocalBinding() const { return argsHasLocalBinding_; }
     jsbytecode *argumentsBytecode() const { JS_ASSERT(code[0] == JSOP_ARGUMENTS); return code; }
-    void setArgumentsHasVarBinding();
+    unsigned argumentsLocal() const { JS_ASSERT(argsHasLocalBinding_); return argsLocal_; }
+    void setArgumentsHasLocalBinding(uint16_t local);
 
     /*
      * As an optimization, even when argsHasLocalBinding, the function prologue
@@ -578,7 +602,7 @@ struct JSScript : public js::gc::Cell
     bool analyzedArgsUsage() const { return !needsArgsAnalysis_; }
     bool needsArgsObj() const { JS_ASSERT(analyzedArgsUsage()); return needsArgsObj_; }
     void setNeedsArgsObj(bool needsArgsObj);
-    static bool argumentsOptimizationFailed(JSContext *cx, JSScript *script);
+    static bool applySpeculationFailed(JSContext *cx, JSScript *script);
 
     /*
      * Arguments access (via JSOP_*ARG* opcodes) must access the canonical
@@ -627,10 +651,16 @@ struct JSScript : public js::gc::Cell
     inline void clearAnalysis();
     inline js::analyze::ScriptAnalysis *analysis();
 
+    /*
+     * Associates this script with a specific function, constructing a new type
+     * object for the function if necessary.
+     */
+    bool typeSetFunction(JSContext *cx, JSFunction *fun, bool singleton = false);
+
     inline bool hasGlobal() const;
     inline bool hasClearedGlobal() const;
 
-    inline js::GlobalObject * global() const;
+    inline js::GlobalObject *global() const;
     inline js::types::TypeScriptNesting *nesting() const;
 
     inline void clearNesting();

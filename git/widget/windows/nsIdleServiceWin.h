@@ -22,25 +22,11 @@
 class nsIdleServiceWin : public nsIdleService
 {
 public:
-    NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_ISUPPORTS
 
     bool PollIdleTime(PRUint32* aIdleTime);
 
-    static already_AddRefed<nsIdleServiceWin> GetInstance()
-    {
-        nsIdleServiceWin* idleService =
-            static_cast<nsIdleServiceWin*>(nsIdleService::GetInstance().get());
-        if (!idleService) {
-            idleService = new nsIdleServiceWin();
-            NS_ADDREF(idleService);
-        }
-        
-        return idleService;
-    }
-
 protected:
-    nsIdleServiceWin() { }
-    virtual ~nsIdleServiceWin() { }
     bool UsePollMode();
 };
 

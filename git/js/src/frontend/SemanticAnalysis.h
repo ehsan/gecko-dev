@@ -11,7 +11,6 @@
 namespace js {
 
 struct Parser;
-class StackFrame;
 
 namespace frontend {
 
@@ -21,7 +20,7 @@ namespace frontend {
  * accordingly.
  */
 bool
-AnalyzeFunctions(Parser *parser, StackFrame *callerFrame);
+AnalyzeFunctions(Parser *parser);
 
 } /* namespace frontend */
 } /* namespace js */

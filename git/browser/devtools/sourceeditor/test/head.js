@@ -4,12 +4,6 @@
 
 "use strict";
 
-function getLoadContext() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 /*
  * Polls the X11 primary selection buffer waiting for the expected value. A known
  * value different than the expected value is put on the clipboard first (and
@@ -59,7 +53,6 @@ function waitForSelection(aExpectedStringOrValidatorFn, aSetupFn,
 
       let transferable = Cc["@mozilla.org/widget/transferable;1"].
                          createInstance(Ci.nsITransferable);
-      transferable.init(getLoadContext());
       transferable.addDataFlavor(requestedFlavor);
 
       clipboard.getData(transferable, clipboard.kSelectionClipboard);
@@ -96,8 +89,7 @@ function waitForSelection(aExpectedStringOrValidatorFn, aSetupFn,
     let clipboardHelper = Cc["@mozilla.org/widget/clipboardhelper;1"].
                           getService(Ci.nsIClipboardHelper);
     clipboardHelper.copyStringToClipboard(preExpectedVal,
-                                          Ci.nsIClipboard.kSelectionClipboard,
-                                          document);
+                                          Ci.nsIClipboard.kSelectionClipboard);
 
     wait(function(aData) aData == preExpectedVal,
          function() {

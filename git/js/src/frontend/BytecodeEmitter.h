@@ -26,6 +26,18 @@
 
 namespace js {
 
+/*
+ * To reuse space in StmtInfo, rename breaks and continues for use during
+ * try/catch/finally code generation and backpatching. To match most common
+ * use cases, the macro argument is a struct, not a struct pointer. Only a
+ * loop, switch, or label statement info record can have breaks and continues,
+ * and only a for loop has an update backpatch chain, so it's safe to overlay
+ * these for the "trying" StmtTypes.
+ */
+#define CATCHNOTE(stmt)  ((stmt).update)
+#define GOSUBS(stmt)     ((stmt).breaks)
+#define GUARDJUMP(stmt)  ((stmt).continues)
+
 struct TryNode {
     JSTryNote       note;
     TryNode       *prev;
@@ -51,17 +63,21 @@ class GCConstList {
     void finish(ConstArray *array);
 };
 
-class StmtInfoBCE;
+struct GlobalScope {
+    GlobalScope(JSContext *cx, JSObject *globalObj)
+      : globalObj(cx, globalObj)
+    { }
+
+    RootedObject globalObj;
+};
 
 struct BytecodeEmitter
 {
-    typedef StmtInfoBCE StmtInfo;
+    SharedContext   *sc;            /* context shared between parsing and bytecode generation */
 
-    SharedContext   *const sc;      /* context shared between parsing and bytecode generation */
+    BytecodeEmitter *parent;        /* enclosing function or global context */
 
-    BytecodeEmitter *const parent;  /* enclosing function or global context */
-
-    const Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
+    Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
 
     struct {
         jsbytecode  *base;          /* base of JS bytecode vector */
@@ -74,14 +90,7 @@ struct BytecodeEmitter
         unsigned    currentLine;    /* line number for tree-based srcnote gen */
     } prolog, main, *current;
 
-    Parser          *const parser;  /* the parser */
-
-    StackFrame      *const callerFrame; /* scripted caller frame for eval and dbgapi */
-
-    StmtInfoBCE     *topStmt;       /* top of statement info stack */
-    StmtInfoBCE     *topScopeStmt;  /* top lexical scope statement */
-    Rooted<StaticBlockObject *> blockChain;
-                                    /* compile time block scope chain */
+    Parser          *parser;        /* the parser */
 
     OwnedAtomIndexMapPtr atomIndices; /* literals indexed for mapping */
     unsigned        firstLine;      /* first line, for JSScript::initFromEmitter */
@@ -105,6 +114,8 @@ struct BytecodeEmitter
     CGObjectList    regexpList;     /* list of emitted regexp that will be
                                        cloned during execution */
 
+    GlobalScope     *globalScope;   /* frontend::CompileScript global scope, or null */
+
     /* Vectors of pn_cookie slot values. */
     typedef Vector<uint32_t, 8> SlotVector;
     SlotVector      closedArgs;
@@ -116,12 +127,7 @@ struct BytecodeEmitter
 
     bool            inForInit:1;        /* emitting init expr of for; exclude 'in' */
 
-    const bool      hasGlobalScope:1;   /* frontend::CompileScript's scope chain is the
-                                           global object */
-
-    BytecodeEmitter(BytecodeEmitter *parent, Parser *parser, SharedContext *sc,
-                    HandleScript script, StackFrame *callerFrame, bool hasGlobalScope,
-                    unsigned lineno);
+    BytecodeEmitter(Parser *parser, SharedContext *sc, Handle<JSScript*> script, unsigned lineno);
     bool init();
 
     /*
@@ -153,11 +159,18 @@ struct BytecodeEmitter
         return true;
     }
 
-    bool checkSingletonContext();
+    bool checkSingletonContext() {
+        if (!script->compileAndGo || sc->inFunction())
+            return false;
+        for (StmtInfo *stmt = sc->topStmt; stmt; stmt = stmt->down) {
+            if (STMT_IS_LOOP(stmt))
+                return false;
+        }
+        hasSingletons = true;
+        return true;
+    }
 
     bool needsImplicitThis();
-
-    void tellDebuggerAboutCompiledScript(JSContext *cx);
 
     TokenStream *tokenStream() { return &parser->tokenStream; }
 
@@ -178,10 +191,6 @@ struct BytecodeEmitter
     unsigned currentLine() const { return current->currentLine; }
 
     inline ptrdiff_t countFinalSourceNotes();
-
-    bool reportError(ParseNode *pn, unsigned errorNumber, ...);
-    bool reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...);
-    bool reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...);
 };
 
 namespace frontend {
@@ -211,6 +220,14 @@ ptrdiff_t
 EmitN(JSContext *cx, BytecodeEmitter *bce, JSOp op, size_t extra);
 
 /*
+ * Like PopStatementTC(bce), also patch breaks and continues unless the top
+ * statement info record represents a try-catch-finally suite. May fail if a
+ * jump offset overflows.
+ */
+JSBool
+PopStatementBCE(JSContext *cx, BytecodeEmitter *bce);
+
+/*
  * Define and lookup a primitive jsval associated with the const named by atom.
  * DefineCompileTimeConstant analyzes the constant-folded initializer at pn
  * and saves the const's value in bce->constList, if it can be used at compile
@@ -222,19 +239,19 @@ EmitN(JSContext *cx, BytecodeEmitter *bce, JSOp op, size_t extra);
  * value other than undefined if the constant was found, true with *vp set to
  * JSVAL_VOID if not found, and false on error.
  */
-bool
+JSBool
 DefineCompileTimeConstant(JSContext *cx, BytecodeEmitter *bce, JSAtom *atom, ParseNode *pn);
 
 /*
  * Emit code into bce for the tree rooted at pn.
  */
-bool
+JSBool
 EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn);
 
 /*
  * Emit function code using bce for the tree rooted at body.
  */
-bool
+JSBool
 EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *body);
 
 } /* namespace frontend */
@@ -404,7 +421,7 @@ NewSrcNote3(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type, ptrdiff_t off
 jssrcnote *
 AddToSrcNoteDelta(JSContext *cx, BytecodeEmitter *bce, jssrcnote *sn, ptrdiff_t delta);
 
-bool
+JSBool
 FinishTakingSrcNotes(JSContext *cx, BytecodeEmitter *bce, jssrcnote *notes);
 
 void

@@ -123,8 +123,6 @@ public class GeckoAppShell
 
     private static Handler sGeckoHandler;
 
-    public static GfxInfoThread sGfxInfoThread = null;
-
     /* The Android-side API: API methods that Android calls */
 
     // Initialization methods
@@ -845,35 +843,6 @@ public class GeckoAppShell
                 GeckoApp.mAppContext.sendBroadcast(intent);
             }
         });
-    }
-
-    public static void installWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
-        int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI);
-        GeckoProfile profile = GeckoProfile.get(GeckoApp.mAppContext, "webapp" + index);
-        File prefs = profile.getFile("prefs.js");
-
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            in = GeckoApp.mAppContext.getResources().openRawResource(R.raw.webapp_prefs_js);
-            out = new FileOutputStream(prefs);
-            byte buf[]=new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
-            }
-        } catch(FileNotFoundException ex) {
-        } catch(IOException ex) {
-        } finally {
-            try {
-                if (out != null)
-                    out.close();
-                if (in != null)
-                    in.close();
-            } catch(IOException ex) {
-            }
-        }
-        createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
     }
 
     public static void uninstallWebApp(final String uniqueURI) {
@@ -2226,13 +2195,6 @@ public class GeckoAppShell
     public static void notifyWakeLockChanged(String topic, String state) {
         GeckoApp.mAppContext.notifyWakeLockChanged(topic, state);
     }
-
-    public static String getGfxInfoData() {
-        String data = sGfxInfoThread.getData();
-        sGfxInfoThread = null;
-        return data;
-    }
-
 }
 
 class ScreenshotHandler {
@@ -2277,8 +2239,8 @@ class ScreenshotHandler {
                 float height = bottom - top;
                 scheduleCheckerboardScreenshotEvent(tab.getId(), 
                                                     (int)left, (int)top, (int)width, (int)height, 
-                                                    (int)(sLastCheckerboardWidthRatio * (left - viewport.cssPageRectLeft)),
-                                                    (int)(sLastCheckerboardHeightRatio * (top - viewport.cssPageRectTop)),
+                                                    (int)(sLastCheckerboardWidthRatio * left), 
+                                                    (int)(sLastCheckerboardHeightRatio * top),
                                                     (int)(sLastCheckerboardWidthRatio * width),
                                                     (int)(sLastCheckerboardHeightRatio * height),
                                                     sCheckerboardBufferWidth, sCheckerboardBufferHeight);
@@ -2288,13 +2250,6 @@ class ScreenshotHandler {
         }
 
         void addRectToRepaint(float top, float left, float bottom, float right) {
-            if (sDisableScreenshot || sCheckerboardPageRect == null) {
-                // if screenshotting is disabled just ignore the rect to repaint.
-                // if sCheckerboardPageRect is null, we haven't done a full-page
-                // screenshot yet (or screenshotWholePage failed for some reason),
-                // so ignore partial updates.
-                return;
-            }
             synchronized(this) {
                 ImmutableViewportMetrics viewport = GeckoApp.mAppContext.getLayerController().getViewportMetrics();
                 mDirtyTop = Math.max(sCheckerboardPageRect.top, Math.min(top, mDirtyTop));
@@ -2372,7 +2327,7 @@ class ScreenshotHandler {
     static void scheduleCheckerboardScreenshotEvent(int tabId, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, int bw, int bh) {
         float totalSize = sw * sh;
         int numSlices = (int) Math.ceil(totalSize / 100000);
-        if (numSlices == 0 || dw == 0 || dh == 0)
+        if (numSlices == 0)
             return;
         int srcSliceSize = (int) Math.ceil(sh / numSlices);
         int dstSliceSize = (int) Math.ceil(dh / numSlices);

@@ -56,7 +56,7 @@ public:
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
+  virtual gfxMatrix GetCanvasTM();
 
   virtual bool HasChildrenOnlyTransform(gfxMatrix *aTransform) const;
 

@@ -31,7 +31,6 @@
 #include "mozilla/Preferences.h"
 #include "nsPrincipal.h"
 #include "mozilla/Attributes.h"
-#include "nsIScriptContext.h"
 
 using namespace mozilla;
 using namespace js;
@@ -3631,20 +3630,16 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
     return rv;
 }
 
-class ContextHolder : public nsIScriptObjectPrincipal
-                    , public nsIScriptContextPrincipal
+class ContextHolder : public nsISupports
 {
 public:
-    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox, nsIPrincipal *aPrincipal);
+    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox, bool isChrome);
     virtual ~ContextHolder();
 
     JSContext * GetJSContext()
     {
         return mJSContext;
     }
-
-    nsIScriptObjectPrincipal * GetObjectPrincipal() { return this; }
-    nsIPrincipal * GetPrincipal() { return mPrincipal; }
 
     NS_DECL_ISUPPORTS
 
@@ -3653,23 +3648,17 @@ private:
 
     JSContext* mJSContext;
     JSContext* mOrigCx;
-    nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-NS_IMPL_ISUPPORTS2(ContextHolder, nsIScriptObjectPrincipal, nsIScriptContextPrincipal)
+NS_IMPL_ISUPPORTS0(ContextHolder)
 
 ContextHolder::ContextHolder(JSContext *aOuterCx,
                              JSObject *aSandbox,
-                             nsIPrincipal *aPrincipal)
+                             bool isChrome)
     : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
-      mOrigCx(aOuterCx),
-      mPrincipal(aPrincipal)
+      mOrigCx(aOuterCx)
 {
     if (mJSContext) {
-        bool isChrome;
-        DebugOnly<nsresult> rv = XPCWrapper::GetSecurityManager()->
-                                   IsSystemPrincipal(mPrincipal, &isChrome);
-        MOZ_ASSERT(NS_SUCCEEDED(rv));
         bool allowXML = Preferences::GetBool(isChrome ?
                                              "javascript.options.xml.chrome" :
                                              "javascript.options.xml.content");
@@ -3827,7 +3816,10 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         }
     }
 
-    nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox, prin);
+    bool isChrome;
+    nsresult rv = XPCWrapper::GetSecurityManager()->IsSystemPrincipal(prin, &isChrome);
+    NS_ENSURE_SUCCESS(rv, rv);
+    nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox, isChrome);
     if (!sandcx || !sandcx->GetJSContext()) {
         JS_ReportError(cx, "Can't prepare context for evalInSandbox");
         return NS_ERROR_OUT_OF_MEMORY;
@@ -3836,14 +3828,17 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     if (jsVersion != JSVERSION_DEFAULT)
         JS_SetVersion(sandcx->GetJSContext(), jsVersion);
 
-    XPCJSContextStack *stack = XPCJSRuntime::Get()->GetJSContextStack();
-    MOZ_ASSERT(stack);
-    if (!stack->Push(sandcx->GetJSContext())) {
-        JS_ReportError(cx, "Unable to initialize XPConnect with the sandbox context");
-        return NS_ERROR_FAILURE;
+    XPCPerThreadData *data = XPCPerThreadData::GetData(cx);
+    XPCJSContextStack *stack = nsnull;
+    if (data && (stack = data->GetJSContextStack())) {
+        if (!stack->Push(sandcx->GetJSContext())) {
+            JS_ReportError(cx,
+                           "Unable to initialize XPConnect with the sandbox context");
+            return NS_ERROR_FAILURE;
+        }
     }
 
-    nsresult rv = NS_OK;
+    rv = NS_OK;
 
     {
         JSAutoRequest req(sandcx->GetJSContext());
@@ -4087,7 +4082,7 @@ nsXPCComponents_Utils::GetGlobalForObject(const JS::Value& object,
   // a wrapper for the foreign global. So we need to unwrap before getting the
   // parent, enter the compartment for the duration of the call, and wrap the
   // result.
-  JS::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(object));
+  JSObject *obj = JSVAL_TO_OBJECT(object);
   obj = js::UnwrapObject(obj);
   {
     JSAutoEnterCompartment ac;
@@ -4095,12 +4090,12 @@ nsXPCComponents_Utils::GetGlobalForObject(const JS::Value& object,
       return NS_ERROR_FAILURE;
     obj = JS_GetGlobalForObject(cx, obj);
   }
-  JS_WrapObject(cx, obj.address());
+  JS_WrapObject(cx, &obj);
   *retval = OBJECT_TO_JSVAL(obj);
 
   // Outerize if necessary.
   if (JSObjectOp outerize = js::GetObjectClass(obj)->ext.outerObject)
-      *retval = OBJECT_TO_JSVAL(outerize(cx, obj));
+      *retval = OBJECT_TO_JSVAL(outerize(cx, JS::RootedObject(cx, obj)));
 
   return NS_OK;
 }

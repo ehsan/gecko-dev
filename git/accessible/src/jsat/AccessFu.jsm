@@ -232,9 +232,8 @@ var AccessFu = {
 
           let presenterContext =
             new PresenterContext(position, event.oldAccessible);
-          let reason = event.reason;
           this.presenters.forEach(
-            function(p) { p.pivotChanged(presenterContext, reason); });
+            function(p) { p.pivotChanged(presenterContext); });
 
           break;
         }

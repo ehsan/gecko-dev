@@ -20,7 +20,6 @@
 #include "xpcpublic.h"
 #include "nsTraceRefcnt.h"
 #include "nsWrapperCacheInlines.h"
-#include "mozilla/Likely.h"
 
 // nsGlobalWindow implements nsWrapperCache, but doesn't always use it. Don't
 // try to use it without fixing that first.
@@ -188,7 +187,7 @@ inline nsresult
 UnwrapObject(JSContext* cx, JSObject* obj, U& value)
 {
   return UnwrapObject<static_cast<prototypes::ID>(
-           PrototypeIDMap<T>::PrototypeID), T>(cx, obj, value);
+           PrototypeIDMap<T>::PrototypeID)>(cx, obj, value);
 }
 
 const size_t kProtoOrIfaceCacheCount =
@@ -862,25 +861,6 @@ class Sequence : public AutoFallibleTArray<T, 16>
 {
 public:
   Sequence() : AutoFallibleTArray<T, 16>() {}
-};
-
-// Class for holding the type of members of a union. The union type has an enum
-// to keep track of which of its UnionMembers has been constructed.
-template<class T>
-class UnionMember {
-    AlignedStorage2<T> storage;
-
-public:
-    T& SetValue() {
-      new (storage.addr()) T();
-      return *storage.addr();
-    }
-    const T& Value() const {
-      return *storage.addr();
-    }
-    void Destroy() {
-      storage.addr()->~T();
-    }
 };
 
 } // namespace dom

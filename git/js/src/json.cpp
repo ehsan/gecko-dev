@@ -280,8 +280,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
     if (vp->isObject()) {
         Value toJSON;
         RootedId id(cx, NameToId(cx->runtime->atomState.toJSONAtom));
-        Rooted<JSObject*> obj(cx, &vp->toObject());
-        if (!GetMethod(cx, obj, id, 0, &toJSON))
+        if (!GetMethod(cx, RootedObject(cx, &vp->toObject()), id, 0, &toJSON))
             return false;
 
         if (js_IsCallable(toJSON)) {
@@ -415,7 +414,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
         Value outputValue;
         if (!obj->getGeneric(cx, id, &outputValue))
             return false;
-        if (!PreprocessValue(cx, obj, id.get(), &outputValue, scx))
+        if (!PreprocessValue(cx, obj, id.reference(), &outputValue, scx))
             return false;
         if (IsFilteredValue(outputValue))
             continue;
@@ -586,7 +585,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space_, String
 {
     RootedObject replacer(cx, replacer_);
     RootedValue spaceRoot(cx, space_);
-    Value &space = spaceRoot.get();
+    Value &space = spaceRoot.reference();
 
     /* Step 4. */
     AutoIdVector propertyList(cx);
@@ -734,7 +733,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space_, String
     if (!scx.init())
         return false;
 
-    if (!PreprocessValue(cx, wrapper, emptyId.get(), vp, &scx))
+    if (!PreprocessValue(cx, wrapper, emptyId.reference(), vp, &scx))
         return false;
     if (IsFilteredValue(*vp))
         return true;
@@ -856,8 +855,7 @@ Revive(JSContext *cx, const Value &reviver, Value *vp)
     if (!obj->defineProperty(cx, cx->runtime->atomState.emptyAtom, *vp))
         return false;
 
-    Rooted<jsid> id(cx, NameToId(cx->runtime->atomState.emptyAtom));
-    return Walk(cx, obj, id, reviver, vp);
+    return Walk(cx, obj, RootedId(cx, NameToId(cx->runtime->atomState.emptyAtom)), reviver, vp);
 }
 
 namespace js {

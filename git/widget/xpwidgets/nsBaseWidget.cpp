@@ -98,7 +98,6 @@ nsBaseWidget::nsBaseWidget()
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
 , mPopupLevel(ePopupLevelTop)
-, mPopupType(ePopupTypeAny)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -210,7 +209,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
     mPopupLevel = aInitData->mPopupLevel;
-    mPopupType = aInitData->mPopupHint;
   }
 
   if (aParent) {
@@ -808,12 +806,8 @@ nsBaseWidget::GetShouldAccelerate()
   bool accelerateByDefault = false;
 #endif
 
-  // We don't want to accelerate small popup windows like menu, but we still 
-  // want to accelerate xul panels that may contain arbitrarily complex content.
-  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
-                      (mPopupType != ePopupTypePanel));
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = isSmallPopup || 
+  bool disableAcceleration = (mWindowType == eWindowType_popup) || 
     Preferences::GetBool("layers.acceleration.disabled", false);
   mForceLayersAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", false);
@@ -853,10 +847,6 @@ nsBaseWidget::GetShouldAccelerate()
   
   if (!whitelisted) {
     NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
-#ifdef MOZ_JAVA_COMPOSITOR
-    NS_RUNTIMEABORT("OpenGL-accelerated layers are a hard requirement on this platform. "
-                    "Cannot continue without support for them.");
-#endif
     return false;
   }
 
@@ -920,9 +910,7 @@ void nsBaseWidget::CreateCompositor()
 
 bool nsBaseWidget::UseOffMainThreadCompositing()
 {
-  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
-                      (mPopupType != ePopupTypePanel));
-  return sUseOffMainThreadCompositing && !isSmallPopup;
+  return sUseOffMainThreadCompositing;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,

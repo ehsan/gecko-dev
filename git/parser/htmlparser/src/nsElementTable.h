@@ -60,7 +60,7 @@ static const int kAllTags       = 0xffffff;
 //*********************************************************************************************
 
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 extern void CheckElementTable();
 #endif
 

@@ -43,9 +43,9 @@
   let heapAllocatedAmounts = [];
   let storageSqliteAmounts = [];
 
-  let areJsNonWindowCompartmentsPresent = false;
-  let areWindowObjectsJsCompartmentsPresent = false;
+  let areJsCompartmentsPresent = false;
   let isSandboxLocationShown = false;
+  let areWindowObjectsPresent = false;
   let isPlacesPresent = false;
   let isImagesPresent = false;
   let isXptiWorkingSetPresent = false;
@@ -63,7 +63,7 @@
       vsizeAmounts.push(aAmount);
     } else if (aPath === "resident") {
       residentAmounts.push(aAmount);
-    } else if (aPath === "js-main-runtime-gc-heap-committed/used/gc-things") {
+    } else if (aPath === "js-main-runtime-gc-heap-committed") {
       jsGcHeapAmounts.push(aAmount); 
     } else if (aPath === "heap-allocated") {
       heapAllocatedAmounts.push(aAmount);
@@ -71,17 +71,17 @@
       storageSqliteAmounts.push(aAmount);
 
     // Check the presence of some other notable reporters.
-    } else if (aPath.search(/^explicit\/js-non-window\/.*compartment\(/) >= 0) {
-      areJsNonWindowCompartmentsPresent = true;
-    } else if (aPath.search(/^explicit\/window-objects\/top\(.*\/js\/compartment\(/) >= 0) {
-      areWindowObjectsJsCompartmentsPresent = true;
+    } else if (aPath.search(/^explicit\/js\/compartment\(/) >= 0) {
+      areJsCompartmentsPresent = true;
+    } else if (aPath.search(/^explicit\/window-objects\/top\(/) >= 0) {
+      areWindowObjectsPresent = true;
     } else if (aPath.search(/^explicit\/storage\/sqlite\/places.sqlite/) >= 0) {
       isPlacesPresent = true;
     } else if (aPath.search(/^explicit\/images/) >= 0) {
       isImagesPresent = true;
     } else if (aPath.search(/^explicit\/xpti-working-set$/) >= 0) {
       isXptiWorkingSetPresent = true;
-    } else if (aPath.search(/^explicit\/atom-tables$/) >= 0) {
+    } else if (aPath.search(/^explicit\/atom-table$/) >= 0) {
       isAtomTablePresent = true;
     } else if (/\[System Principal\].*this-is-a-sandbox-name/.test(aPath)) {
       // A system compartment with a location (such as a sandbox) should
@@ -141,16 +141,16 @@
   }
   checkSpecialReport("vsize",          vsizeAmounts);
   checkSpecialReport("resident",       residentAmounts);
-  checkSpecialReport("js-main-runtime-gc-heap-committed/used/gc-things", jsGcHeapAmounts);
+  checkSpecialReport("js-main-runtime-gc-heap-committed", jsGcHeapAmounts);
   checkSpecialReport("storage-sqlite", storageSqliteAmounts);
 
-  ok(areJsNonWindowCompartmentsPresent,     "js-non-window compartments are present");
-  ok(areWindowObjectsJsCompartmentsPresent, "window-objects/.../js compartments are present");
-  ok(isSandboxLocationShown,                "sandbox locations are present");
-  ok(isPlacesPresent,                       "places is present");
-  ok(isImagesPresent,                       "images is present");
-  ok(isXptiWorkingSetPresent,               "xpti-working-set is present");
-  ok(isAtomTablePresent,                    "atom-table is present");
+  ok(areJsCompartmentsPresent,  "js compartments are present");
+  ok(isSandboxLocationShown,    "sandbox locations are present");
+  ok(areWindowObjectsPresent,   "window objects are present");
+  ok(isPlacesPresent,           "places is present");
+  ok(isImagesPresent,           "images is present");
+  ok(isXptiWorkingSetPresent,   "xpti-working-set is present");
+  ok(isAtomTablePresent,        "atom-table is present");
 
   ]]>
   </script>

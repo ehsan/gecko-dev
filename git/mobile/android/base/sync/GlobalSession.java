@@ -135,7 +135,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       throw new SyncConfigurationException();
     }
 
-    Logger.debug(LOG_TAG, "GlobalSession initialized with bundle " + extras);
+    Logger.info(LOG_TAG, "GlobalSession initialized with bundle " + extras);
     URI serverURI;
     try {
       serverURI = (serverURL == null) ? null : new URI(serverURL);
@@ -162,11 +162,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
 
     registerCommands();
     prepareStages();
-    Collection<String> knownStageNames = new HashSet<String>();
-    for (Stage stage : Stage.getNamedStages()) {
-      knownStageNames.add(stage.getRepositoryName());
-    }
-    config.stagesToSync = Utils.getStagesToSyncFromBundle(knownStageNames, extras);
 
     // TODO: data-driven plan for the sync, referring to prepareStages.
   }

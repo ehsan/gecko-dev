@@ -19,6 +19,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIXPConnect.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIDOMDocument.h"
 #include "nsContentErrors.h"
 #include "nsIArray.h"
 #include "nsTArray.h"

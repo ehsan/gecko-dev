@@ -93,7 +93,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "nsIParserUtils.h"
-#include "nsILoadContext.h"
 
 using namespace mozilla;
 
@@ -362,7 +361,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
 
   if (!cellSelectionMode)
   {
-    rv = DeleteSelectionAndPrepareToCreateNode();
+    rv = DeleteSelectionAndPrepareToCreateNode(parentNode, offsetOfNewNode);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // pasting does not inherit local inline styles
@@ -541,8 +540,9 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
               rv = IsEmptyNode(parentNode, &isEmpty, true);
               if (NS_SUCCEEDED(rv) && isEmpty)
               {
+                nsCOMPtr<nsIDOMNode> listNode;
                 PRInt32 newOffset;
-                nsCOMPtr<nsIDOMNode> listNode = GetNodeLocation(parentNode, &newOffset);
+                GetNodeLocation(parentNode, address_of(listNode), &newOffset);
                 if (listNode)
                 {
                   DeleteNode(parentNode);
@@ -617,7 +617,8 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       }
       if (lastInsertNode)
       {
-        parentNode = GetNodeLocation(lastInsertNode, &offsetOfNewNode);
+        rv = GetNodeLocation(lastInsertNode, address_of(parentNode), &offsetOfNewNode);
+        NS_ENSURE_SUCCESS(rv, rv);
         offsetOfNewNode++;
       }
     }
@@ -656,8 +657,9 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       else // we need to find a container for selection.  Look up.
       {
         tmp = selNode;
-        selNode = GetNodeLocation(tmp, &selOffset);
+        rv = GetNodeLocation(tmp, address_of(selNode), &selOffset);
         ++selOffset;  // want to be *after* last leaf node in paste
+        NS_ENSURE_SUCCESS(rv, rv);
       }
 
       // make sure we don't end up with selection collapsed after an invisible break node
@@ -676,7 +678,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
         {
           // don't leave selection past an invisible break;
           // reset {selNode,selOffset} to point before break
-          selNode = GetNodeLocation(wsRunObj.mStartReasonNode, &selOffset);
+          rv = GetNodeLocation(wsRunObj.mStartReasonNode, address_of(selNode), &selOffset);
           // we want to be inside any inline style prior to break
           nsWSRunObject wsRunObj(this, selNode, selOffset);
           wsRunObj.PriorVisibleNode(selNode, selOffset, address_of(visNode),
@@ -691,7 +693,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
           {
             // prior visible thing is an image or some other non-text thingy.  
             // We want to be right after it.
-            selNode = GetNodeLocation(wsRunObj.mStartReasonNode, &selOffset);
+            rv = GetNodeLocation(wsRunObj.mStartReasonNode, address_of(selNode), &selOffset);
             ++selOffset;
           }
         }
@@ -710,7 +712,8 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
         PRInt32 linkOffset;
         rv = SplitNodeDeep(link, selNode, selOffset, &linkOffset, true, address_of(leftLink));
         NS_ENSURE_SUCCESS(rv, rv);
-        selNode = GetNodeLocation(leftLink, &selOffset);
+        rv = GetNodeLocation(leftLink, address_of(selNode), &selOffset);
+        NS_ENSURE_SUCCESS(rv, rv);
         selection->Collapse(selNode, selOffset+1);
       }
     }
@@ -982,10 +985,6 @@ NS_IMETHODIMP nsHTMLEditor::PrepareHTMLTransferable(nsITransferable **aTransfera
   // Get the nsITransferable interface for getting the data from the clipboard
   if (aTransferable)
   {
-    nsCOMPtr<nsIDocument> destdoc = GetDocument();
-    nsILoadContext* loadContext = destdoc ? destdoc->GetLoadContext() : nsnull;
-    (*aTransferable)->Init(loadContext);
-
     // Create the desired DataFlavor for the type of data
     // we want to get out of the transferable
     // This should only happen in html editors, not plaintext
@@ -1335,37 +1334,20 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
                                        aDestinationNode, aDestOffset,
                                        aDoDeleteSelection,
                                        isSafe);
-        } else {
-          // In some platforms (like Linux), the clipboard might return data
-          // requested for unknown flavors (for example:
-          // application/x-moz-nativehtml).  In this case, treat the data
-          // to be pasted as mere HTML to get the best chance of pasting it
-          // correctly.
-          bestFlavor.AssignLiteral(kHTMLMime);
-          // Fall through the next case
         }
       }
     }
-    if (0 == nsCRT::strcmp(bestFlavor, kHTMLMime) ||
-        0 == nsCRT::strcmp(bestFlavor, kUnicodeMime) ||
-        0 == nsCRT::strcmp(bestFlavor, kMozTextInternal)) {
+    else if (0 == nsCRT::strcmp(bestFlavor, kHTMLMime) ||
+             0 == nsCRT::strcmp(bestFlavor, kUnicodeMime) ||
+             0 == nsCRT::strcmp(bestFlavor, kMozTextInternal)) {
       nsCOMPtr<nsISupportsString> textDataObj = do_QueryInterface(genericDataObj);
-      if (textDataObj && len > 0) {
+      if (textDataObj && len > 0)
+      {
         nsAutoString text;
         textDataObj->GetData(text);
         NS_ASSERTION(text.Length() <= (len/2), "Invalid length!");
         stuffToPaste.Assign(text.get(), len / 2);
-      } else {
-        nsCOMPtr<nsISupportsCString> textDataObj(do_QueryInterface(genericDataObj));
-        if (textDataObj && len > 0) {
-          nsCAutoString text;
-          textDataObj->GetData(text);
-          NS_ASSERTION(text.Length() <= len, "Invalid length!");
-          stuffToPaste.Assign(NS_ConvertUTF8toUTF16(Substring(text, 0, len)));
-        }
-      }
 
-      if (!stuffToPaste.IsEmpty()) {
         nsAutoEditBatch beginBatching(this);
         if (0 == nsCRT::strcmp(bestFlavor, kHTMLMime)) {
           rv = DoInsertHTMLWithContext(stuffToPaste,
@@ -1553,7 +1535,6 @@ NS_IMETHODIMP nsHTMLEditor::Paste(PRInt32 aSelectionType)
     nsCOMPtr<nsITransferable> contextTrans =
                   do_CreateInstance("@mozilla.org/widget/transferable;1");
     NS_ENSURE_TRUE(contextTrans, NS_ERROR_NULL_POINTER);
-    contextTrans->Init(nsnull);
     contextTrans->AddDataFlavor(kHTMLContext);
     clipboard->GetData(contextTrans, aSelectionType);
     contextTrans->GetTransferData(kHTMLContext, getter_AddRefs(contextDataObj), &contextLen);
@@ -1561,7 +1542,6 @@ NS_IMETHODIMP nsHTMLEditor::Paste(PRInt32 aSelectionType)
     nsCOMPtr<nsITransferable> infoTrans =
                   do_CreateInstance("@mozilla.org/widget/transferable;1");
     NS_ENSURE_TRUE(infoTrans, NS_ERROR_NULL_POINTER);
-    infoTrans->Init(nsnull);
     infoTrans->AddDataFlavor(kHTMLInfo);
     clipboard->GetData(infoTrans, aSelectionType);
     infoTrans->GetTransferData(kHTMLInfo, getter_AddRefs(infoDataObj), &infoLen);
@@ -1795,10 +1775,6 @@ NS_IMETHODIMP nsHTMLEditor::PasteAsPlaintextQuotation(PRInt32 aSelectionType)
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(trans, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDocument> destdoc = GetDocument();
-  nsILoadContext* loadContext = destdoc ? destdoc->GetLoadContext() : nsnull;
-  trans->Init(loadContext);
-
   // We only handle plaintext pastes here
   trans->AddDataFlavor(kUnicodeMime);
 
@@ -2006,11 +1982,10 @@ nsHTMLEditor::InsertAsPlaintextQuotation(const nsAString & aQuotedText,
   // Set the selection to just after the inserted node:
   if (NS_SUCCEEDED(rv) && newNode)
   {
+    nsCOMPtr<nsIDOMNode> parent;
     PRInt32 offset;
-    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(newNode, &offset);
-    if (parent) {
-      selection->Collapse(parent, offset + 1);
-    }
+    if (NS_SUCCEEDED(GetNodeLocation(newNode, address_of(parent), &offset)) && parent)
+      selection->Collapse(parent, offset+1);
   }
   return rv;
 }
@@ -2090,11 +2065,10 @@ nsHTMLEditor::InsertAsCitedQuotation(const nsAString & aQuotedText,
   // Set the selection to just after the inserted node:
   if (NS_SUCCEEDED(rv) && newNode)
   {
+    nsCOMPtr<nsIDOMNode> parent;
     PRInt32 offset;
-    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(newNode, &offset);
-    if (parent) {
-      selection->Collapse(parent, offset + 1);
-    }
+    if (NS_SUCCEEDED(GetNodeLocation(newNode, address_of(parent), &offset)) && parent)
+      selection->Collapse(parent, offset+1);
   }
   return rv;
 }

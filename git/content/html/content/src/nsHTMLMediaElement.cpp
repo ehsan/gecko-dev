@@ -2081,9 +2081,8 @@ const char nsHTMLMediaElement::gH264Types[3][17] = {
   "video/quicktime",
 };
 
-char const *const nsHTMLMediaElement::gH264Codecs[7] = {
+char const *const nsHTMLMediaElement::gH264Codecs[6] = {
   "avc1.42E01E",
-  "avc1.42001E",
   "avc1.58A01E",
   "avc1.4D401E",
   "avc1.64001E",

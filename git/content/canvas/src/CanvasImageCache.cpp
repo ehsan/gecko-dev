@@ -9,19 +9,17 @@
 #include "imgIRequest.h"
 #include "gfxASurface.h"
 #include "gfxPoint.h"
-#include "mozilla/dom/Element.h"
+#include "nsIDOMElement.h"
 #include "nsTHashtable.h"
 #include "nsHTMLCanvasElement.h"
 #include "nsContentUtils.h"
 
 namespace mozilla {
 
-using namespace dom;
-
 struct ImageCacheKey {
-  ImageCacheKey(Element* aImage, nsHTMLCanvasElement* aCanvas)
+  ImageCacheKey(nsIDOMElement* aImage, nsHTMLCanvasElement* aCanvas)
     : mImage(aImage), mCanvas(aCanvas) {}
-  Element* mImage;
+  nsIDOMElement* mImage;
   nsHTMLCanvasElement* mCanvas;
 };
 
@@ -43,7 +41,7 @@ struct ImageCacheEntryData {
   nsExpirationState* GetExpirationState() { return &mState; }
 
   // Key
-  nsRefPtr<Element> mImage;
+  nsCOMPtr<nsIDOMElement> mImage;
   nsIImageLoadingContent* mILC;
   nsRefPtr<nsHTMLCanvasElement> mCanvas;
   // Value
@@ -112,7 +110,7 @@ public:
 };
 
 void
-CanvasImageCache::NotifyDrawImage(Element* aImage,
+CanvasImageCache::NotifyDrawImage(nsIDOMElement* aImage,
                                   nsHTMLCanvasElement* aCanvas,
                                   imgIRequest* aRequest,
                                   gfxASurface* aSurface,
@@ -143,7 +141,7 @@ CanvasImageCache::NotifyDrawImage(Element* aImage,
 }
 
 gfxASurface*
-CanvasImageCache::Lookup(Element* aImage,
+CanvasImageCache::Lookup(nsIDOMElement* aImage,
                          nsHTMLCanvasElement* aCanvas,
                          gfxIntSize* aSize)
 {

@@ -57,7 +57,7 @@ exn_finalize(FreeOp *fop, JSObject *obj);
 
 static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp);
+            JSObject **objp);
 
 Class js::ErrorClass = {
     js_Error_str,
@@ -269,20 +269,17 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
             if (checkAccess && i.isNonEvalFunctionFrame()) {
                 Value v = NullValue();
                 RootedId callerid(cx, NameToId(cx->runtime->atomState.callerAtom));
-                Rooted<JSObject*> obj(cx, i.callee());
-                if (!checkAccess(cx, obj, callerid, JSACC_READ, &v))
+                if (!checkAccess(cx, RootedObject(cx, i.callee()), callerid, JSACC_READ, &v))
                     break;
             }
 
             if (!frames.growBy(1))
                 return false;
             JSStackTraceStackElem &frame = frames.back();
-            if (i.isNonEvalFunctionFrame()) {
-                JSAtom *atom = fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString;
-                frame.funName = atom;
-            } else {
+            if (i.isNonEvalFunctionFrame())
+                frame.funName = fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString;
+            else
                 frame.funName = NULL;
-            }
             const char *cfilename = i.script()->filename;
             if (!cfilename)
                 cfilename = "";
@@ -392,7 +389,7 @@ exn_finalize(FreeOp *fop, JSObject *obj)
 
 static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp)
+            JSObject **objp)
 {
     JSExnPrivate *priv;
     JSString *str;
@@ -402,7 +399,7 @@ exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     jsval v;
     unsigned attrs;
 
-    objp.set(NULL);
+    *objp = NULL;
     priv = GetExnPrivate(obj);
     if (priv && JSID_IS_ATOM(id)) {
         str = JSID_TO_STRING(id);
@@ -457,7 +454,7 @@ exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
   define:
     if (!JS_DefineProperty(cx, obj, prop, v, NULL, NULL, attrs))
         return false;
-    objp.set(obj);
+    *objp = obj;
     return true;
 }
 
@@ -918,6 +915,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
     const JSErrorFormatString *errorString;
     JSExnType exn;
     jsval tv[4];
+    JSObject *errProto;
 
     /*
      * Tell our caller to report immediately if this report is just a warning.
@@ -963,9 +961,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
      * exception constructor name in the scope chain of the current context's
      * top stack frame, or in the global object if no frame is active.
      */
-    RootedObject null(cx);
-    RootedObject errProto(cx);
-    if (!js_GetClassPrototype(cx, null, GetExceptionProtoKey(exn), &errProto))
+    if (!js_GetClassPrototype(cx, NULL, GetExceptionProtoKey(exn), &errProto))
         return false;
     tv[0] = OBJECT_TO_JSVAL(errProto);
 

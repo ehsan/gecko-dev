@@ -98,32 +98,23 @@ namespace baseops {
  * return true with both *objp and *propp null.
  */
 extern JS_FRIEND_API(JSBool)
-LookupProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp,
-               MutableHandleShape propp);
+LookupProperty(JSContext *cx, HandleObject obj, HandleId id, JSObject **objp,
+               JSProperty **propp);
 
 inline bool
 LookupProperty(JSContext *cx, HandleObject obj, PropertyName *name,
-               MutableHandleObject objp, MutableHandleShape propp)
+               JSObject **objp, JSProperty **propp)
 {
-    Rooted<jsid> id(cx, NameToId(name));
-    return LookupProperty(cx, obj, id, objp, propp);
+    return LookupProperty(cx, obj, RootedId(cx, NameToId(name)), objp, propp);
 }
 
 extern JS_FRIEND_API(JSBool)
 LookupElement(JSContext *cx, HandleObject obj, uint32_t index,
-              MutableHandleObject objp, MutableHandleShape propp);
+              JSObject **objp, JSProperty **propp);
 
 extern JSBool
-DefineGeneric(JSContext *cx, HandleObject obj, HandleId id, const js::Value *value,
+DefineProperty(JSContext *cx, HandleObject obj, HandleId id, const js::Value *value,
                JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
-
-inline JSBool
-DefineProperty(JSContext *cx, HandleObject obj, PropertyName *name, const js::Value *value,
-               JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
-{
-    Rooted<jsid> id(cx, NameToId(name));
-    return DefineGeneric(cx, obj, id, value, getter, setter, attrs);
-}
 
 extern JSBool
 DefineElement(JSContext *cx, HandleObject obj, uint32_t index, const js::Value *value,
@@ -151,20 +142,19 @@ extern JSBool
 GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, const Value &def, Value *vp);
 
 extern JSBool
-SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
-                  unsigned defineHow, Value *vp, JSBool strict);
+SetPropertyHelper(JSContext *cx, HandleObject obj, HandleId id, unsigned defineHow,
+                  Value *vp, JSBool strict);
 
 inline bool
-SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receiver, PropertyName *name,
-                  unsigned defineHow, Value *vp, JSBool strict)
+SetPropertyHelper(JSContext *cx, HandleObject obj, PropertyName *name, unsigned defineHow,
+                  Value *vp, JSBool strict)
 {
-    Rooted<jsid> id(cx, NameToId(name));
-    return SetPropertyHelper(cx, obj, receiver, id, defineHow, vp, strict);
+    return SetPropertyHelper(cx, obj, RootedId(cx, NameToId(name)), defineHow, vp, strict);
 }
 
 extern JSBool
-SetElementHelper(JSContext *cx, HandleObject obj, HandleObject Receiver, uint32_t index,
-                 unsigned defineHow, Value *vp, JSBool strict);
+SetElementHelper(JSContext *cx, HandleObject obj, uint32_t index, unsigned defineHow,
+                 Value *vp, JSBool strict);
 
 extern JSType
 TypeOf(JSContext *cx, HandleObject obj);
@@ -274,10 +264,10 @@ struct JSObject : public js::ObjectImpl
      * Update the last property, keeping the number of allocated slots in sync
      * with the object's new slot span.
      */
-    bool setLastProperty(JSContext *cx, js::Shape *shape);
+    bool setLastProperty(JSContext *cx, const js::Shape *shape);
 
     /* As above, but does not change the slot span. */
-    inline void setLastPropertyInfallible(js::Shape *shape);
+    inline void setLastPropertyInfallible(const js::Shape *shape);
 
     /* Make a non-array object with the specified initial state. */
     static inline JSObject *create(JSContext *cx,
@@ -417,7 +407,7 @@ struct JSObject : public js::ObjectImpl
     void rollbackProperties(JSContext *cx, uint32_t slotSpan);
 
     inline void nativeSetSlot(unsigned slot, const js::Value &value);
-    inline void nativeSetSlotWithType(JSContext *cx, js::Shape *shape, const js::Value &value);
+    inline void nativeSetSlotWithType(JSContext *cx, const js::Shape *shape, const js::Value &value);
 
     inline const js::Value &getReservedSlot(unsigned index) const;
     inline js::HeapSlot &getReservedSlotRef(unsigned index);
@@ -785,14 +775,12 @@ struct JSObject : public js::ObjectImpl
     /* Clear the scope, making it empty. */
     void clear(JSContext *cx);
 
-    inline JSBool lookupGeneric(JSContext *cx, js::HandleId id,
-                                js::MutableHandleObject objp, js::MutableHandleShape propp);
-    inline JSBool lookupProperty(JSContext *cx, js::PropertyName *name,
-                                 js::MutableHandleObject objp, js::MutableHandleShape propp);
+    inline JSBool lookupGeneric(JSContext *cx, js::HandleId id, JSObject **objp, JSProperty **propp);
+    inline JSBool lookupProperty(JSContext *cx, js::PropertyName *name, JSObject **objp, JSProperty **propp);
     inline JSBool lookupElement(JSContext *cx, uint32_t index,
-                                js::MutableHandleObject objp, js::MutableHandleShape propp);
+                                JSObject **objp, JSProperty **propp);
     inline JSBool lookupSpecial(JSContext *cx, js::SpecialId sid,
-                                js::MutableHandleObject objp, js::MutableHandleShape propp);
+                                JSObject **objp, JSProperty **propp);
 
     inline JSBool defineGeneric(JSContext *cx, js::HandleId id, const js::Value &value,
                                 JSPropertyOp getter = JS_PropertyStub,
@@ -827,14 +815,10 @@ struct JSObject : public js::ObjectImpl
     inline JSBool getElement(JSContext *cx, uint32_t index, js::Value *vp);
     inline JSBool getSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp);
 
-    inline JSBool setGeneric(JSContext *cx, js::Handle<JSObject*> receiver, js::HandleId id,
-                             js::Value *vp, JSBool strict);
-    inline JSBool setProperty(JSContext *cx, js::Handle<JSObject*> receiver,
-                              js::PropertyName *name, js::Value *vp, JSBool strict);
-    inline JSBool setElement(JSContext *cx, js::Handle<JSObject*> receiver, uint32_t index,
-                             js::Value *vp, JSBool strict);
-    inline JSBool setSpecial(JSContext *cx, js::Handle<JSObject*> receiver, js::SpecialId sid,
-                             js::Value *vp, JSBool strict);
+    inline JSBool setGeneric(JSContext *cx, js::HandleId id, js::Value *vp, JSBool strict);
+    inline JSBool setProperty(JSContext *cx, js::PropertyName *name, js::Value *vp, JSBool strict);
+    inline JSBool setElement(JSContext *cx, uint32_t index, js::Value *vp, JSBool strict);
+    inline JSBool setSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp, JSBool strict);
 
     JSBool nonNativeSetProperty(JSContext *cx, js::HandleId id, js::Value *vp, JSBool strict);
     JSBool nonNativeSetElement(JSContext *cx, uint32_t index, js::Value *vp, JSBool strict);
@@ -1048,7 +1032,7 @@ js_HasOwnPropertyHelper(JSContext *cx, js::LookupGenericOp lookup, unsigned argc
 
 extern JSBool
 js_HasOwnProperty(JSContext *cx, js::LookupGenericOp lookup, js::HandleObject obj, js::HandleId id,
-                  js::MutableHandleObject objp, js::MutableHandleShape propp);
+                  JSObject **objp, JSProperty **propp);
 
 extern JSBool
 js_PropertyIsEnumerable(JSContext *cx, js::HandleObject obj, js::HandleId id, js::Value *vp);
@@ -1094,17 +1078,17 @@ js_PopulateObject(JSContext *cx, js::HandleObject newborn, JSObject *props);
 /*
  * Fast access to immutable standard objects (constructors and prototypes).
  */
-extern bool
-js_GetClassObject(JSContext *cx, js::HandleObject obj, JSProtoKey key,
-                  js::MutableHandleObject objp);
+extern JSBool
+js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
+                  JSObject **objp);
 
 /*
  * If protoKey is not JSProto_Null, then clasp is ignored. If protoKey is
  * JSProto_Null, clasp must non-null.
  */
-bool
-js_FindClassObject(JSContext *cx, js::HandleObject start, JSProtoKey protoKey,
-                   js::MutableHandleValue vp, js::Class *clasp = NULL);
+extern JSBool
+js_FindClassObject(JSContext *cx, JSObject *start, JSProtoKey key,
+                   js::Value *vp, js::Class *clasp = NULL);
 
 // Specialized call for constructing |this| with a known function callee,
 // and a known prototype.
@@ -1147,18 +1131,18 @@ const unsigned DNP_SKIP_TYPE    = 8;   /* Don't update type information */
 /*
  * Return successfully added or changed shape or NULL on error.
  */
-extern Shape *
+extern const Shape *
 DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, const Value &value,
                      PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
                      unsigned flags, int shortid, unsigned defineHow = 0);
 
-inline Shape *
+inline const Shape *
 DefineNativeProperty(JSContext *cx, HandleObject obj, PropertyName *name, const Value &value,
                      PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
                      unsigned flags, int shortid, unsigned defineHow = 0)
 {
-    Rooted<jsid> id(cx, NameToId(name));
-    return DefineNativeProperty(cx, obj, id, value, getter, setter, attrs, flags,
+    return DefineNativeProperty(cx, obj, RootedId(cx, NameToId(name)),
+                                value, getter, setter, attrs, flags,
                                 shortid, defineHow);
 }
 
@@ -1167,14 +1151,13 @@ DefineNativeProperty(JSContext *cx, HandleObject obj, PropertyName *name, const 
  */
 extern bool
 LookupPropertyWithFlags(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-                        js::MutableHandleObject objp, js::MutableHandleShape propp);
+                        JSObject **objp, JSProperty **propp);
 
 inline bool
 LookupPropertyWithFlags(JSContext *cx, HandleObject obj, PropertyName *name, unsigned flags,
-                        js::MutableHandleObject objp, js::MutableHandleShape propp)
+                        JSObject **objp, JSProperty **propp)
 {
-    Rooted<jsid> id(cx, NameToId(name));
-    return LookupPropertyWithFlags(cx, obj, id, flags, objp, propp);
+    return LookupPropertyWithFlags(cx, obj, RootedId(cx, NameToId(name)), flags, objp, propp);
 }
 
 /*
@@ -1210,7 +1193,7 @@ static const unsigned RESOLVE_INFER = 0xffff;
 extern bool
 FindPropertyHelper(JSContext *cx, HandlePropertyName name,
                    bool cacheResult, HandleObject scopeChain,
-                   MutableHandleObject objp, MutableHandleObject pobjp, MutableHandleShape propp);
+                   JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 /*
  * Search for name either on the current scope chain or on the scope chain's
@@ -1218,7 +1201,7 @@ FindPropertyHelper(JSContext *cx, HandlePropertyName name,
  */
 extern bool
 FindProperty(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-             MutableHandleObject objp, MutableHandleObject pobjp, MutableHandleShape propp);
+             JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 extern JSObject *
 FindIdentifierBase(JSContext *cx, HandleObject scopeChain, HandlePropertyName name);
@@ -1238,12 +1221,12 @@ const unsigned JSGET_CACHE_RESULT = 1; // from a caching interpreter opcode
  * scope containing shape unlocked.
  */
 extern JSBool
-js_NativeGet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> pobj,
-             js::Shape *shape, unsigned getHow, js::Value *vp);
+js_NativeGet(JSContext *cx, JSObject *obj, JSObject *pobj, const js::Shape *shape, unsigned getHow,
+             js::Value *vp);
 
 extern JSBool
-js_NativeSet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> receiver,
-             js::Shape *shape, bool added, bool strict, js::Value *vp);
+js_NativeSet(JSContext *cx, JSObject *obj, const js::Shape *shape, bool added,
+             bool strict, js::Value *vp);
 
 namespace js {
 
@@ -1271,8 +1254,7 @@ GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, Value *
 inline bool
 GetMethod(JSContext *cx, HandleObject obj, PropertyName *name, unsigned getHow, Value *vp)
 {
-    Rooted<jsid> id(cx, NameToId(name));
-    return GetMethod(cx, obj, id, getHow, vp);
+    return GetMethod(cx, obj, RootedId(cx, NameToId(name)), getHow, vp);
 }
 
 /*
@@ -1362,9 +1344,9 @@ js_Object(JSContext *cx, unsigned argc, js::Value *vp);
  * If protoKey is constant and scope is non-null, use GlobalObject's prototype
  * methods instead.
  */
-extern JS_FRIEND_API(bool)
-js_GetClassPrototype(JSContext *cx, js::HandleObject scopeobj, JSProtoKey protoKey,
-                     js::MutableHandleObject protop, js::Class *clasp = NULL);
+extern JS_FRIEND_API(JSBool)
+js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
+                     JSObject **protop, js::Class *clasp = NULL);
 
 namespace js {
 
@@ -1373,6 +1355,32 @@ SetProto(JSContext *cx, HandleObject obj, HandleObject proto, bool checkForCycle
 
 extern JSString *
 obj_toStringHelper(JSContext *cx, JSObject *obj);
+
+extern JSBool
+eval(JSContext *cx, unsigned argc, Value *vp);
+
+/*
+ * Performs a direct eval for the given arguments, which must correspond to the
+ * currently-executing stack frame, which must be a script frame. On completion
+ * the result is returned in args.rval.
+ */
+extern bool
+DirectEval(JSContext *cx, const CallArgs &args);
+
+/*
+ * True iff |v| is the built-in eval function for the global object that
+ * corresponds to |scopeChain|.
+ */
+extern bool
+IsBuiltinEvalForScope(JSObject *scopeChain, const js::Value &v);
+
+/* True iff fun is a built-in eval function. */
+extern bool
+IsAnyBuiltinEval(JSFunction *fun);
+
+/* 'call' should be for the eval/Function native invocation. */
+extern JSPrincipals *
+PrincipalsForCompiledCode(const CallReceiver &call, JSContext *cx);
 
 extern JSObject *
 NonNullObject(JSContext *cx, const Value &v);
@@ -1384,8 +1392,7 @@ inline void
 DestroyIdArray(FreeOp *fop, JSIdArray *ida);
 
 extern bool
-GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char *method,
-                         MutableHandleObject objp);
+GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char *method, JSObject **objp);
 
 /* Helpers for throwing. These always return false. */
 extern bool

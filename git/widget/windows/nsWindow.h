@@ -41,8 +41,6 @@
 
 #include "nsIDOMMouseEvent.h"
 
-#include "nsIIdleServiceInternal.h"
-
 /**
  * Forward class definitions
  */
@@ -451,6 +449,8 @@ protected:
   static void             ActivateOtherWindowHelper(HWND aWnd);
   void                    ClearCachedResources();
 
+  nsPopupType PopupType() { return mPopupType; }
+
 protected:
   nsCOMPtr<nsIWidget>   mParent;
   nsIntSize             mLastSize;
@@ -476,13 +476,12 @@ protected:
   InputContext mInputContext;
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
+  nsPopupType           mPopupType;
   nsSizeMode            mOldSizeMode;
   nsSizeMode            mLastSizeMode;
   WindowHook            mWindowHook;
   DWORD                 mAssumeWheelIsZoomUntil;
   PRUint32              mPickerDisplayCount;
-  HICON                 mIconSmall;
-  HICON                 mIconBig;
   static bool           sDropShadowEnabled;
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
@@ -518,7 +517,7 @@ protected:
   // Height of the caption plus border
   PRInt32               mCaptionHeight;
 
-  nsCOMPtr<nsIIdleServiceInternal> mIdleService;
+  nsCOMPtr<nsIdleService> mIdleService;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook

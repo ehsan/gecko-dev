@@ -62,7 +62,6 @@ EXTRA_JS_MODULES = \
   PopupNotifications.jsm \
   Dict.jsm \
   PropertyListUtils.jsm \
-  PrivateBrowsingUtils.jsm \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \

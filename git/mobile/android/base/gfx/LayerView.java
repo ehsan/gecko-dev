@@ -235,7 +235,6 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     public static GLController registerCxxCompositor() {
         try {
             LayerView layerView = GeckoApp.mAppContext.getLayerController().getView();
-            layerView.mListener.compositorCreated();
             return layerView.getGLController();
         } catch (Exception e) {
             Log.e(LOGTAG, "### Exception! " + e);
@@ -244,7 +243,6 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     public interface Listener {
-        void compositorCreated();
         void renderRequested();
         void compositionPauseRequested();
         void compositionResumeRequested(int width, int height);

@@ -29,6 +29,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
+#include "nsINodeInfo.h"
 #include "nsIDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMXULCommandDispatcher.h"

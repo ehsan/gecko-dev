@@ -7,12 +7,12 @@
 #include "nsIFile.h"
 
 #include "mozilla/storage.h"
+#include "nsContentUtils.h"
 #include "nsEscape.h"
 #include "nsThreadUtils.h"
 #include "snappy/snappy.h"
 #include "test_quota.h"
 
-#include "nsIBFCacheEntry.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IndexedDatabaseManager.h"
@@ -1352,10 +1352,8 @@ protected:
   // Need an upgradeneeded event here.
   virtual already_AddRefed<nsDOMEvent> CreateSuccessEvent() MOZ_OVERRIDE;
 
-  virtual nsresult NotifyTransactionPreComplete(IDBTransaction* aTransaction)
-                                                MOZ_OVERRIDE;
-  virtual nsresult NotifyTransactionPostComplete(IDBTransaction* aTransaction)
-                                                 MOZ_OVERRIDE;
+  virtual nsresult NotifyTransactionComplete(IDBTransaction* aTransaction)
+                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
   MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
@@ -1636,11 +1634,7 @@ OpenDatabaseHelper::DoDatabaseWork()
   nsCOMPtr<mozIStorageConnection> connection;
   rv = CreateDatabaseConnection(mName, dbFile, fileManagerDirectory,
                                 getter_AddRefs(connection));
-  if (NS_FAILED(rv) &&
-      NS_ERROR_GET_MODULE(rv) != NS_ERROR_MODULE_DOM_INDEXEDDB) {
-    rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = IDBFactory::LoadDatabaseInformation(connection, mDatabaseId,
                                            &mCurrentVersion, mObjectStores);
@@ -1841,12 +1835,7 @@ OpenDatabaseHelper::CreateDatabaseConnection(
       NS_ASSERTION(schemaVersion == kSQLiteSchemaVersion, "Huh?!");
     }
 
-    rv = transaction.Commit();    
-    if (rv == NS_ERROR_FILE_NO_DEVICE_SPACE) {
-      // mozstorage translates SQLITE_FULL to NS_ERROR_FILE_NO_DEVICE_SPACE,
-      // which we know better as NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR.
-      rv = NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-    }
+    rv = transaction.Commit();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1967,6 +1956,12 @@ OpenDatabaseHelper::Run()
 
     switch (mState) {
       case eSetVersionCompleted: {
+        // Allow transaction creation/other version change transactions to proceed
+        // before we fire events.  Other version changes will be postd to the end
+        // of the event loop, and will be behind whatever the page does in
+        // its error/success event handlers.
+        mDatabase->ExitSetVersionTransaction();
+
         mState = eFiringEvents;
         break;
       }
@@ -2139,9 +2134,6 @@ OpenDatabaseHelper::NotifySetVersionFinished()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread");
   NS_ASSERTION(mState = eSetVersionPending, "How did we get here?");
 
-  // Allow transaction creation to proceed.
-  mDatabase->ExitSetVersionTransaction();
-
   mState = eSetVersionCompleted;
 
   // Dispatch ourself back to the main thread
@@ -2300,17 +2292,7 @@ SetVersionHelper::CreateSuccessEvent()
 }
 
 nsresult
-SetVersionHelper::NotifyTransactionPreComplete(IDBTransaction* aTransaction)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aTransaction, "This is unexpected.");
-  NS_ASSERTION(mOpenRequest, "Why don't we have a request?");
-
-  return mOpenHelper->NotifySetVersionFinished();
-}
-
-nsresult
-SetVersionHelper::NotifyTransactionPostComplete(IDBTransaction* aTransaction)
+SetVersionHelper::NotifyTransactionComplete(IDBTransaction* aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aTransaction, "This is unexpected.");
@@ -2330,6 +2312,7 @@ SetVersionHelper::NotifyTransactionPostComplete(IDBTransaction* aTransaction)
   mOpenRequest->SetTransaction(nsnull);
   mOpenRequest = nsnull;
 
+  rv = mOpenHelper->NotifySetVersionFinished();
   mOpenHelper = nsnull;
 
   return rv;

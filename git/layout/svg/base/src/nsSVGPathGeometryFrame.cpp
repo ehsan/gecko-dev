@@ -13,7 +13,6 @@
 #include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
 #include "nsSVGGraphicElement.h"
-#include "nsSVGIntegrationUtils.h"
 #include "nsSVGMarkerFrame.h"
 #include "nsSVGPathGeometryElement.h"
 #include "nsSVGUtils.h"
@@ -152,7 +151,6 @@ nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  gfxMatrix canvasTM = GetCanvasTM(FOR_HIT_TESTING);
   PRUint16 fillRule, hitTestFlags;
   if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
     hitTestFlags = SVG_HIT_TEST_FILL;
@@ -161,6 +159,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
     hitTestFlags = GetHitTestFlags();
     // XXX once bug 614732 is fixed, aPoint won't need any conversion in order
     // to compare it with mRect.
+    gfxMatrix canvasTM = GetCanvasTM();
     if (canvasTM.IsSingular()) {
       return nsnull;
     }
@@ -177,7 +176,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
   nsRefPtr<gfxContext> tmpCtx =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(tmpCtx, canvasTM);
+  GeneratePath(tmpCtx);
   gfxPoint userSpacePoint =
     tmpCtx->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
@@ -230,7 +229,7 @@ nsSVGPathGeometryFrame::UpdateBounds()
 
   // See bug 614732 comment 32.
   mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
+    mRect, GetCanvasTM(), PresContext());
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
     // Make sure we have our filter property (if any) before calling
@@ -239,15 +238,6 @@ nsSVGPathGeometryFrame::UpdateBounds()
     nsSVGEffects::UpdateEffects(this);
   }
 
-  // We only invalidate if we are dirty, if our outer-<svg> has already had its
-  // initial reflow (since if it hasn't, its entire area will be invalidated
-  // when it gets that initial reflow), and if our parent is not dirty (since
-  // if it is, then it will invalidate its entire new area, which will include
-  // our new area).
-  bool invalidate = (mState & NS_FRAME_IS_DIRTY) &&
-    !(GetParent()->GetStateBits() &
-       (NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY));
-
   nsRect overflow = nsRect(nsPoint(0,0), mRect.Size());
   nsOverflowAreas overflowAreas(overflow, overflow);
   FinishAndStoreOverflow(overflowAreas, mRect.Size());
@@ -255,8 +245,12 @@ nsSVGPathGeometryFrame::UpdateBounds()
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
               NS_FRAME_HAS_DIRTY_CHILDREN);
 
-  if (invalidate) {
-    // XXXSDL Let FinishAndStoreOverflow do this.
+  // XXXSDL get rid of this in favor of the invalidate call in
+  // FinishAndStoreOverflow?
+  if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    // We only invalidate if our outer-<svg> has already had its
+    // initial reflow (since if it hasn't, its entire area will be
+    // invalidated when it gets that initial reflow):
     nsSVGUtils::InvalidateBounds(this, true);
   }
 }
@@ -271,12 +265,9 @@ nsSVGPathGeometryFrame::NotifySVGChanged(PRUint32 aFlags)
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
-  // Ancestor changes can't affect how we render from the perspective of
-  // any rendering observers that we may have, so we don't need to
-  // invalidate them. We also don't need to invalidate ourself, since our
-  // changed ancestor will have invalidated its entire area, which includes
-  // our area.
-  nsSVGUtils::ScheduleBoundsUpdate(this);
+  if (!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS)) {
+    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
+  }
 }
 
 SVGBBox
@@ -293,7 +284,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   nsRefPtr<gfxContext> tmpCtx =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  GeneratePath(tmpCtx, aToBBoxUserspace);
+  GeneratePath(tmpCtx, &aToBBoxUserspace);
   tmpCtx->IdentityMatrix();
 
   // Be careful when replacing the following logic to get the fill and stroke
@@ -388,21 +379,14 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGGeometryFrame methods:
 
 gfxMatrix
-nsSVGPathGeometryFrame::GetCanvasTM(PRUint32 aFor)
+nsSVGPathGeometryFrame::GetCanvasTM()
 {
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-    if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
-        (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
-      return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
-    }
-  }
-
   NS_ASSERTION(mParent, "null parent");
 
   nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
   nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
 
-  return content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
+  return content->PrependLocalTransformsTo(parent->GetCanvasTM());
 }
 
 //----------------------------------------------------------------------
@@ -474,7 +458,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
   /* save/restore the state so we don't screw up the xform */
   gfx->Save();
 
-  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING));
+  GeneratePath(gfx);
 
   if (renderMode != SVGAutoRenderState::NORMAL) {
     NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::CLIP ||
@@ -511,15 +495,22 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
 
 void
 nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
-                                     const gfxMatrix &aTransform)
+                                     const gfxMatrix *aOverrideTransform)
 {
-  if (aTransform.IsSingular()) {
+  gfxMatrix matrix;
+  if (aOverrideTransform) {
+    matrix = *aOverrideTransform;
+  } else {
+    matrix = GetCanvasTM();
+  }
+
+  if (matrix.IsSingular()) {
     aContext->IdentityMatrix();
     aContext->NewPath();
     return;
   }
 
-  aContext->Multiply(aTransform);
+  aContext->Multiply(matrix);
 
   // Hack to let SVGPathData::ConstructPath know if we have square caps:
   const nsStyleSVG* style = GetStyleSVG();

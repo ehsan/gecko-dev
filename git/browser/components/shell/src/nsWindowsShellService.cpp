@@ -5,6 +5,7 @@
 
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIImageLoadingContent.h"
@@ -194,8 +195,6 @@ static SETTING gDDESettings[] = {
   { MAKE_KEY_NAME1("Software\\Classes\\HTTPS", SOD) }
 };
 
-// See Bug 770883
-#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 
 #define ONLY_SERVICE_LAUNCHING
@@ -205,7 +204,6 @@ static SETTING gDDESettings[] = {
 static const char *kPrefetchClearedPref =
   "app.update.service.lastVersionPrefetchCleared";
 static nsCOMPtr<nsIThread> sThread;
-#endif
 #endif
 
 nsresult
@@ -1000,8 +998,6 @@ nsWindowsShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 nsWindowsShellService::nsWindowsShellService() : 
   mCheckedThisSession(false) 
 {
-// See Bug 770883
-#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 
   // Check to make sure the service is installed
@@ -1046,13 +1042,10 @@ nsWindowsShellService::nsWindowsShellService() :
       nsnull, CLEAR_PREFETCH_TIMEOUT_MS, nsITimer::TYPE_ONE_SHOT);
   }
 #endif
-#endif
 }
 
 nsWindowsShellService::~nsWindowsShellService()
 {
-// See Bug 770883
-#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
  if (mTimer) {
     mTimer->Cancel();
@@ -1063,11 +1056,8 @@ nsWindowsShellService::~nsWindowsShellService()
     sThread = nsnull;
   }
 #endif
-#endif
 }
 
-// See Bug 770883
-#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 
 class ClearPrefetchEvent : public nsRunnable {
@@ -1090,7 +1080,6 @@ public:
   }
 };
 #endif
-#endif
 
 /**
  * For faster startup we attempt to clear the prefetch if the maintenance
@@ -1101,8 +1090,6 @@ public:
  * This is done on every update but also there is a one time operation done
  * from within the program for first time installs.
  */ 
-// See Bug 770883
-#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 void
 nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
@@ -1126,7 +1113,6 @@ nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
     sThread->Dispatch(prefetchEvent, NS_DISPATCH_NORMAL);
   }
 }
-#endif
 #endif
 
 NS_IMETHODIMP

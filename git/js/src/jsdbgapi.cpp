@@ -489,30 +489,15 @@ JS_FrameIterator(JSContext *cx, JSStackFrame **iteratorp)
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_GetFrameScript(JSContext *cx, JSStackFrame *fpArg)
+JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 {
-    StackFrame *fp = Valueify(fpArg);
-    if (fp->isDummyFrame())
-        return NULL;
-
-    return fp->maybeScript();
+    return Valueify(fp)->maybeScript();
 }
 
 JS_PUBLIC_API(jsbytecode *)
-JS_GetFramePC(JSContext *cx, JSStackFrame *fpArg)
+JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    StackFrame *fp = Valueify(fpArg);
-    if (fp->isDummyFrame())
-        return NULL;
-
-    /*
-     * This API is used to compute the line number for jsd and XPConnect
-     * exception handling backtraces. Once the stack gets really deep, the
-     * overall cost can become quadratic. This can hang the browser (eventually
-     * terminated by a slow-script dialog) when content causes infinite
-     * recursion and a backtrace.
-     */
-    return fp->pcQuadratic(cx->stack, 100);
+    return Valueify(fp)->pcQuadratic(cx->stack);
 }
 
 JS_PUBLIC_API(void *)
@@ -798,8 +783,7 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, Shape *shape, JSPropertyDesc *pd)
         lastException = cx->getPendingException();
     cx->clearPendingException();
 
-    Rooted<jsid> id(cx, shape->propid());
-    if (!baseops::GetProperty(cx, obj, id, &pd->value)) {
+    if (!baseops::GetProperty(cx, obj, RootedId(cx, shape->propid()), &pd->value)) {
         if (!cx->isExceptionPending()) {
             pd->flags = JSPD_ERROR;
             pd->value = JSVAL_VOID;

@@ -39,7 +39,7 @@ nsSVGMarkerFrame::AttributeChanged(PRInt32  aNameSpaceID,
        aAttribute == nsGkAtoms::orient ||
        aAttribute == nsGkAtoms::preserveAspectRatio ||
        aAttribute == nsGkAtoms::viewBox)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGMarkerFrameBase::AttributeChanged(aNameSpaceID,
@@ -69,7 +69,7 @@ nsSVGMarkerFrame::GetType() const
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGMarkerFrame::GetCanvasTM(PRUint32 aFor)
+nsSVGMarkerFrame::GetCanvasTM()
 {
   NS_ASSERTION(mMarkedFrame, "null nsSVGPathGeometry frame");
 
@@ -81,7 +81,7 @@ nsSVGMarkerFrame::GetCanvasTM(PRUint32 aFor)
   nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
   
   mInUse2 = true;
-  gfxMatrix markedTM = mMarkedFrame->GetCanvasTM(aFor);
+  gfxMatrix markedTM = mMarkedFrame->GetCanvasTM();
   mInUse2 = false;
 
   gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
@@ -125,8 +125,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, viewBox.x, viewBox.y,
                                       viewBox.width, viewBox.height);
-    nsSVGUtils::SetClipRect(gfx, GetCanvasTM(nsISVGChildFrame::FOR_PAINTING),
-                            clipRect);
+    nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
   }
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;

@@ -95,7 +95,7 @@
     <command id="Tools:RemoteDebugger" oncommand="DebuggerUI.toggleRemoteDebugger();" disabled="true"/>
     <command id="Tools:ChromeDebugger" oncommand="DebuggerUI.toggleChromeDebugger();" disabled="true"/>
     <command id="Tools:Scratchpad" oncommand="Scratchpad.openScratchpad();" disabled="true"/>
-    <command id="Tools:StyleEditor" oncommand="StyleEditor.toggle();" disabled="true"/>
+    <command id="Tools:StyleEditor" oncommand="StyleEditor.openChrome();" disabled="true"/>
     <command id="Tools:ResponsiveUI" oncommand="ResponsiveUI.toggle();" disabled="true"/>
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:Sanitize"
@@ -225,6 +225,13 @@
 #endif
     <key id="key_openAddons" key="&addons.commandkey;" command="Tools:Addons" modifiers="accel,shift"/>
     <key id="key_errorConsole" key="&errorConsoleCmd.commandkey;" oncommand="toJavaScriptConsole();" modifiers="accel,shift" disabled="true"/>
+    <key id="key_devToolbar" key="&devToolbar.commandkey;" command="Tools:DevToolbar"
+#ifdef XP_MACOSX
+         modifiers="accel,alt"
+#else
+         modifiers="accel,shift"
+#endif
+    />
     <key id="key_webConsole" key="&webConsoleCmd.commandkey;" oncommand="HUDConsoleUI.toggleHUD();"
 #ifdef XP_MACOSX
         modifiers="accel,alt"

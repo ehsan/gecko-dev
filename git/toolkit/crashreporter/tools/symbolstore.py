@@ -706,8 +706,7 @@ class Dumper_Mac(Dumper):
             shutil.rmtree(dsymbundle)
         # dsymutil takes --arch=foo instead of -a foo like everything else
         subprocess.call(["dsymutil"] + [a.replace('-a ', '--arch=') for a in self.archs if a]
-                        + [file],
-                        stdout=open("/dev/null","w"))
+                        + [file])
         if not os.path.exists(dsymbundle):
             # dsymutil won't produce a .dSYM for files without symbols
             return False

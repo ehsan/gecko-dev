@@ -152,8 +152,6 @@ using mozilla::TimeStamp;
 // to cache temporary files.
 #define kPluginTmpDirName NS_LITERAL_CSTRING("plugtmp")
 
-static const char *kPrefWhitelist = "plugin.allowed_types";
-
 // Version of cached plugin info
 // 0.01 first implementation
 // 0.02 added caching of CanUnload to fix bug 105935
@@ -229,29 +227,6 @@ nsInvalidPluginTag::nsInvalidPluginTag(const char* aFullPath, PRInt64 aLastModif
 nsInvalidPluginTag::~nsInvalidPluginTag()
 {
   
-}
-
-// Helper to check for a MIME in a comma-delimited preference
-static bool
-IsTypeInPrefList(nsCString &aMimeType, const char* aPrefName)
-{
-  nsCAutoString searchStr;
-  searchStr.Assign(',');
-  nsAdoptingCString prefStr = Preferences::GetCString(aPrefName);
-  searchStr += prefStr;
-  searchStr.Append(',');
-
-  nsACString::const_iterator start, end;
-
-  searchStr.BeginReading(start);
-  searchStr.EndReading(end);
-
-  nsCAutoString commaSeparated;
-  commaSeparated.Assign(',');
-  commaSeparated += aMimeType;
-  commaSeparated.Append(',');
-
-  return FindInReadable(commaSeparated, start, end);
 }
 
 // flat file reg funcs
@@ -1661,7 +1636,7 @@ nsresult nsPluginHost::GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin)
     ("nsPluginHost::GetPlugin Begin mime=%s, plugin=%s\n",
     aMimeType, pluginTag->mFileName.get()));
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
     if (aMimeType && !pluginTag->mFileName.IsEmpty())
       printf("For %s found plugin %s\n", aMimeType, pluginTag->mFileName.get());
 #endif
@@ -2398,16 +2373,6 @@ nsPluginHost::UpdatePluginInfo(nsPluginTag* aPluginTag)
   }
 
   return NS_OK;
-}
-
-/* static */ bool
-nsPluginHost::IsTypeWhitelisted(const char *aMimeType)
-{
-  if (!Preferences::HasUserValue(kPrefWhitelist)) {
-    return true;
-  }
-  nsDependentCString wrap(aMimeType);
-  return IsTypeInPrefList(wrap, kPrefWhitelist);
 }
 
 nsresult

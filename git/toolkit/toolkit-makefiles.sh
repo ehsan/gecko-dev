@@ -35,15 +35,12 @@ MAKEFILES_dom="
   dom/interfaces/xbl/Makefile
   dom/interfaces/xpath/Makefile
   dom/interfaces/xul/Makefile
-  dom/alarm/Makefile
   dom/base/Makefile
   dom/battery/Makefile
   dom/file/Makefile
   dom/indexedDB/Makefile
   dom/ipc/Makefile
   dom/locales/Makefile
-  dom/messages/Makefile
-  dom/messages/interfaces/Makefile
   dom/network/Makefile
   dom/network/interfaces/Makefile
   dom/network/src/Makefile
@@ -460,7 +457,6 @@ MAKEFILES_xulapp="
   toolkit/components/viewconfig/Makefile
   toolkit/components/viewsource/Makefile
   toolkit/devtools/Makefile
-  toolkit/identity/Makefile
   toolkit/locales/Makefile
   toolkit/mozapps/downloads/Makefile
   toolkit/mozapps/extensions/Makefile
@@ -710,7 +706,6 @@ if [ "$ENABLE_TESTS" ]; then
     docshell/test/Makefile
     docshell/test/chrome/Makefile
     docshell/test/navigation/Makefile
-    dom/alarm/test/Makefile
     dom/battery/test/Makefile
     dom/indexedDB/test/Makefile
     dom/indexedDB/test/unit/Makefile
@@ -873,8 +868,6 @@ if [ "$ENABLE_TESTS" ]; then
     toolkit/content/tests/chrome/rtltest/Makefile
     toolkit/content/tests/widgets/Makefile
     toolkit/devtools/debugger/tests/Makefile
-    toolkit/identity/tests/Makefile
-    toolkit/identity/tests/chrome/Makefile
     toolkit/mozapps/downloads/tests/Makefile
     toolkit/mozapps/downloads/tests/chrome/Makefile
     toolkit/mozapps/extensions/test/Makefile
@@ -1150,9 +1143,10 @@ if [ "$MOZ_CRASHREPORTER" ]; then
   "
   if [ "$OS_ARCH" = "WINNT" ]; then
     add_makefiles "
-      toolkit/crashreporter/breakpad-windows-libxul/Makefile
-      toolkit/crashreporter/breakpad-windows-standalone/Makefile
-      toolkit/crashreporter/injector/Makefile
+      toolkit/crashreporter/google-breakpad/src/client/windows/crash_generation/Makefile
+      toolkit/crashreporter/google-breakpad/src/client/windows/handler/Makefile
+      toolkit/crashreporter/google-breakpad/src/client/windows/sender/Makefile
+      toolkit/crashreporter/google-breakpad/src/common/windows/Makefile
     "
   elif [ "$OS_ARCH" = "Darwin" ]; then
     add_makefiles "
@@ -1619,12 +1613,6 @@ if [ "$MOZ_SYDNEYAUDIO" ]; then
     media/libsydneyaudio/include/Makefile
     media/libsydneyaudio/src/Makefile
   "
-fi
-
-if [ "$MOZ_WEBRTC" ]; then
- add_makefiles "
-   media/webrtc/Makefile
- "
 fi
 
 if [ "$MOZ_SPEEX_RESAMPLER" ]; then

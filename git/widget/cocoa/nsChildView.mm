@@ -838,7 +838,6 @@ NS_IMETHODIMP nsChildView::Move(PRInt32 aX, PRInt32 aY)
   if (mVisible)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange(gRollupListener);
   ReportMoveEvent();
 
   return NS_OK;
@@ -863,7 +862,6 @@ NS_IMETHODIMP nsChildView::Resize(PRInt32 aWidth, PRInt32 aHeight, bool aRepaint
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange(gRollupListener);
   ReportSizeEvent();
 
   return NS_OK;
@@ -896,7 +894,6 @@ NS_IMETHODIMP nsChildView::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt3
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange(gRollupListener);
   if (isMoving) {
     ReportMoveEvent();
     if (mOnDestroyCalled)
@@ -3710,26 +3707,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   // Some scrolling devices supports pixel scrolling, e.g. a Macbook
-  // touchpad or a Mighty Mouse. On those devices, [theEvent deviceDeltaX/Y]
-  // contains the amount of pixels to scroll. Since Lion this has changed 
-  // to [theEvent scrollingDeltaX/Y].
+  // touchpad or a Mighty Mouse. On those devices, [event deviceDeltaX/Y]
+  // contains the amount of pixels to scroll. 
   if (inAxis & nsMouseScrollEvent::kIsVertical) {
     scrollDelta       = -[theEvent deltaY];
     if (checkPixels && (scrollDelta == 0 || scrollDelta != floor(scrollDelta))) {
-      if ([theEvent respondsToSelector:@selector(scrollingDeltaY)]) {
-        scrollDeltaPixels = -[theEvent scrollingDeltaY];
-      } else {
-        scrollDeltaPixels = -[theEvent deviceDeltaY];
-      }
+      scrollDeltaPixels = -[theEvent deviceDeltaY];
     }
   } else if (inAxis & nsMouseScrollEvent::kIsHorizontal) {
     scrollDelta       = -[theEvent deltaX];
     if (checkPixels && (scrollDelta == 0 || scrollDelta != floor(scrollDelta))) {
-      if ([theEvent respondsToSelector:@selector(scrollingDeltaX)]) {
-        scrollDeltaPixels = -[theEvent scrollingDeltaX];
-      } else {
-        scrollDeltaPixels = -[theEvent deviceDeltaX];
-      }
+      scrollDeltaPixels = -[theEvent deviceDeltaX];
     }
   } else {
     return; // caller screwed up
@@ -4556,7 +4544,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   NSEvent *currentEvent = [NSApp currentEvent];
   gUserCancelledDrag = ([currentEvent type] == NSKeyDown &&
-                        [currentEvent keyCode] == kVK_Escape);
+                        [currentEvent keyCode] == kEscapeKeyCode);
 
   if (!mDragService) {
     CallGetService(kDragServiceContractID, &mDragService);
@@ -4645,7 +4633,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
       NS_ERROR("no transferable");
       return nil;
     }
-    item->Init(nsnull);
 
     item->SetTransferData(kFilePromiseDirectoryMime, macLocalFile, sizeof(nsIFile*));
     
@@ -4800,7 +4787,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
   if (NS_FAILED(rv))
     return NO;
-  trans->Init(nsnull);
 
   trans->AddDataFlavor(kUnicodeMime);
   trans->AddDataFlavor(kHTMLMime);

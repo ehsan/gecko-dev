@@ -229,7 +229,7 @@ struct RangePaintInfo {
 
 // ----------------------------------------------------------------------
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 // Set the environment variable GECKO_VERIFY_REFLOW_FLAGS to one or
 // more of the following flags (comma separated) for handy debug
 // output.
@@ -511,7 +511,7 @@ bool PresShell::sDisableNonTestMouseEvents = false;
 PRLogModuleInfo* PresShell::gLog;
 #endif
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static void
 VerifyStyleTree(nsPresContext* aPresContext, nsFrameManager* aFrameManager)
 {
@@ -530,7 +530,7 @@ static bool gVerifyReflowEnabled;
 bool
 nsIPresShell::GetVerifyReflowEnable()
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   static bool firstTime = true;
   if (firstTime) {
     firstTime = false;
@@ -1143,7 +1143,7 @@ nsresult PresShell::ClearPreferenceStyleRules(void)
     if (mStyleSet) {
       // remove the sheet from the styleset: 
       // - note that we have to check for success by comparing the count before and after...
-#ifdef DEBUG
+#ifdef NS_DEBUG
       PRInt32 numBefore = mStyleSet->SheetCount(nsStyleSet::eUserSheet);
       NS_ASSERTION(numBefore > 0, "no user stylesheets in styleset, but we have one!");
 #endif
@@ -1593,7 +1593,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
   mDidInitialReflow = true;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (VERIFY_REFLOW_NOISY_RC & gVerifyReflowFlags) {
     if (mDocument) {
       nsIURI *uri = mDocument->GetDocumentURI();
@@ -1946,7 +1946,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
       mCurrentEventFrame = nsnull;
     }
 
-  #ifdef DEBUG
+  #ifdef NS_DEBUG
     if (aFrame == mDrawEventTargetFrame) {
       mDrawEventTargetFrame = nsnull;
     }
@@ -4080,10 +4080,9 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
     oldNextSibling = nsnull;
   }
   
-  if (aContainer && aContainer->IsElement()) {
+  if (aContainer)
     mFrameConstructor->RestyleForRemove(aContainer->AsElement(), aChild,
                                         oldNextSibling);
-  }
 
   bool didReconstruct;
   mFrameConstructor->ContentRemoved(aContainer, aChild, oldNextSibling,
@@ -6023,7 +6022,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
       rv = HandleEventInternal(aEvent, aEventStatus);
     }
   
-#ifdef DEBUG
+#ifdef NS_DEBUG
     ShowEventTargetDebug();
 #endif
     PopCurrentEventInfo();
@@ -6075,7 +6074,7 @@ PresShell::GetTouchEventTargetDocument()
 }
 #endif
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 void
 PresShell::ShowEventTargetDebug()
 {
@@ -6139,7 +6138,7 @@ PresShell::HandlePositionedEvent(nsIFrame*      aTargetFrame,
     rv = HandleEventInternal(aEvent, aEventStatus);
   }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   ShowEventTargetDebug();
 #endif
   PopCurrentEventInfo();
@@ -7754,7 +7753,7 @@ nsIPresShell::RemoveRefreshObserverExternal(nsARefreshObserver* aObserver,
 
 // Start of DEBUG only code
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #include "nsIURL.h"
 #include "nsILinkHandler.h"
 
@@ -8965,23 +8964,9 @@ PresShell::SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf) const
 void
 nsIPresShell::SetScrollPositionClampingScrollPortSize(nscoord aWidth, nscoord aHeight)
 {
-  if (!mScrollPositionClampingScrollPortSizeSet ||
-      mScrollPositionClampingScrollPortSize.width != aWidth ||
-      mScrollPositionClampingScrollPortSize.height != aHeight) {
-    mScrollPositionClampingScrollPortSizeSet = true;
-    mScrollPositionClampingScrollPortSize.width = aWidth;
-    mScrollPositionClampingScrollPortSize.height = aHeight;
-
-    // Reflow fixed position children.
-    nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
-    if (rootFrame) {
-      const nsFrameList& childList = rootFrame->GetChildList(nsIFrame::kFixedList);
-      for (nsIFrame* child = childList.FirstChild(); child;
-           child = child->GetNextSibling()) {
-        FrameNeedsReflow(child, eResize, NS_FRAME_IS_DIRTY);
-      }
-    }
-  }
+  mScrollPositionClampingScrollPortSizeSet = true;
+  mScrollPositionClampingScrollPortSize.width = aWidth;
+  mScrollPositionClampingScrollPortSize.height = aHeight;
 }
 
 void

@@ -648,7 +648,6 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_NORMAL_REPLACE:
     case LOAD_LINK:
     case LOAD_STOP_CONTENT:
-    case LOAD_REPLACE_BYPASS_CACHE:
         result = nsIDOMPerformanceNavigation::TYPE_NAVIGATE;
         break;
     case LOAD_HISTORY:
@@ -1142,9 +1141,6 @@ ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType)
     case nsIDocShellLoadInfo::loadPushState:
         loadType = LOAD_PUSHSTATE;
         break;
-    case nsIDocShellLoadInfo::loadReplaceBypassCache:
-        loadType = LOAD_REPLACE_BYPASS_CACHE;
-        break;
     default:
         NS_NOTREACHED("Unexpected nsDocShellInfoLoadType value");
     }
@@ -1212,9 +1208,6 @@ nsDocShell::ConvertLoadTypeToDocShellLoadInfo(PRUint32 aLoadType)
         break;
     case LOAD_PUSHSTATE:
         docShellLoadType = nsIDocShellLoadInfo::loadPushState;
-        break;
-    case LOAD_REPLACE_BYPASS_CACHE:
-        docShellLoadType = nsIDocShellLoadInfo::loadReplaceBypassCache;
         break;
     default:
         NS_NOTREACHED("Unexpected load type value");
@@ -2581,37 +2574,6 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
         }
     }
 
-    return NS_OK;
-}
-
-static PLDHashOperator
-CloneSessionStorages(nsCStringHashKey::KeyType aKey, nsIDOMStorage* aStorage,
-                     void* aUserArg)
-{
-    nsIDocShell *docShell = static_cast<nsIDocShell*>(aUserArg);
-    nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(aStorage);
-
-    if (pistorage) {
-        nsCOMPtr<nsIDOMStorage> storage = pistorage->Clone();
-        docShell->AddSessionStorage(pistorage->Principal(), storage);
-    }
-
-    return PL_DHASH_NEXT;
-}
-
-NS_IMETHODIMP
-nsDocShell::CloneSessionStoragesTo(nsIDocShell* aDocShell)
-{
-    aDocShell->ClearSessionStorages();
-    mStorages.EnumerateRead(CloneSessionStorages, aDocShell);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::ClearSessionStorages()
-{
-    mStorages.Clear();
     return NS_OK;
 }
 
@@ -5961,7 +5923,6 @@ nsDocShell::Embed(nsIContentViewer * aContentViewer,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
-    case LOAD_REPLACE_BYPASS_CACHE:
         updateHistory = false;
         break;
     default:
@@ -8193,8 +8154,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     }
 
     // XXXbz would be nice to know the loading principal here... but we don't
-    nsCOMPtr<nsIPrincipal> loadingPrincipal = do_QueryInterface(aOwner);
-    if (!loadingPrincipal && aReferrer) {
+    nsCOMPtr<nsIPrincipal> loadingPrincipal;
+    if (aReferrer) {
         nsCOMPtr<nsIScriptSecurityManager> secMan =
             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -8202,7 +8163,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         rv = secMan->GetCodebasePrincipal(aReferrer,
                                           getter_AddRefs(loadingPrincipal));
     }
-
+    
     rv = NS_CheckContentLoadPolicy(contentType,
                                    aURI,
                                    loadingPrincipal,
@@ -9265,7 +9226,6 @@ nsresult nsDocShell::DoChannelLoad(nsIChannel * aChannel,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
-    case LOAD_REPLACE_BYPASS_CACHE:
         loadFlags |= nsIRequest::LOAD_BYPASS_CACHE |
                      nsIRequest::LOAD_FRESH_CONNECTION;
         break;
@@ -9889,6 +9849,17 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
         }
 
     } // end of same-origin check
+
+    nsCOMPtr<nsISHistory> sessionHistory = mSessionHistory;
+    if (!sessionHistory) {
+        // Get the handle to SH from the root docshell
+        GetRootSessionHistory(getter_AddRefs(sessionHistory));
+    }
+    NS_ENSURE_TRUE(sessionHistory, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsISHistoryInternal> shInternal =
+        do_QueryInterface(sessionHistory, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Step 3: Create a new entry in the session history. This will erase
     // all SHEntries after the new entry and make this entry the current
@@ -10595,7 +10566,7 @@ nsDocShell::SetHistoryEntry(nsCOMPtr<nsISHEntry> *aPtr, nsISHEntry *aEntry)
                 nsDocShell *rootDocShell = static_cast<nsDocShell*>
                                                       (rootIDocShell);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
                 nsresult rv =
 #endif
                 SetChildHistoryEntry(oldRootEntry, rootDocShell,

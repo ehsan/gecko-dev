@@ -17,7 +17,6 @@
 
 #include "gc/Barrier.h"
 #include "vm/NumericConversions.h"
-#include "vm/String.h"
 
 namespace js {
 
@@ -37,55 +36,6 @@ CastAsStrictPropertyOp(JSObject *object)
 {
     return JS_DATA_TO_FUNC_PTR(StrictPropertyOp, object);
 }
-
-/*
- * Properties are stored differently depending on the type of the key.  If the
- * key is an unsigned 32-bit integer (i.e. an index), we call such properties
- * "elements" and store them in one of a number of forms (optimized for dense
- * property storage, typed array data, and so on).  All other properties are
- * stored using shapes and shape trees.  Keys for these properties are either
- * PropertyNames (that is, atomized strings whose contents are not unsigned
- * 32-bit integers) or SpecialIds (object values for E4X and a couple other
- * things, see jsid for details); the union of these types, used in individual
- * shapes, is PropertyId.
- */
-class PropertyId
-{
-    jsid id;
-
-  public:
-    bool isName() const {
-        MOZ_ASSERT(JSID_IS_STRING(id) || JSID_IS_SPECIAL(id));
-        return JSID_IS_STRING(id);
-    }
-    bool isSpecial() const {
-        MOZ_ASSERT(JSID_IS_STRING(id) || JSID_IS_SPECIAL(id));
-        return !isName();
-    }
-
-    PropertyId() {
-        *this = PropertyId(SpecialId());
-    }
-    explicit PropertyId(PropertyName *name)
-      : id(NON_INTEGER_ATOM_TO_JSID(name))
-    { }
-    explicit PropertyId(const SpecialId &sid)
-      : id(SPECIALID_TO_JSID(sid))
-    { }
-
-    PropertyName * asName() const {
-        return JSID_TO_STRING(id)->asAtom().asPropertyName();
-    }
-    SpecialId asSpecial() const {
-        return JSID_TO_SPECIALID(id);
-    }
-    jsid asId() const {
-        return id;
-    }
-
-    bool operator==(const PropertyId &rhs) const { return id == rhs.id; }
-    bool operator!=(const PropertyId &rhs) const { return id != rhs.id; }
-};
 
 /*
  * A representation of ECMA-262 ed. 5's internal Property Descriptor data
@@ -151,9 +101,6 @@ struct PropDesc {
         hasValue_(true), hasWritable_(true), hasEnumerable_(true), hasConfigurable_(true),
         isUndefined_(false)
     {}
-
-    inline PropDesc(const Value &getter, const Value &setter,
-                    Enumerability enumerable, Configurability configurable);
 
     /*
      * 8.10.5 ToPropertyDescriptor(Obj)
@@ -411,15 +358,13 @@ class DenseElementsHeader : public ElementsHeader
         return ElementsHeader::length;
     }
 
-    bool getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       unsigned resolveFlags, PropDesc *desc);
+    bool getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc);
 
-    bool defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       const PropDesc &desc, bool shouldThrow, unsigned resolveFlags,
-                       bool *succeeded);
+    bool defineElement(JSContext *cx, ObjectImpl *obj, uint32_t index, const PropDesc &desc,
+                       bool shouldThrow, bool *succeeded);
 
-    bool setElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver,
-                    uint32_t index, const Value &v, unsigned resolveFlags, bool *succeeded);
+    bool setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index,
+                    const Value &v, bool *succeeded);
 
   private:
     inline bool isDenseElements() const MOZ_DELETE;
@@ -442,15 +387,13 @@ class SparseElementsHeader : public ElementsHeader
         return ElementsHeader::length;
     }
 
-    bool getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       unsigned resolveFlags, PropDesc *desc);
+    bool getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc);
 
-    bool defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       const PropDesc &desc, bool shouldThrow, unsigned resolveFlags,
-                       bool *succeeded);
+    bool defineElement(JSContext *cx, ObjectImpl *obj, uint32_t index, const PropDesc &desc,
+                       bool shouldThrow, bool *succeeded);
 
-    bool setElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver,
-                    uint32_t index, const Value &v, unsigned resolveFlags, bool *succeeded);
+    bool setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index,
+                    const Value &v, bool *succeeded);
 
   private:
     inline bool isSparseElements() const MOZ_DELETE;
@@ -568,15 +511,13 @@ class TypedElementsHeader : public ElementsHeader
         return ElementsHeader::length;
     }
 
-    bool getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       unsigned resolveFlags, PropDesc *desc);
+    bool getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc);
 
-    bool defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       const PropDesc &desc, bool shouldThrow, unsigned resolveFlags,
-                       bool *succeeded);
+    bool defineElement(JSContext *cx, ObjectImpl *obj, uint32_t index, const PropDesc &desc,
+                       bool shouldThrow, bool *succeeded);
 
-    bool setElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver,
-                    uint32_t index, const Value &v, unsigned resolveFlags, bool *succeeded);
+    bool setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index,
+                    const Value &v, bool *succeeded);
 
   private:
     TypedElementsHeader(const TypedElementsHeader &other) MOZ_DELETE;
@@ -729,15 +670,13 @@ class Uint8ClampedElementsHeader : public TypedElementsHeader<uint8_clamped>
 class ArrayBufferElementsHeader : public ElementsHeader
 {
   public:
-    bool getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       unsigned resolveFlags, PropDesc *desc);
+    bool getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc);
 
-    bool defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                       const PropDesc &desc, bool shouldThrow, unsigned resolveFlags,
-                       bool *succeeded);
+    bool defineElement(JSContext *cx, ObjectImpl *obj, uint32_t index, const PropDesc &desc,
+                       bool shouldThrow, bool *succeeded);
 
-    bool setElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver,
-                    uint32_t index, const Value &v, unsigned resolveFlags, bool *succeeded);
+    bool setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index,
+                    const Value &v, bool *succeeded);
 
   private:
     inline bool isArrayBufferElements() const MOZ_DELETE;
@@ -1138,14 +1077,10 @@ class ObjectImpl : public gc::Cell
     /* Compute dynamicSlotsCount() for this object. */
     inline uint32_t numDynamicSlots() const;
 
-    Shape * nativeLookup(JSContext *cx, jsid id);
-    inline Shape * nativeLookup(JSContext *cx, PropertyId pid);
-    inline Shape * nativeLookup(JSContext *cx, PropertyName *name);
+    const Shape * nativeLookup(JSContext *cx, jsid id);
 
 #ifdef DEBUG
-    Shape * nativeLookupNoAllocation(JSContext *cx, jsid id);
-    inline Shape * nativeLookupNoAllocation(JSContext *cx, PropertyId pid);
-    inline Shape * nativeLookupNoAllocation(JSContext *cx, PropertyName *name);
+    const Shape * nativeLookupNoAllocation(JSContext *cx, jsid id);
 #endif
 
     inline Class *getClass() const;
@@ -1266,7 +1201,6 @@ class ObjectImpl : public gc::Cell
     }
 
     /* GC support. */
-    static inline ThingRootKind rootKind() { return THING_ROOT_OBJECT; }
     static inline void readBarrier(ObjectImpl *obj);
     static inline void writeBarrierPre(ObjectImpl *obj);
     static inline void writeBarrierPost(ObjectImpl *obj, void *addr);
@@ -1314,62 +1248,25 @@ ObjectValue(ObjectImpl &obj)
     return v;
 }
 
-inline Handle<JSObject*>
-Downcast(Handle<ObjectImpl*> obj)
-{
-    return Handle<JSObject*>::fromMarkedLocation(reinterpret_cast<JSObject* const*>(obj.address()));
-}
-
-extern JSObject *
-ArrayBufferDelegate(JSContext *cx, Handle<ObjectImpl*> obj);
-
-/* Generic [[GetOwnProperty]] method. */
 bool
-GetOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned resolveFlags,
-              PropDesc *desc);
-extern bool
-GetOwnProperty(JSContext *cx, Handle<ObjectImpl*> obj, PropertyId pid, unsigned resolveFlags,
-               PropDesc *desc);
-inline bool
-GetOwnProperty(JSContext *cx, Handle<ObjectImpl*> obj, Handle<PropertyName*> name,
-               unsigned resolveFlags, PropDesc *desc)
-{
-    return GetOwnProperty(cx, obj, PropertyId(name), resolveFlags, desc);
-}
-inline bool
-GetOwnProperty(JSContext *cx, Handle<ObjectImpl*> obj, Handle<SpecialId> sid, unsigned resolveFlags,
-               PropDesc *desc)
-{
-    return GetOwnProperty(cx, obj, PropertyId(sid), resolveFlags, desc);
-}
+GetOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc);
 
 /* Proposed default [[GetP]](Receiver, P) method. */
 extern bool
-GetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver, uint32_t index,
-           unsigned resolveFlags, Value *vp);
+GetElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index, Value *vp);
 
 extern bool
-DefineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, const PropDesc &desc,
-              bool shouldThrow, unsigned resolveFlags, bool *succeeded);
+DefineElement(JSContext *cx, ObjectImpl *obj, uint32_t index, const PropDesc &desc,
+              bool shouldThrow, bool *succeeded);
 
 /* Proposed default [[SetP]](Receiver, P, V) method. */
 extern bool
-SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver, uint32_t index,
-           const Value &v, unsigned resolveFlags, bool *succeeded);
+SetElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index, const Value &v,
+           bool *succeeded);
 
 extern bool
-HasElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned resolveFlags,
-           bool *found);
+HasElement(JSContext *cx, ObjectImpl *obj, uint32_t index, bool *found);
 
 } /* namespace js */
-
-namespace JS {
-template <> struct RootMethods<js::PropertyId>
-{
-    static js::PropertyId initial() { return js::PropertyId(); }
-    static ThingRootKind kind() { return THING_ROOT_PROPERTY_ID; }
-    static bool poisoned(js::PropertyId propid) { return IsPoisonedId(propid.asId()); }
-};
-}
 
 #endif /* ObjectImpl_h__ */

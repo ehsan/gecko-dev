@@ -257,7 +257,7 @@ js::ObjectImpl::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
  */
 MOZ_NEVER_INLINE
 #endif
-Shape *
+const Shape *
 js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 {
     MOZ_ASSERT(isNative());
@@ -266,7 +266,7 @@ js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 }
 
 #ifdef DEBUG
-Shape *
+const Shape *
 js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, jsid id)
 {
     MOZ_ASSERT(isNative());
@@ -291,8 +291,7 @@ js::ObjectImpl::markChildren(JSTracer *trc)
 }
 
 bool
-DenseElementsHeader::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                                   unsigned resolveFlags, PropDesc *desc)
+DenseElementsHeader::getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -313,8 +312,7 @@ DenseElementsHeader::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint3
 }
 
 bool
-SparseElementsHeader::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                                    unsigned resolveFlags, PropDesc *desc)
+SparseElementsHeader::getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -338,8 +336,8 @@ ElementToValue(const uint8_clamped &u)
 
 template<typename T>
 bool
-TypedElementsHeader<T>::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                                      unsigned resolveFlags, PropDesc *desc)
+TypedElementsHeader<T>::getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index,
+                                      PropDesc *desc)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -354,8 +352,8 @@ TypedElementsHeader<T>::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, ui
 }
 
 bool
-ArrayBufferElementsHeader::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                                         unsigned resolveFlags, PropDesc *desc)
+ArrayBufferElementsHeader::getOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index,
+                                         PropDesc *desc)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -364,9 +362,8 @@ ArrayBufferElementsHeader::getOwnElement(JSContext *cx, Handle<ObjectImpl*> obj,
 }
 
 bool
-SparseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                                    const PropDesc &desc, bool shouldThrow, unsigned resolveFlags,
-                                    bool *succeeded)
+SparseElementsHeader::defineElement(JSContext *cx, ObjectImpl *obj, uint32_t index,
+                                    const PropDesc &desc, bool shouldThrow, bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -375,9 +372,8 @@ SparseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint
 }
 
 bool
-DenseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index,
-                                   const PropDesc &desc, bool shouldThrow, unsigned resolveFlags,
-                                   bool *succeeded)
+DenseElementsHeader::defineElement(JSContext *cx, ObjectImpl *obj, uint32_t index,
+                                   const PropDesc &desc, bool shouldThrow, bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -396,7 +392,7 @@ DenseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint3
         if (!obj->makeElementsSparse(cx))
             return false;
         SparseElementsHeader &elts = obj->elementsHeader().asSparseElements();
-        return elts.defineElement(cx, obj, index, desc, shouldThrow, resolveFlags, succeeded);
+        return elts.defineElement(cx, obj, index, desc, shouldThrow, succeeded);
     }
 
     /* Does the element exist?  All behavior depends upon this. */
@@ -439,7 +435,7 @@ DenseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint3
         if (!obj->makeElementsSparse(cx))
             return false;
         SparseElementsHeader &elts = obj->elementsHeader().asSparseElements();
-        return elts.defineElement(cx, obj, index, desc, shouldThrow, resolveFlags, succeeded);
+        return elts.defineElement(cx, obj, index, desc, shouldThrow, succeeded);
     }
 
     /* But if we were able to ensure the element's existence, we're good. */
@@ -449,8 +445,8 @@ DenseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint3
     return true;
 }
 
-JSObject *
-js::ArrayBufferDelegate(JSContext *cx, Handle<ObjectImpl*> obj)
+static JSObject *
+ArrayBufferDelegate(JSContext *cx, ObjectImpl *obj)
 {
     MOZ_ASSERT(obj->hasClass(&ArrayBufferClass));
     if (obj->getPrivate())
@@ -462,9 +458,9 @@ js::ArrayBufferDelegate(JSContext *cx, Handle<ObjectImpl*> obj)
 
 template <typename T>
 bool
-TypedElementsHeader<T>::defineElement(JSContext *cx, Handle<ObjectImpl*> obj,
+TypedElementsHeader<T>::defineElement(JSContext *cx, ObjectImpl *obj,
                                       uint32_t index, const PropDesc &desc, bool shouldThrow,
-                                      unsigned resolveFlags, bool *succeeded)
+                                      bool *succeeded)
 {
     /* XXX jwalden This probably isn't how typed arrays should behave... */
     *succeeded = false;
@@ -476,106 +472,47 @@ TypedElementsHeader<T>::defineElement(JSContext *cx, Handle<ObjectImpl*> obj,
 }
 
 bool
-ArrayBufferElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj,
+ArrayBufferElementsHeader::defineElement(JSContext *cx, ObjectImpl *obj,
                                          uint32_t index, const PropDesc &desc, bool shouldThrow,
-                                         unsigned resolveFlags, bool *succeeded)
+                                         bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
-    Rooted<JSObject*> delegate(cx, ArrayBufferDelegate(cx, obj));
+    JSObject *delegate = ArrayBufferDelegate(cx, obj);
     if (!delegate)
         return false;
-    return DefineElement(cx, delegate, index, desc, shouldThrow, resolveFlags, succeeded);
+    return DefineElement(cx, delegate, index, desc, shouldThrow, succeeded);
 }
 
 bool
-js::GetOwnProperty(JSContext *cx, Handle<ObjectImpl*> obj, PropertyId pid_, unsigned resolveFlags,
-                   PropDesc *desc)
-{
-    NEW_OBJECT_REPRESENTATION_ONLY();
-
-    JS_CHECK_RECURSION(cx, return false);
-
-    Rooted<PropertyId> pid(cx, pid_);
-
-    if (static_cast<JSObject *>(obj.get())->isProxy()) {
-        MOZ_NOT_REACHED("NYI: proxy [[GetOwnProperty]]");
-        return false;
-    }
-
-    Shape *shape = obj->nativeLookup(cx, pid);
-    if (!shape) {
-        /* Not found: attempt to resolve it. */
-        Class *clasp = obj->getClass();
-        JSResolveOp resolve = clasp->resolve;
-        if (resolve != JS_ResolveStub) {
-            Rooted<jsid> id(cx, pid.get().asId());
-            Rooted<JSObject*> robj(cx, static_cast<JSObject*>(obj.get()));
-            if (clasp->flags & JSCLASS_NEW_RESOLVE) {
-                Rooted<JSObject*> obj2(cx, NULL);
-                JSNewResolveOp op = reinterpret_cast<JSNewResolveOp>(resolve);
-                if (!op(cx, robj, id, resolveFlags, &obj2))
-                    return false;
-            } else {
-                if (!resolve(cx, robj, id))
-                    return false;
-            }
-        }
-
-        /* Now look it up again. */
-        shape = obj->nativeLookup(cx, pid);
-        if (!shape) {
-            desc->setUndefined();
-            return true;
-        }
-    }
-
-    if (shape->isDataDescriptor()) {
-        *desc = PropDesc(obj->nativeGetSlot(shape->slot()), shape->writability(),
-                         shape->enumerability(), shape->configurability());
-        return true;
-    }
-
-    if (shape->isAccessorDescriptor()) {
-        *desc = PropDesc(shape->getterValue(), shape->setterValue(),
-                         shape->enumerability(), shape->configurability());
-        return true;
-    }
-
-    MOZ_NOT_REACHED("NYI: PropertyOp-based properties");
-    return false;
-}
-
-bool
-js::GetOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned resolveFlags,
-                  PropDesc *desc)
+js::GetOwnElement(JSContext *cx, ObjectImpl *obj, uint32_t index, PropDesc *desc)
 {
     ElementsHeader &header = obj->elementsHeader();
     switch (header.kind()) {
       case DenseElements:
-        return header.asDenseElements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asDenseElements().getOwnElement(cx, obj, index, desc);
       case SparseElements:
-        return header.asSparseElements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asSparseElements().getOwnElement(cx, obj, index, desc);
       case Uint8Elements:
-        return header.asUint8Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asUint8Elements().getOwnElement(cx, obj, index, desc);
       case Int8Elements:
-        return header.asInt8Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asInt8Elements().getOwnElement(cx, obj, index, desc);
       case Uint16Elements:
-        return header.asUint16Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asUint16Elements().getOwnElement(cx, obj, index, desc);
       case Int16Elements:
-        return header.asInt16Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asInt16Elements().getOwnElement(cx, obj, index, desc);
       case Uint32Elements:
-        return header.asUint32Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asUint32Elements().getOwnElement(cx, obj, index, desc);
       case Int32Elements:
-        return header.asInt32Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asInt32Elements().getOwnElement(cx, obj, index, desc);
       case Uint8ClampedElements:
-        return header.asUint8ClampedElements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asUint8ClampedElements().getOwnElement(cx, obj, index, desc);
       case Float32Elements:
-        return header.asFloat32Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asFloat32Elements().getOwnElement(cx, obj, index, desc);
       case Float64Elements:
-        return header.asFloat64Elements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asFloat64Elements().getOwnElement(cx, obj, index, desc);
       case ArrayBufferElements:
-        return header.asArrayBufferElements().getOwnElement(cx, obj, index, resolveFlags, desc);
+        return header.asArrayBufferElements().getOwnElement(cx, obj, index, desc);
     }
 
     MOZ_NOT_REACHED("bad elements kind!");
@@ -583,29 +520,27 @@ js::GetOwnElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsign
 }
 
 bool
-js::GetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver, uint32_t index,
-               unsigned resolveFlags, Value *vp)
+js::GetElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index,
+               Value *vp)
 {
     NEW_OBJECT_REPRESENTATION_ONLY();
 
-    Rooted<ObjectImpl*> current(cx, obj);
-
     do {
-        MOZ_ASSERT(current);
+        MOZ_ASSERT(obj);
 
-        if (Downcast(current)->isProxy()) {
+        if (static_cast<JSObject *>(obj)->isProxy()) { // XXX
             MOZ_NOT_REACHED("NYI: proxy [[GetP]]");
             return false;
         }
 
         PropDesc desc;
-        if (!GetOwnElement(cx, current, index, resolveFlags, &desc))
+        if (!GetOwnElement(cx, obj, index, &desc))
             return false;
 
         /* No property?  Recur or bottom out. */
         if (desc.isUndefined()) {
-            current = current->getProto();
-            if (current)
+            obj = obj->getProto();
+            if (obj)
                 continue;
 
             vp->setUndefined();
@@ -632,7 +567,7 @@ js::GetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
 
             /* Push get, receiver, and no args. */
             args.calleev() = get;
-            args.thisv() = ObjectValue(*current);
+            args.thisv() = ObjectValue(*receiver);
 
             bool ok = Invoke(cx, args);
             *vp = args.rval();
@@ -649,23 +584,20 @@ js::GetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
 }
 
 bool
-js::HasElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned resolveFlags,
-               bool *found)
+js::HasElement(JSContext *cx, ObjectImpl *obj, uint32_t index, bool *found)
 {
     NEW_OBJECT_REPRESENTATION_ONLY();
 
-    Rooted<ObjectImpl*> current(cx, obj);
-
     do {
-        MOZ_ASSERT(current);
+        MOZ_ASSERT(obj);
 
-        if (Downcast(current)->isProxy()) {
+        if (static_cast<JSObject *>(obj)->isProxy()) { // XXX
             MOZ_NOT_REACHED("NYI: proxy [[HasProperty]]");
             return false;
         }
 
         PropDesc prop;
-        if (!GetOwnElement(cx, current, index, resolveFlags, &prop))
+        if (!GetOwnElement(cx, obj, index, &prop))
             return false;
 
         if (!prop.isUndefined()) {
@@ -673,8 +605,8 @@ js::HasElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned 
             return true;
         }
 
-        current = current->getProto();
-        if (current)
+        obj = obj->getProto();
+        if (obj)
             continue;
 
         *found = false;
@@ -686,8 +618,8 @@ js::HasElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, unsigned 
 }
 
 bool
-js::DefineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, const PropDesc &desc,
-                  bool shouldThrow, unsigned resolveFlags, bool *succeeded)
+js::DefineElement(JSContext *cx, ObjectImpl *obj, uint32_t index, const PropDesc &desc,
+                  bool shouldThrow, bool *succeeded)
 {
     NEW_OBJECT_REPRESENTATION_ONLY();
 
@@ -696,40 +628,40 @@ js::DefineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, const 
     switch (header.kind()) {
       case DenseElements:
         return header.asDenseElements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                      resolveFlags, succeeded);
+                                                      succeeded);
       case SparseElements:
         return header.asSparseElements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                       resolveFlags, succeeded);
+                                                       succeeded);
       case Uint8Elements:
         return header.asUint8Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                      resolveFlags, succeeded);
+                                                      succeeded);
       case Int8Elements:
         return header.asInt8Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                     resolveFlags, succeeded);
+                                                     succeeded);
       case Uint16Elements:
         return header.asUint16Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                       resolveFlags, succeeded);
+                                                       succeeded);
       case Int16Elements:
         return header.asInt16Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                      resolveFlags, succeeded);
+                                                      succeeded);
       case Uint32Elements:
         return header.asUint32Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                       resolveFlags, succeeded);
+                                                       succeeded);
       case Int32Elements:
         return header.asInt32Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                      resolveFlags, succeeded);
+                                                      succeeded);
       case Uint8ClampedElements:
         return header.asUint8ClampedElements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                             resolveFlags, succeeded);
+                                                             succeeded);
       case Float32Elements:
         return header.asFloat32Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                        resolveFlags, succeeded);
+                                                        succeeded);
       case Float64Elements:
         return header.asFloat64Elements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                        resolveFlags, succeeded);
+                                                        succeeded);
       case ArrayBufferElements:
         return header.asArrayBufferElements().defineElement(cx, obj, index, desc, shouldThrow,
-                                                            resolveFlags, succeeded);
+                                                            succeeded);
     }
 
     MOZ_NOT_REACHED("bad elements kind!");
@@ -737,9 +669,8 @@ js::DefineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint32_t index, const 
 }
 
 bool
-SparseElementsHeader::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
-                                 Handle<ObjectImpl*> receiver, uint32_t index, const Value &v,
-                                 unsigned resolveFlags, bool *succeeded)
+SparseElementsHeader::setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver,
+                                 uint32_t index, const Value &v, bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -748,9 +679,8 @@ SparseElementsHeader::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
 }
 
 bool
-DenseElementsHeader::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
-                                Handle<ObjectImpl*> receiver, uint32_t index, const Value &v,
-                                unsigned resolveFlags, bool *succeeded)
+DenseElementsHeader::setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver,
+                                uint32_t index, const Value &v, bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -760,9 +690,8 @@ DenseElementsHeader::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
 
 template <typename T>
 bool
-TypedElementsHeader<T>::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
-                                   Handle<ObjectImpl*> receiver, uint32_t index, const Value &v,
-                                   unsigned resolveFlags, bool *succeeded)
+TypedElementsHeader<T>::setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver,
+                                   uint32_t index, const Value &v, bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
@@ -802,36 +731,33 @@ TypedElementsHeader<T>::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
 }
 
 bool
-ArrayBufferElementsHeader::setElement(JSContext *cx, Handle<ObjectImpl*> obj,
-                                      Handle<ObjectImpl*> receiver, uint32_t index, const Value &v,
-                                      unsigned resolveFlags, bool *succeeded)
+ArrayBufferElementsHeader::setElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver,
+                                      uint32_t index, const Value &v, bool *succeeded)
 {
     MOZ_ASSERT(this == &obj->elementsHeader());
 
     JSObject *delegate = ArrayBufferDelegate(cx, obj);
     if (!delegate)
         return false;
-    return SetElement(cx, obj, receiver, index, v, resolveFlags, succeeded);
+    return SetElement(cx, obj, receiver, index, v, succeeded);
 }
 
 bool
-js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> receiver,
-               uint32_t index, const Value &v, unsigned resolveFlags, bool *succeeded)
+js::SetElement(JSContext *cx, ObjectImpl *obj, ObjectImpl *receiver, uint32_t index,
+               const Value &v, bool *succeeded)
 {
     NEW_OBJECT_REPRESENTATION_ONLY();
 
-    Rooted<ObjectImpl*> current(cx, obj);
-
     do {
-        MOZ_ASSERT(current);
+        MOZ_ASSERT(obj);
 
-        if (Downcast(current)->isProxy()) {
+        if (static_cast<JSObject *>(obj)->isProxy()) { // XXX
             MOZ_NOT_REACHED("NYI: proxy [[SetP]]");
             return false;
         }
 
         PropDesc ownDesc;
-        if (!GetOwnElement(cx, current, index, resolveFlags, &ownDesc))
+        if (!GetOwnElement(cx, obj, index, &ownDesc))
             return false;
 
         if (!ownDesc.isUndefined()) {
@@ -841,14 +767,13 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
                     return true;
                 }
 
-                if (receiver == current) {
+                if (receiver == obj) {
                     PropDesc updateDesc = PropDesc::valueOnly(v);
-                    return DefineElement(cx, receiver, index, updateDesc, false, resolveFlags,
-                                         succeeded);
+                    return DefineElement(cx, receiver, index, updateDesc, false, succeeded);
                 }
 
                 PropDesc newDesc;
-                return DefineElement(cx, receiver, index, newDesc, false, resolveFlags, succeeded);
+                return DefineElement(cx, receiver, index, newDesc, false, succeeded);
             }
 
             if (ownDesc.isAccessorDescriptor()) {
@@ -864,7 +789,7 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
 
                 /* Push set, receiver, and v as the sole argument. */
                 args.calleev() = setter;
-                args.thisv() = ObjectValue(*current);
+                args.thisv() = ObjectValue(*receiver);
                 args[0] = v;
 
                 *succeeded = true;
@@ -875,12 +800,12 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
             return false;
         }
 
-        current = current->getProto();
-        if (current)
+        obj = obj->getProto();
+        if (obj)
             continue;
 
         PropDesc newDesc(v, PropDesc::Writable, PropDesc::Enumerable, PropDesc::Configurable);
-        return DefineElement(cx, receiver, index, newDesc, false, resolveFlags, succeeded);
+        return DefineElement(cx, receiver, index, newDesc, false, succeeded);
     } while (false);
 
     MOZ_NOT_REACHED("buggy control flow");

@@ -127,13 +127,14 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 // Support for pixel scroll deltas, not part of NSEvent.h
 // See http://lists.apple.com/archives/cocoa-dev/2007/Feb/msg00050.html
 @interface NSEvent (DeviceDelta)
-// Leopard and SnowLeopard
-- (CGFloat)deviceDeltaX;
-- (CGFloat)deviceDeltaY;
-// Lion and above
-- (CGFloat)scrollingDeltaX;
-- (CGFloat)scrollingDeltaY;
-- (BOOL)hasPreciseScrollingDeltas;
+  - (CGFloat)deviceDeltaX;
+  - (CGFloat)deviceDeltaY;
+@end
+
+// Undocumented scrollPhase flag that lets us discern between real scrolls and
+// automatically firing momentum scroll events.
+@interface NSEvent (ScrollPhase)
+- (long long)_scrollPhase;
 @end
 
 #if !defined(MAC_OS_X_VERSION_10_6) || \
@@ -159,6 +160,7 @@ MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_6
 // friends are defined (in AvailabilityMacros.h) as decimal numbers (not
 // hexadecimal numbers).
 #if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
+#ifdef __LP64__
 enum {
   NSEventPhaseNone        = 0,
   NSEventPhaseBegan       = 0x1 << 0,
@@ -169,7 +171,6 @@ enum {
 };
 typedef NSUInteger NSEventPhase;
 
-#ifdef __LP64__
 enum {
   NSEventSwipeTrackingLockDirection = 0x1 << 0,
   NSEventSwipeTrackingClampGestureAmount = 0x1 << 1
@@ -196,15 +197,6 @@ typedef NSInteger NSEventGestureAxis;
 @end
 #endif // #ifdef __LP64__
 #endif // #if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
-
-// Undocumented scrollPhase flag that lets us discern between real scrolls and
-// automatically firing momentum scroll events.
-@interface NSEvent (ScrollPhase)
-// Leopard and SnowLeopard
-- (long long)_scrollPhase;
-// Lion and above
-- (NSEventPhase)momentumPhase;
-@end
 
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY

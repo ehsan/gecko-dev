@@ -10,8 +10,12 @@
  */
 
 #include "nsNoDataProtocolContentPolicy.h"
+#include "nsIDocument.h"
+#include "nsINode.h"
 #include "nsIDOMWindow.h"
+#include "nsIDOMDocument.h"
 #include "nsString.h"
+#include "nsContentUtils.h"
 #include "nsIProtocolHandler.h"
 #include "nsIIOService.h"
 #include "nsIExternalProtocolHandler.h"
@@ -26,7 +30,6 @@ nsNoDataProtocolContentPolicy::ShouldLoad(PRUint32 aContentType,
                                           nsISupports *aRequestingContext,
                                           const nsACString &aMimeGuess,
                                           nsISupports *aExtra,
-                                          nsIPrincipal *aRequestPrincipal,
                                           PRInt16 *aDecision)
 {
   *aDecision = nsIContentPolicy::ACCEPT;
@@ -71,10 +74,8 @@ nsNoDataProtocolContentPolicy::ShouldProcess(PRUint32 aContentType,
                                              nsISupports *aRequestingContext,
                                              const nsACString &aMimeGuess,
                                              nsISupports *aExtra,
-                                             nsIPrincipal *aRequestPrincipal,
                                              PRInt16 *aDecision)
 {
   return ShouldLoad(aContentType, aContentLocation, aRequestingLocation,
-                    aRequestingContext, aMimeGuess, aExtra, aRequestPrincipal,
-                    aDecision);
+                    aRequestingContext, aMimeGuess, aExtra, aDecision);
 }

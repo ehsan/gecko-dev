@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
 #include <gtk/gtk.h>
 #endif
 
@@ -218,7 +218,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
                    base::ProcessHandle aParentHandle,
                    IPC::Channel* aChannel)
 {
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
     // sigh
     gtk_init(NULL, NULL);
 #endif
@@ -382,9 +382,9 @@ ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
 }
 
 PBrowserChild*
-ContentChild::AllocPBrowser(const PRUint32& aChromeFlags, const bool& aIsBrowserFrame)
+ContentChild::AllocPBrowser(const PRUint32& aChromeFlags)
 {
-    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserFrame);
+    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags);
     return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
 }
 
@@ -744,14 +744,14 @@ ContentChild::RecvActivateA11y()
 bool
 ContentChild::RecvGarbageCollect()
 {
-    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC);
+    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC, nsGCNormal, true);
     return true;
 }
 
 bool
 ContentChild::RecvCycleCollect()
 {
-    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC);
+    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC, nsGCNormal, true);
     nsJSContext::CycleCollectNow();
     return true;
 }

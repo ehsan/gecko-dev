@@ -6,7 +6,6 @@ package org.mozilla.gecko.sync;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -196,19 +195,7 @@ public class SyncConfiguration implements CredentialsSource {
    * Copied from latest downloaded meta/global record and used to generate a
    * fresh meta/global record for upload.
    */
-  public Set<String> enabledEngineNames;
-
-  /**
-   * Names of stages to sync <it>this sync</it>, or <code>null</code> to sync
-   * all known stages.
-   * <p>
-   * Generated <it>each sync</it> from extras bundle passed to
-   * <code>SyncAdapter.onPerformSync</code> and not persisted.
-   * <p>
-   * Not synchronized! Set this exactly once per global session and don't modify
-   * it -- especially not from multiple threads.
-   */
-  public Collection<String> stagesToSync;
+  public Set<String>     enabledEngineNames;
 
   // Fields that maintain a reference to a SharedPreferences instance, used for
   // persistence.
@@ -254,14 +241,14 @@ public class SyncConfiguration implements CredentialsSource {
       String u = prefs.getString(PREF_CLUSTER_URL, null);
       try {
         clusterURL = new URI(u);
-        Logger.debug(LOG_TAG, "Set clusterURL from bundle: " + u);
+        Logger.info(LOG_TAG, "Set clusterURL from bundle: " + u);
       } catch (URISyntaxException e) {
         Logger.warn(LOG_TAG, "Ignoring bundle clusterURL (" + u + "): invalid URI.", e);
       }
     }
     if (prefs.contains(PREF_SYNC_ID)) {
       syncID = prefs.getString(PREF_SYNC_ID, null);
-      Logger.debug(LOG_TAG, "Set syncID from bundle: " + syncID);
+      Logger.info(LOG_TAG, "Set syncID from bundle: " + syncID);
     }
     if (prefs.contains(PREF_ENABLED_ENGINE_NAMES)) {
       String json = prefs.getString(PREF_ENABLED_ENGINE_NAMES, null);
@@ -407,7 +394,7 @@ public class SyncConfiguration implements CredentialsSource {
       return;
     }
     setAndPersistClusterURL(uri.resolve("/"), prefs);
-    Logger.debug(LOG_TAG, "Set cluster URL to " + clusterURL.toASCIIString() + ", given input " + u.toASCIIString());
+    Logger.info(LOG_TAG, "Set cluster URL to " + clusterURL.toASCIIString() + ", given input " + u.toASCIIString());
   }
 
   public void setClusterURL(URI u) {

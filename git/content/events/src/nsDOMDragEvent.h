@@ -8,7 +8,9 @@
 
 #include "nsIDOMDragEvent.h"
 #include "nsDOMMouseEvent.h"
+#include "nsIDOMDataTransfer.h"
 
+class nsIContent;
 class nsEvent;
 
 class nsDOMDragEvent : public nsDOMMouseEvent,

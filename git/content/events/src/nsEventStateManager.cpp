@@ -1678,10 +1678,10 @@ nsEventStateManager::IsRemoteTarget(nsIContent* target) {
   // <frame/iframe mozbrowser>
   nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(target);
   if (browserFrame) {
-    bool isBrowser = false;
-    browserFrame->GetReallyIsBrowser(&isBrowser);
-    if (isBrowser) {
-      return !!TabParent::GetFrom(target);
+    bool isRemote = false;
+    browserFrame->GetReallyIsBrowser(&isRemote);
+    if (isRemote) {
+      return true;
     }
   }
 
@@ -1901,7 +1901,6 @@ nsEventStateManager::FireContextClick()
                              type == NS_FORM_INPUT_URL ||
                              type == NS_FORM_INPUT_PASSWORD ||
                              type == NS_FORM_INPUT_FILE ||
-                             type == NS_FORM_INPUT_NUMBER ||
                              type == NS_FORM_TEXTAREA);
       }
       else if (tag == nsGkAtoms::applet ||
@@ -2318,7 +2317,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   nsIDOMElement* dragImage = aDataTransfer->GetDragImage(&imageX, &imageY);
 
   nsCOMPtr<nsISupportsArray> transArray;
-  aDataTransfer->GetTransferables(getter_AddRefs(transArray), dragTarget);
+  aDataTransfer->GetTransferables(getter_AddRefs(transArray));
   if (!transArray)
     return false;
 
@@ -3873,14 +3872,8 @@ public:
 
   ~MouseEnterLeaveDispatcher()
   {
-    if (mType == NS_MOUSEENTER) {
-      for (PRInt32 i = mTargets.Count() - 1; i >= 0; --i) {
-        mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
-      }
-    } else {
-      for (PRInt32 i = 0; i < mTargets.Count(); ++i) {
-        mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
-      }
+    for (PRInt32 i = 0; i < mTargets.Count(); ++i) {
+      mESM->DispatchMouseEvent(mEvent, mType, mTargets[i], mRelatedTarget);
     }
   }
 

@@ -16,6 +16,7 @@ using mozilla::dom::ContentChild;
 #include "nsDOMClassInfoID.h"
 #include "nsDOMJSUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsIDocument.h"
 #include "nsDOMStorage.h"
 #include "nsEscape.h"
 #include "nsContentUtils.h"

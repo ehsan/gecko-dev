@@ -3,7 +3,7 @@
 
 MARIONETTE_TIMEOUT = 10000;
 
-let battery = window.navigator.battery;
+let battery = window.navigator.mozBattery;
 ok(battery);
 
 /**

@@ -154,13 +154,13 @@ Bindings::callObjectShape(JSContext *cx) const
      * to first (i.e., the order we normally have iterate over Shapes). Choose
      * the last added property in each set of dups.
      */
-    Vector<Shape *> shapes(cx);
+    Vector<const Shape *> shapes(cx);
     HashSet<jsid> seen(cx);
     if (!seen.init())
         return NULL;
 
     for (Shape::Range r = lastShape()->all(); !r.empty(); r.popFront()) {
-        Shape &s = r.front();
+        const Shape &s = r.front();
         HashSet<jsid>::AddPtr p = seen.lookupForAdd(s.propid());
         if (!p) {
             if (!seen.add(p, s.propid()))
@@ -205,7 +205,7 @@ Bindings::getLocalNameArray(JSContext *cx, BindingNames *namesp)
 #endif
 
     for (Shape::Range r = lastBinding->all(); !r.empty(); r.popFront()) {
-        Shape &shape = r.front();
+        const Shape &shape = r.front();
         unsigned index = uint16_t(shape.shortid());
 
         if (shape.setter() == CallObject::setArgOp) {
@@ -234,11 +234,31 @@ Bindings::getLocalNameArray(JSContext *cx, BindingNames *namesp)
     return true;
 }
 
-Shape *
+const Shape *
+Bindings::lastArgument() const
+{
+    JS_ASSERT(lastBinding);
+
+    const js::Shape *shape = lastVariable();
+    if (nvars > 0) {
+        while (shape->previous() && shape->setter() != CallObject::setArgOp)
+            shape = shape->previous();
+    }
+    return shape;
+}
+
+const Shape *
 Bindings::lastVariable() const
 {
     JS_ASSERT(lastBinding);
     return lastBinding;
+}
+
+void
+Bindings::makeImmutable()
+{
+    JS_ASSERT(lastBinding);
+    JS_ASSERT(!lastBinding->inDictionary());
 }
 
 void
@@ -355,7 +375,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         StrictModeCode,
         ContainsDynamicNameAccess,
         FunHasExtensibleScope,
-        ArgumentsHasVarBinding,
+        ArgumentsHasLocalBinding,
         NeedsArgsObj,
         OwnFilename,
         ParentFilename,
@@ -373,7 +393,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     nsrcnotes = ntrynotes = natoms = nobjects = nregexps = nconsts = nClosedArgs = nClosedVars = 0;
     jssrcnote *notes = NULL;
 
-    /* XDR arguments, var vars, and upvars. */
+    /* XDR arguments, local vars, and upvars. */
     uint16_t nargs, nvars;
 #if defined(DEBUG) || defined(__GNUC__) /* quell GCC overwarning */
     script = NULL;
@@ -397,7 +417,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     JS_ASSERT(nargs != Bindings::BINDING_COUNT_LIMIT);
     JS_ASSERT(nvars != Bindings::BINDING_COUNT_LIMIT);
 
-    Bindings bindings;
+    Bindings bindings(cx);
     Bindings::AutoRooter bindingsRoot(cx, &bindings);
 
     uint32_t nameCount = nargs + nvars;
@@ -469,6 +489,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     if (mode == XDR_DECODE) {
         if (!bindings.ensureShape(cx))
             return false;
+        bindings.makeImmutable();
     }
 
     if (mode == XDR_ENCODE)
@@ -511,8 +532,8 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             scriptBits |= (1 << ContainsDynamicNameAccess);
         if (script->funHasExtensibleScope)
             scriptBits |= (1 << FunHasExtensibleScope);
-        if (script->argumentsHasVarBinding())
-            scriptBits |= (1 << ArgumentsHasVarBinding);
+        if (script->argumentsHasLocalBinding())
+            scriptBits |= (1 << ArgumentsHasLocalBinding);
         if (script->analyzedArgsUsage() && script->needsArgsObj())
             scriptBits |= (1 << NeedsArgsObj);
         if (script->filename) {
@@ -578,7 +599,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
                                               nClosedVars, nTypeSets))
             return JS_FALSE;
 
-        script->bindings.transfer(&bindings);
+        script->bindings.transfer(cx, &bindings);
         JS_ASSERT(!script->mainOffset);
         script->mainOffset = prologLength;
         script->nfixed = uint16_t(version >> 16);
@@ -593,8 +614,13 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             script->bindingsAccessedDynamically = true;
         if (scriptBits & (1 << FunHasExtensibleScope))
             script->funHasExtensibleScope = true;
-        if (scriptBits & (1 << ArgumentsHasVarBinding))
-            script->setArgumentsHasVarBinding();
+        if (scriptBits & (1 << ArgumentsHasLocalBinding)) {
+            PropertyName *arguments = cx->runtime->atomState.argumentsAtom;
+            unsigned local;
+            DebugOnly<BindingKind> kind = script->bindings.lookup(cx, arguments, &local);
+            JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
+            script->setArgumentsHasLocalBinding(local);
+        }
         if (scriptBits & (1 << NeedsArgsObj))
             script->setNeedsArgsObj(true);
         if (scriptBits & (1 << IsGenerator))
@@ -1076,9 +1102,8 @@ ScriptDataSize(uint32_t length, uint32_t nsrcnotes, uint32_t natoms,
 JSScript *
 JSScript::Create(JSContext *cx, bool savedCallerFun, JSPrincipals *principals,
                  JSPrincipals *originPrincipals, bool compileAndGo, bool noScriptRval,
-                 GlobalObject *globalObject_, JSVersion version, unsigned staticLevel)
+                 GlobalObject *globalObject, JSVersion version, unsigned staticLevel)
 {
-    Rooted<GlobalObject*> globalObject(cx, globalObject_);
     JSScript *script = js_NewGCScript(cx);
     if (!script)
         return NULL;
@@ -1145,7 +1170,7 @@ JSScript::partiallyInit(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint
 
     script->length = length;
 
-    new (&script->bindings) Bindings;
+    new (&script->bindings) Bindings(cx);
 
     uint8_t *cursor = data;
     if (nconsts != 0) {
@@ -1270,6 +1295,8 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
                                bce->typesetCount))
         return false;
 
+    bce->sc->bindings.makeImmutable();
+
     JS_ASSERT(script->mainOffset == 0);
     script->mainOffset = prologLength;
     PodCopy<jsbytecode>(script->code, bce->prologBase(), prologLength);
@@ -1287,7 +1314,8 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     }
     script->lineno = bce->firstLine;
     if (script->nfixed + bce->maxStackDepth >= JS_BIT(16)) {
-        bce->reportError(NULL, JSMSG_NEED_DIET, "script");
+        ReportCompileErrorNumber(cx, bce->tokenStream(), NULL, JSREPORT_ERROR, JSMSG_NEED_DIET,
+                                 "script");
         return false;
     }
     script->nslots = script->nfixed + bce->maxStackDepth;
@@ -1322,7 +1350,7 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     if (bce->sc->inFunction()) {
         if (bce->sc->funArgumentsHasLocalBinding()) {
             // This must precede the script->bindings.transfer() call below
-            script->setArgumentsHasVarBinding();
+            script->setArgumentsHasLocalBinding(bce->sc->argumentsLocal());
             if (bce->sc->funDefinitelyNeedsArgsObj())        
                 script->setNeedsArgsObj(true);
         } else {
@@ -1335,13 +1363,46 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     if (nClosedVars)
         PodCopy<uint32_t>(script->closedVars()->vector, &bce->closedVars[0], nClosedVars);
 
-    script->bindings.transfer(&bce->sc->bindings);
+    script->bindings.transfer(cx, &bce->sc->bindings);
 
-    RootedFunction fun(cx, NULL);
+    JSFunction *fun = NULL;
     if (bce->sc->inFunction()) {
         JS_ASSERT(!bce->script->noScriptRval);
+
         script->isGenerator = bce->sc->funIsGenerator();
-        script->setFunction(bce->sc->fun());
+
+        /*
+         * We initialize fun->script() to be the script constructed above
+         * so that the debugger has a valid fun->script().
+         */
+        fun = bce->sc->fun();
+        JS_ASSERT(fun->isInterpreted());
+        JS_ASSERT(!fun->script());
+        if (bce->sc->funIsHeavyweight())
+            fun->flags |= JSFUN_HEAVYWEIGHT;
+
+        /* Mark functions which will only be executed once as singletons. */
+        bool singleton =
+            cx->typeInferenceEnabled() &&
+            bce->parent &&
+            bce->parent->checkSingletonContext();
+
+        if (!script->typeSetFunction(cx, fun, singleton))
+            return false;
+
+        fun->setScript(script);
+    }
+
+    /* Tell the debugger about this compiled script. */
+    js_CallNewScriptHook(cx, script, fun);
+    if (!bce->parent) {
+        GlobalObject *compileAndGoGlobal = NULL;
+        if (script->compileAndGo) {
+            compileAndGoGlobal = script->globalObject;
+            if (!compileAndGoGlobal)
+                compileAndGoGlobal = &bce->sc->scopeChain()->global();
+        }
+        Debugger::onNewScript(cx, script, compileAndGoGlobal);
     }
 
     /*
@@ -1416,7 +1477,6 @@ JSScript::finalize(FreeOp *fop)
     // fullyInitFromEmitter() or fullyInitTrivial().
 
     CallDestroyScriptHook(fop, this);
-    fop->runtime()->spsProfiler.onScriptFinalized(this);
 
     JS_ASSERT_IF(principals, originPrincipals);
     if (principals)
@@ -1677,7 +1737,7 @@ js::CloneScript(JSContext *cx, HandleScript src)
 
     /* Bindings */
 
-    Bindings bindings;
+    Bindings bindings(cx);
     Bindings::AutoRooter bindingsRoot(cx, &bindings);
     BindingNames names(cx);
     if (!src->bindings.getLocalNameArray(cx, &names))
@@ -1685,8 +1745,7 @@ js::CloneScript(JSContext *cx, HandleScript src)
 
     for (unsigned i = 0; i < names.length(); ++i) {
         if (JSAtom *atom = names[i].maybeAtom) {
-            Rooted<JSAtom*> root(cx, atom);
-            if (!bindings.add(cx, root, names[i].kind))
+            if (!bindings.add(cx, RootedAtom(cx, atom), names[i].kind))
                 return NULL;
         } else {
             uint16_t _;
@@ -1697,6 +1756,7 @@ js::CloneScript(JSContext *cx, HandleScript src)
 
     if (!bindings.ensureShape(cx))
         return NULL;
+    bindings.makeImmutable();
 
     /* Objects */
 
@@ -1736,8 +1796,8 @@ js::CloneScript(JSContext *cx, HandleScript src)
         return NULL;
     }
 
-    new (&dst->bindings) Bindings;
-    dst->bindings.transfer(&bindings);
+    new (&dst->bindings) Bindings(cx);
+    dst->bindings.transfer(cx, &bindings);
 
     /* This assignment must occur before all the Rebase calls. */
     dst->data = data;
@@ -1759,8 +1819,8 @@ js::CloneScript(JSContext *cx, HandleScript src)
     dst->nfixed = src->nfixed;
     dst->nTypeSets = src->nTypeSets;
     dst->nslots = src->nslots;
-    if (src->argumentsHasVarBinding()) {
-        dst->setArgumentsHasVarBinding();
+    if (src->argumentsHasLocalBinding()) {
+        dst->setArgumentsHasLocalBinding(src->argumentsLocal());
         if (src->analyzedArgsUsage())
             dst->setNeedsArgsObj(src->needsArgsObj());
     }
@@ -2091,9 +2151,10 @@ JSScript::markChildren(JSTracer *trc)
 }
 
 void
-JSScript::setArgumentsHasVarBinding()
+JSScript::setArgumentsHasLocalBinding(uint16_t local)
 {
-    argsHasVarBinding_ = true;
+    argsHasLocalBinding_ = true;
+    argsLocal_ = local;
     needsArgsAnalysis_ = true;
 }
 
@@ -2101,19 +2162,18 @@ void
 JSScript::setNeedsArgsObj(bool needsArgsObj)
 {
     JS_ASSERT(!analyzedArgsUsage());
-    JS_ASSERT_IF(needsArgsObj, argumentsHasVarBinding());
+    JS_ASSERT_IF(needsArgsObj, argumentsHasLocalBinding());
     needsArgsAnalysis_ = false;
     needsArgsObj_ = needsArgsObj;
 }
 
 /* static */ bool
-JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
+JSScript::applySpeculationFailed(JSContext *cx, JSScript *script_)
 {
     Rooted<JSScript*> script(cx, script_);
 
     JS_ASSERT(script->analyzedArgsUsage());
-    JS_ASSERT(script->argumentsHasVarBinding());
-    JS_ASSERT(!script->isGenerator);
+    JS_ASSERT(script->argumentsHasLocalBinding());
 
     /*
      * It is possible that the apply speculation has already failed, everything
@@ -2126,7 +2186,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
 
     script->needsArgsObj_ = true;
 
-    const unsigned var = script->bindings.argumentsVarIndex(cx);
+    const unsigned local = script->argumentsLocal();
 
     /*
      * By design, the apply-arguments optimization is only made when there
@@ -2155,14 +2215,13 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
             }
 
             /* Note: 'arguments' may have already been overwritten. */
-            if (fp->unaliasedLocal(var).isMagic(JS_OPTIMIZED_ARGUMENTS))
-                fp->unaliasedLocal(var) = ObjectValue(*argsobj);
+            if (fp->unaliasedLocal(local).isMagic(JS_OPTIMIZED_ARGUMENTS))
+                fp->unaliasedLocal(local) = ObjectValue(*argsobj);
         }
     }
 
 #ifdef JS_METHODJIT
     if (script->hasJITInfo()) {
-        mjit::ExpandInlineFrames(cx->compartment);
         mjit::Recompiler::clearStackReferences(cx->runtime->defaultFreeOp(), script);
         mjit::ReleaseScriptCode(cx->runtime->defaultFreeOp(), script);
     }

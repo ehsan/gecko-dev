@@ -43,7 +43,7 @@ public:
   
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 

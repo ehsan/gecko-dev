@@ -13,6 +13,7 @@
 #include "nsAccEvent.h"
 #include "States.h"
 
+#include "nsIDOMDocument.h"
 #include "nsEventStateManager.h"
 #include "nsIServiceManager.h"
 #ifdef MOZ_XUL

@@ -27,9 +27,7 @@
 #include "mozilla/Util.h" // DebugOnly
 #include "sampler.h"
 #include "nsIScriptError.h"
-#include "nsIScriptContext.h"
 #include "mozilla/Preferences.h"
-#include "nsIHTMLDocument.h"
 
 using namespace mozilla;
 

@@ -32,7 +32,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSPseudoElements.h"
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #include "nsIStyleRule.h"
 #endif
 #include "nsILayoutHistoryState.h"
@@ -42,6 +42,8 @@
 #include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
 
+#include "nsIHTMLDocument.h"
+#include "nsIDOMHTMLDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIFormControl.h"
@@ -515,7 +517,7 @@ nsFrameManager::NotifyDestroyingFrame(nsIFrame* aFrame)
   }
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static void
 DumpContext(nsIFrame* aFrame, nsStyleContext* aContext)
 {
@@ -1993,5 +1995,3 @@ nsFrameManagerBase::UndisplayedMap::Clear(void)
   mLastLookup = nsnull;
   PL_HashTableEnumerateEntries(mTable, RemoveUndisplayedEntry, 0);
 }
-
-PRUint32 nsFrameManagerBase::sGlobalGenerationNumber;

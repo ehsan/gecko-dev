@@ -7,17 +7,7 @@ var testGenerator = testSteps();
 
 function executeSoon(aFun)
 {
-  let comp = SpecialPowers.wrap(Components);
-
-  let thread = comp.classes["@mozilla.org/thread-manager;1"]
-                   .getService(comp.interfaces.nsIThreadManager)
-                   .mainThread;
-
-  thread.dispatch({
-    run: function() {
-      aFun();
-    }
-  }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
+  SimpleTest.executeSoon(aFun);
 }
 
 function clearAllDatabases(callback) {
@@ -53,6 +43,7 @@ if (!window.runTest) {
   {
     SimpleTest.waitForExplicitFinish();
 
+    allowIndexedDB();
     if (limitedQuota) {
       denyUnlimitedQuota();
     }
@@ -67,11 +58,11 @@ if (!window.runTest) {
 function finishTest()
 {
   resetUnlimitedQuota();
+  resetIndexedDB();
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
-    //clearAllDatabases(function() { SimpleTest.finish(); });
-    SimpleTest.finish();
+    clearAllDatabases(function() { SimpleTest.finish(); });
   });
 }
 
@@ -120,20 +111,17 @@ function unexpectedSuccessHandler()
   finishTest();
 }
 
-function ExpectError(name, preventDefault)
+function ExpectError(name)
 {
   this._name = name;
-  this._preventDefault = preventDefault;
 }
 ExpectError.prototype = {
   handleEvent: function(event)
   {
     is(event.type, "error", "Got an error event");
     is(event.target.error.name, this._name, "Expected error was thrown.");
-    if (this._preventDefault) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    event.preventDefault();
+    event.stopPropagation();
     grabEventAndContinueHandler(event);
   }
 };
@@ -186,6 +174,16 @@ function removePermission(type, url)
 function setQuota(quota)
 {
   SpecialPowers.setIntPref("dom.indexedDB.warningQuota", quota);
+}
+
+function allowIndexedDB(url)
+{
+  addPermission("indexedDB", true, url);
+}
+
+function resetIndexedDB(url)
+{
+  removePermission("indexedDB", url);
 }
 
 function allowUnlimitedQuota(url)

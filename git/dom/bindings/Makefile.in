@@ -45,8 +45,6 @@ globalgen_targets := \
   PrototypeList.h \
   RegisterBindings.h \
   RegisterBindings.cpp \
-  UnionTypes.h \
-  UnionConversions.h \
   $(NULL)
 
 CPPSRCS = \
@@ -68,14 +66,11 @@ EXPORTS_$(binding_include_path) = \
   Nullable.h \
   TypedArray.h \
   BindingUtils.h \
-  UnionTypes.h \
-  UnionConversions.h \
   $(exported_binding_headers) \
   $(NULL)
 
 LOCAL_INCLUDES += -I$(topsrcdir)/js/xpconnect/src \
   -I$(topsrcdir)/js/xpconnect/wrappers \
-  -I$(topsrcdir)/content/canvas/src \
   -I$(topsrcdir)/content/html/content/src
 
 include $(topsrcdir)/config/rules.mk

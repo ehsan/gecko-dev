@@ -901,7 +901,7 @@ public:
   // The initial overflow area passed to FinishAndStoreOverflow. This is only set
   // on frames that Preserve3D(), and when at least one of the overflow areas
   // differs from the frame bound rect.
-  NS_DECLARE_FRAME_PROPERTY(InitialOverflowProperty, DestroyOverflowAreas)
+  NS_DECLARE_FRAME_PROPERTY(InitialOverflowProperty, DestroyOverflowAreas);
 
   NS_DECLARE_FRAME_PROPERTY(UsedMarginProperty, DestroyMargin)
   NS_DECLARE_FRAME_PROPERTY(UsedPaddingProperty, DestroyMargin)
@@ -2299,13 +2299,6 @@ public:
   nsRect GetVisualOverflowRectRelativeToSelf() const;
 
   /**
-   * Returns this frame's visual overflow rect as it would be before taking
-   * account of SVG effects or transforms. The rect returned is relative to
-   * this frame.
-   */
-  nsRect GetPreEffectsVisualOverflowRect() const;
-
-  /**
    * Store the overflow area in the frame's mOverflow.mVisualDeltas
    * fields or as a frame property in the frame manager so that it can
    * be retrieved later without reflowing the frame. Returns true if either of
@@ -2975,7 +2968,7 @@ protected:
    *              Input: mDirection
    *              Output: mResultContent, mContentOffset
    */
-  nsresult PeekOffsetParagraph(nsPeekOffsetStruct *aPos);
+   nsresult PeekOffsetParagraph(nsPeekOffsetStruct *aPos);
 
 private:
   nsOverflowAreas* GetOverflowAreasProperty();
@@ -2999,7 +2992,7 @@ private:
   bool SetOverflowAreas(const nsOverflowAreas& aOverflowAreas);
   nsPoint GetOffsetToCrossDoc(const nsIFrame* aOther, const PRInt32 aAPD) const;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 public:
   // Formerly nsIFrameDebug
   NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const = 0;

@@ -18,6 +18,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsXPCOM.h"
@@ -554,7 +555,7 @@ nsFileControlFrame::IsLeaf() const
   return true;
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMETHODIMP
 nsFileControlFrame::GetFrameName(nsAString& aResult) const
 {

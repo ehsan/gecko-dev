@@ -17,7 +17,7 @@
 
 using namespace mozilla::layers;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 class nsLayoutDebugger : public nsILayoutDebugger {
 public:
   nsLayoutDebugger();

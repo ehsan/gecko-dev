@@ -77,8 +77,7 @@ SpdySession2::SpdySession2(nsAHttpTransaction *aHttpTransaction,
   zlibInit();
   
   mSendingChunkSize = gHttpHandler->SpdySendingChunkSize();
-  if (!aHttpTransaction->IsNullTransaction())
-    AddStream(aHttpTransaction, firstPriority);
+  AddStream(aHttpTransaction, firstPriority);
   mLastDataReadEpoch = mLastReadEpoch;
   
   DeterminePingThreshold();

@@ -75,7 +75,7 @@
 
 #include "sampler.h"
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #undef NOISY_BLINK
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
@@ -188,17 +188,11 @@ NS_DECLARE_FRAME_PROPERTY(FontSizeInflationProperty, nsnull)
 // This bit is set while the frame is registered as a blinking frame.
 #define TEXT_BLINK_ON              NS_FRAME_STATE_BIT(29)
 
-// Set when this text frame is mentioned in the userdata for mTextRun
+// Set when this text frame is mentioned in the userdata for a textrun
 #define TEXT_IN_TEXTRUN_USER_DATA  NS_FRAME_STATE_BIT(30)
 
 // nsTextFrame.h has
 // #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
-
-// Set when this text frame is mentioned in the userdata for the
-// uninflated textrun property
-#define TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA NS_FRAME_STATE_BIT(60)
-
-// nsTextFrame.h has
 // #define TEXT_HAS_FONT_INFLATION          NS_FRAME_STATE_BIT(61)
 
 // If true, then this frame is being removed due to a SetLength() on a
@@ -392,8 +386,7 @@ DestroyUserData(void* aUserData)
  */
 static bool
 ClearAllTextRunReferences(nsTextFrame* aFrame, gfxTextRun* aTextRun,
-                          nsTextFrame* aStartContinuation,
-                          nsFrameState aWhichTextRunState)
+                          nsTextFrame* aStartContinuation)
 {
   NS_PRECONDITION(aFrame, "");
   NS_PRECONDITION(!aStartContinuation ||
@@ -404,7 +397,7 @@ ClearAllTextRunReferences(nsTextFrame* aFrame, gfxTextRun* aTextRun,
                   "wrong aStartContinuation for this text run");
 
   if (!aStartContinuation || aStartContinuation == aFrame) {
-    aFrame->RemoveStateBits(aWhichTextRunState);
+    aFrame->RemoveStateBits(TEXT_IN_TEXTRUN_USER_DATA);
   } else {
     do {
       NS_ASSERTION(aFrame->GetType() == nsGkAtoms::textFrame, "Bad frame");
@@ -440,18 +433,13 @@ UnhookTextRunFromFrames(gfxTextRun* aTextRun, nsTextFrame* aStartContinuation)
     return;
 
   if (aTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_SIMPLE_FLOW) {
-    nsTextFrame* userDataFrame = static_cast<nsTextFrame*>(
-      static_cast<nsIFrame*>(aTextRun->GetUserData()));
-    nsFrameState whichTextRunState =
-      userDataFrame->GetTextRun(nsTextFrame::eInflated) == aTextRun
-        ? TEXT_IN_TEXTRUN_USER_DATA
-        : TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA;
+    nsIFrame* userDataFrame = static_cast<nsIFrame*>(aTextRun->GetUserData());
     DebugOnly<bool> found =
-      ClearAllTextRunReferences(userDataFrame, aTextRun,
-                                aStartContinuation, whichTextRunState);
+      ClearAllTextRunReferences(static_cast<nsTextFrame*>(userDataFrame),
+                                aTextRun, aStartContinuation);
     NS_ASSERTION(!aStartContinuation || found,
                  "aStartContinuation wasn't found in simple flow text run");
-    if (!(userDataFrame->GetStateBits() & whichTextRunState)) {
+    if (!(userDataFrame->GetStateBits() & TEXT_IN_TEXTRUN_USER_DATA)) {
       aTextRun->SetUserData(nsnull);
     }
   } else {
@@ -460,15 +448,11 @@ UnhookTextRunFromFrames(gfxTextRun* aTextRun, nsTextFrame* aStartContinuation)
     PRInt32 destroyFromIndex = aStartContinuation ? -1 : 0;
     for (PRUint32 i = 0; i < userData->mMappedFlowCount; ++i) {
       nsTextFrame* userDataFrame = userData->mMappedFlows[i].mStartFrame;
-      nsFrameState whichTextRunState =
-        userDataFrame->GetTextRun(nsTextFrame::eInflated) == aTextRun
-          ? TEXT_IN_TEXTRUN_USER_DATA
-          : TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA;
       bool found =
         ClearAllTextRunReferences(userDataFrame, aTextRun,
-                                  aStartContinuation, whichTextRunState);
+                                  aStartContinuation);
       if (found) {
-        if (userDataFrame->GetStateBits() & whichTextRunState) {
+        if (userDataFrame->GetStateBits() & TEXT_IN_TEXTRUN_USER_DATA) {
           destroyFromIndex = i + 1;
         }
         else {
@@ -2360,11 +2344,7 @@ BuildTextRunsScanner::AssignTextRun(gfxTextRun* aTextRun, float aInflation)
     }
     // Set this bit now; we can't set it any earlier because
     // f->ClearTextRun() might clear it out.
-    nsFrameState whichTextRunState =
-      startFrame->GetTextRun(nsTextFrame::eInflated) == aTextRun
-        ? TEXT_IN_TEXTRUN_USER_DATA
-        : TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA;
-    startFrame->AddStateBits(whichTextRunState);
+    startFrame->AddStateBits(TEXT_IN_TEXTRUN_USER_DATA);
   }
 }
 
@@ -3983,7 +3963,6 @@ nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // we have to clear the textrun because we're going away and the
   // textrun had better not keep a dangling reference to us.
   if ((GetStateBits() & TEXT_IN_TEXTRUN_USER_DATA) ||
-      (GetStateBits() & TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA) ||
       (!mPrevContinuation &&
        !(GetStateBits() & TEXT_STYLE_MATCHES_PREV_CONTINUATION)) ||
       (mPrevContinuation &&
@@ -4772,7 +4751,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
     nsTextFrame* aFrame,
     nsTextPaintStyle& aTextPaintStyle,
     const nsTextRangeStyle &aRangeStyle,
-    const gfxPoint& aPt, gfxFloat aXInFrame, gfxFloat aWidth,
+    const gfxPoint& aPt, gfxFloat aWidth,
     gfxFloat aAscent, const gfxFont::Metrics& aFontMetrics)
 {
   gfxPoint pt(aPt);
@@ -4849,8 +4828,8 @@ static void DrawSelectionDecorations(gfxContext* aContext,
       return;
   }
   size.height *= relativeSize;
-  nsCSSRendering::PaintDecorationLine(aFrame, aContext, aDirtyRect, color, pt,
-    pt.x - aPt.x + aXInFrame, size, aAscent, aFontMetrics.underlineOffset,
+  nsCSSRendering::PaintDecorationLine(
+    aContext, aDirtyRect, color, pt, size, aAscent, aFontMetrics.underlineOffset,
     NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, style, descentLimit);
 }
 
@@ -5289,10 +5268,9 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
       pt.x = (aFramePt.x + xOffset -
              (mTextRun->IsRightToLeft() ? advance : 0)) / app;
       gfxFloat width = NS_ABS(advance) / app;
-      gfxFloat xInFrame = pt.x - (aFramePt.x / app);
-      DrawSelectionDecorations(aCtx, dirtyRect, aSelectionType, this,
-                               aTextPaintStyle, selectedStyle, pt, xInFrame,
-                               width, mAscent / app, decorationMetrics);
+      DrawSelectionDecorations(aCtx, dirtyRect, aSelectionType, this, aTextPaintStyle,
+                               selectedStyle,
+                               pt, width, mAscent / app, decorationMetrics);
     }
     iterator.UpdateWithAdvance(advance);
   }
@@ -5349,7 +5327,6 @@ nsTextFrame::GetCaretColorAt(PRInt32 aOffset)
 {
   NS_PRECONDITION(aOffset >= 0, "aOffset must be positive");
 
-  nscolor result = nsFrame::GetCaretColorAt(aOffset);
   gfxSkipCharsIterator iter = EnsureTextRun(nsTextFrame::eInflated);
   PropertyProvider provider(this, iter, nsTextFrame::eInflated);
   PRInt32 contentOffset = provider.GetStart().GetOriginalOffset();
@@ -5359,12 +5336,13 @@ nsTextFrame::GetCaretColorAt(PRInt32 aOffset)
                   "aOffset must be in the frame's range");
   PRInt32 offsetInFrame = aOffset - contentOffset;
   if (offsetInFrame < 0 || offsetInFrame >= contentLength) {
-    return result;
+    return nsFrame::GetCaretColorAt(aOffset);
   }
 
   nsTextPaintStyle textPaintStyle(this);
   SelectionDetails* details = GetSelectionDetails();
   SelectionDetails* sdptr = details;
+  nscolor result = nsFrame::GetCaretColorAt(aOffset);
   SelectionType type = 0;
   while (sdptr) {
     PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
@@ -5643,9 +5621,9 @@ nsTextFrame::DrawTextRunAndDecorations(
       decPt.y = (frameTop - dec.mBaselineOffset) / app;
 
       const nscolor lineColor = aDecorationOverrideColor ? *aDecorationOverrideColor : dec.mColor;
-      nsCSSRendering::PaintDecorationLine(this, aCtx, dirtyRect, lineColor,
-        decPt, 0.0, decSize, ascent, metrics.underlineOffset,
-        NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, dec.mStyle);
+      nsCSSRendering::PaintDecorationLine(aCtx, dirtyRect, lineColor, decPt, decSize, ascent,
+        metrics.underlineOffset, NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
+        dec.mStyle);
     }
     // Overlines
     for (PRUint32 i = aDecorations.mOverlines.Length(); i-- > 0; ) {
@@ -5660,9 +5638,8 @@ nsTextFrame::DrawTextRunAndDecorations(
       decPt.y = (frameTop - dec.mBaselineOffset) / app;
 
       const nscolor lineColor = aDecorationOverrideColor ? *aDecorationOverrideColor : dec.mColor;
-      nsCSSRendering::PaintDecorationLine(this, aCtx, dirtyRect, lineColor,
-        decPt, 0.0, decSize, ascent, metrics.maxAscent,
-        NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, dec.mStyle);
+      nsCSSRendering::PaintDecorationLine(aCtx, dirtyRect, lineColor, decPt, decSize, ascent,
+        metrics.maxAscent, NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, dec.mStyle);
     }
 
     // CSS 2.1 mandates that text be painted after over/underlines, and *then*
@@ -5683,9 +5660,9 @@ nsTextFrame::DrawTextRunAndDecorations(
       decPt.y = (frameTop - dec.mBaselineOffset) / app;
 
       const nscolor lineColor = aDecorationOverrideColor ? *aDecorationOverrideColor : dec.mColor;
-      nsCSSRendering::PaintDecorationLine(this, aCtx, dirtyRect, lineColor,
-        decPt, 0.0, decSize, ascent, metrics.strikeoutOffset,
-        NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH, dec.mStyle);
+      nsCSSRendering::PaintDecorationLine(aCtx, dirtyRect, lineColor, decPt, decSize, ascent,
+        metrics.strikeoutOffset, NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH,
+        dec.mStyle);
     }
 }
 

@@ -476,13 +476,10 @@ BrowserGlue.prototype = {
     var windowcount = 0;
     var pagecount = 0;
     var browserEnum = Services.wm.getEnumerator("navigator:browser");
-    let allWindowsPrivate = true;
     while (browserEnum.hasMoreElements()) {
       windowcount++;
 
       var browser = browserEnum.getNext();
-      if (("gPrivateBrowsingUI" in browser) && !browser.gPrivateBrowsingUI.privateWindow)
-        allWindowsPrivate = false;
       var tabbrowser = browser.document.getElementById("content");
       if (tabbrowser)
         pagecount += tabbrowser.browsers.length - tabbrowser._numPinnedTabs;
@@ -494,6 +491,13 @@ BrowserGlue.prototype = {
 
     if (!aQuitType)
       aQuitType = "quit";
+
+    // Never show a prompt inside private browsing mode
+    var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                            getService(Ci.nsIPrivateBrowsingService).
+                            privateBrowsingEnabled;
+    if (inPrivateBrowsing)
+      return;
 
     var showPrompt = false;
     var mostRecentBrowserWindow;
@@ -525,10 +529,6 @@ BrowserGlue.prototype = {
       aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(true);
       return;
     }
-
-    // Never show a prompt inside private browsing mode
-    if (allWindowsPrivate)
-      return;
 
     if (!showPrompt)
       return;
@@ -1567,15 +1567,13 @@ ContentPermissionPrompt.prototype = {
     var mainAction = {
       label: browserBundle.GetStringFromName("geolocation.shareLocation"),
       accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-      callback: function() {
+      callback: function(notification) {
         request.allow();
       },
     };
 
     var message;
     var secondaryActions = [];
-    var requestingWindow = request.window.top;
-    var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
 
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
@@ -1586,7 +1584,11 @@ ContentPermissionPrompt.prototype = {
                                                    [requestingURI.host], 1);
 
       // Don't offer to "always/never share" in PB mode
-      if (("gPrivateBrowsingUI" in chromeWin) && !chromeWin.gPrivateBrowsingUI.privateWindow) {
+      var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                              getService(Ci.nsIPrivateBrowsingService).
+                              privateBrowsingEnabled;
+
+      if (!inPrivateBrowsing) {
         secondaryActions.push({
           label: browserBundle.GetStringFromName("geolocation.alwaysShareLocation"),
           accessKey: browserBundle.GetStringFromName("geolocation.alwaysShareLocation.accesskey"),
@@ -1606,6 +1608,8 @@ ContentPermissionPrompt.prototype = {
       }
     }
 
+    var requestingWindow = request.window.top;
+    var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
     chromeWin.PopupNotifications.show(browser, "geolocation", message, "geo-notification-icon",

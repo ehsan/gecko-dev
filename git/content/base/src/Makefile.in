@@ -92,7 +92,6 @@ CPPSRCS		= \
 		nsGkAtoms.cpp \
 		nsHTMLContentSerializer.cpp \
 		nsImageLoadingContent.cpp \
-		nsINode.cpp \
 		nsLineBreaker.cpp \
 		nsMappedAttributeElement.cpp \
 		nsMappedAttributes.cpp \

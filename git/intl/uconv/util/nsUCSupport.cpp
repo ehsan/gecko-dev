@@ -29,7 +29,7 @@ nsBasicDecoderSupport::~nsBasicDecoderSupport()
 //----------------------------------------------------------------------
 // Interface nsISupports [implementation]
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsBasicDecoderSupport,
                               nsIUnicodeDecoder,
                               nsIBasicDecoder)
@@ -333,7 +333,7 @@ nsBasicEncoder::~nsBasicEncoder()
 
 NS_IMPL_ADDREF(nsBasicEncoder)
 NS_IMPL_RELEASE(nsBasicEncoder)
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMPL_QUERY_INTERFACE2(nsBasicEncoder,
                          nsIUnicodeEncoder,
                          nsIBasicEncoder)

@@ -15,7 +15,7 @@
 #include "gfxD2DSurface.h"
 #elif defined(XP_MACOSX)
 #include "gfxPlatformMac.h"
-#elif defined(MOZ_WIDGET_GTK)
+#elif defined(MOZ_WIDGET_GTK2)
 #include "gfxPlatformGtk.h"
 #elif defined(MOZ_WIDGET_QT)
 #include "gfxQtPlatform.h"
@@ -259,7 +259,7 @@ gfxPlatform::Init()
     gPlatform = new gfxWindowsPlatform;
 #elif defined(XP_MACOSX)
     gPlatform = new gfxPlatformMac;
-#elif defined(MOZ_WIDGET_GTK)
+#elif defined(MOZ_WIDGET_GTK2)
     gPlatform = new gfxPlatformGtk;
 #elif defined(MOZ_WIDGET_QT)
     gPlatform = new gfxQtPlatform;
@@ -385,16 +385,6 @@ gfxPlatform::~gfxPlatform()
     // leaked, and we hit them.
     FcFini();
 #endif
-}
-
-already_AddRefed<gfxASurface>
-gfxPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                         gfxASurface::gfxContentType aContentType)
-{ 
-  nsRefPtr<gfxASurface> newSurface;
-  newSurface = new gfxImageSurface(aSize, OptimalFormatForContent(aContentType));
-
-  return newSurface.forget();
 }
 
 already_AddRefed<gfxASurface>
@@ -1081,22 +1071,6 @@ gfxPlatform::AppendPrefLang(eFontPrefLang aPrefLangs[], PRUint32& aLen, eFontPre
 }
 
 bool
-gfxPlatform::UseProgressiveTilePainting()
-{
-  static bool sUseProgressiveTilePainting;
-  static bool sUseProgressiveTilePaintingPrefCached = false;
-
-  if (!sUseProgressiveTilePaintingPrefCached) {
-    sUseProgressiveTilePaintingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sUseProgressiveTilePainting,
-                                          "layers.progressive-paint",
-                                          false);
-  }
-
-  return sUseProgressiveTilePainting;
-}
-
-bool
 gfxPlatform::UseAzureContentDrawing()
 {
   static bool sAzureContentDrawingEnabled;
@@ -1104,7 +1078,7 @@ gfxPlatform::UseAzureContentDrawing()
 
   if (!sAzureContentDrawingPrefCached) {
     sAzureContentDrawingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sAzureContentDrawingEnabled,
+    mozilla::Preferences::AddBoolVarCache(&sAzureContentDrawingEnabled, 
                                           "gfx.content.azure.enabled");
   }
 

@@ -76,26 +76,6 @@ ParseNode::clear()
     pn_parens = false;
 }
 
-#ifdef DEBUG
-void
-ParseNode::checkListConsistency()
-{
-    JS_ASSERT(isArity(PN_LIST));
-    ParseNode **tail;
-    uint32_t count = 0;
-    if (pn_head) {
-        ParseNode *pn, *last;
-        for (pn = last = pn_head; pn; last = pn, pn = pn->pn_next, count++)
-            ;
-        tail = &last->pn_next;
-    } else {
-        tail = &pn_head;
-    }
-    JS_ASSERT(pn_tail == tail);
-    JS_ASSERT(pn_count == count);
-}
-#endif
-
 bool
 FunctionBox::inAnyDynamicScope() const
 {
@@ -222,7 +202,6 @@ PushNodeChildren(ParseNode *pn, NodeStack *stack)
         return !pn->isUsed() && !pn->isDefn();
 
       case PN_LIST:
-        pn->checkListConsistency();
         stack->pushList(pn);
         break;
       case PN_TERNARY:
@@ -423,15 +402,15 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
 }
 
 // Nb: unlike most functions that are passed a Parser, this one gets a
-// SharedContext passed in separately, because in this case |tc| may not equal
-// |parser->tc|.
+// SharedContext passed in separately, because in this case |sc| may not equal
+// |parser->tc->sc|.
 NameNode *
-NameNode::create(ParseNodeKind kind, JSAtom *atom, Parser *parser, TreeContext *tc)
+NameNode::create(ParseNodeKind kind, JSAtom *atom, Parser *parser, SharedContext *sc)
 {
     ParseNode *pn = ParseNode::create(kind, PN_NAME, parser);
     if (pn) {
         pn->pn_atom = atom;
-        ((NameNode *)pn)->initCommon(tc);
+        ((NameNode *)pn)->initCommon(sc);
     }
     return (NameNode *)pn;
 }

@@ -874,9 +874,9 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
   IDWriteRenderingParams *params = NULL;
   if (aRenderOptions) {
     if (aRenderOptions->GetType() != FONT_DWRITE) {
-      gfxDebug() << *this << ": Ignoring incompatible GlyphRenderingOptions.";
-      // This should never happen.
-      MOZ_ASSERT(false);
+    gfxDebug() << *this << ": Ignoring incompatible GlyphRenderingOptions.";
+    // This should never happen.
+    MOZ_ASSERT(false);
     } else {
       params = static_cast<const GlyphRenderingOptionsDWrite*>(aRenderOptions)->mParams;
     }
@@ -895,12 +895,7 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
 
   PrepareForDrawing(rt);
 
-  if (rt != mRT || params != mTextRenderingParams) {
-    rt->SetTextRenderingParams(params);
-    if (rt == mRT) {
-      mTextRenderingParams = params;
-    }
-  }
+  rt->SetTextRenderingParams(params);
 
   RefPtr<ID2D1Brush> brush = CreateBrushForPattern(aPattern, aOptions.mAlpha);
 
@@ -2066,7 +2061,7 @@ DrawTargetD2D::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
       {
         DataSourceSurface *dataSurf =
           static_cast<DataSourceSurface*>(pat->mSurface.get());
-        bitmap = CreatePartialBitmapForSurface(dataSurf, mat, pat->mExtendMode);
+        bitmap = CreatePartialBitmapForSurface(dataSurf, mat);
         
         if (!bitmap) {
           return NULL;
@@ -2301,9 +2296,8 @@ DrawTargetD2D::CreateTextureForAnalysis(IDWriteGlyphRunAnalysis *aAnalysis, cons
 
   return tex;
 }
-
 TemporaryRef<ID2D1Bitmap>
-DrawTargetD2D::CreatePartialBitmapForSurface(DataSourceSurface *aSurface, Matrix &aMatrix, ExtendMode aExtendMode)
+DrawTargetD2D::CreatePartialBitmapForSurface(DataSourceSurface *aSurface, Matrix &aMatrix)
 {
   RefPtr<ID2D1Bitmap> bitmap;
 
@@ -2329,39 +2323,15 @@ DrawTargetD2D::CreatePartialBitmapForSurface(DataSourceSurface *aSurface, Matrix
 
   Rect uploadRect(0, 0, size.width, size.height);
 
-  // Limit the uploadRect as much as possible without supporting discontiguous uploads 
-  //
-  //                               region we will paint from
-  //   uploadRect
-  //   .---------------.              .---------------.         resulting uploadRect
-  //   |               |rect          |               |
-  //   |          .---------.         .----.     .----.          .---------------.
-  //   |          |         |  ---->  |    |     |    |   ---->  |               |
-  //   |          '---------'         '----'     '----'          '---------------'
-  //   '---------------'              '---------------'
-  //
-  //
+  // Calculate the rectangle on the source bitmap that touches our
+  // surface.
+  uploadRect = uploadRect.Intersect(rect);
 
-  if (uploadRect.Contains(rect)) {
-    // Extend mode is irrelevant, the displayed rect is completely contained
-    // by the source bitmap.
-    uploadRect = rect;
-  } else if (aExtendMode == EXTEND_CLAMP && uploadRect.Intersects(rect)) {
-    // Calculate the rectangle on the source bitmap that touches our
-    // surface, and upload that, for EXTEND_CLAMP we can actually guarantee
-    // correct behaviour in this case.
-    uploadRect = uploadRect.Intersect(rect);
-
-    // We now proceed to check if we can limit at least one dimension of the
-    // upload rect safely without looking at extend mode.
-  } else if (rect.x >= 0 && rect.XMost() < size.width) {
-    uploadRect.x = rect.x;
-    uploadRect.width = rect.width;
-  } else if (rect.y >= 0 && rect.YMost() < size.height) {
-    uploadRect.y = rect.y;
-    uploadRect.height = rect.height;
+  if (uploadRect.IsEmpty()) {
+    // This bitmap does not cover anything on the screen. XXX -
+    // we need to deal with EXTEND modes here!
+    return NULL;
   }
-
 
   int stride = aSurface->Stride();
 

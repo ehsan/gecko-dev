@@ -80,7 +80,7 @@ NS_IMETHODIMP nsAppStartupNotifier::Observe(nsISupports *aSubject, const char *a
                     }
                 }
                 else {
-                  #ifdef DEBUG
+                  #ifdef NS_DEBUG
                     nsCAutoString warnStr("Cannot create startup observer : ");
                     warnStr += contractId.get();
                     NS_WARNING(warnStr.get());

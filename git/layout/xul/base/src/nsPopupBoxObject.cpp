@@ -9,6 +9,8 @@
 #include "nsIPresShell.h"
 #include "nsFrameManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"

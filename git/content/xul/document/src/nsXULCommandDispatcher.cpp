@@ -14,6 +14,8 @@
 #include "nsFocusManager.h"
 #include "nsIControllers.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMXULDocument.h"
+#include "nsIDOMHTMLDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMXULElement.h"
@@ -269,7 +271,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
   while (updater) {
     if (updater->mElement == aElement) {
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
       if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
         nsCAutoString eventsC, targetsC, aeventsC, atargetsC; 
         eventsC.AssignWithConversion(updater->mEvents);
@@ -297,7 +299,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
     link = &(updater->mNext);
     updater = updater->mNext;
   }
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
     nsCAutoString aeventsC, atargetsC; 
     CopyUTF16toUTF8(aEvents, aeventsC);
@@ -332,7 +334,7 @@ nsXULCommandDispatcher::RemoveCommandUpdater(nsIDOMElement* aElement)
 
   while (updater) {
     if (updater->mElement == aElement) {
-#ifdef DEBUG
+#ifdef NS_DEBUG
       if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
         nsCAutoString eventsC, targetsC; 
         eventsC.AssignWithConversion(updater->mEvents);
@@ -398,7 +400,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     if (! document)
       continue;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
     if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
       nsCAutoString aeventnameC; 
       CopyUTF16toUTF8(aEventName, aeventnameC);

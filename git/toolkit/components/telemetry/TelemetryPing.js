@@ -65,8 +65,6 @@ const IDLE_TIMEOUT_SECONDS = 5 * 60;
 
 var gLastMemoryPoll = null;
 
-let gWasDebuggerAttached = false;
-
 function getLocale() {
   return Cc["@mozilla.org/chrome/chrome-registry;1"].
          getService(Ci.nsIXULChromeRegistry).
@@ -123,12 +121,6 @@ function getSimpleMeasurements() {
 
   ret.startupInterrupted = new Number(Services.startup.interrupted);
 
-  // Update debuggerAttached flag
-  let debugService = Cc["@mozilla.org/xpcom/debug;1"].getService(Ci.nsIDebug2);
-  let isDebuggerAttached = debugService.isDebuggerAttached;
-  gWasDebuggerAttached = gWasDebuggerAttached || isDebuggerAttached;
-  ret.debuggerAttached = new Number(gWasDebuggerAttached);
-
   ret.js = Cc["@mozilla.org/js/xpc/XPConnect;1"]
            .getService(Ci.nsIJSEngineTelemetryStats)
            .telemetryValue;
@@ -181,7 +173,7 @@ TelemetryPing.prototype = {
   // Generate a unique id once per session so the server can cope with
   // duplicate submissions.
   _uuid: generateUUID(),
-  // Regex that matches histograms we care about during startup.
+  // Regex that matches histograms we carea bout during startup.
   _startupHistogramRegex: /SQLITE|HTTP|SPDY|CACHE|DNS/,
   _slowSQLStartup: {},
   _prevSession: null,
@@ -354,10 +346,6 @@ TelemetryPing.prototype = {
 
     if (this._addons)
       ret.addons = this._addons;
-
-    let flashVersion = this.getFlashVersion();
-    if (flashVersion)
-      ret.flashVersion = flashVersion;
 
     return ret;
   },
@@ -723,7 +711,7 @@ TelemetryPing.prototype = {
                  RW_OWNER, ostream.DEFER_OPEN);
 
     if (sync) {
-      let utf8String = converter.ConvertFromUnicode(pingString);
+      let utf8String = converter.ConvertToUnicode(pingString);
       utf8String += converter.Finish();
       let amount = ostream.write(utf8String, utf8String.length);
       this.finishTelemetrySave(amount == utf8String.length, ostream);
@@ -736,18 +724,6 @@ TelemetryPing.prototype = {
                                                    ostream);
                         });
     }
-  },
-
-  getFlashVersion: function getFlashVersion() {
-    let host = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
-    let tags = host.getPluginTags();
-    
-    for (let i = 0; i < tags.length; i++) {
-      if (tags[i].name == "Shockwave Flash")
-        return tags[i].version;
-    }
-    
-    return null;
   },
 
   /** 
@@ -800,9 +776,6 @@ TelemetryPing.prototype = {
     case "sessionstore-windows-restored":
       Services.obs.removeObserver(this, "sessionstore-windows-restored");
       this._hasWindowRestoredObserver = false;
-      // Check whether debugger was attached during startup
-      let debugService = Cc["@mozilla.org/xpcom/debug;1"].getService(Ci.nsIDebug2);
-      gWasDebuggerAttached = debugService.isDebuggerAttached;
       // fall through
     case "test-gather-startup":
       this.gatherStartupInformation();

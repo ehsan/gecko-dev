@@ -41,8 +41,7 @@ void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false);
 void nsCycleCollector_logPurpleRemoval(void* aObject);
 #endif
 
-void nsCycleCollector_collect(bool aMergeCompartments,
-                              nsCycleCollectorResults *aResults,
+void nsCycleCollector_collect(nsCycleCollectorResults *aResults,
                               nsICycleCollectorListener *aListener);
 PRUint32 nsCycleCollector_suspectedCount();
 void nsCycleCollector_shutdownThreads();
@@ -72,8 +71,9 @@ struct nsCycleCollectionJSRuntime
 
     /**
      * Runs the JavaScript GC. |reason| is a gcreason::Reason from jsfriendapi.h.
+     * |kind| is a nsGCType from nsIXPConnect.idl.
      */
-    virtual void Collect(PRUint32 reason) = 0;
+    virtual void Collect(PRUint32 reason, PRUint32 kind) = 0;
 
     /**
      * Get the JS cycle collection participant.

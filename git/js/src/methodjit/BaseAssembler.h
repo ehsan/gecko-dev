@@ -18,7 +18,6 @@
 #include "CodeGenIncludes.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
-#include "jstypedarrayinlines.h"
 
 namespace js {
 namespace mjit {
@@ -160,7 +159,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         loadPtr(Address(obj, JSObject::offsetOfShape()), shape);
     }
 
-    Jump guardShape(RegisterID objReg, Shape *shape) {
+    Jump guardShape(RegisterID objReg, const Shape *shape) {
         return branchPtr(NotEqual, Address(objReg, JSObject::offsetOfShape()), ImmPtr(shape));
     }
 
@@ -899,7 +898,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     void loadObjProp(JSObject *obj, RegisterID objReg,
-                     js::Shape *shape,
+                     const js::Shape *shape,
                      RegisterID typeReg, RegisterID dataReg)
     {
         if (obj->isFixedSlot(shape->slot()))

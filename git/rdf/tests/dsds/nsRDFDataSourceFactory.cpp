@@ -9,7 +9,7 @@
 #include "nsIServiceManager.h"
 #include "rdf.h"
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #include <stdio.h>
 #endif
 

@@ -33,7 +33,7 @@ LOCAL_INCLUDES = \
 
 XPIDLSRCS = \
   nsIDOMBatteryManager.idl \
-  nsINavigatorBattery.idl \
+  nsIDOMNavigatorBattery.idl \
   $(NULL)
 
 TEST_DIRS += test

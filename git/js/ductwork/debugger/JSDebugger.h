@@ -7,12 +7,11 @@
 #define COMPONENTS_JSDEBUGGER_H
 
 #include "IJSDebugger.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace jsdebugger {
 
-class JSDebugger MOZ_FINAL : public IJSDebugger
+class JSDebugger : public IJSDebugger
 {
 public:
   NS_DECL_ISUPPORTS

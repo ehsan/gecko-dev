@@ -23,7 +23,7 @@ public interface GlobalSyncStage {
     ensureSpecialRecords,
     updateEngineTimestamps,
     */
-    syncClientsEngine(SyncClientsEngineStage.STAGE_NAME),
+    syncClientsEngine("clients"),
     /*
     processFirstSyncPref,
     processClientCommands,

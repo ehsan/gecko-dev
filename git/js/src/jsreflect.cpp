@@ -641,7 +641,7 @@ NodeBuilder::newArray(NodeVector &elts, Value *dst)
         js_ReportAllocationOverflow(cx);
         return false;
     }
-    Rooted<JSObject*> array(cx, NewDenseAllocatedArray(cx, uint32_t(len)));
+    JSObject *array = NewDenseAllocatedArray(cx, uint32_t(len));
     if (!array)
         return false;
 
@@ -654,7 +654,7 @@ NodeBuilder::newArray(NodeVector &elts, Value *dst)
         if (val.isMagic(JS_SERIALIZE_NO_NODE))
             continue;
 
-        if (!array->setElement(cx, array, i, &val, false))
+        if (!array->setElement(cx, i, &val, false))
             return false;
     }
 
@@ -2577,7 +2577,7 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
       {
         /* The parser notes any uninitialized properties by setting the PNX_DESTRUCT flag. */
         if (pn->pn_xflags & PNX_DESTRUCT) {
-            parser->reportError(pn, JSMSG_BAD_OBJECT_INIT);
+            parser->reportErrorNumber(pn, JSREPORT_ERROR, JSMSG_BAD_OBJECT_INIT);
             return false;
         }
         NodeVector elts(cx);
@@ -2838,7 +2838,7 @@ ASTSerializer::literal(ParseNode *pn, Value *dst)
         JSObject *re1 = pn->pn_objbox ? pn->pn_objbox->object : NULL;
         LOCAL_ASSERT(re1 && re1->isRegExp());
 
-        RootedObject proto(cx);
+        JSObject *proto;
         if (!js_GetClassPrototype(cx, cx->fp()->scopeChain(), JSProto_RegExp, &proto))
             return false;
 
@@ -3232,7 +3232,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
     Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
                   chars, length, filename, lineno, cx->findVersion(), 
-                  /* foldConstants = */ false, /* compileAndGo = */ false);
+                  /* cfp = */ NULL, /* foldConstants = */ false, /* compileAndGo = */ false);
     if (!parser.init())
         return JS_FALSE;
 

@@ -431,7 +431,7 @@ protected:
   friend class nsPresShellEventCB;
 
   bool mCaretEnabled;
-#ifdef DEBUG
+#ifdef NS_DEBUG
   nsStyleSet* CloneStyleSet(nsStyleSet* aSet);
   bool VerifyIncrementalReflow();
   bool mInVerifyReflow;

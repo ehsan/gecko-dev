@@ -213,7 +213,8 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     // whether or not a content object is capable of implementing the
     // interface (i.e. whether the interface is scriptable) and most content
     // objects don't have QI implementations anyway. Also see bug 503926.
-    if (!xpc::AccessCheck::isChrome(js::GetObjectCompartment(jsobj))) {
+    if (XPCPerThreadData::IsMainThread(ccx) &&
+        !xpc::AccessCheck::isChrome(js::GetObjectCompartment(jsobj))) {
         return nsnull;
     }
 
@@ -494,7 +495,8 @@ static JSContext *
 GetContextFromObject(JSObject *obj)
 {
     // Don't stomp over a running context.
-    XPCJSContextStack* stack = XPCJSRuntime::Get()->GetJSContextStack();
+    XPCJSContextStack* stack =
+        XPCPerThreadData::GetData(nsnull)->GetJSContextStack();
 
     if (stack && stack->Peek())
         return nsnull;
@@ -680,6 +682,9 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         // UniversalXPConnect type check.
 
         *aInstancePtr = nsnull;
+
+        if (!XPCPerThreadData::IsMainThread(ccx.GetJSContext()))
+            return NS_NOINTERFACE;
 
         nsXPConnect *xpc = nsXPConnect::GetXPConnect();
         nsCOMPtr<nsIScriptSecurityManager> secMan =
@@ -972,7 +977,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
 
         /* cleanup and set failed even if we can't build an exception */
         if (!xpc_exception) {
-            XPCJSRuntime::Get()->SetPendingException(nsnull); // XXX necessary?
+            ccx.GetThreadData()->SetException(nsnull); // XXX necessary?
         }
     }
 
@@ -1099,7 +1104,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
             // Whether or not it passes the 'reportable' test, it might
             // still be an error and we have to do the right thing here...
             if (NS_FAILED(e_result)) {
-                XPCJSRuntime::Get()->SetPendingException(xpc_exception);
+                ccx.GetThreadData()->SetException(xpc_exception);
                 return e_result;
             }
         }
@@ -1111,6 +1116,17 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
     }
     return NS_ERROR_FAILURE;
 }
+
+class ContextPrincipalGuard
+{
+    nsIScriptSecurityManager *ssm;
+    XPCCallContext &ccx;
+  public:
+    ContextPrincipalGuard(XPCCallContext &ccx)
+      : ssm(nsnull), ccx(ccx) {}
+    void principalPushed(nsIScriptSecurityManager *ssm) { this->ssm = ssm; }
+    ~ContextPrincipalGuard() { if (ssm) ssm->PopContextPrincipal(ccx); }
+};
 
 NS_IMETHODIMP
 nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
@@ -1155,6 +1171,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
 
     JS::AutoValueVector args(cx);
     AutoScriptEvaluate scriptEval(cx);
+    ContextPrincipalGuard principalGuard(ccx);
 
     // XXX ASSUMES that retval is last arg. The xpidl compiler ensures this.
     uint8_t paramCount = info->num_args;
@@ -1166,7 +1183,29 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
 
     xpcc->SetPendingResult(pending_result);
     xpcc->SetException(nsnull);
-    XPCJSRuntime::Get()->SetPendingException(nsnull);
+    ccx.GetThreadData()->SetException(nsnull);
+
+    if (XPCPerThreadData::IsMainThread(ccx)) {
+        // TODO Remove me in favor of security wrappers.
+        nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+        if (ssm) {
+            nsIPrincipal *objPrincipal =
+                xpc::AccessCheck::getPrincipal(js::GetObjectCompartment(obj));
+            if (objPrincipal) {
+                JSStackFrame* fp = nsnull;
+                nsresult rv =
+                    ssm->PushContextPrincipal(ccx, JS_FrameIterator(ccx, &fp),
+                                              objPrincipal);
+                if (NS_FAILED(rv)) {
+                    JS_ReportOutOfMemory(ccx);
+                    retval = NS_ERROR_OUT_OF_MEMORY;
+                    goto pre_call_clean_up;
+                }
+
+                principalGuard.principalPushed(ssm);
+            }
+        }
+    }
 
     // We use js_Invoke so that the gcthings we use as args will be rooted by
     // the engine as we do conversions and prepare to do the function call.
@@ -1471,7 +1510,7 @@ pre_call_clean_up:
         return CheckForException(ccx, name, GetInterfaceName(), forceReport);
     }
 
-    XPCJSRuntime::Get()->SetPendingException(nsnull); // XXX necessary?
+    ccx.GetThreadData()->SetException(nsnull); // XXX necessary?
 
     // convert out args and result
     // NOTE: this is the total number of native params, not just the args

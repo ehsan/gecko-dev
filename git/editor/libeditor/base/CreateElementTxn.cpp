@@ -5,6 +5,7 @@
 
 #include "CreateElementTxn.h"
 #include "nsEditor.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsISelection.h"
 #include "nsIDOMElement.h"
@@ -12,7 +13,7 @@
 
 #include "mozilla/dom/Element.h"
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static bool gNoisy = false;
 #endif
 
@@ -59,7 +60,7 @@ NS_IMETHODIMP CreateElementTxn::Init(nsEditor      *aEditor,
 
 NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy)
   {
     char* nodename = ToNewCString(mTag);
@@ -83,7 +84,7 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   // Try to insert formatting whitespace for the new node:
   mEditor->MarkNodeDirty(mNewNode);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy)
   {
     printf("  newNode = %p\n", static_cast<void*>(mNewNode.get()));
@@ -133,7 +134,7 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 
 NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy)
   {
     printf("Undo Create Element, mParent = %p, node = %p\n",
@@ -151,7 +152,7 @@ NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 
 NS_IMETHODIMP CreateElementTxn::RedoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy) { printf("Redo Create Element\n"); }
 #endif
 

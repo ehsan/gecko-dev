@@ -690,7 +690,6 @@ nsRemotedAudioStream::Write(const void* aBuf, PRUint32 aFrames)
                                                     aFrames,
                                                     mBytesPerFrame);
   NS_DispatchToMainThread(event);
-  mAudioChild->WaitForWrite();
   return NS_OK;
 }
 

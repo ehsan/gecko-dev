@@ -7,19 +7,17 @@ var testGenerator = testSteps();
 
 var abortFired = false;
 
-function abortListener(evt)
-{
-  abortFired = true;
-  is(evt.target.error, null, "Expect a null error for an aborted transaction");
-}
+function abortListener() { abortFired = true; }
 
 function testSteps()
 {
   const Ci = Components.interfaces;
 
   const name = this.window ? window.location.pathname : "Splendid Test";
+  const description = "My Test Database";
 
-  let request = indexedDB.open(name, 1);
+
+  let request = mozIndexedDB.open(name, 1, description);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
@@ -33,15 +31,6 @@ function testSteps()
   let index;
 
   transaction = event.target.transaction;
-
-  try {
-    let error = transaction.error;
-    ok(false, "Expect an exception");
-  } catch(e) {
-    ok(true, "Got an exception.");
-    is(e.name, "InvalidStateError", "Got the right exception");
-  }
-
   objectStore = db.createObjectStore("foo", { autoIncrement: true });
   index = objectStore.createIndex("fooindex", "indexKey", { unique: true });
 

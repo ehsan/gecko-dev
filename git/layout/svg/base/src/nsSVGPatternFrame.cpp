@@ -63,7 +63,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGPatternFrame)
 /* virtual */ void
 nsSVGPatternFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsSVGEffects::InvalidateDirectRenderingObservers(this);
+  nsSVGEffects::InvalidateRenderingObservers(this);
   nsSVGPatternFrameBase::DidSetStyleContext(aOldStyleContext);
 }
 
@@ -82,7 +82,7 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
        aAttribute == nsGkAtoms::height ||
        aAttribute == nsGkAtoms::preserveAspectRatio ||
        aAttribute == nsGkAtoms::viewBox)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   if (aNameSpaceID == kNameSpaceID_XLink &&
@@ -91,7 +91,7 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
     Properties().Delete(nsSVGEffects::HrefProperty());
     mNoHRefURI = false;
     // And update whoever references us
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGPatternFrameBase::AttributeChanged(aNameSpaceID,
@@ -125,7 +125,7 @@ nsSVGPatternFrame::GetType() const
 // matrix, which depends on our units parameters
 // and X, Y, Width, and Height
 gfxMatrix
-nsSVGPatternFrame::GetCanvasTM(PRUint32 aFor)
+nsSVGPatternFrame::GetCanvasTM()
 {
   if (mCTM) {
     return *mCTM;
@@ -134,7 +134,7 @@ nsSVGPatternFrame::GetCanvasTM(PRUint32 aFor)
   // Do we know our rendering parent?
   if (mSource) {
     // Yes, use it!
-    return mSource->GetCanvasTM(aFor);
+    return mSource->GetCanvasTM();
   }
 
   // We get here when geometry in the <pattern> container is updated
@@ -637,7 +637,7 @@ nsSVGPatternFrame::GetTargetGeometry(gfxMatrix *aCTM,
   }
 
   // Get the transformation matrix from our calling geometry
-  *aCTM = nsSVGUtils::GetCanvasTM(aTarget, nsISVGChildFrame::FOR_PAINTING);
+  *aCTM = nsSVGUtils::GetCanvasTM(aTarget);
 
   // OK, now fix up the bounding box to reflect user coordinates
   // We handle device unit scaling in pattern matrix

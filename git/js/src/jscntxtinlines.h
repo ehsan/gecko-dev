@@ -224,13 +224,8 @@ class CompartmentChecker
     JSCompartment *compartment;
 
   public:
-    explicit CompartmentChecker(JSContext *cx)
-      : context(cx), compartment(cx->compartment)
-    {
-        if (cx->compartment) {
-            GlobalObject *global = GetGlobalForScopeChain(cx);
-            JS_ASSERT(cx->compartment->maybeGlobal() == global);
-        }
+    explicit CompartmentChecker(JSContext *cx) : context(cx), compartment(cx->compartment) {
+        check(cx->hasfp() ? JS_GetGlobalForScopeChain(cx) : cx->globalObject);
     }
 
     /*
@@ -328,7 +323,7 @@ class CompartmentChecker
  * depends on other objects not having been swept yet.
  */
 #define START_ASSERT_SAME_COMPARTMENT()                                       \
-    if (cx->runtime->isHeapBusy())                                            \
+    if (cx->runtime->gcRunning)                                               \
         return;                                                               \
     CompartmentChecker c(cx)
 

@@ -31,10 +31,10 @@ ParseMapPool::acquire<AtomIndexMap>()
 }
 
 template <>
-inline AtomDefnListMap *
-ParseMapPool::acquire<AtomDefnListMap>()
+inline AtomDOHMap *
+ParseMapPool::acquire<AtomDOHMap>()
 {
-    return reinterpret_cast<AtomDefnListMap *>(allocate());
+    return reinterpret_cast<AtomDOHMap *>(allocate());
 }
 
 inline void *
@@ -52,31 +52,41 @@ inline Definition *
 AtomDecls::lookupFirst(JSAtom *atom)
 {
     JS_ASSERT(map);
-    AtomDefnListPtr p = map->lookup(atom);
+    AtomDOHPtr p = map->lookup(atom);
     if (!p)
         return NULL;
-    return p.value().front();
+    if (p.value().isHeader()) {
+        /* Just return the head defn. */
+        return p.value().header()->defn;
+    }
+    return p.value().defn();
 }
 
-inline DefinitionList::Range
+inline MultiDeclRange
 AtomDecls::lookupMulti(JSAtom *atom)
 {
     JS_ASSERT(map);
-    if (AtomDefnListPtr p = map->lookup(atom))
-        return p.value().all();
-    return DefinitionList::Range();
+    AtomDOHPtr p = map->lookup(atom);
+    if (!p)
+        return MultiDeclRange((Definition *) NULL);
+
+    DefnOrHeader &doh = p.value();
+    if (doh.isHeader())
+        return MultiDeclRange(doh.header());
+    return MultiDeclRange(doh.defn());
 }
 
 inline bool
 AtomDecls::addUnique(JSAtom *atom, Definition *defn)
 {
     JS_ASSERT(map);
-    AtomDefnListAddPtr p = map->lookupForAdd(atom);
-    if (!p)
-        return map->add(p, atom, DefinitionList(defn));
-    JS_ASSERT(!p.value().isMultiple());
-    p.value() = DefinitionList(defn);
-    return true;
+    AtomDOHAddPtr p = map->lookupForAdd(atom);
+    if (p) {
+        JS_ASSERT(!p.value().isHeader());
+        p.value() = DefnOrHeader(defn);
+        return true;
+    }
+    return map->add(p, atom, DefnOrHeader(defn));
 }
 
 template <class Map>
@@ -102,7 +112,7 @@ AtomThingMapPtr<Map>::releaseMap(JSContext *cx)
 inline bool
 AtomDecls::init()
 {
-    map = cx->parseMapPool().acquire<AtomDefnListMap>();
+    map = cx->parseMapPool().acquire<AtomDOHMap>();
     return map;
 }
 

@@ -166,10 +166,7 @@ let BrowserElementPromptService = {
   },
 
   getBrowserElementChildForWindow: function(win) {
-    // We only have a mapping for <iframe mozbrowser>s, not their inner
-    // <iframes>, so we look up win.top below.  window.top (when called from
-    // script) respects <iframe mozbrowser> boundaries.
-    return this._browserElementChildMap[this._getOuterWindowID(win.top)];
+    return this._browserElementChildMap[this._getOuterWindowID(win)];
   },
 
   _observeOuterWindowDestroyed: function(outerWindowID) {

@@ -1400,7 +1400,7 @@ var gBrowserInit = {
 
       // Show the toolbar if it was previously visible
       if (gPrefService.getBoolPref("devtools.toolbar.visible")) {
-        DeveloperToolbar.show(false);
+        this.DeveloperToolbar.show();
       }
     }
 
@@ -1477,7 +1477,6 @@ var gBrowserInit = {
 #ifdef MENUBAR_CAN_AUTOHIDE
       document.getElementById("appmenu_styleeditor").hidden = false;
 #endif
-      document.getElementById("developer-toolbar-styleeditor").hidden = false;
     }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
@@ -1497,6 +1496,7 @@ var gBrowserInit = {
 #ifdef MENUBAR_CAN_AUTOHIDE
       document.getElementById("appmenu_responsiveUI").hidden = false;
 #endif
+      document.getElementById("developer-toolbar-responsiveui").hidden = false;
     }
 
     let appMenuButton = document.getElementById("appmenu-button");
@@ -2227,12 +2227,6 @@ function getPostDataStream(aStringData, aKeyword, aEncKeyword, aType) {
   return mimeStream.QueryInterface(Ci.nsIInputStream);
 }
 
-function getLoadContext() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 function readFromClipboard()
 {
   var url;
@@ -2245,7 +2239,6 @@ function readFromClipboard()
     // Create transferable that will transfer the text.
     var trans = Components.classes["@mozilla.org/widget/transferable;1"]
                           .createInstance(Components.interfaces.nsITransferable);
-    trans.init(getLoadContext());
 
     trans.addDataFlavor("text/unicode");
 
@@ -2610,16 +2603,13 @@ function BrowserOnClick(event) {
         if (previousNotification)
           notificationBox.removeNotification(previousNotification);
 
-        let notification = notificationBox.appendNotification(
+        notificationBox.appendNotification(
           title,
           value,
           "chrome://global/skin/icons/blacklist_favicon.png",
           notificationBox.PRIORITY_CRITICAL_HIGH,
           buttons
         );
-        // Persist the notification until the user removes so it
-        // doesn't get removed on redirects.
-        notification.persistence = -1;
       }
     }
     else if (/^about:home$/i.test(ownerDoc.documentURI)) {
@@ -5264,9 +5254,10 @@ function middleMousePaste(event) {
     Cu.reportError(ex);
   }
 
-  openUILink(url, event,
-             { ignoreButton: true,
-               disallowInheritPrincipal: !mayInheritPrincipal.value });
+  // FIXME: Bug 631500, use openUILink directly
+  let where = whereToOpenLink(event, true);
+  openUILinkIn(url, where,
+               { disallowInheritPrincipal: !mayInheritPrincipal.value });
 
   event.stopPropagation();
 }
@@ -6716,6 +6707,10 @@ var gIdentityHandler = {
     // the popup is actually needed
     this._identityPopup.hidden = false;
 
+    // Tell the popup to consume dismiss clicks, to avoid bug 395314
+    this._identityPopup.popupBoxObject
+        .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+
     // Update the popup strings
     this.setPopupMessages(this._identityBox.className);
 
@@ -6916,7 +6911,6 @@ let gPrivateBrowsingUI = {
   _searchBarValue: null,
   _findBarValue: null,
   _inited: false,
-  _initCallbacks: [],
 
   init: function PBUI_init() {
     Services.obs.addObserver(this, "private-browsing", false);
@@ -6929,9 +6923,6 @@ let gPrivateBrowsingUI = {
       this.onEnterPrivateBrowsing(true);
 
     this._inited = true;
-
-    this._initCallbacks.forEach(function (callback) callback.apply());
-    this._initCallbacks = [];
   },
 
   uninit: function PBUI_unint() {
@@ -6940,17 +6931,6 @@ let gPrivateBrowsingUI = {
 
     Services.obs.removeObserver(this, "private-browsing");
     Services.obs.removeObserver(this, "private-browsing-transition-complete");
-  },
-
-  get initialized() {
-    return this._inited;
-  },
-
-  addInitializationCallback: function PBUI_addInitializationCallback(aCallback) {
-    if (this._inited)
-      return;
-
-    this._initCallbacks.push(aCallback);
   },
 
   get _disableUIOnToggle() {
@@ -7155,21 +7135,16 @@ let gPrivateBrowsingUI = {
       !this.privateBrowsingEnabled;
   },
 
-  get autoStarted() {
-    return this._privateBrowsingService.autoStarted;
-  },
-
   get privateBrowsingEnabled() {
     return this._privateBrowsingService.privateBrowsingEnabled;
   },
 
   /**
-   * This accessor is used to support per-window Private Browsing mode.
+   * These accessors are used to support per-window Private Browsing mode.
+   * For now the getter returns nsIPrivateBrowsingService.privateBrowsingEnabled,
+   * and the setter should only be used in tests.
    */
   get privateWindow() {
-    if (!gBrowser)
-      return false;
-
     return gBrowser.docShell.QueryInterface(Ci.nsILoadContext)
                             .usePrivateBrowsing;
   }
@@ -7396,28 +7371,39 @@ var StyleEditor = {
    */
   openChrome: function SE_openChrome(aSelectedStyleSheet, aLine, aCol)
   {
-    let contentWindow = gBrowser.selectedBrowser.contentWindow;
-    let win = this.StyleEditorManager.getEditorForWindow(contentWindow);
-    if (win) {
-      this.StyleEditorManager.selectEditor(win);
-      return win;
-    } else {
-      return this.StyleEditorManager.newEditor(contentWindow,
-                                               aSelectedStyleSheet, aLine, aCol);
-    }
-  },
+    const CHROME_URL = "chrome://browser/content/styleeditor.xul";
+    const CHROME_WINDOW_TYPE = "Tools:StyleEditor";
+    const CHROME_WINDOW_FLAGS = "chrome,centerscreen,resizable,dialog=no";
 
-  toggle: function SE_toggle()
-  {
-    this.StyleEditorManager.toggleEditor(gBrowser.contentWindow);
+    // focus currently open Style Editor window for this document, if any
+    let contentWindow = gBrowser.selectedBrowser.contentWindow;
+    let contentWindowID = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
+      getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
+    let enumerator = Services.wm.getEnumerator(CHROME_WINDOW_TYPE);
+    while (enumerator.hasMoreElements()) {
+      var win = enumerator.getNext();
+      if (win.styleEditorChrome.contentWindowID == contentWindowID) {
+        if (aSelectedStyleSheet) {
+          win.styleEditorChrome.selectStyleSheet(aSelectedStyleSheet, aLine, aCol);
+        }
+        win.focus();
+        return win;
+      }
+    }
+
+    let args = {
+      contentWindow: contentWindow,
+      selectedStyleSheet: aSelectedStyleSheet,
+      line: aLine,
+      col: aCol
+    };
+    args.wrappedJSObject = args;
+    let chromeWindow = Services.ww.openWindow(null, CHROME_URL, "_blank",
+                                              CHROME_WINDOW_FLAGS, args);
+    chromeWindow.focus();
+    return chromeWindow;
   }
 };
-
-XPCOMUtils.defineLazyGetter(StyleEditor, "StyleEditorManager", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/devtools/StyleEditor.jsm", tmp);
-  return new tmp.StyleEditorManager(window);
-});
 
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {

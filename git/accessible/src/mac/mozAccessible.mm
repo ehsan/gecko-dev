@@ -9,7 +9,6 @@
 #import "mozView.h"
 
 #include "Accessible-inl.h"
-#include "nsAccUtils.h"
 #include "nsIAccessibleRelation.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleEditableText.h"
@@ -22,7 +21,6 @@
 #include "nsCocoaUtils.h"
 #include "nsCoord.h"
 #include "nsObjCExceptions.h"
-#include "nsWhitespaceTokenizer.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -65,6 +63,18 @@ GetClosestInterestingAccessible(id anObject)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+static inline mozAccessible* 
+GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSNULL;
+
+  mozAccessible *native = nil;
+  anAccessible->GetNativeInterface ((void**)&native);
+  return native;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
+}
+
 #pragma mark -
 
 @implementation mozAccessible
@@ -75,6 +85,7 @@ GetClosestInterestingAccessible(id anObject)
 
   if ((self = [super init])) {
     mGeckoAccessible = geckoAccessible;
+    mIsExpired = NO;
     mRole = geckoAccessible->Role();
   }
    
@@ -101,7 +112,7 @@ GetClosestInterestingAccessible(id anObject)
 
   // unknown (either unimplemented, or irrelevant) elements are marked as ignored
   // as well as expired elements.
-  return !mGeckoAccessible || [[self role] isEqualToString:NSAccessibilityUnknownRole];
+  return mIsExpired || [[self role] isEqualToString:NSAccessibilityUnknownRole];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
@@ -111,7 +122,7 @@ GetClosestInterestingAccessible(id anObject)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   // if we're expired, we don't support any attributes.
-  if (!mGeckoAccessible)
+  if (mIsExpired)
     return [NSArray array];
   
   static NSArray *generalAttributes = nil;
@@ -149,7 +160,7 @@ GetClosestInterestingAccessible(id anObject)
 {  
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (!mGeckoAccessible)
+  if (mIsExpired)
     return nil;
 
 #if DEBUG
@@ -235,7 +246,7 @@ GetClosestInterestingAccessible(id anObject)
 
 - (id)accessibilityHitTest:(NSPoint)point
 {
-  if (!mGeckoAccessible)
+  if (mIsExpired)
     return nil;
 
   // Convert from cocoa's coordinate system to gecko's. According to the docs
@@ -277,7 +288,7 @@ GetClosestInterestingAccessible(id anObject)
 
 - (id)accessibilityFocusedUIElement
 {
-  if (!mGeckoAccessible)
+  if (mIsExpired)
     return nil;
   
   Accessible* focusedGeckoChild = mGeckoAccessible->FocusedChild();
@@ -409,7 +420,7 @@ GetClosestInterestingAccessible(id anObject)
 
 - (NSString*)role
 {
-  if (!mGeckoAccessible)
+  if (mIsExpired)
     return nil;
 
 #ifdef DEBUG
@@ -433,42 +444,6 @@ GetClosestInterestingAccessible(id anObject)
 
 - (NSString*)subrole
 {
-  if (!mGeckoAccessible)
-    return nil;
-
-  // XXX maybe we should cache the subrole.
-  nsAutoString xmlRoles;
-  nsCOMPtr<nsIPersistentProperties> attributes;
-
-  // XXX we don't need all the attributes (see bug 771113)
-  nsresult rv = mGeckoAccessible->GetAttributes(getter_AddRefs(attributes));
-  if (NS_SUCCEEDED(rv) && attributes)
-    nsAccUtils::GetAccAttr(attributes, nsGkAtoms::xmlroles, xmlRoles);
-
-  nsWhitespaceTokenizer tokenizer(xmlRoles);
-
-  while (tokenizer.hasMoreTokens()) {
-    const nsDependentSubstring token(tokenizer.nextToken());
-
-    if (token.EqualsLiteral("banner"))
-      return @"AXLandmarkBanner";
-
-    if (token.EqualsLiteral("complementary"))
-      return @"AXLandmarkComplementary";
-
-    if (token.EqualsLiteral("contentinfo"))
-      return @"AXLandmarkContentInfo";
-
-    if (token.EqualsLiteral("main"))
-      return @"AXLandmarkMain";
-
-    if (token.EqualsLiteral("navigation"))
-      return @"AXLandmarkNavigation";
-
-    if (token.EqualsLiteral("search"))
-      return @"AXLandmarkSearch";
-  }
-
   switch (mRole) {
     case roles::LIST:
       return @"AXContentList"; // 10.6+ NSAccessibilityContentListSubrole;
@@ -493,33 +468,15 @@ GetClosestInterestingAccessible(id anObject)
 {
   if (mRole == roles::DOCUMENT)
     return utils::LocalizedString(NS_LITERAL_STRING("htmlContent"));
-
+  
   NSString* subrole = [self subrole];
-
+  
   if ((mRole == roles::LISTITEM) && [subrole isEqualToString:@"AXTerm"])
     return utils::LocalizedString(NS_LITERAL_STRING("term"));
   if ((mRole == roles::PARAGRAPH) && [subrole isEqualToString:@"AXDefinition"])
     return utils::LocalizedString(NS_LITERAL_STRING("definition"));
-
-  NSString* role = [self role];
-
-  // the WAI-ARIA Landmarks
-  if ([role isEqualToString:NSAccessibilityGroupRole]) {
-    if ([subrole isEqualToString:@"AXLandmarkBanner"])
-      return utils::LocalizedString(NS_LITERAL_STRING("banner"));
-    if ([subrole isEqualToString:@"AXLandmarkComplementary"])
-      return utils::LocalizedString(NS_LITERAL_STRING("complementary"));
-    if ([subrole isEqualToString:@"AXLandmarkContentInfo"])
-      return utils::LocalizedString(NS_LITERAL_STRING("content"));
-    if ([subrole isEqualToString:@"AXLandmarkMain"])
-      return utils::LocalizedString(NS_LITERAL_STRING("main"));
-    if ([subrole isEqualToString:@"AXLandmarkNavigation"])
-      return utils::LocalizedString(NS_LITERAL_STRING("navigation"));
-    if ([subrole isEqualToString:@"AXLandmarkSearch"])
-      return utils::LocalizedString(NS_LITERAL_STRING("search"));
-  }
-
-  return NSAccessibilityRoleDescription(role, subrole);
+  
+  return NSAccessibilityRoleDescription([self role], subrole);
 }
 
 - (NSString*)title
@@ -528,7 +485,7 @@ GetClosestInterestingAccessible(id anObject)
 
   nsAutoString title;
   mGeckoAccessible->Name(title);
-  return nsCocoaUtils::ToNSString(title);
+  return title.IsEmpty() ? nil : [NSString stringWithCharacters:title.BeginReading() length:title.Length()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -571,8 +528,7 @@ GetClosestInterestingAccessible(id anObject)
 
   nsAutoString desc;
   mGeckoAccessible->Description(desc);
-
-  return nsCocoaUtils::ToNSString(desc);
+  return desc.IsEmpty() ? nil : [NSString stringWithCharacters:desc.BeginReading() length:desc.Length()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -605,21 +561,18 @@ GetClosestInterestingAccessible(id anObject)
 
 - (BOOL)canBeFocused
 {
-  return mGeckoAccessible && (mGeckoAccessible->InteractiveState() & states::FOCUSABLE);
+  return mGeckoAccessible->InteractiveState() & states::FOCUSABLE;
 }
 
 - (BOOL)focus
 {
-  if (!mGeckoAccessible)
-    return NO;
-  
   nsresult rv = mGeckoAccessible->TakeFocus();
   return NS_SUCCEEDED(rv);
 }
 
 - (BOOL)isEnabled
 {
-  return mGeckoAccessible && ((mGeckoAccessible->InteractiveState() & states::UNAVAILABLE) == 0);
+  return (mGeckoAccessible->InteractiveState() & states::UNAVAILABLE) == 0;
 }
 
 // The root accessible calls this when the focused node was
@@ -684,6 +637,7 @@ GetClosestInterestingAccessible(id anObject)
 
   [self invalidateChildren];
 
+  mIsExpired = YES;
   mGeckoAccessible = nsnull;
   
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -691,7 +645,7 @@ GetClosestInterestingAccessible(id anObject)
 
 - (BOOL)isExpired
 {
-  return !mGeckoAccessible;
+  return mIsExpired;
 }
 
 #pragma mark -

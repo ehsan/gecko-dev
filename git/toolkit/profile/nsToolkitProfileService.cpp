@@ -37,11 +37,10 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsNativeCharsetUtils.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
-class nsToolkitProfile MOZ_FINAL : public nsIToolkitProfile
+class nsToolkitProfile : public nsIToolkitProfile
 {
 public:
     NS_DECL_ISUPPORTS
@@ -69,7 +68,7 @@ private:
     bool                       mForExternalApp;
 };
 
-class nsToolkitProfileLock MOZ_FINAL : public nsIProfileLock
+class nsToolkitProfileLock : public nsIProfileLock
 {
 public:
     NS_DECL_ISUPPORTS
@@ -90,14 +89,14 @@ private:
     nsProfileLock mLock;
 };
 
-class nsToolkitProfileFactory MOZ_FINAL : public nsIFactory
+class nsToolkitProfileFactory : public nsIFactory
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIFACTORY
 };
 
-class nsToolkitProfileService MOZ_FINAL : public nsIToolkitProfileService
+class nsToolkitProfileService : public nsIToolkitProfileService
 {
 public:
     NS_DECL_ISUPPORTS
@@ -143,7 +142,7 @@ private:
 
     static nsToolkitProfileService *gService;
 
-    class ProfileEnumerator MOZ_FINAL : public nsISimpleEnumerator
+    class ProfileEnumerator : public nsISimpleEnumerator
     {
     public:
         NS_DECL_ISUPPORTS
@@ -383,8 +382,12 @@ nsToolkitProfileService::Init()
     rv = gDirServiceProvider->GetUserLocalDataDirectory(getter_AddRefs(mTempData));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mAppData->Clone(getter_AddRefs(mListFile));
+    nsCOMPtr<nsIFile> listFile;
+    rv = mAppData->Clone(getter_AddRefs(listFile));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    mListFile = do_QueryInterface(listFile);
+    NS_ENSURE_TRUE(listFile, NS_ERROR_NO_INTERFACE);
 
     rv = mListFile->AppendNative(NS_LITERAL_CSTRING("profiles.ini"));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -396,7 +399,7 @@ nsToolkitProfileService::Init()
     }
 
     PRInt64 size;
-    rv = mListFile->GetFileSize(&size);
+    rv = listFile->GetFileSize(&size);
     if (NS_FAILED(rv) || !size) {
         return NS_OK;
     }
@@ -724,10 +727,14 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
 
     nsCAutoString dirName;
     if (!rootDir) {
-        rv = gDirServiceProvider->GetUserProfilesRootDir(getter_AddRefs(rootDir),
+        nsCOMPtr<nsIFile> file;
+        rv = gDirServiceProvider->GetUserProfilesRootDir(getter_AddRefs(file),
                                                          aProfileName, aAppName,
                                                          aVendorName);
         NS_ENSURE_SUCCESS(rv, rv);
+
+        rootDir = do_QueryInterface(file);
+        NS_ENSURE_TRUE(rootDir, NS_ERROR_UNEXPECTED);
 
         dirName = aName;
         SaltProfileName(dirName);
@@ -746,11 +753,15 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
             localDir = aRootDir;
         }
         else {
-            rv = gDirServiceProvider->GetUserProfilesLocalDir(getter_AddRefs(localDir),
+            nsCOMPtr<nsIFile> file;
+            rv = gDirServiceProvider->GetUserProfilesLocalDir(getter_AddRefs(file),
                                                               aProfileName,
                                                               aAppName,
                                                               aVendorName);
             NS_ENSURE_SUCCESS(rv, rv);
+
+            localDir = do_QueryInterface(file);
+            NS_ENSURE_TRUE(localDir, NS_ERROR_UNEXPECTED);
 
             // use same salting
             if (NS_IsNativeUTF8()) {

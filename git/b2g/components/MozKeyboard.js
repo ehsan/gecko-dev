@@ -7,7 +7,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const kFormsFrameScript = "chrome://browser/content/forms.js";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -38,12 +37,10 @@ MozKeyboard.prototype = {
   }),
 
   init: function mozKeyboardInit(win) {
-    messageManager.loadFrameScript(kFormsFrameScript, true);
+    messageManager.loadFrameScript("chrome://browser/content/forms.js", true);
     messageManager.addMessageListener("Forms:Input", this);
 
     Services.obs.addObserver(this, "inner-window-destroyed", false);
-    Services.obs.addObserver(this, 'in-process-browser-frame-shown', false);
-    Services.obs.addObserver(this, 'remote-browser-frame-shown', false);
 
     this._window = win;
     this._utils = win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -108,26 +105,11 @@ MozKeyboard.prototype = {
   },
 
   observe: function mozKeyboardObserve(subject, topic, data) {
-    switch (topic) {
-    case "inner-window-destroyed": {
+    if (topic == "inner-window-destroyed") {
       let wId = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
       if (wId == this.innerWindowID) {
         this.uninit();
       }
-      break;
-    }
-    case 'remote-browser-frame-shown':
-    case 'in-process-browser-frame-shown': {
-      let frameLoader = subject.QueryInterface(Ci.nsIFrameLoader);
-      let mm = frameLoader.messageManager;
-      mm.addMessageListener("Forms:Input", this);
-      try {
-        mm.loadFrameScript(kFormsFrameScript, true);
-      } catch (e) {
-        dump('Error loading ' + kFormsFrameScript + ' as frame script: ' + e + '\n');
-      }
-      break;
-    }
     }
   }
 };
