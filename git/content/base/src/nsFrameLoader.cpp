@@ -284,7 +284,6 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mChildID(0)
   , mRenderMode(RENDER_MODE_DEFAULT)
   , mEventMode(EVENT_MODE_NORMAL_DISPATCH)
-  , mPendingFrameSent(false)
 {
   ResetPermissionManagerStatus();
 }
@@ -459,17 +458,8 @@ nsFrameLoader::ReallyStartLoadingInternal()
 
   if (mRemoteFrame) {
     if (!mRemoteBrowser) {
-      if (!mPendingFrameSent) {
-        nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-        if (OwnerIsBrowserOrAppFrame() && os && !mRemoteBrowserInitialized) {
-          os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                              "remote-browser-frame-pending", nullptr);
-          mPendingFrameSent = true;
-        }
-      }
       if (Preferences::GetBool("dom.ipc.processPrelaunch.enabled", false) &&
           !ContentParent::PreallocatedProcessReady()) {
-
         ContentParent::RunAfterPreallocatedProcessReady(
             new DelayedStartLoadingRunnable(this));
         return NS_ERROR_FAILURE;
@@ -993,11 +983,6 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
 
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (OwnerIsBrowserOrAppFrame() && os && !mRemoteBrowserInitialized) {
-      if (!mPendingFrameSent) {
-        os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                            "remote-browser-frame-pending", nullptr);
-        mPendingFrameSent = true;
-      }
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
                           "remote-browser-frame-shown", nullptr);
       mRemoteBrowserInitialized = true;

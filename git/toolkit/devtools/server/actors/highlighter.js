@@ -514,7 +514,6 @@ BoxModelHighlighter.prototype = {
 
     if (oldRect && aRect.top == oldRect.top && aRect.left == oldRect.left &&
         aRect.width == oldRect.width && aRect.height == oldRect.height) {
-      this._showOutline();
       return true; // same rectangle
     }
 
