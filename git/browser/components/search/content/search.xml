@@ -542,8 +542,7 @@
         if (document.getBindingParent(this).parentNode.parentNode.localName ==
             "toolbarpaletteitem")
           return;
-
-        this.initialize();
+        setTimeout(function(a) { a.initialize(); }, 0, this);
       ]]></constructor>
 
       <destructor><![CDATA[

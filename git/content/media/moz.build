@@ -77,9 +77,6 @@ EXPORTS += [
 EXPORTS.mozilla.dom += [
     'AudioStreamTrack.h',
     'MediaStreamTrack.h',
-    'TextTrack.h',
-    'TextTrackCue.h',
-    'TextTrackCueList.h',
-    'TextTrackList.h',
     'VideoStreamTrack.h',
 ]
+

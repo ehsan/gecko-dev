@@ -73,7 +73,6 @@
 #endif // IBMBIDI
 
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsPIWindowRoot.h"
 #include "mozilla/Preferences.h"
 

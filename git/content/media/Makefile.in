@@ -35,10 +35,6 @@ CPPSRCS = \
   MediaStreamGraph.cpp \
   MediaStreamTrack.cpp \
   StreamBuffer.cpp \
-  TextTrack.cpp \
-  TextTrackList.cpp \
-  TextTrackCue.cpp \
-  TextTrackCueList.cpp \
   VideoFrameContainer.cpp \
   VideoSegment.cpp \
   VideoStreamTrack.cpp \

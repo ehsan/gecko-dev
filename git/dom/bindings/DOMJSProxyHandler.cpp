@@ -29,6 +29,8 @@ jsid s_length_id = JSID_VOID;
 bool
 DefineStaticJSVals(JSContext* cx)
 {
+  JSAutoRequest ar(cx);
+
   return InternJSString(cx, s_length_id, "length");
 }
 
@@ -293,6 +295,8 @@ DOMProxyHandler::AppendNamedPropertyIds(JSContext* cx,
 int32_t
 IdToInt32(JSContext* cx, JS::Handle<jsid> id)
 {
+  JSAutoRequest ar(cx);
+
   JS::Value idval;
   double array_index;
   int32_t i;

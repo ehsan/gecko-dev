@@ -51,7 +51,6 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsWebShellWindow.h" // get rid of this one, too...
 #include "nsDOMEvent.h"
 

@@ -315,7 +315,7 @@ class JSScript : public js::gc::Cell
     js::types::TypeScript *types;
 
   private:
-    js::HeapPtrObject sourceObject_; /* source code object */
+    js::ScriptSource *scriptSource_; /* source code */
     js::HeapPtrFunction function_;
 
     // For callsite clones, which cannot have enclosing scopes, the original
@@ -454,9 +454,8 @@ class JSScript : public js::gc::Cell
 
   public:
     static JSScript *Create(JSContext *cx, js::HandleObject enclosingScope, bool savedCallerFun,
-                            const JS::CompileOptions &options, unsigned staticLevel,
-                            JS::HandleScriptSource sourceObject, uint32_t sourceStart,
-                            uint32_t sourceEnd);
+                                const JS::CompileOptions &options, unsigned staticLevel,
+                                js::ScriptSource *ss, uint32_t sourceStart, uint32_t sourceEnd);
 
     // Three ways ways to initialize a JSScript. Callers of partiallyInit()
     // and fullyInitTrivial() are responsible for notifying the debugger after
@@ -628,13 +627,11 @@ class JSScript : public js::gc::Cell
 
     static bool loadSource(JSContext *cx, js::HandleScript scr, bool *worked);
 
-    js::ScriptSource *scriptSource() const;
-
-    js::ScriptSourceObject *sourceObject() const {
-        return &sourceObject_->asScriptSource();;
+    js::ScriptSource *scriptSource() const {
+        return scriptSource_;
     }
 
-    void setSourceObject(js::ScriptSourceObject *sourceObject);
+    void setScriptSource(js::ScriptSource *ss);
 
     inline const char *filename() const;
 
@@ -1082,27 +1079,6 @@ class ScriptSourceHolder
     }
 };
 
-class ScriptSourceObject : public JSObject {
-  public:
-    static void finalize(FreeOp *fop, JSObject *obj);
-    static ScriptSourceObject *create(JSContext *cx, ScriptSource *source);
-
-    ScriptSource *source() {
-        return static_cast<ScriptSource *>(getReservedSlot(SOURCE_SLOT).toPrivate());
-    }
-
-    void setSource(ScriptSource *source) {
-        if (source)
-            source->incref();
-        if (this->source())
-            this->source()->decref();
-        setReservedSlot(SOURCE_SLOT, PrivateValue(source));
-    }
-
-  private:
-    static const uint32_t SOURCE_SLOT = 0;
-};
-
 #ifdef JS_THREADSAFE
 /*
  * Background thread to compress JS source code. This happens only while parsing
@@ -1273,13 +1249,6 @@ struct ScriptAndCounts
 };
 
 } /* namespace js */
-
-inline js::ScriptSourceObject &
-JSObject::asScriptSource()
-{
-    JS_ASSERT(isScriptSource());
-    return *static_cast<js::ScriptSourceObject *>(this);
-}
 
 extern jssrcnote *
 js_GetSrcNote(JSContext *cx, JSScript *script, jsbytecode *pc);

@@ -14,10 +14,8 @@ import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
 import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.gfx.PointUtils;
-import org.mozilla.gecko.health.BrowserHealthRecorder;
 import org.mozilla.gecko.updater.UpdateService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
-import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.GeckoEventResponder;
 import org.mozilla.gecko.util.HardwareUtils;
@@ -177,7 +175,6 @@ abstract public class GeckoApp
     private String mPrivateBrowsingSession;
 
     private PointF mInitialTouchPoint = null;
-    private volatile BrowserHealthRecorder mHealthRecorder = null;
 
     abstract public int getLayout();
     abstract public boolean hasTabsSideBar();
@@ -1248,12 +1245,7 @@ abstract public class GeckoApp
         });
     }
 
-    /**
-     * Called when the activity is first created.
-     *
-     * Here we initialize all of our profile settings, Firefox Health Report,
-     * and other one-shot constructions.
-     **/
+    /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
@@ -1280,7 +1272,6 @@ abstract public class GeckoApp
                     profileName = m.group(1);
                 }
             }
-
             if (args.contains("-profile")) {
                 Pattern p = Pattern.compile("(?:-profile\\s*)(\\S*)(\\s*)");
                 Matcher m = p.matcher(args);
@@ -1294,7 +1285,6 @@ abstract public class GeckoApp
                 }
                 GeckoApp.sIsUsingCustomProfile = true;
             }
-
             if (profileName != null || profilePath != null) {
                 mProfile = GeckoProfile.get(this, profileName, profilePath);
             }
@@ -1318,13 +1308,13 @@ abstract public class GeckoApp
         }
 
         if (sGeckoThread != null) {
-            // This happens when the GeckoApp activity is destroyed by Android
-            // without killing the entire application (see Bug 769269).
+            // this happens when the GeckoApp activity is destroyed by android
+            // without killing the entire application (see bug 769269)
             mIsRestoringActivity = true;
             Telemetry.HistogramAdd("FENNEC_RESTORING_ACTIVITY", 1);
         }
 
-        // Fix for Bug 830557 on Tegra boards running Froyo.
+        // Fix for bug 830557 on Tegra boards running Froyo.
         // This fix must be done before doing layout.
         // Assume the bug is fixed in Gingerbread and up.
         if (Build.VERSION.SDK_INT < 9) {
@@ -1347,16 +1337,16 @@ abstract public class GeckoApp
 
         setContentView(getLayout());
 
-        // Set up Gecko layout.
+        // setup gecko layout
         mGeckoLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
         mMainLayout = (RelativeLayout) findViewById(R.id.main_layout);
 
-        // Set up tabs panel.
+        // setup tabs panel
         mTabsPanel = (TabsPanel) findViewById(R.id.tabs_panel);
 
-        // Check if the last run was exited due to a normal kill while
+        // check if the last run was exited due to a normal kill while
         // we were in the background, or a more harsh kill while we were
-        // active.
+        // active
         mRestoreMode = getSessionRestoreState(savedInstanceState);
         if (mRestoreMode == RESTORE_OOM) {
             boolean wasInBackground =
@@ -1371,7 +1361,6 @@ abstract public class GeckoApp
             mPrivateBrowsingSession = savedInstanceState.getString(SAVED_STATE_PRIVATE_SESSION);
         }
 
-        // Perform background initialization.
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
@@ -1386,18 +1375,10 @@ abstract public class GeckoApp
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, false);
 
-                // Put a flag to check if we got a normal onSaveInstanceState
+                // put a flag to check if we got a normal onSaveInstaceState
                 // on exit, or if we were suddenly killed (crash or native OOM)
                 editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
                 editor.commit();
-
-                // The lifecycle of mHealthRecorder is "shortly after onCreate"
-                // through "onDestroy" -- essentially the same as the lifecycle
-                // of the activity itself.
-                final String profilePath = getProfile().getDir().getAbsolutePath();
-                final EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
-                Log.i(LOGTAG, "Creating BrowserHealthRecorder.");
-                mHealthRecorder = new BrowserHealthRecorder(GeckoApp.mAppContext, profilePath, dispatcher);
             }
         });
 
@@ -2041,10 +2022,6 @@ abstract public class GeckoApp
         super.onDestroy();
 
         Tabs.unregisterOnTabsChangedListener(this);
-        if (mHealthRecorder != null) {
-            mHealthRecorder.close(GeckoAppShell.getEventDispatcher());
-            mHealthRecorder = null;
-        }
     }
 
     protected void registerEventListener(String event) {

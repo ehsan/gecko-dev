@@ -139,10 +139,12 @@ function PreviewController(win, tab) {
   this.win = win;
   this.tab = tab;
   this.linkedBrowser = tab.linkedBrowser;
-  this.preview = this.win.createTabPreview(this);
 
   this.linkedBrowser.addEventListener("MozAfterPaint", this, false);
   this.tab.addEventListener("TabAttrModified", this, false);
+
+  // Cannot perform the lookup during construction. See TabWindow.newTab 
+  XPCOMUtils.defineLazyGetter(this, "preview", function () this.win.previewFromTab(this.tab));
 
   XPCOMUtils.defineLazyGetter(this, "canvasPreview", function () {
     let canvas = this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
@@ -450,22 +452,13 @@ TabWindow.prototype = {
   // Invoked when the given tab is added to this window
   newTab: function (tab) {
     let controller = new PreviewController(this, tab);
-    // It's OK to add the preview now while the favicon still loads.
-    this.previews.splice(tab._tPos, 0, controller.preview);
-    AeroPeek.addPreview(controller.preview);
-    // updateTitleAndTooltip relies on having controller.preview which is lazily resolved.
-    // Now that we've updated this.previews, it will resolve successfully.
-    controller.updateTitleAndTooltip();
-  },
-
-  createTabPreview: function (controller) {
     let docShell = this.win
                   .QueryInterface(Ci.nsIInterfaceRequestor)
                   .getInterface(Ci.nsIWebNavigation)
                   .QueryInterface(Ci.nsIDocShell);
     let preview = AeroPeek.taskbar.createTaskbarTabPreview(docShell, controller);
     preview.visible = AeroPeek.enabled;
-    preview.active = this.tabbrowser.selectedTab == controller.tab;
+    preview.active = this.tabbrowser.selectedTab == tab;
     // Grab the default favicon
     getFaviconAsImage(null, PrivateBrowsingUtils.isWindowPrivate(this.win), function (img) {
       // It is possible that we've already gotten the real favicon, so make sure
@@ -474,7 +467,12 @@ TabWindow.prototype = {
         preview.icon = img;
     });
 
-    return preview;
+    // It's OK to add the preview now while the favicon still loads.
+    this.previews.splice(tab._tPos, 0, preview);
+    AeroPeek.addPreview(preview);
+    // updateTitleAndTooltip relies on having controller.preview which is lazily resolved.
+    // Now that we've updated this.previews, it will resolve successfully.
+    controller.updateTitleAndTooltip();
   },
 
   // Invoked when the given tab is closed

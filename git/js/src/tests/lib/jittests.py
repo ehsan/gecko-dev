@@ -286,8 +286,7 @@ def run_test(test, prefix, options):
 
 def check_output(out, err, rc, test):
     if test.expect_error:
-        # The shell exits with code 3 on uncaught exceptions.
-        return test.expect_error in err and rc == 3
+        return test.expect_error in err
 
     for line in out.split('\n'):
         if line.startswith('Trace stats check failed'):

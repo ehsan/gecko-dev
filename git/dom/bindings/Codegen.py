@@ -7626,6 +7626,7 @@ class CGDictionary(CGThing):
                 Argument('const nsAString&', 'aJSON'),
             ], body=(
                 "AutoSafeJSContext cx;\n"
+                "JSAutoRequest ar(cx);\n"
                 "JS::Rooted<JS::Value> json(cx);\n"
                 "bool ok = ParseJSON(cx, aJSON, &json);\n"
                 "NS_ENSURE_TRUE(ok, false);\n"
@@ -8316,7 +8317,6 @@ class CGBindingRoot(CGThing):
                             + (['mozilla/Preferences.h'] if requiresPreferences else [])
                             + (['mozilla/dom/NonRefcountedDOMObject.h'] if hasOwnedDescriptors else [])
                             + (['nsContentUtils.h'] if requiresContentUtils else [])
-                            + (['nsCxPusher.h'] if requiresContentUtils else [])
                             + (['AccessCheck.h'] if hasChromeOnlyMembers else []),
                          curr,
                          config,

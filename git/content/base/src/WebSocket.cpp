@@ -13,7 +13,6 @@
 #include "nsXPCOM.h"
 #include "nsIXPConnect.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsEventDispatcher.h"
 #include "nsError.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -886,27 +885,30 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
 
   // Create appropriate JS object for message
   JS::Rooted<JS::Value> jsData(cx);
-  if (isBinary) {
-    if (mBinaryType == dom::BinaryType::Blob) {
-      rv = nsContentUtils::CreateBlobBuffer(cx, aData, &jsData);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } else if (mBinaryType == dom::BinaryType::Arraybuffer) {
-      JS::Rooted<JSObject*> arrayBuf(cx);
-      rv = nsContentUtils::CreateArrayBuffer(cx, aData, arrayBuf.address());
-      NS_ENSURE_SUCCESS(rv, rv);
-      jsData = OBJECT_TO_JSVAL(arrayBuf);
+  {
+    JSAutoRequest ar(cx);
+    if (isBinary) {
+      if (mBinaryType == dom::BinaryType::Blob) {
+        rv = nsContentUtils::CreateBlobBuffer(cx, aData, &jsData);
+        NS_ENSURE_SUCCESS(rv, rv);
+      } else if (mBinaryType == dom::BinaryType::Arraybuffer) {
+        JS::Rooted<JSObject*> arrayBuf(cx);
+        rv = nsContentUtils::CreateArrayBuffer(cx, aData, arrayBuf.address());
+        NS_ENSURE_SUCCESS(rv, rv);
+        jsData = OBJECT_TO_JSVAL(arrayBuf);
+      } else {
+        NS_RUNTIMEABORT("Unknown binary type!");
+        return NS_ERROR_UNEXPECTED;
+      }
     } else {
-      NS_RUNTIMEABORT("Unknown binary type!");
-      return NS_ERROR_UNEXPECTED;
-    }
-  } else {
-    // JS string
-    NS_ConvertUTF8toUTF16 utf16Data(aData);
-    JSString* jsString;
-    jsString = JS_NewUCStringCopyN(cx, utf16Data.get(), utf16Data.Length());
-    NS_ENSURE_TRUE(jsString, NS_ERROR_FAILURE);
+      // JS string
+      NS_ConvertUTF8toUTF16 utf16Data(aData);
+      JSString* jsString;
+      jsString = JS_NewUCStringCopyN(cx, utf16Data.get(), utf16Data.Length());
+      NS_ENSURE_TRUE(jsString, NS_ERROR_FAILURE);
 
-    jsData = STRING_TO_JSVAL(jsString);
+      jsData = STRING_TO_JSVAL(jsString);
+    }
   }
 
   // create an event that uses the MessageEvent interface,

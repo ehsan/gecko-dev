@@ -20,7 +20,6 @@
 #include "SVGImageContext.h"
 #include "mozilla/dom/SVGImageElement.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

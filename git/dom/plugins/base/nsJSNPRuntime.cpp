@@ -17,7 +17,6 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIDocument.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIXPConnect.h"
@@ -569,6 +568,7 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
   AutoJSExceptionReporter reporter(cx);
@@ -605,6 +605,7 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
   AutoJSExceptionReporter reporter(cx);
@@ -716,6 +717,7 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier id)
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
@@ -748,6 +750,7 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
@@ -780,6 +783,7 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
@@ -818,6 +822,7 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier id)
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JS::Rooted<JS::Value> deleted(cx, JSVAL_FALSE);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
@@ -871,6 +876,7 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
   nsCxPusher pusher;
   pusher.Push(cx);
+  JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
@@ -1053,6 +1059,8 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JS::Handle<JSObject*> obj)
   entry->mJSObjWrapper = wrapper;
 
   NS_ASSERTION(wrapper->mNpp == npp, "nsJSObjWrapper::mNpp not initialized!");
+
+  JSAutoRequest ar(cx);
 
   // Root the JSObject, its lifetime is now tied to that of the
   // NPObject.
@@ -1783,6 +1791,8 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
   entry->mNPObj = npobj;
   entry->mNpp = npp;
 
+  JSAutoRequest ar(cx);
+
   uint32_t generation = sNPObjWrappers.generation;
 
   // No existing JSObject, create one.
@@ -1920,6 +1930,8 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
   // Use the safe JSContext here as we're not always able to find the
   // JSContext associated with the NPP any more.
   AutoSafeJSContext cx;
+  JSAutoRequest ar(cx);
+
   if (sNPObjWrappers.ops) {
     NppAndCx nppcx = { npp, cx };
     PL_DHashTableEnumerate(&sNPObjWrappers,

@@ -34,7 +34,6 @@
 #include "nsJSUtils.h"
 #include "DictionaryHelpers.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsXULAppAPI.h"
 #include "TabChild.h"
 #include "DeviceStorageRequestChild.h"
@@ -1425,6 +1424,8 @@ JS::Value StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
   if (!cx) {
     return JSVAL_NULL;
   }
+
+  JSAutoRequest ar(cx);
 
   JS::Value result = JSVAL_NULL;
   if (!xpc::StringToJsval(cx, aString, &result)) {

@@ -18,9 +18,6 @@
  *
  * @param aSourceURI
  *        The nsIURI for the download source, or null to use TEST_SOURCE_URI.
- * @param isPrivate
- *        Optional boolean indicates whether the download originated from a
- *        private window.
  * @param aOutPersist
  *        Optional object that receives a reference to the created
  *        nsIWebBrowserPersist instance in the "value" property.
@@ -30,7 +27,7 @@
  *           download through the legacy nsITransfer interface.
  * @rejects Never.  The current test fails in case of exceptions.
  */
-function promiseStartLegacyDownload(aSourceURI, aIsPrivate, aOutPersist) {
+function promiseStartLegacyDownload(aSourceURI, aOutPersist) {
   let sourceURI = aSourceURI || TEST_SOURCE_URI;
   let targetFile = getTempFile(TEST_TARGET_FILE_NAME);
 
@@ -50,9 +47,8 @@ function promiseStartLegacyDownload(aSourceURI, aIsPrivate, aOutPersist) {
   }
 
   let deferred = Promise.defer();
-  let promise = aIsPrivate ? Downloads.getPrivateDownloadList() :
-                Downloads.getPublicDownloadList();
-  promise.then(function (aList) {
+
+  Downloads.getPublicDownloadList().then(function (aList) {
     // Temporarily register a view that will get notified when the download we
     // are controlling becomes visible in the list of public downloads.
     aList.addView({
@@ -71,11 +67,11 @@ function promiseStartLegacyDownload(aSourceURI, aIsPrivate, aOutPersist) {
     // Initialize the components so they reference each other.  This will cause
     // the Download object to be created and added to the public downloads.
     transfer.init(sourceURI, NetUtil.newURI(targetFile), null, null, null, null,
-                  persist, aIsPrivate);
+                  persist, false);
     persist.progressListener = transfer;
 
     // Start the actual download process.
-    persist.savePrivacyAwareURI(sourceURI, null, null, null, null, targetFile, aIsPrivate);
+    persist.saveURI(sourceURI, null, null, null, null, targetFile, null);
   }.bind(this)).then(null, do_report_unexpected_exception);
 
   return deferred.promise;
@@ -228,7 +224,7 @@ add_task(function test_cancel_midway()
 {
   let deferResponse = deferNextResponse();
   let outPersist = {};
-  let download = yield promiseStartLegacyDownload(TEST_INTERRUPTIBLE_URI, false,
+  let download = yield promiseStartLegacyDownload(TEST_INTERRUPTIBLE_URI,
                                                   outPersist);
 
   try {
@@ -301,55 +297,3 @@ add_task(function test_error()
     serverSocket.close();
   }
 });
-
-/**
- * Executes download in both public and private modes.
- */
-add_task(function test_download_public_and_private()
-{
-  let source_path = "/test_download_public_and_private.txt";
-  let source_uri = NetUtil.newURI(HTTP_BASE + source_path);
-  let testCount = 0;
-
-  // Apply pref to allow all cookies.
-  Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
-
-  function cleanup() {
-    Services.prefs.clearUserPref("network.cookie.cookieBehavior");
-    Services.cookies.removeAll();
-    gHttpServer.registerPathHandler(source_path, null);
-  }
-
-  do_register_cleanup(cleanup);
-
-  gHttpServer.registerPathHandler(source_path, function (aRequest, aResponse) {
-    aResponse.setHeader("Content-Type", "text/plain", false);
-
-    if (testCount == 0) {
-      // No cookies should exist for first public download.
-      do_check_false(aRequest.hasHeader("Cookie"));
-      aResponse.setHeader("Set-Cookie", "foobar=1", false);
-      testCount++;
-    } else if (testCount == 1) {
-      // The cookie should exists for second public download.
-      do_check_true(aRequest.hasHeader("Cookie"));
-      do_check_eq(aRequest.getHeader("Cookie"), "foobar=1");
-      testCount++;
-    } else if (testCount == 2)  {
-      // No cookies should exist for first private download.
-      do_check_false(aRequest.hasHeader("Cookie"));
-    }
-  });
-
-  let targetFile = getTempFile(TEST_TARGET_FILE_NAME);
-  yield Downloads.simpleDownload(source_uri, targetFile);
-  yield Downloads.simpleDownload(source_uri, targetFile);
-  let download = yield promiseStartLegacyDownload(source_uri, true);
-  // The download is already started, wait for completion and report any errors.
-  if (!download.stopped) {
-    yield download.start();
-  }
-
-  cleanup();
-});
-

@@ -28,7 +28,6 @@
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
 #include "xpcpublic.h"
 #include "nsCrossSiteListenerProxy.h"
@@ -1247,6 +1246,7 @@ EventSource::DispatchAllMessageEvents()
     JS::Rooted<JS::Value> jsData(cx);
     {
       JSString* jsString;
+      JSAutoRequest ar(cx);
       jsString = JS_NewUCStringCopyN(cx,
                                      message->mData.get(),
                                      message->mData.Length());

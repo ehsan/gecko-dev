@@ -8,7 +8,6 @@
 #include "jscompartment.h"
 #include "jsinterp.h"
 #include "jsobj.h"
-#include "jsfriendapi.h"
 
 #include "builtin/Intl.h"
 #include "builtin/ParallelArray.h"
@@ -492,7 +491,7 @@ bool
 JSRuntime::initSelfHosting(JSContext *cx)
 {
     JS_ASSERT(!selfHostingGlobal_);
-    RootedObject savedGlobal(cx, js::GetDefaultGlobalForContext(cx));
+    RootedObject savedGlobal(cx, JS_GetGlobalObject(cx));
     if (!(selfHostingGlobal_ = JS_NewGlobalObject(cx, &self_hosting_global_class, NULL)))
         return false;
     JS_SetGlobalObject(cx, selfHostingGlobal_);
@@ -612,7 +611,7 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
                 return NULL;
         } else {
             RootedFunction fun(cx, srcObj->toFunction());
-            clone = CloneFunctionObject(cx, fun, cx->global(), fun->getAllocKind(), TenuredObject);
+            clone = CloneFunctionObject(cx, fun, cx->global(), fun->getAllocKind());
         }
     } else if (srcObj->isRegExp()) {
         RegExpObject &reobj = srcObj->asRegExp();
@@ -633,7 +632,7 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
             return NULL;
         clone = StringObject::create(cx, str);
     } else if (srcObj->isArray()) {
-        clone = NewDenseEmptyArray(cx, NULL, TenuredObject);
+        clone = NewDenseEmptyArray(cx);
     } else {
         JS_ASSERT(srcObj->isNative());
         clone = NewObjectWithGivenProto(cx, srcObj->getClass(), NULL, cx->global(),

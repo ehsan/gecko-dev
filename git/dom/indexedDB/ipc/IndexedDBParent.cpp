@@ -19,7 +19,6 @@
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"

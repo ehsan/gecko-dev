@@ -10,7 +10,6 @@ EXPORTS += [
     'BackstagePass.h',
     'GeneratedEvents.h',
     'XPCJSMemoryReporter.h',
-    'nsCxPusher.h',
     'qsObjectHelper.h',
     'xpcObjectHelper.h',
     'xpcpublic.h',
