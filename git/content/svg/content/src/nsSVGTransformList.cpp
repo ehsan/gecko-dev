@@ -172,10 +172,12 @@ nsSVGTransformList::SetValueString(const nsAString& aValue)
   // XXX: we don't implement the _exact_ BNF given in the
   // specs.
 
+  nsresult rv = NS_OK;
+
   // parse transform attribute value
   nsCOMArray<nsIDOMSVGTransform> xforms;
   nsSVGTransformListParser parser(&xforms);
-  nsresult rv = parser.Parse(aValue);
+  rv = parser.Parse(aValue);
 
   if (NS_FAILED(rv)) {
     // there was a parse error.

@@ -1972,6 +1972,7 @@ nsEditor::StopPreservingSelection()
 nsresult
 nsEditor::QueryComposition(nsTextEventReply* aReply)
 {
+  nsresult result;
   nsCOMPtr<nsISelection> selection;
   nsCOMPtr<nsISelectionController> selcon = do_QueryReferent(mSelConWeak);
   if (selcon)
@@ -2033,7 +2034,7 @@ nsEditor::QueryComposition(nsTextEventReply* aReply)
         rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
     }
   }
-  return NS_OK;
+  return result;
 }
 
 NS_IMETHODIMP

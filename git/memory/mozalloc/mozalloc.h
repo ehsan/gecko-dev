@@ -54,11 +54,8 @@
  * I.e., we don't #include <stdlib.h> or <new> on purpose.
  */
 
-#if defined(MOZALLOC_EXPORT)
-// do nothing: it's been defined to __declspec(dllexport) by
-// mozalloc*.cpp on platforms where that's required
-#elif defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
-#  define MOZALLOC_EXPORT __declspec(dllimport)
+#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
+#  define MOZALLOC_EXPORT __declspec(dllexport)
 #elif defined(HAVE_VISIBILITY_ATTRIBUTE)
 /* Make sure symbols are still exported even if we're wrapped in a
  * |visibility push(hidden)| blanket. */

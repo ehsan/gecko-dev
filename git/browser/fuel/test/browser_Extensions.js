@@ -14,13 +14,13 @@ function test() {
   ok(Application.extensions, "Check for the 'Extensions' object");
 
   // test to see if a non-existant extension exists
-  ok(!Application.extensions.has(testdata.dummyid), "Check non-existant extension for existence");
+  ok(!Application.extensions.has(testdata.dummyid), "Check non-existant extension for existance");
 
   // BUG 420028: Must find a way to add a dummy extension for test suite
   return;
 
   // test to see if an extension exists
-  ok(Application.extensions.has(testdata.inspectorid), "Check extension for existence");
+  ok(Application.extensions.has(testdata.inspectorid), "Check extension for existance");
 
   var inspector = Application.extensions.get(testdata.inspectorid);
   is(inspector.id, testdata.inspectorid, "Check 'Extension.id' for known extension");
@@ -98,7 +98,7 @@ function test() {
   is(itemValue, "default", "Check 'Extension.prefs.getValue' for reset pref");
 
   // test to see if a non-existant property exists
-  ok(!inspector.prefs.has(testdata.dummy), "Check non-existant property for existence");
+  ok(!inspector.prefs.has(testdata.dummy), "Check non-existant property for existance");
 
   waitForExplicitFinish();
   inspector.prefs.events.addListener("change", onPrefChange);
