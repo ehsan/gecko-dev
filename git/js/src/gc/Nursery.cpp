@@ -172,7 +172,7 @@ js::Nursery::allocate(size_t size)
     JS_ASSERT(!runtime()->isHeapBusy());
     JS_ASSERT(position() >= currentStart_);
 
-    if (currentEnd() < position() + size) {
+    if (position() + size > currentEnd()) {
         if (currentChunk_ + 1 == numActiveChunks_)
             return nullptr;
         setCurrentChunk(currentChunk_ + 1);

@@ -5,9 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Definitions for managing off-main-thread work using a process wide list
- * of worklist items and pool of threads. Worklist items are engine internal,
- * and are distinct from e.g. web workers.
+ * Definitions for managing off-main-thread work using a shared, per runtime
+ * worklist. Worklist items are engine internal, and are distinct from e.g.
+ * web workers.
  */
 
 #ifndef jsworkers_h
@@ -24,7 +24,7 @@
 
 namespace js {
 
-struct HelperThread;
+struct WorkerThread;
 struct AsmJSParallelTask;
 struct ParseTask;
 namespace jit {
@@ -34,7 +34,7 @@ namespace jit {
 #ifdef JS_THREADSAFE
 
 // Per-process state for off thread work items.
-class GlobalHelperThreadState
+class GlobalWorkerThreadState
 {
   public:
     // Number of CPUs to treat this machine as having when creating threads.
@@ -51,7 +51,7 @@ class GlobalHelperThreadState
     typedef Vector<GCHelperState *, 0, SystemAllocPolicy> GCHelperStateVector;
 
     // List of available threads, or null if the thread state has not been initialized.
-    HelperThread *threads;
+    WorkerThread *threads;
 
   private:
     // The lists below are all protected by |lock|.
@@ -86,7 +86,7 @@ class GlobalHelperThreadState
     GCHelperStateVector gcHelperWorklist_;
 
   public:
-    GlobalHelperThreadState();
+    GlobalWorkerThreadState();
 
     void ensureInitialized();
     void finish();
@@ -178,7 +178,7 @@ class GlobalHelperThreadState
             asmJSFailedFunction = func;
         numAsmJSFailedJobs++;
     }
-    bool asmJSFailed() const {
+    bool asmJSWorkerFailed() const {
         return bool(numAsmJSFailedJobs);
     }
     void resetAsmJSFailureState() {
@@ -199,7 +199,8 @@ class GlobalHelperThreadState
      * Lock protecting all mutable shared state accessed by helper threads, and
      * used by all condition variables.
      */
-    PRLock *helperLock;
+    PRLock *workerLock;
+
 # ifdef DEBUG
     PRThread *lockOwner;
 # endif
@@ -209,7 +210,7 @@ class GlobalHelperThreadState
     PRCondVar *producerWakeup;
 
     /*
-     * Number of AsmJS jobs that encountered failure for the active module.
+     * Number of AsmJS workers that encountered failure for the active module.
      * Their parent is logically the main thread, and this number serves for harvesting.
      */
     uint32_t numAsmJSFailedJobs;
@@ -221,15 +222,15 @@ class GlobalHelperThreadState
     void *asmJSFailedFunction;
 };
 
-static inline GlobalHelperThreadState &
-HelperThreadState()
+static inline GlobalWorkerThreadState &
+WorkerThreadState()
 {
-    extern GlobalHelperThreadState gHelperThreadState;
-    return gHelperThreadState;
+    extern GlobalWorkerThreadState gWorkerThreadState;
+    return gWorkerThreadState;
 }
 
 /* Individual helper thread, one allocated per core. */
-struct HelperThread
+struct WorkerThread
 {
     mozilla::Maybe<PerThreadData> threadData;
     PRThread *thread;
@@ -270,11 +271,11 @@ struct HelperThread
 
 #endif /* JS_THREADSAFE */
 
-/* Methods for interacting with helper threads. */
+/* Methods for interacting with worker threads. */
 
-// Initialize helper threads unless already initialized.
+// Initialize worker threads unless already initialized.
 void
-EnsureHelperThreadsInitialized(ExclusiveContext *cx);
+EnsureWorkerThreadsInitialized(ExclusiveContext *cx);
 
 // This allows the JS shell to override GetCPUCount() when passed the
 // --thread-count=N option.
@@ -327,48 +328,48 @@ EnqueuePendingParseTasksAfterGC(JSRuntime *rt);
 bool
 StartOffThreadCompression(ExclusiveContext *cx, SourceCompressionTask *task);
 
-class AutoLockHelperThreadState
+class AutoLockWorkerThreadState
 {
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
 #ifdef JS_THREADSAFE
   public:
-    AutoLockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    AutoLockWorkerThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        HelperThreadState().lock();
+        WorkerThreadState().lock();
     }
 
-    ~AutoLockHelperThreadState() {
-        HelperThreadState().unlock();
+    ~AutoLockWorkerThreadState() {
+        WorkerThreadState().unlock();
     }
 #else
   public:
-    AutoLockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    AutoLockWorkerThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 #endif
 };
 
-class AutoUnlockHelperThreadState
+class AutoUnlockWorkerThreadState
 {
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
 
-    AutoUnlockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    AutoUnlockWorkerThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef JS_THREADSAFE
-        HelperThreadState().unlock();
+        WorkerThreadState().unlock();
 #endif
     }
 
-    ~AutoUnlockHelperThreadState()
+    ~AutoUnlockWorkerThreadState()
     {
 #ifdef JS_THREADSAFE
-        HelperThreadState().lock();
+        WorkerThreadState().lock();
 #endif
     }
 };
@@ -379,8 +380,8 @@ struct AsmJSParallelTask
     JSRuntime *runtime;     // Associated runtime.
     LifoAlloc lifo;         // Provider of all heap memory used for compilation.
     void *func;             // Really, a ModuleCompiler::Func*
-    jit::MIRGenerator *mir; // Passed from main thread to helper.
-    jit::LIRGraph *lir;     // Passed from helper to main thread.
+    jit::MIRGenerator *mir; // Passed from main thread to worker.
+    jit::LIRGraph *lir;     // Passed from worker to main thread.
     unsigned compileTime;
 
     explicit AsmJSParallelTask(size_t defaultChunkSize)
@@ -457,11 +458,11 @@ OffThreadParsingMustWaitForGC(JSRuntime *rt);
 struct SourceCompressionTask
 {
     friend class ScriptSource;
-    friend class HelperThread;
+    friend class WorkerThread;
 
 #ifdef JS_THREADSAFE
     // Thread performing the compression.
-    HelperThread *helperThread;
+    WorkerThread *workerThread;
 #endif
 
   private:
@@ -470,7 +471,7 @@ struct SourceCompressionTask
 
     ScriptSource *ss;
 
-    // Atomic flag to indicate to a helper thread that it should abort
+    // Atomic flag to indicate to a worker thread that it should abort
     // compression on the source.
     mozilla::Atomic<bool, mozilla::Relaxed> abort_;
 
@@ -489,7 +490,7 @@ struct SourceCompressionTask
         result(OOM), compressed(nullptr), compressedBytes(0)
     {
 #ifdef JS_THREADSAFE
-        helperThread = nullptr;
+        workerThread = nullptr;
 #endif
     }
 

@@ -3970,8 +3970,10 @@ gfxFont::ShapeText(gfxContext      *aContext,
     }
 
     if (!ok && mHarfBuzzShaper && !aPreferPlatformShaping) {
-        ok = mHarfBuzzShaper->ShapeText(aContext, aText, aOffset, aLength,
-                                        aScript, aShapedText);
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript)) {
+            ok = mHarfBuzzShaper->ShapeText(aContext, aText, aOffset, aLength,
+                                            aScript, aShapedText);
+        }
     }
 
     if (!ok) {

@@ -610,7 +610,7 @@ JS_ShutDown(void)
 #endif
 
 #ifdef JS_THREADSAFE
-    HelperThreadState().finish();
+    WorkerThreadState().finish();
 #endif
 
     PRMJ_NowShutdown();
@@ -4732,7 +4732,7 @@ JS::FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token)
     if (maybecx)
         lfc.construct(maybecx);
 
-    return HelperThreadState().finishParseTask(maybecx, rt, token);
+    return WorkerThreadState().finishParseTask(maybecx, rt, token);
 #else
     MOZ_ASSUME_UNREACHABLE("Off thread compilation is not available.");
 #endif
@@ -5597,14 +5597,14 @@ JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst, size_
     size_t dstlen = *dstlenp;
 
     if (srclen > dstlen) {
-        CopyAndInflateChars(dst, src, dstlen);
+        InflateStringToBuffer(src, dstlen, dst);
 
         AutoSuppressGC suppress(cx);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BUFFER_TOO_SMALL);
         return false;
     }
 
-    CopyAndInflateChars(dst, src, srclen);
+    InflateStringToBuffer(src, srclen, dst);
     *dstlenp = srclen;
     return true;
 }

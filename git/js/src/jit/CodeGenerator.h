@@ -106,10 +106,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitLambdaPar(LLambdaPar *lir);
     bool visitPointer(LPointer *lir);
     bool visitSlots(LSlots *lir);
-    bool visitLoadSlotT(LLoadSlotT *lir);
-    bool visitLoadSlotV(LLoadSlotV *lir);
-    bool visitStoreSlotT(LStoreSlotT *lir);
-    bool visitStoreSlotV(LStoreSlotV *lir);
+    bool visitStoreSlotV(LStoreSlotV *store);
     bool visitElements(LElements *lir);
     bool visitConvertElementsToDoubles(LConvertElementsToDoubles *lir);
     bool visitMaybeToDoubleElement(LMaybeToDoubleElement *lir);
@@ -231,8 +228,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitTypeOfV(LTypeOfV *lir);
     bool visitOutOfLineTypeOfV(OutOfLineTypeOfV *ool);
     bool visitToIdV(LToIdV *lir);
-    template<typename T> bool emitLoadElementT(LLoadElementT *lir, const T &source);
-    bool visitLoadElementT(LLoadElementT *lir);
     bool visitLoadElementV(LLoadElementV *load);
     bool visitLoadElementHole(LLoadElementHole *lir);
     bool visitStoreElementT(LStoreElementT *lir);
@@ -351,7 +346,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitAssertRangeF(LAssertRangeF *ins);
     bool visitAssertRangeV(LAssertRangeV *ins);
 
-    bool visitInterruptCheck(LInterruptCheck *lir);
     bool visitRecompileCheck(LRecompileCheck *ins);
 
   private:
@@ -440,9 +434,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     // Get a label for the start of block which can be used for jumping, in
     // place of jumpToBlock.
     Label *getJumpLabelForBranch(MBasicBlock *block);
-
-    void emitStoreElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
-                               Register elements, const LAllocation *index);
 
     // Bailout if an element about to be written to is a hole.
     bool emitStoreHoleCheck(Register elements, const LAllocation *index, LSnapshot *snapshot);

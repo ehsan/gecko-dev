@@ -945,6 +945,9 @@ CodeGeneratorShared::callTraceLIR(uint32_t blockIndex, LInstruction *lir,
     return true;
 }
 
+typedef bool (*InterruptCheckFn)(JSContext *);
+const VMFunction InterruptCheckInfo = FunctionInfo<InterruptCheckFn>(InterruptCheck);
+
 Label *
 CodeGeneratorShared::labelForBackedgeWithImplicitCheck(MBasicBlock *mir)
 {
