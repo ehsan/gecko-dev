@@ -61,9 +61,9 @@
 #include "nsISelectionPrivate.h"
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIDOMEventGroup.h"
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
-#include "nsEventListenerManager.h"
 
 #include "nsTextEditorState.h"
 
@@ -1513,26 +1513,21 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   {
     mTextListener->SetFrame(nsnull);
 
-    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
-    nsEventListenerManager* manager =
-      target->GetListenerManager(PR_FALSE);
-    if (manager) {
+    nsCOMPtr<nsIDOMEventGroup> systemGroup;
+    nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+    content->GetSystemEventGroup(getter_AddRefs(systemGroup));
+    nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(mTextCtrlElement);
+    if (dom3Targ) {
       // cast because of ambiguous base
       nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
                                                  (mTextListener);
 
-      manager->RemoveEventListenerByType(listener,
-                                         NS_LITERAL_STRING("keydown"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
-      manager->RemoveEventListenerByType(listener,
-                                         NS_LITERAL_STRING("keypress"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
-      manager->RemoveEventListenerByType(listener,
-                                         NS_LITERAL_STRING("keyup"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keydown"),
+                                           listener, PR_FALSE, systemGroup);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keypress"),
+                                           listener, PR_FALSE, systemGroup);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keyup"),
+                                           listener, PR_FALSE, systemGroup);
     }
 
     NS_RELEASE(mTextListener);
@@ -1942,23 +1937,23 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
 void
 nsTextEditorState::InitializeKeyboardEventListeners()
 {
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+
   //register key listeners
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
-  nsEventListenerManager* manager = target->GetListenerManager(PR_TRUE);
-  if (manager) {
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  content->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(content);
+  if (dom3Targ) {
     // cast because of ambiguous base
     nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
                                                (mTextListener);
 
-    manager->AddEventListenerByType(listener, NS_LITERAL_STRING("keydown"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    manager->AddEventListenerByType(listener, NS_LITERAL_STRING("keypress"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    manager->AddEventListenerByType(listener, NS_LITERAL_STRING("keyup"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keydown"),
+                                      listener, PR_FALSE, systemGroup);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keypress"),
+                                      listener, PR_FALSE, systemGroup);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keyup"),
+                                      listener, PR_FALSE, systemGroup);
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstChild(nsnull)));

@@ -55,7 +55,8 @@ class nsIContent;
 class nsIDOMUIEvent;
 class nsIDOMKeyEvent;
 class nsIDOMMouseEvent;
-class nsIDOMEventTarget;
+class nsPIDOMEventTarget;
+class nsIDOM3EventTarget;
 class nsXBLPrototypeBinding;
 
 #define NS_HANDLER_TYPE_XBL_JS              (1 << 0)
@@ -125,7 +126,7 @@ public:
   nsXBLPrototypeHandler* GetNextHandler() { return mNextHandler; }
   void SetNextHandler(nsXBLPrototypeHandler* aHandler) { mNextHandler = aHandler; }
 
-  nsresult ExecuteHandler(nsIDOMEventTarget* aTarget, nsIDOMEvent* aEvent);
+  nsresult ExecuteHandler(nsPIDOMEventTarget* aTarget, nsIDOMEvent* aEvent);
 
   already_AddRefed<nsIAtom> GetEventName();
   void SetEventName(nsIAtom* aName) { mEventName = aName; }
@@ -161,7 +162,7 @@ public:
   static PRUint32 gRefCnt;
   
 protected:
-  already_AddRefed<nsIController> GetController(nsIDOMEventTarget* aTarget);
+  already_AddRefed<nsIController> GetController(nsPIDOMEventTarget* aTarget);
   
   inline PRInt32 GetMatchingKeyCode(const nsAString& aKeyName);
   void ConstructPrototype(nsIContent* aKeyElement, 
@@ -177,7 +178,7 @@ protected:
   void GetEventType(nsAString& type);
   PRBool ModifiersMatchMask(nsIDOMUIEvent* aEvent,
                             PRBool aIgnoreShiftKey = PR_FALSE);
-  nsresult DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEvent* aEvent);
+  nsresult DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEvent* aEvent);
   nsresult DispatchXULKeyCommand(nsIDOMEvent* aEvent);
   nsresult EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                               nsIScriptContext *aBoundContext, nsIAtom *aName,

@@ -48,7 +48,7 @@
 class nsIAtom;
 class nsIDOMEvent;
 class nsIContent;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIURI;
 class nsRuleWalker;
 class nsAttrValue;
@@ -943,8 +943,6 @@ public:
 
   // Overloaded from nsINode
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
-
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
 protected:
   /**

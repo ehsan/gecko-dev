@@ -60,18 +60,24 @@ function onPromptFocus() {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   gPromptInput.removeEventListener("focus", onPromptFocus, false);
 
+  var systemGroup =
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
+      systemEventGroup;
+  gPromptInput.QueryInterface(Components.interfaces.nsIDOM3EventTarget);
   var listener = {
     handleEvent: function _hv(aEvent)
     {
+      netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
       var isPrevented = aEvent.getPreventDefault();
       ok(!isPrevented, "ESC key event is prevented by editor");
-      SpecialPowers.removeSystemEventListener(gPromptInput, "keypress",
-                                              listener, false);
+      gPromptInput.removeGroupedEventListener("keypress", listener, false,
+                                              systemGroup);
       SimpleTest.finish();
     }
   };
-  SpecialPowers.addSystemEventListener(gPromptInput, "keypress", listener,
-                                       false);
+  gPromptInput.addGroupedEventListener("keypress", listener, false,
+                                       systemGroup);
   ok(true, "sending key");
   synthesizeKey("VK_ESCAPE", { }, gPromptInput.ownerDocument.defaultView);
 }

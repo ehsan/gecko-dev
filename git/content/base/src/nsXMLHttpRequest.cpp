@@ -453,9 +453,7 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 void
 nsXMLHttpRequest::RootResultArrayBuffer()
 {
-  nsContentUtils::PreserveWrapper(
-    static_cast<nsIDOMEventTarget*>(
-      static_cast<nsDOMEventTargetHelper*>(this)), this);
+  nsContentUtils::PreserveWrapper(static_cast<nsPIDOMEventTarget*>(this), this);
 }
 
 /**
@@ -1275,7 +1273,7 @@ nsXMLHttpRequest::CreateReadystatechangeEvent(nsIDOMEvent** aDOMEvent)
 }
 
 void
-nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
+nsXMLHttpRequest::DispatchProgressEvent(nsPIDOMEventTarget* aTarget,
                                         const nsAString& aType,
                                         PRBool aUseLSEventWrapper,
                                         PRBool aLengthComputable,

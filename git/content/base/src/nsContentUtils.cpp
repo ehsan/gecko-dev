@@ -130,7 +130,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsXBLPrototypeBinding.h"
 #include "nsEscape.h"
 #include "nsICharsetConverterManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsAttrName.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsContentCreatorFunctions.h"
@@ -277,7 +277,7 @@ private:
   const void *mKey; // must be first, to look like PLDHashEntryStub
 
 public:
-  nsRefPtr<nsEventListenerManager> mListenerManager;
+  nsCOMPtr<nsIEventListenerManager> mListenerManager;
 };
 
 static PRBool
@@ -2509,7 +2509,7 @@ IsContextOnStack(nsIJSContextStack *aStack, JSContext *aContext)
 }
 
 PRBool
-nsCxPusher::Push(nsIDOMEventTarget *aCurrentTarget)
+nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
 {
   if (mPushedSomething) {
     NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
@@ -2551,7 +2551,7 @@ nsCxPusher::Push(nsIDOMEventTarget *aCurrentTarget)
 }
 
 PRBool
-nsCxPusher::RePush(nsIDOMEventTarget *aCurrentTarget)
+nsCxPusher::RePush(nsPIDOMEventTarget *aCurrentTarget)
 {
   if (!mPushedSomething) {
     return Push(aCurrentTarget);
@@ -3050,7 +3050,7 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
   if (!aDoc->GetWindow())
     return NS_ERROR_INVALID_ARG;
 
-  nsIDOMEventTarget* piTarget = aDoc->GetWindow()->GetChromeEventHandler();
+  nsPIDOMEventTarget* piTarget = aDoc->GetWindow()->GetChromeEventHandler();
   if (!piTarget)
     return NS_ERROR_INVALID_ARG;
 
@@ -3058,7 +3058,7 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
   if (flo) {
     nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
     if (fl) {
-      nsIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
+      nsPIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
       piTarget = t ? t : piTarget;
     }
   }
@@ -3242,11 +3242,15 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
 
   // If we have a window, we can check it for mutation listeners now.
   if (aNode->IsInDoc()) {
-    nsCOMPtr<nsIDOMEventTarget> piTarget(do_QueryInterface(window));
+    nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(window));
     if (piTarget) {
-      nsEventListenerManager* manager = piTarget->GetListenerManager(PR_FALSE);
-      if (manager && manager->HasMutationListeners()) {
-        return PR_TRUE;
+      nsIEventListenerManager* manager = piTarget->GetListenerManager(PR_FALSE);
+      if (manager) {
+        PRBool hasListeners = PR_FALSE;
+        manager->HasMutationListeners(&hasListeners);
+        if (hasListeners) {
+          return PR_TRUE;
+        }
       }
     }
   }
@@ -3255,9 +3259,13 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   // might not be in our chain.  If we don't have a window, we might have a
   // mutation listener.  Check quickly to see.
   while (aNode) {
-    nsEventListenerManager* manager = aNode->GetListenerManager(PR_FALSE);
-    if (manager && manager->HasMutationListeners()) {
-      return PR_TRUE;
+    nsIEventListenerManager* manager = aNode->GetListenerManager(PR_FALSE);
+    if (manager) {
+      PRBool hasListeners = PR_FALSE;
+      manager->HasMutationListeners(&hasListeners);
+      if (hasListeners) {
+        return PR_TRUE;
+      }
     }
 
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
@@ -3347,13 +3355,12 @@ nsContentUtils::TraverseListenerManager(nsINode *aNode,
                (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
                                         PL_DHASH_LOOKUP));
   if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(entry->mListenerManager,
-                                                 nsEventListenerManager,
-                                  "[via hash] mListenerManager")
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[via hash] mListenerManager");
+    cb.NoteXPCOMChild(entry->mListenerManager);
   }
 }
 
-nsEventListenerManager*
+nsIEventListenerManager*
 nsContentUtils::GetListenerManager(nsINode *aNode,
                                    PRBool aCreateIfNotFound)
 {
@@ -3389,7 +3396,16 @@ nsContentUtils::GetListenerManager(nsINode *aNode,
   }
 
   if (!entry->mListenerManager) {
-    entry->mListenerManager = new nsEventListenerManager(aNode);
+    nsresult rv =
+      NS_NewEventListenerManager(getter_AddRefs(entry->mListenerManager));
+
+    if (NS_FAILED(rv)) {
+      PL_DHashTableRawRemove(&sEventListenerManagersHash, entry);
+
+      return nsnull;
+    }
+
+    entry->mListenerManager->SetListenerTarget(aNode);
 
     aNode->SetFlags(NODE_HAS_LISTENERMANAGER);
   }
@@ -3407,7 +3423,7 @@ nsContentUtils::RemoveListenerManager(nsINode *aNode)
                  (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
                                           PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-      nsRefPtr<nsEventListenerManager> listenerManager;
+      nsCOMPtr<nsIEventListenerManager> listenerManager;
       listenerManager.swap(entry->mListenerManager);
       // Remove the entry and *then* do operations that could cause further
       // modification of sEventListenerManagersHash.  See bug 334177.

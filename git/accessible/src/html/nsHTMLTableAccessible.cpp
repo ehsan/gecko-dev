@@ -464,22 +464,10 @@ nsresult
 nsHTMLTableAccessible::GetNameInternal(nsAString& aName)
 {
   nsAccessible::GetNameInternal(aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
 
-  // Use table caption as a name.
-  nsAccessible* caption = Caption();
-  if (caption) {
-    nsIContent* captionContent = caption->GetContent();
-    if (captionContent) {
-      nsTextEquivUtils::AppendTextEquivFromContent(this, captionContent, &aName);
-      if (!aName.IsEmpty())
-        return NS_OK;
-    }
-  }
+  if (aName.IsEmpty())
+    mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary, aName);
 
-  // If no caption then use summary as a name.
-  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary, aName);
   return NS_OK;
 }
 
@@ -511,8 +499,11 @@ nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
                                                     aRelation);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY)
-    return nsRelUtils::AddTarget(aRelationType, aRelation, Caption());
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY) {
+    nsCOMPtr<nsIAccessible> accCaption;
+    GetCaption(getter_AddRefs(accCaption));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accCaption);
+  }
 
   return NS_OK;
 }
@@ -523,9 +514,10 @@ nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
 NS_IMETHODIMP
 nsHTMLTableAccessible::GetCaption(nsIAccessible **aCaption)
 {
-  NS_ENSURE_ARG_POINTER(aCaption);
+  nsAccessible* firstChild = GetChildAt(0);
+  if (firstChild && firstChild->Role() == nsIAccessibleRole::ROLE_CAPTION)
+    NS_ADDREF(*aCaption = firstChild);
 
-  NS_IF_ADDREF(*aCaption = Caption());
   return NS_OK;
 }
 
@@ -1276,23 +1268,17 @@ nsHTMLTableAccessible::Description(nsString& aDescription)
   if (!aDescription.IsEmpty())
     return;
 
-  // Use summary as description if it weren't used as a name.
-  // XXX: get rid code duplication with NameInternal().
-  nsAccessible* caption = Caption();
-  if (caption) {
-    nsIContent* captionContent = caption->GetContent();
-    if (captionContent) {
-      nsAutoString captionText;
+  nsCOMPtr<nsIAccessible> captionAccessible;
+  GetCaption(getter_AddRefs(captionAccessible));
+  nsCOMPtr<nsIAccessNode> captionAccessNode = do_QueryInterface(captionAccessible);
+  if (captionAccessNode) {
+    nsCOMPtr<nsIDOMNode> captionNode;
+    captionAccessNode->GetDOMNode(getter_AddRefs(captionNode));
+    nsCOMPtr<nsIContent> captionContent = do_QueryInterface(captionNode);
+    if (captionContent)
       nsTextEquivUtils::AppendTextEquivFromContent(this, captionContent,
-                                                   &captionText);
-
-      if (!captionText.IsEmpty()) { // summary isn't used as a name.
-        mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary,
-                          aDescription);
-      }
-    }
+                                                   &aDescription);
   }
-
 #ifdef SHOW_LAYOUT_HEURISTIC
   if (aDescription.IsEmpty()) {
     PRBool isProbablyForLayout;
