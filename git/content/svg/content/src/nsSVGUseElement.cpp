@@ -59,7 +59,7 @@ nsSVGElement::LengthInfo nsSVGUseElement::sLengthInfo[4] =
 
 nsSVGElement::StringInfo nsSVGUseElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Use)
@@ -344,7 +344,8 @@ nsSVGUseElement::CreateAnonymousContent()
       return nsnull;
 
     nsCOMPtr<nsIContent> svgNode;
-    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(), PR_FALSE);
+    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(),
+                        NOT_FROM_PARSER);
 
     if (!svgNode)
       return nsnull;
@@ -514,6 +515,20 @@ nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum)
     UnlinkSource();
     TriggerReclone();
   }
+}
+
+void
+nsSVGUseElement::DidAnimateString(PRUint8 aAttrEnum)
+{
+  if (aAttrEnum == HREF) {
+    // we're changing our nature, clear out the clone information
+    mOriginal = nsnull;
+    UnlinkSource();
+    TriggerReclone();
+    return;
+  }
+
+  nsSVGUseElementBase::DidAnimateString(aAttrEnum);
 }
 
 nsSVGElement::StringAttributesInfo

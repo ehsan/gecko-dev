@@ -1311,6 +1311,9 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'j':
             JS_ToggleOptions(cx, JSOPTION_JIT);
             break;
+        case 'm':
+            JS_ToggleOptions(cx, JSOPTION_METHODJIT);
+            break;
 #ifdef MOZ_SHARK
         case 'k':
             JS_ConnectShark();
@@ -1954,7 +1957,7 @@ main(int argc, char **argv)
         rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
                                                   NS_GET_IID(nsISupports),
                                                   systemprincipal,
-                                                  EmptyCString(),
+                                                  nsnull,
                                                   nsIXPConnect::
                                                       FLAG_SYSTEM_GLOBAL_OBJECT,
                                                   getter_AddRefs(holder));

@@ -46,21 +46,44 @@
 #include "jsstaticcheck.h"
 #include "jsxml.h"
 #include "jsregexp.h"
+#include "jsgc.h"
+#include "jscompartment.h"
 
-inline js::RegExpStatics *
-JSContext::regExpStatics()
+namespace js {
+
+static inline JSObject *
+GetGlobalForScopeChain(JSContext *cx)
 {
-    VOUCH_HAVE_STACK();
     /*
-     * Whether we're on trace or not, the scope chain associated with cx->fp
-     * will lead us to the appropriate global. Although cx->fp is stale on
-     * trace, trace execution never crosses globals.
+     * This is essentially GetScopeChain(cx)->getGlobal(), but without
+     * falling off trace.
+     *
+     * This use of cx->fp, possibly on trace, is deliberate:
+     * cx->fp->scopeChain->getGlobal() returns the same object whether we're on
+     * trace or not, since we do not trace calls across global objects.
      */
-    JS_ASSERT(hasfp());
-    JSObject *global = fp()->scopeChain().getGlobal();
-    js::RegExpStatics *res = js::RegExpStatics::extractFrom(global);
-    return res;
+    VOUCH_DOES_NOT_REQUIRE_STACK();
+
+    if (cx->hasfp())
+        return cx->fp()->scopeChain().getGlobal();
+
+    JSObject *scope = cx->globalObject;
+    if (!scope) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
+        return NULL;
+    }
+    OBJ_TO_INNER_OBJECT(cx, scope);
+    return scope;
 }
+
+}
+
+#ifdef JS_METHODJIT
+inline js::mjit::JaegerCompartment *JSContext::jaegerCompartment()
+{
+    return compartment->jaegerCompartment;
+}
+#endif
 
 inline bool
 JSContext::ensureGeneratorStackSpace()
@@ -84,6 +107,12 @@ JSContext::computeNextFrame(JSStackFrame *fp)
         if (end != ss->getPreviousInContext()->getCurrentFrame())
             next = NULL;
     }
+}
+
+inline js::RegExpStatics *
+JSContext::regExpStatics()
+{
+    return js::RegExpStatics::extractFrom(js::GetGlobalForScopeChain(this));
 }
 
 namespace js {
@@ -139,6 +168,7 @@ StackSpace::isCurrentAndActive(JSContext *cx) const
            currentSegment == cx->getCurrentSegment();
 }
 
+STATIC_POSTCONDITION(!return || ubound(from) >= nvals)
 JS_ALWAYS_INLINE bool
 StackSpace::ensureSpace(JSContext *maybecx, Value *from, ptrdiff_t nvals) const
 {
@@ -323,8 +353,6 @@ StackSpace::pushInvokeFrame(JSContext *cx, const CallArgs &args,
 {
     JS_ASSERT(firstUnused() == args.argv() + args.argc());
 
-    JSStackFrame *fp = fg->regs_.fp;
-    fp->setPrev(cx->regs);
     if (JS_UNLIKELY(!currentSegment->inContext())) {
         cx->pushSegmentAndFrame(currentSegment, fg->regs_);
     } else {
@@ -353,12 +381,12 @@ StackSpace::popInvokeFrame(const InvokeFrameGuard &fg)
     }
 }
 
-JS_REQUIRES_STACK JS_ALWAYS_INLINE
-InvokeFrameGuard::~InvokeFrameGuard()
+JS_ALWAYS_INLINE void
+InvokeFrameGuard::pop()
 {
-    if (JS_UNLIKELY(!pushed()))
-        return;
+    JS_ASSERT(pushed());
     cx_->stack().popInvokeFrame(*this);
+    cx_ = NULL;
 }
 
 JS_REQUIRES_STACK JS_ALWAYS_INLINE JSStackFrame *
@@ -390,8 +418,6 @@ StackSpace::pushInlineFrame(JSContext *cx, JSScript *script, JSStackFrame *fp,
 {
     JS_ASSERT(isCurrentAndActive(cx));
     JS_ASSERT(cx->regs == regs && script == fp->script());
-
-    fp->setPrev(regs);
 
     regs->fp = fp;
     regs->pc = script->code;
@@ -511,10 +537,8 @@ class CompartmentChecker
      * compartment mismatches.
      */
     static void fail(JSCompartment *c1, JSCompartment *c2) {
-#ifdef DEBUG_jorendorff
         printf("*** Compartment mismatch %p vs. %p\n", (void *) c1, (void *) c2);
-        // JS_NOT_REACHED("compartment mismatch");
-#endif
+        JS_NOT_REACHED("compartment mismatched");
     }
 
     void check(JSCompartment *c) {
@@ -530,7 +554,7 @@ class CompartmentChecker
 
     void check(JSObject *obj) {
         if (obj)
-            check(obj->getCompartment(context));
+            check(obj->getCompartment());
     }
 
     void check(const js::Value &v) {
@@ -567,8 +591,15 @@ class CompartmentChecker
     }
 
     void check(JSScript *script) {
-        if (script && script->u.object)
-            check(script->u.object);
+        if (script && script != JSScript::emptyScript()) {
+            check(script->compartment);
+            if (script->u.object)
+                check(script->u.object);
+        }
+    }
+
+    void check(JSStackFrame *fp) {
+        check(&fp->scopeChain());
     }
 
     void check(JSString *) { /* nothing for now */ }
@@ -642,6 +673,7 @@ assertSameCompartment(JSContext *cx, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5)
 
 #undef START_ASSERT_SAME_COMPARTMENT
 
+STATIC_PRECONDITION_ASSUME(ubound(vp) >= argc + 2)
 JS_ALWAYS_INLINE bool
 CallJSNative(JSContext *cx, js::Native native, uintN argc, js::Value *vp)
 {
@@ -657,6 +689,7 @@ CallJSNative(JSContext *cx, js::Native native, uintN argc, js::Value *vp)
     return ok;
 }
 
+STATIC_PRECONDITION(ubound(vp) >= argc + 2)
 JS_ALWAYS_INLINE bool
 CallJSNativeConstructor(JSContext *cx, js::Native native, uintN argc, js::Value *vp)
 {
@@ -703,6 +736,21 @@ CallJSPropertyOpSetter(JSContext *cx, js::PropertyOp op, JSObject *obj, jsid id,
 {
     assertSameCompartment(cx, obj, id, *vp);
     return op(cx, obj, id, vp);
+}
+
+inline bool
+CallSetter(JSContext *cx, JSObject *obj, jsid id, PropertyOp op, uintN attrs, uintN shortid,
+           js::Value *vp)
+{
+    if (attrs & JSPROP_SETTER)
+        return ExternalGetOrSet(cx, obj, id, CastAsObjectJsval(op), JSACC_WRITE, 1, vp, vp);
+
+    if (attrs & JSPROP_GETTER)
+        return js_ReportGetterOnlyAssignment(cx);
+
+    if (attrs & JSPROP_SHORTID)
+        id = INT_TO_JSID(shortid);
+    return CallJSPropertyOpSetter(cx, op, obj, id, vp);
 }
 
 }  /* namespace js */

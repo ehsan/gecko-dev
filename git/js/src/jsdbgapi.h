@@ -50,6 +50,13 @@
 JS_BEGIN_EXTERN_C
 
 /*
+ * Currently, we only support runtime-wide debugging. In the future, we should
+ * be able to support compartment-wide debugging.
+ */
+extern JS_PUBLIC_API(void)
+JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug);
+
+/*
  * Debug mode is a compartment-wide mode that enables a debugger to attach
  * to and interact with running methodjit-ed frames. In particular, it causes
  * every function to be compiled as if an eval was present (so eval-in-frame)
@@ -159,6 +166,9 @@ JS_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc);
 extern JS_PUBLIC_API(jsbytecode *)
 JS_LineNumberToPC(JSContext *cx, JSScript *script, uintN lineno);
 
+extern JS_PUBLIC_API(jsbytecode *)
+JS_EndPC(JSContext *cx, JSScript *script);
+
 extern JS_PUBLIC_API(uintN)
 JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun);
 
@@ -245,8 +255,8 @@ JS_GetFrameScopeChain(JSContext *cx, JSStackFrame *fp);
 extern JS_PUBLIC_API(JSObject *)
 JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp);
 
-extern JS_PUBLIC_API(JSObject *)
-JS_GetFrameThis(JSContext *cx, JSStackFrame *fp);
+extern JS_PUBLIC_API(JSBool)
+JS_GetFrameThis(JSContext *cx, JSStackFrame *fp, jsval *thisv);
 
 extern JS_PUBLIC_API(JSFunction *)
 JS_GetFrameFunction(JSContext *cx, JSStackFrame *fp);

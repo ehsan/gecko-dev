@@ -42,39 +42,56 @@
 
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsmath.h"
 #include "jsobj.h"
 #include "jsfun.h"
 #include "jsgcstats.h"
 #include "jsclist.h"
 #include "jsxml.h"
 
-struct JSCompartment {
-    JSRuntime       *rt;
-    JSPrincipals    *principals;
-    js::gc::Chunk   *chunk;
-
-    js::gc::ArenaList<JSObject>      objArena;
-    js::gc::ArenaList<JSFunction>    funArena;
-    js::gc::ArenaList<JSShortString> shortStringArena;
-    js::gc::ArenaList<JSString>      stringArena;
-    js::gc::ArenaList<JSString>      externalStringArenas[js::gc::JS_EXTERNAL_STRING_LIMIT];
-#if JS_HAS_XML_SUPPORT
-    js::gc::ArenaList<JSXML>         xmlArena;
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4251) /* Silence warning about JS_FRIEND_API and data members. */
 #endif
 
-    js::gc::FreeLists                freeLists;
-    
+namespace js {
+namespace mjit {
+class JaegerCompartment;
+}
+}
+
+struct JS_FRIEND_API(JSCompartment) {
+    JSRuntime                    *rt;
+    JSPrincipals                 *principals;
+    js::gc::Chunk                *chunk;
+
+    js::gc::ArenaList            arenas[js::gc::FINALIZE_LIMIT];
+    js::gc::FreeLists            freeLists;
+
 #ifdef JS_GCMETER
-    js::gc::JSGCArenaStats compartmentStats[js::gc::FINALIZE_LIMIT];
+    js::gc::JSGCArenaStats       compartmentStats[js::gc::FINALIZE_LIMIT];
 #endif
 
-    void *data;
-    bool marked;
-    js::WrapperMap crossCompartmentWrappers;
-    bool debugMode;
+    void                         *data;
+    bool                         marked;
+    js::WrapperMap               crossCompartmentWrappers;
 
-    /* List all scripts in this compartment. */
-    JSCList scripts;
+#ifdef JS_METHODJIT
+    js::mjit::JaegerCompartment  *jaegerCompartment;
+#endif
+
+    bool                         debugMode;  // true iff debug mode on
+    JSCList                      scripts;    // scripts in this compartment
+
+    /*
+     * Weak references to lazily-created, well-known XML singletons.
+     *
+     * NB: Singleton objects must be carefully disconnected from the rest of
+     * the object graph usually associated with a JSContext's global object,
+     * including the set of standard class objects.  See jsxml.c for details.
+     */
+    JSObject                     *anynameObject;
+    JSObject                     *functionNamespaceObject;
 
     JSCompartment(JSRuntime *cx);
     ~JSCompartment();
@@ -91,14 +108,14 @@ struct JSCompartment {
     bool wrapException(JSContext *cx);
 
     void sweep(JSContext *cx);
-#ifdef JS_METHODJIT
-    bool addScript(JSContext *cx, JSScript *script);
-    void removeScript(JSScript *script);
-#endif
     void purge(JSContext *cx);
     void finishArenaLists();
     bool arenaListsAreEmpty();
 };
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 namespace js {
 
@@ -126,7 +143,7 @@ class SwitchToCompartment : public PreserveCompartment {
     }
 
     SwitchToCompartment(JSContext *cx, JSObject *target) : PreserveCompartment(cx) {
-        cx->compartment = target->getCompartment(cx);
+        cx->compartment = target->getCompartment();
     }
 };
 

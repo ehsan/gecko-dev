@@ -112,6 +112,8 @@ public:
 
     virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
 
+    virtual bool RecvAddPermission(const IPC::Permission& permission);
+
 private:
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -126,9 +128,7 @@ private:
     NS_NORETURN void QuickExit();
 
     nsTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
-    nsTArray<nsAutoPtr<PrefObserver> > mPrefObservers;
     nsRefPtr<ConsoleListener> mConsoleListener;
-    bool mDead;
 
     static ContentChild* sSingleton;
 

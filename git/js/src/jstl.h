@@ -48,6 +48,7 @@
 #endif
 
 #include "jsbit.h"
+#include "jsstaticcheck.h"
 
 #include <new>
 #include <string.h>
@@ -212,6 +213,7 @@ class ReentrancyGuard
  * Round x up to the nearest power of 2.  This function assumes that the most
  * significant bit of x is not set, which would lead to overflow.
  */
+STATIC_POSTCONDITION_ASSUME(return >= x)
 JS_ALWAYS_INLINE size_t
 RoundUpPow2(size_t x)
 {
@@ -453,6 +455,14 @@ static inline T
 Max(T t1, T t2)
 {
     return t1 > t2 ? t1 : t2;
+}
+
+/* Allows a const variable to be initialized after its declaration. */
+template <class T>
+static T&
+InitConst(const T &t)
+{
+    return const_cast<T &>(t);
 }
 
 } /* namespace js */

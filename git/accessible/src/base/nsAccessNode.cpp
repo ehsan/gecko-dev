@@ -152,9 +152,12 @@ nsAccessNode::Shutdown()
 }
 
 // nsIAccessNode
-NS_IMETHODIMP nsAccessNode::GetUniqueID(void **aUniqueID)
+NS_IMETHODIMP
+nsAccessNode::GetUniqueID(void **aUniqueID)
 {
-  *aUniqueID = static_cast<void*>(GetNode());
+  NS_ENSURE_ARG_POINTER(aUniqueID);
+
+  *aUniqueID = UniqueID();
   return NS_OK;
 }
 
@@ -310,6 +313,12 @@ nsAccessNode::GetFrame()
   return mContent ? mContent->GetPrimaryFrame() : nsnull;
 }
 
+bool
+nsAccessNode::IsPrimaryForNode() const
+{
+  return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessNode
 
@@ -373,7 +382,8 @@ nsAccessNode::ScrollTo(PRUint32 aScrollType)
 
   PRInt16 vPercent, hPercent;
   nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
-  return shell->ScrollContentIntoView(content, vPercent, hPercent);
+  return shell->ScrollContentIntoView(content, vPercent, hPercent,
+                                      nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 }
 
 NS_IMETHODIMP

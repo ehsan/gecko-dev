@@ -69,6 +69,10 @@
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
 #endif
 
+#ifdef ANDROID
+#include "APKOpen.h"
+#endif
+
 using mozilla::MonitorAutoEnter;
 using mozilla::ipc::GeckoChildProcessHost;
 
@@ -388,6 +392,20 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
 #ifdef ANDROID
   // The java wrapper unpacks this for us but can't make it executable
   chmod(exePath.value().c_str(), 0700);
+  int cacheCount = 0;
+  const struct lib_cache_info * cache = getLibraryCache();
+  nsCString cacheStr;
+  while (cache &&
+         cacheCount++ < MAX_LIB_CACHE_ENTRIES &&
+         strlen(cache->name)) {
+    mFileMap.push_back(std::pair<int,int>(cache->fd, cache->fd));
+    cacheStr.Append(cache->name);
+    cacheStr.AppendPrintf(":%d;", cache->fd);
+    cache++;
+  }
+  // fill the last arg with something if there's no cache
+  if (cacheStr.IsEmpty())
+    cacheStr.AppendLiteral("-");
 #endif
 
   // remap the IPC socket fd to a well-known int, as the OS does for
@@ -451,6 +469,10 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
 
   childArgv.push_back(childProcessType);
 
+#ifdef ANDROID
+  childArgv.push_back(cacheStr.get());
+#endif
+
   base::LaunchApp(childArgv, mFileMap,
 #if defined(OS_LINUX) || defined(OS_MACOSX)
                   newEnvVars,
@@ -459,7 +481,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
 
 #ifdef XP_MACOSX
   // Wait for the child process to send us its 'task_t' data.
-  const int kTimeoutMs = 1000;
+  const int kTimeoutMs = 10000;
 
   MachReceiveMessage child_message;
   ReceivePort parent_recv_port(mach_connection_name.c_str());

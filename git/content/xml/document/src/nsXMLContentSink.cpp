@@ -102,6 +102,8 @@
 #include "nsHtml5SVGLoadDispatcher.h"
 #endif
 
+using namespace mozilla::dom;
+
 // XXX Open Issues:
 // 1) what's not allowed - We need to figure out which HTML tags
 //    (prefixed with a HTML namespace qualifier) are explicitly not
@@ -332,15 +334,6 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
     // Kick off layout for non-XSLT transformed documents.
     mDocument->ScriptLoader()->RemoveObserver(this);
 
-    if (mDocElement) {
-      // Notify document observers that all the content has been stuck
-      // into the document.
-      // XXX do we need to notify for things like PIs?  Or just the
-      // documentElement?
-      NS_ASSERTION(mDocument->IndexOf(mDocElement) != -1,
-                   "mDocElement not in doc?");
-    }
-
     // Check if we want to prettyprint
     MaybePrettyPrint();
 
@@ -500,7 +493,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRUint32 aFromParser)
+                                FromParser aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -550,9 +543,11 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(content));
     if (ssle) {
       ssle->InitStyleLinkElement(PR_FALSE);
-      ssle->SetEnableUpdates(PR_FALSE);
+      if (aFromParser) {
+        ssle->SetEnableUpdates(PR_FALSE);
+      }
       if (!aNodeInfo->Equals(nsGkAtoms::link, kNameSpaceID_XHTML)) {
-        ssle->SetLineNumber(aLineNumber);
+        ssle->SetLineNumber(aFromParser ? aLineNumber : 0);
       }
     }
   } 
@@ -1027,7 +1022,8 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   result = CreateElement(aAtts, aAttsCount, nodeInfo, aLineNumber,
-                         getter_AddRefs(content), &appendContent, PR_TRUE);
+                         getter_AddRefs(content), &appendContent,
+                         FROM_PARSER_NETWORK);
   NS_ENSURE_SUCCESS(result, result);
 
   // Have to do this before we push the new content on the stack... and have to

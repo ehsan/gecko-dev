@@ -43,7 +43,6 @@
 /* High level class and public functions implementation. */
 
 #include "xpcprivate.h"
-#include "XPCNativeWrapper.h"
 #include "XPCWrapper.h"
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
@@ -53,10 +52,16 @@
 #include "jsscript.h"
 #include "nsThreadUtilsInternal.h"
 #include "dom_quickstubs.h"
+#include "nsNullPrincipal.h"
+#include "nsIURI.h"
 
 #include "jstypedarray.h"
 
 #include "XrayWrapper.h"
+#include "WrapperFactory.h"
+#include "AccessCheck.h"
+
+#include "jsdIDebuggerService.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS6(nsXPConnect,
                               nsIXPConnect,
@@ -69,10 +74,12 @@ NS_IMPL_THREADSAFE_ISUPPORTS6(nsXPConnect,
 nsXPConnect* nsXPConnect::gSelf = nsnull;
 JSBool       nsXPConnect::gOnceAliveNowDead = JS_FALSE;
 PRUint32     nsXPConnect::gReportAllJSExceptions = 0;
+JSBool       nsXPConnect::gDebugMode = JS_FALSE;
+JSBool       nsXPConnect::gDesiredDebugMode = JS_FALSE;
 
 // Global cache of the default script security manager (QI'd to
 // nsIScriptSecurityManager)
-nsIScriptSecurityManager *gScriptSecurityManager = nsnull;
+nsIScriptSecurityManager *nsXPConnect::gScriptSecurityManager = nsnull;
 
 const char XPC_CONTEXT_STACK_CONTRACTID[] = "@mozilla.org/js/xpc/ContextStack;1";
 const char XPC_RUNTIME_CONTRACTID[]       = "@mozilla.org/js/xpc/RuntimeService;1";
@@ -674,100 +681,52 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
         {
             JSObject *obj = static_cast<JSObject*>(p);
             js::Class *clazz = obj->getClass();
-            if(XPCNativeWrapper::IsNativeWrapperClass(clazz))
+            XPCNativeScriptableInfo* si = nsnull;
+            if(IS_PROTO_CLASS(clazz))
             {
-                XPCWrappedNative* wn;
-                if(XPCNativeWrapper::GetWrappedNative(cx, obj, &wn) && wn)
+                XPCWrappedNativeProto* p =
+                    (XPCWrappedNativeProto*) xpc_GetJSPrivate(obj);
+                si = p->GetScriptableInfo();
+            }
+            if(si)
+            {
+                JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
+                            clazz->name, si->GetJSClass()->name);
+            }
+            else if(clazz == &js_ScriptClass)
+            {
+                JSScript* script = (JSScript*) xpc_GetJSPrivate(obj);
+                if(script->filename)
                 {
-                    XPCNativeScriptableInfo* si = wn->GetScriptableInfo();
-                    if(si)
-                    {
-                        JS_snprintf(name, sizeof(name), "XPCNativeWrapper (%s)",
-                                    si->GetJSClass()->name);
-                    }
-                    else
-                    {
-                        nsIClassInfo* ci = wn->GetClassInfo();
-                        char* className = nsnull;
-                        if(ci)
-                            ci->GetClassDescription(&className);
-                        if(className)
-                        {
-                            JS_snprintf(name, sizeof(name),
-                                        "XPCNativeWrapper (%s)", className);
-                            PR_Free(className);
-                        }
-                        else
-                        {
-                            XPCNativeSet* set = wn->GetSet();
-                            XPCNativeInterface** array =
-                                set->GetInterfaceArray();
-                            PRUint16 count = set->GetInterfaceCount();
-
-                            if(count > 0)
-                                JS_snprintf(name, sizeof(name),
-                                            "XPCNativeWrapper (%s)",
-                                            array[0]->GetNameString());
-                            else
-                                JS_snprintf(name, sizeof(name),
-                                            "XPCNativeWrapper");
-                        }
-                    }
+                    JS_snprintf(name, sizeof(name),
+                                "JS Object (Script - %s)",
+                                script->filename);
                 }
                 else
                 {
-                    JS_snprintf(name, sizeof(name), "XPCNativeWrapper");
+                    JS_snprintf(name, sizeof(name), "JS Object (Script)");
+                }
+            }
+            else if(clazz == &js_FunctionClass)
+            {
+                JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
+                JSString* str = JS_GetFunctionId(fun);
+                if(str)
+                {
+                    NS_ConvertUTF16toUTF8
+                        fname(reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str)));
+                    JS_snprintf(name, sizeof(name),
+                                "JS Object (Function - %s)", fname.get());
+                }
+                else
+                {
+                    JS_snprintf(name, sizeof(name), "JS Object (Function)");
                 }
             }
             else
             {
-                XPCNativeScriptableInfo* si = nsnull;
-                if(IS_PROTO_CLASS(clazz))
-                {
-                    XPCWrappedNativeProto* p =
-                        (XPCWrappedNativeProto*) xpc_GetJSPrivate(obj);
-                    si = p->GetScriptableInfo();
-                }
-                if(si)
-                {
-                    JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
-                                clazz->name, si->GetJSClass()->name);
-                }
-                else if(clazz == &js_ScriptClass)
-                {
-                    JSScript* script = (JSScript*) xpc_GetJSPrivate(obj);
-                    if(script->filename)
-                    {
-                        JS_snprintf(name, sizeof(name),
-                                    "JS Object (Script - %s)",
-                                    script->filename);
-                    }
-                    else
-                    {
-                        JS_snprintf(name, sizeof(name), "JS Object (Script)");
-                    }
-                }
-                else if(clazz == &js_FunctionClass)
-                {
-                    JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
-                    JSString* str = JS_GetFunctionId(fun);
-                    if(str)
-                    {
-                        NS_ConvertUTF16toUTF8
-                            fname(reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str)));
-                        JS_snprintf(name, sizeof(name),
-                                    "JS Object (Function - %s)", fname.get());
-                    }
-                    else
-                    {
-                        JS_snprintf(name, sizeof(name), "JS Object (Function)");
-                    }
-                }
-                else
-                {
-                    JS_snprintf(name, sizeof(name), "JS Object (%s)",
-                                clazz->name);
-                }
+                JS_snprintf(name, sizeof(name), "JS Object (%s)",
+                            clazz->name);
             }
         }
         else
@@ -782,7 +741,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 
         if(traceKind == JSTRACE_OBJECT) {
             JSObject *global = static_cast<JSObject*>(p), *parent;
-            while((parent = JS_GetParent(cx, global)))
+            while((parent = global->getParent()))
                 global = parent;
             char fullname[100];
             JS_snprintf(fullname, sizeof(fullname),
@@ -820,13 +779,10 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)->mNative");
         cb.NoteXPCOMChild(to->GetNative());
     }
-    // XXX XPCNativeWrapper seems to be the only class that doesn't hold a
-    //     strong reference to its nsISupports private. This test does seem
-    //     fragile though, we should probably whitelist classes that do hold
-    //     a strong reference, but that might not be possible.
+    // XXX This test does seem fragile, we should probably whitelist classes
+    //     that do hold a strong reference, but that might not be possible.
     else if(clazz->flags & JSCLASS_HAS_PRIVATE &&
-            clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS &&
-            !XPCNativeWrapper::IsNativeWrapperClass(clazz))
+            clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS)
     {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)");
         cb.NoteXPCOMChild(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
@@ -946,10 +902,9 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
-    SaveFrame sf(aJSContext);
 
     JSAutoEnterCompartment ac;
-    if (!ac.enter(ccx, aGlobalJSObj))
+    if(!ac.enter(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     xpc_InitJSxIDClassObjects();
@@ -968,9 +923,6 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     if(XPCPerThreadData::IsMainThread(ccx))
     {
         if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
-
-        if (!XPCSafeJSObjectWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
             return UnexpectedFailure(NS_ERROR_FAILURE);
     }
 
@@ -991,38 +943,68 @@ static JSClass xpcTempGlobalClass = {
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
+static bool
+CreateNewCompartment(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
+                     xpc::CompartmentPrivate *priv, JSObject **global,
+                     JSCompartment **compartment)
+{
+    // We take ownership of |priv|. Ensure that either we free it in the case
+    // of failure or give ownership to the compartment in case of success (in
+    // that case it will be free'd in CompartmentCallback during GC).
+    nsAutoPtr<xpc::CompartmentPrivate> priv_holder(priv);
+    JSPrincipals *principals = nsnull;
+    if(principal)
+        principal->GetJSPrincipals(cx, &principals);
+    JSObject *tempGlobal = JS_NewCompartmentAndGlobalObject(cx, clasp, principals);
+    if(principals)
+        JSPRINCIPALS_DROP(cx, principals);
+
+    if(!tempGlobal)
+        return false;
+
+    *global = tempGlobal;
+    *compartment = tempGlobal->getCompartment();
+
+    js::SwitchToCompartment sc(cx, *compartment);
+    JS_SetCompartmentPrivate(cx, *compartment, priv_holder.forget());
+    return true;
+}
+
 nsresult
 xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
-                       const nsACString &origin, nsIPrincipal *principal,
-                       JSObject **global, JSCompartment **compartment)
+                       nsIPrincipal *principal, nsISupports *ptr,
+                       bool wantXrays, JSObject **global,
+                       JSCompartment **compartment)
 {
+    NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
+    NS_ABORT_IF_FALSE(principal, "bad key");
+
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = principal->GetURI(getter_AddRefs(uri));
+    if(NS_FAILED(rv))
+        return UnexpectedFailure(rv);
+
     XPCCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetCompartmentMap();
-    JSObject *tempGlobal;
-    if(!map.Get(origin, compartment))
+    xpc::PtrAndPrincipalHashKey key(ptr, uri);
+    if(!map.Get(&key, compartment))
     {
-        JSPrincipals *principals = nsnull;
-        if(principal)
-            principal->GetJSPrincipals(cx, &principals);
-        tempGlobal = JS_NewCompartmentAndGlobalObject(cx, clasp, principals);
-        if(principals)
-            JSPRINCIPALS_DROP(cx, principals);
-
-        if(!tempGlobal)
+        xpc::PtrAndPrincipalHashKey *priv_key =
+            new xpc::PtrAndPrincipalHashKey(ptr, uri);
+        xpc::CompartmentPrivate *priv =
+            new xpc::CompartmentPrivate(priv_key, wantXrays, NS_IsMainThread());
+        if(!CreateNewCompartment(cx, clasp, principal, priv,
+                                 global, compartment))
+        {
             return UnexpectedFailure(NS_ERROR_FAILURE);
+        }
 
-        *global = tempGlobal;
-        *compartment = tempGlobal->getCompartment(cx);
-
-        js::SwitchToCompartment sc(cx, *compartment);
-
-        JS_SetCompartmentPrivate(cx, *compartment, ToNewCString(origin));
-        map.Put(origin, *compartment);
+        map.Put(&key, *compartment);
     }
     else
     {
         js::SwitchToCompartment sc(cx, *compartment);
 
-        tempGlobal = JS_NewGlobalObject(cx, clasp);
+        JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
         if(!tempGlobal)
             return UnexpectedFailure(NS_ERROR_FAILURE);
         *global = tempGlobal;
@@ -1031,20 +1013,56 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     return NS_OK;
 }
 
-/* nsIXPConnectJSObjectHolder initClassesWithNewWrappedGlobal (in JSContextPtr aJSContext, in nsISupports aCOMObj, in nsIIDRef aIID, in PRUint32 aFlags); */
+nsresult
+xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
+                         nsISupports *ptr, JSObject **global,
+                         JSCompartment **compartment)
+{
+    // NB: We can be either on or off the main thread here.
+    XPCMTCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetMTCompartmentMap();
+    if(!map.Get(ptr, compartment))
+    {
+        // We allow the pointer to be a principal, in which case it becomes
+        // the principal for the newly created compartment. The caller is
+        // responsible for ensuring that doing this doesn't violate
+        // threadsafety assumptions.
+        nsCOMPtr<nsIPrincipal> principal(do_QueryInterface(ptr));
+        xpc::CompartmentPrivate *priv =
+            new xpc::CompartmentPrivate(ptr, false, NS_IsMainThread());
+        if(!CreateNewCompartment(cx, clasp, principal, priv, global,
+                                 compartment))
+        {
+            return UnexpectedFailure(NS_ERROR_UNEXPECTED);
+        }
+
+        map.Put(ptr, *compartment);
+    }
+    else
+    {
+        js::SwitchToCompartment sc(cx, *compartment);
+
+        JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
+        if(!tempGlobal)
+            return UnexpectedFailure(NS_ERROR_FAILURE);
+        *global = tempGlobal;
+    }
+
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
                                              nsISupports *aCOMObj,
                                              const nsIID & aIID,
                                              nsIPrincipal * aPrincipal,
-                                             const nsACString & aOrigin,
+                                             nsISupports * aExtraPtr,
                                              PRUint32 aFlags,
                                              nsIXPConnectJSObjectHolder **_retval)
 {
     NS_ASSERTION(aJSContext, "bad param");
     NS_ASSERTION(aCOMObj, "bad param");
     NS_ASSERTION(_retval, "bad param");
-    NS_ASSERTION(!aOrigin.IsEmpty() || aPrincipal, "must be able to assign an origin");
+    NS_ASSERTION(aExtraPtr || aPrincipal, "must be able to find a compartment");
 
     // XXX This is not pretty. We make a temporary global object and
     // init it with all the Components object junk just so we have a
@@ -1053,23 +1071,20 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
 
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
 
-    nsCString origin;
-    if(aOrigin.IsEmpty())
-        aPrincipal->GetOrigin(getter_Copies(origin));
-    else
-        origin = aOrigin;
-
-    SaveFrame sf(ccx);
-
     JSCompartment* compartment;
     JSObject* tempGlobal;
 
-    nsresult rv = xpc_CreateGlobalObject(ccx, &xpcTempGlobalClass, origin,
-                                         aPrincipal, &tempGlobal, &compartment);
+    nsresult rv = aPrincipal
+                  ? xpc_CreateGlobalObject(ccx, &xpcTempGlobalClass, aPrincipal,
+                                           aExtraPtr, false, &tempGlobal,
+                                           &compartment)
+                  : xpc_CreateMTGlobalObject(ccx, &xpcTempGlobalClass,
+                                             aExtraPtr, &tempGlobal,
+                                             &compartment);
     NS_ENSURE_SUCCESS(rv, rv);
 
     JSAutoEnterCompartment ac;
-    if (!ac.enter(ccx, tempGlobal))
+    if(!ac.enter(ccx, tempGlobal))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     PRBool system = (aFlags & nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT) != 0;
@@ -1124,6 +1139,12 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     if(!scope)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
+    // Note: This call cooperates with a call to wrapper->RefreshPrototype()
+    // in nsJSEnvironment::CreateOuterObject in order to ensure that the
+    // prototype defines its constructor on the right global object.
+    if(wrapper->GetProto()->GetScriptableInfo())
+        scope->RemoveWrappedNativeProtos();
+
     NS_ASSERTION(scope->GetGlobalJSObject() == tempGlobal, "stealing scope!");
 
     scope->SetGlobal(ccx, globalJSObj);
@@ -1146,9 +1167,6 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         if(XPCPerThreadData::IsMainThread(ccx))
         {
             if(!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
-                return UnexpectedFailure(NS_ERROR_FAILURE);
-
-            if(!XPCSafeJSObjectWrapper::AttachNewConstructorObject(ccx, globalJSObj))
                 return UnexpectedFailure(NS_ERROR_FAILURE);
         }
     }
@@ -1176,8 +1194,9 @@ NativeInterface2JSObject(XPCLazyCallContext & lccx,
         return rv;
 
 #ifdef DEBUG
-    NS_ASSERTION(!XPCNativeWrapper::IsNativeWrapper(JSVAL_TO_OBJECT(*aVal)),
-                 "Shouldn't be returning a native wrapper here");
+    NS_ASSERTION(aAllowWrapping ||
+                 !xpc::WrapperFactory::IsXrayWrapper(JSVAL_TO_OBJECT(*aVal)),
+                 "Shouldn't be returning a xray wrapper here");
 #endif
     
     return NS_OK;
@@ -1247,8 +1266,11 @@ nsXPConnect::WrapJS(JSContext * aJSContext,
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    nsresult rv;
-    if(!XPCConvert::JSObject2NativeInterface(ccx, result, aJSObj,
+    JSAutoEnterCompartment aec;
+
+    nsresult rv = NS_ERROR_UNEXPECTED;
+    if(!aec.enter(ccx, aJSObj) ||
+       !XPCConvert::JSObject2NativeInterface(ccx, result, aJSObj,
                                              &aIID, nsnull, &rv))
         return rv;
     return NS_OK;
@@ -1921,7 +1943,7 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
     jsval rval = JSVAL_VOID;
     AUTO_MARK_JSVAL(ccx, &rval);
 
-    nsresult rv = xpc_CreateSandboxObject(cx, &rval, principal);
+    nsresult rv = xpc_CreateSandboxObject(cx, &rval, principal, NULL, false);
     NS_ASSERTION(NS_FAILED(rv) || !JSVAL_IS_PRIMITIVE(rval),
                  "Bad return value from xpc_CreateSandboxObject()!");
 
@@ -1980,6 +2002,10 @@ nsXPConnect::GetWrappedNativePrototype(JSContext * aJSContext,
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
+    JSAutoEnterCompartment ac;
+    if(!ac.enter(aJSContext, aScope))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
     XPCWrappedNativeScope* scope =
         XPCWrappedNativeScope::FindInJSObjectScope(ccx, aScope);
     if(!scope)
@@ -2002,87 +2028,6 @@ nsXPConnect::GetWrappedNativePrototype(JSContext * aJSContext,
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     NS_ADDREF(holder);
-    return NS_OK;
-}
-
-/* [noscript] jsval GetCrossOriginWrapperForValue(in JSContextPtr aJSContext, in jsval aCurrentVal); */
-NS_IMETHODIMP
-nsXPConnect::GetXOWForObject(JSContext * aJSContext,
-                             JSObject * aParent,
-                             JSObject * aWrappedObj,
-                             jsval * rval)
-{
-    *rval = OBJECT_TO_JSVAL(aWrappedObj);
-    return XPCCrossOriginWrapper::WrapObject(aJSContext, aParent, rval)
-           ? NS_OK : NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsXPConnect::GetCOWForObject(JSContext * aJSContext,
-                             JSObject * aParent,
-                             JSObject * aWrappedObj,
-                             jsval * rval)
-{
-    *rval = OBJECT_TO_JSVAL(aWrappedObj);
-    return ChromeObjectWrapper::WrapObject(aJSContext, aParent, *rval, rval)
-           ? NS_OK : NS_ERROR_FAILURE;
-}
-
-static inline PRBool
-PerformOp(JSContext *cx, PRUint32 aWay, JSObject *obj)
-{
-    NS_ASSERTION(aWay == nsIXPConnect::XPC_XOW_CLEARSCOPE,
-                 "Nothing else is implemented yet");
-
-    JS_ClearScope(cx, obj);
-    return PR_TRUE;
-}
-
-/* [noscript] void updateXOWs (in JSContextPtr aJSContext,
- *                             in nsIXPConnectJSObjectHolder aObject,
- *                             in PRUint32 aWay); */
-NS_IMETHODIMP
-nsXPConnect::UpdateXOWs(JSContext* aJSContext,
-                        nsIXPConnectWrappedNative* aObject,
-                        PRUint32 aWay)
-{
-    typedef WrappedNative2WrapperMap::Link Link;
-    XPCWrappedNative* wn = static_cast<XPCWrappedNative *>(aObject);
-    XPCWrappedNativeScope* scope = wn->GetScope();
-    WrappedNative2WrapperMap* map = scope->GetWrapperMap();
-    Link* list;
-
-    {
-        XPCAutoLock al(GetRuntime()->GetMapLock());
-
-        list = map->FindLink(wn->GetFlatJSObject());
-    }
-
-    if(!list)
-        return NS_OK; // No wrappers to update.
-
-    if(aWay == nsIXPConnect::XPC_XOW_NAVIGATED)
-    {
-        XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(aObject);
-        NS_ASSERTION(wn->NeedsXOW(), "Window isn't a window");
-
-        XPCCrossOriginWrapper::WindowNavigated(aJSContext, wn);
-        return NS_OK;
-    }
-
-    JSAutoRequest req(aJSContext);
-
-    Link* cur = list;
-    if(cur->obj && !PerformOp(aJSContext, aWay, cur->obj))
-        return NS_ERROR_FAILURE;
-
-    for(cur = (Link *)PR_NEXT_LINK(list); cur != list;
-        cur = (Link *)PR_NEXT_LINK(cur))
-    {
-        if(!PerformOp(aJSContext, aWay, cur->obj))
-            return NS_ERROR_FAILURE;
-    }
-
     return NS_OK;
 }
 
@@ -2228,6 +2173,22 @@ nsXPConnect::DebugDumpJSStack(PRBool showArgs,
     return NS_OK;
 }
 
+char*
+nsXPConnect::DebugPrintJSStack(PRBool showArgs,
+                               PRBool showLocals,
+                               PRBool showThisProps)
+{
+    JSContext* cx;
+    if(NS_FAILED(Peek(&cx)))
+        printf("failed to peek into nsIThreadJSContextStack service!\n");
+    else if(!cx)
+        printf("there is no JSContext on the nsIThreadJSContextStack!\n");
+    else
+        return xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps);
+
+    return nsnull;
+}
+
 /* void debugDumpEvalInJSStackFrame (in PRUint32 aFrameNumber, in string aSourceText); */
 NS_IMETHODIMP
 nsXPConnect::DebugDumpEvalInJSStackFrame(PRUint32 aFrameNumber, const char *aSourceText)
@@ -2362,134 +2323,6 @@ nsXPConnect::DefineDOMQuickStubs(JSContext * cx,
                                 interfaceCount, interfaceArray);
 }
 
-NS_IMETHODIMP
-nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
-                                 JSObject* aObject,
-                                 JSObject* aScope,
-                                 nsIPrincipal* aPrincipal,
-                                 PRUint32 aFilenameFlags,
-                                 jsval* _retval)
-{
-    NS_ASSERTION(aFilenameFlags != JSFILENAME_NULL, "Null filename!");
-    NS_ASSERTION(XPCPerThreadData::IsMainThread(aJSContext),
-                 "Must only be called from the main thread as these wrappers "
-                 "are not threadsafe!");
-
-    JSAutoRequest ar(aJSContext);
-
-    XPCWrappedNativeScope *objectscope;
-    JSObject* obj2;
-    XPCWrappedNative *wrapper =
-         XPCWrappedNative::GetWrappedNativeOfJSObject(aJSContext, aObject,
-                                                      nsnull, &obj2);
-    if(wrapper)
-    {
-        objectscope = wrapper->GetScope();
-    }
-    else if(obj2)
-    {
-        objectscope = GetSlimWrapperProto(obj2)->GetScope();
-    }
-    else
-    {
-        // Couldn't get the wrapped native (maybe a prototype?) so just return
-        // the original object.
-        *_retval = OBJECT_TO_JSVAL(aObject);
-        return NS_OK;
-    }
-
-    XPCWrappedNativeScope *xpcscope =
-            XPCWrappedNativeScope::FindInJSObjectScope(aJSContext, aScope);
-    if(!xpcscope)
-        return NS_ERROR_FAILURE;
-
-#ifdef DEBUG_mrbkap
-    {
-        JSObject *scopeobj = xpcscope->GetGlobalJSObject();
-        JSObject *toInnerize = scopeobj;
-        OBJ_TO_INNER_OBJECT(aJSContext, toInnerize);
-        NS_ASSERTION(toInnerize == scopeobj, "Scope chain ending in outer object?");
-    }
-#endif
-
-    {
-        JSObject *possibleOuter = objectscope->GetGlobalJSObject();
-        OBJ_TO_INNER_OBJECT(aJSContext, possibleOuter);
-        if(!possibleOuter)
-            return NS_ERROR_FAILURE;
-
-        if(objectscope->GetGlobalJSObject() != possibleOuter)
-        {
-            objectscope =
-                XPCWrappedNativeScope::FindInJSObjectScope(aJSContext,
-                                                           possibleOuter);
-            NS_ASSERTION(objectscope, "Unable to find a scope from an object");
-        }
-    }
-
-    *_retval = OBJECT_TO_JSVAL(aObject);
-
-    JSBool sameOrigin;
-    JSBool sameScope = xpc_SameScope(objectscope, xpcscope, &sameOrigin);
-    JSBool forceXOW =
-        XPCCrossOriginWrapper::ClassNeedsXOW(aObject->getClass()->name);
-
-    // We can do nothing if:
-    // - We're wrapping a system object
-    // or
-    //   - We're from the same *scope* AND
-    //   - We're not about to force a XOW (e.g. for "window") OR
-    //   - We're not actually going to create a XOW (we're wrapping for
-    //     chrome).
-    if(aObject->isSystem() ||
-       (sameScope &&
-        (!forceXOW || (aFilenameFlags & JSFILENAME_SYSTEM))))
-        return NS_OK;
-
-    JSObject* wrappedObj = nsnull;
-
-    if(aFilenameFlags & JSFILENAME_PROTECTED)
-    {
-        if(!wrapper)
-        {
-            SLIM_LOG_WILL_MORPH(aJSContext, aObject);
-            if(!MorphSlimWrapper(aJSContext, aObject))
-                return NS_ERROR_FAILURE;
-
-            wrapper = static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(aObject));
-        }
-
-        wrappedObj = XPCNativeWrapper::GetNewOrUsed(aJSContext, wrapper,
-                                                    aScope, aPrincipal);
-    }
-    else if(aFilenameFlags & JSFILENAME_SYSTEM)
-    {
-        jsval val = OBJECT_TO_JSVAL(aObject);
-        if(XPCSafeJSObjectWrapper::WrapObject(aJSContext, aScope, val, &val))
-            wrappedObj = JSVAL_TO_OBJECT(val);
-    }
-    else
-    {
-        // We don't wrap anything same origin unless the class name requires
-        // it.
-        if(sameOrigin && !forceXOW)
-            return NS_OK;
-
-        jsval val = OBJECT_TO_JSVAL(aObject);
-        if(XPCCrossOriginWrapper::WrapObject(aJSContext, aScope, &val, wrapper))
-            wrappedObj = JSVAL_TO_OBJECT(val);
-    }
-
-    if(!wrappedObj)
-        return NS_ERROR_FAILURE;
-
-    *_retval = OBJECT_TO_JSVAL(wrappedObj);
-    if(wrapper && wrapper->NeedsSOW() &&
-       !SystemOnlyWrapper::WrapObject(aJSContext, aScope, *_retval, _retval))
-        return NS_ERROR_FAILURE;
-    return NS_OK;
-}
-
 /* attribute JSRuntime runtime; */
 NS_IMETHODIMP
 nsXPConnect::GetRuntime(JSRuntime **runtime)
@@ -2578,6 +2411,36 @@ nsXPConnect::Peek(JSContext * *_retval)
     return data->GetJSContextStack()->Peek(_retval);
 }
 
+void 
+nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
+    if (gDebugMode != gDesiredDebugMode) {
+        // This can happen if a Worker is running, but we don't have the ability
+        // to debug workers right now, so just return.
+        if (!NS_IsMainThread()) {
+            return;
+        }
+
+        nsresult rv;
+        const char jsdServiceCtrID[] = "@mozilla.org/js/jsd/debugger-service;1";
+        nsCOMPtr<jsdIDebuggerService> jsds = do_GetService(jsdServiceCtrID, &rv);
+        if (NS_SUCCEEDED(rv)) {
+            if (gDesiredDebugMode == PR_FALSE) {
+                rv = jsds->RecompileForDebugMode(rt, PR_FALSE);
+            } else {
+                rv = jsds->ActivateDebugger(rt);
+            }
+        }
+
+        if (NS_SUCCEEDED(rv)) {
+            JS_SetRuntimeDebugMode(rt, gDesiredDebugMode);
+            gDebugMode = gDesiredDebugMode;
+        } else {
+            // if the attempt failed, cancel the debugMode request
+            gDesiredDebugMode = gDebugMode;
+        }
+    }
+}
+
 /* JSContext Pop (); */
 NS_IMETHODIMP
 nsXPConnect::Pop(JSContext * *_retval)
@@ -2602,6 +2465,15 @@ nsXPConnect::Push(JSContext * cx)
 
     if(!data)
         return NS_ERROR_FAILURE;
+
+    PRInt32 count;
+    nsresult rv;
+    rv = data->GetJSContextStack()->GetCount(&count);
+    if (NS_FAILED(rv))
+        return rv;
+
+    if (count == 0)
+        CheckForDebugMode(mRuntime->GetJSRuntime());
 
     return data->GetJSContextStack()->Push(cx);
 }
@@ -2687,22 +2559,6 @@ nsXPConnect::GetPrincipal(JSObject* obj, PRBool allowShortCircuit) const
     return nsnull;
 }
 
-NS_IMETHODIMP_(void)
-nsXPConnect::GetXrayWrapperPropertyHolderGetPropertyOp(JSPropertyOp *getPropertyPtr)
-{
-    *getPropertyPtr = xpc::HolderClass.getProperty;
-}
-
-NS_IMETHODIMP_(void)
-nsXPConnect::GetNativeWrapperGetPropertyOp(JSPropertyOp *getPropertyPtr)
-{
-    NS_ASSERTION(XPCNativeWrapper::GetJSClass(true)->getProperty ==
-                 XPCNativeWrapper::GetJSClass(false)->getProperty,
-                 "Call and NoCall XPCNativeWrapper Class must use the same "
-                 "getProperty hook.");
-    *getPropertyPtr = XPCNativeWrapper::GetJSClass(true)->getProperty;
-}
-
 NS_IMETHODIMP
 nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObject,
                         nsIXPConnectJSObjectHolder **aHolder)
@@ -2726,6 +2582,13 @@ nsXPConnect::GetCaller(JSContext **aJSContext, JSObject **aObj)
     *aObj = ccx->GetFlattenedJSObject();
 }
 
+NS_IMETHODIMP
+nsXPConnect::SetDebugModeWhenPossible(PRBool mode)
+{
+    gDesiredDebugMode = mode;
+    return NS_OK;
+}
+
 /* These are here to be callable from a debugger */
 JS_BEGIN_EXTERN_C
 JS_EXPORT_API(void) DumpJSStack()
@@ -2736,6 +2599,15 @@ JS_EXPORT_API(void) DumpJSStack()
         xpc->DebugDumpJSStack(PR_TRUE, PR_TRUE, PR_FALSE);
     else
         printf("failed to get XPConnect service!\n");
+}
+
+JS_EXPORT_API(char*) PrintJSStack()
+{
+    nsresult rv;
+    nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID(), &rv));
+    return (NS_SUCCEEDED(rv) && xpc) ? 
+        xpc->DebugPrintJSStack(PR_TRUE, PR_TRUE, PR_FALSE) :
+        nsnull;
 }
 
 JS_EXPORT_API(void) DumpJSEval(PRUint32 frameno, const char* text)

@@ -92,6 +92,8 @@
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
 
+namespace dom = mozilla::dom;
+
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
 {
@@ -728,8 +730,8 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(PRBool aDoDropDown) 
 {
-  PRInt32 eventStates = mContent->IntrinsicState();
-  if (eventStates & NS_EVENT_STATE_DISABLED) {
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return;
   }
 
@@ -928,8 +930,8 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  PRInt32 eventStates = mContent->IntrinsicState();
-  if (eventStates & NS_EVENT_STATE_DISABLED) {
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
 
@@ -1012,15 +1014,13 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // create button which drops the list down
   NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo.forget(),
-                    PR_FALSE);
+                    dom::NOT_FROM_PARSER);
   if (!mButtonContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // make someone to listen to the button. If its pressed by someone like Accessibility
   // then open or close the combo box.
   mButtonListener = new nsComboButtonListener(this);
-  if (!mButtonListener)
-    return NS_ERROR_OUT_OF_MEMORY;
   mButtonContent->AddEventListenerByIID(mButtonListener,
                                         NS_GET_IID(nsIDOMMouseListener));
 
@@ -1037,7 +1037,8 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsComboboxControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
+nsComboboxControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                                 PRUint32 aFilter)
 {
   aElements.MaybeAppendElement(mDisplayContent);
   aElements.MaybeAppendElement(mButtonContent);
@@ -1385,8 +1386,8 @@ void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
                                         nsPoint aPt)
 {
   /* Do we need to do anything? */
-  PRInt32 eventStates = mContent->IntrinsicState();
-  if ((eventStates & NS_EVENT_STATE_DISABLED) || mFocused != this)
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED) || mFocused != this)
     return;
 
   aRenderingContext.PushState();

@@ -1539,14 +1539,10 @@ nsDOMWorker::PostMessageInternal(PRBool aToInner)
 
   JSAutoRequest ar(cx);
 
-  nsAutoJSValHolder val;
-  if (!val.Hold(cx)) {
-    return NS_ERROR_FAILURE;
-  }
+  JSAutoStructuredCloneBuffer buffer(cx);
 
-  rv = nsContentUtils::CreateStructuredClone(cx, argv[0], val.ToJSValPtr());
-  if (NS_FAILED(rv)) {
-    return rv;
+  if (!buffer.write(argv[0])) {
+    return NS_ERROR_DOM_DATA_CLONE_ERR;
   }
 
   nsRefPtr<nsDOMWorkerMessageEvent> message = new nsDOMWorkerMessageEvent();
@@ -1557,7 +1553,7 @@ nsDOMWorker::PostMessageInternal(PRBool aToInner)
                                  nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = message->SetJSVal(cx, val);
+  rv = message->SetJSData(cx, buffer);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<nsDOMFireEventRunnable> runnable =
@@ -1645,15 +1641,12 @@ nsDOMWorker::CompileGlobalObject(JSContext* aCx, nsLazyAutoRequest *aRequest,
   const PRUint32 flags = nsIXPConnect::INIT_JS_STANDARD_CLASSES |
                          nsIXPConnect::OMIT_COMPONENTS_OBJECT;
 
-  nsCAutoString origin("DOM worker: ");
-  origin.AppendInt((PRUint64)this);
-
   nsCOMPtr<nsIXPConnectJSObjectHolder> globalWrapper;
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(aCx, scopeSupports,
                                          NS_GET_IID(nsISupports), nsnull,
-                                         origin, flags,
-                                         getter_AddRefs(globalWrapper));
+                                         NS_ISUPPORTS_CAST(nsIWorker*, this),
+                                         flags, getter_AddRefs(globalWrapper));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   JSObject* global;

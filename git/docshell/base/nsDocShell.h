@@ -186,7 +186,8 @@ class nsDocShell : public nsDocLoader,
                    public nsILoadContext,
                    public nsIWebShellServices,
                    public nsILinkHandler,
-                   public nsIClipboardCommands
+                   public nsIClipboardCommands,
+                   public nsIDocShell_MOZILLA_2_0_BRANCH
 {
     friend class nsDSURIContentListener;
 
@@ -201,6 +202,7 @@ public:
     NS_DECL_ISUPPORTS_INHERITED
 
     NS_DECL_NSIDOCSHELL
+    NS_DECL_NSIDOCSHELL_MOZILLA_2_0_BRANCH
     NS_DECL_NSIDOCSHELLTREEITEM
     NS_DECL_NSIDOCSHELLTREENODE
     NS_DECL_NSIDOCSHELLHISTORY
@@ -788,6 +790,7 @@ protected:
     PRPackedBool               mAllowKeywordFixup;
     PRPackedBool               mIsOffScreenBrowser;
     PRPackedBool               mIsActive;
+    PRPackedBool               mIsAppTab;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation

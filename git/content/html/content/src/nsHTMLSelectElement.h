@@ -244,7 +244,7 @@ public:
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      PRUint32 aFromParser = 0);
+                      mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
   virtual ~nsHTMLSelectElement();
 
   // nsISupports
@@ -277,9 +277,9 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(PRInt32 aStates);
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
 
-  PRInt32 IntrinsicState() const;
+  nsEventStates IntrinsicState() const;
 
   // nsISelectElement
   NS_DECL_NSISELECTELEMENT
@@ -466,11 +466,13 @@ protected:
    * Is this a combobox?
    */
   PRBool IsCombobox() {
-    PRBool isMultiple = PR_TRUE;
+    if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
+      return PR_FALSE;
+    }
+
     PRInt32 size = 1;
     GetSize(&size);
-    GetMultiple(&isMultiple);
-    return !isMultiple && size <= 1;
+    return size <= 1;
   }
 
   /**

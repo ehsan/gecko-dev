@@ -57,6 +57,7 @@ nsIContentUtils.h \
 nsIDocument.h \
 nsIDocumentObserver.h \
 nsIMutationObserver.h \
+nsIMutationObserver2.h \
 nsINameSpaceManager.h \
 nsINode.h \
 nsINodeInfo.h \
@@ -83,8 +84,9 @@ $(NULL)
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-Element.h \
-$(NULL)
+		Element.h \
+		FromParser.h \
+		$(NULL)
 
 ifndef DISABLE_XFORMS_HOOKS
 EXPORTS += nsIXFormsUtilityService.h

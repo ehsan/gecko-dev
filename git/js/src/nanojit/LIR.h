@@ -491,18 +491,8 @@ namespace nanojit
         NanoAssert(op == LIR_xt || op == LIR_xf);
         return LOpcode(op ^ 1);
     }
-    inline LOpcode invertCmpIOpcode(LOpcode op) {
-        NanoAssert(isCmpIOpcode(op));
-        return LOpcode(op ^ 1);
-    }
-#ifdef NANOJIT_64BIT
-    inline LOpcode invertCmpQOpcode(LOpcode op) {
-        NanoAssert(isCmpQOpcode(op));
-        return LOpcode(op ^ 1);
-    }
-#endif
-    inline LOpcode invertCmpDOpcode(LOpcode op) {
-        NanoAssert(isCmpDOpcode(op));
+    inline LOpcode invertCmpOpcode(LOpcode op) {
+        NanoAssert(isCmpOpcode(op));
         return LOpcode(op ^ 1);
     }
 
@@ -547,7 +537,7 @@ namespace nanojit
 
     inline RegisterMask rmask(Register r)
     {
-        return RegisterMask(1) << r;
+        return RegisterMask(1) << REGNUM(r);
     }
 
     //-----------------------------------------------------------------------
@@ -656,7 +646,7 @@ namespace nanojit
     private:
         // SharedFields: fields shared by all LIns kinds.
         //
-        // The .inReg, .reg, .inAr and .arIndex fields form a "reservation"
+        // The .inReg, .regnum, .inAr and .arIndex fields form a "reservation"
         // that is used temporarily during assembly to record information
         // relating to register allocation.  See class RegAlloc for more
         // details.  Note: all combinations of .inReg/.inAr are possible, ie.
@@ -668,7 +658,7 @@ namespace nanojit
         //
         struct SharedFields {
             uint32_t inReg:1;           // if 1, 'reg' is active
-            Register reg:7;
+            uint32_t regnum:7;
             uint32_t inAr:1;            // if 1, 'arIndex' is active
             uint32_t isResultLive:1;    // if 1, the instruction's result is live
 
@@ -758,7 +748,12 @@ namespace nanojit
         }
         Register deprecated_getReg() {
             NanoAssert(isExtant());
-            return ( isInReg() ? sharedFields.reg : deprecated_UnknownReg );
+            if (isInReg()) {
+                Register r = { sharedFields.regnum };
+                return r;
+            } else { 
+                return deprecated_UnknownReg;
+            }
         }
         uint32_t deprecated_getArIndex() {
             NanoAssert(isExtant());
@@ -782,11 +777,12 @@ namespace nanojit
         }
         Register getReg() {
             NanoAssert(isInReg());
-            return sharedFields.reg;
+            Register r = { sharedFields.regnum };
+            return r;
         }
         void setReg(Register r) {
             sharedFields.inReg = 1;
-            sharedFields.reg = r;
+            sharedFields.regnum = REGNUM(r);
         }
         void clearReg() {
             sharedFields.inReg = 0;
@@ -1581,6 +1577,9 @@ namespace nanojit
         virtual LIns* insJtbl(LIns* index, uint32_t size) {
             return out->insJtbl(index, size);
         }
+        virtual LIns* insComment(const char* str) {
+            return out->insComment(str);
+        }
 
         // convenience functions
 
@@ -1676,10 +1675,36 @@ namespace nanojit
     private:
         Allocator& alloc;
 
-        template <class Key>
-        class CountMap: public HashMap<Key, int> {
+        // A small string-wrapper class, required because we need '==' to
+        // compare string contents, not string pointers, when strings are used
+        // as keys in CountMap.
+        struct Str {
+            Allocator& alloc;
+            char* s;
+
+            Str(Allocator& alloc_, const char* s_) : alloc(alloc_) {
+                s = new (alloc) char[1+strlen(s_)];
+                strcpy(s, s_);
+            }
+
+            bool operator==(const Str& str) const {
+                return (0 == strcmp(this->s, str.s));
+            }
+        };
+
+        // Similar to 'struct Str' -- we need to hash the string's contents,
+        // not its pointer.
+        template<class K> struct StrHash {
+            static size_t hash(const Str &k) {
+                // (const void*) cast is required by ARM RVCT 2.2
+                return murmurhash((const void*)k.s, strlen(k.s));
+            }
+        };
+
+        template <class Key, class H=DefaultHash<Key> >
+        class CountMap: public HashMap<Key, int, H> {
         public:
-            CountMap(Allocator& alloc) : HashMap<Key, int>(alloc) {}
+            CountMap(Allocator& alloc) : HashMap<Key, int, H>(alloc, 128) {}
             int add(Key k) {
                 int c = 1;
                 if (this->containsKey(k)) {
@@ -1692,7 +1717,7 @@ namespace nanojit
 
         CountMap<int> lircounts;
         CountMap<const CallInfo *> funccounts;
-        CountMap<const char *> namecounts;
+        CountMap<Str, StrHash<Str> > namecounts;
 
         void addNameWithSuffix(LIns* i, const char *s, int suffix, bool ignoreOneSuffix);
 
@@ -1801,14 +1826,9 @@ namespace nanojit
         {
             if (!code.isEmpty()) {
                 InsBuf b;
-                int32_t count = 0;
-                for (Seq<LIns*>* p = code.get(); p != NULL; p = p->tail) {
+                for (Seq<LIns*>* p = code.get(); p != NULL; p = p->tail)
                     logc->printf("%s    %s\n", prefix, printer->formatIns(&b, p->head));
-                    count++;
-                }
                 code.clear();
-                if (count > 1)
-                    logc->printf("\n");
             }
         }
 
@@ -1817,7 +1837,7 @@ namespace nanojit
         }
 
         LIns* insGuardXov(LOpcode op, LIns* a, LIns* b, GuardRecord *gr) {
-            return add_flush(out->insGuardXov(op,a,b,gr));
+            return add(out->insGuardXov(op,a,b,gr));
         }
 
         LIns* insBranch(LOpcode v, LIns* condition, LIns* to) {
@@ -1825,7 +1845,7 @@ namespace nanojit
         }
 
         LIns* insBranchJov(LOpcode v, LIns* a, LIns* b, LIns* to) {
-            return add_flush(out->insBranchJov(v, a, b, to));
+            return add(out->insBranchJov(v, a, b, to));
         }
 
         LIns* insJtbl(LIns* index, uint32_t size) {
@@ -1858,7 +1878,7 @@ namespace nanojit
             return add(out->insLoad(v, base, disp, accSet, loadQual));
         }
         LIns* insStore(LOpcode op, LIns* v, LIns* b, int32_t d, AccSet accSet) {
-            return add(out->insStore(op, v, b, d, accSet));
+            return add_flush(out->insStore(op, v, b, d, accSet));
         }
         LIns* insAlloc(int32_t size) {
             return add(out->insAlloc(size));
@@ -1873,6 +1893,10 @@ namespace nanojit
 #endif
         LIns* insImmD(double d) {
             return add(out->insImmD(d));
+        }
+
+        LIns* insComment(const char* str) {
+            return add_flush(out->insComment(str));
         }
     };
 
@@ -1963,6 +1987,12 @@ namespace nanojit
         AccSet      storesSinceLastLoad;    // regions stored to since the last load
 
         Allocator& alloc;
+
+        // After a conditional guard such as "xf cmp", we know that 'cmp' must
+        // be true, else we would have side-exited.  So if we see 'cmp' again
+        // we can treat it like a constant.  This table records such
+        // comparisons.
+        HashMap <LIns*, bool> knownCmpValues;
 
         // If true, we will not add new instructions to the CSE tables, but we
         // will continue to CSE instructions that match existing table
@@ -2126,6 +2156,7 @@ namespace nanojit
             LIns*   insBranchJov(LOpcode v, LIns* a, LIns* b, LIns* to);
             LIns*   insAlloc(int32_t size);
             LIns*   insJtbl(LIns* index, uint32_t size);
+            LIns*   insComment(const char* str);
     };
 
     class LirFilter
@@ -2284,6 +2315,7 @@ namespace nanojit
         LIns *split(const CallInfo *call, LIns* args[]);
         LIns *callD1(const CallInfo *call, LIns *a);
         LIns *callD2(const CallInfo *call, LIns *a, LIns *b);
+        LIns *callI1(const CallInfo *call, LIns *a);
         LIns *cmpD(const CallInfo *call, LIns *a, LIns *b);
         LIns *ins1(LOpcode op, LIns *a);
         LIns *ins2(LOpcode op, LIns *a, LIns *b);

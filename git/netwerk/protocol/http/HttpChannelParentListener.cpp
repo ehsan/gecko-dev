@@ -143,6 +143,12 @@ HttpChannelParentListener::GetInterface(const nsIID& aIID, void **result)
     return mActiveChannel->mTabParent->QueryInterface(aIID, result);
   }
 
+  if (aIID.Equals(NS_GET_IID(nsISecureBrowserUI))) {
+    if (!mActiveChannel || !mActiveChannel->mTabParent)
+      return NS_NOINTERFACE;
+    return mActiveChannel->mTabParent->QueryInterface(aIID, result);
+  }
+
   if (aIID.Equals(NS_GET_IID(nsIProgressEventSink))) {
     if (!mActiveChannel)
       return NS_NOINTERFACE;
@@ -233,7 +239,7 @@ HttpChannelParentListener::AsyncOnChannelRedirect(
                                                responseHead ? *responseHead 
                                                             : nsHttpResponseHead());
 
-  // mActiveChannel gets the response in RecvRedirect2Result and forwards it
+  // mActiveChannel gets the response in RecvRedirect2Verify and forwards it
   // to this wrapper through OnContentRedirectResultReceived
 
   return NS_OK;
@@ -287,7 +293,7 @@ HttpChannelParentListener::OnRedirectResult(PRBool succeeded)
   }
 
   if (!channelToDelete->mIPCClosed)
-    unused << HttpChannelParent::Send__delete__(channelToDelete);
+    unused << channelToDelete->SendDeleteSelf();
   mRedirectChannel = nsnull;
 
   return NS_OK;

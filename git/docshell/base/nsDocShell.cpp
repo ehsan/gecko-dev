@@ -159,7 +159,7 @@
 #include "nsIController.h"
 #include "nsPICommandUpdater.h"
 #include "nsIDOMHTMLAnchorElement.h"
-#include "nsIWebBrowserChrome2.h"
+#include "nsIWebBrowserChrome3.h"
 #include "nsITabChild.h"
 #include "nsIStrictTransportSecurityService.h"
 
@@ -711,6 +711,7 @@ nsDocShell::nsDocShell():
     mAllowKeywordFixup(PR_FALSE),
     mIsOffScreenBrowser(PR_FALSE),
     mIsActive(PR_TRUE),
+    mIsAppTab(PR_FALSE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
@@ -856,6 +857,7 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIWebShellServices)
     NS_INTERFACE_MAP_ENTRY(nsILinkHandler)
     NS_INTERFACE_MAP_ENTRY(nsIClipboardCommands)
+    NS_INTERFACE_MAP_ENTRY(nsIDocShell_MOZILLA_2_0_BRANCH)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
 ///*****************************************************************************
@@ -4802,6 +4804,20 @@ nsDocShell::GetIsActive(PRBool *aIsActive)
 }
 
 NS_IMETHODIMP
+nsDocShell::SetIsAppTab(PRBool aIsAppTab)
+{
+  mIsAppTab = aIsAppTab;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShell::GetIsAppTab(PRBool *aIsAppTab)
+{
+  *aIsAppTab = mIsAppTab;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDocShell::SetVisibility(PRBool aVisibility)
 {
     if (!mContentViewer)
@@ -6471,6 +6487,12 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   SetHistoryEntry(&mOSHE, nsnull);
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal *aPrincipal)
+{
+    return CreateAboutBlankContentViewer(aPrincipal, nsnull);
 }
 
 PRBool
@@ -11304,8 +11326,22 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
     return NS_OK;
   }
 
+  nsresult rv = NS_ERROR_FAILURE;
+  nsAutoString target;
+
+  nsCOMPtr<nsIWebBrowserChrome3> browserChrome3 = do_GetInterface(mTreeOwner);
+  if (browserChrome3) {
+    nsCOMPtr<nsIDOMNode> linkNode = do_QueryInterface(aContent);
+    nsAutoString oldTarget(aTargetSpec);
+    rv = browserChrome3->OnBeforeLinkTraversal(oldTarget, aURI,
+                                               linkNode, mIsAppTab, target);
+  }
+  
+  if (NS_FAILED(rv))
+    target = aTargetSpec;  
+
   nsCOMPtr<nsIRunnable> ev =
-      new OnLinkClickEvent(this, aContent, aURI, aTargetSpec,
+      new OnLinkClickEvent(this, aContent, aURI, target.get(),
                            aPostDataStream, aHeadersDataStream);
   return NS_DispatchToCurrentThread(ev);
 }

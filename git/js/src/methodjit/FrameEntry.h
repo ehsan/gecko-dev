@@ -82,7 +82,7 @@ class FrameEntry
         return v_.s.tag;
     }
 #elif defined JS_PUNBOX64
-    JSValueShiftedTag getKnownShiftedTag() const {
+    JSValueShiftedTag getKnownTag() const {
         return JSValueShiftedTag(v_.asBits & JSVAL_TAG_MASK);
     }
 #endif
@@ -97,13 +97,19 @@ class FrameEntry
         return isTypeKnown() && getKnownType() != type_;
     }
 
+    // Return true if the type of this value is definitely type_, or is unknown
+    // and thus potentially type_ at runtime.
+    bool mightBeType(JSValueType type_) const {
+        return !isNotType(type_);
+    }
+
 #if defined JS_NUNBOX32
-    uint32 getPayload32() const {
+    uint32 getPayload() const {
         //JS_ASSERT(!Valueify(v_.asBits).isDouble() || type.synced());
         return v_.s.payload.u32;
     }
 #elif defined JS_PUNBOX64
-    uint64 getPayload64() const {
+    uint64 getPayload() const {
         return v_.asBits & JSVAL_PAYLOAD_MASK;
     }
 #endif
@@ -195,6 +201,7 @@ class FrameEntry
 
     FrameEntry *copyOf() const {
         JS_ASSERT(isCopy());
+        JS_ASSERT(copy < this);
         return copy;
     }
 

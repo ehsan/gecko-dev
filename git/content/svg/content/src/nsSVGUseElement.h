@@ -46,6 +46,7 @@
 #include "nsSVGString.h"
 #include "nsTArray.h"
 #include "nsReferencedElement.h"
+#include "mozilla/dom/FromParser.h"
 
 class nsIContent;
 class nsINodeInfo;
@@ -57,7 +58,7 @@ class nsINodeInfo;
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult,
                     already_AddRefed<nsINodeInfo> aNodeInfo,
-                    PRUint32 aFromParser);
+                    mozilla::dom::FromParser aFromParser);
 
 typedef nsSVGGraphicElement nsSVGUseElementBase;
 
@@ -104,6 +105,7 @@ public:
   virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeString(PRUint8 aAttrEnum);
+  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;

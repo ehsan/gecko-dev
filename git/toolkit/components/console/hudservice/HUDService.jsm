@@ -120,6 +120,13 @@ const SEARCH_DELAY = 200;
 // "devtools.hud.loglimit" preference.
 const DEFAULT_LOG_LIMIT = 200;
 
+// Constants used for defining the direction of JSTerm input history navigation.
+const HISTORY_BACK = -1;
+const HISTORY_FORWARD = 1;
+
+// The maximum number of bytes a Network ResponseListener can hold.
+const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
+
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
                  CANNOT_GET_HUD: "Cannot getHeads Up Display with provided ID",
@@ -222,7 +229,12 @@ ResponseListener.prototype =
     binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
-    this.receivedData += data;
+
+    if (HUDService.saveRequestAndResponseBodies &&
+        this.receivedData.length < RESPONSE_BODY_LIMIT) {
+      this.receivedData += data;
+    }
+
     binaryOutputStream.writeBytes(data, aCount);
 
     let newInputStream = storageStream.newInputStream(0);
@@ -293,7 +305,9 @@ ResponseListener.prototype =
       }
     });
     this.httpActivity.response.isDone = true;
+    this.httpActivity.response.listener = null;
     this.httpActivity = null;
+    this.receivedData = "";
   },
 
   QueryInterface: XPCOMUtils.generateQI([
@@ -686,28 +700,34 @@ function NetworkPanel(aParent, aHttpActivity)
     close: "true"
   });
 
-  // Create the browser that displays the NetworkPanel XHTML.
-  this.browser = createAndAppendElement(this.panel, "browser", {
+  // Create the iframe that displays the NetworkPanel XHTML.
+  this.iframe = createAndAppendElement(this.panel, "iframe", {
     src: "chrome://browser/content/NetworkPanel.xhtml",
-    disablehistory: "true",
+    type: "content",
     flex: "1"
   });
+
+  let self = this;
 
   // Destroy the panel when it's closed.
   this.panel.addEventListener("popuphidden", function onPopupHide() {
     self.panel.removeEventListener("popuphidden", onPopupHide, false);
     self.panel.parentNode.removeChild(self.panel);
     self.panel = null;
-    self.browser = null;
+    self.iframe = null;
     self.document = null;
     self.httpActivity = null;
+
+    if (self.linkNode) {
+      self.linkNode._panelOpen = false;
+      self.linkNode = null;
+    }
   }, false);
 
   // Set the document object and update the content once the panel is loaded.
-  let self = this;
   this.panel.addEventListener("load", function onLoad() {
     self.panel.removeEventListener("load", onLoad, true)
-    self.document = self.browser.contentWindow.document;
+    self.document = self.iframe.contentWindow.document;
     self.update();
   }, true);
 
@@ -1168,14 +1188,14 @@ NetworkPanel.prototype =
   },
 
   /**
-   * Updates the content of the NetworkPanel's browser.
+   * Updates the content of the NetworkPanel's iframe.
    *
    * @returns void
    */
   update: function NP_update()
   {
     /**
-     * After the browser contentWindow is ready, the document object is set.
+     * After the iframe's contentWindow is ready, the document object is set.
      * If the document object isn't set yet, then the page is loaded and nothing
      * can be updated.
      */
@@ -1499,9 +1519,9 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Activate a HeadsUpDisplay for the current window
+   * Activate a HeadsUpDisplay for the given tab context.
    *
-   * @param nsIDOMWindow aContext
+   * @param Element aContext the tab element.
    * @returns void
    */
   activateHUDForContext: function HS_activateHUDForContext(aContext)
@@ -1513,23 +1533,24 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Deactivate a HeadsUpDisplay for the current window
+   * Deactivate a HeadsUpDisplay for the given tab context.
    *
    * @param nsIDOMWindow aContext
    * @returns void
    */
   deactivateHUDForContext: function HS_deactivateHUDForContext(aContext)
   {
-    var gBrowser = HUDService.currentContext().gBrowser;
-    var window = aContext.linkedBrowser.contentWindow;
-    var browser = gBrowser.getBrowserForDocument(window.top.document);
-    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
-    var hudId = "hud_" + tabId;
-    var displayNode = this.getHeadsUpDisplay(hudId);
+    let window = aContext.linkedBrowser.contentWindow;
+    let nBox = aContext.ownerDocument.defaultView.
+      getNotificationBox(window);
+    let hudId = "hud_" + nBox.id;
+    let displayNode = nBox.querySelector("#" + hudId);
 
+    if (hudId in this.displayRegistry && displayNode) {
     this.unregisterActiveContext(hudId);
-    this.unregisterDisplay(hudId);
+      this.unregisterDisplay(displayNode);
     window.focus();
+    }
   },
 
   /**
@@ -1931,6 +1952,7 @@ HUD_SERVICE.prototype =
     }
     delete displays[id];
     delete this.displayRegistry[id];
+    delete this.uriRegistry[uri];
   },
 
   /**
@@ -2298,6 +2320,7 @@ HUD_SERVICE.prototype =
     let doc = aNode.ownerDocument;
     let parent = doc.getElementById("mainPopupSet");
     let netPanel = new NetworkPanel(parent, aHttpActivity);
+    netPanel.linkNode = aNode;
 
     let panel = netPanel.panel;
     panel.openPopup(aNode, "after_pointer", 0, 0, false, false);
@@ -2396,9 +2419,23 @@ HUD_SERVICE.prototype =
             // Make the network span clickable.
             let linkNode = loggedNode.messageNode;
             linkNode.setAttribute("aria-haspopup", "true");
-            linkNode.onclick = function() {
-              self.openNetworkPanel(linkNode, httpActivity);
-            }
+            linkNode.addEventListener("mousedown", function(aEvent) {
+              this._startX = aEvent.clientX;
+              this._startY = aEvent.clientY;
+            }, false);
+
+            linkNode.addEventListener("click", function(aEvent) {
+              if (aEvent.detail != 1 || aEvent.button != 0 ||
+                  (this._startX != aEvent.clientX &&
+                   this._startY != aEvent.clientY)) {
+                return;
+              }
+
+              if (!this._panelOpen) {
+                self.openNetworkPanel(this, httpActivity);
+                this._panelOpen = true;
+              }
+            }, false);
           }
           else {
             // Iterate over all currently ongoing requests. If aChannel can't
@@ -2931,7 +2968,7 @@ HUD_SERVICE.prototype =
     }
 
     let _browser = gBrowser.
-      getBrowserForDocument(aContentWindow.top.document.wrappedJSObject);
+      getBrowserForDocument(aContentWindow.top.document);
     let nBox = gBrowser.getNotificationBox(_browser);
     let nBoxId = nBox.getAttribute("id");
     let hudId = "hud_" + nBoxId;
@@ -3870,159 +3907,152 @@ function JSPropertyProvider(aScope, aInputValue)
  */
 function JSTermHelper(aJSTerm)
 {
-  return {
-    /**
-     * Returns the result of document.getElementById(aId).
-     *
-     * @param string aId
-     *        A string that is passed to window.document.getElementById.
-     * @returns nsIDOMNode or null
-     */
-    $: function JSTH_$(aId)
-    {
-      try {
-        return aJSTerm._window.document.getElementById(aId);
-      }
-      catch (ex) {
-        aJSTerm.console.error(ex.message);
-      }
-    },
-
-    /**
-     * Returns the result of document.querySelectorAll(aSelector).
-     *
-     * @param string aSelector
-     *        A string that is passed to window.document.querySelectorAll.
-     * @returns array of nsIDOMNode
-     */
-    $$: function JSTH_$$(aSelector)
-    {
-      try {
-        return aJSTerm._window.document.querySelectorAll(aSelector);
-      }
-      catch (ex) {
-        aJSTerm.console.error(ex.message);
-      }
-    },
-
-    /**
-     * Runs a xPath query and returns all matched nodes.
-     *
-     * @param string aXPath
-     *        xPath search query to execute.
-     * @param [optional] nsIDOMNode aContext
-     *        Context to run the xPath query on. Uses window.document if not set.
-     * @returns array of nsIDOMNode
-     */
-    $x: function JSTH_$x(aXPath, aContext)
-    {
-      let nodes = [];
-      let doc = aJSTerm._window.wrappedJSObject.document;
-      let aContext = aContext || doc;
-
-      try {
-        let results = doc.evaluate(aXPath, aContext, null,
-                                    Ci.nsIDOMXPathResult.ANY_TYPE, null);
-
-        let node;
-        while (node = results.iterateNext()) {
-          nodes.push(node);
-        }
-      }
-      catch (ex) {
-        aJSTerm.console.error(ex.message);
-      }
-
-      return nodes;
-    },
-
-    /**
-     * Clears the output of the JSTerm.
-     */
-    clear: function JSTH_clear()
-    {
-      aJSTerm.clearOutput();
-    },
-
-    /**
-     * Returns the result of Object.keys(aObject).
-     *
-     * @param object aObject
-     *        Object to return the property names from.
-     * @returns array of string
-     */
-    keys: function JSTH_keys(aObject)
-    {
-      try {
-        return Object.keys(XPCNativeWrapper.unwrap(aObject));
-      }
-      catch (ex) {
-        aJSTerm.console.error(ex.message);
-      }
-    },
-
-    /**
-     * Returns the values of all properties on aObject.
-     *
-     * @param object aObject
-     *        Object to display the values from.
-     * @returns array of string
-     */
-    values: function JSTH_values(aObject)
-    {
-      let arrValues = [];
-      let obj = XPCNativeWrapper.unwrap(aObject);
-
-      try {
-        for (let prop in obj) {
-          arrValues.push(obj[prop]);
-        }
-      }
-      catch (ex) {
-        aJSTerm.console.error(ex.message);
-      }
-      return arrValues;
-    },
-
-    /**
-     * Inspects the passed aObject. This is done by opening the PropertyPanel.
-     *
-     * @param object aObject
-     *        Object to inspect.
-     * @returns void
-     */
-    inspect: function JSTH_inspect(aObject)
-    {
-      let obj = XPCNativeWrapper.unwrap(aObject);
-      aJSTerm.openPropertyPanel(null, obj);
-    },
-
-    /**
-     * Prints aObject to the output.
-     *
-     * @param object aObject
-     *        Object to print to the output.
-     * @returns void
-     */
-    pprint: function JSTH_pprint(aObject)
-    {
-      if (aObject === null || aObject === undefined || aObject === true || aObject === false) {
-        aJSTerm.console.error(HUDService.getStr("helperFuncUnsupportedTypeError"));
-        return;
-      }
-      let output = [];
-      if (typeof aObject != "string") {
-        aObject = XPCNativeWrapper.unwrap(aObject);
-      }
-      let pairs = namesAndValuesOf(aObject);
-
-      pairs.forEach(function(pair) {
-        output.push("  " + pair.display);
-      });
-
-      aJSTerm.writeOutput(output.join("\n"));
+  /**
+   * Returns the result of document.getElementById(aId).
+   *
+   * @param string aId
+   *        A string that is passed to window.document.getElementById.
+   * @returns nsIDOMNode or null
+   */
+  aJSTerm.sandbox.$ = function JSTH_$(aId)
+  {
+    try {
+      return aJSTerm._window.document.getElementById(aId);
     }
-  }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+  };
+
+  /**
+   * Returns the result of document.querySelectorAll(aSelector).
+   *
+   * @param string aSelector
+   *        A string that is passed to window.document.querySelectorAll.
+   * @returns array of nsIDOMNode
+   */
+  aJSTerm.sandbox.$$ = function JSTH_$$(aSelector)
+  {
+    try {
+      return aJSTerm._window.document.querySelectorAll(aSelector);
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+  };
+
+  /**
+   * Runs a xPath query and returns all matched nodes.
+   *
+   * @param string aXPath
+   *        xPath search query to execute.
+   * @param [optional] nsIDOMNode aContext
+   *        Context to run the xPath query on. Uses window.document if not set.
+   * @returns array of nsIDOMNode
+   */
+  aJSTerm.sandbox.$x = function JSTH_$x(aXPath, aContext)
+  {
+    let nodes = [];
+    let doc = aJSTerm._window.document;
+    let aContext = aContext || doc;
+
+    try {
+      let results = doc.evaluate(aXPath, aContext, null,
+                                  Ci.nsIDOMXPathResult.ANY_TYPE, null);
+
+      let node;
+      while (node = results.iterateNext()) {
+        nodes.push(node);
+      }
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+
+    return nodes;
+  };
+
+  /**
+   * Clears the output of the JSTerm.
+   */
+  aJSTerm.sandbox.clear = function JSTH_clear()
+  {
+    aJSTerm.clearOutput();
+  };
+
+  /**
+   * Returns the result of Object.keys(aObject).
+   *
+   * @param object aObject
+   *        Object to return the property names from.
+   * @returns array of string
+   */
+  aJSTerm.sandbox.keys = function JSTH_keys(aObject)
+  {
+    try {
+      return Object.keys(aObject);
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+  };
+
+  /**
+   * Returns the values of all properties on aObject.
+   *
+   * @param object aObject
+   *        Object to display the values from.
+   * @returns array of string
+   */
+  aJSTerm.sandbox.values = function JSTH_values(aObject)
+  {
+    let arrValues = [];
+
+    try {
+      for (let prop in aObject) {
+        arrValues.push(aObject[prop]);
+      }
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+    return arrValues;
+  };
+
+  /**
+   * Inspects the passed aObject. This is done by opening the PropertyPanel.
+   *
+   * @param object aObject
+   *        Object to inspect.
+   * @returns void
+   */
+  aJSTerm.sandbox.inspect = function JSTH_inspect(aObject)
+  {
+    aJSTerm.openPropertyPanel(null, aObject);
+  };
+
+  /**
+   * Prints aObject to the output.
+   *
+   * @param object aObject
+   *        Object to print to the output.
+   * @returns void
+   */
+  aJSTerm.sandbox.pprint = function JSTH_pprint(aObject)
+  {
+    if (aObject === null || aObject === undefined || aObject === true || aObject === false) {
+      aJSTerm.console.error(HUDService.getStr("helperFuncUnsupportedTypeError"));
+      return;
+    }
+    let output = [];
+    let pairs = namesAndValuesOf(aObject);
+
+    pairs.forEach(function(pair) {
+      output.push("  " + pair.display);
+    });
+
+    aJSTerm.writeOutput(output.join("\n"));
+  };
 }
 
 /**
@@ -4109,11 +4139,10 @@ JSTerm.prototype = {
   createSandbox: function JST_setupSandbox()
   {
     // create a JS Sandbox out of this.context
-    this.sandbox = new Cu.Sandbox(this._window);
-    this.sandbox.window = this._window;
+    this.sandbox = new Cu.Sandbox(this._window,
+      { sandboxPrototype: this._window, wantXrays: false });
     this.sandbox.console = this.console;
-    this.sandbox.__helperFunctions__ = JSTermHelper(this);
-    this.sandbox.__proto__ = this._window.wrappedJSObject;
+    JSTermHelper(this);
   },
 
   get _window()
@@ -4131,8 +4160,7 @@ JSTerm.prototype = {
    */
   evalInSandbox: function JST_evalInSandbox(aString)
   {
-    let execStr = "with(__helperFunctions__) { with(window) {" + aString + "} }";
-    return Cu.evalInSandbox(execStr,  this.sandbox, "default", "HUD Console", 1);
+    return Cu.evalInSandbox(aString, this.sandbox, "1.8", "HUD Console", 1);
   },
 
 
@@ -4223,8 +4251,10 @@ JSTerm.prototype = {
     buttons.push({
       label: HUDService.getStr("close.button"),
       accesskey: HUDService.getStr("close.accesskey"),
+      class: "jsPropertyPanelCloseButton",
       oncommand: function () {
         propPanel.destroy();
+        aAnchor._panelOpen = false;
       }
     });
 
@@ -4261,9 +4291,24 @@ JSTerm.prototype = {
     node.setAttribute("class", "jsterm-output-line hud-clickable");
     node.setAttribute("aria-haspopup", "true");
     node.setAttribute("crop", "end");
-    node.onclick = function() {
-      self.openPropertyPanel(aEvalString, aOutputObject, node);
-    }
+
+    node.addEventListener("mousedown", function(aEvent) {
+      this._startX = aEvent.clientX;
+      this._startY = aEvent.clientY;
+    }, false);
+
+    node.addEventListener("click", function(aEvent) {
+      if (aEvent.detail != 1 || aEvent.button != 0 ||
+          (this._startX != aEvent.clientX &&
+           this._startY != aEvent.clientY)) {
+        return;
+      }
+
+      if (!this._panelOpen) {
+        self.openPropertyPanel(aEvalString, aOutputObject, this);
+        this._panelOpen = true;
+      }
+    }, false);
 
     // TODO: format the aOutputObject and don't just use the
     // aOuputObject.toString() function: [object object] -> Object {prop, ...}
@@ -4417,20 +4462,19 @@ JSTerm.prototype = {
             break;
           case 38:
             // up arrow: history previous
-            if (self.caretInFirstLine()){
-              self.historyPeruse(true);
-              if (aEvent.cancelable) {
-                let inputEnd = self.inputNode.value.length;
-                self.inputNode.setSelectionRange(inputEnd, inputEnd);
+            if (self.caretAtStartOfInput()) {
+              let updated = self.historyPeruse(HISTORY_BACK);
+              if (updated && aEvent.cancelable) {
+                self.inputNode.setSelectionRange(0, 0);
                 aEvent.preventDefault();
               }
             }
             break;
           case 40:
             // down arrow: history next
-            if (self.caretInLastLine()){
-              self.historyPeruse(false);
-              if (aEvent.cancelable) {
+            if (self.caretAtEndOfInput()) {
+              let updated = self.historyPeruse(HISTORY_FORWARD);
+              if (updated && aEvent.cancelable) {
                 let inputEnd = self.inputNode.value.length;
                 self.inputNode.setSelectionRange(inputEnd, inputEnd);
                 aEvent.preventDefault();
@@ -4442,20 +4486,19 @@ JSTerm.prototype = {
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
+            var completionResult;
             if (aEvent.shiftKey) {
-              self.complete(self.COMPLETE_BACKWARD);
+              completionResult = self.complete(self.COMPLETE_BACKWARD);
             }
             else {
-              self.complete(self.COMPLETE_FORWARD);
+              completionResult = self.complete(self.COMPLETE_FORWARD);
             }
-            var bool = aEvent.cancelable;
-            if (bool) {
+            if (completionResult) {
+              if (aEvent.cancelable) {
               aEvent.preventDefault();
             }
-            else {
-              // noop
-            }
             aEvent.target.focus();
+            }
             break;
           case 8:
             // backspace key
@@ -4483,15 +4526,25 @@ JSTerm.prototype = {
     return handleKeyDown;
   },
 
-  historyPeruse: function JST_historyPeruse(aFlag) {
+  /**
+   * Go up/down the history stack of input values.
+   *
+   * @param number aDirection
+   *        History navigation direction: HISTORY_BACK or HISTORY_FORWARD.
+   *
+   * @returns boolean
+   *          True if the input value changed, false otherwise.
+   */
+  historyPeruse: function JST_historyPeruse(aDirection)
+  {
     if (!this.history.length) {
-      return;
+      return false;
     }
 
     // Up Arrow key
-    if (aFlag) {
+    if (aDirection == HISTORY_BACK) {
       if (this.historyPlaceHolder <= 0) {
-        return;
+        return false;
       }
 
       let inputVal = this.history[--this.historyPlaceHolder];
@@ -4500,14 +4553,13 @@ JSTerm.prototype = {
       }
     }
     // Down Arrow key
-    else {
+    else if (aDirection == HISTORY_FORWARD) {
       if (this.historyPlaceHolder == this.history.length - 1) {
         this.historyPlaceHolder ++;
         this.setInputValue("");
-        return;
       }
       else if (this.historyPlaceHolder >= (this.history.length)) {
-        return;
+        return false;
       }
       else {
         let inputVal = this.history[++this.historyPlaceHolder];
@@ -4516,6 +4568,11 @@ JSTerm.prototype = {
         }
       }
     }
+    else {
+      throw new Error("Invalid argument 0");
+    }
+
+    return true;
   },
 
   refocus: function JSTF_refocus()
@@ -4524,17 +4581,28 @@ JSTerm.prototype = {
     this.inputNode.focus();
   },
 
-  caretInFirstLine: function JSTF_caretInFirstLine()
+  /**
+   * Check if the caret is at the start of the input.
+   *
+   * @returns boolean
+   *          True if the caret is at the start of the input.
+   */
+  caretAtStartOfInput: function JST_caretAtStartOfInput()
   {
-    var firstLineBreak = this.codeInputString.indexOf("\n");
-    return ((firstLineBreak == -1) ||
-            (this.inputNode.selectionStart <= firstLineBreak));
+    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
+        this.inputNode.selectionStart == 0;
   },
 
-  caretInLastLine: function JSTF_caretInLastLine()
+  /**
+   * Check if the caret is at the end of the input.
+   *
+   * @returns boolean
+   *          True if the caret is at the end of the input, or false otherwise.
+   */
+  caretAtEndOfInput: function JST_caretAtEndOfInput()
   {
-    var lastLineBreak = this.codeInputString.lastIndexOf("\n");
-    return (this.inputNode.selectionEnd > lastLineBreak);
+    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
+        this.inputNode.selectionStart == this.inputNode.value.length;
   },
 
   history: [],
@@ -4566,7 +4634,8 @@ JSTerm.prototype = {
    *          the inputNode.value is set to this value and the selection is set
    *          from the current cursor position to the end of the completed text.
    *
-   * @returns void
+   * @returns boolean true if there existed a completion for the current input,
+   *          or false otherwise.
    */
   complete: function JSTF_complete(type)
   {
@@ -4574,7 +4643,7 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
-      return;
+      return false;
     }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
@@ -4588,7 +4657,7 @@ JSTerm.prototype = {
     // Only complete if the selection is at the end of the input.
     if (selEnd != inputValue.length) {
       this.lastCompletion = null;
-      return;
+      return false;
     }
 
     // Remove the selected text from the inputValue.
@@ -4616,7 +4685,7 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
-        return;
+        return false;
       }
       matches = completion.matches;
       matchIndexToUse = 0;
@@ -4656,7 +4725,11 @@ JSTerm.prototype = {
       else {
         inputNode.setSelectionRange(selEnd, selEnd);
       }
+
+      return completionStr ? true : false;
     }
+
+    return false;
   }
 };
 
@@ -4802,8 +4875,12 @@ LogMessage.prototype = {
 
     this.messageNode.appendChild(messageTxtNode);
 
-    var klass = "hud-msg-node hud-" + this.level;
-    this.messageNode.setAttribute("class", klass);
+    this.messageNode.classList.add("hud-msg-node");
+    this.messageNode.classList.add("hud-" + this.level);
+
+    if (this.activityObject.category == "CSS Parser") {
+      this.messageNode.classList.add("hud-cssparser");
+    }
 
     var self = this;
 
@@ -5379,15 +5456,81 @@ HUDConsoleObserver = {
 
     if (aSubject instanceof Ci.nsIScriptError) {
       switch (aSubject.category) {
+        // We ignore chrome-originating errors as we only
+        // care about content.
         case "XPConnect JavaScript":
+          // nsXPCWrappedJSClass::CheckForException()
+          // nsXPCComponents_Utils::ReportError()
         case "component javascript":
         case "chrome javascript":
-          // we ignore these CHROME-originating errors as we only
-          // care about content
+          // ScriptErrorEvent in nsJSEnvironment.cpp
+        case "chrome registration":
+          // nsChromeRegistry::LogMessageWithContext()
+        case "XBL":
+          // nsXBLService
+        case "XBL Prototype Handler":
+          // nsXBLPrototypeHandler::ReportKeyConflict()
+        case "XBL Content Sink":
+          // nsXBLContentSink
+        case "xbl javascript":
+          // XBL_ProtoErrorReporter in nsXBLDocumentInfo.cpp
+        case "FrameConstructor":
+          // nsCSSFrameConstructor::ProcessChildren()
           return;
+
+        // Display the messages from the following categories.
         case "HUDConsole":
         case "CSS Parser":
+          // nsCSSScanner::OutputError()
+        case "CSS Loader":
+          // SheetLoadData::OnStreamComplete()
         case "content javascript":
+          // ScriptErrorEvent in nsJSEnvironment.cpp
+        case "DOM Events":
+          // nsHtml5StreamParser::ContinueAfterScripts()
+          // ReportUseOfDeprecatedMethod() in nsGlobalWindow.cpp,
+          // nsHTMLDocument.cpp, nsDOMEvent.cpp
+          // nsDOMEvent::ReportWrongPropertyAccessWarning()
+          // nsHTMLDocument::WriteCommon()
+        case "DOM:HTML":
+          // PrintWarningOnConsole() in nsDOMClassInfo.cpp
+        case "DOM Window":
+          // nsGlobalWindow::Close()
+          // TODO: This message is never displayed because its origin cannot be
+          // determined, no sourceName is given. See bug 603711.
+        case "SVG":
+          // nsSVGUtils::ReportToConsole()
+          // nsSVGElement::ReportAttributeParseFailure()
+        case "ImageMap":
+          // logMessage() in nsImageMap.cpp
+        case "HTML":
+          // SendJSWarning() in nsFormSubmission.cpp
+        case "Canvas":
+          // nsCanvasRenderingContext2D::SetStyleFromStringOrInterface()
+          // TODO: This message is never displayed because its origin cannot be
+          // determined, no sourceName is given. See bug 603714.
+        case "DOM3 Load":
+          // ReportUseOfDeprecatedMethod() in nsXMLDocument.cpp
+          // TODO: This message is generally not displayed because its origin
+          // (sourceName) points to the previous URI of the document object -
+          // not the URI of the page in which the script tries to load the new
+          // URI. See bug 603720.
+        case "DOM":
+          // nsDocument::ReportEmptyGetElementByIdArg()
+          //   TODO: This message is never displayed because its origin cannot
+          //   be determined, no sourceName is given. See bug 603723.
+          // nsXMLDocument::Load() - for chrome code.
+        case "malformed-xml":
+          // nsExpatDriver::HandleError()
+          // TODO: This message is only displayed when its origin (sourceName)
+          // is the same as the tab location for which a Web Console is open.
+          // See bug 603727.
+        case "DOM Worker javascript":
+          // nsReportErrorRunnable and DOMWorkerErrorReporter in
+          // nsDOMThreadService.cpp
+          // TODO: This message is never displayed because its origin
+          // (sourceName) points us only to the script that thrown the exception
+          // - no way to associate it to a specific tab. See bug 603730.
           HUDService.reportConsoleServiceContentScriptError(aSubject);
           return;
         default:

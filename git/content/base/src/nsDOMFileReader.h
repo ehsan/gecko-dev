@@ -118,7 +118,7 @@ protected:
   };
 
   nsresult ReadFileContent(nsIDOMBlob *aFile, const nsAString &aCharset, eDataFormat aDataFormat); 
-  nsresult GetAsText(const nsAString &aCharset,
+  nsresult GetAsText(const nsACString &aCharset,
                      const char *aFileData, PRUint32 aDataLen, nsAString &aResult);
   nsresult GetAsDataURL(nsIDOMBlob *aFile, const char *aFileData, PRUint32 aDataLen, nsAString &aResult); 
   nsresult GuessCharset(const char *aFileData, PRUint32 aDataLen, nsACString &aCharset); 
@@ -134,7 +134,7 @@ protected:
 
   char *mFileData;
   nsCOMPtr<nsIDOMBlob> mFile;
-  nsString mCharset;
+  nsCString mCharset;
   PRUint32 mDataLen;
 
   eDataFormat mDataFormat;

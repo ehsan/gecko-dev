@@ -732,13 +732,11 @@ nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
       JSAutoRequest ar(cx);
 
       nsIPrincipal *principal = GetPrincipal();
-      nsCString origin;
       JSObject *newGlob;
       JSCompartment *compartment;
 
-      principal->GetOrigin(getter_Copies(origin));
-      rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, origin, principal,
-                                  &newGlob, &compartment);
+      rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
+                                  false, &newGlob, &compartment);
       NS_ENSURE_SUCCESS(rv, nsnull);
 
       ::JS_SetGlobalObject(cx, newGlob);

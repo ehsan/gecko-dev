@@ -59,6 +59,7 @@
 #include "jsdbgapi.h"
 #include "jsgc.h"
 #include "jscompartment.h"
+#include "xpcpublic.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -115,6 +116,9 @@
 #include "nsHashKeys.h"
 #include "nsWrapperCache.h"
 #include "nsStringBuffer.h"
+
+#include "nsIScriptSecurityManager.h"
+#include "nsNetUtil.h"
 
 #include "nsIXPCScriptNotify.h"  // used to notify: ScriptEvaluated
 
@@ -241,7 +245,75 @@ extern const char XPC_SCRIPT_ERROR_CONTRACTID[];
 extern const char XPC_ID_CONTRACTID[];
 extern const char XPC_XPCONNECT_CONTRACTID[];
 
-typedef nsDataHashtableMT<nsCStringHashKey, JSCompartment *> XPCCompartmentMap;
+namespace xpc {
+
+class PtrAndPrincipalHashKey : public PLDHashEntryHdr
+{
+  public:
+    typedef PtrAndPrincipalHashKey *KeyType;
+    typedef const PtrAndPrincipalHashKey *KeyTypePointer;
+
+    PtrAndPrincipalHashKey(const PtrAndPrincipalHashKey *aKey)
+      : mPtr(aKey->mPtr), mURI(aKey->mURI), mSavedHash(aKey->mSavedHash)
+    {
+        MOZ_COUNT_CTOR(PtrAndPrincipalHashKey);
+    }
+
+    PtrAndPrincipalHashKey(nsISupports *aPtr, nsIURI *aURI)
+      : mPtr(aPtr), mURI(aURI)
+    {
+        MOZ_COUNT_CTOR(PtrAndPrincipalHashKey);
+        mSavedHash = mURI
+                     ? NS_SecurityHashURI(mURI)
+                     : (NS_PTR_TO_UINT32(mPtr.get()) >> 2);
+    }
+
+    ~PtrAndPrincipalHashKey()
+    {
+        MOZ_COUNT_DTOR(PtrAndPrincipalHashKey);
+    }
+
+    PtrAndPrincipalHashKey* GetKey() const
+    {
+        return const_cast<PtrAndPrincipalHashKey*>(this);
+    }
+    const PtrAndPrincipalHashKey* GetKeyPointer() const { return this; }
+
+    inline PRBool KeyEquals(const PtrAndPrincipalHashKey* aKey) const;
+
+    static const PtrAndPrincipalHashKey*
+    KeyToPointer(PtrAndPrincipalHashKey* aKey) { return aKey; }
+    static PLDHashNumber HashKey(const PtrAndPrincipalHashKey* aKey)
+    {
+        return aKey->mSavedHash;
+    }
+
+    enum { ALLOW_MEMMOVE = PR_TRUE };
+
+  protected:
+    nsCOMPtr<nsISupports> mPtr;
+    nsCOMPtr<nsIURI> mURI;
+
+    // During shutdown, when we GC, we need to remove these keys from the hash
+    // table. However, computing the saved hash, NS_SecurityHashURI calls back
+    // into XPCOM (which is illegal during shutdown). In order to avoid this,
+    // we compute the hash up front, so when we're in GC during shutdown, we
+    // don't have to call into XPCOM.
+    PLDHashNumber mSavedHash;
+};
+
+}
+
+// NB: nsDataHashtableMT is usually not very useful as all it does is lock
+// around each individual operation performed on it. That would imply, that
+// the pattern: if(!map.Get(key)) map.Put(key, value); is not safe as another
+// thread could race to insert key into map. However, in our case, only one
+// thread at any time could attempt to insert |key| into |map|, so it works
+// well enough for our uses.
+typedef nsDataHashtableMT<nsISupportsHashKey, JSCompartment *> XPCMTCompartmentMap;
+
+// This map is only used on the main thread.
+typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompartmentMap;
 
 /***************************************************************************/
 // useful macros...
@@ -512,6 +584,11 @@ public:
 
     void RecordTraversal(void *p, nsISupports *s);
 #endif
+    virtual char* DebugPrintJSStack(PRBool showArgs,
+                                    PRBool showLocals,
+                                    PRBool showThisProps);
+
+
     static PRBool ReportAllJSExceptions()
     {
       return gReportAllJSExceptions > 0;
@@ -549,6 +626,12 @@ private:
     nsCOMPtr<nsIXPCScriptable> mBackstagePass;
 
     static PRUint32 gReportAllJSExceptions;
+    static JSBool gDebugMode;
+    static JSBool gDesiredDebugMode;
+    static inline void CheckForDebugMode(JSRuntime *rt);
+
+public:
+    static nsIScriptSecurityManager *gScriptSecurityManager;
 };
 
 /***************************************************************************/
@@ -625,6 +708,8 @@ public:
 
     XPCCompartmentMap& GetCompartmentMap()
         {return mCompartmentMap;}
+    XPCMTCompartmentMap& GetMTCompartmentMap()
+        {return mMTCompartmentMap;}
 
     XPCLock* GetMapLock() const {return mMapLock;}
 
@@ -656,6 +741,7 @@ public:
         IDX_PROTO                   ,
         IDX_ITERATOR                ,
         IDX_EXPOSEDPROPS            ,
+        IDX_SCRIPTONLY              ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -747,6 +833,7 @@ private:
     XPCWrappedNativeProtoMap* mDetachedWrappedNativeProtoMap;
     XPCNativeWrapperMap*     mExplicitNativeWrapperMap;
     XPCCompartmentMap        mCompartmentMap;
+    XPCMTCompartmentMap      mMTCompartmentMap;
     XPCLock* mMapLock;
     PRThread* mThreadRunningGC;
     nsTArray<nsXPCWrappedJS*> mWrappedJSToReleaseArray;
@@ -1375,10 +1462,10 @@ DebugCheckWrapperClass(JSObject* obj)
 // Only use these macros if IS_WRAPPER_CLASS(obj->getClass()) is true.
 #define IS_WN_WRAPPER_OBJECT(obj)                                             \
     (DebugCheckWrapperClass(obj) &&                                           \
-     obj->getSlot(JSSLOT_START(obj->getClass())).isUndefined())
+     obj->getSlot(0).isUndefined())
 #define IS_SLIM_WRAPPER_OBJECT(obj)                                           \
     (DebugCheckWrapperClass(obj) &&                                           \
-     !obj->getSlot(JSSLOT_START(obj->getClass())).isUndefined())
+     !obj->getSlot(0).isUndefined())
 
 // Use these macros if IS_WRAPPER_CLASS(obj->getClass()) might be false.
 // Avoid calling them if IS_WRAPPER_CLASS(obj->getClass()) can only be
@@ -1514,14 +1601,6 @@ public:
 
     JSBool
     IsValid() const {return mRuntime != nsnull;}
-
-    /**
-     * Figures out what type of wrapper to create for obj if it were injected
-     * into 'this's scope.
-     */
-    XPCWrapper::WrapperType
-    GetWrapperFor(JSContext *cx, JSObject *obj, XPCWrapper::WrapperType hint,
-                  XPCWrappedNative **wn);
 
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
@@ -1925,7 +2004,6 @@ public:
     JSBool WantTrace()                    GET_IT(WANT_TRACE)
     JSBool WantEquality()                 GET_IT(WANT_EQUALITY)
     JSBool WantOuterObject()              GET_IT(WANT_OUTER_OBJECT)
-    JSBool WantInnerObject()              GET_IT(WANT_INNER_OBJECT)
     JSBool UseJSStubForAddProperty()      GET_IT(USE_JSSTUB_FOR_ADDPROPERTY)
     JSBool UseJSStubForDelProperty()      GET_IT(USE_JSSTUB_FOR_DELPROPERTY)
     JSBool UseJSStubForSetProperty()      GET_IT(USE_JSSTUB_FOR_SETPROPERTY)
@@ -2277,6 +2355,10 @@ private:
 };
 
 class xpcObjectHelper;
+JSObject *
+ConstructProxyObject(XPCCallContext &ccx,
+                     xpcObjectHelper &aHelper,
+                     XPCWrappedNativeScope *xpcscope);
 extern JSBool ConstructSlimWrapper(XPCCallContext &ccx,
                                    xpcObjectHelper &aHelper,
                                    XPCWrappedNativeScope* xpcScope,
@@ -2286,7 +2368,7 @@ extern JSBool MorphSlimWrapper(JSContext *cx, JSObject *obj);
 static inline XPCWrappedNativeProto*
 GetSlimWrapperProto(JSObject *obj)
 {
-  const js::Value &v = obj->getSlot(JSSLOT_START(obj->getClass()));
+  const js::Value &v = obj->getSlot(0);
   return static_cast<XPCWrappedNativeProto*>(v.toPrivate());
 }
 
@@ -2463,10 +2545,10 @@ public:
     XPCNativeSet*
     GetSet() const {XPCAutoLock al(GetLock()); return mSet;}
 
-private:
     void
     SetSet(XPCNativeSet* set) {XPCAutoLock al(GetLock()); mSet = set;}
 
+private:
     inline void
     ExpireWrapper()
         {mMaybeScope = (XPCWrappedNativeScope*)
@@ -2991,6 +3073,7 @@ private:
     nsXPCWrappedJS* mRoot;
     nsXPCWrappedJS* mNext;
     nsISupports* mOuter;    // only set in root
+    bool mMainThread;
 };
 
 /***************************************************************************/
@@ -3909,6 +3992,13 @@ extern JSBool
 xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
                 JSBool showThisProps);
 
+// Return a newly-allocated string containing a representation of the
+// current JS stack.  It is the *caller's* responsibility to free this
+// string with JS_smprintf_free().
+extern char*
+xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
+                 JSBool showThisProps);
+
 extern JSBool
 xpc_DumpEvalInJSStackFrame(JSContext* cx, JSUint32 frameno, const char* text);
 
@@ -3917,11 +4007,6 @@ xpc_DumpJSObject(JSObject* obj);
 
 extern JSBool
 xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt);
-
-nsresult
-xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
-                       const nsACString &origin, nsIPrincipal *principal,
-                       JSObject **global, JSCompartment **compartment);
 
 /***************************************************************************/
 
@@ -4377,7 +4462,8 @@ xpc_GetGlobalForObject(JSObject *obj)
 // reachable through prinOrSop, a new null principal will be created
 // and used.
 nsresult
-xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop);
+xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop,
+                        JSObject *proto, bool preferXray);
 
 // Helper for evaluating scripts in a sandbox object created with
 // xpc_CreateSandboxObject(). The caller is responsible of ensuring
@@ -4420,6 +4506,50 @@ xpc_SameScope(XPCWrappedNativeScope *objectscope,
 
 nsISupports *
 XPC_GetIdentityObject(JSContext *cx, JSObject *obj);
+
+namespace xpc {
+
+struct CompartmentPrivate
+{
+  CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays, bool cycleCollectionEnabled)
+    : key(key),
+      ptr(nsnull),
+      wantXrays(wantXrays),
+      cycleCollectionEnabled(cycleCollectionEnabled)
+  {
+  }
+  CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
+    : key(nsnull),
+      ptr(ptr),
+      wantXrays(wantXrays),
+      cycleCollectionEnabled(cycleCollectionEnabled)
+  {
+  }
+
+  // NB: key and ptr are mutually exclusive.
+  nsAutoPtr<PtrAndPrincipalHashKey> key;
+  nsCOMPtr<nsISupports> ptr;
+  bool wantXrays;
+  bool cycleCollectionEnabled;
+};
+
+inline bool
+CompartmentParticipatesInCycleCollection(JSContext *cx, JSCompartment *compartment)
+{
+   CompartmentPrivate *priv =
+       static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(cx, compartment));
+   NS_ASSERTION(priv, "This should never be null!");
+
+   return priv->cycleCollectionEnabled;
+}
+
+inline bool
+ParticipatesInCycleCollection(JSContext *cx, js::gc::Cell *cell)
+{
+   return CompartmentParticipatesInCycleCollection(cx, cell->compartment());
+}
+
+}
 
 #ifdef XPC_IDISPATCH_SUPPORT
 
