@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,14 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is JavaScript Engine testing utilities.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
  * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2005
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s): Philipp Vogt
+ * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,34 +34,40 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-//-----------------------------------------------------------------------------
-var BUGNUMBER = 281487;
-var summary = 'JSOP_ARGDEC assertion when tracing';
-var actual = 'No Crash';
-var expect = 'No Crash';
+/*
+ * This file contains the list of deprecated DOM operations.  It is
+ * designed to be used as input to the C preprocessor *only*.
+ */
 
-printBugNumber(BUGNUMBER);
-printStatus (summary);
-
-printStatus('This test requires a DEBUG build and will cause a false ' +
-            'failure to be reported by jsDriver.pl since the tracing output ' +
-            'will contain the string FAILED.');
-printStatus('This test only fails if it causes a crash.');
-
-if (typeof tracing == 'function')
-{
-  tracing(true);
-}
-
-var x;
-
-var a = function (i,j,k) {
-  x = j--;
-};
-
-a(1,2,3);
-if (typeof tracing == 'function')
-{
-  tracing(false);
-} 
-reportCompare(expect, actual, summary);
+DEPRECATED_OPERATION(GetAttributeNode)
+DEPRECATED_OPERATION(SetAttributeNode)
+DEPRECATED_OPERATION(GetAttributeNodeNS)
+DEPRECATED_OPERATION(SetAttributeNodeNS)
+DEPRECATED_OPERATION(RemoveAttributeNode)
+DEPRECATED_OPERATION(CreateAttribute)
+DEPRECATED_OPERATION(CreateAttributeNS)
+DEPRECATED_OPERATION(Specified)
+DEPRECATED_OPERATION(OwnerElement)
+DEPRECATED_OPERATION(NodeName)
+DEPRECATED_OPERATION(NodeValue)
+DEPRECATED_OPERATION(NodeType)
+DEPRECATED_OPERATION(ParentNode)
+DEPRECATED_OPERATION(ChildNodes)
+DEPRECATED_OPERATION(HasChildNodes)
+DEPRECATED_OPERATION(HasAttributes)
+DEPRECATED_OPERATION(FirstChild)
+DEPRECATED_OPERATION(LastChild)
+DEPRECATED_OPERATION(PreviousSibling)
+DEPRECATED_OPERATION(NextSibling)
+DEPRECATED_OPERATION(Attributes)
+DEPRECATED_OPERATION(InsertBefore)
+DEPRECATED_OPERATION(ReplaceChild)
+DEPRECATED_OPERATION(RemoveChild)
+DEPRECATED_OPERATION(AppendChild)
+DEPRECATED_OPERATION(CloneNode)
+DEPRECATED_OPERATION(OwnerDocument)
+DEPRECATED_OPERATION(Normalize)
+DEPRECATED_OPERATION(IsSupported)
+DEPRECATED_OPERATION(IsEqualNode)
+DEPRECATED_OPERATION(TextContent)
+DEPRECATED_OPERATION(EnablePrivilege)
