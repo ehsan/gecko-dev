@@ -355,11 +355,11 @@ public:
          const Optional<uint32_t>& aLimit, ErrorResult& aRv);
 
   already_AddRefed<IDBRequest>
-  GetAllKeys(JSContext* aCx, const Optional<JS::Handle<JS::Value>>& aKey,
+  GetAllKeys(JSContext* aCx, const Optional<JS::HandleValue>& aKey,
              const Optional<uint32_t>& aLimit, ErrorResult& aRv);
 
   already_AddRefed<IDBRequest>
-  OpenKeyCursor(JSContext* aCx, const Optional<JS::Handle<JS::Value>>& aRange,
+  OpenKeyCursor(JSContext* aCx, const Optional<JS::HandleValue>& aRange,
                 IDBCursorDirection aDirection, ErrorResult& aRv);
 
 protected:

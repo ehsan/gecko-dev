@@ -3001,21 +3001,6 @@ bool CodeGenerator::visitAtan2D(LAtan2D *lir)
     return true;
 }
 
-bool CodeGenerator::visitHypot(LHypot *lir)
-{
-    Register temp = ToRegister(lir->temp());
-    FloatRegister x = ToFloatRegister(lir->x());
-    FloatRegister y = ToFloatRegister(lir->y());
-
-    masm.setupUnalignedABICall(2, temp);
-    masm.passABIArg(x);
-    masm.passABIArg(y);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, ecmaHypot), MacroAssembler::DOUBLE);
-
-    JS_ASSERT(ToFloatRegister(lir->output()) == ReturnFloatReg);
-    return true;
-}
-
 bool
 CodeGenerator::visitNewParallelArray(LNewParallelArray *lir)
 {
@@ -4580,7 +4565,7 @@ JitCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
     masm.ret();
 
     Linker linker(masm);
-    IonCode *code = linker.newCode<CanGC>(cx, JSC::OTHER_CODE);
+    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
     writePerfSpewerIonCodeProfile(code, "StringConcatStub");
@@ -5800,7 +5785,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
     Linker linker(masm);
     IonCode *code = (executionMode == SequentialExecution)
                     ? linker.newCodeForIonScript(cx)
-                    : linker.newCode<CanGC>(cx, JSC::ION_CODE);
+                    : linker.newCode(cx, JSC::ION_CODE);
     if (!code) {
         // Use js_free instead of IonScript::Destroy: the cache list and
         // backedge list are still uninitialized.

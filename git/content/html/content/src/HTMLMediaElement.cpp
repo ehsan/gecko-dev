@@ -1591,7 +1591,7 @@ HTMLMediaElement::GetMozSampleRate(uint32_t* aMozSampleRate)
 // Helper struct with arguments for our hash iterator.
 typedef struct MOZ_STACK_CLASS {
   JSContext* cx;
-  JS::Handle<JSObject*> tags;
+  JS::HandleObject  tags;
   bool error;
 } MetadataIterCx;
 

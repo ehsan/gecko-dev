@@ -3582,7 +3582,7 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
 
       // We're being created outside of a window. Need to figure out the script
       // that is creating us in order for us to use relative URIs later on.
-      JS::Rooted<JSScript*> script(aCx);
+      JS::RootedScript script(aCx);
       if (JS_DescribeScriptedCaller(aCx, &script, nullptr)) {
         const char* fileName = JS_GetScriptFilename(aCx, script);
 
@@ -4539,7 +4539,7 @@ void
 WorkerPrivate::PostMessageToParentMessagePort(
                              JSContext* aCx,
                              uint64_t aMessagePortSerial,
-                             JS::Handle<JS::Value> aMessage,
+                             JS::HandleValue aMessage,
                              const Optional<Sequence<JS::Value>>& aTransferable,
                              ErrorResult& aRv)
 {
@@ -4923,7 +4923,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   bool retval = true;
 
   AutoPtrComparator<TimeoutInfo> comparator = GetAutoPtrComparator(mTimeouts);
-  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+  JS::RootedObject global(aCx, JS::CurrentGlobalOrNull(aCx));
   JSPrincipals* principal = GetWorkerPrincipal();
 
   // We want to make sure to run *something*, even if the timer fired a little

@@ -279,7 +279,7 @@ WifiProxyService::DispatchWifiResult(const WifiResultOptions& aOptions, const ns
   MOZ_ASSERT(NS_IsMainThread());
 
   mozilla::AutoSafeJSContext cx;
-  JS::Rooted<JS::Value> val(cx);
+  JS::RootedValue val(cx);
 
   if (!aOptions.ToObject(cx, JS::NullPtr(), &val)) {
     return;

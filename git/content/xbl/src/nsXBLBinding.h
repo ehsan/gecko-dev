@@ -79,8 +79,7 @@ public:
    * May only be called when XBL code is being run in a separate scope, because
    * otherwise we don't have untainted data with which to do a proper lookup.
    */
-  bool LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
-                    JS::MutableHandle<JSPropertyDescriptor> aDesc);
+  bool LookupMember(JSContext* aCx, JS::HandleId aId, JS::MutableHandle<JSPropertyDescriptor> aDesc);
 
   /*
    * Determines whether the binding has a field with the given name.
@@ -92,8 +91,7 @@ protected:
   /*
    * Internal version. Requires that aCx is in appropriate xbl scope.
    */
-  bool LookupMemberInternal(JSContext* aCx, nsString& aName,
-                            JS::Handle<jsid> aNameAsId,
+  bool LookupMemberInternal(JSContext* aCx, nsString& aName, JS::HandleId aNameAsId,
                             JS::MutableHandle<JSPropertyDescriptor> aDesc,
                             JS::Handle<JSObject*> aXBLScope);
 

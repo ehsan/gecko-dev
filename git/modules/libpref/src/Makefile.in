@@ -40,7 +40,7 @@ endif
 
 
 greprefs.js: $(grepref_files)
-	$(call py_action,preprocessor,$(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ -o $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ > $@
 
 libs:: greprefs.js
 	$(INSTALL) $^ $(DIST)/bin/

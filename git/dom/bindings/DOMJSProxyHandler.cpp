@@ -236,19 +236,6 @@ BaseDOMProxyHandler::enumerate(JSContext* cx, JS::Handle<JSObject*> proxy,
 }
 
 bool
-BaseDOMProxyHandler::watch(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                           JS::Handle<JSObject*> callable)
-{
-  return js::WatchGuts(cx, proxy, id, callable);
-}
-
-bool
-BaseDOMProxyHandler::unwatch(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
-{
-  return js::UnwatchGuts(cx, proxy, id);
-}
-
-bool
 DOMProxyHandler::has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id, bool* bp)
 {
   if (!hasOwn(cx, proxy, id, bp)) {
@@ -280,7 +267,7 @@ DOMProxyHandler::has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid
 int32_t
 IdToInt32(JSContext* cx, JS::Handle<jsid> id)
 {
-  JS::Rooted<JS::Value> idval(cx);
+  JS::RootedValue idval(cx);
   double array_index;
   int32_t i;
   if (!::JS_IdToValue(cx, id, idval.address()) ||

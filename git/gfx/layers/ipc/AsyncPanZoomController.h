@@ -201,13 +201,6 @@ public:
   ViewTransform GetCurrentAsyncTransform();
 
   /**
-   * Returns the part of the async transform that will remain once Gecko does a
-   * repaint at the desired metrics. That is, in the steady state:
-   * gfx3DMatrix(GetCurrentAsyncTransform()) === GetNontransientAsyncTransform()
-   */
-  gfx3DMatrix GetNontransientAsyncTransform();
-
-  /**
    * Recalculates the displayport. Ideally, this should paint an area bigger
    * than the composite-to dimensions so that when you scroll down, you don't
    * checkerboard immediately. This includes a bunch of logic, including
@@ -230,11 +223,6 @@ public:
    * Does the work for ReceiveInputEvent().
    */
   nsEventStatus HandleInputEvent(const InputData& aEvent);
-
-  /**
-   * Populates the provided object with the scrollable guid of this apzc.
-   */
-  void GetGuid(ScrollableLayerGuid* aGuidOut);
 
   /**
    * Returns true if this APZC instance is for the layer identified by the guid.
@@ -461,6 +449,14 @@ protected:
    * timeout should be cancelled.
    */
   void TimeoutTouchListeners();
+
+  /**
+   * Utility function that sets the zoom and resolution simultaneously. This is
+   * useful when we want to repaint at the current zoom level.
+   *
+   * *** The monitor must be held while calling this.
+   */
+  void SetZoomAndResolution(const mozilla::CSSToScreenScale& aZoom);
 
   /**
    * Timeout function for mozbrowserasyncscroll event. Because we throttle

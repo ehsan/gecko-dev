@@ -973,70 +973,57 @@ CompositorParent* MetroWidget::NewCompositorParent(int aSurfaceWidth, int aSurfa
 }
 
 void
-MetroWidget::ApzContentConsumingTouch(const ScrollableLayerGuid& aGuid)
+MetroWidget::ApzContentConsumingTouch()
 {
   LogFunction();
-  if (!mController) {
+  if (!APZController::sAPZC) {
     return;
   }
-  mController->ContentReceivedTouch(aGuid, true);
+  APZController::sAPZC->ContentReceivedTouch(mRootLayerTreeId, true);
 }
 
 void
-MetroWidget::ApzContentIgnoringTouch(const ScrollableLayerGuid& aGuid)
+MetroWidget::ApzContentIgnoringTouch()
 {
   LogFunction();
-  if (!mController) {
+  if (!APZController::sAPZC) {
     return;
   }
-  mController->ContentReceivedTouch(aGuid, false);
+  APZController::sAPZC->ContentReceivedTouch(mRootLayerTreeId, false);
 }
 
 bool
-MetroWidget::ApzHitTest(ScreenIntPoint& pt)
+MetroWidget::HitTestAPZC(ScreenPoint& pt)
 {
-  if (!mController) {
+  if (!APZController::sAPZC) {
     return false;
   }
-  return mController->HitTestAPZC(pt);
-}
-
-void
-MetroWidget::ApzTransformGeckoCoordinate(const ScreenIntPoint& aPoint,
-                                         LayoutDeviceIntPoint* aRefPointOut)
-{
-  if (!mController) {
-    return;
-  }
-  mController->TransformCoordinateToGecko(aPoint, aRefPointOut);
+  return APZController::sAPZC->HitTestAPZC(pt);
 }
 
 nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid)
+MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
 
-  if (!mController) {
+  if (!APZController::sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  return mController->ReceiveInputEvent(aEvent, aOutTargetGuid);
+  return APZController::sAPZC->ReceiveInputEvent(*aEvent->AsInputEvent());
 }
 
 nsEventStatus
 MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aInEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid,
                                   WidgetInputEvent* aOutEvent)
 {
   MOZ_ASSERT(aInEvent);
   MOZ_ASSERT(aOutEvent);
 
-  if (!mController) {
+  if (!APZController::sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  return mController->ReceiveInputEvent(aInEvent,
-                                        aOutTargetGuid,
-                                        aOutEvent);
+  return APZController::sAPZC->ReceiveInputEvent(*aInEvent->AsInputEvent(),
+                                                 aOutEvent);
 }
 
 LayerManager*

@@ -83,7 +83,7 @@ public:
   }
 
 protected:
-  JS::Rooted<JSObject*> mGlobalJSObject;
+  JS::RootedObject mGlobalJSObject;
   JSContext* mCx;
   mutable nsISupports* mGlobalObject;
   mutable nsCOMPtr<nsISupports> mGlobalObjectRef;

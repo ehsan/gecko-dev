@@ -1124,7 +1124,7 @@ nsXBLBinding::ResolveAllFields(JSContext *cx, JS::Handle<JSObject*> obj) const
 }
 
 bool
-nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
+nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
                            JS::MutableHandle<JSPropertyDescriptor> aDesc)
 {
   // We should never enter this function with a pre-filled property descriptor.
@@ -1153,7 +1153,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
   // Enter the xbl scope and invoke the internal version.
   {
     JSAutoCompartment ac(aCx, xblScope);
-    JS::Rooted<jsid> id(aCx, aId);
+    JS::RootedId id(aCx, aId);
     if (!JS_WrapId(aCx, id.address()) ||
         !LookupMemberInternal(aCx, name, id, aDesc, xblScope))
     {
@@ -1167,7 +1167,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
 
 bool
 nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
-                                   JS::Handle<jsid> aNameAsId,
+                                   JS::HandleId aNameAsId,
                                    JS::MutableHandle<JSPropertyDescriptor> aDesc,
                                    JS::Handle<JSObject*> aXBLScope)
 {
@@ -1183,7 +1183,7 @@ nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
 
   // Find our class object. It's in a protected scope and permanent just in case,
   // so should be there no matter what.
-  JS::Rooted<JS::Value> classObject(aCx);
+  JS::RootedValue classObject(aCx);
   if (!JS_GetProperty(aCx, aXBLScope, mJSClass->name, &classObject)) {
     return false;
   }

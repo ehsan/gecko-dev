@@ -210,7 +210,6 @@ WEBIDL_FILES = [
     'Location.webidl',
     'MediaElementAudioSourceNode.webidl',
     'MediaError.webidl',
-    'MediaList.webidl',
     'MediaRecorder.webidl',
     'MediaSource.webidl',
     'MediaStream.webidl',

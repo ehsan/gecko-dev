@@ -37,13 +37,13 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 using mozilla::Maybe;
 
-IonBuilder::IonBuilder(JSContext *analysisContext, JSCompartment *comp, TempAllocator *temp, MIRGraph *graph,
+IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
                        types::CompilerConstraintList *constraints,
                        BaselineInspector *inspector, CompileInfo *info, BaselineFrame *baselineFrame,
                        size_t inliningDepth, uint32_t loopDepth)
-  : MIRGenerator(comp, temp, graph, info),
+  : MIRGenerator(cx->compartment(), temp, graph, info),
     backgroundCodegen_(nullptr),
-    analysisContext(analysisContext),
+    cx(cx),
     baselineFrame_(baselineFrame),
     abortReason_(AbortReason_Disable),
     reprSetHash_(nullptr),
@@ -69,13 +69,12 @@ IonBuilder::IonBuilder(JSContext *analysisContext, JSCompartment *comp, TempAllo
     pc = info->startPC();
 
     JS_ASSERT(script()->hasBaselineScript());
-    JS_ASSERT(!!analysisContext == (info->executionMode() == DefinitePropertiesAnalysis));
 }
 
 void
 IonBuilder::clearForBackEnd()
 {
-    JS_ASSERT(!analysisContext);
+    cx = nullptr;
     baselineFrame_ = nullptr;
 
     // The GSN cache allocates data from the malloc heap. Release this before
@@ -283,12 +282,12 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     // Allow constructing lazy scripts when performing the definite properties
     // analysis, as baseline has not been used to warm the caller up yet.
     if (target->isInterpreted() && info().executionMode() == DefinitePropertiesAnalysis) {
-        if (!target->getOrCreateScript(analysisContext))
+        if (!target->getOrCreateScript(context()))
             return false;
 
-        RootedScript script(analysisContext, target->nonLazyScript());
+        RootedScript script(context(), target->nonLazyScript());
         if (!script->hasBaselineScript() && script->canBaselineCompile()) {
-            MethodStatus status = BaselineCompile(analysisContext, script);
+            MethodStatus status = BaselineCompile(context(), script);
             if (status != Method_Compiled)
                 return false;
         }
@@ -3818,12 +3817,11 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     AutoAccumulateExits aae(graph(), saveExits);
 
     // Build the graph.
-    JS_ASSERT_IF(analysisContext, !analysisContext->isExceptionPending());
-    IonBuilder inlineBuilder(analysisContext, compartment,
-                             &temp(), &graph(), constraints(), &inspector, info, nullptr,
+    JS_ASSERT(!cx->isExceptionPending());
+    IonBuilder inlineBuilder(cx, &temp(), &graph(), constraints(), &inspector, info, nullptr,
                              inliningDepth_ + 1, loopDepth_);
     if (!inlineBuilder.buildInline(this, outerResumePoint, callInfo)) {
-        if (analysisContext && analysisContext->isExceptionPending()) {
+        if (cx->isExceptionPending()) {
             IonSpew(IonSpew_Abort, "Inline builder raised exception.");
             abortReason_ = AbortReason_Error;
             return false;
@@ -5976,13 +5974,10 @@ IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
             return nullptr;
 
         types::TypeObjectKey *objType = types::TypeObjectKey::get(obj);
-        if (analysisContext)
-            objType->ensureTrackedProperty(analysisContext, NameToId(name));
-
         if (objType->unknownProperties())
             return nullptr;
 
-        types::HeapTypeSetKey property = objType->property(NameToId(name));
+        types::HeapTypeSetKey property = objType->property(NameToId(name), context());
         if (property.isOwnProperty(constraints())) {
             if (obj->hasSingletonType())
                 return property.singleton(constraints());
@@ -6054,12 +6049,10 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
             types::TypeObjectKey *object = types->getObject(i);
             if (!object)
                 continue;
-            if (analysisContext)
-                object->ensureTrackedProperty(analysisContext, NameToId(name));
 
             if (object->unknownProperties())
                 return false;
-            types::HeapTypeSetKey property = object->property(NameToId(name));
+            types::HeapTypeSetKey property = object->property(NameToId(name), context());
             if (property.isOwnProperty(constraints()))
                 return false;
 
@@ -6194,15 +6187,12 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     }
 
     types::TypeObjectKey *staticType = types::TypeObjectKey::get(staticObject);
-    if (analysisContext)
-        staticType->ensureTrackedProperty(analysisContext, NameToId(name));
-
     if (staticType->unknownProperties()) {
         *psucceeded = false;
         return true;
     }
 
-    types::HeapTypeSetKey property = staticType->property(id);
+    types::HeapTypeSetKey property = staticType->property(id, context());
     if (!property.maybeTypes() ||
         !property.maybeTypes()->definiteProperty() ||
         property.configured(constraints(), staticType))
@@ -6214,7 +6204,7 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     }
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    bool barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), staticType,
+    bool barrier = PropertyReadNeedsTypeBarrier(context(), constraints(), staticType,
                                                 name, types, /* updateObserved = */ true);
 
     JSObject *singleton = types->getSingleton();
@@ -6433,16 +6423,13 @@ IonBuilder::jsop_getelem()
 
     bool emitted = false;
 
-    if (!getElemTryTypedObject(&emitted, obj, index) || emitted)
-        return emitted;
-
     if (!getElemTryDense(&emitted, obj, index) || emitted)
         return emitted;
 
     if (!getElemTryTypedStatic(&emitted, obj, index) || emitted)
         return emitted;
 
-    if (!getElemTryTypedArray(&emitted, obj, index) || emitted)
+    if (!getElemTryTyped(&emitted, obj, index) || emitted)
         return emitted;
 
     if (!getElemTryString(&emitted, obj, index) || emitted)
@@ -6471,213 +6458,6 @@ IonBuilder::jsop_getelem()
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
     return pushTypeBarrier(ins, types, true);
-}
-
-bool
-IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *index)
-{
-    JS_ASSERT(*emitted == false);
-
-    TypeRepresentationSet objTypeReprs;
-    if (!lookupTypeRepresentationSet(obj, &objTypeReprs))
-        return false;
-
-    if (!objTypeReprs.allOfArrayKind())
-        return true;
-
-    TypeRepresentationSet elemTypeReprs;
-    if (!objTypeReprs.arrayElementType(*this, &elemTypeReprs))
-        return false;
-
-    size_t elemSize;
-    if (!elemTypeReprs.allHaveSameSize(&elemSize))
-        return true;
-
-    switch (elemTypeReprs.kind()) {
-    case TypeRepresentation::Struct:
-    case TypeRepresentation::Array:
-        return getElemTryComplexElemOfTypedObject(emitted,
-                                                  obj,
-                                                  index,
-                                                  objTypeReprs,
-                                                  elemTypeReprs,
-                                                  elemSize);
-    case TypeRepresentation::Scalar:
-        return getElemTryScalarElemOfTypedObject(emitted,
-                                                 obj,
-                                                 index,
-                                                 objTypeReprs,
-                                                 elemTypeReprs,
-                                                 elemSize);
-    }
-
-    MOZ_ASSUME_UNREACHABLE("Bad kind");
-}
-
-static MIRType
-MIRTypeForTypedArrayRead(ScalarTypeRepresentation::Type arrayType,
-                         bool observedDouble);
-
-bool
-IonBuilder::getElemTryScalarElemOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              MDefinition *index,
-                                              TypeRepresentationSet objTypeReprs,
-                                              TypeRepresentationSet elemTypeReprs,
-                                              size_t elemSize)
-{
-    JS_ASSERT(objTypeReprs.allOfArrayKind());
-
-    // Must always be loading the same scalar type
-    if (elemTypeReprs.length() != 1)
-        return true;
-    ScalarTypeRepresentation *elemTypeRepr = elemTypeReprs.get(0)->asScalar();
-
-    // Get the length.
-    size_t lenOfAll = objTypeReprs.arrayLength();
-    if (lenOfAll >= size_t(INT_MAX)) // int32 max is bound
-        return true;
-    MInstruction *length = MConstant::New(Int32Value(int32_t(lenOfAll)));
-
-    *emitted = true;
-    current->add(length);
-
-    // Ensure index is an integer.
-    MInstruction *idInt32 = MToInt32::New(index);
-    current->add(idInt32);
-    index = idInt32;
-
-    // Typed-object accesses usually in bounds (bail out otherwise).
-    index = addBoundsCheck(index, length);
-
-    // Find location within the owner object.
-    MDefinition *owner;
-    MDefinition *indexFromOwner;
-    if (obj->isNewDerivedTypedObject()) {
-        MNewDerivedTypedObject *ins = obj->toNewDerivedTypedObject();
-        MDefinition *ownerOffset = ins->offset();
-
-        // Typed array offsets are expressed in units of the (array)
-        // element alignment.  The binary data uses byte units for
-        // offsets (such as the owner offset here).
-
-        MConstant *alignment = MConstant::New(Int32Value(elemTypeRepr->alignment()));
-        current->add(alignment);
-
-        MDiv *scaledOffset = MDiv::NewAsmJS(ownerOffset, alignment, MIRType_Int32);
-        current->add(scaledOffset);
-
-        MAdd *scaledOffsetPlusIndex = MAdd::NewAsmJS(scaledOffset, index,
-                                                     MIRType_Int32);
-        current->add(scaledOffsetPlusIndex);
-
-        owner = ins->owner();
-        indexFromOwner = scaledOffsetPlusIndex;
-    } else {
-        owner = obj;
-        indexFromOwner = index;
-    }
-
-    // Load the element data.
-    MTypedObjectElements *elements = MTypedObjectElements::New(owner);
-    current->add(elements);
-
-    // Load the element.
-    MLoadTypedArrayElement *load = MLoadTypedArrayElement::New(elements, indexFromOwner, elemTypeRepr->type());
-    current->add(load);
-    current->push(load);
-
-    // If we are reading in-bounds elements, we can use knowledge about
-    // the array type to determine the result type, even if the opcode has
-    // never executed. The known pushed type is only used to distinguish
-    // uint32 reads that may produce either doubles or integers.
-    types::TemporaryTypeSet *resultTypes = bytecodeTypes(pc);
-    bool allowDouble = resultTypes->hasType(types::Type::DoubleType());
-    MIRType knownType = MIRTypeForTypedArrayRead(elemTypeRepr->type(), allowDouble);
-    // Note: we can ignore the type barrier here, we know the type must
-    // be valid and unbarriered.
-    load->setResultType(knownType);
-    load->setResultTypeSet(resultTypes);
-
-    return true;
-}
-
-bool
-IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
-                                               MDefinition *obj,
-                                               MDefinition *index,
-                                               TypeRepresentationSet objTypeReprs,
-                                               TypeRepresentationSet elemTypeReprs,
-                                               size_t elemSize)
-{
-    JS_ASSERT(objTypeReprs.allOfArrayKind());
-
-    MDefinition *type = loadTypedObjectType(obj);
-    MInstruction *elemType = MLoadFixedSlot::New(type, JS_TYPEOBJ_SLOT_ARRAY_ELEM_TYPE);
-    current->add(elemType);
-
-    // Get the length.
-    size_t lenOfAll = objTypeReprs.arrayLength();
-    if (lenOfAll >= size_t(INT_MAX)) // int32 max is bound
-        return true;
-    MInstruction *length = MConstant::New(Int32Value(int32_t(lenOfAll)));
-
-    *emitted = true;
-    current->add(length);
-
-    // Ensure index is an integer.
-    MInstruction *idInt32 = MToInt32::New(index);
-    current->add(idInt32);
-    index = idInt32;
-
-    // Typed-object accesses usually in bounds (bail out otherwise).
-    index = addBoundsCheck(index, length);
-
-    // Convert array index to element data offset.
-    MConstant *alignment = MConstant::New(Int32Value(elemSize));
-    current->add(alignment);
-
-    // Since we passed the bounds check, it is impossible for the
-    // result of multiplication to overflow; so enable imul path.
-    MMul *indexAsByteOffset = MMul::New(index, alignment, MIRType_Int32,
-                                        MMul::Integer);
-    current->add(indexAsByteOffset);
-
-    // Find location within the owner object.
-    MDefinition *owner;
-    MDefinition *indexAsByteOffsetFromOwner;
-    if (obj->isNewDerivedTypedObject()) {
-        MNewDerivedTypedObject *ins = obj->toNewDerivedTypedObject();
-        MDefinition *ownerOffset = ins->offset();
-
-        MAdd *offsetPlusScaledIndex = MAdd::NewAsmJS(ownerOffset,
-                                                     indexAsByteOffset,
-                                                     MIRType_Int32);
-        current->add(offsetPlusScaledIndex);
-
-        owner = ins->owner();
-        indexAsByteOffsetFromOwner = offsetPlusScaledIndex;
-    } else {
-        owner = obj;
-        indexAsByteOffsetFromOwner = indexAsByteOffset;
-    }
-
-    // Load the element data.
-    MTypedObjectElements *elements = MTypedObjectElements::New(owner);
-    current->add(elements);
-
-    // Create the derived type object.
-    MInstruction *derived = new MNewDerivedTypedObject(elemTypeReprs,
-                                                       elemType,
-                                                       owner,
-                                                       indexAsByteOffsetFromOwner);
-
-    types::TemporaryTypeSet *resultTypes = bytecodeTypes(pc);
-    derived->setResultTypeSet(resultTypes);
-    current->add(derived);
-    current->push(derived);
-
-    return true;
 }
 
 bool
@@ -6768,7 +6548,7 @@ IonBuilder::getElemTryTypedStatic(bool *emitted, MDefinition *obj, MDefinition *
 }
 
 bool
-IonBuilder::getElemTryTypedArray(bool *emitted, MDefinition *obj, MDefinition *index)
+IonBuilder::getElemTryTyped(bool *emitted, MDefinition *obj, MDefinition *index)
 {
     JS_ASSERT(*emitted == false);
 
@@ -6923,7 +6703,7 @@ IonBuilder::getElemTryCache(bool *emitted, MDefinition *obj, MDefinition *index)
     // Emit GetElementCache.
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    bool barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), obj, nullptr, types);
+    bool barrier = PropertyReadNeedsTypeBarrier(context(), constraints(), obj, nullptr, types);
 
     // Always add a barrier if the index might be a string, so that the cache
     // can attach stubs for particular properties.
@@ -6971,7 +6751,7 @@ IonBuilder::jsop_getelem_dense(MDefinition *obj, MDefinition *index)
             return false;
     }
 
-    bool barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), obj, nullptr, types);
+    bool barrier = PropertyReadNeedsTypeBarrier(context(), constraints(), obj, nullptr, types);
     bool needsHoleCheck = !ElementAccessIsPacked(constraints(), obj);
 
     // Reads which are on holes in the object do not have to bail out if
@@ -7821,14 +7601,11 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
             if (!isGetter && clasp->ops.setGeneric)
                 return false;
 
-            // Test for isOwnProperty() without freezing. If we end up
-            // optimizing, freezePropertiesForCommonPropFunc will freeze the
-            // property type sets later on.
+            // Note: freezePropertiesForCommonPropFunc will freeze the property
+            // type sets later on if optimizing.
             types::HeapTypeSetKey property = type->property(NameToId(name));
-            if (types::TypeSet *types = property.maybeTypes()) {
-                if (!types->empty() || types->configuredProperty())
-                    return false;
-            }
+            if (property.maybeTypes() && !property.maybeTypes()->empty())
+                return false;
             if (JSObject *obj = type->singleton()) {
                 if (types::CanHaveEmptyPropertyTypesForOwnProperty(obj))
                     return false;
@@ -8079,7 +7856,7 @@ IonBuilder::jsop_getprop(PropertyName *name)
         return emitted;
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    bool barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
+    bool barrier = PropertyReadNeedsTypeBarrier(context(), constraints(),
                                                 current->peek(-1), name, types);
 
     // Always use a call if we are doing the definite properties analysis and

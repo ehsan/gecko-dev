@@ -51,7 +51,7 @@ JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandleProperty
 /* static */ inline bool
 JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, bool *succeeded)
 {
-    jsid id;
+    JS::RootedId id(cx);
     if (!js::IndexToId(cx, index, &id))
         return false;
     js::types::MarkTypePropertyConfigured(cx, obj, id);
@@ -67,21 +67,6 @@ JSObject::deleteSpecial(JSContext *cx, js::HandleObject obj, js::HandleSpecialId
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeleteSpecialOp op = obj->getOps()->deleteSpecial;
     return (op ? op : js::baseops::DeleteSpecial)(cx, obj, sid, succeeded);
-}
-
-/* static */ inline bool
-JSObject::watch(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                JS::HandleObject callable)
-{
-    js::WatchOp op = obj->getOps()->watch;
-    return (op ? op : js::baseops::Watch)(cx, obj, id, callable);
-}
-
-/* static */ inline bool
-JSObject::unwatch(JSContext *cx, JS::HandleObject obj, JS::HandleId id)
-{
-    js::UnwatchOp op = obj->getOps()->unwatch;
-    return (op ? op : js::baseops::Unwatch)(cx, obj, id);
 }
 
 inline void
@@ -564,7 +549,7 @@ JSObject::getElement(JSContext *cx, js::HandleObject obj, js::HandleObject recei
         return op(cx, obj, receiver, index, vp);
 
     JS::RootedId id(cx);
-    if (!js::IndexToId(cx, index, id.address()))
+    if (!js::IndexToId(cx, index, &id))
         return false;
     return getGeneric(cx, obj, receiver, id, vp);
 }
@@ -578,7 +563,7 @@ JSObject::getElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver,
         return false;
 
     jsid id;
-    if (!js::IndexToId(cx, index, &id))
+    if (!js::IndexToIdNoGC(cx, index, &id))
         return false;
     return getGenericNoGC(cx, obj, receiver, id, vp);
 }
@@ -598,7 +583,7 @@ JSObject::getElementIfPresent(JSContext *cx, js::HandleObject obj, js::HandleObj
      * doing index-to-id conversions, we can use those here.
      */
     JS::RootedId id(cx);
-    if (!js::IndexToId(cx, index, id.address()))
+    if (!js::IndexToId(cx, index, &id))
         return false;
 
     JS::RootedObject obj2(cx);

@@ -178,11 +178,12 @@ android-preqs = \
   Makefile.in \
   widget/GeckoView.java.frag \
   $(SERVICES_MANIFEST_FRAGMENTS) \
+  $(call mkdir_deps,$(sort $(dir $(PP_JAVAFILES)))) \
   $(NULL)
 
 $(android-tgts): % : %.in $(android-preqs)
-	$(call py_action,preprocessor, \
-             $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< -o $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+             $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
 
 res/drawable-mdpi/icon.png: $(ICON_PATH)
 	$(NSINSTALL) -D res/drawable-mdpi

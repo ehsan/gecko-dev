@@ -27,6 +27,10 @@ pref("general.useragent.compatMode.firefox", false);
 // overrides by default, don't initialize UserAgentOverrides.jsm.
 pref("general.useragent.site_specific_overrides", true);
 
+// This pref controls whether or not to enable UA overrides in the
+// product code that end users use (as opposed to testing code).
+pref("general.useragent.enable_overrides", false);
+
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
 pref("general.warnOnAboutConfig", true);
@@ -1606,7 +1610,6 @@ pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
-pref("security.csp.experimentalEnabled", false);
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
@@ -1873,6 +1876,9 @@ pref("layout.css.supports-rule.enabled", true);
 
 // Is support for CSS Filters enabled?
 pref("layout.css.filters.enabled", false);
+
+// Is support for CSS Flexbox enabled?
+pref("layout.css.flexbox.enabled", true);
 
 // Is support for CSS sticky positioning enabled?
 #ifdef RELEASE_BUILD

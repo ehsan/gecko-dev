@@ -103,7 +103,7 @@ endif
 
 # XXX applications would need to supply this file
 #export:: brand.dtd.in
-#	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $^ -o brand.dtd)
+#	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ > brand.dtd
 
 export::
 	$(NSINSTALL) -D $(DIST)/branding

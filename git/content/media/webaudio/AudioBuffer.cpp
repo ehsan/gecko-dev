@@ -70,8 +70,7 @@ AudioBuffer::InitializeBuffers(uint32_t aNumberOfChannels, JSContext* aJSContext
     return false;
   }
   for (uint32_t i = 0; i < aNumberOfChannels; ++i) {
-    JS::Rooted<JSObject*> array(aJSContext,
-                                JS_NewFloat32Array(aJSContext, mLength));
+    JS::RootedObject array(aJSContext, JS_NewFloat32Array(aJSContext, mLength));
     if (!array) {
       return false;
     }
@@ -96,8 +95,7 @@ AudioBuffer::RestoreJSChannelData(JSContext* aJSContext)
       // The following code first zeroes the array and then copies our data
       // into it. We could avoid this with additional JS APIs to construct
       // an array (or ArrayBuffer) containing initial data.
-      JS::Rooted<JSObject*> array(aJSContext,
-                                  JS_NewFloat32Array(aJSContext, mLength));
+      JS::RootedObject array(aJSContext, JS_NewFloat32Array(aJSContext, mLength));
       if (!array) {
         return false;
       }
@@ -196,8 +194,7 @@ StealJSArrayDataIntoThreadSharedFloatArrayBufferList(JSContext* aJSContext,
   nsRefPtr<ThreadSharedFloatArrayBufferList> result =
     new ThreadSharedFloatArrayBufferList(aJSArrays.Length());
   for (uint32_t i = 0; i < aJSArrays.Length(); ++i) {
-    JS::Rooted<JSObject*> arrayBuffer(aJSContext,
-                                      JS_GetArrayBufferViewBuffer(aJSArrays[i]));
+    JS::RootedObject arrayBuffer(aJSContext, JS_GetArrayBufferViewBuffer(aJSArrays[i]));
     void* dataToFree = nullptr;
     uint8_t* stolenData = nullptr;
     if (arrayBuffer &&

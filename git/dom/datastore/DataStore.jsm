@@ -177,17 +177,17 @@ this.DataStore.prototype = {
     getInternalRequest();
   },
 
-  putInternal: function(aResolve, aStore, aRevisionStore, aObj, aId) {
-    debug("putInternal " + aId);
+  updateInternal: function(aResolve, aStore, aRevisionStore, aId, aObj) {
+    debug("UpdateInternal " + aId);
 
     let self = this;
     let request = aStore.put(aObj, aId);
     request.onsuccess = function(aEvent) {
-      debug("putInternal success");
+      debug("UpdateInternal success");
 
       self.addRevision(aRevisionStore, aId, REVISION_UPDATED,
         function() {
-          debug("putInternal - revisionId increased");
+          debug("UpdateInternal - revisionId increased");
           // No wrap here because the result is always a int.
           aResolve(aEvent.target.result);
         }
@@ -195,11 +195,11 @@ this.DataStore.prototype = {
     };
   },
 
-  addInternal: function(aResolve, aStore, aRevisionStore, aObj, aId) {
+  addInternal: function(aResolve, aStore, aRevisionStore, aObj) {
     debug("AddInternal");
 
     let self = this;
-    let request = aStore.add(aObj, aId);
+    let request = aStore.put(aObj);
     request.onsuccess = function(aEvent) {
       debug("Request successful. Id: " + aEvent.target.result);
       self.addRevision(aRevisionStore, aEvent.target.result, REVISION_ADDED,
@@ -384,7 +384,7 @@ this.DataStore.prototype = {
     );
   },
 
-  put: function(aObj, aId) {
+  update: function(aId, aObj) {
     aId = parseInt(aId);
     if (isNaN(aId) || aId <= 0) {
       return throwInvalidArg(this._window);
@@ -399,19 +399,12 @@ this.DataStore.prototype = {
     // Promise<void>
     return this.newDBPromise("readwrite",
       function(aResolve, aReject, aTxn, aStore, aRevisionStore) {
-        self.putInternal(aResolve, aStore, aRevisionStore, aObj, aId);
+        self.updateInternal(aResolve, aStore, aRevisionStore, aId, aObj);
       }
     );
   },
 
-  add: function(aObj, aId) {
-    if (aId) {
-      aId = parseInt(aId);
-      if (isNaN(aId) || aId <= 0) {
-        return throwInvalidArg(this._window);
-      }
-    }
-
+  add: function(aObj) {
     if (this._readOnly) {
       return throwReadOnly(this._window);
     }
@@ -421,7 +414,7 @@ this.DataStore.prototype = {
     // Promise<int>
     return this.newDBPromise("readwrite",
       function(aResolve, aReject, aTxn, aStore, aRevisionStore) {
-        self.addInternal(aResolve, aStore, aRevisionStore, aObj, aId);
+        self.addInternal(aResolve, aStore, aRevisionStore, aObj);
       }
     );
   },
@@ -463,6 +456,104 @@ this.DataStore.prototype = {
 
   get revisionId() {
     return this._revisionId;
+  },
+
+  getChanges: function(aRevisionId) {
+    debug("GetChanges: " + aRevisionId);
+
+    if (aRevisionId === null || aRevisionId === undefined) {
+      return this._window.Promise.reject(
+        new this._window.DOMError("SyntaxError", "Invalid revisionId"));
+    }
+
+    let self = this;
+
+    // Promise<DataStoreChanges>
+    return new this._window.Promise(function(aResolve, aReject) {
+      debug("GetChanges promise started");
+      self._db.revisionTxn(
+        'readonly',
+        function(aTxn, aStore) {
+          debug("GetChanges transaction success");
+
+          let request = self._db.getInternalRevisionId(
+            aRevisionId,
+            aStore,
+            function(aInternalRevisionId) {
+              if (aInternalRevisionId == undefined) {
+                aResolve(undefined);
+                return;
+              }
+
+              // This object is the return value of this promise.
+              // Initially we use maps, and then we convert them in array.
+              let changes = {
+                revisionId: '',
+                addedIds: {},
+                updatedIds: {},
+                removedIds: {}
+              };
+
+              let request = aStore.mozGetAll(IDBKeyRange.lowerBound(aInternalRevisionId, true));
+              request.onsuccess = function(aEvent) {
+                for (let i = 0; i < aEvent.target.result.length; ++i) {
+                  let data = aEvent.target.result[i];
+
+                  switch (data.operation) {
+                    case REVISION_ADDED:
+                      changes.addedIds[data.objectId] = true;
+                      break;
+
+                    case REVISION_UPDATED:
+                      // We don't consider an update if this object has been added
+                      // or if it has been already modified by a previous
+                      // operation.
+                      if (!(data.objectId in changes.addedIds) &&
+                          !(data.objectId in changes.updatedIds)) {
+                        changes.updatedIds[data.objectId] = true;
+                      }
+                      break;
+
+                    case REVISION_REMOVED:
+                      let id = data.objectId;
+
+                      // If the object has been added in this range of revisions
+                      // we can ignore it and remove it from the list.
+                      if (id in changes.addedIds) {
+                        delete changes.addedIds[id];
+                      } else {
+                        changes.removedIds[id] = true;
+                      }
+
+                      if (id in changes.updatedIds) {
+                        delete changes.updatedIds[id];
+                      }
+                      break;
+                  }
+                }
+
+                // The last revisionId.
+                if (aEvent.target.result.length) {
+                  changes.revisionId = aEvent.target.result[aEvent.target.result.length - 1].revisionId;
+                }
+
+                // From maps to arrays.
+                changes.addedIds = Object.keys(changes.addedIds).map(function(aKey) { return parseInt(aKey, 10); });
+                changes.updatedIds = Object.keys(changes.updatedIds).map(function(aKey) { return parseInt(aKey, 10); });
+                changes.removedIds = Object.keys(changes.removedIds).map(function(aKey) { return parseInt(aKey, 10); });
+
+                let wrappedObject = ObjectWrapper.wrap(changes, self._window);
+                aResolve(wrappedObject);
+              };
+            }
+          );
+        },
+        function(aEvent) {
+          debug("GetChanges transaction failed");
+          aReject(createDOMError(self._window, aEvent));
+        }
+      );
+    });
   },
 
   getLength: function() {
