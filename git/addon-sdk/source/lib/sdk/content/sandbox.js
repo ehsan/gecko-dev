@@ -143,7 +143,7 @@ const WorkerSandbox = Class({
       sandboxPrototype: proto,
       wantXrays: true,
       wantGlobalProperties: wantGlobalProperties,
-      wantExportHelpers: true,
+      wantExportHelpers: !waiveSecurityMembrane,
       sameZoneAs: window,
       metadata: {
         SDKContentScript: true,

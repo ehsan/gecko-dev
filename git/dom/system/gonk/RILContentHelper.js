@@ -108,8 +108,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:SetVoicePrivacyMode",
   "RIL:GetVoicePrivacyMode",
   "RIL:OtaStatusChanged",
-  "RIL:MatchMvno",
-  "RIL:ClirModeChanged"
+  "RIL:MatchMvno"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
@@ -1891,12 +1890,6 @@ RILContentHelper.prototype = {
       case "RIL:GetVoicePrivacyMode":
         this.handleSimpleRequest(data.requestId, data.errorMsg,
                                  data.enabled);
-        break;
-      case "RIL:ClirModeChanged":
-        this._deliverEvent(clientId,
-                           "_mobileConnectionListeners",
-                           "notifyClirModeChanged",
-                           [data]);
         break;
     }
   },
