@@ -30,9 +30,7 @@ function getConfigFile(req, res) {
     "loop.config.legalWebsiteUrl = '/legal/terms';",
     "loop.config.fxosApp = loop.config.fxosApp || {};",
     "loop.config.fxosApp.name = 'Loop';",
-    "loop.config.fxosApp.manifestUrl = 'http://fake-market.herokuapp.com/apps/packagedApp/manifest.webapp';",
-    "loop.config.roomsSupportUrl = 'https://support.mozilla.org/kb/group-conversations-firefox-hello-webrtc';",
-    "loop.config.guestSupportUrl = 'https://support.mozilla.org/kb/respond-firefox-hello-invitation-guest-mode';"
+    "loop.config.fxosApp.manifestUrl = 'http://fake-market.herokuapp.com/apps/packagedApp/manifest.webapp';"
   ].join("\n"));
 }
 

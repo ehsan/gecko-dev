@@ -445,14 +445,13 @@ describe("loop.conversationViews", function () {
   });
 
   describe("OutgoingConversationView", function() {
-    var store, feedbackStore;
+    var store;
 
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
         loop.conversationViews.OutgoingConversationView({
           dispatcher: dispatcher,
-          store: store,
-          feedbackStore: feedbackStore
+          store: store
         }));
     }
 
@@ -461,9 +460,6 @@ describe("loop.conversationViews", function () {
         dispatcher: dispatcher,
         client: {},
         sdkDriver: {}
-      });
-      feedbackStore = new loop.store.FeedbackStore(dispatcher, {
-        feedbackClient: {}
       });
     });
 

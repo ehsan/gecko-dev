@@ -39,9 +39,8 @@
   var ConversationView = loop.shared.views.ConversationView;
   var FeedbackView = loop.shared.views.FeedbackView;
 
-  // Store constants
+  // Room constants
   var ROOM_STATES = loop.store.ROOM_STATES;
-  var FEEDBACK_STATES = loop.store.FEEDBACK_STATES;
 
   // Local helpers
   function returnTrue() {
@@ -69,9 +68,6 @@
   });
   var roomStore = new loop.store.RoomStore(dispatcher, {
     mozLoop: navigator.mozLoop
-  });
-  var feedbackStore = new loop.store.FeedbackStore(dispatcher, {
-    feedbackClient: stageFeedbackApiClient
   });
 
   // Local mocks
@@ -464,13 +460,13 @@
               React.DOM.a({href: "https://input.allizom.org/"}, "input.allizom.org"), "."
             ), 
             Example({summary: "Default (useable demo)", dashed: "true", style: {width: "260px"}}, 
-              FeedbackView({feedbackStore: feedbackStore})
+              FeedbackView({feedbackApiClient: stageFeedbackApiClient})
             ), 
             Example({summary: "Detailed form", dashed: "true", style: {width: "260px"}}, 
-              FeedbackView({feedbackStore: feedbackStore, feedbackState: FEEDBACK_STATES.DETAILS})
+              FeedbackView({feedbackApiClient: stageFeedbackApiClient, step: "form"})
             ), 
             Example({summary: "Thank you!", dashed: "true", style: {width: "260px"}}, 
-              FeedbackView({feedbackStore: feedbackStore, feedbackState: FEEDBACK_STATES.SENT})
+              FeedbackView({feedbackApiClient: stageFeedbackApiClient, step: "finished"})
             )
           ), 
 
@@ -490,7 +486,7 @@
                                        video: {enabled: true}, 
                                        audio: {enabled: true}, 
                                        conversation: mockConversationModel, 
-                                       feedbackStore: feedbackStore, 
+                                       feedbackApiClient: stageFeedbackApiClient, 
                                        onAfterFeedbackReceived: noop})
               )
             )
