@@ -886,7 +886,7 @@
         <body>
           <![CDATA[
             aTab.label = this.mStringBundle.getString("tabs.loading");
-            aTab.crop = "end";
+            aTab.setAttribute("crop", "end");
             this._tabAttrModified(aTab);
           ]]>
         </body>
@@ -931,7 +931,7 @@
               return false;
 
             aTab.label = title;
-            aTab.crop = crop;
+            aTab.setAttribute("crop", crop);
             this._tabAttrModified(aTab);
             return true;
           ]]>
