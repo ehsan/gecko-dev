@@ -252,7 +252,7 @@ HasProperty(JSContext* cx, JSObject* obj, jsid id)
 
     JSObject* obj2;
     JSProperty* prop;
-    if (!LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
+    if (js_LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) < 0)
         return JS_NEITHER;
     return prop != NULL;
 }

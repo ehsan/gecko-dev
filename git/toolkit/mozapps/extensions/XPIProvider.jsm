@@ -344,7 +344,7 @@ SafeInstallOperation.prototype = {
 function getLocale() {
   if (Prefs.getBoolPref(PREF_MATCH_OS_LOCALE, false))
     return Services.locale.getLocaleComponentForUserAgent();
-  let locale = Prefs.getComplexValue(PREF_SELECTED_LOCALE, Ci.nsIPrefLocalizedString);
+  let locale = Prefs.getComplexPref(PREF_SELECTED_LOCALE, Ci.nsIPrefLocalizedString);
   if (locale)
     return locale;
   return Prefs.getCharPref(PREF_SELECTED_LOCALE, "en-US");
@@ -1229,9 +1229,9 @@ var Prefs = {
    *         A value to return if the preference does not exist
    * @return the value of the preference or aDefaultValue if there is none
    */
-  getComplexValue: function(aName, aType, aDefaultValue) {
+  getComplexPref: function(aName, aType, aDefaultValue) {
     try {
-      return Services.prefs.getComplexValue(aName, aType).data;
+      return Services.prefs.getComplexPref(aName, aType).data;
     }
     catch (e) {
     }
@@ -7029,11 +7029,8 @@ DirectoryInstallLocation.prototype = {
 
       if (entry.isFile() && !directLoad) {
         newEntry = this._readDirectoryFromFile(entry);
-        if (!newEntry) {
-          LOG("Deleting stale pointer file " + entry.path);
-          entry.remove(true);
+        if (!newEntry)
           continue;
-        }
 
         entry = newEntry;
         this._linkedAddons.push(id);

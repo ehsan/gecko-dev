@@ -1155,11 +1155,9 @@ class Typelib(object):
             for i in self.interfaces:
                 i.write_directory_entry(f)
 
-    def merge(self, other, sanitycheck=True):
+    def merge(self, other):
         """
         Merge the contents of Typelib |other| into this typelib.
-        If |sanitycheck| is False, don't sort the interface table
-        after merging.
 
         """
         # This will be a list of (replaced interface, replaced with)
@@ -1231,8 +1229,7 @@ class Typelib(object):
                     checkType(m.result.type, replaced_from, replaced_to)
                     for p in m.params:
                         checkType(p.type, replaced_from, replaced_to)
-        if sanitycheck:
-            self._sanityCheck()
+        self._sanityCheck()
         #TODO: do we care about annotations? probably not
 
     def dump(self, out):
@@ -1306,8 +1303,7 @@ def xpt_link(dest, inputs):
     t1 = Typelib.read(inputs[0])
     for f in inputs[1:]:
         t2 = Typelib.read(f)
-        # write will call sanitycheck, so skip it here.
-        t1.merge(t2, sanitycheck=False)
+        t1.merge(t2)
     t1.write(dest)
 
 if __name__ == '__main__':

@@ -2138,7 +2138,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, uintN inlineCallCount, InterpMo
 #ifdef MOZ_TRACEVIS
     TraceVisStateObj tvso(cx, S_INTERP);
 #endif
-    JSAutoResolveFlags rf(cx, RESOLVE_INFER);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
 
 # ifdef DEBUG
     /*
@@ -4096,28 +4096,20 @@ BEGIN_CASE(JSOP_LENGTH)
     vp = &regs.sp[-1];
     if (vp->isString()) {
         vp->setInt32(vp->toString()->length());
-    } else {
-        if (vp->isObject()) {
-            JSObject *obj = &vp->toObject();
-            if (obj->isArray()) {
-                jsuint length = obj->getArrayLength();
-                regs.sp[-1].setNumber(length);
-                len = JSOP_LENGTH_LENGTH;
-                DO_NEXT_OP(len);
-            }
-
-            if (obj->isArguments()) {
-                ArgumentsObject *argsobj = obj->asArguments();
-                if (!argsobj->hasOverriddenLength()) {
-                    uint32 length = argsobj->initialLength();
-                    JS_ASSERT(length < INT32_MAX);
-                    regs.sp[-1].setInt32(int32_t(length));
-                    len = JSOP_LENGTH_LENGTH;
-                    DO_NEXT_OP(len);
-                }
-            }
+    } else if (vp->isObject()) {
+        JSObject *obj = &vp->toObject();
+        if (obj->isArray()) {
+            jsuint length = obj->getArrayLength();
+            regs.sp[-1].setNumber(length);
+        } else if (obj->isArguments() && !obj->isArgsLengthOverridden()) {
+            uint32 length = obj->getArgsInitialLength();
+            JS_ASSERT(length < INT32_MAX);
+            regs.sp[-1].setInt32(int32_t(length));
+        } else {
+            i = -2;
+            goto do_getprop_with_lval;
         }
-
+    } else {
         i = -2;
         goto do_getprop_with_lval;
     }
@@ -4361,11 +4353,11 @@ BEGIN_CASE(JSOP_SETMETHOD)
         if (entry && JS_LIKELY(!obj->getOps()->setProperty)) {
             uintN defineHow;
             if (op == JSOP_SETMETHOD)
-                defineHow = DNP_CACHE_RESULT | DNP_SET_METHOD;
+                defineHow = JSDNP_CACHE_RESULT | JSDNP_SET_METHOD;
             else if (op == JSOP_SETNAME)
-                defineHow = DNP_CACHE_RESULT | DNP_UNQUALIFIED;
+                defineHow = JSDNP_CACHE_RESULT | JSDNP_UNQUALIFIED;
             else
-                defineHow = DNP_CACHE_RESULT;
+                defineHow = JSDNP_CACHE_RESULT;
             if (!js_SetPropertyHelper(cx, obj, id, defineHow, &rval, script->strictModeCode))
                 goto error;
         } else {
@@ -4413,12 +4405,11 @@ BEGIN_CASE(JSOP_GETELEM)
             }
         } else if (obj->isArguments()) {
             uint32 arg = uint32(i);
-            ArgumentsObject *argsobj = obj->asArguments();
 
-            if (arg < argsobj->initialLength()) {
-                copyFrom = argsobj->addressOfElement(arg);
+            if (arg < obj->getArgsInitialLength()) {
+                copyFrom = obj->addressOfArgsElement(arg);
                 if (!copyFrom->isMagic(JS_ARGS_HOLE)) {
-                    if (StackFrame *afp = reinterpret_cast<StackFrame *>(argsobj->getPrivate()))
+                    if (StackFrame *afp = (StackFrame *) obj->getPrivate())
                         copyFrom = &afp->canonicalActualArg(arg);
                     goto end_getelem;
                 }
@@ -5244,8 +5235,8 @@ BEGIN_CASE(JSOP_DEFVAR)
 
     /* Bind a variable only if it's not yet defined. */
     if (shouldDefine &&
-        !DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, StrictPropertyStub,
-                              attrs, 0, 0)) {
+        !js_DefineNativeProperty(cx, obj, id, UndefinedValue(),
+                                 PropertyStub, StrictPropertyStub, attrs, 0, 0, NULL)) {
         goto error;
     }
 }
@@ -5850,12 +5841,13 @@ BEGIN_CASE(JSOP_INITMETHOD)
         jsid id = ATOM_TO_JSID(atom);
 
         uintN defineHow = (op == JSOP_INITMETHOD)
-                          ? DNP_CACHE_RESULT | DNP_SET_METHOD
-                          : DNP_CACHE_RESULT;
-        if (JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
-            ? !js_SetPropertyHelper(cx, obj, id, defineHow, &rval, script->strictModeCode)
-            : !DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
-                                    JSPROP_ENUMERATE, 0, 0, defineHow)) {
+                          ? JSDNP_CACHE_RESULT | JSDNP_SET_METHOD
+                          : JSDNP_CACHE_RESULT;
+        if (!(JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
+              ? js_SetPropertyHelper(cx, obj, id, defineHow, &rval, script->strictModeCode)
+              : js_DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
+                                        JSPROP_ENUMERATE, 0, 0, NULL,
+                                        defineHow))) {
             goto error;
         }
     }

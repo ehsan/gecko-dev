@@ -1183,3 +1183,17 @@ nsCaret::SetIgnoreUserModify(PRBool aIgnoreUserModify)
   }
   mIgnoreUserModify = aIgnoreUserModify;
 }
+
+//-----------------------------------------------------------------------------
+nsresult NS_NewCaret(nsCaret** aInstancePtrResult)
+{
+  NS_PRECONDITION(aInstancePtrResult, "null ptr");
+  
+  nsCaret* caret = new nsCaret();
+  if (nsnull == caret)
+      return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(caret);
+  *aInstancePtrResult = caret;
+  return NS_OK;
+}
+

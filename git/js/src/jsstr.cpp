@@ -2076,7 +2076,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 
         JSObject *holder;
         JSProperty *prop = NULL;
-        if (!LookupPropertyWithFlags(cx, base, id, JSRESOLVE_QUALIFIED, &holder, &prop))
+        if (js_LookupPropertyWithFlags(cx, base, id, JSRESOLVE_QUALIFIED, &holder, &prop) < 0)
             return false;
 
         /* Only handle the case where the property exists and is on this object. */

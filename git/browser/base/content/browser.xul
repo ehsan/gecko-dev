@@ -139,7 +139,7 @@
                 oncommand="gBrowser.replaceTabWithWindow(TabContextMenu.contextTab);"/>
       <menuseparator/>
       <menuitem id="context_reloadAllTabs" label="&reloadAllTabs.label;" accesskey="&reloadAllTabs.accesskey;"
-                tbattr="tabbrowser-multiple-visible"
+                tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.reloadAllTabs();"/>
       <menuitem id="context_bookmarkAllTabs"
                 label="&bookmarkAllTabs.label;"
@@ -844,8 +844,9 @@
                     key="key_tabview"
                     label="&viewTabGroups.label;"
                     command="Browser:ToggleTabView"
-                    observes="tabviewGroupsNumber"/>
-          <menuseparator id="alltabs-popup-separator"/>
+                    observes="tabviewGroupsNumber"
+                    keepme="true"/>
+          <menuseparator id="alltabs-popup-separator" keepme="true"/>
         </menupopup>
       </toolbarbutton>
 
