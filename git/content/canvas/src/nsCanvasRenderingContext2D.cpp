@@ -2794,7 +2794,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
                        0,
                        mTextRun->GetLength(),
                        nsnull,
-                       nsnull,
                        nsnull);
     }
 

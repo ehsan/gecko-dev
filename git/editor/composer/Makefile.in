@@ -44,7 +44,9 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS		= public src
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+DIRS		+= test
+endif
 
 # Enable Editor API Logging!
 ENABLE_EDITOR_API_LOG=1

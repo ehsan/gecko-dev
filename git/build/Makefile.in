@@ -55,14 +55,16 @@ endif
 
 DIRS += pgo
 
-TEST_DIRS += autoconf/test
+ifdef ENABLE_TESTS
+  DIRS += autoconf/test
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
-TEST_DIRS += mobile/sutagent/android \
+  DIRS += mobile/sutagent/android \
           mobile/sutagent/android/watcher \
           mobile/sutagent/android/ffxcp \
           mobile/sutagent/android/fencp \
           mobile/robocop \
           $(NULL)
+endif
 endif
 
 ifdef MOZ_APP_BASENAME
