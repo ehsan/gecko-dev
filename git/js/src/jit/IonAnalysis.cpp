@@ -1089,9 +1089,6 @@ TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
       case MIRType_MagicOptimizedOut:
         v = MagicValue(JS_OPTIMIZED_OUT);
         break;
-      case MIRType_MagicUninitializedLexical:
-        v = MagicValue(JS_UNINITIALIZED_LEXICAL);
-        break;
       default:
         MOZ_CRASH("unexpected type");
     }
@@ -1115,8 +1112,7 @@ TypeAnalyzer::insertConversions()
             if (phi->type() == MIRType_Undefined ||
                 phi->type() == MIRType_Null ||
                 phi->type() == MIRType_MagicOptimizedArguments ||
-                phi->type() == MIRType_MagicOptimizedOut ||
-                phi->type() == MIRType_MagicUninitializedLexical)
+                phi->type() == MIRType_MagicOptimizedOut)
             {
                 replaceRedundantPhi(*phi);
                 phi = block->discardPhiAt(phi);

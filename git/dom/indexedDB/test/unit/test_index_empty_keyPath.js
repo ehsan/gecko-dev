@@ -47,29 +47,29 @@ function testSteps()
   objectStore = trans.objectStore("data");
   index = objectStore.index("set");
 
-  request = index.get("bar");
+  let request = index.get("bar");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   
-  event = yield undefined;
+  let event = yield undefined;
 
   is(event.target.result, "bar", "Got correct result");
 
-  request = objectStore.add("foopy", 4);
+  let request = objectStore.add("foopy", 4);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
 
   yield undefined;
 
-  request = index.get("foopy");
+  let request = index.get("foopy");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   
-  event = yield undefined;
+  let event = yield undefined;
 
   is(event.target.result, "foopy", "Got correct result");
 
-  request = objectStore.add("foopy", 5);
+  let request = objectStore.add("foopy", 5);
   request.addEventListener("error", new ExpectError("ConstraintError", true));
   request.onsuccess = unexpectedSuccessHandler;
 

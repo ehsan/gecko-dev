@@ -398,7 +398,7 @@ InterpreterFrame::markValues(JSTracer *trc, Value *sp, jsbytecode *pc)
         StaticBlockObject &blockObj = staticScope->as<StaticBlockObject>();
         nlivefixed = blockObj.localOffset() + blockObj.numVariables();
     } else {
-        nlivefixed = script()->nbodyfixed();
+        nlivefixed = script()->nfixedvars();
     }
 
     if (nfixed == nlivefixed) {
@@ -408,9 +408,9 @@ InterpreterFrame::markValues(JSTracer *trc, Value *sp, jsbytecode *pc)
         // Mark operand stack.
         markValues(trc, nfixed, sp - slots());
 
-        // Clear dead block-scoped locals.
+        // Clear dead locals.
         while (nfixed > nlivefixed)
-            unaliasedLocal(--nfixed, DONT_CHECK_ALIASING).setMagic(JS_UNINITIALIZED_LEXICAL);
+            unaliasedLocal(--nfixed, DONT_CHECK_ALIASING).setUndefined();
 
         // Mark live locals.
         markValues(trc, 0, nlivefixed);
@@ -495,7 +495,7 @@ InterpreterStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Val
     InterpreterFrame *fp = reinterpret_cast<InterpreterFrame *>(buffer + 2 * sizeof(Value));
     fp->mark_ = mark;
     fp->initExecuteFrame(cx, script, evalInFrame, thisv, *scopeChain, type);
-    fp->initLocals();
+    fp->initVarsToUndefined();
 
     return fp;
 }

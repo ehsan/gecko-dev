@@ -4765,17 +4765,18 @@ js::LookupNameNoGC(JSContext *cx, PropertyName *name, JSObject *scopeChain,
 
 bool
 js::LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                                MutableHandleObject objp, MutableHandleShape propp)
+                                MutableHandleObject objp)
 {
     RootedId id(cx, NameToId(name));
 
     RootedObject pobj(cx);
+    RootedShape prop(cx);
 
     RootedObject scope(cx, scopeChain);
     for (; !scope->is<GlobalObject>(); scope = scope->enclosingScope()) {
-        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, propp))
+        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, &prop))
             return false;
-        if (propp)
+        if (prop)
             break;
     }
 
@@ -4785,28 +4786,20 @@ js::LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleOb
 
 bool
 js::LookupNameUnqualified(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                          MutableHandleObject objp, MutableHandleShape propp)
+                          MutableHandleObject objp)
 {
     RootedId id(cx, NameToId(name));
 
     RootedObject pobj(cx);
+    RootedShape prop(cx);
 
     RootedObject scope(cx, scopeChain);
     for (; !scope->isUnqualifiedVarObj(); scope = scope->enclosingScope()) {
-        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, propp))
+        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, &prop))
             return false;
-        if (propp)
+        if (prop)
             break;
     }
-
-    // If the name was found not on the scope object itself, null out the
-    // shape, which is passed as an out pointer to determine uninitialized
-    // lexical slots. In the case when the name is not found on the scope
-    // object itself, it cannot be an uninitialized lexical slot.
-    //
-    // See the JSOP_BINDNAME case in the Interpreter.
-    if (pobj != scope)
-        propp.set(nullptr);
 
     objp.set(scope);
     return true;
@@ -4897,8 +4890,8 @@ NativeGetInline(JSContext *cx,
 
     if (shape->hasSlot()) {
         vp.set(pobj->nativeGetSlot(shape->slot()));
-        JS_ASSERT_IF(!vp.isMagic(JS_UNINITIALIZED_LEXICAL) &&
-                     !pobj->hasSingletonType() &&
+        JS_ASSERT(!vp.isMagic());
+        JS_ASSERT_IF(!pobj->hasSingletonType() &&
                      !pobj->template is<ScopeObject>() &&
                      shape->hasDefaultGetter(),
                      js::types::TypeHasProperty(cx, pobj->type(), shape->propid(), vp));

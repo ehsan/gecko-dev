@@ -1632,7 +1632,7 @@ add_task(function* test_foreignUninstallAndRestart() {
   yield AddonTestUtils.uninstallAddonByID(EXPERIMENT1_ID);
   yield experiments._mainTask;
 
-  addons = yield getExperimentAddons();
+  let addons = yield getExperimentAddons();
   Assert.equal(addons.length, 0, "Experiment add-on should have been removed.");
 
   experimentList = yield experiments.getExperiments();
@@ -1645,7 +1645,7 @@ add_task(function* test_foreignUninstallAndRestart() {
   experiments = new Experiments.Experiments(gPolicy);
   yield experiments.updateManifest();
 
-  addons = yield getExperimentAddons();
+  let addons = yield getExperimentAddons();
   Assert.equal(addons.length, 0, "No experiment add-ons installed.");
 
   experimentList = yield experiments.getExperiments();

@@ -166,22 +166,22 @@ function run_test() {
 
   // int ...
   pb.setIntPref("UserPref.root.intPref", 23);
-  pb_1 = ps.getBranch("UserPref.root.");
+  let pb_1 = ps.getBranch("UserPref.root.");
   do_check_eq(pb_1.getIntPref("intPref"), 23);
-  pb_2 = ps.getBranch("UserPref.root.intPref");
+  let pb_2 = ps.getBranch("UserPref.root.intPref");
   do_check_eq(pb_2.getIntPref(""), 23);
   pb_2.setIntPref(".anotherPref", 69);
-  pb_3 = ps.getBranch("UserPref.root.intPre");
+  let pb_3 = ps.getBranch("UserPref.root.intPre");
   do_check_eq(pb_3.getIntPref("f.anotherPref"), 69);
 
   // char...
   pb.setCharPref("UserPref.root.charPref", "_char");
-  pb_1 = ps.getBranch("UserPref.root.");
+  let pb_1 = ps.getBranch("UserPref.root.");
   do_check_eq(pb_1.getCharPref("charPref"), "_char");
-  pb_2 = ps.getBranch("UserPref.root.charPref");
+  let pb_2 = ps.getBranch("UserPref.root.charPref");
   do_check_eq(pb_2.getCharPref(""), "_char");
   pb_2.setCharPref(".anotherPref", "_another");
-  pb_3 = ps.getBranch("UserPref.root.charPre");
+  let pb_3 = ps.getBranch("UserPref.root.charPre");
   do_check_eq(pb_3.getCharPref("f.anotherPref"), "_another");
 
   //**************************************************************************//

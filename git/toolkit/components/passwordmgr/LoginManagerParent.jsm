@@ -160,6 +160,7 @@ var LoginManagerParent = {
         // Note: previousResult is a regular object, not an
         // nsIAutoCompleteResult.
         var result;
+        var matchingLogins;
 
         let searchStringLower = searchString.toLowerCase();
         let logins;

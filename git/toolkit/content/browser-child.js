@@ -373,10 +373,6 @@ if (Services.appinfo.browserTabsRemoteAutostart) {
   // Currently, the addon shims are only supported when autostarting
   // with remote tabs.
   AddonsChild = RemoteAddonsChild.init(this);
-
-  addEventListener("unload", () => {
-    RemoteAddonsChild.uninit(AddonsChild);
-  });
 }
 
 addMessageListener("NetworkPrioritizer:AdjustPriority", (msg) => {

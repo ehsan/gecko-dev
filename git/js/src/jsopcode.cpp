@@ -1635,7 +1635,7 @@ JSAtom *
 ExpressionDecompiler::getLocal(uint32_t local, jsbytecode *pc)
 {
     JS_ASSERT(local < script->nfixed());
-    if (local < script->nbodyfixed()) {
+    if (local < script->nfixedvars()) {
         JS_ASSERT(fun);
         uint32_t slot = local + fun->nargs();
         JS_ASSERT(slot < script->bindings.count());

@@ -119,7 +119,7 @@ function createProfile(profileName) {
   profile.remove(true);
 
   // Create with non-null aRootDir
-  profile = gProfileService.createProfile(profileDir, profileName);
+  let profile = gProfileService.createProfile(profileDir, profileName);
 
   let localProfileDir = profile.localDir;
   ok(gDefaultLocalProfileParent.contains(localProfileDir, false),

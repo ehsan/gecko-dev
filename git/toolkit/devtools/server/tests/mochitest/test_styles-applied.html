@@ -42,6 +42,7 @@ addTest(function setup() {
 });
 
 addTest(function inheritedUserStyles() {
+  let node = node;
   promiseDone(gWalker.querySelector(gWalker.rootNode, "#test-node").then(node => {
     return gStyles.getApplied(node, { inherited: true, filter: "user" });
   }).then(applied => {
@@ -77,6 +78,7 @@ addTest(function inheritedUserStyles() {
 });
 
 addTest(function inheritedSystemStyles() {
+  let node = node;
   promiseDone(gWalker.querySelector(gWalker.rootNode, "#test-node").then(node => {
     return gStyles.getApplied(node, { inherited: true, filter: "ua" });
   }).then(applied => {
@@ -93,6 +95,7 @@ addTest(function inheritedSystemStyles() {
 });
 
 addTest(function noInheritedStyles() {
+  let node = node;
   promiseDone(gWalker.querySelector(gWalker.rootNode, "#test-node").then(node => {
     return gStyles.getApplied(node, { inherited: false, filter: "user" });
   }).then(applied => {
@@ -115,6 +118,7 @@ addTest(function matchedSelectors() {
 });
 
 addTest(function testMediaQuery() {
+  let node = node;
   promiseDone(gWalker.querySelector(gWalker.rootNode, "#mediaqueried").then(node => {
     return gStyles.getApplied(node, {
       inherited: false, filter: "user", matchedSelectors: true

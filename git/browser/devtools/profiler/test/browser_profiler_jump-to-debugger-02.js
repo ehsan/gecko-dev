@@ -30,7 +30,7 @@ let test = Task.async(function*() {
   profilerWin.viewSourceInDebugger(SIMPLE_URL, 14);
   yield whenSourceShown;
 
-  debuggerPanel = toolbox.getPanel("jsdebugger");
+  let debuggerPanel = toolbox.getPanel("jsdebugger");
   ok(debuggerPanel, "The debugger panel was reselected.");
 
   is(DebuggerView.Sources.selectedValue, SIMPLE_URL,

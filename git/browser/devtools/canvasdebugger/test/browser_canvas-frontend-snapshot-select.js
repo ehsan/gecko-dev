@@ -53,7 +53,7 @@ function ifTestingSupported() {
     "The first draw call should now be selected in the snapshot.");
 
   let firstSnapshotTarget = SnapshotsListView.getItemAtIndex(0).target;
-  snapshotSelected = waitForSnapshotSelection();
+  let snapshotSelected = waitForSnapshotSelection();
   EventUtils.sendMouseEvent({ type: "mousedown" }, firstSnapshotTarget, window);
 
   yield snapshotSelected;

@@ -70,7 +70,7 @@ function run_test() {
 
   listener = new ConsoleAPIListener(null, callback, "foo");
   listener.init();
-  messages = listener.getCachedMessages();
+  let messages = listener.getCachedMessages();
 
   seenTypes = 0;
   seenMessages = 0;

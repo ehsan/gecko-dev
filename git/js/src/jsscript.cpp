@@ -76,9 +76,8 @@ Bindings::argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle binding
 
 bool
 Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle self,
-                                   uint32_t numArgs, uint32_t numVars,
-                                   uint32_t numBodyLevelLexicals, uint32_t numBlockScoped,
-                                   Binding *bindingArray)
+                                   unsigned numArgs, uint32_t numVars,
+                                   Binding *bindingArray, uint32_t numBlockScoped)
 {
     JS_ASSERT(!self->callObjShape_);
     JS_ASSERT(self->bindingArrayAndFlag_ == TEMPORARY_STORAGE_BIT);
@@ -86,17 +85,12 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
     JS_ASSERT(numArgs <= ARGC_LIMIT);
     JS_ASSERT(numVars <= LOCALNO_LIMIT);
     JS_ASSERT(numBlockScoped <= LOCALNO_LIMIT);
-    JS_ASSERT(numBodyLevelLexicals <= LOCALNO_LIMIT);
-    uint64_t totalSlots = uint64_t(numVars) +
-                          uint64_t(numBodyLevelLexicals) +
-                          uint64_t(numBlockScoped);
-    JS_ASSERT(totalSlots <= LOCALNO_LIMIT);
-    JS_ASSERT(UINT32_MAX - numArgs >= totalSlots);
+    JS_ASSERT(numVars <= LOCALNO_LIMIT - numBlockScoped);
+    JS_ASSERT(UINT32_MAX - numArgs >= numVars + numBlockScoped);
 
     self->bindingArrayAndFlag_ = uintptr_t(bindingArray) | TEMPORARY_STORAGE_BIT;
     self->numArgs_ = numArgs;
     self->numVars_ = numVars;
-    self->numBodyLevelLexicals_ = numBodyLevelLexicals;
     self->numBlockScoped_ = numBlockScoped;
 
     // Get the initial shape to use when creating CallObjects for this script.
@@ -114,25 +108,10 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
     // any time, such accesses are mediated by DebugScopeProxy (see
     // DebugScopeProxy::handleUnaliasedAccess).
     uint32_t nslots = CallObject::RESERVED_SLOTS;
-    uint32_t aliasedBodyLevelLexicalBegin = UINT16_MAX;
     for (BindingIter bi(self); bi; bi++) {
-        if (bi->aliased()) {
-            // Per ES6, lexical bindings cannot be accessed until
-            // initialized. Remember the first aliased slot that is a
-            // body-level let, so that they may be initialized to sentinel
-            // magic values.
-            if (numBodyLevelLexicals > 0 &&
-                nslots < aliasedBodyLevelLexicalBegin &&
-                bi->kind() == Binding::VARIABLE &&
-                bi.frameIndex() >= numVars)
-            {
-                aliasedBodyLevelLexicalBegin = nslots;
-            }
-
+        if (bi->aliased())
             nslots++;
-        }
     }
-    self->aliasedBodyLevelLexicalBegin_ = aliasedBodyLevelLexicalBegin;
 
     // Put as many of nslots inline into the object header as possible.
     uint32_t nfixed = gc::GetGCKindSlots(gc::GetGCObjectKind(nslots));
@@ -215,13 +194,9 @@ Bindings::clone(JSContext *cx, InternalBindingsHandle self,
      * Since atoms are shareable throughout the runtime, we can simply copy
      * the source's bindingArray directly.
      */
-    if (!initWithTemporaryStorage(cx, self, src.numArgs(), src.numVars(),
-                                  src.numBodyLevelLexicals(), src.numBlockScoped(),
-                                  src.bindingArray()))
-    {
+    if (!initWithTemporaryStorage(cx, self, src.numArgs(), src.numVars(), src.bindingArray(),
+                                  src.numBlockScoped()))
         return false;
-    }
-
     self->switchToScriptStorage(dstPackedBindings);
     return true;
 }
@@ -234,8 +209,8 @@ GCMethods<Bindings>::initial()
 
 template<XDRMode mode>
 static bool
-XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, uint16_t numArgs, uint32_t numVars,
-                  uint16_t numBodyLevelLexicals, uint16_t numBlockScoped, HandleScript script)
+XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, unsigned numArgs, uint32_t numVars,
+                  HandleScript script, unsigned numBlockScoped)
 {
     JSContext *cx = xdr->cx();
 
@@ -252,7 +227,7 @@ XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, uint16_t numArgs, ui
                 return false;
         }
     } else {
-        uint32_t nameCount = numArgs + numVars + numBodyLevelLexicals;
+        uint32_t nameCount = numArgs + numVars;
 
         AutoValueVector atoms(cx);
         if (!atoms.resize(nameCount))
@@ -280,12 +255,9 @@ XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, uint16_t numArgs, ui
         }
 
         InternalBindingsHandle bindings(script, &script->bindings);
-        if (!Bindings::initWithTemporaryStorage(cx, bindings, numArgs, numVars,
-                                                numBodyLevelLexicals, numBlockScoped,
-                                                bindingArray))
-        {
+        if (!Bindings::initWithTemporaryStorage(cx, bindings, numArgs, numVars, bindingArray,
+                                                numBlockScoped))
             return false;
-        }
     }
 
     return true;
@@ -459,25 +431,17 @@ XDRLazyFreeVariables(XDRState<mode> *xdr, MutableHandle<LazyScript *> lazy)
 {
     JSContext *cx = xdr->cx();
     RootedAtom atom(cx);
-    uint8_t isHoistedUse;
-    LazyScript::FreeVariable *freeVariables = lazy->freeVariables();
+    HeapPtrAtom *freeVariables = lazy->freeVariables();
     size_t numFreeVariables = lazy->numFreeVariables();
     for (size_t i = 0; i < numFreeVariables; i++) {
-        if (mode == XDR_ENCODE) {
-            atom = freeVariables[i].atom();
-            isHoistedUse = freeVariables[i].isHoistedUse();
-        }
+        if (mode == XDR_ENCODE)
+            atom = freeVariables[i];
 
         if (!XDRAtom(xdr, &atom))
             return false;
-        if (!xdr->codeUint8(&isHoistedUse))
-            return false;
 
-        if (mode == XDR_DECODE) {
-            freeVariables[i] = LazyScript::FreeVariable(atom);
-            if (isHoistedUse)
-                freeVariables[i].setIsHoistedUse();
-        }
+        if (mode == XDR_DECODE)
+            freeVariables[i] = atom;
     }
 
     return true;
@@ -598,7 +562,6 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     /* XDR arguments and vars. */
     uint16_t nargs = 0;
     uint16_t nblocklocals = 0;
-    uint16_t nbodylevellexicals = 0;
     uint32_t nvars = 0;
     if (mode == XDR_ENCODE) {
         script = scriptp.get();
@@ -606,14 +569,11 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
 
         nargs = script->bindings.numArgs();
         nblocklocals = script->bindings.numBlockScoped();
-        nbodylevellexicals = script->bindings.numBodyLevelLexicals();
         nvars = script->bindings.numVars();
     }
     if (!xdr->codeUint16(&nargs))
         return false;
     if (!xdr->codeUint16(&nblocklocals))
-        return false;
-    if (!xdr->codeUint16(&nbodylevellexicals))
         return false;
     if (!xdr->codeUint32(&nvars))
         return false;
@@ -761,7 +721,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
 
     /* JSScript::partiallyInit assumes script->bindings is fully initialized. */
     LifoAllocScope las(&cx->tempLifoAlloc());
-    if (!XDRScriptBindings(xdr, las, nargs, nvars, nbodylevellexicals, nblocklocals, script))
+    if (!XDRScriptBindings(xdr, las, nargs, nvars, script, nblocklocals))
         return false;
 
     if (mode == XDR_DECODE) {
@@ -3409,12 +3369,9 @@ LazyScript::markChildren(JSTracer *trc)
     if (script_)
         MarkScript(trc, &script_, "realScript");
 
-    // We rely on the fact that atoms are always tenured.
-    FreeVariable *freeVariables = this->freeVariables();
-    for (size_t i = 0; i < numFreeVariables(); i++) {
-        JSAtom *atom = freeVariables[i].atom();
-        MarkStringUnbarriered(trc, &atom, "lazyScriptFreeVariable");
-    }
+    HeapPtrAtom *freeVariables = this->freeVariables();
+    for (size_t i = 0; i < numFreeVariables(); i++)
+        MarkString(trc, &freeVariables[i], "lazyScriptFreeVariable");
 
     HeapPtrFunction *innerFunctions = this->innerFunctions();
     for (size_t i = 0; i < numInnerFunctions(); i++)
@@ -3607,13 +3564,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
 bool
 JSScript::varIsAliased(uint32_t varSlot)
 {
-    return bodyLevelLocalIsAliased(varSlot);
-}
-
-bool
-JSScript::bodyLevelLocalIsAliased(uint32_t localSlot)
-{
-    return bindings.bindingIsAliased(bindings.numArgs() + localSlot);
+    return bindings.bindingIsAliased(bindings.numArgs() + varSlot);
 }
 
 bool
@@ -3690,7 +3641,7 @@ LazyScript::CreateRaw(ExclusiveContext *cx, HandleFunction fun,
     p.hasBeenCloned = false;
     p.treatAsRunOnce = false;
 
-    size_t bytes = (p.numFreeVariables * sizeof(FreeVariable))
+    size_t bytes = (p.numFreeVariables * sizeof(HeapPtrAtom))
                  + (p.numInnerFunctions * sizeof(HeapPtrFunction));
 
     ScopedJSFreePtr<uint8_t> table(bytes ? fun->pod_malloc<uint8_t>(bytes) : nullptr);
@@ -3750,9 +3701,9 @@ LazyScript::Create(ExclusiveContext *cx, HandleFunction fun,
     // Fill with dummies, to be GC-safe after the initialization of the free
     // variables and inner functions.
     size_t i, num;
-    FreeVariable *variables = res->freeVariables();
+    HeapPtrAtom *variables = res->freeVariables();
     for (i = 0, num = res->numFreeVariables(); i < num; i++)
-        variables[i] = FreeVariable(dummyAtom);
+        variables[i].init(dummyAtom);
 
     HeapPtrFunction *functions = res->innerFunctions();
     for (i = 0, num = res->numInnerFunctions(); i < num; i++)

@@ -48,13 +48,13 @@ let test = asyncTest(function*() {
   yield classRuleEditor.rule._applyingModifications;
 
   info("Faking a mousemove on the disabled property");
-  ({valueSpan} = getRuleViewProperty(rView, ".test", "transform"));
+  let {valueSpan} = getRuleViewProperty(rView, ".test", "transform");
   hs._onMouseMove({target: valueSpan});
   ok(!hs.highlighters[TYPE], "No highlighter was created for the disabled property");
   ok(!hs.promises[TYPE], "And no highlighter is being initialized either");
 
   info("Faking a mousemove on the now unoverriden property");
-  ({valueSpan} = getRuleViewProperty(rView, "div", "transform"));
+  let {valueSpan} = getRuleViewProperty(rView, "div", "transform");
   hs._onMouseMove({target: valueSpan});
   ok(hs.promises[TYPE], "The highlighter is being initialized now");
   let h = yield hs.promises[TYPE];

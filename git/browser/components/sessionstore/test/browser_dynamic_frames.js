@@ -77,7 +77,7 @@ add_task(function () {
   yield promiseBrowserLoaded(browser, false /* don't ignore subframes */);
 
   SyncHandlers.get(browser).flush();
-  ({entries} = JSON.parse(ss.getTabState(tab)));
+  let {entries} = JSON.parse(ss.getTabState(tab));
 
   // Check URLs.
   ok(entries[0].url.startsWith("data:text/html"), "correct 1st root url");

@@ -25,6 +25,7 @@
     }
 
     let oldThemeDef = gDevTools.getThemeDefinition(oldTheme);
+    let newThemeDef = gDevTools.getThemeDefinition(newTheme);
 
     // Unload all theme stylesheets related to the old theme.
     if (oldThemeDef) {

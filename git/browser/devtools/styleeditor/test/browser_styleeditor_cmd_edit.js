@@ -193,7 +193,7 @@ function spawnTest() {
     },
   ]);
 
-  toolbox = gDevTools.getToolbox(options.target);
+  let toolbox = gDevTools.getToolbox(options.target);
   ok(toolbox != null, "toolbox is open");
 
   let styleEditor = toolbox.getCurrentPanel();

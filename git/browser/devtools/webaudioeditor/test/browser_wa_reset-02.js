@@ -24,12 +24,12 @@ function spawnTest() {
 
   reload(target);
 
-  [actors] = yield Promise.all([
+  let [actors] = yield Promise.all([
     get3(gFront, "create-node"),
     waitForGraphRendered(panelWin, 3, 2)
   ]);
 
-  ({ nodes, edges } = countGraphObjects(panelWin));
+  let { nodes, edges } = countGraphObjects(panelWin);
   ise(nodes, 3, "after reload, should only be 3 nodes.");
   ise(edges, 2, "after reload, should only be 2 edges.");
 

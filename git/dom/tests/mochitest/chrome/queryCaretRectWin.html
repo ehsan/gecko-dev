@@ -149,7 +149,7 @@
     offset = cp.offset;
     input.selectionStart = input.selectionEnd = offset;
 
-    selection = getSelection(text);
+    let selection = getSelection(text);
 
     testCaretPosition(domWinUtils, input.selectionStart, {
       min: { left: 390, top: 380 },

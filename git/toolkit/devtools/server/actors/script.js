@@ -1480,7 +1480,7 @@ ThreadActor.prototype = {
     */
 
     // Find all innermost scripts matching the given location
-    scripts = this.dbg.findScripts({
+    let scripts = this.dbg.findScripts({
       url: aLocation.url,
       line: aLocation.line,
       innermost: true
@@ -2466,15 +2466,14 @@ PauseScopedActor.prototype = {
  *         resolved nsIURI
  */
 function resolveURIToLocalPath(aURI) {
-  let resolved;
   switch (aURI.scheme) {
     case "jar":
     case "file":
       return aURI;
 
     case "chrome":
-      resolved = Cc["@mozilla.org/chrome/chrome-registry;1"].
-                 getService(Ci.nsIChromeRegistry).convertChromeURL(aURI);
+      let resolved = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                     getService(Ci.nsIChromeRegistry).convertChromeURL(aURI);
       return resolveURIToLocalPath(resolved);
 
     case "resource":
@@ -4621,10 +4620,9 @@ EnvironmentActor.prototype = {
       }
 
       let value = this.obj.getVariable(name);
-      // The slot is optimized out, arguments on a dead scope, or an
-      // uninitialized binding.
+      // The slot is optimized out or arguments on a dead scope.
       // FIXME: Need actual UI, bug 941287.
-      if (value && (value.optimizedOut || value.missingArguments || value.uninitialized)) {
+      if (value && (value.optimizedOut || value.missingArguments)) {
         continue;
       }
 
