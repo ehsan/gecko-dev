@@ -169,21 +169,20 @@ protected:
  * equivalent of a RefPtr<TextureSource>, that calls AddCompositableRef and
  * ReleaseCompositableRef in addition to the usual AddRef and Release.
  */
-template<typename T>
-class CompositableTextureRef {
+class CompositableTextureSourceRef {
 public:
-  CompositableTextureRef() {}
+  CompositableTextureSourceRef() {}
 
-  ~CompositableTextureRef()
+  ~CompositableTextureSourceRef()
   {
     if (mRef) {
       mRef->ReleaseCompositableRef();
     }
   }
 
-  CompositableTextureRef& operator=(const TemporaryRef<T>& aOther)
+  CompositableTextureSourceRef& operator=(const TemporaryRef<TextureSource>& aOther)
   {
-    RefPtr<T> temp = aOther;
+    RefPtr<TextureSource> temp = aOther;
     if (temp) {
       temp->AddCompositableRef();
     }
@@ -194,7 +193,7 @@ public:
     return *this;
   }
 
-  CompositableTextureRef& operator=(T* aOther)
+  CompositableTextureSourceRef& operator=(TextureSource* aOther)
   {
     if (aOther) {
       aOther->AddCompositableRef();
@@ -206,17 +205,14 @@ public:
     return *this;
   }
 
-  T* get() const { return mRef; }
-  operator T*() const { return mRef; }
-  T* operator->() const { return mRef; }
-  T& operator*() const { return *mRef; }
+  TextureSource* get() const { return mRef; }
+  operator TextureSource*() const { return mRef; }
+  TextureSource* operator->() const { return mRef; }
+  TextureSource& operator*() const { return *mRef; }
 
 private:
-  RefPtr<T> mRef;
+  RefPtr<TextureSource> mRef;
 };
-
-typedef CompositableTextureRef<TextureSource> CompositableTextureSourceRef;
-typedef CompositableTextureRef<TextureHost> CompositableTextureHostRef;
 
 /**
  * Interface for TextureSources that can be updated from a DataSourceSurface.
@@ -509,25 +505,11 @@ public:
    */
   virtual TextureHostOGL* AsHostOGL() { return nullptr; }
 
-  void AddCompositableRef() { ++mCompositableCount; }
-
-  void ReleaseCompositableRef()
-  {
-    --mCompositableCount;
-    MOZ_ASSERT(mCompositableCount >= 0);
-    if (mCompositableCount == 0) {
-      UnbindTextureSource();
-    }
-  }
-
-  int NumCompositableRefs() const { return mCompositableCount; }
-
 protected:
   void RecycleTexture(TextureFlags aFlags);
 
   PTextureParent* mActor;
   TextureFlags mFlags;
-  int mCompositableCount;
 
   friend class TextureParent;
 };

@@ -52,7 +52,6 @@ namespace css {
 
 CommonAnimationManager::CommonAnimationManager(nsPresContext *aPresContext)
   : mPresContext(aPresContext)
-  , mIsObservingRefreshDriver(false)
 {
   PR_INIT_CLIST(&mElementCollections);
 }
@@ -72,21 +71,6 @@ CommonAnimationManager::Disconnect()
 }
 
 void
-CommonAnimationManager::AddElementCollection(AnimationPlayerCollection*
-                                               aCollection)
-{
-  if (!mIsObservingRefreshDriver) {
-    NS_ASSERTION(aCollection->mNeedsRefreshes,
-      "Added data which doesn't need refreshing?");
-    // We need to observe the refresh driver.
-    mPresContext->RefreshDriver()->AddRefreshObserver(this, Flush_Style);
-    mIsObservingRefreshDriver = true;
-  }
-
-  PR_INSERT_BEFORE(aCollection, &mElementCollections);
-}
-
-void
 CommonAnimationManager::RemoveAllElementCollections()
 {
   while (!PR_CLIST_IS_EMPTY(&mElementCollections)) {
@@ -94,26 +78,6 @@ CommonAnimationManager::RemoveAllElementCollections()
       static_cast<AnimationPlayerCollection*>(
         PR_LIST_HEAD(&mElementCollections));
     head->Destroy();
-  }
-}
-
-void
-CommonAnimationManager::CheckNeedsRefresh()
-{
-  for (PRCList *l = PR_LIST_HEAD(&mElementCollections);
-       l != &mElementCollections;
-       l = PR_NEXT_LINK(l)) {
-    if (static_cast<AnimationPlayerCollection*>(l)->mNeedsRefreshes) {
-      if (!mIsObservingRefreshDriver) {
-        mPresContext->RefreshDriver()->AddRefreshObserver(this, Flush_Style);
-        mIsObservingRefreshDriver = true;
-      }
-      return;
-    }
-  }
-  if (mIsObservingRefreshDriver) {
-    mIsObservingRefreshDriver = false;
-    mPresContext->RefreshDriver()->RemoveRefreshObserver(this, Flush_Style);
   }
 }
 
@@ -138,12 +102,10 @@ CommonAnimationManager::GetAnimationsForCompositor(nsIContent* aContent,
   // Mark the frame as active, in case we are able to throttle this animation.
   nsIFrame* frame = nsLayoutUtils::GetStyleFrame(collection->mElement);
   if (frame) {
-    const auto& info = sLayerAnimationInfo;
-    for (size_t i = 0; i < ArrayLength(info); i++) {
-      if (aProperty == info[i].mProperty) {
-        ActiveLayerTracker::NotifyAnimated(frame, aProperty);
-        break;
-      }
+    if (aProperty == eCSSProperty_opacity) {
+      ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_opacity);
+    } else if (aProperty == eCSSProperty_transform) {
+      ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_transform);
     }
   }
 
@@ -227,17 +189,6 @@ CommonAnimationManager::AddStyleUpdatesTo(RestyleTracker& aTracker)
   }
 }
 
-void
-CommonAnimationManager::NotifyCollectionUpdated(AnimationPlayerCollection&
-                                                  aCollection)
-{
-  CheckNeedsRefresh();
-  mPresContext->ClearLastStyleUpdateForAllAnimations();
-  mPresContext->RestyleManager()->IncrementAnimationGeneration();
-  aCollection.UpdateAnimationGeneration(mPresContext);
-  aCollection.PostRestyleForAnimation(mPresContext);
-}
-
 /* static */ bool
 CommonAnimationManager::ExtractComputedValueForTransition(
                           nsCSSProperty aProperty,
@@ -256,15 +207,6 @@ CommonAnimationManager::ExtractComputedValueForTransition(
   }
   return result;
 }
-
-/* static */ const CommonAnimationManager::LayerAnimationRecord
-  CommonAnimationManager::sLayerAnimationInfo[] =
-    { { eCSSProperty_transform,
-        nsDisplayItem::TYPE_TRANSFORM,
-        nsChangeHint_UpdateTransformLayer },
-      { eCSSProperty_opacity,
-        nsDisplayItem::TYPE_OPACITY,
-        nsChangeHint_UpdateOpacityLayer } };
 
 NS_IMPL_ISUPPORTS(AnimValuesStyleRule, nsIStyleRule)
 
@@ -496,16 +438,6 @@ AnimationPlayerCollection::GetElementToRestyle() const
   return pseudoFrame->GetContent()->AsElement();
 }
 
-void
-AnimationPlayerCollection::NotifyPlayerUpdated()
-{
-  // On the next flush, force us to update the style rule
-  mNeedsRefreshes = true;
-  mStyleRuleRefreshTime = TimeStamp();
-
-  mManager->NotifyCollectionUpdated(*this);
-}
-
 /* static */ void
 AnimationPlayerCollection::LogAsyncAnimationFailure(nsCString& aMessage,
                                                      const nsIContent* aContent)
@@ -595,9 +527,8 @@ AnimationPlayerCollection::EnsureStyleRuleFor(TimeStamp aRefreshTime,
                                         mNeedsRefreshes);
     }
   }
-
-  mManager->CheckNeedsRefresh();
 }
+
 
 bool
 AnimationPlayerCollection::CanThrottleTransformChanges(TimeStamp aTime)
@@ -615,8 +546,7 @@ AnimationPlayerCollection::CanThrottleTransformChanges(TimeStamp aTime)
   }
 
   // If this animation can cause overflow, we can throttle some of the ticks.
-  if (!mStyleRuleRefreshTime.IsNull() &&
-      (aTime - mStyleRuleRefreshTime) < TimeDuration::FromMilliseconds(200)) {
+  if ((aTime - mStyleRuleRefreshTime) < TimeDuration::FromMilliseconds(200)) {
     return true;
   }
 
@@ -646,27 +576,27 @@ AnimationPlayerCollection::CanThrottleAnimation(TimeStamp aTime)
     return false;
   }
 
-
-  const auto& info = css::CommonAnimationManager::sLayerAnimationInfo;
-  for (size_t i = 0; i < ArrayLength(info); i++) {
-    auto record = info[i];
-    if (!HasAnimationOfProperty(record.mProperty)) {
-      continue;
-    }
-
+  bool hasTransform = HasAnimationOfProperty(eCSSProperty_transform);
+  bool hasOpacity = HasAnimationOfProperty(eCSSProperty_opacity);
+  if (hasOpacity) {
     Layer* layer = FrameLayerBuilder::GetDedicatedLayer(
-                     frame, record.mLayerType);
+                     frame, nsDisplayItem::TYPE_OPACITY);
     if (!layer || mAnimationGeneration > layer->GetAnimationGeneration()) {
-      return false;
-    }
-
-    if (record.mProperty == eCSSProperty_transform &&
-        !CanThrottleTransformChanges(aTime)) {
       return false;
     }
   }
 
-  return true;
+  if (!hasTransform) {
+    return true;
+  }
+
+  Layer* layer = FrameLayerBuilder::GetDedicatedLayer(
+                   frame, nsDisplayItem::TYPE_TRANSFORM);
+  if (!layer || mAnimationGeneration > layer->GetAnimationGeneration()) {
+    return false;
+  }
+
+  return CanThrottleTransformChanges(aTime);
 }
 
 void

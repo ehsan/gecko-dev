@@ -215,6 +215,9 @@ ContentHostTexture::Composite(EffectChain& aEffectChain,
 void
 ContentHostTexture::UseTextureHost(TextureHost* aTexture)
 {
+  if (mTextureHost && mTextureHost != aTexture) {
+    mTextureHost->UnbindTextureSource();
+  }
   ContentHostBase::UseTextureHost(aTexture);
   mTextureHost = aTexture;
   mTextureHostOnWhite = nullptr;
@@ -228,6 +231,12 @@ void
 ContentHostTexture::UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
                                               TextureHost* aTextureOnWhite)
 {
+  if (mTextureHost && mTextureHost != aTextureOnBlack) {
+    mTextureHost->UnbindTextureSource();
+  }
+  if (mTextureHostOnWhite && mTextureHostOnWhite != aTextureOnWhite) {
+    mTextureHostOnWhite->UnbindTextureSource();
+  }
   ContentHostBase::UseComponentAlphaTextures(aTextureOnBlack, aTextureOnWhite);
   mTextureHost = aTextureOnBlack;
   mTextureHostOnWhite = aTextureOnWhite;

@@ -1274,7 +1274,8 @@ NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
     }
   }
 
-  *succeeded = npobj->_class->removeProperty(npobj, identifier);
+  if (!npobj->_class->removeProperty(npobj, identifier))
+    *succeeded = false;
 
   return ReportExceptionIfPending(cx);
 }

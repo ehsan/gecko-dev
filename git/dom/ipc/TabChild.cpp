@@ -1511,22 +1511,9 @@ TabChild::BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
     return NS_ERROR_ABORT;
   }
 
-  ScrollingBehavior scrolling = DEFAULT_SCROLLING;
-  TextureFactoryIdentifier textureFactoryIdentifier;
-  uint64_t layersId = 0;
-  PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
-  newChild->SendGetRenderFrameInfo(renderFrame,
-                                   &scrolling,
-                                   &textureFactoryIdentifier,
-                                   &layersId);
-  if (layersId == 0) { // if renderFrame is invalid.
-    PRenderFrameChild::Send__delete__(renderFrame);
-    renderFrame = nullptr;
-  }
-
   // Unfortunately we don't get a window unless we've shown the frame.  That's
   // pretty bogus; see bug 763602.
-  newChild->DoFakeShow(scrolling, textureFactoryIdentifier, layersId, renderFrame);
+  newChild->DoFakeShow();
 
   nsCOMPtr<nsIDOMWindow> win = do_GetInterface(newChild->WebNavigation());
   win.forget(aReturn);
@@ -1841,12 +1828,9 @@ TabChild::CancelCachedFileDescriptorCallback(
 }
 
 void
-TabChild::DoFakeShow(const ScrollingBehavior& aScrolling,
-                     const TextureFactoryIdentifier& aTextureFactoryIdentifier,
-                     const uint64_t& aLayersId,
-                     PRenderFrameChild* aRenderFrame)
+TabChild::DoFakeShow()
 {
-  RecvShow(nsIntSize(0, 0), aScrolling, aTextureFactoryIdentifier, aLayersId, aRenderFrame);
+  RecvShow(nsIntSize(0, 0));
   mDidFakeShow = true;
 }
 
@@ -1909,13 +1893,8 @@ TabChild::MaybeRequestPreinitCamera()
 #endif
 
 bool
-TabChild::RecvShow(const nsIntSize& aSize,
-                   const ScrollingBehavior& aScrolling,
-                   const TextureFactoryIdentifier& aTextureFactoryIdentifier,
-                   const uint64_t& aLayersId,
-                   PRenderFrameChild* aRenderFrame)
+TabChild::RecvShow(const nsIntSize& size)
 {
-    MOZ_ASSERT((!mDidFakeShow && aRenderFrame) || (mDidFakeShow && !aRenderFrame));
 
     if (mDidFakeShow) {
         return true;
@@ -1927,7 +1906,7 @@ TabChild::RecvShow(const nsIntSize& aSize,
         return false;
     }
 
-    if (!InitRenderingState(aScrolling, aTextureFactoryIdentifier, aLayersId, aRenderFrame)) {
+    if (!InitRenderingState()) {
         // We can fail to initialize our widget if the <browser
         // remote> has already been destroyed, and we couldn't hook
         // into the parent-process's layer system.  That's not a fatal
@@ -2769,7 +2748,10 @@ TabChild::RecvSetIsDocShellActive(const bool& aIsActive)
 }
 
 PRenderFrameChild*
-TabChild::AllocPRenderFrameChild()
+TabChild::AllocPRenderFrameChild(ScrollingBehavior* aScrolling,
+                                 TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                 uint64_t* aLayersId,
+                                 bool* aSuccess)
 {
     return new RenderFrameChild();
 }
@@ -2822,40 +2804,43 @@ TabChild::InitTabChildGlobal(FrameScriptLoading aScriptLoading)
 }
 
 bool
-TabChild::InitRenderingState(const ScrollingBehavior& aScrolling,
-                             const TextureFactoryIdentifier& aTextureFactoryIdentifier,
-                             const uint64_t& aLayersId,
-                             PRenderFrameChild* aRenderFrame)
+TabChild::InitRenderingState()
 {
     static_cast<PuppetWidget*>(mWidget.get())->InitIMEState();
 
-    RenderFrameChild* remoteFrame = static_cast<RenderFrameChild*>(aRenderFrame);
+    uint64_t id;
+    bool success;
+    RenderFrameChild* remoteFrame =
+        static_cast<RenderFrameChild*>(SendPRenderFrameConstructor(
+                                         &mScrolling,
+                                         &mTextureFactoryIdentifier, &id,
+                                         &success));
     if (!remoteFrame) {
         NS_WARNING("failed to construct RenderFrame");
         return false;
     }
+    if (!success) {
+        NS_WARNING("failed to construct RenderFrame");
+        PRenderFrameChild::Send__delete__(remoteFrame);
+        return false;
+    }
 
-    MOZ_ASSERT(aLayersId != 0);
-    mScrolling = aScrolling;
-    mTextureFactoryIdentifier = aTextureFactoryIdentifier;
+    MOZ_ASSERT(id != 0);
 
     // Pushing layers transactions directly to a separate
     // compositor context.
     PCompositorChild* compositorChild = CompositorChild::Get();
     if (!compositorChild) {
       NS_WARNING("failed to get CompositorChild instance");
-      PRenderFrameChild::Send__delete__(remoteFrame);
       return false;
     }
     nsTArray<LayersBackend> backends;
     backends.AppendElement(mTextureFactoryIdentifier.mParentBackend);
-    bool success;
     PLayerTransactionChild* shadowManager =
         compositorChild->SendPLayerTransactionConstructor(backends,
-                                                          aLayersId, &mTextureFactoryIdentifier, &success);
+                                                          id, &mTextureFactoryIdentifier, &success);
     if (!success) {
       NS_WARNING("failed to properly allocate layer transaction");
-      PRenderFrameChild::Send__delete__(remoteFrame);
       return false;
     }
 
@@ -2875,13 +2860,13 @@ TabChild::InitRenderingState(const ScrollingBehavior& aScrolling,
     ImageBridgeChild::IdentifyCompositorTextureHost(mTextureFactoryIdentifier);
 
     mRemoteFrame = remoteFrame;
-    if (aLayersId != 0) {
+    if (id != 0) {
       if (!sTabChildren) {
         sTabChildren = new TabChildMap;
       }
-      MOZ_ASSERT(!sTabChildren->Get(aLayersId));
-      sTabChildren->Put(aLayersId, this);
-      mLayersId = aLayersId;
+      MOZ_ASSERT(!sTabChildren->Get(id));
+      sTabChildren->Put(id, this);
+      mLayersId = id;
     }
 
     nsCOMPtr<nsIObserverService> observerService =
