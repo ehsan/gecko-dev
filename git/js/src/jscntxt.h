@@ -61,12 +61,10 @@ JS_BEGIN_EXTERN_C
 
 /*
  * js_GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
- * given pc in a script. We use the script->code pointer to tag the cache,
- * instead of the script address itself, so that source notes are always found
- * by offset from the bytecode with which they were generated.
+ * given pc in a script.
  */
 typedef struct JSGSNCache {
-    jsbytecode      *code;
+    JSScript        *script;
     JSDHashTable    table;
 #ifdef JS_GSNMETER
     uint32          hits;
@@ -81,7 +79,7 @@ typedef struct JSGSNCache {
 
 #define GSN_CACHE_CLEAR(cache)                                                \
     JS_BEGIN_MACRO                                                            \
-        (cache)->code = NULL;                                                 \
+        (cache)->script = NULL;                                               \
         if ((cache)->table.ops) {                                             \
             JS_DHashTableFinish(&(cache)->table);                             \
             (cache)->table.ops = NULL;                                        \
@@ -163,6 +161,11 @@ typedef struct JSPropertyTreeEntry {
     JSDHashEntryHdr     hdr;
     JSScopeProperty     *child;
 } JSPropertyTreeEntry;
+
+/*
+ * Forward declaration for opaque JSRuntime.nativeIteratorStates.
+ */
+typedef struct JSNativeIteratorState JSNativeIteratorState;
 
 typedef struct JSSetSlotRequest JSSetSlotRequest;
 
@@ -375,9 +378,9 @@ struct JSRuntime {
 
     /*
      * A helper list for the GC, so it can mark native iterator states. See
-     * js_TraceNativeEnumerators for details.
+     * js_TraceNativeIteratorStates for details.
      */
-    JSNativeEnumerator  *nativeEnumerators;
+    JSNativeIteratorState *nativeIteratorStates;
 
 #ifndef JS_THREADSAFE
     /*

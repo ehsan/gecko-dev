@@ -397,7 +397,7 @@ nsListBoxBodyFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 NS_IMETHODIMP
 nsListBoxBodyFrame::PositionChanged(nsISupports* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
 { 
-  if (mScrolling || mRowHeight == 0)
+  if (mScrolling)
     return NS_OK;
 
   nscoord oldTwipIndex, newTwipIndex;
@@ -449,9 +449,6 @@ nsListBoxBodyFrame::PositionChanged(nsISupports* aScrollbar, PRInt32 aOldIndex, 
 NS_IMETHODIMP
 nsListBoxBodyFrame::VisibilityChanged(nsISupports* aScrollbar, PRBool aVisible)
 {
-  if (mRowHeight == 0)
-    return NS_OK;
-
   PRInt32 lastPageTopRow = GetRowCount() - (GetAvailableHeight() / mRowHeight);
   if (lastPageTopRow < 0)
     lastPageTopRow = 0;

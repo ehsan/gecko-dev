@@ -93,7 +93,7 @@
 // nsProxiedService
 ////////////////////////////////////////////////////////////////////////////////
 
-class NS_STACK_CLASS nsProxiedService
+class nsProxiedService
 {
 public:
     nsProxiedService(const nsCID &aClass, const nsIID &aIID, 

@@ -88,12 +88,14 @@
 #endif
 
 /*
- * jemalloc provides posix_memalign.
+ * jemalloc provides posix_memalign but the function has to be explicitly
+ * declared on Windows.
  */
-#ifdef MOZ_MEMORY
-extern "C" {
-#include "../../memory/jemalloc/jemalloc.h"
-}
+#if HAS_POSIX_MEMALIGN && MOZ_MEMORY_WINDOWS
+JS_BEGIN_EXTERN_C
+extern int
+posix_memalign(void **memptr, size_t alignment, size_t size);
+JS_END_EXTERN_C
 #endif
 
 /*
@@ -2865,7 +2867,7 @@ js_TraceRuntime(JSTracer *trc, JSBool allAtoms)
     if (rt->gcLocksHash)
         JS_DHashTableEnumerate(rt->gcLocksHash, gc_lock_traversal, trc);
     js_TraceAtomState(trc, allAtoms);
-    js_TraceNativeEnumerators(trc);
+    js_TraceNativeIteratorStates(trc);
     js_TraceRuntimeNumberState(trc);
 
     iter = NULL;
@@ -3018,16 +3020,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
         ok = callback(cx, JSGC_BEGIN);
         if (gckind & GC_LOCK_HELD)
             JS_LOCK_GC(rt);
-        if (!ok && gckind != GC_LAST_CONTEXT) {
-            /*
-             * It's possible that we've looped back to this code from the 'goto
-             * restart_at_beginning' below in the GC_SET_SLOT_REQUEST code and
-             * that rt->gcLevel is now 0. Don't return without notifying!
-             */
-            if (rt->gcLevel == 0 && (gckind & GC_LOCK_HELD))
-                JS_NOTIFY_GC_DONE(rt);
+        if (!ok && gckind != GC_LAST_CONTEXT)
             return;
-        }
     }
 
     /* Lock out other GC allocator and collector invocations. */
@@ -3177,7 +3171,12 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
   }
 #endif
 
-    /* Clear property cache weak references. */
+    /*
+     * Clear property cache weak references and disable the cache so nothing
+     * can fill it during GC (this is paranoia, since scripts should not run
+     * during GC).
+     */
+    js_DisablePropertyCache(cx);
     js_FlushPropertyCache(cx);
 
 #ifdef JS_THREADSAFE
@@ -3199,6 +3198,7 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
             continue;
         memset(acx->thread->gcFreeLists, 0, sizeof acx->thread->gcFreeLists);
         GSN_CACHE_CLEAR(&acx->thread->gsnCache);
+        js_DisablePropertyCache(acx);
         js_FlushPropertyCache(acx);
     }
 #else
@@ -3471,19 +3471,14 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
         goto restart;
     }
 
-    if (rt->shapeGen & SHAPE_OVERFLOW_BIT) {
-        /*
-         * FIXME bug 440834: The shape id space has overflowed. Currently we
-         * cope badly with this. Every call to js_GenerateShape does GC, and
-         * we never re-enable the property cache.
-         */
-        js_DisablePropertyCache(cx);
+    if (!(rt->shapeGen & SHAPE_OVERFLOW_BIT)) {
+        js_EnablePropertyCache(cx);
 #ifdef JS_THREADSAFE
         iter = NULL;
         while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)) != NULL) {
             if (!acx->thread || acx->thread == cx->thread)
                 continue;
-            js_DisablePropertyCache(acx);
+            js_EnablePropertyCache(acx);
         }
 #endif
     }

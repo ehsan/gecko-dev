@@ -2356,7 +2356,7 @@ public:
     }
 };
 
-struct NS_STACK_CLASS FixRedirectData
+struct FixRedirectData
 {
     nsCOMPtr<nsIChannel> mNewChannel;
     nsCOMPtr<nsIURI> mOriginalURI;

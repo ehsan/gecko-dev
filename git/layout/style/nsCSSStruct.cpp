@@ -226,7 +226,6 @@ nsCSSDisplay::~nsCSSDisplay(void)
 // --- nsCSSMargin -----------------
 
 nsCSSMargin::nsCSSMargin(void)
-  : mBoxShadow(nsnull)
 {
   MOZ_COUNT_CTOR(nsCSSMargin);
 }
@@ -234,7 +233,6 @@ nsCSSMargin::nsCSSMargin(void)
 nsCSSMargin::~nsCSSMargin(void)
 {
   MOZ_COUNT_DTOR(nsCSSMargin);
-  CSS_IF_DELETE(mBoxShadow);
 }
 
 // --- nsCSSPosition -----------------

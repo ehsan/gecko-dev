@@ -474,7 +474,7 @@ private:
   static nsPluginHostImpl* sInst;
 };
 
-class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
+class PluginDestructionGuard : protected PRCList
 {
 public:
   PluginDestructionGuard(nsIPluginInstance *aInstance)

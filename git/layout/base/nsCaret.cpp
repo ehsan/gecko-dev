@@ -72,7 +72,6 @@
 #include "nsXULPopupManager.h"
 #include "nsMenuPopupFrame.h"
 #include "nsTextFragment.h"
-#include "nsThemeConstants.h"
 
 // The bidi indicator hangs off the caret to one side, to show which
 // direction the typing is in. It needs to be at least 2x2 to avoid looking like 
@@ -124,14 +123,10 @@ NS_IMETHODIMP nsCaret::Init(nsIPresShell *inPresShell)
   // XXX we should just do this nsILookAndFeel consultation every time
   // we need these values.
   mCaretWidthCSSPx = 1;
-  mCaretAspectRatio = 0;
   if (presContext && (lookAndFeel = presContext->LookAndFeel())) {
     PRInt32 tempInt;
-    float tempFloat;
     if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_CaretWidth, tempInt)))
       mCaretWidthCSSPx = (nscoord)tempInt;
-    if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetricFloat_CaretAspectRatio, tempFloat)))
-      mCaretAspectRatio = tempFloat;
     if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_CaretBlinkTime, tempInt)))
       mBlinkRate = (PRUint32)tempInt;
     if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ShowCaretDuringSelection, tempInt)))
@@ -182,12 +177,10 @@ DrawCJKCaret(nsIFrame* aFrame, PRInt32 aOffset)
   return 0x2e80 <= ch && ch <= 0xd7ff;
 }
 
-nsCaret::Metrics nsCaret::ComputeMetrics(nsIFrame* aFrame, PRInt32 aOffset, nscoord aCaretHeight)
+nsCaret::Metrics nsCaret::ComputeMetrics(nsIFrame* aFrame, PRInt32 aOffset)
 {
   // Compute nominal sizes in appunits
-  nscoord caretWidth = (aCaretHeight * mCaretAspectRatio) +
-                       nsPresContext::CSSPixelsToAppUnits(mCaretWidthCSSPx);
-
+  nscoord caretWidth = nsPresContext::CSSPixelsToAppUnits(mCaretWidthCSSPx);
   if (DrawCJKCaret(aFrame, aOffset)) {
     caretWidth += nsPresContext::CSSPixelsToAppUnits(1);
   }
@@ -374,7 +367,7 @@ NS_IMETHODIMP nsCaret::GetCaretCoordinates(EViewCoordinates aRelativeToType,
   outCoordinates->x = viewOffset.x;
   outCoordinates->y = viewOffset.y;
   outCoordinates->height = theFrame->GetSize().height;
-  outCoordinates->width = ComputeMetrics(theFrame, theFrameOffset, outCoordinates->height).mCaretWidth;
+  outCoordinates->width = ComputeMetrics(theFrame, theFrameOffset).mCaretWidth;
   
   return NS_OK;
 }
@@ -480,36 +473,13 @@ void nsCaret::UpdateCaretPosition()
 
 void nsCaret::PaintCaret(nsDisplayListBuilder *aBuilder,
                          nsIRenderingContext *aCtx,
-                         nsIFrame* aForFrame,
-                         const nsPoint &aOffset)
+                         const nsPoint &aOffset,
+                         nscolor aColor)
 {
   NS_ASSERTION(mDrawn, "The caret shouldn't be drawing");
 
-  const nsRect drawCaretRect = mCaretRect + aOffset;
-  nscolor cssColor = aForFrame->GetStyleColor()->mColor;
-
-  // Only draw the native caret if the foreground color matches that of
-  // -moz-fieldtext (the color of the text in a textbox). If it doesn't match
-  // we are likely in contenteditable or a custom widget and we risk being hard to see
-  // against the background. In that case, fall back to the CSS color.
-  nsPresContext* presContext = aForFrame->PresContext();
-
-  if (GetHookRect().IsEmpty() && presContext) {
-    nsITheme *theme = presContext->GetTheme();
-    if (theme && theme->ThemeSupportsWidget(presContext, aForFrame, NS_THEME_TEXTFIELD_CARET)) {
-      nsILookAndFeel* lookAndFeel = presContext->LookAndFeel();
-      nscolor fieldText;
-      if (NS_SUCCEEDED(lookAndFeel->GetColor(nsILookAndFeel::eColor__moz_fieldtext, fieldText)) &&
-          fieldText == cssColor) {
-        theme->DrawWidgetBackground(aCtx, aForFrame, NS_THEME_TEXTFIELD_CARET,
-                                    drawCaretRect, drawCaretRect);
-        return;
-      }
-    }
-  }
-
-  aCtx->SetColor(cssColor);
-  aCtx->FillRect(drawCaretRect);
+  aCtx->SetColor(aColor);
+  aCtx->FillRect(mCaretRect + aOffset);
   if (!GetHookRect().IsEmpty())
     aCtx->FillRect(GetHookRect() + aOffset);
 }
@@ -1206,7 +1176,7 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
   }
 
   mCaretRect += framePos;
-  Metrics metrics = ComputeMetrics(aFrame, aFrameOffset, mCaretRect.height);
+  Metrics metrics = ComputeMetrics(aFrame, aFrameOffset);
   mCaretRect.width = metrics.mCaretWidth;
 
   // Clamp our position to be within our scroll frame. If we don't, then it

@@ -40,9 +40,10 @@ topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
 VPATH   = @srcdir@
 
-include $(topsrcdir)/config/config.mk
+include $(DEPTH)/config/autoconf.mk
 
-ifndef SUITE_USING_XPFE_DM
+ifndef MOZ_SUITE
+# XXX Suite doesn't want these just yet
 DIRS = src tests
 endif
 

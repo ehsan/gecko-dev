@@ -261,6 +261,20 @@ function BookmarkThisTab()
                                  PlacesUtils.bookmarksMenuFolderId, true);
 }
 
+/**
+ * Initialize the bookmarks toolbar and the menuitem for it.
+ */
+function initBookmarksToolbar() {
+  var place = PlacesUtils.getQueryStringForFolder(PlacesUtils.bookmarks.toolbarFolder);
+  var bt = document.getElementById("bookmarksBarContent");
+  if (bt)
+    bt.place = place;
+
+  document.getElementById("bookmarksToolbarFolderPopup").place = place;
+  document.getElementById("bookmarksToolbarFolderMenu").label =
+    PlacesUtils.bookmarks.getItemTitle(PlacesUtils.bookmarks.toolbarFolder);
+}
+
 const gSessionHistoryObserver = {
   observe: function(subject, topic, data)
   {
@@ -659,13 +673,7 @@ function BrowserStartup()
   gBrowser = document.getElementById("content");
 
   var uriToLoad = null;
-
-  // window.arguments[0]: URI to load (string), or an nsISupportsArray of
-  //                      nsISupportsStrings to load
-  //                 [1]: character set (string)
-  //                 [2]: referrer (nsIURI)
-  //                 [3]: postData (nsIInputStream)
-  //                 [4]: allowThirdPartyFixup (bool)
+  // Check for window.arguments[0]. If present, use that for uriToLoad.
   if ("arguments" in window && window.arguments[0])
     uriToLoad = window.arguments[0];
 
@@ -678,26 +686,9 @@ function BrowserStartup()
 #else
 # only load url passed in when we're not page cycling
   if (uriToLoad && !gIsLoadingBlank) {
-    if (uriToLoad instanceof Components.interfaces.nsISupportsArray) {
-      var count = uriToLoad.Count();
-      var specs = [];
-      for (var i = 0; i < count; i++) {
-        var urisstring = uriToLoad.GetElementAt(i).QueryInterface(Components.interfaces.nsISupportsString);
-        specs.push(urisstring.data);
-      }
-
-      // This function throws for certain malformed URIs, so use exception handling
-      // so that we don't disrupt startup
-      try {
-        gBrowser.loadTabs(specs, false, true);
-      } catch (e) {}
-    }
-    else if (window.arguments.length >= 3) {
+    if (window.arguments.length >= 3)
       loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
               window.arguments[4] || false);
-    }
-    // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
-    // Such callers expect that window.arguments[0] is handled as a single URI.
     else
       loadOneOrMoreURIs(uriToLoad);
   }
@@ -936,7 +927,7 @@ function delayedStartup()
   try {
     placesMigrationTasks();
   } catch(ex) {}
-
+  initBookmarksToolbar();
   PlacesStarButton.init();
 
   // called when we go into full screen, even if it is
@@ -1220,6 +1211,9 @@ function nonBrowserWindowDelayedStartup()
   
   // Set up Sanitize Item
   gSanitizeListener = new SanitizeListener();
+
+  // "Bookmarks Toolbar" menu
+  initBookmarksToolbar();
 }
 
 function nonBrowserWindowShutdown()
@@ -3300,6 +3294,8 @@ function BrowserToolboxCustomizeDone(aToolboxChanged)
     SetClickAndHoldHandlers();
 #endif
 
+  initBookmarksToolbar();
+
 #ifndef TOOLBAR_CUSTOMIZATION_SHEET
   // XXX Shouldn't have to do this, but I do
   window.focus();
@@ -4312,9 +4308,7 @@ nsBrowserAccess.prototype =
         // FIXME: Bug 408379. So how come this doesn't send the
         // referrer like the other loads do?
         var url = aURI ? aURI.spec : "about:blank";
-        // Pass all params to openDialog to ensure that "url" isn't passed through
-        // loadOneOrMoreURIs, which splits based on "|"
-        newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
+        newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
         var win = this._getMostRecentBrowserWindow();
@@ -5066,19 +5060,21 @@ function BrowserSetForcedDetector(doReload)
 
 function UpdateCurrentCharset()
 {
-    // extract the charset from DOM
+    var menuitem = null;
+
+    // exctract the charset from DOM
     var wnd = document.commandDispatcher.focusedWindow;
     if ((window == wnd) || (wnd == null)) wnd = window.content;
+    menuitem = document.getElementById('charset.' + wnd.document.characterSet);
 
-    // Uncheck previous item
-    if (gPrevCharset) {
-        var pref_item = document.getElementById('charset.' + gPrevCharset);
-        if (pref_item)
-          pref_item.setAttribute('checked', 'false');
-    }
-
-    var menuitem = document.getElementById('charset.' + wnd.document.characterSet);
     if (menuitem) {
+        // uncheck previously checked item to workaround Mac checkmark problem
+        // bug 98625
+        if (gPrevCharset) {
+            var pref_item = document.getElementById('charset.' + gPrevCharset);
+            if (pref_item)
+              pref_item.setAttribute('checked', 'false');
+        }
         menuitem.setAttribute('checked', 'true');
     }
 }

@@ -111,12 +111,7 @@ done
 for t in $testdir/test_*.js
 do
     echo -n "$t: "
-    if [ `echo $t | grep -c 'test_sleep_wake.js'` != 0 ]
-    then
-      NATIVE_TOPSRCDIR="$native_topsrcdir" TOPSRCDIR="$topsrcdir" NSPR_LOG_MODULES="nsHttp:5" $xpcshell -s $headfiles -f $t $tailfiles
-    else
-      NATIVE_TOPSRCDIR="$native_topsrcdir" TOPSRCDIR="$topsrcdir" $xpcshell -s $headfiles -f $t $tailfiles 2> $t.log 1>&2
-    fi
+    NATIVE_TOPSRCDIR="$native_topsrcdir" TOPSRCDIR="$topsrcdir" $xpcshell -s $headfiles -f $t $tailfiles 2> $t.log 1>&2
     rv="$?"
     if [ ! "$rv" = "0"  -o \
          `grep -c '\*\*\* PASS' $t.log` = 0 ]

@@ -396,7 +396,7 @@ protected:
 
   void PaintOneShadow(PRUint32 aOffset,
                       PRUint32 aLength,
-                      nsCSSShadowItem* aShadowDetails,
+                      nsTextShadowItem* aShadowDetails,
                       PropertyProvider* aProvider,
                       const gfxRect& aDirtyRect,
                       const gfxPoint& aFramePt,
