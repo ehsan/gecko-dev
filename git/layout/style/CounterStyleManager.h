@@ -20,8 +20,6 @@ class nsCSSCounterStyleRule;
 
 namespace mozilla {
 
-class WritingMode;
-
 typedef int32_t CounterValue;
 
 class CounterStyleManager;
@@ -53,11 +51,9 @@ public:
   virtual void GetPrefix(nsSubstring& aResult) = 0;
   virtual void GetSuffix(nsSubstring& aResult) = 0;
   void GetCounterText(CounterValue aOrdinal,
-                      WritingMode aWritingMode,
                       nsSubstring& aResult,
                       bool& aIsRTL);
   virtual void GetSpokenCounterText(CounterValue aOrdinal,
-                                    WritingMode aWritingMode,
                                     nsSubstring& aResult,
                                     bool& aIsBullet);
 
@@ -84,11 +80,9 @@ public:
   virtual bool UseNegativeSign() = 0;
 
   virtual void CallFallbackStyle(CounterValue aOrdinal,
-                                 WritingMode aWritingMode,
                                  nsSubstring& aResult,
                                  bool& aIsRTL) = 0;
   virtual bool GetInitialCounterText(CounterValue aOrdinal,
-                                     WritingMode aWritingMode,
                                      nsSubstring& aResult,
                                      bool& aIsRTL) = 0;
 

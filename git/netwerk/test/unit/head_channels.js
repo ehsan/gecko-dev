@@ -29,7 +29,6 @@ const CL_ALLOW_UNKNOWN_CL = 0x10;
 const CL_EXPECT_LATE_FAILURE = 0x20;
 const CL_FROM_CACHE = 0x40; // Response must be from the cache
 const CL_NOT_FROM_CACHE = 0x80; // Response must NOT be from the cache
-const CL_IGNORE_CL = 0x100; // don't bother to verify the content-length
 
 const SUSPEND_DELAY = 3000;
 
@@ -157,7 +156,7 @@ ChannelListener.prototype = {
         do_throw("request.status does not match status arg to onStopRequest!");
       if (request.isPending())
         do_throw("request reports itself as pending from onStopRequest!");
-      if (!(this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE | CL_IGNORE_CL)) &&
+      if (!(this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE)) &&
           !(this._flags & CL_EXPECT_GZIP) &&
           this._contentLen != -1)
           do_check_eq(this._buffer.length, this._contentLen)

@@ -33,24 +33,19 @@ function test(aEnabled) {
 
   let deferred = Promise.defer();
 
-  // Ensures that we can always receive that "enabled"/"disabled" event by
-  // installing the event handler *before* we ever enable/disable Bluetooth. Or
-  // we might just miss those events and get a timeout error.
-  let promises = [];
-  promises.push(waitEitherEnabledOrDisabled());
-  promises.push(setBluetoothEnabled(aEnabled));
-  Promise.all(promises)
+  Promise.all([setBluetoothEnabled(aEnabled),
+               waitEitherEnabledOrDisabled()])
     .then(function(aResults) {
       /* aResults is an array of two elements:
-       *   [ <result of waitEitherEnabledOrDisabled>,
-       *     <result of setBluetoothEnabled>]
+       *   [ <result of setBluetoothEnabled>,
+       *     <result of waitEitherEnabledOrDisabled> ]
        */
       log("  Examine results " + JSON.stringify(aResults));
 
       is(bluetoothManager.enabled, aEnabled, "bluetoothManager.enabled");
-      is(aResults[0], aEnabled, "'adapteradded' event received");
+      is(aResults[1], aEnabled, "'adapteradded' event received");
 
-      if (bluetoothManager.enabled === aEnabled && aResults[0] === aEnabled) {
+      if (bluetoothManager.enabled === aEnabled && aResults[1] === aEnabled) {
         deferred.resolve();
       } else {
         deferred.reject();

@@ -5636,7 +5636,7 @@ ParallelCompilationEnabled(ExclusiveContext *cx)
 
     if (!cx->isJSContext())
         return true;
-    return cx->asJSContext()->runtime()->canUseOffthreadIonCompilation();
+    return cx->asJSContext()->runtime()->canUseParallelIonCompilation();
 }
 
 // State of compilation as tracked and updated by the main thread.

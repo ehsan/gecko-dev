@@ -531,7 +531,7 @@ bool
 GCMarker::markDelayedChildren(SliceBudget &budget)
 {
     gcstats::MaybeAutoPhase ap;
-    if (runtime()->gc.state() == MARK)
+    if (runtime()->gc.incrementalState == MARK)
         ap.construct(runtime()->gc.stats, gcstats::PHASE_MARK_DELAYED);
 
     JS_ASSERT(unmarkedArenaStackTop);

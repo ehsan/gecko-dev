@@ -249,7 +249,6 @@ class TreeMetadataEmitter(LoggingMixin):
             'DEFFILE',
             'SDK_LIBRARY',
             'WIN32_EXE_LDFLAGS',
-            'LD_VERSION_SCRIPT',
         ]
         for v in varlist:
             if v in sandbox and sandbox[v]:
@@ -276,7 +275,6 @@ class TreeMetadataEmitter(LoggingMixin):
                 '.mm': 'CMMSRCS',
                 '.cc': 'CPPSRCS',
                 '.cpp': 'CPPSRCS',
-                '.cxx': 'CPPSRCS',
                 '.S': 'SSRCS',
             },
             HOST_SOURCES={
@@ -284,14 +282,12 @@ class TreeMetadataEmitter(LoggingMixin):
                 '.mm': 'HOST_CMMSRCS',
                 '.cc': 'HOST_CPPSRCS',
                 '.cpp': 'HOST_CPPSRCS',
-                '.cxx': 'HOST_CPPSRCS',
             },
             UNIFIED_SOURCES={
                 '.c': 'UNIFIED_CSRCS',
                 '.mm': 'UNIFIED_CMMSRCS',
                 '.cc': 'UNIFIED_CPPSRCS',
                 '.cpp': 'UNIFIED_CPPSRCS',
-                '.cxx': 'UNIFIED_CPPSRCS',
             }
         )
         varmap.update(dict(('GENERATED_%s' % k, v) for k, v in varmap.items()
@@ -485,7 +481,7 @@ class TreeMetadataEmitter(LoggingMixin):
             if filter_inactive:
                 # We return tests that don't exist because we want manifests
                 # defining tests that don't exist to result in error.
-                filtered = m.active_tests(exists=False, disabled=True,
+                filtered = m.active_tests(exists=False, disabled=False,
                     **self.info)
 
                 missing = [t['name'] for t in filtered if not os.path.exists(t['path'])]

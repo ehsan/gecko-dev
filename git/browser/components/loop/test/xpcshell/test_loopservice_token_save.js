@@ -6,6 +6,7 @@
  * header is returned with the registration response.
  */
 add_test(function test_registration_returns_hawk_session_token() {
+
   var fakeSessionToken = "1bad3e44b12f77a88fe09f016f6a37c42e40f974bc7a8b432bb0d2f0e37e1750";
   Services.prefs.clearUserPref("loop.hawk-session-token");
 
@@ -16,7 +17,7 @@ add_test(function test_registration_returns_hawk_session_token() {
     response.finish();
   });
 
-  MozLoopService.register(mockPushHandler).then(() => {
+  MozLoopService.register().then(() => {
     var hawkSessionPref;
     try {
       hawkSessionPref = Services.prefs.getCharPref("loop.hawk-session-token");
@@ -35,7 +36,11 @@ function run_test()
 {
   setupFakeLoopServer();
 
+  // Registrations and pref settings.
+  gMockWebSocketChannelFactory.register();
+
   do_register_cleanup(function() {
+    gMockWebSocketChannelFactory.unregister();
     Services.prefs.clearUserPref("loop.hawk-session-token");
   });
 

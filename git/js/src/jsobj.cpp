@@ -1427,7 +1427,7 @@ NewObject(ExclusiveContext *cx, types::TypeObject *type_, JSObject *parent, gc::
         if (!cx->shouldBeJSContext())
             return nullptr;
         JSRuntime *rt = cx->asJSContext()->runtime();
-        rt->gc.disableIncrementalGC();
+        rt->gc.incrementalEnabled = false;
 
 #ifdef DEBUG
         if (rt->gcMode() == JSGC_MODE_INCREMENTAL) {

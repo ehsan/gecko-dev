@@ -2325,20 +2325,16 @@ public:
                            nscolor aColor)
     : nsDisplayItem(aBuilder, aFrame)
     , mBackgroundStyle(aBackgroundStyle)
-    , mColor(gfxRGBA(aColor))
+    , mColor(aColor)
   { }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
-
+  
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap) MOZ_OVERRIDE;
   virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) MOZ_OVERRIDE;
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
-
-  virtual bool ApplyOpacity(nsDisplayListBuilder* aBuilder,
-                            float aOpacity,
-                            const DisplayItemClip* aClip) MOZ_OVERRIDE;
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
   {
@@ -2348,20 +2344,14 @@ public:
 
   virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
   {
-    return new nsDisplaySolidColorGeometry(this, aBuilder,
-                                           NS_RGBA_FROM_GFXRGBA(mColor));
+    return new nsDisplayItemBoundsGeometry(this, aBuilder);
   }
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion* aInvalidRegion) MOZ_OVERRIDE
   {
-    const nsDisplaySolidColorGeometry* geometry = static_cast<const nsDisplaySolidColorGeometry*>(aGeometry);
-    if (NS_RGBA_FROM_GFXRGBA(mColor) != geometry->mColor) {
-      bool dummy;
-      aInvalidRegion->Or(geometry->mBounds, GetBounds(aBuilder, &dummy));
-      return;
-    }
+    const nsDisplayItemBoundsGeometry* geometry = static_cast<const nsDisplayItemBoundsGeometry*>(aGeometry);
     ComputeInvalidationRegionDifference(aBuilder, geometry, aInvalidRegion);
   }
 
@@ -2372,7 +2362,7 @@ public:
 
 protected:
   const nsStyleBackground* mBackgroundStyle;
-  gfxRGBA mColor;
+  nscolor mColor;
 };
 
 /**
@@ -2757,9 +2747,6 @@ public:
   {
     // We don't need to compute an invalidation region since we have LayerTreeInvalidation
   }
-  virtual bool ApplyOpacity(nsDisplayListBuilder* aBuilder,
-                            float aOpacity,
-                            const DisplayItemClip* aClip) MOZ_OVERRIDE;
   virtual bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
   bool NeedsActiveLayer();
   NS_DISPLAY_DECL_NAME("Opacity", TYPE_OPACITY)
@@ -2768,9 +2755,6 @@ public:
 #endif
 
   bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
-
-private:
-  float mOpacity;
 };
 
 class nsDisplayMixBlendMode : public nsDisplayWrapList {

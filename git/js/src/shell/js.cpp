@@ -6022,21 +6022,16 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
     if (op.getBoolOption("ion-compile-try-catch"))
         jit::js_JitOptions.compileTryCatch = true;
 
-    bool offthreadCompilation = true;
-    if (const char *str = op.getStringOption("ion-offthread-compile")) {
+    bool parallelCompilation = true;
+    if (const char *str = op.getStringOption("ion-parallel-compile")) {
         if (strcmp(str, "off") == 0)
-            offthreadCompilation = false;
+            parallelCompilation = false;
         else if (strcmp(str, "on") != 0)
-            return OptionFailure("ion-offthread-compile", str);
+            return OptionFailure("ion-parallel-compile", str);
     }
 #ifdef JS_THREADSAFE
-    rt->setOffthreadIonCompilationEnabled(offthreadCompilation);
+    rt->setParallelIonCompilationEnabled(parallelCompilation);
 #endif
-
-    if (op.getStringOption("ion-parallel-compile")) {
-        fprintf(stderr, "--ion-parallel-compile is deprecated. Please use --ion-offthread-compile instead.\n");
-        return false;
-    }
 
 #endif // JS_ION
 
@@ -6235,10 +6230,8 @@ main(int argc, char **argv, char **envp)
                                "  stupid: Simple block local register allocation")
         || !op.addBoolOption('\0', "ion-eager", "Always ion-compile methods (implies --baseline-eager)")
         || !op.addBoolOption('\0', "ion-compile-try-catch", "Ion-compile try-catch statements")
-        || !op.addStringOption('\0', "ion-offthread-compile", "on/off",
-                               "Compile scripts off thread (default: on)")
         || !op.addStringOption('\0', "ion-parallel-compile", "on/off",
-                               "--ion-parallel compile is deprecated. Use --ion-offthread-compile.")
+                               "Compile scripts off thread (default: on)")
         || !op.addBoolOption('\0', "baseline", "Enable baseline compiler (default)")
         || !op.addBoolOption('\0', "no-baseline", "Disable baseline compiler")
         || !op.addBoolOption('\0', "baseline-eager", "Always baseline-compile methods")

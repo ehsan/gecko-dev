@@ -94,7 +94,6 @@ function Tester(aTests, aDumper, aCallback) {
   this.SimpleTest = simpleTestScope.SimpleTest;
   this.MemoryStats = simpleTestScope.MemoryStats;
   this.Task = Task;
-  this.Task.Debugging.maintainStack = true;
   this.Promise = Components.utils.import("resource://gre/modules/Promise.jsm", null).Promise;
   this.Assert = Components.utils.import("resource://testing-common/Assert.jsm", null).Assert;
 

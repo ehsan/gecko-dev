@@ -2,10 +2,10 @@
 
 load(libdir + "jitopts.js");
 
-if (!jitTogglesMatch(Opts_Ion2NoOffthreadCompilation))
+if (!jitTogglesMatch(Opts_Ion2NoParallelCompilation))
   quit();
 
-withJitOptions(Opts_Ion2NoOffthreadCompilation, function () {
+withJitOptions(Opts_Ion2NoParallelCompilation, function () {
   var g = newGlobal();
   var dbg1 = new Debugger;
   var dbg2 = new Debugger;

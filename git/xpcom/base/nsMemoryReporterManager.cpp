@@ -110,12 +110,6 @@ ResidentFastDistinguishedAmount(int64_t* aN)
 }
 
 #define HAVE_RESIDENT_UNIQUE_REPORTER
-static nsresult
-ResidentUniqueDistinguishedAmount(int64_t* aN)
-{
-  return GetProcSelfSmapsPrivate(aN);
-}
-
 class ResidentUniqueReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
@@ -125,7 +119,7 @@ public:
                            nsISupports* aData)
   {
     int64_t amount = 0;
-    nsresult rv = ResidentUniqueDistinguishedAmount(&amount);
+    nsresult rv = GetProcSelfSmapsPrivate(&amount);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return MOZ_COLLECT_REPORT(
@@ -1562,29 +1556,16 @@ nsMemoryReporterManager::ResidentFast()
 #endif
 }
 
-NS_IMETHODIMP
-nsMemoryReporterManager::GetResidentUnique(int64_t* aAmount)
-{
-#ifdef HAVE_RESIDENT_UNIQUE_REPORTER
-  return ResidentUniqueDistinguishedAmount(aAmount);
-#else
-  *aAmount = 0;
-  return NS_ERROR_NOT_AVAILABLE;
-#endif
-}
-
+#if defined(XP_LINUX)
 /*static*/ int64_t
 nsMemoryReporterManager::ResidentUnique()
 {
-#ifdef HAVE_RESIDENT_UNIQUE_REPORTER
   int64_t amount = 0;
-  nsresult rv = ResidentUniqueDistinguishedAmount(&amount);
+  nsresult rv = GetProcSelfSmapsPrivate(&amount);
   NS_ENSURE_SUCCESS(rv, 0);
   return amount;
-#else
-  return 0;
-#endif
 }
+#endif
 
 NS_IMETHODIMP
 nsMemoryReporterManager::GetHeapAllocated(int64_t* aAmount)

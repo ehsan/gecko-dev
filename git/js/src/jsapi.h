@@ -758,7 +758,8 @@ typedef bool
  */
 typedef JSObject *
 (* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
-                         JS::HandleObject parent, unsigned flags);
+                         JS::HandleObject proto, JS::HandleObject parent,
+                         unsigned flags);
 
 /*
  * Callback used by the wrap hook to ask the embedding to prepare an object
@@ -4754,14 +4755,14 @@ extern JS_PUBLIC_API(void)
 JS_SetParallelParsingEnabled(JSRuntime *rt, bool enabled);
 
 extern JS_PUBLIC_API(void)
-JS_SetOffthreadIonCompilationEnabled(JSRuntime *rt, bool enabled);
+JS_SetParallelIonCompilationEnabled(JSRuntime *rt, bool enabled);
 
 #define JIT_COMPILER_OPTIONS(Register)                                  \
     Register(BASELINE_USECOUNT_TRIGGER, "baseline.usecount.trigger")    \
     Register(ION_USECOUNT_TRIGGER, "ion.usecount.trigger")              \
     Register(ION_ENABLE, "ion.enable")                                  \
     Register(BASELINE_ENABLE, "baseline.enable")                        \
-    Register(OFFTHREAD_COMPILATION_ENABLE, "offthread-compilation.enable")
+    Register(PARALLEL_COMPILATION_ENABLE, "parallel-compilation.enable")
 
 typedef enum JSJitCompilerOption {
 #define JIT_COMPILER_DECLARE(key, str) \

@@ -5726,9 +5726,8 @@ def isResultAlreadyAddRefed(extendedAttributes):
     return 'resultNotAddRefed' not in extendedAttributes
 
 
-def needCx(returnType, arguments, extendedAttributes, considerTypes,
-           static=False):
-    return (not static and considerTypes and
+def needCx(returnType, arguments, extendedAttributes, considerTypes):
+    return (considerTypes and
             (typeNeedsCx(returnType, True) or
              any(typeNeedsCx(a.type) for a in arguments)) or
             'implicitJSContext' in extendedAttributes)
@@ -6058,11 +6057,10 @@ class CGPerSignatureCall(CGThing):
 
         # For JS-implemented interfaces we do not want to base the
         # needsCx decision on the types involved, just on our extended
-        # attributes. Also, JSContext is not needed for the static case
-        # since GlobalObject already contains the context.
+        # attributes.
         needsCx = needCx(returnType, arguments, self.extendedAttributes,
-                         not descriptor.interface.isJSImplemented(), static)
-        if needsCx:
+                         not descriptor.interface.isJSImplemented())
+        if needsCx and not (static and descriptor.workers):
             argsPre.append("cx")
 
         needsUnwrap = False
@@ -11710,7 +11708,7 @@ class CGNativeMember(ClassMethod):
             args.insert(0, Argument("JS::Value", "aThisVal"))
         # And jscontext bits.
         if needCx(returnType, argList, self.extendedAttrs,
-                  self.passJSBitsAsNeeded, self.member.isStatic()):
+                  self.passJSBitsAsNeeded):
             args.insert(0, Argument("JSContext*", "cx"))
             if needScopeObject(returnType, argList, self.extendedAttrs,
                                self.descriptorProvider.wrapperCache,
@@ -13649,7 +13647,7 @@ class CGEventMethod(CGNativeMember):
         self.args.insert(0, Argument("mozilla::dom::EventTarget*", "aOwner"))
         constructorForNativeCaller = CGNativeMember.declare(self, cgClass)
         self.args = list(self.originalArgs)
-        if needCx(None, self.arguments(), [], considerTypes=True, static=True):
+        if needCx(None, self.arguments(), [], True):
             self.args.insert(0, Argument("JSContext*", "aCx"))
         self.args.insert(0, Argument("const GlobalObject&", "aGlobal"))
         self.args.append(Argument('ErrorResult&', 'aRv'))
@@ -13700,7 +13698,7 @@ class CGEventMethod(CGNativeMember):
             """,
             arg0=self.args[0].name,
             arg1=self.args[1].name)
-        if needCx(None, self.arguments(), [], considerTypes=True, static=True):
+        if needCx(None, self.arguments(), [], True):
             self.args.insert(0, Argument("JSContext*", "aCx"))
         self.args.insert(0, Argument("const GlobalObject&", "aGlobal"))
         self.args.append(Argument('ErrorResult&', 'aRv'))

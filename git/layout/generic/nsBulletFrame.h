@@ -101,7 +101,6 @@ public:
 protected:
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
 
-  void AppendSpacingToPadding(nsFontMetrics* aFontMetrics);
   void GetDesiredSize(nsPresContext* aPresContext,
                       nsRenderingContext *aRenderingContext,
                       nsHTMLReflowMetrics& aMetrics,
