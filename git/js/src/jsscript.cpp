@@ -60,7 +60,6 @@
 #include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jstracer.h"
 #if JS_HAS_XDR
 #include "jsxdrapi.h"
 #endif
@@ -1608,9 +1607,6 @@ js_DestroyScript(JSContext *cx, JSScript *script)
             JS_ASSERT(script->owner == cx->thread);
 #endif
             js_FlushPropertyCacheForScript(cx, script);
-#ifdef JS_TRACER
-            js_FlushScriptFragments(cx, script);
-#endif
         }
     }
 

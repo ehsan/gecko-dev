@@ -144,7 +144,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp);
 #endif /* JS_BASIC_STATS */
 
 
-#if defined(DEBUG_notme) && defined(XP_UNIX)
+#ifdef XP_UNIX
 
 typedef struct JSCallsite JSCallsite;
 
@@ -159,11 +159,7 @@ struct JSCallsite {
     void        *handy;
 };
 
-extern JS_FRIEND_API(JSCallsite *)
-JS_Backtrace(int skip);
-
-extern JS_FRIEND_API(void)
-JS_DumpBacktrace(JSCallsite *trace);
+extern JSCallsite *JS_Backtrace(int skip);
 
 #endif
 

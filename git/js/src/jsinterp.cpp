@@ -54,7 +54,6 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsdate.h"
 #include "jsversion.h"
 #include "jsdbgapi.h"
 #include "jsfun.h"
@@ -2685,7 +2684,7 @@ js_Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (!JS_CHECK_OPERATION_LIMIT(cx))                                    \
+        if (!JS_CHECK_OPERATION_LIMIT(cx, JSOW_SCRIPT_JUMP))                  \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -6436,14 +6435,6 @@ js_Interpret(JSContext *cx)
             }
           END_CASE(JSOP_PRIMTOP)
 
-          BEGIN_CASE(JSOP_OBJTOP)
-            lval = FETCH_OPND(-1);
-            if (JSVAL_IS_PRIMITIVE(lval)) {
-                js_ReportValueError(cx, GET_UINT16(regs.pc), -1, lval, NULL);
-                goto error;
-            }
-          END_CASE(JSOP_OBJTOP)
-
           BEGIN_CASE(JSOP_INSTANCEOF)
             rval = FETCH_OPND(-1);
             if (JSVAL_IS_PRIMITIVE(rval) ||
@@ -6893,6 +6884,7 @@ js_Interpret(JSContext *cx)
           L_JSOP_DEFXMLNS:
 # endif
 
+          L_JSOP_UNUSED135:
           L_JSOP_UNUSED203:
           L_JSOP_UNUSED204:
           L_JSOP_UNUSED205:

@@ -1191,12 +1191,24 @@ JS_GetOptions(JSContext *cx)
     return cx->options;
 }
 
+#define SYNC_OPTIONS_TO_VERSION(cx)                                           \
+    JS_BEGIN_MACRO                                                            \
+        if ((cx)->options & JSOPTION_XML)                                     \
+            (cx)->version |= JSVERSION_HAS_XML;                               \
+        else                                                                  \
+            (cx)->version &= ~JSVERSION_HAS_XML;                              \
+        if ((cx)->options & JSOPTION_ANONFUNFIX)                              \
+            (cx)->version |= JSVERSION_ANONFUNFIX;                            \
+        else                                                                  \
+            (cx)->version &= ~JSVERSION_ANONFUNFIX;                           \
+    JS_END_MACRO
+
 JS_PUBLIC_API(uint32)
 JS_SetOptions(JSContext *cx, uint32 options)
 {
     uint32 oldopts = cx->options;
     cx->options = options;
-    js_SyncOptionsToVersion(cx);
+    SYNC_OPTIONS_TO_VERSION(cx);
     return oldopts;
 }
 
@@ -1205,7 +1217,7 @@ JS_ToggleOptions(JSContext *cx, uint32 options)
 {
     uint32 oldopts = cx->options;
     cx->options ^= options;
-    js_SyncOptionsToVersion(cx);
+    SYNC_OPTIONS_TO_VERSION(cx);
     return oldopts;
 }
 
@@ -1858,6 +1870,7 @@ JS_malloc(JSContext *cx, size_t nbytes)
     void *p;
 
     JS_ASSERT(nbytes != 0);
+    JS_COUNT_OPERATION(cx, JSOW_ALLOCATION);
     if (nbytes == 0)
         nbytes = 1;
 
@@ -1874,6 +1887,7 @@ JS_malloc(JSContext *cx, size_t nbytes)
 JS_PUBLIC_API(void *)
 JS_realloc(JSContext *cx, void *p, size_t nbytes)
 {
+    JS_COUNT_OPERATION(cx, JSOW_ALLOCATION);
     p = realloc(p, nbytes);
     if (!p)
         JS_ReportOutOfMemory(cx);
@@ -5302,33 +5316,94 @@ JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, uintN argc,
     return ok;
 }
 
-JS_PUBLIC_API(JSOperationCallback)
-JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback)
+JS_PUBLIC_API(void)
+JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback,
+                        uint32 operationLimit)
 {
-#ifdef JS_THREADSAFE
-    JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
-#endif    
-    JSOperationCallback old = cx->operationCallback;
+    JS_SetOperationCallbackFunction(cx, callback);
+    JS_SetOperationLimit(cx, operationLimit);
+}
+
+JS_PUBLIC_API(void)
+JS_ClearOperationCallback(JSContext *cx)
+{
+    JS_SetOperationCallbackFunction(cx, NULL);
+    JS_SetOperationLimit(cx, JS_MAX_OPERATION_LIMIT);
+}
+
+JS_PUBLIC_API(void)
+JS_SetOperationLimit(JSContext *cx, uint32 operationLimit)
+{
+    /* Mixed operation and branch callbacks are not supported. */
+    JS_ASSERT(!cx->branchCallbackWasSet);
+    JS_ASSERT(operationLimit <= JS_MAX_OPERATION_LIMIT);
+    JS_ASSERT(operationLimit > 0);
+
+    cx->operationCount = (int32) operationLimit;
+    cx->operationLimit = operationLimit;
+}
+
+JS_PUBLIC_API(uint32)
+JS_GetOperationLimit(JSContext *cx)
+{
+    JS_ASSERT(!cx->branchCallbackWasSet);
+
+    /*
+     * cx->operationLimit is initialized to JS_MAX_OPERATION_LIMIT + 1 to
+     * detect for optimizations if the embedding has ever set it.
+     */
+    JS_ASSERT(cx->operationLimit <= JS_MAX_OPERATION_LIMIT + 1);
+    return JS_MIN(cx->operationLimit, JS_MAX_OPERATION_LIMIT);
+}
+
+JS_PUBLIC_API(JSBranchCallback)
+JS_SetBranchCallback(JSContext *cx, JSBranchCallback cb)
+{
+    JSBranchCallback oldcb;
+
+    if (!cx->branchCallbackWasSet) {
+#ifdef DEBUG
+        if (cx->operationCallback) {
+            fprintf(stderr,
+"JS API usage error: call to JS_SetOperationCallback is followed by\n"
+"invocation of deprecated JS_SetBranchCallback\n");
+            JS_ASSERT(0);
+        }
+#endif
+        cx->branchCallbackWasSet = 1;
+        oldcb = NULL;
+    } else {
+        oldcb = (JSBranchCallback) cx->operationCallback;
+    }
+    if (cb) {
+        cx->operationCount = JSOW_SCRIPT_JUMP;
+        cx->operationLimit = JSOW_SCRIPT_JUMP;
+        cx->operationCallback = (JSOperationCallback) cb;
+    } else {
+        cx->operationCallback = NULL;
+    }
+    return oldcb;
+}
+
+JS_PUBLIC_API(void)
+JS_SetOperationCallbackFunction(JSContext *cx, JSOperationCallback callback)
+{
+    /* Mixed operation and branch callbacks are not supported. */
+    JS_ASSERT(!cx->branchCallbackWasSet);
     cx->operationCallback = callback;
-    return old;
 }
 
 JS_PUBLIC_API(JSOperationCallback)
 JS_GetOperationCallback(JSContext *cx)
 {
+    JS_ASSERT(!cx->branchCallbackWasSet);
     return cx->operationCallback;
 }
 
 JS_PUBLIC_API(void)
 JS_TriggerOperationCallback(JSContext *cx)
 {
-    /*
-     * Use JS_ATOMIC_SET in the hope that it will make sure the write
-     * will become immediately visible to other processors polling
-     * cx->operationCallbackFlag. Note that we only care about
-     * visibility here, not read/write ordering.
-     */
-    JS_ATOMIC_SET(&cx->operationCallbackFlag, 1);
+    cx->operationCount = 0;
 }
 
 JS_PUBLIC_API(JSBool)

@@ -296,6 +296,7 @@ public:
         branchCount(0),
         unstableExits(NULL)
             {}
+    ~TreeInfo();
 
     inline unsigned nGlobalTypes() {
         return typeMap.length() - nStackTypes;
@@ -600,9 +601,6 @@ js_InitJIT(JSTraceMonitor *tm);
 
 extern void
 js_FinishJIT(JSTraceMonitor *tm);
-
-extern void
-js_FlushScriptFragments(JSContext* cx, JSScript* script);
 
 extern void
 js_FlushJITCache(JSContext* cx);
