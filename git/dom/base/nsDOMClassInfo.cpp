@@ -5885,7 +5885,8 @@ DefineInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
     }
 
     if (!::JS_DefineProperty(cx, obj, c->GetName(), v, nsnull, nsnull,
-                             JSPROP_ENUMERATE)) {
+                             JSPROP_ENUMERATE | JSPROP_READONLY |
+                             JSPROP_PERMANENT)) {
       return NS_ERROR_UNEXPECTED;
     }
   }
@@ -8556,21 +8557,9 @@ nsDOMStringMapSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   nsDOMStringMap* dataset = static_cast<nsDOMStringMap*>(nativeObj);
 
-  nsIDocument* document = dataset->GetElement()->OwnerDoc();
-
-  nsCOMPtr<nsIScriptGlobalObject> sgo =
-      do_GetInterface(document->GetScopeObject());
-
-  if (sgo) {
-    JSObject *global = sgo->GetGlobalJSObject();
-
-    if (global) {
-      *parentObj = global;
-      return NS_OK;
-    }
-  }
-
-  return NS_OK;
+  // Parent the string map to its element.
+  nsINode* element = dataset->GetElement();
+  return WrapNativeParent(cx, globalObj, element, element, parentObj);
 }
 
 NS_IMETHODIMP

@@ -24,6 +24,7 @@ import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.animation.TranslateAnimation;
+import android.view.inputmethod.InputMethodManager;
 import android.view.ContextMenu;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -75,8 +76,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private boolean mShowSiteSecurity;
     private boolean mShowReader;
 
-    private ReaderPopup mReaderPopup;
-
     private static List<View> sActionItems;
 
     private int mDuration;
@@ -103,7 +102,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mShowSiteSecurity = false;
         mShowReader = false;
-        mReaderPopup = null;
 
         mAwesomeBar = (Button) mLayout.findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
@@ -201,10 +199,9 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mReader = (ImageButton) mLayout.findViewById(R.id.reader);
         mReader.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View view) {
-                if (mReaderPopup == null)
-                    mReaderPopup = new ReaderPopup(GeckoApp.mAppContext);
-
-                mReaderPopup.show();
+                Tab tab = Tabs.getInstance().getSelectedTab();
+                if (tab != null)
+                    tab.readerMode();
             }
         });
 
@@ -331,10 +328,15 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     private void toggleTabs() {
-        if (GeckoApp.mAppContext.areTabsShown())
+        if (GeckoApp.mAppContext.areTabsShown()) {
             GeckoApp.mAppContext.hideTabs();
-        else
+        } else {
+            // hide the virtual keyboard
+            InputMethodManager imm =
+                    (InputMethodManager) mContext.getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(mTabs.getWindowToken(), 0);
             GeckoApp.mAppContext.showLocalTabs();
+        }
     }
 
     public void updateTabCountAndAnimate(int count) {
@@ -596,53 +598,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
             // From the left of popup, the arrow should move half of (menuButtonWidth - arrowWidth)
             mArrow.setLayoutParams(newParams);
-        }
-    }
-
-    public class ReaderPopup extends PopupWindow {
-        private int mWidth;
-
-        private ReaderPopup(Context context) {
-            super(context);
-
-            setBackgroundDrawable(new BitmapDrawable());
-            setOutsideTouchable(true);
-            setWindowLayoutMode(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-
-            LayoutInflater inflater = LayoutInflater.from(context);
-            FrameLayout layout = (FrameLayout) inflater.inflate(R.layout.reader_popup, null);
-            setContentView(layout);
-
-            layout.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-            mWidth = layout.getMeasuredWidth();
-
-            Button readingListButton = (Button) layout.findViewById(R.id.reading_list);
-            readingListButton.setOnClickListener(new Button.OnClickListener() {
-                public void onClick(View v) {
-                    Tab selectedTab = Tabs.getInstance().getSelectedTab();
-                    if (selectedTab != null) {
-                        selectedTab.addToReadingList();
-                    }
-
-                    dismiss();
-                }
-            });
-
-            Button readerModeButton = (Button) layout.findViewById(R.id.reader_mode);
-            readerModeButton.setOnClickListener(new Button.OnClickListener() {
-                public void onClick(View v) {
-                    Tab selectedTab = Tabs.getInstance().getSelectedTab();
-                    if (selectedTab != null) {
-                        selectedTab.readerMode();
-                    }
-
-                    dismiss();
-                }
-            });
-        }
-
-        public void show() {
-            showAsDropDown(mReader, (mReader.getWidth() - mWidth) / 2, 0);
         }
     }
 }

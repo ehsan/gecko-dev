@@ -378,10 +378,29 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     public boolean isBookmark(ContentResolver cr, String uri) {
         // This method is about normal bookmarks, not the Reading List
+        int count = 0;
+        try {
+            Cursor c = cr.query(mBookmarksUriWithProfile,
+                                new String[] { Bookmarks._ID },
+                                Bookmarks.URL + " = ? AND " +
+                                Bookmarks.PARENT + " != ?",
+                                new String[] { uri,
+                                               String.valueOf(Bookmarks.FIXED_READING_LIST_ID) },
+                                Bookmarks.URL);
+            count = c.getCount();
+            c.close();
+        } catch (NullPointerException e) {
+            Log.e(LOGTAG, "NullPointerException in isBookmark for " + uri);
+        }
+
+        return (count == 1);
+    }
+
+    public boolean isReadingListItem(ContentResolver cr, String uri) {
         Cursor cursor = cr.query(mBookmarksUriWithProfile,
                                  new String[] { Bookmarks._ID },
                                  Bookmarks.URL + " = ? AND " +
-                                 Bookmarks.PARENT + " != ?",
+                                 Bookmarks.PARENT + " == ?",
                                  new String[] { uri,
                                                 String.valueOf(Bookmarks.FIXED_READING_LIST_ID) },
                                  Bookmarks.URL);
@@ -513,6 +532,18 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     public void addReadingListItem(ContentResolver cr, String title, String uri) {
         addBookmarkItem(cr, title, uri, Bookmarks.FIXED_READING_LIST_ID);
+    }
+
+    public void removeReadingListItemWithURL(ContentResolver cr, String uri) {
+        Uri contentUri = mBookmarksUriWithProfile;
+
+        // Do this now so that the items still exist!
+        bumpParents(cr, Bookmarks.URL, uri);
+
+        final String[] urlArgs = new String[] { uri, String.valueOf(Bookmarks.FIXED_READING_LIST_ID) };
+        final String urlEquals = Bookmarks.URL + " = ? AND " + Bookmarks.PARENT + " == ?";
+
+        cr.delete(contentUri, urlEquals, urlArgs);
     }
 
     public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {

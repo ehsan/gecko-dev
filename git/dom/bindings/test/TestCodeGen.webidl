@@ -212,6 +212,8 @@ interface TestInterface {
   // void passOptionalNullableEnum(optional TestEnum? arg);
   // void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
   TestEnum receiveEnum();
+  attribute TestEnum enumAttribute;
+  readonly attribute TestEnum readonlyEnumAttribute;
 
   // Callback types
   void passCallback(TestCallback arg);
@@ -295,6 +297,7 @@ DiamondBranch1A implements DiamondImplements;
 DiamondBranch1B implements DiamondImplements;
 
 dictionary Dict : ParentDict {
+  TestEnum someEnum;
   long x;
   long a;
   long b = 8;
