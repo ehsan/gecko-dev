@@ -52,15 +52,7 @@ class PluginScriptableObjectChild;
 struct ChildNPObject : NPObject
 {
   ChildNPObject()
-    : NPObject(), parent(NULL), invalidated(false)
-  {
-    MOZ_COUNT_CTOR(ChildNPObject);
-  }
-
-  ~ChildNPObject()
-  {
-    MOZ_COUNT_DTOR(ChildNPObject);
-  }
+    : NPObject(), parent(NULL), invalidated(false) { }
 
   // |parent| is always valid as long as the actor is alive. Once the actor is
   // destroyed this will be set to null.
@@ -167,13 +159,6 @@ public:
   // NPObject will be created and associated with this actor (see
   // ResurrectProxyObject).
   void DropNPObject();
-
-  /**
-   * After NPP_Destroy, all NPObjects associated with an instance are
-   * destroyed. We are informed of this destruction. This should only be called
-   * on Local actors.
-   */
-  void NPObjectDestroyed();
 
   bool
   Evaluate(NPString* aScript,

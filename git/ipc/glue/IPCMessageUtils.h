@@ -45,10 +45,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 
-#ifdef _MSC_VER
-#pragma warning( disable : 4800 )
-#endif
-
 namespace IPC {
 
 template <>
