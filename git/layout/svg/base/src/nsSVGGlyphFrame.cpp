@@ -184,19 +184,27 @@ private:
 // Implementation
 
 nsIFrame*
-NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsIFrame* parentFrame, nsStyleContext* aContext)
 {
+  NS_ASSERTION(parentFrame, "null parent");
+  nsISVGTextContentMetrics *metrics;
+  CallQueryInterface(parentFrame, &metrics);
+  NS_ASSERTION(metrics, "trying to construct an SVGGlyphFrame for an invalid container");
+  
+  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
+               "trying to construct an SVGGlyphFrame for wrong content element");
+
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
 //----------------------------------------------------------------------
-// nsQueryFrame methods
+// nsISupports methods
 
-NS_QUERYFRAME_HEAD(nsSVGGlyphFrame)
-  NS_QUERYFRAME_ENTRY(nsISVGGlyphFragmentLeaf)
-  NS_QUERYFRAME_ENTRY(nsISVGGlyphFragmentNode)
-  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGGlyphFrameBase)
+NS_INTERFACE_MAP_BEGIN(nsSVGGlyphFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGGlyphFragmentLeaf)
+  NS_INTERFACE_MAP_ENTRY(nsISVGGlyphFragmentNode)
+  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGGlyphFrameBase)
 
 //----------------------------------------------------------------------
 // nsIFrame methods
@@ -279,28 +287,6 @@ nsSVGGlyphFrame::IsSelectable(PRBool* aIsSelectable,
 #endif
   return rv;
 }
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGGlyphFrame::Init(nsIContent* aContent,
-                      nsIFrame* aParent,
-                      nsIFrame* aPrevInFlow)
-{
-  NS_ASSERTION(aParent, "null parent");
-
-  nsIFrame* ancestorFrame = nsSVGUtils::GetFirstNonAAncestorFrame(aParent);
-  NS_ASSERTION(ancestorFrame, "Must have ancestor");
-
-  nsISVGTextContentMetrics *metrics = do_QueryFrame(ancestorFrame);
-  NS_ASSERTION(metrics,
-               "trying to construct an SVGGlyphFrame for an invalid container");
-
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
-               "trying to construct an SVGGlyphFrame for wrong content element");
-
-  return nsSVGGlyphFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGGlyphFrame::GetType() const
@@ -1135,7 +1121,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
 {
   nsIFrame* sibling = mNextSibling;
   while (sibling) {
-    nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
+    nsISVGGlyphFragmentNode *node = nsnull;
+    CallQueryInterface(sibling, &node);
     if (node)
       return node->GetFirstGlyphFragment();
     sibling = sibling->GetNextSibling();
@@ -1144,7 +1131,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
   // no more siblings. go back up the tree.
   
   NS_ASSERTION(mParent, "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
+  nsISVGGlyphFragmentNode *node = nsnull;
+  CallQueryInterface(mParent, &node);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 

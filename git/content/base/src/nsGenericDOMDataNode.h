@@ -54,10 +54,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsContentUtils.h"
 
-#ifdef MOZ_SMIL
-#include "nsISMILAttr.h"
-#endif // MOZ_SMIL
-
 class nsIDOMAttr;
 class nsIDOMEventListener;
 class nsIDOMNodeList;
@@ -77,12 +73,16 @@ public:
   // Implementation for nsIDOMNode
   nsresult GetNodeValue(nsAString& aNodeValue);
   nsresult SetNodeValue(const nsAString& aNodeValue);
+  nsresult GetParentNode(nsIDOMNode** aParentNode);
   nsresult GetAttributes(nsIDOMNamedNodeMap** aAttributes)
   {
     NS_ENSURE_ARG_POINTER(aAttributes);
     *aAttributes = nsnull;
     return NS_OK;
   }
+  nsresult GetPreviousSibling(nsIDOMNode** aPreviousSibling);
+  nsresult GetNextSibling(nsIDOMNode** aNextSibling);
+  nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);
   nsresult HasChildNodes(PRBool* aHasChildNodes)
   {
     NS_ENSURE_ARG_POINTER(aHasChildNodes);
@@ -93,6 +93,18 @@ public:
   {
     NS_ENSURE_ARG_POINTER(aHasAttributes);
     *aHasAttributes = PR_FALSE;
+    return NS_OK;
+  }
+  nsresult GetFirstChild(nsIDOMNode** aFirstChild)
+  {
+    NS_ENSURE_ARG_POINTER(aFirstChild);
+    *aFirstChild = nsnull;
+    return NS_OK;
+  }
+  nsresult GetLastChild(nsIDOMNode** aLastChild)
+  {
+    NS_ENSURE_ARG_POINTER(aLastChild);
+    *aLastChild = nsnull;
     return NS_OK;
   }
   nsresult InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
@@ -130,6 +142,7 @@ public:
     *aReturn = nsnull;
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
+  nsresult GetOwnerDocument(nsIDOMDocument** aOwnerDocument);
   nsresult GetNamespaceURI(nsAString& aNamespaceURI);
   nsresult GetLocalName(nsAString& aLocalName);
   nsresult GetPrefix(nsAString& aPrefix);
@@ -221,14 +234,6 @@ public:
   virtual void AppendTextTo(nsAString& aResult);
   virtual void DestroyContent();
   virtual void SaveSubtreeState();
-
-#ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* /*aName*/)
-  {
-    return nsnull;
-  }
-#endif // MOZ_SMIL
-
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;
   virtual void DumpContent(FILE* out, PRInt32 aIndent, PRBool aDumpAll) const;

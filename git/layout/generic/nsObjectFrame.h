@@ -62,7 +62,8 @@ class nsObjectFrame : public nsObjectFrameSuper, public nsIObjectFrame {
 public:
   friend nsIFrame* NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
+  // nsISupports 
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame* aParent,
@@ -139,6 +140,10 @@ public:
                                             nsIFrame* aRoot);
 
 protected:
+  // nsISupports
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+
   nsObjectFrame(nsStyleContext* aContext);
   virtual ~nsObjectFrame();
 
@@ -170,7 +175,7 @@ protected:
 
   void NotifyContentObjectWrapper();
 
-  nsIntPoint GetWindowOriginInPixels(PRBool aWindowless);
+  nsPoint GetWindowOriginInPixels(PRBool aWindowless);
 
   static void PaintPrintPlugin(nsIFrame* aFrame,
                                nsIRenderingContext* aRenderingContext,
@@ -192,7 +197,7 @@ protected:
   friend class nsPluginInstanceOwner;
 private:
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
-  nsIntRect                       mWindowlessRect;
+  nsRect                mWindowlessRect;
 
   // For assertions that make it easier to determine if a crash is due
   // to the underlying problem described in bug 136927, and to prevent

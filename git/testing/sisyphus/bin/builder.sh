@@ -53,8 +53,8 @@ $SCRIPT -p products -b branches -B buildcommands -T buildtypes [-e extra] [-d da
 
 variable            description
 ===============     ===========================================================
--p products         required. one or more of js firefox thunderbird fennec
--b branches         required. one or more of 1.8.0 1.8.1 1.9.0 1.9.1 1.9.2
+-p products         required. one or more of firefox thunderbird fennec
+-b branches         required. one or more of 1.8.0 1.8.1 1.9.0 1.9.1
 -B buildcommands    required. one or more of clean clobber checkout build
 -T buildtypes       required. one or more of opt debug
 -e extra            optional. extra qualifier to pick build tree and mozconfig.
@@ -97,9 +97,6 @@ fi
 if echo "$buildcommands" | grep -iq clean; then
     for product in $products; do
         for branch in $branches; do
-
-            checkProductBranch $product $branch
-
             for buildtype in $buildtypes; do
 
                 TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
@@ -121,9 +118,6 @@ fi
 if echo "$buildcommands" | grep -iq clobber; then
     for product in $products; do
         for branch in $branches; do
-
-            checkProductBranch $product $branch
-
             for buildtype in $buildtypes; do
 
                 TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
@@ -146,8 +140,6 @@ if echo "$buildcommands" | grep -iq checkout; then
     for product in $products; do
         for branch in $branches; do
 
-            checkProductBranch $product $branch
-
             TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
             TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$product,$branch$extra,$buildtype,$OSID,${TEST_MACHINE},checkout.log"
 
@@ -168,8 +160,6 @@ if echo "$buildcommands" | grep -iq build; then
         for branch in $branches; do
             for buildtype in $buildtypes; do
 
-                checkProductBranch $product $branch
-
                 TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
                 TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$product,$branch$extra,$buildtype,$OSID,${TEST_MACHINE},build.log"
 
@@ -185,3 +175,4 @@ if echo "$buildcommands" | grep -iq build; then
         done
     done
 fi
+

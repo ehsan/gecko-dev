@@ -44,11 +44,11 @@
 #include <io.h>
 #include "resource.h"
 #include "progressui.h"
-#include "readstrings.h"
-#include "errors.h"
 
 #define TIMER_ID 1
 #define TIMER_INTERVAL 100
+
+#define MAX_INFO_LENGTH 512
 
 #define RESIZE_WINDOW(hwnd, extrax, extray) \
   { \
@@ -70,6 +70,7 @@
 
 static float sProgress;  // between 0 and 100
 static BOOL  sQuit = FALSE;
+static HFONT sSystemFont = 0;
 
 static BOOL
 GetStringsFile(WCHAR filename[MAX_PATH])
@@ -95,7 +96,7 @@ UpdateDialog(HWND hDlg)
 static void
 ResizeDialogToFit(HWND hDlg)
 {
-  WCHAR text[MAX_TEXT_LEN];
+  WCHAR text[MAX_INFO_LENGTH];
   RECT infoSize, textSize;
   HFONT hInfoFont, hOldFont;
 
@@ -173,29 +174,38 @@ CenterDialog(HWND hDlg)
 }
 
 static void
+SetItemText(HWND hwnd, const WCHAR *key, const WCHAR *ini)
+{
+  WCHAR text[MAX_INFO_LENGTH];
+  if (!GetPrivateProfileStringW(L"Strings", key, NULL, text, sizeof(text), ini))
+    return;
+  SetWindowTextW(hwnd, text);
+}
+
+static void
 InitDialog(HWND hDlg)
 {
   WCHAR filename[MAX_PATH];
   if (!GetStringsFile(filename))
     return;
 
-  char path[MAX_PATH];
-  WideCharToMultiByte(CP_UTF8, 0, filename, -1, path,
-                      sizeof(path)/sizeof(path[0]), NULL, NULL );
-  StringTable uiStrings;
-  if (ReadStrings(path, &uiStrings) != OK)
-    return;
+  SetItemText(hDlg, L"Title", filename);
+  SetItemText(GetDlgItem(hDlg, IDC_INFO), L"Info", filename);
 
-  WCHAR szwTitle[MAX_TEXT_LEN];
-  WCHAR szwInfo[MAX_TEXT_LEN];
-
-  MultiByteToWideChar(CP_UTF8, 0, uiStrings.title, strlen(uiStrings.title) + 1,
-                      szwTitle, sizeof(szwTitle)/sizeof(szwTitle[0]));
-  MultiByteToWideChar(CP_UTF8, 0, uiStrings.info, strlen(uiStrings.info) + 1,
-                      szwInfo, sizeof(szwInfo)/sizeof(szwInfo[0]));
-
-  SetWindowTextW(hDlg, szwTitle);
-  SetWindowTextW(GetDlgItem(hDlg, IDC_INFO), szwInfo);
+  // On Win9x, we need to send WM_SETFONT for l10n builds.  Yes, we shouldn't
+  // use the system font.  For example, if the text has Japanese characters on
+  // Win98-en, then the text may not be displayed correctly.  We should perhaps
+  // support loading a font named in updater.ini; however, even then there are
+  // cases where it might not work properly.
+  if (!sSystemFont) {
+    NONCLIENTMETRICS ncm;
+    memset(&ncm, 0, sizeof(ncm));
+    ncm.cbSize = sizeof(ncm);
+    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, 0, &ncm, 0);
+    sSystemFont = CreateFontIndirect(&ncm.lfMessageFont);
+  }
+  if (sSystemFont)
+    SendDlgItemMessage(hDlg, IDC_INFO, WM_SETFONT, (WPARAM)sSystemFont, 0L);
 
   // Set dialog icon
   HICON hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_DIALOG));
@@ -225,6 +235,10 @@ DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
   case WM_TIMER:
     if (sQuit) {
       EndDialog(hDlg, 0);
+      if (sSystemFont) {
+        DeleteObject(sSystemFont);
+        sSystemFont = 0;
+      }
     } else {
       UpdateDialog(hDlg);
     }

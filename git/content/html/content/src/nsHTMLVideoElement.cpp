@@ -74,7 +74,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLVideoElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLVideoElement, nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLVideoElement, nsIDOMHTMLVideoElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLVideoElement,
                                                nsHTMLMediaElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLVideoElement)
@@ -112,4 +112,26 @@ nsHTMLVideoElement::~nsHTMLVideoElement()
 nsIntSize nsHTMLVideoElement::GetVideoSize(nsIntSize aDefaultSize)
 {
   return mMediaSize.width == -1 && mMediaSize.height == -1 ? aDefaultSize : mMediaSize;
+}
+
+nsresult nsHTMLVideoElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                        nsIContent* aBindingParent,
+                                        PRBool aCompileEventHandlers)
+{
+  if (mDecoder)
+    mDecoder->ElementAvailable(this);
+
+  return nsHTMLMediaElement::BindToTree(aDocument, 
+                                        aParent, 
+                                        aBindingParent, 
+                                        aCompileEventHandlers);
+}
+
+void nsHTMLVideoElement::UnbindFromTree(PRBool aDeep,
+                                        PRBool aNullParent)
+{
+  nsHTMLMediaElement::UnbindFromTree(aDeep, aNullParent);
+
+  if (mDecoder) 
+    mDecoder->ElementUnavailable();
 }

@@ -50,7 +50,7 @@ sub unescape_pattern;
 
 # option arguments
 
-my $option_desc = "b=s branch>b T=s buildtype>T R=s repo>R t=s testtype>t o=s os>o K=s kernel>K A=s arch>A M=s memory>M S=s speed>S z=s timezone>z J=s jsoptions>J l=s rawlogfile>l f=s failurelogfile>f r=s patterns>r O=s outputprefix>O D debug>D";
+my $option_desc = "b=s branch>b T=s buildtype>T R=s repo>R t=s testtype>t o=s os>o K=s kernel>K A=s arch>A M=s memory>M S=s speed>S z=s timezone>z l=s rawlogfile>l f=s failurelogfile>f r=s patterns>r O=s outputprefix>O D debug>D";
 
 my $testid;
 my $branch;
@@ -62,7 +62,6 @@ my $failurelogfile;
 my $os;
 my $patterns;
 my $timezone;
-my $jsoptions;
 my $outputprefix;
 my $arch;
 my $kernel;
@@ -84,8 +83,6 @@ my $knownfailuretesttypepattern;
 my $failuretesttypepattern;
 my $knownfailuretimezonepattern;
 my $failuretimezonepattern;
-my $knownfailurejsoptionspattern;
-my $failurejsoptionspattern;
 my $knownfailurearchpattern;
 my $failurearchpattern;
 my $knownfailurekernelpattern;
@@ -157,7 +154,7 @@ foreach $includedfile ( @includedfiles ) {
 }
 
 debug "loading patterns $patterns";
-debug "pattern filter: ^TEST_ID=[^,]*, TEST_BRANCH=$knownfailurebranchpattern, TEST_REPO=$knownfailurerepopattern, TEST_BUILDTYPE=$knownfailurebuildtypepattern, TEST_TYPE=$knownfailuretesttypepattern, TEST_OS=$knownfailureospattern, TEST_KERNEL=$knownfailurekernelpattern, TEST_PROCESSORTYPE=$knownfailurearchpattern, TEST_MEMORY=$knownfailurememorypattern, TEST_CPUSPEED=$knownfailurecpuspeedpattern, TEST_TIMEZONE=$knownfailuretimezonepattern, TEST_OPTIONS=$knownfailurejsoptionspattern,";
+debug "pattern filter: ^TEST_ID=[^,]*, TEST_BRANCH=$knownfailurebranchpattern, TEST_REPO=$knownfailurerepopattern, TEST_BUILDTYPE=$knownfailurebuildtypepattern, TEST_TYPE=$knownfailuretesttypepattern, TEST_OS=$knownfailureospattern, TEST_KERNEL=$knownfailurekernelpattern, TEST_PROCESSORTYPE=$knownfailurearchpattern, TEST_MEMORY=$knownfailurememorypattern, TEST_CPUSPEED=$knownfailurecpuspeedpattern, TEST_TIMEZONE=$knownfailuretimezonepattern,";
 
 open PATTERNS, "<$patterns" or die "Unable to open known failure patterns file $patterns: $!\n";
 while (<PATTERNS>) {
@@ -171,7 +168,7 @@ while (<PATTERNS>) {
     {
         debug "test $testid was not included during this run";
     }
-    elsif ($_ =~ /^TEST_ID=[^,]*, TEST_BRANCH=$knownfailurebranchpattern, TEST_REPO=$knownfailurerepopattern, TEST_BUILDTYPE=$knownfailurebuildtypepattern, TEST_TYPE=$knownfailuretesttypepattern, TEST_OS=$knownfailureospattern, TEST_KERNEL=$knownfailurekernelpattern, TEST_PROCESSORTYPE=$knownfailurearchpattern, TEST_MEMORY=$knownfailurememorypattern, TEST_CPUSPEED=$knownfailurecpuspeedpattern, TEST_TIMEZONE=$knownfailuretimezonepattern, TEST_OPTIONS=$knownfailurejsoptionspattern,/) {
+    elsif ($_ =~ /^TEST_ID=[^,]*, TEST_BRANCH=$knownfailurebranchpattern, TEST_REPO=$knownfailurerepopattern, TEST_BUILDTYPE=$knownfailurebuildtypepattern, TEST_TYPE=$knownfailuretesttypepattern, TEST_OS=$knownfailureospattern, TEST_KERNEL=$knownfailurekernelpattern, TEST_PROCESSORTYPE=$knownfailurearchpattern, TEST_MEMORY=$knownfailurememorypattern, TEST_CPUSPEED=$knownfailurecpuspeedpattern, TEST_TIMEZONE=$knownfailuretimezonepattern,/) {
         debug "adding pattern  : $_";
         push @patterns, (escape_pattern($_));   
     }
@@ -184,7 +181,7 @@ close PATTERNS;
 
  # create a working copy of the current failures which match the users selection
 
-debug "failure filter: ^TEST_ID=[^,]*, TEST_BRANCH=$failurebranchpattern, TEST_REPO=$failurerepopattern, TEST_BUILDTYPE=$failurebuildtypepattern, TEST_TYPE=$failuretesttypepattern, TEST_OS=$failureospattern, TEST_KERNEL=$failurekernelpattern, TEST_PROCESSORTYPE=$failurearchpattern, TEST_MEMORY=$failurememorypattern, TEST_CPUSPEED=$failurecpuspeedpattern, TEST_TIMEZONE=$failuretimezonepattern, TEST_OPTIONS=$failurejsoptionspattern, TEST_RESULT=FAIL[^,]*,/";
+debug "failure filter: ^TEST_ID=[^,]*, TEST_BRANCH=$failurebranchpattern, TEST_REPO=$failurerepopattern, TEST_BUILDTYPE=$failurebuildtypepattern, TEST_TYPE=$failuretesttypepattern, TEST_OS=$failureospattern, TEST_KERNEL=$failurekernelpattern, TEST_PROCESSORTYPE=$failurearchpattern, TEST_MEMORY=$failurememorypattern, TEST_CPUSPEED=$failurecpuspeedpattern, TEST_TIMEZONE=$failuretimezonepattern, TEST_RESULT=FAIL[^,]*,/";
 
 if (defined($rawlogfile)) {
 
@@ -202,7 +199,7 @@ if (defined($rawlogfile)) {
 
         print ALLLOG "$_\n";
 
-        if ($_ =~ /^TEST_ID=[^,]*, TEST_BRANCH=$failurebranchpattern, TEST_REPO=$failurerepopattern, TEST_BUILDTYPE=$failurebuildtypepattern, TEST_TYPE=$failuretesttypepattern, TEST_OS=$failureospattern, TEST_KERNEL=$failurekernelpattern, TEST_PROCESSORTYPE=$failurearchpattern, TEST_MEMORY=$failurememorypattern, TEST_CPUSPEED=$failurecpuspeedpattern, TEST_TIMEZONE=$failuretimezonepattern, TEST_OPTIONS=$failurejsoptionspattern, TEST_RESULT=FAIL[^,]*,/) {
+        if ($_ =~ /^TEST_ID=[^,]*, TEST_BRANCH=$failurebranchpattern, TEST_REPO=$failurerepopattern, TEST_BUILDTYPE=$failurebuildtypepattern, TEST_TYPE=$failuretesttypepattern, TEST_OS=$failureospattern, TEST_KERNEL=$failurekernelpattern, TEST_PROCESSORTYPE=$failurearchpattern, TEST_MEMORY=$failurememorypattern, TEST_CPUSPEED=$failurecpuspeedpattern, TEST_TIMEZONE=$failuretimezonepattern, TEST_RESULT=FAIL[^,]*,/) {
             debug "failure: $_";
             push @failures, ($_);
             print FAILURELOG "$_\n";
@@ -238,7 +235,7 @@ else
     while (<FAILURES>) {
         chomp;
 
-        if ($_ =~ /^TEST_ID=[^,]*, TEST_BRANCH=$failurebranchpattern, TEST_REPO=$failurerepopattern, TEST_BUILDTYPE=$failurebuildtypepattern, TEST_TYPE=$failuretesttypepattern, TEST_OS=$failureospattern, TEST_KERNEL=$failurekernelpattern, TEST_PROCESSORTYPE=$failurearchpattern, TEST_MEMORY=$failurememorypattern, TEST_CPUSPEED=$failurecpuspeedpattern, TEST_TIMEZONE=$failuretimezonepattern, TEST_OPTIONS=$failurejsoptionspattern, TEST_RESULT=FAIL[^,]*,/) {
+        if ($_ =~ /^TEST_ID=[^,]*, TEST_BRANCH=$failurebranchpattern, TEST_REPO=$failurerepopattern, TEST_BUILDTYPE=$failurebuildtypepattern, TEST_TYPE=$failuretesttypepattern, TEST_OS=$failureospattern, TEST_KERNEL=$failurekernelpattern, TEST_PROCESSORTYPE=$failurearchpattern, TEST_MEMORY=$failurememorypattern, TEST_CPUSPEED=$failurecpuspeedpattern, TEST_TIMEZONE=$failuretimezonepattern, TEST_RESULT=FAIL[^,]*,/) {
             debug "failure: $_";
             push @failures, ($_);
         }
@@ -400,7 +397,6 @@ known-failures.pl [-b|--branch] branch
                   [-M|--memory] memory
                   [-S|--speed] speed
                   [-z|--timezone] timezone 
-                  [-J|--jsoptions] jsoptions
                   [-r|--patterns] patterns 
                   ([-f|--failurelogfile] failurelogfile|[-l|--logfile] rawlogfile])
                   [-O|--outputprefix] outputprefix
@@ -410,7 +406,7 @@ known-failures.pl [-b|--branch] branch
     ===============     ============================================================
     -b branch           branch 1.8.0, 1.8.1, 1.9.0, all
     -R repository       CVS for 1.8.0, 1.8.1, 1.9.0 branches, 
-                        mercurial repository name for 1.9.1 and later branches
+                        mercurial repository name for 1.9.1 branches
                         (\`basename http://hg.mozilla.org/repository\`)
     -T buildtype        build type opt, debug, all
     -t testtype         test type browser, shell, all
@@ -420,7 +416,6 @@ known-failures.pl [-b|--branch] branch
     -M memory           memory in Gigabytes, all or a specific pattern
     -S speed            speed, all or specific pattern
     -z timezone         -0400, -0700, etc. default to user\'s zone
-    -J jsoptions        JavaScript options
     -l rawlogfile       raw logfile
     -f failurelogfile   failure logfile
     -r patterns         known failure patterns
@@ -481,20 +476,6 @@ sub parse_options {
         elsif ($option eq "z") {
             $timezone = $value;
         }
-        elsif ($option eq "J") {
-            my (@s, $j);
-
-            if (! $value) {
-                $jsoptions = 'none';
-            }
-            else {
-                $value =~ s/(-\w) (\w)/$1$2/g; 
-                @s = sort split / /, $value; 
-                $j = join(" ", @s); 
-                $j =~ s/(-\w)(\w)/$1 $2/g; 
-                $jsoptions = $j;
-            }
-        }
         elsif ($option eq "r") {
             $patterns = $value;
         }
@@ -514,7 +495,7 @@ sub parse_options {
     }
 
     if ($debug) {
-        print "branch=$branch, buildtype=$buildtype, testtype=$testtype, os=$os, kernel=$kernel, arch=$arch, memory=$memory, cpuspeed=$cpuspeed, timezone=$timezone, jsoptions=$jsoptions, patterns=$patterns, rawlogfile=$rawlogfile failurelogfile=$failurelogfile, outputprefix=$outputprefix\n";
+        print "branch=$branch, buildtype=$buildtype, testtype=$testtype, os=$os, kernel=$kernel, arch=$arch, memory=$memory, cpuspeed=$cpuspeed, timezone=$timezone, patterns=$patterns, rawlogfile=$rawlogfile failurelogfile=$failurelogfile, outputprefix=$outputprefix\n";
     }
     Getopt::Mixed::cleanup();
 
@@ -546,10 +527,6 @@ sub parse_options {
         usage "missing timezone";
     }
 
-    if (!defined($jsoptions)) {
-        $jsoptions = 'none';
-    }
-
     if (!defined($patterns)) {
         usage "missing patterns";
     }
@@ -577,10 +554,6 @@ sub parse_options {
     elsif ($branch eq "1.9.1") {
         $knownfailurebranchpattern = "(1\\.9\\.1|\\.\\*)";
         $failurebranchpattern      = "1\\.9\\.1";
-    }
-    elsif ($branch eq "1.9.2") {
-        $knownfailurebranchpattern = "(1\\.9\\.2|\\.\\*)";
-        $failurebranchpattern      = "1\\.9\\.2";
     }
     elsif ($branch eq "all") {
         $knownfailurebranchpattern = "[^,]*";
@@ -684,14 +657,6 @@ sub parse_options {
         $failuretimezonepattern      = escape_string("$timezone");
     }
 
-    if ($jsoptions eq "all") {
-        $knownfailurejsoptionspattern = "[^,]*";
-        $failurejsoptionspattern      = "[^,]*";
-    }
-    else {
-        $knownfailurejsoptionspattern = "(" . escape_string($jsoptions) . "|\\.\\*)";
-        $failurejsoptionspattern      = escape_string("$jsoptions");
-    }
 
 }
 

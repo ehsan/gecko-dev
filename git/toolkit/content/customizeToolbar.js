@@ -64,8 +64,6 @@ function InitWithToolbox(aToolbox)
   gToolbox.addEventListener("drop", onToolbarDrop, false);
 
   initDialog();
-
-  notifyParentInitialized();
 }
 
 function finishToolbarCustomization()
@@ -127,16 +125,6 @@ function notifyParentComplete()
 {
   if ("customizeDone" in gToolbox)
     gToolbox.customizeDone(gToolboxChanged);
-}
-
-/**
- * Invoke a callback on the toolbox to notify it that the dialog is fully
- * initialized.
- */
-function notifyParentInitialized()
-{
-  if ("customizeInitialized" in gToolbox)
-    gToolbox.customizeInitialized();
 }
 
 function toolboxChanged()
@@ -235,13 +223,8 @@ function unwrapToolbarItems()
     if (paletteItem.hasAttribute("itemdisabled"))
       toolbarItem.disabled = true;
 
-    if (paletteItem.hasAttribute("itemcommand")) {
-      let commandID = paletteItem.getAttribute("itemcommand");
-      toolbarItem.setAttribute("command", commandID);
-
-      //XXX Bug 309953 - toolbarbuttons aren't in sync with their commands after customizing
-      toolbarItem.disabled = gToolboxDocument.getElementById(commandID).disabled;
-    }
+    if (paletteItem.hasAttribute("itemcommand"))
+      toolbarItem.setAttribute("command", paletteItem.getAttribute("itemcommand"));
 
     paletteItem.parentNode.replaceChild(toolbarItem, paletteItem);
   }

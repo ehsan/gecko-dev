@@ -53,7 +53,6 @@ var gEditItemOverlay = {
   _hiddenRows: [],
   _observersAdded: false,
   _staticFoldersListBuilt: false,
-  _initialized: false,
 
   get itemId() {
     return this._itemId;
@@ -89,7 +88,7 @@ var gEditItemOverlay = {
     this._element("tagsRow").collapsed = !this._uri ||
       this._hiddenRows.indexOf("tags") != -1 || isQuery;
     // Collapse the tag selector if the item does not accept tags.
-    if (!this._element("tagsSelectorRow").collapsed &&
+    if (!this._element("tagsSelector").collapsed &&
         this._element("tagsRow").collapsed)
       this.toggleTagsSelector();
     this._element("descriptionRow").collapsed =
@@ -124,11 +123,6 @@ var gEditItemOverlay = {
    *          read-only (view) mode even if the given item is editable.
    */
   initPanel: function EIO_initPanel(aFor, aInfo) {
-    // For sanity ensure that the implementer has uninited the panel before
-    // trying to init it again, or we could end up leaking due to observers.
-    if (this._initialized)
-      this.uninitPanel(false);
-
     var aItemIdList;
     if (aFor.length) {
       aItemIdList = aFor;
@@ -224,7 +218,6 @@ var gEditItemOverlay = {
 
       // tags selector
       this._rebuildTagsSelectorList();
-      this._initialized = true;
     }
 
     // name picker
@@ -329,12 +322,12 @@ var gEditItemOverlay = {
      * folder identifier and the time at which it was last-used by this dialog
      * set. Then we sort it descendingly based on the time field.
      */
-    this._recentFolders = [];
-    for (var i = 0; i < folderIds.length; i++) {
+    var folders = [];
+    for (var i=0; i < folderIds.length; i++) {
       var lastUsed = annos.getItemAnnotation(folderIds[i], LAST_USED_ANNO);
-      this._recentFolders.push({ folderId: folderIds[i], lastUsed: lastUsed });
+      folders.push({ folderId: folderIds[i], lastUsed: lastUsed });
     }
-    this._recentFolders.sort(function(a, b) {
+    folders.sort(function(a, b) {
       if (b.lastUsed < a.lastUsed)
         return -1;
       if (b.lastUsed > a.lastUsed)
@@ -342,11 +335,9 @@ var gEditItemOverlay = {
       return 0;
     });
 
-    var numberOfItems = Math.min(MAX_FOLDER_ITEM_IN_MENU_LIST,
-                                 this._recentFolders.length);
-    for (var i = 0; i < numberOfItems; i++) {
-      this._appendFolderItemToMenupopup(menupopup,
-                                        this._recentFolders[i].folderId);
+    var numberOfItems = Math.min(MAX_FOLDER_ITEM_IN_MENU_LIST, folders.length);
+    for (i=0; i < numberOfItems; i++) {
+      this._appendFolderItemToMenupopup(menupopup, folders[i].folderId);
     }
 
     var defaultItem = this._getFolderMenuItem(aSelectedFolder);
@@ -521,13 +512,12 @@ var gEditItemOverlay = {
   uninitPanel: function EIO_uninitPanel(aHideCollapsibleElements) {
     if (aHideCollapsibleElements) {
       // hide the folder tree if it was previously visible
-      var folderTreeRow = this._element("folderTreeRow");
-      if (!folderTreeRow.collapsed)
+      if (!this._folderTree.collapsed)
         this.toggleFolderTreeVisibility();
 
       // hide the tag selector if it was previously visible
-      var tagsSelectorRow = this._element("tagsSelectorRow");
-      if (!tagsSelectorRow.collapsed)
+      var tagsSelector = this._element("tagsSelector");
+      if (!tagsSelector.collapsed)
         this.toggleTagsSelector();
     }
 
@@ -548,7 +538,6 @@ var gEditItemOverlay = {
     this._allTags = [];
     this._itemIds = [];
     this._multiEdit = false;
-    this._initialized = false;
   },
 
   onTagsFieldBlur: function EIO_onTagsFieldBlur() {
@@ -757,12 +746,12 @@ var gEditItemOverlay = {
 
   toggleFolderTreeVisibility: function EIO_toggleFolderTreeVisibility() {
     var expander = this._element("foldersExpander");
-    var folderTreeRow = this._element("folderTreeRow");
-    if (!folderTreeRow.collapsed) {
+    if (!this._folderTree.collapsed) {
       expander.className = "expander-down";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextdown"));
-      folderTreeRow.collapsed = true;
+      this._folderTree.collapsed =
+        this._element("newFolderBox").collapsed = true;
       this._element("chooseFolderSeparator").hidden =
         this._element("chooseFolderMenuItem").hidden = false;
     }
@@ -770,7 +759,8 @@ var gEditItemOverlay = {
       expander.className = "expander-up"
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextup"));
-      folderTreeRow.collapsed = false;
+      this._folderTree.collapsed =
+        this._element("newFolderBox").collapsed = false;
 
       // XXXmano: Ideally we would only do this once, but for some odd reason,
       // the editable mode set on this tree, together with its collapsed state
@@ -824,7 +814,6 @@ var gEditItemOverlay = {
     // Set a selectedIndex attribute to show special icons
     this._folderMenuList.setAttribute("selectedIndex",
                                       this._folderMenuList.selectedIndex);
-
     if (aEvent.target.id == "editBMPanel_chooseFolderMenuItem") {
       // reset the selection back to where it was and expand the tree
       // (this menu-item is hidden when the tree is already visible
@@ -852,8 +841,7 @@ var gEditItemOverlay = {
     }
 
     // Update folder-tree selection
-    var folderTreeRow = this._element("folderTreeRow");
-    if (!folderTreeRow.collapsed) {
+    if (!this._folderTree.collapsed) {
       var selectedNode = this._folderTree.selectedNode;
       if (!selectedNode ||
           PlacesUtils.getConcreteItemId(selectedNode) != container)
@@ -863,11 +851,6 @@ var gEditItemOverlay = {
 
   onFolderTreeSelect: function EIO_onFolderTreeSelect() {
     var selectedNode = this._folderTree.selectedNode;
-
-    // Disable the "New Folder" button if we cannot create a new folder
-    this._element("newFolderButton")
-        .disabled = !this._folderTree.insertionPoint || !selectedNode;
-
     if (!selectedNode)
       return;
 
@@ -882,47 +865,17 @@ var gEditItemOverlay = {
 
   _markFolderAsRecentlyUsed:
   function EIO__markFolderAsRecentlyUsed(aFolderId) {
-    var txns = [];
-
-    // Expire old unused recent folders
-    var anno = this._getLastUsedAnnotationObject(false);
-    while (this._recentFolders.length > MAX_FOLDER_ITEM_IN_MENU_LIST) {
-      var folderId = this._recentFolders.pop().folderId;
-      txns.push(PlacesUIUtils.ptm.setItemAnnotation(folderId, anno));
-    }
-
-    // Mark folder as recently used
-    anno = this._getLastUsedAnnotationObject(true);
-    txns.push(PlacesUIUtils.ptm.setItemAnnotation(aFolderId, anno));
-
-    var aggregate = PlacesUIUtils.ptm.aggregateTransactions("Update last used folders", txns);
-    PlacesUIUtils.ptm.doTransaction(aggregate);
-  },
-
-  /**
-   * Returns an object which could then be used to set/unset the
-   * LAST_USED_ANNO annotation for a folder.
-   *
-   * @param aLastUsed
-   *        Whether to set or unset the LAST_USED_ANNO annotation.
-   * @returns an object representing the annotation which could then be used
-   *          with the transaction manager.
-   */
-  _getLastUsedAnnotationObject:
-  function EIO__getLastUsedAnnotationObject(aLastUsed) {
-    var anno = { name: LAST_USED_ANNO,
-                 type: Ci.nsIAnnotationService.TYPE_INT32,
-                 flags: 0,
-                 value: aLastUsed ? new Date().getTime() : null,
-                 expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-
-    return anno;
+    // We'll figure out when/if to expire the annotation if it turns out
+    // we keep this recently-used-folders implementation
+    PlacesUtils.annotations
+               .setItemAnnotation(aFolderId, LAST_USED_ANNO,
+                                  new Date().getTime(), 0,
+                                  Ci.nsIAnnotationService.EXPIRE_NEVER);
   },
 
   _rebuildTagsSelectorList: function EIO__rebuildTagsSelectorList() {
     var tagsSelector = this._element("tagsSelector");
-    var tagsSelectorRow = this._element("tagsSelectorRow");
-    if (tagsSelectorRow.collapsed)
+    if (tagsSelector.collapsed)
       return;
 
     while (tagsSelector.hasChildNodes())
@@ -944,13 +897,12 @@ var gEditItemOverlay = {
 
   toggleTagsSelector: function EIO_toggleTagsSelector() {
     var tagsSelector = this._element("tagsSelector");
-    var tagsSelectorRow = this._element("tagsSelectorRow");
     var expander = this._element("tagsSelectorExpander");
-    if (tagsSelectorRow.collapsed) {
+    if (tagsSelector.collapsed) {
       expander.className = "expander-up";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextup"));
-      tagsSelectorRow.collapsed = false;
+      tagsSelector.collapsed = false;
       this._rebuildTagsSelectorList();
 
       // This is a no-op if we've added the listener.
@@ -960,7 +912,7 @@ var gEditItemOverlay = {
       expander.className = "expander-down";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextdown"));
-      tagsSelectorRow.collapsed = true;
+      tagsSelector.collapsed = true;
     }
   },
 
@@ -984,10 +936,11 @@ var gEditItemOverlay = {
     var ip = this._folderTree.insertionPoint;
 
     // default to the bookmarks menu folder
-    if (!ip || ip.itemId == PlacesUIUtils.allBookmarksFolderId) {
-        ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
-                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                Ci.nsITreeView.DROP_ON);
+    if (!ip ||
+        ip.itemId == PlacesUIUtils.allBookmarksFolderId ||
+        ip.itemId == PlacesUIUtils.unfiledBookmarksFolderId) {
+      ip.itemId = PlacesUtils.bookmarksMenuFolderId;
+      ip.index = -1;
     }
 
     // XXXmano: add a separate "New Folder" string at some point...

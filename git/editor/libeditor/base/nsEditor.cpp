@@ -938,7 +938,7 @@ nsEditor::EndPlaceHolderTransaction()
   if (mPlaceHolderBatch == 1)
   {
     nsCOMPtr<nsISelection>selection;
-    GetSelection(getter_AddRefs(selection));
+    nsresult rv = GetSelection(getter_AddRefs(selection));
 
     nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(selection));
 
@@ -1997,23 +1997,18 @@ nsEditor::QueryComposition(nsTextEventReply* aReply)
       // XXX_kin: END HACK! HACK! HACK!
 
       nsIView *view = nsnull;
-      nsRect rect;
       result =
         caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
                                     selection,
-                                    &rect,
+                                    &(aReply->mCursorPosition),
                                     &(aReply->mCursorIsCollapsed),
                                     &view);
-      aReply->mCursorPosition =
-        nsRect::ToOutsidePixels(rect,
-                                ps->GetPresContext()->AppUnitsPerDevPixel());
       if (NS_SUCCEEDED(result) && view)
         aReply->mReferenceWidget = view->GetWidget();
     }
   }
   return result;
 }
-
 NS_IMETHODIMP
 nsEditor::BeginComposition(nsTextEventReply* aReply)
 {

@@ -41,7 +41,6 @@
 
 #include "prtypes.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 
 #include "nsIObserver.h"
 
@@ -159,7 +158,7 @@ public:
      */
     virtual nsresult GetFontList(const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
-                                 nsTArray<nsString>& aListOfFonts);
+                                 nsStringArray& aListOfFonts);
 
     /**
      * Rebuilds the any cached system font lists
@@ -199,9 +198,7 @@ public:
      * Ownership of the returned gfxFontEntry is passed to the caller,
      * who must either AddRef() or delete.
      */
-    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                          const nsAString& aFontName)
-    { return nsnull; }
+    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName) { return nsnull; }
 
     /**
      * Activate a platform font.  (Needed to support @font-face src url().)

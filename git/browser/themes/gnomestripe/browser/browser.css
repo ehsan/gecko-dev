@@ -1088,11 +1088,6 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   font-size: 130%;
 }
 
-/* Implements editBookmarkPanel resizing on folderTree un-collapse. */
-#editBMPanel_folderTree {
-  min-width: 27em;
-}
-
 /* Content area */
 #sidebar {
   background-color: Window;

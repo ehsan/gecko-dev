@@ -34,6 +34,8 @@ for(var i = 0; i < numCallbacks; i++) {
 }
 
 function testAccepted() {
+  if(TEST_PROVIDER)
+    checkFlags(callbackCounter, 1, true);
   removePrompt();
   SimpleTest.finish();
 }

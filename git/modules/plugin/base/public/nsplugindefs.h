@@ -331,13 +331,8 @@ struct nsPluginEvent {
 
 #elif defined(XP_WIN)
     uint16      event;
-#if defined(_WIN64)
-    uint64      wParam;
-    uint64      lParam;
-#else
     uint32      wParam;
     uint32      lParam;
-#endif /* _WIN64 */
 
 #elif defined(XP_UNIX) && defined(MOZ_X11)
     XEvent      event;

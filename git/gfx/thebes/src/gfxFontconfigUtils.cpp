@@ -47,7 +47,6 @@
 #include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsILanguageAtomService.h"
-#include "nsTArray.h"
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
@@ -266,7 +265,6 @@ gfxFontconfigUtils::gfxFontconfigUtils()
     : mLastConfig(NULL)
 {
     mFontsByFamily.Init(50);
-    mFontsByFullname.Init(50);
     mLangSupportTable.Init(20);
     UpdateFontListInternal();
 }
@@ -274,7 +272,7 @@ gfxFontconfigUtils::gfxFontconfigUtils()
 nsresult
 gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
                                 const nsACString& aGenericFamily,
-                                nsTArray<nsString>& aListOfFonts)
+                                nsStringArray& aListOfFonts)
 {
     aListOfFonts.Clear();
 
@@ -284,7 +282,7 @@ gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
         return rv;
 
     for (PRInt32 i = 0; i < fonts.Count(); ++i) {
-        aListOfFonts.AppendElement(NS_ConvertUTF8toUTF16(*fonts.CStringAt(i)));
+        aListOfFonts.AppendString(NS_ConvertUTF8toUTF16(*fonts.CStringAt(i)));
     }
 
     aListOfFonts.Sort();
@@ -311,11 +309,11 @@ gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
     // gFontsDialog.readFontSelection() if the preference-selected font is not
     // available, so put system configured defaults first.
     if (monospace)
-        aListOfFonts.InsertElementAt(0, NS_LITERAL_STRING("monospace"));
+        aListOfFonts.InsertStringAt(NS_LITERAL_STRING("monospace"), 0);
     if (sansSerif)
-        aListOfFonts.InsertElementAt(0, NS_LITERAL_STRING("sans-serif"));
+        aListOfFonts.InsertStringAt(NS_LITERAL_STRING("sans-serif"), 0);
     if (serif)
-        aListOfFonts.InsertElementAt(0, NS_LITERAL_STRING("serif"));
+        aListOfFonts.InsertStringAt(NS_LITERAL_STRING("serif"), 0);
 
     return NS_OK;
 }
@@ -539,7 +537,6 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
     FcFontSet *fontSet = FcConfigGetFonts(currentConfig, FcSetSystem);
 
     mFontsByFamily.Clear();
-    mFontsByFullname.Clear();
     mLangSupportTable.Clear();
     mAliasForMultiFonts.Clear();
 
@@ -756,121 +753,13 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
 PRBool
 gfxFontconfigUtils::IsExistingFamily(const nsCString& aFamilyName)
 {
-    return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName)) != nsnull;
+    return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName.get())) != nsnull;
 }
 
 const nsTArray< nsCountedRef<FcPattern> >&
 gfxFontconfigUtils::GetFontsForFamily(const FcChar8 *aFamilyName)
 {
     FontsByFcStrEntry *entry = mFontsByFamily.GetEntry(aFamilyName);
-
-    if (!entry)
-        return mEmptyPatternArray;
-
-    return entry->GetFonts();
-}
-
-// Fontconfig only provides a fullname property for fonts in formats with SFNT
-// wrappers.  For other font formats (including PCF and PS Type 1), a fullname
-// must be generated from the family and style properties.  Only the first
-// family and style is checked, but that should be OK, as I don't expect
-// non-SFNT fonts to have multiple families or styles.
-PRBool
-gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(FcPattern *aFont,
-                                                  nsACString *aFullname)
-{
-    FcChar8 *family;
-    if (FcPatternGetString(aFont, FC_FAMILY, 0, &family) != FcResultMatch)
-        return PR_FALSE;
-
-    aFullname->Truncate();
-    aFullname->Append(ToCString(family));
-
-    FcChar8 *style;
-    if (FcPatternGetString(aFont, FC_STYLE, 0, &style) == FcResultMatch &&
-        strcmp(ToCString(style), "Regular") != 0) {
-        aFullname->Append(' ');
-        aFullname->Append(ToCString(style));
-    }
-
-    return PR_TRUE;
-}
-
-PRBool
-gfxFontconfigUtils::FontsByFullnameEntry::KeyEquals(KeyTypePointer aKey) const
-{
-    const FcChar8 *key = mKey;
-    // If mKey is NULL, key comes from the style and family of the first font.
-    nsCAutoString fullname;
-    if (!key) {
-        NS_ASSERTION(mFonts.Length(), "No font in FontsByFullnameEntry!");
-        GetFullnameFromFamilyAndStyle(mFonts[0], &fullname);
-
-        key = ToFcChar8(fullname);
-    }
-
-    return FcStrCmpIgnoreCase(aKey, key) == 0;
-}
-
-void
-gfxFontconfigUtils::AddFullnameEntries()
-{
-    // This FcFontSet is owned by fontconfig
-    FcFontSet *fontSet = FcConfigGetFonts(NULL, FcSetSystem);
-
-    // Record the existing font families
-    for (int f = 0; f < fontSet->nfont; ++f) {
-        FcPattern *font = fontSet->fonts[f];
-
-        int v = 0;
-        FcChar8 *fullname;
-        while (FcPatternGetString(font,
-                                  FC_FULLNAME, v, &fullname) == FcResultMatch) {
-            FontsByFullnameEntry *entry = mFontsByFullname.PutEntry(fullname);
-            if (entry) {
-                // entry always has space for one font, so the first AddFont
-                // will always succeed, and so the entry will always have a
-                // font from which to obtain the key.
-                PRBool added = entry->AddFont(font);
-                // The key may be NULL either if this is the first font, or if
-                // the first font does not have a fullname property, and so
-                // the key is obtained from the font.  Set the key in both
-                // cases.  The check that AddFont succeeded is required for
-                // the second case.
-                if (!entry->mKey && added) {
-                    entry->mKey = fullname;
-                }
-            }
-
-            ++v;
-        }
-
-        // Fontconfig does not provide a fullname property for all fonts.
-        if (v == 0) {
-            nsCAutoString name;
-            if (!GetFullnameFromFamilyAndStyle(font, &name))
-                continue;
-
-            FontsByFullnameEntry *entry =
-                mFontsByFullname.PutEntry(ToFcChar8(name));
-            if (entry) {
-                entry->AddFont(font);
-                // Either entry->mKey has been set for a previous font or it
-                // remains NULL to indicate that the key is obtained from the
-                // first font.
-            }
-        }
-    }
-}
-
-const nsTArray< nsCountedRef<FcPattern> >&
-gfxFontconfigUtils::GetFontsForFullname(const FcChar8 *aFullname)
-{
-    if (mFontsByFullname.Count() == 0) {
-        AddFullnameEntries();
-    }
-
-    FontsByFullnameEntry *entry = mFontsByFullname.GetEntry(aFullname);
 
     if (!entry)
         return mEmptyPatternArray;

@@ -85,9 +85,9 @@ NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 nsIsIndexFrame::nsIsIndexFrame(nsStyleContext* aContext) :
-  nsBlockFrame(aContext)
+  nsAreaFrame(aContext)
 {
-  SetFlags(NS_BLOCK_FLOAT_MGR);
+  SetFlags(NS_BLOCK_SPACE_MGR);
 }
 
 nsIsIndexFrame::~nsIsIndexFrame()
@@ -105,10 +105,10 @@ nsIsIndexFrame::Destroy()
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
   nsContentUtils::DestroyAnonymousContent(&mPreHr);
   nsContentUtils::DestroyAnonymousContent(&mPostHr);
-  nsBlockFrame::Destroy();
+  nsAreaFrame::Destroy();
 }
 
-// REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
+// REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 
 nsresult
@@ -147,8 +147,7 @@ nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
   if (presShell && mInputContent) {
     nsIFrame *frame = presShell->GetPrimaryFrameFor(mInputContent);
     if (frame) {
-      *oFrame = do_QueryFrame(frame);
-      return *oFrame ? NS_OK : NS_NOINTERFACE;
+      return CallQueryInterface(frame, oFrame);
     }
   }
   return NS_OK;
@@ -234,17 +233,20 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsIsIndexFrame)
-  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
-  NS_QUERYFRAME_ENTRY(nsIStatefulFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
-
 // Frames are not refcounted, no need to AddRef
 NS_IMETHODIMP
 nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
   NS_PRECONDITION(aInstancePtr, "null out param");
 
+  if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
+    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIStatefulFrame))) {
+    *aInstancePtr = static_cast<nsIStatefulFrame*>(this);
+    return NS_OK;
+  }
   if (aIID.Equals(NS_GET_IID(nsIDOMKeyListener))) {
     *aInstancePtr = static_cast<nsIDOMKeyListener*>(this);
     return NS_OK;
@@ -254,7 +256,7 @@ nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
     return NS_OK;
   }
 
-  return NS_NOINTERFACE;
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
 }
 
 nscoord
@@ -264,7 +266,7 @@ nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   DISPLAY_MIN_WIDTH(this, result);
 
   // Our min width is our pref width; the rest of our reflow is
-  // happily handled by nsBlockFrame
+  // happily handled by nsAreaFrame
   result = GetPrefWidth(aRenderingContext);
   return result;
 }
@@ -284,7 +286,7 @@ nsIsIndexFrame::AttributeChanged(PRInt32         aNameSpaceID,
   if (nsGkAtoms::prompt == aAttribute) {
     rv = UpdatePromptLabel(PR_TRUE);
   } else {
-    rv = nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+    rv = nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }
   return rv;
 }

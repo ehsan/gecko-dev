@@ -54,11 +54,6 @@
 #include "nsWeakReference.h"
 #include "nsICSSStyleRule.h"
 
-#ifdef MOZ_SMIL
-#include "nsISMILAttr.h"
-#include "nsSMILAnimationController.h"
-#endif
-
 class nsSVGSVGElement;
 class nsSVGLength2;
 class nsSVGNumber2;
@@ -67,7 +62,6 @@ class nsSVGAngle;
 class nsSVGBoolean;
 class nsSVGEnum;
 struct nsSVGEnumMapping;
-class nsSVGPreserveAspectRatio;
 class nsSVGString;
 
 typedef nsStyledElement nsSVGElementBase;
@@ -144,18 +138,11 @@ public:
   virtual void DidChangeAngle(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeBoolean(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
   virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-
-  void DidAnimateLength(PRUint8 aAttrEnum);
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
-
-#ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName);
-#endif
 
   virtual void RecompileScriptEventListeners();
 
@@ -166,9 +153,6 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);
-  static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
-                                              nsIAtom* aAttribute,
-                                              const nsAString& aValue);
 
   // Hooks for subclasses
   virtual PRBool IsEventName(nsIAtom* aName);
@@ -325,9 +309,6 @@ protected:
   virtual AngleAttributesInfo GetAngleInfo();
   virtual BooleanAttributesInfo GetBooleanInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  // We assume all preserveAspectRatios are alike so we don't
-  // need to wrap the class
-  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
@@ -342,6 +323,10 @@ private:
   nsresult
   ParseIntegerOptionalInteger(const nsAString& aValue,
                               PRUint32 aIndex1, PRUint32 aIndex2);
+
+  static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
+                                              nsIAtom* aAttribute,
+                                              const nsAString& aValue);
 
   void ResetOldStyleBaseType(nsISVGValue *svg_value);
 
@@ -377,15 +362,5 @@ NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
                                                                              \
   return rv;                                                                 \
 }
-
-// No unlinking, we'd need to null out the value pointer (the object it
-// points to is held by the element) and null-check it everywhere.
-#define NS_SVG_VAL_IMPL_CYCLE_COLLECTION(_val, _element)                     \
-NS_IMPL_CYCLE_COLLECTION_CLASS(_val)                                         \
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(_val)                                \
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(_element, nsIContent) \
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END                                        \
-NS_IMPL_CYCLE_COLLECTION_UNLINK_0(_val)
-
 
 #endif // __NS_SVGELEMENT_H__

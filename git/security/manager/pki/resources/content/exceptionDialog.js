@@ -83,6 +83,19 @@ function initExceptionDialog() {
                                                          [brandName], 1));
   gDialog.getButton("extra1").disabled = true;
   
+  // If the Private Browsing service is available and the mode is active,
+  // don't store permanent exceptions, since they would persist after
+  // private browsing mode was disabled.
+  try {
+    var pb = Components.classes["@mozilla.org/privatebrowsing;1"].
+             getService(Components.interfaces.nsIPrivateBrowsingService);
+    if (pb.privateBrowsingEnabled) {
+      var permanentCheckbox = document.getElementById("permanent");
+      permanentCheckbox.setAttribute("disabled", "true");
+      permanentCheckbox.removeAttribute("checked");
+    }
+  } catch (ex) {}
+  
   var args = window.arguments;
   if (args && args[0]) {
     if (args[0].location) {
@@ -287,15 +300,7 @@ function updateCertStatus() {
       
       // In these cases, we do want to enable the "Add Exception" button
       gDialog.getButton("extra1").disabled = false;
-
-      // If the Private Browsing service is available and the mode is active,
-      // don't store permanent exceptions, since they would persist after
-      // private browsing mode was disabled.
-      var inPrivateBrowsing = inPrivateBrowsingMode();
-      var pe = document.getElementById("permanent");
-      pe.disabled = inPrivateBrowsing;
-      pe.checked = !inPrivateBrowsing;
-
+      document.getElementById("permanent").disabled = false;
       setText("headerDescription", gPKIBundle.GetStringFromName("addExceptionInvalidHeader"));
     }
     else {
@@ -365,39 +370,17 @@ function addException() {
     flags |= overrideService.ERROR_TIME;
   
   var permanentCheckbox = document.getElementById("permanent");
-  var shouldStorePermanently = permanentCheckbox.checked && !inPrivateBrowsingMode();
 
   var uri = getURI();
   overrideService.rememberValidityOverride(
     uri.asciiHost, uri.port,
     gCert,
     flags,
-    !shouldStorePermanently);
+    !permanentCheckbox.checked);
   
   var args = window.arguments;
   if (args && args[0])
     args[0].exceptionAdded = true;
   
   gDialog.acceptDialog();
-}
-
-/**
- * Returns true if the private browsing mode is currently active and
- * we have been instructed to handle it.
- */
-function inPrivateBrowsingMode() {
-  // first, check to see if we should handle the private browsing mode
-  var args = window.arguments;
-  if (args && args[0] && args[0].handlePrivateBrowsing) {
-    // detect if the private browsing mode is active
-    try {
-      var pb = Components.classes["@mozilla.org/privatebrowsing;1"].
-               getService(Components.interfaces.nsIPrivateBrowsingService);
-      return pb.privateBrowsingEnabled;
-    } catch (ex) {
-      Components.utils.reportError("Could not get the Private Browsing service");
-    }
-  }
-
-  return false;
 }

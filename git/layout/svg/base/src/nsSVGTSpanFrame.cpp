@@ -47,8 +47,23 @@
 // Implementation
 
 nsIFrame*
-NS_NewSVGTSpanFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGTSpanFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                    nsIFrame* parentFrame, nsStyleContext* aContext)
 {
+  NS_ASSERTION(parentFrame, "null parent");
+  nsISVGTextContentMetrics *metrics;
+  CallQueryInterface(parentFrame, &metrics);
+  if (!metrics) {
+    NS_ERROR("trying to construct an SVGTSpanFrame for an invalid container");
+    return nsnull;
+  }
+  
+  nsCOMPtr<nsIDOMSVGTSpanElement> tspan = do_QueryInterface(aContent);
+  if (!tspan) {
+    NS_ERROR("Can't create frame! Content is not an SVG tspan");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGTSpanFrame(aContext);
 }
 
@@ -59,43 +74,14 @@ nsSVGTSpanFrame::GetType() const
 }
 
 //----------------------------------------------------------------------
-// nsQueryFrame methods
+// nsISupports methods
 
-NS_QUERYFRAME_HEAD(nsSVGTSpanFrame)
-  NS_QUERYFRAME_ENTRY(nsISVGGlyphFragmentNode)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGTSpanFrameBase)
+NS_INTERFACE_MAP_BEGIN(nsSVGTSpanFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGGlyphFragmentNode)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGTSpanFrameBase)
 
 //----------------------------------------------------------------------
 // nsIFrame methods
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGTSpanFrame::Init(nsIContent* aContent,
-                      nsIFrame* aParent,
-                      nsIFrame* aPrevInFlow)
-{
-  NS_ASSERTION(aParent, "null parent");
-
-  // Some of our subclasses have an aContent that's not a <svg:tspan> or are
-  // allowed to be constructed even when there is no nsISVGTextContentMetrics
-  // ancestor.  For example, nsSVGAFrame inherits from us but may have nothing
-  // to do with text.
-  if (GetType() == nsGkAtoms::svgTSpanFrame) {
-    nsIFrame* ancestorFrame = nsSVGUtils::GetFirstNonAAncestorFrame(aParent);
-    NS_ASSERTION(ancestorFrame, "Must have ancestor");
-
-    nsISVGTextContentMetrics *metrics = do_QueryFrame(ancestorFrame);
-    NS_ASSERTION(metrics,
-                 "trying to construct an SVGTSpanFrame for an invalid "
-                 "container");
-
-    nsCOMPtr<nsIDOMSVGTSpanElement> tspan = do_QueryInterface(aContent);
-    NS_ASSERTION(tspan, "Content is not an SVG tspan");
-  }
-
-  return nsSVGTSpanFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 NS_IMETHODIMP
 nsSVGTSpanFrame::AttributeChanged(PRInt32         aNameSpaceID,
@@ -164,7 +150,8 @@ nsSVGTSpanFrame::GetFirstGlyphFragment()
   // try children first:
   nsIFrame* kid = mFrames.FirstChild();
   while (kid) {
-    nsISVGGlyphFragmentNode *node = do_QueryFrame(kid);
+    nsISVGGlyphFragmentNode *node = nsnull;
+    CallQueryInterface(kid, &node);
     if (node)
       return node->GetFirstGlyphFragment();
     kid = kid->GetNextSibling();
@@ -180,7 +167,8 @@ nsSVGTSpanFrame::GetNextGlyphFragment()
 {
   nsIFrame* sibling = mNextSibling;
   while (sibling) {
-    nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
+    nsISVGGlyphFragmentNode *node = nsnull;
+    CallQueryInterface(sibling, &node);
     if (node)
       return node->GetFirstGlyphFragment();
     sibling = sibling->GetNextSibling();
@@ -189,7 +177,8 @@ nsSVGTSpanFrame::GetNextGlyphFragment()
   // no more siblings. go back up the tree.
   
   NS_ASSERTION(mParent, "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
+  nsISVGGlyphFragmentNode *node = nsnull;
+  CallQueryInterface(mParent, &node);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 

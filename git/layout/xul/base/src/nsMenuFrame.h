@@ -59,8 +59,7 @@
 #include "nsIContent.h"
 #include "nsIScrollableViewProvider.h"
 
-nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
 class nsMenuBarFrame;
 class nsIScrollableView;
@@ -111,7 +110,7 @@ class nsMenuFrame : public nsBoxFrame,
 public:
   nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
+  NS_DECL_ISUPPORTS
 
   // nsIBox
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);

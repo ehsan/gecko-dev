@@ -44,8 +44,8 @@
 
 class gfxASurface;
 class gfxPattern;
-struct gfxMatrix;
-struct gfxRect;
+class gfxMatrix;
+class gfxRect;
 class gfxContext;
 
 class nsIDeviceContext;

@@ -37,18 +37,13 @@
 
 #include "nsDeviceContextSpecWin.h"
 #include "prmem.h"
-
-#ifndef WINCE
 #include <winspool.h>
-#endif
-
 #include <tchar.h>
 
 #include "nsAutoPtr.h"
 #include "nsIWidget.h"
 
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsIPrintSettingsWin.h"
 
 #include "nsString.h"
@@ -940,7 +935,7 @@ nsPrinterEnumeratorWin::GetPrinterNameList(nsIStringEnumerator **aPrinterNameLis
   }
 
   PRInt32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
-  nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
+  nsStringArray *printers = new nsStringArray(numPrinters);
   if (!printers)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -953,7 +948,7 @@ nsPrinterEnumeratorWin::GetPrinterNameList(nsIStringEnumerator **aPrinterNameLis
     nsAutoString newName; 
     NS_CopyNativeToUnicode(nsDependentCString(name), newName);
 #endif
-    printers->AppendElement(newName);
+    printers->AppendString(newName);
   }
 
   return NS_NewAdoptingStringEnumerator(aPrinterNameList, printers);

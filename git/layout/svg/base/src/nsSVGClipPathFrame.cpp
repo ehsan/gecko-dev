@@ -48,8 +48,14 @@
 // Implementation
 
 nsIFrame*
-NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGClipPathElement> clipPath = do_QueryInterface(aContent);
+  if (!clipPath) {
+    NS_ERROR("Can't create frame! Content is not an SVG clipPath!");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGClipPathFrame(aContext);
 }
 
@@ -78,7 +84,8 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+    nsISVGChildFrame* SVGFrame = nsnull;
+    CallQueryInterface(kid, &SVGFrame);
     if (SVGFrame) {
       // The CTM of each frame referencing us can be different.
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION | 
@@ -114,7 +121,8 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+    nsISVGChildFrame* SVGFrame = nsnull;
+    CallQueryInterface(kid, &SVGFrame);
     if (SVGFrame) {
       // Notify the child frame that we may be working with a
       // different transform, so it can update its covered region
@@ -135,7 +143,9 @@ nsSVGClipPathFrame::IsTrivial()
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame *svgChild = do_QueryFrame(kid);
+    nsISVGChildFrame *svgChild = nsnull;
+    CallQueryInterface(kid, &svgChild);
+
     if (svgChild) {
       // We consider a non-trivial clipPath to be one containing
       // either more than one svg child and/or a svg container
@@ -146,19 +156,6 @@ nsSVGClipPathFrame::IsTrivial()
   }
   return PR_TRUE;
 }
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGClipPathFrame::Init(nsIContent* aContent,
-                         nsIFrame* aParent,
-                         nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGClipPathElement> clipPath = do_QueryInterface(aContent);
-  NS_ASSERTION(clipPath, "Content is not an SVG clipPath!");
-
-  return nsSVGClipPathFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGClipPathFrame::GetType() const

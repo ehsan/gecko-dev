@@ -113,7 +113,6 @@
 #include "nsTArray.h"
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
-#include "nsWrapperCache.h"
 
 #include "nsIXPCScriptNotify.h"  // used to notify: ScriptEvaluated
 
@@ -728,9 +727,6 @@ public:
     nsresult RemoveJSHolder(void* aHolder);
 
     void UnrootContextGlobals();
-#ifdef DEBUG_CC
-    void RootContextGlobals();
-#endif
 
     void DebugDump(PRInt16 depth);
 
@@ -2768,7 +2764,6 @@ public:
                                            nsISupports* src,
                                            const nsID* iid,
                                            XPCNativeInterface* Interface,
-                                           nsWrapperCache *cache,
                                            JSObject* scope,
                                            PRBool allowNativeWrapper,
                                            PRBool isGlobal,

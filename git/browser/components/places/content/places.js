@@ -665,10 +665,7 @@ var PlacesOrganizer = {
           detailsDeck.selectedIndex == 1 && !gEditItemOverlay.multiEdit)
         return;
     }
-
-    // Clean up the panel before initing it again.
-    gEditItemOverlay.uninitPanel(false);
-
+ 
     if (aSelectedNode && !PlacesUtils.nodeIsSeparator(aSelectedNode)) {
       detailsDeck.selectedIndex = 1;
       // Using the concrete itemId is arguably wrong. The bookmarks API

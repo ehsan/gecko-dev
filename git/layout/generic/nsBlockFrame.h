@@ -127,6 +127,11 @@ class nsIntervalSet;
 
 #define nsBlockFrameSuper nsHTMLContainerFrame
 
+#define NS_BLOCK_FRAME_CID \
+ { 0xa6cf90df, 0x15b3, 0x11d2,{0x93, 0x2e, 0x00, 0x80, 0x5f, 0x8a, 0xdd, 0x32}}
+
+extern const nsIID kBlockFrameCID;
+
 /*
  * Base class for block and inline frames.
  * The block frame has an additional named child list:
@@ -137,8 +142,6 @@ class nsIntervalSet;
 class nsBlockFrame : public nsBlockFrameSuper
 {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsBlockFrame)
-
   typedef nsLineList::iterator                  line_iterator;
   typedef nsLineList::const_iterator            const_line_iterator;
   typedef nsLineList::reverse_iterator          reverse_line_iterator;
@@ -155,8 +158,8 @@ public:
 
   friend nsIFrame* NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
-  // nsQueryFrame
-  NS_DECL_QUERYFRAME
+  // nsISupports
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIFrame
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -283,7 +286,7 @@ public:
     nsBlockReflowState& aState, nsLineBox* aLine);
 
   static PRBool BlockIsMarginRoot(nsIFrame* aBlock);
-  static PRBool BlockNeedsFloatManager(nsIFrame* aBlock);
+  static PRBool BlockNeedsSpaceManager(nsIFrame* aBlock);
 
   /**
    * Returns whether aFrame is a block frame that will wrap its contents
@@ -425,7 +428,7 @@ public:
    * don't use it for out of flows.
    */
   enum {
-    PRESERVE_REMOVED_FRAMES    = 0x01,
+    PERSERVE_REMOVED_FRAMES    = 0x01,
     REMOVE_FIXED_CONTINUATIONS = 0x02,
     FRAMES_ARE_EMPTY           = 0x04
   };
@@ -676,7 +679,7 @@ public:
   static PRBool gNoisyIntrinsic;
   static PRBool gNoisyReflow;
   static PRBool gReallyNoisyReflow;
-  static PRBool gNoisyFloatManager;
+  static PRBool gNoisySpaceManager;
   static PRBool gVerifyLines;
   static PRBool gDisableResizeOpt;
 

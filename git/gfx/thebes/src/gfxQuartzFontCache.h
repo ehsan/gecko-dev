@@ -51,7 +51,6 @@
 
 #include "nsUnicharUtils.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 
 // used when picking fallback font
 struct FontSearch {
@@ -66,18 +65,16 @@ struct FontSearch {
 
 class MacOSFamilyEntry;
 class gfxQuartzFontCache;
-class FontEntryStandardFaceComparator;
 
 // a single member of a font family (i.e. a single face, such as Times Italic)
 class MacOSFontEntry : public gfxFontEntry
 {
 public:
     friend class gfxQuartzFontCache;
-    friend class FontEntryStandardFaceComparator;
 
     // initialize with Apple-type weight [1..14]
     MacOSFontEntry(const nsAString& aPostscriptName, PRInt32 aAppleWeight, PRUint32 aTraits, 
-                   MacOSFamilyEntry *aFamily, PRBool aIsStandardFace = PR_FALSE);
+                    MacOSFamilyEntry *aFamily);
 
     const nsString& FamilyName();
 
@@ -97,7 +94,6 @@ protected:
 
     ATSUFontID mATSUFontID;
     PRPackedBool mATSUIDInitialized;
-    PRPackedBool mStandardFace;
 };
 
 // helper class for adding other family names back into font cache
@@ -155,9 +151,6 @@ public:
             mAvailableFonts[i]->mIsBadUnderlineFont = aIsBadUnderlineFont;
     }
 
-    // sort available fonts to put less-desirable faces towards the end
-    void SortAvailableFonts();
-
 protected:
     
     // add font entries into array that match specified traits, returned in array listed by weight
@@ -211,7 +204,7 @@ public:
     
     void GetFontList (const nsACString& aLangGroup,
                       const nsACString& aGenericFamily,
-                      nsTArray<nsString>& aListOfFonts);
+                      nsStringArray& aListOfFonts);
     PRBool ResolveFontName(const nsAString& aFontName,
                            nsAString& aResolvedFontName);
     PRBool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);

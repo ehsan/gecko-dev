@@ -79,6 +79,7 @@ CSRCS		= \
 		mozcontainer.c \
 		mozdrawingarea.c \
 		keysym2ucs.c \
+		nsPrintdGTK.c \
 		$(NULL)
 
 ifdef ACCESSIBILITY

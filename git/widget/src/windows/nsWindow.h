@@ -84,7 +84,6 @@ struct nsFakeCharMessage;
 #define WINXP_VERSION   0x501
 #define WIN2K3_VERSION  0x502
 #define VISTA_VERSION   0x600
-#define WIN7_VERSION    0x601
 
 PRInt32 GetWindowsVersion();
 
@@ -95,12 +94,18 @@ PRInt32 GetWindowsVersion();
  * could break touchpad scrolling or screen readers.
  */
 const PRUint32 kMaxClassNameLength    = 40;
-const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
-const LPCWSTR kClassNameUI           = L"MozillaUIWindowClass";
-const LPCWSTR kClassNameContent      = L"MozillaContentWindowClass";
-const LPCWSTR kClassNameContentFrame = L"MozillaContentFrameWindowClass";
-const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
-const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
+const LPCWSTR kWClassNameHidden       = L"MozillaHiddenWindowClass";
+const LPCWSTR kWClassNameUI           = L"MozillaUIWindowClass";
+const LPCWSTR kWClassNameContent      = L"MozillaContentWindowClass";
+const LPCWSTR kWClassNameContentFrame = L"MozillaContentFrameWindowClass";
+const LPCWSTR kWClassNameGeneral      = L"MozillaWindowClass";
+const LPCWSTR kWClassNameDialog       = L"MozillaDialogClass";
+const LPCSTR kClassNameHidden         = "MozillaHiddenWindowClass";
+const LPCSTR kClassNameUI             = "MozillaUIWindowClass";
+const LPCSTR kClassNameContent        = "MozillaContentWindowClass";
+const LPCSTR kClassNameContentFrame   = "MozillaContentFrameWindowClass";
+const LPCSTR kClassNameGeneral        = "MozillaWindowClass";
+const LPCSTR kClassNameDialog         = "MozillaDialogClass";
 
 typedef enum
 {
@@ -124,14 +129,14 @@ public:
 
   // nsIWidget interface
   NS_IMETHOD              Create(nsIWidget *aParent,
-                                 const nsIntRect &aRect,
+                                 const nsRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
                                  nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
   NS_IMETHOD              Create(nsNativeWidget aParent,
-                                 const nsIntRect &aRect,
+                                 const nsRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
@@ -142,7 +147,7 @@ public:
   // Create(nsNativeWidget...)
 
   virtual nsresult        StandardWindowCreate(nsIWidget *aParent,
-                                               const nsIntRect &aRect,
+                                               const nsRect &aRect,
                                                EVENT_CALLBACK aHandleEventFunction,
                                                nsIDeviceContext *aContext,
                                                nsIAppShell *aAppShell,
@@ -166,9 +171,9 @@ public:
   NS_IMETHOD              Enable(PRBool aState);
   NS_IMETHOD              IsEnabled(PRBool *aState);
   NS_IMETHOD              SetFocus(PRBool aRaise);
-  NS_IMETHOD              GetBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
+  NS_IMETHOD              GetBounds(nsRect &aRect);
+  NS_IMETHOD              GetClientBounds(nsRect &aRect);
+  NS_IMETHOD              GetScreenBounds(nsRect &aRect);
   NS_IMETHOD              SetBackgroundColor(const nscolor &aColor);
   NS_IMETHOD              SetCursor(nsCursor aCursor);
   NS_IMETHOD              SetCursor(imgIContainer* aCursor,
@@ -176,22 +181,22 @@ public:
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              Validate();
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
-  NS_IMETHOD              Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous);
+  NS_IMETHOD              Invalidate(const nsRect & aRect, PRBool aIsSynchronous);
   NS_IMETHOD              InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous);
   NS_IMETHOD              Update();
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType);//~~~
   NS_IMETHOD              SetColorMap(nsColorMap *aColorMap);
   //XXX-Scroll is obsolete it is going away soon
-  NS_IMETHOD              Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect);
+  NS_IMETHOD              Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect);
   NS_IMETHOD              ScrollWidgets(PRInt32 aDx, PRInt32 aDy);
-  NS_IMETHOD              ScrollRect(nsIntRect &aRect, PRInt32 aDx, PRInt32 aDy);
+  NS_IMETHOD              ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy);
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
   NS_IMETHOD              SetMenuBar(void * aMenuBar) { return NS_ERROR_FAILURE; }
   NS_IMETHOD              ShowMenuBar(PRBool aShow)         { return NS_ERROR_FAILURE; }
-  NS_IMETHOD              WidgetToScreen(const nsIntRect& aOldRect, nsIntRect& aNewRect);
-  NS_IMETHOD              ScreenToWidget(const nsIntRect& aOldRect, nsIntRect& aNewRect);
+  NS_IMETHOD              WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
+  NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
   NS_IMETHOD              BeginResizingChildren(void);
   NS_IMETHOD              EndResizingChildren(void);
   NS_IMETHOD              GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight);
@@ -251,20 +256,22 @@ public:
                                              PRBool aIsContextMenuKey = PR_FALSE,
                                              PRInt16 aButton = nsMouseEvent::eLeftButton);
 #ifdef ACCESSIBILITY
-  virtual PRBool          DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAccessible, nsIntPoint* aPoint = nsnull);
+  virtual PRBool          DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAccessible, nsPoint* aPoint = nsnull);
   already_AddRefed<nsIAccessible> GetRootAccessible();
 #endif
   virtual PRBool          AutoErase();
-  nsIntPoint*             GetLastPoint() { return &mLastPoint; }
+  nsPoint*                GetLastPoint() { return &mLastPoint; }
 
   PRInt32                 GetNewCmdMenuId() { mMenuCmdId++; return mMenuCmdId; }
 
-  void                    InitEvent(nsGUIEvent& event, nsIntPoint* aPoint = nsnull);
+  void                    InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
 
   void                    SuppressBlurEvents(PRBool aSuppress);
   PRBool                  BlurEventsSuppressed();
 
 protected:
+
+#ifndef WINCE
 
   // special callback hook methods for pop ups
   static LRESULT CALLBACK MozSpecialMsgFilter(int code, WPARAM wParam, LPARAM lParam);
@@ -277,6 +284,7 @@ protected:
   static void             UnregisterSpecialDropdownHooks();
 
   static void             PostSleepWakeNotification(const char* aNotification);
+#endif
 
   static BOOL             DealWithPopups (HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLParam, LRESULT* outResult);
 
@@ -309,8 +317,10 @@ protected:
    // Allow Derived classes to modify the height that is passed
    // when the window is created or resized.
   virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
-  virtual LPCWSTR         WindowClass();
-  virtual LPCWSTR         WindowPopupClass();
+  virtual LPCWSTR         WindowClassW();
+  virtual LPCWSTR         WindowPopupClassW();
+  virtual LPCTSTR         WindowClass();
+  virtual LPCTSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
   virtual DWORD           WindowExStyle();
 
@@ -319,7 +329,7 @@ protected:
   virtual void            OnDestroy();
   virtual PRBool          OnMove(PRInt32 aX, PRInt32 aY);
   virtual PRBool          OnPaint(HDC aDC = nsnull);
-  virtual PRBool          OnResize(nsIntRect &aWindowRect);
+  virtual PRBool          OnResize(nsRect &aWindowRect);
   
   void                    SetupModKeyState();
   void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg);
@@ -369,9 +379,9 @@ protected:
    *  @param aOutRect         The converted cursor rect.
    */
   void                    ResolveIMECaretPos(nsIWidget* aReferenceWidget,
-                                             nsIntRect& aCursorRect,
+                                             nsRect&    aCursorRect,
                                              nsIWidget* aNewOriginWidget,
-                                             nsIntRect& aOutRect);
+                                             nsRect&    aOutRect);
 
   PRBool                  ConvertToANSIString(const nsAFlatString& aStr,
                                               UINT aCodePage,
@@ -398,7 +408,7 @@ protected:
   PRBool DispatchCommandEvent(PRUint32 aEventCommand);
   void RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
 
-  void GetNonClientBounds(nsIntRect &aRect);
+  void GetNonClientBounds(nsRect &aRect);
   void HandleTextEvent(HIMC hIMEContext, PRBool aCheckAttr = PR_TRUE);
   BOOL HandleStartComposition(HIMC hIMEContext);
   void HandleEndComposition(void);
@@ -460,9 +470,9 @@ protected:
 
   static TriStateBool sCanQuit;
 
-  nsIntSize     mLastSize;
+  nsSize        mLastSize;
   static        nsWindow* gCurrentWindow;
-  nsIntPoint    mLastPoint;
+  nsPoint       mLastPoint;
   HWND          mWnd;
   HDC           mPaintDC; // only set during painting
 #if 0

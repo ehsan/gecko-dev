@@ -280,6 +280,13 @@ nsSplitterFrame::Destroy()
 }
 
 
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsSplitterFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
+
+
 NS_IMETHODIMP
 nsSplitterFrame::GetCursor(const nsPoint&    aPoint,
                            nsIFrame::Cursor& aCursor)
@@ -370,7 +377,7 @@ nsSplitterFrame::Init(nsIContent*      aContent,
   nsresult  rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
+  rv = nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!realTimeDrag) {

@@ -87,14 +87,8 @@
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsSVGRect.h"
-#include "nsIFrame.h"
 #include "prdtoa.h"
 #include <stdarg.h>
-#ifdef MOZ_SMIL
-#include "nsSVGTransformSMILAttr.h"
-#include "nsSVGAnimatedTransformList.h"
-#include "nsIDOMSVGTransformable.h"
-#endif // MOZ_SMIL
 
 nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {&nsGkAtoms::userSpaceOnUse, nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE},
@@ -148,13 +142,6 @@ nsSVGElement::Init()
 
   for (i = 0; i < enumInfo.mEnumCount; i++) {
     enumInfo.Reset(i);
-  }
-
-  nsSVGPreserveAspectRatio *preserveAspectRatio =
-    GetPreserveAspectRatio();
-
-  if (preserveAspectRatio) {
-    preserveAspectRatio->Init();
   }
 
   StringAttributesInfo stringInfo = GetStringInfo();
@@ -442,19 +429,6 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
         }
       }
     }
-
-    if (!foundMatch && aAttribute == nsGkAtoms::preserveAspectRatio) {
-      // Check for nsSVGPreserveAspectRatio attribute
-      nsSVGPreserveAspectRatio *preserveAspectRatio =
-        GetPreserveAspectRatio();
-      if (preserveAspectRatio) {
-        rv = preserveAspectRatio->SetBaseValueString(aValue, this, PR_FALSE);
-        if (NS_FAILED(rv)) {
-          preserveAspectRatio->Init();
-        }
-        foundMatch = PR_TRUE;
-      }
-    }
   }
 
   if (!foundMatch) {
@@ -598,18 +572,6 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         }
       }
     }
-
-    if (!foundMatch && aName == nsGkAtoms::preserveAspectRatio) {
-      // Check if this is a preserveAspectRatio attribute going away
-      nsSVGPreserveAspectRatio *preserveAspectRatio =
-        GetPreserveAspectRatio();
-
-      if (preserveAspectRatio) {
-        preserveAspectRatio->Init();
-        DidChangePreserveAspectRatio(PR_FALSE);
-        foundMatch = PR_TRUE;
-      }
-    }
   }
 
   if (!foundMatch) {
@@ -649,6 +611,17 @@ nsSVGElement::ResetOldStyleBaseType(nsISVGValue *svg_value)
     nsCOMPtr<nsIDOMSVGRect> rect;
     r->GetBaseVal(getter_AddRefs(rect));
     static_cast<nsSVGRect*>(rect.get())->Clear();
+  }
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> ar = do_QueryInterface(svg_value);
+  if (ar) {
+    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> par;
+    ar->GetBaseVal(getter_AddRefs(par));
+    par->SetAlign(nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMIDYMID);
+    par->SetMeetOrSlice(nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET);
+  }
+  nsCOMPtr<nsIDOMSVGPointList> pl = do_QueryInterface(svg_value);
+  if (pl) {
+    pl->Clear();
   }
   nsCOMPtr<nsIDOMSVGAnimatedLengthList> ll = do_QueryInterface(svg_value);
   if (ll) {
@@ -1218,19 +1191,6 @@ nsSVGElement::DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 }
 
 void
-nsSVGElement::DidAnimateLength(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-
-  if (frame) {
-    LengthAttributesInfo info = GetLengthInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mLengthInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
-void
 nsSVGElement::GetAnimatedLengthValues(float *aFirst, ...)
 {
   LengthAttributesInfo info = GetLengthInfo();
@@ -1467,30 +1427,6 @@ nsSVGElement::DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr)
           newStr, PR_TRUE);
 }
 
-nsSVGPreserveAspectRatio *
-nsSVGElement::GetPreserveAspectRatio()
-{
-  return nsnull;
-}
-
-void
-nsSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
-{
-  if (!aDoSetAttr)
-    return;
-
-  nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
-
-  NS_ASSERTION(preserveAspectRatio,
-               "DidChangePreserveAspectRatio on element with no preserveAspectRatio attrib");
-
-  nsAutoString newStr;
-  preserveAspectRatio->GetBaseValueString(newStr);
-
-  SetAttr(kNameSpaceID_None, nsGkAtoms::preserveAspectRatio,
-          newStr, PR_TRUE);
-}
-
 nsSVGElement::StringAttributesInfo
 nsSVGElement::GetStringInfo()
 {
@@ -1639,35 +1575,3 @@ nsSVGElement::RecompileScriptEventListeners()
     AddScriptEventListener(GetEventNameForAttr(attr), value, PR_TRUE);
   }
 }
-
-#ifdef MOZ_SMIL
-nsISMILAttr*
-nsSVGElement::GetAnimatedAttr(const nsIAtom* aName)
-{
-  // Transforms:
-  if (aName == nsGkAtoms::transform) {
-    nsCOMPtr<nsIDOMSVGTransformable> transformable(
-            do_QueryInterface(static_cast<nsIContent*>(this)));
-    if (!transformable)
-      return nsnull;
-    nsCOMPtr<nsIDOMSVGAnimatedTransformList> transformList;
-    nsresult rv = transformable->GetTransform(getter_AddRefs(transformList));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-    nsSVGAnimatedTransformList* list
-      = static_cast<nsSVGAnimatedTransformList*>(transformList.get());
-    NS_ENSURE_TRUE(list, nsnull);
-
-    return new nsSVGTransformSMILAttr(list, this);
-  }
-
-  // Lengths:
-  LengthAttributesInfo info = GetLengthInfo();
-  for (PRUint32 i = 0; i < info.mLengthCount; i++) {
-    if (aName == *info.mLengthInfo[i].mName) {
-      return info.mLengths[i].ToSMILAttr(this);
-    }
-  }
-
-  return nsnull;
-}
-#endif // MOZ_SMIL

@@ -42,9 +42,12 @@
 #include "nsGtkKeyUtils.h"
 #include "nsGUIEvent.h"
 
-#include <gtk/gtk.h>
+#include <gtk/gtkentry.h>
+#include <gtk/gtktextview.h>
+#include <gtk/gtkbindings.h>
+#include <gtk/gtkmain.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdk.h>
+#include <gdk/gdkevents.h>
 
 static nsINativeKeyBindings::DoCommandCallback gCurrentCallback;
 static void *gCurrentCallbackData;

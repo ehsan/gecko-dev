@@ -404,17 +404,17 @@ struct CellRenderSettings {
  * This function is similar to DrawCellWithScaling, but it decides what
  * control size to use based on the destRect's size.
  * Scaling is only applied when the difference between the destRect's size
- * and the next smaller natural size is greater than snapTolerance. Otherwise
+ * and the next smaller natural size is greater than sSnapTolerance. Otherwise
  * it snaps to the next smaller control size without scaling because unscaled
  * controls look nicer.
  */
+static const float sSnapTolerance = 2.0f;
 static void DrawCellWithSnapping(NSCell *cell,
                                  CGContextRef cgContext,
                                  const HIRect& destRect,
                                  const CellRenderSettings settings,
                                  float verticalAlignFactor,
-                                 NSView* view,
-                                 float snapTolerance = 2.0f)
+                                 NSView* view)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
@@ -427,14 +427,14 @@ static void DrawCellWithSnapping(NSCell *cell,
   NSControlSize controlSizeX = NSRegularControlSize, controlSizeY = NSRegularControlSize;
   HIRect drawRect = destRect;
 
-  if (rectWidth <= miniSize.width + snapTolerance && rectWidth < smallSize.width)
+  if (rectWidth <= miniSize.width + sSnapTolerance && rectWidth < smallSize.width)
     controlSizeX = NSMiniControlSize;
-  else if(rectWidth <= smallSize.width + snapTolerance && rectWidth < regularSize.width)
+  else if(rectWidth <= smallSize.width + sSnapTolerance && rectWidth < regularSize.width)
     controlSizeX = NSSmallControlSize;
 
-  if (rectHeight <= miniSize.height + snapTolerance && rectHeight < smallSize.height)
+  if (rectHeight <= miniSize.height + sSnapTolerance && rectHeight < smallSize.height)
     controlSizeY = NSMiniControlSize;
-  else if(rectHeight <= smallSize.height + snapTolerance && rectHeight < regularSize.height)
+  else if(rectHeight <= smallSize.height + sSnapTolerance && rectHeight < regularSize.height)
     controlSizeY = NSSmallControlSize;
 
   NSControlSize controlSize = NSRegularControlSize;
@@ -449,7 +449,7 @@ static void DrawCellWithSnapping(NSCell *cell,
   float diffWidth = size.width ? rectWidth - size.width : 0.0f;
   float diffHeight = size.height ? rectHeight - size.height : 0.0f;
   if (diffWidth >= 0.0f && diffHeight >= 0.0f &&
-      diffWidth <= snapTolerance && diffHeight <= snapTolerance) {
+      diffWidth <= sSnapTolerance && diffHeight <= sSnapTolerance) {
     // Snap to the smaller control size.
     controlSize = smallerControlSize;
     sizeIndex = smallerControlSizeIndex;
@@ -524,8 +524,8 @@ static const CellRenderSettings radioSettings = {
   {
     { // Tiger
       {0, 0, 0, 0},     // mini
-      {0, 1, 1, 2},     // small
-      {0, -1, 0, 1}     // regular
+      {0, 2, 1, 1},     // small
+      {0, 1, 0, -1}     // regular
     },
     { // Leopard
       {0, 0, 0, 0},     // mini
@@ -630,31 +630,30 @@ nsNativeThemeCocoa::DrawSearchField(CGContextRef cgContext, const HIRect& inBoxR
 }
 
 
-static const CellRenderSettings pushButtonSettings = {
-  {
-    NSMakeSize(0, 16), // mini
-    NSMakeSize(0, 19), // small
-    NSMakeSize(0, 22)  // regular
+// These are the sizes that Gecko needs to request to draw if it wants
+// to get a standard-sized Aqua rounded bevel button drawn. Note that
+// the rects that draw these are actually a little bigger.
+#define NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH 18
+#define NATURAL_MINI_ROUNDED_BUTTON_HEIGHT 16
+#define NATURAL_SMALL_ROUNDED_BUTTON_MIN_WIDTH 26
+#define NATURAL_SMALL_ROUNDED_BUTTON_HEIGHT 19
+#define NATURAL_REGULAR_ROUNDED_BUTTON_MIN_WIDTH 30
+#define NATURAL_REGULAR_ROUNDED_BUTTON_HEIGHT 22
+
+// These were calculated by testing all three sizes on the respective operating system.
+static const float pushButtonMargins[2][3][4] =
+{
+  { // Tiger
+    {1, 1, 1, 1}, // mini
+    {5, 1, 5, 1}, // small
+    {6, 0, 6, 2}  // regular
   },
-  {
-    NSMakeSize(18, 0), // mini
-    NSMakeSize(26, 0), // small
-    NSMakeSize(30, 0)  // regular
-  },
-  {
-    { // Tiger
-      {1, 1, 1, 1},    // mini
-      {5, 0, 5, 2},    // small
-      {6, 0, 6, 2}     // regular
-    },
-    { // Leopard
-      {0, 0, 0, 0},    // mini
-      {4, 0, 4, 1},    // small
-      {5, 0, 5, 2}     // regular
-    }
+  { // Leopard
+    {0, 0, 0, 0}, // mini
+    {4, 0, 4, 1}, // small
+    {5, 0, 5, 2}  // regular
   }
 };
-
 
 // The height at which we start doing square buttons instead of rounded buttons
 // Rounded buttons look bad if drawn at a height greater than 26, so at that point
@@ -662,30 +661,54 @@ static const CellRenderSettings pushButtonSettings = {
 #define DO_SQUARE_BUTTON_HEIGHT 26
 
 void
-nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRect,
+nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRect, PRBool inIsDefault,
                                    PRBool inDisabled, PRInt32 inState, nsIFrame* aFrame)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  NSRect drawRect = NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y, inBoxRect.size.width, inBoxRect.size.height);
+
   BOOL isActive = FrameIsInActiveWindow(aFrame);
 
   [mPushButtonCell setEnabled:!inDisabled];
-  [mPushButtonCell setHighlighted:((inState & NS_EVENT_STATE_ACTIVE) &&
-                                   (inState & NS_EVENT_STATE_HOVER) && 
+  [mPushButtonCell setHighlighted:(((inState & NS_EVENT_STATE_ACTIVE) &&
+                                    (inState & NS_EVENT_STATE_HOVER) ||
+                                    (inIsDefault && !inDisabled)) && 
                                    isActive)];
   [mPushButtonCell setShowsFirstResponder:(inState & NS_EVENT_STATE_FOCUS) && !inDisabled && isActive];
 
   // If the button is tall enough, draw the square button style so that buttons with
   // non-standard content look good. Otherwise draw normal rounded aqua buttons.
-  if (inBoxRect.size.height > DO_SQUARE_BUTTON_HEIGHT) {
+  if (drawRect.size.height > DO_SQUARE_BUTTON_HEIGHT) {
     [mPushButtonCell setBezelStyle:NSShadowlessSquareBezelStyle];
     DrawCellWithScaling(mPushButtonCell, cgContext, inBoxRect, NSRegularControlSize,
                         NSZeroSize, NSMakeSize(14, 0), NULL, NativeViewForFrame(aFrame));
   } else {
     [mPushButtonCell setBezelStyle:NSRoundedBezelStyle];
 
-    DrawCellWithSnapping(mPushButtonCell, cgContext, inBoxRect, pushButtonSettings,
-                         0.5f, NativeViewForFrame(aFrame), 1.0f);
+    // Figure out what size cell control we're going to draw and grab its
+    // natural height and min width.
+    NSControlSize controlSize = NSRegularControlSize;
+    float naturalHeight = NATURAL_REGULAR_ROUNDED_BUTTON_HEIGHT;
+    float minWidth = NATURAL_REGULAR_ROUNDED_BUTTON_MIN_WIDTH;
+    if (drawRect.size.height <= NATURAL_MINI_ROUNDED_BUTTON_HEIGHT &&
+        drawRect.size.width >= NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH) {
+      controlSize = NSMiniControlSize;
+      naturalHeight = NATURAL_MINI_ROUNDED_BUTTON_HEIGHT;
+      minWidth = NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH;
+    }
+    else if (drawRect.size.height <= NATURAL_SMALL_ROUNDED_BUTTON_HEIGHT &&
+             drawRect.size.width >= NATURAL_SMALL_ROUNDED_BUTTON_MIN_WIDTH) {
+      controlSize = NSSmallControlSize;
+      naturalHeight = NATURAL_SMALL_ROUNDED_BUTTON_HEIGHT;
+      minWidth = NATURAL_SMALL_ROUNDED_BUTTON_MIN_WIDTH;
+    }
+    [mPushButtonCell setControlSize:controlSize];
+
+    DrawCellWithScaling(mPushButtonCell, cgContext, inBoxRect, controlSize,
+                        NSMakeSize(0.0f, naturalHeight),
+                        NSMakeSize(minWidth, 0.0f), pushButtonMargins,
+                        NativeViewForFrame(aFrame));
   }
 
 #if DRAW_IN_FRAME_DEBUG
@@ -731,29 +754,14 @@ nsNativeThemeCocoa::DrawButton(CGContextRef cgContext, ThemeButtonKind inKind,
   if (inState & NS_EVENT_STATE_FOCUS && isActive)
     bdi.adornment |= kThemeAdornmentFocus;
 
-  if (inIsDefault && !inDisabled && isActive && !(inState & NS_EVENT_STATE_ACTIVE)) {
+  if (inIsDefault && !inDisabled)
     bdi.adornment |= kThemeAdornmentDefault;
-    bdi.animation.time.start = 0;
-    bdi.animation.time.current = CFAbsoluteTimeGetCurrent();
-  }
 
   HIRect drawFrame = inBoxRect;
   PRBool needsScaling = PR_FALSE;
   int drawWidth = 0, drawHeight = 0;
 
-  if (inKind == kThemePushButton) {
-    drawFrame.size.height -= 2;
-    if (inBoxRect.size.height < pushButtonSettings.naturalSizes[smallControlSize].height) {
-      bdi.kind = kThemePushButtonMini;
-    }
-    else if (inBoxRect.size.height < pushButtonSettings.naturalSizes[regularControlSize].height) {
-      bdi.kind = kThemePushButtonSmall;
-      drawFrame.origin.y -= 1;
-      drawFrame.origin.x += 1;
-      drawFrame.size.width -= 2;
-    }
-  }
-  else if (inKind == kThemePopupButton) {
+  if (inKind == kThemePopupButton) {
     /* popup buttons draw outside their frame by 1 pixel on each side and
      * two on the bottom but of the bottom two pixels one is a 'shadow'
      * and not the frame itself.  That extra pixel should be handled
@@ -1360,76 +1368,6 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
 }
 
 
-struct GreyGradientInfo {
-  float startGrey;
-  float endGrey;
-};
-
-
-static void GreyGradientCallback(void* aInfo, const float* aIn, float* aOut)
-{
-  GreyGradientInfo* info = static_cast<GreyGradientInfo*>(aInfo);
-  float result = (1.0f - *aIn) * info->startGrey + *aIn * info->endGrey;
-  aOut[0] = result;
-  aOut[1] = result;
-  aOut[2] = result;
-  aOut[3] = 1.0f;
-}
-
-
-static void DrawGreyGradient(CGContextRef cgContext, const HIRect& rect,
-                             float startGrey, float endGrey)
-{
-  if (rect.size.height <= 0.0f)
-    return;
-
-  GreyGradientInfo info = { startGrey, endGrey };
-  struct CGFunctionCallbacks callbacks = { 0, GreyGradientCallback, NULL };
-  CGFunctionRef function = CGFunctionCreate(&info, 1,  NULL, 4, NULL, &callbacks);
-  CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-  CGShadingRef shading = CGShadingCreateAxial(colorSpace,
-                                              CGPointMake(0, CGRectGetMinY(rect)),
-                                              CGPointMake(0, CGRectGetMaxY(rect)),
-                                              function, false, false);
-  CGColorSpaceRelease(colorSpace);
-  CGFunctionRelease(function);
-  CGContextSaveGState(cgContext);
-  CGContextClipToRect(cgContext, rect);
-  CGContextDrawShading(cgContext, shading);
-  CGContextRestoreGState(cgContext);
-  CGShadingRelease(shading);
-}
-
-
-void
-nsNativeThemeCocoa::DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRect,
-                                  nsIFrame *aFrame)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (inBoxRect.size.height < 2.0f)
-    return;
-
-  BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow];
-
-  // Draw the borders at the top of the statusbar.
-  [NativeGreyColorAsNSColor(statusbarFirstTopBorderGrey, isMain) set];
-  NSRectFill(NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y,
-                        inBoxRect.size.width, 1.0f));
-  [NativeGreyColorAsNSColor(statusbarSecondTopBorderGrey, isMain) set];
-  NSRectFill(NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y + 1.0f,
-                        inBoxRect.size.width, 1.0f));
-
-  // Draw the gradient.
-  DrawGreyGradient(cgContext, CGRectMake(inBoxRect.origin.x, inBoxRect.origin.y + 2.0f,
-                                         inBoxRect.size.width, inBoxRect.size.height - 2.0f),
-                   NativeGreyColorAsFloat(statusbarGradientStartGrey, isMain),
-                   NativeGreyColorAsFloat(statusbarGradientEndGrey, isMain));
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-
 NS_IMETHODIMP
 nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                          PRUint8 aWidgetType, const nsRect& aRect,
@@ -1507,12 +1445,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
         version: 0,
         menuType: IsDisabled(aFrame) ? kThemeMenuTypeInactive : kThemeMenuTypePopUp
       };
-
-      PRBool isLeftOfParent = PR_FALSE;
-      if (IsSubmenu(aFrame, &isLeftOfParent) && !isLeftOfParent) {
-        mdi.menuType = kThemeMenuTypeHierarchical;
-      }
-      
       // The rounded corners draw outside the frame.
       CGRect deflatedRect = CGRectMake(macRect.origin.x, macRect.origin.y + 4,
                                        macRect.size.width, macRect.size.height - 8);
@@ -1568,12 +1500,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       break;
 
     case NS_THEME_BUTTON:
-      if (IsDefaultButton(aFrame)) {
-        DrawButton(cgContext, kThemePushButton, macRect, true, IsDisabled(aFrame), 
-                   kThemeButtonOff, kThemeAdornmentNone, eventState, aFrame);
-      } else {
-        DrawPushButton(cgContext, macRect, IsDisabled(aFrame), eventState, aFrame);
-      }
+      DrawPushButton(cgContext, macRect, IsDefaultButton(aFrame), IsDisabled(aFrame), eventState, aFrame);
       break;
 
     case NS_THEME_BUTTON_BEVEL:
@@ -1635,16 +1562,13 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
     }
       break;
 
-    case NS_THEME_TOOLBOX: {
+    case NS_THEME_TOOLBOX:
+    case NS_THEME_STATUSBAR: {
       HIThemeHeaderDrawInfo hdi = { 0, kThemeStateActive, kHIThemeHeaderKindWindow };
       HIThemeDrawHeader(&macRect, &hdi, cgContext, HITHEME_ORIENTATION);
     }
       break;
-
-    case NS_THEME_STATUSBAR: 
-      DrawStatusBar(cgContext, macRect, aFrame);
-      break;
-
+      
     case NS_THEME_DROPDOWN:
       DrawButton(cgContext, kThemePopupButton, macRect,
                  IsDefaultButton(aFrame), IsDisabled(aFrame), 
@@ -1858,7 +1782,7 @@ NS_IMETHODIMP
 nsNativeThemeCocoa::GetWidgetBorder(nsIDeviceContext* aContext, 
                                     nsIFrame* aFrame,
                                     PRUint8 aWidgetType,
-                                    nsIntMargin* aResult)
+                                    nsMargin* aResult)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -1940,8 +1864,8 @@ nsNativeThemeCocoa::GetWidgetBorder(nsIDeviceContext* aContext,
       break;
     }
 
-    case NS_THEME_STATUSBAR:
-      aResult->SizeTo(0, 1, 0, 0);
+    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
+      aResult->SizeTo(0, 0, 1, 0);
       break;
   }
 
@@ -1959,7 +1883,7 @@ PRBool
 nsNativeThemeCocoa::GetWidgetPadding(nsIDeviceContext* aContext, 
                                      nsIFrame* aFrame,
                                      PRUint8 aWidgetType,
-                                     nsIntMargin* aResult)
+                                     nsMargin* aResult)
 {
   // We don't want CSS padding being used for certain widgets.
   // See bug 381639 for an example of why.
@@ -2014,7 +1938,7 @@ NS_IMETHODIMP
 nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                          nsIFrame* aFrame,
                                          PRUint8 aWidgetType,
-                                         nsIntSize* aResult,
+                                         nsSize* aResult,
                                          PRBool* aIsOverridable)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -2025,8 +1949,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
     {
-      aResult->SizeTo(pushButtonSettings.minimumSizes[miniControlSize].width,
-                      pushButtonSettings.naturalSizes[miniControlSize].height);
+      aResult->SizeTo(NATURAL_MINI_ROUNDED_BUTTON_MIN_WIDTH, NATURAL_MINI_ROUNDED_BUTTON_HEIGHT);
       break;
     }
 
@@ -2266,8 +2189,7 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
         aAttribute == nsWidgetAtoms::mozmenuactive ||
         aAttribute == nsWidgetAtoms::sortdirection ||
         aAttribute == nsWidgetAtoms::focused ||
-        aAttribute == nsWidgetAtoms::_default ||
-        aAttribute == nsWidgetAtoms::step)
+        aAttribute == nsWidgetAtoms::_default)
       *aShouldRepaint = PR_TRUE;
   }
 

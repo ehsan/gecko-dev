@@ -76,10 +76,9 @@
 #include "nsNativeConnectionHelper.h"
 #endif
 
-#define PORT_PREF_PREFIX           "network.security.ports."
-#define PORT_PREF(x)               PORT_PREF_PREFIX x
-#define AUTODIAL_PREF              "network.autodial-helper.enabled"
-#define MANAGE_OFFLINE_STATUS_PREF "network.manage-offline-status"
+#define PORT_PREF_PREFIX     "network.security.ports."
+#define PORT_PREF(x)         PORT_PREF_PREFIX x
+#define AUTODIAL_PREF        "network.autodial-helper.enabled"
 
 #define MAX_RECURSION_COUNT 50
 
@@ -164,7 +163,7 @@ nsIMemory* nsIOService::gBufferCache = nsnull;
 nsIOService::nsIOService()
     : mOffline(PR_FALSE)
     , mOfflineForProfileChange(PR_FALSE)
-    , mManageOfflineStatus(PR_TRUE)
+    , mManageOfflineStatus(PR_FALSE)
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
     , mContentSniffers(NS_CONTENT_SNIFFER_CATEGORY)
 {
@@ -228,7 +227,6 @@ nsIOService::Init()
     if (prefBranch) {
         prefBranch->AddObserver(PORT_PREF_PREFIX, this, PR_TRUE);
         prefBranch->AddObserver(AUTODIAL_PREF, this, PR_TRUE);
-        prefBranch->AddObserver(MANAGE_OFFLINE_STATUS_PREF, this, PR_TRUE);
         PrefsChanged(prefBranch);
     }
     
@@ -248,11 +246,10 @@ nsIOService::Init()
     
     // go into managed mode if we can
     mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
-    if (!mNetworkLinkService)
-        mManageOfflineStatus = PR_FALSE;
-
-    if (mManageOfflineStatus)
+    if (mNetworkLinkService) {
+        mManageOfflineStatus = PR_TRUE;
         TrackNetworkLinkStatusForOffline();
+    }
 
     return NS_OK;
 }
@@ -730,13 +727,6 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             if (mSocketTransportService)
                 mSocketTransportService->SetAutodialEnabled(enableAutodial);
         }
-    }
-
-    if (!pref || strcmp(pref, MANAGE_OFFLINE_STATUS_PREF) == 0) {
-        PRBool manage;
-        if (NS_SUCCEEDED(prefs->GetBoolPref(MANAGE_OFFLINE_STATUS_PREF,
-                                            &manage)))
-            SetManageOfflineStatus(manage);
     }
 }
 

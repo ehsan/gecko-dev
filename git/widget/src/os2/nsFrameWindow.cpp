@@ -93,16 +93,16 @@ void nsFrameWindow::SetWindowListVisibility( PRBool bState)
 
 // Called in the PM thread.
 void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
-                                  const nsIntRect &aRect,
+                                  const nsRect &aRect,
                                   EVENT_CALLBACK aHandleEventFunction,
                                   nsIDeviceContext *aContext,
                                   nsIAppShell *aAppShell,
                                   nsWidgetInitData *aInitData, HWND hwndO)
 {
-   nsIntRect rect = aRect;
+   nsRect rect = aRect;
    if( aParent)  // Offset rect by position of owner
    {
-      nsIntRect clientRect;
+      nsRect clientRect;
       aParent->GetBounds(rect);
       aParent->GetClientBounds(clientRect);
       rect.x += aRect.x + clientRect.x;
@@ -190,7 +190,7 @@ void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
    // Frames have a minimum height based on the pieces they are created with,
    // such as titlebar, menubar, frame borders, etc.  We need this minimum
    // height so we can correctly set the frame position (coordinate flipping).
-   nsIntRect frameRect = rect;
+   nsRect frameRect = rect;
    long minheight; 
 
    if ( fcfFlags & FCF_SIZEBORDER) {
@@ -270,7 +270,7 @@ void nsFrameWindow::UpdateClientSize()
    mSizeBorder.height = (mBounds.height - mSizeClient.height) / 2;
 }
 
-nsresult nsFrameWindow::GetClientBounds( nsIntRect &aRect)
+nsresult nsFrameWindow::GetClientBounds( nsRect &aRect)
 {
    RECTL rcl = { 0, 0, mBounds.width, mBounds.height };
    WinCalcFrameRect( mFrameWnd, &rcl, TRUE); // provided == frame rect

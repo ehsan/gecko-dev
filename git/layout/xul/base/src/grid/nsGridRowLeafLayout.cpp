@@ -51,14 +51,17 @@
 #include "nsBoxFrame.h"
 #include "nsGridLayout2.h"
 
-already_AddRefed<nsIBoxLayout> NS_NewGridRowLeafLayout()
+nsresult
+NS_NewGridRowLeafLayout( nsIPresShell* aPresShell, nsIBoxLayout** aNewLayout)
 {
-  nsIBoxLayout* layout = new nsGridRowLeafLayout();
-  NS_IF_ADDREF(layout);
-  return layout;
+  *aNewLayout = new nsGridRowLeafLayout(aPresShell);
+  NS_IF_ADDREF(*aNewLayout);
+
+  return NS_OK;
+  
 } 
 
-nsGridRowLeafLayout::nsGridRowLeafLayout():nsGridRowLayout()
+nsGridRowLeafLayout::nsGridRowLeafLayout(nsIPresShell* aPresShell):nsGridRowLayout(aPresShell)
 {
 }
 
@@ -266,7 +269,7 @@ nsGridRowLeafLayout::ComputeChildSizes(nsIBox* aBox,
     GetParentGridPart(aBox, &parentBox, getter_AddRefs(parent));
     while (parentBox) {
       nsIBox* scrollbox = nsGrid::GetScrollBox(parentBox);
-      nsIScrollableFrame *scrollable = do_QueryFrame(scrollbox);
+      nsCOMPtr<nsIScrollableFrame> scrollable = do_QueryInterface(scrollbox);
       if (scrollable) {
         nsMargin scrollbarSizes = scrollable->GetActualScrollbarSizes();
 

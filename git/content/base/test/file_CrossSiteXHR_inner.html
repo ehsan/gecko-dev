@@ -57,8 +57,6 @@ window.addEventListener('message', function(e) {
 
   if (req.withCred)
     xhr.withCredentials = true;
-  if (req.body)
-    sendData = req.body;
 
   res.events.push("opening");
   xhr.open(req.method, req.url, true);

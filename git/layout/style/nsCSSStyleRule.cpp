@@ -415,7 +415,7 @@ void nsCSSSelector::SetOperator(PRUnichar aOperator)
   mOperator = aOperator;
 }
 
-PRInt32 nsCSSSelector::CalcWeightWithoutNegations() const
+PRInt32 nsCSSSelector::CalcWeight(void) const
 {
   PRInt32 weight = 0;
 
@@ -442,15 +442,8 @@ PRInt32 nsCSSSelector::CalcWeightWithoutNegations() const
     weight += 0x000100;
     attr = attr->mNext;
   }
-  return weight;
-}
-
-PRInt32 nsCSSSelector::CalcWeight() const
-{
-  // Loop over this selector and all its negations.
-  PRInt32 weight = 0;
-  for (const nsCSSSelector *n = this; n; n = n->mNegations) {
-    weight += n->CalcWeightWithoutNegations();
+  if (nsnull != mNegations) {
+    weight += mNegations->CalcWeight();
   }
   return weight;
 }

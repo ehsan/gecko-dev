@@ -40,6 +40,7 @@
 #define __NS_SVGGRADIENTFRAME_H__
 
 #include "nsSVGPaintServerFrame.h"
+#include "nsISVGValueObserver.h"
 #include "nsWeakReference.h"
 #include "nsSVGElement.h"
 #include "gfxPattern.h"
@@ -146,6 +147,7 @@ typedef nsSVGGradientFrame nsSVGLinearGradientFrameBase;
 class nsSVGLinearGradientFrame : public nsSVGLinearGradientFrameBase
 {
   friend nsIFrame* NS_NewSVGLinearGradientFrame(nsIPresShell* aPresShell,
+                                                nsIContent*   aContent,
                                                 nsStyleContext* aContext);
 protected:
   nsSVGLinearGradientFrame(nsStyleContext* aContext) :
@@ -153,12 +155,6 @@ protected:
 
 public:
   // nsIFrame interface:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
   virtual nsIAtom* GetType() const;  // frame type: nsGkAtoms::svgLinearGradientFrame
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
@@ -187,6 +183,7 @@ typedef nsSVGGradientFrame nsSVGRadialGradientFrameBase;
 class nsSVGRadialGradientFrame : public nsSVGRadialGradientFrameBase
 {
   friend nsIFrame* NS_NewSVGRadialGradientFrame(nsIPresShell* aPresShell,
+                                                nsIContent*   aContent,
                                                 nsStyleContext* aContext);
 protected:
   nsSVGRadialGradientFrame(nsStyleContext* aContext) :
@@ -194,12 +191,6 @@ protected:
 
 public:
   // nsIFrame interface:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
   virtual nsIAtom* GetType() const;  // frame type: nsGkAtoms::svgRadialGradientFrame
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,

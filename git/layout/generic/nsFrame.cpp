@@ -94,7 +94,7 @@
 #include "nsFrameTraversal.h"
 #include "nsStyleChangeList.h"
 #include "nsIDOMRange.h"
-#include "nsITableLayout.h"    //selection necessity
+#include "nsITableLayout.h"    //selection neccesity
 #include "nsITableCellLayout.h"//  "
 #include "nsITextControlFrame.h"
 #include "nsINameSpaceManager.h"
@@ -273,8 +273,10 @@ nsIFrameDebug::RootFrameList(nsPresContext* aPresContext, FILE* out, PRInt32 aIn
   if (nsnull != shell) {
     nsIFrame* frame = shell->FrameManager()->GetRootFrame();
     if(nsnull != frame) {
-      nsIFrameDebug* debugFrame = do_QueryFrame(frame);
-      if (debugFrame)
+      nsIFrameDebug* debugFrame;
+      nsresult rv;
+      rv = frame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&debugFrame);
+      if(NS_SUCCEEDED(rv))
         debugFrame->List(out, aIndent);
     }
   }
@@ -364,12 +366,42 @@ nsFrame::~nsFrame()
     mStyleContext->Release();
 }
 
-NS_QUERYFRAME_HEAD(nsFrame)
-  NS_QUERYFRAME_ENTRY(nsIFrame)
+/////////////////////////////////////////////////////////////////////////////
+// nsISupports
+
+NS_IMETHODIMP
+nsFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
 #ifdef DEBUG
-  NS_QUERYFRAME_ENTRY(nsIFrameDebug)
+  if (aIID.Equals(NS_GET_IID(nsIFrameDebug))) {
+    *aInstancePtr = static_cast<nsIFrameDebug*>(this);
+    return NS_OK;
+  }
 #endif
-NS_QUERYFRAME_TAIL
+
+  if (aIID.Equals(NS_GET_IID(nsIFrame)) ||
+      aIID.Equals(NS_GET_IID(nsISupports))) {
+    *aInstancePtr = static_cast<nsIFrame*>(this);
+    return NS_OK;
+  }
+
+  *aInstancePtr = nsnull;
+  return NS_ERROR_NO_INTERFACE;
+}
+
+nsrefcnt nsFrame::AddRef(void)
+{
+  NS_WARNING("not supported for frames");
+  return 1;
+}
+
+nsrefcnt nsFrame::Release(void)
+{
+  NS_WARNING("not supported for frames");
+  return 1;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // nsIFrame
@@ -569,15 +601,16 @@ nsIFrame::GetUsedBorder() const
 
   const nsStyleDisplay *disp = GetStyleDisplay();
   if (mutable_this->IsThemed(disp)) {
-    nsIntMargin result;
+    nsMargin result;
     nsPresContext *presContext = PresContext();
     presContext->GetTheme()->GetWidgetBorder(presContext->DeviceContext(),
                                              mutable_this, disp->mAppearance,
                                              &result);
-    return nsMargin(presContext->DevPixelsToAppUnits(result.left),
-                    presContext->DevPixelsToAppUnits(result.top),
-                    presContext->DevPixelsToAppUnits(result.right),
-                    presContext->DevPixelsToAppUnits(result.bottom));
+    result.top = presContext->DevPixelsToAppUnits(result.top);
+    result.right = presContext->DevPixelsToAppUnits(result.right);
+    result.bottom = presContext->DevPixelsToAppUnits(result.bottom);
+    result.left = presContext->DevPixelsToAppUnits(result.left);
+    return result;
   }
 
   return GetStyleBorder()->GetActualBorder();
@@ -600,15 +633,14 @@ nsIFrame::GetUsedPadding() const
   const nsStyleDisplay *disp = GetStyleDisplay();
   if (mutable_this->IsThemed(disp)) {
     nsPresContext *presContext = PresContext();
-    nsIntMargin widget;
     if (presContext->GetTheme()->GetWidgetPadding(presContext->DeviceContext(),
                                                   mutable_this,
                                                   disp->mAppearance,
-                                                  &widget)) {
-      padding.top = presContext->DevPixelsToAppUnits(widget.top);
-      padding.right = presContext->DevPixelsToAppUnits(widget.right);
-      padding.bottom = presContext->DevPixelsToAppUnits(widget.bottom);
-      padding.left = presContext->DevPixelsToAppUnits(widget.left);
+                                                  &padding)) {
+      padding.top = presContext->DevPixelsToAppUnits(padding.top);
+      padding.right = presContext->DevPixelsToAppUnits(padding.right);
+      padding.bottom = presContext->DevPixelsToAppUnits(padding.bottom);
+      padding.left = presContext->DevPixelsToAppUnits(padding.left);
       return padding;
     }
   }
@@ -801,9 +833,9 @@ void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
 
   nsRect rect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
   rect.IntersectRect(rect, aDirtyRect);
-  nsIntRect pxRect = nsRect::ToOutsidePixels(rect, mFrame->PresContext()->AppUnitsPerDevPixel());
+  rect.ScaleRoundOut(1.0f / mFrame->PresContext()->AppUnitsPerDevPixel());
   ctx->NewPath();
-  ctx->Rectangle(gfxRect(pxRect.x, pxRect.y, pxRect.width, pxRect.height), PR_TRUE);
+  ctx->Rectangle(gfxRect(rect.x, rect.y, rect.width, rect.height), PR_TRUE);
   ctx->Fill();
 }
 
@@ -1693,8 +1725,9 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
   while (frame && NS_SUCCEEDED(result))
   {
     // Check for a table cell by querying to a known CellFrame interface
-    nsITableCellLayout *cellElement = do_QueryFrame(frame);
-    if (cellElement)
+    nsITableCellLayout *cellElement;
+    result = (frame)->QueryInterface(NS_GET_IID(nsITableCellLayout), (void **)&cellElement);
+    if (NS_SUCCEEDED(result) && cellElement)
     {
       foundCell = PR_TRUE;
       //TODO: If we want to use proximity to top or left border
@@ -1706,8 +1739,9 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
       // If not a cell, check for table
       // This will happen when starting frame is the table or child of a table,
       //  such as a row (we were inbetween cells or in table border)
-      nsITableLayout *tableElement = do_QueryFrame(frame);
-      if (tableElement)
+      nsITableLayout *tableElement;
+      result = (frame)->QueryInterface(NS_GET_IID(nsITableLayout), (void **)&tableElement);
+      if (NS_SUCCEEDED(result) && tableElement)
       {
         foundTable = PR_TRUE;
         //TODO: How can we select row when along left table edge
@@ -3045,13 +3079,13 @@ nsFrame::IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext)
   if (IsThemed(disp)) {
     nsPresContext *presContext = PresContext();
 
-    nsIntMargin border;
+    nsMargin border;
     presContext->GetTheme()->GetWidgetBorder(presContext->DeviceContext(),
                                              this, disp->mAppearance,
                                              &border);
     result.hBorder = presContext->DevPixelsToAppUnits(border.LeftRight());
 
-    nsIntMargin padding;
+    nsMargin padding;
     if (presContext->GetTheme()->GetWidgetPadding(presContext->DeviceContext(),
                                                   this, disp->mAppearance,
                                                   &padding)) {
@@ -3162,16 +3196,15 @@ nsFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
 
   const nsStyleDisplay *disp = GetStyleDisplay();
   if (IsThemed(disp)) {
-    nsIntSize widget(0, 0);
+    nsSize size(0, 0);
     PRBool canOverride = PR_TRUE;
     nsPresContext *presContext = PresContext();
     presContext->GetTheme()->
       GetMinimumWidgetSize(aRenderingContext, this, disp->mAppearance,
-                           &widget, &canOverride);
+                           &size, &canOverride);
 
-    nsSize size;
-    size.width = presContext->DevPixelsToAppUnits(widget.width);
-    size.height = presContext->DevPixelsToAppUnits(widget.height);
+    size.width = presContext->DevPixelsToAppUnits(size.width);
+    size.height = presContext->DevPixelsToAppUnits(size.height);
 
     // GMWS() returns border-box; we need content-box
     size.width -= aBorder.width + aPadding.width;
@@ -3528,7 +3561,9 @@ nsIntRect nsIFrame::GetScreenRectExternal() const
 
 nsIntRect nsIFrame::GetScreenRect() const
 {
-  return nsRect::ToOutsidePixels(GetScreenRectInAppUnits(), PresContext()->AppUnitsPerDevPixel());
+  nsRect r = GetScreenRectInAppUnits().ScaleRoundOutInverse(PresContext()->AppUnitsPerDevPixel());
+  // nsRect and nsIntRect are not necessarily the same
+  return nsIntRect(r.x, r.y, r.width, r.height);
 }
 
 // virtual
@@ -3548,6 +3583,7 @@ nsRect nsIFrame::GetScreenRectInAppUnits() const
     nsIWidget* widget = view->GetNearestWidget(&toWidgetOffset);
 
     if (widget) {
+      // WidgetToScreen really should take nsIntRect, not nsRect
       nsIntRect localRect(0,0,0,0), screenRect;
       widget->WidgetToScreen(localRect, screenRect);
 
@@ -4257,8 +4293,8 @@ nsFrame::GetSelectionController(nsPresContext *aPresContext, nsISelectionControl
 
   nsIFrame *frame = this;
   while (frame && (frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION)) {
-    nsITextControlFrame *tcf = do_QueryFrame(frame);
-    if (tcf) {
+    nsITextControlFrame *tcf;
+    if (NS_SUCCEEDED(frame->QueryInterface(NS_GET_IID(nsITextControlFrame),(void**)&tcf))) {
       NS_IF_ADDREF(*aSelCon = tcf->GetOwnedSelectionController());
       return NS_OK;
     }
@@ -4282,8 +4318,8 @@ nsIFrame::GetConstFrameSelection()
 {
   nsIFrame *frame = this;
   while (frame && (frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION)) {
-    nsITextControlFrame *tcf = do_QueryFrame(frame);
-    if (tcf) {
+    nsITextControlFrame *tcf;
+    if (NS_SUCCEEDED(frame->QueryInterface(NS_GET_IID(nsITextControlFrame),(void**)&tcf))) {
       return tcf->GetOwnedFrameSelection();
     }
     frame = frame->GetParent();
@@ -4371,8 +4407,9 @@ nsFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 
       }
       aIndent++;
       while (kid) {
-        nsIFrameDebug* frameDebug = do_QueryFrame(kid);
-        if (kid) {
+        nsIFrameDebug*  frameDebug;
+
+        if (NS_SUCCEEDED(kid->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
           frameDebug->DumpRegressionData(aPresContext, out, aIndent, aIncludeStyleData);
         }
         kid = kid->GetNextSibling();
@@ -4781,8 +4818,9 @@ FindBlockFrameOrBR(nsIFrame* aFrame, nsDirection aDirection)
 
   // Treat form controls as inline leaves
   // XXX we really need a way to determine whether a frame is inline-level
-  nsIFormControlFrame* fcf = do_QueryFrame(aFrame);
-  if (fcf)
+  nsIFormControlFrame* fcf; // used only for QI
+  nsresult rv = aFrame->QueryInterface(NS_GET_IID(nsIFormControlFrame), (void**)&fcf);
+  if (NS_SUCCEEDED(rv))
     return result;
   
   // Check the frame itself
@@ -5308,6 +5346,7 @@ nsFrame::GetLineNumber(nsIFrame *aFrame, PRBool aLockScroll, nsIFrame** aContain
   nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
   nsIFrame *blockFrame = aFrame;
   nsIFrame *thisBlock;
+  PRInt32   thisLine;
   nsAutoLineIterator it;
   nsresult result = NS_ERROR_FAILURE;
   while (NS_FAILED(result) && blockFrame)
@@ -6048,7 +6087,7 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // because the extra focus outlines are considered unnecessarily ugly.
         // When clicked on, the selection position within the element 
         // will be enough to make them keyboard scrollable.
-        nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
+        nsCOMPtr<nsIScrollableFrame> scrollFrame = do_QueryInterface(this);
         if (scrollFrame) {
           nsMargin margin = scrollFrame->GetActualScrollbarSizes();
           if (margin.top || margin.right || margin.bottom || margin.left) {
@@ -6689,7 +6728,7 @@ nsFrame::SetParent(const nsIFrame* aParent)
 
   if (aParent && aParent->IsBoxFrame()) {
     if (aParent->ChildrenMustHaveWidgets()) {
-        nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
+        nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE);
         nsIView* view = GetView();
         if (!view->HasWidget())
           CreateWidgetForView(view);
@@ -7286,6 +7325,7 @@ DR_FrameTypeInfo* DR_State::GetFrameTypeInfo(char* aFrameName)
 
 void DR_State::InitFrameTypeTable()
 {  
+  AddFrameTypeInfo(nsGkAtoms::areaFrame,             "area",      "area");
   AddFrameTypeInfo(nsGkAtoms::blockFrame,            "block",     "block");
   AddFrameTypeInfo(nsGkAtoms::brFrame,               "br",        "br");
   AddFrameTypeInfo(nsGkAtoms::bulletFrame,           "bullet",    "bullet");
@@ -7317,9 +7357,6 @@ void DR_State::InitFrameTypeTable()
   AddFrameTypeInfo(nsGkAtoms::textInputFrame,        "textCtl",   "textInput");
   AddFrameTypeInfo(nsGkAtoms::textFrame,             "text",      "text");
   AddFrameTypeInfo(nsGkAtoms::viewportFrame,         "VP",        "viewport");
-#ifdef MOZ_XUL
-  AddFrameTypeInfo(nsGkAtoms::XULLabelFrame,         "XULLabel",  "XULLabel");
-#endif
   AddFrameTypeInfo(nsnull,                               "unknown",   "unknown");
 }
 
@@ -7334,8 +7371,8 @@ void DR_State::DisplayFrameTypeInfo(nsIFrame* aFrame,
     }
     if(!strcmp(frameTypeInfo->mNameAbbrev, "unknown")) {
       nsAutoString  name;
-      nsIFrameDebug* frameDebug = do_QueryFrame(aFrame);
-      if (frameDebug) {
+      nsIFrameDebug*  frameDebug;
+      if (NS_SUCCEEDED(aFrame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
        frameDebug->GetFrameName(name);
        printf("%s %p ", NS_LossyConvertUTF16toASCII(name).get(), (void*)aFrame);
       }

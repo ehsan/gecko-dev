@@ -171,11 +171,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 #include "mozAutoDocUpdate.h"
 
-#ifdef MOZ_SMIL
-#include "nsSMILAnimationController.h"
-#include "imgIContainer.h"
-#endif // MOZ_SMIL
-
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -901,7 +896,7 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
     } else {
       doc->SetDisplayDocument(aDisplayDocument);
 
-      rv = aViewer->Init(nsnull, nsIntRect(0, 0, 0, 0));
+      rv = aViewer->Init(nsnull, nsRect(0, 0, 0, 0));
       if (NS_SUCCEEDED(rv)) {
         rv = aViewer->Open(nsnull, nsnull);
       }
@@ -1222,7 +1217,7 @@ public:
 
 protected:
   // Rebuild our list of style sets
-  nsresult GetSets(nsTArray<nsString>& aStyleSets);
+  nsresult GetSets(nsStringArray& aStyleSets);
   
   nsIDocument* mDocument;  // Our document; weak ref.  It'll let us know if it
                            // dies.
@@ -1247,14 +1242,14 @@ nsDOMStyleSheetSetList::nsDOMStyleSheetSetList(nsIDocument* aDocument)
 NS_IMETHODIMP
 nsDOMStyleSheetSetList::Item(PRUint32 aIndex, nsAString& aResult)
 {
-  nsTArray<nsString> styleSets;
+  nsStringArray styleSets;
   nsresult rv = GetSets(styleSets);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  if (aIndex >= styleSets.Length()) {
+  if (aIndex >= (PRUint32)styleSets.Count()) {
     SetDOMStringToNull(aResult);
   } else {
-    aResult = styleSets[aIndex];
+    styleSets.StringAt(aIndex, aResult);
   }
 
   return NS_OK;
@@ -1263,11 +1258,11 @@ nsDOMStyleSheetSetList::Item(PRUint32 aIndex, nsAString& aResult)
 NS_IMETHODIMP
 nsDOMStyleSheetSetList::GetLength(PRUint32 *aLength)
 {
-  nsTArray<nsString> styleSets;
+  nsStringArray styleSets;
   nsresult rv = GetSets(styleSets);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  *aLength = styleSets.Length();
+  *aLength = (PRUint32)styleSets.Count();
 
   return NS_OK;
 }
@@ -1275,17 +1270,17 @@ nsDOMStyleSheetSetList::GetLength(PRUint32 *aLength)
 NS_IMETHODIMP
 nsDOMStyleSheetSetList::Contains(const nsAString& aString, PRBool *aResult)
 {
-  nsTArray<nsString> styleSets;
+  nsStringArray styleSets;
   nsresult rv = GetSets(styleSets);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  *aResult = styleSets.Contains(aString);
+  *aResult = styleSets.IndexOf(aString) != -1;
 
   return NS_OK;
 }
 
 nsresult
-nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
+nsDOMStyleSheetSetList::GetSets(nsStringArray& aStyleSets)
 {
   if (!mDocument) {
     return NS_OK; // Spec says "no exceptions", and we have no style sets if we
@@ -1299,8 +1294,8 @@ nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
     nsIStyleSheet* sheet = mDocument->GetStyleSheetAt(index);
     NS_ASSERTION(sheet, "Null sheet in sheet list!");
     sheet->GetTitle(title);
-    if (!title.IsEmpty() && !aStyleSets.Contains(title) &&
-        !aStyleSets.AppendElement(title)) {
+    if (!title.IsEmpty() && aStyleSets.IndexOf(title) == -1 &&
+        !aStyleSets.AppendString(title)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
@@ -1782,13 +1777,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mCatalogSheets)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mVisitednessChangedURIs)
 
-#ifdef MOZ_SMIL
-  // Traverse animation components
-  if (tmp->mAnimationController) {
-    tmp->mAnimationController->Traverse(&cb);
-  }
-#endif // MOZ_SMIL
-
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
 
   if (tmp->mSubDocuments && tmp->mSubDocuments->ops) {
@@ -2188,8 +2176,6 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     PR_LogPrint("DOCUMENT %p StartDocumentLoad %s", this, spec.get());
   }
 #endif
-
-  SetReadyStateInternal(READYSTATE_LOADING);
 
   if (nsCRT::strcmp(kLoadAsData, aCommand) == 0) {
     mLoadedAsData = PR_TRUE;
@@ -2689,10 +2675,6 @@ nsDocument::GetElementsByClassName(const nsAString& aClasses,
   return GetElementsByClassNameHelper(this, aClasses, aReturn);
 }
 
-struct ClassMatchingInfo {
-  nsCOMArray<nsIAtom> mClasses;
-  nsCaseTreatment mCaseTreatment;
-};
 
 // static GetElementsByClassName helpers
 nsresult
@@ -2705,31 +2687,26 @@ nsDocument::GetElementsByClassNameHelper(nsINode* aRootNode,
   nsAttrValue attrValue;
   attrValue.ParseAtomArray(aClasses);
   // nsAttrValue::Equals is sensitive to order, so we'll send an array
-  ClassMatchingInfo* info = new ClassMatchingInfo;
-  NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+  nsCOMArray<nsIAtom>* classes = new nsCOMArray<nsIAtom>;
+  NS_ENSURE_TRUE(classes, NS_ERROR_OUT_OF_MEMORY);
 
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
-    info->mClasses.AppendObjects(*(attrValue.GetAtomArrayValue()));
+    classes->AppendObjects(*(attrValue.GetAtomArrayValue()));
   } else if (attrValue.Type() == nsAttrValue::eAtom) {
-    info->mClasses.AppendObject(attrValue.GetAtomValue());
+    classes->AppendObject(attrValue.GetAtomValue());
   }
-
-  nsBaseContentList* elements;
-  if (info->mClasses.Count() > 0) {
-    info->mCaseTreatment =
-      aRootNode->GetOwnerDoc()->GetCompatibilityMode() ==
-        eCompatibility_NavQuirks ?
-          eIgnoreCase : eCaseMatters;
   
+  nsBaseContentList* elements;
+  if (classes->Count() > 0) {
     elements = new nsContentList(aRootNode, MatchClassNames,
-                                 DestroyClassNameArray, info);
+                                 DestroyClassNameArray, classes);
   } else {
-    delete info;
-    info = nsnull;
+    delete classes;
+    classes = nsnull;
     elements = new nsBaseContentList();
   }
   if (!elements) {
-    delete info;
+    delete classes;
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -2752,12 +2729,11 @@ nsDocument::MatchClassNames(nsIContent* aContent,
   }
   
   // need to match *all* of the classes
-  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  PRInt32 length = info->mClasses.Count();
+  nsCOMArray<nsIAtom>* classes = static_cast<nsCOMArray<nsIAtom>*>(aData);
+  PRInt32 length = classes->Count();
   PRInt32 i;
   for (i = 0; i < length; ++i) {
-    if (!classAttr->Contains(info->mClasses.ObjectAt(i),
-                             info->mCaseTreatment)) {
+    if (!classAttr->Contains(classes->ObjectAt(i), eCaseMatters)) {
       return PR_FALSE;
     }
   }
@@ -2769,8 +2745,8 @@ nsDocument::MatchClassNames(nsIContent* aContent,
 void
 nsDocument::DestroyClassNameArray(void* aData)
 {
-  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  delete info;
+  nsCOMArray<nsIAtom>* classes = static_cast<nsCOMArray<nsIAtom>*>(aData);
+  delete classes;
 }
 
 nsresult
@@ -3985,8 +3961,6 @@ nsDocument::EndLoad()
   }
   
   NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
-  
-  SetReadyStateInternal(READYSTATE_INTERACTIVE);
 
   if (!mSynchronousDOMContentLoaded) {
     nsRefPtr<nsIRunnable> ev =
@@ -5141,18 +5115,6 @@ nsDocument::FlushSkinBindings()
   BindingManager()->FlushSkinBindings();
 }
 
-class nsFrameLoaderRunner : public nsRunnable
-{
-public:
-  nsFrameLoaderRunner(nsDocument* aDoc) : mDoc(aDoc) {}
-  NS_IMETHOD Run() {
-    mDoc->InitializeFinalizeFrameLoaders();
-    return NS_OK;
-  }
-private:
-  nsRefPtr<nsDocument> mDoc;
-};
-
 nsresult
 nsDocument::InitializeFrameLoader(nsFrameLoader* aLoader)
 {
@@ -5163,12 +5125,11 @@ nsDocument::InitializeFrameLoader(nsFrameLoader* aLoader)
                "document is being deleted");
     return NS_ERROR_FAILURE;
   }
-
-  mInitializableFrameLoaders.AppendElement(aLoader);
-  if (!mFrameLoaderRunner) {
-    mFrameLoaderRunner = new nsFrameLoaderRunner(this);
-    NS_ENSURE_TRUE(mFrameLoaderRunner, NS_ERROR_OUT_OF_MEMORY);
-    nsContentUtils::AddScriptRunner(mFrameLoaderRunner);
+  if (mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization) {
+    nsRefPtr<nsFrameLoader> loader = aLoader;
+    return loader->ReallyStartLoading();
+  } else {
+    mInitializableFrameLoaders.AppendElement(aLoader);
   }
   return NS_OK;
 }
@@ -5180,12 +5141,11 @@ nsDocument::FinalizeFrameLoader(nsFrameLoader* aLoader)
   if (mInDestructor) {
     return NS_ERROR_FAILURE;
   }
-
-  mFinalizableFrameLoaders.AppendElement(aLoader);
-  if (!mFrameLoaderRunner) {
-    mFrameLoaderRunner = new nsFrameLoaderRunner(this);
-    NS_ENSURE_TRUE(mFrameLoaderRunner, NS_ERROR_OUT_OF_MEMORY);
-    nsContentUtils::AddScriptRunner(mFrameLoaderRunner);
+  if (mUpdateNestLevel == 0) {
+    nsRefPtr<nsFrameLoader> loader = aLoader;
+    loader->Finalize();
+  } else {
+    mFinalizableFrameLoaders.AppendElement(aLoader);
   }
   return NS_OK;
 }
@@ -5193,11 +5153,8 @@ nsDocument::FinalizeFrameLoader(nsFrameLoader* aLoader)
 void
 nsDocument::InitializeFinalizeFrameLoaders()
 {
-  mFrameLoaderRunner = nsnull;
-  if (mDelayFrameLoaderInitialization || mUpdateNestLevel != 0) {
-    return;
-  }
-
+  NS_ASSERTION(mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization,
+               "Wrong time to call InitializeFinalizeFrameLoaders!");
   // Don't use a temporary array for mInitializableFrameLoaders, because
   // loading a frame may cause some other frameloader to be removed from the
   // array. But be careful to keep the loader alive when starting the load!
@@ -5266,32 +5223,6 @@ nsDocument::EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData)
 {
   mExternalResourceMap.EnumerateResources(aCallback, aData);
 }
-
-#ifdef MOZ_SMIL
-nsSMILAnimationController*
-nsDocument::GetAnimationController()
-{
-  // We create the animation controller lazily because most documents won't want
-  // one and only SVG documents and the like will call this
-  if (mAnimationController)
-    return mAnimationController;
-
-  mAnimationController = NS_NewSMILAnimationController(this);
-  
-  // If there's a presContext then check the animation mode and pause if
-  // necessary.
-  nsIPresShell *shell = GetPrimaryShell();
-  if (mAnimationController && shell) {
-    nsPresContext *context = shell->GetPresContext();
-    if (context &&
-        context->ImageAnimationMode() == imgIContainer::kDontAnimMode) {
-      mAnimationController->Pause(nsSMILTimeContainer::PAUSE_USERPREF);
-    }
-  }
-
-  return mAnimationController;
-}
-#endif // MOZ_SMIL
 
 struct DirTable {
   const char* mName;
@@ -5402,7 +5333,18 @@ nsDocument::GetParentNode(nsIDOMNode** aParentNode)
 NS_IMETHODIMP
 nsDocument::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
-  return nsINode::GetChildNodes(aChildNodes);
+  nsSlots *slots = GetSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+  if (!slots->mChildNodes) {
+    slots->mChildNodes = new nsChildContentList(this);
+    NS_ENSURE_TRUE(slots->mChildNodes, NS_ERROR_OUT_OF_MEMORY);
+    NS_ADDREF(slots->mChildNodes);
+  }
+
+  NS_ADDREF(*aChildNodes = slots->mChildNodes);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -5428,13 +5370,26 @@ nsDocument::HasAttributes(PRBool* aHasAttributes)
 NS_IMETHODIMP
 nsDocument::GetFirstChild(nsIDOMNode** aFirstChild)
 {
-  return nsINode::GetFirstChild(aFirstChild);
+  if (mChildren.ChildCount()) {
+    return CallQueryInterface(mChildren.ChildAt(0), aFirstChild);
+  }
+
+  *aFirstChild = nsnull;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocument::GetLastChild(nsIDOMNode** aLastChild)
 {
-  return nsINode::GetLastChild(aLastChild);
+  PRInt32 count = mChildren.ChildCount();
+  if (count) {
+    return CallQueryInterface(mChildren.ChildAt(count-1), aLastChild);
+  }
+
+  *aLastChild = nsnull;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -6036,7 +5991,9 @@ nsDocument::RenameNode(nsIDOMNode *aNode,
 NS_IMETHODIMP
 nsDocument::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
 {
-  return nsINode::GetOwnerDocument(aOwnerDocument);
+  *aOwnerDocument = nsnull;
+
+  return NS_OK;
 }
 
 nsresult
@@ -7141,12 +7098,6 @@ nsDocument::OnPageShow(PRBool aPersisted)
   // Set mIsShowing before firing events, in case those event handlers
   // move us around.
   mIsShowing = PR_TRUE;
-
-#ifdef MOZ_SMIL
-  if (mAnimationController) {
-    mAnimationController->OnPageShow();
-  }
-#endif
   
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, aPersisted);
   DispatchEventToWindow(&event);
@@ -7177,12 +7128,6 @@ nsDocument::OnPageHide(PRBool aPersisted)
   // Set mIsShowing before firing events, in case those event handlers
   // move us around.
   mIsShowing = PR_FALSE;
-
-#ifdef MOZ_SMIL
-  if (mAnimationController) {
-    mAnimationController->OnPageHide();
-  }
-#endif
   
   // Now send out a PageHide event.
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, aPersisted);
@@ -7441,32 +7386,6 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
   clone->mIsRegularHTML = mIsRegularHTML;
   clone->mXMLDeclarationBits = mXMLDeclarationBits;
   clone->mBaseTarget = mBaseTarget;
-  return NS_OK;
-}
 
-void
-nsDocument::SetReadyStateInternal(ReadyState rs)
-{
-  mReadyState = rs;
-  // TODO fire "readystatechange"
-}
-
-
-NS_IMETHODIMP
-nsDocument::GetReadyState(nsAString& aReadyState)
-{
-  switch(mReadyState) {
-  case READYSTATE_LOADING :
-    aReadyState.Assign(NS_LITERAL_STRING("loading"));
-    break;
-  case READYSTATE_INTERACTIVE :
-    aReadyState.Assign(NS_LITERAL_STRING("interactive"));
-    break;
-  case READYSTATE_COMPLETE :
-    aReadyState.Assign(NS_LITERAL_STRING("complete"));
-    break;  
-  default:
-    aReadyState.Assign(NS_LITERAL_STRING("uninitialized"));
-  }
   return NS_OK;
 }

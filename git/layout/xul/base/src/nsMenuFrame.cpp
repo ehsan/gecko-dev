@@ -153,36 +153,40 @@ private:
 };
 
 //
-// NS_NewMenuFrame and NS_NewMenuItemFrame
+// NS_NewMenuFrame
 //
-// Wrappers for creating a new menu popup container
+// Wrapper for creating a new menu popup container
 //
 nsIFrame*
-NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags)
 {
   nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
   
-  if (it)
+  if ((it != nsnull) && aFlags)
     it->SetIsMenu(PR_TRUE);
 
   return it;
 }
 
-nsIFrame*
-NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_IMETHODIMP_(nsrefcnt) 
+nsMenuFrame::AddRef(void)
 {
-  nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
-
-  if (it)
-    it->SetIsMenu(PR_FALSE);
-
-  return it;
+  return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
-NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
+NS_IMETHODIMP_(nsrefcnt)
+nsMenuFrame::Release(void)
+{
+    return NS_OK;
+}
+
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsMenuFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIMenuFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIScrollableViewProvider)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 //
 // nsMenuFrame cntr
@@ -766,7 +770,7 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
 
     nsRect bounds(mPopupFrame->GetRect());
 
-    nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+    nsCOMPtr<nsIScrollableFrame> scrollframe(do_QueryInterface(child));
     if (scrollframe &&
         scrollframe->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_AUTO) {
       if (bounds.height < prefSize.height) {

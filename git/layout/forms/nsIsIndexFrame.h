@@ -38,7 +38,7 @@
 #ifndef nsIsIndexFrame_h___
 #define nsIsIndexFrame_h___
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsIStatefulFrame.h"
@@ -48,7 +48,7 @@
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
 
-class nsIsIndexFrame : public nsBlockFrame,
+class nsIsIndexFrame : public nsAreaFrame,
                        public nsIAnonymousContentCreator,
                        public nsIDOMKeyListener,
                        public nsIStatefulFrame
@@ -81,12 +81,9 @@ public:
    */
   NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent); // we only care when a key is pressed
 
-  NS_DECL_QUERYFRAME
-
-  // nsISupports
+  // nsIFormControlFrame
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
-  // nsIFormControlFrame
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   
   virtual PRBool IsLeaf() const;

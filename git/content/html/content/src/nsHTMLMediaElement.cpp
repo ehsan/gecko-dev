@@ -209,6 +209,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetNetworkState(PRUint16 *aNetworkState)
 PRBool nsHTMLMediaElement::AbortExistingLoads()
 {
   if (mDecoder) {
+    mDecoder->ElementUnavailable();
     mDecoder->Shutdown();
     mDecoder = nsnull;
   }
@@ -382,13 +383,17 @@ NS_IMETHODIMP nsHTMLMediaElement::GetPaused(PRBool *aPaused)
 /* void pause (); */
 NS_IMETHODIMP nsHTMLMediaElement::Pause()
 {
+  if (!mDecoder) 
+    return NS_OK;
+
+  nsresult rv;
+
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
-    nsresult rv = Load();
+    rv = Load();
     NS_ENSURE_SUCCESS(rv, rv);
-  } else if (mDecoder) {
-    mDecoder->Pause();
   }
 
+  mDecoder->Pause();
   PRBool oldPaused = mPaused;
   mPaused = PR_TRUE;
   mAutoplaying = PR_FALSE;
@@ -492,6 +497,8 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
     return NS_OK;
   }
 
+  nsresult rv;
+
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
     mPlayRequested = PR_TRUE;
     return Load();
@@ -504,7 +511,7 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
   // TODO: If the playback has ended, then the user agent must set 
   // currentLoop to zero and seek to the effective start.
   // TODO: The playback rate must be set to the default playback rate.
-  nsresult rv = mDecoder->Play();
+  rv = mDecoder->Play();
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool oldPaused = mPaused;
@@ -805,7 +812,7 @@ PRBool nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 #ifdef MOZ_OGG
   if (IsOggType(aType)) {
     mDecoder = new nsOggDecoder();
-    if (mDecoder && !mDecoder->Init(this)) {
+    if (mDecoder && !mDecoder->Init()) {
       mDecoder = nsnull;
     }
   }
@@ -813,7 +820,7 @@ PRBool nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 #ifdef MOZ_WAVE
   if (IsWaveType(aType)) {
     mDecoder = new nsWaveDecoder();
-    if (mDecoder && !mDecoder->Init(this)) {
+    if (mDecoder && !mDecoder->Init()) {
       mDecoder = nsnull;
     }
   }
@@ -831,6 +838,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
     return NS_ERROR_FAILURE;
 
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
+  mDecoder->ElementAvailable(this);
 
   return mDecoder->Load(nsnull, aChannel, aListener);
 }
@@ -1056,10 +1064,8 @@ nsresult nsHTMLMediaElement::DispatchProgressEvent(const nsAString& aName)
   
   nsCOMPtr<nsIDOMProgressEvent> progressEvent(do_QueryInterface(event));
   NS_ENSURE_TRUE(progressEvent, NS_ERROR_FAILURE);
-
-  PRInt64 length = mDecoder->GetTotalBytes();
-  rv = progressEvent->InitProgressEvent(aName, PR_TRUE, PR_TRUE,
-                                        length >= 0, mDecoder->GetBytesLoaded(), length);
+  
+  rv = progressEvent->InitProgressEvent(aName, PR_TRUE, PR_TRUE, PR_FALSE, mDecoder->GetBytesLoaded(), mDecoder->GetTotalBytes());
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool dummy;

@@ -59,7 +59,7 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDocument.h"
 #include "nsScrollbarButtonFrame.h"
-#include "nsISliderListener.h"
+#include "nsIScrollbarListener.h"
 #include "nsIScrollbarMediator.h"
 #include "nsIScrollbarFrame.h"
 #include "nsILookAndFeel.h"
@@ -115,8 +115,8 @@ NS_NewSliderFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 nsSliderFrame::nsSliderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
   nsBoxFrame(aPresShell, aContext),
   mCurPos(0),
-  mChange(0),
-  mUserChanged(PR_FALSE)
+  mScrollbarListener(nsnull),
+  mChange(0)
 {
 }
 
@@ -228,30 +228,6 @@ nsSliderFrame::GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 d
     return defaultValue;
 }
 
-class nsValueChangedRunnable : public nsRunnable
-{
-public:
-  nsValueChangedRunnable(nsISliderListener* aListener,
-                         nsIAtom* aWhich,
-                         PRInt32 aValue,
-                         PRBool aUserChanged)
-  : mListener(aListener), mWhich(aWhich),
-    mValue(aValue), mUserChanged(aUserChanged)
-  {}
-
-  NS_IMETHODIMP Run()
-  {
-    nsAutoString which;
-    mWhich->ToString(which);
-    return mListener->ValueChanged(which, mValue, mUserChanged);
-  }
-
-  nsCOMPtr<nsISliderListener> mListener;
-  nsCOMPtr<nsIAtom> mWhich;
-  PRInt32 mValue;
-  PRBool mUserChanged;
-};
-
 NS_IMETHODIMP
 nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute,
@@ -275,18 +251,6 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
       PRInt32 current = GetCurrentPosition(scrollbar);
       PRInt32 min = GetMinPosition(scrollbar);
       PRInt32 max = GetMaxPosition(scrollbar);
-
-      // inform the parent <scale> that the minimum or maximum changed
-      nsIFrame* parent = GetParent();
-      if (parent) {
-        nsCOMPtr<nsISliderListener> sliderListener = do_QueryInterface(parent->GetContent());
-        if (sliderListener) {
-          nsContentUtils::AddScriptRunner(
-            new nsValueChangedRunnable(sliderListener, aAttribute,
-                                       aAttribute == nsGkAtoms::minpos ? min : max, PR_FALSE));
-        }
-      }
-
       if (current < min || current > max)
       {
         if (current < min || max < min)
@@ -295,7 +259,8 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
             current = max;
 
         // set the new position and notify observers
-        nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+        nsIScrollbarFrame* scrollbarFrame;
+        CallQueryInterface(scrollbarBox, &scrollbarFrame);
         if (scrollbarFrame) {
           nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
           if (mediator) {
@@ -646,6 +611,9 @@ nsSliderFrame::PageUpDown(nscoord change)
                             nsGkAtoms::reverse, eCaseMatters))
     change = -change;
 
+  if (mScrollbarListener)
+    mScrollbarListener->PagedUpDown(); // Let the listener decide our increment.
+
   nscoord pageIncrement = GetPageIncrement(scrollbar);
   PRInt32 curpos = GetCurrentPosition(scrollbar);
   PRInt32 minpos = GetMinPosition(scrollbar);
@@ -718,17 +686,10 @@ nsSliderFrame::CurrentPositionChanged(nsPresContext* aPresContext,
   // Redraw the scrollbar
   InvalidateWithFlags(clientRect, aImmediateRedraw ? INVALIDATE_IMMEDIATE : 0);
 
-  mCurPos = curpospx;
+  if (mScrollbarListener)
+    mScrollbarListener->PositionChanged(aPresContext, mCurPos, curpospx);
 
-  // inform the parent <scale> if it exists that the value changed
-  nsIFrame* parent = GetParent();
-  if (parent) {
-    nsCOMPtr<nsISliderListener> sliderListener = do_QueryInterface(parent->GetContent());
-    if (sliderListener) {
-      nsContentUtils::AddScriptRunner(
-        new nsValueChangedRunnable(sliderListener, nsGkAtoms::curpos, mCurPos, mUserChanged));
-    }
-  }
+  mCurPos = curpospx;
 
   return NS_OK;
 }
@@ -806,10 +767,9 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
 {
   nsCOMPtr<nsIContent> scrollbar = aScrollbar;
   nsIBox* scrollbarBox = GetScrollbar();
+  nsIScrollbarFrame* scrollbarFrame;
+  CallQueryInterface(scrollbarBox, &scrollbarFrame);
 
-  mUserChanged = PR_TRUE;
-
-  nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
   if (scrollbarFrame) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
@@ -827,13 +787,11 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
             CurrentPositionChanged(frame->PresContext(), aImmediateRedraw);
         }
       }
-      mUserChanged = PR_FALSE;
       return;
     }
   }
 
   UpdateAttribute(scrollbar, aNewPos, PR_TRUE, aIsSmooth);
-  mUserChanged = PR_FALSE;
 
 #ifdef DEBUG_SLIDER
   printf("Current Pos=%d\n",aNewPos);
@@ -1135,6 +1093,13 @@ nsSliderFrame::EnsureOrient()
       mState &= ~NS_STATE_IS_HORIZONTAL;
 }
 
+
+void
+nsSliderFrame::SetScrollbarListener(nsIScrollbarListener* aListener)
+{
+  // Don't addref/release this, since it's actually a frame.
+  mScrollbarListener = aListener;
+}
 
 void nsSliderFrame::Notify(void)
 {

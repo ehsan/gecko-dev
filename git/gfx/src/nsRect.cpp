@@ -185,6 +185,40 @@ nsRect& nsRect::ScaleRoundOut(float aScale)
   return *this;
 }
 
+nsRect& nsRect::ScaleRoundOutInverse(float aScale) 
+{
+  nscoord right = NSToCoordCeil(float(XMost()) / aScale);
+  nscoord bottom = NSToCoordCeil(float(YMost()) / aScale);
+  x = NSToCoordFloor(float(x) / aScale);
+  y = NSToCoordFloor(float(y) / aScale);
+  width = (right - x);
+  height = (bottom - y);
+  return *this;
+}
+
+// scale the rect but round to largest contained rect
+nsRect& nsRect::ScaleRoundIn(float aScale) 
+{
+  nscoord right = NSToCoordFloor(float(XMost()) * aScale);
+  nscoord bottom = NSToCoordFloor(float(YMost()) * aScale);
+  x = NSToCoordCeil(float(x) * aScale);
+  y = NSToCoordCeil(float(y) * aScale);
+  width = (right - x);
+  height = (bottom - y);
+  return *this;
+}
+
+nsRect& nsRect::ScaleRoundPreservingCentersInverse(float aScale)
+{
+  nscoord right = NSToCoordRound(float(XMost()) / aScale);
+  nscoord bottom = NSToCoordRound(float(YMost()) / aScale);
+  x = NSToCoordRound(float(x) / aScale);
+  y = NSToCoordRound(float(y) / aScale);
+  width = (right - x);
+  height = (bottom - y);
+  return *this;
+}
+
 #ifdef DEBUG
 // Diagnostics
 
@@ -210,8 +244,7 @@ FILE* operator<<(FILE* out, const nsRect& rect)
   return out;
 }
 
-#endif // DEBUG
-
+#ifdef NS_COORD_IS_FLOAT
 // Computes the area in which aRect1 and aRect2 overlap and fills 'this' with
 // the result. Returns FALSE if the rectangles don't intersect.
 PRBool nsIntRect::IntersectRect(const nsIntRect &aRect1, const nsIntRect &aRect2)
@@ -281,4 +314,6 @@ PRBool nsIntRect::UnionRect(const nsIntRect &aRect1, const nsIntRect &aRect2)
 
   return result;
 }
+#endif
 
+#endif // DEBUG

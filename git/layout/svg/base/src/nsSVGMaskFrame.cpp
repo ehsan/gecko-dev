@@ -47,8 +47,15 @@
 // Implementation
 
 nsIFrame*
-NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGMaskElement> mask = do_QueryInterface(aContent);
+
+  if (!mask) {
+    NS_ERROR("Can't create frame! Content is not an SVG mask");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGMaskFrame(aContext);
 }
 
@@ -162,19 +169,6 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
   NS_IF_ADDREF(retval);
   return retval;
 }
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGMaskFrame::Init(nsIContent* aContent,
-                     nsIFrame* aParent,
-                     nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGMaskElement> mask = do_QueryInterface(aContent);
-  NS_ASSERTION(mask, "Content is not an SVG mask");
-
-  return nsSVGMaskFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGMaskFrame::GetType() const

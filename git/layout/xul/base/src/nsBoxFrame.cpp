@@ -72,6 +72,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
+#include "nsSpaceManager.h"
 #include "nsHTMLParts.h"
 #include "nsIViewManager.h"
 #include "nsIView.h"
@@ -129,12 +130,6 @@ NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoo
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 } // NS_NewBoxFrame
-
-nsIFrame*
-NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
-{
-  return new (aPresShell) nsBoxFrame(aPresShell, aContext);
-}
 
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
@@ -210,7 +205,7 @@ nsBoxFrame::Init(nsIContent*      aContent,
   // see if we need a widget
   if (aParent && aParent->IsBoxFrame()) {
     if (aParent->ChildrenMustHaveWidgets()) {
-        rv = nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
+        rv = nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsIView* view = GetView();
@@ -1870,7 +1865,7 @@ nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
 }
 
 // If you make changes to this function, check its counterparts
-// in nsTextBoxFrame and nsXULLabelFrame
+// in nsTextBoxFrame and nsAreaFrame
 nsresult
 nsBoxFrame::RegUnregAccessKey(PRBool aDoReg)
 {
@@ -1934,12 +1929,6 @@ nsBoxFrame::FireDOMEventSynch(const nsAString& aDOMEventName, nsIContent *aConte
                                           presContext, nsnull);
     }
   }
-}
-
-PRBool
-nsBoxFrame::SupportsOrdinalsInChildren()
-{
-  return PR_TRUE;
 }
 
 static nsIFrame*
@@ -2037,9 +2026,6 @@ nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
   if (!child)
     return;
 
-  if (!SupportsOrdinalsInChildren())
-    return;
-
   // Run through our list of children and check whether we
   // need to sort them.
   PRUint32 maxOrdinal = child->GetOrdinal(aState);
@@ -2091,9 +2077,6 @@ nsBoxFrame::LayoutChildAt(nsBoxLayoutState& aState, nsIBox* aBox, const nsRect& 
 NS_IMETHODIMP
 nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)
 {
-  if (!SupportsOrdinalsInChildren())
-    return NS_OK;
-
   PRUint32 ord = aChild->GetOrdinal(aState);
   
   nsIFrame *child = mFrames.FirstChild();

@@ -40,6 +40,7 @@
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsSVGTransformList.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsStyleContext.h"
 #include "nsINameSpaceManager.h"
 #include "nsISVGChildFrame.h"
@@ -112,19 +113,6 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
   return nsSVGPatternFrameBase::AttributeChanged(aNameSpaceID,
                                                  aAttribute, aModType);
 }
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGPatternFrame::Init(nsIContent* aContent,
-                        nsIFrame* aParent,
-                        nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGPatternElement> patternElement = do_QueryInterface(aContent);
-  NS_ASSERTION(patternElement, "Content is not an SVG pattern");
-
-  return nsSVGPatternFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom*
 nsSVGPatternFrame::GetType() const
@@ -394,13 +382,14 @@ nsSVGPatternFrame::GetViewBox(nsIDOMSVGRect **aViewBox)
   return viewBox->GetAnimVal(aViewBox);
 }
 
-const nsSVGPreserveAspectRatio &
-nsSVGPatternFrame::GetPreserveAspectRatio()
+NS_IMETHODIMP
+nsSVGPatternFrame::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
+                                          **aPreserveAspectRatio)
 {
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::preserveAspectRatio, mContent);
 
-  return patternElement->mPreserveAspectRatio;
+  return patternElement->GetPreserveAspectRatio(aPreserveAspectRatio);
 }
 
 nsSVGLength2 *
@@ -581,10 +570,13 @@ nsSVGPatternFrame::ConstructCTM(nsIDOMSVGMatrix **aCTM,
     float refX = GetLengthValue(GetX());
     float refY = GetLengthValue(GetY());
 
+    nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> par;
+    GetPreserveAspectRatio(getter_AddRefs(par));
+
     tempTM = nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
                                              viewBoxX + refX, viewBoxY + refY,
                                              viewBoxWidth, viewBoxHeight,
-                                             GetPreserveAspectRatio(),
+                                             par,
                                              PR_TRUE);
 
   } else {
@@ -653,9 +645,9 @@ nsSVGPatternFrame::GetCallerGeometry(nsIDOMSVGMatrix **aCTM,
   // will be in *device coordinates*
   nsISVGChildFrame *callerSVGFrame;
   if (callerType == nsGkAtoms::svgGlyphFrame)
-    callerSVGFrame = do_QueryFrame(aSource->GetParent());
+    CallQueryInterface(aSource->GetParent(), &callerSVGFrame);
   else
-    callerSVGFrame = do_QueryFrame(aSource);
+    CallQueryInterface(aSource, &callerSVGFrame);
 
   callerSVGFrame->SetMatrixPropagation(PR_FALSE);
   callerSVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
@@ -755,8 +747,15 @@ nsSVGPatternFrame::SetupPaintServer(gfxContext *aContext,
 // -------------------------------------------------------------------------
 
 nsIFrame* NS_NewSVGPatternFrame(nsIPresShell*   aPresShell,
+                                nsIContent*     aContent,
                                 nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGPatternElement> patternElement = do_QueryInterface(aContent);
+  if (!patternElement) {
+    NS_ERROR("Can't create frame! Content is not an SVG pattern");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGPatternFrame(aContext);
 }
 

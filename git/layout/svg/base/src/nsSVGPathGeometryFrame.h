@@ -61,14 +61,20 @@ class nsSVGPathGeometryFrame : public nsSVGPathGeometryFrameBase,
                                public nsISVGChildFrame
 {
   friend nsIFrame*
-  NS_NewSVGPathGeometryFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGPathGeometryFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                             nsStyleContext* aContext);
 protected:
   nsSVGPathGeometryFrame(nsStyleContext* aContext) :
     nsSVGPathGeometryFrameBase(aContext) {}
 
 public:
-  NS_DECL_QUERYFRAME
+  // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
+public:
   // nsIFrame interface:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,

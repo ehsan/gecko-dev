@@ -1,5 +1,4 @@
-function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
-                    aAbsentExtraState)
+function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
 
@@ -13,10 +12,6 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   if (aAbsentState)
     is(state & aAbsentState, 0,
        "state bits should not be present in ID " + aAccOrElmOrID + "!");
-
-  if (aAbsentExtraState)
-    is(extraState & aAbsentExtraState, 0,
-       "extraState bits should not be present in ID " + aAccOrElmOrID + "!");
 
   if (state & STATE_READONLY)
     is(extraState & EXT_STATE_EDITABLE, 0,

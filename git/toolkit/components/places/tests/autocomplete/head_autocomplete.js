@@ -206,7 +206,6 @@ function run_test() {
   print("\n");
   // always search in history + bookmarks, no matter what the default is
   prefs.setIntPref("browser.urlbar.search.sources", 3);
-  prefs.setIntPref("browser.urlbar.default.behavior", 0);
 
   // Search is asynchronous, so don't let the test finish immediately
   do_test_pending();
@@ -220,19 +219,4 @@ function run_test() {
     func();
 
   ensure_results(search, expected);
-}
-
-// Utility function to remove history pages
-function removePages(aURIs)
-{
-  for each (let uri in aURIs)
-    histsvc.removePage(toURI(kURIs[uri]));
-}
-
-// Utility function to mark pages as typed
-function markTyped(aURIs)
-{
-  for each (let uri in aURIs)
-    histsvc.addVisit(toURI(kURIs[uri]), Date.now() * 1000, null,
-      histsvc.TRANSITION_TYPED, false, 0);
 }

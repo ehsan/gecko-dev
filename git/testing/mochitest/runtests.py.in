@@ -355,8 +355,8 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   if options.fatalAssertions:
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
 
-  (status, start) = automation.runApp(testURL, browserEnv, options.app,
-                                      PROFILE_DIRECTORY, options.browserArgs)
+  start = automation.runApp(testURL, browserEnv, options.app, PROFILE_DIRECTORY,
+                            options.browserArgs)
 
   # Server's no longer needed, and perhaps more importantly, anything it might
   # spew to console shouldn't disrupt the leak information table we print next.
@@ -365,25 +365,19 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   if not os.path.exists(LEAK_REPORT_FILE):
     log.info("WARNING refcount logging is off, so leaks can't be detected!")
   else:
+    leaks = open(LEAK_REPORT_FILE, "r")
+    for line in leaks:
+      log.info(line.rstrip())
+    leaks.close()
+
+    threshold = options.leakThreshold
+    leaks = open(LEAK_REPORT_FILE, "r")
     #                  Per-Inst  Leaked      Total  Rem ...
     #   0 TOTAL              17     192  419115886    2 ...
     # 833 nsTimerImpl        60     120      24726    2 ...
     lineRe = re.compile(r"^\s*\d+\s+(?P<name>\S+)\s+"
                         r"(?P<size>-?\d+)\s+(?P<bytesLeaked>-?\d+)\s+"
                         r"\d+\s+(?P<numLeaked>-?\d+)")
-
-    leaks = open(LEAK_REPORT_FILE, "r")
-    for line in leaks:
-      matches = lineRe.match(line)
-      if (matches and
-          int(matches.group("numLeaked")) == 0 and
-          matches.group("name") != "TOTAL"):
-        continue
-      log.info(line.rstrip())
-    leaks.close()
-
-    threshold = options.leakThreshold
-    leaks = open(LEAK_REPORT_FILE, "r")
     seenTotal = False
     prefix = "TEST-PASS"
     for line in leaks:
@@ -467,7 +461,7 @@ def maybeForceLeakThreshold(options):
     elif options.browserChrome:
       # We still leak a nondeterministic amount running browser-chrome tests.
       # But we are close to 0 (bug), so start to prevent/detect regressions. (Bug 460548)
-      options.leakThreshold = 74500
+      options.leakThreshold = 75000
     elif options.a11y:
       # We don't leak running the --a11y tests.
       options.leakThreshold = 0

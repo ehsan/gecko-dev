@@ -84,7 +84,7 @@ pref("extensions.blocklist.interval", 86400);
 // blocking them.
 pref("extensions.blocklist.level", 2);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
-pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
+pref("extensions.blocklist.detailsURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/dictionaries/");
@@ -214,6 +214,7 @@ pref("browser.urlbar.doubleClickSelectsAll", true);
 pref("browser.urlbar.doubleClickSelectsAll", false);
 #endif
 pref("browser.urlbar.autoFill", false);
+pref("browser.urlbar.matchOnlyTyped", false);
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
 // 2: Match only on word boundaries (e.g., after / or .)
@@ -240,14 +241,13 @@ pref("browser.urlbar.search.timeout", 100);
 pref("browser.urlbar.restrict.history", "^");
 pref("browser.urlbar.restrict.bookmark", "*");
 pref("browser.urlbar.restrict.tag", "+");
-pref("browser.urlbar.restrict.typed", "~");
 pref("browser.urlbar.match.title", "#");
 pref("browser.urlbar.match.url", "@");
 
 // The default behavior for the urlbar can be configured to use any combination
 // of the restrict or match filters with each additional filter restricting
 // more (intersection). Add the following values to set the behavior as the
-// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url, 32: typed
+// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url
 // E.g., 0 = show all results (no filtering), 1 = only visited pages in history,
 // 2 = only bookmarks, 3 = visited bookmarks, 1+16 = history matching in the url
 pref("browser.urlbar.default.behavior", 0);
@@ -405,9 +405,9 @@ pref("privacy.item.passwords",   false);
 pref("privacy.item.downloads",   true);
 pref("privacy.item.cookies",     false);
 pref("privacy.item.cache",       true);
+pref("privacy.item.siteprefs",   false);
 pref("privacy.item.sessions",    true);
 pref("privacy.item.offlineApps", false);
-pref("privacy.item.siteSettings", false);
 
 // What default should we use for the time span in the sanitizer:
 // 0 - Clear everything
@@ -415,8 +415,9 @@ pref("privacy.item.siteSettings", false);
 // 2 - Last 2 Hours
 // 3 - Last 4 Hours
 // 4 - Today
-pref("privacy.sanitize.timeSpan", 1);
+pref("privacy.sanitize.timeSpan", 0);
 pref("privacy.sanitize.sanitizeOnShutdown", false);
+pref("privacy.sanitize.promptOnSanitize", true);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
 

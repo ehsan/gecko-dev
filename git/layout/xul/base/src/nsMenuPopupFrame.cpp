@@ -84,7 +84,6 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIBaseWindow.h"
 #include "nsISound.h"
-#include "nsIRootBox.h"
 
 PRInt8 nsMenuPopupFrame::sDefaultLevelParent = -1;
 
@@ -177,16 +176,6 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
   // the popup opens.
   if (!IsLeaf() && !ourView->HasWidget()) {
     CreateWidgetForView(ourView);
-  }
-
-  if (aContent->NodeInfo()->Equals(nsGkAtoms::tooltip, kNameSpaceID_XUL) &&
-      aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::_default,
-                            nsGkAtoms::_true, eIgnoreCase)) {
-    nsIRootBox* rootBox =
-      nsIRootBox::GetRootBox(PresContext()->GetPresShell());
-    if (rootBox) {
-      rootBox->SetDefaultTooltip(aContent);
-    }
   }
 
   return rv;
@@ -361,7 +350,7 @@ nsMenuPopupFrame::AdjustView()
     // if the popup has just opened, make sure the scrolled window is at 0,0
     if (mIsOpenChanged) {
       nsIBox* child = GetChildBox();
-      nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+      nsCOMPtr<nsIScrollableFrame> scrollframe(do_QueryInterface(child));
       if (scrollframe)
         scrollframe->ScrollTo(nsPoint(0,0));
     }
@@ -834,9 +823,8 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
         aScreenPoint = aAnchorEnd + aMarginEnd;
         // check if the new position is still off the right or bottom edge of
         // the screen. If so, resize the popup.
-        if (aScreenPoint + aSize > aScreenEnd) {
+        if (aScreenPoint + aSize > aScreenEnd)
           popupSize = aScreenEnd - aScreenPoint;
-        }
       }
     }
     else {
@@ -850,12 +838,7 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
       // check whether there is more room to the left and right (or top and
       // bottom) of the anchor and put the popup on the side with more room.
       if (aScreenEnd - aAnchorEnd >= aAnchorBegin - aScreenBegin) {
-        if (mIsContextMenu) {
-          aScreenPoint = aScreenEnd - aSize;
-        }
-        else {
-          popupSize = aScreenEnd - aScreenPoint;
-        }
+        popupSize = aScreenEnd - aScreenPoint;
       }
       else {
         // flip such that the popup is to the left or top of the anchor point
@@ -865,9 +848,7 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
         // screen. If so, resize the popup.
         if (aScreenPoint < aScreenBegin) {
           aScreenPoint = aScreenBegin;
-          if (!mIsContextMenu) {
-            popupSize = aAnchorBegin - aScreenPoint - aMarginBegin;
-          }
+          popupSize = aAnchorBegin - aScreenPoint - aMarginBegin - aOffsetForContextMenu;
         }
       }
     }
@@ -920,7 +901,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   }
 
   // the dimensions of the anchor in its app units
-  nsRect parentRect = aAnchorFrame->GetScreenRectInAppUnits();
+  nsSize parentSize = aAnchorFrame->GetSize();
 
   // the anchor may be in a different document with a different scale,
   // so adjust the size so that it is in the app units of the popup instead
@@ -929,7 +910,8 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   // app units by multiplying by the popup's app units per device pixel.
   float adj = float(presContext->AppUnitsPerDevPixel()) /
               aAnchorFrame->PresContext()->AppUnitsPerDevPixel();
-  parentRect.ScaleRoundOut(adj);
+  parentSize.width = NSToCoordCeil(parentSize.width * adj);
+  parentSize.height = NSToCoordCeil(parentSize.height * adj);
 
   // Set the popup's size to the preferred size. Below, this size will be
   // adjusted to fit on the screen or within the content area. If the anchor
@@ -937,7 +919,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   // width. The preferred size should already be set by the parent frame.
   NS_ASSERTION(mPrefSize.width >= 0 || mPrefSize.height >= 0,
                "preferred size of popup not set");
-  mRect.width = sizedToPopup ? parentRect.width : mPrefSize.width;
+  mRect.width = sizedToPopup ? parentSize.width : mPrefSize.width;
   mRect.height = mPrefSize.height;
 
   // the screen position in app units where the popup should appear
@@ -945,7 +927,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
 
   // For anchored popups, the anchor rectangle. For non-anchored popups, the
   // size will be 0.
-  nsRect anchorRect = parentRect;
+  nsRect anchorRect;
 
   // indicators of whether the popup should be flipped or resized.
   PRBool hFlip = PR_FALSE, vFlip = PR_FALSE;
@@ -969,6 +951,9 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
     // the most room. The combination of anchor and alignment dictate if we 
     // readjust above/below or to the left/right.
     if (mAnchorContent) {
+      anchorRect = aAnchorFrame->GetScreenRectInAppUnits();
+      anchorRect.ScaleRoundOut(adj);
+
       // move the popup according to the anchor and alignment. This will also
       // tell us which axis the popup is flush against in case we have to move
       // it around later. The AdjustPositionForAnchorAlign method accounts for
@@ -1007,7 +992,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
                       nsPresContext::CSSPixelsToAppUnits(mScreenXPos) / factor);
     screenPoint.y = presContext->DevPixelsToAppUnits(
                       nsPresContext::CSSPixelsToAppUnits(mScreenYPos) / factor);
-    anchorRect = nsRect(screenPoint, nsSize(0, 0));
+    anchorRect = nsRect(screenPoint, nsSize());
 
     // add the margins on the popup
     screenPoint.MoveBy(margin.left + offsetForContextMenu,
@@ -1083,7 +1068,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   if (sizedToPopup) {
     nsBoxLayoutState state(PresContext());
     // XXXndeakin can parentSize.width still extend outside?
-    SetBounds(state, nsRect(mRect.x, mRect.y, parentRect.width, mRect.height));
+    SetBounds(state, nsRect(mRect.x, mRect.y, parentSize.width, mRect.height));
   }
 
   return NS_OK;
@@ -1125,8 +1110,9 @@ PRBool nsMenuPopupFrame::ConsumeOutsideClicks()
 
 static nsIScrollableView* GetScrollableViewForFrame(nsIFrame* aFrame)
 {
-  nsIScrollableFrame* sf = do_QueryFrame(aFrame);
-  if (!sf)
+  nsIScrollableFrame* sf;
+  nsresult rv = CallQueryInterface(aFrame, &sf);
+  if (NS_FAILED(rv))
     return nsnull;
   return sf->GetScrollableView();
 }
@@ -1500,12 +1486,6 @@ nsMenuPopupFrame::Destroy()
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
     pm->PopupDestroyed(this);
-
-  nsIRootBox* rootBox =
-    nsIRootBox::GetRootBox(PresContext()->GetPresShell());
-  if (rootBox && rootBox->GetDefaultTooltip() == mContent) {
-    rootBox->SetDefaultTooltip(nsnull);
-  }
 
   nsBoxFrame::Destroy();
 }

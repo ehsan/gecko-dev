@@ -66,7 +66,6 @@ public:
     // the original text has at least one soft hyphen character
     TEXT_HAS_SHY             = 0x020000,
     TEXT_WAS_TRANSFORMED     = 0x040000,
-    TEXT_UNUSED_FLAG         = 0x080000,
 
     // The following flags are set by nsTextFrame
 
@@ -80,12 +79,9 @@ public:
     // We normally don't use this break opportunity because the following text
     // will have a break opportunity at the start, but it's useful for line
     // layout to know about it in case the following content is not text
-    TEXT_HAS_TRAILING_BREAK  = 0x4000000
-
-    // The following are defined by gfxTextRunWordCache rather than here,
-    // so that it also has access to the _INCOMING flag
-    // TEXT_TRAILING_ARABICCHAR
-    // TEXT_INCOMING_ARABICCHAR
+    TEXT_HAS_TRAILING_BREAK  = 0x4000000,
+    TEXT_TRAILING_ARABICCHAR = 0x8000000,
+    TEXT_INCOMING_ARABICCHAR = 0x10000000
   };
 
   // These constants are used in TransformText to represent context information

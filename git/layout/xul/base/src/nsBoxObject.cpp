@@ -159,9 +159,10 @@ nsBoxObject::GetPresShell(PRBool aFlushLayout)
 }
 
 nsresult 
-nsBoxObject::GetOffsetRect(nsIntRect& aRect)
+nsBoxObject::GetOffsetRect(nsRect& aRect)
 {
-  aRect.SetRect(0, 0, 0, 0);
+  aRect.x = aRect.y = 0;
+  aRect.Empty();
  
   if (!mContent)
     return NS_ERROR_NOT_INITIALIZED;
@@ -240,7 +241,7 @@ nsBoxObject::GetScreenPosition(nsIntPoint& aPoint)
 NS_IMETHODIMP
 nsBoxObject::GetX(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.x;
   return NS_OK;
@@ -249,7 +250,7 @@ nsBoxObject::GetX(PRInt32* aResult)
 NS_IMETHODIMP 
 nsBoxObject::GetY(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.y;
   return NS_OK;
@@ -258,7 +259,7 @@ nsBoxObject::GetY(PRInt32* aResult)
 NS_IMETHODIMP
 nsBoxObject::GetWidth(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.width;
   return NS_OK;
@@ -267,7 +268,7 @@ nsBoxObject::GetWidth(PRInt32* aResult)
 NS_IMETHODIMP 
 nsBoxObject::GetHeight(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.height;
   return NS_OK;
@@ -313,6 +314,16 @@ nsBoxObject::GetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports**
 NS_IMETHODIMP
 nsBoxObject::SetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports* aValue)
 {
+#ifdef DEBUG
+  if (aValue) {
+    nsIFrame* frame;
+    CallQueryInterface(aValue, &frame);
+    NS_ASSERTION(!frame,
+                 "Calling SetPropertyAsSupports on a frame.  Prepare to crash "
+                 "and be exploited any time some random website decides to "
+                 "exploit you");
+  }
+#endif
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
   
   if (!mPropertyTable) {  

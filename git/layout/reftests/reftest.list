@@ -59,9 +59,6 @@ include first-letter/reftest.list
 # first-line/
 include first-line/reftest.list
 
-# floats/
-include floats/reftest.list
-
 # font-face
 include font-face/reftest.list
 
@@ -80,9 +77,6 @@ include line-breaking/reftest.list
 # mathml/
 include mathml/reftest.list
 
-# marquee/
-include marquee/reftest.list
-
 # native-theme/
 include native-theme/reftest.list
 
@@ -97,9 +91,6 @@ include percent-overflow-sizing/reftest.list
 
 # pixel-rounding/
 include pixel-rounding/reftest.list
-
-# plugin/
-include ../../modules/plugin/test/reftest/reftest.list
 
 # printing
 include printing/reftest.list

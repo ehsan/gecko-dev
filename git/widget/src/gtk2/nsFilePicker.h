@@ -38,7 +38,7 @@
 #ifndef nsFilePicker_h__
 #define nsFilePicker_h__
 
-#include <gtk/gtk.h>
+#include <gtk/gtkwidget.h>
 
 #include "nsBaseFilePicker.h"
 #include "nsString.h"

@@ -86,28 +86,21 @@ nsDOMWindowUtils::~nsDOMWindowUtils()
 {
 }
 
-nsPresContext*
-nsDOMWindowUtils::GetPresContext()
-{
-  if (!mWindow)
-    return nsnull;
-  nsIDocShell *docShell = mWindow->GetDocShell();
-  if (!docShell)
-    return nsnull;
-  nsCOMPtr<nsPresContext> presContext;
-  docShell->GetPresContext(getter_AddRefs(presContext));
-  return presContext;
-}
-
 NS_IMETHODIMP
 nsDOMWindowUtils::GetImageAnimationMode(PRUint16 *aMode)
 {
   NS_ENSURE_ARG_POINTER(aMode);
   *aMode = 0;
-  nsPresContext* presContext = GetPresContext();
-  if (presContext) {
-    *aMode = presContext->ImageAnimationMode();
-    return NS_OK;
+  if (mWindow) {
+    nsIDocShell *docShell = mWindow->GetDocShell();
+    if (docShell) {
+      nsCOMPtr<nsPresContext> presContext;
+      docShell->GetPresContext(getter_AddRefs(presContext));
+      if (presContext) {
+        *aMode = presContext->ImageAnimationMode();
+        return NS_OK;
+      }
+    }
   }
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -115,10 +108,16 @@ nsDOMWindowUtils::GetImageAnimationMode(PRUint16 *aMode)
 NS_IMETHODIMP
 nsDOMWindowUtils::SetImageAnimationMode(PRUint16 aMode)
 {
-  nsPresContext* presContext = GetPresContext();
-  if (presContext) {
-    presContext->SetImageAnimationMode(aMode);
-    return NS_OK;
+  if (mWindow) {
+    nsIDocShell *docShell = mWindow->GetDocShell();
+    if (docShell) {
+      nsCOMPtr<nsPresContext> presContext;
+      docShell->GetPresContext(getter_AddRefs(presContext));
+      if (presContext) {
+        presContext->SetImageAnimationMode(aMode);
+        return NS_OK;
+      }
+    }
   }
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -447,8 +446,7 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
     "UniversalXPConnect", &hasCap)) || !hasCap)
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  nsPresContext* pc = GetPresContext();
-  if (pc) {
+  if (mWindow) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
     if (content) {
       nsCOMPtr<nsIDocument> doc(do_QueryInterface(mWindow->GetExtantDocument()));
@@ -456,8 +454,18 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
         return NS_ERROR_FAILURE;
     }
 
-    pc->EventStateManager()->ChangeFocusWith(content,
-        nsIEventStateManager::eEventFocusedByApplication);
+    nsIDocShell *docShell = mWindow->GetDocShell();
+    if (docShell) {
+      nsCOMPtr<nsIPresShell> presShell;
+      docShell->GetPresShell(getter_AddRefs(presShell));
+      if (presShell) {
+        nsPresContext *pc = presShell->GetPresContext();
+        if (pc) {
+          pc->EventStateManager()->ChangeFocusWith(content,
+              nsIEventStateManager::eEventFocusedByApplication);
+        }
+      }
+    }
   }
 
   return NS_OK;
@@ -486,10 +494,16 @@ nsDOMWindowUtils::GarbageCollect()
 NS_IMETHODIMP
 nsDOMWindowUtils::ProcessUpdates()
 {
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
+  nsCOMPtr<nsIDocShell> docShell = mWindow->GetDocShell();
+  if (!docShell) 
     return NS_ERROR_UNEXPECTED;
-  nsIViewManager *viewManager = presContext->GetViewManager();
+  nsCOMPtr<nsIPresShell> presShell;
+  
+  nsresult rv = docShell->GetPresShell(getter_AddRefs(presShell));
+  if (!NS_SUCCEEDED(rv) || !presShell) 
+    return NS_ERROR_UNEXPECTED;
+  
+  nsIViewManager *viewManager = presShell->GetViewManager();
   if (!viewManager)
     return NS_ERROR_UNEXPECTED;
   
@@ -501,8 +515,6 @@ nsDOMWindowUtils::ProcessUpdates()
 
 NS_IMETHODIMP
 nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
-                                         float aX,
-                                         float aY,
                                          PRUint32 aDirection,
                                          PRFloat64 aDelta,
                                          PRInt32 aModifiers)
@@ -513,8 +525,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
     return NS_ERROR_DOM_SECURITY_ERR;
 
   // get the widget to send the event to
-  nsPoint offset;
-  nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
+  nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget)
     return NS_ERROR_FAILURE;
 
@@ -542,14 +553,6 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
   event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? PR_TRUE : PR_FALSE;
   event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
   event.time = PR_IntervalNow();
-
-  float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
-  event.refPoint.x =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
-                          appPerDev);
-  event.refPoint.y =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aY) + offset.y,
-                          appPerDev);
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
@@ -668,16 +671,5 @@ nsDOMWindowUtils::CompareCanvases(nsIDOMHTMLCanvasElement *aCanvas1,
     *aMaxDifference = dc;
 
   *retVal = different;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetIsMozAfterPaintPending(PRBool *aResult)
-{
-  *aResult = PR_FALSE;
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
-    return NS_OK;
-  *aResult = presContext->IsDOMPaintEventPending();
   return NS_OK;
 }

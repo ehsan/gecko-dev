@@ -59,6 +59,10 @@ class  nsHTMLFramesetBorderFrame;
 class  nsGUIEvent;
 class  nsHTMLFramesetFrame;
 
+#define NS_IFRAMESETFRAME_IID \
+{ 0xf47deac0, 0x4200, 0x11d2, \
+  { 0x80, 0x3c, 0x0, 0x60, 0x8, 0x15, 0xa7, 0x91 } }
+
 #define NO_COLOR 0xFFFFFFFA
 
 struct nsBorderColor 
@@ -104,20 +108,18 @@ struct nsFramesetDrag {
 class nsHTMLFramesetFrame : public nsHTMLContainerFrame
 {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsHTMLFramesetFrame)
+  // Woohoo, concrete class with an IID!
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFRAMESETFRAME_IID)
 
   nsHTMLFramesetFrame(nsStyleContext* aContext);
 
   virtual ~nsHTMLFramesetFrame();
 
-  NS_DECL_QUERYFRAME
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-
-  NS_IMETHOD SetInitialChildList(nsIAtom*  aListName,
-                                 nsIFrame* aChildList);
 
   static PRBool  gDragInProgress;
 
@@ -125,7 +127,7 @@ public:
 
   void GetSizeOfChildAt(PRInt32  aIndexInParent, 
                         nsSize&  aSize, 
-                        nsIntPoint& aCellIndex);
+                        nsPoint& aCellIndex);
 
   static nsHTMLFramesetFrame* GetFramesetParent(nsIFrame* aChild);
 
@@ -223,7 +225,7 @@ protected:
                         const nsHTMLReflowState& aReflowState,
                         nsPoint&                 aOffset,
                         nsSize&                  aSize,
-                        nsIntPoint*              aCellIndex = 0);
+                        nsPoint*                 aCellIndex = 0);
   
   PRBool CanResize(PRBool aVertical, 
                    PRBool aLeft); 
@@ -254,7 +256,7 @@ protected:
 
   nsHTMLFramesetBorderFrame* mDragger;
   nsFramesetDrag   mDrag;
-  nsIntPoint       mFirstDragPoint;
+  nsPoint          mFirstDragPoint;
   PRInt32          mPrevNeighborOrigSize; // used during resize
   PRInt32          mNextNeighborOrigSize;
   PRInt32          mMinDrag;
@@ -269,5 +271,7 @@ protected:
   
   PRBool mForceFrameResizability;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsHTMLFramesetFrame, NS_IFRAMESETFRAME_IID)
 
 #endif

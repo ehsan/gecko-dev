@@ -39,7 +39,7 @@
 #define nsTextControlFrame_h___
 
 #include "nsStackFrame.h"
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
@@ -168,7 +168,7 @@ public:
 
   NS_IMETHOD GetText(nsString* aText);
 
-  NS_DECL_QUERYFRAME
+  NS_DECL_ISUPPORTS_INHERITED
 
 public: //for methods who access nsTextControlFrame directly
   /**

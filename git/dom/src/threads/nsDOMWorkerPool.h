@@ -62,6 +62,8 @@ public:
   NS_IMETHOD_(nsrefcnt) AddRef();
   NS_IMETHOD_(nsrefcnt) Release();
 
+  nsIScriptContext* ScriptContext();
+
   nsIScriptGlobalObject* ScriptGlobalObject() {
     return mParentGlobal;
   }

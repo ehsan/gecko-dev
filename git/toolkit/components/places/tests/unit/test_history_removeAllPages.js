@@ -51,27 +51,8 @@ let as = Cc["@mozilla.org/browser/annotation-service;1"].
          getService(Ci.nsIAnnotationService);
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
-let lms = Cc["@mozilla.org/browser/livemark-service;2"].
-          getService(Ci.nsILivemarkService);
 
 const kSyncFinished = "places-sync-finished";
-// Number of expected sync notifications, we expect one per bookmark.
-const EXPECTED_SYNCS = 4;
-
-function add_fake_livemark() {
-  let lmId = lms.createLivemarkFolderOnly(bs.bookmarksToolbarId, "Livemark",
-                                          uri("http://www.mozilla.org/"),
-                                          uri("http://www.mozilla.org/test.xml"),
-                                          bs.DEFAULT_INDEX);
-  // add a visited child
-  bs.insertBookmark(lmId, uri("http://visited.livemark.com/"),
-                    bs.DEFAULT_INDEX, "visited");
-  hs.addVisit(uri("http://visited.livemark.com/"), Date.now(), null,
-              hs.TRANSITION_BOOKMARK, false, 0);
-  // add an unvisited child
-  bs.insertBookmark(lmId, uri("http://unvisited.livemark.com/"),
-                    bs.DEFAULT_INDEX, "unvisited");
-}
 
 let observer = {
   onBeginUpdateBatch: function() {
@@ -141,9 +122,9 @@ hs.addObserver(observer, false);
 let syncObserver = {
   _runCount: 0,
   observe: function (aSubject, aTopic, aData) {
-    if (++this._runCount < EXPECTED_SYNCS)
+    if (++this._runCount < 2)
       return;
-    if (this._runCount == EXPECTED_SYNCS) {
+    if (this._runCount == 2) {
       bh.removeAllPages();
       return;
     }
@@ -210,17 +191,6 @@ let syncObserver = {
     do_check_false(stmt.executeStep());
     stmt.finalize();
 
-    // Check that livemarks children don't have frecency <> 0
-    stmt = mDBConn.createStatement(
-      "SELECT h.id FROM moz_places h " +
-      "JOIN moz_bookmarks b ON h.id = b.fk " +
-      "JOIN moz_bookmarks bp ON bp.id = b.parent " +
-      "JOIN moz_items_annos t ON t.item_id = bp.id " +
-      "JOIN moz_anno_attributes n ON t.anno_attribute_id = n.id " +
-      "WHERE n.name = 'livemark/feedURI' AND h.frecency <> 0 LIMIT 1");
-    do_check_false(stmt.executeStep());
-    stmt.finalize();
-
     finish_test();
   }
 }
@@ -229,9 +199,6 @@ os.addObserver(syncObserver, kSyncFinished, false);
 
 // main
 function run_test() {
-  // Add a livemark with a visited and an unvisited child
-  add_fake_livemark();
-
   // Add a bunch of visits
   hs.addVisit(uri("http://typed.mozilla.org"), Date.now(), null,
               hs.TRANSITION_TYPED, false, 0);

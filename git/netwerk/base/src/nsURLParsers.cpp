@@ -93,14 +93,12 @@ nsBaseURLParser::ParseURL(const char *spec, PRInt32 specLen,
     const char *colon = nsnull;
     const char *slash = nsnull;
     const char *p;
-    PRUint32 offset = 0;
     PRInt32 len = specLen;
     for (p = spec; len && *p && !colon && !slash; ++p, --len) {
-        // skip leading whitespace
-        if (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') {
+        // skip leading whitespace and control characters
+        if (*p > '\0' && *p <= ' ') {
             spec++;
             specLen--;
-            offset++;
             continue;
         }
         switch (*p) {
@@ -126,7 +124,7 @@ nsBaseURLParser::ParseURL(const char *spec, PRInt32 specLen,
     if (colon && stop && colon > stop)
         colon = nsnull;
 
-    // if the spec only contained whitespace ...
+    // if the spec only contained whitespace or control characters...
     if (specLen == 0) {
         SET_RESULT(scheme, 0, -1);
         SET_RESULT(authority, 0, 0);
@@ -153,11 +151,10 @@ nsBaseURLParser::ParseURL(const char *spec, PRInt32 specLen,
             NS_WARNING("malformed uri");
             return NS_ERROR_MALFORMED_URI;
         }
-        SET_RESULT(scheme, offset, colon - spec);
+        SET_RESULT(scheme, 0, colon - spec);
         if (authorityLen || pathLen) {
-            PRUint32 schemeLen = colon + 1 - spec;
-            offset += schemeLen;
-            ParseAfterScheme(colon + 1, specLen - schemeLen,
+            PRUint32 offset = colon + 1 - spec;
+            ParseAfterScheme(colon + 1, specLen - offset,
                              authorityPos, authorityLen,
                              pathPos, pathLen);
             OFFSET_RESULT(authority, offset);
@@ -184,8 +181,6 @@ nsBaseURLParser::ParseURL(const char *spec, PRInt32 specLen,
             ParseAfterScheme(spec, specLen,
                              authorityPos, authorityLen,
                              pathPos, pathLen);
-            OFFSET_RESULT(authority, offset);
-            OFFSET_RESULT(path, offset);
     }
     return NS_OK;
 }

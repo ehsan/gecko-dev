@@ -546,7 +546,8 @@ nsLayoutUtils::GetScrollableFrameFor(nsIFrame *aScrolledFrame)
   if (!frame) {
     return nsnull;
   }
-  nsIScrollableFrame *sf = do_QueryFrame(frame);
+  nsIScrollableFrame *sf;
+  CallQueryInterface(frame, &sf);
   return sf;
 }
 
@@ -555,8 +556,12 @@ nsIScrollableFrame*
 nsLayoutUtils::GetScrollableFrameFor(nsIScrollableView *aScrollableView)
 {
   nsIFrame *frame = GetFrameFor(aScrollableView->View()->GetParent());
-  nsIScrollableFrame *sf = do_QueryFrame(frame);
-  return sf;
+  if (frame) {
+    nsIScrollableFrame *sf;
+    CallQueryInterface(frame, &sf);
+    return sf;
+  }
+  return nsnull;
 }
 
 //static
@@ -627,8 +632,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
 {
   if (!aEvent || (aEvent->eventStructType != NS_MOUSE_EVENT && 
                   aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
-                  aEvent->eventStructType != NS_DRAG_EVENT &&
-                  aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT))
+                  aEvent->eventStructType != NS_DRAG_EVENT))
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 
   const nsGUIEvent* GUIEvent = static_cast<const nsGUIEvent*>(aEvent);
@@ -812,11 +816,11 @@ nsLayoutUtils::GetEventCoordinatesForNearestView(nsEvent* aEvent,
                                GUIEvent->refPoint, frameView);
 }
 
-static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
-  nsIntPoint offset(0, 0);
+static nsPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
+  nsPoint offset(0, 0);
   nsIWidget* parent = aWidget->GetParent();
   while (parent) {
-    nsIntRect bounds;
+    nsRect bounds;
     aWidget->GetBounds(bounds);
     offset += bounds.TopLeft();
     aWidget = parent;
@@ -835,9 +839,9 @@ nsLayoutUtils::TranslateWidgetToView(nsPresContext* aPresContext,
   nsIWidget* viewWidget = aView->GetNearestWidget(&viewOffset);
 
   nsIWidget* fromRoot;
-  nsIntPoint fromOffset = GetWidgetOffset(aWidget, fromRoot);
+  nsPoint fromOffset = GetWidgetOffset(aWidget, fromRoot);
   nsIWidget* toRoot;
-  nsIntPoint toOffset = GetWidgetOffset(viewWidget, toRoot);
+  nsPoint toOffset = GetWidgetOffset(viewWidget, toRoot);
 
   nsIntPoint widgetPoint;
   if (fromRoot == toRoot) {
@@ -1021,7 +1025,7 @@ PruneDisplayListForExtraPage(nsDisplayListBuilder* aBuilder,
       } else {
         // We're throwing this away so call its destructor now. The memory
         // is owned by aBuilder which destroys all items at once.
-        i->~nsDisplayItem();
+        i->nsDisplayItem::~nsDisplayItem();
       }
     }
   }
@@ -1529,8 +1533,10 @@ nsLayoutUtils::FindChildContainingDescendant(nsIFrame* aParent, nsIFrame* aDesce
 nsBlockFrame*
 nsLayoutUtils::GetAsBlock(nsIFrame* aFrame)
 {
-  nsBlockFrame* block = do_QueryFrame(aFrame);
-  return block;
+  nsBlockFrame* block;
+  if (NS_SUCCEEDED(aFrame->QueryInterface(kBlockFrameCID, (void**)&block)))
+    return block;
+  return nsnull;
 }
 
 nsBlockFrame*
@@ -1675,7 +1681,8 @@ nsLayoutUtils::IsViewportScrollbarFrame(nsIFrame* aFrame)
   if (!rootScrollFrame)
     return PR_FALSE;
 
-  nsIScrollableFrame* rootScrollableFrame = do_QueryFrame(rootScrollFrame);
+  nsIScrollableFrame* rootScrollableFrame = nsnull;
+  CallQueryInterface(rootScrollFrame, &rootScrollableFrame);
   NS_ASSERTION(rootScrollableFrame, "The root scorollable frame is null");
 
   if (!IsProperAncestorFrame(rootScrollFrame, aFrame))
@@ -2006,7 +2013,7 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
 
   const nsStyleDisplay *disp = aFrame->GetStyleDisplay();
   if (aFrame->IsThemed(disp)) {
-    nsIntSize size(0, 0);
+    nsSize size(0, 0);
     PRBool canOverride = PR_TRUE;
     nsPresContext *presContext = aFrame->PresContext();
     presContext->GetTheme()->
@@ -2518,8 +2525,9 @@ nsLayoutUtils::GetFirstLineBaseline(const nsIFrame* aFrame, nscoord* aResult)
 
     // For first-line baselines, we have to consider scroll frames.
     if (fType == nsGkAtoms::scrollFrame) {
-      nsIScrollableFrame *sFrame = do_QueryFrame(const_cast<nsIFrame*>(aFrame));
-      if (!sFrame) {
+      nsIScrollableFrame *sFrame;
+      if (NS_FAILED(CallQueryInterface(const_cast<nsIFrame*>
+                                                 (aFrame), &sFrame)) || !sFrame) {
         NS_NOTREACHED("not scroll frame");
       }
       nscoord kidBaseline;
@@ -3053,9 +3061,7 @@ nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
                     NS_STYLE_POSITION_FIXED,
                   "IsReallyFixedPos called on non-'position:fixed' frame");
 
-  nsIAtom *parentType = aFrame->GetParent()->GetType();
-  return parentType == nsGkAtoms::viewportFrame ||
-         parentType == nsGkAtoms::pageContentFrame;
+  return aFrame->GetParent()->GetType() == nsGkAtoms::viewportFrame;
 }
 
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
@@ -3085,23 +3091,4 @@ NS_IMETHODIMP
 nsUnsetAttrRunnable::Run()
 {
   return mContent->UnsetAttr(kNameSpaceID_None, mAttrName, PR_TRUE);
-}
-
-nsReflowFrameRunnable::nsReflowFrameRunnable(nsIFrame* aFrame,
-                          nsIPresShell::IntrinsicDirty aIntrinsicDirty,
-                          nsFrameState aBitToAdd)
-  : mWeakFrame(aFrame),
-    mIntrinsicDirty(aIntrinsicDirty),
-    mBitToAdd(aBitToAdd)
-{
-}
-
-NS_IMETHODIMP
-nsReflowFrameRunnable::Run()
-{
-  if (mWeakFrame.IsAlive()) {
-    mWeakFrame->PresContext()->PresShell()->
-      FrameNeedsReflow(mWeakFrame, mIntrinsicDirty, mBitToAdd);
-  }
-  return NS_OK;
 }
