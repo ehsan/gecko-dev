@@ -50,6 +50,7 @@ public:
     nsWindow();
     virtual ~nsWindow();
 
+    static void NotifyVsync(mozilla::TimeStamp aVsyncTimestamp);
     static void DoDraw(void);
     static nsEventStatus DispatchInputEvent(mozilla::WidgetGUIEvent& aEvent);
     static void DispatchTouchInput(mozilla::MultiTouchInput& aInput);

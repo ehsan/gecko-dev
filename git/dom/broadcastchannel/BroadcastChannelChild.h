@@ -42,7 +42,7 @@ private:
 
   ~BroadcastChannelChild();
 
-  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  void ActorDestroy(ActorDestroyReason aWhy);
 
   // This raw pointer is actually the parent object.
   // It's set to null when the parent object is deleted.

@@ -21,7 +21,7 @@ int BarkWhenTracedClass::finalizeCount;
 int BarkWhenTracedClass::traceCount;
 
 const JSClass BarkWhenTracedClass::class_ = {
-    "BarkWhenTracedClass", JSCLASS_IMPLEMENTS_BARRIERS,
+    "BarkWhenTracedClass", 0,
     nullptr,
     nullptr,
     nullptr,

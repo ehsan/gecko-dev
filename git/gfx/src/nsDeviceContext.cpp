@@ -375,19 +375,18 @@ nsDeviceContext::SetDPI()
 nsresult
 nsDeviceContext::Init(nsIWidget *aWidget)
 {
-    nsresult rv = NS_OK;
     if (mScreenManager && mWidget == aWidget)
-        return rv;
+        return NS_OK;
 
     mWidget = aWidget;
     SetDPI();
 
     if (mScreenManager)
-        return rv;
+        return NS_OK;
 
-    mScreenManager = do_GetService("@mozilla.org/gfx/screenmanager;1", &rv);
+    mScreenManager = do_GetService("@mozilla.org/gfx/screenmanager;1");
 
-    return rv;
+    return NS_OK;
 }
 
 already_AddRefed<gfxContext>
@@ -423,7 +422,7 @@ nsDeviceContext::CreateRenderingContext()
 nsresult
 nsDeviceContext::GetDepth(uint32_t& aDepth)
 {
-    if (mDepth == 0 && mScreenManager) {
+    if (mDepth == 0) {
         nsCOMPtr<nsIScreen> primaryScreen;
         mScreenManager->GetPrimaryScreen(getter_AddRefs(primaryScreen));
         primaryScreen->GetColorDepth(reinterpret_cast<int32_t *>(&mDepth));
@@ -645,15 +644,11 @@ nsDeviceContext::ComputeFullAreaUsingScreen(nsRect* outRect)
 void
 nsDeviceContext::FindScreen(nsIScreen** outScreen)
 {
-    if (!mWidget || !mScreenManager) {
-        return;
-    }
-
-    if (mWidget->GetOwningTabChild()) {
+    if (mWidget && mWidget->GetOwningTabChild()) {
         mScreenManager->ScreenForNativeWidget((void *)mWidget->GetOwningTabChild(),
                                               outScreen);
     }
-    else if (mWidget->GetNativeData(NS_NATIVE_WINDOW)) {
+    else if (mWidget && mWidget->GetNativeData(NS_NATIVE_WINDOW)) {
         mScreenManager->ScreenForNativeWidget(mWidget->GetNativeData(NS_NATIVE_WINDOW),
                                               outScreen);
     }

@@ -8,8 +8,7 @@
  */
 
 dictionary RTCIceServer {
-    (DOMString or sequence<DOMString>) urls;
-    DOMString  url; //deprecated
+    DOMString  url;
     DOMString? credential = null;
     DOMString? username = null;
 };

@@ -90,7 +90,8 @@ SVGCircleElement::GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
 
   if (r <= 0.f) {
     // Rendering of the element is disabled
-    *aBounds = Rect(aTransform * Point(x, y), Size());
+    aBounds->MoveTo(x, y);
+    aBounds->SetEmpty();
     return true;
   }
 

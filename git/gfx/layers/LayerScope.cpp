@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim:set ts=4 sw=4 sts=4 et: */
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -366,8 +365,6 @@ StaticAutoPtr<LayerScopeWebSocketManager> WebSocketHelper::sWebSocketManager;
  * 1. DebugGLFrameStatusData (Frame start/end packet)
  * 2. DebugGLColorData (Color data packet)
  * 3. DebugGLTextureData (Texture data packet)
- * 4. DebugGLLayersData (Layers Tree data packet)
- * 5. DebugGLMetaData (Meta data packet)
  */
 class DebugGLData: public LinkedListElement<DebugGLData> {
 public:
@@ -568,37 +565,6 @@ public:
 protected:
     UniquePtr<Packet> mPacket;
 };
-
-class DebugGLMetaData : public DebugGLData
-{
-public:
-    DebugGLMetaData(Packet::DataType aDataType,
-                    bool aValue)
-        : DebugGLData(aDataType),
-          mComposedByHwc(aValue)
-    { }
-
-    explicit DebugGLMetaData(Packet::DataType aDataType)
-        : DebugGLData(aDataType),
-          mComposedByHwc(false)
-    { }
-
-    virtual bool Write() MOZ_OVERRIDE {
-        Packet packet;
-        packet.set_type(mDataType);
-
-        MetaPacket* mp = packet.mutable_meta();
-        mp->set_composedbyhwc(mComposedByHwc);
-
-        if (!WriteToStream(packet))
-            return false;
-        return true;
-    }
-
-protected:
-    bool mComposedByHwc;
-};
-
 
 class DebugListener : public nsIServerSocketListener
 {
@@ -1036,16 +1002,6 @@ LayerScope::CleanLayer()
 {
     if (CheckSendable()) {
         WebSocketHelper::GetSocketManager()->CleanDebugData();
-    }
-}
-
-
-void
-LayerScope::SetHWComposed()
-{
-    if (CheckSendable()) {
-        WebSocketHelper::GetSocketManager()->AppendDebugData(
-            new DebugGLMetaData(Packet::META, true));
     }
 }
 

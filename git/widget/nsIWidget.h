@@ -225,7 +225,7 @@ struct nsIMEUpdatePreference {
 
   typedef uint8_t Notifications;
 
-  enum : Notifications
+  enum MOZ_ENUM_TYPE(Notifications)
   {
     NOTIFY_NOTHING                       = 0,
     NOTIFY_SELECTION_CHANGE              = 1 << 0,
@@ -519,7 +519,7 @@ struct SizeConstraints {
 // Update values in GeckoEditable.java if you make changes here.
 // XXX Negative values are used in Android...
 typedef int8_t IMEMessageType;
-enum IMEMessage : IMEMessageType
+enum IMEMessage MOZ_ENUM_TYPE(IMEMessageType)
 {
   // An editable content is getting focus
   NOTIFY_IME_OF_FOCUS = 1,

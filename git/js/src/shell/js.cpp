@@ -357,12 +357,6 @@ ShellInterruptCallback(JSContext *cx)
     if (!gServiceInterrupt)
         return true;
 
-    // Reset gServiceInterrupt. CancelExecution or InterruptIf will set it to
-    // true to distinguish watchdog or user triggered interrupts.
-    // Do this first to prevent other interrupts that may occur while the
-    // user-supplied callback is executing from re-entering the handler.
-    gServiceInterrupt = false;
-
     bool result;
     RootedValue interruptFunc(cx, *gInterruptFunc);
     if (!interruptFunc.isNull()) {
@@ -384,6 +378,10 @@ ShellInterruptCallback(JSContext *cx)
 
     if (!result && gExitCode == 0)
         gExitCode = EXITCODE_TIMEOUT;
+
+    // Reset gServiceInterrupt. CancelExecution or InterruptIf will set it to
+    // true to distinguish watchdog or user triggered interrupts.
+    gServiceInterrupt = false;
 
     return result;
 }
@@ -2471,8 +2469,6 @@ DisassWithSrc(JSContext *cx, unsigned argc, jsval *vp)
             }
             pc += len;
         }
-
-        fprintf(stdout, "%s\n", sprinter.string());
 
       bail:
         fclose(file);

@@ -29,7 +29,6 @@ int main(int argc, char* argv[], char* envp[]){
     }
     full_profile_path = (char*) malloc(strlen(cwd) + strlen(GAIA_PATH) + 2);
     if (!full_profile_path) {
-        free(full_path);
         error(NOMEM);
         return -2;
     }

@@ -12,7 +12,7 @@
 namespace mozilla {
 namespace a11y {
 
-enum class RelationType {
+MOZ_BEGIN_ENUM_CLASS(RelationType)
 
   /**
    * This object is labelled by a target object.
@@ -131,7 +131,7 @@ enum class RelationType {
 
   LAST = CONTAINING_APPLICATION
 
-};
+MOZ_END_ENUM_CLASS(RelationType)
 
 } // namespace a11y
 } // namespace mozilla
