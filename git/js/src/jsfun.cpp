@@ -396,9 +396,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
                                      : 0,
                                      (script->constOffset != 0)
                                      ? script->consts()->length
-                                     : 0,
-                                     (script->globalsOffset != 0)
-                                     ? script->globals()->length
                                      : 0);
     if (!wscript)
         return NULL;
@@ -420,10 +417,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
     if (script->trynotesOffset != 0) {
         memcpy(wscript->trynotes()->vector, script->trynotes()->vector,
                wscript->trynotes()->length * sizeof(JSTryNote));
-    }
-    if (script->globalsOffset != 0) {
-        memcpy(wscript->globals()->vector, script->globals()->vector,
-               wscript->globals()->length * sizeof(GlobalSlotArray::Entry));
     }
 
     if (wfun->u.i.nupvars != 0) {
@@ -1722,7 +1715,7 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
  * if v is an object) returning true if .prototype is found.
  */
 static JSBool
-fun_hasInstance(JSContext *cx, JSObject *obj, const Value *v, JSBool *bp)
+fun_hasInstance(JSContext *cx, JSObject *obj, Value v, JSBool *bp)
 {
     jsid id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
     Value pval;
@@ -1738,7 +1731,7 @@ fun_hasInstance(JSContext *cx, JSObject *obj, const Value *v, JSBool *bp)
         return JS_FALSE;
     }
 
-    *bp = js_IsDelegate(cx, &pval.asObject(), *v);
+    *bp = js_IsDelegate(cx, &pval.asObject(), v);
     return JS_TRUE;
 }
 
