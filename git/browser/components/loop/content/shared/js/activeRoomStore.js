@@ -10,15 +10,6 @@ loop.store.ActiveRoomStore = (function() {
   "use strict";
 
   var sharedActions = loop.shared.actions;
-  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
-
-  // Error numbers taken from
-  // https://github.com/mozilla-services/loop-server/blob/master/loop/errno.json
-  var SERVER_CODES = loop.store.SERVER_CODES = {
-    INVALID_TOKEN: 105,
-    EXPIRED: 111,
-    ROOM_FULL: 202
-  };
 
   var ROOM_STATES = loop.store.ROOM_STATES = {
     // The initial state of the room
@@ -93,8 +84,7 @@ loop.store.ActiveRoomStore = (function() {
     this._storeState = {
       roomState: ROOM_STATES.INIT,
       audioMuted: false,
-      videoMuted: false,
-      failureReason: undefined
+      videoMuted: false
     };
   }
 
@@ -122,24 +112,13 @@ loop.store.ActiveRoomStore = (function() {
      * @param {sharedActions.RoomFailure} actionData
      */
     roomFailure: function(actionData) {
-      function getReason(serverCode) {
-        switch (serverCode) {
-          case SERVER_CODES.INVALID_TOKEN:
-          case SERVER_CODES.EXPIRED:
-            return FAILURE_REASONS.EXPIRED_OR_INVALID;
-          default:
-            return FAILURE_REASONS.UNKNOWN;
-        }
-      }
-
       console.error("Error in state `" + this._storeState.roomState + "`:",
         actionData.error);
 
       this.setStoreState({
         error: actionData.error,
-        failureReason: getReason(actionData.error.errno),
-        roomState: actionData.error.errno === SERVER_CODES.ROOM_FULL ?
-          ROOM_STATES.FULL : ROOM_STATES.FAILED
+        roomState: actionData.error.errno === 202 ? ROOM_STATES.FULL
+                                                  : ROOM_STATES.FAILED
       });
     },
 
@@ -249,11 +228,6 @@ loop.store.ActiveRoomStore = (function() {
      * Handles the action to join to a room.
      */
     joinRoom: function() {
-      // Reset the failure reason if necessary.
-      if (this.getStoreState().failureReason) {
-        this.setStoreState({failureReason: undefined});
-      }
-
       this._mozLoop.rooms.join(this._storeState.roomToken,
         function(error, responseData) {
           if (error) {
@@ -301,17 +275,11 @@ loop.store.ActiveRoomStore = (function() {
 
     /**
      * Handles disconnection of this local client from the sdk servers.
-     *
-     * @param {sharedActions.ConnectionFailure} actionData
      */
-    connectionFailure: function(actionData) {
+    connectionFailure: function() {
       // Treat all reasons as something failed. In theory, clientDisconnected
       // could be a success case, but there's no way we should be intentionally
       // sending that and still have the window open.
-      this.setStoreState({
-        failureReason: actionData.reason
-      });
-
       this._leaveRoom(ROOM_STATES.FAILED);
     },
 

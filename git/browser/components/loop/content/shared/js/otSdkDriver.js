@@ -8,7 +8,6 @@ var loop = loop || {};
 loop.OTSdkDriver = (function() {
 
   var sharedActions = loop.shared.actions;
-  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
 
   /**
    * This is a wrapper for the OT sdk. It is used to translate the SDK events into
@@ -48,11 +47,8 @@ loop.OTSdkDriver = (function() {
       // the initial connect of the session. This saves time when setting up
       // the media.
       this.publisher = this.sdk.initPublisher(this.getLocalElement(),
-        this.publisherConfig);
-      this.publisher.on("accessAllowed", this._onPublishComplete.bind(this));
-      this.publisher.on("accessDenied", this._onPublishDenied.bind(this));
-      this.publisher.on("accessDialogOpened",
-        this._onAccessDialogOpened.bind(this));
+        this.publisherConfig,
+        this._onPublishComplete.bind(this));
     },
 
     /**
@@ -100,12 +96,16 @@ loop.OTSdkDriver = (function() {
      */
     disconnectSession: function() {
       if (this.session) {
-        this.session.off("streamCreated connectionDestroyed sessionDisconnected");
+        this.session.off("streamCreated", this._onRemoteStreamCreated.bind(this));
+        this.session.off("connectionDestroyed",
+          this._onConnectionDestroyed.bind(this));
+        this.session.off("sessionDisconnected",
+          this._onSessionDisconnected.bind(this));
+
         this.session.disconnect();
         delete this.session;
       }
       if (this.publisher) {
-        this.publisher.off("accessAllowed accessDenied accessDialogOpened");
         this.publisher.destroy();
         delete this.publisher;
       }
@@ -126,7 +126,7 @@ loop.OTSdkDriver = (function() {
       if (error) {
         console.error("Failed to complete connection", error);
         this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-          reason: FAILURE_REASONS.COULD_NOT_CONNECT
+          reason: "couldNotConnect"
         }));
         return;
       }
@@ -159,7 +159,7 @@ loop.OTSdkDriver = (function() {
       // We only need to worry about the network disconnected reason here.
       if (event.reason === "networkDisconnected") {
         this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-          reason: FAILURE_REASONS.NETWORK_DISCONNECTED
+          reason: "networkDisconnected"
         }));
       }
     },
@@ -189,39 +189,21 @@ loop.OTSdkDriver = (function() {
     },
 
     /**
-     * Called from the sdk when the media access dialog is opened.
-     * Prevents the default action, to prevent the SDK's "allow access"
-     * dialog from being shown.
-     *
-     * @param {OT.Event} event
-     */
-    _onAccessDialogOpened: function(event) {
-      event.preventDefault();
-    },
-
-    /**
      * Handles the publishing being complete.
      *
-     * @param {OT.Event} event
+     * @param {Error} error An OT error object, null if there was no error.
      */
-    _onPublishComplete: function(event) {
-      event.preventDefault();
+    _onPublishComplete: function(error) {
+      if (error) {
+        console.error("Failed to initialize publisher", error);
+        this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
+          reason: "noMedia"
+        }));
+        return;
+      }
+
       this._publisherReady = true;
       this._maybePublishLocalStream();
-    },
-
-    /**
-     * Handles publishing of media being denied.
-     *
-     * @param {OT.Event} event
-     */
-    _onPublishDenied: function(event) {
-      // This prevents the SDK's "access denied" dialog showing.
-      event.preventDefault();
-
-      this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-        reason: FAILURE_REASONS.MEDIA_DENIED
-      }));
     },
 
     /**

@@ -7,19 +7,16 @@ describe("loop.OTSdkDriver", function () {
   "use strict";
 
   var sharedActions = loop.shared.actions;
-  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
+
   var sandbox;
   var dispatcher, driver, publisher, sdk, session, sessionData;
-  var fakeLocalElement, fakeRemoteElement, publisherConfig, fakeEvent;
+  var fakeLocalElement, fakeRemoteElement, publisherConfig;
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
 
     fakeLocalElement = {fake: 1};
     fakeRemoteElement = {fake: 2};
-    fakeEvent = {
-      preventDefault: sinon.stub()
-    };
     publisherConfig = {
       fake: "config"
     };
@@ -37,14 +34,14 @@ describe("loop.OTSdkDriver", function () {
       subscribe: sinon.stub()
     }, Backbone.Events);
 
-    publisher = _.extend({
+    publisher = {
       destroy: sinon.stub(),
       publishAudio: sinon.stub(),
       publishVideo: sinon.stub()
-    }, Backbone.Events);
+    };
 
     sdk = {
-      initPublisher: sinon.stub().returns(publisher),
+      initPublisher: sinon.stub(),
       initSession: sinon.stub().returns(session)
     };
 
@@ -82,6 +79,51 @@ describe("loop.OTSdkDriver", function () {
 
       sinon.assert.calledOnce(sdk.initPublisher);
       sinon.assert.calledWith(sdk.initPublisher, fakeLocalElement, publisherConfig);
+    });
+
+    describe("On Publisher Complete", function() {
+      it("should publish the stream if the connection is ready", function() {
+        sdk.initPublisher.callsArgWith(2, null);
+
+        driver.session = session;
+        driver._sessionConnected = true;
+
+        dispatcher.dispatch(new sharedActions.SetupStreamElements({
+          getLocalElementFunc: function() {return fakeLocalElement;},
+          getRemoteElementFunc: function() {return fakeRemoteElement;},
+          publisherConfig: publisherConfig
+        }));
+
+        sinon.assert.calledOnce(session.publish);
+      });
+
+      it("should dispatch connectionFailure if connecting failed", function() {
+        sdk.initPublisher.callsArgWith(2, new Error("Failure"));
+
+        // Special stub, as we want to use the dispatcher, but also know that
+        // we've been called correctly for the second dispatch.
+        var dispatchStub = (function() {
+          var originalDispatch = dispatcher.dispatch.bind(dispatcher);
+          return sandbox.stub(dispatcher, "dispatch", function(action) {
+            originalDispatch(action);
+          });
+        }());
+
+        driver.session = session;
+        driver._sessionConnected = true;
+
+        dispatcher.dispatch(new sharedActions.SetupStreamElements({
+          getLocalElementFunc: function() {return fakeLocalElement;},
+          getRemoteElementFunc: function() {return fakeRemoteElement;},
+          publisherConfig: publisherConfig
+        }));
+
+        sinon.assert.called(dispatcher.dispatch);
+        sinon.assert.calledWithMatch(dispatcher.dispatch,
+          sinon.match.hasOwn("name", "connectionFailure"));
+        sinon.assert.calledWithMatch(dispatcher.dispatch,
+          sinon.match.hasOwn("reason", "noMedia"));
+      });
     });
   });
 
@@ -152,7 +194,7 @@ describe("loop.OTSdkDriver", function () {
         sinon.assert.calledWithMatch(dispatcher.dispatch,
           sinon.match.hasOwn("name", "connectionFailure"));
         sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("reason", FAILURE_REASONS.COULD_NOT_CONNECT));
+          sinon.match.hasOwn("reason", "couldNotConnect"));
       });
     });
   });
@@ -227,7 +269,7 @@ describe("loop.OTSdkDriver", function () {
           sinon.assert.calledWithMatch(dispatcher.dispatch,
             sinon.match.hasOwn("name", "connectionFailure"));
           sinon.assert.calledWithMatch(dispatcher.dispatch,
-            sinon.match.hasOwn("reason", FAILURE_REASONS.NETWORK_DISCONNECTED));
+            sinon.match.hasOwn("reason", "networkDisconnected"));
         });
     });
 
@@ -285,42 +327,6 @@ describe("loop.OTSdkDriver", function () {
 
           sinon.assert.notCalled(dispatcher.dispatch);
         });
-    });
-
-    describe("accessAllowed", function() {
-      it("should publish the stream if the connection is ready", function() {
-        driver._sessionConnected = true;
-
-        publisher.trigger("accessAllowed", fakeEvent);
-
-        sinon.assert.calledOnce(session.publish);
-      });
-    });
-
-    describe("accessDenied", function() {
-      it("should prevent the default event behavior", function() {
-        publisher.trigger("accessDenied", fakeEvent);
-
-        sinon.assert.calledOnce(fakeEvent.preventDefault);
-      });
-
-      it("should dispatch connectionFailure", function() {
-        publisher.trigger("accessDenied", fakeEvent);
-
-        sinon.assert.called(dispatcher.dispatch);
-        sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("name", "connectionFailure"));
-        sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("reason", FAILURE_REASONS.MEDIA_DENIED));
-      });
-    });
-
-    describe("accessDialogOpened", function() {
-      it("should prevent the default event behavior", function() {
-        publisher.trigger("accessDialogOpened", fakeEvent);
-
-        sinon.assert.calledOnce(fakeEvent.preventDefault);
-      });
     });
   });
 });

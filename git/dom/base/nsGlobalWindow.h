@@ -1092,6 +1092,7 @@ protected:
   }
 
   void FreeInnerObjects();
+  JSObject *CallerGlobal();
   nsGlobalWindow *CallerInnerWindow();
 
   // Only to be called on an inner window.

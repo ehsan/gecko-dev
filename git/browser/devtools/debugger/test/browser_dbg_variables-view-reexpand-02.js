@@ -8,15 +8,16 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_with-frame.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gBreakpoints, gSources, gVariables;
 
 function test() {
   // Debug test slaves are a bit slow at this test.
   requestLongerTimeout(4);
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gBreakpoints = gDebugger.DebuggerController.Breakpoints;
@@ -45,7 +46,13 @@ function addBreakpoint() {
 }
 
 function pauseDebuggee() {
-  sendMouseClickToTab(gTab, content.document.querySelector("button"));
+  // Spin the event loop before causing the debuggee to pause, to allow
+  // this function to return first.
+  executeSoon(() => {
+    EventUtils.sendMouseEvent({ type: "click" },
+      gDebuggee.document.querySelector("button"),
+      gDebuggee);
+  });
 
   // The first 'with' scope should be expanded by default, but the
   // variables haven't been fetched yet. This is how 'with' scopes work.
@@ -208,6 +215,7 @@ function prepareVariablesAndProperties() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gBreakpoints = null;

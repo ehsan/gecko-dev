@@ -8677,7 +8677,7 @@ EstablishPreconditions(ExclusiveContext *cx, AsmJSParser &parser)
     if (!parser.options().compileAndGo)
         return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Temporarily disabled for event-handler and other cloneable scripts");
 
-    if (cx->compartment()->isDebuggee())
+    if (cx->compartment()->debugMode())
         return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by debugger");
 
     if (parser.pc->isGenerator())
@@ -8739,7 +8739,7 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
 #else
     bool available = cx->jitSupportsFloatingPoint() &&
                      cx->gcSystemPageSize() == AsmJSPageSize &&
-                     !cx->compartment()->isDebuggee() &&
+                     !cx->compartment()->debugMode() &&
                      cx->runtime()->options().asmJS();
 #endif
 

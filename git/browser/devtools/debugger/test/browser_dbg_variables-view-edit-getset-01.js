@@ -7,15 +7,16 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_frame-parameters.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gL10N, gEditor, gVars, gWatch;
 
 function test() {
   // Debug test slaves are a bit slow at this test.
   requestLongerTimeout(2);
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gL10N = gDebugger.L10N;
@@ -114,7 +115,9 @@ function test() {
         ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
       });
 
-    sendMouseClickToTab(gTab, content.document.querySelector("button"));
+    EventUtils.sendMouseEvent({ type: "click" },
+      gDebuggee.document.querySelector("button"),
+      gDebuggee);
   });
 }
 
@@ -285,6 +288,7 @@ function testWatchExpressionsRemoved() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gL10N = null;

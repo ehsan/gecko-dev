@@ -8,11 +8,12 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_frame-parameters.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
 
@@ -23,7 +24,7 @@ function test() {
 function prepareTest() {
   gDebugger.once(gDebugger.EVENTS.FETCHED_SCOPES, runTest);
 
-  evalInTab(gTab, "(" + function() {
+  gDebuggee.eval("(" + function() {
     var frozen = Object.freeze({});
     var sealed = Object.seal({});
     var nonExtensible = Object.preventExtensions({});
@@ -82,6 +83,7 @@ function runTest() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
 });

@@ -3,20 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 function StarGeneratorNext(val) {
-    // The IsSuspendedStarGenerator call below is not necessary for
-    // correctness. It's a performance optimization to check for the
-    // common case with a single call. It's also inlined in Baseline.
+    if (!IsObject(this) || !IsStarGeneratorObject(this))
+        return callFunction(CallStarGeneratorMethodIfWrapped, this, val, "StarGeneratorNext");
 
-    if (!IsSuspendedStarGenerator(this)) {
-	if (!IsObject(this) || !IsStarGeneratorObject(this))
-            return callFunction(CallStarGeneratorMethodIfWrapped, this, val, "StarGeneratorNext");
+    if (StarGeneratorObjectIsClosed(this))
+        return { value: undefined, done: true };
 
-	if (StarGeneratorObjectIsClosed(this))
-            return { value: undefined, done: true };
-
-	if (GeneratorIsRunning(this))
-            ThrowError(JSMSG_NESTING_GENERATOR);
-    }
+    if (GeneratorIsRunning(this))
+        ThrowError(JSMSG_NESTING_GENERATOR);
 
     try {
         return resumeGenerator(this, val, 'next');
@@ -28,16 +22,14 @@ function StarGeneratorNext(val) {
 }
 
 function StarGeneratorThrow(val) {
-    if (!IsSuspendedStarGenerator(this)) {
-	if (!IsObject(this) || !IsStarGeneratorObject(this))
-            return callFunction(CallStarGeneratorMethodIfWrapped, this, val, "StarGeneratorThrow");
+    if (!IsObject(this) || !IsStarGeneratorObject(this))
+        return callFunction(CallStarGeneratorMethodIfWrapped, this, val, "StarGeneratorThrow");
 
-	if (StarGeneratorObjectIsClosed(this))
-            throw val;
+    if (StarGeneratorObjectIsClosed(this))
+        throw val;
 
-	if (GeneratorIsRunning(this))
-            ThrowError(JSMSG_NESTING_GENERATOR);
-    }
+    if (GeneratorIsRunning(this))
+        ThrowError(JSMSG_NESTING_GENERATOR);
 
     try {
         return resumeGenerator(this, val, 'throw');

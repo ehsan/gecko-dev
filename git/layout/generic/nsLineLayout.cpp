@@ -55,12 +55,12 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
   : mPresContext(aPresContext),
     mFloatManager(aFloatManager),
     mBlockReflowState(aOuterReflowState),
-    mLastOptionalBreakFrame(nullptr),
-    mForceBreakFrame(nullptr),
+    mLastOptionalBreakContent(nullptr),
+    mForceBreakContent(nullptr),
     mBlockRS(nullptr),/* XXX temporary */
     mLastOptionalBreakPriority(gfxBreakPriority::eNoBreak),
-    mLastOptionalBreakFrameOffset(-1),
-    mForceBreakFrameOffset(-1),
+    mLastOptionalBreakContentOffset(-1),
+    mForceBreakContentOffset(-1),
     mMinLineBSize(0),
     mTextIndent(0),
     mFirstLetterStyleOK(false),
@@ -855,7 +855,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
 
   int32_t savedOptionalBreakOffset;
   gfxBreakPriority savedOptionalBreakPriority;
-  nsIFrame* savedOptionalBreakFrame =
+  nsIContent* savedOptionalBreakContent =
     GetLastOptionalBreakPosition(&savedOptionalBreakOffset,
                                  &savedOptionalBreakPriority);
 
@@ -1021,7 +1021,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
                  "How'd we get a floated inline frame? "
                  "The frame ctor should've dealt with this.");
     if (CanPlaceFrame(pfd, notSafeToBreak, continuingTextRun,
-                      savedOptionalBreakFrame != nullptr, metrics,
+                      savedOptionalBreakContent != nullptr, metrics,
                       aReflowStatus, &optionalBreakAfterFits)) {
       if (!isEmpty) {
         psd->mHasNonemptyContent = true;
@@ -1049,9 +1049,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
           // record soft break opportunity after this content that can't be
           // part of a text run. This is not a text frame so we know
           // that offset INT32_MAX means "after the content".
-          if (NotifyOptionalBreakPosition(aFrame, INT32_MAX,
-                                          optionalBreakAfterFits,
-                                          gfxBreakPriority::eNormalBreak)) {
+          if (NotifyOptionalBreakPosition(aFrame->GetContent(), INT32_MAX, optionalBreakAfterFits, gfxBreakPriority::eNormalBreak)) {
             // If this returns true then we are being told to actually break here.
             aReflowStatus = NS_INLINE_LINE_BREAK_AFTER(aReflowStatus);
           }
@@ -1063,7 +1061,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
       aPushedFrame = true;
       // Undo any saved break positions that the frame might have told us about,
       // since we didn't end up placing it
-      RestoreSavedBreakPosition(savedOptionalBreakFrame,
+      RestoreSavedBreakPosition(savedOptionalBreakContent,
                                 savedOptionalBreakOffset,
                                 savedOptionalBreakPriority);
     }

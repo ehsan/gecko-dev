@@ -66,10 +66,10 @@ ToJSValue(JSContext* aCx,
           JS::MutableHandle<JS::Value> aValue)
 {
   MOZ_ASSERT(aArgument.Failed());
-  DebugOnly<bool> throwResult = ThrowMethodFailedWithDetails(aCx, aArgument, "", "");
-  MOZ_ASSERT(!throwResult);
-  DebugOnly<bool> getPendingResult = JS_GetPendingException(aCx, aValue);
-  MOZ_ASSERT(getPendingResult);
+  ThrowMethodFailedWithDetails(aCx, aArgument, "", "");
+  if (!JS_GetPendingException(aCx, aValue)) {
+    return false;
+  }
   JS_ClearPendingException(aCx);
   return true;
 }

@@ -8191,15 +8191,16 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
                "We shouldn't be passed NS_REFLOW_CALC_BOUNDING_METRICS anymore");
 
   int32_t limitLength = length;
-  int32_t forceBreak = aLineLayout.GetForcedBreakPosition(this);
+  int32_t forceBreak = aLineLayout.GetForcedBreakPosition(mContent);
   bool forceBreakAfter = false;
-  if (forceBreak >= length) {
-    forceBreakAfter = forceBreak == length;
+  if (forceBreak >= offset + length) {
+    forceBreakAfter = forceBreak == offset + length;
     // The break is not within the text considered for this textframe.
     forceBreak = -1;
   }
   if (forceBreak >= 0) {
-    limitLength = forceBreak;
+    limitLength = forceBreak - offset;
+    NS_ASSERTION(limitLength >= 0, "Weird break found!");
   }
   // This is the heart of text reflow right here! We don't know where
   // to break, so we need to see how much text fits in the available width.
@@ -8316,9 +8317,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     // record the last break opportunity
     NS_ASSERTION(textMetrics.mAdvanceWidth - trimmableWidth <= aAvailableWidth,
                  "If the text doesn't fit, and we have a break opportunity, why didn't MeasureText use it?");
-    MOZ_ASSERT(lastBreak >= offset, "Strange break position");
-    aLineLayout.NotifyOptionalBreakPosition(this, lastBreak - offset,
-                                            true, breakPriority);
+    aLineLayout.NotifyOptionalBreakPosition(mContent, lastBreak, true, breakPriority);
   }
 
   int32_t contentLength = offset + charsFit - GetContentOffset();
@@ -8418,11 +8417,10 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   if (charsFit > 0 && charsFit == length &&
       textStyle->mHyphens != NS_STYLE_HYPHENS_NONE &&
       HasSoftHyphenBefore(frag, mTextRun, offset, end)) {
-    bool fits =
-      textMetrics.mAdvanceWidth + provider.GetHyphenWidth() <= availWidth;
     // Record a potential break after final soft hyphen
-    aLineLayout.NotifyOptionalBreakPosition(this, length, fits,
-                                            gfxBreakPriority::eNormalBreak);
+    aLineLayout.NotifyOptionalBreakPosition(mContent, offset + length,
+        textMetrics.mAdvanceWidth + provider.GetHyphenWidth() <= availWidth,
+                                           gfxBreakPriority::eNormalBreak);
   }
   bool breakAfter = forceBreakAfter;
   // length == 0 means either the text is empty or it's all collapsed away
@@ -8441,8 +8439,8 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     if (textMetrics.mAdvanceWidth - trimmableWidth > availWidth) {
       breakAfter = true;
     } else {
-      aLineLayout.NotifyOptionalBreakPosition(this, length, true,
-                                              gfxBreakPriority::eNormalBreak);
+      aLineLayout.NotifyOptionalBreakPosition(mContent, offset + length,
+                                              true, gfxBreakPriority::eNormalBreak);
     }
   }
 

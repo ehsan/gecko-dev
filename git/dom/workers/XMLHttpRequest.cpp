@@ -1770,6 +1770,10 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
 
     mProxy->mSeenLoadStart = false;
   }
+
+  if (mRooted) {
+    Unpin();
+  }
 }
 
 void
@@ -2313,10 +2317,8 @@ XMLHttpRequest::OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv)
   // can detect OPENED really easily but we can't detect HEADERS_RECEIVED in a
   // non-racy way until the XHR state machine actually runs on this thread
   // (bug 671047). For now we're going to let this work only if the Send()
-  // method has not been called, unless the send has been aborted.
-  if (!mProxy || (SendInProgress() &&
-                  (mProxy->mSeenLoadStart ||
-                   mStateData.mReadyState > nsIXMLHttpRequest::OPENED))) {
+  // method has not been called.
+  if (!mProxy || SendInProgress()) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -2340,9 +2342,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
     return;
   }
 
-  if (!mProxy || (SendInProgress() &&
-                  (mProxy->mSeenLoadStart ||
-                   mStateData.mReadyState > nsIXMLHttpRequest::OPENED))) {
+  if (!mProxy || SendInProgress()) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }

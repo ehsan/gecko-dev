@@ -11,6 +11,7 @@
 
 #include "GLContext.h"
 #include "GLBlitHelper.h"
+#include "GLBlitTextureImageHelper.h"
 #include "GLReadTexImageHelper.h"
 
 #include "gfxCrashReporterUtils.h"
@@ -2089,6 +2090,7 @@ GLContext::MarkDestroyed()
         DestroyScreenBuffer();
 
         mBlitHelper = nullptr;
+        mBlitTextureImageHelper = nullptr;
         mReadTexImageHelper = nullptr;
 
         mTexGarbageBin->GLContextTeardown();
@@ -2409,6 +2411,16 @@ GLContext::BlitHelper()
     }
 
     return mBlitHelper.get();
+}
+
+GLBlitTextureImageHelper*
+GLContext::BlitTextureImageHelper()
+{
+    if (!mBlitTextureImageHelper) {
+        mBlitTextureImageHelper = MakeUnique<GLBlitTextureImageHelper>(this);
+    }
+
+    return mBlitTextureImageHelper.get();
 }
 
 GLReadTexImageHelper*

@@ -21,7 +21,6 @@ class nsPIDOMWindow;
 class nsGlobalWindow;
 class nsIScriptContext;
 class nsIDocument;
-class nsIDocShell;
 
 namespace mozilla {
 namespace dom {
@@ -63,16 +62,6 @@ private:
  */
 void InitScriptSettings();
 void DestroyScriptSettings();
-
-/*
- * Static helpers in ScriptSettings which track the number of listeners
- * of Javascript RunToCompletion events.  These should be used by the code in
- * nsDocShell::SetRecordProfileTimelineMarkers to indicate to script
- * settings that script run-to-completion needs to be monitored.
- * SHOULD BE CALLED ONLY BY MAIN THREAD.
- */
-void UseEntryScriptProfiling();
-void UnuseEntryScriptProfiling();
 
 // To implement a web-compatible browser, it is often necessary to obtain the
 // global object that is "associated" with the currently-running code. This
@@ -342,8 +331,6 @@ private:
   // can't go away until then either.
   nsIPrincipal* mWebIDLCallerPrincipal;
   friend nsIPrincipal* GetWebIDLCallerPrincipal();
-
-  nsIDocShell* mDocShellForJSRunToCompletion;
 };
 
 /*
