@@ -1608,7 +1608,8 @@ NativeToString(JSContext* cx, JS::Handle<JSObject*> wrapper,
       }
       MOZ_ASSERT(JS_ObjectIsCallable(cx, &toString.toObject()));
       JS::Rooted<JS::Value> toStringResult(cx);
-      if (JS_CallFunctionValue(cx, obj, toString, JS::EmptyValueArray, &toStringResult)) {
+      if (JS_CallFunctionValue(cx, obj, toString, JS::EmptyValueArray,
+                               toStringResult.address())) {
         str = toStringResult.toString();
       } else {
         str = nullptr;

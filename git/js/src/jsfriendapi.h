@@ -1991,6 +1991,13 @@ class JS_FRIEND_API(AutoCTypesActivityCallback) {
     }
 };
 
+#ifdef JS_DEBUG
+extern JS_FRIEND_API(void)
+assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id);
+#else
+inline void assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id) {};
+#endif
+
 typedef bool
 (* ObjectMetadataCallback)(JSContext *cx, JSObject **pmetadata);
 

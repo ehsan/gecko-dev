@@ -664,9 +664,8 @@ XPCShellOperationCallback(JSContext *cx)
 
     JSAutoCompartment ac(cx, &sScriptedOperationCallback.toObject());
     RootedValue rv(cx);
-    RootedValue callback(cx, sScriptedOperationCallback);
-    if (!JS_CallFunctionValue(cx, JS::NullPtr(), callback, JS::EmptyValueArray, &rv) ||
-        !rv.isBoolean())
+    if (!JS_CallFunctionValue(cx, nullptr, sScriptedOperationCallback,
+                              JS::EmptyValueArray, rv.address()) || !rv.isBoolean())
     {
         NS_WARNING("Scripted operation callback failed! Terminating script.");
         JS_ClearPendingException(cx);

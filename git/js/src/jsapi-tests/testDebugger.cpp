@@ -226,7 +226,7 @@ bool testIndirectEval(JS::HandleObject scope, const char *code)
         CHECK(codestr);
         JS::RootedValue arg(cx, JS::StringValue(codestr));
         JS::RootedValue v(cx);
-        CHECK(JS_CallFunctionName(cx, scope, "eval", arg, &v));
+        CHECK(JS_CallFunctionName(cx, scope, "eval", arg, v.address()));
     }
 
     JS::RootedValue hitsv(cx);

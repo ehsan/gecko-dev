@@ -12,7 +12,6 @@
 #include <algorithm>
 #include "MacIOSurface.h"
 #include "FilterNodeSoftware.h"
-#include "mozilla/Assertions.h"
 
 using namespace std;
 
@@ -453,8 +452,8 @@ static void
 CalculateRepeatingGradientParams(CGPoint *aStart, CGPoint *aEnd,
                                  CGRect aExtents, int *aRepeatCount)
 {
-  double t_min = INFINITY;
-  double t_max = -INFINITY;
+  double t_min = 0.;
+  double t_max = 0.;
   double dx = aEnd->x - aStart->x;
   double dy = aEnd->y - aStart->y;
 
@@ -471,9 +470,6 @@ CalculateRepeatingGradientParams(CGPoint *aStart, CGPoint *aEnd,
                                        bounds_x2, bounds_y2);
   UpdateLinearParametersToIncludePoint(&t_min, &t_max, aStart, dx, dy,
                                        bounds_x1, bounds_y2);
-
-  MOZ_ASSERT(!isinf(t_min) && !isinf(t_max),
-             "The first call to UpdateLinearParametersToIncludePoint should have made t_min and t_max non-infinite.");
 
   // Move t_min and t_max to the nearest usable integer to try to avoid
   // subtle variations due to numerical instability, especially accidentally
@@ -846,8 +842,7 @@ DrawTargetCG::FillRect(const Rect &aRect,
 
   if (isGradient(aPattern)) {
     CGContextClipToRect(cg, RectToCGRect(aRect));
-    CGRect clipBounds = CGContextGetClipBoundingBox(cg);
-    DrawGradient(cg, aPattern, clipBounds);
+    DrawGradient(cg, aPattern, RectToCGRect(aRect));
   } else {
     if (aPattern.GetType() == PatternType::SURFACE && static_cast<const SurfacePattern&>(aPattern).mExtendMode != ExtendMode::REPEAT) {
       // SetFillFromPattern can handle this case but using CGContextDrawImage

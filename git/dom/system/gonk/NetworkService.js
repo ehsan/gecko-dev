@@ -169,19 +169,12 @@ NetworkService.prototype = {
       return;
     }
 
-    let self = this;
-    this._disableNetworkInterfaceAlarm(networkName, function(result) {
-      if (threshold < 0) {
-        if (!isError(result.resultCode)) {
-          callback.networkUsageAlarmResult(null);
-          return;
-        }
-        callback.networkUsageAlarmResult(result.reason);
-        return
-      }
+    if (threshold < 0) {
+      this._disableNetworkInterfaceAlarm(networkName, callback);
+      return;
+    }
 
-      self._setNetworkInterfaceAlarm(networkName, threshold, callback);
-    });
+    this._setNetworkInterfaceAlarm(networkName, threshold, callback);
   },
 
   _setNetworkInterfaceAlarm: function(networkName, threshold, callback) {
@@ -239,7 +232,11 @@ NetworkService.prototype = {
     params.isAsync = true;
 
     this.controlMessage(params, function(result) {
-      callback(result);
+      if (!isError(result.resultCode)) {
+        callback.networkUsageAlarmResult(null);
+        return;
+      }
+      callback.networkUsageAlarmResult(result.reason);
     });
   },
 
