@@ -360,10 +360,6 @@ public abstract class GeckoApp
     }
 
     public MenuPanel getMenuPanel() {
-        if (mMenuPanel == null) {
-            onCreatePanelMenu(Window.FEATURE_OPTIONS_PANEL, null);
-            invalidateOptionsMenu();
-        }
         return mMenuPanel;
     }
 
@@ -446,9 +442,8 @@ public abstract class GeckoApp
 
         if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
             if (mMenu == null) {
-                // getMenuPanel() will force the creation of the menu as well
-                MenuPanel panel = getMenuPanel();
-                onPreparePanel(featureId, panel, mMenu);
+                onCreatePanelMenu(featureId, menu);
+                onPreparePanel(featureId, mMenuPanel, mMenu);
             }
 
             // Scroll custom menu to the top
@@ -1414,6 +1409,12 @@ public abstract class GeckoApp
     private void initialize() {
         mInitialized = true;
 
+        if (Build.VERSION.SDK_INT >= 11) {
+            // Create the panel and inflate the custom menu.
+            onCreatePanelMenu(Window.FEATURE_OPTIONS_PANEL, null);
+        }
+        invalidateOptionsMenu();
+
         Intent intent = getIntent();
         String action = intent.getAction();
 
@@ -1527,6 +1528,9 @@ public abstract class GeckoApp
         registerEventListener("Reader:Share");
         registerEventListener("Reader:FaviconRequest");
         registerEventListener("onCameraCapture");
+        registerEventListener("Menu:Add");
+        registerEventListener("Menu:Remove");
+        registerEventListener("Menu:Update");
         registerEventListener("Gecko:Ready");
         registerEventListener("Gecko:DelayedStartup");
         registerEventListener("Toast:Show");
@@ -2054,6 +2058,9 @@ public abstract class GeckoApp
         unregisterEventListener("Reader:Share");
         unregisterEventListener("Reader:FaviconRequest");
         unregisterEventListener("onCameraCapture");
+        unregisterEventListener("Menu:Add");
+        unregisterEventListener("Menu:Remove");
+        unregisterEventListener("Menu:Update");
         unregisterEventListener("Gecko:Ready");
         unregisterEventListener("Gecko:DelayedStartup");
         unregisterEventListener("Toast:Show");

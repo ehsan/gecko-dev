@@ -57,8 +57,7 @@ SOURCES += [
     'nsWindow.cpp',
     'OrientationObserver.cpp',
     'ParentProcessController.cpp',
-    'ProcessOrientation.cpp',
-    'WidgetTraceEvent.cpp'
+    'ProcessOrientation.cpp'
 ]
 
 LIBRARY_NAME = 'widget_gonk'

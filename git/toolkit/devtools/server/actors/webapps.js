@@ -565,10 +565,12 @@ WebappsActor.prototype = {
     }
 
     if (this._isAppAllowedForManifest(app.manifestURL)) {
-      return reg.getManifestFor(manifestURL).then(function (manifest) {
+      let deferred = promise.defer();
+      reg.getManifestFor(manifestURL, function (manifest) {
         app.manifest = manifest;
-        return {app: app};
+        deferred.resolve({app: app});
       });
+      return deferred.promise;
     }
     return { error: "forbidden" };
   },
