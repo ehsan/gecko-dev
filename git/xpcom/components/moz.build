@@ -49,7 +49,7 @@ LOCAL_INCLUDES += [
     '../base',
     '../build',
     '../ds',
-    '../reflect/xptinfo',
+    '../reflect/xptinfo/src',
     '/chrome/src',
     '/modules/libjar',
 ]

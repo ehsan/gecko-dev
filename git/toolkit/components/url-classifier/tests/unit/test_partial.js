@@ -20,7 +20,7 @@ QueryInterface: function(iid)
   return this;
 },
 
-complete: function(partialHash, gethashUrl, cb)
+complete: function(partialHash, cb)
 {
   this.queries.push(partialHash);
   var fragments = this.fragments;

@@ -54,16 +54,16 @@ this.SafeBrowsing = {
     let listManager = Cc["@mozilla.org/url-classifier/listmanager;1"].
                       getService(Ci.nsIUrlListManager);
     for (let i = 0; i < phishingLists.length; ++i) {
-      listManager.registerTable(phishingLists[i], this.updateURL, this.gethashURL);
+      listManager.registerTable(phishingLists[i], false);
     }
     for (let i = 0; i < malwareLists.length; ++i) {
-      listManager.registerTable(malwareLists[i], this.updateURL, this.gethashURL);
+      listManager.registerTable(malwareLists[i], false);
     }
     for (let i = 0; i < downloadBlockLists.length; ++i) {
-      listManager.registerTable(downloadBlockLists[i], this.updateURL, this.gethashURL);
+      listManager.registerTable(downloadBlockLists[i], false);
     }
     for (let i = 0; i < downloadAllowLists.length; ++i) {
-      listManager.registerTable(downloadAllowLists[i], this.updateURL, this.gethashURL);
+      listManager.registerTable(downloadAllowLists[i], false);
     }
     this.addMozEntries();
 
@@ -134,7 +134,14 @@ this.SafeBrowsing = {
 
     this.updateURL  = this.updateURL.replace("SAFEBROWSING_ID", clientID);
     this.gethashURL = this.gethashURL.replace("SAFEBROWSING_ID", clientID);
+
+    let listManager = Cc["@mozilla.org/url-classifier/listmanager;1"].
+                      getService(Ci.nsIUrlListManager);
+
+    listManager.setUpdateUrl(this.updateURL);
+    listManager.setGethashUrl(this.gethashURL);
   },
+
 
   controlUpdateChecking: function() {
     log("phishingEnabled:", this.phishingEnabled, "malwareEnabled:", this.malwareEnabled);

@@ -2474,14 +2474,17 @@ nsDocShell::GetFullscreenAllowed(bool* aFullscreenAllowed)
     // If we have no parent then we're the root docshell; no ancestor of the
     // original docshell doesn't have a allowfullscreen attribute, so
     // report fullscreen as allowed.
-    nsRefPtr<nsDocShell> parent = GetParentDocshell();
-    if (!parent) {
+    nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
+    GetParent(getter_AddRefs(parentTreeItem));
+    if (!parentTreeItem) {
         *aFullscreenAllowed = true;
         return NS_OK;
     }
-
     // Otherwise, we have a parent, continue the checking for
     // mozFullscreenAllowed in the parent docshell's ancestors.
+    nsCOMPtr<nsIDocShell> parent = do_QueryInterface(parentTreeItem);
+    NS_ENSURE_TRUE(parent, NS_OK);
+    
     return parent->GetFullscreenAllowed(aFullscreenAllowed);
 }
 
@@ -3129,15 +3132,16 @@ NS_IMETHODIMP
 nsDocShell::GetRootTreeItem(nsIDocShellTreeItem ** aRootTreeItem)
 {
     NS_ENSURE_ARG_POINTER(aRootTreeItem);
+    *aRootTreeItem = static_cast<nsIDocShellTreeItem *>(this);
 
-    nsRefPtr<nsDocShell> root = this;
-    nsRefPtr<nsDocShell> parent = root->GetParentDocshell();
+    nsCOMPtr<nsIDocShellTreeItem> parent;
+    NS_ENSURE_SUCCESS(GetParent(getter_AddRefs(parent)), NS_ERROR_FAILURE);
     while (parent) {
-        root = parent;
-        parent = root->GetParentDocshell();
+        *aRootTreeItem = parent;
+        NS_ENSURE_SUCCESS((*aRootTreeItem)->GetParent(getter_AddRefs(parent)),
+                          NS_ERROR_FAILURE);
     }
-
-    root.forget(aRootTreeItem);
+    NS_ADDREF(*aRootTreeItem);
     return NS_OK;
 }
 
@@ -5552,12 +5556,15 @@ nsDocShell::GetVisibility(bool * aVisibility)
     // for a hidden view, unless we're an off screen browser, which 
     // would make this test meaningless.
 
-    nsRefPtr<nsDocShell> docShell = this;
-    nsRefPtr<nsDocShell> parentItem = docShell->GetParentDocshell();
+    nsCOMPtr<nsIDocShellTreeItem> treeItem = this;
+    nsCOMPtr<nsIDocShellTreeItem> parentItem;
+    treeItem->GetParent(getter_AddRefs(parentItem));
     while (parentItem) {
+        nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(treeItem));
         presShell = docShell->GetPresShell();
 
-        nsCOMPtr<nsIPresShell> pPresShell = parentItem->GetPresShell();
+        nsCOMPtr<nsIDocShell> parentDS = do_QueryInterface(parentItem);
+        nsCOMPtr<nsIPresShell> pPresShell = parentDS->GetPresShell();
 
         // Null-check for crash in bug 267804
         if (!pPresShell) {
@@ -5586,8 +5593,8 @@ nsDocShell::GetVisibility(bool * aVisibility)
             return NS_OK;
         }
 
-        docShell = parentItem;
-        parentItem = docShell->GetParentDocshell();
+        treeItem = parentItem;
+        treeItem->GetParent(getter_AddRefs(parentItem));
     }
 
     nsCOMPtr<nsIBaseWindow> treeOwnerAsWin(do_QueryInterface(mTreeOwner));
@@ -8012,7 +8019,8 @@ nsDocShell::RestoreFromHistory()
     nsCOMPtr<nsIDocument> document = do_QueryInterface(domDoc);
     uint32_t parentSuspendCount = 0;
     if (document) {
-        nsRefPtr<nsDocShell> parent = GetParentDocshell();
+        nsCOMPtr<nsIDocShellTreeItem> parent;
+        GetParent(getter_AddRefs(parent));
         if (parent) {
           nsCOMPtr<nsIDocument> d = parent->GetDocument();
           if (d) {
@@ -9217,7 +9225,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
     // If this docshell is owned by a frameloader, make sure to cancel
     // possible frameloader initialization before loading a new page.
-    nsCOMPtr<nsIDocShellTreeItem> parent = GetParentDocshell();
+    nsCOMPtr<nsIDocShellTreeItem> parent;
+    GetParent(getter_AddRefs(parent));
     if (parent) {
         nsCOMPtr<nsIDocument> doc = do_GetInterface(parent);
         if (doc) {
@@ -12293,7 +12302,7 @@ nsDocShell::GetNestedFrameId(uint64_t* aId)
 NS_IMETHODIMP
 nsDocShell::IsAppOfType(uint32_t aAppType, bool *aIsOfType)
 {
-    nsRefPtr<nsDocShell> shell = this;
+    nsCOMPtr<nsIDocShell> shell = this;
     while (shell) {
         uint32_t type;
         shell->GetAppType(&type);
@@ -12301,7 +12310,10 @@ nsDocShell::IsAppOfType(uint32_t aAppType, bool *aIsOfType)
             *aIsOfType = true;
             return NS_OK;
         }
-        shell = shell->GetParentDocshell();
+        nsCOMPtr<nsIDocShellTreeItem> item = do_QueryInterface(shell);
+        nsCOMPtr<nsIDocShellTreeItem> parent;
+        item->GetParent(getter_AddRefs(parent));
+        shell = do_QueryInterface(parent);
     }
 
     *aIsOfType = false;
@@ -13064,14 +13076,19 @@ nsDocShell::GetAsyncPanZoomEnabled(bool* aOut)
 bool
 nsDocShell::HasUnloadedParent()
 {
-    nsRefPtr<nsDocShell> parent = GetParentDocshell();
-    while (parent) {
-        bool inUnload = false;
-        parent->GetIsInUnload(&inUnload);
-        if (inUnload) {
-            return true;
+    nsCOMPtr<nsIDocShellTreeItem> currentTreeItem = this;
+    while (currentTreeItem) {
+        nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
+        currentTreeItem->GetParent(getter_AddRefs(parentTreeItem));
+        nsCOMPtr<nsIDocShell> parent = do_QueryInterface(parentTreeItem);
+        if (parent) {
+            bool inUnload = false;
+            parent->GetIsInUnload(&inUnload);
+            if (inUnload) {
+                return true;
+            }
         }
-        parent = parent->GetParentDocshell();
+        currentTreeItem.swap(parentTreeItem);
     }
     return false;
 }
