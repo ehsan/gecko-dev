@@ -183,7 +183,7 @@ public:
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager);
 
-  ImageContainer* GetImageContainer(LayerManager* aManager = nsnull);
+  ImageContainer* GetImageContainer();
 
   /**
    * If aContent has a nsObjectFrame, then prepare it for a DocShell swap.

@@ -39,7 +39,7 @@ let TabView = {
   _deck: null,
   _window: null,
   _sessionstore: null,
-  VISIBILITY_IDENTIFIER: "tabview-visibility",
+  _visibilityID: "tabview-visibility",
 
   // ----------
   get windowTitle() {
@@ -60,8 +60,7 @@ let TabView = {
       Cc["@mozilla.org/browser/sessionstore;1"].
         getService(Ci.nsISessionStore);
 
-    let data = this._sessionstore.getWindowValue(window, this.VISIBILITY_IDENTIFIER);
-
+    let data = this._sessionstore.getWindowValue(window, this._visibilityID);
     if (data && data == "true") {
       this.show();
     } else {
@@ -77,6 +76,12 @@ let TabView = {
       gBrowser.tabContainer.addEventListener(
         "TabShow", this._tabShowEventListener, true);
     }
+  },
+
+  // ----------
+  uninit: function TabView_uninit() {
+    if (this._window)
+      Services.obs.removeObserver(this, "quit-application-requested");
   },
 
   // ----------
@@ -103,10 +108,21 @@ let TabView = {
       this._deck.appendChild(iframe);
       this._window = iframe.contentWindow;
 
+      // ___ visibility storage handler
+      Services.obs.addObserver(this, "quit-application-requested", false);
+
       if (this._tabShowEventListener) {
         gBrowser.tabContainer.removeEventListener(
           "TabShow", this._tabShowEventListener, true);
       }
+    }
+  },
+
+  // ----------
+  observe: function TabView_observe(subject, topic, data) {
+    if (topic == "quit-application-requested") {
+      let data = (this.isVisible() ? "true" : "false");
+      this._sessionstore.setWindowValue(window, this._visibilityID, data);
     }
   },
 

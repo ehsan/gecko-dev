@@ -100,7 +100,6 @@ public:
     mBaseVal.mDefer = PR_FALSE;
     mAnimVal = mBaseVal;
     mIsAnimated = PR_FALSE;
-    mIsBaseSet = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -118,8 +117,6 @@ public:
     { return mAnimVal; }
   PRBool IsAnimated() const
     { return mIsAnimated; }
-  PRBool IsExplicitlySet() const
-    { return mIsAnimated || mIsBaseSet; }
 
   nsresult ToDOMAnimatedPreserveAspectRatio(
     nsIDOMSVGAnimatedPreserveAspectRatio **aResult,
@@ -134,7 +131,6 @@ private:
   SVGPreserveAspectRatio mAnimVal;
   SVGPreserveAspectRatio mBaseVal;
   PRPackedBool mIsAnimated;
-  PRPackedBool mIsBaseSet;
 
   nsresult ToDOMBaseVal(nsIDOMSVGPreserveAspectRatio **aResult,
                         nsSVGElement* aSVGElement);

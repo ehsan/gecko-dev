@@ -636,17 +636,13 @@
   margin-bottom: 2em;
 }
 
-#detail-desc, #detail-fulldesc {
+#detail-desc {
   -moz-margin-start: 6px;
   /* This is necessary to fix layout issues with multi-line descriptions, see
      bug 592712*/
   outline: solid transparent;
   white-space: pre-wrap;
   min-width: 10em;
-}
-
-#detail-fulldesc {
-  margin-top: 1em;
 }
 
 #detail-contributions {

@@ -3947,7 +3947,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
 
             // We could use something like nsTextFormatter::smprintf.
             messageStr.AssignLiteral("This page uses an unsupported technology "
-                                     "that is no longer available by default in ");
+                                     "that is no longer available in ");
             messageStr.Append(brandName);
             messageStr.AppendLiteral(".");
             break;
@@ -6448,8 +6448,7 @@ nsDocShell::EnsureContentViewer()
 
 nsresult
 nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
-                                          nsIURI* aBaseURI,
-                                          PRBool aTryToSaveOldPresentation)
+                                          nsIURI* aBaseURI)
 {
   nsCOMPtr<nsIDocument> blankDoc;
   nsCOMPtr<nsIContentViewer> viewer;
@@ -6481,8 +6480,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
       return NS_ERROR_FAILURE;
     }
 
-    mSavingOldViewer = aTryToSaveOldPresentation && 
-                       CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
+    mSavingOldViewer = CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
 
     // Make sure to blow away our mLoadingURI just in case.  No loads
     // from inside this pagehide.
@@ -9994,10 +9992,7 @@ nsDocShell::LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType)
         // anything from the current document from leaking into any JavaScript
         // code in the URL.
         nsCOMPtr<nsIPrincipal> prin = do_QueryInterface(owner);
-        // Don't cache the presentation if we're going to just reload the
-        // current entry. Caching would lead to trying to save the different
-        // content viewers in the same nsISHEntry object.
-        rv = CreateAboutBlankContentViewer(prin, nsnull, aEntry != mOSHE);
+        rv = CreateAboutBlankContentViewer(prin, nsnull);
 
         if (NS_FAILED(rv)) {
             // The creation of the intermittent about:blank content
@@ -10582,9 +10577,6 @@ nsDocShell::ConfirmRepost(PRBool * aRepost)
 {
   nsCOMPtr<nsIPrompt> prompter;
   CallGetInterface(this, static_cast<nsIPrompt**>(getter_AddRefs(prompter)));
-  if (!prompter) {
-      return NS_ERROR_NOT_AVAILABLE;
-  }
 
   nsCOMPtr<nsIStringBundleService> stringBundleService =
     mozilla::services::GetStringBundleService();

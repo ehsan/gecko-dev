@@ -109,7 +109,7 @@ function simulateDragDrop(tabItem, offsetX, offsetY, contentWindow) {
 
   EventUtils.synthesizeMouse(
     tabItem.container, 1, 1, { type: "mousedown" }, contentWindow);
-  let event = contentWindow.document.createEvent("DragEvents");
+  event = contentWindow.document.createEvent("DragEvents");
   event.initDragEvent(
     "dragenter", true, true, contentWindow, 0, 0, 0, 0, 0,
     false, false, false, false, 1, null, dataTransfer);

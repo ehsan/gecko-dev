@@ -44,7 +44,7 @@
 
 class gfxDrawable;
 class nsIntRegion;
-struct nsIntRect;
+class nsIntRect;
 
 class THEBES_API gfxUtils {
 public:

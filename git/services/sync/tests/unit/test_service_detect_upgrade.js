@@ -4,13 +4,14 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/base_records/wbo.js");      // For Records.
+Cu.import("resource://services-sync/base_records/crypto.js");   // For CollectionKeys.
 Cu.import("resource://services-sync/engines/tabs.js");
 Cu.import("resource://services-sync/log4moz.js");
   
 Engines.register(TabEngine);
 
-function v4_upgrade(next) {
+function v4_upgrade() {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
 
   let clients = new ServerCollection();
@@ -21,6 +22,7 @@ function v4_upgrade(next) {
   let upd = collectionsHelper.with_updated_collection;
   let collections = collectionsHelper.collections;
 
+  do_test_pending();
   let keysWBO = new ServerWBO("keys");
   let server = httpd_setup({
     // Special.
@@ -184,11 +186,11 @@ function v4_upgrade(next) {
     
   } finally {
     Weave.Svc.Prefs.resetBranch("");
-    server.stop(next);
+    server.stop(do_test_finished);
   }
 }
 
-function v5_upgrade(next) {
+function v5_upgrade() {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
 
   // Tracking info/collections.
@@ -201,6 +203,7 @@ function v5_upgrade(next) {
   let clients = new ServerCollection();
   let meta_global = new ServerWBO('global');
   
+  do_test_pending();
   let server = httpd_setup({
     // Special.
     "/1.0/johndoe/storage/meta/global": upd("meta", meta_global.handler()),
@@ -292,7 +295,7 @@ function v5_upgrade(next) {
     
   } finally {
     Weave.Svc.Prefs.resetBranch("");
-    server.stop(next);
+    server.stop(do_test_finished);
   }
 }
 
@@ -300,7 +303,6 @@ function run_test() {
   let logger = Log4Moz.repository.rootLogger;
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
   
-  do_test_pending();
-  Utils.asyncChain(v4_upgrade, v5_upgrade,
-                   do_test_finished)();
+  v4_upgrade();
+  v5_upgrade();
 }

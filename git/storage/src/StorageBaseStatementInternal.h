@@ -57,7 +57,7 @@ namespace storage {
   {0xd18856c9, 0xbf07, 0x4ae2, {0x94, 0x5b, 0x1a, 0xdd, 0x49, 0x19, 0x55, 0x2a}}
 
 class Connection;
-class StatementData;
+struct StatementData;
 
 class AsyncStatementFinalizer;
 
@@ -159,13 +159,11 @@ protected: // mix-in bits are protected
   void asyncFinalize();
 
   /**
-   * Cleanup the async sqlite3_stmt stored in mAsyncStatement if it exists by
-   * attempting to dispatch to the asynchronous thread if available, finalizing
-   * on this thread if it is not.
+   * Cleanup the async sqlite3_stmt stored in mAsyncStatement if it exists.
    *
    * @note Call this from your destructor, call asyncFinalize otherwise.
    */
-  void destructorAsyncFinalize();
+  void internalAsyncFinalize();
 
   NS_IMETHOD NewBindingParamsArray(mozIStorageBindingParamsArray **_array);
   NS_IMETHOD ExecuteAsync(mozIStorageStatementCallback *aCallback,

@@ -160,14 +160,11 @@ public:
    */
   bool DeviceWasRemoved() { return mDeviceWasRemoved; }
 
-  PRUint32 GetDeviceResetCount() { return mDeviceResetCount; }
-
   /**
    * We keep a list of all layers here that may have hardware resource allocated
    * so we can clean their resources on reset.
    */
   nsTArray<LayerD3D9*> mLayersWithResources;
-
 private:
   friend class SwapChainD3D9;
 
@@ -232,8 +229,6 @@ private:
    * device with.
    */
   HWND mFocusWnd;
-
-  PRUint32 mDeviceResetCount;
 
   /* If this device supports dynamic textures */
   bool mHasDynamicTextures;

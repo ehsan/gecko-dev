@@ -58,6 +58,10 @@ WindowDraggingElement.prototype = {
         aEvent.getPreventDefault())
       return false;
 
+    // Maybe we have been removed from the document
+    if (!this._elem._alive)
+      return false;
+
     let target = aEvent.originalTarget, parent = aEvent.originalTarget;
 
     // The target may be inside an embedded iframe or browser. (bug 615152)

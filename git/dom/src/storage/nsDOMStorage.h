@@ -61,6 +61,7 @@
 #include "nsIObserver.h"
 #include "nsITimer.h"
 #include "nsWeakReference.h"
+#include "mozilla/TimeStamp.h"
 
 #define NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER "domstorage-flush-timer"
 
@@ -75,7 +76,9 @@
 class nsDOMStorage;
 class nsIDOMStorage;
 class nsDOMStorageItem;
-class nsDOMStoragePersistentDB;
+
+using mozilla::TimeStamp;
+using mozilla::TimeDuration;
 
 namespace mozilla {
 namespace dom {
@@ -241,11 +244,14 @@ protected:
 };
 
 class DOMStorageImpl : public DOMStorageBase
+                     , public nsIObserver
+                     , public nsSupportsWeakReference
 
 {
 public:
-  NS_DECL_CYCLE_COLLECTION_CLASS(DOMStorageImpl)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(DOMStorageImpl, nsIObserver)
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_NSIOBSERVER
 
   DOMStorageImpl(nsDOMStorage*);
   DOMStorageImpl(nsDOMStorage*, DOMStorageImpl&);
@@ -308,6 +314,12 @@ public:
   virtual nsresult
   CloneFrom(bool aCallerSecure, DOMStorageBase* aThat);
 
+  nsresult RegisterObservers();
+  nsresult MaybeCommitTemporaryTable(bool force);
+
+  bool WasTemporaryTableLoaded();
+  void SetTemporaryTableLoaded(bool loaded);
+
   virtual bool CacheStoragePermissions();
 
 private:
@@ -315,7 +327,6 @@ private:
   static nsDOMStorageDBWrapper* gStorageDB;
 #endif
   friend class nsDOMStorageManager;
-  friend class nsDOMStoragePersistentDB;
   friend class StorageParent;
 
   void Init(nsDOMStorage*);
@@ -340,6 +351,10 @@ private:
 
   // Weak reference to the owning storage instance
   nsDOMStorage* mOwner;
+
+  bool mLoadedTemporaryTable;
+  TimeStamp mLastTemporaryTableAccessTime;
+  TimeStamp mTemporaryTableAge;
 };
 
 class nsDOMStorage : public nsIDOMStorageObsolete,

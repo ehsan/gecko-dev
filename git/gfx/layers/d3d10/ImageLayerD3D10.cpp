@@ -205,9 +205,6 @@ ImageLayerD3D10::RenderLayer()
   }
 
   nsRefPtr<Image> image = GetContainer()->GetCurrentImage();
-  if (!image) {
-    return;
-  }
 
   SetEffectTransformAndOpacity();
 

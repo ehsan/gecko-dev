@@ -63,7 +63,8 @@ public:
     NS_DECL_ISUPPORTS_INHERITED
 
     static void OnGlobalAndroidEvent(mozilla::AndroidGeckoEvent *ae);
-    static gfxIntSize GetAndroidScreenBounds();
+    static void SetInitialAndroidBounds(const gfxIntSize& sz);
+    static gfxIntSize GetAndroidBounds();
 
     nsWindow* FindWindowForPoint(const nsIntPoint& pt);
 

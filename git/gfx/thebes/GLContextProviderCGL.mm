@@ -308,12 +308,9 @@ protected:
     GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
     {
         mGLContext->MakeCurrent();
-        if (!mGLContext->
-            IsExtensionSupported(GLContext::ARB_pixel_buffer_object)) 
-        {
+        if (!mGLContext->IsExtensionSupported(GLContext::ARB_pixel_buffer_object)) {
             return gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(aSize, 
-                                       gfxASurface::ContentFromFormat(aFmt));
+                CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
         }
 
         if (!mPixelBuffer) {
@@ -328,32 +325,23 @@ protected:
             mPixelBufferSize = size;
         }
         unsigned char* data = 
-            (unsigned char*)mGLContext->
-                fMapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 
-                           LOCAL_GL_WRITE_ONLY);
-
-        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+          (unsigned char*)mGLContext->fMapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, LOCAL_GL_WRITE_ONLY);
 
         if (!data) {
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-            return gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(aSize, 
-                                       gfxASurface::ContentFromFormat(aFmt));
+          return nsnull;
         }
 
         nsRefPtr<gfxQuartzSurface> surf = 
             new gfxQuartzSurface(data, aSize,
                                  aSize.width * 4, aFmt);
 
-        mBoundPixelBuffer = true;
         return surf.forget();
     }
   
     bool FinishedSurfaceUpdate()
     {
-        if (mBoundPixelBuffer) {
+        if (mPixelBuffer) {
             mGLContext->MakeCurrent();
-            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
             mGLContext->fUnmapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER);
             return true;
         }
@@ -362,10 +350,9 @@ protected:
 
     void FinishedSurfaceUpload()
     {
-        if (mBoundPixelBuffer) {
+        if (mPixelBuffer) {
             mGLContext->MakeCurrent();
             mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
-            mBoundPixelBuffer = false;
         }
     }
 
@@ -378,12 +365,10 @@ private:
         : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
         , mPixelBuffer(0)
         , mPixelBufferSize(0)
-        , mBoundPixelBuffer(false)
     {}
     
     GLuint mPixelBuffer;
     PRInt32 mPixelBufferSize;
-    bool mBoundPixelBuffer;
 };
 
 already_AddRefed<TextureImage>

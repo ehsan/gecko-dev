@@ -47,16 +47,16 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMTIMERANGES
 
-  void Add(double aStart, double aEnd);
+  void Add(float aStart, float aEnd);
 
 private:
 
   struct TimeRange {
-    TimeRange(double aStart, double aEnd)
+    TimeRange(float aStart, float aEnd)
       : mStart(aStart),
         mEnd(aEnd) {}
-    double mStart;
-    double mEnd;
+    float mStart;
+    float mEnd;
   };
 
   nsAutoTArray<TimeRange,4> mRanges;

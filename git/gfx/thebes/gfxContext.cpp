@@ -757,14 +757,11 @@ GetRoundOutDeviceClipExtents(gfxContext* aCtx)
     return r;
 }
 
-/**
- * Copy the contents of aSrc to aDest, translated by aTranslation.
- */
 static void
-CopySurface(gfxASurface* aSrc, gfxASurface* aDest, const gfxPoint& aTranslation)
+CopySurface(gfxASurface* aSrc, gfxASurface* aDest)
 {
   cairo_t *cr = cairo_create(aDest->CairoSurface());
-  cairo_set_source_surface(cr, aSrc->CairoSurface(), aTranslation.x, aTranslation.y);
+  cairo_set_source_surface(cr, aSrc->CairoSurface(), 0, 0);
   cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
   cairo_paint(cr);
   cairo_destroy(cr);
@@ -773,12 +770,10 @@ CopySurface(gfxASurface* aSrc, gfxASurface* aDest, const gfxPoint& aTranslation)
 void
 gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
 {
-    if (content == gfxASurface::CONTENT_COLOR_ALPHA &&
-        !(GetFlags() & FLAG_DISABLE_COPY_BACKGROUND)) {
+    if (content == gfxASurface::CONTENT_COLOR_ALPHA) {
         nsRefPtr<gfxASurface> s = CurrentSurface();
-        if ((s->GetAllowUseAsSource() || s->GetType() == gfxASurface::SurfaceTypeTee) &&
-            (s->GetContentType() == gfxASurface::CONTENT_COLOR ||
-             s->GetOpaqueRect().Contains(GetRoundOutDeviceClipExtents(this)))) {
+        if (s->GetContentType() == gfxASurface::CONTENT_COLOR ||
+            s->GetOpaqueRect().Contains(GetRoundOutDeviceClipExtents(this))) {
             cairo_push_group_with_content(mCairo, CAIRO_CONTENT_COLOR);
             nsRefPtr<gfxASurface> d = CurrentSurface();
 
@@ -789,12 +784,11 @@ gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
                 static_cast<gfxTeeSurface*>(s.get())->GetSurfaces(&ss);
                 static_cast<gfxTeeSurface*>(d.get())->GetSurfaces(&ds);
                 NS_ASSERTION(ss.Length() == ds.Length(), "Mismatched lengths");
-                gfxPoint translation = d->GetDeviceOffset() - s->GetDeviceOffset();
                 for (PRUint32 i = 0; i < ss.Length(); ++i) {
-                    CopySurface(ss[i], ds[i], translation);
+                    CopySurface(ss[i], ds[i]);
                 }
             } else {
-                CopySurface(s, d, gfxPoint(0, 0));
+                CopySurface(s, d);
             }
             d->SetOpaqueRect(s->GetOpaqueRect());
             return;

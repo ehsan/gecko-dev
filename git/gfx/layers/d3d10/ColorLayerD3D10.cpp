@@ -58,13 +58,12 @@ void
 ColorLayerD3D10::RenderLayer()
 {
   float color[4];
-  // output color is premultiplied, so we need to adjust all channels.
-  // mColor is not premultiplied.
-  float opacity = GetEffectiveOpacity() * mColor.a;
+  // color is premultiplied, so we need to adjust all channels
+  float opacity = GetEffectiveOpacity();
   color[0] = (float)(mColor.r * opacity);
   color[1] = (float)(mColor.g * opacity);
   color[2] = (float)(mColor.b * opacity);
-  color[3] = (float)(mColor.a);
+  color[3] = (float)(mColor.a * opacity);
 
   const gfx3DMatrix& transform = GetEffectiveTransform();
   void* raw = &const_cast<gfx3DMatrix&>(transform)._11;

@@ -578,7 +578,7 @@ protected:
   LoadAlgorithmState mLoadWaitStatus;
 
   // Current audio volume
-  double mVolume;
+  float mVolume;
 
   // Current number of audio channels.
   PRUint32 mChannels;
@@ -608,7 +608,7 @@ protected:
 
   // Media 'currentTime' value when the last timeupdate event occurred.
   // Read/Write from the main thread only.
-  double mLastCurrentTime;
+  float mLastCurrentTime;
 
   nsRefPtr<gfxASurface> mPrintSurface;
 

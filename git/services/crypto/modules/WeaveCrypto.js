@@ -419,17 +419,6 @@ WeaveCrypto.prototype = {
         this.nss.PK11_FreeSlot = nsslib.declare("PK11_FreeSlot",
                                                 ctypes.default_abi, ctypes.void_t,
                                                 this.nss_t.PK11SlotInfo.ptr);
-        // security/nss/lib/util/secitem.h#49
-        // extern SECItem *SECITEM_AllocItem(PRArenaPool *arena, SECItem *item, unsigned int len);
-        this.nss.SECITEM_AllocItem = nsslib.declare("SECITEM_AllocItem",
-                                                    ctypes.default_abi, this.nss_t.SECItem.ptr,
-                                                    this.nss_t.PLArenaPool.ptr,     // Not used.
-                                                    this.nss_t.SECItem.ptr, ctypes.unsigned_int);
-        // security/nss/lib/util/secitem.h#274
-        // extern void SECITEM_ZfreeItem(SECItem *zap, PRBool freeit);
-        this.nss.SECITEM_ZfreeItem = nsslib.declare("SECITEM_ZfreeItem",
-                                                    ctypes.default_abi, ctypes.void_t,
-                                                    this.nss_t.SECItem.ptr, this.nss_t.PRBool);
         // security/nss/lib/util/secitem.h#114
         // extern void SECITEM_FreeItem(SECItem *zap, PRBool freeit);
         this.nss.SECITEM_FreeItem = nsslib.declare("SECITEM_FreeItem",
@@ -526,7 +515,7 @@ WeaveCrypto.prototype = {
 
         let ctx, symKey, slot, ivParam;
         try {
-            ivParam = this.nss.PK11_ParamFromIV(mechanism, ivItem);
+            ivParam = this.nss.PK11_ParamFromIV(mechanism, ivItem.address());
             if (ivParam.isNull())
                 throw Components.Exception("can't convert IV to param", Cr.NS_ERROR_FAILURE);
 
@@ -534,7 +523,7 @@ WeaveCrypto.prototype = {
             if (slot.isNull())
                 throw Components.Exception("can't get internal key slot", Cr.NS_ERROR_FAILURE);
 
-            symKey = this.nss.PK11_ImportSymKey(slot, mechanism, this.nss.PK11_OriginUnwrap, operation, keyItem, null);
+            symKey = this.nss.PK11_ImportSymKey(slot, mechanism, this.nss.PK11_OriginUnwrap, operation, keyItem.address(), null);
             if (symKey.isNull())
                 throw Components.Exception("symkey import failed", Cr.NS_ERROR_FAILURE);
 
@@ -574,8 +563,6 @@ WeaveCrypto.prototype = {
                 this.nss.PK11_FreeSlot(slot);
             if (ivParam && !ivParam.isNull())
                 this.nss.SECITEM_FreeItem(ivParam, true);
-            this.freeSECItem(keyItem);
-            this.freeSECItem(ivItem);
         }
     },
 
@@ -697,28 +684,15 @@ WeaveCrypto.prototype = {
         return btoa(this.expandData(data, len));
     },
 
-    // Returns a filled SECItem *, as returned by SECITEM_AllocItem.
-    // 
-    // Note that this must be released with freeSECItem, which will also
-    // deallocate the internal buffer.
     makeSECItem : function(input, isEncoded) {
         if (isEncoded)
             input = atob(input);
-        
-        let len = input.length;
-        let item = this.nss.SECITEM_AllocItem(null, null, len);
-        if (item.isNull())
-          throw "SECITEM_AllocItem failed.";
-        
-        let dest = ctypes.cast(item.contents.data, ctypes.unsigned_char.array(len).ptr);
-        this.byteCompress(input, dest.contents);
-        return item;
+        let outputData = new ctypes.ArrayType(ctypes.unsigned_char, input.length)();
+        this.byteCompress(input, outputData);
+
+        return new this.nss_t.SECItem(this.nss.SIBUFFER, outputData, outputData.length);
     },
-    
-    freeSECItem : function(zap) {
-        if (zap && !zap.isNull())
-            this.nss.SECITEM_ZfreeItem(zap, true);
-    },
+
 
     /**
      * Returns the expanded data string for the derived key.
@@ -738,8 +712,7 @@ WeaveCrypto.prototype = {
         let algid, slot, symKey, keyData;
         try {
             algid = this.nss.PK11_CreatePBEV2AlgorithmID(pbeAlg, cipherAlg, prfAlg,
-                                                         keyLength, iterations, 
-                                                         saltItem);
+                                                        keyLength, iterations, saltItem.address());
             if (algid.isNull())
                 throw Components.Exception("PK11_CreatePBEV2AlgorithmID failed", Cr.NS_ERROR_FAILURE);
 
@@ -747,7 +720,7 @@ WeaveCrypto.prototype = {
             if (slot.isNull())
                 throw Components.Exception("couldn't get internal slot", Cr.NS_ERROR_FAILURE);
 
-            symKey = this.nss.PK11_PBEKeyGen(slot, algid, passItem, false, null);
+            symKey = this.nss.PK11_PBEKeyGen(slot, algid, passItem.address(), false, null);
             if (symKey.isNull())
                 throw Components.Exception("PK11_PBEKeyGen failed", Cr.NS_ERROR_FAILURE);
 
@@ -775,9 +748,6 @@ WeaveCrypto.prototype = {
                 this.nss.PK11_FreeSlot(slot);
             if (symKey && !symKey.isNull())
                 this.nss.PK11_FreeSymKey(symKey);
-            
-            this.freeSECItem(passItem);
-            this.freeSECItem(saltItem);
-        }
+    }
     },
 };

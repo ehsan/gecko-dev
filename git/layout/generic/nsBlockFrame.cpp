@@ -947,13 +947,6 @@ CalculateContainingBlockSizeForAbsolutes(const nsHTMLReflowState& aReflowState,
   return cbSize;
 }
 
-static inline PRBool IsClippingChildren(nsIFrame* aFrame,
-                                        const nsHTMLReflowState& aReflowState)
-{
-  return aReflowState.mStyleDisplay->mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
-    nsFrame::ApplyPaginatedOverflowClipping(aFrame);
-}
-
 NS_IMETHODIMP
 nsBlockFrame::Reflow(nsPresContext*           aPresContext,
                      nsHTMLReflowMetrics&     aMetrics,
@@ -979,36 +972,12 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   }
 #endif
 
-  const nsHTMLReflowState *reflowState = &aReflowState;
-  nsAutoPtr<nsHTMLReflowState> mutableReflowState;
-  // If we have non-auto height, we're clipping our kids and we fit,
-  // make sure our kids fit too.
-  if (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE &&
-      aReflowState.ComputedHeight() != NS_AUTOHEIGHT &&
-      IsClippingChildren(this, aReflowState)) {
-    nsMargin heightExtras = aReflowState.mComputedBorderPadding;
-    if (GetSkipSides() & NS_SIDE_TOP) {
-      heightExtras.top = 0;
-    } else {
-      // Bottom margin never causes us to create continuations, so we
-      // don't need to worry about whether it fits in its entirety.
-      heightExtras.top += aReflowState.mComputedMargin.top;
-    }
-
-    if (GetEffectiveComputedHeight(aReflowState) + heightExtras.TopBottom() <=
-        aReflowState.availableHeight) {
-      mutableReflowState = new nsHTMLReflowState(aReflowState);
-      mutableReflowState->availableHeight = NS_UNCONSTRAINEDSIZE;
-      reflowState = mutableReflowState;
-    }
-  }
-
   // See comment below about oldSize. Use *only* for the
   // abs-pos-containing-block-size-change optimization!
   nsSize oldSize = GetSize();
 
   // Should we create a float manager?
-  nsAutoFloatManager autoFloatManager(const_cast<nsHTMLReflowState&>(*reflowState));
+  nsAutoFloatManager autoFloatManager(const_cast<nsHTMLReflowState &>(aReflowState));
 
   // XXXldb If we start storing the float manager in the frame rather
   // than keeping it around only during reflow then we should create it
@@ -1024,12 +993,12 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // delete the line with the line cursor.
   ClearLineCursor();
 
-  if (IsFrameTreeTooDeep(*reflowState, aMetrics, aStatus)) {
+  if (IsFrameTreeTooDeep(aReflowState, aMetrics, aStatus)) {
     return NS_OK;
   }
 
   PRBool marginRoot = BlockIsMarginRoot(this);
-  nsBlockReflowState state(*reflowState, aPresContext, this, aMetrics,
+  nsBlockReflowState state(aReflowState, aPresContext, this, aMetrics,
                            marginRoot, marginRoot, needFloatManager);
 
 #ifdef IBMBIDI
@@ -1052,7 +1021,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   nsOverflowAreas ocBounds;
   nsReflowStatus ocStatus = NS_FRAME_COMPLETE;
   if (GetPrevInFlow()) {
-    ReflowOverflowContainerChildren(aPresContext, *reflowState, ocBounds, 0,
+    ReflowOverflowContainerChildren(aPresContext, aReflowState, ocBounds, 0,
                                     ocStatus);
   }
 
@@ -1071,7 +1040,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // If we're not dirty (which means we'll mark everything dirty later)
   // and our width has changed, mark the lines dirty that we need to
   // mark dirty for a resize reflow.
-  if (reflowState->mFlags.mHResize)
+  if (aReflowState.mFlags.mHResize)
     PrepareResizeReflow(state);
 
   mState &= ~NS_FRAME_FIRST_REFLOW;
@@ -1086,7 +1055,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
 
   // If we end in a BR with clear and affected floats continue,
   // we need to continue, too.
-  if (NS_UNCONSTRAINEDSIZE != reflowState->availableHeight &&
+  if (NS_UNCONSTRAINEDSIZE != aReflowState.availableHeight &&
       NS_FRAME_IS_COMPLETE(state.mReflowStatus) &&
       state.mFloatManager->ClearContinues(FindTrailingClear())) {
     NS_FRAME_SET_INCOMPLETE(state.mReflowStatus);
@@ -1127,7 +1096,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
     nsLayoutUtils::LinePosition position;
     PRBool havePosition = nsLayoutUtils::GetFirstLinePosition(this, &position);
     nscoord lineTop = havePosition ? position.mTop
-                                   : reflowState->mComputedBorderPadding.top;
+                                   : aReflowState.mComputedBorderPadding.top;
     ReflowBullet(state, metrics, lineTop);
     NS_ASSERTION(!BulletIsEmpty() || metrics.height == 0,
                  "empty bullet took up space");
@@ -1148,8 +1117,8 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
 
   // Compute our final size
   nscoord bottomEdgeOfChildren;
-  ComputeFinalSize(*reflowState, state, aMetrics, &bottomEdgeOfChildren);
-  ComputeOverflowAreas(*reflowState, aMetrics, bottomEdgeOfChildren);
+  ComputeFinalSize(aReflowState, state, aMetrics, &bottomEdgeOfChildren);
+  ComputeOverflowAreas(aReflowState, aMetrics, bottomEdgeOfChildren);
   // Factor overflow container child bounds into the overflow area
   aMetrics.mOverflowAreas.UnionWith(ocBounds);
   // Factor pushed float child bounds into the overflow area
@@ -1174,7 +1143,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // will not be our real new size. This also happens to be more efficient.
   if (mAbsoluteContainer.HasAbsoluteFrames()) {
     PRBool haveInterrupt = aPresContext->HasPendingInterrupt();
-    if (reflowState->WillReflowAgainForClearance() ||
+    if (aReflowState.WillReflowAgainForClearance() ||
         haveInterrupt) {
       // Make sure that when we reflow again we'll actually reflow all the abs
       // pos frames that might conceivably depend on our size (or all of them,
@@ -1189,7 +1158,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
       }
     } else {
       nsSize containingBlockSize =
-        CalculateContainingBlockSizeForAbsolutes(*reflowState,
+        CalculateContainingBlockSizeForAbsolutes(aReflowState,
                                                  nsSize(aMetrics.width,
                                                         aMetrics.height));
 
@@ -1206,10 +1175,10 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
       // viewport height, which can't change during incremental
       // reflow.
       PRBool cbHeightChanged =
-        !(isRoot && NS_UNCONSTRAINEDSIZE == reflowState->ComputedHeight()) &&
+        !(isRoot && NS_UNCONSTRAINEDSIZE == aReflowState.ComputedHeight()) &&
         aMetrics.height != oldSize.height;
 
-      rv = mAbsoluteContainer.Reflow(this, aPresContext, *reflowState,
+      rv = mAbsoluteContainer.Reflow(this, aPresContext, aReflowState,
                                      state.mReflowStatus,
                                      containingBlockSize.width,
                                      containingBlockSize.height, PR_TRUE,
@@ -1283,7 +1252,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   }
 #endif
 
-  NS_FRAME_SET_TRUNCATION(aStatus, (*reflowState), aMetrics);
+  NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return rv;
 }
 
@@ -1383,7 +1352,18 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
   if (NS_UNCONSTRAINEDSIZE != aReflowState.ComputedHeight()) {
     // Figure out how much of the computed height should be
     // applied to this frame.
-    nscoord computedHeightLeftOver = GetEffectiveComputedHeight(aReflowState);
+    nscoord computedHeightLeftOver = aReflowState.ComputedHeight();
+    if (GetPrevInFlow()) {
+      // Reduce the height by the computed height of prev-in-flows.
+      for (nsIFrame* prev = GetPrevInFlow(); prev; prev = prev->GetPrevInFlow()) {
+        computedHeightLeftOver -= prev->GetRect().height;
+      }
+      // We just subtracted our top-border padding, since it was included in the
+      // first frame's height. Add it back to get the content height.
+      computedHeightLeftOver += aReflowState.mComputedBorderPadding.top;
+      // We may have stretched the frame beyond its computed height. Oh well.
+      computedHeightLeftOver = NS_MAX(0, computedHeightLeftOver);
+    }
     NS_ASSERTION(!( IS_TRUE_OVERFLOW_CONTAINER(this)
                     && computedHeightLeftOver ),
                  "overflow container must not have computedHeightLeftOver");
@@ -1488,7 +1468,7 @@ nsBlockFrame::ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
   nsRect bounds(0, 0, aMetrics.width, aMetrics.height);
   nsOverflowAreas areas(bounds, bounds);
 
-  if (!IsClippingChildren(this, aReflowState)) {
+  if (NS_STYLE_OVERFLOW_CLIP != aReflowState.mStyleDisplay->mOverflowX) {
     PRBool inQuirks = (PresContext()->CompatibilityMode() == eCompatibility_NavQuirks);
     for (line_iterator line = begin_lines(), line_end = end_lines();
          line != line_end;
@@ -7133,26 +7113,6 @@ nsBlockFrame::GetNearestAncestorBlock(nsIFrame* aCandidate)
   }
   NS_NOTREACHED("Fell off frame tree looking for ancestor block!");
   return nsnull;
-}
-
-nscoord
-nsBlockFrame::GetEffectiveComputedHeight(const nsHTMLReflowState& aReflowState) const
-{
-  nscoord height = aReflowState.ComputedHeight();
-  NS_ABORT_IF_FALSE(height != NS_UNCONSTRAINEDSIZE, "Don't call me!");
-
-  if (GetPrevInFlow()) {
-    // Reduce the height by the computed height of prev-in-flows.
-    for (nsIFrame* prev = GetPrevInFlow(); prev; prev = prev->GetPrevInFlow()) {
-      height -= prev->GetRect().height;
-    }
-    // We just subtracted our top-border padding, since it was included in the
-    // first frame's height. Add it back to get the content height.
-    height += aReflowState.mComputedBorderPadding.top;
-    // We may have stretched the frame beyond its computed height. Oh well.
-    height = NS_MAX(0, height);
-  }
-  return height;
 }
 
 #ifdef IBMBIDI

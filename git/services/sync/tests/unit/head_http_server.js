@@ -7,13 +7,6 @@ function httpd_setup (handlers) {
   return server;
 }
 
-function httpd_handler(statusCode, status, body) {
-  return function(request, response) {
-    response.setStatusLine(request.httpVersion, statusCode, status);
-    response.bodyOutputStream.write(body, body.length);
-  };
-}
-
 function httpd_basic_auth_handler(body, metadata, response) {
   // no btoa() in xpcshell.  it's guest:guest
   if (metadata.hasHeader("Authorization") &&
@@ -130,9 +123,8 @@ function ServerCollection(wbos) {
 ServerCollection.prototype = {
 
   _inResultSet: function(wbo, options) {
-    return wbo.payload
-           && (!options.ids || (options.ids.indexOf(wbo.id) != -1))
-           && (!options.newer || (wbo.modified > options.newer));
+    return ((!options.ids || (options.ids.indexOf(wbo.id) != -1))
+            && (!options.newer || (wbo.modified > options.newer)));
   },
 
   get: function(options) {

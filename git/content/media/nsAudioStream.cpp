@@ -62,12 +62,6 @@ extern "C" {
 #define SA_PER_STREAM_VOLUME 1
 #endif
 
-// Android's audio backend is not available in content processes, so audio must
-// be remoted to the parent chrome process.
-#if defined(ANDROID) && defined(MOZ_IPC)
-#define REMOTE_AUDIO 1
-#endif
-
 using mozilla::TimeStamp;
 
 #ifdef PR_LOGGING
@@ -89,7 +83,7 @@ class nsAudioStreamLocal : public nsAudioStream
   void Shutdown();
   nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
   PRUint32 Available();
-  void SetVolume(double aVolume);
+  void SetVolume(float aVolume);
   void Drain();
   void Pause();
   void Resume();
@@ -134,7 +128,7 @@ class nsAudioStreamRemote : public nsAudioStream
   void Shutdown();
   nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking);
   PRUint32 Available();
-  void SetVolume(double aVolume);
+  void SetVolume(float aVolume);
   void Drain();
   void Pause();
   void Resume();
@@ -209,10 +203,10 @@ class AudioWriteEvent : public nsRunnable
 class AudioSetVolumeEvent : public nsRunnable
 {
  public:
-  AudioSetVolumeEvent(AudioChild* aChild, double aVolume)
+  AudioSetVolumeEvent(AudioChild* aChild, float volume)
   {
     mAudioChild = aChild;
-    mVolume = aVolume;
+    mVolume = volume;
   }
 
   NS_IMETHOD Run()
@@ -225,7 +219,7 @@ class AudioSetVolumeEvent : public nsRunnable
   }
   
   nsRefPtr<AudioChild> mAudioChild;
-  double mVolume;
+  float mVolume;
 };
 
 class AudioDrainEvent : public nsRunnable
@@ -318,7 +312,7 @@ nsAudioStream::GetThread()
 
 nsAudioStream* nsAudioStream::AllocateStream()
 {
-#if defined(REMOTE_AUDIO)
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     return new nsAudioStreamRemote();
   }
@@ -497,7 +491,7 @@ PRUint32 nsAudioStreamLocal::Available()
   return s / sizeof(short);
 }
 
-void nsAudioStreamLocal::SetVolume(double aVolume)
+void nsAudioStreamLocal::SetVolume(float aVolume)
 {
   NS_ASSERTION(aVolume >= 0.0 && aVolume <= 1.0, "Invalid volume");
 #if defined(SA_PER_STREAM_VOLUME)
@@ -679,7 +673,7 @@ PRInt32 nsAudioStreamRemote::GetMinWriteSamples()
 }
 
 void
-nsAudioStreamRemote::SetVolume(double aVolume)
+nsAudioStreamRemote::SetVolume(float aVolume)
 {
   if (!mAudioChild)
     return;

@@ -97,19 +97,17 @@ public:
 
   virtual void SetRoot(Layer *aLayer);
 
-  virtual void BeginTransaction();
+  void BeginTransaction();
 
-  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-
-  virtual bool EndEmptyTransaction();
+  void BeginTransactionWithTarget(gfxContext* aTarget);
 
   struct CallbackInfo {
     DrawThebesLayerCallback Callback;
     void *CallbackData;
   };
 
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+  void EndTransaction(DrawThebesLayerCallback aCallback,
+                      void* aCallbackData);
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
@@ -133,7 +131,7 @@ public:
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 10"); }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() const { return "D3D10"; }
+  virtual const char* Name() const { return "D3D9"; }
 #endif // MOZ_LAYERS_HAVE_LOG
 
   // Public helpers

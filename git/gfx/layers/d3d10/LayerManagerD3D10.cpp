@@ -271,16 +271,6 @@ LayerManagerD3D10::BeginTransactionWithTarget(gfxContext* aTarget)
   mTarget = aTarget;
 }
 
-bool
-LayerManagerD3D10::EndEmptyTransaction()
-{
-  if (!mRoot)
-    return false;
-
-  EndTransaction(nsnull, nsnull);
-  return true;
-}
-
 void
 LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
                                   void* aCallbackData)

@@ -56,7 +56,6 @@
 #include "nsContainerFrame.h"
 #include "nsFirstLetterFrame.h"
 #include "gfxUnicodeProperties.h"
-#include "nsIThebesFontMetrics.h"
 
 using namespace mozilla;
 
@@ -1629,9 +1628,8 @@ nsresult nsBidiPresUtils::ProcessText(const PRUnichar*       aText,
 class NS_STACK_CLASS nsIRenderingContextBidiProcessor : public nsBidiPresUtils::BidiProcessor {
 public:
   nsIRenderingContextBidiProcessor(nsIRenderingContext* aCtx,
-                                   nsIRenderingContext* aTextRunConstructionContext,
                                    const nsPoint&       aPt)
-    : mCtx(aCtx), mTextRunConstructionContext(aTextRunConstructionContext), mPt(aPt) { }
+                                   : mCtx(aCtx), mPt(aPt) { }
 
   ~nsIRenderingContextBidiProcessor()
   {
@@ -1642,7 +1640,7 @@ public:
                        PRInt32          aLength,
                        nsBidiDirection  aDirection)
   {
-    mTextRunConstructionContext->SetTextRunRTL(aDirection==NSBIDI_RTL);
+    mCtx->SetTextRunRTL(aDirection==NSBIDI_RTL);
     mText = aText;
     mLength = aLength;
   }
@@ -1650,23 +1648,18 @@ public:
   virtual nscoord GetWidth()
   {
     nscoord width;
-    mTextRunConstructionContext->GetWidth(mText, mLength, width, nsnull);
+    mCtx->GetWidth(mText, mLength, width, nsnull);
     return width;
   }
 
   virtual void DrawText(nscoord aXOffset,
                         nscoord)
   {
-    nsCOMPtr<nsIFontMetrics> metrics;
-    mCtx->GetFontMetrics(*getter_AddRefs(metrics));
-    nsIThebesFontMetrics* fm = static_cast<nsIThebesFontMetrics*>(metrics.get());
-    fm->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
-                   mCtx, mTextRunConstructionContext);
+    mCtx->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y);
   }
 
 private:
   nsIRenderingContext* mCtx;
-  nsIRenderingContext* mTextRunConstructionContext;
   nsPoint mPt;
   const PRUnichar* mText;
   PRInt32 mLength;
@@ -1678,7 +1671,6 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const PRUnichar*       
                                                          nsBidiDirection        aBaseDirection,
                                                          nsPresContext*         aPresContext,
                                                          nsIRenderingContext&   aRenderingContext,
-                                                         nsIRenderingContext&   aTextRunConstructionContext,
                                                          Mode                   aMode,
                                                          nscoord                aX,
                                                          nscoord                aY,
@@ -1686,7 +1678,7 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const PRUnichar*       
                                                          PRInt32                aPosResolveCount,
                                                          nscoord*               aWidth)
 {
-  nsIRenderingContextBidiProcessor processor(&aRenderingContext, &aTextRunConstructionContext, nsPoint(aX, aY));
+  nsIRenderingContextBidiProcessor processor(&aRenderingContext, nsPoint(aX, aY));
 
   return ProcessText(aText, aLength, aBaseDirection, aPresContext, processor,
                      aMode, aPosResolve, aPosResolveCount, aWidth);

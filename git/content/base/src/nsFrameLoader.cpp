@@ -1386,9 +1386,8 @@ nsFrameLoader::MaybeCreateDocShell()
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (doc->GetDisplayDocument() || !doc->IsActive()) {
-    // Don't allow subframe loads in external reference documents, nor
-    // in non-active documents.
+  if (doc->GetDisplayDocument()) {
+    // Don't allow subframe loads in external reference documents
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -1847,9 +1846,8 @@ nsFrameLoader::SendCrossProcessMouseEvent(const nsAString& aType,
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
     mRemoteBrowser->SendMouseEvent(aType, aX, aY, aButton,
-                                   aClickCount, aModifiers,
-                                   aIgnoreRootScrollFrame);
-    return NS_OK;
+                                  aClickCount, aModifiers,
+                                  aIgnoreRootScrollFrame);
   }
 #endif
   return NS_ERROR_FAILURE;
@@ -1878,8 +1876,7 @@ nsFrameLoader::SendCrossProcessKeyEvent(const nsAString& aType,
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
     mRemoteBrowser->SendKeyEvent(aType, aKeyCode, aCharCode, aModifiers,
-                                 aPreventDefault);
-    return NS_OK;
+                                aPreventDefault);
   }
 #endif
   return NS_ERROR_FAILURE;
@@ -2062,7 +2059,7 @@ nsFrameLoader::GetRootContentView(nsIContentView** aContentView)
   NS_ABORT_IF_FALSE(view, "Should always be able to create root scrollable!");
   nsRefPtr<nsIContentView>(view).forget(aContentView);
 
-  return NS_OK;
+   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif

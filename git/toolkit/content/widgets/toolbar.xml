@@ -475,7 +475,7 @@
   <binding id="toolbar-drag"
            extends="chrome://global/content/bindings/toolbar.xml#toolbar">
     <implementation>
-      <field name="_dragBindingAlive">true</field>
+      <field name="_alive">true</field>
       <constructor><![CDATA[
         if (!this._draggableStarted) {
           this._draggableStarted = true;
@@ -485,9 +485,8 @@
             let draggableThis = new tmp.WindowDraggingElement(this, window);
             draggableThis.mouseDownCheck = function(e) {
               // Don't move while customizing.
-              return this._dragBindingAlive &&
-                     this.getAttribute("customizing") != "true";
-            };
+              return !this.parentNode.customizing;
+            }
           } catch (e) {}
         }
       ]]></constructor>
