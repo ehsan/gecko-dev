@@ -79,7 +79,6 @@ var ignoreCallees = {
     "mozilla::CycleCollectedJSRuntime.DescribeCustomObjects" : true, // During tracing, cannot GC.
     "mozilla::CycleCollectedJSRuntime.NoteCustomGCThingXPCOMChildren" : true, // During tracing, cannot GC.
     "nsIThreadManager.GetIsMainThread" : true,
-    "PLDHashTableOps.hashKey" : true,
 };
 
 function fieldCallCannotGC(csu, fullfield)

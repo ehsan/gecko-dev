@@ -79,11 +79,6 @@ Notification.prototype = {
       this._cookie = aOptions.cookie;
     else
       this._cookie = null;
-
-    if ("persistent" in aOptions && aOptions.persistent != null)
-      this._persistent = aOptions.persistent;
-    else
-      this._persistent = false;
   },
 
   show: function() {
@@ -93,8 +88,7 @@ Notification.prototype = {
         title: this._title,
         smallIcon: this._icon,
         ongoing: this._ongoing,
-        when: this._when,
-        persistent: this._persistent
+        when: this._when
     };
 
     if (this._message)
@@ -121,9 +115,6 @@ Notification.prototype = {
         msg.actions.push(obj);
       }
     }
-
-    if (this._light)
-      msg.light = this._light;
 
     Services.androidBridge.handleGeckoMessage(JSON.stringify(msg));
     return this;

@@ -5,7 +5,6 @@
 "use strict";
 const { Loader } = require('sdk/content/loader');
 const self = require("sdk/self");
-const fixtures = require("./fixtures");
 
 exports['test:contentURL'] = function(assert) {
   let loader = Loader(),
@@ -173,7 +172,7 @@ exports['test:contentScript'] = function(assert) {
 };
 
 exports['test:contentScriptFile'] = function(assert) {
-  let loader = Loader(), value, uri = fixtures.url("test-content-loader.js");
+  let loader = Loader(), value, uri = self.data.url("test-content-loader.js");
   assert.equal(
     null,
     loader.contentScriptFile,

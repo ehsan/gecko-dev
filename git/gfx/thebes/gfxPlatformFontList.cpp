@@ -71,11 +71,16 @@ gfxFontListPrefObserver::Observe(nsISupports     *aSubject,
     return NS_OK;
 }
 
+NS_IMPL_ISUPPORTS1(gfxPlatformFontList::MemoryReporter, nsIMemoryReporter)
+
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(FontListMallocSizeOf)
 
-gfxPlatformFontList::MemoryReporter::MemoryReporter()
-    : MemoryMultiReporter("font-list")
-{}
+NS_IMETHODIMP
+gfxPlatformFontList::MemoryReporter::GetName(nsACString &aName)
+{
+    aName.AssignLiteral("font-list");
+    return NS_OK;
+}
 
 NS_IMETHODIMP
 gfxPlatformFontList::MemoryReporter::CollectReports

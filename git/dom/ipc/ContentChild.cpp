@@ -433,7 +433,7 @@ ContentChild::InitXPCOM()
 }
 
 PMemoryReportRequestChild*
-ContentChild::AllocPMemoryReportRequestChild(const uint32_t& generation)
+ContentChild::AllocPMemoryReportRequestChild()
 {
     return new MemoryReportRequestChild();
 }
@@ -480,9 +480,7 @@ NS_IMPL_ISUPPORTS1(
 )
 
 bool
-ContentChild::RecvPMemoryReportRequestConstructor(
-    PMemoryReportRequestChild* child,
-    const uint32_t& generation)
+ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
 
@@ -506,7 +504,7 @@ ContentChild::RecvPMemoryReportRequestConstructor(
       r->CollectReports(cb, wrappedReports);
     }
 
-    child->Send__delete__(child, generation, reports);
+    child->Send__delete__(child, reports);
     return true;
 }
 

@@ -1326,7 +1326,13 @@ Neuter(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    return JS_NeuterArrayBuffer(cx, obj);
+    void *contents;
+    uint8_t *data;
+    if (!JS_StealArrayBufferContents(cx, obj, &contents, &data))
+        return false;
+
+    js_free(contents);
+    return true;
 }
 
 static const JSFunctionSpecWithHelp TestingFunctions[] = {

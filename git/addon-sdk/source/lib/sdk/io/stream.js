@@ -139,7 +139,7 @@ const StreamListener = Class({
     let stream = this.stream;
     let buffer = new ArrayBuffer(count);
     nsIBinaryInputStream(stream).readArrayBuffer(count, buffer);
-    emit(stream, "data", new Buffer(buffer));
+    emit(stream, "data", new Buffer(buffer, stream.encoding));
   },
 
   // Next two methods implement `nsIRequestObserver` interface and are invoked

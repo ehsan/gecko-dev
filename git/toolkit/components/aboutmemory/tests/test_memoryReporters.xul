@@ -179,12 +179,12 @@
     dummy = r.name;
   }
 
-  function checkSpecialReport(aName, aAmounts, aCanBeUnreasonable)
+  function checkSpecialReport(aName, aAmounts)
   {
     ok(aAmounts.length == 1, aName + " has " + aAmounts.length + " report");
     let n = aAmounts[0];
     // Check the size is reasonable -- i.e. not ridiculously large or small.
-    ok((100 * 1000 <= n && n <= 10 * 1000 * 1000 * 1000) || aCanBeUnreasonable,
+    ok(100 * 1000 <= n && n <= 10 * 1000 * 1000 * 1000,
        aName + "'s size is reasonable");
   }
 
@@ -192,8 +192,7 @@
   if (haveExplicit) {
     checkSpecialReport("heap-allocated", heapAllocatedAmounts);
   }
-  // vsize may be unreasonable if ASAN is enabled
-  checkSpecialReport("vsize",          vsizeAmounts, /*canBeUnreasonable*/true);
+  checkSpecialReport("vsize",          vsizeAmounts);
   checkSpecialReport("resident",       residentAmounts);
   checkSpecialReport("js-main-runtime-gc-heap-committed/used/gc-things", jsGcHeapAmounts);
 
