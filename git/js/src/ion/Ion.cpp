@@ -1267,6 +1267,11 @@ CheckFrame(StackFrame *fp)
         return false;
     }
 
+    if (fp->annotation()) {
+        IonSpew(IonSpew_Abort, "frame is annotated");
+        return false;
+    }
+
     // This check is to not overrun the stack. Eventually, we will want to
     // handle this when we support JSOP_ARGUMENTS or function calls.
     if (fp->isFunctionFrame() &&

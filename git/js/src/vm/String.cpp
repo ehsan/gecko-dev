@@ -314,9 +314,11 @@ ConcatStringsMaybeAllowGC(JSContext *cx,
         return left;
 
     size_t wholeLength = leftLen + rightLen;
-    JSContext *cxIfCanGC = allowGC ? cx : NULL;
-    if (!JSString::validateLength(cxIfCanGC, wholeLength))
+    if (!JSString::validateLength(cx, wholeLength)) {
+        if (!allowGC)
+            cx->clearPendingException();
         return NULL;
+    }
 
     if (JSShortString::lengthFits(wholeLength)) {
         JSShortString *str = allowGC ? js_NewGCShortString(cx) : js_TryNewGCShortString(cx);

@@ -564,6 +564,7 @@
 ; shell icons
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
+@BINPATH@/icons/*.xpm
 @BINPATH@/icons/*.png
 #endif
 #endif

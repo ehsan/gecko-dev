@@ -112,7 +112,6 @@ AudioSegment::WriteTo(AudioStream* aOutput)
     }
     aOutput->Write(buf.Elements(), int32_t(c.mDuration));
   }
-  aOutput->Start();
 }
 
 }

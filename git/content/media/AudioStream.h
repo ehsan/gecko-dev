@@ -133,7 +133,10 @@ public:
   virtual void Drain() = 0;
 
   // Start the stream.
-  virtual void Start() = 0;
+  virtual nsresult Start() = 0;
+
+  // Check if the stream is started.
+  virtual bool IsStarted() = 0;
 
   // Return the number of frames written so far in the stream. This allow the
   // caller to check if it is safe to start the stream, if needed.

@@ -592,3 +592,12 @@ NS_ErrorAccordingToNSPR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef XP_WIN
+bool sXPCOMHasLoadedNewDLLs = false;
+
+NS_EXPORT void
+NS_SetHasLoadedNewDLLs()
+{
+  sXPCOMHasLoadedNewDLLs = true;
+}
+#endif

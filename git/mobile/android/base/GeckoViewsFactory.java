@@ -67,8 +67,6 @@ public final class GeckoViewsFactory implements LayoutInflater.Factory {
                 return new BrowserToolbarBackground(context, attrs);
             else if (TextUtils.equals(viewName, "BrowserToolbar$RightEdge"))
                 return new BrowserToolbar.RightEdge(context, attrs);
-            else if (TextUtils.equals(viewName, "CheckableLinearLayout"))
-                return new CheckableLinearLayout(context, attrs);
             else if (TextUtils.equals(viewName, "FormAssistPopup"))
                 return new FormAssistPopup(context, attrs);
             else if (TextUtils.equals(viewName, "ForwardButton"))

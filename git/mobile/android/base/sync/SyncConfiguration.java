@@ -464,7 +464,7 @@ public class SyncConfiguration implements CredentialsSource {
     return serverURL + "user/1.0/" + userPart;
   }
 
-  protected String infoBaseURL() {
+  public String infoBaseURL() {
     return clusterURL + GlobalSession.API_VERSION + "/" + username + "/info/";
   }
 

@@ -50,34 +50,24 @@ using mozilla::DebugOnly;
 /*****************************************************************************/
 
 void
-StackFrame::initExecuteFrame(UnrootedScript script, StackFrame *prevLink, AbstractFramePtr prev,
-                             FrameRegs *regs, const Value &thisv, JSObject &scopeChain,
-                             ExecuteType type)
+StackFrame::initExecuteFrame(UnrootedScript script, StackFrame *prev, FrameRegs *regs,
+                             const Value &thisv, JSObject &scopeChain, ExecuteType type)
 {
-     /*
-     * If |prev| is an interpreter frame, we can always prev-link to it.
-     * If |prev| is a baseline JIT frame, we prev-link to its entry frame.
-     */
-    JS_ASSERT_IF(prev.isStackFrame(), prev.asStackFrame() == prevLink);
-    JS_ASSERT_IF(prev, prevLink != NULL);
-
     /*
      * See encoding of ExecuteType. When GLOBAL isn't set, we are executing a
      * script in the context of another frame and the frame type is determined
      * by the context.
      */
     flags_ = type | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | HAS_PREVPC;
-    if (!(flags_ & GLOBAL)) {
-        JS_ASSERT(prev.isFunctionFrame() || prev.isGlobalFrame());
-        flags_ |= prev.isFunctionFrame() ? FUNCTION : GLOBAL;
-    }
+    if (!(flags_ & GLOBAL))
+        flags_ |= (prev->flags_ & (FUNCTION | GLOBAL));
 
     Value *dstvp = (Value *)this - 2;
     dstvp[1] = thisv;
 
     if (isFunctionFrame()) {
-        dstvp[0] = prev.calleev();
-        exec.fun = prev.fun();
+        dstvp[0] = prev->calleev();
+        exec = prev->exec;
         u.evalScript = script;
     } else {
         JS_ASSERT(isGlobalFrame());
@@ -89,7 +79,7 @@ StackFrame::initExecuteFrame(UnrootedScript script, StackFrame *prevLink, Abstra
     }
 
     scopeChain_ = &scopeChain;
-    prev_ = prevLink;
+    prev_ = prev;
     prevpc_ = regs ? regs->pc : (jsbytecode *)0xbad;
     prevInline_ = regs ? regs->inlined() : NULL;
     blockChain_ = NULL;
@@ -98,7 +88,11 @@ StackFrame::initExecuteFrame(UnrootedScript script, StackFrame *prevLink, Abstra
     ncode_ = (void *)0xbad;
     Debug_SetValueRangeToCrashOnTouch(&rval_, 1);
     hookData_ = (void *)0xbad;
+    annotation_ = (void *)0xbad;
 #endif
+
+    if (prev && prev->annotation())
+        setAnnotation(prev->annotation());
 }
 
 template <StackFrame::TriggerPostBarriers doPostBarrier>
@@ -1057,7 +1051,7 @@ ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
 bool
 ContextStack::pushExecuteFrame(JSContext *cx, JSScript *script, const Value &thisv,
                                JSObject &scopeChain, ExecuteType type,
-                               AbstractFramePtr evalInFrame, ExecuteFrameGuard *efg)
+                               StackFrame *evalInFrame, ExecuteFrameGuard *efg)
 {
     AssertCanGC();
 
@@ -1071,35 +1065,24 @@ ContextStack::pushExecuteFrame(JSContext *cx, JSScript *script, const Value &thi
      * Eval-in-frame is the exception since it prev-links to an arbitrary frame
      * (possibly in the middle of some previous segment). Thus pass CANT_EXTEND
      * (to start a new segment) and link the frame and call chain manually
-     * below. If |evalInFrame| is a baseline JIT frame, prev-link to its entry
-     * frame.
+     * below.
      */
     CallArgsList *evalInFrameCalls = NULL;  /* quell overwarning */
     MaybeExtend extend;
-    StackFrame *prevLink;
     if (evalInFrame) {
-        /* First, find the right segment. */
-        AllFramesIter frameIter(cx->runtime);
-        while (frameIter.isIon() || frameIter.abstractFramePtr() != evalInFrame)
-            ++frameIter;
-        JS_ASSERT(frameIter.abstractFramePtr() == evalInFrame);
-
-        StackSegment &seg = *frameIter.seg();
-
+        /* Though the prev-frame is given, need to search for prev-call. */
+        StackSegment &seg = cx->stack.space().containingSegment(evalInFrame);
         StackIter iter(cx->runtime, seg);
         /* Debug-mode currently disables Ion compilation. */
-        JS_ASSERT_IF(evalInFrame.isStackFrame(), !evalInFrame.asStackFrame()->runningInIon());
-        JS_ASSERT_IF(evalInFrame.compartment() == iter.compartment(), !iter.isIon());
-        while (!iter.isScript() || iter.isIon() || iter.abstractFramePtr() != evalInFrame) {
+        JS_ASSERT(!evalInFrame->runningInIon());
+        JS_ASSERT_IF(evalInFrame->compartment() == iter.compartment(), !iter.isIon());
+        while (!iter.isScript() || iter.isIon() || iter.interpFrame() != evalInFrame) {
             ++iter;
-            JS_ASSERT_IF(evalInFrame.compartment() == iter.compartment(), !iter.isIon());
+            JS_ASSERT_IF(evalInFrame->compartment() == iter.compartment(), !iter.isIon());
         }
-        JS_ASSERT(iter.abstractFramePtr() == evalInFrame);
         evalInFrameCalls = iter.data_.calls_;
-        prevLink = iter.data_.fp_;
         extend = CANT_EXTEND;
     } else {
-        prevLink = maybefp();
         extend = CAN_EXTEND;
     }
 
@@ -1108,9 +1091,9 @@ ContextStack::pushExecuteFrame(JSContext *cx, JSScript *script, const Value &thi
     if (!firstUnused)
         return false;
 
-    AbstractFramePtr prev = evalInFrame ? evalInFrame : maybefp();
+    StackFrame *prev = evalInFrame ? evalInFrame : maybefp();
     StackFrame *fp = reinterpret_cast<StackFrame *>(firstUnused + 2);
-    fp->initExecuteFrame(script, prevLink, prev, seg_->maybeRegs(), thisv, scopeChain, type);
+    fp->initExecuteFrame(script, prev, seg_->maybeRegs(), thisv, scopeChain, type);
     fp->initVarsToUndefined();
     efg->regs_.prepareToRun(*fp, script);
 
@@ -1779,7 +1762,7 @@ StackIter::abstractFramePtr() const
         break;
     }
     JS_NOT_REACHED("Unexpected state");
-    return NullFramePtr();
+    return AbstractFramePtr();
 }
 
 void
@@ -2172,5 +2155,5 @@ AllFramesIter::abstractFramePtr() const
         break;
     }
     JS_NOT_REACHED("Unexpected state");
-    return NullFramePtr();
+    return AbstractFramePtr();
 }

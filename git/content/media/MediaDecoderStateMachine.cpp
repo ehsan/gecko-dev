@@ -961,7 +961,8 @@ static void
 StartAudioStreamPlaybackIfNeeded(AudioStream* aStream)
 {
   // We want to have enough data in the buffer to start the stream.
-  if (static_cast<double>(aStream->GetWritten()) / aStream->GetRate() >=
+  if (!aStream->IsStarted() &&
+      static_cast<double>(aStream->GetWritten()) / aStream->GetRate() >=
       static_cast<double>(AUDIOSTREAM_MIN_WRITE_BEFORE_START_USECS) / USECS_PER_S) {
     aStream->Start();
   }
@@ -1127,7 +1128,9 @@ void MediaDecoderStateMachine::AudioLoop()
     {
       // If the media was too short to trigger the start of the audio stream,
       // start it now.
-      mAudioStream->Start();
+      if (!mAudioStream->IsStarted()) {
+        mAudioStream->Start();
+      }
       // Last frame pushed to audio hardware, wait for the audio to finish,
       // before the audio thread terminates.
       bool seeking = false;

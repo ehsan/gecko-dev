@@ -61,7 +61,6 @@ void VideoFrameContainer::SetCurrentFrame(const gfxIntSize& aIntrinsicSize,
   gfxIntSize newFrameSize = mImageContainer->GetCurrentSize();
   if (oldFrameSize != newFrameSize) {
     mImageSizeChanged = true;
-    mNeedInvalidation = true;
   }
 
   mPaintTarget = aTargetTime;
@@ -105,8 +104,7 @@ void VideoFrameContainer::Invalidate()
 
   if (mImageContainer &&
       mImageContainer->IsAsync() &&
-      mImageContainer->HasCurrentImage() &&
-      !mIntrinsicSizeChanged) {
+      mImageContainer->HasCurrentImage()) {
     mNeedInvalidation = false;
   }
 

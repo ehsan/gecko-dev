@@ -36,6 +36,7 @@
 #include "nsIFrame.h"
 #include "nsEventStates.h"
 #include "nsIServiceManager.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsError.h"
 #include "nsIEditor.h"
 #include "nsGUIEvent.h"
@@ -916,10 +917,10 @@ NS_IMPL_BOOL_ATTR(nsHTMLInputElement, Disabled, disabled)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Max, max)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Min, min)
 NS_IMPL_ACTION_ATTR(nsHTMLInputElement, FormAction, formaction)
-NS_IMPL_ENUM_ATTR_DEFAULT_MISSING_INVALID_VALUES(nsHTMLInputElement, FormEnctype, formenctype,
-                                                 "", kFormDefaultEnctype->tag)
-NS_IMPL_ENUM_ATTR_DEFAULT_MISSING_INVALID_VALUES(nsHTMLInputElement, FormMethod, formmethod,
-                                                 "", kFormDefaultMethod->tag)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, FormEnctype, formenctype,
+                                kFormDefaultEnctype->tag)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, FormMethod, formmethod,
+                                kFormDefaultMethod->tag)
 NS_IMPL_BOOL_ATTR(nsHTMLInputElement, FormNoValidate, formnovalidate)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, FormTarget, formtarget)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Inputmode, inputmode,
@@ -1083,8 +1084,10 @@ nsHTMLInputElement::ConvertStringToNumber(nsAString& aValue,
       }
     case NS_FORM_INPUT_DATE:
       {
-        SafeAutoJSContext ctx;
-        JSAutoRequest ar(ctx);
+        JSContext* ctx = nsContentUtils::GetContextFromDocument(OwnerDoc());
+        if (!ctx) {
+          return false;
+        }
 
         uint32_t year, month, day;
         if (!GetValueAsDate(aValue, &year, &month, &day)) {
@@ -1241,8 +1244,10 @@ nsHTMLInputElement::ConvertNumberToString(double aValue,
       return true;
     case NS_FORM_INPUT_DATE:
       {
-        SafeAutoJSContext ctx;
-        JSAutoRequest ar(ctx);
+        JSContext* ctx = nsContentUtils::GetContextFromDocument(OwnerDoc());
+        if (!ctx) {
+          return false;
+        }
 
         // The specs require |aValue| to be truncated.
         aValue = floor(aValue);
@@ -3185,11 +3190,6 @@ nsHTMLInputElement::ParseAttribute(int32_t aNamespaceID,
              newType == NS_FORM_INPUT_TIME ||
              newType == NS_FORM_INPUT_DATE) && 
             !Preferences::GetBool("dom.experimental_forms", false)) {
-          newType = kInputDefaultType->value;
-          aResult.SetTo(newType, &aValue);
-        }
-        if (newType == NS_FORM_INPUT_FILE &&
-            Preferences::GetBool("dom.disable_input_file", false)) {
           newType = kInputDefaultType->value;
           aResult.SetTo(newType, &aValue);
         }

@@ -49,7 +49,6 @@
 #include <elf.h>
 #include <linux/auxvec.h>
 #include <asm/cputable.h>
-#include <link.h>
 
 static inline qcms_bool have_altivec() {
 	static int available = -1;

@@ -5,16 +5,12 @@
 // This file is tests for the default titles that new bookmarks get.
 
 let tests = [
-    // Common page.
     ['http://example.com/browser/browser/base/content/test/dummy_page.html',
      'Dummy test page'],
-    // Data URI.
-    ['data:text/html;charset=utf-8,<title>test%20data:%20url</title>',
+    ['data:text/html;charset=utf-8,<title>test data: url</title>',
      'test data: url'],
-    // about:neterror
-    ['data:application/vnd.mozilla.xul+xml,',
-     'data:application/vnd.mozilla.xul+xml,'],
-    // about:certerror
+    ['http://unregistered-domain.example',
+     'http://unregistered-domain.example/'],
     ['https://untrusted.example.com/somepage.html',
      'https://untrusted.example.com/somepage.html']
 ];
@@ -22,13 +18,14 @@ let tests = [
 function generatorTest() {
     gBrowser.selectedTab = gBrowser.addTab();
     let browser = gBrowser.selectedBrowser;
-    browser.stop(); // stop the about:blank load.
 
     browser.addEventListener("DOMContentLoaded", nextStep, true);
     registerCleanupFunction(function () {
         browser.removeEventListener("DOMContentLoaded", nextStep, true);
         gBrowser.removeCurrentTab();
     });
+
+    yield; // Wait for the new tab to load.
 
     // Test that a bookmark of each URI gets the corresponding default title.
     for (let i = 0; i < tests.length; ++i) {
@@ -67,11 +64,12 @@ function generatorTest() {
 // title. (Then delete the bookmark.)
 function checkBookmark(uri, expected_title) {
     PlacesCommandHook.bookmarkCurrentPage(false);
-
+    
     let id = PlacesUtils.getMostRecentBookmarkForURI(PlacesUtils._uri(uri));
-    ok(id > 0, "Found the expected bookmark");
     let title = PlacesUtils.bookmarks.getItemTitle(id);
+
     is(title, expected_title, "Bookmark got a good default title.");
 
     PlacesUtils.bookmarks.removeItem(id);
 }
+

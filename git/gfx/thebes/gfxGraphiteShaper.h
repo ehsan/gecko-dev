@@ -44,8 +44,7 @@ public:
     };
 
 protected:
-    nsresult SetGlyphsFromSegment(gfxContext      *aContext,
-                                  gfxShapedText   *aShapedText,
+    nsresult SetGlyphsFromSegment(gfxShapedText   *aShapedText,
                                   uint32_t         aOffset,
                                   uint32_t         aLength,
                                   const PRUnichar *aText,
@@ -57,6 +56,10 @@ protected:
     CallbackData mCallbackData;
 
     nsDataHashtable<nsUint32HashKey,TableRec> mTables;
+
+    // Whether the font implements GetGlyphWidth, or we should read tables
+    // directly to get ideal widths
+    bool mUseFontGlyphWidths;
 
     // Convert HTML 'lang' (BCP47) to Graphite language code
     static uint32_t GetGraphiteTagForLang(const nsCString& aLang);

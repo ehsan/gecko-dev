@@ -202,16 +202,13 @@ void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e aDeviceEvent,
                                       CSF::CC_DevicePtr aDevice,
                                       CSF::CC_DeviceInfoPtr aInfo ) {
   cc_service_state_t state = aInfo->getServiceState();
-  // We are keeping this in a local var to avoid a data race
-  // with ChangeSipccState in the debug message and compound if below
-  PeerConnectionImpl::SipccState currentSipccState = mSipccState;
 
-  CSFLogDebug(logTag, "%s - %d : %d", __FUNCTION__, state, currentSipccState);
+  CSFLogDebug(logTag, "%s - %d : %d", __FUNCTION__, state, mSipccState);
 
   if (CC_STATE_INS == state) {
     // SIPCC is up
-    if (PeerConnectionImpl::kStarting == currentSipccState ||
-        PeerConnectionImpl::kIdle == currentSipccState) {
+    if (PeerConnectionImpl::kStarting == mSipccState ||
+        PeerConnectionImpl::kIdle == mSipccState) {
       ChangeSipccState(PeerConnectionImpl::kStarted);
     } else {
       CSFLogError(logTag, "%s PeerConnection already started", __FUNCTION__);

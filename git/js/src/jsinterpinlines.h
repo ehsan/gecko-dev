@@ -82,14 +82,14 @@ ComputeImplicitThis(JSContext *cx, HandleObject obj, Value *vp)
 }
 
 inline bool
-ComputeThis(JSContext *cx, AbstractFramePtr frame)
+ComputeThis(JSContext *cx, StackFrame *fp)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), !frame.asStackFrame()->runningInIon());
-    if (frame.thisValue().isObject())
+    JS_ASSERT(!fp->runningInIon());
+    Value &thisv = fp->thisValue();
+    if (thisv.isObject())
         return true;
-    RootedValue thisv(cx, frame.thisValue());
-    if (frame.isFunctionFrame()) {
-        if (frame.fun()->strict() || frame.fun()->isSelfHostedBuiltin())
+    if (fp->isFunctionFrame()) {
+        if (fp->fun()->strict() || fp->fun()->isSelfHostedBuiltin())
             return true;
         /*
          * Eval function frames have their own |this| slot, which is a copy of the function's
@@ -98,14 +98,9 @@ ComputeThis(JSContext *cx, AbstractFramePtr frame)
          * this, we always wrap a function's |this| before pushing an eval frame, and should
          * thus never see an unwrapped primitive in a non-strict eval function frame.
          */
-        JS_ASSERT(!frame.isEvalFrame());
+        JS_ASSERT(!fp->isEvalFrame());
     }
-    bool modified;
-    if (!BoxNonStrictThis(cx, &thisv, &modified))
-        return false;
-
-    frame.thisValue() = thisv;
-    return true;
+    return BoxNonStrictThis(cx, fp->callReceiver());
 }
 
 /*

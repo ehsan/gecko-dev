@@ -575,12 +575,6 @@ function BuildConditionSandbox(aURL) {
     sandbox.qtWidget = xr.widgetToolkit == "qt";
     sandbox.winWidget = xr.widgetToolkit == "windows";
 
-#if MOZ_ASAN
-    sandbox.AddressSanitizer = true;
-#else
-    sandbox.AddressSanitizer = false;
-#endif
-
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
     sandbox.http = { __exposedProps__: {} };

@@ -214,7 +214,6 @@ sync/setup/InvalidSyncKeyException.java
 sync/setup/SyncAccounts.java
 sync/setup/SyncAuthenticatorService.java
 sync/stage/AbstractNonRepositorySyncStage.java
-sync/stage/AbstractSessionManagingSyncStage.java
 sync/stage/AndroidBrowserBookmarksServerSyncStage.java
 sync/stage/AndroidBrowserHistoryServerSyncStage.java
 sync/stage/CheckPreconditionsStage.java

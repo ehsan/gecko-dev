@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(JSGC_ROOT_ANALYSIS) && !defined(JSGC_USE_EXACT_ROOTING)
-
 #include "tests.h"
 #include "jsobj.h"
 #include "vm/String.h"
@@ -12,6 +10,7 @@
 
 BEGIN_TEST(testConservativeGC)
 {
+#ifndef JSGC_USE_EXACT_ROOTING
     js::RootedValue v2(cx);
     EVAL("({foo: 'bar'});", v2.address());
     CHECK(v2.isObject());
@@ -53,6 +52,7 @@ BEGIN_TEST(testConservativeGC)
 
     checkObjectFields((JSObject *)obj2Copy, obj2);
     CHECK(!memcmp(str2Copy, str2, sizeof(str2Copy)));
+#endif /* JSGC_USE_EXACT_ROOTING */
 
     return true;
 }
@@ -86,5 +86,3 @@ BEGIN_TEST(testDerivedValues)
   return true;
 }
 END_TEST(testDerivedValues)
-
-#endif /* !defined(JSGC_ROOT_ANALYSIS) && !defined(JSGC_USE_EXACT_ROOTING) */

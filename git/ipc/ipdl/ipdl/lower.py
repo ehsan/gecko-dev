@@ -311,10 +311,8 @@ def _abortIfFalse(cond, msg):
         [ cond, ExprLiteral.String(msg) ]))
 
 def _runtimeAbort(msg):
-    if isinstance(msg, str):
-        msg = ExprLiteral.String(msg)
-    return StmtExpr(
-        ExprCall(ExprVar('NS_RUNTIMEABORT'), args=[ msg ]))
+    return StmtExpr(ExprCall(ExprVar('NS_RUNTIMEABORT'),
+                                     [ ExprLiteral.String(msg) ]))
 
 def _autoptr(T):
     return Type('nsAutoPtr', T=T)
@@ -446,7 +444,7 @@ def errfnRecv(msg, errcode=_Result.ValuError):
 
 # used in Read() methods
 def errfnRead(msg):
-    return [ _fatalError(msg), StmtReturn.FALSE ]
+    return [ _protocolErrorBreakpoint(msg), StmtReturn.FALSE ]
 
 def _destroyMethod():
     return ExprVar('ActorDestroy')
@@ -3210,51 +3208,39 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         self.cls.addstmt(Label.PRIVATE)
 
         ## FatalError()       
-        msgparam = ExprVar('aMsg')
-        msgvar = ExprVar('formattedMessage')
-        actorname = _actorName(p.name, self.side)
+        msgvar = ExprVar('msg')
         fatalerror = MethodDefn(MethodDecl(
             'FatalError',
-            params=[ Decl(Type('char', const=1, ptrconst=1), msgparam.name) ],
+            params=[ Decl(Type('char', const=1, ptrconst=1), msgvar.name) ],
             const=1, virtual=1))
         fatalerror.addstmts([
             Whitespace('// Virtual method to prevent inlining.\n', indent=1),
             Whitespace('// This give us better error reporting.\n', indent=1),
             Whitespace('// See bug 589371\n\n', indent=1),
-            _protocolErrorBreakpoint(msgparam),
-            Whitespace.NL,
-            StmtDecl(Decl(Type('nsAutoCString'), msgvar.name),
-                     initargs=[ExprLiteral.String('IPDL error [' + actorname +
-                                                  ']: \\"')]),
-            StmtExpr(ExprCall(ExprSelect(msgvar, '.', 'AppendASCII'),
-                              args=[msgparam]))
+            _printErrorMessage('IPDL error:'),
+            _printErrorMessage(msgvar),
+            _protocolErrorBreakpoint(msgvar),
+            Whitespace.NL
         ])
+        actorname = _actorName(p.name, self.side)
         if self.side is 'parent':
             # if the error happens on the parent side, the parent
             # kills off the child
             fatalerror.addstmts([
-                StmtExpr(ExprCall(ExprSelect(msgvar, '.', 'AppendLiteral'),
-                                  args=[ExprLiteral.String('\\". Killing ' +
-                                                           'child side as a ' +
-                                                           'result.')])),
-                Whitespace.NL,
-                _printErrorMessage(ExprCall(ExprSelect(msgvar, '.', 'get'))),
+                _printErrorMessage(
+                    '['+ actorname +'] killing child side as a result'),
+                Whitespace.NL
             ])
 
             ifkill = StmtIf(ExprNot(_killProcess(p.callOtherProcess())))
             ifkill.addifstmt(
-                _printErrorMessage("May have failed to kill child!"))
-            fatalerror.addstmts([Whitespace.NL, ifkill])
+                _printErrorMessage("  may have failed to kill child!"))
+            fatalerror.addstmt(ifkill)
         else:
             # and if it happens on the child side, the child commits
             # seppuko
-            fatalerror.addstmts([
-                StmtExpr(ExprCall(ExprSelect(msgvar, '.', 'AppendLiteral'),
-                                  args=[ExprLiteral.String('\\". abort()ing ' +
-                                                           'as a result.')])),
-                Whitespace.NL,
-                _runtimeAbort(ExprCall(ExprSelect(msgvar, '.', 'get'))),
-            ])
+            fatalerror.addstmt(
+                _runtimeAbort('['+ actorname +'] abort()ing as a result'))
         self.cls.addstmts([ fatalerror, Whitespace.NL ])
 
         ## DestroySubtree(bool normal)
@@ -4134,8 +4120,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         read.addstmts([
             StmtDecl(Decl(_actorIdType(), idvar.name)),
             self.checkedRead(None, ExprAddrOf(idvar),
-                             self.msgvar, self.itervar, errfnRead,
-                             'id\' for \'' + cxxtype.name),
+                             self.msgvar, self.itervar, errfnRead),
         ])
 
         ifbadid = StmtIf(ExprBinary(
@@ -4228,16 +4213,13 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                           update=ExprPrefixUnop(ivar, '++'))
         forread.addstmt(
             self.checkedRead(eltipdltype, ExprAddrOf(ExprIndex(avar, ivar)),
-                             msgvar, itervar, errfnRead,
-                             eltipdltype.name() + '[i]'))
+                             msgvar, itervar, errfnRead))
         read.addstmts([
             StmtDecl(Decl(_cxxRefType(arraytype, self.side), avar.name),
                      init=ExprDeref(var)),
             StmtDecl(Decl(Type.UINT32, lenvar.name)),
             self.checkedRead(None, ExprAddrOf(lenvar),
-                             msgvar, itervar, errfnRead,
-                             'length\' (' + Type.UINT32.name + ') of \'' +
-                             arraytype.name()),
+                             msgvar, itervar, errfnRead),
             Whitespace.NL,
             StmtExpr(_callCxxArraySetLength(var, lenvar, '->')),
             forread,
@@ -4358,12 +4340,11 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             return ExprCall(f.getMethod(thisexpr=var, sel=sel))
 
         for f in sd.fields:
-            desc = f.getMethod().name + '\' (' + f.ipdltype.name() + \
-                   ') member of \'' + intype.name
             writefield = StmtExpr(self.write(f.ipdltype, get('.', f), msgvar))
             readfield = self.checkedRead(f.ipdltype,
                                          ExprAddrOf(get('->', f)),
-                                         msgvar, itervar, errfnRead, desc)
+                                         msgvar, itervar,
+                                         errfn=errfnRead)
             if f.special and f.side != self.side:
                 writefield = Whitespace(
                     "// skipping actor field that's meaningless on this side\n", indent=1)
@@ -4452,8 +4433,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             uniontdef,
             StmtDecl(Decl(Type.INT, typevar.name)),
             self.checkedRead(
-                None, ExprAddrOf(typevar), msgvar, itervar, errfnRead,
-                typevar.name + '\' (' + Type.INT.name + ') of union \'' + uniontype.name()),
+                None, ExprAddrOf(typevar), msgvar, itervar, errfnRead),
             Whitespace.NL,
             readswitch,
         ])
@@ -4940,11 +4920,10 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             # return the raw actor handle so that its ID can be used
             # to construct the "real" actor
             handlevar = self.handlevar
-            handletype = Type('ActorHandle')
-            decls = [ StmtDecl(Decl(handletype, handlevar.name)) ]
+            decls = [ StmtDecl(Decl(Type('ActorHandle'), handlevar.name)) ]
             reads = [ self.checkedRead(None, ExprAddrOf(handlevar), msgexpr,
                                        ExprAddrOf(self.itervar),
-                                       errfn, handletype.name) ]
+                                       errfn) ]
             start = 1
 
         stmts.extend((
@@ -4955,7 +4934,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             + [ Whitespace.NL ]
             + reads + [ self.checkedRead(p.ipdltype, ExprAddrOf(p.var()),
                                          msgexpr, ExprAddrOf(itervar),
-                                         errfn, p.bareType(side).name)
+                                         errfn)
                         for p in md.params[start:] ]
             + [ self.endRead(msgvar, itervar) ]))
 
@@ -4977,7 +4956,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             + [ self.checkedRead(r.ipdltype, r.var(),
                                  ExprAddrOf(self.replyvar),
                                  ExprAddrOf(self.itervar),
-                                 errfn, r.bareType(side).name)
+                                 errfn)
                 for r in md.returns ]
             + [ self.endRead(self.replyvar, itervar) ])
 
@@ -5115,9 +5094,9 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         ifbad.addifstmts(_badTransition())
         return [ ifbad ]
 
-    def checkedRead(self, ipdltype, expr, msgexpr, iterexpr, errfn, paramtype):
+    def checkedRead(self, ipdltype, expr, msgexpr, iterexpr, errfn):
         ifbad = StmtIf(ExprNot(self.read(ipdltype, expr, msgexpr, iterexpr)))
-        ifbad.addifstmts(errfn('Error deserializing \'' + paramtype + '\''))
+        ifbad.addifstmts(errfn('error deserializing (better message TODO)'))
         return ifbad
 
     def endRead(self, msgexpr, iterexpr):

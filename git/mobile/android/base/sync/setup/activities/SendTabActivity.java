@@ -28,6 +28,7 @@ import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
@@ -48,70 +49,54 @@ public class SendTabActivity extends Activity {
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
-    try {
-      sendTabData = getSendTabData(getIntent());
-    } catch (IllegalArgumentException e) {
-      notifyAndFinish(false);
-      return;
-    }
-
-    setContentView(R.layout.sync_send_tab);
-
-    final ListView listview = (ListView) findViewById(R.id.device_list);
-    listview.setItemsCanFocus(true);
-    listview.setTextFilterEnabled(true);
-    listview.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
-
-    arrayAdapter = new ClientRecordArrayAdapter(this, R.layout.sync_list_item);
-    listview.setAdapter(arrayAdapter);
-
-    TextView textView = (TextView) findViewById(R.id.title);
-    textView.setText(sendTabData.title);
-
-    textView = (TextView) findViewById(R.id.uri);
-    textView.setText(sendTabData.uri);
-
-    enableSend(false);
-
-    // will enableSend if appropriate.
-    updateClientList();
-  }
-
-  protected static SendTabData getSendTabData(Intent intent) throws IllegalArgumentException {
+    Intent intent = getIntent();
     if (intent == null) {
       Logger.warn(LOG_TAG, "intent was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
+      notifyAndFinish(false);
+      return;
     }
 
     Bundle extras = intent.getExtras();
     if (extras == null) {
       Logger.warn(LOG_TAG, "extras was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
+      notifyAndFinish(false);
+      return;
     }
 
-    SendTabData sendTabData = SendTabData.fromBundle(extras);
+    sendTabData = SendTabData.fromBundle(extras);
     if (sendTabData == null) {
       Logger.warn(LOG_TAG, "send tab data was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
+      notifyAndFinish(false);
+      return;
     }
 
     if (sendTabData.uri == null) {
       Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
+      notifyAndFinish(false);
+      return;
     }
 
     if (sendTabData.title == null) {
       Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
     }
-
-    return sendTabData;
   }
 
   /**
    * Ensure that the view's list of clients is backed by a recently populated
-   * array adapter.
+   * array adapter. But only once, so we don't end up blowing away your selections
+   * just because you got a text message.
    */
-  protected synchronized void updateClientList() {
+  protected synchronized void ensureClientList(final Context context,
+                                               final ListView listview) {
+    if (arrayAdapter != null) {
+      Logger.debug(LOG_TAG, "Already have an array adapter for client lists.");
+      listview.setAdapter(arrayAdapter);
+      return;
+    }
+
+    arrayAdapter = new ClientRecordArrayAdapter(context, R.layout.sync_list_item);
+    listview.setAdapter(arrayAdapter);
+
     // Fetching the client list hits the clients database, so we spin this onto
     // a background task.
     new AsyncTask<Void, Void, Collection<ClientRecord>>() {
@@ -130,8 +115,6 @@ public class SendTabActivity extends Activity {
         if (clientArray.size() == 1) {
           arrayAdapter.checkItem(0, true);
         }
-
-        enableSend(arrayAdapter.getNumCheckedGUIDs() > 0);
       }
     }.execute();
   }
@@ -144,6 +127,21 @@ public class SendTabActivity extends Activity {
 
     redirectIfNoSyncAccount();
     registerDisplayURICommand();
+
+    setContentView(R.layout.sync_send_tab);
+    final ListView listview = (ListView) findViewById(R.id.device_list);
+    listview.setItemsCanFocus(true);
+    listview.setTextFilterEnabled(true);
+    listview.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
+    enableSend(false);
+
+    ensureClientList(this, listview);
+
+    TextView textView = (TextView) findViewById(R.id.title);
+    textView.setText(sendTabData.title);
+
+    textView = (TextView) findViewById(R.id.uri);
+    textView.setText(sendTabData.uri);
   }
 
   private static void registerDisplayURICommand() {
@@ -262,10 +260,7 @@ public class SendTabActivity extends Activity {
     sendButton.setClickable(shouldEnable);
   }
 
-  /**
-   * @return a map from GUID to client record, including our own.
-   */
-  protected Map<String, ClientRecord> getAllClients() {
+  protected Map<String, ClientRecord> getClients() {
     ClientsDatabaseAccessor db = new ClientsDatabaseAccessor(this.getApplicationContext());
     try {
       return db.fetchAllClients();
@@ -281,11 +276,7 @@ public class SendTabActivity extends Activity {
    * @return a collection of client records, excluding our own.
    */
   protected Collection<ClientRecord> getOtherClients() {
-    final Map<String, ClientRecord> all = getAllClients();
-    if (all == null) {
-      return new ArrayList<ClientRecord>(0);
-    }
-
+    final Map<String, ClientRecord> all = getClients();
     final ArrayList<ClientRecord> out = new ArrayList<ClientRecord>(all.size());
     final String ourGUID = getAccountGUID();
     for (Entry<String, ClientRecord> entry : all.entrySet()) {

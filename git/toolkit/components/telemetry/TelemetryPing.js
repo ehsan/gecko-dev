@@ -756,7 +756,6 @@ TelemetryPing.prototype = {
     this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     function timerCallback() {
       this._initialized = true;
-      this.loadSavedPings(false);
       this.attachObservers();
       this.gatherMemory();
 
@@ -766,6 +765,7 @@ TelemetryPing.prototype = {
     }
     this._timer.initWithCallback(timerCallback.bind(this), TELEMETRY_DELAY,
                                  Ci.nsITimer.TYPE_ONE_SHOT);
+    this.loadSavedPings(false);
   },
 
   verifyPingChecksum: function verifyPingChecksum(ping) {

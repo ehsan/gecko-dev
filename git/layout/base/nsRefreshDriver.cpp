@@ -942,8 +942,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
 #ifdef DEBUG_INVALIDATIONS
     printf("Starting ProcessPendingUpdates\n");
 #endif
-#ifndef MOZ_WIDGET_GONK
-    // Waiting for bug 830475 to work on B2G.
+#ifndef ANDROID
+    // Waiting for bug 785597 to work on android.
     nsRefPtr<layers::LayerManager> mgr = mPresContext->GetPresShell()->GetLayerManager();
     if (mgr) {
       mgr->SetPaintStartTime(mMostRecentRefresh);

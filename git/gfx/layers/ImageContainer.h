@@ -722,7 +722,7 @@ protected:
   already_AddRefed<gfxASurface> GetAsSurface();
 
   void SetOffscreenFormat(gfxASurface::gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
-  gfxASurface::gfxImageFormat GetOffscreenFormat();
+  gfxASurface::gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
 
   nsAutoArrayPtr<uint8_t> mBuffer;
   uint32_t mBufferSize;

@@ -282,3 +282,10 @@ nsAuthSambaNTLM::Wrap(const void *inToken,
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
+
+NS_IMETHODIMP
+nsAuthSambaNTLM::GetModuleProperties(uint32_t *flags)
+{
+    *flags = 0;
+    return NS_OK;
+}

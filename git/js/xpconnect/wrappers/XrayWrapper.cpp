@@ -1277,7 +1277,7 @@ namespace XrayUtils {
 bool
 IsTransparent(JSContext *cx, JSObject *wrapper)
 {
-    return false;
+    return WrapperFactory::HasWaiveXrayFlag(wrapper);
 }
 
 JSObject *
@@ -1399,10 +1399,8 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, JSObject *wrappe
     if (!Traits::singleton.resolveOwnProperty(cx, *this, wrapper, holder, id, desc, flags))
         return false;
 
-    if (desc->obj) {
-        desc->obj = wrapper;
+    if (desc->obj)
         return true;
-    }
 
     if (!JS_GetPropertyDescriptorById(cx, holder, id, 0, desc))
         return false;
@@ -1430,15 +1428,11 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, JSObject *wrappe
         desc->value.setObject(*JS_GetFunctionObject(toString));
     }
 
-    if (!JS_DefinePropertyById(cx, holder, id, desc->value, desc->getter,
-                               desc->setter, desc->attrs) ||
-        !JS_GetPropertyDescriptorById(cx, holder, id, flags, desc))
-    {
-        return false;
-    }
-    MOZ_ASSERT(desc->obj);
     desc->obj = wrapper;
-    return true;
+
+    return JS_DefinePropertyById(cx, holder, id, desc->value, desc->getter, desc->setter,
+                                 desc->attrs) &&
+           JS_GetPropertyDescriptorById(cx, holder, id, flags, desc);
 }
 
 template <typename Base, typename Traits>
@@ -1478,10 +1472,8 @@ XrayWrapper<Base, Traits>::getOwnPropertyDescriptor(JSContext *cx, JSObject *wra
     if (!Traits::singleton.resolveOwnProperty(cx, *this, wrapper, holder, id, desc, flags))
         return false;
 
-    if (desc->obj) {
-        desc->obj = wrapper;
+    if (desc->obj)
         return true;
-    }
 
     if (!JS_GetPropertyDescriptorById(cx, holder, id, flags, desc))
         return false;

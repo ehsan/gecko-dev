@@ -100,7 +100,7 @@ struct frontend::StmtInfoBCE : public StmtInfoBase
 };
 
 BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent, Parser *parser, SharedContext *sc,
-                                 HandleScript script, AbstractFramePtr callerFrame, bool hasGlobalScope,
+                                 HandleScript script, StackFrame *callerFrame, bool hasGlobalScope,
                                  unsigned lineno, bool selfHostingMode)
   : sc(sc),
     parent(parent),
@@ -1281,7 +1281,8 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
 
     if (dn->pn_cookie.isFree()) {
-        if (AbstractFramePtr caller = bce->callerFrame) {
+        StackFrame *caller = bce->callerFrame;
+        if (caller) {
             JS_ASSERT(bce->script->compileAndGo);
 
             /*
@@ -1295,7 +1296,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              * If this is an eval in the global scope, then unbound variables
              * must be globals, so try to use GNAME ops.
              */
-            if (caller.isGlobalFrame() && TryConvertToGname(bce, pn, &op)) {
+            if (caller->isGlobalFrame() && TryConvertToGname(bce, pn, &op)) {
                 pn->setOp(op);
                 pn->pn_dflags |= PND_BOUND;
                 return true;
