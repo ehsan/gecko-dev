@@ -278,7 +278,7 @@ pref("browser.startup.page",                1);
 pref("browser.startup.homepage",            "chrome://branding/locale/browserconfig.properties");
 
 pref("browser.slowStartup.notificationDisabled", false);
-pref("browser.slowStartup.timeThreshold", 50000);
+pref("browser.slowStartup.timeThreshold", 45000);
 pref("browser.slowStartup.maxSamples", 5);
 
 // This url, if changed, MUST continue to point to an https url. Pulling arbitrary content to inject into
@@ -649,7 +649,7 @@ pref("pfs.datasource.url", "https://pfs.mozilla.org/plugins/PluginFinderService.
 pref("plugins.hide_infobar_for_blocked_plugin", false);
 pref("plugins.hide_infobar_for_outdated_plugin", false);
 
-pref("plugins.update.url", "https://www.mozilla.org/%LOCALE%/plugincheck/");
+pref("plugins.update.url", "https://www.mozilla.org/%LOCALE%/plugincheck/?utm_source=firefox-browser&utm_medium=firefox-browser&utm_campaign=plugincheck-update");
 pref("plugins.update.notifyUser", false);
 
 pref("plugins.click_to_play", true);
@@ -1018,6 +1018,8 @@ pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
 pref("browser.sessionstore.upgradeBackup.latestBuildID", "");
 // End-users should not run sessionstore in debug mode
 pref("browser.sessionstore.debug", false);
+// Forget closed windows/tabs after two weeks
+pref("browser.sessionstore.cleanup.forget_closed_after", 1209600000);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
@@ -1239,12 +1241,19 @@ pref("devtools.appmanager.enabled", true);
 pref("devtools.appmanager.lastTab", "help");
 pref("devtools.appmanager.manifestEditor.enabled", true);
 
+// Enable devtools webide
+#ifdef MOZ_DEVTOOLS_WEBIDE
+pref("devtools.webide.enabled", true);
+#else
+pref("devtools.webide.enabled", false);
+#endif
+
 // Toolbox preferences
 pref("devtools.toolbox.footer.height", 250);
 pref("devtools.toolbox.sidebar.width", 500);
 pref("devtools.toolbox.host", "bottom");
 pref("devtools.toolbox.selectedTool", "webconsole");
-pref("devtools.toolbox.toolbarSpec", '["splitconsole", "paintflashing toggle","tilt toggle","scratchpad","resize toggle","eyedropper"]');
+pref("devtools.toolbox.toolbarSpec", '["splitconsole", "paintflashing toggle","tilt toggle","scratchpad","resize toggle","eyedropper","screenshot --fullpage"]');
 pref("devtools.toolbox.sideEnabled", true);
 pref("devtools.toolbox.zoomValue", "1");
 
@@ -1256,6 +1265,7 @@ pref("devtools.command-button-tilt.enabled", false);
 pref("devtools.command-button-scratchpad.enabled", false);
 pref("devtools.command-button-responsive.enabled", true);
 pref("devtools.command-button-eyedropper.enabled", false);
+pref("devtools.command-button-screenshot.enabled", false);
 
 // Inspector preferences
 // Enable the Inspector
@@ -1269,6 +1279,8 @@ pref("devtools.inspector.remote", false);
 pref("devtools.inspector.show_pseudo_elements", true);
 // The default size for image preview tooltips in the rule-view/computed-view/markup-view
 pref("devtools.inspector.imagePreviewTooltipSize", 300);
+// Enable user agent style inspection in rule-view
+pref("devtools.inspector.showUserAgentStyles", false);
 
 // DevTools default color unit
 pref("devtools.defaultColorUnit", "hex");
@@ -1325,14 +1337,17 @@ pref("devtools.tilt.outro_transition", true);
 //                  'Open Recent'-menu.
 // - showTrailingSpace: Whether to highlight trailing space or not.
 // - enableCodeFolding: Whether to enable code folding or not.
+// - enableAutocompletion: Whether to enable JavaScript autocompletion.
 pref("devtools.scratchpad.recentFilesMax", 10);
 pref("devtools.scratchpad.showTrailingSpace", false);
 pref("devtools.scratchpad.enableCodeFolding", true);
+pref("devtools.scratchpad.enableAutocompletion", true);
 
 // Enable the Style Editor.
 pref("devtools.styleeditor.enabled", true);
 pref("devtools.styleeditor.source-maps-enabled", false);
 pref("devtools.styleeditor.autocompletion-enabled", true);
+pref("devtools.styleeditor.showMediaSidebar", false);
 
 // Enable the Shader Editor.
 pref("devtools.shadereditor.enabled", false);
@@ -1388,6 +1403,10 @@ pref("devtools.browserconsole.filter.secwarn", true);
 
 // Text size in the Web Console. Use 0 for the system default size.
 pref("devtools.webconsole.fontSize", 0);
+
+// Number of usages of the web console or scratchpad.
+// If this is less than 10, then pasting code into the web console or scratchpad is disabled
+pref("devtools.selfxss.count", 0);
 
 // Persistent logging: |true| if you want the Web Console to keep all of the
 // logged messages after reloading the page, |false| if you want the output to
@@ -1452,7 +1471,7 @@ pref("browser.newtabpage.rows", 3);
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 3);
 
-pref("browser.newtabpage.directorySource", "data:application/json,{}");
+pref("browser.newtabpage.directory.source", "chrome://global/content/directoryLinks.json");
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
@@ -1502,6 +1521,9 @@ pref("security.csp.speccompliant", true);
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
 
+// 1 = allow MITM for certificate pinning checks.
+pref("security.cert_pinning.enforcement_level", 1);
+
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
 
@@ -1547,6 +1569,8 @@ pref("identity.fxaccounts.settings.uri", "https://accounts.firefox.com/settings"
 pref("ui.key.menuAccessKeyFocuses", true);
 #endif
 
+// Encrypted media extensions.
+pref("media.eme.enabled", false);
 
 // Delete HTTP cache v2 data of users that didn't opt-in manually
 pref("browser.cache.auto_delete_cache_version", 1);
@@ -1556,6 +1580,9 @@ pref("browser.cache.auto_delete_cache_version", 1);
 pref("browser.cache.frecency_experiment", 0);
 
 pref("browser.translation.detectLanguage", false);
+pref("browser.translation.neverForLanguages", "");
+// Show the translation UI bits, like the info bar, notification icon and preferences.
+pref("browser.translation.ui.show", false);
 
 // Telemetry experiments settings.
 pref("experiments.enabled", true);

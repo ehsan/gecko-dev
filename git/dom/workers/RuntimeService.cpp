@@ -58,6 +58,7 @@
 #include "nsThreadManager.h"
 #endif
 
+#include "ServiceWorker.h"
 #include "SharedWorker.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
@@ -340,6 +341,9 @@ LoadRuntimeAndContextOptions(const char* aPrefName, void* /* aClosure */)
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("ion"))) {
     runtimeOptions.setIon(true);
   }
+  if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("native_regexp"))) {
+    runtimeOptions.setNativeRegExp(true);
+  }
 
   // Common options.
   JS::ContextOptions commonContextOptions = kRequiredContextOptions;
@@ -497,7 +501,7 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
       continue;
     }
 
-    matchName.RebindLiteral(PREF_MEM_OPTIONS_PREFIX 
+    matchName.RebindLiteral(PREF_MEM_OPTIONS_PREFIX
                             "gc_high_frequency_time_limit_ms");
     if (memPrefName == matchName || (!rts && index == 2)) {
       UpdateCommonJSGCMemoryOption(rts, matchName,
@@ -633,7 +637,7 @@ public:
     mSyncLoopTarget = syncLoop.EventTarget();
     MOZ_ASSERT(mSyncLoopTarget);
 
-    if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
+    if (NS_FAILED(NS_DispatchToMainThread(this))) {
       JS_ReportError(aCx, "Failed to dispatch to main thread!");
       return false;
     }
@@ -777,8 +781,6 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
     }
   }
 
-  JS_SetIsWorkerRuntime(aRuntime);
-
   JS_SetNativeStackQuota(aRuntime, WORKER_CONTEXT_NATIVE_STACK_LIMIT);
 
   // Security policy:
@@ -838,8 +840,7 @@ public:
   // call to JS_SetGCParameter inside CreateJSContextForWorker.
   WorkerJSRuntime(JSRuntime* aParentRuntime, WorkerPrivate* aWorkerPrivate)
     : CycleCollectedJSRuntime(aParentRuntime,
-                              WORKER_DEFAULT_RUNTIME_HEAPSIZE,
-                              JS_NO_HELPER_THREADS),
+                              WORKER_DEFAULT_RUNTIME_HEAPSIZE),
     mWorkerPrivate(aWorkerPrivate)
   {
   }
@@ -1276,12 +1277,11 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
   }
 
-  bool isSharedWorker = aWorkerPrivate->IsSharedWorker();
-
-  const nsCString& sharedWorkerName = aWorkerPrivate->SharedWorkerName();
   nsCString sharedWorkerScriptSpec;
 
-  if (isSharedWorker) {
+  bool isSharedOrServiceWorker = aWorkerPrivate->IsSharedWorker() ||
+                                 aWorkerPrivate->IsServiceWorker();
+  if (isSharedOrServiceWorker) {
     AssertIsOnMainThread();
 
     nsCOMPtr<nsIURI> scriptURI = aWorkerPrivate->GetResolvedScriptURI();
@@ -1326,7 +1326,9 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       domainInfo->mActiveWorkers.AppendElement(aWorkerPrivate);
     }
 
-    if (isSharedWorker) {
+    if (isSharedOrServiceWorker) {
+      const nsCString& sharedWorkerName = aWorkerPrivate->SharedWorkerName();
+
       nsAutoCString key;
       GenerateSharedWorkerKey(sharedWorkerScriptSpec, sharedWorkerName, key);
       MOZ_ASSERT(!domainInfo->mSharedWorkerInfos.Get(key));
@@ -1418,7 +1420,9 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       domainInfo->mActiveWorkers.RemoveElement(aWorkerPrivate);
     }
 
-    if (aWorkerPrivate->IsSharedWorker()) {
+
+    if (aWorkerPrivate->IsSharedWorker() ||
+        aWorkerPrivate->IsServiceWorker()) {
       MatchSharedWorkerInfo match(aWorkerPrivate);
       domainInfo->mSharedWorkerInfos.EnumerateRead(FindSharedWorkerInfo,
                                                    &match);
@@ -1466,7 +1470,7 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   if (parent) {
     parent->RemoveChildWorker(aCx, aWorkerPrivate);
   }
-  else if (aWorkerPrivate->IsSharedWorker()) {
+  else if (aWorkerPrivate->IsSharedWorker() || aWorkerPrivate->IsServiceWorker()) {
     mWindowMap.Enumerate(RemoveSharedWorkerFromWindowMap, aWorkerPrivate);
   }
   else {
@@ -1944,7 +1948,7 @@ RuntimeService::RemoveSharedWorkerFromWindowMap(
 
   auto workerPrivate = static_cast<WorkerPrivate*>(aUserArg);
 
-  MOZ_ASSERT(workerPrivate->IsSharedWorker());
+  MOZ_ASSERT(workerPrivate->IsSharedWorker() || workerPrivate->IsServiceWorker());
 
   if (aData->RemoveElement(workerPrivate)) {
     MOZ_ASSERT(!aData->Contains(workerPrivate), "Added worker more than once!");
@@ -2074,12 +2078,47 @@ RuntimeService::ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
 }
 
 nsresult
-RuntimeService::CreateSharedWorker(const GlobalObject& aGlobal,
-                                   const nsAString& aScriptURL,
-                                   const nsACString& aName,
-                                   SharedWorker** aSharedWorker)
+RuntimeService::CreateServiceWorker(const GlobalObject& aGlobal,
+                                    const nsAString& aScriptURL,
+                                    const nsACString& aScope,
+                                    ServiceWorker** aServiceWorker)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  MOZ_ASSERT(window);
+
+  nsRefPtr<SharedWorker> sharedWorker;
+  rv = CreateSharedWorkerInternal(aGlobal, aScriptURL, aScope,
+                                  WorkerTypeService,
+                                  getter_AddRefs(sharedWorker));
+
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  nsRefPtr<ServiceWorker> serviceWorker =
+    new ServiceWorker(window, sharedWorker);
+
+  // While it hasn't been parsed, the intention is to only expose ServiceWorkers
+  // to content after it has indeed been parsed.
+  serviceWorker->mState = ServiceWorkerState::Parsed;
+  serviceWorker->mURL = aScriptURL;
+  serviceWorker->mScope = NS_ConvertUTF8toUTF16(aScope);
+
+  serviceWorker.forget(aServiceWorker);
+  return rv;
+}
+
+nsresult
+RuntimeService::CreateSharedWorkerInternal(const GlobalObject& aGlobal,
+                                           const nsAString& aScriptURL,
+                                           const nsACString& aName,
+                                           WorkerType aType,
+                                           SharedWorker** aSharedWorker)
 {
   AssertIsOnMainThread();
+  MOZ_ASSERT(aType == WorkerTypeShared || aType == WorkerTypeService);
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   MOZ_ASSERT(window);
@@ -2119,17 +2158,13 @@ RuntimeService::CreateSharedWorker(const GlobalObject& aGlobal,
     ErrorResult rv;
     workerPrivate =
       WorkerPrivate::Constructor(aGlobal, aScriptURL, false,
-                                 WorkerPrivate::WorkerTypeShared, aName,
-                                 &loadInfo, rv);
+                                 aType, aName, &loadInfo, rv);
     NS_ENSURE_TRUE(workerPrivate, rv.ErrorCode());
 
     created = true;
   }
 
-  MOZ_ASSERT(workerPrivate->IsSharedWorker());
-
-  nsRefPtr<SharedWorker> sharedWorker =
-    new SharedWorker(window, workerPrivate);
+  nsRefPtr<SharedWorker> sharedWorker = new SharedWorker(window, workerPrivate);
 
   if (!workerPrivate->RegisterSharedWorker(cx, sharedWorker)) {
     NS_WARNING("Worker is unreachable, this shouldn't happen!");
@@ -2160,7 +2195,8 @@ RuntimeService::ForgetSharedWorker(WorkerPrivate* aWorkerPrivate)
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(aWorkerPrivate);
-  MOZ_ASSERT(aWorkerPrivate->IsSharedWorker());
+  MOZ_ASSERT(aWorkerPrivate->IsSharedWorker() ||
+             aWorkerPrivate->IsServiceWorker());
 
   MutexAutoLock lock(mMutex);
 
@@ -2450,7 +2486,7 @@ NS_IMETHODIMP
 RuntimeService::WorkerThread::Observer::OnDispatchedEvent(
                                                 nsIThreadInternal* /*aThread */)
 {
-  MOZ_ASSUME_UNREACHABLE("This should never be called!");
+  MOZ_CRASH("OnDispatchedEvent() should never be called!");
 }
 
 NS_IMETHODIMP
