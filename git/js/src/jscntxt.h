@@ -519,7 +519,7 @@ struct JSContext : public js::ExclusiveContext,
     js::StackFrame *interpreterFrame() const {
         return mainThread().activation()->asInterpreter()->current();
     }
-    js::InterpreterRegs &interpreterRegs() const {
+    js::FrameRegs &interpreterRegs() const {
         return mainThread().activation()->asInterpreter()->regs();
     }
 

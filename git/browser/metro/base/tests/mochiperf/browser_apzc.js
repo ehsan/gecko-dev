@@ -27,11 +27,6 @@ function tearDown() {
   PanelUI.hide();
   BookmarksTestHelper.restore();
   HistoryTestHelper.restore();
-  Browser.selectedTab
-         .browser
-         .contentWindow
-         .QueryInterface(Ci.nsIInterfaceRequestor)
-         .getInterface(Ci.nsIDOMWindowUtils).clearNativeTouchSequence();
 }
 
 /*
@@ -90,7 +85,7 @@ gTests.push({
     let domUtils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     var touchdrag = new TouchDragAndHold();
     touchdrag.useNativeEvents = true;
-    touchdrag.stepTimeout = 5;
+    touchdrag.stepTimeout = 20;
     touchdrag.numSteps = 20;
 
     stopwatch.start();
@@ -127,7 +122,7 @@ gTests.push({
     let domUtils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     var touchdrag = new TouchDragAndHold();
     touchdrag.useNativeEvents = true;
-    touchdrag.stepTimeout = 5;
+    touchdrag.stepTimeout = 20;
     touchdrag.numSteps = 10;
 
     let iterations = 3;

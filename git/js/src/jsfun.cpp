@@ -1424,28 +1424,29 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     bool isStarGenerator = generatorKind == StarGenerator;
     JS_ASSERT(generatorKind != LegacyGenerator);
 
-    JSScript *maybeScript = nullptr;
+    JSScript *script = nullptr;
     const char *filename;
     unsigned lineno;
     JSPrincipals *originPrincipals;
     uint32_t pcOffset;
-    DescribeScriptedCallerForCompilation(cx, &maybeScript, &filename, &lineno, &pcOffset,
-                                         &originPrincipals);
+    CurrentScriptFileLineOrigin(cx, &script, &filename, &lineno, &pcOffset, &originPrincipals);
+    JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
 
     const char *introductionType = "Function";
     if (generatorKind != NotGenerator)
         introductionType = "GeneratorFunction";
 
     const char *introducerFilename = filename;
-    if (maybeScript && maybeScript->scriptSource()->introducerFilename())
-        introducerFilename = maybeScript->scriptSource()->introducerFilename();
+    if (script && script->scriptSource()->introducerFilename())
+        introducerFilename = script->scriptSource()->introducerFilename();
 
     CompileOptions options(cx);
-    options.setOriginPrincipals(originPrincipals)
+    options.setPrincipals(principals)
+           .setOriginPrincipals(originPrincipals)
            .setFileAndLine(filename, 1)
            .setNoScriptRval(false)
            .setCompileAndGo(true)
-           .setIntroductionInfo(introducerFilename, introductionType, lineno, maybeScript, pcOffset);
+           .setIntroductionInfo(introducerFilename, introductionType, lineno, script, pcOffset);
 
     unsigned n = args.length() ? args.length() - 1 : 0;
     if (n > 0) {

@@ -431,7 +431,8 @@ frontend::CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const jsc
     JS_ASSERT(cx->compartment() == lazy->functionNonDelazifying()->compartment());
 
     CompileOptions options(cx, lazy->version());
-    options.setOriginPrincipals(lazy->originPrincipals())
+    options.setPrincipals(cx->compartment()->principals)
+           .setOriginPrincipals(lazy->originPrincipals())
            .setFileAndLine(lazy->source()->filename(), lazy->lineno())
            .setColumn(lazy->column())
            .setCompileAndGo(true)

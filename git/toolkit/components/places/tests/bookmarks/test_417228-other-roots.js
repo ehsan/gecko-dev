@@ -121,12 +121,18 @@ tests.push({
 });
 
 function run_test() {
-  run_next_test();
-}
+  do_test_pending();
 
-add_task(function () {
+  do_check_eq(typeof PlacesUtils, "object");
+
   // make json file
-  let jsonFile = OS.Path.join(OS.Constants.Path.profileDir, "bookmarks.json");
+  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+  jsonFile.append("bookmarks.json");
+  if (jsonFile.exists())
+    jsonFile.remove(false);
+  jsonFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
+  if (!jsonFile.exists())
+    do_throw("couldn't create file: bookmarks.exported.json");
 
   // array of ids not to delete when restoring
   var excludedItemsFromRestore = [];
@@ -141,20 +147,28 @@ add_task(function () {
       excludedItemsFromRestore = excludedItems.concat(aTest.excludedItemsFromRestore);
   });
 
-  yield BookmarkJSONUtils.exportToFile(jsonFile);
+  Task.spawn(function() {
+    try {
+      yield BookmarkJSONUtils.exportToFile(jsonFile);
+    } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
-  tests.forEach(function(aTest) {
-    aTest.inbetween();
+    tests.forEach(function(aTest) {
+      aTest.inbetween();
+    });
+
+    // restore json file
+    try {
+      yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+    } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
+
+    // validate
+    tests.forEach(function(aTest) {
+      aTest.validate();
+    });
+
+    // clean up
+    jsonFile.remove(false);
+
+    do_test_finished();
   });
-
-  // restore json file
-  yield BookmarkJSONUtils.importFromFile(jsonFile, true);
-
-  // validate
-  tests.forEach(function(aTest) {
-    aTest.validate();
-  });
-
-  // clean up
-  yield OS.File.remove(jsonFile);
-});
+}

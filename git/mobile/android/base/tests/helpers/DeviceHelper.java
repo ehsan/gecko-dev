@@ -44,7 +44,7 @@ public final class DeviceHelper {
     private DeviceHelper() { /* To disallow instantiation. */ }
 
     public static void assertIsTablet() {
-        fAssertTrue("The device is a tablet", isTablet());
+        assertTrue("The device is a tablet", isTablet());
     }
 
     protected static void init(final UITestContext context) {

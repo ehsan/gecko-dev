@@ -237,8 +237,7 @@
        flip="none"
        side="left"
        position="leftcenter topright"
-       noautohide="true"
-       hidden="true">
+       noautohide="true">
   <hbox class="customization-tipPanel-wrapper">
     <vbox class="customization-tipPanel-infoBox"/>
     <vbox class="customization-tipPanel-content" flex="1">

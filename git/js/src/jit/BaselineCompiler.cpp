@@ -612,7 +612,7 @@ BaselineCompiler::emitInterruptCheck()
 }
 
 bool
-BaselineCompiler::emitUseCountIncrement(bool allowOsr)
+BaselineCompiler::emitUseCountIncrement()
 {
     // Emit no use count increments or bailouts if Ion is not
     // enabled, or if the script will never be Ion-compileable
@@ -632,12 +632,6 @@ BaselineCompiler::emitUseCountIncrement(bool allowOsr)
     // If this is a loop inside a catch or finally block, increment the use
     // count but don't attempt OSR (Ion only compiles the try block).
     if (analysis_.info(pc).loopEntryInCatchOrFinally) {
-        JS_ASSERT(JSOp(*pc) == JSOP_LOOPENTRY);
-        return true;
-    }
-
-    // OSR not possible at this loop entry.
-    if (!allowOsr) {
         JS_ASSERT(JSOp(*pc) == JSOP_LOOPENTRY);
         return true;
     }
@@ -1070,7 +1064,7 @@ bool
 BaselineCompiler::emit_JSOP_LOOPENTRY()
 {
     frame.syncStack(0);
-    return emitUseCountIncrement(LoopEntryCanIonOsr(pc));
+    return emitUseCountIncrement();
 }
 
 bool

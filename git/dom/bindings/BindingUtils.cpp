@@ -1631,10 +1631,7 @@ private:
 nsresult
 ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
 {
-  // Check if we're near the stack limit before we get anywhere near the
-  // transplanting code.
-  JS_CHECK_RECURSION(aCx, return NS_ERROR_FAILURE);
-
+  // aObj is assigned to below, so needs to be re-rooted.
   JS::Rooted<JSObject*> aObj(aCx, aObjArg);
   const DOMClass* domClass = GetDOMClass(aObj);
 
@@ -1830,8 +1827,7 @@ GlobalObject::GetAsSupports() const
   }
 
   if (!NS_IsMainThread()) {
-    mGlobalObject = UnwrapDOMObjectToISupports(mGlobalJSObject);
-    return mGlobalObject;
+    return UnwrapDOMObjectToISupports(mGlobalJSObject);
   }
 
   JS::Rooted<JS::Value> val(mCx, JS::ObjectValue(*mGlobalJSObject));

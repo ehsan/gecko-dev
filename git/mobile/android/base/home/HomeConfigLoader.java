@@ -13,9 +13,9 @@ import android.support.v4.content.AsyncTaskLoader;
 
 import java.util.List;
 
-public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
+public class HomeConfigLoader extends AsyncTaskLoader<List<PanelConfig>> {
     private final HomeConfig mConfig;
-    private HomeConfig.State mConfigState;
+    private List<PanelConfig> mPanelConfigs;
 
     public HomeConfigLoader(Context context, HomeConfig homeConfig) {
         super(context);
@@ -23,32 +23,32 @@ public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
     }
 
     @Override
-    public HomeConfig.State loadInBackground() {
+    public List<PanelConfig> loadInBackground() {
         return mConfig.load();
     }
 
     @Override
-    public void deliverResult(HomeConfig.State configState) {
+    public void deliverResult(List<PanelConfig> panelConfigs) {
         if (isReset()) {
-            mConfigState = null;
+            mPanelConfigs = null;
             return;
         }
 
-        mConfigState = configState;
+        mPanelConfigs = panelConfigs;
         mConfig.setOnChangeListener(new ForceLoadChangeListener());
 
         if (isStarted()) {
-            super.deliverResult(configState);
+            super.deliverResult(panelConfigs);
         }
     }
 
     @Override
     protected void onStartLoading() {
-        if (mConfigState != null) {
-            deliverResult(mConfigState);
+        if (mPanelConfigs != null) {
+            deliverResult(mPanelConfigs);
         }
 
-        if (takeContentChanged() || mConfigState == null) {
+        if (takeContentChanged() || mPanelConfigs == null) {
             forceLoad();
         }
     }
@@ -59,8 +59,8 @@ public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
     }
 
     @Override
-    public void onCanceled(HomeConfig.State configState) {
-        mConfigState = null;
+    public void onCanceled(List<PanelConfig> panelConfigs) {
+        mPanelConfigs = null;
     }
 
     @Override
@@ -70,7 +70,7 @@ public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
         // Ensure the loader is stopped.
         onStopLoading();
 
-        mConfigState = null;
+        mPanelConfigs = null;
         mConfig.setOnChangeListener(null);
     }
 
