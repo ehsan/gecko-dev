@@ -25,7 +25,6 @@
  * Ehsan Akhgari <ehsan@mozilla.com>
  * Raymond Lee <raymond@appcoast.com>
  * Sean Dunn <seanedunn@yahoo.com>
- * Tim Taubert <tim.taubert@gmx.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -201,6 +200,11 @@ let UI = {
         }
       });
 
+      iQ(window).bind("beforeunload", function() {
+        Array.forEach(gBrowser.tabs, function(tab) {
+          gBrowser.showTab(tab);
+        });
+      });
       iQ(window).bind("unload", function() {
         self.uninit();
       });
@@ -474,7 +478,7 @@ let UI = {
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
-    this.setTitlebarColors(true);
+    this._setActiveTitleColor(true);
 #endif
     let event = document.createEvent("Events");
     event.initEvent("tabviewshown", true, false);
@@ -551,7 +555,7 @@ let UI = {
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
-    this.setTitlebarColors(false);
+    this._setActiveTitleColor(false);
 #endif
     let event = document.createEvent("Events");
     event.initEvent("tabviewhidden", true, false);
@@ -562,27 +566,19 @@ let UI = {
 
 #ifdef XP_MACOSX
   // ----------
-  // Function: setTitlebarColors
+  // Function: _setActiveTitleColor
   // Used on the Mac to make the title bar match the gradient in the rest of the
   // TabView UI.
   //
   // Parameters:
-  //   colors - (bool or object) true for the special TabView color, false for
-  //         the normal color, and an object with "active" and "inactive"
-  //         properties to specify directly.
-  setTitlebarColors: function UI_setTitlebarColors(colors) {
+  //   set - true for the special TabView color, false for the normal color.
+  _setActiveTitleColor: function UI__setActiveTitleColor(set) {
     // Mac Only
     var mainWindow = gWindow.document.getElementById("main-window");
-    if (colors === true) {
+    if (set)
       mainWindow.setAttribute("activetitlebarcolor", "#C4C4C4");
-      mainWindow.setAttribute("inactivetitlebarcolor", "#EDEDED");
-    } else if (colors && "active" in colors && "inactive" in colors) {
-      mainWindow.setAttribute("activetitlebarcolor", colors.active);
-      mainWindow.setAttribute("inactivetitlebarcolor", colors.inactive);
-    } else {
+    else
       mainWindow.removeAttribute("activetitlebarcolor");
-      mainWindow.removeAttribute("inactivetitlebarcolor");
-    }
   },
 #endif
 
@@ -997,7 +993,7 @@ let UI = {
       if (norm != null) {
         var nextTab = getClosestTabBy(norm);
         if (nextTab) {
-          if (nextTab.isStacked && !nextTab.parent.expanded)
+          if (nextTab.inStack() && !nextTab.parent.expanded)
             nextTab = nextTab.parent.getChild(0);
           self.setActiveTab(nextTab);
         }
@@ -1061,7 +1057,7 @@ let UI = {
   //   event - the event triggers this action.
   enableSearch: function UI_enableSearch(event) {
     if (!isSearchEnabled()) {
-      ensureSearchShown();
+      ensureSearchShown(null);
       SearchEventHandler.switchToInMode();
       
       if (event) {
@@ -1365,17 +1361,14 @@ let UI = {
       let unhiddenGroups = GroupItems.groupItems.filter(function(groupItem) {
         return (!groupItem.hidden && groupItem.getChildren().length > 0);
       });
-      // no pinned tabs, no visible groups and no orphaned tabs: open a new
-      // group. open a blank tab and return
-      if (!unhiddenGroups.length && !GroupItems.getOrphanedTabs().length) {
-        let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
-          return (!groupItem.hidden && !groupItem.getChildren().length);
-        });
-        let group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
-        if (!gBrowser._numPinnedTabs) {
-          group.newTab();
-          return;
-        }
+      // no visible groups, no orphaned tabs and no apps tabs, open a new group
+      // with a blank tab
+      if (unhiddenGroups.length == 0 && GroupItems.getOrphanedTabs().length == 0 &&
+          gBrowser._numPinnedTabs == 0) {
+        let box = new Rect(20, 20, 250, 200);
+        let groupItem = new GroupItem([], { bounds: box, immediately: true });
+        groupItem.newTab();
+        return;
       }
 
       // If there's an active TabItem, zoom into it. If not (for instance when the

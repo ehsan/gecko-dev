@@ -7,9 +7,6 @@ let testTag = "581253_tag";
 let starButton = document.getElementById("star-button");
 
 function test() {
-  registerCleanupFunction(function() {
-    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
-  });
   waitForExplicitFinish();
 
   let tab = gBrowser.selectedTab = gBrowser.addTab();

@@ -418,12 +418,16 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     if (gfxInfo) {
         PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
-            if (status != nsIGfxInfo::FEATURE_NO_INFO) {
+            if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
+                status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
+            {
                 useOpenGL = PR_FALSE;
             }
         }
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_ANGLE, &status))) {
-            if (status != nsIGfxInfo::FEATURE_NO_INFO) {
+            if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
+                status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
+            {
                 useANGLE = PR_FALSE;
             }
         }

@@ -64,6 +64,8 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     marked(false),
     active(false),
     debugMode(rt->debugMode),
+    anynameObject(NULL),
+    functionNamespaceObject(NULL),
     mathCache(NULL)
 {
     JS_INIT_CLIST(&scripts);

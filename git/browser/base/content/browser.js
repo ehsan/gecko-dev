@@ -1736,8 +1736,7 @@ function nonBrowserWindowStartup()
                        'Browser:SendLink', 'cmd_pageSetup', 'cmd_print', 'cmd_find', 'cmd_findAgain',
                        'viewToolbarsMenu', 'viewSidebarMenuMenu', 'Browser:Reload',
                        'viewFullZoomMenu', 'pageStyleMenu', 'charsetMenu', 'View:PageSource', 'View:FullScreen',
-                       'viewHistorySidebar', 'Browser:AddBookmarkAs', 'View:PageInfo', 'Tasks:InspectPage',
-                       'Browser:ToggleTabView'];
+                       'viewHistorySidebar', 'Browser:AddBookmarkAs', 'View:PageInfo', 'Tasks:InspectPage'];
   var element;
 
   for (var id in disabledItems)

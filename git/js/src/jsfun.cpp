@@ -2424,7 +2424,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
      * Report errors via CSP is done in the script security manager.
      * js_CheckContentSecurityPolicy is defined in jsobj.cpp
      */
-    if (!js_CheckContentSecurityPolicy(cx, parent)) {
+    if (!js_CheckContentSecurityPolicy(cx)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CSP_BLOCKED_FUNCTION);
         return JS_FALSE;
     }

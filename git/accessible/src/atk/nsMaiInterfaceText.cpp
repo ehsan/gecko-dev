@@ -41,8 +41,9 @@
 
 #include "nsMaiInterfaceText.h"
 
-#include "nsHyperTextAccessible.h"
 #include "nsRoleMap.h"
+#include "nsString.h"
+#include "nsIPersistentProperties2.h"
 
 AtkAttributeSet* ConvertToAtkAttributeSet(nsIPersistentProperties* aAttributes);
 
@@ -373,9 +374,14 @@ getCharacterCountCB(AtkText *aText)
     if (!accWrap)
         return 0;
 
-    nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(accWrap));
-    return textAcc->IsDefunct() ?
-        0 : static_cast<gint>(textAcc->CharacterCount());
+    nsCOMPtr<nsIAccessibleText> accText;
+    accWrap->QueryInterface(NS_GET_IID(nsIAccessibleText),
+                            getter_AddRefs(accText));
+    NS_ENSURE_TRUE(accText, 0);
+
+    PRInt32 count = 0;
+    nsresult rv = accText->GetCharacterCount(&count);
+    return (NS_FAILED(rv)) ? 0 : static_cast<gint>(count);
 }
 
 gint

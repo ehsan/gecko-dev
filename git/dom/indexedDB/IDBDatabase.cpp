@@ -82,6 +82,7 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
+  nsresult OnSuccess();
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 
@@ -749,8 +750,13 @@ IDBDatabase::Transaction(nsIVariant* aStoreNames,
 
   if (aOptionalArgCount) {
     if (aMode != nsIIDBTransaction::READ_WRITE &&
-        aMode != nsIIDBTransaction::READ_ONLY) {
+        aMode != nsIIDBTransaction::READ_ONLY &&
+        aMode != nsIIDBTransaction::SNAPSHOT_READ) {
       return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
+    }
+    if (aMode == nsIIDBTransaction::SNAPSHOT_READ) {
+      NS_NOTYETIMPLEMENTED("Implement me!");
+      return NS_ERROR_NOT_IMPLEMENTED;
     }
   }
   else {
@@ -956,8 +962,7 @@ SetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-SetVersionHelper::GetSuccessResult(JSContext* aCx,
-                                   jsval* aVal)
+SetVersionHelper::OnSuccess()
 {
   DatabaseInfo* info;
   if (!DatabaseInfo::Get(mDatabase->Id(), &info)) {
@@ -966,12 +971,15 @@ SetVersionHelper::GetSuccessResult(JSContext* aCx,
   }
   info->version = mVersion;
 
-  nsresult rv = WrapNative(aCx, NS_ISUPPORTS_CAST(nsPIDOMEventTarget*,
-                                                  mTransaction),
-                           aVal);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // We want an event, with a result, etc. Call the base class method.
+  return AsyncConnectionHelper::OnSuccess();
+}
 
-  return NS_OK;
+nsresult
+SetVersionHelper::GetSuccessResult(JSContext* aCx,
+                                   jsval* aVal)
+{
+  return WrapNative(aCx, static_cast<nsPIDOMEventTarget*>(mTransaction), aVal);
 }
 
 nsresult

@@ -66,9 +66,9 @@
             <xul:hbox anonid="over-link-box" class="urlbar-over-link-box"
                       xbl:inherits="overlinkstate" align="center">
               <xul:label anonid="over-link-host-label"
-                         class="urlbar-over-link-host-label uri-element-right-align"/>
+                         class="urlbar-over-link-host-label"/>
               <xul:label anonid="over-link-path-label"
-                         class="urlbar-over-link-path-label uri-element-right-align" flex="1"/>
+                         class="urlbar-over-link-path-label" flex="1"/>
             </xul:hbox>
           </xul:scrollbox>
           <xul:hbox anonid="textbox-container"
@@ -82,7 +82,7 @@
                 <children/>
               </xul:hbox>
               <html:input anonid="input"
-                          class="autocomplete-textbox urlbar-input textbox-input uri-element-right-align"
+                          class="autocomplete-textbox urlbar-input textbox-input"
                           flex="1" allowevents="true"
                           xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
             </xul:hbox>
@@ -783,8 +783,7 @@
             overLink.style.maxWidth = maxWidth + "px";
           }
 
-          var action = this._parseActionUrl(this._value);
-          this._originLabel.value = action ? action.param : this._value;
+          this._originLabel.value = this.value;
         ]]></body>
       </method>
 
@@ -1299,88 +1298,27 @@
 
   <binding id="splitmenu">
     <content>
-      <xul:hbox anonid="menuitem" flex="1"
-                class="splitmenu-menuitem"
-                xbl:inherits="iconic,label,disabled,onclick=oncommand,_moz-menuactive=active"/>
-      <xul:menu anonid="menu" class="splitmenu-menu"
-                xbl:inherits="disabled"
+      <xul:menuitem anonid="item" flex="1"
+                    class="menuitem-tooltip split-menuitem-item"
+                    xbl:inherits="label,key"/>
+      <xul:menu anonid="menu" class="split-menuitem-menu"
                 oncommand="event.stopPropagation();">
         <children includes="menupopup"/>
       </xul:menu>
     </content>
 
     <implementation>
-      <field name="menuitem" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "menuitem");
-      </field>
-      <field name="menu" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "menu");
-      </field>
-
-      <field name="_menuDelay">600</field>
-
-      <field name="_parentMenupopup"><![CDATA[
-        let node = this.parentNode;
-        while (node) {
-          if (node.localName == "menupopup")
-            break;
-          node = node.parentNode;
+      <constructor><![CDATA[
+        if (this.getAttribute("iconic") == "true") {
+          this.item.classList.remove("menuitem-tooltip");
+          this.item.classList.add("menuitem-iconic-tooltip");
+          this.item.classList.add("menuitem-iconic");
         }
-        node;
-      ]]></field>
+      ]]></constructor>
+      <field name="item" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "item");
+      </field>
     </implementation>
-
-    <handlers>
-      <handler event="mouseover"><![CDATA[
-        if (this.getAttribute("active") != "true" &&
-            this.getAttribute("disabled") != "true") {
-          this.setAttribute("active", "true");
-
-          let self = this;
-          setTimeout(function () {
-            if (self.getAttribute("active") == "true")
-              self.menu.open = true;
-          }, this._menuDelay);
-        }
-      ]]></handler>
-
-      <handler event="mouseout"><![CDATA[
-        if (this.menu.open)
-          return;
-
-        let node = event.relatedTarget;
-        while (node) {
-          if (node == this)
-            return;
-          node = node.parentNode;
-        }
-        this.removeAttribute("active");
-      ]]></handler>
-
-      <handler event="popuphidden"><![CDATA[
-        if (event.target == this.firstChild)
-          this.removeAttribute("active");
-      ]]></handler>
-
-      <handler event="popupshowing"><![CDATA[
-        if (event.target == this.firstChild &&
-            this._parentMenupopup._currentPopup)
-          this._parentMenupopup._currentPopup.hidePopup();
-      ]]></handler>
-
-      <handler event="click" phase="capturing"><![CDATA[
-        let node = event.originalTarget;
-        while (true) {
-          if (node == this.menuitem)
-            break;
-          if (node == this)
-            return;
-          node = node.parentNode;
-        }
-
-        this._parentMenupopup.hidePopup();
-      ]]></handler>
-    </handlers>
   </binding>
 
   <binding id="menuitem-tooltip" extends="chrome://global/content/bindings/menu.xml#menuitem">
@@ -1404,5 +1342,5 @@
       ]]></constructor>
     </implementation>
   </binding>
-
+  
 </bindings>

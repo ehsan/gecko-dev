@@ -163,14 +163,14 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
   }
   NS_ABORT_IF_FALSE(presShell, "GetPresShell succeeded but returned null");
 
-  gfxContextAutoSaveRestore contextRestorer(aContext);
+  aContext->Save();
 
   // Clip to aFillRect so that we don't paint outside.
   aContext->NewPath();
   aContext->Rectangle(aFillRect);
   aContext->Clip();
+  gfxMatrix savedMatrix(aContext->CurrentMatrix());
 
-  gfxContextMatrixAutoSaveRestore contextMatrixRestorer(aContext);
   aContext->Multiply(gfxMatrix(aTransform).Invert());
 
 
@@ -190,6 +190,9 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
   presShell->RenderDocument(svgRect, renderDocFlags,
                             NS_RGBA(0, 0, 0, 0), // transparent
                             aContext);
+
+  aContext->SetMatrix(savedMatrix);
+  aContext->Restore();
 
   return PR_TRUE;
 }

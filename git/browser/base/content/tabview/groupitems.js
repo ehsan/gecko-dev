@@ -24,8 +24,6 @@
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
  * Raymond Lee <raymond@appcoast.com>
- * Tim Taubert <tim.taubert@gmx.de>
- * Sean Dunn <seanedunn@yahoo.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -207,7 +205,7 @@ function GroupItem(listOfEls, options) {
   else {
     this.$titleShield
       .mousedown(function(e) {
-        self.lastMouseDownTarget = (Utils.isLeftClick(e) ? e.target : null);
+        self.lastMouseDownTarget = (Utils.isRightClick(e) ? null : e.target);
       })
       .mouseup(function(e) {
         var same = (e.target == self.lastMouseDownTarget);
@@ -421,19 +419,16 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Possible options:
   //   force - true to always update the DOM even if the bounds haven't changed; default false
-  setBounds: function GroupItem_setBounds(inRect, immediately, options) {
-    if (!Utils.isRect(inRect)) {
-      Utils.trace('GroupItem.setBounds: rect is not a real rectangle!', inRect);
+  setBounds: function GroupItem_setBounds(rect, immediately, options) {
+    if (!Utils.isRect(rect)) {
+      Utils.trace('GroupItem.setBounds: rect is not a real rectangle!', rect);
       return;
     }
 
-    // Validate and conform passed in size
-    let validSize = GroupItems.calcValidSize(
-      new Point(inRect.width, inRect.height));
-    let rect = new Rect(inRect.left, inRect.top, validSize.x, validSize.y);
-
     if (!options)
       options = {};
+
+    GroupItems.enforceMinSize(rect);
 
     var titleHeight = this.$titlebar.height();
 
@@ -470,10 +465,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       this.arrange({animate: !immediately}); //(immediately ? 'sometimes' : true)});
     } else if (css.left || css.top) {
       this._children.forEach(function(child) {
-        if (!child.getHidden()) {
-          var box = child.getBounds();
-          child.setPosition(box.left + offset.x, box.top + offset.y, immediately);
-        }
+        var box = child.getBounds();
+        child.setPosition(box.left + offset.x, box.top + offset.y, immediately);
       });
     }
 
@@ -496,9 +489,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       });
     }
 
-    if (css.width) {      
-      this.adjustTitleSize();
-    }
+    this.adjustTitleSize();
 
     UI.clearShouldResizeItems();
 
@@ -575,6 +566,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: closeAll
   // Closes the groupItem and all of its children.
   closeAll: function GroupItem_closeAll() {
+    let closeCenter = this.getBounds().center();
     if (this._children.length > 0) {
       this._children.forEach(function(child) {
         iQ(child.container).hide();
@@ -595,16 +587,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (!this.locked.close)
         this.close();
     }
-    
-    this._makeClosestTabActive();
-  },
-  
-  // ----------
-  // Function: _makeClosestTabActive
-  // Make the closest tab external to this group active.
-  // Used when closing the group.
-  _makeClosestTabActive: function GroupItem__makeClosestTabActive() {
-    let closeCenter = this.getBounds().center();
     // Find closest tab to make active
     let closestTabItem = UI.getClosestTab(closeCenter);
     UI.setActiveTab(closestTabItem);
@@ -657,20 +639,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let self = this;
 
     this._cancelFadeAwayUndoButtonTimer();
-
-    // When the last non-empty groupItem is closed and there are no orphan or
-    // pinned tabs then create a new group with a blank tab.
-    let remainingGroups = GroupItems.groupItems.filter(function (groupItem) {
-      return (groupItem != self && groupItem.getChildren().length);
-    });
-    if (!gBrowser._numPinnedTabs && !GroupItems.getOrphanedTabs().length &&
-        !remainingGroups.length) {
-      let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
-        return (groupItem != self && !groupItem.getChildren().length);
-      });
-      let group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
-      group.newTab();
-    }
 
     // when "TabClose" event is fired, the browser tab is about to close and our 
     // item "close" event is fired.  And then, the browser tab gets closed. 
@@ -947,8 +915,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       item.setParent(null);
       item.removeClass("tabInGroupItem");
       item.removeClass("stacked");
-      item.isStacked = false;
-      item.setHidden(false);
       item.removeClass("stack-trayed");
       item.setRotation(0);
 
@@ -962,7 +928,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           !options.dontClose) {
         if (!GroupItems.getUnclosableGroupItemId()) {
           this.close();
-          this._makeClosestTabActive();
         } else {
           // this.close();  this line is causing the leak but the leak doesn't happen after re-enabling it
         }
@@ -1019,7 +984,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       .data("xulTab", xulTab)
       .appendTo(this.$appTabTray)
       .click(function(event) {
-        if (!Utils.isLeftClick(event))
+        if (Utils.isRightClick(event))
           return;
 
         GroupItems.setActiveGroupItem(self);
@@ -1078,8 +1043,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
   // ----------
   // Function: shouldStack
-  // Returns true if the groupItem, given "count", should stack (instead of 
-  // grid).
+  // Returns true if the groupItem should stack (instead of grid).
   shouldStack: function GroupItem_shouldStack(count) {
     if (count <= 1)
       return false;
@@ -1087,8 +1051,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     var bb = this.getContentBounds();
     var options = {
       return: 'widthAndColumns',
-      count: count || this._children.length,
-      hideTitle: false
+      count: count || this._children.length
     };
     let arrObj = Items.arrange(null, bb, options);
  
@@ -1168,60 +1131,50 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     if (!count)
       return;
 
-    let itemAspect = TabItems.tabHeight / TabItems.tabWidth;
-    let zIndex = this.getZ() + count + 1;
-    let maxRotation = 35; // degress
-    let scale = 0.7;
-    let newTabsPad = 10;
-    let bbAspect = bb.height / bb.width;
-    let numInPile = 6;
-    let angleDelta = 3.5; // degrees
+    var zIndex = this.getZ() + count + 1;
+    var maxRotation = 35; // degress
+    var scale = 0.8;
+    var newTabsPad = 10;
+    var w;
+    var h;
+    var itemAspect = TabItems.tabHeight / TabItems.tabWidth;
+    var bbAspect = bb.height / bb.width;
 
-    // compute size of the entire stack, modulo rotation.
-    let size;
+    // compute h and w. h and w are the dimensions of each of the tabs... in other words, the
+    // height and width of the entire stack, modulo rotation.
     if (bbAspect > itemAspect) { // Tall, thin groupItem
-      size = TabItems.calcValidSize(new Point(bb.width * scale, -1),
-        {hideTitle:true});
-     } else { // Short, wide groupItem
-      size = TabItems.calcValidSize(new Point(-1, bb.height * scale),
-        {hideTitle:true});
-     }
-
+      w = bb.width * scale;
+      h = w * itemAspect;
+      // let's say one, because, even though there's more space, we're enforcing that with scale.
+    } else { // Short, wide groupItem
+      h = bb.height * scale;
+      w = h * (1 / itemAspect);
+    }
 
     // x is the left margin that the stack will have, within the content area (bb)
     // y is the vertical margin
-    var x = (bb.width - size.x) / 2;
-    var y = Math.min(size.x, (bb.height - size.y) / 2);
-    var box = new Rect(bb.left + x, bb.top + y, size.x, size.y);
+    var x = (bb.width - w) / 2;
+
+    var y = Math.min(x, (bb.height - h) / 2);
+    var box = new Rect(bb.left + x, bb.top + y, w, h);
 
     var self = this;
     var children = [];
     childrenToArrange.forEach(function GroupItem__stackArrange_order(child) {
-      // Children are still considered stacked even if they're hidden later.
-      child.addClass("stacked");
-      child.isStacked = true;
-      if (numInPile-- > 0) {
-        child.setHidden(false);
-        if (child == self.topChild)
-          children.unshift(child);
-        else
-          children.push(child);
-      } else {
-        child.setHidden(true);
-      }
+      if (child == self.topChild)
+        children.unshift(child);
+      else
+        children.push(child);
     });
 
-    let angleAccum = 0;
     children.forEach(function GroupItem__stackArrange_apply(child, index) {
       if (!child.locked.bounds) {
         child.setZ(zIndex);
         zIndex--;
 
-        // Force a recalculation of height because we've changed how the title
-        // is shown.
-        child.setBounds(box, !animate, {force:true});
-        child.setRotation((UI.rtl ? -1 : 1) * angleAccum);
-        angleAccum += angleDelta;
+        child.addClass("stacked");
+        child.setBounds(box, !animate);
+        child.setRotation((UI.rtl ? -1 : 1) * Math.min(index, 5) * 5);
       }
     });
 
@@ -1260,9 +1213,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       });
 
       childrenToArrange.forEach(function(child) {
-        child.removeClass("stacked");
-        child.isStacked = false;
-        child.setHidden(false);
+        child.removeClass("stacked")
       });
     }
   
@@ -1272,11 +1223,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     // Items.arrange will determine where/how the child items should be
     // placed, but will *not* actually move them for us. This is our job.
     let result = Items.arrange(childrenToArrange, box, arrangeOptions);
-    let {dropIndex, rects, columns} = result;
+    let {dropIndex, rects} = result;
     if ("oldDropIndex" in options && options.oldDropIndex === dropIndex)
       return dropIndex;
 
-    this._columns = columns;
     let index = 0;
     let self = this;
     childrenToArrange.forEach(function GroupItem_arrange_children_each(child, i) {
@@ -1378,7 +1328,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     this._children.forEach(function(child) {
       child.addClass("stack-trayed");
-      child.setHidden(false);
     });
 
     var $shield = iQ('<div>')
@@ -1531,15 +1480,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
                                   addTab: drag.info.item.parent != self,
                                   animate: true});
       }
-
-      // remove the item from its parent if that's not the current groupItem.
-      // this may occur when dragging too quickly so the out event is not fired.
-      var groupItem = drag.info.item.parent;
-      if (groupItem && self !== groupItem)
-        groupItem.remove(drag.info.$el, {dontClose: true});
-
       if (dropIndex !== false)
-        options = {index: dropIndex};
+        options = {index: dropIndex}
       this.add(drag.info.$el, options);
       GroupItems.setActiveGroupItem(this);
       dropIndex = false;
@@ -1616,21 +1558,34 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Reorders the tabs in the tab bar based on the arrangment of the tabs
   // shown in the groupItem.
   reorderTabsBasedOnTabItemOrder: function GroupItem_reorderTabsBasedOnTabItemOrder() {
-    let indices;
-    let tabs = this._children.map(function (tabItem) tabItem.tab);
+    let targetIndices = null;
 
-    tabs.forEach(function (tab, index) {
-      if (!indices)
-        indices = tabs.map(function (tab) tab._tPos);
-
-      let start = index ? indices[index - 1] + 1 : 0;
-      let end = index + 1 < indices.length ? indices[index + 1] - 1 : Infinity;
-      let targetRange = new Range(start, end);
-
-      if (!targetRange.contains(tab._tPos)) {
-        gBrowser.moveTabTo(tab, start);
-        indices = null;
+    let self = this;
+    this._children.some(function(tabItem, index) {
+      // if no targetIndices, or it was reset, recompute
+      if (!targetIndices) {
+        let currentIndices = [tabItem.tab._tPos for each (tabItem in self._children)];
+        targetIndices = currentIndices.concat().sort();
+        // if no resorting is required, we're done!
+        if (currentIndices == targetIndices)
+          return true;
       }
+    
+      // Compute a target range for this tab's index
+      let originalIndex = tabItem.tab._tPos;
+      let targetRange = new Range(index ? targetIndices[index - 1] : -1,
+                                  targetIndices[index + 1] || Infinity);
+
+      // If the originalIndex of this tab is not within its target,
+      // let's move it to the targetIndex.
+      if (!targetRange.contains(originalIndex)) {
+        let targetIndex = targetIndices[index];
+        gBrowser.moveTabTo(tabItem.tab, targetIndex);
+        // force recomputing targetIndices
+        targetIndices = null;
+      }
+      
+      return false;
     });
   },
 
@@ -1669,7 +1624,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
 // ##########
 // Class: GroupItems
-// Singleton for managing all <GroupItem>s.
+// Singelton for managing all <GroupItem>s.
 let GroupItems = {
   groupItems: [],
   nextID: 1,
@@ -1721,14 +1676,6 @@ let GroupItems = {
 
     // additional clean up
     this.groupItems = null;
-  },
-
-  // ----------
-  // Function: newGroup
-  // Creates a new empty group.
-  newGroup: function () {
-    let bounds = new Rect(20, 20, 250, 200);
-    return new GroupItem([], {bounds: bounds, immediately: true});
   },
 
   // ----------
@@ -1964,6 +1911,7 @@ let GroupItems = {
     let groupItemsData = Storage.readGroupItemsData(gWindow);
     let groupItemData = Storage.readGroupItemData(gWindow);
     this.reconstitute(groupItemsData, groupItemData);
+    this.killNewTabGroup(); // temporary?
     
     return (groupItemsData && !Utils.isEmptyObject(groupItemsData));
   },
@@ -2110,7 +2058,7 @@ let GroupItems = {
     // the orphan tab would be the same as tabItem when all tabs are app tabs
     // and a new tab is created.
     if (orphanTabItem && orphanTabItem.tab != tabItem.tab) {
-      newGroupItemBounds = orphanTabItem.getBounds();
+      newGroupItemBounds = orphanTabItem.getBoundsWithTitle();
       tabItems = [orphanTabItem, tabItem];
     } else {
       tabItem.setPosition(60, 60, true);
@@ -2371,6 +2319,21 @@ let GroupItems = {
   },
 
   // ----------
+  // Function: killNewTabGroup
+  // Removes the New Tab Group, which is now defunct. See bug 575851 and comments therein.
+  killNewTabGroup: function GroupItems_killNewTabGroup() {
+    // not localized as the original "New Tabs" group title was never localized
+    // to begin with
+    let newTabGroupTitle = "New Tabs";
+    this.groupItems.forEach(function(groupItem) {
+      if (groupItem.getTitle() == newTabGroupTitle && groupItem.locked.title) {
+        groupItem.removeAll();
+        groupItem.close();
+      }
+    });
+  },
+
+  // ----------
   // Function: removeHiddenGroups
   // Removes all hidden groups' data and its browser tabs.
   removeHiddenGroups: function GroupItems_removeHiddenGroups() {
@@ -2385,6 +2348,18 @@ let GroupItems = {
      });
 
     this._removingHiddenGroups = false;
+  },
+
+  // ----------
+  // Function: enforceMinSize
+  // Takes a <Rect> and modifies that <Rect> in case it is too small to be
+  // the bounds of a <GroupItem>.
+  //
+  // Parameters:
+  //   bounds - (<Rect>) the target bounds of a <GroupItem>
+  enforceMinSize: function GroupItems_enforceMinSize(bounds) {
+    bounds.width = Math.max(bounds.width, this.minGroupWidth);
+    bounds.height = Math.max(bounds.height, this.minGroupHeight);
   },
 
   // ----------
@@ -2424,17 +2399,5 @@ let GroupItems = {
         groupItem.$closeButton.show();
       });
     }
-  },
-  
-  // ----------
-  // Function: calcValidSize
-  // Basic measure rules. Assures that item is a minimum size.
-  calcValidSize: function GroupItems_calcValidSize(size, options) {
-    Utils.assert(Utils.isPoint(size), 'input is a Point');
-    Utils.assert((size.x>0 || size.y>0) && (size.x!=0 && size.y!=0), 
-      "dimensions are valid:"+size.x+","+size.y);
-    return new Point(
-      Math.max(size.x, GroupItems.minGroupWidth),
-      Math.max(size.y, GroupItems.minGroupHeight));
   }
 };

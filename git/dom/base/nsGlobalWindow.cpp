@@ -221,7 +221,6 @@
 #include "nsXPCOMCID.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozIThirdPartyUtil.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -800,7 +799,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mFireOfflineStatusChangeEventOnThaw(PR_FALSE),
     mCreatingInnerWindow(PR_FALSE),
     mIsChrome(PR_FALSE),
-    mCleanMessageManager(PR_FALSE),
     mNeedsFocus(PR_TRUE),
     mHasFocus(PR_FALSE),
 #if defined(XP_MAC) || defined(XP_MACOSX)
@@ -1119,13 +1117,10 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   DisableAccelerationUpdates();
   mHasAcceleration = PR_FALSE;
 
-  if (mCleanMessageManager) {
-    NS_ABORT_IF_FALSE(mIsChrome, "only chrome should have msg manager cleaned");
-    nsGlobalChromeWindow *asChrome = static_cast<nsGlobalChromeWindow*>(this);
-    if (asChrome->mMessageManager) {
-      static_cast<nsFrameMessageManager*>(
-        asChrome->mMessageManager.get())->Disconnect();
-    }
+  if (mIsChrome && static_cast<nsGlobalChromeWindow*>(this)->mMessageManager) {
+    static_cast<nsFrameMessageManager*>(
+       static_cast<nsGlobalChromeWindow*>(
+         this)->mMessageManager.get())->Disconnect();
   }
 
   mInnerWindowHolder = nsnull;
@@ -2080,9 +2075,9 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         }
 
         JS_SetParent(cx, mJSObject, newInnerWindow->mJSObject);
-
-        mContext->SetOuterObject(mJSObject);
       }
+
+      mContext->SetOuterObject(mJSObject);
     }
 
     JSAutoEnterCompartment ac;
@@ -2113,12 +2108,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         return NS_ERROR_FAILURE;
       }
     }
-  }
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, mJSObject)) {
-    NS_ERROR("unable to enter a compartment");
-    return NS_ERROR_FAILURE;
   }
 
   if (!aState && !reUseInnerWindow) {
@@ -8037,23 +8026,8 @@ NS_IMETHODIMP
 nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
 {
   if (!mIndexedDB) {
-    nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
-      do_GetService(THIRDPARTYUTIL_CONTRACTID);
-    NS_ENSURE_TRUE(thirdPartyUtil, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    PRBool isThirdParty;
-    nsresult rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull,
-                                                     &isThirdParty);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    if (isThirdParty) {
-      NS_WARNING("IndexedDB is not permitted in a third-party window.");
-      *_retval = nsnull;
-      return NS_OK;
-    }
-
-    mIndexedDB = indexedDB::IDBFactory::Create(this);
-    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    mIndexedDB = indexedDB::IDBFactory::Create();
+    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_FAILURE);
   }
 
   nsCOMPtr<nsIIDBFactory> request(mIndexedDB);

@@ -225,9 +225,7 @@ gfxDWriteFont::ComputeMetrics()
         mAdjustedSize = mStyle.size;
     }
 
-    gfxDWriteFontEntry *fe =
-        static_cast<gfxDWriteFontEntry*>(mFontEntry.get());
-    if (fe->IsCJKFont() && HasBitmapStrikeForSize(NS_lround(mAdjustedSize))) {
+    if (HasBitmapStrikeForSize(NS_lround(mAdjustedSize))) {
         mAdjustedSize = NS_lround(mAdjustedSize);
         mUseSubpixelPositions = PR_FALSE;
         // if we have bitmaps, we need to tell Cairo NOT to use subpixel AA,

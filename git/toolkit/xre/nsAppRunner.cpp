@@ -127,7 +127,6 @@ using mozilla::dom::ContentParent;
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
 #include <windows.h>
-#include "cairo/cairo-features.h"
 
 #ifndef PROCESS_DEP_ENABLE
 #define PROCESS_DEP_ENABLE 0x1
@@ -1643,8 +1642,6 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
 #include <shellapi.h>
-
-typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 #endif
 
 #if defined(XP_OS2) && (__KLIBC__ == 0 && __KLIBC_MINOR__ >= 6) // broken kLibc
@@ -2723,7 +2720,8 @@ NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
 #define MOZ_SPLASHSCREEN_UPDATE(_i)  do { } while(0)
 #endif
 
-#ifdef CAIRO_HAS_DWRITE_FONT
+#ifdef XP_WIN
+typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 
 #include <dwrite.h>
 
@@ -2804,7 +2802,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
   SetupErrorHandling(argv[0]);
 
-#ifdef CAIRO_HAS_DWRITE_FONT
+#ifdef XP_WIN
 
   // Bug 602792 - when DWriteCreateFactory is called the dwrite client dll
   // starts the FntCache service if it isn't already running (it's set

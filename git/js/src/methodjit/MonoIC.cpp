@@ -160,8 +160,7 @@ ic::SetGlobalName(VMFrame &f, ic::MICInfo *ic)
 
     const Shape *shape = obj->nativeLookup(id);
     if (!shape ||
-        shape->isMethod() ||
-        !shape->hasDefaultSetter() ||
+        !shape->hasDefaultGetterOrIsMethod() ||
         !shape->writable() ||
         !shape->hasSlot())
     {

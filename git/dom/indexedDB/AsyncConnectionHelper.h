@@ -158,12 +158,12 @@ protected:
   virtual void ReleaseMainThreadObjects();
 
   /**
-   * Helper to wrap a native into a jsval. Uses the global object of the request
-   * to parent the native.
+   * Helper to wrap a native into a jsval. Uses the global object of the given
+   * context.
    */
-  nsresult WrapNative(JSContext* aCx,
-                      nsISupports* aNative,
-                      jsval* aResult);
+  static nsresult WrapNative(JSContext* aCx,
+                             nsISupports* aNative,
+                             jsval* aResult);
 
   /**
    * Helper to decode a clone buffer to a jsval.

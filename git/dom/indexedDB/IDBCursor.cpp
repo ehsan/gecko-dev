@@ -84,18 +84,15 @@ public:
     mCursor(aCursor)
   { }
 
-  ~ContinueHelper()
-  {
-    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
-  }
-
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
+  nsresult OnSuccess();
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 
   void ReleaseMainThreadObjects()
   {
     mCursor = nsnull;
+    mCloneBuffer.clear();
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
 
@@ -658,8 +655,7 @@ ContinueHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-ContinueHelper::GetSuccessResult(JSContext* aCx,
-                                 jsval* aVal)
+ContinueHelper::OnSuccess()
 {
   // Remove cached stuff from last time.
   mCursor->mCachedKey = nsnull;
@@ -670,25 +666,38 @@ ContinueHelper::GetSuccessResult(JSContext* aCx,
 
   if (mKey.IsUnset()) {
     mCursor->mHaveValue = false;
-    *aVal = JSVAL_VOID;
   }
   else {
-    NS_ASSERTION(mCursor->mType == IDBCursor::OBJECTSTORE ||
-                 !mObjectKey.IsUnset(), "Bad key!");
-
     // Set new values.
     mCursor->mKey = mKey;
     mCursor->mObjectKey = mObjectKey;
-    mCursor->mContinueToKey = Key::UNSETKEY;
-
+    mCursor->mCloneBuffer.clear();
     mCursor->mCloneBuffer.swap(mCloneBuffer);
-    mCloneBuffer.clear(aCx);
-
-    nsresult rv = WrapNative(aCx, mCursor, aVal);
-    NS_ENSURE_SUCCESS(rv, rv);
+    mCursor->mContinueToKey = Key::UNSETKEY;
   }
 
-  return NS_OK;
+  // We want an event, with a result, etc. Call the base class method.
+  return AsyncConnectionHelper::OnSuccess();
+}
+
+nsresult
+ContinueHelper::GetSuccessResult(JSContext* aCx,
+                                 jsval* aVal)
+{
+  if (mKey.IsUnset()) {
+    NS_ASSERTION(!mCursor->mHaveValue, "Should have unset this!");
+    *aVal = JSVAL_VOID;
+    return NS_OK;
+  }
+
+#ifdef DEBUG
+  if (mCursor->mType != IDBCursor::OBJECTSTORE) {
+    NS_ASSERTION(!mObjectKey.IsUnset(), "Bad key!");
+  }
+#endif
+
+  NS_ASSERTION(mCursor->mHaveValue, "This should still be set to true!");
+  return WrapNative(aCx, mCursor, aVal);
 }
 
 nsresult

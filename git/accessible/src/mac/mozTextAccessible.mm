@@ -164,7 +164,12 @@ extern const NSString *kTopLevelUIElementAttribute;   // NSAccessibilityTopLevel
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  return mGeckoTextAccessible ? mGeckoTextAccessible->CharacterCount() : 0;
+  if (mGeckoTextAccessible) {
+    PRInt32 charCount = 0;
+    mGeckoTextAccessible->GetCharacterCount(&charCount);
+    return charCount;
+  }
+  return 0;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
