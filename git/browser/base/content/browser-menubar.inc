@@ -317,121 +317,7 @@
                     <menuseparator/>
                   </menupopup>
                 </menu>
-                <menu id="charsetMenu"
-                      label="&charsetMenu.label;"
-                      accesskey="&charsetMenu.accesskey;"
-                      datasources="rdf:charset-menu"
-                      ref="NC:BrowserCharsetMenuRoot"
-                      oncommand="MultiplexHandler(event)"
-                      onpopupshowing="CreateMenu('browser');UpdateMenus(event)"
-                      onpopupshown="CreateMenu('more-menu');"
-                      observes="isImage">
-                    <template>
-                        <rule rdf:type="http://home.netscape.com/NC-rdf#BookmarkSeparator">
-                            <menupopup>
-                            <menuseparator uri="..." />
-                            </menupopup>
-                        </rule>
-                        <rule>
-                            <menupopup>
-                            <menuitem type="radio" name="charsetGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                            </menupopup>
-                        </rule>
-                    </template>
-
-                    <menupopup>
-                    <menu label="&charsetMenuAutodet.label;" accesskey="&charsetMenuAutodet.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserAutodetMenuRoot">
-                        <template>
-                            <rule rdf:type="http://home.netscape.com/NC-rdf#CharsetDetector">
-                                <menupopup>
-                                <menuitem type="radio" name="detectorGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                </menupopup>
-                            </rule>
-                        </template>
-                        <menupopup>
-                        </menupopup>
-                    </menu>
-                    <menu label="&charsetMenuMore.label;" accesskey="&charsetMenuMore.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMoreCharsetMenuRoot">
-                        <template>
-                            <rule>
-                                <menupopup>
-                                <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                </menupopup>
-                            </rule>
-                        </template>
-                        <menupopup>
-                            <menu label="&charsetMenuMore1.label;" accesskey="&charsetMenuMore1.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore1CharsetMenuRoot">
-                                <template>
-                                    <rule>
-                                        <menupopup>
-                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                        </menupopup>
-                                    </rule>
-                                </template>
-                                <menupopup>
-                                </menupopup>
-                            </menu>
-                            <menu label="&charsetMenuMore2.label;" accesskey="&charsetMenuMore2.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore2CharsetMenuRoot">
-                                <template>
-                                    <rule>
-                                        <menupopup>
-                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                        </menupopup>
-                                    </rule>
-                                </template>
-                                <menupopup>
-                                </menupopup>
-                            </menu>
-                            <menu label="&charsetMenuMore3.label;" accesskey="&charsetMenuMore3.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore3CharsetMenuRoot">
-                                <template>
-                                    <rule>
-                                        <menupopup>
-                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                        </menupopup>
-                                    </rule>
-                                </template>
-                                <menupopup>
-                                </menupopup>
-                            </menu>
-                            <menu label="&charsetMenuMore4.label;" accesskey="&charsetMenuMore4.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore4CharsetMenuRoot">
-                                <template>
-                                    <rule>
-                                        <menupopup>
-                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                        </menupopup>
-                                    </rule>
-                                </template>
-                                <menupopup>
-                                </menupopup>
-                            </menu>
-                            <menu label="&charsetMenuMore5.label;" accesskey="&charsetMenuMore5.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore5CharsetMenuRoot">
-                                <template>
-                                    <rule>
-                                        <menupopup>
-                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                        </menupopup>
-                                    </rule>
-                                </template>
-                                <menupopup>
-                                </menupopup>
-                            </menu>
-                            <menu label="&charsetMenuUnicode.label;" accesskey="&charsetMenuUnicode.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserUnicodeCharsetMenuRoot">
-                                <template>
-                                    <rule>
-                                        <menupopup>
-                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                                        </menupopup>
-                                    </rule>
-                                </template>
-                                <menupopup>
-                                </menupopup>
-                            </menu>
-                            <menuseparator />
-                        </menupopup>
-                    </menu>
-                    <menuitem name="charsetCustomize" accesskey="&charsetCustomize.accesskey;" label="&charsetCustomize.label;" oncommand="window.openDialog('chrome://global/content/customizeCharset.xul','PrefWindow', 'chrome,modal=yes,resizable=yes', 'browser')"/>
-                    </menupopup>
-                </menu>
+#include browser-charsetmenu.inc
                 <menuseparator/>
                 <menuitem id="menu_pageSource"
                           accesskey="&pageSourceCmd.accesskey;"
@@ -573,7 +459,7 @@
                 command="Browser:BookmarkAllTabs"
                 key="bookmarkAllTabsKb"/>
       <menuitem id="bookmarksShowAll"
-                label="&organizeBookmarks.label;"
+                label="&showAllBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
       <menuseparator id="organizeBookmarksSeparator"/>
@@ -615,6 +501,7 @@
               <menuitem id="menu_openAddons"
                         label="&addons.label;"
                         accesskey="&addons.accesskey;"
+                        key="key_openAddons"
                         command="Tools:Addons"/>
 #ifdef MOZ_SERVICES_SYNC
               <!-- only one of sync-setup or sync-menu will be showing at once -->

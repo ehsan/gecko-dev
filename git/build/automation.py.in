@@ -307,10 +307,10 @@ class Automation(object):
     # Insert desired permissions
     c = 0
     for perm in permissions.keys():
-      for host in permissions[perm]:
+      for host,allow in permissions[perm]:
         c += 1
-        cursor.execute("INSERT INTO moz_hosts values(?, ?, ?, 1, 0, 0)",
-                       (c, host, perm))
+        cursor.execute("INSERT INTO moz_hosts values(?, ?, ?, ?, 0, 0)",
+                       (c, host, perm, 1 if allow else 2))
 
     # Commit and close
     permDB.commit()
@@ -327,7 +327,7 @@ class Automation(object):
     # Set up permissions database
     locations = self.readLocations()
     self.setupPermissionsDatabase(profileDir,
-      {'allowXULXBL':map(lambda l: l.host, locations)});
+      {'allowXULXBL':[(l.host, 'noxul' not in l.options) for l in locations]});
 
     part = """\
 user_pref("browser.dom.window.dump.enabled", true);
@@ -363,6 +363,7 @@ user_pref("extensions.testpilot.runStudies", false);
 
 user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 user_pref("geo.wifi.testing", true);
+user_pref("geo.ignore.location_filter", true);
 
 user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
 

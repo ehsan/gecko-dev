@@ -279,6 +279,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
      
   // if the border is smaller than the legend. Move the border down
   // to be centered on the legend. 
+  // FIXME: This means border-radius clamping is incorrect; we should
+  // override nsIFrame::GetBorderRadii.
   if (topBorder < mLegendRect.height)
     yoff = (mLegendRect.height - topBorder)/2;
       
@@ -674,7 +676,6 @@ nsFieldSetFrame::ReparentFrameList(const nsFrameList& aFrameList)
     e.get()->SetParent(mContentFrame);
     frameManager->ReparentStyleContext(e.get());
   }
-  mContentFrame->AddStateBits(GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
 }
 
 nscoord

@@ -176,7 +176,7 @@ public:
   // otherwise null will be returned.
   nsMenuFrame* Enter();
 
-  NS_IMETHOD SetParent(const nsIFrame* aParent);
+  virtual void SetParent(nsIFrame* aParent);
 
   virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
@@ -185,14 +185,11 @@ public:
 
   // nsMenuFrame methods 
 
-  nsresult DestroyPopupFrames(nsPresContext* aPresContext);
-
   virtual PRBool IsOnMenuBar() { return mMenuParent && mMenuParent->IsMenuBar(); }
   virtual PRBool IsOnActiveMenuBar() { return IsOnMenuBar() && mMenuParent->IsActive(); }
   virtual PRBool IsOpen();
   virtual PRBool IsMenu();
   PRBool IsDisabled();
-  PRBool IsGenerated();
   void ToggleMenuState();
 
   // indiciate that the menu's popup has just been opened, so that the menu

@@ -1257,9 +1257,8 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_WIDGET_LAYERS) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
-  if ((aFlags & PAINT_IGNORE_SUPPRESSION) && builder.IsBackgroundOnly()) {
-    builder.SetBackgroundOnly(PR_FALSE);
-    willFlushLayers = PR_TRUE;
+  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
+    builder.IgnorePaintSuppression();
   }
   nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
   if (aFlags & PAINT_IGNORE_VIEWPORT_SCROLLING) {
@@ -1368,6 +1367,10 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
   builder.LeavePresShell(aFrame, dirtyRect);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (builder.GetHadToIgnorePaintSuppression()) {
+    willFlushLayers = PR_TRUE;
+  }
 
 #ifdef DEBUG
   if (gDumpPaintList) {
@@ -2868,10 +2871,8 @@ MapToFloatUserPixels(const gfxSize& aSize,
                   aPt.y*aDest.size.height/aSize.height + aDest.pos.y);
 }
 
-// helper function to convert a nsRect to a gfxRect
-// borrowed from nsCSSRendering.cpp
-static gfxRect
-RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
+/* static */ gfxRect
+nsLayoutUtils::RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
 {
   return gfxRect(gfxFloat(aRect.x) / aAppUnitsPerDevPixel,
                  gfxFloat(aRect.y) / aAppUnitsPerDevPixel,
@@ -2931,9 +2932,12 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   if (aDest.IsEmpty() || aFill.IsEmpty())
     return SnappedImageDrawingParameters();
 
-  gfxRect devPixelDest = RectToGfxRect(aDest, aAppUnitsPerDevPixel);
-  gfxRect devPixelFill = RectToGfxRect(aFill, aAppUnitsPerDevPixel);
-  gfxRect devPixelDirty = RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
+  gfxRect devPixelDest =
+    nsLayoutUtils::RectToGfxRect(aDest, aAppUnitsPerDevPixel);
+  gfxRect devPixelFill =
+    nsLayoutUtils::RectToGfxRect(aFill, aAppUnitsPerDevPixel);
+  gfxRect devPixelDirty =
+    nsLayoutUtils::RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
 
   PRBool ignoreScale = PR_FALSE;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE

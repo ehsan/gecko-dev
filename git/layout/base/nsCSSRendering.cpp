@@ -457,85 +457,18 @@ MakeBevelColor(mozilla::css::Side whichSide, PRUint8 style,
 //----------------------------------------------------------------------
 // Thebes Border Rendering Code Start
 
-// helper function to convert a nsRect to a gfxRect
-static gfxRect
-RectToGfxRect(const nsRect& rect, nscoord twipsPerPixel)
-{
-  return gfxRect(gfxFloat(rect.x) / twipsPerPixel,
-                 gfxFloat(rect.y) / twipsPerPixel,
-                 gfxFloat(rect.width) / twipsPerPixel,
-                 gfxFloat(rect.height) / twipsPerPixel);
-}
-
 /*
  * Compute the float-pixel radii that should be used for drawing
  * this border/outline, given the various input bits.
- *
- * If a side is skipped via skipSides, its corners are forced to 0.
- * All corner radii are then adjusted so they do not require more
- * space than outerRect, according to the algorithm in css3-background.
  */
-static void
-ComputePixelRadii(const nscoord *aTwipsRadii,
-                  const nsRect& outerRect,
-                  PRIntn skipSides,
-                  nscoord twipsPerPixel,
-                  gfxCornerSizes *oBorderRadii)
+/* static */ void
+nsCSSRendering::ComputePixelRadii(const nscoord *aAppUnitsRadii,
+                                  nscoord aAppUnitsPerPixel,
+                                  gfxCornerSizes *oBorderRadii)
 {
-  nscoord twipsRadii[8];
-  memcpy(twipsRadii, aTwipsRadii, sizeof twipsRadii);
-
-  if (skipSides & SIDE_BIT_TOP) {
-    twipsRadii[NS_CORNER_TOP_LEFT_X] = 0;
-    twipsRadii[NS_CORNER_TOP_LEFT_Y] = 0;
-    twipsRadii[NS_CORNER_TOP_RIGHT_X] = 0;
-    twipsRadii[NS_CORNER_TOP_RIGHT_Y] = 0;
-  }
-
-  if (skipSides & SIDE_BIT_RIGHT) {
-    twipsRadii[NS_CORNER_TOP_RIGHT_X] = 0;
-    twipsRadii[NS_CORNER_TOP_RIGHT_Y] = 0;
-    twipsRadii[NS_CORNER_BOTTOM_RIGHT_X] = 0;
-    twipsRadii[NS_CORNER_BOTTOM_RIGHT_Y] = 0;
-  }
-
-  if (skipSides & SIDE_BIT_BOTTOM) {
-    twipsRadii[NS_CORNER_BOTTOM_RIGHT_X] = 0;
-    twipsRadii[NS_CORNER_BOTTOM_RIGHT_Y] = 0;
-    twipsRadii[NS_CORNER_BOTTOM_LEFT_X] = 0;
-    twipsRadii[NS_CORNER_BOTTOM_LEFT_Y] = 0;
-  }
-
-  if (skipSides & SIDE_BIT_LEFT) {
-    twipsRadii[NS_CORNER_BOTTOM_LEFT_X] = 0;
-    twipsRadii[NS_CORNER_BOTTOM_LEFT_Y] = 0;
-    twipsRadii[NS_CORNER_TOP_LEFT_X] = 0;
-    twipsRadii[NS_CORNER_TOP_LEFT_Y] = 0;
-  }
-
   gfxFloat radii[8];
   NS_FOR_CSS_HALF_CORNERS(corner)
-    radii[corner] = twipsRadii[corner] / twipsPerPixel;
-
-  // css3-background specifies this algorithm for reducing
-  // corner radii when they are too big.
-  gfxFloat maxWidth = outerRect.width / twipsPerPixel;
-  gfxFloat maxHeight = outerRect.height / twipsPerPixel;
-  gfxFloat f = 1.0f;
-  NS_FOR_CSS_SIDES(side) {
-    PRUint32 hc1 = NS_SIDE_TO_HALF_CORNER(side, PR_FALSE, PR_TRUE);
-    PRUint32 hc2 = NS_SIDE_TO_HALF_CORNER(side, PR_TRUE, PR_TRUE);
-    gfxFloat length = NS_SIDE_IS_VERTICAL(side) ? maxHeight : maxWidth;
-    gfxFloat sum = radii[hc1] + radii[hc2];
-    // avoid floating point division in the normal case
-    if (length < sum)
-      f = NS_MIN(f, length/sum);
-  }
-  if (f < 1.0) {
-    NS_FOR_CSS_HALF_CORNERS(corner) {
-      radii[corner] *= f;
-    }
-  }
+    radii[corner] = gfxFloat(aAppUnitsRadii[corner]) / aAppUnitsPerPixel;
 
   (*oBorderRadii)[C_TL] = gfxSize(radii[NS_CORNER_TOP_LEFT_X],
                                   radii[NS_CORNER_TOP_LEFT_Y]);
@@ -628,8 +561,14 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
     return;
   }
 
-  GetBorderRadiusTwips(aStyleBorder.mBorderRadius, aForFrame->GetSize().width,
-                       twipsRadii);
+  nsSize frameSize = aForFrame->GetSize();
+  if (&aStyleBorder == aForFrame->GetStyleBorder() &&
+      frameSize == aBorderArea.Size()) {
+    aForFrame->GetBorderRadii(twipsRadii);
+  } else {
+    nsIFrame::ComputeBorderRadii(aStyleBorder.mBorderRadius, frameSize,
+                                 aBorderArea.Size(), aSkipSides, twipsRadii);
+  }
 
   // Turn off rendering for all of the zero sized sides
   if (aSkipSides & SIDE_BIT_TOP) border.top = 0;
@@ -648,7 +587,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 
   // convert outer and inner rects
-  gfxRect oRect(RectToGfxRect(outerRect, twipsPerPixel));
+  gfxRect oRect(nsLayoutUtils::RectToGfxRect(outerRect, twipsPerPixel));
 
   // convert the border widths
   gfxFloat borderWidths[4] = { gfxFloat(border.top / twipsPerPixel),
@@ -658,8 +597,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 
   // convert the radii
   gfxCornerSizes borderRadii;
-  ComputePixelRadii(twipsRadii, outerRect, aSkipSides, twipsPerPixel,
-                    &borderRadii);
+  ComputePixelRadii(twipsRadii, twipsPerPixel, &borderRadii);
 
   PRUint8 borderStyles[4];
   nscolor borderColors[4];
@@ -748,10 +686,6 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   nscolor bgColor =
     bgContext->GetVisitedDependentColor(eCSSProperty_background_color);
 
-  // get the radius for our outline
-  GetBorderRadiusTwips(ourOutline->mOutlineRadius, aBorderArea.width,
-                       twipsRadii);
-
   // When the outline property is set on :-moz-anonymous-block or
   // :-moz-anonyomus-positioned-block pseudo-elements, it inherited that
   // outline from the inline that was broken because it contained a
@@ -797,17 +731,20 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   nsRect outerRect = innerRect;
   outerRect.Inflate(width, width);
 
+  // get the radius for our outline
+  nsIFrame::ComputeBorderRadii(ourOutline->mOutlineRadius, aBorderArea.Size(),
+                               outerRect.Size(), 0, twipsRadii);
+
   // Get our conversion values
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 
   // get the outer rectangles
-  gfxRect oRect(RectToGfxRect(outerRect, twipsPerPixel));
+  gfxRect oRect(nsLayoutUtils::RectToGfxRect(outerRect, twipsPerPixel));
 
   // convert the radii
   nsMargin outlineMargin(width, width, width, width);
   gfxCornerSizes outlineRadii;
-  ComputePixelRadii(twipsRadii, outerRect, 0, twipsPerPixel,
-                    &outlineRadii);
+  ComputePixelRadii(twipsRadii, twipsPerPixel, &outlineRadii);
 
   PRUint8 outlineStyle = ourOutline->GetOutlineStyle();
   PRUint8 outlineStyles[4] = { outlineStyle,
@@ -860,12 +797,12 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
   nscoord oneCSSPixel = nsPresContext::CSSPixelsToAppUnits(1);
   nscoord oneDevPixel = aPresContext->DevPixelsToAppUnits(1);
 
-  gfxRect focusRect(RectToGfxRect(aFocusRect, oneDevPixel));
+  gfxRect focusRect(nsLayoutUtils::RectToGfxRect(aFocusRect, oneDevPixel));
 
   gfxCornerSizes focusRadii;
   {
     nscoord twipsRadii[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    ComputePixelRadii(twipsRadii, aFocusRect, 0, oneDevPixel, &focusRadii);
+    ComputePixelRadii(twipsRadii, oneDevPixel, &focusRadii);
   }
   gfxFloat focusWidths[4] = { gfxFloat(oneCSSPixel / oneDevPixel),
                               gfxFloat(oneCSSPixel / oneDevPixel),
@@ -1137,38 +1074,6 @@ nsCSSRendering::DidPaint()
   gInlineBGData->Reset();
 }
 
-PRBool
-nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                     const nscoord& aFrameWidth,
-                                     nscoord aRadii[8])
-{
-  PRBool result = PR_FALSE;
-
-  // Convert percentage values
-  NS_FOR_CSS_HALF_CORNERS(i) {
-    const nsStyleCoord c = aBorderRadius.Get(i);
-
-    switch (c.GetUnit()) {
-      case eStyleUnit_Percent:
-        aRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
-        break;
-
-      case eStyleUnit_Coord:
-        aRadii[i] = c.GetCoordValue();
-        break;
-
-      default:
-        NS_NOTREACHED("GetBorderRadiusTwips: bad unit");
-        aRadii[i] = 0;
-        break;
-    }
-
-    if (aRadii[i])
-      result = PR_TRUE;
-  }
-  return result;
-}
-
 void
 nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
                                     nsIRenderingContext& aRenderingContext,
@@ -1198,19 +1103,16 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
   } else {
     nativeTheme = PR_FALSE;
     nscoord twipsRadii[8];
-    hasBorderRadius =
-      GetBorderRadiusTwips(styleBorder->mBorderRadius,
-                           aFrameArea.width, twipsRadii);
+    NS_ASSERTION(aFrameArea.Size() == aForFrame->GetSize(), "unexpected size");
+    hasBorderRadius = aForFrame->GetBorderRadii(twipsRadii);
     if (hasBorderRadius) {
-      PRIntn sidesToSkip = aForFrame->GetSkipSides();
-      ComputePixelRadii(twipsRadii, aFrameArea, sidesToSkip, twipsPerPixel,
-                        &borderRadii);
+      ComputePixelRadii(twipsRadii, twipsPerPixel, &borderRadii);
     }
   }
 
   nsRect frameRect =
     nativeTheme ? aForFrame->GetOverflowRectRelativeToSelf() + aFrameArea.TopLeft() : aFrameArea;
-  gfxRect frameGfxRect = RectToGfxRect(frameRect, twipsPerPixel);
+  gfxRect frameGfxRect(nsLayoutUtils::RectToGfxRect(frameRect, twipsPerPixel));
   frameGfxRect.Round();
 
   // We don't show anything that intersects with the frame we're blurring on. So tell the
@@ -1226,7 +1128,7 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     useSkipGfxRect = !aForFrame->IsLeaf();
     nsRect paddingRect =
       aForFrame->GetPaddingRect() - aForFrame->GetPosition() + aFrameArea.TopLeft();
-    skipGfxRect = RectToGfxRect(paddingRect, twipsPerPixel);
+    skipGfxRect = nsLayoutUtils::RectToGfxRect(paddingRect, twipsPerPixel);
   } else if (hasBorderRadius) {
     skipGfxRect.Inset(
         PR_MAX(borderRadii[C_TL].height, borderRadii[C_TR].height), 0,
@@ -1254,8 +1156,10 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     nscoord blurRadius = shadowItem->mRadius;
     shadowRectPlusBlur.Inflate(blurRadius, blurRadius);
 
-    gfxRect shadowGfxRect = RectToGfxRect(shadowRect, twipsPerPixel);
-    gfxRect shadowGfxRectPlusBlur = RectToGfxRect(shadowRectPlusBlur, twipsPerPixel);
+    gfxRect shadowGfxRect =
+      nsLayoutUtils::RectToGfxRect(shadowRect, twipsPerPixel);
+    gfxRect shadowGfxRectPlusBlur =
+      nsLayoutUtils::RectToGfxRect(shadowRectPlusBlur, twipsPerPixel);
     shadowGfxRect.Round();
     shadowGfxRectPlusBlur.RoundOut();
 
@@ -1379,8 +1283,8 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
 
   // Get any border radius, since box-shadow must also have rounded corners if the frame does
   nscoord twipsRadii[8];
-  PRBool hasBorderRadius = GetBorderRadiusTwips(styleBorder->mBorderRadius,
-                                                aFrameArea.width, twipsRadii);
+  NS_ASSERTION(aFrameArea.Size() == aForFrame->GetSize(), "unexpected size");
+  PRBool hasBorderRadius = aForFrame->GetBorderRadii(twipsRadii);
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 
   nsRect paddingRect = aFrameArea;
@@ -1391,10 +1295,8 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
   gfxCornerSizes innerRadii;
   if (hasBorderRadius) {
     gfxCornerSizes borderRadii;
-    PRIntn sidesToSkip = aForFrame->GetSkipSides();
 
-    ComputePixelRadii(twipsRadii, aFrameArea, sidesToSkip,
-                      twipsPerPixel, &borderRadii);
+    ComputePixelRadii(twipsRadii, twipsPerPixel, &borderRadii);
     gfxFloat borderSizes[4] = {
       gfxFloat(border.top / twipsPerPixel),
       gfxFloat(border.right / twipsPerPixel),
@@ -1456,7 +1358,7 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // including after blurring. We also use this for clipping later on.
     nsRect skipRect = shadowClipRect;
     skipRect.Deflate(blurRadius, blurRadius);
-    gfxRect skipGfxRect = RectToGfxRect(skipRect, twipsPerPixel);
+    gfxRect skipGfxRect = nsLayoutUtils::RectToGfxRect(skipRect, twipsPerPixel);
     if (hasBorderRadius) {
       skipGfxRect.Inset(PR_MAX(clipRectRadii[C_TL].height, clipRectRadii[C_TR].height), 0,
                         PR_MAX(clipRectRadii[C_BL].height, clipRectRadii[C_BR].height), 0);
@@ -1484,7 +1386,8 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // Clip the context to the area of the frame's padding rect, so no part of the
     // shadow is painted outside. Also cut out anything beyond where the inset shadow
     // will be.
-    gfxRect shadowGfxRect = RectToGfxRect(paddingRect, twipsPerPixel);
+    gfxRect shadowGfxRect =
+      nsLayoutUtils::RectToGfxRect(paddingRect, twipsPerPixel);
     shadowGfxRect.Round();
     renderContext->NewPath();
     if (hasBorderRadius)
@@ -1497,9 +1400,11 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
 
     // Fill the temporary surface minus the area within the frame that we should
     // not paint in, and blur and apply it
-    gfxRect shadowPaintGfxRect = RectToGfxRect(shadowPaintRect, twipsPerPixel);
+    gfxRect shadowPaintGfxRect =
+      nsLayoutUtils::RectToGfxRect(shadowPaintRect, twipsPerPixel);
     shadowPaintGfxRect.RoundOut();
-    gfxRect shadowClipGfxRect = RectToGfxRect(shadowClipRect, twipsPerPixel);
+    gfxRect shadowClipGfxRect =
+      nsLayoutUtils::RectToGfxRect(shadowClipRect, twipsPerPixel);
     shadowClipGfxRect.Round();
     shadowContext->NewPath();
     shadowContext->Rectangle(shadowPaintGfxRect);
@@ -1611,7 +1516,7 @@ SetupDirtyRects(const nsRect& aBGClipArea, const nsRect& aCallerDirtyRect,
   aDirtyRect->IntersectRect(aBGClipArea, aCallerDirtyRect);
 
   // Compute the Thebes equivalent of the dirtyRect.
-  *aDirtyRectGfx = RectToGfxRect(*aDirtyRect, aAppUnitsPerPixel);
+  *aDirtyRectGfx = nsLayoutUtils::RectToGfxRect(*aDirtyRect, aAppUnitsPerPixel);
   NS_WARN_IF_FALSE(aDirtyRect->IsEmpty() || !aDirtyRectGfx->IsEmpty(),
                    "converted dirty rect should not be empty");
   NS_ABORT_IF_FALSE(!aDirtyRect->IsEmpty() || aDirtyRectGfx->IsEmpty(),
@@ -1671,7 +1576,8 @@ SetupBackgroundClip(gfxContext *aCtx, PRUint8 aBackgroundClip,
   // to depend on it.
 
   if (aHaveRoundedCorners) {
-    gfxRect bgAreaGfx(RectToGfxRect(*aBGClipArea, aAppUnitsPerPixel));
+    gfxRect bgAreaGfx =
+      nsLayoutUtils::RectToGfxRect(*aBGClipArea, aAppUnitsPerPixel);
     bgAreaGfx.Round();
     bgAreaGfx.Condition();
 
@@ -1946,7 +1852,8 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
 
   gfxContext *ctx = aRenderingContext.ThebesContext();
   nscoord appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
-  gfxRect oneCellArea = RectToGfxRect(aOneCellArea, appUnitsPerPixel);
+  gfxRect oneCellArea =
+    nsLayoutUtils::RectToGfxRect(aOneCellArea, appUnitsPerPixel);
 
   // Compute "gradient line" start and end relative to oneCellArea
   gfxPoint lineStart, lineEnd;
@@ -2175,7 +2082,8 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   if (!dirty.IntersectRect(aDirtyRect, aFillArea))
     return;
 
-  gfxRect areaToFill = RectToGfxRect(aFillArea, appUnitsPerPixel);
+  gfxRect areaToFill =
+    nsLayoutUtils::RectToGfxRect(aFillArea, appUnitsPerPixel);
   gfxMatrix ctm = ctx->CurrentMatrix();
 
   // xStart/yStart are the top-left corner of the top-left tile.
@@ -2187,8 +2095,8 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   for (nscoord y = yStart; y < yEnd; y += aOneCellArea.height) {
     for (nscoord x = xStart; x < xEnd; x += aOneCellArea.width) {
       // The coordinates of the tile
-      gfxRect tileRect =
-        RectToGfxRect(nsRect(x, y, aOneCellArea.width, aOneCellArea.height),
+      gfxRect tileRect = nsLayoutUtils::RectToGfxRect(
+                      nsRect(x, y, aOneCellArea.width, aOneCellArea.height),
                       appUnitsPerPixel);
       // The actual area to fill with this tile is the intersection of this
       // tile with the overall area we're supposed to be filling
@@ -2271,12 +2179,17 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   PRBool haveRoundedCorners;
   {
     nscoord radii[8];
-    haveRoundedCorners =
-      GetBorderRadiusTwips(aBorder.mBorderRadius, aForFrame->GetSize().width,
-                           radii);
+    nsSize frameSize = aForFrame->GetSize();
+    if (&aBorder == aForFrame->GetStyleBorder() &&
+        frameSize == aBorderArea.Size()) {
+      haveRoundedCorners = aForFrame->GetBorderRadii(radii);
+    } else {
+      haveRoundedCorners = nsIFrame::ComputeBorderRadii(aBorder.mBorderRadius,
+                                   frameSize, aBorderArea.Size(),
+                                   aForFrame->GetSkipSides(), radii);
+    }
     if (haveRoundedCorners)
-      ComputePixelRadii(radii, aBorderArea, aForFrame->GetSkipSides(),
-                        appUnitsPerPixel, &bgRadii);
+      ComputePixelRadii(radii, appUnitsPerPixel, &bgRadii);
   }
 
   // The 'bgClipArea' (used only by the image tiling logic, far below)
@@ -3927,9 +3840,10 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
   }
 
   // Convert from app units to device pixels
-  gfxRect rect = RectToGfxRect(aRect, aAppUnitsPerDevPixel);
+  gfxRect rect = nsLayoutUtils::RectToGfxRect(aRect, aAppUnitsPerDevPixel);
 
-  gfxRect dirtyRect = RectToGfxRect(aDirtyRect, aAppUnitsPerDevPixel);
+  gfxRect dirtyRect =
+    nsLayoutUtils::RectToGfxRect(aDirtyRect, aAppUnitsPerDevPixel);
   dirtyRect.RoundOut();
 
   // Create the temporary surface for blurring

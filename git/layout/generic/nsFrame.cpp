@@ -128,6 +128,7 @@
 #endif
 
 #include "gfxContext.h"
+#include "CSSCalc.h"
 
 using namespace mozilla;
 
@@ -733,6 +734,149 @@ nsIFrame::GetContentRect() const
   nsRect r(mRect);
   r.Deflate(bp);
   return r;
+}
+
+PRBool
+nsIFrame::ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
+                             const nsSize& aFrameSize,
+                             const nsSize& aBorderArea,
+                             PRIntn aSkipSides,
+                             nscoord aRadii[8])
+{
+  // Percentages are relative to whichever side they're on.
+  NS_FOR_CSS_HALF_CORNERS(i) {
+    const nsStyleCoord c = aBorderRadius.Get(i);
+    nscoord axis =
+      NS_HALF_CORNER_IS_X(i) ? aFrameSize.width : aFrameSize.height;
+
+    switch (c.GetUnit()) {
+      case eStyleUnit_Percent:
+        aRadii[i] = (nscoord)(c.GetPercentValue() * axis);
+        break;
+
+      case eStyleUnit_Coord:
+        aRadii[i] = c.GetCoordValue();
+        break;
+
+      default:
+        NS_NOTREACHED("ComputeBorderRadii: bad unit");
+        aRadii[i] = 0;
+        break;
+    }
+  }
+
+  if (aSkipSides & (1 << NS_SIDE_TOP)) {
+    aRadii[NS_CORNER_TOP_LEFT_X] = 0;
+    aRadii[NS_CORNER_TOP_LEFT_Y] = 0;
+    aRadii[NS_CORNER_TOP_RIGHT_X] = 0;
+    aRadii[NS_CORNER_TOP_RIGHT_Y] = 0;
+  }
+
+  if (aSkipSides & (1 << NS_SIDE_RIGHT)) {
+    aRadii[NS_CORNER_TOP_RIGHT_X] = 0;
+    aRadii[NS_CORNER_TOP_RIGHT_Y] = 0;
+    aRadii[NS_CORNER_BOTTOM_RIGHT_X] = 0;
+    aRadii[NS_CORNER_BOTTOM_RIGHT_Y] = 0;
+  }
+
+  if (aSkipSides & (1 << NS_SIDE_BOTTOM)) {
+    aRadii[NS_CORNER_BOTTOM_RIGHT_X] = 0;
+    aRadii[NS_CORNER_BOTTOM_RIGHT_Y] = 0;
+    aRadii[NS_CORNER_BOTTOM_LEFT_X] = 0;
+    aRadii[NS_CORNER_BOTTOM_LEFT_Y] = 0;
+  }
+
+  if (aSkipSides & (1 << NS_SIDE_LEFT)) {
+    aRadii[NS_CORNER_BOTTOM_LEFT_X] = 0;
+    aRadii[NS_CORNER_BOTTOM_LEFT_Y] = 0;
+    aRadii[NS_CORNER_TOP_LEFT_X] = 0;
+    aRadii[NS_CORNER_TOP_LEFT_Y] = 0;
+  }
+
+  // css3-background specifies this algorithm for reducing
+  // corner radii when they are too big.
+  PRBool haveRadius = PR_FALSE;
+  double ratio = 1.0f;
+  NS_FOR_CSS_SIDES(side) {
+    PRUint32 hc1 = NS_SIDE_TO_HALF_CORNER(side, PR_FALSE, PR_TRUE);
+    PRUint32 hc2 = NS_SIDE_TO_HALF_CORNER(side, PR_TRUE, PR_TRUE);
+    nscoord length =
+      NS_SIDE_IS_VERTICAL(side) ? aBorderArea.height : aBorderArea.width;
+    nscoord sum = aRadii[hc1] + aRadii[hc2];
+    if (sum)
+      haveRadius = PR_TRUE;
+
+    // avoid floating point division in the normal case
+    if (length < sum)
+      ratio = NS_MIN(ratio, double(length)/sum);
+  }
+  if (ratio < 1.0) {
+    NS_FOR_CSS_HALF_CORNERS(corner) {
+      aRadii[corner] *= ratio;
+    }
+  }
+
+  return haveRadius;
+}
+
+/* static */ void
+nsIFrame::InsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
+{
+  NS_FOR_CSS_SIDES(side) {
+    nscoord offset = aOffsets.side(side);
+    PRUint32 hc1 = NS_SIDE_TO_HALF_CORNER(side, PR_FALSE, PR_FALSE);
+    PRUint32 hc2 = NS_SIDE_TO_HALF_CORNER(side, PR_TRUE, PR_FALSE);
+    aRadii[hc1] = NS_MAX(0, aRadii[hc1] - offset);
+    aRadii[hc2] = NS_MAX(0, aRadii[hc2] - offset);
+  }
+}
+
+/* static */ void
+nsIFrame::OutsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
+{
+  NS_FOR_CSS_SIDES(side) {
+    nscoord offset = aOffsets.side(side);
+    PRUint32 hc1 = NS_SIDE_TO_HALF_CORNER(side, PR_FALSE, PR_FALSE);
+    PRUint32 hc2 = NS_SIDE_TO_HALF_CORNER(side, PR_TRUE, PR_FALSE);
+    if (aRadii[hc1] > 0)
+      aRadii[hc1] += offset;
+    if (aRadii[hc2] > 0)
+      aRadii[hc2] += offset;
+  }
+}
+
+/* virtual */ PRBool
+nsIFrame::GetBorderRadii(nscoord aRadii[8]) const
+{
+  nsSize size = GetSize();
+  return ComputeBorderRadii(GetStyleBorder()->mBorderRadius, size, size,
+                            GetSkipSides(), aRadii);
+}
+
+PRBool
+nsIFrame::GetPaddingBoxBorderRadii(nscoord aRadii[8]) const
+{
+  if (!GetBorderRadii(aRadii))
+    return PR_FALSE;
+  InsetBorderRadii(aRadii, GetUsedBorder());
+  NS_FOR_CSS_HALF_CORNERS(corner) {
+    if (aRadii[corner])
+      return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+
+PRBool
+nsIFrame::GetContentBoxBorderRadii(nscoord aRadii[8]) const
+{
+  if (!GetBorderRadii(aRadii))
+    return PR_FALSE;
+  InsetBorderRadii(aRadii, GetUsedBorderAndPadding());
+  NS_FOR_CSS_HALF_CORNERS(corner) {
+    if (aRadii[corner])
+      return PR_TRUE;
+  }
+  return PR_FALSE;
 }
 
 nsStyleContext*
@@ -3023,22 +3167,103 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext
   skipWhitespace = PR_TRUE;
 }
 
+/**
+ * This class does calc() computation of lengths and percents separately,
+ * with support for min() and max().  However, its support for min() and
+ * max() is fundamentally broken in cases where percentages and lengths
+ * are mixed.
+ *
+ * It is used only for intrinsic width computation, where being an
+ * approximation is sometimes ok (although it would be good to fix at
+ * some point in the future).
+ */
+struct LengthPercentPairWithMinMaxCalcOps : public css::StyleCoordInputCalcOps
+{
+  struct result_type {
+    nscoord mLength;
+    float mPercent;
+
+    result_type(nscoord aLength, float aPercent)
+      : mLength(aLength), mPercent(aPercent) {}
+  };
+
+  result_type ComputeLeafValue(const nsStyleCoord& aValue)
+  {
+    if (aValue.GetUnit() == eStyleUnit_Percent) {
+      return result_type(0, aValue.GetPercentValue());
+    }
+    return result_type(aValue.GetCoordValue(), 0.0f);
+  }
+
+  result_type
+  MergeAdditive(nsCSSUnit aCalcFunction,
+                result_type aValue1, result_type aValue2)
+  {
+    if (aCalcFunction == eCSSUnit_Calc_Plus) {
+      return result_type(NSCoordSaturatingAdd(aValue1.mLength,
+                                              aValue2.mLength),
+                         aValue1.mPercent + aValue2.mPercent);
+    }
+    if (aCalcFunction == eCSSUnit_Calc_Minus) {
+      return result_type(NSCoordSaturatingSubtract(aValue1.mLength,
+                                                   aValue2.mLength, 0),
+                         aValue1.mPercent - aValue2.mPercent);
+    }
+    if (aCalcFunction == eCSSUnit_Calc_Minimum) {
+      // This is fundamentally incorrect; see the comment above the
+      // start of the class definition.
+      return result_type(NS_MIN(aValue1.mLength, aValue2.mLength),
+                         NS_MIN(aValue1.mPercent, aValue2.mPercent));
+    }
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Maximum,
+                      "unexpected unit");
+    // This is fundamentally incorrect; see the comment above the
+    // start of the class definition.
+    return result_type(NS_MAX(aValue1.mLength, aValue2.mLength),
+                       NS_MAX(aValue1.mPercent, aValue2.mPercent));
+  }
+
+  result_type
+  MergeMultiplicativeL(nsCSSUnit aCalcFunction,
+                       float aValue1, result_type aValue2)
+  {
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Times_L,
+                      "unexpected unit");
+    return result_type(NSCoordSaturatingMultiply(aValue2.mLength, aValue1),
+                       aValue1 * aValue2.mPercent);
+  }
+
+  result_type
+  MergeMultiplicativeR(nsCSSUnit aCalcFunction,
+                       result_type aValue1, float aValue2)
+  {
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Times_R ||
+                      aCalcFunction == eCSSUnit_Calc_Divided,
+                      "unexpected unit");
+    if (aCalcFunction == eCSSUnit_Calc_Divided) {
+      aValue2 = 1.0f / aValue2;
+    }
+    return result_type(NSCoordSaturatingMultiply(aValue1.mLength, aValue2),
+                       aValue1.mPercent * aValue2);
+  }
+
+};
+
 static void
 AddCoord(const nsStyleCoord& aStyle,
          nsIRenderingContext* aRenderingContext,
          nsIFrame* aFrame,
          nscoord* aCoord, float* aPercent)
 {
-  switch (aStyle.GetUnit()) {
-    case eStyleUnit_Coord:
-      *aCoord += aStyle.GetCoordValue();
-      break;
-    case eStyleUnit_Percent:
-      *aPercent += aStyle.GetPercentValue();
-      break;
-    default:
-      break;
+  if (!aStyle.IsCoordPercentCalcUnit()) {
+    return;
   }
+
+  LengthPercentPairWithMinMaxCalcOps ops;
+  LengthPercentPairWithMinMaxCalcOps::result_type pair =
+    css::ComputeCalc(aStyle, ops);
+  *aCoord += pair.mLength;
+  *aPercent += pair.mPercent;
 }
 
 /* virtual */ nsIFrame::IntrinsicWidthOffsetData
@@ -3046,6 +3271,10 @@ nsFrame::IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext)
 {
   IntrinsicWidthOffsetData result;
 
+  // FIXME: The handling of calc() with min() and max() by AddCoord
+  // is a rough approximation.  It could be improved, but only by
+  // changing the IntrinsicWidthOffsets API substantially.  See the
+  // comment above LengthPercentPairWithMinMaxCalcOps.
   const nsStyleMargin *styleMargin = GetStyleMargin();
   AddCoord(styleMargin->mMargin.GetLeft(), aRenderingContext, this,
            &result.hMargin, &result.hPctMargin);
@@ -3754,7 +3983,7 @@ LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
   nsIFrame* f = aObject->mFrame;
   aObject->mFrame = nsnull;
   f->Properties().Delete(LayerActivityProperty());
-  f->InvalidateOverflowRect();
+  f->InvalidateFrameSubtree();
 }
 
 void
@@ -3957,6 +4186,13 @@ nsIFrame::InvalidateRectDifference(const nsRect& aR1, const nsRect& aR2)
   nsLayoutUtils::GetRectDifferenceStrips(aR1, aR2, &sizeHStrip, &sizeVStrip);
   Invalidate(sizeVStrip);
   Invalidate(sizeHStrip);
+}
+
+void
+nsIFrame::InvalidateFrameSubtree()
+{
+  Invalidate(GetOverflowRectRelativeToSelf());
+  FrameLayerBuilder::InvalidateThebesLayersInSubtree(this);
 }
 
 void
@@ -4639,7 +4875,7 @@ nsIFrame::SetSelected(PRBool aSelected, SelectionType aType)
     }
 
     // Repaint this frame subtree's entire area
-    InvalidateOverflowRect();
+    InvalidateFrameSubtree();
   }
 }
 
@@ -5773,26 +6009,6 @@ IsInlineFrame(nsIFrame *aFrame)
          type == nsGkAtoms::positionedInlineFrame;
 }
 
-nsRect
-nsIFrame::GetAdditionalOverflow(const nsRect& aOverflowArea,
-                                const nsSize& aNewSize,
-                                PRBool* aHasOutlineOrEffects)
-{
-  nsRect overflowRect =
-    ComputeOutlineAndEffectsRect(this, aHasOutlineOrEffects,
-                                 aOverflowArea, aNewSize, PR_TRUE);
-
-  // Absolute position clipping
-  PRBool hasAbsPosClip;
-  nsRect absPosClipRect;
-  hasAbsPosClip = GetAbsPosClipRect(GetStyleDisplay(), &absPosClipRect, aNewSize);
-  if (hasAbsPosClip) {
-    overflowRect.IntersectRect(overflowRect, absPosClipRect);
-  }
-
-  return overflowRect;
-}
-
 void 
 nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
 {
@@ -5838,8 +6054,20 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
   }
   
   PRBool hasOutlineOrEffects;
-  *aOverflowArea = GetAdditionalOverflow(*aOverflowArea, aNewSize,
-      &hasOutlineOrEffects);
+  *aOverflowArea =
+    ComputeOutlineAndEffectsRect(this, &hasOutlineOrEffects,
+                                 *aOverflowArea, aNewSize, PR_TRUE);
+
+  // Absolute position clipping
+  PRBool didHaveAbsPosClip = (GetStateBits() & NS_FRAME_HAS_CLIP) != 0;
+  nsRect absPosClipRect;
+  PRBool hasAbsPosClip = GetAbsPosClipRect(disp, &absPosClipRect, aNewSize);
+  if (hasAbsPosClip) {
+    aOverflowArea->IntersectRect(*aOverflowArea, absPosClipRect);
+    AddStateBits(NS_FRAME_HAS_CLIP);
+  } else {
+    RemoveStateBits(NS_FRAME_HAS_CLIP);
+  }
 
   /* If we're transformed, transform the overflow rect by the current transformation. */
   PRBool hasTransform = IsTransformed();
@@ -5869,19 +6097,46 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
     }
   }
 
-  if (overflowChanged && (hasOutlineOrEffects || hasTransform)) {
-    // When there's an outline or box-shadow or SVG effects or transform,
-    // changes to those styles might require repainting of the old and new
-    // overflow areas. Repainting of the old overflow area is handled in
-    // nsCSSFrameConstructor::DoApplyRenderingChangeToTree in response
-    // to nsChangeHint_RepaintFrame. Since the new overflow area is not
-    // known at that time, we have to handle it here.
-    // If the overflow area hasn't changed, then we don't have to do
-    // anything here since repainting the old overflow area was enough.
-    // If there is no outline or other effects now, then we don't have
-    // to do anything here since removing those styles can't require
-    // repainting of areas that weren't in the old overflow area.
-    Invalidate(*aOverflowArea);
+  if (overflowChanged) {
+    if (hasOutlineOrEffects) {
+      // When there's an outline or box-shadow or SVG effects,
+      // changes to those styles might require repainting of the old and new
+      // overflow areas. Repainting of the old overflow area is handled in
+      // nsCSSFrameConstructor::DoApplyRenderingChangeToTree in response
+      // to nsChangeHint_RepaintFrame. Since the new overflow area is not
+      // known at that time, we have to handle it here.
+      // If the overflow area hasn't changed, then we don't have to do
+      // anything here since repainting the old overflow area was enough.
+      // If there is no outline or other effects now, then we don't have
+      // to do anything here since removing those styles can't require
+      // repainting of areas that weren't in the old overflow area.
+      Invalidate(*aOverflowArea);
+    } else if (hasAbsPosClip || didHaveAbsPosClip) {
+      // If we are (or were) clipped by the 'clip' property, and our
+      // overflow area changes, it might be because the clipping changed.
+      // The nsChangeHint_RepaintFrame for the style change will only
+      // repaint the old overflow area, so if the overflow area has
+      // changed (in particular, if it grows), we have to repaint the
+      // new area here.
+      Invalidate(*aOverflowArea);
+    } else if (hasTransform) {
+      // When there's a transform, changes to that style might require
+      // repainting of the old and new overflow areas in the widget.
+      // Repainting of the frame itself will not be required if there's
+      // a retained layer, so we can call InvalidateLayer here
+      // which will avoid repainting ThebesLayers if possible.
+      // nsCSSFrameConstructor::DoApplyRenderingChangeToTree repaints
+      // the old overflow area in the widget in response to
+      // nsChangeHint_UpdateTransformLayer. But since the new overflow
+      // area is not known at that time, we have to handle it here.
+      // If the overflow area hasn't changed, then it doesn't matter that
+      // we didn't reach here since repainting the old overflow area was enough.
+      // If there is no transform now, then the container layer for
+      // the transform will go away and the frame contents will change
+      // ThebesLayers, forcing it to be invalidated, so it doesn't matter
+      // that we didn't reach here.
+      InvalidateLayer(*aOverflowArea, nsDisplayItem::TYPE_TRANSFORM);
+    }
   }
 }
 
@@ -6775,18 +7030,32 @@ nsFrame::BoxMetrics() const
   return metrics;
 }
 
-NS_IMETHODIMP
-nsFrame::SetParent(const nsIFrame* aParent)
+void
+nsFrame::SetParent(nsIFrame* aParent)
 {
   PRBool wasBoxWrapped = IsBoxWrapped();
-  nsIFrame::SetParent(aParent);
+  mParent = aParent;
   if (!wasBoxWrapped && IsBoxWrapped()) {
     InitBoxMetrics(PR_TRUE);
   } else if (wasBoxWrapped && !IsBoxWrapped()) {
     Properties().Delete(BoxMetricsProperty());
   }
 
-  return NS_OK;
+  if (GetStateBits() & (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW)) {
+    for (nsIFrame* f = aParent;
+         f && !(f->GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
+         f = f->GetParent()) {
+      f->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
+    }
+  }
+
+  if (GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT) {
+    for (nsIFrame* f = aParent;
+         f && !(f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
+         f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+      f->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
+    }
+  }
 }
 
 void

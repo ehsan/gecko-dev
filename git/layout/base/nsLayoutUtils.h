@@ -798,6 +798,17 @@ public:
            (aCBHeight == NS_AUTOHEIGHT && aCoord.HasPercent());
   }
 
+  static PRBool IsPaddingZero(const nsStyleCoord &aCoord)
+  {
+    return (aCoord.GetUnit() == eStyleUnit_Coord &&
+            aCoord.GetCoordValue() == 0) ||
+           (aCoord.GetUnit() == eStyleUnit_Percent &&
+            aCoord.GetPercentValue() == 0.0) ||
+           (aCoord.IsCalcUnit() &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) == 0 &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) == 0);
+  }
+
   /*
    * Calculate the used values for 'width' and 'height' for a replaced element.
    *
@@ -930,6 +941,12 @@ public:
                             const nsPoint&       aAnchor,
                             const nsRect&        aDirty,
                             PRUint32             aImageFlags);
+
+  /**
+   * Convert an nsRect to a gfxRect.
+   */
+  static gfxRect RectToGfxRect(const nsRect& aRect,
+                               PRInt32 aAppUnitsPerDevPixel);
 
   /**
    * Draw a drawable using the pixel snapping algorithm.

@@ -39,7 +39,10 @@ function test() {
   waitForExplicitFinish();
 
   window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
-  TabView.toggle();
+  if (TabView.isVisible())
+    onTabViewWindowLoaded();
+  else
+    TabView.show();
 }
 
 function onTabViewWindowLoaded() {

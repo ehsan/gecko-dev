@@ -220,15 +220,12 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
   return NS_OK;
 }
 
-static inline PRBool IsFixedPaddingSize(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_Coord;
-}
-static inline PRBool IsFixedMarginSize(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_Coord;
-}
-static inline PRBool IsFixedOffset(const nsStyleCoord& aCoord) {
-  return aCoord.ConvertsToLength();
-}
+static inline bool IsFixedPaddingSize(const nsStyleCoord& aCoord)
+  { return aCoord.ConvertsToLength(); }
+static inline bool IsFixedMarginSize(const nsStyleCoord& aCoord)
+  { return aCoord.ConvertsToLength(); }
+static inline bool IsFixedOffset(const nsStyleCoord& aCoord)
+  { return aCoord.ConvertsToLength(); }
 
 PRBool
 nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
@@ -269,16 +266,16 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
     if (pos->WidthDependsOnContainer() ||
         pos->MinWidthDependsOnContainer() ||
         pos->MaxWidthDependsOnContainer() ||
-        !IsFixedPaddingSize(padding->mPadding.GetLeftUnit()) ||
-        !IsFixedPaddingSize(padding->mPadding.GetRightUnit())) {
+        !IsFixedPaddingSize(padding->mPadding.GetLeft()) ||
+        !IsFixedPaddingSize(padding->mPadding.GetRight())) {
       return PR_TRUE;
     }
 
     // See if f's position might have changed. If we're RTL then the
     // rules are slightly different. We'll assume percentage or auto
     // margins will always induce a dependency on the size
-    if (!IsFixedMarginSize(margin->mMargin.GetLeftUnit()) ||
-        !IsFixedMarginSize(margin->mMargin.GetRightUnit())) {
+    if (!IsFixedMarginSize(margin->mMargin.GetLeft()) ||
+        !IsFixedMarginSize(margin->mMargin.GetRight())) {
       return PR_TRUE;
     }
     if (f->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
@@ -311,14 +308,14 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
            pos->mOffset.GetTopUnit() != eStyleUnit_Auto)) ||
         pos->MinHeightDependsOnContainer() ||
         pos->MaxHeightDependsOnContainer() ||
-        !IsFixedPaddingSize(padding->mPadding.GetTopUnit()) ||
-        !IsFixedPaddingSize(padding->mPadding.GetBottomUnit())) { 
+        !IsFixedPaddingSize(padding->mPadding.GetTop()) ||
+        !IsFixedPaddingSize(padding->mPadding.GetBottom())) { 
       return PR_TRUE;
     }
       
     // See if f's position might have changed.
-    if (!IsFixedMarginSize(margin->mMargin.GetTopUnit()) ||
-        !IsFixedMarginSize(margin->mMargin.GetBottomUnit())) {
+    if (!IsFixedMarginSize(margin->mMargin.GetTop()) ||
+        !IsFixedMarginSize(margin->mMargin.GetBottom())) {
       return PR_TRUE;
     }
     if (!IsFixedOffset(pos->mOffset.GetTop())) {
@@ -497,17 +494,10 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   }
 
   if (oldRect.TopLeft() != rect.TopLeft() || 
-      (aDelegatingFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) ||
-      (kidDesiredSize.mOverflowArea + rect.TopLeft() != oldOverflowRect &&
-        (kidDesiredSize.mOverflowArea + rect.TopLeft() != rect || oldRect != oldOverflowRect))) {
-    // The frame moved; we have to invalidate the whole frame
-    // because the children may have moved after they were reflowed
-    // We also have to invalidate when we have overflow and the overflow
-    // changes because the change might be caused by clipping
-    // XXX This could be optimized in some cases, especially clipping changes
+      (aDelegatingFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    // The frame moved
     aKidFrame->GetParent()->Invalidate(oldOverflowRect);
-    aKidFrame->GetParent()->Invalidate(kidDesiredSize.mOverflowArea +
-                                       rect.TopLeft());
+    aKidFrame->InvalidateFrameSubtree();
   } else if (oldRect.Size() != rect.Size()) {
     // Invalidate the area where the frame changed size.
     nscoord innerWidth = NS_MIN(oldRect.width, rect.width);

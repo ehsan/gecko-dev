@@ -3137,15 +3137,18 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
 #endif
 
-    // try to get the MInputContext if possible to support the MeeGo VKB
-    QInputContext *inputContext = app->inputContext();
-    if (inputContext && inputContext->identifierName() != "MInputContext") {
-        QInputContext* context = QInputContextFactory::create("MInputContext",
-                                                              app.data());
-        if (context)
-            app->setInputContext(context);
+#if MOZ_PLATFORM_MAEMO > 5
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+      // try to get the MInputContext if possible to support the MeeGo VKB
+      QInputContext* inputContext = app->inputContext();
+      if (inputContext && inputContext->identifierName() != "MInputContext") {
+          QInputContext* context = QInputContextFactory::create("MInputContext",
+                                                                app.data());
+          if (context)
+              app->setInputContext(context);
+      }
     }
-
+#endif
     QStringList nonQtArguments = app->arguments();
     gQtOnlyArgc = 1;
     gQtOnlyArgv = (char**) malloc(sizeof(char*) 
@@ -3353,7 +3356,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
      }
      flagFile = do_QueryInterface(fFlagFile);
      if (flagFile) {
-       flagFile->SetNativeLeafName(FILE_INVALIDATE_CACHES);
+       flagFile->AppendNative(FILE_INVALIDATE_CACHES);
      }
  #endif
     PRBool cachesOK;
