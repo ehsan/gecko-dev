@@ -1302,6 +1302,14 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     // tricky...
   }
   else {
+    // If there is an outer script running, propagate the error upwards.
+    // Otherwise we may lose, e.g., the fact that an inner script evaluation
+    // was killed for taking too long and allow the outer script evaluation to
+    // continue.
+    if (mExecuteDepth > 0 || JS_IsRunning(mContext)) {
+      rv = NS_ERROR_FAILURE;
+    }
+
     if (aIsUndefined) {
       *aIsUndefined = true;
     }
@@ -1501,6 +1509,14 @@ nsJSContext::EvaluateString(const nsAString& aScript,
     rv = JSValueToAString(mContext, val, aRetValue, aIsUndefined);
   }
   else {
+    // If there is an outer script running, propagate the error upwards.
+    // Otherwise we may lose, e.g., the fact that an inner script evaluation
+    // was killed for taking too long and allow the outer script evaluation to
+    // continue.
+    if (mExecuteDepth > 1 || JS_IsRunning(mContext)) {
+      rv = NS_ERROR_FAILURE;
+    }
+
     if (aIsUndefined) {
       *aIsUndefined = true;
     }
@@ -1638,6 +1654,14 @@ nsJSContext::ExecuteScript(JSScript* aScriptObject,
     rv = JSValueToAString(mContext, val, aRetValue, aIsUndefined);
   } else {
     ReportPendingException();
+
+    // If there is an outer script running, propagate the error upwards.
+    // Otherwise we may lose, e.g., the fact that an inner script evaluation
+    // was killed for taking too long and allow the outer script evaluation to
+    // continue.
+    if (mExecuteDepth > 1 || JS_IsRunning(mContext)) {
+      rv = NS_ERROR_FAILURE;
+    }
 
     if (aIsUndefined) {
       *aIsUndefined = true;
@@ -3107,7 +3131,10 @@ nsJSContext::ScriptEvaluated(bool aTerminated)
 
   JS_MaybeGC(mContext);
 
-  if (aTerminated) {
+  // Be careful to not reset the operation callback if some outer script is
+  // still running. This would allow a script to bypass the slow script check
+  // simply by invoking nested scripts (e.g., through a plugin).
+  if (aTerminated && mExecuteDepth == 0 && !JS_IsRunning(mContext)) {
     mOperationCallbackTime = 0;
     mModalStateTime = 0;
   }
