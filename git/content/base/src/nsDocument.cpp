@@ -18,6 +18,10 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 
+#ifdef MOZ_LOGGING
+// so we can get logging even in release builds
+#define FORCE_PR_LOG 1
+#endif
 #include "prlog.h"
 #include "plstr.h"
 #include "prprf.h"
@@ -5847,11 +5851,6 @@ void
 nsDocument::ProcessTopElementQueue(bool aIsBaseQueue)
 {
   MOZ_ASSERT(nsContentUtils::IsSafeToRunScript());
-
-  if (sProcessingStack.isNothing()) {
-    // If XPCOM shutdown has reset the processing stack, don't do anything.
-    return;
-  }
 
   nsTArray<CustomElementData*>& stack = *sProcessingStack;
   uint32_t firstQueue = stack.LastIndexOf((CustomElementData*) nullptr);

@@ -56,13 +56,7 @@ ValueNumberer::VisibleValues::ValueHasher::match(Key k, Lookup l)
         return false;
 
     bool congruent = k->congruentTo(l); // Ask the values themselves what they think.
-#ifdef DEBUG
-    if (congruent != l->congruentTo(k)) {
-       JitSpew(JitSpew_GVN, "      congruentTo relation is not symmetric between %s%u and %s%u!!",
-               k->opName(), k->id(),
-               l->opName(), l->id());
-    }
-#endif
+    MOZ_ASSERT(congruent == l->congruentTo(k), "congruentTo relation is not symmetric");
     return congruent;
 }
 
@@ -371,7 +365,8 @@ ValueNumberer::discardDef(MDefinition *def)
         MPhi *phi = def->toPhi();
         if (!releaseAndRemovePhiOperands(phi))
              return false;
-        block->discardPhi(phi);
+        MPhiIterator at(block->phisBegin(phi));
+        block->discardPhiAt(at);
     } else {
         MInstruction *ins = def->toInstruction();
         if (MResumePoint *resume = ins->resumePoint()) {
@@ -703,7 +698,7 @@ ValueNumberer::visitDefinition(MDefinition *def)
 {
     // If this instruction has a dependency() into an unreachable block, we'll
     // need to update AliasAnalysis.
-    MInstruction *dep = def->dependency();
+    MDefinition *dep = def->dependency();
     if (dep != nullptr && (dep->isDiscarded() || dep->block()->isDead())) {
         JitSpew(JitSpew_GVN, "      AliasAnalysis invalidated");
         if (updateAliasAnalysis_ && !dependenciesBroken_) {

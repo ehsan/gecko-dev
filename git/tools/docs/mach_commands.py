@@ -46,15 +46,13 @@ class Documentation(MachCommandBase):
         reader = BuildReader(self.config_environment,
             sandbox_post_eval_cb=remove_gyp_dirs)
 
-        for path, name, key, value in reader.find_sphinx_variables():
-            reldir = os.path.dirname(path)
+        for context in reader.walk_topsrcdir():
+            for dest_dir, source_dir in context['SPHINX_TREES'].items():
+                manager.add_tree(os.path.join(context.relsrcdir,
+                    source_dir), dest_dir)
 
-            if name == 'SPHINX_TREES':
-                assert key
-                manager.add_tree(os.path.join(reldir, value),
-                        os.path.join(reldir, key))
-
-            if name == 'SPHINX_PYTHON_PACKAGE_DIRS':
-                manager.add_python_package_dir(os.path.join(reldir, value))
+            for entry in context['SPHINX_PYTHON_PACKAGE_DIRS']:
+                manager.add_python_package_dir(os.path.join(context.relsrcdir,
+                    entry))
 
         return manager.generate_docs(format)

@@ -425,7 +425,7 @@ this.GoogleImporter.prototype = {
         if (Object.keys(adr).length) {
           adr.pref = (addressNode.getAttribute("primary") == "true");
           adr.type = [getFieldType(addressNode)];
-          contact.adr.push(adr);
+          contacts.adr.push(adr);
         }
       }
     }

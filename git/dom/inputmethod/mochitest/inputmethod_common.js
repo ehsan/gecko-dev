@@ -31,6 +31,5 @@ function inputmethod_setup(callback) {
 }
 
 function inputmethod_cleanup() {
-  SpecialPowers.wrap(navigator.mozInputMethod).setActive(false);
   SimpleTest.finish();
 }

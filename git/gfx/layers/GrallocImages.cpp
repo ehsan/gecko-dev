@@ -330,11 +330,11 @@ ConvertOmxYUVFormatToRGB565(android::sp<GraphicBuffer>& aBuffer,
       ycbcrData.mCbSkip       = 0;
       ycbcrData.mCbCrSize     = aSurface->GetSize() / 2;
       ycbcrData.mPicSize      = aSurface->GetSize();
-      ycbcrData.mCrChannel    = buffer + ycbcrData.mYStride * aBuffer->getHeight();
+      ycbcrData.mCrChannel    = buffer + ycbcrData.mYStride * ycbcrData.mYSize.height;
       ycbcrData.mCrSkip       = 0;
       // Align to 16 bytes boundary
-      ycbcrData.mCbCrStride   = ALIGN(ycbcrData.mYStride / 2, 16);
-      ycbcrData.mCbChannel    = ycbcrData.mCrChannel + (ycbcrData.mCbCrStride * aBuffer->getHeight() / 2);
+      ycbcrData.mCbCrStride   = ((ycbcrData.mYStride / 2) + 15) & ~0x0F;
+      ycbcrData.mCbChannel    = ycbcrData.mCrChannel + (ycbcrData.mCbCrStride * ycbcrData.mCbCrSize.height);
     }
     gfx::ConvertYCbCrToRGB(ycbcrData,
                            aSurface->GetFormat(),
