@@ -5,9 +5,9 @@ load(libdir + "iteration.js");
 
 var map = Map([['a', 0], ['b', 1], ['c', 2], ['d', 3]]);
 var iter = map[std_iterator]();
-assertIteratorNext(iter, ['a', 0]);
-assertIteratorNext(iter, ['b', 1]);
+assertIteratorResult(iter.next(), ['a', 0], false);
+assertIteratorResult(iter.next(), ['b', 1], false);
 map.delete('c');
 map.delete('b');
-assertIteratorNext(iter, ['d', 3]);
-assertIteratorDone(iter, undefined);
+assertIteratorResult(iter.next(), ['d', 3], false);
+assertIteratorResult(iter.next(), undefined, true);

@@ -53,7 +53,6 @@ using namespace js::types;
 
 using mozilla::IsNaN;
 using mozilla::PodCopy;
-using JS::CanonicalizeNaN;
 using JS::GenericNaN;
 
 /*
@@ -1264,7 +1263,7 @@ js::ToDoubleForTypedArray(JSContext *cx, JS::HandleValue vp, double *d)
     // this but it can confuse differential testing when this value is stored
     // to a float array and then read back as integer. To work around this, we
     // always canonicalize NaN values in more-deterministic builds.
-    *d = CanonicalizeNaN(*d);
+    *d = JS_CANONICALIZE_NAN(*d);
 #endif
 
     return true;
@@ -2634,7 +2633,7 @@ TypedArrayObjectTemplate<float>::copyIndexToValue(JSObject *tarray, uint32_t ind
      * This could be removed for platforms/compilers known to convert a 32-bit
      * non-canonical nan to a 64-bit canonical nan.
      */
-    vp.setDouble(CanonicalizeNaN(dval));
+    vp.setDouble(JS_CANONICALIZE_NAN(dval));
 }
 
 template<>
@@ -2651,7 +2650,7 @@ TypedArrayObjectTemplate<double>::copyIndexToValue(JSObject *tarray, uint32_t in
      * confuse the engine into interpreting a double-typed jsval as an
      * object-typed jsval.
      */
-    vp.setDouble(CanonicalizeNaN(val));
+    vp.setDouble(JS_CANONICALIZE_NAN(val));
 }
 
 } /* anonymous namespace */
@@ -3112,7 +3111,7 @@ DataViewObject::getFloat32Impl(JSContext *cx, CallArgs args)
     if (!read(cx, thisView, args, &val, "getFloat32"))
         return false;
 
-    args.rval().setDouble(CanonicalizeNaN(val));
+    args.rval().setDouble(JS_CANONICALIZE_NAN(val));
     return true;
 }
 
@@ -3134,7 +3133,7 @@ DataViewObject::getFloat64Impl(JSContext *cx, CallArgs args)
     if (!read(cx, thisView, args, &val, "getFloat64"))
         return false;
 
-    args.rval().setDouble(CanonicalizeNaN(val));
+    args.rval().setDouble(JS_CANONICALIZE_NAN(val));
     return true;
 }
 
@@ -3427,7 +3426,8 @@ const JSFunctionSpec ArrayBufferObject::jsfuncs[] = {
 #ifndef RELEASE_BUILD
 # define IMPL_TYPED_ARRAY_STATICS(_typedArray)                                     \
 const JSFunctionSpec _typedArray##Object::jsfuncs[] = {                            \
-    JS_SELF_HOSTED_FN("@@iterator", "ArrayValues", 0, 0),                          \
+    JS_SELF_HOSTED_FN("@@iterator", "ArrayIterator", 0, 0),                        \
+    JS_FN("iterator", JS_ArrayIterator, 0, 0),                                     \
     JS_FN("subarray", _typedArray##Object::fun_subarray, 2, JSFUN_GENERIC_NATIVE), \
     JS_FN("set", _typedArray##Object::fun_set, 2, JSFUN_GENERIC_NATIVE),           \
     JS_FN("move", _typedArray##Object::fun_move, 3, JSFUN_GENERIC_NATIVE),         \
@@ -3436,7 +3436,8 @@ const JSFunctionSpec _typedArray##Object::jsfuncs[] = {                         
 #else
 # define IMPL_TYPED_ARRAY_STATICS(_typedArray)                                     \
 const JSFunctionSpec _typedArray##Object::jsfuncs[] = {                            \
-    JS_SELF_HOSTED_FN("@@iterator", "ArrayValues", 0, 0),                          \
+    JS_SELF_HOSTED_FN("@@iterator", "ArrayIterator", 0, 0),                        \
+    JS_FN("iterator", JS_ArrayIterator, 0, 0),                                     \
     JS_FN("subarray", _typedArray##Object::fun_subarray, 2, JSFUN_GENERIC_NATIVE), \
     JS_FN("set", _typedArray##Object::fun_set, 2, JSFUN_GENERIC_NATIVE),           \
     JS_FS_END                                                                      \

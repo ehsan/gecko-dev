@@ -17,4 +17,4 @@ var rv = gw.evalInGlobal("it.next();");
 assertEq(rv.throw, "fit");
 
 dbg.enabled = false;
-assertIteratorNext(g.it, 1);
+assertIteratorResult(g.it.next(), 1, false);

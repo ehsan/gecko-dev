@@ -8,7 +8,7 @@ var map = Map();
 for (var i = 0; i < 32; i++)
     map.set(i, i);
 var iter = map[std_iterator]();
-assertIteratorNext(iter, [0, 0]);
+assertIteratorResult(iter.next(), [0, 0], false);
 for (var i = 0; i < 30; i++)
     map.delete(i);
 assertEq(map.size, 2);
@@ -16,6 +16,6 @@ for (var i = 32; i < 100; i++)
     map.set(i, i);  // eventually triggers compaction
 
 for (var i = 30; i < 100; i++)
-    assertIteratorNext(iter, [i, i]);
+    assertIteratorResult(iter.next(), [i, i], false);
 
-assertIteratorDone(iter, undefined);
+assertIteratorResult(iter.next(), undefined, true);

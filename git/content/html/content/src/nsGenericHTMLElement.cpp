@@ -3155,7 +3155,7 @@ nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
 
   nsString string;
   GetItemValueText(string);
-  JS::Rooted<JS::Value> v(aCx);
+  JS::Value v;
   if (!xpc::NonVoidStringToJsval(aCx, string, &v)) {
     aError.Throw(NS_ERROR_FAILURE);
     return JS::UndefinedValue();

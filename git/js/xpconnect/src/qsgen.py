@@ -437,13 +437,12 @@ argumentUnboxingTemplates = {
         "    JS_ValueToBoolean(cx, ${argVal}, &${name});\n",
 
     '[astring]':
-        "    xpc_qsAString ${name}(cx, ${argVal}, ${argPtr}, ${notPassed});\n"
+        "    xpc_qsAString ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
         "        return false;\n",
 
     '[domstring]':
-        "    xpc_qsDOMString ${name}(cx, ${argVal},\n"
-        "                            ${argPtr}, ${notPassed},\n"
+        "    xpc_qsDOMString ${name}(cx, ${argVal}, ${argPtr},\n"
         "                            xpc_qsDOMString::e${nullBehavior},\n"
         "                            xpc_qsDOMString::e${undefinedBehavior});\n"
         "    if (!${name}.IsValid())\n"
@@ -461,12 +460,12 @@ argumentUnboxingTemplates = {
         "        return false;\n",
 
     '[cstring]':
-        "    xpc_qsACString ${name}(cx, ${argVal}, ${argPtr}, ${notPassed});\n"
+        "    xpc_qsACString ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
         "        return false;\n",
 
     '[utf8string]':
-        "    xpc_qsAUTF8String ${name}(cx, ${argVal}, ${argPtr}, ${notPassed});\n"
+        "    xpc_qsAUTF8String ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
         "        return false;\n",
 
@@ -485,7 +484,7 @@ def writeArgumentUnboxing(f, i, name, type, optional, rvdeclared,
                           propIndex=None):
     # f - file to write to
     # i - int or None - Indicates the source jsval.  If i is an int, the source
-    #     jsval is args[i]; otherwise it is args[0].  But if Python i >= C++ argc,
+    #     jsval is argv[i]; otherwise it is argv[0].  But if Python i >= C++ argc,
     #     which can only happen if optional is True, the argument is missing;
     #     use JSVAL_NULL as the source jsval instead.
     # name - str - name of the native C++ variable to create.
@@ -497,42 +496,29 @@ def writeArgumentUnboxing(f, i, name, type, optional, rvdeclared,
 
     isSetter = (i is None)
 
-    notPassed = "false"
     if isSetter:
-        argPtr = "args[0]"
-        argVal = "args[0]"
+        argPtr = "argv[0].address()"
+        argVal = "argv[0]"
     elif optional:
         if typeName == "[jsval]":
             val = "JS::UndefinedHandleValue"
         else:
             val = "JS::NullHandleValue"
-        argVal = "(%d < argc ? args[%d] : %s)" % (i, i, val)
+        argVal = "(%d < argc ? argv[%d] : %s)" % (i, i, val)
         if typeName == "[jsval]":
             # This should use the rooted argument,
             # however we probably won't ever need to support that.
             argPtr = None
-            notPassed = None
         else:
-            # Need a MutableHandleValue to pass into eg the xpc_qsAString
-            # constructor, but the corresponding argument may not have been
-            # passed in at all. In that case, point the MutableHandleValue at a
-            # dummy variable, and pass in a boolean saying that the argument
-            # wasn't passed (previously, this used a NULL ptr sentinel value.)
-            f.write("    JS::RootedValue {name}_dummy(cx);\n".format(name=name))
-            f.write("    JS::MutableHandleValue {name}_mhv({i} < argc ? args[{i}] : &{name}_dummy);\n".format(name=name, i=i))
-            f.write("    (void) {name}_mhv;\n".format(name=name, i=i))
-
-            argPtr = "{name}_mhv".format(name=name)
-            notPassed = "argc < {i}".format(i=i)
+            argPtr = "(%d < argc ? argv[%d].address() : NULL)" % (i, i)
     else:
-        argVal = "args[%d]" % i
-        argPtr = "args[%d]" % i
+        argVal = "argv[%d]" % i
+        argPtr = argVal + ".address()"
 
     params = {
         'name': name,
         'argVal': argVal,
         'argPtr': argPtr,
-        'notPassed': notPassed,
         'nullBehavior': nullBehavior or 'DefaultNullBehavior',
         'undefinedBehavior': undefinedBehavior or 'DefaultUndefinedBehavior'
         }
@@ -579,9 +565,9 @@ def writeArgumentUnboxing(f, i, name, type, optional, rvdeclared,
 
     warn("Unable to unbox argument of type %s (native type %s)" % (type.name, typeName))
     if i is None:
-        src = 'args[0]'
+        src = 'argv[0]'
     else:
-        src = 'args[%d]' % i
+        src = 'argv[%d]' % i
     f.write("    !; // TODO - Unbox argument %s = %s\n" % (name, src))
     return rvdeclared
 
@@ -678,8 +664,8 @@ resultConvTemplates = {
         "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
 
     '[jsval]':
-        "    ${jsvalPtr}.set(result);\n"
-        "    return JS_WrapValue(cx, ${jsvalPtr}.address());\n"
+        "    ${jsvalRef} = result;\n"
+        "    return JS_WrapValue(cx, ${jsvalPtr});\n"
     }
 
 def isVariantType(t):
@@ -708,7 +694,7 @@ def writeResultConv(f, type, jsvalPtr, jsvalRef):
             return
         else:
             f.write("    if (!result) {\n"
-                    "      %s.setNull();\n"
+                    "      *%s = JSVAL_NULL;\n"
                     "      return true;\n"
                     "    }\n"
                     "    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
@@ -846,10 +832,6 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
     f.write("{\n")
     f.write("    XPC_QS_ASSERT_CONTEXT_OK(cx);\n")
 
-    # Compute "args".
-    f.write("    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);\n")
-    f.write("    (void) args;\n")
-
     # Compute "this".
     f.write("    JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));\n"
             "    if (!obj)\n"
@@ -861,7 +843,7 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
     else:
         f.write("    %s *self;\n" % customMethodCall['thisType'])
     f.write("    xpc_qsSelfRef selfref;\n")
-    pthisval = 'JS::MutableHandleValue::fromMarkedLocation(&vp[1])' # as above, ok to overwrite vp[1]
+    pthisval = '&vp[1]' # as above, ok to overwrite vp[1]
 
     if unwrapThisFailureFatal:
         unwrapFatalArg = "true"
@@ -875,7 +857,7 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
     if not unwrapThisFailureFatal:
         f.write("      if (!self) {\n")
         if (isGetter):
-            f.write("        args.rval().setNull();\n")
+            f.write("        *vp = JSVAL_NULL;\n")
         f.write("        return true;\n")
         f.write("    }\n");
 
@@ -896,6 +878,8 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
     # Convert in-parameters.
     rvdeclared = False
     if isMethod:
+        if len(member.params) > 0:
+            f.write("    JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);\n")
         for i, param in enumerate(member.params):
             argName = 'arg%d' % i
             argTypeKey = argName + 'Type'
@@ -913,6 +897,7 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
                 nullBehavior=param.null,
                 undefinedBehavior=param.undefined)
     elif isSetter:
+        f.write("    JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);\n")
         rvdeclared = writeArgumentUnboxing(f, None, 'arg0', member.realtype,
                                            optional=False,
                                            rvdeclared=rvdeclared,
@@ -997,7 +982,7 @@ def writeQuickStub(f, customMethodCalls, stringtable, member, stubName,
 
     # Convert the return value.
     if isMethod or isGetter:
-        writeResultConv(f, member.realtype, 'args.rval()', '*vp')
+        writeResultConv(f, member.realtype, 'vp', '*vp')
     else:
         f.write("    return true;\n")
 

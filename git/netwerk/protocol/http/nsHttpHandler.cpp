@@ -711,10 +711,7 @@ nsHttpHandler::InitUserAgentComponents()
 
 #elif defined(XP_WIN)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
-#pragma warning(push)
-#pragma warning(disable:4996)
     if (GetVersionEx(&info)) {
-#pragma warning(pop)
         const char *format;
 #if defined _M_IA64
         format = WNT_BASE W64_PREFIX "; IA64";

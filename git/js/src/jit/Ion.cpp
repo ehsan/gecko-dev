@@ -1489,7 +1489,6 @@ AttachFinishedCompilations(JSContext *cx)
     if (!ion || !cx->runtime()->workerThreadState)
         return;
 
-    types::AutoEnterAnalysis enterTypes(cx);
     AutoLockWorkerThreadState lock(*cx->runtime()->workerThreadState);
 
     OffThreadCompilationVector &compilations = ion->finishedOffThreadCompilations();
@@ -1507,6 +1506,8 @@ AttachFinishedCompilations(JSContext *cx)
             // was constructed off thread, the assembler has not been rooted
             // previously, though any GC activity would discard the builder.
             codegen->masm.constructRoot(cx);
+
+            types::AutoEnterAnalysis enterTypes(cx);
 
             bool success;
             {
@@ -1596,9 +1597,7 @@ IonCompile(JSContext *cx, JSScript *script,
     AutoFlushCache afc("IonCompile", cx->runtime()->ionRuntime());
 
     AutoTempAllocatorRooter root(cx, temp);
-    types::CompilerConstraintList *constraints = types::NewCompilerConstraintList();
-    if (!constraints)
-        return AbortReason_Alloc;
+    types::CompilerConstraintList *constraints = alloc->new_<types::CompilerConstraintList>();
 
     IonBuilder *builder = alloc->new_<IonBuilder>(cx, temp, graph, constraints,
                                                   &inspector, info, baselineFrame);
@@ -1902,10 +1901,7 @@ jit::CanEnter(JSContext *cx, RunState &state)
         if (invoke.constructing() && invoke.args().thisv().isPrimitive()) {
             RootedScript scriptRoot(cx, script);
             RootedObject callee(cx, &invoke.args().callee());
-            RootedObject obj(cx, CreateThisForFunction(cx, callee,
-                                                       invoke.useNewType()
-                                                       ? SingletonObject
-                                                       : GenericObject));
+            RootedObject obj(cx, CreateThisForFunction(cx, callee, invoke.useNewType()));
             if (!obj || !jit::IsIonEnabled(cx)) // Note: OOM under CreateThis can disable TI.
                 return Method_Skipped;
             invoke.args().setThis(ObjectValue(*obj));
@@ -2343,8 +2339,7 @@ jit::Invalidate(types::TypeCompartment &types, FreeOp *fop,
     size_t numInvalidations = 0;
     for (size_t i = 0; i < invalid.length(); i++) {
         const types::CompilerOutput &co = *invalid[i].compilerOutput(types);
-        if (!co.isValid())
-            continue;
+        JS_ASSERT(co.isValid());
 
         CancelOffThreadIonCompile(co.script()->compartment(), co.script());
 
@@ -2374,9 +2369,7 @@ jit::Invalidate(types::TypeCompartment &types, FreeOp *fop,
     // until its last invalidated frame is destroyed.
     for (size_t i = 0; i < invalid.length(); i++) {
         types::CompilerOutput &co = *invalid[i].compilerOutput(types);
-        if (!co.isValid())
-            continue;
-
+        JS_ASSERT(co.isValid());
         ExecutionMode executionMode = co.mode();
         JSScript *script = co.script();
         IonScript *ionScript = co.ion();

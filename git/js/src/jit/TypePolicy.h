@@ -159,7 +159,7 @@ class Float32Policy : public BoxInputsPolicy
 // Expect a float32 OR a double for operand Op, but will prioritize Float32
 // if the result type is set as such. If the input is a Value, it is unboxed.
 template <unsigned Op>
-class FloatingPointPolicy : public TypePolicy
+class RuntimePolicy : public TypePolicy
 {
     MIRType policyType_;
 

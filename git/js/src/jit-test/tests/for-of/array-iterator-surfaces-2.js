@@ -21,3 +21,4 @@ function check(it) {
 
 check([][std_iterator]());
 check(Array.prototype[std_iterator].call({}));
+check(Array.prototype[std_iterator].call(undefined));
