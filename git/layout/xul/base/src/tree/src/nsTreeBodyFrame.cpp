@@ -3602,7 +3602,7 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
   aRenderingContext.SetColor(textContext->GetStyleColor()->mColor);
 
   // Draw decorations.
-  PRUint8 decorations = textContext->GetStyleTextReset()->mTextDecorationLine;
+  PRUint8 decorations = textContext->GetStyleTextReset()->mTextDecoration;
 
   nscoord offset;
   nscoord size;

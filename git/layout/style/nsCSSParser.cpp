@@ -453,6 +453,7 @@ protected:
   void InitBoxPropsAsPhysical(const nsCSSProperty *aSourceProperties);
 
   // Property specific parsing routines
+  PRBool ParseAzimuth(nsCSSValue& aValue);
   PRBool ParseBackground();
 
   struct BackgroundParseState {
@@ -505,6 +506,7 @@ protected:
   PRBool ParseRect(nsCSSProperty aPropID);
   PRBool ParseContent();
   PRBool ParseCounterData(nsCSSProperty aPropID);
+  PRBool ParseCue();
   PRBool ParseCursor();
   PRBool ParseFont();
   PRBool ParseFontWeight(nsCSSValue& aValue);
@@ -520,10 +522,10 @@ protected:
   PRBool ParseOutline();
   PRBool ParseOverflow();
   PRBool ParsePadding();
+  PRBool ParsePause();
   PRBool ParseQuotes();
   PRBool ParseSize();
-  PRBool ParseTextDecoration();
-  PRBool ParseTextDecorationLine(nsCSSValue& aValue);
+  PRBool ParseTextDecoration(nsCSSValue& aValue);
 
   PRBool ParseShadowItem(nsCSSValue& aValue, PRBool aIsBoxShadow);
   PRBool ParseShadowList(nsCSSProperty aProperty);
@@ -2065,8 +2067,6 @@ CSSParserImpl::ParseGroupRule(css::GroupRule* aRule,
       break;
     }
     if (eCSSToken_AtKeyword == mToken.mType) {
-      REPORT_UNEXPECTED_TOKEN(PEGroupRuleNestedAtRule);
-      OUTPUT_ERROR();
       SkipAtRule(PR_TRUE); // group rules cannot contain @rules
       continue;
     }
@@ -5523,6 +5523,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty_counter_increment:
   case eCSSProperty_counter_reset:
     return ParseCounterData(aPropID);
+  case eCSSProperty_cue:
+    return ParseCue();
   case eCSSProperty_cursor:
     return ParseCursor();
   case eCSSProperty_font:
@@ -5563,12 +5565,12 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty_padding_start:
     return ParseDirectionalBoxProperty(eCSSProperty_padding_start,
                                        NS_BOXPROP_SOURCE_LOGICAL);
+  case eCSSProperty_pause:
+    return ParsePause();
   case eCSSProperty_quotes:
     return ParseQuotes();
   case eCSSProperty_size:
     return ParseSize();
-  case eCSSProperty_text_decoration:
-    return ParseTextDecoration();
   case eCSSProperty__moz_transform:
     return ParseMozTransform();
   case eCSSProperty__moz_transform_origin:
@@ -5622,14 +5624,17 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
 
   if (nsCSSProps::PropHasFlags(aPropID, CSS_PROPERTY_VALUE_PARSER_FUNCTION)) {
     switch (aPropID) {
+      case eCSSProperty_azimuth:
+        return ParseAzimuth(aValue);
       case eCSSProperty_font_family:
+      case eCSSProperty_voice_family:
         return ParseFamily(aValue);
       case eCSSProperty_font_weight:
         return ParseFontWeight(aValue);
       case eCSSProperty_marks:
         return ParseMarks(aValue);
-      case eCSSProperty_text_decoration_line:
-        return ParseTextDecorationLine(aValue);
+      case eCSSProperty_text_decoration:
+        return ParseTextDecoration(aValue);
       default:
         NS_ABORT_IF_FALSE(PR_FALSE, "should not reach here");
         return PR_FALSE;
@@ -5769,6 +5774,36 @@ CSSParserImpl::InitBoxPropsAsPhysical(const nsCSSProperty *aSourceProperties)
        *prop != eCSSProperty_UNKNOWN; ++prop) {
     AppendValue(*prop, physical);
   }
+}
+
+PRBool
+CSSParserImpl::ParseAzimuth(nsCSSValue& aValue)
+{
+  if (ParseVariant(aValue, VARIANT_HK | VARIANT_ANGLE,
+                   nsCSSProps::kAzimuthKTable)) {
+    if (eCSSUnit_Enumerated == aValue.GetUnit()) {
+      PRInt32 intValue = aValue.GetIntValue();
+      if ((NS_STYLE_AZIMUTH_LEFT_SIDE <= intValue) &&
+          (intValue <= NS_STYLE_AZIMUTH_BEHIND)) {  // look for optional modifier
+        nsCSSValue  modifier;
+        if (ParseEnum(modifier, nsCSSProps::kAzimuthKTable)) {
+          PRInt32 enumValue = modifier.GetIntValue();
+          if (((intValue == NS_STYLE_AZIMUTH_BEHIND) &&
+               (NS_STYLE_AZIMUTH_LEFT_SIDE <= enumValue) && (enumValue <= NS_STYLE_AZIMUTH_RIGHT_SIDE)) ||
+              ((enumValue == NS_STYLE_AZIMUTH_BEHIND) &&
+               (NS_STYLE_AZIMUTH_LEFT_SIDE <= intValue) && (intValue <= NS_STYLE_AZIMUTH_RIGHT_SIDE))) {
+            aValue.SetIntValue(intValue | enumValue, eCSSUnit_Enumerated);
+            return PR_TRUE;
+          }
+          // Put the unknown identifier back and return
+          UngetToken();
+          return PR_FALSE;
+        }
+      }
+    }
+    return PR_TRUE;
+  }
+  return PR_FALSE;
 }
 
 static nsCSSValue
@@ -6967,6 +7002,32 @@ CSSParserImpl::ParseCounterData(nsCSSProperty aPropID)
 }
 
 PRBool
+CSSParserImpl::ParseCue()
+{
+  nsCSSValue before;
+  if (ParseSingleValueProperty(before, eCSSProperty_cue_before)) {
+    if (eCSSUnit_Inherit != before.GetUnit() &&
+        eCSSUnit_Initial != before.GetUnit()) {
+      nsCSSValue after;
+      if (ParseSingleValueProperty(after, eCSSProperty_cue_after)) {
+        if (ExpectEndProperty()) {
+          AppendValue(eCSSProperty_cue_before, before);
+          AppendValue(eCSSProperty_cue_after, after);
+          return PR_TRUE;
+        }
+        return PR_FALSE;
+      }
+    }
+    if (ExpectEndProperty()) {
+      AppendValue(eCSSProperty_cue_before, before);
+      AppendValue(eCSSProperty_cue_after, before);
+      return PR_TRUE;
+    }
+  }
+  return PR_FALSE;
+}
+
+PRBool
 CSSParserImpl::ParseCursor()
 {
   nsCSSValue value;
@@ -7888,6 +7949,31 @@ CSSParserImpl::ParsePadding()
 }
 
 PRBool
+CSSParserImpl::ParsePause()
+{
+  nsCSSValue  before;
+  if (ParseSingleValueProperty(before, eCSSProperty_pause_before)) {
+    if (eCSSUnit_Inherit != before.GetUnit() && eCSSUnit_Initial != before.GetUnit()) {
+      nsCSSValue after;
+      if (ParseSingleValueProperty(after, eCSSProperty_pause_after)) {
+        if (ExpectEndProperty()) {
+          AppendValue(eCSSProperty_pause_before, before);
+          AppendValue(eCSSProperty_pause_after, after);
+          return PR_TRUE;
+        }
+        return PR_FALSE;
+      }
+    }
+    if (ExpectEndProperty()) {
+      AppendValue(eCSSProperty_pause_before, before);
+      AppendValue(eCSSProperty_pause_after, before);
+      return PR_TRUE;
+    }
+  }
+  return PR_FALSE;
+}
+
+PRBool
 CSSParserImpl::ParseQuotes()
 {
   nsCSSValue value;
@@ -7947,108 +8033,19 @@ CSSParserImpl::ParseSize()
 }
 
 PRBool
-CSSParserImpl::ParseTextDecoration()
+CSSParserImpl::ParseTextDecoration(nsCSSValue& aValue)
 {
-  enum {
-    eDecorationNone         = 0x00,
-    eDecorationUnderline    = 0x01,
-    eDecorationOverline     = 0x02,
-    eDecorationLineThrough  = 0x04,
-    eDecorationBlink        = 0x08,
-    eDecorationPrefAnchors  = 0x10
-  };
-
-  PR_STATIC_ASSERT(eDecorationUnderline ==
-                   NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE);
-  PR_STATIC_ASSERT(eDecorationOverline ==
-                   NS_STYLE_TEXT_DECORATION_LINE_OVERLINE);
-  PR_STATIC_ASSERT(eDecorationLineThrough ==
-                   NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH);
-  PR_STATIC_ASSERT(eDecorationPrefAnchors ==
-                   NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS);
-
-  static const PRInt32 kTextDecorationKTable[] = {
-    eCSSKeyword_none,                   eDecorationNone,
-    eCSSKeyword_underline,              eDecorationUnderline,
-    eCSSKeyword_overline,               eDecorationOverline,
-    eCSSKeyword_line_through,           eDecorationLineThrough,
-    eCSSKeyword_blink,                  eDecorationBlink,
-    eCSSKeyword__moz_anchor_decoration, eDecorationPrefAnchors,
-    eCSSKeyword_UNKNOWN,-1
-  };
-
-  nsCSSValue value;
-  if (!ParseVariant(value, VARIANT_HK, kTextDecorationKTable)) {
-    return PR_FALSE;
-  }
-
-  nsCSSValue blink, line, style, color;
-  switch (value.GetUnit()) {
-    case eCSSUnit_Enumerated: {
-      // We shouldn't accept decoration line style and color via
-      // text-decoration.
-      color.SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR,
-                        eCSSUnit_Enumerated);
-      style.SetIntValue(NS_STYLE_TEXT_DECORATION_STYLE_SOLID,
-                        eCSSUnit_Enumerated);
-
-      PRInt32 intValue = value.GetIntValue();
-      if (intValue == eDecorationNone) {
-        blink.SetIntValue(NS_STYLE_TEXT_BLINK_NONE, eCSSUnit_Enumerated);
-        line.SetIntValue(NS_STYLE_TEXT_DECORATION_LINE_NONE,
-                         eCSSUnit_Enumerated);
-        break;
-      }
-
-      // look for more keywords
-      nsCSSValue keyword;
-      PRInt32 index;
-      for (index = 0; index < 3; index++) {
-        if (!ParseEnum(keyword, kTextDecorationKTable)) {
-          break;
-        }
-        PRInt32 newValue = keyword.GetIntValue();
-        if (newValue == eDecorationNone || newValue & intValue) {
-          // 'none' keyword in conjuction with others is not allowed, and
-          // duplicate keyword is not allowed.
-          return PR_FALSE;
-        }
-        intValue |= newValue;
-      }
-
-      blink.SetIntValue((intValue & eDecorationBlink) != 0 ?
-                          NS_STYLE_TEXT_BLINK_BLINK : NS_STYLE_TEXT_BLINK_NONE,
-                        eCSSUnit_Enumerated);
-      line.SetIntValue((intValue & ~eDecorationBlink), eCSSUnit_Enumerated);
-      break;
-    }
-    default:
-      blink = line = color = style = value;
-      break;
-  }
-
-  AppendValue(eCSSProperty_text_blink, blink);
-  AppendValue(eCSSProperty_text_decoration_line, line);
-  AppendValue(eCSSProperty_text_decoration_color, color);
-  AppendValue(eCSSProperty_text_decoration_style, style);
-
-  return PR_TRUE;
-}
-
-PRBool
-CSSParserImpl::ParseTextDecorationLine(nsCSSValue& aValue)
-{
-  if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kTextDecorationLineKTable)) {
+  if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kTextDecorationKTable)) {
     if (eCSSUnit_Enumerated == aValue.GetUnit()) {
       PRInt32 intValue = aValue.GetIntValue();
-      if (intValue != NS_STYLE_TEXT_DECORATION_LINE_NONE) {
+      if (intValue != NS_STYLE_TEXT_DECORATION_NONE) {
         // look for more keywords
         nsCSSValue  keyword;
         PRInt32 index;
-        for (index = 0; index < 2; index++) {
-          if (ParseEnum(keyword, nsCSSProps::kTextDecorationLineKTable)) {
+        for (index = 0; index < 3; index++) {
+          if (ParseEnum(keyword, nsCSSProps::kTextDecorationKTable)) {
             PRInt32 newValue = keyword.GetIntValue();
-            if (newValue == NS_STYLE_TEXT_DECORATION_LINE_NONE ||
+            if (newValue == NS_STYLE_TEXT_DECORATION_NONE ||
                 newValue & intValue) {
               // 'none' keyword in conjuction with others is not allowed, and
               // duplicate keyword is not allowed.

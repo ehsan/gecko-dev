@@ -372,14 +372,10 @@ function installFromURLBar(aAddon) {
                     is(updateButton.disabled, false, "Update button is enabled");
 
                     ExtensionsView.uninstall(elt);
-                    setTimeout(function() {
-                      elt = get_addon_element(aAddon.id);
-                      ok(!elt || !elt.addon, "Addon element removed during uninstall");
-                      if (elt && !elt.addon)
-                        info("Element is still visible in search area");
-                      Browser.closeTab(gCurrentTab);
-                      close_manager(run_next_test);
-                    }, 0);
+                    elt = get_addon_element(aAddon.id);
+                    ok(!elt, "Addon element removed during uninstall");
+                    Browser.closeTab(gCurrentTab);
+                    close_manager(run_next_test);
                   } else {
                     ok(!elt, "Extension not in list");
                     AddonManager.getAllInstalls(function(aInstalls) {

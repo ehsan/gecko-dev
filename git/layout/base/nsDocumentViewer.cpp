@@ -58,6 +58,7 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIEventStateManager.h"
 #include "nsStyleSet.h"
 #include "nsIStyleSheet.h"
 #include "nsCSSStyleSheet.h"
@@ -2734,7 +2735,8 @@ SetChildMinFontSize(nsIMarkupDocumentViewer* aChild, void* aClosure)
 {
   nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> branch =
     do_QueryInterface(aChild);
-  branch->SetMinFontSize(NS_PTR_TO_INT32(aClosure));
+  struct ZoomInfo* ZoomInfo = (struct ZoomInfo*) aClosure;
+  branch->SetMinFontSize(ZoomInfo->mZoom);
 }
 
 static void
@@ -2767,7 +2769,8 @@ SetExtResourceMinFontSize(nsIDocument* aDocument, void* aClosure)
   if (shell) {
     nsPresContext* ctxt = shell->GetPresContext();
     if (ctxt) {
-      ctxt->SetMinFontSize(NS_PTR_TO_INT32(aClosure));
+      struct ZoomInfo* ZoomInfo = static_cast<struct ZoomInfo*>(aClosure);
+      ctxt->SetMinFontSize(ZoomInfo->mZoom);
     }
   }
 
@@ -2846,7 +2849,8 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
   // change, our children's min font may be different, though it would be unusual).
   // Do this first, in case kids are auto-sizing and post reflow commands on
   // our presshell (which should be subsumed into our own style change reflow).
-  CallChildren(SetChildMinFontSize, NS_INT32_TO_PTR(aMinFontSize));
+  struct ZoomInfo ZoomInfo = { aMinFontSize };
+  CallChildren(SetChildMinFontSize, &ZoomInfo);
 
   // Now change our own min font
   nsPresContext* pc = GetPresContext();
@@ -2855,8 +2859,7 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
   }
 
   // And do the external resources
-  mDocument->EnumerateExternalResources(SetExtResourceMinFontSize,
-                                        NS_INT32_TO_PTR(aMinFontSize));
+  mDocument->EnumerateExternalResources(SetExtResourceMinFontSize, &ZoomInfo);
 
   batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
   
@@ -3091,7 +3094,7 @@ DocumentViewerImpl::SetHintCharacterSetSource(PRInt32 aHintCharacterSetSource)
   mHintCharsetSource = aHintCharacterSetSource;
   // now set the hint char set source on all children of mContainer
   CallChildren(SetChildHintCharacterSetSource,
-                      NS_INT32_TO_PTR(aHintCharacterSetSource));
+                      (void*) aHintCharacterSetSource);
   return NS_OK;
 }
 
@@ -3228,7 +3231,7 @@ NS_IMETHODIMP DocumentViewerImpl::SetBidiOptions(PRUint32 aBidiOptions)
     mPresContext->SetBidi(aBidiOptions, PR_TRUE); // could cause reflow
   }
   // now set bidi on all children of mContainer
-  CallChildren(SetChildBidiOptions, NS_INT32_TO_PTR(aBidiOptions));
+  CallChildren(SetChildBidiOptions, (void*) aBidiOptions);
   return NS_OK;
 }
 

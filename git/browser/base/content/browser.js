@@ -188,6 +188,7 @@ let gInitialPages = [
 
 XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 #ifdef XP_WIN
+#ifndef WINCE
   const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
   if (WINTASKBAR_CONTRACTID in Cc &&
       Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
@@ -203,6 +204,7 @@ XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
       }
     };
   }
+#endif
 #endif
   return null;
 });

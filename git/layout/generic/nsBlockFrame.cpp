@@ -859,9 +859,8 @@ nsRect
 nsBlockFrame::ComputeTightBounds(gfxContext* aContext) const
 {
   // be conservative
-  if (GetStyleContext()->HasTextDecorationLines()) {
+  if (GetStyleContext()->HasTextDecorations())
     return GetVisualOverflowRect();
-  }
   return ComputeSimpleTightBounds(aContext);
 }
 

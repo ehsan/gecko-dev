@@ -166,10 +166,8 @@ function GroupItem(listOfEls, options) {
   this.$titleShield = iQ('.title-shield', this.$titlebar);
   this.setTitle(options.title);
 
-  var handleKeyPress = function (e) {
-    if (e.keyCode == KeyEvent.DOM_VK_ESCAPE ||
-        e.keyCode == KeyEvent.DOM_VK_RETURN ||
-        e.keyCode == KeyEvent.DOM_VK_ENTER) {
+  var handleKeyDown = function(e) {
+    if (e.which == 13 || e.which == 27) { // return & escape
       (self.$title)[0].blur();
       self.$title
         .addClass("transparentBorder")
@@ -206,7 +204,7 @@ function GroupItem(listOfEls, options) {
     .mousedown(function(e) {
       e.stopPropagation();
     })
-    .keypress(handleKeyPress)
+    .keydown(handleKeyDown)
     .keyup(handleKeyUp);
 
   this.$titleShield

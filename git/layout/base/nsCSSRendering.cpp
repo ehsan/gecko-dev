@@ -3414,9 +3414,10 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
   if (rect.IsEmpty())
     return;
 
-  if (aDecoration != NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE &&
-      aDecoration != NS_STYLE_TEXT_DECORATION_LINE_OVERLINE &&
-      aDecoration != NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH) {
+  if (aDecoration != NS_STYLE_TEXT_DECORATION_UNDERLINE &&
+      aDecoration != NS_STYLE_TEXT_DECORATION_OVERLINE &&
+      aDecoration != NS_STYLE_TEXT_DECORATION_LINE_THROUGH)
+  {
     NS_ERROR("Invalid decoration value!");
     return;
   }
@@ -3702,7 +3703,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
   gfxFloat baseline = NS_floor(aPt.y + aAscent + 0.5);
   gfxFloat offset = 0.0;
   switch (aDecoration) {
-    case NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE:
+    case NS_STYLE_TEXT_DECORATION_UNDERLINE:
       offset = aOffset;
       if (canLiftUnderline) {
         if (descentLimit < -offset + r.Height()) {
@@ -3716,10 +3717,10 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
         }
       }
       break;
-    case NS_STYLE_TEXT_DECORATION_LINE_OVERLINE:
+    case NS_STYLE_TEXT_DECORATION_OVERLINE:
       offset = aOffset - lineHeight + r.Height();
       break;
-    case NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH: {
+    case NS_STYLE_TEXT_DECORATION_LINE_THROUGH: {
       gfxFloat extra = NS_floor(r.Height() / 2.0 + 0.5);
       extra = NS_MAX(extra, lineHeight);
       offset = aOffset - lineHeight + extra;
