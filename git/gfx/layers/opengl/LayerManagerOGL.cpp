@@ -226,6 +226,8 @@ LayerManagerOGL::Initialize()
     return false;
   }
 
+  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+
   if (mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB) {
     /* If we're using TEXTURE_RECTANGLE, then we must have the ARB
      * extension -- the EXT variant does not provide support for
@@ -295,7 +297,6 @@ LayerManagerOGL::SetClippingRegion(const nsIntRegion& aClippingRegion)
 void
 LayerManagerOGL::BeginTransaction()
 {
-  NS_ASSERTION(mRootLayer, "Root not set");
 }
 
 void
@@ -376,10 +377,6 @@ LayerManagerOGL::MakeCurrent()
 void
 LayerManagerOGL::Render()
 {
-  static int rcount = 0;
-
-  //DumpLayerAndChildren(mRootLayer);
-
   nsIntRect rect;
   mWidget->GetBounds(rect);
   GLint width = rect.width;
@@ -512,7 +509,13 @@ LayerManagerOGL::Render()
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
-  mGLContext->fFinish();
+  // XXX this is an intermediate workaround for windows that are
+  // double-buffered by default on GLX systems.  The swap is a no-op
+  // everywhere else (and for non-double-buffered GLX windows).  If
+  // the swap is actually performed, it implicitly glFlush()s.
+  if (!mGLContext->SwapBuffers()) {
+    mGLContext->fFlush();
+  } 
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 }
@@ -634,8 +637,8 @@ LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
 };
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \
-  for (int lpindex = 0;                                     \
-       lpindex < sizeof(sLayerProgramTypes)/sizeof(int);    \
+  for (size_t lpindex = 0;                                  \
+       lpindex < NS_ARRAY_LENGTH(sLayerProgramTypes);       \
        ++lpindex)                                           \
   {                                                         \
     LayerProgram *vname = static_cast<LayerProgram*>        \

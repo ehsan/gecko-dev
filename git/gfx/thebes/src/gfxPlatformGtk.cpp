@@ -171,29 +171,6 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
         sizeOk = PR_FALSE;
 
 #ifdef MOZ_X11
-    int glitzf;
-    int xrenderFormatID;
-    switch (imageFormat) {
-        case gfxASurface::ImageFormatARGB32:
-            glitzf = 0; // GLITZ_STANDARD_ARGB32;
-            xrenderFormatID = PictStandardARGB32;
-            break;
-        case gfxASurface::ImageFormatRGB24:
-            glitzf = 1; // GLITZ_STANDARD_RGB24;
-            xrenderFormatID = PictStandardRGB24;
-            break;
-        case gfxASurface::ImageFormatA8:
-            glitzf = 2; // GLITZ_STANDARD_A8;
-            xrenderFormatID = PictStandardA8;
-            break;
-        case gfxASurface::ImageFormatA1:
-            glitzf = 3; // GLITZ_STANDARD_A1;
-            xrenderFormatID = PictStandardA1;
-            break;
-        default:
-            return nsnull;
-    }
-
     // XXX we really need a different interface here, something that passes
     // in more context, including the display and/or target surface type that
     // we should try to match
@@ -202,8 +179,13 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
         return nsnull;
 
     GdkPixmap* pixmap = nsnull;
+    // try to optimize it for 16bpp default screen
+    if (gfxASurface::ImageFormatRGB24 == imageFormat
+        && 16 == gdk_visual_get_system()->depth)
+        imageFormat = gfxASurface::ImageFormatRGB16_565;
+
     XRenderPictFormat* xrenderFormat =
-        XRenderFindStandardFormat(display, xrenderFormatID);
+        gfxXlibSurface::FindRenderFormat(display, imageFormat);
 
     if (xrenderFormat && sizeOk) {
         pixmap = gdk_pixmap_new(nsnull, size.width, size.height,
@@ -759,23 +741,8 @@ gfxPlatformGtk::SetGdkDrawable(gfxASurface *target,
 #ifdef MOZ_X11
 // Look for an existing Colormap that is known to be associated with visual.
 static GdkColormap *
-LookupGdkColormapForVisual(const Screen* screen, const Visual* visual)
+LookupGdkColormapForVisual(GdkScreen* gdkScreen, const Visual* visual)
 {
-    Display* dpy = DisplayOfScreen(screen);
-    GdkDisplay* gdkDpy = gdk_x11_lookup_xdisplay(dpy);
-    if (!gdkDpy)
-        return NULL;
-
-    // I wish there were a gdk_x11_display_lookup_screen.
-    gint screen_num = 0;
-    for (int s = 0; s < ScreenCount(dpy); ++s) {
-        if (ScreenOfDisplay(dpy, s) == screen) {
-            screen_num = s;
-            break;
-        }
-    }
-    GdkScreen* gdkScreen = gdk_display_get_screen(gdkDpy, screen_num);
-
     // Common case: the display's default colormap
     if (visual ==
         GDK_VISUAL_XVISUAL(gdk_screen_get_system_visual(gdkScreen)))
@@ -808,7 +775,7 @@ GdkDrawable *
 gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
 {
     if (target->CairoStatus())
-        return nsnull;
+        return NULL;
 
     GdkDrawable *result;
 
@@ -818,39 +785,60 @@ gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
         return result;
 
 #ifdef MOZ_X11
-    if (target->GetType() == gfxASurface::SurfaceTypeXlib) {
-        gfxXlibSurface *xs = (gfxXlibSurface*) target;
+    if (target->GetType() != gfxASurface::SurfaceTypeXlib)
+        return NULL;
 
-        // try looking it up in gdk's table
-        result = (GdkDrawable*) gdk_xid_table_lookup(xs->XDrawable());
-        if (result) {
-            SetGdkDrawable(target, result);
-            return result;
-        }
+    gfxXlibSurface *xs = static_cast<gfxXlibSurface*>(target);
 
-        // If all else fails, try doing a foreign_new
-        // but don't bother if we can't get a colormap.
-        // Without a colormap GDK won't know how to draw.
-        Screen *screen = cairo_xlib_surface_get_screen(xs->CairoSurface());
-        Visual *visual = cairo_xlib_surface_get_visual(xs->CairoSurface());
-        GdkColormap *cmap = LookupGdkColormapForVisual(screen, visual);
-        if (cmap == None)
-            return nsnull;
+    // try looking it up in gdk's table
+    result = (GdkDrawable*) gdk_xid_table_lookup(xs->XDrawable());
+    if (result) {
+        SetGdkDrawable(target, result);
+        return result;
+    }
 
-        result = (GdkDrawable*) gdk_pixmap_foreign_new_for_display
-            (gdk_display_get_default(), xs->XDrawable());
-        if (result) {
-            gdk_drawable_set_colormap(result, cmap);
+    // If all else fails, try doing a foreign_new
+    // but don't bother if we can't get a colormap.
+    // Without a colormap GDK won't know how to draw.
+    Screen *screen = cairo_xlib_surface_get_screen(xs->CairoSurface());
+    Visual *visual = cairo_xlib_surface_get_visual(xs->CairoSurface());
+    Display* dpy = DisplayOfScreen(screen);
 
-            SetGdkDrawable(target, result);
-            // Release our ref.  The object is held by target.  Caller will
-            // only need to ref if it wants to keep the drawable longer than
-            // target.
-            g_object_unref(result);
-            return result;
+    GdkDisplay* gdkDpy = gdk_x11_lookup_xdisplay(dpy);
+    if (!gdkDpy)
+        return NULL;
+
+    // I wish there were a gdk_x11_display_lookup_screen.
+    gint screen_num = 0;
+    for (int s = 0; s < ScreenCount(dpy); ++s) {
+        if (ScreenOfDisplay(dpy, s) == screen) {
+            screen_num = s;
+            break;
         }
     }
-#endif
+    GdkScreen* gdkScreen = gdk_display_get_screen(gdkDpy, screen_num);
 
-    return nsnull;
+    GdkColormap *cmap = LookupGdkColormapForVisual(gdkScreen, visual);
+    if (cmap == NULL)
+        return NULL;
+
+    gfxIntSize size = xs->GetSize();
+    int depth = cairo_xlib_surface_get_depth(xs->CairoSurface());
+    result = gdk_pixmap_foreign_new_for_screen(gdkScreen, xs->XDrawable(),
+                                               size.width, size.height, depth);
+    if (!result)
+        return NULL;
+
+    gdk_drawable_set_colormap(result, cmap);
+
+    SetGdkDrawable(target, result);
+    // Release our ref.  The object is held by target.  Caller will
+    // only need to ref if it wants to keep the drawable longer than
+    // target.
+    g_object_unref(result);
+
+    return result;
+#else
+    return NULL;
+#endif
 }
