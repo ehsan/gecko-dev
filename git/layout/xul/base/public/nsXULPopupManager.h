@@ -299,8 +299,7 @@ private:
 class nsXULPopupManager : public nsIDOMKeyListener,
                           public nsIMenuRollup,
                           public nsIRollupListener,
-                          public nsITimerCallback,
-                          public nsIObserver
+                          public nsITimerCallback
 {
 
 public:
@@ -309,7 +308,6 @@ public:
   friend class nsXULMenuCommandEvent;
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
 
   // nsIRollupListener

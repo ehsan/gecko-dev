@@ -52,6 +52,7 @@
 #include "nsIChannel.h"
 #include "nsIChromeRegistry.h"
 #include "nsIComponentManager.h"
+#include "nsIFastLoadService.h"
 #include "nsIFile.h"
 #include "nsIFileURL.h"
 #include "nsIFileChannel.h"
