@@ -96,6 +96,7 @@ webidl_files = \
   Rect.webidl \
   RGBColor.webidl \
   Screen.webidl \
+  SVGAltGlyphElement.webidl \
   SVGAngle.webidl \
   SVGAnimatedAngle.webidl \
   SVGAnimatedBoolean.webidl \
@@ -138,10 +139,15 @@ webidl_files = \
   SVGStyleElement.webidl \
   SVGSwitchElement.webidl \
   SVGTests.webidl \
+  SVGTextContentElement.webidl \
+  SVGTextElement.webidl \
+  SVGTextPathElement.webidl \
+  SVGTextPositioningElement.webidl \
   SVGTitleElement.webidl \
   SVGTransform.webidl \
   SVGTransformableElement.webidl \
   SVGTransformList.webidl \
+  SVGTSpanElement.webidl \
   SVGURIReference.webidl \
   Text.webidl \
   TextDecoder.webidl \

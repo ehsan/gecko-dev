@@ -37,7 +37,6 @@ CPPSRCS		= \
 		nsDOMSVGZoomEvent.cpp \
 		nsDOMSVGEvent.cpp \
 		nsSVGAElement.cpp \
-		nsSVGAltGlyphElement.cpp \
 		nsSVGAngle.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGClass.cpp \
@@ -66,15 +65,11 @@ CPPSRCS		= \
 		nsSVGRect.cpp \
 		nsSVGSVGElement.cpp \
 		nsSVGSymbolElement.cpp \
-		nsSVGTSpanElement.cpp \
-		nsSVGTextContentElement.cpp \
-		nsSVGTextElement.cpp \
-		nsSVGTextPathElement.cpp \
-		nsSVGTextPositioningElement.cpp \
 		nsSVGUnknownElement.cpp \
 		nsSVGUseElement.cpp \
 		nsSVGViewBox.cpp \
 		nsSVGViewElement.cpp \
+		SVGAltGlyphElement.cpp \
 		SVGAngle.cpp \
 		SVGAnimatedAngle.cpp \
 		SVGAnimatedBoolean.cpp \
@@ -130,12 +125,17 @@ CPPSRCS		= \
 		SVGStringList.cpp \
 		SVGStyleElement.cpp \
 		SVGSwitchElement.cpp \
+		SVGTextContentElement.cpp \
+		SVGTextElement.cpp \
+		SVGTextPathElement.cpp \
+		SVGTextPositioningElement.cpp \
 		SVGTitleElement.cpp \
 		SVGTransform.cpp \
 		SVGTransformableElement.cpp \
 		SVGTransformList.cpp \
 		SVGTransformListParser.cpp \
 		SVGTransformListSMILType.cpp \
+		SVGTSpanElement.cpp \
 		SVGViewBoxSMILType.cpp \
 		$(NULL)
 
@@ -153,6 +153,7 @@ EXPORTS =  			\
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
+	SVGAltGlyphElement.h \
 	SVGAngle.h \
 	SVGAnimatedAngle.h \
 	SVGAnimatedBoolean.h \
@@ -180,8 +181,13 @@ EXPORTS_mozilla/dom = \
 	SVGStopElement.h \
 	SVGStyleElement.h \
 	SVGSwitchElement.h \
+	SVGTextContentElement.h \
+	SVGTextElement.h \
+	SVGTextPathElement.h \
+	SVGTextPositioningElement.h \
 	SVGTitleElement.h \
 	SVGTransformableElement.h \
+	SVGTSpanElement.h \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
