@@ -164,6 +164,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIMIMEHeaderParam.h"
 #include "nsIDOMDragEvent.h"
 #include "nsDOMDataTransfer.h"
+#include "nsHtml5Module.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -176,7 +177,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIConsoleService.h"
 
 #include "mozAutoDocUpdate.h"
-#include "jsinterp.h"
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -3579,6 +3579,58 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   // for compiling event handlers... so just bail out.
   nsCOMPtr<nsIDocument> document = node->GetOwnerDoc();
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
+  
+  PRBool bCaseSensitive = document->IsCaseSensitive();
+
+  nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
+  PRBool bHTML = htmlDoc && !bCaseSensitive;
+
+  if (bHTML && nsHtml5Module::Enabled) {
+    // See if the document has a cached fragment parser. nsHTMLDocument is the
+    // only one that should really have one at the moment.
+    nsCOMPtr<nsIParser> parser = document->GetFragmentParser();
+    if (parser) {
+      // Get the parser ready to use.
+      parser->Reset();
+    }
+    else {
+      // Create a new parser for this operation.
+      parser = nsHtml5Module::NewHtml5Parser();
+      if (!parser) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      document->SetFragmentParser(parser);
+    }
+    nsCOMPtr<nsIDOMDocumentFragment> frag;
+    rv = NS_NewDocumentFragment(getter_AddRefs(frag), document->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
+    
+    nsCOMPtr<nsIContent> contextAsContent = do_QueryInterface(aContextNode);
+    if (contextAsContent && !contextAsContent->IsNodeOfType(nsINode::eELEMENT)) {
+      contextAsContent = contextAsContent->GetParent();
+      if (contextAsContent && !contextAsContent->IsNodeOfType(nsINode::eELEMENT)) {
+        // can this even happen?
+        contextAsContent = nsnull;
+      }
+    }
+    
+    if (contextAsContent) {
+      parser->ParseFragment(aFragment, 
+                            frag, 
+                            contextAsContent->Tag(), 
+                            contextAsContent->GetNameSpaceID(), 
+                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));    
+    } else {
+      parser->ParseFragment(aFragment, 
+                            frag, 
+                            nsGkAtoms::body, 
+                            kNameSpaceID_XHTML, 
+                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
+    }
+  
+    NS_ADDREF(*aReturn = frag);
+    return NS_OK;
+  }
 
   nsAutoTArray<nsString, 32> tagStack;
   nsAutoString uriStr, nameStr;
@@ -3636,14 +3688,9 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   }
 
   nsCAutoString contentType;
-  PRBool bCaseSensitive = PR_TRUE;
   nsAutoString buf;
   document->GetContentType(buf);
   LossyCopyUTF16toASCII(buf, contentType);
-  bCaseSensitive = document->IsCaseSensitive();
-
-  nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
-  PRBool bHTML = htmlDoc && !bCaseSensitive;
 
   // See if the document has a cached fragment parser. nsHTMLDocument is the
   // only one that should really have one at the moment.
@@ -4943,56 +4990,4 @@ nsContentTypeParser::GetParameter(const char* aParameterName, nsAString& aResult
   return mService->GetParameter(mString, aParameterName,
                                 EmptyCString(), PR_FALSE, nsnull,
                                 aResult);
-}
-
-/* static */
-
-// If you change this code, change also AllowedToAct() in
-// XPCSystemOnlyWrapper.cpp!
-PRBool
-nsContentUtils::CanAccessNativeAnon()
-{
-  JSContext* cx = nsnull;
-  sThreadJSContextStack->Peek(&cx);
-  if (!cx) {
-    return PR_TRUE;
-  }
-  JSStackFrame* fp;
-  nsIPrincipal* principal =
-    sSecurityManager->GetCxSubjectPrincipalAndFrame(cx, &fp);
-  NS_ENSURE_TRUE(principal, PR_FALSE);
-
-  if (!fp) {
-    if (!JS_FrameIterator(cx, &fp)) {
-      // No code at all is running. So we must be arriving here as the result
-      // of C++ code asking us to do something. Allow access.
-      return PR_TRUE;
-    }
-
-    // Some code is running, we can't make the assumption, as above, but we
-    // can't use a native frame, so clear fp.
-    fp = nsnull;
-  }
-
-  void *annotation = fp ? JS_GetFrameAnnotation(cx, fp) : nsnull;
-  PRBool privileged;
-  if (NS_SUCCEEDED(principal->IsCapabilityEnabled("UniversalXPConnect",
-                                                  annotation,
-                                                  &privileged)) &&
-      privileged) {
-    // UniversalXPConnect things are allowed to touch us.
-    return PR_TRUE;
-  }
-
-  // XXX HACK EWW! Allow chrome://global/ access to these things, even
-  // if they've been cloned into less privileged contexts.
-  static const char prefix[] = "chrome://global/";
-  const char *filename;
-  if (fp && fp->script &&
-      (filename = fp->script->filename) &&
-      !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
-    return PR_TRUE;
-  }
-
-  return PR_FALSE;
 }

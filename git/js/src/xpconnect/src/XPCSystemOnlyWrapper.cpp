@@ -160,7 +160,6 @@ GetWrappedObject(JSContext *cx, JSObject *wrapper)
   return XPCWrapper::UnwrapGeneric(cx, &sXPC_SOW_JSClass, wrapper);
 }
 
-// If you change this code, change also nsContentUtils::CanAccessNativeAnon()!
 JSBool
 AllowedToAct(JSContext *cx, jsval idval)
 {
