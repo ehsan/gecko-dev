@@ -169,12 +169,8 @@ function ProfileTreeManager() {
     self._onContextMenuClick(e);
   });
   this.treeView.addEventListener("focusCallstackButtonClicked", function (frameData) {
-    // NOTE: Not in the original Cleopatra source code.
-    notifyParent("displaysource", {
-      line: frameData.scriptLocation.lineInformation,
-      uri: frameData.scriptLocation.scriptURI,
-      isChrome: /^otherhost_*/.test(frameData.library)
-    });
+    var focusedCallstack = self._getCallstackUpTo(frameData);
+    focusOnCallstack(focusedCallstack, frameData.name);
   });
   this._container = document.createElement("div");
   this._container.className = "tree";
@@ -1570,8 +1566,7 @@ function focusOnSymbol(focusSymbol, name) {
 }
 
 function focusOnCallstack(focusedCallstack, name, overwriteCallstack) {
-  var invertCallstack = gInvertCallstack;
-
+  var invertCallback =  gInvertCallstack;
   if (overwriteCallstack != null) {
     invertCallstack = overwriteCallstack;
   }
