@@ -266,7 +266,7 @@ InflateStringToBuffer(JSContext *maybecx, const char *bytes, size_t length,
  * number of copied bytes.
  */
 extern bool
-DeflateStringToBuffer(JSContext *maybecx, const jschar *chars,
+DeflateStringToBuffer(JSContext *cx, const jschar *chars,
                       size_t charsLength, char *bytes, size_t *length);
 
 /*

@@ -79,7 +79,7 @@ public:
     return GetOwner();
   }
 
-  void Shutdown(); // idempotent
+  void Shutdown();
   void Suspend();
   void Resume();
 

@@ -14,6 +14,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMEvent.h"
 #include "nsPIDOMWindow.h"
+#include "PowerManager.h"
 
 DOMCI_DATA(MozWakeLock, mozilla::dom::power::WakeLock)
 

@@ -294,13 +294,13 @@ class ExclusiveContext : public ThreadSafeContext
     friend class jit::IonContext;
 
     // The worker on which this context is running, if this is not a JSContext.
-    WorkerThread *workerThread_;
+    WorkerThread *workerThread;
 
   public:
 
     ExclusiveContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind)
       : ThreadSafeContext(rt, pt, kind),
-        workerThread_(NULL),
+        workerThread(NULL),
         enterCompartmentDepth_(0)
     {}
 
@@ -336,7 +336,6 @@ class ExclusiveContext : public ThreadSafeContext
     inline void leaveCompartment(JSCompartment *oldCompartment);
 
     void setWorkerThread(WorkerThread *workerThread);
-    WorkerThread *workerThread() const { return workerThread_; }
 
     // If required, pause this thread until notified to continue by the main thread.
     inline void maybePause() const;
