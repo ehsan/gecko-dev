@@ -8,6 +8,12 @@ let Cu = Components.utils;
 let Cc = Components.classes;
 let Ci = Components.interfaces;
 
+Cu.import("resource://gre/modules/Webapps.jsm");
+Cu.import("resource://gre/modules/AppsUtils.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
+Cu.import('resource://gre/modules/Services.jsm');
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+
 function debug(aMsg) {
   /*
   Cc["@mozilla.org/consoleservice;1"]
@@ -16,21 +22,17 @@ function debug(aMsg) {
   */
 }
 
+#ifdef MOZ_WIDGET_GONK
+  const DIRECTORY_NAME = "webappsDir";
+#else
+  const DIRECTORY_NAME = "ProfD";
+#endif
+
 /**
  * Creates a WebappsActor. WebappsActor provides remote access to
  * install apps.
  */
-function WebappsActor(aConnection) {
-  debug("init");
-  // Load actor dependencies lazily as this actor require extra environnement
-  // preparation to work (like have a profile setup in xpcshell tests)
-
-  Cu.import("resource://gre/modules/Webapps.jsm");
-  Cu.import("resource://gre/modules/AppsUtils.jsm");
-  Cu.import("resource://gre/modules/FileUtils.jsm");
-  Cu.import('resource://gre/modules/Services.jsm');
-  Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-}
+function WebappsActor(aConnection) { debug("init"); }
 
 WebappsActor.prototype = {
   actorPrefix: "webapps",
@@ -44,7 +46,7 @@ WebappsActor.prototype = {
     aApp.installState = "installed";
     aApp.removable = true;
     aApp.id = aId;
-    aApp.basePath = reg.getWebAppsBasePath();
+    aApp.basePath = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true).path;
     aApp.localId = (aId in reg.webapps) ? reg.webapps[aId].localId
                                         : reg._nextLocalId();
 
@@ -126,14 +128,15 @@ WebappsActor.prototype = {
             let appType = self._getAppType(aManifest.type);
 
             // In production builds, don't allow installation of certified apps.
-            if (!DOMApplicationRegistry.allowSideloadingCertified &&
-                appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
+#ifdef MOZ_OFFICIAL_BRANDING
+            if (appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
               self._sendError("Installing certified apps is not allowed.", aId);
               return;
             }
-
+#endif
             // The destination directory for this app.
-            let installDir = DOMApplicationRegistry._getAppDir(aId);
+            let installDir = FileUtils.getDir(DIRECTORY_NAME,
+                                              ["webapps", aId], true);
             manFile.moveTo(installDir, "manifest.webapp");
 
             // Read the origin and manifest url from metadata.json
@@ -183,7 +186,8 @@ WebappsActor.prototype = {
       run: function run() {
         try {
           // The destination directory for this app.
-          let installDir = DOMApplicationRegistry._getAppDir(aId);
+          let installDir = FileUtils.getDir(DIRECTORY_NAME,
+                                            ["webapps", aId], true);
 
           // Move application.zip to the destination directory, and
           // extract manifest.webapp there.
@@ -206,12 +210,12 @@ WebappsActor.prototype = {
             let appType = self._getAppType(aManifest.type);
 
             // In production builds, don't allow installation of certified apps.
-            if (!DOMApplicationRegistry.allowSideloadingCertified &&
-                appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
+#ifdef MOZ_OFFICIAL_BRANDING
+            if (appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
               self._sendError("Installing certified apps is not allowed.", aId);
               return;
             }
-
+#endif
             let origin = "app://" + aId;
 
             // Create a fake app object with the minimum set of properties we need.

@@ -92,15 +92,11 @@ this.AlarmService = {
   },
   set _currentAlarm(aAlarm) {
     this._alarm = aAlarm;
-    if (!aAlarm) {
+    if (!aAlarm)
       return;
-    }
 
-    let alarmTimeInMs = this._getAlarmTime(aAlarm);
-    let ns = (alarmTimeInMs % 1000) * 1000000;
-    if (!this._alarmHalService.setAlarm(alarmTimeInMs / 1000, ns)) {
+    if (!this._alarmHalService.setAlarm(this._getAlarmTime(aAlarm) / 1000, 0))
       throw Components.results.NS_ERROR_FAILURE;
-    }
   },
 
   receiveMessage: function receiveMessage(aMessage) {
