@@ -112,7 +112,6 @@ nsRootAccessible::
                    nsIWeakReference *aShell) :
   nsDocAccessibleWrap(aDocument, aRootContent, aShell)
 {
-  mFlags |= eRootAccessible;
 }
 
 nsRootAccessible::~nsRootAccessible()
@@ -309,9 +308,6 @@ nsresult nsRootAccessible::RemoveEventListeners()
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// public
-
 nsCaretAccessible*
 nsRootAccessible::GetCaretAccessible()
 {
@@ -437,11 +433,6 @@ nsRootAccessible::FireCurrentFocusEvent()
       HandleEvent(event);
     }
   }
-}
-
-void
-nsRootAccessible::DocumentActivated(nsDocAccessible* aDocument)
-{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,7 +85,6 @@ DOMCI_DATA(History, nsHistory)
 NS_INTERFACE_MAP_BEGIN(nsHistory)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMHistory)
   NS_INTERFACE_MAP_ENTRY(nsIDOMHistory)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMHistory_MOZILLA_2_0_BRANCH)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(History)
 NS_INTERFACE_MAP_END
 
@@ -336,26 +335,6 @@ nsHistory::ReplaceState(nsIVariant *aData, const nsAString& aTitle,
   // PR_TRUE tells the docshell to modify the current SHEntry, rather than
   // create a new one.
   return docShell->AddState(aData, aTitle, aURL, PR_TRUE);
-}
-
-NS_IMETHODIMP
-nsHistory::GetState(nsIVariant **aState)
-{
-  *aState = nsnull;
-
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-  if (!win)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  if (!nsContentUtils::CanCallerAccess(win->GetOuterWindow()))
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  nsCOMPtr<nsIDOMNSDocument_MOZILLA_2_0_BRANCH> doc =
-    do_QueryInterface(win->GetExtantDocument());
-  if (!doc)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  return doc->GetMozCurrentStateObject(aState);
 }
 
 NS_IMETHODIMP

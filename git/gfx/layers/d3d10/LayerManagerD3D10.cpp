@@ -52,8 +52,6 @@
 
 #include "../d3d9/Nv3DVUtils.h"
 
-#include "gfxCrashReporterUtils.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -118,11 +116,15 @@ LayerManagerD3D10::~LayerManagerD3D10()
   Destroy();
 }
 
+static bool
+IsOptimus()
+{
+  return GetModuleHandleA("nvumdshim.dll");
+}
+
 bool
 LayerManagerD3D10::Initialize()
 {
-  ScopedGfxFeatureReporter reporter("D3D10 Layers");
-
   HRESULT hr;
 
   /* Create an Nv3DVUtils instance */
@@ -252,7 +254,7 @@ LayerManagerD3D10::Initialize()
   // is broken on optimus devices. As a temporary solution we don't set it
   // there, the only way of reliably detecting we're on optimus is looking for
   // the DLL. See Bug 623807.
-  if (gfxWindowsPlatform::IsOptimus()) {
+  if (IsOptimus()) {
     swapDesc.Flags = 0;
   } else {
     swapDesc.Flags = DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE;
@@ -274,7 +276,6 @@ LayerManagerD3D10::Initialize()
   // We need this because we don't want DXGI to respond to Alt+Enter.
   dxgiFactory->MakeWindowAssociation(swapDesc.OutputWindow, DXGI_MWA_NO_WINDOW_CHANGES);
 
-  reporter.SetSuccessful();
   return true;
 }
 
@@ -535,7 +536,7 @@ LayerManagerD3D10::VerifyBufferSize()
   }
 
   mRTView = nsnull;
-  if (gfxWindowsPlatform::IsOptimus()) {
+  if (IsOptimus()) {
     mSwapChain->ResizeBuffers(1, rect.width, rect.height,
                               DXGI_FORMAT_B8G8R8A8_UNORM,
                               0);

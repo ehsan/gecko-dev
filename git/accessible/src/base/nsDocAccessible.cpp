@@ -770,7 +770,7 @@ nsresult nsDocAccessible::AddEventListeners()
   nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
   docShellTreeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
   if (rootTreeItem) {
-    nsRootAccessible* rootAccessible = RootAccessible();
+    nsRefPtr<nsRootAccessible> rootAccessible = GetRootAccessible();
     NS_ENSURE_TRUE(rootAccessible, NS_ERROR_FAILURE);
     nsRefPtr<nsCaretAccessible> caretAccessible = rootAccessible->GetCaretAccessible();
     if (caretAccessible) {
@@ -817,7 +817,7 @@ nsresult nsDocAccessible::RemoveEventListeners()
     NS_RELEASE_THIS(); // Kung fu death grip
   }
 
-  nsRootAccessible* rootAccessible = RootAccessible();
+  nsRefPtr<nsRootAccessible> rootAccessible(GetRootAccessible());
   if (rootAccessible) {
     nsRefPtr<nsCaretAccessible> caretAccessible = rootAccessible->GetCaretAccessible();
     if (caretAccessible) {
@@ -1135,7 +1135,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     nsCOMPtr<nsINode> focusedNode = GetCurrentFocus();
     if (nsCoreUtils::GetRoleContent(focusedNode) == aContent) {
       nsAccessible* focusedAcc = GetAccService()->GetAccessible(focusedNode);
-      nsRootAccessible* rootAcc = RootAccessible();
+      nsRefPtr<nsRootAccessible> rootAcc = GetRootAccessible();
       if (rootAcc && focusedAcc) {
         rootAcc->FireAccessibleFocusEvent(focusedAcc, nsnull, PR_TRUE);
       }
@@ -1499,20 +1499,6 @@ nsDocAccessible::CacheChildren()
 
 ////////////////////////////////////////////////////////////////////////////////
 // Protected members
-
-void
-nsDocAccessible::NotifyOfInitialUpdate()
-{
-  // The content element may be changed before the initial update and then we
-  // miss the notification (since content tree change notifications are ignored
-  // prior to initial update). Make sure the content element is valid.
-  nsIContent* contentElm = nsCoreUtils::GetRoleContent(mDocument);
-  if (contentElm && mContent != contentElm)
-    mContent = contentElm;
-
-  // Build initial tree.
-  CacheChildrenInSubtree(this);
-}
 
 void
 nsDocAccessible::AddDependentIDsFor(nsAccessible* aRelProvider,

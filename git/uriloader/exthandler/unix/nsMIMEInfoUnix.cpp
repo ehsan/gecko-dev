@@ -57,8 +57,6 @@
 #include "nsMIMEInfoUnix.h"
 #include "nsGNOMERegistry.h"
 #include "nsIGIOService.h"
-#include "nsNetCID.h"
-#include "nsIIOService.h"
 #include "nsIGnomeVFSService.h"
 #include "nsAutoPtr.h"
 #ifdef MOZ_ENABLE_DBUS
@@ -159,23 +157,11 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 #endif
 
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCAutoString uriSpec;
-  if (giovfs) {
-    // nsGIOMimeApp->Launch wants a URI string instead of local file
-    nsresult rv;
-    nsCOMPtr<nsIIOService> ioservice = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIURI> uri;
-    rv = ioservice->NewFileURI(aFile, getter_AddRefs(uri));
-    NS_ENSURE_SUCCESS(rv, rv);
-    uri->GetSpec(uriSpec);
-  }
-
   nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
   if (giovfs) {
     nsCOMPtr<nsIGIOMimeApp> app;
     if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mSchemeOrType, getter_AddRefs(app))) && app)
-      return app->Launch(uriSpec);
+      return app->Launch(nativePath);
   } else if (gnomevfs) {
     /* Fallback to GnomeVFS */
     nsCOMPtr<nsIGnomeVFSMimeApp> app;
@@ -192,7 +178,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
     if (giovfs) {
       nsCOMPtr<nsIGIOMimeApp> app;
       if (NS_SUCCEEDED(giovfs->GetAppForMimeType(type, getter_AddRefs(app))) && app)
-        return app->Launch(uriSpec);
+        return app->Launch(nativePath);
     } else if (gnomevfs) {
       nsCOMPtr<nsIGnomeVFSMimeApp> app;
       if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(type, getter_AddRefs(app))) && app)

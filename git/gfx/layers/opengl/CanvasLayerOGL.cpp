@@ -217,6 +217,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
     gl()->MakeCurrent();
     gl()->BindTex2DOffscreen(mCanvasGLContext);
+    DEBUG_GL_ERROR_CHECK(gl());
     program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), PR_TRUE);
   } else if (mDelayedUpdates) {
     NS_ABORT_IF_FALSE(mCanvasSurface, "WebGL canvases should always be using full texture upload");
@@ -244,6 +245,8 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   program->SetTextureUnit(0);
 
   mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
+
+  DEBUG_GL_ERROR_CHECK(gl());
 
   if (useGLContext) {
     gl()->UnbindTex2DOffscreen(mCanvasGLContext);
@@ -341,6 +344,8 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   program->SetTextureUnit(0);
 
   mOGLManager->BindAndDrawQuad(program);
+
+  DEBUG_GL_ERROR_CHECK(gl());
 }
 
 #endif  // MOZ_IPC

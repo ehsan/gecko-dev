@@ -449,7 +449,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool init();
 
-    /* Mark cross-compartment wrappers. */
+    /* Mark cross-compartment pointers. */
     void markCrossCompartment(JSTracer *trc);
 
     /* Mark this compartment's local roots. */
@@ -489,7 +489,6 @@ struct JS_FRIEND_API(JSCompartment) {
 
     BackEdgeMap                  backEdgeTable;
 
-    JSCompartment *thisForCtor() { return this; }
   public:
     js::MathCache *getMathCache(JSContext *cx) {
         return mathCache ? mathCache : allocMathCache(cx);

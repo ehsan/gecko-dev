@@ -124,31 +124,24 @@ BindAndDrawQuadWithTextureRect(GLContext* aGl,
                             LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
                             rects.texCoords);
 
+  DEBUG_GL_ERROR_CHECK(aGl);
+
   {
     aGl->fEnableVertexAttribArray(texCoordAttribIndex);
     {
       aGl->fEnableVertexAttribArray(vertAttribIndex);
 
       aGl->fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.numRects * 6);
+      DEBUG_GL_ERROR_CHECK(aGl);
 
       aGl->fDisableVertexAttribArray(vertAttribIndex);
     }
     aGl->fDisableVertexAttribArray(texCoordAttribIndex);
   }
+
+  DEBUG_GL_ERROR_CHECK(aGl);
 }
 
-static void
-SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
-{
-  nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
-  if (surface->GetContentType() != gfxASurface::CONTENT_COLOR_ALPHA) {
-    // Destination doesn't have alpha channel; no need to set any special flags
-    return;
-  }
-
-  surface->SetSubpixelAntialiasingEnabled(
-      !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
-}
 
 class ThebesLayerBufferOGL
 {
@@ -208,7 +201,6 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
   if (mTexImageOnWhite) {
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImageOnWhite->Texture());
-    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   }
 
   float xres = mLayer->GetXResolution();
@@ -233,6 +225,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
       }
 
       alphaProgram->Activate();
+      DEBUG_GL_ERROR_CHECK(gl());
       alphaProgram->SetBlackTextureUnit(0);
       alphaProgram->SetWhiteTextureUnit(1);
       program = alphaProgram;
@@ -244,6 +237,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
                                        mTexImage->IsRGB());
 
       basicProgram->Activate();
+      DEBUG_GL_ERROR_CHECK(gl());
       basicProgram->SetTextureUnit(0);
       program = basicProgram;
     }
@@ -256,6 +250,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     while (const nsIntRect *iterRect = iter.Next()) {
       nsIntRect quadRect = *iterRect;
       program->SetLayerQuadRect(quadRect);
+      DEBUG_GL_ERROR_CHECK(gl());
 
       quadRect.MoveBy(-GetOriginOffset());
 
@@ -268,6 +263,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
       BindAndDrawQuadWithTextureRect(gl(), program, quadRect,
                                      mTexImage->GetSize(),
                                      mTexImage->GetWrapMode());
+      DEBUG_GL_ERROR_CHECK(gl());
     }
   }
 
@@ -304,8 +300,7 @@ public:
     return ThebesLayerBuffer::BeginPaint(mLayer, 
                                          aContentType, 
                                          aXResolution, 
-                                         aYResolution,
-                                         0);
+                                         aYResolution);
   }
 
   // ThebesLayerBuffer interface
@@ -502,11 +497,13 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
         // So allocate a new buffer for the destination.
         destBufferRect = visibleBounds;
         destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferDims, aContentType);
+        DEBUG_GL_ERROR_CHECK(gl());
         if (!destBuffer)
           return result;
         if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
           destBufferOnWhite =
             CreateClampOrRepeatTextureImage(gl(), destBufferDims, aContentType);
+          DEBUG_GL_ERROR_CHECK(gl());
           if (!destBufferOnWhite)
             return result;
         }
@@ -525,12 +522,14 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     // The buffer's not big enough, so allocate a new one
     destBufferRect = visibleBounds;
     destBuffer = CreateClampOrRepeatTextureImage(gl(), destBufferDims, aContentType);
+    DEBUG_GL_ERROR_CHECK(gl());
     if (!destBuffer)
       return result;
 
     if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
       destBufferOnWhite = 
         CreateClampOrRepeatTextureImage(gl(), destBufferDims, aContentType);
+      DEBUG_GL_ERROR_CHECK(gl());
       if (!destBufferOnWhite)
         return result;
     }
@@ -670,6 +669,8 @@ ThebesLayerOGL::Destroy()
 {
   if (!mDestroyed) {
     mBuffer = nsnull;
+    DEBUG_GL_ERROR_CHECK(gl());
+
     mDestroyed = PR_TRUE;
   }
 }
@@ -745,24 +746,21 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
       NS_ERROR("GL should never need to update ThebesLayers in an empty transaction");
     } else {
       void* callbackData = mOGLManager->GetThebesLayerCallbackData();
-      SetAntialiasingFlags(this, state.mContext);
       callback(this, state.mContext, state.mRegionToDraw,
                state.mRegionToInvalidate, callbackData);
-      // Everything that's visible has been validated. Do this instead of just
+      // Everything that's visible has been validated. Do this instead of
       // OR-ing with aRegionToDraw, since that can lead to a very complex region
       // here (OR doesn't automatically simplify to the simplest possible
       // representation of a region.)
-      nsIntRegion tmp;
-      tmp.Or(mVisibleRegion, state.mRegionToDraw);
-      mValidRegion.Or(mValidRegion, tmp);
+      mValidRegion.Or(mValidRegion, mVisibleRegion);
     }
   }
 
-  // Drawing thebes layers can change the current context, reset it.
-  gl()->MakeCurrent();
+  DEBUG_GL_ERROR_CHECK(gl());
 
   gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
   mBuffer->RenderTo(aOffset, mOGLManager);
+  DEBUG_GL_ERROR_CHECK(gl());
 }
 
 Layer*
@@ -947,9 +945,11 @@ ShadowThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
   mOGLManager->MakeCurrent();
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  DEBUG_GL_ERROR_CHECK(gl());
 
   gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
   mBuffer->RenderTo(aOffset, mOGLManager);
+  DEBUG_GL_ERROR_CHECK(gl());
 }
 
 #endif  // MOZ_IPC

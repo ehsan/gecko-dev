@@ -111,8 +111,6 @@ public:
 
     static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
 
-    void AcknowledgeEventSync();
-
     void EnableAccelerometer(bool aEnable);
 
     void EnableLocation(bool aEnable);
@@ -145,7 +143,6 @@ public:
                            const nsAString& aTitle = EmptyString());
 
     void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
-    void GetExtensionFromMimeType(const nsCString& aMimeType, nsACString& aFileExt);
 
     void MoveTaskToBack();
 
@@ -187,8 +184,6 @@ public:
 
     bool IsNetworkLinkKnown();
 
-    void SetSelectedLocale(const nsACString&);
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             // Make sure there is enough space to store a local ref to the
@@ -220,8 +215,6 @@ public:
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
-    bool GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt);
-
     void SetKeepScreenOn(bool on);
 
 protected:
@@ -249,7 +242,6 @@ protected:
     jmethodID jNotifyIME;
     jmethodID jNotifyIMEEnabled;
     jmethodID jNotifyIMEChange;
-    jmethodID jAcknowledgeEventSync;
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;
     jmethodID jReturnIMEQueryResult;
@@ -261,7 +253,6 @@ protected:
     jmethodID jGetHandlersForURL;
     jmethodID jOpenUriExternal;
     jmethodID jGetMimeTypeFromExtensions;
-    jmethodID jGetExtensionFromMimeType;
     jmethodID jMoveTaskToBack;
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
@@ -277,7 +268,6 @@ protected:
     jmethodID jSetKeepScreenOn;
     jmethodID jIsNetworkLinkUp;
     jmethodID jIsNetworkLinkKnown;
-    jmethodID jSetSelectedLocale;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

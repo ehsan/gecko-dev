@@ -54,6 +54,7 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/log4moz.js");
+Cu.import("resource://services-sync/ext/Sync.js");
 
 function HistoryRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
@@ -138,14 +139,12 @@ HistoryStore.prototype = {
       "SELECT name FROM sqlite_temp_master " +
       "WHERE name IN ('moz_places_temp', 'moz_historyvisits_temp')");
   },
-  _haveTempTablesCols: ["name"],
 
   __haveTempTables: null,
   get _haveTempTables() {
-    if (this.__haveTempTables === null) {
-      this.__haveTempTables = !!Utils.queryAsync(
-        this._haveTempTablesStm, this._haveTempTablesCols).length;
-    }
+    if (this.__haveTempTables === null)
+      this.__haveTempTables = !!Utils.queryAsync(this._haveTempTablesStm,
+                                                 ["name"]).length;
     return this.__haveTempTables;
   },
 
@@ -186,8 +185,6 @@ HistoryStore.prototype = {
     stmt.params.anno_name = GUID_ANNO;
     return stmt;
   },
-  _checkGUIDPageAnnotationCols: ["place_id", "name_id", "anno_id",
-                                 "anno_date"],
 
   get _addPageAnnotationStm() {
     // Gecko <2.0 only
@@ -223,7 +220,7 @@ HistoryStore.prototype = {
   setGUID: function setGUID(uri, guid) {
     uri = uri.spec ? uri.spec : uri;
 
-    if (!guid)
+    if (arguments.length == 1)
       guid = Utils.makeGUID();
 
     // If we can, set the GUID on moz_places and do not do any other work.
@@ -241,7 +238,8 @@ HistoryStore.prototype = {
 
     let stmt = this._checkGUIDPageAnnotationStm;
     stmt.params.page_url = uri;
-    let result = Utils.queryAsync(stmt, this._checkGUIDPageAnnotationCols)[0];
+    let result = Utils.queryAsync(stmt, ["place_id", "name_id", "anno_id",
+                                         "anno_date"])[0];
     if (!result) {
       let log = Log4Moz.repository.getLogger("Engine.History");
       log.warn("Couldn't annotate URI " + uri);
@@ -298,14 +296,13 @@ HistoryStore.prototype = {
 
     return this.__guidStmt = stmt;
   },
-  _guidCols: ["guid"],
 
   GUIDForUri: function GUIDForUri(uri, create) {
     let stm = this._guidStm;
     stm.params.page_url = uri.spec ? uri.spec : uri;
 
     // Use the existing GUID if it exists
-    let result = Utils.queryAsync(stm, this._guidCols)[0];
+    let result = Utils.queryAsync(stm, ["guid"])[0];
     if (result && result.guid)
       return result.guid;
 
@@ -336,7 +333,6 @@ HistoryStore.prototype = {
       "WHERE place_id = (SELECT id FROM moz_places WHERE url = :url) " +
       "ORDER BY date DESC LIMIT 10");
   },
-  _visitCols: ["date", "type"],
 
   __urlStmt: null,
   get _urlStm() {
@@ -370,7 +366,6 @@ HistoryStore.prototype = {
 
     return this.__urlStmt = stmt;
   },
-  _urlCols: ["url", "title", "frecency"],
 
   get _allUrlStm() {
     // Gecko <2.0
@@ -392,18 +387,17 @@ HistoryStore.prototype = {
       "ORDER BY frecency DESC " +
       "LIMIT :max_results");
   },
-  _allUrlCols: ["url"],
 
   // See bug 320831 for why we use SQL here
   _getVisits: function HistStore__getVisits(uri) {
     this._visitStm.params.url = uri;
-    return Utils.queryAsync(this._visitStm, this._visitCols);
+    return Utils.queryAsync(this._visitStm, ["date", "type"]);
   },
 
   // See bug 468732 for why we use SQL here
   _findURLByGUID: function HistStore__findURLByGUID(guid) {
     this._urlStm.params.guid = guid;
-    return Utils.queryAsync(this._urlStm, this._urlCols)[0];
+    return Utils.queryAsync(this._urlStm, ["url", "title", "frecency"])[0];
   },
 
   changeItemID: function HStore_changeItemID(oldID, newID) {
@@ -416,7 +410,7 @@ HistoryStore.prototype = {
     this._allUrlStm.params.cutoff_date = (Date.now() - 2592000000) * 1000;
     this._allUrlStm.params.max_results = MAX_HISTORY_UPLOAD;
 
-    let urls = Utils.queryAsync(this._allUrlStm, this._allUrlCols);
+    let urls = Utils.queryAsync(this._allUrlStm, "url");
     let self = this;
     return urls.reduce(function(ids, item) {
       ids[self.GUIDForUri(item.url, true)] = item.url;
@@ -427,46 +421,46 @@ HistoryStore.prototype = {
   applyIncomingBatch: function applyIncomingBatch(records) {
     // Gecko <2.0
     if (!this._asyncHistory) {
-      return Store.prototype.applyIncomingBatch.call(this, records);
+      return Store.prototype.applyIncomingBatch.apply(this, arguments);
     }
 
     // Gecko 2.0
     let failed = [];
 
-    // Convert incoming records to mozIPlaceInfo objects. Some records can be
-    // ignored or handled directly, so we're rewriting the array in-place.
-    let i, k;
-    for (i = 0, k = 0; i < records.length; i++) {
-      let record = records[k] = records[i];
-      let shouldApply;
-
+    // Convert incoming records to mozIPlaceInfo objects.
+    let placeInfos = records.map(function (record) {
       // This is still synchronous I/O for now.
-      try {
-        if (record.deleted) {
+      if (record.deleted) {
+        try {
           // Consider using nsIBrowserHistory::removePages() here.
           this.remove(record);
-          // No further processing needed. Remove it from the list.
-          shouldApply = false;
-        } else {
-          shouldApply = this._recordToPlaceInfo(record);
+        } catch (ex) {
+          this._log.warn("Failed to delete record " + record.id);
+          failed.push(record.id);
         }
+        return null;
+      }
+      try {
+        return this._recordToPlaceInfo(record);
       } catch(ex) {
         failed.push(record.id);
-        shouldApply = false;
+        return null;
       }
+    }, this);
 
-      if (shouldApply) {
-        k += 1;
-      }
+    // Filter out the places that can't be added (they're null)
+    function identity(obj) {
+      return obj;
     }
-    records.length = k; // truncate array
+    placeInfos = placeInfos.filter(identity);
 
     // Nothing to do.
-    if (!records.length) {
+    if (!placeInfos.length) {
       return failed;
     }
 
-    let cb = Utils.makeSyncCallback();
+    let [updatePlaces, cb] = Sync.withCb(this._asyncHistory.updatePlaces,
+                                         this._asyncHistory);
     let onPlace = function onPlace(result, placeInfo) {
       if (!Components.isSuccessCode(result)) {
         failed.push(placeInfo.guid);
@@ -477,53 +471,42 @@ HistoryStore.prototype = {
       cb();
     };
     Svc.Obs.add(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
-    this._asyncHistory.updatePlaces(records, onPlace);
-    Utils.waitForSyncCallback(cb);
+    updatePlaces(placeInfos, onPlace);
     return failed;
   },
 
   /**
    * Converts a Sync history record to a mozIPlaceInfo.
    * 
-   * Throws if an invalid record is encountered (invalid URI, etc.),
-   * returns true if the record is to be applied, false otherwise
-   * (no visits to add, etc.),
+   * Throws if an invalid record is encountered (invalid URI, etc.)
+   * and returns null if the record is to be ignored (no visits to add, etc.)
    */
   _recordToPlaceInfo: function _recordToPlaceInfo(record) {
     // Sort out invalid URIs and ones Places just simply doesn't want.
-    record.uri = Utils.makeURI(record.histUri);
-    if (!record.uri) {
+    let uri = Utils.makeURI(record.histUri);
+    if (!uri) {
       this._log.warn("Attempted to process invalid URI, skipping.");
       throw "Invalid URI in record";
     }
 
     if (!Utils.checkGUID(record.id)) {
       this._log.warn("Encountered record with invalid GUID: " + record.id);
-      return false;
+      return null;
     }
-    record.guid = record.id;
 
-    if (!this._hsvc.canAddURI(record.uri)) {
-      this._log.trace("Ignoring record " + record.id + " with URI "
-                      + record.uri.spec + ": can't add this URI.");
-      return false;
+    if (!this._hsvc.canAddURI(uri)) {
+      this._log.trace("Ignoring record " + record.id +
+                      " with URI " + uri.spec + ": can't add this URI.");
+      return null;
     }
 
     // We dupe visits by date and type. So an incoming visit that has
     // the same timestamp and type as a local one won't get applied.
-    // To avoid creating new objects, we rewrite the query result so we
-    // can simply check for containment below.
-    let curVisits = this._getVisits(record.histUri);
-    for (let i = 0; i < curVisits.length; i++) {
-      curVisits[i] = curVisits[i].date + "," + curVisits[i].type;
+    let curVisitsByDate = {};
+    for each (let {date, type} in this._getVisits(record.histUri)) {
+      curVisitsByDate[date] = type;
     }
-
-    // Walk through the visits, make sure we have sound data, and eliminate
-    // dupes. The latter is done by rewriting the array in-place.
-    let k;
-    for (i = 0, k = 0; i < record.visits.length; i++) {
-      let visit = record.visits[k] = record.visits[i];
-
+    let visits = record.visits.filter(function (visit) {
       if (!visit.date || typeof visit.date != "number") {
         this._log.warn("Encountered record with invalid visit date: "
                        + visit.date);
@@ -538,29 +521,24 @@ HistoryStore.prototype = {
       }
       // Dates need to be integers
       visit.date = Math.round(visit.date);
-
-      if (curVisits.indexOf(visit.date + "," + visit.type) != -1) {
-        // Visit is a dupe, don't increment 'k' so the element will be
-        // overwritten.
-        continue;
-      }
-      visit.visitDate = visit.date;
-      visit.transitionType = visit.type;
-      k += 1;
-    }
-    record.visits.length = k; // truncate array
+      return curVisitsByDate[visit.date] != visit.type;
+    });
 
     // No update if there aren't any visits to apply.
     // mozIAsyncHistory::updatePlaces() wants at least one visit.
     // In any case, the only thing we could change would be the title
     // and that shouldn't change without a visit.
-    if (!record.visits.length) {
-      this._log.trace("Ignoring record " + record.id + " with URI "
-                      + record.uri.spec + ": no visits to add.");
-      return false;
+    if (!visits.length) {
+      this._log.trace("Ignoring record " + record.id +
+                      " with URI " + uri.spec + ": no visits to add.");
+      return null;
     }
 
-    return true;
+    return {uri: uri,
+            guid: record.id,
+            title: record.title,
+            visits: [{visitDate: visit.date, transitionType: visit.type}
+                      for each (visit in visits)]};
   },
 
   create: function HistStore_create(record) {
@@ -584,18 +562,19 @@ HistoryStore.prototype = {
   update: function HistStore_update(record) {
     this._log.trace("  -> processing history entry: " + record.histUri);
 
-    if (!this._recordToPlaceInfo(record)) {
+    let placeInfo = this._recordToPlaceInfo(record);
+    if (!placeInfo) {
       return;
     }
 
-    for each (let {visitDate, transitionType} in record.visits) {
-      Svc.History.addVisit(record.uri, visitDate, null, transitionType,
+    for each (let {visitDate, transitionType} in placeInfo.visits) {
+      Svc.History.addVisit(placeInfo.uri, visitDate, null, transitionType,
                            transitionType == 5 || transitionType == 6, 0);
     }
 
     if (record.title) {
       try {
-        this._hsvc.setPageTitle(record.uri, record.title);
+        this._hsvc.setPageTitle(placeInfo.uri, record.title);
       } catch (ex if ex.result == Cr.NS_ERROR_NOT_AVAILABLE) {
         // There's no entry for the given URI, either because it's a
         // URI that Places ignores (e.g. javascript:) or there were no

@@ -98,8 +98,7 @@ PasswordEngine.prototype = {
       return;
 
     let logins = Svc.Login.findLogins({}, login.hostname, login.formSubmitURL,
-                                      login.httpRealm);
-    this._store._sleep(0); // Yield back to main thread after synchronous operation.
+      login.httpRealm);
 
     // Look for existing logins that match the hostname but ignore the password
     for each (let local in logins)
@@ -156,14 +155,13 @@ PasswordStore.prototype = {
     prop.setPropertyAsAUTF8String("guid", id);
 
     let logins = Svc.Login.searchLogins({}, prop);
-    this._sleep(0); // Yield back to main thread after synchronous operation.
     if (logins.length > 0) {
       this._log.trace(logins.length + " items matching " + id + " found.");
       return logins[0];
     } else {
       this._log.trace("No items matching " + id + " found. Ignoring");
     }
-    return null;
+    return false;
   },
 
   applyIncomingBatch: function applyIncomingBatch(records) {
@@ -174,11 +172,6 @@ PasswordStore.prototype = {
     return Utils.runInTransaction(this.DBConnection, function() {
       return Store.prototype.applyIncomingBatch.call(this, records);
     }, this);
-  },
-
-  applyIncoming: function applyIncoming(record) {
-    Store.prototype.applyIncoming.call(this, record);
-    this._sleep(0); // Yield back to main thread after synchronous operation.
   },
 
   getAllIDs: function PasswordStore__getAllIDs() {

@@ -310,7 +310,7 @@ FontFamily::FindStyleVariations()
 
     for (int i = 0; i < mFilenames.Length(); i++) {
         FT_Face face;
-        gfxToolkitPlatform* platform = gfxToolkitPlatform::GetPlatform();
+        gfxAndroidPlatform* platform = gfxToolkitPlatform::GetPlatform();
         if (FT_Err_Ok == FT_New_Face(platform->GetFTLibrary(),
                                      mFilenames[i].filename.get(), 
                                      mFilenames[i].index, &face)) {

@@ -483,11 +483,8 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
         return width;
     }
 
-    DCFromContext dc(aCtx);
-    AutoSelectFont fs(dc, GetHFONT());
-
     int devWidth;
-    if (GetCharWidthI(dc, aGID, 1, NULL, &devWidth)) {
+    if (GetCharWidthI(DCFromContext(aCtx), aGID, 1, NULL, &devWidth)) {
         // ensure width is positive, 16.16 fixed-point value
         width = (devWidth & 0x7fff) << 16;
         mGlyphWidths.Put(aGID, width);

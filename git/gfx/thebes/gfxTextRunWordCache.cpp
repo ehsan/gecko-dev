@@ -526,15 +526,9 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
                     // cache). But now the data in aNewRun is no use to us.
                     // We need to find out what the platform would do
                     // if the characters were at the start of the text.
-                    if (source->GetFlags() & gfxFontGroup::TEXT_IS_8BIT) {
-                        tmpTextRun = fontGroup->
-                            MakeTextRun(source->GetText8Bit() + sourceOffset,
-                                        length, aParams, source->GetFlags());
-                    } else {
-                        tmpTextRun = fontGroup->
-                            MakeTextRun(source->GetTextUnicode() + sourceOffset,
-                                        length, aParams, source->GetFlags());
-                    }
+                    tmpTextRun = aNewRun->GetFontGroup()->MakeTextRun(
+                        source->GetTextUnicode() + sourceOffset, length, aParams,
+                        aNewRun->GetFlags());
                     if (tmpTextRun) {
                         source = tmpTextRun;
                         sourceOffset = 0;

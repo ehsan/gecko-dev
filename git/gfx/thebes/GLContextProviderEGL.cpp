@@ -149,8 +149,6 @@ public:
 
 #include "nsIWidget.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #ifdef MOZ_PLATFORM_MAEMO
 static bool gUseBackingSurface = true;
 #else
@@ -311,8 +309,6 @@ public:
         if (mInitialized) {
             return PR_TRUE;
         }
-
-        mozilla::ScopedGfxFeatureReporter reporter("EGL");
 
 #ifdef XP_WIN
         // Allow for explicitly specifying the location of libEGL.dll and
@@ -491,7 +487,6 @@ public:
         }
 
         mInitialized = PR_TRUE;
-        reporter.SetSuccessful();
         return PR_TRUE;
     }
 

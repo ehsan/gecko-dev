@@ -493,10 +493,8 @@ PropertyCache::purge(JSContext *cx)
 }
 
 void
-PropertyCache::purgeForScript(JSContext *cx, JSScript *script)
+PropertyCache::purgeForScript(JSScript *script)
 {
-    JS_ASSERT(!cx->runtime->gcRunning);
-
     for (PropertyCacheEntry *entry = table; entry < table + SIZE; entry++) {
         if (JS_UPTRDIFF(entry->kpc, script->code) < script->length) {
             entry->kpc = NULL;

@@ -308,8 +308,7 @@ public:
   BasicThebesLayerBuffer(BasicThebesLayer* aLayer)
     : Base(ContainsVisibleBounds)
     , mLayer(aLayer)
-  {
-  }
+  {}
 
   virtual ~BasicThebesLayerBuffer()
   {}
@@ -436,13 +435,11 @@ protected:
     }
     aCallback(this, aContext, aRegionToDraw, aRegionToInvalidate,
               aCallbackData);
-    // Everything that's visible has been validated. Do this instead of just
+    // Everything that's visible has been validated. Do this instead of
     // OR-ing with aRegionToDraw, since that can lead to a very complex region
     // here (OR doesn't automatically simplify to the simplest possible
     // representation of a region.)
-    nsIntRegion tmp;
-    tmp.Or(mVisibleRegion, aRegionToDraw);
-    mValidRegion.Or(mValidRegion, tmp);
+    mValidRegion.Or(mValidRegion, mVisibleRegion);
   }
 
   Buffer mBuffer;
@@ -491,11 +488,8 @@ SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
     return;
   }
 
-  const nsIntRect& bounds = aLayer->GetVisibleRegion().GetBounds();
   surface->SetSubpixelAntialiasingEnabled(
-      !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
-      surface->GetOpaqueRect().Contains(
-        aTarget->UserToDevice(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height))));
+      !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
 }
 
 static PRBool
@@ -583,14 +577,8 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
     gfxSize scale = aContext->CurrentMatrix().ScaleFactors(PR_TRUE);
     float paintXRes = BasicManager()->XResolution() * gfxUtils::ClampToScaleFactor(scale.width);
     float paintYRes = BasicManager()->YResolution() * gfxUtils::ClampToScaleFactor(scale.height);
-    PRUint32 flags = 0;
-    gfxMatrix transform;
-    if (!GetEffectiveTransform().Is2D(&transform) ||
-        transform.HasNonIntegerTranslation()) {
-      flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
-    }
     Buffer::PaintState state =
-      mBuffer.BeginPaint(this, contentType, paintXRes, paintYRes, flags);
+      mBuffer.BeginPaint(this, contentType, paintXRes, paintYRes);
     mValidRegion.Sub(mValidRegion, state.mRegionToInvalidate);
 
     if (state.mContext) {
@@ -1755,6 +1743,8 @@ public:
   }
   virtual ~BasicShadowableThebesLayer()
   {
+    NS_ABORT_IF_FALSE(!HasShadow() || !BasicManager()->InTransaction(),
+                      "Shadow layers can't be destroyed during txns!");
     if (IsSurfaceDescriptorValid(mBackBuffer))
       BasicManager()->ShadowLayerForwarder::DestroySharedSurface(&mBackBuffer);
     MOZ_COUNT_DTOR(BasicShadowableThebesLayer);

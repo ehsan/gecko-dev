@@ -232,8 +232,10 @@ AttachSetGlobalNameStub(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, cons
         return Lookup_Error;
     }
 
-    if (!linker.verifyRange(jit))
+    if (!linker.verifyRange(jit)) {
+        ep->release();
         return Lookup_Uncacheable;
+    }
 
     linker.link(done, ic->fastPathStart.labelAtOffset(ic->fastRejoinOffset));
     linker.link(guard, ic->slowPathStart);

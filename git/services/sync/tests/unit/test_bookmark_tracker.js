@@ -283,8 +283,7 @@ function test_guid_stripping() {
     let victimGUID  = store.GUIDForId(victim);
     _("Set the GUID on one entry to be the same as another.");
     do_check_neq(suspectGUID, victimGUID);
-    Svc.Annos.setItemAnnotation(suspect, SYNC_GUID_ANNO, store.GUIDForId(victim),
-                                0, Svc.Annos.EXPIRE_NEVER);
+    Utils.anno(suspect, SYNC_GUID_ANNO, store.GUIDForId(victim));
 
     _("Tracker changed it to something else.");
     let newGUID = store.GUIDForId(suspect);

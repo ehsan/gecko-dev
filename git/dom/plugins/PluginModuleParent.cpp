@@ -692,14 +692,6 @@ PluginModuleParent::GetImage(NPP instance,
 }
 
 nsresult
-PluginModuleParent::GetImageSize(NPP instance,
-                                 nsIntSize* aSize)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    return !i ? NS_ERROR_FAILURE : i->GetImageSize(aSize);
-}
-
-nsresult
 PluginModuleParent::SetBackgroundUnknown(NPP instance)
 {
     PluginInstanceParent* i = InstCast(instance);

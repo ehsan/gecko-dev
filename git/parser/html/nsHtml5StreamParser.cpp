@@ -343,7 +343,6 @@ nsHtml5StreamParser::SniffBOMlessUTF16BasicLatin(const PRUint8* aFromSegment,
     return;
   }
   // even-numbered bytes tracked at 0, odd-numbered bytes tracked at 1
-  PRBool byteZero[2] = { PR_FALSE, PR_FALSE };
   PRBool byteNonZero[2] = { PR_FALSE, PR_FALSE };
   PRUint32 i = 0;
   if (mSniffingBuffer) {
@@ -353,11 +352,6 @@ nsHtml5StreamParser::SniffBOMlessUTF16BasicLatin(const PRUint8* aFromSegment,
           return;
         }
         byteNonZero[i % 2] = PR_TRUE;
-      } else {
-        if (byteZero[1 - (i % 2)]) {
-          return;
-        }
-        byteZero[i % 2] = PR_TRUE;
       }
     }
   }
@@ -368,11 +362,6 @@ nsHtml5StreamParser::SniffBOMlessUTF16BasicLatin(const PRUint8* aFromSegment,
           return;
         }
         byteNonZero[(i + j) % 2] = PR_TRUE;
-      } else {
-        if (byteZero[1 - ((i + j) % 2)]) {
-          return;
-        }
-        byteZero[(i + j) % 2] = PR_TRUE;
       }
     }
   }

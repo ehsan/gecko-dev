@@ -3653,10 +3653,13 @@ function retrieveToolbarIconsizesFromTheme() {
     // toolbar. A custom property cannot be used because getComputedStyle can
     // only return the values of standard CSS properties.
     let counterReset = getComputedStyle(aToolbar).counterReset;
-    if (counterReset == "smallicons 0")
+    if (counterReset == "smallicons 0") {
       aToolbar.setAttribute("iconsize", "small");
-    else if (counterReset == "largeicons 0")
+      document.persist(aToolbar.id, "iconsize");
+    } else if (counterReset == "largeicons 0") {
       aToolbar.setAttribute("iconsize", "large");
+      document.persist(aToolbar.id, "iconsize");
+    }
   }
 
   Array.forEach(gNavToolbox.childNodes, retrieveToolbarIconsize);
@@ -4175,7 +4178,6 @@ var XULBrowserWindow = {
       field.setAttribute("previoustype", field.getAttribute("type"));
       field.setAttribute("type", type);
       field.label = text;
-      field.setAttribute("crop", type == "overLink" ? "center" : "end");
       this.statusText = text;
     }
   },
@@ -4436,10 +4438,7 @@ var XULBrowserWindow = {
       });
 
       if (gFindBarInitialized) {
-        if (gFindBar.findMode != gFindBar.FIND_NORMAL) {
-          // Close the Find toolbar if we're in old-style TAF mode
-          gFindBar.close();
-        }
+        gFindBar.close();
 
         // fix bug 253793 - turn off highlight when page changes
         gFindBar.getElement("highlight").checked = false;

@@ -44,8 +44,6 @@
 #include "gfxPlatform.h"
 #include "gfxWindowsSurface.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "prenv.h"
 
 namespace mozilla {
@@ -125,8 +123,6 @@ WGLLibrary::EnsureInitialized()
 {
     if (mInitialized)
         return PR_TRUE;
-
-    mozilla::ScopedGfxFeatureReporter reporter("WGL");
 
     if (!mOGLLibrary) {
         mOGLLibrary = PR_LoadLibrary("Opengl32.dll");
@@ -216,7 +212,6 @@ WGLLibrary::EnsureInitialized()
         return PR_FALSE;
     }
 
-    reporter.SetSuccessful();
     return PR_TRUE;
 }
 

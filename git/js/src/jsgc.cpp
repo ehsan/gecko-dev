@@ -2189,12 +2189,9 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
     while (read < end) {
         JSCompartment *compartment = *read++;
 
-        /*
-         * Unmarked compartments containing marked objects don't get deleted,
-         * except when LAST_CONTEXT GC is performed.
-         */
-        if ((!compartment->isMarked() && compartment->arenaListsAreEmpty()) ||
-            gckind == GC_LAST_CONTEXT)
+        /* Unmarked compartments containing marked objects don't get deleted, except LAST_CONTEXT GC is performed. */
+        if ((!compartment->isMarked() && compartment->arenaListsAreEmpty())
+            || gckind == GC_LAST_CONTEXT)
         {
             JS_ASSERT(compartment->freeLists.isEmpty());
             if (callback)
@@ -2359,16 +2356,13 @@ MarkAndSweepCompartment(JSContext *cx, JSCompartment *comp, JSGCInvocationKind g
     comp->finalizeStringArenaLists(cx);
     TIMESTAMP(sweepStringEnd);
 
-    /*
-     * Unmark all shapes. Even a per-compartment GC can mark shapes in other
-     * compartments, and we need to clear these bits. See bug 635873. This will
-     * be fixed in bug 569422.
-     */
+#ifdef DEBUG
+    /* Make sure that we didn't mark a Shape in another compartment. */
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
-        (*c)->propertyTree.unmarkShapes(cx);
+        JS_ASSERT_IF(*c != comp, (*c)->propertyTree.checkShapesAllUnmarked(cx));
 
     PropertyTree::dumpShapes(cx);
-    TIMESTAMP(sweepShapeEnd);
+#endif
 
     /*
      * Destroy arenas after we finished the sweeping so finalizers can safely
@@ -2488,7 +2482,6 @@ MarkAndSweep(JSContext *cx, JSGCInvocationKind gckind GCTIMER_PARAM)
         (*c)->propertyTree.sweepShapes(cx);
 
     PropertyTree::dumpShapes(cx);
-    TIMESTAMP(sweepShapeEnd);
 
     SweepCompartments(cx, gckind);
 
@@ -2728,7 +2721,7 @@ GCUntilDone(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind  GCTIM
      * NULL to look for violations.
      */
     SwitchToCompartment(cx, (JSCompartment *)NULL);
-
+    
     JS_ASSERT(!rt->gcCurrentCompartment);
     rt->gcCurrentCompartment = comp;
 

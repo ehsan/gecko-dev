@@ -103,8 +103,7 @@ function initTestLogging(level) {
   log.level = Log4Moz.Level.Trace;
   appender.level = Log4Moz.Level.Trace;
   // Overwrite any other appenders (e.g. from previous incarnations)
-  log.ownAppenders = [appender];
-  log.updateAppenders();
+  log._appenders = [appender];
 
   return logStats;
 }
@@ -187,22 +186,15 @@ function FakeCryptoService() {
   delete Svc.Crypto;  // get rid of the getter first
   Svc.Crypto = this;
   Utils.sha256HMAC = this.sha256HMAC;
-
-  Cu.import("resource://services-sync/record.js");
-  CryptoWrapper.prototype.ciphertextHMAC = this.ciphertextHMAC;
 }
 FakeCryptoService.prototype = {
 
-  sha256HMAC: function Utils_sha256HMAC(message, hasher) {
+  sha256HMAC: function(message, key) {
      message = message.substr(0, 64);
      while (message.length < 64) {
        message += " ";
      }
      return message;
-  },
-
-  ciphertextHMAC: function CryptoWrapper_ciphertextHMAC(keyBundle) {
-    return Utils.sha256HMAC(this.ciphertext);
   },
 
   encrypt: function(aClearText, aSymmetricKey, aIV) {

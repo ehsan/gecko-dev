@@ -332,7 +332,6 @@ nsFrameLoader::nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated)
   , mCurrentRemoteFrame(nsnull)
   , mRemoteBrowser(nsnull)
 #endif
-  , mRenderMode(RENDER_MODE_DEFAULT)
 {
 }
 

@@ -183,7 +183,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIPluginHost.h"
 #include "nsICategoryManager.h"
 #include "nsAHtml5FragmentParser.h"
-#include "nsIViewManager.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -6338,24 +6337,8 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-static nsIView* GetDisplayRootFor(nsIView* aView)
-{
-  nsIView *displayRoot = aView;
-  for (;;) {
-    nsIView *displayParent = displayRoot->GetParent();
-    if (!displayParent)
-      return displayRoot;
-
-    if (displayRoot->GetFloating() && !displayParent->GetFloating())
-      return displayRoot;
-    displayRoot = displayParent;
-  }
-  return nsnull;
-}
-
 static already_AddRefed<LayerManager>
-LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
-                                bool* aAllowRetaining)
+LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -6384,39 +6367,34 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
   }
 
   if (shell) {
-    nsIViewManager* VM = shell->GetViewManager();
-    if (VM) {
-      nsIView* rootView = nsnull;
-      if (NS_SUCCEEDED(VM->GetRootView(rootView)) && rootView) {
-        nsIView* displayRoot = GetDisplayRootFor(rootView);
-        if (displayRoot) {
-          nsIWidget* widget = displayRoot->GetNearestWidget(nsnull);
-          if (widget) {
-            nsRefPtr<LayerManager> manager =
-              static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget)->
-                GetLayerManager(aRequirePersistent ? nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_PERSISTENT : 
-                                                     nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_CURRENT,
-                                aAllowRetaining);
-            return manager.forget();
-          }
-        }
+    nsIFrame* rootFrame = shell->FrameManager()->GetRootFrame();
+    if (rootFrame) {
+      nsIWidget* widget =
+        nsLayoutUtils::GetDisplayRootFrame(rootFrame)->GetNearestWidget();
+      if (widget) {
+        nsRefPtr<LayerManager> manager =
+          static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget)->
+            GetLayerManager(aRequirePersistent ? nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_PERSISTENT : 
+                                                 nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_CURRENT);
+        return manager.forget();
       }
     }
   }
 
-  return nsnull;
+  nsRefPtr<LayerManager> manager = new BasicLayerManager();
+  return manager.forget();
 }
 
 already_AddRefed<LayerManager>
-nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining)
+nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
 {
-  return LayerManagerForDocumentInternal(aDoc, false, aAllowRetaining);
+  return LayerManagerForDocumentInternal(aDoc, false);
 }
 
 already_AddRefed<LayerManager>
-nsContentUtils::PersistentLayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining)
+nsContentUtils::PersistentLayerManagerForDocument(nsIDocument *aDoc)
 {
-  return LayerManagerForDocumentInternal(aDoc, true, aAllowRetaining);
+  return LayerManagerForDocumentInternal(aDoc, true);
 }
 
 bool

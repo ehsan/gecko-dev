@@ -613,7 +613,7 @@ nsFrameScriptExecutor::Shutdown()
 void
 nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
 {
-  if (!mGlobal || !mCx || !sCachedScripts) {
+  if (!mGlobal || !mCx) {
     return;
   }
 

@@ -148,8 +148,6 @@ static PRLogModuleInfo* gJSDiagnostics;
 static nsITimer *sGCTimer;
 static nsITimer *sCCTimer;
 
-static bool sGCHasRun;
-
 // The number of currently pending document loads. This count isn't
 // guaranteed to always reflect reality and can't easily as we don't
 // have an easy place to know when a load ends or is interrupted in
@@ -159,7 +157,6 @@ static bool sGCHasRun;
 static PRUint32 sPendingLoadCount;
 static PRBool sLoadingInProgress;
 
-static PRUint32 sCCollectedWaitingForGC;
 static PRBool sPostGCEventsToConsole;
 
 nsScriptNameSpaceManager *gNameSpaceManager;
@@ -3288,21 +3285,19 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener)
 
   PRUint32 suspected = nsCycleCollector_suspectedCount();
   PRUint32 collected = nsCycleCollector_collect(aListener);
-  sCCollectedWaitingForGC += collected;
 
-  // If we collected a substantial amount of cycles, poke the GC since more objects
-  // might be unreachable now.
-  if (sCCollectedWaitingForGC > 250) {
+  // If we collected cycles, poke the GC since more objects might be unreachable now.
+  if (collected > 0) {
     PokeGC();
   }
 
   if (sPostGCEventsToConsole) {
     PRTime now = PR_Now();
     NS_NAMED_LITERAL_STRING(kFmt,
-                            "CC timestamp: %lld, collected: %lu (%lu waiting for GC), suspected: %lu, duration: %llu ms.");
+                            "CC timestamp: %lld, collected: %lu, suspected: %lu, duration: %llu ms.");
     nsString msg;
     msg.Adopt(nsTextFormatter::smprintf(kFmt.get(), now,
-                                        collected, sCCollectedWaitingForGC, suspected,
+                                        collected, suspected,
                                         (now - start) / PR_USEC_PER_MSEC));
     nsCOMPtr<nsIConsoleService> cs =
       do_GetService(NS_CONSOLESERVICE_CONTRACTID);
@@ -3397,8 +3392,8 @@ nsJSContext::MaybePokeCC()
 void
 nsJSContext::PokeCC()
 {
-  if (sCCTimer || !sGCHasRun) {
-    // There's already a timer for GC'ing, or GC hasn't run yet, just return.
+  if (sCCTimer) {
+    // There's already a timer for GC'ing, just return
     return;
   }
 
@@ -3452,11 +3447,9 @@ DOMGCCallback(JSContext *cx, JSGCStatus status)
       start = PR_Now();
     } else if (status == JSGC_END) {
       PRTime now = PR_Now();
-      NS_NAMED_LITERAL_STRING(kFmt, "GC mode: %s, timestamp: %lld, duration: %llu ms.");
+      NS_NAMED_LITERAL_STRING(kFmt, "GC timestamp: %lld, duration: %llu ms.");
       nsString msg;
-      msg.Adopt(nsTextFormatter::smprintf(kFmt.get(),
-                cx->runtime->gcTriggerCompartment ? "compartment" : "full",
-                now,
+      msg.Adopt(nsTextFormatter::smprintf(kFmt.get(), now,
                 (now - start) / PR_USEC_PER_MSEC));
       nsCOMPtr<nsIConsoleService> cs = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
       if (cs) {
@@ -3466,7 +3459,6 @@ DOMGCCallback(JSContext *cx, JSGCStatus status)
   }
 
   if (status == JSGC_END) {
-    sCCollectedWaitingForGC = 0;
     if (sGCTimer) {
       // If we were waiting for a GC to happen, kill the timer.
       nsJSContext::KillGCTimer();
@@ -3485,7 +3477,6 @@ DOMGCCallback(JSContext *cx, JSGCStatus status)
     } else {
       // If this was a full GC, poke the CC to run soon.
       if (!cx->runtime->gcTriggerCompartment) {
-        sGCHasRun = true;
         nsJSContext::PokeCC();
       }
     }
@@ -3598,10 +3589,8 @@ nsJSRuntime::Startup()
 {
   // initialize all our statics, so that we can restart XPCOM
   sGCTimer = sCCTimer = nsnull;
-  sGCHasRun = false;
   sPendingLoadCount = 0;
   sLoadingInProgress = PR_FALSE;
-  sCCollectedWaitingForGC = 0;
   sPostGCEventsToConsole = PR_FALSE;
   gNameSpaceManager = nsnull;
   sRuntimeService = nsnull;

@@ -212,40 +212,18 @@ struct nsTreeRange
     return total;
   }
 
-  static void CollectRanges(nsTreeRange* aRange, nsTArray<PRInt32>& aRanges)
-  {
-    nsTreeRange* cur = aRange;
-    while (cur) {
-      aRanges.AppendElement(cur->mMin);
-      aRanges.AppendElement(cur->mMax);
-      cur = cur->mNext;
-    }
-  }
-  
-  static void InvalidateRanges(nsITreeBoxObject* aTree,
-                               nsTArray<PRInt32>& aRanges)
-  {
-    if (aTree) {
-      nsCOMPtr<nsITreeBoxObject> tree = aTree;
-      for (PRUint32 i = 0; i < aRanges.Length(); i += 2) {
-        aTree->InvalidateRange(aRanges[i], aRanges[i + 1]);
-      }
-    }
-  }
-
   void Invalidate() {
-    nsTArray<PRInt32> ranges;
-    CollectRanges(this, ranges);
-    InvalidateRanges(mSelection->mTree, ranges);
-    
+    if (mSelection->mTree)
+      mSelection->mTree->InvalidateRange(mMin, mMax);
+    if (mNext)
+      mNext->Invalidate();
   }
 
   void RemoveAllBut(PRInt32 aIndex) {
     if (aIndex >= mMin && aIndex <= mMax) {
 
       // Invalidate everything in this list.
-      nsTArray<PRInt32> ranges;
-      CollectRanges(mSelection->mFirstRange, ranges);
+      mSelection->mFirstRange->Invalidate();
 
       mMin = aIndex;
       mMax = aIndex;
@@ -261,7 +239,6 @@ struct nsTreeRange
         delete mSelection->mFirstRange;
         mSelection->mFirstRange = this;
       }
-      InvalidateRanges(mSelection->mTree, ranges);
     }
     else if (mNext)
       mNext->RemoveAllBut(aIndex);
@@ -476,7 +453,6 @@ NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndInd
     if (mFirstRange) {
         mFirstRange->Invalidate();
         delete mFirstRange;
-        mFirstRange = nsnull;
     }
   }
 
