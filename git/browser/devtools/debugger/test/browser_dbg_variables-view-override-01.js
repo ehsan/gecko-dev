@@ -10,12 +10,13 @@ const TAB_URL = EXAMPLE_URL + "doc_scope-variable-2.html";
 
 function test() {
   Task.spawn(function() {
-    let [tab,, panel] = yield initDebugger(TAB_URL);
+    let [tab, debuggee, panel] = yield initDebugger(TAB_URL);
     let win = panel.panelWin;
     let events = win.EVENTS;
     let variables = win.DebuggerView.Variables;
 
-    callInTab(tab, "test");
+    // Allow this generator function to yield first.
+    executeSoon(() => debuggee.test());
     yield waitForSourceAndCaretAndScopes(panel, ".html", 23);
 
     let firstScope = variables.getScopeAtIndex(0);

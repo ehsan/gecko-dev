@@ -3505,7 +3505,7 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
     nscoord availableSpaceHeight = 0;
     do {
       bool allowPullUp = true;
-      nsIFrame* forceBreakInFrame = nullptr;
+      nsIContent* forceBreakInContent = nullptr;
       int32_t forceBreakOffset = -1;
       gfxBreakPriority forceBreakPriority = gfxBreakPriority::eNoBreak;
       do {
@@ -3524,8 +3524,8 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
                                 aState.mReflowState.mFloatManager,
                                 &aState.mReflowState, &aLine);
         lineLayout.Init(&aState, aState.mMinLineHeight, aState.mLineNumber);
-        if (forceBreakInFrame) {
-          lineLayout.ForceBreakAtPosition(forceBreakInFrame, forceBreakOffset);
+        if (forceBreakInContent) {
+          lineLayout.ForceBreakAtPosition(forceBreakInContent, forceBreakOffset);
         }
         DoReflowInlineFrames(aState, lineLayout, aLine,
                              floatAvailableSpace, availableSpaceHeight,
@@ -3537,14 +3537,13 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
             LINE_REFLOW_REDO_MORE_FLOATS == lineReflowStatus ||
             LINE_REFLOW_REDO_NEXT_BAND == lineReflowStatus) {
           if (lineLayout.NeedsBackup()) {
-            NS_ASSERTION(!forceBreakInFrame, "Backing up twice; this should never be necessary");
+            NS_ASSERTION(!forceBreakInContent, "Backing up twice; this should never be necessary");
             // If there is no saved break position, then this will set
-            // set forceBreakInFrame to null and we won't back up, which is
+            // set forceBreakInContent to null and we won't back up, which is
             // correct.
-            forceBreakInFrame =
-              lineLayout.GetLastOptionalBreakPosition(&forceBreakOffset, &forceBreakPriority);
+            forceBreakInContent = lineLayout.GetLastOptionalBreakPosition(&forceBreakOffset, &forceBreakPriority);
           } else {
-            forceBreakInFrame = nullptr;
+            forceBreakInContent = nullptr;
           }
           // restore the float manager state
           aState.mReflowState.mFloatManager->PopState(&floatManagerState);
@@ -3651,8 +3650,7 @@ nsBlockFrame::DoReflowInlineFrames(nsBlockReflowState& aState,
   if (aFloatAvailableSpace.mHasFloats) {
     // There is a soft break opportunity at the start of the line, because
     // we can always move this line down below float(s).
-    if (aLineLayout.NotifyOptionalBreakPosition(
-            frame, 0, true, gfxBreakPriority::eNormalBreak)) {
+    if (aLineLayout.NotifyOptionalBreakPosition(frame->GetContent(), 0, true, gfxBreakPriority::eNormalBreak)) {
       lineReflowStatus = LINE_REFLOW_REDO_NEXT_BAND;
     }
   }
@@ -3724,12 +3722,11 @@ nsBlockFrame::DoReflowInlineFrames(nsBlockReflowState& aState,
     // We need to try backing up to before a text run
     int32_t offset;
     gfxBreakPriority breakPriority;
-    nsIFrame* breakFrame =
-      aLineLayout.GetLastOptionalBreakPosition(&offset, &breakPriority);
+    nsIContent* breakContent = aLineLayout.GetLastOptionalBreakPosition(&offset, &breakPriority);
     // XXX It's possible, in fact not unusual, for the break opportunity to already
     // be the end of the line. We should detect that and optimize to not
     // re-do the line.
-    if (breakFrame) {
+    if (breakContent) {
       // We can back up!
       lineReflowStatus = LINE_REFLOW_REDO_NO_PULL;
     }

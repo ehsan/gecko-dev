@@ -11,11 +11,12 @@ function test() {
   // Debug test slaves are a bit slow at this test.
   requestLongerTimeout(2);
 
-  let gTab, gPanel, gDebugger;
+  let gTab, gDebuggee, gPanel, gDebugger;
   let gWatch, gVariables;
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gWatch = gDebugger.DebuggerView.WatchExpressions;
@@ -112,7 +113,7 @@ function test() {
       aCallback();
     });
 
-    callInTab(gTab, "test");
+    gDebuggee.test();
   }
 
   function test2(aCallback) {

@@ -39,7 +39,6 @@
 #include "nsString.h"                   // for nsString, nsAutoCString, etc
 #include "ScopedGLHelpers.h"
 #include "GLReadTexImageHelper.h"
-#include "GLBlitTextureImageHelper.h"
 #include "TiledLayerBuffer.h"           // for TiledLayerComposer
 #include "HeapCopyOfStackArray.h"
 
@@ -175,9 +174,6 @@ CompositorOGL::CleanupResources()
   }
 
   mGLContext->MakeCurrent();
-
-  mBlitTextureImageHelper = nullptr;
-
   mContextStateTracker.DestroyOGL(mGLContext);
 
   // On the main thread the Widget will be destroyed soon and calling MakeCurrent
@@ -1387,7 +1383,7 @@ TemporaryRef<DataTextureSource>
 CompositorOGL::CreateDataTextureSource(TextureFlags aFlags)
 {
   RefPtr<DataTextureSource> result =
-    new TextureImageTextureSourceOGL(this, aFlags);
+    new TextureImageTextureSourceOGL(mGLContext, aFlags);
   return result;
 }
 
@@ -1442,18 +1438,6 @@ CompositorOGL::BindAndDrawQuads(ShaderProgramOGL *aProg,
   // process uniform arrays with GL_TRIANGLE_STRIP. Go figure.
   mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, 6 * aQuads);
 }
-
-GLBlitTextureImageHelper*
-CompositorOGL::BlitTextureImageHelper()
-{
-    if (!mBlitTextureImageHelper) {
-        mBlitTextureImageHelper = MakeUnique<GLBlitTextureImageHelper>(this);
-    }
-
-    return mBlitTextureImageHelper.get();
-}
-
-
 
 GLuint
 CompositorOGL::GetTemporaryTexture(GLenum aTarget, GLenum aUnit)

@@ -89,17 +89,8 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
     NS_RUNTIMEABORT("Couldn't Open() Compositor channel.");
     return nullptr;
   }
-
   // We release this ref in ActorDestroy().
-  sCompositor = child.forget().take();
-
-  int32_t width;
-  int32_t height;
-  sCompositor->SendGetTileSize(&width, &height);
-  gfxPlatform::GetPlatform()->SetTileSize(width, height);
-
-  // We release this ref in ActorDestroy().
-  return sCompositor;
+  return sCompositor = child.forget().take();
 }
 
 /*static*/ CompositorChild*

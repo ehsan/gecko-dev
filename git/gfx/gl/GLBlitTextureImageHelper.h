@@ -15,17 +15,14 @@ struct nsIntRect;
 
 namespace mozilla {
 namespace gl {
-    class GLContext;
-    class TextureImage;
-}
-namespace layers {
 
-class CompositorOGL;
+class GLContext;
+class TextureImage;
 
 class GLBlitTextureImageHelper MOZ_FINAL
 {
     // The GLContext is the sole owner of the GLBlitTextureImageHelper.
-    CompositorOGL* mCompositor;
+    GLContext* mGL;
 
     // lazy-initialized things
     GLuint mBlitProgram, mBlitFramebuffer;
@@ -34,7 +31,7 @@ class GLBlitTextureImageHelper MOZ_FINAL
 
 public:
 
-    explicit GLBlitTextureImageHelper(CompositorOGL *gl);
+    explicit GLBlitTextureImageHelper(GLContext *gl);
     ~GLBlitTextureImageHelper();
 
     /**
@@ -62,8 +59,8 @@ public:
      *   - active texture (will be 0)
      *   - texture 0 binding
      */
-    void BlitTextureImage(gl::TextureImage *aSrc, const nsIntRect& aSrcRect,
-                          gl::TextureImage *aDst, const nsIntRect& aDstRect);
+    void BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
+                          TextureImage *aDst, const nsIntRect& aDstRect);
 };
 
 }

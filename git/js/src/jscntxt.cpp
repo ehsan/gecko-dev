@@ -1011,7 +1011,6 @@ JSContext::JSContext(JSRuntime *rt)
     unwrappedException_(UndefinedValue()),
     options_(),
     propagatingForcedReturn_(false),
-    liveVolatileJitFrameIterators_(nullptr),
     reportGranularity(JS_DEFAULT_JITREPORT_GRANULARITY),
     resolvingList(nullptr),
     generatingError(false),

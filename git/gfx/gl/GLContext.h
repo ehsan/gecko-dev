@@ -3418,6 +3418,7 @@ protected:
 #endif
 
     UniquePtr<GLBlitHelper> mBlitHelper;
+    UniquePtr<GLBlitTextureImageHelper> mBlitTextureImageHelper;
     UniquePtr<GLReadTexImageHelper> mReadTexImageHelper;
 
 public:

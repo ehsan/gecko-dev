@@ -54,8 +54,6 @@ public:
   const nsCString& Name() const { return mName; }
   const char* NameStr() const   { return mName.get(); }
 
-  void Dump(const char* aLabel) const;
-
   // The mount point is the name of the directory where the volume is mounted.
   // (i.e. path that leads to the files stored on the volume).
   const nsCString& MountPoint() const { return mMountPoint; }
@@ -75,8 +73,6 @@ public:
   bool IsSharing() const              { return mIsSharing; }
   bool IsFormatting() const           { return mIsFormatting; }
   bool IsUnmounting() const           { return mIsUnmounting; }
-
-  void SetFakeVolume(const nsACString& aMountPoint);
 
   void SetSharingEnabled(bool aSharingEnabled);
   void SetFormatRequested(bool aFormatRequested);

@@ -11,11 +11,12 @@ function test() {
   // Debug test slaves are a bit slow at this test.
   requestLongerTimeout(2);
 
-  let gTab, gPanel, gDebugger;
+  let gTab, gDebuggee, gPanel, gDebugger;
   let gSources, gBreakpoints;
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gSources = gDebugger.DebuggerView.Sources;
@@ -94,7 +95,13 @@ function test() {
     ok(isCaretPos(gPanel, 9),
       "The editor location is correct before pausing.");
 
-    sendMouseClickToTab(gTab, content.document.querySelector("button"));
+    // Spin the event loop before causing the debuggee to pause, to allow
+    // this function to return first.
+    executeSoon(() => {
+      EventUtils.sendMouseEvent({ type: "click" },
+        gDebuggee.document.querySelector("button"),
+        gDebuggee);
+    });
 
     return finished;
   }

@@ -17,6 +17,10 @@ nsVolumeStat::nsVolumeStat(const nsAString& aPath)
   }
 }
 
+nsVolumeStat::~nsVolumeStat()
+{
+}
+
 /* readonly attribute long long totalBytes; */
 NS_IMETHODIMP nsVolumeStat::GetTotalBytes(int64_t* aTotalBytes)
 {

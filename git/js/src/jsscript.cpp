@@ -3315,7 +3315,7 @@ bool
 JSScript::incrementStepModeCount(JSContext *cx)
 {
     assertSameCompartment(cx, this);
-    MOZ_ASSERT(cx->compartment()->isDebuggee());
+    MOZ_ASSERT(cx->compartment()->debugMode());
 
     if (!ensureHasDebugScript(cx))
         return false;

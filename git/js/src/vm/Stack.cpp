@@ -84,11 +84,8 @@ InterpreterFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFram
     prevpc_ = nullptr;
     prevsp_ = nullptr;
 
-    MOZ_ASSERT_IF(evalInFramePrev, isDebuggerEvalFrame());
+    MOZ_ASSERT_IF(evalInFramePrev, isDebuggerFrame());
     evalInFramePrev_ = evalInFramePrev;
-
-    if (script->isDebuggee())
-        setIsDebuggee();
 
 #ifdef DEBUG
     Debug_SetValueRangeToCrashOnTouch(&rval_, 1);
@@ -232,10 +229,10 @@ InterpreterFrame::epilogue(JSContext *cx)
     if (isEvalFrame()) {
         if (isStrictEvalFrame()) {
             MOZ_ASSERT_IF(hasCallObj(), scopeChain()->as<CallObject>().isForEval());
-            if (MOZ_UNLIKELY(cx->compartment()->isDebuggee()))
+            if (MOZ_UNLIKELY(cx->compartment()->debugMode()))
                 DebugScopes::onPopStrictEvalScope(this);
         } else if (isDirectEvalFrame()) {
-            if (isDebuggerEvalFrame())
+            if (isDebuggerFrame())
                 MOZ_ASSERT(!scopeChain()->is<ScopeObject>());
         } else {
             /*
@@ -245,7 +242,7 @@ InterpreterFrame::epilogue(JSContext *cx)
              * indirect eval frames scoped to an object carrying the introduced
              * bindings.
              */
-            if (isDebuggerEvalFrame()) {
+            if (isDebuggerFrame()) {
                 MOZ_ASSERT(scopeChain()->is<GlobalObject>() ||
                            scopeChain()->enclosingScope()->is<GlobalObject>());
             } else {
@@ -271,7 +268,7 @@ InterpreterFrame::epilogue(JSContext *cx)
         AssertDynamicScopeMatchesStaticScope(cx, script, scopeChain());
     }
 
-    if (MOZ_UNLIKELY(cx->compartment()->isDebuggee()))
+    if (MOZ_UNLIKELY(cx->compartment()->debugMode()))
         DebugScopes::onPopCall(this, cx);
 
     if (isConstructing() && thisValue().isObject() && returnValue().isPrimitive())
@@ -303,7 +300,7 @@ InterpreterFrame::popBlock(JSContext *cx)
 void
 InterpreterFrame::popWith(JSContext *cx)
 {
-    if (MOZ_UNLIKELY(cx->compartment()->isDebuggee()))
+    if (MOZ_UNLIKELY(cx->compartment()->debugMode()))
         DebugScopes::onPopWith(this);
 
     MOZ_ASSERT(scopeChain()->is<DynamicWithObject>());
@@ -711,8 +708,9 @@ FrameIter::operator++()
       case DONE:
         MOZ_CRASH("Unexpected state");
       case INTERP:
-        if (interpFrame()->isDebuggerEvalFrame() && interpFrame()->evalInFramePrev()) {
+        if (interpFrame()->isDebuggerFrame() && interpFrame()->evalInFramePrev()) {
             AbstractFramePtr eifPrev = interpFrame()->evalInFramePrev();
+            MOZ_ASSERT(!eifPrev.isRematerializedFrame());
 
             // Eval-in-frame can cross contexts and works across saved frame
             // chains.
@@ -723,7 +721,7 @@ FrameIter::operator++()
 
             popInterpreterFrame();
 
-            while (!hasUsableAbstractFramePtr() || abstractFramePtr() != eifPrev) {
+            while (isIon() || abstractFramePtr() != eifPrev) {
                 if (data_.state_ == JIT)
                     popJitFrame();
                 else

@@ -17,9 +17,8 @@
   <script type="application/javascript">
   <![CDATA[
   /*
-  Test that we can't call the content browser's document.open() over Xrays.
-  See the security checks in nsHTMLDocument::Open, which make sure that the
-  entry global's principal matches that of the document.
+  Test that we can't call the content browser's document.open() either via
+  wrappedJSObject (SafeJSObjectWrapper) or not.
   */
   SimpleTest.waitForExplicitFinish();
   
@@ -38,8 +37,14 @@
     }
     is(opened, false, "Shouldn't have opened document");
 
-    doc.wrappedJSObject.open("text/html", "replace");
-    ok(true, "Should be able to open document via Xray Waiver");
+    try {
+      doc.wrappedJSObject.open("text/html", "replace");
+      opened = true;
+    } catch (e) {
+      is(e.name, "SecurityError",
+         "Unxpected exception via wrappedJSObject")
+    }
+    is(opened, false, "Shouldn't have opened document via wrappedJSObject");
 
     SimpleTest.finish();
   });

@@ -88,12 +88,11 @@ public:
                        const TabId& aChildTabId);
 
   /**
-   * Get the TabContext by the given content process and tab id.
+   * Get all app ids which are inside the given content process.
+   * XXX Currently not used. Plan to be used for bug 1020186.
    */
-  bool
-  GetTabContextByProcessAndTabId(const ContentParentId& aChildCpId,
-                                 const TabId& aChildTabId,
-                                 /*out*/ TabContext* aTabContext);
+  nsTArray<uint64_t>
+  GetAppIdsByContentProcess(const ContentParentId& aChildCpId);
 
   /**
    * Get all TabContext which are inside the given content process.
