@@ -264,9 +264,16 @@ gfxFontEntry::TryGetSVGData()
             return false;
         }
 
-        // gfxSVGGlyphs will hb_blob_destroy() the table when it is finished
-        // with it.
-        mSVGGlyphs = new gfxSVGGlyphs(svgTable);
+        hb_blob_t *cmapTable = GetFontTable(TRUETYPE_TAG('c','m','a','p'));
+        if (!cmapTable) {
+            NS_NOTREACHED("using a font with no cmap!");
+            hb_blob_destroy(svgTable);
+            return false;
+        }
+
+        // gfxSVGGlyphs will hb_blob_destroy() the tables when it is finished
+        // with them.
+        mSVGGlyphs = new gfxSVGGlyphs(svgTable, cmapTable);
     }
 
     return !!mSVGGlyphs;

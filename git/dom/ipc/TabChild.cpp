@@ -421,15 +421,16 @@ TabChild::Observe(nsISupports *aSubject,
         // Calculate a really simple resolution that we probably won't
         // be keeping, as well as putting the scroll offset back to
         // the top-left of the page.
+        mLastMetrics.mZoom = ScreenToScreenScale(1.0);
         mLastMetrics.mViewport = CSSRect(CSSPoint(), kDefaultViewportSize);
         mLastMetrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
-        mLastMetrics.mZoom = mLastMetrics.CalculateIntrinsicScale();
-        // We use ScreenToLayerScale(1) below in order to turn the
-        // async zoom amount into the gecko zoom amount.
+        CSSToScreenScale resolution = mLastMetrics.CalculateResolution();
+        // We use ScreenToLayerScale(1) below in order to ask gecko to render
+        // what's currently visible on the screen. This is effectively turning
+        // the async zoom amount into the gecko zoom amount.
         mLastMetrics.mResolution =
-          mLastMetrics.mZoom / mLastMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
+          resolution / mLastMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
         mLastMetrics.mScrollOffset = CSSPoint(0, 0);
-
         utils->SetResolution(mLastMetrics.mResolution.scale,
                              mLastMetrics.mResolution.scale);
 
@@ -571,8 +572,8 @@ TabChild::HandlePossibleViewportChange()
   nsViewportInfo viewportInfo =
     nsContentUtils::GetViewportInfo(document, mInnerSize.width, mInnerSize.height);
   SendUpdateZoomConstraints(viewportInfo.IsZoomAllowed(),
-                            CSSToScreenScale(viewportInfo.GetMinZoom()),
-                            CSSToScreenScale(viewportInfo.GetMaxZoom()));
+                            viewportInfo.GetMinZoom(),
+                            viewportInfo.GetMaxZoom());
 
   float screenW = mInnerSize.width;
   float screenH = mInnerSize.height;
@@ -646,16 +647,6 @@ TabChild::HandlePossibleViewportChange()
   viewport.height = std::max(viewport.height, screenH / minScale);
   SetCSSViewport(viewport);
 
-  float oldScreenWidth = mLastMetrics.mCompositionBounds.width;
-  if (!oldScreenWidth) {
-    oldScreenWidth = mInnerSize.width;
-  }
-
-  FrameMetrics metrics(mLastMetrics);
-  metrics.mViewport = CSSRect(CSSPoint(), viewport);
-  metrics.mScrollableRect = CSSRect(CSSPoint(), pageSize);
-  metrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
-
   // This change to the zoom accounts for all types of changes I can conceive:
   // 1. screen size changes, CSS viewport does not (pages with no meta viewport
   //    or a fixed size viewport)
@@ -668,8 +659,15 @@ TabChild::HandlePossibleViewportChange()
   // In all of these cases, we maintain how much actual content is visible
   // within the screen width. Note that "actual content" may be different with
   // respect to CSS pixels because of the CSS viewport size changing.
-  float oldIntrinsicScale = oldScreenWidth / oldBrowserWidth;
-  metrics.mZoom.scale *= metrics.CalculateIntrinsicScale().scale / oldIntrinsicScale;
+  int32_t oldScreenWidth = mLastMetrics.mCompositionBounds.width;
+  if (!oldScreenWidth) {
+    oldScreenWidth = mInnerSize.width;
+  }
+
+  FrameMetrics metrics(mLastMetrics);
+  metrics.mViewport = CSSRect(CSSPoint(), viewport);
+  metrics.mScrollableRect = CSSRect(CSSPoint(), pageSize);
+  metrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
 
   // Changing the zoom when we're not doing a first paint will get ignored
   // by AsyncPanZoomController and causes a blurry flash.
@@ -677,17 +675,20 @@ TabChild::HandlePossibleViewportChange()
   nsresult rv = utils->GetIsFirstPaint(&isFirstPaint);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
   if (NS_FAILED(rv) || isFirstPaint) {
+    CSSToScreenScale intrinsicScale = metrics.CalculateIntrinsicScale();
     // FIXME/bug 799585(?): GetViewportInfo() returns a defaultZoom of
     // 0.0 to mean "did not calculate a zoom".  In that case, we default
     // it to the intrinsic scale.
     if (viewportInfo.GetDefaultZoom() < 0.01f) {
-      viewportInfo.SetDefaultZoom(metrics.CalculateIntrinsicScale().scale);
+      viewportInfo.SetDefaultZoom(intrinsicScale.scale);
     }
 
     double defaultZoom = viewportInfo.GetDefaultZoom();
     MOZ_ASSERT(viewportInfo.GetMinZoom() <= defaultZoom &&
                defaultZoom <= viewportInfo.GetMaxZoom());
-    metrics.mZoom = CSSToScreenScale(defaultZoom);
+    // GetViewportInfo() returns a resolution-dependent scale factor.
+    // Convert that to a resolution-indepedent zoom.
+    metrics.mZoom = ScreenToScreenScale(defaultZoom / intrinsicScale.scale);
   }
 
   metrics.mDisplayPort = AsyncPanZoomController::CalculatePendingDisplayPort(
@@ -695,7 +696,8 @@ TabChild::HandlePossibleViewportChange()
     // new CSS viewport, so we know that there's no velocity, acceleration, and
     // we have no idea how long painting will take.
     metrics, gfx::Point(0.0f, 0.0f), gfx::Point(0.0f, 0.0f), 0.0);
-  metrics.mResolution = metrics.mZoom / metrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
+  CSSToScreenScale resolution = metrics.CalculateResolution();
+  metrics.mResolution = resolution / metrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
   utils->SetResolution(metrics.mResolution.scale, metrics.mResolution.scale);
 
   // Force a repaint with these metrics. This, among other things, sets the
@@ -1615,7 +1617,7 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     }
 
     // set the resolution
-    LayoutDeviceToLayerScale resolution = aFrameMetrics.mZoom
+    LayoutDeviceToLayerScale resolution = aFrameMetrics.CalculateResolution()
       / aFrameMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
     utils->SetResolution(resolution.scale, resolution.scale);
 

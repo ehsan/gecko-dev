@@ -3351,6 +3351,8 @@ RILNetworkInterface.prototype = {
 
   name: null,
 
+  dhcp: false,
+
   ip: null,
 
   netmask: null,

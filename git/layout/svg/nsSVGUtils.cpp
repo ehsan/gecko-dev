@@ -1831,14 +1831,17 @@ nsSVGUtils::PaintSVGGlyph(Element* aElement, gfxContext* aContext,
 {
   nsIFrame* frame = aElement->GetPrimaryFrame();
   nsISVGChildFrame* svgFrame = do_QueryFrame(frame);
-  if (!svgFrame) {
-    return false;
+  MOZ_ASSERT(!frame || svgFrame, "Non SVG frame for SVG glyph");
+  if (svgFrame) {
+    nsRenderingContext context;
+    context.Init(frame->PresContext()->DeviceContext(), aContext);
+    context.AddUserData(&gfxTextObjectPaint::sUserDataKey, aObjectPaint, nullptr);
+    nsresult rv = svgFrame->PaintSVG(&context, nullptr);
+    if (NS_SUCCEEDED(rv)) {
+      return true;
+    }
   }
-  nsRenderingContext context;
-  context.Init(frame->PresContext()->DeviceContext(), aContext);
-  context.AddUserData(&gfxTextObjectPaint::sUserDataKey, aObjectPaint, nullptr);
-  nsresult rv = svgFrame->PaintSVG(&context, nullptr);
-  return NS_SUCCEEDED(rv);
+  return false;
 }
 
 bool
@@ -1848,14 +1851,15 @@ nsSVGUtils::GetSVGGlyphExtents(Element* aElement,
 {
   nsIFrame* frame = aElement->GetPrimaryFrame();
   nsISVGChildFrame* svgFrame = do_QueryFrame(frame);
-  if (!svgFrame) {
-    return false;
+  MOZ_ASSERT(!frame || svgFrame, "Non SVG frame for SVG glyph");
+  if (svgFrame) {
+    *aResult = svgFrame->GetBBoxContribution(aSVGToAppSpace,
+      nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIncludeFillGeometry |
+      nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIncludeStrokeGeometry |
+      nsSVGUtils::eBBoxIncludeMarkers);
+    return true;
   }
-  *aResult = svgFrame->GetBBoxContribution(aSVGToAppSpace,
-    nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIncludeFillGeometry |
-    nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIncludeStrokeGeometry |
-    nsSVGUtils::eBBoxIncludeMarkers);
-  return true;
+  return false;
 }
 
 nsRect
