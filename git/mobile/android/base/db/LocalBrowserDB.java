@@ -147,9 +147,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // the constraint string(s), treating space-separated words as separate constraints
         if (!TextUtils.isEmpty(constraint)) {
           String[] constraintWords = constraint.toString().split(" ");
-          // Only create a filter query with a maximum of 10 constraint words
-          int constraintCount = Math.min(constraintWords.length, 10);
-          for (int i = 0; i < constraintCount; i++) {
+          for (int i = 0; i < constraintWords.length; i++) {
               selection = DBUtils.concatenateWhere(selection, "(" + Combined.URL + " LIKE ? OR " +
                                                                     Combined.TITLE + " LIKE ?)");
               String constraintWord =  "%" + constraintWords[i] + "%";
