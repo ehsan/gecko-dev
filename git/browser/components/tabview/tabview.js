@@ -25,11 +25,16 @@ XPCOMUtils.defineLazyGetter(this, "gPrefBranch", function() {
   return Services.prefs.getBranch("browser.panorama.");
 });
 
-XPCOMUtils.defineLazyServiceGetter(this, "gPrivateBrowsing",
-  "@mozilla.org/privatebrowsing;1", "nsIPrivateBrowsingService");
+XPCOMUtils.defineLazyGetter(this, "gPrivateBrowsing", function() {
+  return Cc["@mozilla.org/privatebrowsing;1"].
+           getService(Ci.nsIPrivateBrowsingService);
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "gPageThumbnails",
-  "resource:///modules/PageThumbs.jsm", "PageThumbs");
+XPCOMUtils.defineLazyGetter(this, "gNetUtil", function() {
+  var obj = {};
+  Cu.import("resource://gre/modules/NetUtil.jsm", obj);
+  return obj.NetUtil;
+});
 
 var gWindow = window.parent;
 var gBrowser = gWindow.gBrowser;
@@ -66,11 +71,13 @@ let AllTabs = {
 
 #include iq.js
 #include storage.js
+#include storagePolicy.js
 #include items.js
 #include groupitems.js
 #include tabitems.js
 #include favicons.js
 #include drag.js
 #include trench.js
+#include thumbnailStorage.js
 #include search.js
 #include ui.js
