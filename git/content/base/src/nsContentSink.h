@@ -145,8 +145,6 @@ class nsContentSink : public nsICSSLoaderObserver,
 
   virtual void UpdateChildCounts() = 0;
 
-  PRBool IsTimeToNotify();
-
 protected:
   nsContentSink();
   virtual ~nsContentSink();
@@ -256,9 +254,10 @@ protected:
   // Start layout.  If aIgnorePendingSheets is true, this will happen even if
   // we still have stylesheet loads pending.  Otherwise, we'll wait until the
   // stylesheets are all done loading.
-public:
   void StartLayout(PRBool aIgnorePendingSheets);
-protected:
+
+  PRBool IsTimeToNotify();
+
   void
   FavorPerformanceHint(PRBool perfOverStarvation, PRUint32 starvationDelay);
 

@@ -897,13 +897,11 @@ RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
     // see if there are attributes for the content
     mHasAttributes = aContent->GetAttrCount() > 0;
 
-    // check for HTMLContent and Link status
-    if (aContent->IsNodeOfType(nsINode::eHTML)) {
-      mIsHTMLContent = PR_TRUE;
-    }
-    
     // get the namespace
     mNameSpaceID = aContent->GetNameSpaceID();
+    
+    // check for HTMLContent and Link status
+    mIsHTMLContent = (mNameSpaceID == kNameSpaceID_XHTML);
 
     // if HTML content and it has some attributes, check for an HTML link
     // NOTE: optimization: cannot be a link if no attributes (since it needs an href)
@@ -995,9 +993,7 @@ const nsString* RuleProcessorData::GetLang()
 static inline PRInt32
 CSSNameSpaceID(nsIContent *aContent)
 {
-  return aContent->IsNodeOfType(nsINode::eHTML)
-           ? kNameSpaceID_XHTML
-           : aContent->GetNameSpaceID();
+  return aContent->GetNameSpaceID();
 }
 
 PRInt32

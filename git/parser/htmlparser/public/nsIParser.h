@@ -52,7 +52,6 @@
 #include "nsIDTD.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "nsIAtom.h"
 
 // 3007e9c0-4d3e-4c80-8cae-fbb4723d88f2
 #define NS_IPARSER_IID \
@@ -95,17 +94,16 @@ enum eParserDocType {
 #define kCharsetFromCache               4
 #define kCharsetFromParentFrame         5
 #define kCharsetFromBookmarks           6
-#define kCharsetFromAutoDetection       7 
-#define kCharsetFromHintPrevDoc         8 
-#define kCharsetFromMetaPrescan         9 // this one and above: HTML5 Tentative
-#define kCharsetFromMetaTag            10 // this one and below: HTML5 Confident
-#define kCharsetFromByteOrderMark      11
-#define kCharsetFromChannel            12 
-#define kCharsetFromOtherComponent     13
+#define kCharsetFromAutoDetection       7
+#define kCharsetFromHintPrevDoc         8
+#define kCharsetFromMetaTag             9
+#define kCharsetFromByteOrderMark      10
+#define kCharsetFromChannel            11 
+#define kCharsetFromOtherComponent     12
 // Levels below here will be forced onto childframes too
-#define kCharsetFromParentForced       14
-#define kCharsetFromUserForced         15
-#define kCharsetFromPreviousLoading    16
+#define kCharsetFromParentForced       13
+#define kCharsetFromUserForced         14
+#define kCharsetFromPreviousLoading    15
 
 enum eStreamState {eNone,eOnStart,eOnDataAvail,eOnStop};
 
@@ -258,11 +256,6 @@ class nsIParser : public nsISupports {
                              PRBool aXMLMode,
                              const nsACString& aContentType,
                              nsDTDMode aMode = eDTDMode_autodetect) = 0;
-
-    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsISupports* aTargetNode,
-                             nsIAtom* aContextLocalName,
-                             PRInt32 aContextNamespace) = 0;
 
     /**
      * This method gets called when the tokens have been consumed, and it's time
