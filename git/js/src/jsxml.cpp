@@ -1716,12 +1716,13 @@ ParseXMLSource(JSContext *cx, JSString *src)
         return NULL;
 
     dstlen = length;
-    InflateStringToBuffer(cx, prefix, constrlen(prefix), chars, &dstlen);
+    js_InflateStringToBuffer(cx, prefix, constrlen(prefix), chars, &dstlen);
     offset = dstlen;
     js_strncpy(chars + offset, uri->chars(), urilen);
     offset += urilen;
     dstlen = length - offset + 1;
-    InflateStringToBuffer(cx, middle, constrlen(middle), chars + offset, &dstlen);
+    js_InflateStringToBuffer(cx, middle, constrlen(middle), chars + offset,
+                             &dstlen);
     offset += dstlen;
     srcp = src->getChars(cx);
     if (!srcp) {
@@ -1731,7 +1732,8 @@ ParseXMLSource(JSContext *cx, JSString *src)
     js_strncpy(chars + offset, srcp, srclen);
     offset += srclen;
     dstlen = length - offset + 1;
-    InflateStringToBuffer(cx, suffix, constrlen(suffix), chars + offset, &dstlen);
+    js_InflateStringToBuffer(cx, suffix, constrlen(suffix), chars + offset,
+                             &dstlen);
     chars [offset + dstlen] = 0;
 
     LeaveTrace(cx);
@@ -1742,10 +1744,11 @@ ParseXMLSource(JSContext *cx, JSString *src)
     filename = NULL;
     lineno = 1;
     if (!i.done()) {
+        StackFrame *fp = i.fp();
         op = (JSOp) *i.pc();
         if (op == JSOP_TOXML || op == JSOP_TOXMLLIST) {
-            filename = i.fp()->script()->filename;
-            lineno = js_FramePCToLineNumber(cx, i.fp(), i.pc());
+            filename = fp->script()->filename;
+            lineno = js_FramePCToLineNumber(cx, fp);
             for (endp = srcp + srclen; srcp < endp; srcp++) {
                 if (*srcp == '\n')
                     --lineno;

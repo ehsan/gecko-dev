@@ -77,9 +77,6 @@ struct Shape;
 
 namespace gc {
 
-struct Arena;
-struct MarkingDelay;
-
 /* The kind of GC thing with a finalizer. */
 enum FinalizeKind {
     FINALIZE_OBJECT0,
@@ -107,8 +104,6 @@ enum FinalizeKind {
     FINALIZE_LIMIT
 };
 
-extern JS_FRIEND_DATA(const uint8) GCThingSizeMap[];
-
 const size_t ArenaShift = 12;
 const size_t ArenaSize = size_t(1) << ArenaShift;
 const size_t ArenaMask = ArenaSize - 1;
@@ -124,19 +119,7 @@ const size_t ArenaBitmapBits = ArenaCellCount;
 const size_t ArenaBitmapBytes = ArenaBitmapBits / 8;
 const size_t ArenaBitmapWords = ArenaBitmapBits / JS_BITS_PER_WORD;
 
-
-struct FreeCell : Cell {
-    FreeCell *link;
-
-    void checkLink() {
-        /*
-         * The GC things on the free lists come from one arena and the things
-         * on the free list are linked in ascending address order.
-         */
-        JS_ASSERT_IF(link, arenaHeader() == link->arenaHeader());
-        JS_ASSERT_IF(link, this < link);
-    }
-};
+template <typename T> struct Arena;
 
 /* Every arena has a header. */
 struct ArenaHeader {
@@ -153,8 +136,9 @@ struct ArenaHeader {
     inline uintptr_t address() const;
     inline Chunk *chunk() const;
 
-    Arena *getArena() {
-        return reinterpret_cast<Arena *>(address());
+    template <typename T>
+    Arena<T> *getArena() {
+        return reinterpret_cast<Arena<T> *>(address());
     }
 
     bool hasFreeList() const {
@@ -182,9 +166,9 @@ struct ArenaHeader {
 
     inline MarkingDelay *getMarkingDelay() const;
 
-    size_t getThingSize() const {
-        return GCThingSizeMap[getThingKind()];
-    }
+#ifdef DEBUG
+    JS_FRIEND_API(size_t) getThingSize() const;
+#endif
 
 #if defined DEBUG || defined JS_GCMETER
     static size_t CountListLength(const ArenaHeader *aheader) {
@@ -196,50 +180,74 @@ struct ArenaHeader {
 #endif
 };
 
+template <typename T, size_t N, size_t R1, size_t R2>
+struct Things {
+    char filler1[R1];
+    T    things[N];
+    char filler[R2];
+};
+
+template <typename T, size_t N, size_t R1>
+struct Things<T, N, R1, 0> {
+    char filler1[R1];
+    T    things[N];
+};
+
+template <typename T, size_t N, size_t R2>
+struct Things<T, N, 0, R2> {
+    T    things[N];
+    char filler2[R2];
+};
+
+template <typename T, size_t N>
+struct Things<T, N, 0, 0> {
+    T things[N];
+};
+
+template <typename T>
 struct Arena {
     /*
      * Layout of an arena:
-     * An arena is 4K in size and 4K-aligned. It starts with the ArenaHeader
-     * descriptor followed by some pad bytes. The remainder of the arena is
-     * filled with the array of T things. The pad bytes ensure that the thing
-     * array ends exactly at the end of the arena.
+     * An arena is 4K. We want it to have a header followed by a list of T
+     * objects. However, each object should be aligned to a sizeof(T)-boundary.
+     * To achieve this, we pad before and after the object array.
      *
-     * +-------------+-----+----+----+-----+----+
-     * | ArenaHeader | pad | T0 | T1 | ... | Tn |
-     * +-------------+-----+----+----+-----+----+
+     * +-------------+-----+----+----+-----+----+-----+
+     * | ArenaHeader | pad | T0 | T1 | ... | Tn | pad |
+     * +-------------+-----+----+----+-----+----+-----+
      *
-     * <----------------------------------------> = ArenaSize bytes
-     * <-------------------> = thingsStartOffset
+     * <----------------------------------------------> = 4096 bytes
+     *               <-----> = Filler1Size
+     * <-------------------> = HeaderSize
+     *                     <--------------------------> = SpaceAfterHeader
+     *                                          <-----> = Filler2Size
      */
+    static const size_t Filler1Size =
+        tl::If< sizeof(ArenaHeader) % sizeof(T) == 0, size_t,
+                0,
+                sizeof(T) - sizeof(ArenaHeader) % sizeof(T) >::result;
+    static const size_t HeaderSize = sizeof(ArenaHeader) + Filler1Size;
+    static const size_t SpaceAfterHeader = ArenaSize - HeaderSize;
+    static const size_t Filler2Size = SpaceAfterHeader % sizeof(T);
+    static const size_t ThingsPerArena = SpaceAfterHeader / sizeof(T);
+    static const size_t FirstThingOffset = HeaderSize;
+    static const size_t ThingsSpan = ThingsPerArena * sizeof(T);
+
     ArenaHeader aheader;
-    uint8_t     data[ArenaSize - sizeof(ArenaHeader)];
+    Things<T, ThingsPerArena, Filler1Size, Filler2Size> t;
 
     static void staticAsserts() {
-        JS_STATIC_ASSERT(sizeof(Arena) == ArenaSize);
+        /*
+         * Everything we store in the heap must be a multiple of the cell
+         * size.
+         */
+        JS_STATIC_ASSERT(sizeof(T) % Cell::CellSize == 0);
+        JS_STATIC_ASSERT(offsetof(Arena<T>, t.things) % sizeof(T) == 0);
+        JS_STATIC_ASSERT(sizeof(Arena<T>) == ArenaSize);
     }
 
-    static size_t thingsPerArena(size_t thingSize) {
-        JS_ASSERT(thingSize % Cell::CellSize == 0);
-        return (ArenaSize - sizeof(ArenaHeader)) / thingSize;
-    }
+    inline FreeCell *buildFreeList();
 
-    static size_t thingsStartOffset(size_t thingSize) {
-        return ArenaSize - thingsPerArena(thingSize) * thingSize;
-    }
-
-    uintptr_t address() const {
-        return aheader.address();
-    }
-
-    uintptr_t thingsStart(size_t thingSize) {
-        return address() | thingsStartOffset(thingSize);
-    }
-
-    uintptr_t thingsEnd() {
-        return address() + ArenaSize;
-    }
-
-    template <typename T>
     bool finalize(JSContext *cx);
 };
 
@@ -251,7 +259,8 @@ struct Arena {
 struct MarkingDelay {
     ArenaHeader *link;
 
-    void init() {
+    void init()
+    {
         link = NULL;
     }
 
@@ -259,7 +268,7 @@ struct MarkingDelay {
      * To separate arenas without things to mark later from the arena at the
      * marked delay stack bottom we use for the latter a special sentinel
      * value. We set it to the header for the second arena in the chunk
-     * starting at the 0 address.
+     * starting the 0 address.
      */
     static ArenaHeader *stackBottom() {
         return reinterpret_cast<ArenaHeader *>(ArenaSize);
@@ -390,7 +399,7 @@ JS_STATIC_ASSERT(ArenaBitmapBytes * ArenasPerChunk == sizeof(ChunkBitmap));
  * marking state).
  */
 struct Chunk {
-    Arena           arenas[ArenasPerChunk];
+    Arena<FreeCell> arenas[ArenasPerChunk];
     ChunkBitmap     bitmap;
     MarkingDelay    markingDelay[ArenasPerChunk];
     ChunkInfo       info;
@@ -415,7 +424,7 @@ struct Chunk {
     bool hasAvailableArenas();
     bool withinArenasRange(Cell *cell);
 
-    template <size_t thingSize>
+    template <typename T>
     ArenaHeader *allocateArena(JSContext *cx, unsigned thingKind);
 
     void releaseArena(ArenaHeader *aheader);
@@ -455,8 +464,7 @@ Cell::chunk() const
 inline bool
 Cell::isAligned() const
 {
-    /* Things ends at the arena end. */
-    uintptr_t offset = ArenaSize - (address() & ArenaMask);
+    uintptr_t offset = address() & ArenaMask;
     return offset % arenaHeader()->getThingSize() == 0;
 }
 #endif
@@ -588,7 +596,7 @@ GetGCThingTraceKind(const void *thing);
 static inline JSRuntime *
 GetGCThingRuntime(void *thing)
 {
-    return reinterpret_cast<Cell *>(thing)->chunk()->info.runtime;
+    return reinterpret_cast<FreeCell *>(thing)->chunk()->info.runtime;
 }
 
 /* The arenas in a list have uniform kind. */
@@ -643,7 +651,7 @@ class ArenaList {
 
     inline ArenaHeader *searchForFreeArena();
 
-    template <size_t thingSize>
+    template <typename T>
     inline ArenaHeader *getArenaWithFreeList(JSContext *cx, unsigned thingKind);
 
     template<typename T>
@@ -703,6 +711,17 @@ class ArenaList {
     }
 };
 
+inline void
+CheckGCFreeListLink(FreeCell *cell)
+{
+    /*
+     * The GC things on the free lists come from one arena and the things on
+     * the free list are linked in ascending address order.
+     */
+    JS_ASSERT_IF(cell->link, cell->arenaHeader() == cell->link->arenaHeader());
+    JS_ASSERT_IF(cell->link, cell < cell->link);
+}
+
 /*
  * For a given arena, finalizables[thingKind] points to the next object to be
  * allocated. It gets initialized, in RefillTypedFreeList, to the first free
@@ -716,11 +735,6 @@ class ArenaList {
  */
 struct FreeLists {
     FreeCell       *finalizables[FINALIZE_LIMIT];
-
-    void init() {
-        for (size_t i = 0; i < JS_ARRAY_LENGTH(finalizables); i++)
-            finalizables[i] = NULL;
-    }
 
     /*
      * Return the free list back to the arena so the GC finalization will not
@@ -766,7 +780,7 @@ struct FreeLists {
     FreeCell *getNext(unsigned kind) {
         FreeCell *top = finalizables[kind];
         if (top) {
-            top->checkLink();
+            CheckGCFreeListLink(top);
             finalizables[kind] = top->link;
         }
         return top;
@@ -775,7 +789,8 @@ struct FreeLists {
     Cell *populate(ArenaHeader *aheader, uint32 thingKind) {
         JS_ASSERT(!finalizables[thingKind]);
         FreeCell *cell = aheader->freeList;
-        cell->checkLink();
+        JS_ASSERT(cell);
+        CheckGCFreeListLink(cell);
         aheader->freeList = NULL;
         finalizables[thingKind] = cell->link;
         return cell;
@@ -853,6 +868,17 @@ CheckAllocation(JSContext *cx);
 
 extern JS_FRIEND_API(uint32)
 js_GetGCThingTraceKind(void *thing);
+
+#if 1
+/*
+ * Since we're forcing a GC from JS_GC anyway, don't bother wasting cycles
+ * loading oldval.  XXX remove implied force, fix jsinterp.c's "second arg
+ * ignored", etc.
+ */
+#define GC_POKE(cx, oldval) ((cx)->runtime->gcPoke = JS_TRUE)
+#else
+#define GC_POKE(cx, oldval) ((cx)->runtime->gcPoke = JSVAL_IS_GCTHING(oldval))
+#endif
 
 extern JSBool
 js_InitGC(JSRuntime *rt, uint32 maxbytes);
@@ -1159,7 +1185,6 @@ struct LargeMarkItem
 };
 
 static const size_t OBJECT_MARK_STACK_SIZE = 32768 * sizeof(JSObject *);
-static const size_t ROPES_MARK_STACK_SIZE = 1024 * sizeof(JSString *);
 static const size_t XML_MARK_STACK_SIZE = 1024 * sizeof(JSXML *);
 static const size_t LARGE_MARK_STACK_SIZE = 64 * sizeof(LargeMarkItem);
 
@@ -1187,7 +1212,6 @@ struct GCMarker : public JSTracer {
 #endif
 
     MarkStack<JSObject *> objStack;
-    MarkStack<JSRope *> ropeStack;
     MarkStack<JSXML *> xmlStack;
     MarkStack<LargeMarkItem> largeStack;
 
@@ -1210,10 +1234,7 @@ struct GCMarker : public JSTracer {
     void markDelayedChildren();
 
     bool isMarkStackEmpty() {
-        return objStack.isEmpty() &&
-               ropeStack.isEmpty() &&
-               xmlStack.isEmpty() &&
-               largeStack.isEmpty();
+        return objStack.isEmpty() && xmlStack.isEmpty() && largeStack.isEmpty();
     }
 
     JS_FRIEND_API(void) drainMarkStack();
@@ -1221,11 +1242,6 @@ struct GCMarker : public JSTracer {
     void pushObject(JSObject *obj) {
         if (!objStack.push(obj))
             delayMarkingChildren(obj);
-    }
-
-    void pushRope(JSRope *rope) {
-        if (!ropeStack.push(rope))
-            delayMarkingChildren(rope);
     }
 
     void pushXML(JSXML *xml) {
@@ -1290,10 +1306,6 @@ namespace gc {
 
 JSCompartment *
 NewCompartment(JSContext *cx, JSPrincipals *principals);
-
-/* Tries to run a GC no matter what (used for GC zeal). */
-void
-RunDebugGC(JSContext *cx);
 
 } /* namespace js */
 } /* namespace gc */

@@ -51,7 +51,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/log4moz.js");
 
@@ -133,7 +132,7 @@ HistoryStore.prototype = {
     let stmt = this._setGUIDStm;
     stmt.params.guid = guid;
     stmt.params.page_url = uri;
-    Async.querySpinningly(stmt);
+    Utils.queryAsync(stmt);
     return guid;
   },
 
@@ -150,7 +149,7 @@ HistoryStore.prototype = {
     stm.params.page_url = uri.spec ? uri.spec : uri;
 
     // Use the existing GUID if it exists
-    let result = Async.querySpinningly(stm, this._guidCols)[0];
+    let result = Utils.queryAsync(stm, this._guidCols)[0];
     if (result && result.guid)
       return result.guid;
 
@@ -189,13 +188,13 @@ HistoryStore.prototype = {
   // See bug 320831 for why we use SQL here
   _getVisits: function HistStore__getVisits(uri) {
     this._visitStm.params.url = uri;
-    return Async.querySpinningly(this._visitStm, this._visitCols);
+    return Utils.queryAsync(this._visitStm, this._visitCols);
   },
 
   // See bug 468732 for why we use SQL here
   _findURLByGUID: function HistStore__findURLByGUID(guid) {
     this._urlStm.params.guid = guid;
-    return Async.querySpinningly(this._urlStm, this._urlCols)[0];
+    return Utils.queryAsync(this._urlStm, this._urlCols)[0];
   },
 
   changeItemID: function HStore_changeItemID(oldID, newID) {
@@ -208,7 +207,7 @@ HistoryStore.prototype = {
     this._allUrlStm.params.cutoff_date = (Date.now() - 2592000000) * 1000;
     this._allUrlStm.params.max_results = MAX_HISTORY_UPLOAD;
 
-    let urls = Async.querySpinningly(this._allUrlStm, this._allUrlCols);
+    let urls = Utils.queryAsync(this._allUrlStm, this._allUrlCols);
     let self = this;
     return urls.reduce(function(ids, item) {
       ids[self.GUIDForUri(item.url, true)] = item.url;
@@ -252,7 +251,7 @@ HistoryStore.prototype = {
       return failed;
     }
 
-    let cb = Async.makeSyncCallback();
+    let cb = Utils.makeSyncCallback();
     let onPlace = function onPlace(result, placeInfo) {
       if (!Components.isSuccessCode(result)) {
         failed.push(placeInfo.guid);
@@ -264,7 +263,7 @@ HistoryStore.prototype = {
     };
     Svc.Obs.add(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
     this._asyncHistory.updatePlaces(records, onPlace);
-    Async.waitForSyncCallback(cb);
+    Utils.waitForSyncCallback(cb);
     return failed;
   },
 

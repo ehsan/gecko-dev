@@ -651,8 +651,6 @@ protected:
     virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify);
 
-    virtual void UpdateEditableState(PRBool aNotify);
-
     virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
@@ -710,15 +708,6 @@ protected:
            PRBool aIsScriptable);
 
     friend class nsScriptEventHandlerOwnerTearoff;
-
-    bool IsReadWriteTextElement() const
-    {
-        const nsIAtom* tag = Tag();
-        return
-            GetNameSpaceID() == kNameSpaceID_XUL &&
-            (tag == nsGkAtoms::textbox || tag == nsGkAtoms::textarea) &&
-            !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
-    }
 };
 
 #endif // nsXULElement_h__

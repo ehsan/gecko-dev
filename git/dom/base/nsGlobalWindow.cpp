@@ -114,6 +114,7 @@
 #include "nsIDOMCrypto.h"
 #endif
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -190,7 +191,7 @@
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsIDOMXULControlElement.h"
-#include "nsMenuPopupFrame.h"
+#include "nsIFrame.h"
 #endif
 
 #include "xpcprivate.h"
@@ -907,20 +908,20 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 
   if (gRefCnt == 1) {
 #if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
-    Preferences::AddBoolVarCache(&gDOMWindowDumpEnabled,
-                                 "browser.dom.window.dump.enabled");
+    nsContentUtils::AddBoolPrefVarCache("browser.dom.window.dump.enabled",
+                                        &gDOMWindowDumpEnabled);
 #endif
-    Preferences::AddIntVarCache(&gMinTimeoutValue,
-                                "dom.min_timeout_value",
-                                DEFAULT_MIN_TIMEOUT_VALUE);
-    Preferences::AddIntVarCache(&gMinBackgroundTimeoutValue,
-                                "dom.min_background_timeout_value",
-                                DEFAULT_MIN_BACKGROUND_TIMEOUT_VALUE);
+    nsContentUtils::AddIntPrefVarCache("dom.min_timeout_value",
+                                       &gMinTimeoutValue,
+                                       DEFAULT_MIN_TIMEOUT_VALUE);
+    nsContentUtils::AddIntPrefVarCache("dom.min_background_timeout_value",
+                                       &gMinBackgroundTimeoutValue,
+                                       DEFAULT_MIN_BACKGROUND_TIMEOUT_VALUE);
   }
 
   if (gDumpFile == nsnull) {
-    const nsAdoptingCString& fname =
-      Preferences::GetCString("browser.dom.window.dump.file");
+    const nsAdoptingCString& fname = 
+      nsContentUtils::GetCharPref("browser.dom.window.dump.file");
     if (!fname.IsEmpty()) {
       // if this fails to open, Dump() knows to just go to stdout
       // on null.
@@ -4587,32 +4588,12 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
   }
 }
 
+// static
 PRBool
 nsGlobalWindow::CanMoveResizeWindows()
 {
-  // When called from chrome, we can avoid the following checks.
-  if (!nsContentUtils::IsCallerTrustedForWrite()) {
-    // Don't allow scripts to move or resize windows that were not opened by a
-    // script.
-    if (!mHadOriginalOpener) {
-      return PR_FALSE;
-    }
-
-    if (!CanSetProperty("dom.disable_window_move_resize")) {
-      return PR_FALSE;
-    }
-
-    // Ignore the request if we have more than one tab in the window.
-    nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-    GetTreeOwner(getter_AddRefs(treeOwner));
-    if (treeOwner) {
-      PRUint32 itemCount;
-      if (NS_SUCCEEDED(treeOwner->GetTargetableShellCount(&itemCount)) &&
-          itemCount > 1) {
-        return PR_FALSE;
-      }
-    }
-  }
+  if (!CanSetProperty("dom.disable_window_move_resize"))
+    return PR_FALSE;
 
   if (gMouseDown && !gDragServiceDisabled) {
     nsCOMPtr<nsIDragService> ds =
@@ -5026,7 +5007,7 @@ nsGlobalWindow::Home()
     return NS_OK;
 
   nsAdoptingString homeURL =
-    Preferences::GetLocalizedString(PREF_BROWSER_STARTUP_HOMEPAGE);
+    nsContentUtils::GetLocalizedStringPref(PREF_BROWSER_STARTUP_HOMEPAGE);
 
   if (homeURL.IsEmpty()) {
     // if all else fails, use this
@@ -7653,8 +7634,6 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
 {
   FORWARD_TO_INNER_VOID(SetKeyboardIndicators, (aShowAccelerators, aShowFocusRings));
 
-  PRBool oldShouldShowFocusRing = ShouldShowFocusRing();
-
   // only change the flags that have been modified
   if (aShowAccelerators != UIStateChangeType_NoChange)
     mShowAccelerators = aShowAccelerators == UIStateChangeType_Set;
@@ -7677,15 +7656,11 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
     }
   }
 
-  PRBool newShouldShowFocusRing = ShouldShowFocusRing();
-  if (mHasFocus && mFocusedNode &&
-      oldShouldShowFocusRing != newShouldShowFocusRing &&
-      mFocusedNode->IsElement()) {
-    // Update mFocusedNode's state.
-    if (newShouldShowFocusRing) {
-      mFocusedNode->AsElement()->AddStates(NS_EVENT_STATE_FOCUSRING);
-    } else {
-      mFocusedNode->AsElement()->RemoveStates(NS_EVENT_STATE_FOCUSRING);
+  if (mHasFocus && mFocusedNode) { // send content state notifications
+    nsIDocument *doc = mFocusedNode->GetCurrentDoc();
+    if (doc) {
+      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+      doc->ContentStateChanged(mFocusedNode, NS_EVENT_STATE_FOCUSRING);
     }
   }
 }
@@ -10214,28 +10189,9 @@ nsGlobalChromeWindow::GetAttentionWithCycleCount(PRInt32 aCycleCount)
 }
 
 NS_IMETHODIMP
-nsGlobalChromeWindow::BeginWindowMove(nsIDOMEvent *aMouseDownEvent, nsIDOMElement* aPanel)
+nsGlobalChromeWindow::BeginWindowMove(nsIDOMEvent *aMouseDownEvent)
 {
-  nsCOMPtr<nsIWidget> widget;
-
-  // if a panel was supplied, use its widget instead.
-#ifdef MOZ_XUL
-  if (aPanel) {
-    nsCOMPtr<nsIContent> panel = do_QueryInterface(aPanel);
-    NS_ENSURE_TRUE(panel, NS_ERROR_FAILURE);
-
-    nsIFrame* frame = panel->GetPrimaryFrame();
-    NS_ENSURE_TRUE(frame && frame->GetType() == nsGkAtoms::menuPopupFrame, NS_OK);
-
-    (static_cast<nsMenuPopupFrame*>(frame))->GetWidget(getter_AddRefs(widget));
-  }
-  else {
-#endif
-    widget = GetMainWidget();
-#ifdef MOZ_XUL
-  }
-#endif
-
+  nsCOMPtr<nsIWidget> widget = GetMainWidget();
   if (!widget) {
     return NS_OK;
   }
@@ -10591,11 +10547,11 @@ nsresult
 NS_GetNavigatorPlatform(nsAString& aPlatform)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingString& override =
-      Preferences::GetString("general.platform.override");
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.platform.override");
 
     if (override) {
-      aPlatform = override;
+      CopyUTF8toUTF16(override, aPlatform);
       return NS_OK;
     }
   }
@@ -10635,11 +10591,11 @@ nsresult
 NS_GetNavigatorAppVersion(nsAString& aAppVersion)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingString& override =
-      Preferences::GetString("general.appversion.override");
+    const nsAdoptingCString& override = 
+      nsContentUtils::GetCharPref("general.appversion.override");
 
     if (override) {
-      aAppVersion = override;
+      CopyUTF8toUTF16(override, aAppVersion);
       return NS_OK;
     }
   }
@@ -10672,11 +10628,11 @@ nsresult
 NS_GetNavigatorAppName(nsAString& aAppName)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingString& override =
-      Preferences::GetString("general.appname.override");
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.appname.override");
 
     if (override) {
-      aAppName = override;
+      CopyUTF8toUTF16(override, aAppName);
       return NS_OK;
     }
   }
@@ -10735,7 +10691,7 @@ nsNavigator::GetLanguage(nsAString& aLanguage)
 {
   // e.g. "de-de, en-us,en"
   const nsAdoptingString& acceptLang =
-    Preferences::GetLocalizedString("intl.accept_languages");
+      nsContentUtils::GetLocalizedStringPref("intl.accept_languages");
   // take everything before the first "," or ";", without trailing space
   nsCharSeparatedTokenizer langTokenizer(acceptLang, ',');
   const nsSubstring &firstLangPart = langTokenizer.nextToken();
@@ -10780,11 +10736,11 @@ NS_IMETHODIMP
 nsNavigator::GetOscpu(nsAString& aOSCPU)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingString& override =
-      Preferences::GetString("general.oscpu.override");
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.oscpu.override");
 
     if (override) {
-      aOSCPU = override;
+      CopyUTF8toUTF16(override, aOSCPU);
       return NS_OK;
     }
   }
@@ -10835,21 +10791,21 @@ NS_IMETHODIMP
 nsNavigator::GetProductSub(nsAString& aProductSub)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingString& override =
-      Preferences::GetString("general.productSub.override");
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.productSub.override");
 
     if (override) {
-      aProductSub = override;
+      CopyUTF8toUTF16(override, aProductSub);
       return NS_OK;
-    }
+    } else {
+      // 'general.useragent.productSub' backwards compatible with 1.8 branch.
+      const nsAdoptingCString& override2 =
+        nsContentUtils::GetCharPref("general.useragent.productSub");
 
-    // 'general.useragent.productSub' backwards compatible with 1.8 branch.
-    const nsAdoptingString& override2 =
-      Preferences::GetString("general.useragent.productSub");
-
-    if (override2) {
-      aProductSub = override2;
-      return NS_OK;
+      if (override2) {
+        CopyUTF8toUTF16(override2, aProductSub);
+        return NS_OK;
+      }
     }
   }
 
@@ -10922,11 +10878,11 @@ NS_IMETHODIMP
 nsNavigator::GetBuildID(nsAString& aBuildID)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
-    const nsAdoptingString& override =
-      Preferences::GetString("general.buildID.override");
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.buildID.override");
 
     if (override) {
-      aBuildID = override;
+      CopyUTF8toUTF16(override, aBuildID);
       return NS_OK;
     }
   }

@@ -724,7 +724,7 @@ protected:
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
 
-  PRBool CanMoveResizeWindows();
+  static PRBool CanMoveResizeWindows();
 
   PRBool   GetBlurSuppression();
 

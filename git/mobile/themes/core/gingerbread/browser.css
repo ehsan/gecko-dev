@@ -75,7 +75,7 @@ toolbarbutton.urlbar-button {
 }
 
 #tool-app-switch:hover:active {
-  background-color: @color_background_highlight@ !important;
+  background-color: #8db8d8 !important;
   -moz-border-radius-bottomright: @border_radius_small@;
 }
 
@@ -96,7 +96,7 @@ toolbarbutton.urlbar-button {
 }
 
 #tool-app-close:hover:active {
-  background-color: @color_background_highlight@ !important;
+  background-color: #8db8d8 !important;
 }
 
 #tool-app-close:hover:active:-moz-locale-dir(ltr) {
@@ -202,7 +202,7 @@ toolbarbutton.urlbar-button {
 }
 
 #urlbar-title.placeholder {
-  color: @color_text_placeholder@;
+  color: gray;
 }
 
 #urlbar-edit,
@@ -349,7 +349,7 @@ toolbarbutton.button-control:not([disabled="true"]):hover:active {
 }
 
 .panel-close:hover:active {
-  background-color: @color_background_highlight@ !important;
+  background-color: #8db8d8 !important;
 }
 
 .panel-close:hover:active:-moz-locale-dir(ltr) {
@@ -395,7 +395,7 @@ remotetabslist > hbox.remotetabs-throbber-box {
 
 historylist[loading="true"] > hbox.history-throbber-box,
 remotetabslist[loading="true"] > hbox.remotetabs-throbber-box {
-  background-color: white; /* force */
+  background-color: white;
   display: -moz-box;
 }
 
@@ -422,10 +422,8 @@ remotetabslist[loading="true"] > richlistbox.remotetabs-list-children {
   margin: 0;
   padding: @padding_small@ @padding_normal@ @padding_normal@ @padding_normal@;
   font-weight: bold;
-  color: @color_text_default@ !important;
-  background-image: url(images/row-header-bg.png);
-  background-repeat: repeat-x;
-  background-size: auto 100%;
+  color: white !important;
+  background-color: rgb(101, 121, 227) !important;
 }
 
 #tool-addons {
@@ -463,7 +461,7 @@ remotetabslist[loading="true"] > richlistbox.remotetabs-list-children {
 @media (@orientation@: portrait) {
   #addons-repo {
     -moz-box-orient: vertical;
-    -moz-box-align: stretch;
+    -moz-box-pack: center;
   }
 }
 
@@ -515,13 +513,22 @@ remotetabslist[loading="true"] > richlistbox.remotetabs-list-children {
   -moz-margin-end: @margin_normal@;
 }
 
-richlistitem[isDisabled="true"] .title,
+richlistitem[isDisabled="true"] .title {
+  color: gray;
+}
+
 richlistitem[isDisabled="true"] .normal {
-  color: @color_text_disabled@;
+  color: lightgray;
 }
 
 richlistitem[isDisabled="true"] image {
   opacity: 0.25;
+}
+
+richlistitem[typeName="banner"],
+richlistitem[typeName="showmore"] {
+  background-color: rgb(255,255,255);
+  background: url(chrome://browser/skin/images/browseaddons-bg.jpg) repeat-x center top;
 }
 
 /* downloads panel UI   ---------------------------------------------------- */
@@ -542,12 +549,12 @@ richlistitem[isDisabled="true"] image {
 }
 
 #dl-empty-message:active {
-  background-color: @color_background_default@;
+  background-color: white;
 }
 
 #dl-empty-message > label {
   text-align: center;
-  color: @color_text_placeholder@;
+  color: grey;
 }
 
 /* console panel UI   ------------------------------------------------------ */
@@ -585,7 +592,7 @@ placelabel {
   background-repeat: no-repeat, repeat-x;
   background-position: 98% 50%, top left;
   background-size: auto auto, auto 100%;
-  color: black; /* force */
+  color: #000;
   min-height: @touch_row@; /* row size */
 }
 
@@ -595,8 +602,7 @@ placelabel:-moz-locale-dir(rtl) {
 
 placelabel:hover:active {
   background-image: url(images/arrowup-16.png);
-  background-color: @color_background_highlight@;
-  color: @color_text_highlight@;
+  background-color: #8db8d8;
 }
 
 /* folder bookmarks row */
@@ -646,19 +652,16 @@ placeitem[ui="manage"] > .bookmark-manage textbox[anonid="uri"]:-moz-locale-dir(
   text-align: right;
 }
 
-/* force the richlistboxes to have a white background */
-.autocomplete-items,
-.place-list-children,
-.history-list-children,
-.remotetabs-list-children {
-  background-color: white; /* force */
+/* autocomplete-items */
+.autocomplete-items {
+  background-color: white;
 }
 
 autocompleteresult,
 placeitem {
   -moz-user-focus: ignore;
-  color: black; /* force */
-  background-color: white; /* force */
+  color: black;
+  background-color: white;
   padding: @padding_xsmall@ @padding_small@;
   border-bottom: @border_width_tiny@ solid rgb(207,207,207);
   min-height: @touch_row@; /* row size */
@@ -669,8 +672,7 @@ placelist placeitem:hover:active:not([selected="true"]),
 historylist autocompleteresult:hover:active:not([selected="true"]):not([class="history-item-title"]),
 remotetabslist autocompleteresult:hover:active:not([selected="true"]):not([class="remotetabs-item-title"]),
 .autocompleteresult-selected {
-  background-color: @color_background_highlight@;
-  color: @color_text_highlight@;
+  background-color: #8db8d8;
 }
 
 .autocomplete-item-container,
@@ -749,7 +751,7 @@ placeitem[src=""] .bookmark-item-container > image {
 
 .autocomplete-item-subtitle,
 .bookmark-item-url {
-  color: blue; /* force */
+  color: blue;
   font-size: @font_small@ !important;
   -moz-margin-end: @autocomplete_item_subtitle_margin@;
 }
@@ -761,7 +763,8 @@ placeitem[src=""] .bookmark-item-container > image {
 }
 
 .autocomplete-item-container[search="true"] .autocomplete-item-subtitle {
-  color: black; /* force */
+  color: black;
+  font-size: smaller;
 }
 
 .autocomplete-item-tags,
@@ -800,7 +803,8 @@ autocompleteresult:not([badge]) .autocomplete-item-badge,
 
 /* special "no results", "awesome header row" and "title rows" items */
 autocompleteresult[class="history-item-title"],
-autocompleteresult[class="remotetabs-item-title"] {
+autocompleteresult[class="remotetabs-item-title"],
+.settings-title {
   min-height: 0;
   color: @color_text_default@;
   font-size: smaller;
@@ -854,12 +858,12 @@ autocompleteresult.noresults {
 }
 
 autocompleteresult.noresults:hover:active {
-  background-color: white !important; /* force */
+  background-color: white !important;
 }
 
 autocompleteresult.noresults > .autocomplete-item-container {
   text-align: center;
-  color: @color_text_placeholder@;
+  color: grey;
 }
 
 /* Left sidebar (tabs)  ---------------------------------------------------- */
@@ -987,7 +991,6 @@ documenttab[reload="true"] > stack > .documenttab-reload {
 /* Popup Icons */
 #identity-popup-icon {
   padding: 0;
-  padding-top: @padding_snormal@; /* align to top of text */
   list-style-image: url("chrome://browser/skin/images/identity-default-hdpi.png");
 }
 
@@ -1031,7 +1034,6 @@ documenttab[reload="true"] > stack > .documenttab-reload {
 }
 
 #identity-popup-encryption-icon {
-  padding-top: @padding_snormal@; /* align to top of text */
   list-style-image: url("chrome://browser/skin/images/unlocked-hdpi.png");
 }
 
@@ -1060,8 +1062,8 @@ pageaction {
   -moz-border-left-colors: white;
   border-style: solid;
   border-width: @border_width_tiny@ !important;
-  height: @touch_button_xlarge@;
-  min-height: @touch_button_xlarge@;
+  height: @touch_button_large@;
+  min-height: @touch_button_large@;
   width: 100%;
   min-width: @touch_action_minwidth@; /* keep the button from being too narrow */
 }
@@ -1079,12 +1081,11 @@ pageaction {
 .action-button[disabled="true"],
 .context-command[disabled="true"] {
   pointer-events: none;
-  color: @color_text_disabled@ !important;
+  color: #aaa !important;
 }
 
 .action-button[selected="true"],
 .context-command[selected="true"] {
-  color: black; /* force */
   background: transparent;
 }
 
@@ -1119,9 +1120,7 @@ pageaction {
 .action-button:not([disabled]):hover:active,
 .context-command:not([disabled]):hover:active,
 pageaction:not([disabled]):hover:active {
-  color: @color_text_highlight@;
-  background-color: @color_background_highlight@;
-  background-image: none !important;
+  background: url("chrome://browser/skin/images/popup-selected-item-hdpi.png") repeat-x !important;
   background-origin: border-box !important;
   background-clip: border-box !important;
   -moz-border-top-colors: transparent;
@@ -1142,12 +1141,12 @@ pageaction:not([image]) > hbox >.pageaction-image {
 .context-command,
 .pageaction-title {
   font-size: @font_normal@ !important;
-  color: black; /* force */
+  color: #414141 !important;
 }
 
 .pageaction-desc {
   font-size: @font_tiny@ !important;
-  color: @color_subtext_inverse@;
+  color: #414141;
 }
 
 .pageaction-desc[value=""] {
@@ -1179,57 +1178,42 @@ pageaction:not([image]) > hbox >.pageaction-image {
 }
 
 /* Preferences window   ---------------------------------------------------- */
-.settings-title {
-  min-height: 0;
-  color: @color_text_header@;
-  background-color: @color_background_header@;
-  font-size: smaller;
-  font-weight: bold;
-  margin: 0;
-  padding: @autocompleteresult_padding@ @padding_xnormal@;
-  border-bottom: @border_width_tiny@ solid @color_divider_border@;
-}
-
 .setting {
   padding-left: @padding_xnormal@;
   border-bottom: @border_width_tiny@ solid #cacdd5;
 }
 
-setting {
+/* XXX should be a richlistitem */
+.prefbox {
   padding: @padding_xsmall@;
-  border-bottom: @border_width_tiny@ solid @color_divider_border@;
+  border-bottom: @border_width_tiny@ solid rgb(207,207,207);
   min-height: @touch_row@; /* row size */
   -moz-box-align: center;
-  -moz-box-orient: horizontal;
 }
 
-.setting-label {
-  -moz-box-flex: 1;
-}
-
-.setting-group > setting {
+.setting-group > .prefbox {
   border-bottom: none;
 }
 
-.setting-subgroup > setting {
+.setting-subgroup > .prefbox {
   border-bottom: none;
   -moz-margin-start: @margin_xxxnormal@;
 }
 
-.setting-subgroup + :not(.setting-subgroup) > setting {
+.setting-subgroup + :not(.setting-subgroup) > .prefbox {
   border-top: @border_width_tiny@ solid rgb(207,207,207);
 }
 
 /* Put setting textboxes on a separate row in portrait */
 @media (@orientation@: portrait) {
-  setting[type="integer"],
-  setting[type="string"] {
+  .setting-integer,
+  .setting-string {
     -moz-box-align: start;
     -moz-box-orient: vertical;
   }
 
-  setting[type="integer"] > .setting-input > textbox,
-  setting[type="string"] > .setting-input > textbox {
+  .setting-integer > .setting-input > textbox,
+  .setting-string > .setting-input > textbox {
     width: 499px; /* textboxes seem to need a width in order to flex */
     -moz-box-flex: 1;
   }
@@ -1239,24 +1223,24 @@ setting {
   -moz-margin-start: 28px;  /* sized based on the 32px addon image */
 }
 
-.options-box > setting:last-child {
+.options-box > setting:last-child > .prefbox {
   border-bottom: 0;
 }
 
 /* XXX should be a richlistitem description.title */
-.preferences-title {
+.preftitle {
   font-size: @font_normal@ !important;
 }
 
 /* XXX should be a richlistitem description.normal */
-.preferences-description {
+.prefdesc {
   font-size: @font_small@ !important;
-  color: @color_subtext_default@;
+  color: grey;
 }
 
 /* alerts popup ----------------------------------------------------------- */
 #alerts-container {
-  color: @color_text_default@;
+  color: white;
   background-color: #5e6166;
   border: @border_width_small@ solid #767973;
   border-radius: @border_radius_normal@;
@@ -1337,36 +1321,28 @@ setting {
   margin-bottom: @margin_small@ !important;
 }
 
+richlistitem.appmenu-site-button > image,
 .appmenu-site-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-site-hdpi.png");
 }
 
+richlistitem.appmenu-addons-button > image,
 .appmenu-addons-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-addons-hdpi.png");
 }
 
+richlistitem.appmenu-preferences-button > image,
 .appmenu-preferences-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-preferences-hdpi.png");
 }
 
+richlistitem.appmenu-downloads-button > image,
 .appmenu-downloads-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-downloads-hdpi.png");
 }
 
-.appmenu-findinpage-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-findinpage-hdpi.png");
-}
-
-.appmenu-saveas-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-downloads-hdpi.png");
-}
-
-.appmenu-share-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-share-hdpi.png");
-}
-
 #appmenu-more-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-more-hdpi.png");
+  list-style-image: url("chrome://browser/skin/images/appmenu-site-hdpi.png");
   display: none;
 }
 
@@ -1391,37 +1367,14 @@ setting {
   }
 }
 
-#appmenu-overflow {
-  background: @color_background_default@;
-  border-style: solid;
-  border-color: @color_dialog_border@;
-  border-width: @border_width_small@ @border_width_small@ 0 @border_width_small@;
-  margin: @margin_xxxnormal@ @margin_xxxnormal@ 0 @margin_xxxnormal@;
-}
-
-#appmenu-overflow-commands > .appmenu-button {
-  color: @color_text_default@;
-  background: transparent;
-  font-size: @font_normal@ !important;
-  height: @touch_button_xlarge@;
-  min-height: @touch_button_xlarge@;
-  width: 100%; 
-  -moz-box-align: center;
-}
-
-#appmenu-overflow-commands > .appmenu-button:hover:active {
-  background-image: url("chrome://browser/skin/images/appmenu-active-hdpi.png");
-  background-size: 100% 100%;
-}
-
 /* Sync setup ------------------------------------------------------------- */
 .syncsetup-center {
   /* TODO: remove this dummy when we no longer use it in other themes */
 }
 
 .syncsetup-code {
-  color: @color_text_inverse@;
-  background-color: @color_background_inverse@;
+  color: #000;
+  background-color: #fff;
   font-size: @font_xlarge@ !important;
   padding: 0.2em 0.4em;
   -moz-padding-end: 0.2em;
@@ -1430,8 +1383,12 @@ setting {
   min-width: 5.5em;
 }
 
+.syncsetup-link {
+  text-decoration: underline;
+}
+
 .syncsetup-label {
-  color: @color_text_default@;
+  color: #fff;
 }
 
 #syncsetup-customserver {
@@ -1441,12 +1398,12 @@ setting {
 /* content scrollbars */
 .scroller {
   opacity: 0;
-  background-color: @color_background_scroller@ !important;
+  background-color: rgba(0, 0, 0, 0.4) !important;
   -moz-border-top-colors: none !important;
   -moz-border-bottom-colors: none !important;
   -moz-border-right-colors: none !important;
   -moz-border-left-colors: none !important;
-  border: @border_width_tiny@ solid rgba(0, 0, 0, 0.4) !important;
+  border: @border_width_tiny@ solid rgba(255, 255, 255, 0.4) !important;
 }
 
 .scroller[panning="true"] {

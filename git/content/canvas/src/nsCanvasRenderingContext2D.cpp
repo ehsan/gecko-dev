@@ -536,9 +536,11 @@ protected:
     {
         ContextState& state = CurrentState();
 
+        // The spec says we should not draw shadows when the alpha value is 0,
+        // regardless of the operator being used.
         return state.StyleIsColor(STYLE_SHADOW) &&
                NS_GET_A(state.colorStyles[STYLE_SHADOW]) > 0 &&
-               mThebes->CurrentOperator() == gfxContext::OPERATOR_OVER;
+               (state.shadowOffset != gfxPoint(0, 0) || state.shadowBlur != 0);
     }
 
     /**
@@ -1035,7 +1037,9 @@ nsCanvasRenderingContext2D::Redraw()
         return NS_OK;
     }
 
+#ifdef MOZ_SVG
     nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
+#endif
 
     HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
 
@@ -1060,7 +1064,9 @@ nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
         return NS_OK;
     }
 
+#ifdef MOZ_SVG
     nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
+#endif
 
     HTMLCanvasElement()->InvalidateCanvasContent(&r);
 
@@ -3233,8 +3239,7 @@ nsCanvasRenderingContext2D::IsPointInPath(float x, float y, PRBool *retVal)
         return NS_OK;
     }
 
-    gfxPoint pt(x, y);
-    *retVal = mThebes->PointInFill(mThebes->DeviceToUser(pt));
+    *retVal = mThebes->PointInFill(gfxPoint(x,y));
     return NS_OK;
 }
 
@@ -3458,7 +3463,8 @@ nsCanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op)
     if (op.EqualsLiteral(cvsop))   \
         thebes_op = gfxContext::OPERATOR_##thebesop;
 
-    CANVAS_OP_TO_THEBES_OP("copy", SOURCE)
+    CANVAS_OP_TO_THEBES_OP("clear", CLEAR)
+    else CANVAS_OP_TO_THEBES_OP("copy", SOURCE)
     else CANVAS_OP_TO_THEBES_OP("destination-atop", DEST_ATOP)
     else CANVAS_OP_TO_THEBES_OP("destination-in", DEST_IN)
     else CANVAS_OP_TO_THEBES_OP("destination-out", DEST_OUT)
@@ -3469,6 +3475,8 @@ nsCanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op)
     else CANVAS_OP_TO_THEBES_OP("source-out", OUT)
     else CANVAS_OP_TO_THEBES_OP("source-over", OVER)
     else CANVAS_OP_TO_THEBES_OP("xor", XOR)
+    // not part of spec, kept here for compat
+    else CANVAS_OP_TO_THEBES_OP("over", OVER)
     // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     else return NS_OK;
 
@@ -3487,7 +3495,10 @@ nsCanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op)
     if (thebes_op == gfxContext::OPERATOR_##thebesop) \
         op.AssignLiteral(cvsop);
 
-    CANVAS_OP_TO_THEBES_OP("copy", SOURCE)
+    // XXX "darker" isn't really correct
+    CANVAS_OP_TO_THEBES_OP("clear", CLEAR)
+    else CANVAS_OP_TO_THEBES_OP("copy", SOURCE)
+    else CANVAS_OP_TO_THEBES_OP("darker", SATURATE)  // XXX
     else CANVAS_OP_TO_THEBES_OP("destination-atop", DEST_ATOP)
     else CANVAS_OP_TO_THEBES_OP("destination-in", DEST_IN)
     else CANVAS_OP_TO_THEBES_OP("destination-out", DEST_OUT)

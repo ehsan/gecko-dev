@@ -42,6 +42,7 @@
 #include "nsIEnumerator.h"
 #include "nsTPtrArray.h"
 #include "nsGkAtoms.h"
+#include "nsIPrefBranch2.h"
 #include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsIDOMWindow.h"
@@ -78,6 +79,7 @@
 #include "nsIViewManager.h"
 #include "nsFrameSelection.h"
 #include "nsXULPopupManager.h"
+#include "nsImageMapUtils.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
@@ -159,20 +161,19 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 nsFocusManager* nsFocusManager::sInstance = nsnull;
 PRBool nsFocusManager::sMouseFocusesFormControl = PR_FALSE;
 
-static const char* kObservedPrefs[] = {
-  "accessibility.browsewithcaret",
-  "accessibility.tabfocus_applies_to_xul",
-  "accessibility.mouse_focuses_formcontrol",
-  NULL
-};
-
 nsFocusManager::nsFocusManager()
 { }
 
 nsFocusManager::~nsFocusManager()
 {
-  Preferences::RemoveObservers(this, kObservedPrefs);
+  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
 
+  if (prefBranch) {
+    prefBranch->RemoveObserver("accessibility.browsewithcaret", this);
+    prefBranch->RemoveObserver("accessibility.tabfocus_applies_to_xul", this);
+    prefBranch->RemoveObserver("accessibility.mouse_focuses_formcontrol", this);
+  }
+  
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
     obs->RemoveObserver(this, "xpcom-shutdown");
@@ -195,7 +196,12 @@ nsFocusManager::Init()
   sMouseFocusesFormControl =
     Preferences::GetBool("accessibility.mouse_focuses_formcontrol", PR_FALSE);
 
-  Preferences::AddWeakObservers(fm, kObservedPrefs);
+  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  if (prefBranch) {
+    prefBranch->AddObserver("accessibility.browsewithcaret", fm, PR_TRUE);
+    prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
+    prefBranch->AddObserver("accessibility.mouse_focuses_formcontrol", fm, PR_TRUE);
+  }
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
@@ -803,7 +809,6 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
   // of the currently focused element, reset the focus within that window.
   nsIContent* content = window->GetFocusedNode();
   if (content && nsContentUtils::ContentIsDescendantOf(content, aContent)) {
-    PRBool shouldShowFocusRing = window->ShouldShowFocusRing();
     window->SetFocusedNode(nsnull);
 
     nsCOMPtr<nsIDocShell> docShell = window->GetDocShell();
@@ -833,8 +838,6 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
         }
       }
     }
-
-    NotifyFocusStateChange(aContent, shouldShowFocusRing, PR_FALSE);
   }
 
   return NS_OK;
@@ -887,6 +890,18 @@ nsFocusManager::WindowShown(nsIDOMWindow* aWindow, PRBool aNeedsFocus)
   return NS_OK;
 }
 
+static void
+NotifyFocusStateChange(nsIContent* aContent, nsPIDOMWindow* aWindow)
+{
+  nsIDocument *doc = aContent->GetCurrentDoc();
+  MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+  nsEventStates eventState = NS_EVENT_STATE_FOCUS;
+  if (aWindow->ShouldShowFocusRing()) {
+    eventState |= NS_EVENT_STATE_FOCUSRING;
+  }
+  doc->ContentStateChanged(aContent, eventState);
+}
+
 NS_IMETHODIMP
 nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
 {
@@ -937,9 +952,7 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
   mFocusedContent = nsnull;
 
   if (oldFocusedContent && oldFocusedContent->IsInDoc()) {
-    NotifyFocusStateChange(oldFocusedContent,
-                           mFocusedWindow->ShouldShowFocusRing(),
-                           PR_FALSE);
+    NotifyFocusStateChange(oldFocusedContent, mFocusedWindow);
   }
 
   nsCOMPtr<nsIDocShell> focusedDocShell = mFocusedWindow->GetDocShell();
@@ -1024,26 +1037,6 @@ nsFocusManager::FocusPlugin(nsIContent* aContent)
   NS_ENSURE_ARG(aContent);
   SetFocusInner(aContent, 0, PR_TRUE, PR_FALSE);
   return NS_OK;
-}
-
-/* static */
-void
-nsFocusManager::NotifyFocusStateChange(nsIContent* aContent,
-                                       PRBool aWindowShouldShowFocusRing,
-                                       PRBool aGettingFocus)
-{
-  if (!aContent->IsElement()) {
-    return;
-  }
-  nsEventStates eventState = NS_EVENT_STATE_FOCUS;
-  if (aWindowShouldShowFocusRing) {
-    eventState |= NS_EVENT_STATE_FOCUSRING;
-  }
-  if (aGettingFocus) {
-    aContent->AsElement()->AddStates(eventState);
-  } else {
-    aContent->AsElement()->RemoveStates(eventState);
-  }
 }
 
 // static
@@ -1514,7 +1507,6 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
   // now adjust the actual focus, by clearing the fields in the focus manager
   // and in the window.
   mFocusedContent = nsnull;
-  PRBool shouldShowFocusRing = window->ShouldShowFocusRing();
   if (aWindowToClear)
     aWindowToClear->SetFocusedNode(nsnull);
 
@@ -1527,7 +1519,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
     content && content->IsInDoc() && !IsNonFocusableRoot(content);
   if (content) {
     if (sendBlurEvent) {
-      NotifyFocusStateChange(content, shouldShowFocusRing, PR_FALSE);
+      NotifyFocusStateChange(content, window);
     }
 
     // if an object/plug-in is being blurred, move the system focus to the
@@ -1743,7 +1735,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       if (aFocusChanged)
         ScrollIntoView(presShell, aContent, aFlags);
 
-      NotifyFocusStateChange(aContent, aWindow->ShouldShowFocusRing(), PR_TRUE);
+      NotifyFocusStateChange(aContent, aWindow);
 
       // if this is an object/plug-in, focus the plugin's widget.  Note that we might
       // no longer be in the same document, due to the events we fired above when
@@ -2814,9 +2806,10 @@ nsFocusManager::GetNextTabbableMapArea(PRBool aForward,
 
   nsCOMPtr<nsIDocument> doc = aImageContent->GetDocument();
   if (doc) {
-    nsCOMPtr<nsIContent> mapContent = doc->FindImageMap(useMap);
-    if (!mapContent)
+    nsCOMPtr<nsIDOMHTMLMapElement> imageMap = nsImageMapUtils::FindImageMap(doc, useMap);
+    if (!imageMap)
       return nsnull;
+    nsCOMPtr<nsIContent> mapContent = do_QueryInterface(imageMap);
     PRUint32 count = mapContent->GetChildCount();
     // First see if the the start content is in this map
 

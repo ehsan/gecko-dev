@@ -228,7 +228,7 @@ gfxMacFont::InitMetrics()
         return;
     }
 
-    mAdjustedSize = NS_MAX(mStyle.size, 1.0);
+    mAdjustedSize = PR_MAX(mStyle.size, 1.0f);
     mFUnitsConvFactor = mAdjustedSize / upem;
 
     // For CFF fonts, when scaling values read from CGFont* APIs, we need to

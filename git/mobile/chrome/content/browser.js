@@ -266,7 +266,7 @@ var Browser = {
       ViewableAreaObserver.update();
 
       // Restore the previous scroll position
-      let restorePosition = Browser.controlsPosition || { hideSidebars: true };
+      let restorePosition = Browser.controlsPosition;
       if (restorePosition.hideSidebars) {
         restorePosition.hideSidebars = false;
         Browser.hideSidebars();
@@ -378,11 +378,6 @@ var Browser = {
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
-
-    // if we have an opener this was not the first window opened and will not
-    // receive an initial resize event. instead we fire the resize handler manually
-    if (window.opener)
-      resizeHandler({ target: window });
   },
 
   _alertShown: function _alertShown() {
@@ -2736,8 +2731,7 @@ Tab.prototype = {
 
     try {
       let flags = aParams.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-      let postData = aParams.postData ? aParams.postData.value : null;
-      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, postData);
+      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, aParams.postData);
     } catch(e) {
       dump("Error: " + e + "\n");
     }
@@ -3026,15 +3020,12 @@ var ViewableAreaObserver = {
     return (this._height || window.innerHeight);
   },
 
-  _isKeyboardOpened: true,
+  _isKeyboardOpened: false,
   get isKeyboardOpened() {
     return this._isKeyboardOpened;
   },
 
   set isKeyboardOpened(aValue) {
-    if (!this.hasVirtualKeyboard())
-      return this._isKeyboardOpened;
-
     let oldValue = this._isKeyboardOpened;
 
     if (oldValue != aValue) {
@@ -3045,17 +3036,6 @@ var ViewableAreaObserver = {
       window.dispatchEvent(event);
     }
   },
-
-  hasVirtualKeyboard: function va_hasVirtualKeyboard() {
-#ifndef ANDROID
-#ifndef MOZ_PLATFORM_MAEMO
-    return false;
-#endif
-#endif
-
-    return true;
-  },
-
 
   observe: function va_observe(aSubject, aTopic, aData) {
 #if MOZ_PLATFORM_MAEMO == 6

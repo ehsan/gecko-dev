@@ -39,8 +39,8 @@
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #elif XP_MACOSX
-#include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
+#include "PluginInterposeOSX.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #endif
@@ -59,6 +59,7 @@
 #include "PluginIdentifierParent.h"
 
 #include "nsAutoPtr.h"
+#include "nsContentUtils.h"
 #include "nsCRT.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -126,7 +127,7 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
         NS_ERROR("Out of memory");
     }
 
-    Preferences::RegisterCallback(TimeoutChanged, kTimeoutPref, this);
+    nsContentUtils::RegisterPrefCallback(kTimeoutPref, TimeoutChanged, this);
 }
 
 PluginModuleParent::~PluginModuleParent()
@@ -151,7 +152,7 @@ PluginModuleParent::~PluginModuleParent()
         mSubprocess = nsnull;
     }
 
-    Preferences::UnregisterCallback(TimeoutChanged, kTimeoutPref, this);
+    nsContentUtils::UnregisterPrefCallback(kTimeoutPref, TimeoutChanged, this);
 }
 
 #ifdef MOZ_CRASHREPORTER
@@ -923,6 +924,18 @@ PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
     return NS_OK;
 }
+
+#if defined(XP_MACOSX)
+nsresult
+PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->IsRemoteDrawingCoreAnimation(aDrawing);
+}
+#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,

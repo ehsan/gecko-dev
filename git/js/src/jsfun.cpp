@@ -1230,7 +1230,7 @@ SetCallArg(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     else
         argp = &obj->callObjArg(i);
 
-    GCPoke(cx, *argp);
+    GC_POKE(cx, *argp);
     *argp = *vp;
     return true;
 }
@@ -1253,7 +1253,7 @@ SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 
     Value *up = &obj->getCallObjCallee()->getFlatClosureUpvar(i);
 
-    GCPoke(cx, *up);
+    GC_POKE(cx, *up);
     *up = *vp;
     return true;
 }
@@ -1310,7 +1310,7 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     else
         varp = &obj->callObjVar(i);
 
-    GCPoke(cx, *varp);
+    GC_POKE(cx, *varp);
     *varp = *vp;
     return true;
 }
@@ -2519,7 +2519,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
         AutoArenaAllocator aaa(&cx->tempPool);
         jschar *cp = aaa.alloc<jschar>(args_length + 1);
         if (!cp) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return false;
         }
         jschar *collected_args = cp;

@@ -73,9 +73,6 @@
 #endif
 #include <errno.h>  /* for EINVAL */
 #include <time.h>
-#ifdef ANDROID
-#include <ctype.h>  /* for isalpha() */
-#endif
 
 namespace nspr {
 

@@ -67,9 +67,9 @@ static PRBool sPrecisePref;
 /* static */ void
 nsRefreshDriver::InitializeStatics()
 {
-  Preferences::AddBoolVarCache(&sPrecisePref,
-                               "layout.frame_rate.precise",
-                               PR_FALSE);
+  nsContentUtils::AddBoolPrefVarCache("layout.frame_rate.precise",
+                                      &sPrecisePref,
+                                      PR_FALSE);
 }
 // Compute the interval to use for the refresh driver timer, in
 // milliseconds

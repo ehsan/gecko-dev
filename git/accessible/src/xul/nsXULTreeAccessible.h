@@ -80,7 +80,7 @@ public:
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual void Shutdown();
 
   // nsAccessible
@@ -201,7 +201,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual void Shutdown();
   virtual bool IsPrimaryForNode() const;
 
@@ -235,7 +235,7 @@ protected:
   // nsAccessible
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
 
   // nsXULTreeItemAccessibleBase
 
@@ -266,7 +266,7 @@ public:
   NS_IMETHOD GetName(nsAString& aName);
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual PRBool Init();
   virtual void Shutdown();
 
@@ -299,7 +299,7 @@ protected:
 
   // nsAccessible
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
 };
 
 #endif

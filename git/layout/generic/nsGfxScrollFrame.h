@@ -52,7 +52,9 @@
 #include "nsBoxLayoutState.h"
 #include "nsQueryFrame.h"
 #include "nsCOMArray.h"
+#ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
+#endif
 #include "nsExpirationTracker.h"
 
 class nsPresContext;

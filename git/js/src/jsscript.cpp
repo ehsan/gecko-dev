@@ -179,7 +179,7 @@ Bindings::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
     JS_ASSERT(SIZE_MAX / size_t(n) > sizeof *names);
     JS_ARENA_ALLOCATE_CAST(names, jsuword *, pool, size_t(n) * sizeof *names);
     if (!names) {
-        js_ReportOutOfMemory(cx);
+        js_ReportOutOfScriptQuota(cx);
         return NULL;
     }
 
@@ -391,7 +391,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         JS_ARENA_ALLOCATE_CAST(bitmap, uint32 *, &cx->tempPool,
                                bitmapLength * sizeof *bitmap);
         if (!bitmap) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return false;
         }
 
@@ -1261,9 +1261,6 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     if (!script)
         return NULL;
 
-    cg->bindings.makeImmutable();
-    AutoShapeRooter shapeRoot(cx, cg->bindings.lastShape());
-
     /* Now that we have script, error control flow must go to label bad. */
     script->main += prologLength;
     memcpy(script->code, CG_PROLOG_BASE(cg), prologLength * sizeof(jsbytecode));
@@ -1338,6 +1335,7 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
                script->nClosedVars * sizeof(uint32));
     }
 
+    cg->bindings.makeImmutable();
     script->bindings.transfer(cx, &cg->bindings);
 
     /*
@@ -1647,9 +1645,10 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 }
 
 uintN
-js_FramePCToLineNumber(JSContext *cx, StackFrame *fp, jsbytecode *pc)
+js_FramePCToLineNumber(JSContext *cx, StackFrame *fp)
 {
-    return js_PCToLineNumber(cx, fp->script(), fp->hasImacropc() ? fp->imacropc() : pc);
+    return js_PCToLineNumber(cx, fp->script(),
+                             fp->hasImacropc() ? fp->imacropc() : fp->pc(cx));
 }
 
 uintN
@@ -1764,31 +1763,18 @@ js_GetScriptLineExtent(JSScript *script)
     return 1 + lineno - script->lineno;
 }
 
-namespace js {
-
-uintN
-CurrentLine(JSContext *cx)
-{
-    return js_FramePCToLineNumber(cx, cx->fp(), cx->regs().pc);
-}
-
 const char *
-CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop)
+js::CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop)
 {
-    FrameRegsIter iter(cx);
-    while (!iter.done() && !iter.fp()->isScriptFrame())
-        ++iter;
-
-    if (iter.done()) {
+    StackFrame *fp = js_GetScriptedCaller(cx, NULL);
+    if (!fp) {
         *linenop = 0;
         return NULL;
     }
 
-    *linenop = js_FramePCToLineNumber(cx, iter.fp(), iter.pc());
-    return iter.fp()->script()->filename;
+    *linenop = js_FramePCToLineNumber(cx, fp);
+    return fp->script()->filename;
 }
-
-}  /* namespace js */
 
 class DisablePrincipalsTranscoding {
     JSSecurityCallbacks *callbacks;

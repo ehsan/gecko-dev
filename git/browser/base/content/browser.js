@@ -2257,11 +2257,7 @@ function loadURI(uri, referrer, postData, allowThirdPartyFixup)
   }
 }
 
-function getShortcutOrURI(aURL, aPostDataRef, aMayInheritPrincipal) {
-  // Initialize outparam to false
-  if (aMayInheritPrincipal)
-    aMayInheritPrincipal.value = false;
-
+function getShortcutOrURI(aURL, aPostDataRef) {
   var shortcutURL = null;
   var keyword = aURL;
   var param = "";
@@ -2332,11 +2328,6 @@ function getShortcutOrURI(aURL, aPostDataRef, aMayInheritPrincipal) {
 
     return aURL;
   }
-
-  // This URL came from a bookmark, so it's safe to let it inherit the current
-  // document's principal.
-  if (aMayInheritPrincipal)
-    aMayInheritPrincipal.value = true;
 
   return shortcutURL;
 }
@@ -2882,7 +2873,7 @@ var PrintPreviewListener = {
     this._printPreviewTab = null;
   },
   _toggleAffectedChrome: function () {
-    gNavToolbox.collapsed = gInPrintPreviewMode;
+    gNavToolbox.hidden = gInPrintPreviewMode;
 
     if (gInPrintPreviewMode)
       this._hideChrome();
@@ -2973,7 +2964,11 @@ function FillInHTMLTooltip(tipElement)
   var titleText = null;
   var XLinkTitleText = null;
   var SVGTitleText = null;
+#ifdef MOZ_SVG
   var lookingForSVGTitle = true;
+#else
+  var lookingForSVGTitle = false;
+#endif // MOZ_SVG
   var direction = tipElement.ownerDocument.dir;
 
   // If the element is invalid per HTML5 Forms specifications and has no title,
@@ -2994,8 +2989,11 @@ function FillInHTMLTooltip(tipElement)
       titleText = tipElement.getAttribute("title");
       if ((tipElement instanceof HTMLAnchorElement && tipElement.href) ||
           (tipElement instanceof HTMLAreaElement && tipElement.href) ||
-          (tipElement instanceof HTMLLinkElement && tipElement.href) ||
-          (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))) {
+          (tipElement instanceof HTMLLinkElement && tipElement.href)
+#ifdef MOZ_SVG
+          || (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))
+#endif // MOZ_SVG
+          ) {
         XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       }
       if (lookingForSVGTitle &&

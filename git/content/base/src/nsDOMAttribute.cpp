@@ -555,6 +555,12 @@ nsDOMAttribute::GetIsId(PRBool* aReturn)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsDOMAttribute::GetSchemaTypeInfo(nsIDOM3TypeInfo** aReturn)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 PRBool
 nsDOMAttribute::IsNodeOfType(PRUint32 aFlags) const
 {

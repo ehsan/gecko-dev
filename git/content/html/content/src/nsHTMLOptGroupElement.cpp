@@ -101,8 +101,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 nsHTMLOptGroupElement::nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
-  // We start off enabled
-  AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
 
 nsHTMLOptGroupElement::~nsHTMLOptGroupElement()

@@ -66,7 +66,6 @@
 
 using namespace mozilla;
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 nsIFrame*
 NS_NewHTMLVideoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -102,8 +101,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
                                             nsnull,
                                             kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-    Element* element = NS_NewHTMLImageElement(nodeInfo.forget());
-    mPosterImage = element;
+    mPosterImage = NS_NewHTMLImageElement(nodeInfo.forget());
     NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
 
     // Push a null JSContext on the stack so that code that runs
@@ -120,8 +118,6 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     NS_ENSURE_TRUE(imgContent, NS_ERROR_FAILURE);
 
     imgContent->ForceImageState(PR_TRUE, 0);
-    // And now have it update its internal state
-    element->UpdateState(false);
 
     nsresult res = UpdatePosterSource(PR_FALSE);
     NS_ENSURE_SUCCESS(res,res);

@@ -90,9 +90,6 @@
 #endif
 #include "nsIDOMLoadListener.h"
 #include "nsIDOMEventGroup.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define NS_MAX_XBL_BINDING_RECURSION 20
 
@@ -165,10 +162,12 @@ PRBool CheckTagNameWhiteList(PRInt32 aNameSpaceID, nsIAtom *aTagName)
       }
     }
   }
+#ifdef MOZ_SVG
   else if (aNameSpaceID == kNameSpaceID_SVG &&
            aTagName == nsGkAtoms::generic) {
     return PR_TRUE;
   }
+#endif
 
   return PR_FALSE;
 }
@@ -512,8 +511,9 @@ nsXBLService::nsXBLService(void)
   if (gRefCnt == 1) {
     gClassTable = new nsHashtable();
   }
-
-  Preferences::AddBoolVarCache(&gAllowDataURIs, "layout.debug.enable_data_xbl");
+  
+  nsContentUtils::AddBoolPrefVarCache("layout.debug.enable_data_xbl",
+                                      &gAllowDataURIs);
 }
 
 nsXBLService::~nsXBLService(void)

@@ -504,11 +504,13 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
     return;
   }
   if (aNamespace == kNameSpaceID_SVG) {
+#ifdef MOZ_SVG
     if (aName == nsHtml5Atoms::svg) {
       nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
       NS_ASSERTION(treeOp, "Tree op allocation failed.");
       treeOp->Init(eTreeOpSvgLoad, aElement);
     }
+#endif
     return;
   }
   // we now have only HTML

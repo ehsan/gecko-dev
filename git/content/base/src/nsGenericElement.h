@@ -355,8 +355,6 @@ public:
   }
 
   // nsIContent interface methods
-  virtual void UpdateEditableState(PRBool aNotify);
-
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -865,7 +863,7 @@ protected:
    * Hook that is called by nsGenericElement::SetAttr to allow subclasses to
    * deal with attribute sets.  This will only be called after we have called
    * SetAndTakeAttr and AttributeChanged (that is, after we have actually set
-   * the attr).  It will always be called under a scriptblocker.
+   * the attr).
    *
    * @param aNamespaceID the namespace of the attr being set
    * @param aName the localname of the attribute being set

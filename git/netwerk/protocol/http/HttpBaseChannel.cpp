@@ -498,15 +498,6 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::GetUploadStreamHasHeaders(PRBool *hasHeaders)
-{
-  NS_ENSURE_ARG(hasHeaders);
-
-  *hasHeaders = mUploadStreamHasHeaders;
-  return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIEncodedChannel
 //-----------------------------------------------------------------------------
@@ -1025,7 +1016,7 @@ HttpBaseChannel::SetRedirectionLimit(PRUint32 value)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  mRedirectionLimit = NS_MIN<PRUint32>(value, 0xff);
+  mRedirectionLimit = PR_MIN(value, 0xff);
   return NS_OK;
 }
 

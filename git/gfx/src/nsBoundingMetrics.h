@@ -46,6 +46,7 @@
  * but not the rest of nsFontMetrics, or vice versa.
  */
 
+#ifdef MOZ_MATHML
 struct nsBoundingMetrics {
 
     ///////////
@@ -114,5 +115,6 @@ struct nsBoundingMetrics {
         width += bm.width;
     }
 };
+#endif // MOZ_MATHML
 
 #endif // __nsBoundingMetrics_h

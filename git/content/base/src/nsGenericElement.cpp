@@ -94,10 +94,14 @@
 #include "nsXBLBinding.h"
 #include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
+#include "nsIBoxObject.h"
 #include "nsPIBoxObject.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMNSElement.h"
 #include "nsClientRect.h"
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
+#endif
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
@@ -145,7 +149,9 @@
 #include "nsTPtrArray.h"
 #include "prprf.h"
 
+#ifdef MOZ_SVG
 #include "nsSVGFeatures.h"
+#endif /* MOZ_SVG */
 
 using namespace mozilla::dom;
 namespace css = mozilla::css;
@@ -786,90 +792,18 @@ nsINode::LookupNamespaceURI(const nsAString& aNamespacePrefix,
 //----------------------------------------------------------------------
 
 nsEventStates
-Element::IntrinsicState() const
+nsIContent::IntrinsicState() const
 {
   return IsEditable() ? NS_EVENT_STATE_MOZ_READWRITE :
                         NS_EVENT_STATE_MOZ_READONLY;
 }
 
 void
-Element::NotifyStateChange(nsEventStates aStates)
-{
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    nsAutoScriptBlocker scriptBlocker;
-    doc->ContentStateChanged(this, aStates);
-  }
-}
-
-void
-Element::RequestLinkStateUpdate()
-{
-}
-
-void
-Element::UpdateLinkState(nsEventStates aState)
-{
-  NS_ABORT_IF_FALSE(!aState.HasAtLeastOneOfStates(~(NS_EVENT_STATE_VISITED |
-                                                    NS_EVENT_STATE_UNVISITED)),
-                    "Unexpected link state bits");
-  mState =
-    (mState & ~(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED)) |
-    aState;
-}
-
-void
-Element::UpdateState(bool aNotify)
-{
-  nsEventStates oldState = mState;
-  mState = IntrinsicState() | (oldState & ESM_MANAGED_STATES);
-  if (aNotify) {
-    nsEventStates changedStates = oldState ^ mState;
-    if (!changedStates.IsEmpty()) {
-      nsIDocument* doc = GetCurrentDoc();
-      if (doc) {
-        nsAutoScriptBlocker scriptBlocker;
-        doc->ContentStateChanged(this, changedStates);
-      }
-    }
-  }
-}
-
-void
-nsIContent::UpdateEditableState(PRBool aNotify)
-{
-  // Guaranteed to be non-element content
-  NS_ASSERTION(!IsElement(), "What happened here?");
-  nsIContent *parent = GetParent();
-
-  SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
-}
-
-void
-nsGenericElement::UpdateEditableState(PRBool aNotify)
+nsIContent::UpdateEditableState()
 {
   nsIContent *parent = GetParent();
 
-  PRBool oldEditable = IsEditable();
   SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
-  PRBool newEditable = IsEditable();
-  if (oldEditable != newEditable) {
-    if (aNotify) {
-      UpdateState(aNotify);
-    } else {
-      // Avoid calling UpdateState in this very common case, because
-      // this gets called for pretty much every single element on
-      // insertion into the document and UpdateState can be slow for
-      // some kinds of elements even when not notifying.
-      if (oldEditable) {
-        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
-        AddStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
-      } else {
-        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
-        AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
-      }
-    }
-  }
 }
 
 nsIContent*
@@ -3080,7 +3014,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     }
   }
 
-  UpdateEditableState(PR_FALSE);
+  UpdateEditableState();
 
   // Now recurse into our kids
   for (nsIContent* child = GetFirstChild(); child;
@@ -4714,6 +4648,13 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   nsIDocument* document = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
 
+  // When notifying, make sure to keep track of states whose value
+  // depends solely on the value of an attribute.
+  nsEventStates stateMask;
+  if (aNotify) {
+    stateMask = IntrinsicState();
+  }
+
   nsMutationGuard::DidMutate();
 
   if (aNamespaceID == kNameSpaceID_None) {
@@ -4745,9 +4686,12 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
     }
   }
 
-  UpdateState(aNotify);
-
   if (aNotify) {
+    stateMask ^= IntrinsicState();
+    if (document && !stateMask.IsEmpty()) {
+      MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
+      document->ContentStateChanged(this, stateMask);
+    }
     nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, aModType);
   }
 
@@ -4941,6 +4885,13 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                      nsIDOMMutationEvent::REMOVAL);
   }
 
+  // When notifying, make sure to keep track of states whose value
+  // depends solely on the value of an attribute.
+  nsEventStates stateMask;
+  if (aNotify) {
+    stateMask = IntrinsicState();
+  }
+
   PRBool hasMutationListeners = aNotify &&
     nsContentUtils::HasMutationListeners(this,
                                          NS_EVENT_BITS_MUTATION_ATTRMODIFIED,
@@ -4980,9 +4931,12 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     }
   }
 
-  UpdateState(aNotify);
-
   if (aNotify) {
+    stateMask ^= IntrinsicState();
+    if (document && !stateMask.IsEmpty()) {
+      MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
+      document->ContentStateChanged(this, stateMask);
+    }
     nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
                                   nsIDOMMutationEvent::REMOVAL);
   }
@@ -5113,7 +5067,7 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
 
   ListAttributes(out);
 
-  fprintf(out, " state=[%llx]", State().GetInternalValue());
+  fprintf(out, " intrinsicstate=[%llx]", IntrinsicState().GetInternalValue());
   fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
   fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));
   fprintf(out, " refcount=%d<", mRefCnt.get());

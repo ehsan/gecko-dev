@@ -58,6 +58,7 @@
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
+#include "nsIDOMNSDocument.h"
 #include "nsISHistoryInternal.h"
 #include "mozilla/Preferences.h"
 

@@ -95,11 +95,6 @@ public:
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD GetProcess(char **process) {
-        *process = strdup("");
-        return NS_OK;
-    }
-
     NS_IMETHOD GetPath(char **memoryPath) {
         *memoryPath = strdup("gfx-d2d-surfacecache");
         return NS_OK;
@@ -131,11 +126,6 @@ public:
     { }
 
     NS_DECL_ISUPPORTS
-
-    NS_IMETHOD GetProcess(char **process) {
-        *process = strdup("");
-        return NS_OK;
-    }
 
     NS_IMETHOD GetPath(char **memoryPath) {
         *memoryPath = strdup("gfx-d2d-surfacevram");
