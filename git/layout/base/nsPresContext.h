@@ -489,15 +489,15 @@ public:
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
   { return NSFloatPixelsToAppUnits(aPixels,
-             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
+                                   nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   static PRInt32 AppUnitsToIntCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
+                                 nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   static float AppUnitsToFloatCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToFloatPixels(aAppUnits,
-             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
+                                   nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   nscoord DevPixelsToAppUnits(PRInt32 aPixels) const
   { return NSIntPixelsToAppUnits(aPixels,
@@ -505,7 +505,7 @@ public:
 
   PRInt32 AppUnitsToDevPixels(nscoord aAppUnits) const
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(mDeviceContext->AppUnitsPerDevPixel())); }
+                                 mDeviceContext->AppUnitsPerDevPixel()); }
 
   // If there is a remainder, it is rounded to nearest app units.
   nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const

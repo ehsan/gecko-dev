@@ -39,6 +39,7 @@
 #include "nsTextUtils.h"
 
 #include "nsAccessNode.h"
+#include "nsCoreUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsLangTextAttr
@@ -96,12 +97,12 @@ nsCSSTextAttr::nsCSSTextAttr(PRBool aIncludeDefAttrValue, nsIDOMElement *aElm,
                              nsIDOMElement *aRootElm) :
   mIndex(-1), mIncludeDefAttrValue(aIncludeDefAttrValue)
 {
-  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aElm,
-                                           getter_AddRefs(mStyleDecl));
+  nsAccessNode::GetComputedStyleDeclaration(EmptyString(), aElm,
+                                            getter_AddRefs(mStyleDecl));
 
   if (!mIncludeDefAttrValue)
-    nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aRootElm,
-                                             getter_AddRefs(mDefStyleDecl));
+    nsAccessNode::GetComputedStyleDeclaration(EmptyString(), aRootElm,
+                                              getter_AddRefs(mDefStyleDecl));
 }
 
 PRBool
@@ -111,8 +112,8 @@ nsCSSTextAttr::Equal(nsIDOMElement *aElm)
     return PR_FALSE;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> currStyleDecl;
-  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aElm,
-                                           getter_AddRefs(currStyleDecl));
+  nsAccessNode::GetComputedStyleDeclaration(EmptyString(), aElm,
+                                            getter_AddRefs(currStyleDecl));
   if (!currStyleDecl)
     return PR_FALSE;
 
