@@ -1,3 +1,4 @@
+#!perl5
 #
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -20,8 +21,6 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Robert Ginda <rginda@netscape.com>
-#   John Taylor <jtaylor@netscape.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -37,74 +36,31 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
+sub fastcwd {
+	local($odev, $oino, $cdev, $cino, $tdev, $tino);
+	local(@path, $path);
+	local(*DIR);
 
-include $(DEPTH)/config/autoconf.mk
+	($cdev, $cino) = stat('.');
+	for (;;) {
+		($odev, $oino) = ($cdev, $cino);
+		chdir('..');
+		($cdev, $cino) = stat('.');
+		last if $odev == $cdev && $oino == $cino;
+		opendir(DIR, '.');
+		for (;;) {
+			$_ = readdir(DIR);
+			next if $_ eq '.';
+			next if $_ eq '..';
 
-# For sanity's sake, we compile nsinstall without the wrapped system
-# headers, so that we can use it to set up the wrapped system headers.
-VISIBILITY_FLAGS =
-
-HOST_PROGRAM	= nsinstall$(HOST_BIN_SUFFIX)
-
-ifeq (WINNT,$(HOST_OS_ARCH))
-HOST_CSRCS      = nsinstall_win.c
-else
-HOST_CSRCS	= nsinstall.c pathsub.c
-endif
-
-PLSRCS		= nfspwd.pl
-
-TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
-
-# IMPORTANT: Disable NSBUILDROOT for this directory only, otherwise we have
-# a recursive rule for finding nsinstall and the Perl scripts.
-ifdef NSBUILDROOT
-override NSBUILDROOT :=
-endif
-
-ifdef GNU_CC
-MODULE_OPTIMIZE_FLAGS = -O3
-endif
-
-ifndef COMPILER_DEPEND
-ifndef MOZ_NATIVE_MAKEDEPEND
-DIRS		+= mkdepend
-endif
-endif
-
-include $(topsrcdir)/config/config.mk
-
-# Do not install util programs
-NO_INSTALL=1
-
-include $(topsrcdir)/config/rules.mk
-
-HOST_CFLAGS += -DUNICODE -D_UNICODE
-
-export:: $(TARGETS)
-ifdef HOST_PROGRAM
-	$(INSTALL) $(HOST_PROGRAM) $(DIST)/bin
-endif
-
-ifdef WRAP_SYSTEM_INCLUDES
-export::
-	if test ! -d system_wrappers_js; then mkdir system_wrappers_js; fi
-	$(PYTHON) $(srcdir)/Preprocessor.py $(DEFINES) $(ACDEFINES) \
-		$(srcdir)/system-headers | $(PERL) $(srcdir)/make-system-wrappers.pl system_wrappers_js
-	$(INSTALL) system_wrappers_js $(DIST)
-
-GARBAGE_DIRS += system_wrappers_js
-endif
-
-GARBAGE += $(srcdir)/*.pyc *.pyc
-
-FORCE:
-
-ifdef MKDEPEND_DIR
-clean clobber realclean clobber_all::
-	cd $(MKDEPEND_DIR); $(MAKE) $@
-endif
+			last unless $_;
+			($tdev, $tino) = lstat($_);
+			last unless $tdev != $odev || $tino != $oino;
+		}
+		closedir(DIR);
+		unshift(@path, $_);
+	}
+	chdir($path = '/' . join('/', @path));
+	$path;
+}
+1;
