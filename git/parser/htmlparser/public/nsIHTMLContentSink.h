@@ -82,10 +82,9 @@
 #include "nsIContentSink.h"
 #include "nsHTMLTags.h"
 
-// d19e6730-5e2f-4131-89db-8a918515097d
 #define NS_IHTML_CONTENT_SINK_IID \
-{ 0xd19e6730, 0x5e2f, 0x4131, \
-  { 0x89, 0xdb, 0x8a, 0x91, 0x85, 0x15, 0x09, 0x7d } }
+{ 0x73b5a072, 0x0f87, 0x4d07, \
+  { 0xa8, 0x16, 0xe6, 0xac, 0x73, 0xa7, 0x04, 0x3c } }
 
 
 #if defined(XP_MAC) 
@@ -130,6 +129,12 @@ public:
    * @param aTag - Check if this tag is enabled or not.
    */
   NS_IMETHOD IsEnabled(PRInt32 aTag, PRBool* aReturn) = 0;
+
+   /**
+   * This method is called when parser is about to begin
+   * synchronously processing a chunk of tokens. 
+   */
+  NS_IMETHOD WillProcessTokens(void) = 0;
 
   /**
    * This method is called when parser has

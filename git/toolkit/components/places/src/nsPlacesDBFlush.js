@@ -200,10 +200,7 @@ nsPlacesDBFlush.prototype = {
       statements.push(this._getSyncTableStatement(aTableNames[i]));
 
     // Execute sync statements async in a transaction
-    // XXX due to a bug in sqlite, we cannot wrap these in a transaction.  See
-    //     https://bugzilla.mozilla.org/show_bug.cgi?id=462379#c2 for details.
-    //this._db.executeAsync(statements, statements.length, this);
-    statements.forEach(function(stmt) stmt.executeAsync(this), this);
+    this._db.executeAsync(statements, statements.length, this);
 
     // Finalize statements, otherwise we could get in trouble
     statements.forEach(function(stmt) stmt.finalize());

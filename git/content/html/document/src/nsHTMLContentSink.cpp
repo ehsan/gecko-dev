@@ -181,7 +181,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIContentSink
-  NS_IMETHOD WillParse(void);
+  NS_IMETHOD WillTokenize(void);
   NS_IMETHOD WillBuildModel(void);
   NS_IMETHOD DidBuildModel(void);
   NS_IMETHOD WillInterrupt(void);
@@ -199,6 +199,7 @@ public:
   NS_IMETHOD AddComment(const nsIParserNode& aNode);
   NS_IMETHOD AddProcessingInstruction(const nsIParserNode& aNode);
   NS_IMETHOD AddDocTypeDecl(const nsIParserNode& aNode);
+  NS_IMETHOD WillProcessTokens(void);
   NS_IMETHOD DidProcessTokens(void);
   NS_IMETHOD WillProcessAToken(void);
   NS_IMETHOD DidProcessAToken(void);
@@ -1744,12 +1745,6 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 }
 
 NS_IMETHODIMP
-HTMLContentSink::WillParse(void)
-{
-  return WillParseImpl();
-}
-
-NS_IMETHODIMP
 HTMLContentSink::WillBuildModel(void)
 {
   WillBuildModelImpl();
@@ -2702,6 +2697,18 @@ HTMLContentSink::AddDocTypeDecl(const nsIParserNode& aNode)
 }
 
 NS_IMETHODIMP
+HTMLContentSink::WillTokenize(void)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HTMLContentSink::WillProcessTokens(void)
+{
+  return WillProcessTokensImpl();
+}
+
+NS_IMETHODIMP
 HTMLContentSink::DidProcessTokens(void)
 {
   return NS_OK;
@@ -2722,7 +2729,7 @@ HTMLContentSink::DidProcessAToken(void)
 NS_IMETHODIMP
 HTMLContentSink::WillInterrupt()
 {
-  return WillInterruptImpl();
+  return WillInterruptImpl();	
 }
 
 NS_IMETHODIMP

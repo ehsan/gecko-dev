@@ -1714,7 +1714,7 @@ nsContentSink::DropParserAndPerfHint(void)
 }
 
 nsresult
-nsContentSink::WillParseImpl(void)
+nsContentSink::WillProcessTokensImpl(void)
 {
   if (mCanInterruptParser) {
     mDelayTimerStart = PR_IntervalToMicroseconds(PR_IntervalNow());
