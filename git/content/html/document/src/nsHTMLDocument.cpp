@@ -177,7 +177,7 @@ static PRBool ConvertToMidasInternalCommand(const nsAString & inCommandID,
 
 static PRBool ConvertToMidasInternalCommand(const nsAString & inCommandID,
                                             nsACString& outCommandID);
-static int
+static int PR_CALLBACK
 MyPrefChangedCallback(const char*aPrefName, void* instance_data)
 {
   const nsAdoptingString& detector_name =

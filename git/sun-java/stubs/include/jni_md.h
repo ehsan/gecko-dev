@@ -144,7 +144,13 @@
 
 /* OS/2 */
 #elif defined(XP_OS2)
-#	ifdef __declspec
+#	ifdef XP_OS2_VACPP
+#		define JNI_PUBLIC_API(ResultType)	ResultType _System
+#		define JNI_PUBLIC_VAR(VarType)		VarType
+#		define JNICALL				_Optlink
+#		define JNIEXPORT
+#		define JNIIMPORT
+#	elif defined(__declspec)
 #		define JNI_PUBLIC_API(ResultType)	__declspec(dllexport) ResultType
 #		define JNI_PUBLIC_VAR(VarType)		VarType
 #		define JNI_NATIVE_STUB(ResultType)	__declspec(dllexport) ResultType

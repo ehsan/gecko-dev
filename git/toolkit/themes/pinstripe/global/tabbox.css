@@ -18,6 +18,7 @@ tab {
 
 .tab-text {
   font				: menu;
+  font-weight: normal !important;
 }
 
 tabs {

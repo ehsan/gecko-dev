@@ -598,7 +598,6 @@
         <body><![CDATA[
           var str = this.currentSearchString;
           if (!str) {
-            this.clearResults(false);
             this.closeResultPopup();
             return;
           }
@@ -912,6 +911,9 @@
           // stop the queued up lookup on a timer
           this.clearTimer();
 
+          if (this.ignoreInputEvent)
+            return;
+          
           if (this.disableAutoComplete)
             return;
 
@@ -1434,7 +1436,7 @@
 
     <handlers>
       <handler event="input"
-               action="if (!this.ignoreInputEvent) this.processInput();"/>
+               action="this.processInput();"/>
 
       <handler event="keydown" phase="capturing"
                 action="return this.processKeyDown(event);"/>

@@ -40,12 +40,6 @@ window.addEventListener("message", function(e) {
 gen = runTest();
 
 function runTest() {
-  if (navigator.platform == "MacIntel") {
-    todo(false, "httpd.js fails on Mac");
-    SimpleTest.finish();
-    yield;
-  }
-
   var loader = document.getElementById('loader');
   var loaderWindow = loader.contentWindow;
   loader.onload = function () { gen.next() };
@@ -407,6 +401,10 @@ function runTest() {
        "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load",
        "wrong responseText in test for " + test.toSource());
   }
+
+  /*SimpleTest.finish();
+
+  yield;*/
 
   for each(test in failTests) {
     req = {

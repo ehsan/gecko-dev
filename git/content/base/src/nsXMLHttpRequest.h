@@ -229,7 +229,6 @@ public:
     mOwner = aOwner;
     mScriptContext = aScriptContext;
   }
-  virtual ~nsXMLHttpRequestUpload();
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
@@ -351,8 +350,10 @@ public:
 
   static void ShutdownACCache()
   {
-    delete sAccessControlCache;
-    sAccessControlCache = nsnull;
+    if (sAccessControlCache) {
+      delete sAccessControlCache;
+      sAccessControlCache = nsnull;
+    }
   }
 
   PRBool AllowUploadProgress();
@@ -399,7 +400,7 @@ protected:
   nsCOMPtr<nsIChannel> mChannel;
   // mReadRequest is different from mChannel for multipart requests
   nsCOMPtr<nsIRequest> mReadRequest;
-  nsCOMPtr<nsIDOMDocument> mResponseXML;
+  nsCOMPtr<nsIDOMDocument> mDocument;
   nsCOMPtr<nsIChannel> mACGetChannel;
   nsTArray<nsCString> mACUnsafeHeaders;
 
@@ -487,17 +488,17 @@ public:
   {
     return mInner->SetOriginalTarget(aTarget);
   }
-  NS_IMETHOD_(PRBool) IsDispatchStopped()
+  NS_IMETHOD IsDispatchStopped(PRBool* aIsDispatchPrevented)
   {
-    return mInner->IsDispatchStopped();
+    return mInner->IsDispatchStopped(aIsDispatchPrevented);
   }
-  NS_IMETHOD_(nsEvent*) GetInternalNSEvent()
+  NS_IMETHOD GetInternalNSEvent(nsEvent** aNSEvent)
   {
-    return mInner->GetInternalNSEvent();
+    return mInner->GetInternalNSEvent(aNSEvent);
   }
-  NS_IMETHOD_(PRBool) HasOriginalTarget()
+  NS_IMETHOD HasOriginalTarget(PRBool* aResult)
   {
-    return mInner->HasOriginalTarget();
+    return mInner->HasOriginalTarget(aResult);
   }
   NS_IMETHOD SetTrusted(PRBool aTrusted)
   {

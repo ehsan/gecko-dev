@@ -112,7 +112,6 @@ public:
                               PRBool aNullParent = PR_TRUE);
 
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
   virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,
                                               PRBool aCloneText) const
@@ -357,13 +356,6 @@ nsAttributeTextNode::AttributeChanged(nsIDocument* aDocument,
             this, &nsAttributeTextNode::UpdateText);
     NS_DispatchToCurrentThread(ev);
   }
-}
-
-void
-nsAttributeTextNode::NodeWillBeDestroyed(const nsINode* aNode)
-{
-  NS_ASSERTION(aNode == static_cast<nsINode*>(mGrandparent), "Wrong node!");
-  mGrandparent = nsnull;
 }
 
 void

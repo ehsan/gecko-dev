@@ -74,9 +74,9 @@ public:
 
 	void          AppendTextRange(nsRefPtr<nsPrivateTextRange>& aRange);
 
-	NS_IMETHOD_(PRUint16)    GetLength();
+	NS_IMETHOD    GetLength(PRUint16* aLength);
 
-	NS_IMETHOD_(already_AddRefed<nsIPrivateTextRange>)    Item(PRUint16 aIndex);
+	NS_IMETHOD    Item(PRUint16 aIndex, nsIPrivateTextRange** aReturn);
 protected:
 	nsTArray<nsRefPtr<nsPrivateTextRange> > mList;
 };

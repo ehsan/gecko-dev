@@ -112,7 +112,7 @@ nsJARManifestItem::~nsJARManifestItem()
 //----------------------------------------------
 // nsJAR constructor/destructor
 //----------------------------------------------
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 DeleteManifestEntry(nsHashKey* aKey, void* aData, void* closure)
 {
 //-- deletes an entry in  mManifestData.
@@ -127,7 +127,6 @@ nsJAR::nsJAR(): mManifestData(nsnull, nsnull, DeleteManifestEntry, nsnull, 10),
                 mReleaseTime(PR_INTERVAL_NO_TIMEOUT), 
                 mCache(nsnull), 
                 mLock(nsnull),
-                mMtime(0),
                 mTotalItemsInManifest(0)
 {
 }
@@ -171,16 +170,13 @@ nsJAR::Open(nsIFile* zipFile)
   if (mLock) return NS_ERROR_FAILURE; // Already open!
 
   mZipFile = zipFile;
-  nsresult rv = zipFile->GetLastModifiedTime(&mMtime);
-  if (NS_FAILED(rv)) return rv;
-
   mLock = PR_NewLock();
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
 
   PRFileDesc *fd = OpenFile();
   NS_ENSURE_TRUE(fd, NS_ERROR_FAILURE);
 
-  rv = mZip.OpenArchive(fd);
+  nsresult rv = mZip.OpenArchive(fd);
   if (NS_FAILED(rv)) Close();
 
   return rv;
@@ -1094,7 +1090,7 @@ nsZipReaderCache::Init(PRUint32 cacheSize)
   return mLock ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DropZipReaderCache(nsHashKey *aKey, void *aData, void* closure)
 {
   nsJAR* zip = (nsJAR*)aData;
@@ -1121,7 +1117,6 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
 {
   NS_ENSURE_ARG_POINTER(zipFile);
   nsresult rv;
-  nsCOMPtr<nsIJAR> antiLockZipGrip;
   nsAutoLock lock(mLock);
 
 #ifdef ZIP_CACHE_HIT_RATE
@@ -1132,23 +1127,15 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
   rv = zipFile->GetNativePath(path);
   if (NS_FAILED(rv)) return rv;
 
-  PRInt64 Mtime;
-  rv = zipFile->GetLastModifiedTime(&Mtime);
-  if (NS_FAILED(rv)) return rv;
-
   nsCStringKey key(path);
   nsJAR* zip = static_cast<nsJAR*>(static_cast<nsIZipReader*>(mZips.Get(&key))); // AddRefs
-  if (zip && Mtime == zip->GetMtime()) {
+  if (zip) {
 #ifdef ZIP_CACHE_HIT_RATE
     mZipCacheHits++;
 #endif
     zip->ClearReleaseTime();
   }
   else {
-    if (zip) {
-      antiLockZipGrip = zip;
-      mZips.Remove(&key);
-    }
     zip = new nsJAR();
     if (zip == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -1168,7 +1155,7 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
   return rv;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 FindOldestZip(nsHashKey *aKey, void *aData, void* closure)
 {
   nsJAR** oldestPtr = (nsJAR**)closure;
@@ -1186,7 +1173,7 @@ FindOldestZip(nsHashKey *aKey, void *aData, void* closure)
 
 struct ZipFindData {nsJAR* zip; PRBool found;}; 
 
-static PRBool
+static PRBool PR_CALLBACK
 FindZip(nsHashKey *aKey, void *aData, void* closure)
 {
   ZipFindData* find_data = (ZipFindData*)closure;
@@ -1262,7 +1249,7 @@ nsZipReaderCache::ReleaseZip(nsJAR* zip)
   return NS_OK;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 FindFlushableZip(nsHashKey *aKey, void *aData, void* closure)
 {
   nsHashKey** flushableKeyPtr = (nsHashKey**)closure;

@@ -179,6 +179,14 @@ nsCSSDeclaration::GetValueOrImportantValue(nsCSSProperty aProperty, nsCSSValue& 
   return NS_OK;
 }
 
+nsresult
+nsCSSDeclaration::GetValue(const nsAString& aProperty,
+                           nsAString& aValue) const
+{
+  nsCSSProperty propID = nsCSSProps::LookupProperty(aProperty);
+  return GetValue(propID, aValue);
+}
+
 PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const
 {
   nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
@@ -527,105 +535,13 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
     return NS_OK;
   }
 
-  // DOM Level 2 Style says (when describing CSS2Properties, although
-  // not CSSStyleDeclaration.getPropertyValue):
-  //   However, if there is no shorthand declaration that could be added
-  //   to the ruleset without changing in any way the rules already
-  //   declared in the ruleset (i.e., by adding longhand rules that were
-  //   previously not declared in the ruleset), then the empty string
-  //   should be returned for the shorthand property.
-  // This means we need to check a number of cases:
-  //   (1) Since a shorthand sets all sub-properties, if some of its
-  //       subproperties were not specified, we must return the empty
-  //       string.
-  //   (2) Since 'inherit' and 'initial' can only be specified as the
-  //       values for entire properties, we need to return the empty
-  //       string if some but not all of the subproperties have one of
-  //       those values.
-  //   (3) Since a single value only makes sense with or without
-  //       !important, we return the empty string if some values are
-  //       !important and some are not.
-  // Since we're doing this check for 'inherit' and 'initial' up front,
-  // we can also simplify the property serialization code by serializing
-  // those values up front as well.
-  PRUint32 totalCount = 0, importantCount = 0,
-           initialCount = 0, inheritCount = 0;
+  // shorthands
   CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(p, aProperty) {
-    if (*p == eCSSProperty__x_system_font ||
-         nsCSSProps::kFlagsTable[*p] & CSS_PROPERTY_DIRECTIONAL_SOURCE) {
-      // The system-font subproperty and the *-source properties don't count.
-      continue;
-    }
-    ++totalCount;
-    const void *storage = mData->StorageFor(*p);
-    NS_ASSERTION(!storage || !mImportantData || !mImportantData->StorageFor(*p),
-                 "can't be in both blocks");
-    if (!storage && mImportantData) {
-      ++importantCount;
-      storage = mImportantData->StorageFor(*p);
-    }
-    if (!storage) {
-      // Case (1) above: some subproperties not specified.
-      return NS_OK;
-    }
-    nsCSSUnit unit;
-    switch (nsCSSProps::kTypeTable[*p]) {
-      case eCSSType_Value: {
-        const nsCSSValue *val = static_cast<const nsCSSValue*>(storage);
-        unit = val->GetUnit();
-      } break;
-      case eCSSType_Rect: {
-        const nsCSSRect *rect = static_cast<const nsCSSRect*>(storage);
-        unit = rect->mTop.GetUnit();
-      } break;
-      case eCSSType_ValuePair: {
-        const nsCSSValuePair *pair = static_cast<const nsCSSValuePair*>(storage);
-        unit = pair->mXValue.GetUnit();
-      } break;
-      case eCSSType_ValueList: {
-        const nsCSSValueList* item =
-            *static_cast<nsCSSValueList*const*>(storage);
-        if (item) {
-          unit = item->mValue.GetUnit();
-        } else {
-          unit = eCSSUnit_Null;
-        }
-      } break;
-      case eCSSType_ValuePairList: {
-        const nsCSSValuePairList* item =
-            *static_cast<nsCSSValuePairList*const*>(storage);
-        if (item) {
-          unit = item->mXValue.GetUnit();
-        } else {
-          unit = eCSSUnit_Null;
-        }
-      } break;
-    }
-    if (unit == eCSSUnit_Inherit) {
-      ++inheritCount;
-    } else if (unit == eCSSUnit_Initial) {
-      ++initialCount;
-    }
-  }
-  if (importantCount != 0 && importantCount != totalCount) {
-    // Case (3), no consistent importance.
-    return NS_OK;
-  }
-  if (initialCount == totalCount) {
-    // Simplify serialization below by serializing initial up-front.
-    AppendCSSValueToString(eCSSProperty_UNKNOWN, nsCSSValue(eCSSUnit_Initial),
-                           aValue);
-    return NS_OK;
-  }
-  if (inheritCount == totalCount) {
-    // Simplify serialization below by serializing inherit up-front.
-    AppendCSSValueToString(eCSSProperty_UNKNOWN, nsCSSValue(eCSSUnit_Inherit),
-                           aValue);
-    return NS_OK;
-  }
-  if (initialCount != 0 || inheritCount != 0) {
-    // Case (2): partially initial or inherit.
-    return NS_OK;
+    if (!mData->StorageFor(*p) &&
+        (!mImportantData || !mImportantData->StorageFor(*p)))
+      // We don't have all the properties in the shorthand.
+      if (*p != eCSSProperty__x_system_font)
+        return NS_OK;
   }
 
 
@@ -638,6 +554,8 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
     case eCSSProperty_padding: 
     case eCSSProperty_border_color: 
     case eCSSProperty_border_style: 
+    case eCSSProperty__moz_border_radius: 
+    case eCSSProperty__moz_outline_radius: 
     case eCSSProperty_border_width: {
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(aProperty);
@@ -654,49 +572,6 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
           !(aValue.Append(PRUnichar(' ')),
             AppendValueToString(subprops[3], aValue))) {
         aValue.Truncate();
-      }
-      break;
-    }
-    case eCSSProperty__moz_border_radius: 
-    case eCSSProperty__moz_outline_radius: {
-      const nsCSSProperty* subprops =
-        nsCSSProps::SubpropertyEntryFor(aProperty);
-      NS_ASSERTION(nsCSSProps::kTypeTable[subprops[0]] == eCSSType_ValuePair &&
-                   nsCSSProps::kTypeTable[subprops[1]] == eCSSType_ValuePair &&
-                   nsCSSProps::kTypeTable[subprops[2]] == eCSSType_ValuePair &&
-                   nsCSSProps::kTypeTable[subprops[3]] == eCSSType_ValuePair,
-                   "type mismatch");
-      nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
-                                     ? mImportantData : mData;
-      const nsCSSValuePair* vals[4] = {
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[0])),
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[1])),
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[2])),
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[3]))
-      };
-
-      AppendCSSValueToString(aProperty, vals[0]->mXValue, aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendCSSValueToString(aProperty, vals[1]->mXValue, aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendCSSValueToString(aProperty, vals[2]->mXValue, aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendCSSValueToString(aProperty, vals[3]->mXValue, aValue);
-        
-      // For compatibility, only write a slash and the y-values
-      // if they're not identical to the x-values.
-      if (vals[0]->mXValue != vals[0]->mYValue ||
-          vals[1]->mXValue != vals[1]->mYValue ||
-          vals[2]->mXValue != vals[2]->mYValue ||
-          vals[3]->mXValue != vals[3]->mYValue) {
-        aValue.AppendLiteral(" / ");
-        AppendCSSValueToString(aProperty, vals[0]->mYValue, aValue);
-        aValue.Append(PRUnichar(' '));
-        AppendCSSValueToString(aProperty, vals[1]->mYValue, aValue);
-        aValue.Append(PRUnichar(' '));
-        AppendCSSValueToString(aProperty, vals[2]->mYValue, aValue);
-        aValue.Append(PRUnichar(' '));
-        AppendCSSValueToString(aProperty, vals[3]->mYValue, aValue);
       }
       break;
     }
@@ -878,22 +753,7 @@ nsCSSDeclaration::GetValueIsImportant(nsCSSProperty aProperty) const
   if (!mImportantData)
     return PR_FALSE;
 
-  // Calling StorageFor is inefficient, but we can assume '!important'
-  // is rare.
-
-  if (nsCSSProps::IsShorthand(aProperty)) {
-    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(p, aProperty) {
-      if (*p == eCSSProperty__x_system_font) {
-        // The system_font subproperty doesn't count.
-        continue;
-      }
-      if (!mImportantData->StorageFor(*p)) {
-        return PR_FALSE;
-      }
-    }
-    return PR_TRUE;
-  }
-
+  // Inefficient, but we can assume '!important' is rare.
   return mImportantData->StorageFor(aProperty) != nsnull;
 }
 

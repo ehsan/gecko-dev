@@ -286,10 +286,9 @@ protected:
   PRBool ParseCharsetRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseImportRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool GatherURL(nsString& aURL);
+  // Callers must clear or throw out aMedia if GatherMedia returns false.
   PRBool GatherMedia(nsMediaList* aMedia,
                      PRUnichar aStopSymbol);
-  PRBool ParseMediaQuery(PRUnichar aStopSymbol, nsMediaQuery **aQuery,
-                         PRBool *aParsedSomething, PRBool *aHitStop);
   PRBool ParseMediaQueryExpression(nsMediaQuery* aQuery);
   PRBool ProcessImport(const nsString& aURLSpec,
                        nsMediaList* aMedia,
@@ -405,6 +404,8 @@ protected:
                                     PRInt32 aSourceType);
   PRBool ParseBorderStyle();
   PRBool ParseBorderWidth();
+  PRBool ParseBorderRadius();
+  PRBool ParseOutlineRadius();
   // for 'clip' and '-moz-image-region'
   PRBool ParseRect(nsCSSRect& aRect,
                    nsCSSProperty aPropID);
@@ -450,9 +451,6 @@ protected:
                             const nsCSSProperty aPropIDs[]);
   PRBool ParseDirectionalBoxProperty(nsCSSProperty aProperty,
                                      PRInt32 aSourceType);
-  PRBool ParseBoxCornerRadius(const nsCSSProperty aPropID);
-  PRBool ParseBoxCornerRadii(nsCSSCornerSizes& aRadii,
-                             const nsCSSProperty aPropIDs[]);
   PRInt32 ParseChoice(nsCSSValue aValues[],
                       const nsCSSProperty aPropIDs[], PRInt32 aNumIDs);
   PRBool ParseColor(nsCSSValue& aValue);
@@ -593,12 +591,12 @@ protected:
 #endif
 };
 
-static void AppendRuleToArray(nsICSSRule* aRule, void* aArray)
+PR_STATIC_CALLBACK(void) AppendRuleToArray(nsICSSRule* aRule, void* aArray)
 {
   static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(aRule);
 }
 
-static void AppendRuleToSheet(nsICSSRule* aRule, void* aParser)
+PR_STATIC_CALLBACK(void) AppendRuleToSheet(nsICSSRule* aRule, void* aParser)
 {
   CSSParserImpl* parser = (CSSParserImpl*) aParser;
   parser->AppendRule(aRule);
@@ -1465,152 +1463,131 @@ CSSParserImpl::GatherURL(nsString& aURL)
   return PR_FALSE;
 }
 
-PRBool
-CSSParserImpl::ParseMediaQuery(PRUnichar aStopSymbol,
-                               nsMediaQuery **aQuery,
-                               PRBool *aParsedSomething,
-                               PRBool *aHitStop)
-{
-  *aQuery = nsnull;
-  *aParsedSomething = PR_FALSE;
-  *aHitStop = PR_FALSE;
-
-  // "If the comma-separated list is the empty list it is assumed to
-  // specify the media query 'all'."  (css3-mediaqueries, section
-  // "Media Queries")
-  if (!GetToken(PR_TRUE)) {
-    *aHitStop = PR_TRUE;
-    // expected termination by EOF
-    if (aStopSymbol == PRUnichar(0))
-      return PR_TRUE;
-
-    // unexpected termination by EOF
-    REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
-    return PR_TRUE;
-  }
-
-  if (eCSSToken_Symbol == mToken.mType &&
-      mToken.mSymbol == aStopSymbol) {
-    *aHitStop = PR_TRUE;
-    UngetToken();
-    return PR_TRUE;
-  }
-  UngetToken();
-
-  *aParsedSomething = PR_TRUE;
-
-  nsAutoPtr<nsMediaQuery> query(new nsMediaQuery);
-  if (!query) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return PR_FALSE;
-  }
-
-  if (ExpectSymbol('(', PR_TRUE)) {
-    // we got an expression without a media type
-    UngetToken(); // so ParseMediaQueryExpression can handle it
-    query->SetType(nsGkAtoms::all);
-    query->SetTypeOmitted();
-    // Just parse the first expression here.
-    if (!ParseMediaQueryExpression(query)) {
-      OUTPUT_ERROR();
-      query->SetHadUnknownExpression();
-    }
-  } else {
-    nsCOMPtr<nsIAtom> mediaType;
-    PRBool gotNotOrOnly = PR_FALSE;
-    for (;;) {
-      if (!GetToken(PR_TRUE)) {
-        REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
-        return PR_FALSE;
-      }
-      if (eCSSToken_Ident != mToken.mType) {
-        REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotIdent);
-        UngetToken();
-        return PR_FALSE;
-      }
-      // case insensitive from CSS - must be lower cased
-      ToLowerCase(mToken.mIdent);
-      mediaType = do_GetAtom(mToken.mIdent);
-      if (gotNotOrOnly ||
-          (mediaType != nsGkAtoms::_not && mediaType != nsGkAtoms::only))
-        break;
-      gotNotOrOnly = PR_TRUE;
-      if (mediaType == nsGkAtoms::_not)
-        query->SetNegated();
-      else
-        query->SetHasOnly();
-    }
-    query->SetType(mediaType);
-  }
-
-  for (;;) {
-    if (!GetToken(PR_TRUE)) {
-      *aHitStop = PR_TRUE;
-      // expected termination by EOF
-      if (aStopSymbol == PRUnichar(0))
-        break;
-
-      // unexpected termination by EOF
-      REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
-      break;
-    }
-
-    if (eCSSToken_Symbol == mToken.mType &&
-        mToken.mSymbol == aStopSymbol) {
-      *aHitStop = PR_TRUE;
-      UngetToken();
-      break;
-    }
-    if (eCSSToken_Symbol == mToken.mType && mToken.mSymbol == ',') {
-      // Done with the expressions for this query
-      break;
-    }
-    if (eCSSToken_Ident != mToken.mType ||
-        !mToken.mIdent.LowerCaseEqualsLiteral("and")) {
-      REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotComma);
-      UngetToken();
-      return PR_FALSE;
-    }
-    if (!ParseMediaQueryExpression(query)) {
-      OUTPUT_ERROR();
-      query->SetHadUnknownExpression();
-    }
-  }
-  *aQuery = query.forget();
-  return PR_TRUE;
-}
-
-// Returns false only when there is a low-level error in the scanner
-// (out-of-memory).
+// Callers must clear or throw out aMedia if GatherMedia returns false.
 PRBool
 CSSParserImpl::GatherMedia(nsMediaList* aMedia,
                            PRUnichar aStopSymbol)
 {
+  // "If the comma-separated list is the empty list it is assumed to
+  // specify the media query 'all'."  (css3-mediaqueries, section
+  // "Media Queries")
+  if (!GetToken(PR_TRUE)) {
+    // expected termination by EOF
+    if (aStopSymbol == PRUnichar(0))
+      return PR_TRUE;
+
+    // unexpected termination by EOF; if we were looking for a
+    // semicolon, return true anyway, for the same reason this is
+    // done by ExpectSymbol().
+    REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
+    return aStopSymbol == PRUnichar(';');
+  }
+
+  if (eCSSToken_Symbol == mToken.mType &&
+      mToken.mSymbol == aStopSymbol) {
+    UngetToken();
+    return PR_TRUE;
+  }
+  UngetToken();
+  aMedia->SetNonEmpty();
+
   for (;;) {
-    nsAutoPtr<nsMediaQuery> query;
-    PRBool parsedSomething, hitStop;
-    if (!ParseMediaQuery(aStopSymbol, getter_Transfers(query),
-                         &parsedSomething, &hitStop)) {
-      if (NS_FAILED(mScanner.GetLowLevelError())) {
+    // We want to still have |query| after we transfer ownership from
+    // |queryHolder| to |aMedia|.
+    nsMediaQuery *query;
+    {
+      nsAutoPtr<nsMediaQuery> queryHolder(new nsMediaQuery);
+      if (!queryHolder) {
+        mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
         return PR_FALSE;
       }
-      SkipUntil(',');
-    }
-    if (parsedSomething) {
-      aMedia->SetNonEmpty();
-    }
-    if (query) {
-      nsresult rv = aMedia->AppendQuery(query);
+      query = queryHolder;
+
+      // In terms of error handling, it doesn't really matter when we
+      // append this, since aMedia's contents get dropped entirely
+      // whenever there is an error.
+      nsresult rv = aMedia->AppendQuery(queryHolder);
       if (NS_FAILED(rv)) {
         mScanner.SetLowLevelError(rv);
         return PR_FALSE;
       }
+      NS_ASSERTION(!queryHolder, "ownership should have been transferred");
     }
-    if (hitStop) {
-      break;
+
+    if (ExpectSymbol('(', PR_TRUE)) {
+      // we got an expression without a media type
+      UngetToken(); // so ParseMediaQueryExpression can handle it
+      query->SetType(nsGkAtoms::all);
+      query->SetTypeOmitted();
+      // Just parse the first expression here.
+      if (!ParseMediaQueryExpression(query)) {
+        OUTPUT_ERROR();
+        query->SetHadUnknownExpression();
+      }
+    } else {
+      nsCOMPtr<nsIAtom> mediaType;
+      PRBool gotNotOrOnly = PR_FALSE;
+      for (;;) {
+        if (!GetToken(PR_TRUE)) {
+          REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
+          return PR_FALSE;
+        }
+        if (eCSSToken_Ident != mToken.mType) {
+          REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotIdent);
+          UngetToken();
+          return PR_FALSE;
+        }
+        // case insensitive from CSS - must be lower cased
+        ToLowerCase(mToken.mIdent);
+        mediaType = do_GetAtom(mToken.mIdent);
+        if (gotNotOrOnly ||
+            (mediaType != nsGkAtoms::_not && mediaType != nsGkAtoms::only))
+          break;
+        gotNotOrOnly = PR_TRUE;
+        if (mediaType == nsGkAtoms::_not)
+          query->SetNegated();
+        else
+          query->SetHasOnly();
+      }
+      query->SetType(mediaType);
+    }
+
+    for (;;) {
+      if (!GetToken(PR_TRUE)) {
+        // expected termination by EOF
+        if (aStopSymbol == PRUnichar(0))
+          return PR_TRUE;
+
+        // unexpected termination by EOF; if we were looking for a
+        // semicolon, return true anyway, for the same reason this is
+        // done by ExpectSymbol().
+        REPORT_UNEXPECTED_EOF(PEGatherMediaEOF);
+        return aStopSymbol == PRUnichar(';');
+      }
+
+      if (eCSSToken_Symbol == mToken.mType &&
+          mToken.mSymbol == aStopSymbol) {
+        UngetToken();
+        return PR_TRUE;
+      }
+      if (eCSSToken_Symbol == mToken.mType && mToken.mSymbol == ',') {
+        // Done with the expressions for this query
+        break;
+      }
+      if (eCSSToken_Ident != mToken.mType ||
+          !mToken.mIdent.LowerCaseEqualsLiteral("and")) {
+        REPORT_UNEXPECTED_TOKEN(PEGatherMediaNotComma);
+        UngetToken();
+        return PR_FALSE;
+      }
+      if (!ParseMediaQueryExpression(query)) {
+        OUTPUT_ERROR();
+        query->SetHadUnknownExpression();
+      }
     }
   }
-  return PR_TRUE;
+  NS_NOTREACHED("unreachable code");
+  return PR_FALSE; // keep the compiler happy
 }
 
 PRBool
@@ -4696,8 +4673,9 @@ CSSParserImpl::ParseBoxProperties(nsCSSRect& aResult,
 {
   // Get up to four values for the property
   PRInt32 count = 0;
+  PRInt32 index;
   nsCSSRect result;
-  NS_FOR_CSS_SIDES (index) {
+  for (index = 0; index < 4; index++) {
     if (! ParseSingleValueProperty(result.*(nsCSSRect::sides[index]),
                                    aPropIDs[index])) {
       break;
@@ -4709,7 +4687,7 @@ CSSParserImpl::ParseBoxProperties(nsCSSRect& aResult,
   }
 
   if (1 < count) { // verify no more than single inherit or initial
-    NS_FOR_CSS_SIDES (index) {
+    for (index = 0; index < 4; index++) {
       nsCSSUnit unit = (result.*(nsCSSRect::sides[index])).GetUnit();
       if (eCSSUnit_Inherit == unit || eCSSUnit_Initial == unit) {
         return PR_FALSE;
@@ -4727,7 +4705,7 @@ CSSParserImpl::ParseBoxProperties(nsCSSRect& aResult,
       result.mLeft = result.mRight;
   }
 
-  NS_FOR_CSS_SIDES (index) {
+  for (index = 0; index < 4; index++) {
     mTempData.SetPropertyBit(aPropIDs[index]);
   }
   aResult = result;
@@ -4752,131 +4730,6 @@ CSSParserImpl::ParseDirectionalBoxProperty(nsCSSProperty aProperty,
   AppendValue(subprops[2], typeVal);
   return PR_TRUE;
 }
-
-PRBool
-CSSParserImpl::ParseBoxCornerRadius(nsCSSProperty aPropID)
-{
-  nsCSSValue dimenX, dimenY;
-  // required first value
-  if (! ParsePositiveVariant(dimenX, VARIANT_HLP, nsnull))
-    return PR_FALSE;
-  // optional second value (forbidden if first value is inherit/initial)
-  if (dimenX.GetUnit() == eCSSUnit_Inherit ||
-      dimenX.GetUnit() == eCSSUnit_Initial ||
-      ! ParsePositiveVariant(dimenY, VARIANT_LP, nsnull))
-    dimenY = dimenX;
-
-  NS_ASSERTION(nsCSSProps::kTypeTable[aPropID] == eCSSType_ValuePair,
-               nsPrintfCString(64, "type error (property='%s')",
-                               nsCSSProps::GetStringValue(aPropID).get())
-               .get());
-  nsCSSValuePair& storage =
-    *static_cast<nsCSSValuePair*>(mTempData.PropertyAt(aPropID));
-  storage.mXValue = dimenX;
-  storage.mYValue = dimenY;
-  mTempData.SetPropertyBit(aPropID);
-  return PR_TRUE;
-}
-
-PRBool
-CSSParserImpl::ParseBoxCornerRadii(nsCSSCornerSizes& aRadii,
-                                   const nsCSSProperty aPropIDs[])
-{
-  // Rectangles are used as scratch storage.
-  // top => top-left, right => top-right,
-  // bottom => bottom-right, left => bottom-left.
-  nsCSSRect dimenX, dimenY;
-  PRInt32 countX = 0, countY = 0;
-
-  NS_FOR_CSS_SIDES (side) {
-    if (! ParsePositiveVariant(dimenX.*nsCSSRect::sides[side],
-                               side > 0 ? VARIANT_LP : VARIANT_HLP, nsnull))
-      break;
-    countX++;
-  }
-  if (countX == 0)
-    return PR_FALSE;
-
-  if (ExpectSymbol('/', PR_TRUE)) {
-    NS_FOR_CSS_SIDES (side) {
-      if (! ParsePositiveVariant(dimenY.*nsCSSRect::sides[side],
-                                 VARIANT_LP, nsnull))
-        break;
-      countY++;
-    }
-    if (countY == 0)
-      return PR_FALSE;
-  }
-  if (!ExpectEndProperty())
-    return PR_FALSE;
-
-  // if 'initial' or 'inherit' was used, it must be the only value
-  if (countX > 1 || countY > 0) {
-    nsCSSUnit unit = dimenX.mTop.GetUnit();
-    if (eCSSUnit_Inherit == unit || eCSSUnit_Initial == unit)
-      return PR_FALSE;
-  }
-
-  // if we have no Y-values, use the X-values
-  if (countY == 0) {
-    dimenY = dimenX;
-    countY = countX;
-  }
-
-  // Provide missing values by replicating some of the values found
-  switch (countX) {
-    case 1: dimenX.mRight = dimenX.mTop;  // top-right same as top-left, and
-    case 2: dimenX.mBottom = dimenX.mTop; // bottom-right same as top-left, and 
-    case 3: dimenX.mLeft = dimenX.mRight; // bottom-left same as top-right
-  }
-
-  switch (countY) {
-    case 1: dimenY.mRight = dimenY.mTop;  // top-right same as top-left, and
-    case 2: dimenY.mBottom = dimenY.mTop; // bottom-right same as top-left, and 
-    case 3: dimenY.mLeft = dimenY.mRight; // bottom-left same as top-right
-  }
-
-  NS_FOR_CSS_SIDES(side) {
-    nsCSSValuePair& corner =
-      aRadii.GetFullCorner(NS_SIDE_TO_FULL_CORNER(side, PR_FALSE));
-    corner.mXValue = dimenX.*nsCSSRect::sides[side];
-    corner.mYValue = dimenY.*nsCSSRect::sides[side];
-    mTempData.SetPropertyBit(aPropIDs[side]);
-  }
-  return PR_TRUE;
-}
-
-// These must be in CSS order (top,right,bottom,left) for indexing to work
-static const nsCSSProperty kBorderStyleIDs[] = {
-  eCSSProperty_border_top_style,
-  eCSSProperty_border_right_style_value,
-  eCSSProperty_border_bottom_style,
-  eCSSProperty_border_left_style_value
-};
-static const nsCSSProperty kBorderWidthIDs[] = {
-  eCSSProperty_border_top_width,
-  eCSSProperty_border_right_width_value,
-  eCSSProperty_border_bottom_width,
-  eCSSProperty_border_left_width_value
-};
-static const nsCSSProperty kBorderColorIDs[] = {
-  eCSSProperty_border_top_color,
-  eCSSProperty_border_right_color_value,
-  eCSSProperty_border_bottom_color,
-  eCSSProperty_border_left_color_value
-};
-static const nsCSSProperty kBorderRadiusIDs[] = {
-  eCSSProperty__moz_border_radius_topLeft,
-  eCSSProperty__moz_border_radius_topRight,
-  eCSSProperty__moz_border_radius_bottomRight,
-  eCSSProperty__moz_border_radius_bottomLeft
-};
-static const nsCSSProperty kOutlineRadiusIDs[] = {
-  eCSSProperty__moz_outline_radius_topLeft,
-  eCSSProperty__moz_outline_radius_topRight,
-  eCSSProperty__moz_outline_radius_bottomRight,
-  eCSSProperty__moz_outline_radius_bottomLeft
-};
 
 PRBool
 CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
@@ -4965,22 +4818,9 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
     return ParseDirectionalBoxProperty(eCSSProperty_border_start_style,
                                        NS_BOXPROP_SOURCE_LOGICAL);
   case eCSSProperty__moz_border_radius:
-    return ParseBoxCornerRadii(mTempData.mMargin.mBorderRadius,
-                               kBorderRadiusIDs);
+    return ParseBorderRadius();
   case eCSSProperty__moz_outline_radius:
-    return ParseBoxCornerRadii(mTempData.mMargin.mOutlineRadius,
-                               kOutlineRadiusIDs);
-
-  case eCSSProperty__moz_border_radius_topLeft:
-  case eCSSProperty__moz_border_radius_topRight:
-  case eCSSProperty__moz_border_radius_bottomRight:
-  case eCSSProperty__moz_border_radius_bottomLeft:
-  case eCSSProperty__moz_outline_radius_topLeft:
-  case eCSSProperty__moz_outline_radius_topRight:
-  case eCSSProperty__moz_outline_radius_bottomRight:
-  case eCSSProperty__moz_outline_radius_bottomLeft:
-    return ParseBoxCornerRadius(aPropID);
-
+    return ParseOutlineRadius();
   case eCSSProperty_box_shadow:
     return ParseBoxShadow();
   case eCSSProperty_clip:
@@ -5169,10 +5009,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_border_top:
   case eCSSProperty_border_width:
   case eCSSProperty__moz_border_radius:
-  case eCSSProperty__moz_border_radius_topLeft:
-  case eCSSProperty__moz_border_radius_topRight:
-  case eCSSProperty__moz_border_radius_bottomRight:
-  case eCSSProperty__moz_border_radius_bottomLeft:
   case eCSSProperty_box_shadow:
   case eCSSProperty_clip:
   case eCSSProperty__moz_column_rule:
@@ -5191,10 +5027,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_margin_start:
   case eCSSProperty_outline:
   case eCSSProperty__moz_outline_radius:
-  case eCSSProperty__moz_outline_radius_topLeft:
-  case eCSSProperty__moz_outline_radius_topRight:
-  case eCSSProperty__moz_outline_radius_bottomRight:
-  case eCSSProperty__moz_outline_radius_bottomLeft:
   case eCSSProperty_overflow:
   case eCSSProperty_padding:
   case eCSSProperty_padding_end:
@@ -5301,12 +5133,22 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty__moz_column_rule_width:
     return ParsePositiveVariant(aValue, VARIANT_HKL,
                                 nsCSSProps::kBorderWidthKTable);
+  case eCSSProperty__moz_border_radius_topLeft:
+  case eCSSProperty__moz_border_radius_topRight:
+  case eCSSProperty__moz_border_radius_bottomRight:
+  case eCSSProperty__moz_border_radius_bottomLeft:
+    return ParsePositiveVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty__moz_column_count:
     return ParsePositiveVariant(aValue, VARIANT_AHI, nsnull);
   case eCSSProperty__moz_column_width:
     return ParsePositiveVariant(aValue, VARIANT_AHL, nsnull);
   case eCSSProperty__moz_column_gap:
     return ParsePositiveVariant(aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
+  case eCSSProperty__moz_outline_radius_topLeft:
+  case eCSSProperty__moz_outline_radius_topRight:
+  case eCSSProperty__moz_outline_radius_bottomRight:
+  case eCSSProperty__moz_outline_radius_bottomLeft:
+    return ParsePositiveVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_bottom:
   case eCSSProperty_top:
   case eCSSProperty_left:
@@ -5807,14 +5649,11 @@ CSSParserImpl::ParseBackground()
   mTempData.mColor.mBackPosition.mYValue.SetPercentValue(0.0f);
   mTempData.SetPropertyBit(eCSSProperty_background_position);
   // including the ones that we can't set from the shorthand.
-  mTempData.mColor.mBackClip.SetIntValue(NS_STYLE_BG_CLIP_BORDER,
-                                         eCSSUnit_Enumerated);
+  mTempData.mColor.mBackClip.SetInitialValue();
   mTempData.SetPropertyBit(eCSSProperty__moz_background_clip);
-  mTempData.mColor.mBackOrigin.SetIntValue(NS_STYLE_BG_ORIGIN_PADDING,
-                                           eCSSUnit_Enumerated);
+  mTempData.mColor.mBackOrigin.SetInitialValue();
   mTempData.SetPropertyBit(eCSSProperty__moz_background_origin);
-  mTempData.mColor.mBackInlinePolicy.SetIntValue(
-    NS_STYLE_BG_INLINE_POLICY_CONTINUOUS, eCSSUnit_Enumerated);
+  mTempData.mColor.mBackInlinePolicy.SetInitialValue();
   mTempData.SetPropertyBit(eCSSProperty__moz_background_inline_policy);
 
   // XXX If ParseSingleValueProperty were table-driven (bug 376079) and
@@ -6049,6 +5888,38 @@ PRBool CSSParserImpl::ParseBoxPositionValues(nsCSSValuePair &aOut)
   yValue = BoxPositionMaskToCSSValue(mask, PR_FALSE);
   return PR_TRUE;
 }
+
+// These must be in CSS order (top,right,bottom,left) for indexing to work
+static const nsCSSProperty kBorderStyleIDs[] = {
+  eCSSProperty_border_top_style,
+  eCSSProperty_border_right_style_value,
+  eCSSProperty_border_bottom_style,
+  eCSSProperty_border_left_style_value
+};
+static const nsCSSProperty kBorderWidthIDs[] = {
+  eCSSProperty_border_top_width,
+  eCSSProperty_border_right_width_value,
+  eCSSProperty_border_bottom_width,
+  eCSSProperty_border_left_width_value
+};
+static const nsCSSProperty kBorderColorIDs[] = {
+  eCSSProperty_border_top_color,
+  eCSSProperty_border_right_color_value,
+  eCSSProperty_border_bottom_color,
+  eCSSProperty_border_left_color_value
+};
+static const nsCSSProperty kBorderRadiusIDs[] = {
+  eCSSProperty__moz_border_radius_topLeft,
+  eCSSProperty__moz_border_radius_topRight,
+  eCSSProperty__moz_border_radius_bottomRight,
+  eCSSProperty__moz_border_radius_bottomLeft
+};
+static const nsCSSProperty kOutlineRadiusIDs[] = {
+  eCSSProperty__moz_outline_radius_topLeft,
+  eCSSProperty__moz_outline_radius_topRight,
+  eCSSProperty__moz_outline_radius_bottomRight,
+  eCSSProperty__moz_outline_radius_bottomLeft
+};
 
 PRBool
 CSSParserImpl::ParseBorderColor()
@@ -6306,6 +6177,20 @@ CSSParserImpl::ParseBorderWidth()
   InitBoxPropsAsPhysical(kBorderWidthSources);
   return ParseBoxProperties(mTempData.mMargin.mBorderWidth,
                             kBorderWidthIDs);
+}
+
+PRBool
+CSSParserImpl::ParseBorderRadius()
+{
+  return ParseBoxProperties(mTempData.mMargin.mBorderRadius,
+                            kBorderRadiusIDs);
+}
+
+PRBool
+CSSParserImpl::ParseOutlineRadius()
+{
+  return ParseBoxProperties(mTempData.mMargin.mOutlineRadius,
+                            kOutlineRadiusIDs);
 }
 
 PRBool

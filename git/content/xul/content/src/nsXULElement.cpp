@@ -154,7 +154,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIDOMNSEvent.h"
-#include "nsCCUncollectableMarker.h"
 
 /**
  * Three bits are used for XUL Element's lazy state.
@@ -374,13 +373,8 @@ NS_NewXULElement(nsIContent** aResult, nsINodeInfo *aNodeInfo)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsGenericElement)
-    nsIDocument* currentDoc = tmp->GetCurrentDoc();
-    if (currentDoc && nsCCUncollectableMarker::InGeneration(
-                          currentDoc->GetMarkedCCGeneration())) {
-        return NS_OK;
-    }
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
-                                                    nsXULPrototypeElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
+                                                  nsXULPrototypeElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULElement, nsGenericElement)
@@ -2494,7 +2488,7 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
       return NS_ERROR_UNEXPECTED;
 
     // only top level chrome documents can hide the window chrome
-    if (!doc->IsRootDisplayDocument())
+    if (doc->GetParentDocument())
       return NS_OK;
 
     nsIPresShell *shell = doc->GetPrimaryShell();
@@ -2528,7 +2522,7 @@ nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
     }
 
     // only top level chrome documents can set the titlebar color
-    if (doc->IsRootDisplayDocument()) {
+    if (!doc->GetParentDocument()) {
         nsCOMPtr<nsISupports> container = doc->GetContainer();
         nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(container);
         if (baseWindow) {
@@ -2625,8 +2619,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXULPrototypeNode)
             if (!name.IsAtom())
                 cb.NoteXPCOMChild(name.NodeInfo());
         }
-        for (i = 0; i < elem->mChildren.Length(); ++i) {
-            NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(elem->mChildren[i].get(),
+        for (i = 0; i < elem->mNumChildren; ++i) {
+            NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(elem->mChildren[i],
                                                          nsXULPrototypeNode,
                                                          "mChildren[i]")
         }
@@ -2724,9 +2718,9 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
     }
 
     // Now write children
-    rv |= aStream->Write32(PRUint32(mChildren.Length()));
-    for (i = 0; i < mChildren.Length(); i++) {
-        nsXULPrototypeNode* child = mChildren[i].get();
+    rv |= aStream->Write32(PRUint32(mNumChildren));
+    for (i = 0; i < mNumChildren; i++) {
+        nsXULPrototypeNode* child = mChildren[i];
         switch (child->mType) {
         case eType_Element:
         case eType_Text:
@@ -2809,17 +2803,20 @@ nsXULPrototypeElement::Deserialize(nsIObjectInputStream* aStream,
     }
 
     rv |= aStream->Read32(&number);
-    PRUint32 numChildren = PRInt32(number);
+    mNumChildren = PRInt32(number);
 
-    if (numChildren > 0) {
-        if (!mChildren.SetCapacity(numChildren))
+    if (mNumChildren > 0) {
+        mChildren = new nsXULPrototypeNode*[mNumChildren];
+        if (! mChildren)
             return NS_ERROR_OUT_OF_MEMORY;
 
-        for (i = 0; i < numChildren; i++) {
+        memset(mChildren, 0, sizeof(nsXULPrototypeNode*) * mNumChildren);
+
+        for (i = 0; i < mNumChildren; i++) {
             rv |= aStream->Read32(&number);
             Type childType = (Type)number;
 
-            nsRefPtr<nsXULPrototypeNode> child;
+            nsXULPrototypeNode* child = nsnull;
 
             switch (childType) {
             case eType_Element:
@@ -2877,7 +2874,7 @@ nsXULPrototypeElement::Deserialize(nsIObjectInputStream* aStream,
                 rv = NS_ERROR_UNEXPECTED;
             }
 
-            mChildren.AppendElement(child);
+            mChildren[i] = child;
 
             // Oh dear. Something failed during the deserialization.
             // We don't know what.  But likely consequences of failed
@@ -2987,6 +2984,7 @@ nsXULPrototypeScript::nsXULPrototypeScript(PRUint32 aLangID, PRUint32 aLineNo, P
       mLangVersion(aVersion),
       mScriptObject(aLangID)
 {
+    NS_LOG_ADDREF(this, 1, ClassName(), ClassSize());
     NS_ASSERTION(aLangID != nsIProgrammingLanguage::UNKNOWN,
                  "The language ID must be known and constant");
 }

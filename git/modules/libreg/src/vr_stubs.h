@@ -67,7 +67,7 @@
 #ifdef XP_MAC
 #include <stat.h>
 #else
-#if ( defined(BSDI) && !defined(BSDI_2) ) || defined(XP_OS2)
+#if ( defined(BSDI) && !defined(BSDI_2) ) || defined(XP_OS2_EMX)
 #include <sys/types.h>
 #endif
 #include <sys/stat.h>

@@ -560,7 +560,7 @@ nsMenuPopupFrame::InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
   }
 }
 
-void
+void PR_CALLBACK
 LazyGeneratePopupDone(nsIContent* aPopup, nsIFrame* aFrame, void* aArg)
 {
   // be safe and check the frame type

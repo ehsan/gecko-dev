@@ -519,7 +519,8 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
   // Try all of the handlers until we find one that matches the event.
   for (nsXBLPrototypeHandler *currHandler = aHandler; currHandler;
        currHandler = currHandler->GetNextHandler()) {
-    PRBool stopped = privateEvent->IsDispatchStopped();
+    PRBool stopped;
+    privateEvent->IsDispatchStopped(&stopped);
     if (stopped) {
       // The event is finished, don't execute any more handlers
       return NS_OK;

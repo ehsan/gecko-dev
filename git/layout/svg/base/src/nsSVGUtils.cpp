@@ -165,7 +165,7 @@ static const PRUint8 gsRGBToLinearRGBMap[256] = {
 static PRBool gSVGEnabled;
 static const char SVG_PREF_STR[] = "svg.enabled";
 
-static int
+PR_STATIC_CALLBACK(int)
 SVGPrefChanged(const char *aPref, void *aClosure)
 {
   PRBool prefVal = nsContentUtils::GetBoolPref(SVG_PREF_STR);
@@ -399,6 +399,25 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
   return val;
 }
 
+nsresult nsSVGUtils::GetReferencedFrame(nsIFrame **aRefFrame, nsIURI* aURI, nsIContent *aContent, 
+                                        nsIPresShell *aPresShell)
+{
+  *aRefFrame = nsnull;
+
+  nsIContent* content = nsContentUtils::GetReferencedElement(aURI, aContent);
+  if (!content)
+    return NS_ERROR_FAILURE;
+
+  // Get the Primary Frame
+  NS_ASSERTION(aPresShell, "Get referenced SVG frame -- no pres shell provided");
+  if (!aPresShell)
+    return NS_ERROR_FAILURE;
+
+  *aRefFrame = aPresShell->GetPrimaryFrameFor(content);
+  if (!(*aRefFrame)) return NS_ERROR_FAILURE;
+  return NS_OK;
+}
+
 nsresult
 nsSVGUtils::GetNearestViewportElement(nsIContent *aContent,
                                       nsIDOMSVGElement * *aNearestViewportElement)
@@ -573,9 +592,12 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
       break;
 
-    nsSVGFilterFrame *filter = nsSVGEffects::GetFilterFrame(aFrame);
-    if (filter) {
-      rect = filter->GetInvalidationBBox(aFrame, rect);
+    nsSVGFilterProperty *property = nsSVGEffects::GetFilterProperty(aFrame);
+    if (property) {
+      nsSVGFilterFrame *filter = property->GetFilterFrame();
+      if (filter) {
+        rect = filter->GetInvalidationBBox(aFrame, rect);
+      }
     }
     aFrame = aFrame->GetParent();
   }

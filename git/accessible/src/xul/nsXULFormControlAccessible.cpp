@@ -92,7 +92,7 @@ NS_IMETHODIMP nsXULButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& aN
 }
 
 /**
-  * Tell the button to do its action
+  * Tell the button to do it's action
   */
 NS_IMETHODIMP nsXULButtonAccessible::DoAction(PRUint8 index)
 {
@@ -271,7 +271,7 @@ NS_IMETHODIMP nsXULDropmarkerAccessible::GetActionName(PRUint8 aIndex, nsAString
 }
 
 /**
-  * Tell the Dropmarker to do its action
+  * Tell the Dropmarker to do it's action
   */
 NS_IMETHODIMP nsXULDropmarkerAccessible::DoAction(PRUint8 index)
 {
@@ -417,9 +417,11 @@ NS_IMETHODIMP nsXULGroupboxAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-nsresult
-nsXULGroupboxAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULGroupboxAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   nsCOMPtr<nsIAccessible> label;
   GetAccessibleRelated(nsIAccessibleRelation::RELATION_LABELLED_BY,
                        getter_AddRefs(label));
@@ -891,7 +893,7 @@ NS_IMETHODIMP nsXULTextFieldAccessible::GetActionName(PRUint8 aIndex, nsAString&
 }
 
 /**
-  * Tell the button to do its action
+  * Tell the button to do it's action
   */
 NS_IMETHODIMP nsXULTextFieldAccessible::DoAction(PRUint8 index)
 {

@@ -220,12 +220,6 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
     return NS_OK;
   }
 
-  if (aIID.Equals(NS_GET_IID(nsAccessible))) {
-    *aInstancePtr = static_cast<nsAccessible*>(this);
-    NS_ADDREF_THIS();
-    return NS_OK;
-  }
-
   if (aIID.Equals(NS_GET_IID(nsIAccessibleSelectable))) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
     if (!content) {
@@ -307,19 +301,26 @@ NS_IMETHODIMP nsAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    return NS_ERROR_FAILURE;  // Node shut down
+  }
 
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
+  PRBool canAggregateName = mRoleMapEntry &&
+                            mRoleMapEntry->nameRule == eNameOkFromChildren;
 
-  GetARIAName(aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
+  if (content->IsNodeOfType(nsINode::eHTML)) {
+    return GetHTMLName(aName, canAggregateName);
+  }
 
-  return GetNameInternal(aName);
+  if (content->IsNodeOfType(nsINode::eXUL)) {
+    return GetXULName(aName, canAggregateName);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsAccessible::GetDescription(nsAString& aDescription)
@@ -537,7 +538,7 @@ NS_IMETHODIMP nsAccessible::Shutdown()
   mNextSibling = nsnull;
 
   // Invalidate the child count and pointers to other accessibles, also make
-  // sure none of its children point to this parent
+  // sure none of it's children point to this parent
   InvalidateChildren();
   if (mParent) {
     nsCOMPtr<nsPIAccessible> privateParent(do_QueryInterface(mParent));
@@ -1815,13 +1816,15 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
     return NS_OK;
 
   nsAutoString ids;
-  if (!content->GetAttr(kNameSpaceID_None, aIDProperty, ids))
-    return NS_OK;
-
+  if (!content->GetAttr(kNameSpaceID_None, aIDProperty, ids)) {
+    return NS_ERROR_FAILURE;
+  }
   ids.CompressWhitespace(PR_TRUE, PR_TRUE);
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(content->GetOwnerDoc());
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
+  
+  nsresult rv = NS_ERROR_FAILURE;
 
   // Support idlist as in aria-labelledby="id1 id2 id3"
   while (!ids.IsEmpty()) {
@@ -1846,13 +1849,13 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
       return NS_OK;
     }
     // We have a label content
-    nsresult rv = AppendFlatStringFromSubtree(content, &aName);
+    rv = AppendFlatStringFromSubtree(content, &aName);
     if (NS_SUCCEEDED(rv)) {
       aName.CompressWhitespace();
     }
   }
   
-  return NS_OK;
+  return rv;
 }
 
 /**
@@ -1862,18 +1865,28 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
   */
 nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (!content) {
-    aLabel.SetIsVoid(PR_TRUE);
+    return NS_ERROR_FAILURE;   // Node shut down
+  }
+
+  // Check for aria-label property
+  nsAutoString label;
+  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
+    aLabel = label;
     return NS_OK;
+  }
+
+  // Check for aria-labelledby relationship property
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
+  if (NS_SUCCEEDED(rv)) {
+    aLabel = label;
+    return rv;
   }
 
   nsIContent *labelContent = GetHTMLLabelContent(content);
   if (labelContent) {
-    nsAutoString label;
-    nsresult rv = AppendFlatStringFromSubtree(labelContent, &label);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    AppendFlatStringFromSubtree(labelContent, &label);
     label.CompressWhitespace();
     if (!label.IsEmpty()) {
       aLabel = label;
@@ -1884,10 +1897,9 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
   if (aCanAggregateSubtree) {
     // Don't use AppendFlatStringFromSubtree for container widgets like menulist
     nsresult rv = AppendFlatStringFromSubtree(content, &aLabel);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!aLabel.IsEmpty())
+    if (NS_SUCCEEDED(rv) && !aLabel.IsEmpty()) {
       return NS_OK;
+    }
   }
 
   // Still try the title as as fallback method in that case.
@@ -1895,7 +1907,6 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
                         aLabel)) {
     aLabel.SetIsVoid(PR_TRUE);
   }
-
   return NS_OK;
 }
 
@@ -1913,10 +1924,24 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
   */
 nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
-  // CASE #1 (via label attribute) -- great majority of the cases
-  nsresult rv = NS_OK;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(content, "No nsIContent for DOM node");
 
+  // First check for label override via aria-label property
   nsAutoString label;
+  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
+    aLabel = label;
+    return NS_OK;
+  }
+
+  // Second check for label override via aria-labelledby relationship
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
+  if (NS_SUCCEEDED(rv)) {
+    aLabel = label;
+    return rv;
+  }
+
+  // CASE #1 (via label attribute) -- great majority of the cases
   nsCOMPtr<nsIDOMXULLabeledControlElement> labeledEl(do_QueryInterface(mDOMNode));
   if (labeledEl) {
     rv = labeledEl->GetLabel(label);
@@ -1940,10 +1965,6 @@ nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree
   }
 
   // CASES #2 and #3 ------ label as a child or <label control="id" ... > </label>
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
   if (NS_FAILED(rv) || label.IsEmpty()) {
     label.Truncate();
     nsIContent *labelContent =
@@ -1954,7 +1975,7 @@ nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree
     // Check if label's value attribute is used
     if (xulLabel && NS_SUCCEEDED(xulLabel->GetValue(label)) && label.IsEmpty()) {
       // If no value attribute, a non-empty label must contain
-      // children that define its text -- possibly using HTML
+      // children that define it's text -- possibly using HTML
       AppendFlatStringFromSubtree(labelContent, &label);
     }
   }
@@ -2443,17 +2464,6 @@ nsAccessible::GetFinalState(PRUint32 *aState, PRUint32 *aExtraState)
     }
   }
 
-  const PRUint32 kExpandCollapseStates =
-    nsIAccessibleStates::STATE_COLLAPSED | nsIAccessibleStates::STATE_EXPANDED;
-  if ((*aState & kExpandCollapseStates) == kExpandCollapseStates) {
-    // Cannot be both expanded and collapsed -- this happens in ARIA expanded
-    // combobox because of limitation of nsARIAMap.
-    // XXX: Perhaps we will be able to make this less hacky if we support
-    // extended states in nsARIAMap, e.g. derive COLLAPSED from
-    // EXPANDABLE && !EXPANDED.
-    *aState &= ~nsIAccessibleStates::STATE_COLLAPSED;
-  }
-
   // Set additional states which presence depends on another states.
   if (!aExtraState)
     return NS_OK;
@@ -2463,9 +2473,19 @@ nsAccessible::GetFinalState(PRUint32 *aState, PRUint32 *aExtraState)
                     nsIAccessibleStates::EXT_STATE_SENSITIVE;
   }
 
-  if ((*aState & nsIAccessibleStates::STATE_COLLAPSED) ||
-      (*aState & nsIAccessibleStates::STATE_EXPANDED))
+  const PRUint32 kExpandCollapseStates =
+    nsIAccessibleStates::STATE_COLLAPSED | nsIAccessibleStates::STATE_EXPANDED;
+  if (*aState & kExpandCollapseStates) {
     *aExtraState |= nsIAccessibleStates::EXT_STATE_EXPANDABLE;
+    if ((*aState & kExpandCollapseStates) == kExpandCollapseStates) {
+      // Cannot be both expanded and collapsed -- this happens 
+      // in ARIA expanded combobox because of limitation of nsARIAMap
+      // XXX Perhaps we will be able to make this less hacky if 
+      // we support extended states in nsARIAMap, e.g. derive
+      // COLLAPSED from EXPANDABLE && !EXPANDED
+      *aExtraState &= ~nsIAccessibleStates::STATE_COLLAPSED;
+    }
+  }
 
   if (mRoleMapEntry) {
     // If an object has an ancestor with the activedescendant property
@@ -2633,7 +2653,7 @@ nsAccessible::GetValue(nsAString& aValue)
   if (!aValue.IsEmpty())
     return NS_OK;
 
-  // Check if it's a simple xlink.
+  // Check if it's an simple xlink.
   if (nsAccUtils::IsXLink(content)) {
     nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
     if (presShell)
@@ -2754,7 +2774,7 @@ NS_IMETHODIMP nsAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-// readonly attribute PRUint8 numActions
+/* PRUint8 getAccNumActions (); */
 NS_IMETHODIMP
 nsAccessible::GetNumActions(PRUint8 *aNumActions)
 {
@@ -2764,11 +2784,23 @@ nsAccessible::GetNumActions(PRUint8 *aNumActions)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRUint32 actionRule = GetActionRule(State(this));
-  if (actionRule == eNoAction)
+  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
+  if (!content)
     return NS_OK;
 
-  *aNumActions = 1;
+  // Check if it's an simple xlink.
+  if (nsAccUtils::IsXLink(content)) {
+    *aNumActions = 1;
+    return NS_OK;
+  }
+
+  // Has registered 'click' event handler.
+  PRBool isOnclick = nsAccUtils::HasListener(content,
+                                             NS_LITERAL_STRING("click"));
+
+  if (isOnclick)
+    *aNumActions = 1;
+  
   return NS_OK;
 }
 
@@ -2784,49 +2816,26 @@ nsAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRUint32 states = State(this);
-  PRUint32 actionRule = GetActionRule(states);
+  // Check if it's simple xlink.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (nsAccUtils::IsXLink(content)) {
+    aName.AssignLiteral("jump");
+    return NS_OK;
+  }
 
- switch (actionRule) {
-   case eActivateAction:
-     aName.AssignLiteral("activate");
-     return NS_OK;
-
-   case eClickAction:
-     aName.AssignLiteral("click");
-     return NS_OK;
-
-   case eCheckUncheckAction:
-     if (states & nsIAccessibleStates::STATE_CHECKED)
-       aName.AssignLiteral("uncheck");
-     else
-       aName.AssignLiteral("check");
-     return NS_OK;
-
-   case eJumpAction:
-     aName.AssignLiteral("jump");
-     return NS_OK;
-
-   case eOpenCloseAction:
-     if (states & nsIAccessibleStates::STATE_COLLAPSED)
-       aName.AssignLiteral("open");
-     else
-       aName.AssignLiteral("close");
-     return NS_OK;
-
-   case eSelectAction:
-     aName.AssignLiteral("select");
-     return NS_OK;
-
-   case eSwitchAction:
-     aName.AssignLiteral("switch");
-     return NS_OK;
+  // Has registered 'click' event handler.
+  PRBool isOnclick = nsAccUtils::HasListener(content,
+                                             NS_LITERAL_STRING("click"));
+  
+  if (isOnclick) {
+    aName.AssignLiteral("click");
+    return NS_OK;
   }
 
   return NS_ERROR_INVALID_ARG;
 }
 
-// AString getActionDescription(in PRUint8 index)
+/* DOMString getActionDescription (in PRUint8 index); */
 NS_IMETHODIMP
 nsAccessible::GetActionDescription(PRUint8 aIndex, nsAString& aDescription)
 {
@@ -2838,7 +2847,7 @@ nsAccessible::GetActionDescription(PRUint8 aIndex, nsAString& aDescription)
   return GetTranslatedString(name, aDescription);
 }
 
-// void doAction(in PRUint8 index)
+/* void doAction (in PRUint8 index); */
 NS_IMETHODIMP
 nsAccessible::DoAction(PRUint8 aIndex)
 {
@@ -2848,10 +2857,19 @@ nsAccessible::DoAction(PRUint8 aIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  if (GetActionRule(State(this)) != eNoAction) {
-    nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  PRBool doAction = PR_FALSE;
+
+  // Check if it's simple xlink.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (nsAccUtils::IsXLink(content))
+    doAction = PR_TRUE;
+
+  // Has registered 'click' event handler.
+  if (!doAction)
+    doAction = nsAccUtils::HasListener(content, NS_LITERAL_STRING("click"));
+  
+  if (doAction)
     return DoCommand(content);
-  }
 
   return NS_ERROR_INVALID_ARG;
 }
@@ -3436,7 +3454,7 @@ nsAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
   if (aIndex != 0)
     return NS_ERROR_INVALID_ARG;
 
-  // Check if it's a simple xlink.
+  // Check if it's simple xlink.
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (nsAccUtils::IsXLink(content)) {
     nsAutoString href;
@@ -3559,53 +3577,6 @@ nsAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLe
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public methods
-
-nsresult
-nsAccessible::GetARIAName(nsAString& aName)
-{
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
-  // First check for label override via aria-label property
-  nsAutoString label;
-  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
-    aName = label;
-    return NS_OK;
-  }
-  
-  // Second check for label override via aria-labelledby relationship
-  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
-  if (NS_SUCCEEDED(rv))
-    aName = label;
-
-  return rv;
-}
-
-nsresult
-nsAccessible::GetNameInternal(nsAString& aName)
-{
-  PRBool canAggregateName = mRoleMapEntry &&
-    mRoleMapEntry->nameRule == eNameOkFromChildren;
-
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
-  if (content->IsNodeOfType(nsINode::eHTML))
-    return GetHTMLName(aName, canAggregateName);
-
-  if (content->IsNodeOfType(nsINode::eXUL))
-    return GetXULName(aName, canAggregateName);
-
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible private methods
-
 already_AddRefed<nsIAccessible>
 nsAccessible::GetFirstAvailableAccessible(nsIDOMNode *aStartNode, PRBool aRequireLeaf)
 {
@@ -3700,31 +3671,6 @@ nsAccessible::GetAttrValue(nsIAtom *aProperty, double *aValue)
     *aValue = value.ToFloat(&result);
 
   return result;
-}
-
-PRUint32
-nsAccessible::GetActionRule(PRUint32 aStates)
-{
-  if (aStates & nsIAccessibleStates::STATE_UNAVAILABLE)
-    return eNoAction;
-
-  // Check if it's simple xlink.
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  if (nsAccUtils::IsXLink(content))
-    return eJumpAction;
-
-  // Has registered 'click' event handler.
-  PRBool isOnclick = nsAccUtils::HasListener(content,
-                                             NS_LITERAL_STRING("click"));
-
-  if (isOnclick)
-    return eClickAction;
-
-  // Get an action based on ARIA role.
-  if (mRoleMapEntry)
-    return mRoleMapEntry->actionRule;
-
-  return eNoAction;
 }
 
 PRBool nsAccessible::MustPrune(nsIAccessible *aAccessible)

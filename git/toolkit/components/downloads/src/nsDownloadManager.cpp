@@ -140,7 +140,7 @@ nsDownloadManager::GetSingleton()
 nsDownloadManager::~nsDownloadManager()
 {
 #if defined(XP_WIN) && !defined(__MINGW32__)
-  mScanner = nsnull;
+  delete mScanner;
 #endif
   gDownloadManagerService = nsnull;
 }
@@ -914,8 +914,10 @@ nsDownloadManager::Init()
   if (!mScanner)
     return NS_ERROR_OUT_OF_MEMORY;
   rv = mScanner->Init();
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv)) {
+    delete mScanner;
     mScanner = nsnull;
+  }
 #endif
 
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(

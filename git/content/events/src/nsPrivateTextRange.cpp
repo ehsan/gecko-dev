@@ -94,19 +94,19 @@ void nsPrivateTextRangeList::AppendTextRange(nsRefPtr<nsPrivateTextRange>& aRang
 	mList.AppendElement(aRange);
 }
 
-NS_METHOD_(PRUint16) nsPrivateTextRangeList::GetLength()
+NS_METHOD nsPrivateTextRangeList::GetLength(PRUint16* aLength)
 {
-  return static_cast<PRUint16>(mList.Length());
+	*aLength = static_cast<PRUint16>(mList.Length());
+	return NS_OK;
 }
 
-NS_METHOD_(already_AddRefed<nsIPrivateTextRange>) nsPrivateTextRangeList::Item(PRUint16 aIndex)
+NS_METHOD nsPrivateTextRangeList::Item(PRUint16 aIndex, nsIPrivateTextRange** aReturn)
 {
-  nsRefPtr<nsPrivateTextRange> ret = mList.ElementAt(aIndex);
-  if (ret) {
-    nsPrivateTextRange *retPtr = nsnull;
-    ret.swap(retPtr);
-    return retPtr;
-  }
-  return nsnull;
+	*aReturn = mList.ElementAt(aIndex);
+	if (*aReturn) {
+		NS_ADDREF(*aReturn);
+		return NS_OK;
+	}
+	return NS_ERROR_FAILURE;
 }
 

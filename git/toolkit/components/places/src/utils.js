@@ -217,9 +217,10 @@ var PlacesUtils = {
    * @returns true if the node is a visit item, false otherwise
    */
   nodeIsVisit: function PU_nodeIsVisit(aNode) {
+    const NHRN = Ci.nsINavHistoryResultNode;
     var type = aNode.type;
-    return type == Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT ||
-           type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT;
+    return type == NHRN.RESULT_TYPE_VISIT ||
+           type == NHRN.RESULT_TYPE_FULL_VISIT;
   },
 
   /**
@@ -253,8 +254,8 @@ var PlacesUtils = {
    * @returns true if the node is readonly, false otherwise
    */
   nodeIsReadOnly: function PU_nodeIsReadOnly(aNode) {
-    if (this.nodeIsFolder(aNode) || this.nodeIsDynamicContainer(aNode))
-      return this.bookmarks.getFolderReadonly(this.getConcreteItemId(aNode));
+    if (this.nodeIsFolder(aNode))
+      return this.bookmarks.getFolderReadonly(asQuery(aNode).folderItemId);
     if (this.nodeIsQuery(aNode) &&
         asQuery(aNode).queryOptions.resultType !=
           Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_CONTENTS)
@@ -343,7 +344,7 @@ var PlacesUtils = {
    * @returns true if the node is a dynamic container item, false otherwise
    */
   nodeIsDynamicContainer: function PU_nodeIsDynamicContainer(aNode) {
-    if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER)
+    if (aNode.type == NHRN.RESULT_TYPE_DYNAMIC_CONTAINER)
       return true;
     return false;
   },
@@ -1270,7 +1271,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Serializes the given node (and all its descendents) as JSON
+   * Serializes the given node (and all it's descendents) as JSON
    * and writes the serialization to the given output stream.
    * 
    * @param   aNode

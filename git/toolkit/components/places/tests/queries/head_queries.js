@@ -254,7 +254,7 @@ function populateDB(aArray) {
  * database. It also has some interesting meta functions to determine which APIs
  * should be called, and to determine if this object should show up in the
  * resulting query.
- * Its parameter is an object specifying which attributes you want to set.
+ * It's parameter is an object specifying which attributes you want to set.
  * For ex:
  * var myobj = new queryData({isVisit: true, uri:"http://mozilla.com", title="foo"});
  * Note that it doesn't do any input checking on that object.

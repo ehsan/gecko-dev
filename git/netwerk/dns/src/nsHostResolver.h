@@ -221,7 +221,7 @@ private:
     PRBool   GetHostToLookup(nsHostRecord **);
     void     OnLookupComplete(nsHostRecord *, nsresult, PRAddrInfo *);
 
-    static void ThreadFunc(void *);
+    PR_STATIC_CALLBACK(void) ThreadFunc(void *);
 
     PRUint32      mMaxCacheEntries;
     PRUint32      mMaxCacheLifetime;

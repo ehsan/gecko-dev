@@ -17,9 +17,6 @@ include bidi/reftest.list
 # border-image
 include border-image/reftest.list
 
-# border-radius/
-include border-radius/reftest.list
-
 # box-properties/
 include box-properties/reftest.list
 
@@ -125,6 +122,3 @@ include ../xul/base/src/grid/reftests/reftest.list
 
 # z-index/
 include z-index/reftest.list
-
-# reftest(s) to verify content bugfixes
-include ../../content/html/document/reftests/reftests.list

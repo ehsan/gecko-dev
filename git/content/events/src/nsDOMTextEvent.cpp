@@ -97,23 +97,27 @@ NS_METHOD nsDOMTextEvent::GetText(nsString& aText)
   return NS_OK;
 }
 
-NS_METHOD_(already_AddRefed<nsIPrivateTextRangeList>) nsDOMTextEvent::GetInputRange()
+NS_METHOD nsDOMTextEvent::GetInputRange(nsIPrivateTextRangeList** aInputRange)
 {
-  if (mEvent->message == NS_TEXT_TEXT) {
-    nsRefPtr<nsPrivateTextRangeList> textRange = mTextRange;
-    nsPrivateTextRangeList *textRangePtr = nsnull;
-    textRange.swap(textRangePtr);
-    return textRangePtr;
+  if (mEvent->message == NS_TEXT_TEXT)
+  {
+    *aInputRange = mTextRange;
+    NS_IF_ADDREF(*aInputRange);
+    return NS_OK;
   }
-  return nsnull;
+  *aInputRange = nsnull;
+  return NS_ERROR_FAILURE;
 }
 
-NS_METHOD_(nsTextEventReply*) nsDOMTextEvent::GetEventReply()
+NS_METHOD nsDOMTextEvent::GetEventReply(nsTextEventReply** aReply)
 {
-  if (mEvent->message == NS_TEXT_TEXT) {
-     return &(static_cast<nsTextEvent*>(mEvent)->theReply);
+  if (mEvent->message == NS_TEXT_TEXT)
+  {
+     *aReply = &(static_cast<nsTextEvent*>(mEvent)->theReply);
+     return NS_OK;
   }
-  return nsnull;
+  aReply = 0;
+  return NS_ERROR_FAILURE;
 }
 
 nsresult NS_NewDOMTextEvent(nsIDOMEvent** aInstancePtrResult,

@@ -634,7 +634,7 @@ nsWebShell::GetInterface(const nsIID &aIID, void** aInstancePtr)
    return nsDocShell::GetInterface(aIID, aInstancePtr);
 }
 
-nsEventStatus
+nsEventStatus PR_CALLBACK
 nsWebShell::HandleEvent(nsGUIEvent *aEvent)
 {
   return nsEventStatus_eIgnore;

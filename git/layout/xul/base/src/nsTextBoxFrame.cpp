@@ -450,24 +450,10 @@ nsTextBoxFrame::DrawText(nsIRenderingContext& aRenderingContext,
                 presContext->AppUnitsToGfxUnits(aTextRect.y));
     gfxFloat width = presContext->AppUnitsToGfxUnits(aTextRect.width);
     gfxFloat ascentPixel = presContext->AppUnitsToGfxUnits(ascent);
-
-    // Underlines are drawn before overlines, and both before the text
-    // itself, per http://www.w3.org/TR/CSS21/zindex.html point 7.2.1.4.1.1.
-    // (We don't apply this rule to the access-key underline because we only
-    // find out where that is as a side effect of drawing the text, in the
-    // general case -- see below.)
-    if (decorations & (NS_FONT_DECORATION_OVERLINE |
-                       NS_FONT_DECORATION_UNDERLINE)) {
+    if (decorations & (NS_FONT_DECORATION_OVERLINE | NS_FONT_DECORATION_UNDERLINE)) {
       fontMet->GetUnderline(offset, size);
       gfxFloat offsetPixel = presContext->AppUnitsToGfxUnits(offset);
       gfxFloat sizePixel = presContext->AppUnitsToGfxUnits(size);
-      if (decorations & NS_FONT_DECORATION_UNDERLINE) {
-        nsCSSRendering::PaintDecorationLine(ctx, underColor,
-                                            pt, gfxSize(width, sizePixel),
-                                            ascentPixel, offsetPixel,
-                                            NS_STYLE_TEXT_DECORATION_UNDERLINE,
-                                            NS_STYLE_BORDER_STYLE_SOLID);
-      }
       if (decorations & NS_FONT_DECORATION_OVERLINE) {
         nsCSSRendering::PaintDecorationLine(ctx, overColor,
                                             pt, gfxSize(width, sizePixel),
@@ -475,6 +461,23 @@ nsTextBoxFrame::DrawText(nsIRenderingContext& aRenderingContext,
                                             NS_STYLE_TEXT_DECORATION_OVERLINE,
                                             NS_STYLE_BORDER_STYLE_SOLID);
       }
+      if (decorations & NS_FONT_DECORATION_UNDERLINE) {
+        nsCSSRendering::PaintDecorationLine(ctx, underColor,
+                                            pt, gfxSize(width, sizePixel),
+                                            ascentPixel, offsetPixel,
+                                            NS_STYLE_TEXT_DECORATION_UNDERLINE,
+                                            NS_STYLE_BORDER_STYLE_SOLID);
+      }
+    }
+    if (decorations & NS_FONT_DECORATION_LINE_THROUGH) {
+      fontMet->GetStrikeout(offset, size);
+      gfxFloat offsetPixel = presContext->AppUnitsToGfxUnits(offset);
+      gfxFloat sizePixel = presContext->AppUnitsToGfxUnits(size);
+      nsCSSRendering::PaintDecorationLine(ctx, underColor,
+                                          pt, gfxSize(width, sizePixel),
+                                          ascentPixel, offsetPixel,
+                                          NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
+                                          NS_STYLE_BORDER_STYLE_SOLID);
     }
 
     aRenderingContext.SetFont(fontMet);
@@ -537,19 +540,6 @@ nsTextBoxFrame::DrawText(nsIRenderingContext& aRenderingContext,
                                    aTextRect.y + mAccessKeyInfo->mAccessOffset,
                                    mAccessKeyInfo->mAccessWidth,
                                    mAccessKeyInfo->mAccessUnderlineSize);
-    }
-
-    // Strikeout is drawn on top of the text, per
-    // http://www.w3.org/TR/CSS21/zindex.html point 7.2.1.4.1.1.
-    if (decorations & NS_FONT_DECORATION_LINE_THROUGH) {
-      fontMet->GetStrikeout(offset, size);
-      gfxFloat offsetPixel = presContext->AppUnitsToGfxUnits(offset);
-      gfxFloat sizePixel = presContext->AppUnitsToGfxUnits(size);
-      nsCSSRendering::PaintDecorationLine(ctx, strikeColor,
-                                          pt, gfxSize(width, sizePixel),
-                                          ascentPixel, offsetPixel,
-                                          NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
-                                          NS_STYLE_BORDER_STYLE_SOLID);
     }
 }
 
@@ -946,7 +936,6 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
       nsPoint origin(0,0);
       nsRect textRect = CalcTextRect(*aBoxLayoutState.GetRenderingContext(), origin);
       nsRect overflowRect(nsLayoutUtils::GetTextShadowRectsUnion(textRect, this));
-      overflowRect.UnionRect(overflowRect, nsRect(nsPoint(0, 0), GetSize()));
       FinishAndStoreOverflow(&overflowRect, GetSize());
     }
     return rv;
