@@ -803,15 +803,10 @@ AbstractFramePtr::popBlock(JSContext *cx) const
 inline void
 AbstractFramePtr::popWith(JSContext *cx) const
 {
-    if (isStackFrame()) {
+    if (isStackFrame())
         asStackFrame()->popWith(cx);
-        return;
-    }
-#ifdef JS_ION
-    asBaselineFrame()->popWith(cx);
-#else
-    MOZ_ASSUME_UNREACHABLE("Invalid frame");
-#endif
+    else
+        MOZ_ASSUME_UNREACHABLE("Invalid frame");
 }
 
 Activation::Activation(JSContext *cx, Kind kind)

@@ -62,7 +62,6 @@ TextTrackList::AddTextTrack(HTMLMediaElement* aMediaElement,
                                             aLabel, aLanguage);
   if (mTextTracks.AppendElement(track)) {
     CreateAndDispatchTrackEventRunner(track, NS_LITERAL_STRING("addtrack"));
-    track->SetTextTrackList(this);
   }
 
   return track.forget();

@@ -49,8 +49,7 @@ AudioCompactor::GetChunkSamples(uint32_t aFrames, uint32_t aChannels,
 }
 
 uint32_t
-AudioCompactor::NativeCopy::operator()(AudioDataValue *aBuffer,
-                                       uint32_t aSamples)
+AudioCompactor::NativeCopy::operator()(AudioDataValue *aBuffer, size_t aSamples)
 {
   NS_ASSERTION(aBuffer, "cannot copy to null buffer pointer");
   NS_ASSERTION(aSamples, "cannot copy zero values");

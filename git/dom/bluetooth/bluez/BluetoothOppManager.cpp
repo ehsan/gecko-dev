@@ -1467,7 +1467,7 @@ BluetoothOppManager::OnSocketConnectError(BluetoothSocket* aSocket)
   }
 
   // Listen as a server if there's no more batch to process
-  if (!ProcessNextBatch() && !mIsServer) {
+  if (!ProcessNextBatch()) {
     Listen();
   }
 }

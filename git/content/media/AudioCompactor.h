@@ -24,7 +24,7 @@ public:
   // The caller must provide a functor to copy the data into the buffers.  The
   // functor must provide the following signature:
   //
-  //   uint32_t operator()(AudioDataValue *aBuffer, uint32_t aSamples);
+  //   uint32_t operator()(AudioDataValue *aBuffer, size_t aSamples);
   //
   // The functor must copy as many complete frames as possible to the provided
   // buffer given its length (in AudioDataValue elements).  The number of frames
@@ -84,7 +84,7 @@ public:
       , mNextByte(0)
     { }
 
-    uint32_t operator()(AudioDataValue *aBuffer, uint32_t aSamples);
+    uint32_t operator()(AudioDataValue *aBuffer, size_t aSamples);
 
   private:
     const uint8_t* const mSource;

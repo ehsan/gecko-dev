@@ -260,9 +260,9 @@ public:
     , mNextSample(0)
   { }
 
-  uint32_t operator()(AudioDataValue *aBuffer, uint32_t aSamples)
+  uint32_t operator()(AudioDataValue *aBuffer, size_t aSamples)
   {
-    uint32_t maxSamples = std::min(aSamples, mSamples - mNextSample);
+    size_t maxSamples = std::min(aSamples, mSamples - mNextSample);
     uint32_t frames = maxSamples / mChannels;
     size_t byteOffset = mNextSample * mBytesPerSample;
     if (mBytesPerSample == 1) {
