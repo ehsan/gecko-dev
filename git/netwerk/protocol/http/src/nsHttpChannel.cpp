@@ -663,10 +663,6 @@ nsHttpChannel::SetupTransaction()
 void
 nsHttpChannel::AddCookiesToRequest()
 {
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-      return;
-    }
-
     nsXPIDLCString cookie;
 
     nsICookieService *cs = gHttpHandler->GetCookieService();
@@ -1750,22 +1746,13 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
 nsresult
 nsHttpChannel::GenerateCacheKey(nsACString &cacheKey)
 {
-    cacheKey.Truncate();
-
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-      cacheKey.AssignLiteral("anon&");
-    }
-
     if (mPostID) {
         char buf[32];
-        PR_snprintf(buf, sizeof(buf), "id=%x&", mPostID);
-        cacheKey.Append(buf);
-    }
-
-    if (!cacheKey.IsEmpty()) {
-      cacheKey.AppendLiteral("uri=");
-    }
-
+        PR_snprintf(buf, sizeof(buf), "id=%x&uri=", mPostID);
+        cacheKey.Assign(buf);
+    } else
+        cacheKey.Truncate();
+    
     // Strip any trailing #ref from the URL before using it as the key
     const char *spec = mFallbackChannel ? mFallbackKey.get() : mSpec.get();
     const char *p = strchr(spec, '#');
@@ -2901,10 +2888,6 @@ nsHttpChannel::ProcessAuthentication(PRUint32 httpStatus)
     LOG(("nsHttpChannel::ProcessAuthentication [this=%x code=%u]\n",
         this, httpStatus));
 
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-
     const char *challenges;
     PRBool proxyAuth = (httpStatus == 407);
 
@@ -3624,10 +3607,6 @@ void
 nsHttpChannel::AddAuthorizationHeaders()
 {
     LOG(("nsHttpChannel::AddAuthorizationHeaders? [this=%x]\n", this));
-
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-      return;
-    }
 
     // this getter never fails
     nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
@@ -4521,10 +4500,6 @@ nsHttpChannel::GetResponseVersion(PRUint32 *major, PRUint32 *minor)
 NS_IMETHODIMP
 nsHttpChannel::SetCookie(const char *aCookieHeader)
 {
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-      return NS_OK;
-    }
-
     // empty header isn't an error
     if (!(aCookieHeader && *aCookieHeader))
         return NS_OK;

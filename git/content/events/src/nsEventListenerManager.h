@@ -49,8 +49,6 @@
 
 class nsIDOMEvent;
 class nsIAtom;
-class nsIWidget;
-struct nsPoint;
 struct EventTypeData;
 
 typedef struct {
@@ -130,8 +128,6 @@ public:
   virtual PRUint32 MutationListenerBits();
 
   virtual PRBool HasListenersFor(const nsAString& aEventName);
-
-  virtual PRBool HasListeners();
 
   static PRUint32 GetIdentifierForEvent(nsIAtom* aEvent);
 

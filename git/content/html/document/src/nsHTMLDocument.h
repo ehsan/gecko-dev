@@ -197,11 +197,6 @@ public:
     return mEditingState;
   }
 
-  virtual void DisableCookieAccess()
-  {
-    mDisableCookieAccess = PR_TRUE;
-  }
-
   virtual nsIContent* GetBodyContentExternal();
   
   class nsAutoEditingState {
@@ -360,9 +355,6 @@ protected:
   nsresult   DoClipboardSecurityCheck(PRBool aPaste);
   static jsval       sCutCopyInternal_id;
   static jsval       sPasteInternal_id;
-
-  // When false, the .cookies property is completely disabled
-  PRBool mDisableCookieAccess;
 
   // Parser used for constructing document fragments.
   nsCOMPtr<nsIParser> mFragmentParser;
