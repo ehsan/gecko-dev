@@ -537,6 +537,9 @@ nsDOMMutationObserver::Disconnect()
     mReceivers[i]->Disconnect();
   }
   mReceivers.Clear();
+  for (PRUint32 i = 0; i < mCurrentMutations.Length(); ++i) {
+    nsDOMMutationRecord* r = mCurrentMutations[i];
+  }
   mCurrentMutations.Clear();
   mPendingMutations.Clear();
   return NS_OK;
@@ -570,11 +573,28 @@ nsDOMMutationObserver::Initialize(nsISupports* aOwner, JSContext* cx,
   return NS_OK;
 }
 
+static PLDHashOperator
+TransientReceiverTraverser(nsISupports* aKey,
+                           nsCOMArray<nsMutationReceiver>* aArray,
+                           void* aUserArg)
+{
+  PRInt32 count = aArray->Count();
+  for (PRInt32 i = 0; i < count; ++i) {
+    nsMutationReceiver* r = aArray->ObjectAt(i);
+    nsMutationReceiver* p = r->GetParent();
+    if (p) {
+      p->RemoveClones();
+    }
+    r->Disconnect();
+  }
+  return PL_DHASH_NEXT;
+}
+
 void
 nsDOMMutationObserver::HandleMutation()
 {
   NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "Whaat!");
-  NS_ASSERTION(mCurrentMutations.IsEmpty(),
+  NS_ASSERTION(mCurrentMutations.Length() == 0,
                "Still generating MutationRecords?");
 
   mWaitingForRun = false;
@@ -729,6 +749,7 @@ nsDOMMutationObserver::LeaveMutationHandling()
         static_cast<nsDOMMutationObserver*>(obs[i]);
       if (o->mCurrentMutations.Length() == sMutationLevel) {
         // It is already in pending mutations.
+        nsDOMMutationRecord* r = o->mCurrentMutations[sMutationLevel - 1];
         o->mCurrentMutations.RemoveElementAt(sMutationLevel - 1);
       }
     }

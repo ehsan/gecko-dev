@@ -54,7 +54,7 @@ PlacesViewBase.prototype = {
   get result() this._result,
   set result(val) {
     if (this._result == val)
-      return val;
+      return;
 
     if (this._result) {
       this._result.removeObserver(this);
@@ -1678,7 +1678,7 @@ PlacesToolbar.prototype = {
     if (parent.localName == "toolbarbutton")
       this._openedMenuButton = parent;
 
-    PlacesViewBase.prototype._onPopupShowing.apply(this, arguments);
+    return PlacesViewBase.prototype._onPopupShowing.apply(this, arguments);
   },
 
   _onPopupHidden: function PT__onPopupHidden(aEvent) {

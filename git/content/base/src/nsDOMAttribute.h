@@ -56,14 +56,15 @@
 // Attribute helper class used to wrap up an attribute with a dom
 // object that implements nsIDOMAttr and nsIDOMNode
 class nsDOMAttribute : public nsIAttribute,
-                       public nsIDOMAttr
+                       public nsIDOMAttr,
+                       public nsStubMutationObserver
 {
 public:
   nsDOMAttribute(nsDOMAttributeMap* aAttrMap,
                  already_AddRefed<nsINodeInfo> aNodeInfo,
                  const nsAString& aValue,
                  bool aNsAware);
-  virtual ~nsDOMAttribute() {}
+  virtual ~nsDOMAttribute();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -99,6 +100,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDOMAttribute,
                                                          nsIAttribute)
 
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
@@ -110,12 +113,24 @@ protected:
 
 private:
   already_AddRefed<nsIAtom> GetNameAtom(nsIContent* aContent);
+
+  void EnsureChildState();
+
+  /**
+   * Really removing the attribute child (unbind and release).
+   */
+  void doRemoveChild(bool aNotify);
+
+  nsString mValue;
+  // XXX For now, there's only a single child - a text element
+  // representing the value.  This is strong ref, but we use a raw
+  // pointer so we can implement GetChildArray().
+  nsIContent* mChild;
+
   mozilla::dom::Element *GetContentInternal() const
   {
     return mAttrMap ? mAttrMap->GetContent() : nsnull;
   }
-
-  nsString mValue;
 };
 
 
