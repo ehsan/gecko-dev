@@ -119,6 +119,10 @@ class StubTabsAccessor implements TabsAccessor {
     }
 
     public synchronized void persistLocalTabs(final ContentResolver cr, final Iterable<Tab> tabs) { }
+
+    public String getLastSyncedString(Context context, long now, long time) {
+        return "";
+    }
 }
 
 /*

@@ -77,10 +77,6 @@ ul {
   min-width: 150px;
 }
 
-.button-container > button:first-child {
-  -moz-margin-start: 0;
-}
-
 /* Trees */
 tree {
   min-height: 12em;

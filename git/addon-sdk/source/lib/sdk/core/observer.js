@@ -41,9 +41,10 @@ const ObserverDelegee = Class({
     this.delegate = delegate;
   },
   QueryInterface: function(iid) {
-    if (!iid.equals(Ci.nsIObserver) &&
-        !iid.equals(Ci.nsISupportsWeakReference) &&
-        !iid.equals(Ci.nsISupports))
+    const isObserver = iid.equals(Ci.nsIObserver);
+    const isWeakReference = iid.equals(Ci.nsISupportsWeakReference);
+
+    if (!isObserver && !isWeakReference)
       throw Cr.NS_ERROR_NO_INTERFACE;
 
     return this;

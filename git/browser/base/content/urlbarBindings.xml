@@ -160,11 +160,6 @@
                 break;
               }
             }
-          } else {
-            let originalUrl = ReaderParent.parseReaderUrl(aValue);
-            if (originalUrl) {
-              returnValue = originalUrl;
-            }
           }
 
           // Set the actiontype only if the user is not overriding actions.
