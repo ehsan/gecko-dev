@@ -61,6 +61,7 @@ function run_test()
   Cc["@mozilla.org/preferences-service;1"].
   getService(Ci.nsIPrefBranch).
   setIntPref("browser.download.manager.resumeOnWakeDelay", 1000);
+dump("%%%Set pref\n");
 
   /**
    * 1. Create data for http server to send
@@ -70,6 +71,7 @@ function run_test()
   // data * 10^4 = 100,000 bytes (actually 101,111 bytes with newline)
   for (let i = 0; i < 4; i++)
     data = [data,data,data,data,data,data,data,data,data,data,"\n"].join("");
+dump("%%%Generated data\n");
 
   /**
    * 2. Start the http server that can handle resume
@@ -86,9 +88,14 @@ function run_test()
       let matches = meta.getHeader("Range").match(/^\s*bytes=(\d+)?-(\d+)?\s*$/);
       let from = (matches[1] === undefined) ? 0 : matches[1];
       let to = (matches[2] === undefined) ? data.length - 1 : matches[2];
+      dump("%%%meta.getHeader('Range'): " + meta.getHeader("Range") + "\n");
+      dump("%%%from: " + from + "\n");
+      dump("%%%to: " + to + "\n");
+      dump("%%%data.length: " + data.length + "\n");
       if (from >= data.length) {
         resp.setStatusLine(meta.httpVersion, 416, "Start pos too high");
         resp.setHeader("Content-Range", "*/" + data.length);
+dump("%%% Returning early - from >= data.length\n");
         return;
       }
       body = body.substring(from, to + 1);
@@ -99,6 +106,7 @@ function run_test()
     resp.bodyOutputStream.write(body, body.length);
   });
   httpserv.start(4444);
+dump("%%%Started server\n");
 
   /**
    * 3. Perform various actions for certain download states
@@ -107,17 +115,21 @@ function run_test()
   let didResumeDownload = false;
   dm.addListener({
     onDownloadStateChange: function(a, aDl) {
+dump("%%%onDownloadStateChange\n");
       if (aDl.state == nsIDM.DOWNLOAD_DOWNLOADING && !didPause) {
+dump("%%%aDl.state: DOWNLOAD_DOWNLOADING\n");
         /**
          * (1) queued -> downloading = pause the download with sleep
          */
         notify("sleep_notification");
       } else if (aDl.state == nsIDM.DOWNLOAD_PAUSED) {
+dump("%%%aDl.state: DOWNLOAD_PAUSED\n");
         /**
          * (2) downloading -> paused
          */
         didPause = true;
       } else if (aDl.state == nsIDM.DOWNLOAD_FINISHED) {
+dump("%%%aDl.state: DOWNLOAD_FINISHED\n");
         /**
          * (4) downloading (resumed) -> finished = check tests
          */
@@ -132,9 +144,13 @@ function run_test()
         aDl.targetFile.remove(false);
         // we're done with the test!
         do_test_finished();
-      }
+      } else
+        dump("%%%aDl.state: " + aDl.state + "\n");
     },
     onStateChange: function(a, b, aState, d, aDl) {
+dump("%%%onStateChange\n");
+dump("%%%aState: " + aState + "\n");
+dump("%%%status: " + d + "\n");
       if ((aState & nsIWPL.STATE_STOP) && didPause && !didResumeServer &&
           !didResumeDownload) {
         /**
@@ -148,6 +164,7 @@ function run_test()
     onSecurityChange: function(a, b, c, d) { }
   });
   dm.addListener(getDownloadListener());
+dump("%%%Added listener\n");
 
   /**
    * 4. Start the download
@@ -168,4 +185,5 @@ function run_test()
 
   // Mark as pending, so clear this when we actually finish the download
   do_test_pending();
+dump("%%%Started test\n");
 }

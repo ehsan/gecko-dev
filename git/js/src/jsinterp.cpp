@@ -77,6 +77,8 @@
 #include "jsxml.h"
 #endif
 
+#include "jsautooplen.h"
+
 #ifdef js_invoke_c__
 
 uint32
@@ -116,6 +118,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
     JSAtom *atom;
     JSPropCacheEntry *entry;
 
+    JS_ASSERT(!cx->runtime->gcRunning);
     cache = &JS_PROPERTY_CACHE(cx);
     pc = cx->fp->regs->pc;
     if (cache->disabled) {
@@ -1480,12 +1483,6 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
         frame.callee = NULL;
         frame.fun = NULL;
         frame.thisp = chain;
-        OBJ_TO_OUTER_OBJECT(cx, frame.thisp);
-        if (!frame.thisp) {
-            ok = JS_FALSE;
-            goto out;
-        }
-        flags |= JSFRAME_COMPUTED_THIS;
         frame.argc = 0;
         frame.argv = NULL;
         frame.nvars = script->ngvars;
@@ -1535,6 +1532,15 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
     }
 
     cx->fp = &frame;
+    if (!down) {
+        OBJ_TO_OUTER_OBJECT(cx, frame.thisp);
+        if (!frame.thisp) {
+            ok = JS_FALSE;
+            goto out2;
+        }
+        frame.flags |= JSFRAME_COMPUTED_THIS;
+    }
+
     if (hook) {
         hookData = hook(cx, &frame, JS_TRUE, 0,
                         cx->debugHooks->executeHookData);
@@ -1548,6 +1554,8 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
         if (hook)
             hook(cx, &frame, JS_FALSE, &ok, hookData);
     }
+
+out2:
     if (mark)
         js_FreeRawStack(cx, mark);
     cx->fp = oldfp;
@@ -2074,6 +2082,77 @@ js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2)
     return JS_TRUE;
 }
 
+#ifdef DEBUG
+
+void
+js_TraceOpcode(JSContext *cx, jsint len)
+{
+    FILE *tracefp;
+    JSStackFrame *fp;
+    JSFrameRegs *regs;
+    JSOp prevop;
+    intN ndefs, n, nuses;
+    jsval *siter;
+    JSString *str;
+    JSOp op;
+
+    tracefp = (FILE *) cx->tracefp;
+    JS_ASSERT(tracefp);
+    fp = cx->fp;
+    regs = fp->regs;
+    if (len != 0) {
+        prevop = (JSOp) regs->pc[-len];
+        ndefs = js_CodeSpec[prevop].ndefs;
+        if (ndefs != 0) {
+            if (prevop == JSOP_FORELEM && regs->sp[-1] == JSVAL_FALSE)
+                --ndefs;
+            for (n = -ndefs; n < 0; n++) {
+                char *bytes = js_DecompileValueGenerator(cx, n, regs->sp[n],
+                                                         NULL);
+                if (bytes) {
+                    fprintf(tracefp, "%s %s",
+                            (n == -ndefs) ? "  output:" : ",",
+                            bytes);
+                    JS_free(cx, bytes);
+                }
+            }
+            fprintf(tracefp, " @ %d\n", regs->sp - fp->spbase);
+        }
+        fprintf(tracefp, "  stack: ");
+        for (siter = fp->spbase; siter < regs->sp; siter++) {
+            str = js_ValueToString(cx, *siter);
+            if (!str)
+                fputs("<null>", tracefp);
+            else
+                js_FileEscapedString(tracefp, str, 0);
+            fputc(' ', tracefp);
+        }
+        fputc('\n', tracefp);
+    }
+
+    fprintf(tracefp, "%4u: ", js_PCToLineNumber(cx, fp->script, regs->pc));
+    js_Disassemble1(cx, fp->script, regs->pc,
+                    PTRDIFF(regs->pc, fp->script->code, jsbytecode),
+                    JS_FALSE, tracefp);
+    op = (JSOp) *regs->pc;
+    nuses = js_CodeSpec[op].nuses;
+    if (nuses != 0) {
+        for (n = -nuses; n < 0; n++) {
+            char *bytes = js_DecompileValueGenerator(cx, n, regs->sp[n],
+                                                     NULL);
+            if (bytes) {
+                fprintf(tracefp, "%s %s",
+                        (n == -nuses) ? "  inputs:" : ",",
+                        bytes);
+                JS_free(cx, bytes);
+            }
+        }
+        fprintf(tracefp, " @ %d\n", regs->sp - fp->spbase);
+    }
+}
+
+#endif /* DEBUG */
+
 #ifdef JS_OPMETER
 
 # include <stdlib.h>
@@ -2359,8 +2438,6 @@ js_DumpOpMeters()
 #define CAN_DO_FAST_INC_DEC(v)     (((((v) << 1) ^ v) & 0x80000001) == 1)
 
 JS_STATIC_ASSERT(JSVAL_INT == 1);
-JS_STATIC_ASSERT(JSVAL_INT & JSVAL_VOID);
-JS_STATIC_ASSERT(!CAN_DO_FAST_INC_DEC(JSVAL_VOID));
 JS_STATIC_ASSERT(!CAN_DO_FAST_INC_DEC(INT_TO_JSVAL(JSVAL_INT_MIN)));
 JS_STATIC_ASSERT(!CAN_DO_FAST_INC_DEC(INT_TO_JSVAL(JSVAL_INT_MAX)));
 
@@ -2425,6 +2502,13 @@ JS_STATIC_ASSERT(!CAN_DO_FAST_INC_DEC(INT_TO_JSVAL(JSVAL_INT_MAX)));
 # endif
 #endif
 
+
+/*
+ * Interpreter assumes the following to implement condition-free interrupt
+ * implementation when !JS_THREADED_INTERP.
+ */
+JS_STATIC_ASSERT(JSOP_INTERRUPT == 0);
+
 /*
  * Ensure that the intrepreter switch can close call-bytecode cases in the
  * same way as non-call bytecodes.
@@ -2445,9 +2529,9 @@ JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
 /* Ensure we can share deffun and closure code. */
 JS_STATIC_ASSERT(JSOP_DEFFUN_LENGTH == JSOP_CLOSURE_LENGTH);
 
-
-/* See comments in FETCH_SHIFT macro. */
-JS_STATIC_ASSERT((JSVAL_TO_INT(JSVAL_VOID) & 31) == 0);
+/* See TRY_BRANCH_AFTER_COND. */
+JS_STATIC_ASSERT(JSOP_IFNE_LENGTH == JSOP_IFEQ_LENGTH);
+JS_STATIC_ASSERT(JSOP_IFNE == JSOP_IFEQ + 1);
 
 JSBool
 js_Interpret(JSContext *cx)
@@ -2462,7 +2546,6 @@ js_Interpret(JSContext *cx)
     JSFrameRegs regs;
     JSObject *obj, *obj2, *parent;
     JSBool ok, cond;
-    JSTrapHandler interruptHandler;
     jsint len;
     jsbytecode *endpc, *pc2;
     JSOp op, op2;
@@ -2472,7 +2555,6 @@ js_Interpret(JSContext *cx)
     uint32 slot;
     jsval *vp, lval, rval, ltmp, rtmp;
     jsid id;
-    JSObject *iterobj;
     JSProperty *prop;
     JSScopeProperty *sprop;
     JSString *str, *str2;
@@ -2481,8 +2563,11 @@ js_Interpret(JSContext *cx)
     JSClass *clasp;
     JSFunction *fun;
     JSType type;
-#if !JS_THREADED_INTERP && defined DEBUG
-    FILE *tracefp = NULL;
+#if JS_THREADED_INTERP
+    register void * const *jumpTable;
+#else
+    register uint32 switchMask;
+    uintN switchOp;
 #endif
 #if JS_HAS_EXPORT_IMPORT
     JSIdArray *ida;
@@ -2502,42 +2587,68 @@ js_Interpret(JSContext *cx)
 #endif
 
 #if JS_THREADED_INTERP
-    static void *normalJumpTable[] = {
+    static void *const normalJumpTable[] = {
 # define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format) \
         JS_EXTENSION &&L_##op,
 # include "jsopcode.tbl"
 # undef OPDEF
     };
 
-    static void *interruptJumpTable[] = {
+    static void *const interruptJumpTable[] = {
 # define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)              \
-        JS_EXTENSION &&interrupt,
+        JS_EXTENSION &&L_JSOP_INTERRUPT,
 # include "jsopcode.tbl"
 # undef OPDEF
     };
 
-    register void **jumpTable = normalJumpTable;
-
     METER_OP_INIT(op);      /* to nullify first METER_OP_PAIR */
 
 # define DO_OP()            JS_EXTENSION_(goto *jumpTable[op])
-# define DO_NEXT_OP(n)      do { METER_OP_PAIR(op, regs.pc[n]);               \
-                                 op = (JSOp) *(regs.pc += (n));               \
-                                 DO_OP(); } while (0)
+# define DO_NEXT_OP(n)      JS_BEGIN_MACRO                                    \
+                                METER_OP_PAIR(op, regs.pc[n]);                \
+                                op = (JSOp) *(regs.pc += (n));                \
+                                DO_OP();                                      \
+                            JS_END_MACRO
+
 # define BEGIN_CASE(OP)     L_##OP:
 # define END_CASE(OP)       DO_NEXT_OP(OP##_LENGTH);
 # define END_VARLEN_CASE    DO_NEXT_OP(len);
-# define EMPTY_CASE(OP)     BEGIN_CASE(OP) op = (JSOp) *++regs.pc; DO_OP();
-#else
+# define ADD_EMPTY_CASE(OP) BEGIN_CASE(OP)                                    \
+                                JS_ASSERT(js_CodeSpec[OP].length == 1);       \
+                                op = (JSOp) *++regs.pc;                       \
+                                DO_OP();
+
+# define END_EMPTY_CASES
+
+#else /* !JS_THREADED_INTERP */
+
 # define DO_OP()            goto do_op
-# define DO_NEXT_OP(n)      goto advance_pc
+# define DO_NEXT_OP(n)      JS_BEGIN_MACRO                                    \
+                                JS_ASSERT((n) == len);                        \
+                                goto advance_pc;                              \
+                            JS_END_MACRO
+
 # define BEGIN_CASE(OP)     case OP:
-# define END_CASE(OP)       break;
-# define END_VARLEN_CASE    break;
-# define EMPTY_CASE(OP)     BEGIN_CASE(OP) END_CASE(OP)
+# define END_CASE(OP)       END_CASE_LEN(OP##_LENGTH)
+# define END_CASE_LEN(n)    END_CASE_LENX(n)
+# define END_CASE_LENX(n)   END_CASE_LEN##n
+
+/*
+ * To share the code for all len == 1 cases we use the specialized label with
+ * code that falls through to advance_pc: .
+ */
+# define END_CASE_LEN1      goto advance_pc_by_one;
+# define END_CASE_LEN2      len = 2; goto advance_pc;
+# define END_CASE_LEN3      len = 3; goto advance_pc;
+# define END_CASE_LEN4      len = 4; goto advance_pc;
+# define END_CASE_LEN5      len = 5; goto advance_pc;
+# define END_VARLEN_CASE    goto advance_pc;
+# define ADD_EMPTY_CASE(OP) BEGIN_CASE(OP)
+# define END_EMPTY_CASES    goto advance_pc_by_one;
+
 #endif
 
-    /* Check for too deep a C stack. */
+    /* Check for too deep of a native thread stack. */
     JS_CHECK_RECURSION(cx, return JS_FALSE);
 
     rt = cx->runtime;
@@ -2616,17 +2727,14 @@ js_Interpret(JSContext *cx)
      * the compiler can keep it in a register when it is non-null.
      */
 #if JS_THREADED_INTERP
-# define LOAD_JUMP_TABLE()                                                    \
-    (jumpTable = interruptHandler ? interruptJumpTable : normalJumpTable)
+# define LOAD_INTERRUPT_HANDLER(cx)                                           \
+    ((void) (jumpTable = (cx)->debugHooks->interruptHandler                   \
+                         ? interruptJumpTable                                 \
+                         : normalJumpTable))
 #else
-# define LOAD_JUMP_TABLE()      ((void) 0)
+# define LOAD_INTERRUPT_HANDLER(cx)                                           \
+    ((void) (switchMask = (cx)->debugHooks->interruptHandler ? 0 : 255))
 #endif
-
-#define LOAD_INTERRUPT_HANDLER(cx)                                            \
-    JS_BEGIN_MACRO                                                            \
-        interruptHandler = (cx)->debugHooks->interruptHandler;                \
-        LOAD_JUMP_TABLE();                                                    \
-    JS_END_MACRO
 
     LOAD_INTERRUPT_HANDLER(cx);
 
@@ -2675,107 +2783,89 @@ js_Interpret(JSContext *cx)
         }
     }
 
-#if JS_THREADED_INTERP
-
     /*
-     * This is a loop, but it does not look like a loop.  The loop-closing
-     * jump is distributed throughout interruptJumpTable, and comes back to
-     * the interrupt label.  The dispatch on op is through normalJumpTable.
-     * The trick is LOAD_INTERRUPT_HANDLER setting jumpTable appropriately.
-     *
-     * It is important that "op" be initialized before the interrupt label
-     * because it is possible for "op" to be specially assigned during the
-     * normally processing of an opcode while looping (in particular, this
-     * happens in JSOP_TRAP while debugging).  We rely on DO_NEXT_OP to
-     * correctly manage "op" in all other cases.
+     * It is important that "op" be initialized before calling DO_OP because
+     * it is possible for "op" to be specially assigned during the normal
+     * processing of an opcode while looping. We rely on DO_NEXT_OP to manage
+     * "op" correctly in all other cases.
      */
-    op = (JSOp) *regs.pc;
-    if (interruptHandler) {
-interrupt:
-        switch (interruptHandler(cx, script, regs.pc, &rval,
-                                 cx->debugHooks->interruptHandlerData)) {
-          case JSTRAP_ERROR:
-            goto error;
-          case JSTRAP_CONTINUE:
-            break;
-          case JSTRAP_RETURN:
-            fp->rval = rval;
-            ok = JS_TRUE;
-            goto forced_return;
-          case JSTRAP_THROW:
-            cx->throwing = JS_TRUE;
-            cx->exception = rval;
-            goto error;
-          default:;
-        }
-        LOAD_INTERRUPT_HANDLER(cx);
-    }
+    len = 0;
+    DO_NEXT_OP(len);
 
-    JS_ASSERT((uintN)op < (uintN)JSOP_LIMIT);
-    JS_EXTENSION_(goto *normalJumpTable[op]);
-
-#else  /* !JS_THREADED_INTERP */
-
+#if JS_THREADED_INTERP
+    /*
+     * This is a loop, but it does not look like a loop. The loop-closing
+     * jump is distributed throughout goto *jumpTable[op] inside of DO_OP.
+     * When interrupts are enabled, jumpTable is set to interruptJumpTable
+     * where all jumps point to the JSOP_INTERRUPT case. The latter, after
+     * calling the interrupt handler, dispatches through normalJumpTable to
+     * continue the normal bytecode processing.
+     */
+#else
     for (;;) {
+      advance_pc_by_one:
+        JS_ASSERT(js_CodeSpec[op].length == 1);
+        len = 1;
+      advance_pc:
+        regs.pc += len;
         op = (JSOp) *regs.pc;
-      do_op:
-        len = js_CodeSpec[op].length;
-
 #ifdef DEBUG
-        tracefp = (FILE *) cx->tracefp;
-        if (tracefp) {
-            intN nuses, n;
+        if (cx->tracefp)
+            js_TraceOpcode(cx, len);
+#endif
 
-            fprintf(tracefp, "%4u: ", js_PCToLineNumber(cx, script, regs.pc));
-            js_Disassemble1(cx, script, regs.pc,
-                            PTRDIFF(regs.pc, script->code, jsbytecode),
-                            JS_FALSE, tracefp);
-            nuses = js_CodeSpec[op].nuses;
-            if (nuses) {
-                for (n = -nuses; n < 0; n++) {
-                    char *bytes = js_DecompileValueGenerator(cx, n, regs.sp[n],
-                                                             NULL);
-                    if (bytes) {
-                        fprintf(tracefp, "%s %s",
-                                (n == -nuses) ? "  inputs:" : ",",
-                                bytes);
-                        JS_free(cx, bytes);
-                    }
-                }
-                fprintf(tracefp, " @ %d\n", regs.sp - fp->spbase);
-            }
-        }
-#endif /* DEBUG */
-
-        if (interruptHandler) {
-            switch (interruptHandler(cx, script, regs.pc, &rval,
-                                     cx->debugHooks->interruptHandlerData)) {
-              case JSTRAP_ERROR:
-                goto error;
-              case JSTRAP_CONTINUE:
-                break;
-              case JSTRAP_RETURN:
-                fp->rval = rval;
-                ok = JS_TRUE;
-                goto forced_return;
-              case JSTRAP_THROW:
-                cx->throwing = JS_TRUE;
-                cx->exception = rval;
-                goto error;
-              default:;
-            }
-            LOAD_INTERRUPT_HANDLER(cx);
-        }
-
-        switch (op) {
-
+      do_op:
+        switchOp = op & switchMask;
+      do_switch:
+        switch (switchOp) {
 #endif /* !JS_THREADED_INTERP */
 
-          EMPTY_CASE(JSOP_NOP)
+          BEGIN_CASE(JSOP_INTERRUPT)
+          {
+            JSTrapHandler handler;
 
-          EMPTY_CASE(JSOP_GROUP)
+            handler = cx->debugHooks->interruptHandler;
+            if (handler) {
+                switch (handler(cx, script, regs.pc, &rval,
+                                cx->debugHooks->interruptHandlerData)) {
+                  case JSTRAP_ERROR:
+                    goto error;
+                  case JSTRAP_CONTINUE:
+                    break;
+                  case JSTRAP_RETURN:
+                    fp->rval = rval;
+                    ok = JS_TRUE;
+                    goto forced_return;
+                  case JSTRAP_THROW:
+                    cx->throwing = JS_TRUE;
+                    cx->exception = rval;
+                    goto error;
+                  default:;
+                }
+            }
+            LOAD_INTERRUPT_HANDLER(cx);
 
-          /* EMPTY_CASE is not used here as JSOP_LINENO_LENGTH == 3. */
+#if JS_THREADED_INTERP
+            JS_EXTENSION_(goto *normalJumpTable[op]);
+#else
+            switchOp = op;
+            goto do_switch;
+#endif
+          }
+
+          /* No-ops for ease of decompilation. */
+          ADD_EMPTY_CASE(JSOP_NOP)
+          ADD_EMPTY_CASE(JSOP_GROUP)
+          ADD_EMPTY_CASE(JSOP_CONDSWITCH)
+          ADD_EMPTY_CASE(JSOP_TRY)
+          ADD_EMPTY_CASE(JSOP_FINALLY)
+#if JS_HAS_XML_SUPPORT
+          ADD_EMPTY_CASE(JSOP_STARTXML)
+          ADD_EMPTY_CASE(JSOP_STARTXMLEXPR)
+#endif
+          END_EMPTY_CASES
+
+          /* ADD_EMPTY_CASE is not used here as JSOP_LINENO_LENGTH == 3. */
           BEGIN_CASE(JSOP_LINENO)
           END_CASE(JSOP_LINENO)
 
@@ -2809,12 +2899,6 @@ interrupt:
             }
 #endif
           END_CASE(JSOP_POPN)
-
-          BEGIN_CASE(JSOP_SWAP)
-            rtmp = regs.sp[-1];
-            regs.sp[-1] = regs.sp[-2];
-            regs.sp[-2] = rtmp;
-          END_CASE(JSOP_SWAP)
 
           BEGIN_CASE(JSOP_SETRVAL)
           BEGIN_CASE(JSOP_POPV)
@@ -3062,32 +3146,13 @@ interrupt:
                 OBJ_DROP_PROPERTY(cx, obj2, prop);
           END_CASE(JSOP_IN)
 
-          BEGIN_CASE(JSOP_FOREACH)
-            flags = JSITER_ENUMERATE | JSITER_FOREACH;
-            goto value_to_iter;
-
-#if JS_HAS_DESTRUCTURING
-          BEGIN_CASE(JSOP_FOREACHKEYVAL)
-            flags = JSITER_ENUMERATE | JSITER_FOREACH | JSITER_KEYVALUE;
-            goto value_to_iter;
-#endif
-
-          BEGIN_CASE(JSOP_FORIN)
-            /*
-             * Set JSITER_ENUMERATE to indicate that for-in loop should use
-             * the enumeration protocol's iterator for compatibility if an
-             * explicit iterator is not given via the optional __iterator__
-             * method.
-             */
-            flags = JSITER_ENUMERATE;
-
-          value_to_iter:
+          BEGIN_CASE(JSOP_ITER)
+            flags = regs.pc[1];
             JS_ASSERT(regs.sp > fp->spbase);
             if (!js_ValueToIterator(cx, flags, &regs.sp[-1]))
                 goto error;
             JS_ASSERT(!JSVAL_IS_PRIMITIVE(regs.sp[-1]));
-            JS_ASSERT(JSOP_FORIN_LENGTH == js_CodeSpec[op].length);
-          END_CASE(JSOP_FORIN)
+          END_CASE(JSOP_ITER)
 
           BEGIN_CASE(JSOP_FORPROP)
             /*
@@ -3131,9 +3196,7 @@ interrupt:
              * JSObject that contains the iteration state.
              */
             JS_ASSERT(!JSVAL_IS_PRIMITIVE(regs.sp[i]));
-            iterobj = JSVAL_TO_OBJECT(regs.sp[i]);
-
-            if (!js_CallIteratorNext(cx, iterobj, &rval))
+            if (!js_CallIteratorNext(cx, JSVAL_TO_OBJECT(regs.sp[i]), &rval))
                 goto error;
             if (rval == JSVAL_HOLE) {
                 rval = JSVAL_FALSE;
@@ -3328,6 +3391,36 @@ interrupt:
 # define ASSERT_VALID_PROPERTY_CACHE_HIT(pcoff,obj,pobj,entry) ((void) 0)
 #endif
 
+/*
+ * Skip the JSOP_POP typically found after a JSOP_SET* opcode, where oplen is
+ * the constant length of the SET opcode sequence, and spdec is the constant
+ * by which to decrease the stack pointer to pop all of the SET op's operands.
+ *
+ * NB: unlike macros that could conceivably be replaced by functions (ignoring
+ * goto error), where a call should not have to be braced in order to expand
+ * correctly (e.g., in if (cond) FOO(); else BAR()), these three macros lack
+ * JS_{BEGIN,END}_MACRO brackets. They are also indented so as to align with
+ * nearby opcode code.
+ */
+#define SKIP_POP_AFTER_SET(oplen,spdec)                                       \
+            if (regs.pc[oplen] == JSOP_POP) {                                 \
+                regs.sp -= spdec;                                             \
+                regs.pc += oplen + JSOP_POP_LENGTH;                           \
+                op = (JSOp) *regs.pc;                                         \
+                DO_OP();                                                      \
+            }
+
+#define END_SET_CASE(OP)                                                      \
+            SKIP_POP_AFTER_SET(OP##_LENGTH, 1);                               \
+          END_CASE(OP)
+
+#define END_SET_CASE_STORE_RVAL(OP,spdec)                                     \
+            SKIP_POP_AFTER_SET(OP##_LENGTH, spdec);                           \
+            rval = FETCH_OPND(-1);                                            \
+            regs.sp -= (spdec) - 1;                                           \
+            STORE_OPND(-1, rval);                                             \
+          END_CASE(OP)
+
           BEGIN_CASE(JSOP_SETCONST)
             LOAD_ATOM(0);
             obj = fp->varobj;
@@ -3339,8 +3432,7 @@ interrupt:
                                      NULL)) {
                 goto error;
             }
-            STORE_OPND(-1, rval);
-          END_CASE(JSOP_SETCONST)
+          END_SET_CASE(JSOP_SETCONST);
 
 #if JS_HAS_DESTRUCTURING
           BEGIN_CASE(JSOP_ENUMCONSTELEM)
@@ -3403,21 +3495,31 @@ interrupt:
             BITWISE_OP(&);
           END_CASE(JSOP_BITAND)
 
+#define TRY_BRANCH_AFTER_COND(cond,spdec)                                     \
+    JS_BEGIN_MACRO                                                            \
+        uintN diff_;                                                          \
+        JS_ASSERT(js_CodeSpec[op].length == 1);                               \
+        diff_ = (uintN) regs.pc[1] - (uintN) JSOP_IFEQ;                       \
+        if (diff_ <= 1) {                                                     \
+            regs.sp -= spdec;                                                 \
+            if (cond == (diff_ != 0)) {                                       \
+                ++regs.pc;                                                    \
+                len = GET_JUMP_OFFSET(regs.pc);                               \
+                CHECK_BRANCH(len);                                            \
+                DO_NEXT_OP(len);                                              \
+            }                                                                 \
+            len = 1 + JSOP_IFEQ_LENGTH;                                       \
+            DO_NEXT_OP(len);                                                  \
+        }                                                                     \
+    JS_END_MACRO
+
 #define RELATIONAL_OP(OP)                                                     \
     JS_BEGIN_MACRO                                                            \
         rval = FETCH_OPND(-1);                                                \
         lval = FETCH_OPND(-2);                                                \
         /* Optimize for two int-tagged operands (typical loop control). */    \
         if ((lval & rval) & JSVAL_INT) {                                      \
-            ltmp = lval ^ JSVAL_VOID;                                         \
-            rtmp = rval ^ JSVAL_VOID;                                         \
-            if (ltmp && rtmp) {                                               \
-                cond = JSVAL_TO_INT(lval) OP JSVAL_TO_INT(rval);              \
-            } else {                                                          \
-                d  = ltmp ? JSVAL_TO_INT(lval) : *rt->jsNaN;                  \
-                d2 = rtmp ? JSVAL_TO_INT(rval) : *rt->jsNaN;                  \
-                cond = JSDOUBLE_COMPARE(d, OP, d2, JS_FALSE);                 \
-            }                                                                 \
+            cond = JSVAL_TO_INT(lval) OP JSVAL_TO_INT(rval);                  \
         } else {                                                              \
             if (!JSVAL_IS_PRIMITIVE(lval))                                    \
                 DEFAULT_VALUE(cx, -2, JSTYPE_NUMBER, lval);                   \
@@ -3433,6 +3535,7 @@ interrupt:
                 cond = JSDOUBLE_COMPARE(d, OP, d2, JS_FALSE);                 \
             }                                                                 \
         }                                                                     \
+        TRY_BRANCH_AFTER_COND(cond, 2);                                       \
         regs.sp--;                                                            \
         STORE_OPND(-1, BOOLEAN_TO_JSVAL(cond));                               \
     JS_END_MACRO
@@ -3521,6 +3624,7 @@ interrupt:
                 }                                                             \
             }                                                                 \
         }                                                                     \
+        TRY_BRANCH_AFTER_COND(cond, 2);                                       \
         regs.sp--;                                                            \
         STORE_OPND(-1, BOOLEAN_TO_JSVAL(cond));                               \
     JS_END_MACRO
@@ -3591,31 +3695,11 @@ interrupt:
 #undef EQUALITY_OP
 #undef RELATIONAL_OP
 
-/*
- * We do not check for JSVAL_VOID here since ToInt32(undefined) == 0
- * and (JSVAL_TO_INT(JSVAL_VOID) & 31) == 0. The static assert before
- * js_Interpret ensures this.
- */
-#define FETCH_SHIFT(shift)                                                    \
-    JS_BEGIN_MACRO                                                            \
-        jsval v_;                                                             \
-                                                                              \
-        v_ = FETCH_OPND(-1);                                                  \
-        if (v_ & JSVAL_INT) {                                                 \
-            shift = JSVAL_TO_INT(v_);                                         \
-        } else {                                                              \
-            shift = js_ValueToECMAInt32(cx, &regs.sp[-1]);                    \
-            if (JSVAL_IS_NULL(regs.sp[-1]))                                   \
-                goto error;                                                   \
-        }                                                                     \
-        shift &= 31;                                                          \
-    JS_END_MACRO
-
 #define SIGNED_SHIFT_OP(OP)                                                   \
     JS_BEGIN_MACRO                                                            \
         FETCH_INT(cx, -2, i);                                                 \
-        FETCH_SHIFT(j);                                                       \
-        i = i OP j;                                                           \
+        FETCH_INT(cx, -1, j);                                                 \
+        i = i OP (j & 31);                                                    \
         regs.sp--;                                                            \
         STORE_INT(cx, -1, i);                                                 \
     JS_END_MACRO
@@ -3633,8 +3717,8 @@ interrupt:
             uint32 u;
 
             FETCH_UINT(cx, -2, u);
-            FETCH_SHIFT(j);
-            u >>= j;
+            FETCH_INT(cx, -1, j);
+            u >>= (j & 31);
             regs.sp--;
             STORE_UINT(cx, -1, u);
           }
@@ -3695,10 +3779,10 @@ interrupt:
 
 #define BINARY_OP(OP)                                                         \
     JS_BEGIN_MACRO                                                            \
-        FETCH_NUMBER(cx, -1, d2);                                             \
         FETCH_NUMBER(cx, -2, d);                                              \
+        FETCH_NUMBER(cx, -1, d2);                                             \
         d = d OP d2;                                                          \
-        regs.sp--;                                                                 \
+        regs.sp--;                                                            \
         STORE_NUMBER(cx, -1, d);                                              \
     JS_END_MACRO
 
@@ -3763,12 +3847,15 @@ interrupt:
 
           BEGIN_CASE(JSOP_NEG)
             /*
-             * Optimize the case of an int-tagged operand by noting that
-             * INT_FITS_IN_JSVAL(i) => INT_FITS_IN_JSVAL(-i) unless i is 0
-             * when -i is the negative zero which is jsdouble.
+             * When the operand is int jsval, INT_FITS_IN_JSVAL(i) implies
+             * INT_FITS_IN_JSVAL(-i) unless i is 0 or JSVAL_INT_MIN when the
+             * results, -0.0 or JSVAL_INT_MAX + 1, are jsdouble values.
              */
             rval = FETCH_OPND(-1);
-            if (JSVAL_IS_INT(rval) && (i = JSVAL_TO_INT(rval)) != 0) {
+            if (JSVAL_IS_INT(rval) &&
+                rval != INT_TO_JSVAL(JSVAL_INT_MIN) &&
+                (i = JSVAL_TO_INT(rval)) != 0) {
+                JS_STATIC_ASSERT(!INT_FITS_IN_JSVAL(-JSVAL_INT_MIN));
                 i = -i;
                 JS_ASSERT(INT_FITS_IN_JSVAL(i));
                 regs.sp[-1] = INT_TO_JSVAL(i);
@@ -4024,6 +4111,8 @@ interrupt:
             rval = *vp;
             if (JS_LIKELY(CAN_DO_FAST_INC_DEC(rval))) {
                 *vp = rval + incr;
+                JS_ASSERT(JSOP_INCARG_LENGTH == js_CodeSpec[op].length);
+                SKIP_POP_AFTER_SET(JSOP_INCARG_LENGTH, 0);
                 PUSH_OPND(rval + incr2);
             } else {
                 PUSH_OPND(rval);
@@ -4108,7 +4197,6 @@ interrupt:
             i = 0;
             COMPUTE_THIS(cx, fp, obj);
             PUSH(JSVAL_NULL);
-            len = JSOP_GETTHISPROP_LENGTH;
             goto do_getprop_with_obj;
 
 #undef COMPUTE_THIS
@@ -4118,7 +4206,6 @@ interrupt:
             slot = GET_ARGNO(regs.pc);
             JS_ASSERT(slot < fp->fun->nargs);
             PUSH_OPND(fp->argv[slot]);
-            len = JSOP_GETARGPROP_LENGTH;
             goto do_getprop_body;
 
           BEGIN_CASE(JSOP_GETVARPROP)
@@ -4126,7 +4213,6 @@ interrupt:
             slot = GET_VARNO(regs.pc);
             JS_ASSERT(slot < fp->fun->u.i.nvars);
             PUSH_OPND(fp->vars[slot]);
-            len = JSOP_GETVARPROP_LENGTH;
             goto do_getprop_body;
 
           BEGIN_CASE(JSOP_GETLOCALPROP)
@@ -4134,13 +4220,11 @@ interrupt:
             slot = GET_UINT16(regs.pc);
             JS_ASSERT(slot < script->depth);
             PUSH_OPND(fp->spbase[slot]);
-            len = JSOP_GETLOCALPROP_LENGTH;
             goto do_getprop_body;
 
           BEGIN_CASE(JSOP_GETPROP)
           BEGIN_CASE(JSOP_GETXPROP)
             i = 0;
-            len = JSOP_GETPROP_LENGTH;
 
           do_getprop_body:
             lval = FETCH_OPND(-1);
@@ -4186,6 +4270,8 @@ interrupt:
             } while (0);
 
             STORE_OPND(-1, rval);
+            JS_ASSERT(JSOP_GETPROP_LENGTH + i == js_CodeSpec[op].length);
+            len = JSOP_GETPROP_LENGTH + i;
           END_VARLEN_CASE
 
           BEGIN_CASE(JSOP_LENGTH)
@@ -4210,8 +4296,7 @@ interrupt:
                     goto error;
                 }
             } else {
-                i = -1;
-                len = JSOP_LENGTH_LENGTH;
+                i = -2;
                 goto do_getprop_with_lval;
             }
           END_CASE(JSOP_LENGTH)
@@ -4313,7 +4398,7 @@ interrupt:
                 }
             }
 #if JS_HAS_NO_SUCH_METHOD
-            if (JS_UNLIKELY(rval == JSVAL_VOID)) {
+            if (JS_UNLIKELY(JSVAL_IS_VOID(rval))) {
                 LOAD_ATOM(0);
                 regs.sp[-2] = ATOM_KEY(atom);
                 if (!js_OnUnknownMethod(cx, regs.sp - 2))
@@ -4521,10 +4606,7 @@ interrupt:
                     goto error;
                 }
             } while (0);
-
-            regs.sp--;
-            STORE_OPND(-1, rval);
-          END_CASE(JSOP_SETPROP)
+          END_SET_CASE_STORE_RVAL(JSOP_SETPROP, 2);
 
           BEGIN_CASE(JSOP_GETELEM)
             /* Open-coded ELEMENT_OP optimized for strings and dense arrays. */
@@ -4579,7 +4661,7 @@ interrupt:
              */
             ELEMENT_OP(-1, OBJ_GET_PROPERTY(cx, obj, id, &rval));
 #if JS_HAS_NO_SUCH_METHOD
-            if (JS_UNLIKELY(rval == JSVAL_VOID)) {
+            if (JS_UNLIKELY(JSVAL_IS_VOID(rval))) {
                 regs.sp[-2] = regs.sp[-1];
                 regs.sp[-1] = OBJECT_TO_JSVAL(obj);
                 if (!js_OnUnknownMethod(cx, regs.sp - 2))
@@ -4614,9 +4696,7 @@ interrupt:
             if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                 goto error;
         end_setelem:
-            regs.sp -= 2;
-            STORE_OPND(-1, rval);
-          END_CASE(JSOP_SETELEM)
+          END_SET_CASE_STORE_RVAL(JSOP_SETELEM, 3)
 
           BEGIN_CASE(JSOP_ENUMELEM)
             /* Funky: the value to set is under the [obj, id] pair. */
@@ -4970,12 +5050,12 @@ interrupt:
                 goto error;
             if (!prop) {
                 /* Kludge to allow (typeof foo == "undefined") tests. */
-                len = JSOP_NAME_LENGTH;
                 endpc = script->code + script->length;
-                for (pc2 = regs.pc + len; pc2 < endpc; pc2++) {
+                for (pc2 = regs.pc + JSOP_NAME_LENGTH; pc2 < endpc; pc2++) {
                     op2 = (JSOp)*pc2;
                     if (op2 == JSOP_TYPEOF) {
                         PUSH_OPND(JSVAL_VOID);
+                        len = JSOP_NAME_LENGTH;
                         DO_NEXT_OP(len);
                     }
                     if (op2 != JSOP_GROUP)
@@ -5100,7 +5180,7 @@ interrupt:
                 funobj = fp->callee;
                 slot += JSCLASS_RESERVED_SLOTS(&js_FunctionClass);
                 if (!JS_GetReservedSlot(cx, funobj, slot, &rval))
-                    return JS_FALSE;
+                    goto error;
                 if (JSVAL_IS_VOID(rval))
                     rval = JSVAL_NULL;
             } else {
@@ -5158,7 +5238,7 @@ interrupt:
                 /* Store the regexp object value in its cloneIndex slot. */
                 if (fp->fun) {
                     if (!JS_SetReservedSlot(cx, funobj, slot, rval))
-                        return JS_FALSE;
+                        goto error;
                 } else {
                     fp->vars[slot] = rval;
                 }
@@ -5312,8 +5392,6 @@ interrupt:
                   : GET_JUMPX_OFFSET(pc2);
           END_VARLEN_CASE
 
-          EMPTY_CASE(JSOP_CONDSWITCH)
-
 #if JS_HAS_EXPORT_IMPORT
           BEGIN_CASE(JSOP_EXPORTALL)
             obj = fp->varobj;
@@ -5388,15 +5466,13 @@ interrupt:
 #endif /* JS_HAS_EXPORT_IMPORT */
 
           BEGIN_CASE(JSOP_TRAP)
-            switch (JS_HandleTrap(cx, script, regs.pc, &rval)) {
+          {
+            JSTrapStatus status;
+
+            status = JS_HandleTrap(cx, script, regs.pc, &rval);
+            switch (status) {
               case JSTRAP_ERROR:
                 goto error;
-              case JSTRAP_CONTINUE:
-                JS_ASSERT(JSVAL_IS_INT(rval));
-                op = (JSOp) JSVAL_TO_INT(rval);
-                JS_ASSERT((uintN)op < (uintN)JSOP_LIMIT);
-                LOAD_INTERRUPT_HANDLER(cx);
-                DO_OP();
               case JSTRAP_RETURN:
                 fp->rval = rval;
                 ok = JS_TRUE;
@@ -5406,9 +5482,15 @@ interrupt:
                 cx->exception = rval;
                 goto error;
               default:;
+                break;
             }
+            JS_ASSERT(status == JSTRAP_CONTINUE);
             LOAD_INTERRUPT_HANDLER(cx);
-          END_CASE(JSOP_TRAP)
+            JS_ASSERT(JSVAL_IS_INT(rval));
+            op = (JSOp) JSVAL_TO_INT(rval);
+            JS_ASSERT((uintN)op < (uintN)JSOP_LIMIT);
+            DO_OP();
+          }
 
           BEGIN_CASE(JSOP_ARGUMENTS)
             if (!js_GetArgsValue(cx, fp, &rval))
@@ -5447,7 +5529,7 @@ interrupt:
             vp = &fp->argv[slot];
             GC_POKE(cx, *vp);
             *vp = FETCH_OPND(-1);
-          END_CASE(JSOP_SETARG)
+          END_SET_CASE(JSOP_SETARG)
 
           BEGIN_CASE(JSOP_GETVAR)
           BEGIN_CASE(JSOP_CALLVAR)
@@ -5466,7 +5548,7 @@ interrupt:
             vp = &fp->vars[slot];
             GC_POKE(cx, *vp);
             *vp = FETCH_OPND(-1);
-          END_CASE(JSOP_SETVAR)
+          END_SET_CASE(JSOP_SETVAR)
 
           BEGIN_CASE(JSOP_GETGVAR)
           BEGIN_CASE(JSOP_CALLGVAR)
@@ -5503,14 +5585,13 @@ interrupt:
                 id = ATOM_TO_JSID(atom);
                 if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                     goto error;
-                STORE_OPND(-1, rval);
             } else {
                 slot = JSVAL_TO_INT(lval);
                 JS_LOCK_OBJ(cx, obj);
                 LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, rval);
                 JS_UNLOCK_OBJ(cx, obj);
             }
-          END_CASE(JSOP_SETGVAR)
+          END_SET_CASE(JSOP_SETGVAR)
 
           BEGIN_CASE(JSOP_DEFCONST)
           BEGIN_CASE(JSOP_DEFVAR)
@@ -6147,7 +6228,7 @@ interrupt:
                     goto error;
             }
             regs.sp -= 2;
-          END_CASE(JSOP_INITELEM);
+          END_CASE(JSOP_INITELEM)
 
 #if JS_HAS_SHARP_VARS
           BEGIN_CASE(JSOP_DEFSHARP)
@@ -6194,15 +6275,11 @@ interrupt:
           END_CASE(JSOP_USESHARP)
 #endif /* JS_HAS_SHARP_VARS */
 
-          /* No-ops for ease of decompilation and jit'ing. */
-          EMPTY_CASE(JSOP_TRY)
-          EMPTY_CASE(JSOP_FINALLY)
-
           BEGIN_CASE(JSOP_GOSUB)
             PUSH(JSVAL_FALSE);
             i = PTRDIFF(regs.pc, script->main, jsbytecode) + JSOP_GOSUB_LENGTH;
-            len = GET_JUMP_OFFSET(regs.pc);
             PUSH(INT_TO_JSVAL(i));
+            len = GET_JUMP_OFFSET(regs.pc);
           END_VARLEN_CASE
 
           BEGIN_CASE(JSOP_GOSUBX)
@@ -6386,6 +6463,7 @@ interrupt:
             FETCH_ELEMENT_ID(obj, -2, id);
             if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
                 goto error;
+            rval = FETCH_OPND(-1);
             regs.sp -= 2;
             STORE_OPND(-1, rval);
           END_CASE(JSOP_SETXMLNAME)
@@ -6455,9 +6533,6 @@ interrupt:
             }
             regs.sp--;
           END_CASE(JSOP_ENDFILTER);
-
-          EMPTY_CASE(JSOP_STARTXML)
-          EMPTY_CASE(JSOP_STARTXMLEXPR)
 
           BEGIN_CASE(JSOP_TOXML)
             rval = FETCH_OPND(-1);
@@ -6631,7 +6706,7 @@ interrupt:
             vp = &fp->spbase[slot];
             GC_POKE(cx, *vp);
             *vp = FETCH_OPND(-1);
-          END_CASE(JSOP_SETLOCAL)
+          END_SET_CASE(JSOP_SETLOCAL)
 
           BEGIN_CASE(JSOP_ENDITER)
             /*
@@ -6709,7 +6784,6 @@ interrupt:
 # endif
 
 # if !JS_HAS_DESTRUCTURING
-          L_JSOP_FOREACHKEYVAL:
           L_JSOP_ENUMCONSTELEM:
 # endif
 
@@ -6744,6 +6818,9 @@ interrupt:
           L_JSOP_DEFXMLNS:
 # endif
 
+          L_JSOP_UNUSED186:
+          L_JSOP_UNUSED213:
+
 #else /* !JS_THREADED_INTERP */
           default:
 #endif
@@ -6758,48 +6835,6 @@ interrupt:
 #if !JS_THREADED_INTERP
 
         } /* switch (op) */
-
-    advance_pc:
-        regs.pc += len;
-
-#ifdef DEBUG
-        if (tracefp) {
-            intN ndefs, n;
-            jsval *siter;
-
-            /*
-             * op may be invalid here when a catch or finally handler jumps to
-             * advance_pc.
-             */
-            op = (JSOp) regs.pc[-len];
-            ndefs = js_CodeSpec[op].ndefs;
-            if (ndefs) {
-                if (op == JSOP_FORELEM && regs.sp[-1] == JSVAL_FALSE)
-                    --ndefs;
-                for (n = -ndefs; n < 0; n++) {
-                    char *bytes = js_DecompileValueGenerator(cx, n, regs.sp[n],
-                                                             NULL);
-                    if (bytes) {
-                        fprintf(tracefp, "%s %s",
-                                (n == -ndefs) ? "  output:" : ",",
-                                bytes);
-                        JS_free(cx, bytes);
-                    }
-                }
-                fprintf(tracefp, " @ %d\n", regs.sp - fp->spbase);
-            }
-            fprintf(tracefp, "  stack: ");
-            for (siter = fp->spbase; siter < regs.sp; siter++) {
-                str = js_ValueToString(cx, *siter);
-                if (!str)
-                    fputs("<null>", tracefp);
-                else
-                    js_FileEscapedString(tracefp, str, 0);
-                fputc(' ', tracefp);
-            }
-            fputc('\n', tracefp);
-        }
-#endif /* DEBUG */
     }
 #endif /* !JS_THREADED_INTERP */
 

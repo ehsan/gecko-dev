@@ -945,7 +945,7 @@ public:
   // Note that the primary offset can be after the secondary offset; for places
   // that need the beginning and end of the object, the StartOffset and 
   // EndOffset helpers can be used.
-  struct ContentOffsets {
+  struct NS_STACK_CLASS ContentOffsets {
     nsCOMPtr<nsIContent> content;
     PRBool IsNull() { return !content; }
     PRInt32 offset;
@@ -978,7 +978,7 @@ public:
    * loaded image that should be preferred. If it is not possible to use it, or
    * if it is null, mCursor should be used.
    */
-  struct Cursor {
+  struct NS_STACK_CLASS Cursor {
     nsCOMPtr<imgIContainer> mContainer;
     PRInt32                 mCursor;
     PRBool                  mHaveHotspot;
@@ -2149,6 +2149,12 @@ protected:
   void InvalidateRoot(const nsRect& aDamageRect,
                       nscoord aOffsetX, nscoord aOffsetY,
                       PRBool aImmediate);
+
+  /**
+   * Gets the overflow area for any properties that are common to all types of frames
+   * e.g. outlines.
+   */
+  nsRect GetAdditionalOverflow(const nsRect& aOverflowArea, const nsSize& aNewSize);
 
   /**
    * Can we stop inside this frame when we're skipping non-rendered whitespace?
