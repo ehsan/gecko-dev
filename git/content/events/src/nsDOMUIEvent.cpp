@@ -110,13 +110,13 @@ nsDOMUIEvent::GetMovementPoint()
   }
 
   if (!mEvent ||
-      (mEvent->eventStructType != NS_MOUSE_EVENT &&
-       mEvent->eventStructType != NS_POPUP_EVENT &&
-       mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
-       mEvent->eventStructType != NS_WHEEL_EVENT &&
-       mEvent->eventStructType != NS_DRAG_EVENT &&
-       mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
-       !(static_cast<nsGUIEvent*>(mEvent)->widget)) {
+      !((nsGUIEvent*)mEvent)->widget ||
+       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+        mEvent->eventStructType != NS_POPUP_EVENT &&
+        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
+        mEvent->eventStructType != NS_WHEEL_EVENT &&
+        mEvent->eventStructType != NS_DRAG_EVENT &&
+        mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT)) {
     return nsIntPoint(0, 0);
   }
 
