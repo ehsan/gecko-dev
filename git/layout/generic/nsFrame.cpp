@@ -1498,7 +1498,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
 #endif
 
   // Mark the display list items for absolutely positioned children
-  MarkAbsoluteFramesForDisplayList(aBuilder, dirtyRect);
+  MarkAbsoluteFramesForDisplayList(aBuilder, aDirtyRect);
 
   nsDisplayListCollection set;
   nsresult rv;

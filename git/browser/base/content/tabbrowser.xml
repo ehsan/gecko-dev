@@ -3142,14 +3142,11 @@
       <method name="_handleNewTab">
         <parameter name="tab"/>
         <body><![CDATA[
-          if (tab.parentNode != this)
-            return;
-
-          this.adjustTabstrip();
-
-          if (tab._fullyOpen)
+          if (tab.parentNode != this || tab._fullyOpen)
             return;
           tab._fullyOpen = true;
+
+          this.adjustTabstrip();
 
           if (tab.getAttribute("selected") == "true") {
             this._fillTrailingGap();
@@ -3738,12 +3735,7 @@
 
           var tabstripBO = tabContainer.mTabstrip.scrollBoxObject;
           for (var i = 0; i < this.childNodes.length; i++) {
-            let curTab = this.childNodes[i].tab;
-            if (!curTab) // "Tab Groups" menuitem and its menuseparator
-              continue;
-            let curTabBO = curTab.boxObject;
-            if (!curTabBO) // "Tabs From Other Computers" menuitem
-              continue;
+            var curTabBO = this.childNodes[i].tab.boxObject;
             if (curTabBO.screenX >= tabstripBO.screenX &&
                 curTabBO.screenX + curTabBO.width <= tabstripBO.screenX + tabstripBO.width)
               this.childNodes[i].setAttribute("tabIsVisible", "true"); 
@@ -3820,7 +3812,7 @@
         // clear out the menu popup and remove the listeners
         for (let i = this.childNodes.length - 1; i > 0; i--) {
           let menuItem = this.childNodes[i];
-          if (menuItem.tab) {
+          if (!menuItem.hasAttribute("keepme")) {
             menuItem.removeEventListener("command", this, false);
             menuItem.tab.mCorrespondingMenuitem = null;
             this.removeChild(menuItem);

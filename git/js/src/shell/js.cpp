@@ -96,7 +96,6 @@
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
-#include "methodjit/MethodJIT.h"
 
 #ifdef XP_UNIX
 #include <unistd.h>
@@ -1506,6 +1505,7 @@ GCParameter(JSContext *cx, uintN argc, jsval *vp)
         {"gcStackpoolLifespan", JSGC_STACKPOOL_LIFESPAN},
         {"gcBytes",             JSGC_BYTES},
         {"gcNumber",            JSGC_NUMBER},
+        {"gcTriggerFactor",     JSGC_TRIGGER_FACTOR},
     };
 
     JSString *str;
@@ -1528,8 +1528,8 @@ GCParameter(JSContext *cx, uintN argc, jsval *vp)
         if (paramIndex == JS_ARRAY_LENGTH(paramMap)) {
             JS_ReportError(cx,
                            "the first argument argument must be maxBytes, "
-                           "maxMallocBytes, gcStackpoolLifespan, gcBytes or "
-                           "gcNumber");
+                           "maxMallocBytes, gcStackpoolLifespan, gcBytes, "
+                           "gcNumber or gcTriggerFactor");
             return JS_FALSE;
         }
         if (JS_FlatStringEqualsAscii(flatStr, paramMap[paramIndex].name))
@@ -1554,6 +1554,11 @@ GCParameter(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportError(cx,
                        "the second argument must be convertable to uint32 "
                        "with non-zero value");
+        return JS_FALSE;
+    }
+    if (param == JSGC_TRIGGER_FACTOR && value < 100) {
+        JS_ReportError(cx,
+                       "the gcTriggerFactor value must be >= 100");
         return JS_FALSE;
     }
     JS_SetGCParameter(cx->runtime, param, value);
@@ -3721,7 +3726,7 @@ CopyProperty(JSContext *cx, JSObject *obj, JSObject *referent, jsid id,
 
     *objp = NULL;
     if (referent->isNative()) {
-        if (!LookupPropertyWithFlags(cx, referent, id, lookupFlags, &obj2, &prop))
+        if (js_LookupPropertyWithFlags(cx, referent, id, lookupFlags, &obj2, &prop) < 0)
             return false;
         if (obj2 != referent)
             return true;
@@ -3768,8 +3773,9 @@ CopyProperty(JSContext *cx, JSObject *obj, JSObject *referent, jsid id,
     }
 
     *objp = obj;
-    return !!DefineNativeProperty(cx, obj, id, desc.value, desc.getter, desc.setter,
-                                  desc.attrs, propFlags, desc.shortid);
+    return js_DefineNativeProperty(cx, obj, id, desc.value,
+                                   desc.getter, desc.setter, desc.attrs, propFlags,
+                                   desc.shortid, &prop);
 }
 
 static JSBool
@@ -4653,9 +4659,7 @@ MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
 JSBool
 StringStats(JSContext *cx, uintN argc, jsval *vp)
 {
-    // XXX: should report something meaningful;  bug 625305 will probably fix
-    // this.
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(0));
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->stringMemoryUsed));
     return true;
 }
 
@@ -5933,10 +5937,6 @@ Shell(JSContext *cx, int argc, char **argv, char **envp)
         JSD_DebuggerOff(jsdc);
     }
 #endif  /* JSDEBUGGER */
-
-#ifdef JS_METHODJIT
-    mjit::DumpAllProfiles(cx);
-#endif
 
     return result;
 }

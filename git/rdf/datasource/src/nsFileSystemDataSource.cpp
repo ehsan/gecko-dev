@@ -860,7 +860,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 
     nsCOMPtr<nsIRDFResource> vol;
 
-#ifdef XP_WIN
+#if defined (XP_WIN) && !defined (WINCE)
 
     PRInt32         driveType;
     PRUnichar       drive[32];
@@ -887,7 +887,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
     }
 #endif
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(WINCE)
     mRDFService->GetResource(NS_LITERAL_CSTRING("file:///"), getter_AddRefs(vol));
     volumes->AppendElement(vol);
 #endif

@@ -80,9 +80,6 @@ public:
        nsIFrame*   aPrevInFlow);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent);
-
-  NS_IMETHOD
   AttributeChanged(PRInt32         aNameSpaceID,
                    nsIAtom*        aAttribute,
                    PRInt32         aModType);

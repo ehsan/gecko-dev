@@ -226,27 +226,6 @@ class AudioSetVolumeEvent : public nsRunnable
   double mVolume;
 };
 
-
-class AudioMinWriteSampleEvent : public nsRunnable
-{
- public:
-  AudioMinWriteSampleEvent(AudioChild* aChild)
-  {
-    mAudioChild = aChild;
-  }
-
-  NS_IMETHOD Run()
-  {
-    if (!mAudioChild->IsIPCOpen())
-      return NS_OK;
-
-    mAudioChild->SendMinWriteSample();
-    return NS_OK;
-  }
-
-  nsRefPtr<AudioChild> mAudioChild;
-};
-
 class AudioDrainEvent : public nsRunnable
 {
  public:
@@ -691,11 +670,9 @@ nsAudioStreamRemote::Available()
 
 PRInt32 nsAudioStreamRemote::GetMinWriteSamples()
 {
-  if (!mAudioChild)
-    return -1;
-  nsCOMPtr<nsIRunnable> event = new AudioMinWriteSampleEvent(mAudioChild);
-  NS_DispatchToMainThread(event);
-  return mAudioChild->WaitForMinWriteSample();
+  /** TODO: Implement this function for remoting. We could potentially remote
+            to a backend which has a start threshold... */
+  return 1;
 }
 
 void

@@ -179,12 +179,10 @@ FormAssistant.prototype = {
       return false;
     }
 
-    // There is some case where we still want some data to be send to the
-    // parent process even if form assistant is disabled:
-    //  - the element is a choice list
-    //  - the element has autocomplete suggestions
+    // If form assistant is disabled but the element is a type of choice list
+    // we still want to show the simple select list
     this._enabled = Services.prefs.getBoolPref("formhelper.enabled");
-    if (!this._enabled && !this._isSelectElement(aElement) && !this._isAutocomplete(aElement))
+    if (!this._enabled && !this._isSelectElement(aElement))
       return this.close();
 
     if (this._enabled) {
@@ -212,7 +210,7 @@ FormAssistant.prototype = {
 
   receiveMessage: function receiveMessage(aMessage) {
     let currentElement = this.currentElement;
-    if ((!this._enabled && !this._isAutocomplete(currentElement) && !getWrapperForElement(currentElement)) || !currentElement)
+    if ((!this._enabled && !getWrapperForElement(currentElement)) || !currentElement)
       return;
 
     let json = aMessage.json;
@@ -258,14 +256,6 @@ FormAssistant.prototype = {
       }
 
       case "FormAssist:AutoComplete": {
-        try {
-          currentElement = currentElement.QueryInterface(Ci.nsIDOMNSEditableElement);
-          let imeEditor = currentElement.editor.QueryInterface(Ci.nsIEditorIMESupport);
-          if (imeEditor.composing)
-            imeEditor.forceCompositionEnd();
-        }
-        catch(e) {}
-
         currentElement.value = json.value;
 
         let event = currentElement.ownerDocument.createEvent("Events");
@@ -588,7 +578,7 @@ FormAssistant.prototype = {
   },
 
   _isVisibleElement: function formHelperIsVisibleElement(aElement) {
-    let style = aElement ? aElement.ownerDocument.defaultView.getComputedStyle(aElement, null) : null;
+    let style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, null);
     if (!style)
       return false;
 
@@ -731,8 +721,8 @@ FormAssistant.prototype = {
         maxLength: element.maxLength,
         type: (element.getAttribute("type") || "").toLowerCase(),
         choices: choices,
-        isAutocomplete: this._isAutocomplete(element),
-        list: this._getListSuggestions(element),
+        isAutocomplete: this._isAutocomplete(this.currentElement),
+        list: this._getListSuggestions(this.currentElement),
         rect: this._getRect(),
         caretRect: this._getCaretRect()
       },

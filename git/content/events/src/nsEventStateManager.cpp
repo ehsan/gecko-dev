@@ -113,6 +113,7 @@
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"
 #include "nsIMarkupDocumentViewer.h"
+#include "nsIDOMDocumentRange.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMMouseScrollEvent.h"
 #include "nsIDOMDragEvent.h"
@@ -1394,12 +1395,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       handler.OnQueryDOMWidgetHittest(static_cast<nsQueryContentEvent*>(aEvent));
     }
     break;
-  case NS_QUERY_SCROLL_TARGET_INFO:
-    {
-      DoQueryScrollTargetInfo(static_cast<nsQueryContentEvent*>(aEvent),
-                              aTargetFrame);
-      break;
-    }
   case NS_SELECTION_SET:
     {
       nsSelectionEvent *selectionEvent =
@@ -2570,8 +2565,7 @@ nsresult
 nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
                                   nsMouseScrollEvent* aMouseEvent,
                                   nsIScrollableFrame::ScrollUnit aScrollQuantity,
-                                  PRBool aAllowScrollSpeedOverride,
-                                  nsQueryContentEvent* aQueryEvent)
+                                  PRBool aAllowScrollSpeedOverride)
 {
   nsIScrollableFrame* frameToScroll = nsnull;
   nsIFrame* scrollFrame = aTargetFrame;
@@ -2650,19 +2644,6 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
   }
 
   if (!passToParent && frameToScroll) {
-    if (aQueryEvent) {
-      nscoord appUnitsPerDevPixel =
-        aTargetFrame->PresContext()->AppUnitsPerDevPixel();
-      aQueryEvent->mReply.mLineHeight =
-        frameToScroll->GetLineScrollAmount().height / appUnitsPerDevPixel;
-      aQueryEvent->mReply.mPageHeight =
-        frameToScroll->GetPageScrollAmount().height / appUnitsPerDevPixel;
-      aQueryEvent->mReply.mPageWidth =
-        frameToScroll->GetPageScrollAmount().width / appUnitsPerDevPixel;
-      aQueryEvent->mSucceeded = PR_TRUE;
-      return NS_OK;
-    }
-
     if (aScrollQuantity == nsIScrollableFrame::LINES) {
       numLines =
         nsMouseWheelTransaction::AccelerateWheelDelta(numLines, isHorizontal,
@@ -2690,9 +2671,7 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
     nsIScrollableFrame::ScrollMode mode;
     if (aMouseEvent->scrollFlags & nsMouseScrollEvent::kNoDefer) {
       mode = nsIScrollableFrame::INSTANT;
-    } else if (aScrollQuantity != nsIScrollableFrame::DEVICE_PIXELS ||
-               (aMouseEvent->scrollFlags &
-                  nsMouseScrollEvent::kAllowSmoothScroll) != 0) {
+    } else if (aScrollQuantity != nsIScrollableFrame::DEVICE_PIXELS) {
       mode = nsIScrollableFrame::SMOOTH;
     } else {
       mode = nsIScrollableFrame::NORMAL;
@@ -2710,7 +2689,7 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
         aTargetFrame->PresContext()->FrameManager()->GetRootFrame());
     if (newFrame)
       return DoScrollText(newFrame, aMouseEvent, aScrollQuantity,
-                          aAllowScrollSpeedOverride, aQueryEvent);
+                          aAllowScrollSpeedOverride);
   }
 
   aMouseEvent->scrollOverflow = numLines;
@@ -3073,7 +3052,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         }
 
         if (aEvent->message == NS_MOUSE_PIXEL_SCROLL) {
-          if (action == MOUSE_SCROLL_N_LINES || action == MOUSE_SCROLL_PAGE ||
+          if (action == MOUSE_SCROLL_N_LINES ||
               (msEvent->scrollFlags & nsMouseScrollEvent::kIsMomentum)) {
              action = MOUSE_SCROLL_PIXELS;
           } else {
@@ -3081,7 +3060,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             action = -1;
           }
         } else if (msEvent->scrollFlags & nsMouseScrollEvent::kHasPixels) {
-          if (useSysNumLines || action == MOUSE_SCROLL_N_LINES ||
+          if (action == MOUSE_SCROLL_N_LINES ||
               (msEvent->scrollFlags & nsMouseScrollEvent::kIsMomentum)) {
             // Don't scroll lines when a pixel scroll event will follow.
             // Also, don't do history scrolling or zooming for momentum scrolls.
@@ -4666,20 +4645,6 @@ nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
   // The caller may want synchronous scrolling.
   sf->ScrollBy(pt, scrollUnit, nsIScrollableFrame::INSTANT);
   return NS_OK;
-}
-
-void
-nsEventStateManager::DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
-                                             nsIFrame* aTargetFrame)
-{
-  nsMouseScrollEvent* msEvent = aEvent->mInput.mMouseScrollEvent;
-  nsIScrollableFrame::ScrollUnit unit;
-  if (msEvent->scrollFlags & nsMouseScrollEvent::kIsFullPage) {
-    unit = nsIScrollableFrame::PAGES;
-  } else {
-    unit = nsIScrollableFrame::LINES;
-  }
-  DoScrollText(aTargetFrame, msEvent, unit, PR_FALSE, aEvent);
 }
 
 void

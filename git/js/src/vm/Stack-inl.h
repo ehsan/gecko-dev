@@ -43,8 +43,6 @@
 
 #include "Stack.h"
 
-#include "ArgumentsObject-inl.h"
-
 namespace js {
 
 /*****************************************************************************/
@@ -496,11 +494,12 @@ StackFrame::stealFrameAndSlots(Value *vp, StackFrame *otherfp,
         }
     }
     if (hasArgsObj()) {
-        ArgumentsObject &argsobj = argsObj();
-        if (argsobj.isNormalArguments())
-            argsobj.setPrivate(this);
+        JSObject &args = argsObj();
+        JS_ASSERT(args.isArguments());
+        if (args.isNormalArguments())
+            args.setPrivate(this);
         else
-            JS_ASSERT(!argsobj.getPrivate());
+            JS_ASSERT(!args.getPrivate());
         otherfp->flags_ &= ~HAS_ARGS_OBJ;
     }
 }
@@ -581,7 +580,7 @@ StackFrame::numActualArgs() const
 {
     JS_ASSERT(hasArgs());
     if (JS_UNLIKELY(flags_ & (OVERFLOW_ARGS | UNDERFLOW_ARGS)))
-        return hasArgsObj() ? argsObj().initialLength() : args.nactual;
+        return hasArgsObj() ? argsObj().getArgsInitialLength() : args.nactual;
     return numFormalArgs();
 }
 
@@ -591,7 +590,7 @@ StackFrame::actualArgs() const
     JS_ASSERT(hasArgs());
     Value *argv = formalArgs();
     if (JS_UNLIKELY(flags_ & OVERFLOW_ARGS)) {
-        uintN nactual = hasArgsObj() ? argsObj().initialLength() : args.nactual;
+        uintN nactual = hasArgsObj() ? argsObj().getArgsInitialLength() : args.nactual;
         return argv - (2 + nactual);
     }
     return argv;
@@ -607,10 +606,10 @@ StackFrame::actualArgsEnd() const
 }
 
 inline void
-StackFrame::setArgsObj(ArgumentsObject &obj)
+StackFrame::setArgsObj(JSObject &obj)
 {
     JS_ASSERT_IF(hasArgsObj(), &obj == args.obj);
-    JS_ASSERT_IF(!hasArgsObj(), numActualArgs() == obj.initialLength());
+    JS_ASSERT_IF(!hasArgsObj(), numActualArgs() == obj.getArgsInitialLength());
     args.obj = &obj;
     flags_ |= HAS_ARGS_OBJ;
 }
@@ -675,7 +674,7 @@ StackFrame::markActivationObjectsAsPut()
 {
     if (flags_ & (HAS_ARGS_OBJ | HAS_CALL_OBJ)) {
         if (hasArgsObj() && !argsObj().getPrivate()) {
-            args.nactual = args.obj->initialLength();
+            args.nactual = args.obj->getArgsInitialLength();
             flags_ &= ~HAS_ARGS_OBJ;
         }
         if (hasCallObj() && !callObj().getPrivate()) {

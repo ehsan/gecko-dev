@@ -51,7 +51,8 @@ var observer =
   onBeginUpdateBatch: function(){},
   onEndUpdateBatch: function(){
   },
-  onItemAdded: function(itemId, folder, index, itemType, uri, title) {
+  onItemAdded: function(itemId, folder, index, itemType, uri) {
+    var title = bmsvc.getItemTitle(itemId);
     if (title == "The First Title") {
       ok(true, "Item with title loaded");
       bmsvc.removeObserver(this);

@@ -49,7 +49,6 @@
 #endif
 
 #include "jstypes.h"
-
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jshashtable.h"
@@ -635,7 +634,9 @@ struct EmptyShape : public js::Shape
         return shape;
     }
 
-    static inline EmptyShape *getEmptyArgumentsShape(JSContext *cx);
+    static EmptyShape *getEmptyArgumentsShape(JSContext *cx) {
+        return ensure(cx, &js_ArgumentsClass, &cx->compartment->emptyArgumentsShape);
+    }
 
     static EmptyShape *getEmptyBlockShape(JSContext *cx) {
         return ensure(cx, &js_BlockClass, &cx->compartment->emptyBlockShape);

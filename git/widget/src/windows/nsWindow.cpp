@@ -298,18 +298,6 @@ PRUint32        nsWindow::sOOPPPluginFocusEvent   =
 
 MSG             nsWindow::sRedirectedKeyDown;
 
-PRBool          nsWindow::sNeedsToInitMouseWheelSettings = PR_TRUE;
-ULONG           nsWindow::sMouseWheelScrollLines  = 0;
-ULONG           nsWindow::sMouseWheelScrollChars  = 0;
-
-HWND            nsWindow::sLastMouseWheelWnd = NULL;
-PRInt32         nsWindow::sRemainingDeltaForScroll = 0;
-PRInt32         nsWindow::sRemainingDeltaForPixel = 0;
-PRBool          nsWindow::sLastMouseWheelDeltaIsPositive = PR_FALSE;
-PRBool          nsWindow::sLastMouseWheelOrientationIsVertical = PR_FALSE;
-PRBool          nsWindow::sLastMouseWheelUnitIsPage = PR_FALSE;
-PRUint32        nsWindow::sLastMouseWheelTime = 0;
-
 /**************************************************************
  *
  * SECTION: globals variables
@@ -336,6 +324,17 @@ static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 
 // General purpose user32.dll hook object
 static WindowsDllInterceptor sUser32Intercept;
+
+// A glass window's opaque rectangle must be at least this height
+// before we use glass margins. Shorter opaque rectangles lead to
+// stupid-looking visual effects because Windows (foolishly) makes the
+// window edge rendering dependent on the opaque rect height.
+static const int MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS = 50;
+
+// Maximum number of pixels for the left and right horizontal glass margins.
+// If the margins are bigger than this, we won't use margins at all because
+// Windows' glaze effect will start to look stupid.
+static const int MAX_HORIZONTAL_GLASS_MARGIN = 5;
 
 // 2 pixel offset for eTransparencyBorderlessGlass which equals
 // the size of the default window border Windows paints.
@@ -2507,17 +2506,27 @@ RegionFromArray(const nsTArray<nsIntRect>& aRects)
   return region;
 }
 
-void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
+void nsWindow::UpdateTransparentRegion(const nsIntRegion &aTransparentRegion)
 {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   if (!HasGlass() || GetParent())
     return;
 
+  nsIntRect clientBounds;
+  GetClientBounds(clientBounds);
+
+  // calculate the known fully opaque region by subtracting the transparent
+  // areas from client bounds. We'll use this to calculate our new glass
+  // bounds.
+  nsIntRegion opaqueRegion;
+  opaqueRegion.Sub(clientBounds, aTransparentRegion);
+
   // If there is no opaque region or hidechrome=true, set margins
   // to support a full sheet of glass. Comments in MSDN indicate
   // all values must be set to -1 to get a full sheet of glass.
   MARGINS margins = { -1, -1, -1, -1 };
-  if (!aOpaqueRegion.IsEmpty()) {
+  bool visiblePlugin = false;
+  if (!opaqueRegion.IsEmpty()) {
     nsIntRect pluginBounds;
     for (nsIWidget* child = GetFirstChild(); child; child = child->GetNextSibling()) {
       nsWindowType type;
@@ -2527,25 +2536,38 @@ void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
         nsIntRect childBounds;
         child->GetBounds(childBounds);
         pluginBounds.UnionRect(pluginBounds, childBounds);
+        // Detect if any region of a plugin is visible.
+        nsTArray<nsIntRect> currentRects;
+        child->GetWindowClipRegion(&currentRects);
+        nsIntRegion currentClipRegion = RegionFromArray(currentRects);
+        nsIntRect bounds = currentClipRegion.GetBounds();
+        if (!bounds.IsEmpty()) {
+          visiblePlugin = true;
+        }
       }
     }
 
-    nsIntRect clientBounds;
-    GetClientBounds(clientBounds);
-
     // Find the largest rectangle and use that to calculate the inset. Our top
     // priority is to include the bounds of all plugins.
-    nsIntRect largest = aOpaqueRegion.GetLargestRectangle(pluginBounds);
-    margins.cxLeftWidth = largest.x;
-    margins.cxRightWidth = clientBounds.width - largest.XMost();
-    margins.cyBottomHeight = clientBounds.height - largest.YMost();
-    if (mCustomNonClient) {
-      // The minimum glass height must be the caption buttons height,
-      // otherwise the buttons are drawn incorrectly.
-      largest.y = PR_MAX(largest.y,
-                         nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
+    // Also don't let MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS override content
+    // that contains a visible plugin since glass over plugins looks bad.
+    nsIntRect largest = opaqueRegion.GetLargestRectangle(pluginBounds);
+    if (visiblePlugin || 
+        (largest.x <= MAX_HORIZONTAL_GLASS_MARGIN &&
+         clientBounds.width - largest.XMost() <= MAX_HORIZONTAL_GLASS_MARGIN &&
+         largest.height >= MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS)) {
+      margins.cxLeftWidth = largest.x;
+      margins.cxRightWidth = clientBounds.width - largest.XMost();
+      margins.cyBottomHeight = clientBounds.height - largest.YMost();
+
+      if (mCustomNonClient) {
+        // The minimum glass height must be the caption buttons height,
+        // otherwise the buttons are drawn incorrectly.
+        largest.y = PR_MAX(largest.y,
+                           nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
+      }
+      margins.cyTopHeight = largest.y;
     }
-    margins.cyTopHeight = largest.y;
   }
 
   // Only update glass area if there are changes
@@ -4536,6 +4558,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   PRBool result = PR_FALSE;    // call the default nsWindow proc
   *aRetValue = 0;
 
+  static PRBool getWheelInfo = PR_TRUE;
+
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   // Glass hit testing w/custom transparent margins
   LRESULT dwmHitResult;
@@ -5197,12 +5221,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     break;
 
     case WM_SETTINGCHANGE:
-      switch (wParam) {
-        case SPI_SETWHEELSCROLLLINES:
-        case SPI_SETWHEELSCROLLCHARS:
-          sNeedsToInitMouseWheelSettings = PR_TRUE;
-          break;
-      }
+      getWheelInfo = PR_TRUE;
       break;
 
     case WM_INPUTLANGCHANGEREQUEST:
@@ -5274,9 +5293,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // If OnMouseWheel returns false, OnMouseWheel processed the event internally.
       // 'result' and 'aRetValue' will be set based on what we did with the event, so
       // we should fall through.
-      if (OnMouseWheel(msg, wParam, lParam, result, aRetValue)) {
+      if (OnMouseWheel(msg, wParam, lParam, getWheelInfo, result, aRetValue))
         return result;
-      }
     }
     break;
 
@@ -6297,151 +6315,117 @@ PRUint16 nsWindow::GetMouseInputSource()
   return inputSource;
 }
 
-/* static */ void
-nsWindow::InitMouseWheelScrollData()
-{
-  if (!sNeedsToInitMouseWheelSettings) {
-    return;
-  }
-  sNeedsToInitMouseWheelSettings = PR_FALSE;
-  ResetRemainingWheelDelta();
-
-  if (!::SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0,
-                              &sMouseWheelScrollLines, 0)) {
-    NS_WARNING("Failed to get SPI_GETWHEELSCROLLLINES");
-    sMouseWheelScrollLines = 3;
-  } else if (sMouseWheelScrollLines > WHEEL_DELTA) {
-    // sMouseWheelScrollLines usually equals 3 or 0 (for no scrolling)
-    // However, if sMouseWheelScrollLines > WHEEL_DELTA, we assume that
-    // the mouse driver wants a page scroll.  The docs state that
-    // sMouseWheelScrollLines should explicitly equal WHEEL_PAGESCROLL, but
-    // since some mouse drivers use an arbitrary large number instead,
-    // we have to handle that as well.
-    sMouseWheelScrollLines = WHEEL_PAGESCROLL;
-  }
-
-  if (!::SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0,
-                              &sMouseWheelScrollChars, 0)) {
-    NS_ASSERTION(!nsUXThemeData::sIsVistaOrLater,
-                 "Failed to get SPI_GETWHEELSCROLLCHARS");
-    sMouseWheelScrollChars = 1;
-  } else if (sMouseWheelScrollChars > WHEEL_DELTA) {
-    // See the comments for the case sMouseWheelScrollLines > WHEEL_DELTA.
-    sMouseWheelScrollChars = WHEEL_PAGESCROLL;
-  }
-}
-
-/* static */
-void
-nsWindow::ResetRemainingWheelDelta()
-{
-  sRemainingDeltaForPixel = 0;
-  sRemainingDeltaForScroll = 0;
-  sLastMouseWheelWnd = NULL;
-}
-
-static PRInt32 RoundDelta(double aDelta)
-{
-  return aDelta >= 0 ? (PRInt32)NS_floor(aDelta) : (PRInt32)NS_ceil(aDelta);
-}
-
 /*
  * OnMouseWheel - mouse wheel event processing. This was originally embedded
  * within the message case block. If returning true result should be returned
  * immediately (no more processing).
  */
-PRBool
-nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
-                       PRBool& aHandled, LRESULT *aRetValue)
+PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& getWheelInfo, PRBool& result, LRESULT *aRetValue)
 {
-  InitMouseWheelScrollData();
+  // Handle both flavors of mouse wheel events.
+  static int iDeltaPerLine, iDeltaPerChar;
+  static ULONG ulScrollLines, ulScrollChars = 1;
+  static int currentVDelta, currentHDelta;
+  static HWND currentWindow = 0;
 
-  PRBool isVertical = (aMessage == WM_MOUSEWHEEL);
-  if ((isVertical && sMouseWheelScrollLines == 0) ||
-      (!isVertical && sMouseWheelScrollChars == 0)) {
-    // XXX I think that we should dispatch mouse wheel events even if the
-    // operation will not scroll because the wheel operation really happened
-    // and web application may want to handle the event for non-scroll action.
-    ResetRemainingWheelDelta();
-    *aRetValue = isVertical ? TRUE : FALSE; // means we don't process it
-    aHandled = PR_FALSE;
-    return PR_FALSE;
+  PRBool isVertical = msg == WM_MOUSEWHEEL;
+
+  // Get mouse wheel metrics (but only once).
+  if (getWheelInfo) {
+    getWheelInfo = PR_FALSE;
+
+    SystemParametersInfo (SPI_GETWHEELSCROLLLINES, 0, &ulScrollLines, 0);
+
+    // ulScrollLines usually equals 3 or 0 (for no scrolling)
+    // WHEEL_DELTA equals 120, so iDeltaPerLine will be 40.
+
+    // However, if ulScrollLines > WHEEL_DELTA, we assume that
+    // the mouse driver wants a page scroll.  The docs state that
+    // ulScrollLines should explicitly equal WHEEL_PAGESCROLL, but
+    // since some mouse drivers use an arbitrary large number instead,
+    // we have to handle that as well.
+
+    iDeltaPerLine = 0;
+    if (ulScrollLines) {
+      if (ulScrollLines <= WHEEL_DELTA) {
+        iDeltaPerLine = WHEEL_DELTA / ulScrollLines;
+      } else {
+        ulScrollLines = WHEEL_PAGESCROLL;
+      }
+    }
+
+    if (!SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0,
+                              &ulScrollChars, 0)) {
+      // Note that we may always fail to get the value before Win Vista.
+      ulScrollChars = 1;
+    }
+
+    iDeltaPerChar = 0;
+    if (ulScrollChars) {
+      if (ulScrollChars <= WHEEL_DELTA) {
+        iDeltaPerChar = WHEEL_DELTA / ulScrollChars;
+      } else {
+        ulScrollChars = WHEEL_PAGESCROLL;
+      }
+    }
   }
+
+  if ((isVertical  && ulScrollLines != WHEEL_PAGESCROLL && !iDeltaPerLine) ||
+      (!isVertical && ulScrollChars != WHEEL_PAGESCROLL && !iDeltaPerChar))
+    return PR_FALSE; // break
 
   // The mousewheel event will be dispatched to the toplevel
   // window.  We need to give it to the child window.
   PRBool quit;
-  if (!HandleScrollingPlugins(aMessage, aWParam, aLParam,
-                              aHandled, aRetValue, quit)) {
-    ResetRemainingWheelDelta();
+  if (!HandleScrollingPlugins(msg, wParam, lParam, result, aRetValue, quit))
     return quit; // return immediately if it's not our window
- }
 
-  PRInt32 nativeDelta = (short)HIWORD(aWParam);
-  if (!nativeDelta) {
-    *aRetValue = isVertical ? TRUE : FALSE; // means we don't process it
-    aHandled = PR_FALSE;
-    ResetRemainingWheelDelta();
-    return PR_FALSE; // We cannot process this message
+  // We should cancel the surplus delta if the current window is not
+  // same as previous.
+  if (currentWindow != mWnd) {
+    currentVDelta = 0;
+    currentHDelta = 0;
+    currentWindow = mWnd;
+  }
+
+  nsMouseScrollEvent scrollEvent(PR_TRUE, NS_MOUSE_SCROLL, this);
+  scrollEvent.delta = 0;
+  if (isVertical) {
+    scrollEvent.scrollFlags = nsMouseScrollEvent::kIsVertical;
+    if (ulScrollLines == WHEEL_PAGESCROLL) {
+      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsFullPage;
+      scrollEvent.delta = (((short) HIWORD (wParam)) > 0) ? -1 : 1;
+    } else {
+      currentVDelta -= (short) HIWORD (wParam);
+      if (PR_ABS(currentVDelta) >= iDeltaPerLine) {
+        scrollEvent.delta = currentVDelta / iDeltaPerLine;
+        currentVDelta %= iDeltaPerLine;
+      }
+    }
+  } else {
+    scrollEvent.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+    if (ulScrollChars == WHEEL_PAGESCROLL) {
+      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsFullPage;
+      scrollEvent.delta = (((short) HIWORD (wParam)) > 0) ? 1 : -1;
+    } else {
+      currentHDelta += (short) HIWORD (wParam);
+      if (PR_ABS(currentHDelta) >= iDeltaPerChar) {
+        scrollEvent.delta = currentHDelta / iDeltaPerChar;
+        currentHDelta %= iDeltaPerChar;
+      }
+    }
+  }
+
+  if (!scrollEvent.delta) {
+    // We store the wheel delta, and it will be used next wheel message, so,
+    // we consume this message actually.  We shouldn't call next wndproc.
+    result = PR_TRUE;
+    return PR_FALSE; // break
   }
 
   // The event may go to a plug-in which already dispatched this message.
   // Then, the event can cause deadlock.  We should unlock the sender here.
   ::ReplyMessage(isVertical ? 0 : TRUE);
-
-  PRBool isPageScroll =
-    ((isVertical && sMouseWheelScrollLines == WHEEL_PAGESCROLL) ||
-     (!isVertical && sMouseWheelScrollChars == WHEEL_PAGESCROLL));
-
-  // Discard the remaining delta if current wheel message and last one are
-  // received by different window or to scroll different direction or
-  // different unit scroll.  Furthermore, if the last event was too old.
-  PRUint32 now = PR_IntervalToMilliseconds(PR_IntervalNow());
-  if (sLastMouseWheelWnd &&
-      (sLastMouseWheelWnd != mWnd ||
-       sLastMouseWheelDeltaIsPositive != (nativeDelta > 0) ||
-       sLastMouseWheelOrientationIsVertical != isVertical ||
-       sLastMouseWheelUnitIsPage != isPageScroll ||
-       now - sLastMouseWheelTime > 1500)) {
-    ResetRemainingWheelDelta();
-  }
-  sLastMouseWheelWnd = mWnd;
-  sLastMouseWheelDeltaIsPositive = (nativeDelta > 0);
-  sLastMouseWheelOrientationIsVertical = isVertical;
-  sLastMouseWheelUnitIsPage = isPageScroll;
-  sLastMouseWheelTime = now;
-
-  nsMouseScrollEvent testEvent(PR_TRUE, NS_MOUSE_SCROLL, this);
-  InitEvent(testEvent);
-  testEvent.scrollFlags = isPageScroll ? nsMouseScrollEvent::kIsFullPage : 0;
-  testEvent.scrollFlags |= isVertical ? nsMouseScrollEvent::kIsVertical :
-                                        nsMouseScrollEvent::kIsHorizontal;
-  testEvent.delta = sLastMouseWheelDeltaIsPositive ? -1 : 1;
-  nsQueryContentEvent queryEvent(PR_TRUE, NS_QUERY_SCROLL_TARGET_INFO, this);
-  InitEvent(queryEvent);
-  queryEvent.InitForQueryScrollTargetInfo(&testEvent);
-  DispatchWindowEvent(&queryEvent);
-  // If the necessary interger isn't larger than 0, we should assume that
-  // the event failed for us.
-  if (queryEvent.mSucceeded) {
-    if (isPageScroll) {
-      if (isVertical) {
-        queryEvent.mSucceeded = (queryEvent.mReply.mPageHeight > 0);
-      } else {
-        queryEvent.mSucceeded = (queryEvent.mReply.mPageWidth > 0);
-      }
-    } else {
-      queryEvent.mSucceeded = (queryEvent.mReply.mLineHeight > 0);
-    }
-  }
-
-  *aRetValue = isVertical ? FALSE : TRUE; // means we process this message
-  nsModifierKeyState modKeyState;
-
-  // Our positive delta value means to bottom or right.
-  // But positive nativeDelta value means to top or right.
-  // Use orienter for computing our delta value.
-  PRInt32 orienter = isVertical ? -1 : 1;
 
   // Assume the Control key is down if the Elantech touchpad has sent the
   // mis-ordered WM_KEYDOWN/WM_MOUSEWHEEL messages.  (See the comment in
@@ -6451,97 +6435,25 @@ nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
       static_cast<DWORD>(::GetMessageTime()) < mAssumeWheelIsZoomUntil) {
     isControl = PR_TRUE;
   } else {
-    isControl = modKeyState.mIsControlDown;
+    isControl = IS_VK_DOWN(NS_VK_CONTROL);
   }
 
-  nsMouseScrollEvent scrollEvent(PR_TRUE, NS_MOUSE_SCROLL, this);
+  scrollEvent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
+  scrollEvent.isControl = isControl;
+  scrollEvent.isMeta    = PR_FALSE;
+  scrollEvent.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   InitEvent(scrollEvent);
-  // If the query event failed, we cannot send pixel events.
-  scrollEvent.scrollFlags =
-    queryEvent.mSucceeded ? nsMouseScrollEvent::kHasPixels : 0;
-  scrollEvent.isShift     = modKeyState.mIsShiftDown;
-  scrollEvent.isControl   = isControl;
-  scrollEvent.isMeta      = PR_FALSE;
-  scrollEvent.isAlt       = modKeyState.mIsAltDown;
-
-  PRInt32 nativeDeltaForScroll = nativeDelta + sRemainingDeltaForScroll;
-
-  if (isPageScroll) {
-    scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsFullPage;
-    if (isVertical) {
-      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsVertical;
-    } else {
-      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsHorizontal;
-    }
-    scrollEvent.delta = nativeDeltaForScroll * orienter / WHEEL_DELTA;
-    PRInt32 recomputedNativeDelta = scrollEvent.delta * orienter / WHEEL_DELTA;
-    sRemainingDeltaForScroll = nativeDeltaForScroll - recomputedNativeDelta;
-  } else {
-    double deltaPerUnit;
-    if (isVertical) {
-      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsVertical;
-      deltaPerUnit = (double)WHEEL_DELTA / sMouseWheelScrollLines;
-    } else {
-      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsHorizontal;
-      deltaPerUnit = (double)WHEEL_DELTA / sMouseWheelScrollChars;
-    }
-    scrollEvent.delta =
-      RoundDelta((double)nativeDeltaForScroll * orienter / deltaPerUnit);
-    PRInt32 recomputedNativeDelta =
-      (PRInt32)(scrollEvent.delta * orienter * deltaPerUnit);
-    sRemainingDeltaForScroll = nativeDeltaForScroll - recomputedNativeDelta;
+  if (nsnull != mEventCallback) {
+    result = DispatchWindowEvent(&scrollEvent);
   }
+  // Note that we should return zero if we process WM_MOUSEWHEEL.
+  // But if we process WM_MOUSEHWHEEL, we should return non-zero.
 
-  if (scrollEvent.delta) {
-    aHandled = DispatchWindowEvent(&scrollEvent);
-    if (mOnDestroyCalled) {
-      ResetRemainingWheelDelta();
-      return PR_FALSE;
-    }
-  }
-
-  // If the query event failed, we cannot send pixel events.
-  if (!queryEvent.mSucceeded) {
-    sRemainingDeltaForPixel = 0;
-    return PR_FALSE;
-  }
-
-  nsMouseScrollEvent pixelEvent(PR_TRUE, NS_MOUSE_PIXEL_SCROLL, this);
-  InitEvent(pixelEvent);
-  pixelEvent.scrollFlags = nsMouseScrollEvent::kAllowSmoothScroll |
-    (scrollEvent.scrollFlags & ~nsMouseScrollEvent::kHasPixels);
-  pixelEvent.isShift     = modKeyState.mIsShiftDown;
-  pixelEvent.isControl   = modKeyState.mIsControlDown;
-  pixelEvent.isMeta      = PR_FALSE;
-  pixelEvent.isAlt       = modKeyState.mIsAltDown;
-
-  PRInt32 nativeDeltaForPixel = nativeDelta + sRemainingDeltaForPixel;
-
-  double deltaPerPixel;
-  if (isPageScroll) {
-    if (isVertical) {
-      deltaPerPixel = (double)WHEEL_DELTA / queryEvent.mReply.mPageHeight;
-    } else {
-      deltaPerPixel = (double)WHEEL_DELTA / queryEvent.mReply.mPageWidth;
-    }
-  } else {
-    if (isVertical) {
-      deltaPerPixel = (double)WHEEL_DELTA / sMouseWheelScrollLines;
-    } else {
-      deltaPerPixel = (double)WHEEL_DELTA / sMouseWheelScrollChars;
-    }
-    deltaPerPixel /= queryEvent.mReply.mLineHeight;
-  }
-  pixelEvent.delta =
-    RoundDelta((double)nativeDeltaForPixel * orienter / deltaPerPixel);
-  PRInt32 recomputedNativeDelta =
-    (PRInt32)(pixelEvent.delta * orienter * deltaPerPixel);
-  sRemainingDeltaForPixel = nativeDeltaForPixel - recomputedNativeDelta;
-  if (pixelEvent.delta != 0) {
-    aHandled = DispatchWindowEvent(&pixelEvent);
-  }
-  return PR_FALSE;
-}
+  if (result)
+    *aRetValue = isVertical ? 0 : TRUE;
+  
+  return PR_FALSE; // break;
+} 
 
 static PRBool
 StringCaseInsensitiveEquals(const PRUnichar* aChars1, const PRUint32 aNumChars1,

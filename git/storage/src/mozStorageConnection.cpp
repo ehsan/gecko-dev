@@ -353,7 +353,7 @@ public:
   {
     nsCString path;
 
-    path.AppendLiteral("heap-used/storage/sqlite/");
+    path.AppendLiteral("heap-used/storage/");
     path.Append(mDBConn.getFilename());
 
     if (mType == LookAside_Used) {
@@ -583,6 +583,9 @@ Connection::initialize(nsIFile *aDatabaseFile,
   mMemoryReporters.AppendElement(reporter);
 #endif
 
+  // FIXME: These reporters overlap with storage/sqlite/pagecache and
+  // storage/sqlite/other, and therefore double-count some memory.  See bug
+  // 653630 for details.
   reporter =
     new StorageMemoryReporter(*this, StorageMemoryReporter::Cache_Used);
   mMemoryReporters.AppendElement(reporter);

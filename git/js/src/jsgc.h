@@ -72,7 +72,7 @@ js_TraceXML(JSTracer *trc, JSXML* thing);
 
 namespace js {
 
-class GCHelperThread;
+struct GCHelperThread;
 struct Shape;
 
 namespace gc {
@@ -692,49 +692,26 @@ class ArenaList {
     }
 };
 
-inline void
-CheckGCFreeListLink(FreeCell *cell)
-{
-    /*
-     * The GC things on the free lists come from one arena and the things on
-     * the free list are linked in ascending address order.
-     */
-    JS_ASSERT_IF(cell->link, cell->arenaHeader() == cell->link->arenaHeader());
-    JS_ASSERT_IF(cell->link, cell < cell->link);
-}
-
-/*
- * For a given arena, finalizables[thingKind] points to the next object to be
- * allocated. It gets initialized, in RefillTypedFreeList, to the first free
- * cell in an arena. For each allocation, it is advanced to the next free cell
- * in the same arena. While finalizables[thingKind] points to a cell in an
- * arena, that arena's freeList pointer is NULL. Before doing a GC, we copy
- * finalizables[thingKind] back to the arena header's freeList pointer and set
- * finalizables[thingKind] to NULL. Thus, we only have to maintain one free
- * list pointer at any time and avoid accessing and updating the arena header
- * on each allocation.
- */
 struct FreeLists {
-    FreeCell       *finalizables[FINALIZE_LIMIT];
+    FreeCell       **finalizables[FINALIZE_LIMIT];
 
     void purge();
 
-    FreeCell *getNext(unsigned kind) {
-        FreeCell *top = finalizables[kind];
-        if (top) {
-            CheckGCFreeListLink(top);
-            finalizables[kind] = top->link;
+    inline FreeCell *getNext(uint32 kind) {
+        FreeCell *top = NULL;
+        if (finalizables[kind]) {
+            top = *finalizables[kind];
+            if (top) {
+                *finalizables[kind] = top->link;
+            } else {
+                finalizables[kind] = NULL;
+            }
         }
         return top;
     }
 
-    Cell *populate(ArenaHeader *aheader, uint32 thingKind) {
-        FreeCell *cell = aheader->freeList;
-        JS_ASSERT(cell);
-        CheckGCFreeListLink(cell);
-        aheader->freeList = NULL;
-        finalizables[thingKind] = cell->link;
-        return cell;
+    void populate(ArenaHeader *aheader, uint32 thingKind) {
+        finalizables[thingKind] = &aheader->freeList;
     }
 
 #ifdef DEBUG
@@ -747,11 +724,7 @@ struct FreeLists {
     }
 #endif
 };
-
-extern Cell *
-RefillFinalizableFreeList(JSContext *cx, unsigned thingKind);
-
-} /* namespace gc */
+}
 
 typedef Vector<gc::Chunk *, 32, SystemAllocPolicy> GCChunks;
 
@@ -799,8 +772,21 @@ typedef HashMap<Value, Value, WrapperHasher, SystemAllocPolicy> WrapperMap;
 
 class AutoValueVector;
 class AutoIdVector;
+}
 
-} /* namespace js */
+static inline void
+CheckGCFreeListLink(js::gc::FreeCell *cell)
+{
+    /*
+     * The GC things on the free lists come from one arena and the things on
+     * the free list are linked in ascending address order.
+     */
+    JS_ASSERT_IF(cell->link, cell->arenaHeader() == cell->link->arenaHeader());
+    JS_ASSERT_IF(cell->link, cell < cell->link);
+}
+
+extern bool
+RefillFinalizableFreeList(JSContext *cx, unsigned thingKind);
 
 #ifdef DEBUG
 extern bool

@@ -346,7 +346,6 @@ private:
   nsIDOMCSSValue* DoGetPageBreakBefore();
   nsIDOMCSSValue* DoGetMozTransform();
   nsIDOMCSSValue* DoGetMozTransformOrigin();
-  nsIDOMCSSValue* DoGetOrient();
 
   /* User interface properties */
   nsIDOMCSSValue* DoGetCursor();

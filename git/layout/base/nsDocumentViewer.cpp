@@ -349,18 +349,6 @@ public:
   // nsIDocumentViewerPrint Printing Methods
   NS_DECL_NSIDOCUMENTVIEWERPRINT
 
-
-  static void DispatchBeforePrint(nsIDocument* aTop)
-  {
-    DispatchEventToWindowTree(aTop, NS_LITERAL_STRING("beforeprint"));
-  }
-  static void DispatchAfterPrint(nsIDocument* aTop)
-  {
-    DispatchEventToWindowTree(aTop, NS_LITERAL_STRING("afterprint"));
-  }
-  static void DispatchEventToWindowTree(nsIDocument* aTop,
-                                        const nsAString& aEvent);
-
 protected:
   virtual ~DocumentViewerImpl();
 
@@ -513,22 +501,6 @@ protected:
   PRPackedBool mInitializedForPrintPreview;
   PRPackedBool mHidden;
 };
-
-class nsPrintEventDispatcher
-{
-public:
-  nsPrintEventDispatcher(nsIDocument* aTop) : mTop(aTop)
-  {
-    DocumentViewerImpl::DispatchBeforePrint(mTop);
-  }
-  ~nsPrintEventDispatcher()
-  {
-    DocumentViewerImpl::DispatchAfterPrint(mTop);
-  }
-
-  nsCOMPtr<nsIDocument> mTop;
-};
-
 
 //------------------------------------------------------------------
 // DocumentViewerImpl
@@ -3667,7 +3639,6 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
     return rv;
   }
 
-  nsPrintEventDispatcher beforeAndAfterPrint(mDocument);
   // If we are hosting a full-page plugin, tell it to print
   // first. It shows its own native print UI.
   nsCOMPtr<nsIPluginDocument> pDoc(do_QueryInterface(mDocument));
@@ -3735,13 +3706,12 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIDOMDocument> domDoc;
-  aChildDOMWin->GetDocument(getter_AddRefs(domDoc));
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-  NS_ENSURE_STATE(doc);
-
-  nsPrintEventDispatcher beforeAndAfterPrint(doc);
   if (!mPrintEngine) {
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    aChildDOMWin->GetDocument(getter_AddRefs(domDoc));
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+    NS_ENSURE_STATE(doc);
+
     mPrintEngine = new nsPrintEngine();
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
@@ -4127,28 +4097,6 @@ DocumentViewerImpl::ShouldAttachToTopLevel()
 #endif
 
   return PR_FALSE;
-}
-
-PRBool CollectDocuments(nsIDocument* aDocument, void* aData)
-{
-  if (aDocument) {
-    static_cast<nsCOMArray<nsIDocument>*>(aData)->AppendObject(aDocument);
-    aDocument->EnumerateSubDocuments(CollectDocuments, aData);
-  }
-  return PR_TRUE;
-}
-
-void
-DocumentViewerImpl::DispatchEventToWindowTree(nsIDocument* aDoc,
-                                              const nsAString& aEvent)
-{
-  nsCOMArray<nsIDocument> targets;
-  CollectDocuments(aDoc, &targets);
-  for (PRInt32 i = 0; i < targets.Count(); ++i) {
-    nsIDocument* d = targets[i];
-    nsContentUtils::DispatchTrustedEvent(d, d->GetWindow(),
-                                         aEvent, PR_FALSE, PR_FALSE, nsnull);
-  }
 }
 
 //------------------------------------------------------------
