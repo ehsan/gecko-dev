@@ -337,7 +337,7 @@ class nsDOMFileList MOZ_FINAL : public nsIDOMFileList,
 public:
   nsDOMFileList(nsISupports *aParent) : mParent(aParent)
   {
-    SetIsDOMBinding();
+    SetIsProxy();
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -86,7 +86,8 @@ class nsBaseContentList : public nsINodeList
 public:
   nsBaseContentList()
   {
-    SetIsDOMBinding();
+    // Mark ourselves as a proxy
+    SetIsProxy();
   }
   virtual ~nsBaseContentList();
 

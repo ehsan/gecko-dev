@@ -628,4 +628,3 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/UpdatePrompt.js
 #endif
 @BINPATH@/components/MozKeyboard.js
-@BINPATH@/components/DirectoryProvider.js

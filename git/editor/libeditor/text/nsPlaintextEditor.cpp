@@ -235,8 +235,10 @@ nsPlaintextEditor::SetDocumentCharacterSet(const nsACString& characterSet)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Update META charset element.
-  nsCOMPtr<nsIDOMDocument> domdoc = GetDOMDocument();
-  NS_ENSURE_TRUE(domdoc, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIDOMDocument> domdoc;
+  rv = GetDocument(getter_AddRefs(domdoc));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(domdoc, NS_ERROR_FAILURE);
 
   if (UpdateMetaCharset(domdoc, characterSet)) {
     return NS_OK;
@@ -281,7 +283,6 @@ bool
 nsPlaintextEditor::UpdateMetaCharset(nsIDOMDocument* aDocument,
                                      const nsACString& aCharacterSet)
 {
-  MOZ_ASSERT(aDocument);
   // get a list of META tags
   nsCOMPtr<nsIDOMNodeList> metaList;
   nsresult rv = aDocument->GetElementsByTagName(NS_LITERAL_STRING("meta"),
@@ -345,8 +346,9 @@ nsPlaintextEditor::GetIsDocumentEditable(bool *aIsDocumentEditable)
 {
   NS_ENSURE_ARG_POINTER(aIsDocumentEditable);
 
-  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
-  *aIsDocumentEditable = doc && IsModifiable();
+  nsCOMPtr<nsIDOMDocument> doc;
+  GetDocument(getter_AddRefs(doc));
+  *aIsDocumentEditable = doc ? IsModifiable() : false;
 
   return NS_OK;
 }
@@ -888,8 +890,10 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
       return NS_ERROR_FAILURE;
 
     // we need to get the doc
-    nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
-    NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+    nsCOMPtr<nsIDOMDocument> doc;
+    res = GetDocument(getter_AddRefs(doc));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
 
     // don't spaz my selection in subtransactions
     nsAutoTxnsConserveSelection dontSpazMySelection(this);

@@ -1966,7 +1966,7 @@ nsHTMLSelectElement::VerifyOptionsArray()
 
 nsHTMLOptionCollection::nsHTMLOptionCollection(nsHTMLSelectElement* aSelect)
 {
-  SetIsDOMBinding();
+  SetIsProxy();
 
   // Do not maintain a reference counted reference. When
   // the select goes away, it will let us know.

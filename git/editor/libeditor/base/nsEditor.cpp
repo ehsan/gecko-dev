@@ -544,34 +544,23 @@ NS_IMETHODIMP
 nsEditor::GetIsDocumentEditable(bool *aIsDocumentEditable)
 {
   NS_ENSURE_ARG_POINTER(aIsDocumentEditable);
-  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
-  *aIsDocumentEditable = !!doc;
+  nsCOMPtr<nsIDOMDocument> doc;
+  GetDocument(getter_AddRefs(doc));
+  *aIsDocumentEditable = doc ? true : false;
 
   return NS_OK;
-}
-
-already_AddRefed<nsIDocument>
-nsEditor::GetDocument()
-{
-  NS_PRECONDITION(mDocWeak, "bad state, mDocWeak weak pointer not initialized");
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  return doc.forget();
-}
-
-already_AddRefed<nsIDOMDocument>
-nsEditor::GetDOMDocument()
-{
-  NS_PRECONDITION(mDocWeak, "bad state, mDocWeak weak pointer not initialized");
-  nsCOMPtr<nsIDOMDocument> doc = do_QueryReferent(mDocWeak);
-  return doc.forget();
 }
 
 NS_IMETHODIMP 
 nsEditor::GetDocument(nsIDOMDocument **aDoc)
 {
-  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
-  doc.forget(aDoc);
-  return *aDoc ? NS_OK : NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(aDoc, NS_ERROR_NULL_POINTER);
+  *aDoc = nsnull; // init out param
+  NS_PRECONDITION(mDocWeak, "bad state, mDocWeak weak pointer not initialized");
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryReferent(mDocWeak);
+  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+  NS_ADDREF(*aDoc = doc);
+  return NS_OK;
 }
 
 already_AddRefed<nsIPresShell>
@@ -4974,7 +4963,10 @@ nsresult nsEditor::ClearSelection()
 nsresult
 nsEditor::CreateHTMLContent(const nsAString& aTag, nsIContent** aContent)
 {
-  nsCOMPtr<nsIDocument> doc = GetDocument();
+  nsCOMPtr<nsIDOMDocument> tempDoc;
+  GetDocument(getter_AddRefs(tempDoc));
+
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(tempDoc);
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   // XXX Wallpaper over editor bug (editor tries to create elements with an

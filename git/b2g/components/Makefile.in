@@ -54,7 +54,6 @@ EXTRA_PP_COMPONENTS = \
         AlertsService.js \
         ContentPermissionPrompt.js \
         MozKeyboard.js \
-        DirectoryProvider.js \
         $(NULL)
 
 ifdef MOZ_UPDATER
