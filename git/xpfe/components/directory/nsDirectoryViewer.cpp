@@ -178,7 +178,7 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
                         global,
                         "OnFTPControlLog",
                         params,
-                        &val);
+                        val.address());
     return NS_OK;
 }
 

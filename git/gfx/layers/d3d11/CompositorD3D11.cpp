@@ -65,7 +65,7 @@ CompositorD3D11::CompositorD3D11(nsIWidget* aWidget)
   , mHwnd(nullptr)
   , mDisableSequenceForNextFrame(false)
 {
-  SetBackend(LayersBackend::LAYERS_D3D11);
+  sBackend = LayersBackend::LAYERS_D3D11;
 }
 
 CompositorD3D11::~CompositorD3D11()

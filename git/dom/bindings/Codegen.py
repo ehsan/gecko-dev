@@ -11332,16 +11332,15 @@ class CallbackMethod(CallbackMember):
     def getCall(self):
         replacements = {
             "errorReturn" : self.getDefaultRetval(),
-            "declThis": self.getThisDecl(),
             "thisVal": self.getThisVal(),
-            "declCallable": self.getCallableDecl(),
+            "getCallable": self.getCallableDecl(),
             "callGuard": self.getCallGuard()
             }
         if self.argCount > 0:
             replacements["args"] = "JS::HandleValueArray::subarray(argv, 0, argc)"
         else:
             replacements["args"] = "JS::EmptyValueArray"
-        return string.Template("${declCallable}${declThis}"
+        return string.Template("${getCallable}"
                 "if (${callGuard}!JS::Call(cx, ${thisVal}, callable,\n"
                 "              ${args}, &rval)) {\n"
                 "  aRv.Throw(NS_ERROR_UNEXPECTED);\n"
@@ -11353,9 +11352,6 @@ class CallCallback(CallbackMethod):
         self.callback = callback
         CallbackMethod.__init__(self, callback.signatures()[0], "Call",
                                 descriptorProvider, needThisHandling=True)
-
-    def getThisDecl(self):
-        return ""
 
     def getThisVal(self):
         return "aThisVal"
@@ -11380,18 +11376,13 @@ class CallbackOperationBase(CallbackMethod):
         self.methodName = descriptor.binaryNames.get(jsName, jsName)
         CallbackMethod.__init__(self, signature, nativeName, descriptor, singleOperation, rethrowContentException)
 
-    def getThisDecl(self):
+    def getThisVal(self):
         if not self.singleOperation:
-            return "JS::Rooted<JS::Value> thisValue(cx, JS::ObjectValue(*mCallback));\n"
+            return "JS::ObjectValue(*mCallback)"
         # This relies on getCallableDecl declaring a boolean
         # isCallable in the case when we're a single-operation
         # interface.
-        return (
-            'JS::Rooted<JS::Value> thisValue(cx, isCallable ? aThisVal.get()\n'
-            '                                               : JS::ObjectValue(*mCallback));\n')
-
-    def getThisVal(self):
-        return "thisValue"
+        return "isCallable ? aThisVal.get() : JS::ObjectValue(*mCallback)"
 
     def getCallableDecl(self):
         replacements = {

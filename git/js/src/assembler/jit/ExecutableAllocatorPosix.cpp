@@ -106,10 +106,7 @@ ExecutablePool::toggleAllCodeAsAccessible(bool accessible)
     size_t size = m_freePtr - begin;
 
     if (size) {
-        int flags = accessible
-                    ? PROT_READ | PROT_WRITE | PROT_EXEC
-                    : PROT_READ | PROT_WRITE;
-        if (mprotect(begin, size, flags))
+        if (mprotect(begin, size, accessible ? PROT_READ | PROT_WRITE | PROT_EXEC : PROT_NONE))
             MOZ_CRASH();
     }
 }

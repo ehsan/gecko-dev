@@ -178,8 +178,7 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
   bool defineOnGlobal = dom::XULElementBinding::ConstructorEnabled(cx, global);
   dom::XULElementBinding::GetConstructorObject(cx, global, defineOnGlobal);
 
-  rv = nsContentUtils::WrapNative(cx, global, aBoundElement, &v,
-                                  /* aAllowWrapping = */ false);
+  rv = nsContentUtils::WrapNative(cx, global, aBoundElement, &v);
   NS_ENSURE_SUCCESS(rv, rv);
 
   JS::Rooted<JSObject*> value(cx, &v.toObject());

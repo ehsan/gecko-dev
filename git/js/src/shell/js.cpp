@@ -322,12 +322,11 @@ ShellOperationCallback(JSContext *cx)
     bool result;
     if (!gTimeoutFunc.isNull()) {
         JSAutoCompartment ac(cx, &gTimeoutFunc.toObject());
-        RootedValue rval(cx);
-        HandleValue timeoutFunc = HandleValue::fromMarkedLocation(&gTimeoutFunc);
-        if (!JS_CallFunctionValue(cx, JS::NullPtr(), timeoutFunc, JS::EmptyValueArray, &rval))
+        RootedValue returnedValue(cx);
+        if (!JS_CallFunctionValue(cx, nullptr, gTimeoutFunc, JS::EmptyValueArray, returnedValue.address()))
             return false;
-        if (rval.isBoolean())
-            result = rval.toBoolean();
+        if (returnedValue.isBoolean())
+            result = returnedValue.toBoolean();
         else
             result = false;
     } else {
@@ -3912,20 +3911,40 @@ GetSelfHostedValue(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 class ShellSourceHook: public SourceHook {
+    // The runtime to which we attached a source hook.
+    JSRuntime *rt;
+
     // The function we should call to lazily retrieve source code.
-    PersistentRootedFunction fun;
+    // The constructor and destructor take care of rooting this with the
+    // runtime.
+    JSObject *fun;
 
   public:
-    ShellSourceHook(JSContext *cx, JSFunction &fun) : fun(cx, &fun) {}
+    ShellSourceHook() : rt(nullptr), fun(nullptr) { }
+    bool init(JSContext *cx, JSFunction &fun) {
+        JS_ASSERT(!this->rt);
+        JS_ASSERT(!this->fun);
+        this->rt = cx->runtime();
+        this->fun = &fun;
+        return JS_AddNamedObjectRoot(cx, &this->fun,
+                                     "lazy source callback, set with withSourceHook");
+    }
+
+    ~ShellSourceHook() {
+        if (fun)
+            JS_RemoveObjectRootRT(rt, &fun);
+    }
 
     bool load(JSContext *cx, const char *filename, jschar **src, size_t *length) {
+        JS_ASSERT(fun);
+
         RootedString str(cx, JS_NewStringCopyZ(cx, filename));
         if (!str)
             return false;
         RootedValue filenameValue(cx, StringValue(str));
 
         RootedValue result(cx);
-        if (!Call(cx, UndefinedHandleValue, fun, filenameValue, &result))
+        if (!Call(cx, UndefinedValue(), &fun->as<JSFunction>(), filenameValue, &result))
             return false;
 
         str = JS::ToString(cx, result);
@@ -3963,14 +3982,15 @@ WithSourceHook(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    ShellSourceHook *hook = new ShellSourceHook(cx, args[0].toObject().as<JSFunction>());
-    if (!hook)
+    ShellSourceHook *hook = new ShellSourceHook();
+    if (!hook->init(cx, args[0].toObject().as<JSFunction>())) {
+        delete hook;
         return false;
+    }
 
     SourceHook *savedHook = js::ForgetSourceHook(cx->runtime());
     js::SetSourceHook(cx->runtime(), hook);
-    RootedObject fun(cx, &args[1].toObject());
-    bool result = Call(cx, UndefinedHandleValue, fun, JS::EmptyValueArray, args.rval());
+    bool result = Call(cx, UndefinedValue(), &args[1].toObject(), JS::EmptyValueArray, args.rval());
     js::SetSourceHook(cx->runtime(), savedHook);
     return result;
 }

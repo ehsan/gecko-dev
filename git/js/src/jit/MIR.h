@@ -6687,6 +6687,7 @@ class MGetPropertyCache
 {
     CompilerRootPropertyName name_;
     bool idempotent_;
+    bool allowGetters_;
     bool monitoredResult_;
 
     CacheLocationList location_;
@@ -6697,6 +6698,7 @@ class MGetPropertyCache
       : MUnaryInstruction(obj),
         name_(name),
         idempotent_(false),
+        allowGetters_(false),
         monitoredResult_(monitoredResult),
         location_(),
         inlinePropertyTable_(nullptr)
@@ -6744,8 +6746,14 @@ class MGetPropertyCache
         idempotent_ = true;
         setMovable();
     }
+    bool allowGetters() const {
+        return allowGetters_;
+    }
     bool monitoredResult() const {
         return monitoredResult_;
+    }
+    void setAllowGetters() {
+        allowGetters_ = true;
     }
     CacheLocationList &location() {
         return location_;

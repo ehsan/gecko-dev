@@ -623,19 +623,18 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   nsCxPusher pusher;
   pusher.Push(cx);
-  JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
-  JSAutoCompartment ac(cx, jsobj);
+  JSAutoCompartment ac(cx, npjsobj->mJSObj);
   JS::Rooted<JS::Value> fv(cx);
 
   AutoJSExceptionReporter reporter(cx);
 
   if (method != NPIdentifier_VOID) {
-    if (!GetProperty(cx, jsobj, method, &fv) ||
+    if (!GetProperty(cx, npjsobj->mJSObj, method, &fv) ||
         ::JS_TypeOfValue(cx, fv) != JSTYPE_FUNCTION) {
       return false;
     }
   } else {
-    fv.setObject(*jsobj);
+    fv = OBJECT_TO_JSVAL(npjsobj->mJSObj);
   }
 
   // Convert args
@@ -653,14 +652,14 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   if (ctorCall) {
     JSObject *newObj =
-      ::JS_New(cx, jsobj, jsargs.length(), jsargs.begin());
+      ::JS_New(cx, npjsobj->mJSObj, jsargs.length(), jsargs.begin());
 
     if (newObj) {
       v.setObject(*newObj);
       ok = true;
     }
   } else {
-    ok = ::JS_CallFunctionValue(cx, jsobj, fv, jsargs, &v);
+    ok = ::JS_CallFunctionValue(cx, npjsobj->mJSObj, fv, jsargs, v.address());
   }
 
   if (ok)
@@ -1606,7 +1605,7 @@ NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint, JS::
   if (!JS_GetProperty(cx, obj, "toString", &v))
     return false;
   if (!JSVAL_IS_PRIMITIVE(v) && JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(v))) {
-    if (!JS_CallFunctionValue(cx, obj, v, JS::EmptyValueArray, vp))
+    if (!JS_CallFunctionValue(cx, obj, v, JS::EmptyValueArray, vp.address()))
       return false;
     if (JSVAL_IS_PRIMITIVE(vp))
       return true;

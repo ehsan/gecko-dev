@@ -130,17 +130,8 @@ SPSProfiler::enter(JSScript *script, JSFunction *maybeFun)
     if (str == nullptr)
         return false;
 
-#ifdef DEBUG
-    // In debug builds, assert the JS pseudo frames already on the stack
-    // have a non-null pc. Only look at the top frames to avoid quadratic
-    // behavior.
-    if (*size_ > 0 && *size_ - 1 < max_) {
-        size_t start = (*size_ > 4) ? *size_ - 4 : 0;
-        for (size_t i = start; i < *size_ - 1; i++)
-            MOZ_ASSERT_IF(stack_[i].js(), stack_[i].pc() != nullptr);
-    }
-#endif
-
+    JS_ASSERT_IF(*size_ > 0 && *size_ - 1 < max_ && stack_[*size_ - 1].js(),
+                 stack_[*size_ - 1].pc() != nullptr);
     push(str, nullptr, script, script->code());
     return true;
 }

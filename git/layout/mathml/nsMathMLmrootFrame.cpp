@@ -375,9 +375,8 @@ nsMathMLmrootFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingConte
   nscoord sqrWidth = mSqrChar.GetMaxWidth(PresContext(), *aRenderingContext);
 
   nscoord dxSqr;
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  GetRadicalXOffsets(indexWidth, sqrWidth, fm, nullptr, &dxSqr);
+  GetRadicalXOffsets(indexWidth, sqrWidth, aRenderingContext->FontMetrics(),
+                     nullptr, &dxSqr);
 
   nscoord width = dxSqr + sqrWidth + baseWidth;
 

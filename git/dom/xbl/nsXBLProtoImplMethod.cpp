@@ -334,8 +334,8 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   bool ok = true;
   if (scriptAllowed) {
     JS::Rooted<JS::Value> retval(cx);
-    JS::Rooted<JS::Value> methodVal(cx, JS::ObjectValue(*method));
-    ok = ::JS::Call(cx, thisObject, methodVal, JS::EmptyValueArray, &retval);
+    ok = ::JS_CallFunctionValue(cx, thisObject, OBJECT_TO_JSVAL(method),
+                                JS::EmptyValueArray, retval.address());
   }
 
   if (!ok) {

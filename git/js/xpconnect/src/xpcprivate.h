@@ -80,7 +80,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/GuardObjects.h"
-#include "mozilla/Maybe.h"
 #include "mozilla/MemoryReporting.h"
 
 #include <math.h>
@@ -394,6 +393,33 @@ private:
 
 /***************************************************************************/
 
+// class to export a JSString as an const nsAString, no refcounting :(
+class XPCReadableJSStringWrapper : public nsDependentString
+{
+public:
+    typedef nsDependentString::char_traits char_traits;
+
+    XPCReadableJSStringWrapper(const char16_t *chars, size_t length) :
+        nsDependentString(chars, length)
+    { }
+
+    XPCReadableJSStringWrapper() :
+        nsDependentString(char_traits::sEmptyBuffer, char_traits::sEmptyBuffer)
+    { SetIsVoid(true); }
+
+    bool init(JSContext* aContext, JSString* str)
+    {
+        size_t length;
+        const jschar* chars = JS_GetStringCharsZAndLength(aContext, str, &length);
+        if (!chars)
+            return false;
+
+        MOZ_ASSERT(IsEmpty(), "init() on initialized string");
+        new(static_cast<nsDependentString *>(this)) nsDependentString(chars, length);
+        return true;
+    }
+};
+
 // In the current xpconnect system there can only be one XPCJSRuntime.
 // So, xpconnect can only be used on one JSRuntime within the process.
 
@@ -554,8 +580,8 @@ public:
 
     ~XPCJSRuntime();
 
-    nsString* NewShortLivedString();
-    void DeleteShortLivedString(nsString *string);
+    XPCReadableJSStringWrapper *NewStringWrapper(const char16_t *str, uint32_t len);
+    void DeleteString(nsAString *string);
 
     void AddGCCallback(xpcGCCallback cb);
     void RemoveGCCallback(xpcGCCallback cb);
@@ -620,7 +646,20 @@ private:
 
 #define XPCCCX_STRING_CACHE_SIZE 2
 
-    mozilla::Maybe<nsString> mScratchStrings[XPCCCX_STRING_CACHE_SIZE];
+    // String wrapper entry, holds a string, and a boolean that tells
+    // whether the string is in use or not.
+    //
+    // NB: The string is not stored by value so that we avoid the cost of
+    // construction/destruction.
+    struct StringWrapperEntry
+    {
+        StringWrapperEntry() : mInUse(false) { }
+
+        mozilla::AlignedStorage2<XPCReadableJSStringWrapper> mString;
+        bool mInUse;
+    };
+
+    StringWrapperEntry mScratchStrings[XPCCCX_STRING_CACHE_SIZE];
 
     friend class Watchdog;
     friend class AutoLockWatchdog;

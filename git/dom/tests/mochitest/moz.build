@@ -8,6 +8,7 @@ DIRS += [
     'dom-level0',
     'ajax',
     'bugs',
+    'chrome',
     'crypto',
     'general',
     'geolocation',
@@ -31,7 +32,6 @@ MOCHITEST_MANIFESTS += [
 ]
 
 MOCHITEST_CHROME_MANIFESTS += [
-    'chrome/chrome.ini',
     'webapps/chrome.ini',
     'whatwg/chrome.ini',
 ]
