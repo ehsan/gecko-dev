@@ -44,6 +44,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsAutoPtr.h"
 
 // Interfaces needed

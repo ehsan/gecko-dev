@@ -923,7 +923,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         
         desiredSize.width = cellDesiredSize.width;
         desiredSize.height = cellDesiredSize.height;
-        if (cellFrame->HasOverflowRect())
+        if (cellFrame->GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN)
           desiredSize.mOverflowArea = cellFrame->GetOverflowRect();
         else
           desiredSize.mOverflowArea.SetRect(0, 0, cellDesiredSize.width,

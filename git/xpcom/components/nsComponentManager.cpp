@@ -85,7 +85,6 @@
 #include "nsThreadUtils.h"
 #include "prthread.h"
 #include "private/pprthred.h"
-#include "nsTArray.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -330,9 +329,9 @@ private:
     ~PLDHashTableEnumeratorImpl();
     void ReleaseElements();
 
-    nsTArray<nsISupports*> mElements;
-    PRInt32                mCount, mCurrent;
-    PRMonitor*             mMonitor;
+    nsVoidArray   mElements;
+    PRInt32       mCount, mCurrent;
+    PRMonitor*    mMonitor;
 
     struct Closure {
         PRBool                        succeeded;
@@ -402,7 +401,9 @@ void
 PLDHashTableEnumeratorImpl::ReleaseElements()
 {
     for (PRInt32 i = 0; i < mCount; i++) {
-        NS_IF_RELEASE(mElements[i]);
+        nsISupports *supports = reinterpret_cast<nsISupports *>
+                                                (mElements[i]);
+        NS_IF_RELEASE(supports);
     }
 }
 
@@ -475,7 +476,7 @@ PLDHashTableEnumeratorImpl::CurrentItem(nsISupports **retval)
     if (!mCount || mCurrent == mCount)
         return NS_ERROR_FAILURE;
 
-    *retval = mElements[mCurrent];
+    *retval = reinterpret_cast<nsISupports *>(mElements[mCurrent]);
     if (*retval)
         NS_ADDREF(*retval);
 
@@ -1426,7 +1427,7 @@ nsComponentManagerImpl::GetClassObject(const nsCID &aClass, const nsIID &aIID,
         char *buf = aClass.ToString();
         PR_LogPrint("nsComponentManager: GetClassObject(%s)", buf);
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
 
@@ -1502,7 +1503,7 @@ nsComponentManagerImpl::ContractIDToClassID(const char *aContractID, nsCID *aCla
                ("nsComponentManager: ContractIDToClassID(%s)->%s", aContractID,
                 NS_SUCCEEDED(rv) ? buf : "[FAILED]"));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     return rv;
@@ -1532,7 +1533,7 @@ nsComponentManagerImpl::CLSIDToContractID(const nsCID &aClass,
                ("nsComponentManager: CLSIDToContractID(%s)->%s", buf,
                 NS_SUCCEEDED(rv) ? *aContractID : "[FAILED]"));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     return rv;
@@ -1614,7 +1615,7 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
                ("nsComponentManager: CreateInstance(%s) %s", buf,
                 NS_SUCCEEDED(rv) ? "succeeded" : "FAILED"));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
 
@@ -2464,7 +2465,7 @@ nsComponentManagerImpl::RegisterFactory(const nsCID &aClass,
                ("nsComponentManager: RegisterFactory(%s, %s)", buf,
                 (aContractID ? aContractID : "(null)")));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     nsFactoryEntry *entry = nsnull;
@@ -2629,7 +2630,7 @@ nsComponentManagerImpl::RegisterComponentCommon(const nsCID &aClass,
                 contractID ? contractID : "(null)",
                 aRegistryName, aType));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     if (entry && !aReplace) {
@@ -2827,7 +2828,7 @@ nsComponentManagerImpl::UnregisterFactory(const nsCID &aClass,
         PR_LOG(nsComponentManagerLog, PR_LOG_WARNING,
                ("nsComponentManager: UnregisterFactory(%s)", buf));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     nsFactoryEntry *old;

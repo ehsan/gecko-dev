@@ -89,7 +89,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsTimer.h"
 #include "nsIAppShell.h"
-#include "nsIWidget.h"
 #include "nsWidgetsCID.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIRequest.h"

@@ -130,8 +130,7 @@ PlacesController.prototype = {
     case "cmd_delete":
       return this._hasRemovableSelection(false);
     case "placesCmd_deleteDataHost":
-      return this._hasRemovableSelection(false) &&
-        !PlacesUIUtils.privateBrowsing.privateBrowsingEnabled;
+      return this._hasRemovableSelection(false);
     case "placesCmd_moveBookmarks":
       return this._hasRemovableSelection(true);
     case "cmd_copy":
@@ -231,8 +230,10 @@ PlacesController.prototype = {
       this.remove("Remove Selection");
       break;
     case "placesCmd_deleteDataHost":
+      let pb = Cc["@mozilla.org/privatebrowsing;1"].
+               getService(Ci.nsIPrivateBrowsingService);
       let uri = PlacesUtils._uri(this._view.selectedNode.uri);
-      PlacesUIUtils.privateBrowsing.removeDataFromDomain(uri.host);
+      pb.removeDataFromDomain(uri.host);
       break;
     case "cmd_selectAll":
       this.selectAll();
@@ -580,8 +581,6 @@ PlacesController.prototype = {
    *     attribute are set.
    *  7) These attributes should not be set on separators for which the
    *     visibility state is "auto-detected."
-   *  8) The "hideifprivatebrowsing" attribute may be set on a menu-item to
-   *     true if it should be hidden inside the private browsing mode
    * @param   aPopup
    *          The menupopup to build children into.
    * @return true if at least one item is visible, false otherwise.
@@ -598,11 +597,8 @@ PlacesController.prototype = {
       var item = aPopup.childNodes[i];
       if (item.localName != "menuseparator") {
         // We allow pasting into tag containers, so special case that.
-        var hideIfNoIP = item.getAttribute("hideifnoinsertionpoint") == "true" &&
-                         noIp && !(ip && ip.isTag && item.id == "placesContext_paste");
-        var hideIfPB = item.getAttribute("hideifprivatebrowsing") == "true" &&
-                       PlacesUIUtils.privateBrowsing.privateBrowsingEnabled;
-        item.hidden = hideIfNoIP || hideIfPB ||
+        item.hidden = (item.getAttribute("hideifnoinsertionpoint") == "true" &&
+                       noIp && !(ip && ip.isTag && item.id == "placesContext_paste")) ||
                       !this._shouldShowMenuItem(item, metadata);
 
         if (!item.hidden) {

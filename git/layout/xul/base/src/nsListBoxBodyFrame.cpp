@@ -1208,27 +1208,20 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
       // There is a content node that wants a frame.
       nsIContent *nextContent = parentContent->GetChildAt(i + aOffset + 1);
 
-      nsPresContext* presContext = PresContext();
-      nsIFrame* existingFrame =
-        presContext->GetPresShell()->GetPrimaryFrameFor(nextContent);
-
-      if (!existingFrame) {
-        // Either append the new frame, or insert it after the current frame
-        PRBool isAppend = result != mLinkupFrame && mRowsToPrepend <= 0;
-        nsIFrame* prevFrame = isAppend ? nsnull : aBox;
+      // Either append the new frame, or insert it after the current frame
+      PRBool isAppend = result != mLinkupFrame && mRowsToPrepend <= 0;
+      nsIFrame* prevFrame = isAppend ? nsnull : aBox;
       
-        nsCSSFrameConstructor* fc = presContext->PresShell()->FrameConstructor();
-        fc->CreateListBoxContent(presContext, this, prevFrame, nextContent,
-                                 &result, isAppend, PR_FALSE, nsnull);
+      nsPresContext* presContext = PresContext();
+      nsCSSFrameConstructor* fc = presContext->PresShell()->FrameConstructor();
+      fc->CreateListBoxContent(presContext, this, prevFrame, nextContent,
+                               &result, isAppend, PR_FALSE, nsnull);
 
-        if (result) {
-          if (aCreated)
-            *aCreated = PR_TRUE;
-        } else
-          return GetNextItemBox(aBox, ++aOffset, aCreated);
-      } else {
-        result = existingFrame;
-      }
+      if (result) {
+        if (aCreated)
+           *aCreated = PR_TRUE;
+      } else
+        return GetNextItemBox(aBox, ++aOffset, aCreated);
             
       mLinkupFrame = nsnull;
     }

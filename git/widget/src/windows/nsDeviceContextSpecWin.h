@@ -42,10 +42,9 @@
 #include "nsIDeviceContextSpec.h"
 #include "nsIPrintOptions.h" // For nsIPrinterEnumerator
 #include "nsIPrintSettings.h"
+#include "nsIWidget.h"
 #include "nsISupportsPrimitives.h"
 #include <windows.h>
-
-class nsIWidget;
 
 class nsDeviceContextSpecWin : public nsIDeviceContextSpec
 {

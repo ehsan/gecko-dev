@@ -1458,20 +1458,16 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
         rv = ConvertWinError(GetLastError());
 
 #ifndef WINCE
-    else if (move) // Set security permissions to inherit from parent.
+    if(move) //Set security permissions to inherit from parent.
     {
-        PACL pOldDACL = NULL;
-        PSECURITY_DESCRIPTOR pSD = NULL;
-        ::GetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT,
-                                DACL_SECURITY_INFORMATION,
-                                NULL, NULL, &pOldDACL, NULL, &pSD);
-        if (pOldDACL)
-            ::SetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT,
-                                    DACL_SECURITY_INFORMATION |
-                                    UNPROTECTED_DACL_SECURITY_INFORMATION,
-                                    NULL, NULL, pOldDACL, NULL);
-        if (pSD)
-            LocalFree((HLOCAL)pSD);
+        ACL empty_acl;
+        if (InitializeAcl(&empty_acl, (DWORD) sizeof(ACL), ACL_REVISION))
+        {
+        ::SetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT, 
+                                DACL_SECURITY_INFORMATION |
+                                UNPROTECTED_DACL_SECURITY_INFORMATION, 
+                                NULL, NULL, &empty_acl, NULL);
+        }
     }
 #endif
     return rv;

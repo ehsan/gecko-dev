@@ -1,5 +1,6 @@
 #ifndef HAVE_SNPRINTF
 
+#include "watcomfx.h"
 #include <sys/types.h>
 #include <stddef.h>
 #include <stdio.h>

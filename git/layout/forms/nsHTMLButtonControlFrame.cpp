@@ -54,6 +54,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsIImage.h"
 #include "nsStyleConsts.h"
+#include "nsIWidget.h"
 #include "nsIComponentManager.h"
 #include "nsIDocument.h"
 #include "nsButtonFrameRenderer.h"

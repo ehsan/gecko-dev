@@ -74,7 +74,7 @@ TimerThread::~TimerThread()
 
   mThread = nsnull;
 
-  NS_ASSERTION(mTimers.IsEmpty(), "Timers remain in TimerThread::~TimerThread");
+  NS_ASSERTION(mTimers.Count() == 0, "Timers remain in TimerThread::~TimerThread");
 }
 
 nsresult
@@ -154,7 +154,7 @@ nsresult TimerThread::Shutdown()
   if (!mThread)
     return NS_ERROR_NOT_INITIALIZED;
 
-  nsTArray<nsTimerImpl*> timers;
+  nsVoidArray timers;
   {   // lock scope
     nsAutoLock lock(mLock);
 
@@ -170,13 +170,14 @@ nsresult TimerThread::Shutdown()
     // might potentially call some code reentering the same lock
     // that leads to unexpected behavior or deadlock.
     // See bug 422472.
-    timers.AppendElements(mTimers);
+    PRBool rv = timers.AppendElements(mTimers);
+    NS_ASSERTION(rv, "Could not copy timers array, remaining timers will not be released");
     mTimers.Clear();
   }
 
-  PRUint32 timersCount = timers.Length();
-  for (PRUint32 i = 0; i < timersCount; i++) {
-    nsTimerImpl *timer = timers[i];
+  PRInt32 timersCount = timers.Count();
+  for (PRInt32 i = 0; i < timersCount; i++) {
+    nsTimerImpl *timer = static_cast<nsTimerImpl*>(timers[i]);
     timer->ReleaseCallback();
     ReleaseTimerInternal(timer);
   }
@@ -256,8 +257,8 @@ NS_IMETHODIMP TimerThread::Run()
       PRIntervalTime now = PR_IntervalNow();
       nsTimerImpl *timer = nsnull;
 
-      if (!mTimers.IsEmpty()) {
-        timer = mTimers[0];
+      if (mTimers.Count() > 0) {
+        timer = static_cast<nsTimerImpl*>(mTimers[0]);
 
         if (!TIMER_LESS_THAN(now, timer->mTimeout + mTimeoutAdjustment)) {
     next:
@@ -316,8 +317,8 @@ NS_IMETHODIMP TimerThread::Run()
         }
       }
 
-      if (!mTimers.IsEmpty()) {
-        timer = mTimers[0];
+      if (mTimers.Count() > 0) {
+        timer = static_cast<nsTimerImpl *>(mTimers[0]);
 
         PRIntervalTime timeout = timer->mTimeout + mTimeoutAdjustment;
 
@@ -411,10 +412,10 @@ PRInt32 TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
     return -1;
 
   PRIntervalTime now = PR_IntervalNow();
-  PRUint32 count = mTimers.Length();
-  PRUint32 i = 0;
+  PRInt32 count = mTimers.Count();
+  PRInt32 i = 0;
   for (; i < count; i++) {
-    nsTimerImpl *timer = mTimers[i];
+    nsTimerImpl *timer = static_cast<nsTimerImpl *>(mTimers[i]);
 
     // Don't break till we have skipped any overdue timers.  Do not include
     // mTimeoutAdjustment here, because we are really trying to avoid calling
@@ -431,7 +432,7 @@ PRInt32 TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
     }
   }
 
-  if (!mTimers.InsertElementAt(i, aTimer))
+  if (!mTimers.InsertElementAt(aTimer, i))
     return -1;
 
   aTimer->mArmed = PR_TRUE;
@@ -463,8 +464,8 @@ void TimerThread::DoBeforeSleep()
 void TimerThread::DoAfterSleep()
 {
   mSleeping = PR_TRUE; // wake may be notified without preceding sleep notification
-  for (PRUint32 i = 0; i < mTimers.Length(); i ++) {
-    nsTimerImpl *timer = mTimers[i];
+  for (PRInt32 i = 0; i < mTimers.Count(); i ++) {
+    nsTimerImpl *timer = static_cast<nsTimerImpl*>(mTimers[i]);
     // get and set the delay to cause its timeout to be recomputed
     PRUint32 delay;
     timer->GetDelay(&delay);

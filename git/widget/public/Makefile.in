@@ -50,8 +50,6 @@ EXPORTS		= \
 		nsIWidget.h \
 		nsGUIEvent.h \
 		nsEvent.h \
-		nsNativeWidget.h \
-		nsWidgetInitData.h \
 		nsIEventListener.h \
 		nsWidgetsCID.h \
 		nsILookAndFeel.h \

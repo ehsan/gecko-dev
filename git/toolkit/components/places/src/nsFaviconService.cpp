@@ -75,7 +75,7 @@
 
 #define FAVICON_BUFFER_INCREMENT 8192
 
-#define MAX_FAVICON_CACHE_SIZE 256
+#define MAX_FAVICON_CACHE_SIZE 512
 #define FAVICON_CACHE_REDUCE_COUNT 64
 
 #define CONTENT_SNIFFING_SERVICES "content-sniffing-services"
@@ -134,9 +134,10 @@ private:
 
 nsFaviconService* nsFaviconService::gFaviconService;
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_ISUPPORTS2(
   nsFaviconService
 , nsIFaviconService
+, nsIObserver
 )
 
 // nsFaviconService::nsFaviconService
@@ -154,6 +155,14 @@ nsFaviconService::nsFaviconService() : mFailedFaviconSerial(0)
 nsFaviconService::~nsFaviconService()
 {
   NS_ASSERTION(gFaviconService == this, "Deleting a non-singleton favicon service");
+
+  // Remove observers
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService("@mozilla.org/observer-service;1");
+  if (observerService) {
+    (void)observerService->RemoveObserver(this,
+                                          NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID);
+  }
 
   if (gFaviconService == this)
     gFaviconService = nsnull;
@@ -217,8 +226,18 @@ nsFaviconService::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // failed favicon cache
-  if (! mFailedFavicons.Init(MAX_FAVICON_CACHE_SIZE))
+  if (! mFailedFavicons.Init(256))
     return NS_ERROR_OUT_OF_MEMORY;
+
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService("@mozilla.org/observer-service;1");
+  if (observerService) {
+    // Observe empty-cache notifications so tahat clearing the disk/memory
+    // cache will also expire favicons.
+    (void)observerService->AddObserver(this,
+                                       NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID,
+                                       PR_FALSE);
+  }
 
   return NS_OK;
 }
@@ -292,6 +311,19 @@ nsFaviconService::ExpireAllFavicons()
   rv = mDBConn->ExecuteAsync(stmts, NS_ARRAY_LENGTH(stmts), callback,
                              getter_AddRefs(ps));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// nsIObserver
+
+NS_IMETHODIMP
+nsFaviconService::Observe(nsISupports *aSubject, const char *aTopic,
+                          const PRUnichar *aData)
+{
+  if (strcmp(aTopic, NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID) == 0)
+    (void)ExpireAllFavicons();
 
   return NS_OK;
 }

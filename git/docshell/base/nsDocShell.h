@@ -46,6 +46,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsIContentViewer.h"
 #include "nsIPrefBranch.h"
+#include "nsVoidArray.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIScriptContext.h"
 #include "nsITimer.h"
@@ -107,7 +108,6 @@
 #include "nsIURIClassifier.h"
 #include "nsIChannelClassifier.h"
 #include "nsILoadContext.h"
-#include "nsIWidget.h"
 
 class nsIScrollableView;
 class nsDocShell;

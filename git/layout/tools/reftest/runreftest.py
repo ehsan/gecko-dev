@@ -40,6 +40,7 @@
 Runs the reftest test harness.
 """
 
+import logging
 import sys, shutil, os, os.path
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
 sys.path.append(SCRIPT_DIRECTORY)
@@ -91,14 +92,6 @@ def main():
                     action = "store", type = "string", dest = "symbolsPath",
                     default = automation.SYMBOLS_PATH,
                     help = "absolute path to directory containing breakpad symbols")
-  parser.add_option("--leak-threshold",
-                    action = "store", type = "int", dest = "leakThreshold",
-                    default = 0,
-                    help = "fail if the number of bytes leaked through "
-                           "refcounted objects (or bytes in classes with "
-                           "MOZ_COUNT_CTOR and MOZ_COUNT_DTOR) is greater "
-                           "than the given number")
-
   options, args = parser.parse_args()
 
   if len(args) != 1:
@@ -136,31 +129,38 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
       browserEnv["MOZILLA_FIVE_HOME"] = options.xrePath
       browserEnv["GNOME_DISABLE_CRASH_DIALOG"] = "1"
 
-    # Enable leaks detection to its own log file.
+    # Retrieve the logger where to report the leaks to.
+    log = logging.getLogger()
+
+    # Enable leaks (only) detection to its own log file.
     leakLogFile = os.path.join(profileDir, "runreftest_leaks.log")
-    browserEnv["XPCOM_MEM_BLOAT_LOG"] = leakLogFile
+    browserEnv["XPCOM_MEM_LEAK_LOG"] = leakLogFile
+
+    def processLeakLog():
+      "Process the leak log."
+      # For the time being, don't warn (nor "info") if the log file is not there. (Bug 469518)
+      if os.path.exists(leakLogFile):
+        leaks = open(leakLogFile, "r")
+        # For the time being, simply copy the log. (Bug 469518)
+        log.info(leaks.read().rstrip())
+        leaks.close()
 
     # run once with -silent to let the extension manager do its thing
     # and then exit the app
-    automation.log.info("REFTEST INFO | runreftest.py | Performing extension manager registration: start.\n")
+    log.info("REFTEST INFO | runreftest.py | Performing extension manager registration: start.\n")
     status = automation.runApp(None, browserEnv, options.app, profileDir,
                                extraArgs = ["-silent"],
                                symbolsPath=options.symbolsPath)
-    # We don't care to call |automation.processLeakLog()| for this step.
-    automation.log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
-
-    # Remove the leak detection file so it can't "leak" to the tests run.
-    # The file is not there if leak logging was not enabled in the application build.
-    if os.path.exists(leakLogFile):
-      os.remove(leakLogFile)
+    # We don't care to call |processLeakLog()| for this step.
+    log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
 
     # then again to actually run reftest
-    automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
+    log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
     reftestlist = getFullPath(args[0])
     status = automation.runApp(None, browserEnv, options.app, profileDir,
                                extraArgs = ["-reftest", reftestlist])
-    automation.processLeakLog(leakLogFile, options.leakThreshold)
-    automation.log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
+    processLeakLog()
+    log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
   finally:
     if profileDir is not None:
       shutil.rmtree(profileDir)
