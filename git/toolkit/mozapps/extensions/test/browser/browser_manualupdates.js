@@ -43,8 +43,6 @@ add_test(function() {
     id: "addon2@tests.mozilla.org",
     name: "manually updating addon",
     version: "1.0",
-    isCompatible: false,
-    blocklistState: Ci.nsIBlocklistService.STATE_BLOCKED,
     applyBackgroundUpdates: AddonManager.AUTOUPDATE_DISABLE
   }]);
   
@@ -70,18 +68,13 @@ add_test(function() {
     is(gAvailableCategory.badgeCount, 1, "Badge for Available Updates should now be 1");
     run_next_test();
   }, false);
-
-  gCategoryUtilities.openType("extension", function() {
-    gProvider.createInstalls([{
-      name: "manually updating addon (new and improved!)",
-      existingAddon: gProvider.addons[1],
-      version: "1.1",
-      releaseNotesURI: Services.io.newURI(TESTROOT + "thereIsNoFileHere.xhtml", null, null)
-    }]);
-
-    var item = get_addon_element(gManagerWindow, "addon2@tests.mozilla.org");
-    is(item._version.value, "1.0", "Should still show the old version in the normal list");
-  });
+  
+  gProvider.createInstalls([{
+    name: "manually updating addon (new and improved!)",
+    existingAddon: gProvider.addons[1],
+    version: "1.1",
+    releaseNotesURI: Services.io.newURI(TESTROOT + "thereIsNoFileHere.xhtml", null, null)
+  }]);
 });
 
 
@@ -91,7 +84,7 @@ add_test(function() {
     is(gManagerWindow.gViewController.currentViewId, "addons://updates/available", "Available Updates view should be the current view");
     run_next_test();
   }, true);
-  EventUtils.synthesizeMouseAtCenter(gAvailableCategory, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(gAvailableCategory, 2, 2, { }, gManagerWindow);
 });
 
 
@@ -122,8 +115,6 @@ add_test(function() {
   is_element_visible(postfix, "'Update' postfix should be visible");
   is_element_visible(item._updateAvailable, "");
   is_element_visible(item._relNotesToggle, "Release notes toggle should be visible");
-  is_element_hidden(item._warning, "Incompatible warning should be hidden");
-  is_element_hidden(item._error, "Blocklist error should be hidden");
 
   info("Opening release notes");
   item.addEventListener("RelNotesToggle", function() {
@@ -152,14 +143,14 @@ add_test(function() {
         run_next_test();
 
       }, false);
-      EventUtils.synthesizeMouseAtCenter(item._relNotesToggle, { }, gManagerWindow);
+      EventUtils.synthesizeMouse(item._relNotesToggle, 2, 2, { }, gManagerWindow);
       is_element_visible(item._relNotesLoading, "Release notes loading message should be visible");
 
     }, false);
-    EventUtils.synthesizeMouseAtCenter(item._relNotesToggle, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(item._relNotesToggle, 2, 2, { }, gManagerWindow);
 
   }, false);
-  EventUtils.synthesizeMouseAtCenter(item._relNotesToggle, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(item._relNotesToggle, 2, 2, { }, gManagerWindow);
   is_element_visible(item._relNotesLoading, "Release notes loading message should be visible");
 });
 
@@ -184,5 +175,5 @@ add_test(function() {
     }
   };
   install.addTestListener(listener);
-  EventUtils.synthesizeMouseAtCenter(updateBtn, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(updateBtn, 2, 2, { }, gManagerWindow);
 });

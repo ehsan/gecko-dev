@@ -202,9 +202,6 @@ namespace nanojit
         /** protect all code in this code alloc */
         void markAllExec();
 
-        /** protect an entire chunk */
-        void markChunkExec(CodeList* term);
-
         /** unprotect the code chunk containing just this one block */
         void markBlockWrite(CodeList* b);
     };

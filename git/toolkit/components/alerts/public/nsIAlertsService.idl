@@ -101,12 +101,4 @@ interface nsIAlertsProgressListener : nsISupports
                     in long long progress,
                     in long long progressMax,
                     [optional] in AString text);
-
-    /**
-     * Called to cancel and hide the given notification previously displayed
-     * with showAlertNotification().
-     *
-     * @param name         The name of the notification.
-     */
-    void onCancel(in AString name);
 };

@@ -297,11 +297,13 @@ public:
   NS_DECL_NSIDOMSTYLESHEETLIST
 
   // nsIDocumentObserver
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETADDED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETREMOVED
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
+  virtual void NodeWillBeDestroyed(const nsINode *aNode);
+  virtual void StyleSheetAdded(nsIDocument *aDocument,
+                               nsIStyleSheet* aStyleSheet,
+                               PRBool aDocumentSheet);
+  virtual void StyleSheetRemoved(nsIDocument *aDocument,
+                                 nsIStyleSheet* aStyleSheet,
+                                 PRBool aDocumentSheet);
 
   nsIStyleSheet* GetItemAt(PRUint32 aIndex);
 
@@ -710,8 +712,8 @@ public:
 
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
-                                    nsEventStates aStateMask);
-  virtual void DocumentStatesChanged(nsEventStates aStateMask);
+                                    PRInt32 aStateMask);
+  virtual void DocumentStatesChanged(PRInt32 aStateMask);
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aOldStyleRule,
@@ -952,7 +954,7 @@ public:
 
   virtual nsISupports* GetCurrentContentSink();
 
-  virtual nsEventStates GetDocumentState();
+  virtual PRInt32 GetDocumentState();
 
   virtual void RegisterFileDataUri(const nsACString& aUri);
   virtual void UnregisterFileDataUri(const nsACString& aUri);
@@ -1171,8 +1173,8 @@ protected:
 
   nsCOMPtr<nsIContent> mFirstBaseNodeWithHref;
 
-  nsEventStates mDocumentState;
-  nsEventStates mGotDocumentState;
+  PRInt32 mDocumentState;
+  PRInt32 mGotDocumentState;
 
 private:
   friend class nsUnblockOnloadEvent;

@@ -58,7 +58,6 @@
 #include "mozIStorageBindingParamsArray.h"
 #include "mozIStorageBindingParams.h"
 #include "mozIStorageServiceQuotaManagement.h"
-#include "mozIStorageVacuumParticipant.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Native Language Helpers

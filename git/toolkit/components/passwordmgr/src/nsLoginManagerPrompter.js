@@ -872,8 +872,7 @@ LoginManagerPrompter.prototype = {
 
             aNotifyObj.show(browser, "password-save", notificationText,
                             "password-notification-icon", mainAction,
-                            secondaryActions, { timeout: Date.now() + 10000,
-                                                persistWhileVisible: true });
+                            secondaryActions, { timeout: Date.now() + 20000 });
         } else {
             var notNowButtonText =
                   this._getLocalizedString("notifyBarNotNowButtonText");
@@ -1069,8 +1068,7 @@ LoginManagerPrompter.prototype = {
 
             aNotifyObj.show(browser, "password-change", notificationText,
                             "password-notification-icon", mainAction,
-                            null, { timeout: Date.now() + 10000,
-                                    persistWhileVisible: true });
+                            null, { timeout: Date.now() + 20000 });
         } else {
             var dontChangeButtonText =
                   this._getLocalizedString("notifyBarDontChangeButtonText");

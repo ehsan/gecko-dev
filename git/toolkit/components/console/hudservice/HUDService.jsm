@@ -120,13 +120,6 @@ const SEARCH_DELAY = 200;
 // "devtools.hud.loglimit" preference.
 const DEFAULT_LOG_LIMIT = 200;
 
-// Constants used for defining the direction of JSTerm input history navigation.
-const HISTORY_BACK = -1;
-const HISTORY_FORWARD = 1;
-
-// The maximum number of bytes a Network ResponseListener can hold.
-const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
-
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
                  CANNOT_GET_HUD: "Cannot getHeads Up Display with provided ID",
@@ -229,12 +222,7 @@ ResponseListener.prototype =
     binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
-
-    if (HUDService.saveRequestAndResponseBodies &&
-        this.receivedData.length < RESPONSE_BODY_LIMIT) {
-      this.receivedData += data;
-    }
-
+    this.receivedData += data;
     binaryOutputStream.writeBytes(data, aCount);
 
     let newInputStream = storageStream.newInputStream(0);
@@ -305,9 +293,7 @@ ResponseListener.prototype =
       }
     });
     this.httpActivity.response.isDone = true;
-    this.httpActivity.response.listener = null;
     this.httpActivity = null;
-    this.receivedData = "";
   },
 
   QueryInterface: XPCOMUtils.generateQI([
@@ -700,34 +686,28 @@ function NetworkPanel(aParent, aHttpActivity)
     close: "true"
   });
 
-  // Create the iframe that displays the NetworkPanel XHTML.
-  this.iframe = createAndAppendElement(this.panel, "iframe", {
+  // Create the browser that displays the NetworkPanel XHTML.
+  this.browser = createAndAppendElement(this.panel, "browser", {
     src: "chrome://browser/content/NetworkPanel.xhtml",
-    type: "content",
+    disablehistory: "true",
     flex: "1"
   });
-
-  let self = this;
 
   // Destroy the panel when it's closed.
   this.panel.addEventListener("popuphidden", function onPopupHide() {
     self.panel.removeEventListener("popuphidden", onPopupHide, false);
     self.panel.parentNode.removeChild(self.panel);
     self.panel = null;
-    self.iframe = null;
+    self.browser = null;
     self.document = null;
     self.httpActivity = null;
-
-    if (self.linkNode) {
-      self.linkNode._panelOpen = false;
-      self.linkNode = null;
-    }
   }, false);
 
   // Set the document object and update the content once the panel is loaded.
+  let self = this;
   this.panel.addEventListener("load", function onLoad() {
     self.panel.removeEventListener("load", onLoad, true)
-    self.document = self.iframe.contentWindow.document;
+    self.document = self.browser.contentWindow.document;
     self.update();
   }, true);
 
@@ -1188,14 +1168,14 @@ NetworkPanel.prototype =
   },
 
   /**
-   * Updates the content of the NetworkPanel's iframe.
+   * Updates the content of the NetworkPanel's browser.
    *
    * @returns void
    */
   update: function NP_update()
   {
     /**
-     * After the iframe's contentWindow is ready, the document object is set.
+     * After the browser contentWindow is ready, the document object is set.
      * If the document object isn't set yet, then the page is loaded and nothing
      * can be updated.
      */
@@ -1519,9 +1499,9 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Activate a HeadsUpDisplay for the given tab context.
+   * Activate a HeadsUpDisplay for the current window
    *
-   * @param Element aContext the tab element.
+   * @param nsIDOMWindow aContext
    * @returns void
    */
   activateHUDForContext: function HS_activateHUDForContext(aContext)
@@ -1533,24 +1513,23 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Deactivate a HeadsUpDisplay for the given tab context.
+   * Deactivate a HeadsUpDisplay for the current window
    *
    * @param nsIDOMWindow aContext
    * @returns void
    */
   deactivateHUDForContext: function HS_deactivateHUDForContext(aContext)
   {
-    let window = aContext.linkedBrowser.contentWindow;
-    let nBox = aContext.ownerDocument.defaultView.
-      getNotificationBox(window);
-    let hudId = "hud_" + nBox.id;
-    let displayNode = nBox.querySelector("#" + hudId);
+    var gBrowser = HUDService.currentContext().gBrowser;
+    var window = aContext.linkedBrowser.contentWindow;
+    var browser = gBrowser.getBrowserForDocument(window.top.document);
+    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
+    var hudId = "hud_" + tabId;
+    var displayNode = this.getHeadsUpDisplay(hudId);
 
-    if (hudId in this.displayRegistry && displayNode) {
     this.unregisterActiveContext(hudId);
-      this.unregisterDisplay(displayNode);
+    this.unregisterDisplay(hudId);
     window.focus();
-    }
   },
 
   /**
@@ -1952,7 +1931,6 @@ HUD_SERVICE.prototype =
     }
     delete displays[id];
     delete this.displayRegistry[id];
-    delete this.uriRegistry[uri];
   },
 
   /**
@@ -2320,7 +2298,6 @@ HUD_SERVICE.prototype =
     let doc = aNode.ownerDocument;
     let parent = doc.getElementById("mainPopupSet");
     let netPanel = new NetworkPanel(parent, aHttpActivity);
-    netPanel.linkNode = aNode;
 
     let panel = netPanel.panel;
     panel.openPopup(aNode, "after_pointer", 0, 0, false, false);
@@ -2419,23 +2396,9 @@ HUD_SERVICE.prototype =
             // Make the network span clickable.
             let linkNode = loggedNode.messageNode;
             linkNode.setAttribute("aria-haspopup", "true");
-            linkNode.addEventListener("mousedown", function(aEvent) {
-              this._startX = aEvent.clientX;
-              this._startY = aEvent.clientY;
-            }, false);
-
-            linkNode.addEventListener("click", function(aEvent) {
-              if (aEvent.detail != 1 || aEvent.button != 0 ||
-                  (this._startX != aEvent.clientX &&
-                   this._startY != aEvent.clientY)) {
-                return;
-              }
-
-              if (!this._panelOpen) {
-                self.openNetworkPanel(this, httpActivity);
-                this._panelOpen = true;
-              }
-            }, false);
+            linkNode.onclick = function() {
+              self.openNetworkPanel(linkNode, httpActivity);
+            }
           }
           else {
             // Iterate over all currently ongoing requests. If aChannel can't
@@ -2968,7 +2931,7 @@ HUD_SERVICE.prototype =
     }
 
     let _browser = gBrowser.
-      getBrowserForDocument(aContentWindow.top.document);
+      getBrowserForDocument(aContentWindow.top.document.wrappedJSObject);
     let nBox = gBrowser.getNotificationBox(_browser);
     let nBoxId = nBox.getAttribute("id");
     let hudId = "hud_" + nBoxId;
@@ -4260,10 +4223,8 @@ JSTerm.prototype = {
     buttons.push({
       label: HUDService.getStr("close.button"),
       accesskey: HUDService.getStr("close.accesskey"),
-      class: "jsPropertyPanelCloseButton",
       oncommand: function () {
         propPanel.destroy();
-        aAnchor._panelOpen = false;
       }
     });
 
@@ -4300,24 +4261,9 @@ JSTerm.prototype = {
     node.setAttribute("class", "jsterm-output-line hud-clickable");
     node.setAttribute("aria-haspopup", "true");
     node.setAttribute("crop", "end");
-
-    node.addEventListener("mousedown", function(aEvent) {
-      this._startX = aEvent.clientX;
-      this._startY = aEvent.clientY;
-    }, false);
-
-    node.addEventListener("click", function(aEvent) {
-      if (aEvent.detail != 1 || aEvent.button != 0 ||
-          (this._startX != aEvent.clientX &&
-           this._startY != aEvent.clientY)) {
-        return;
-      }
-
-      if (!this._panelOpen) {
-        self.openPropertyPanel(aEvalString, aOutputObject, this);
-        this._panelOpen = true;
-      }
-    }, false);
+    node.onclick = function() {
+      self.openPropertyPanel(aEvalString, aOutputObject, node);
+    }
 
     // TODO: format the aOutputObject and don't just use the
     // aOuputObject.toString() function: [object object] -> Object {prop, ...}
@@ -4471,19 +4417,20 @@ JSTerm.prototype = {
             break;
           case 38:
             // up arrow: history previous
-            if (self.caretAtStartOfInput()) {
-              let updated = self.historyPeruse(HISTORY_BACK);
-              if (updated && aEvent.cancelable) {
-                self.inputNode.setSelectionRange(0, 0);
+            if (self.caretInFirstLine()){
+              self.historyPeruse(true);
+              if (aEvent.cancelable) {
+                let inputEnd = self.inputNode.value.length;
+                self.inputNode.setSelectionRange(inputEnd, inputEnd);
                 aEvent.preventDefault();
               }
             }
             break;
           case 40:
             // down arrow: history next
-            if (self.caretAtEndOfInput()) {
-              let updated = self.historyPeruse(HISTORY_FORWARD);
-              if (updated && aEvent.cancelable) {
+            if (self.caretInLastLine()){
+              self.historyPeruse(false);
+              if (aEvent.cancelable) {
                 let inputEnd = self.inputNode.value.length;
                 self.inputNode.setSelectionRange(inputEnd, inputEnd);
                 aEvent.preventDefault();
@@ -4495,19 +4442,20 @@ JSTerm.prototype = {
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
-            var completionResult;
             if (aEvent.shiftKey) {
-              completionResult = self.complete(self.COMPLETE_BACKWARD);
+              self.complete(self.COMPLETE_BACKWARD);
             }
             else {
-              completionResult = self.complete(self.COMPLETE_FORWARD);
+              self.complete(self.COMPLETE_FORWARD);
             }
-            if (completionResult) {
-              if (aEvent.cancelable) {
+            var bool = aEvent.cancelable;
+            if (bool) {
               aEvent.preventDefault();
             }
-            aEvent.target.focus();
+            else {
+              // noop
             }
+            aEvent.target.focus();
             break;
           case 8:
             // backspace key
@@ -4535,25 +4483,15 @@ JSTerm.prototype = {
     return handleKeyDown;
   },
 
-  /**
-   * Go up/down the history stack of input values.
-   *
-   * @param number aDirection
-   *        History navigation direction: HISTORY_BACK or HISTORY_FORWARD.
-   *
-   * @returns boolean
-   *          True if the input value changed, false otherwise.
-   */
-  historyPeruse: function JST_historyPeruse(aDirection)
-  {
+  historyPeruse: function JST_historyPeruse(aFlag) {
     if (!this.history.length) {
-      return false;
+      return;
     }
 
     // Up Arrow key
-    if (aDirection == HISTORY_BACK) {
+    if (aFlag) {
       if (this.historyPlaceHolder <= 0) {
-        return false;
+        return;
       }
 
       let inputVal = this.history[--this.historyPlaceHolder];
@@ -4562,13 +4500,14 @@ JSTerm.prototype = {
       }
     }
     // Down Arrow key
-    else if (aDirection == HISTORY_FORWARD) {
+    else {
       if (this.historyPlaceHolder == this.history.length - 1) {
         this.historyPlaceHolder ++;
         this.setInputValue("");
+        return;
       }
       else if (this.historyPlaceHolder >= (this.history.length)) {
-        return false;
+        return;
       }
       else {
         let inputVal = this.history[++this.historyPlaceHolder];
@@ -4577,11 +4516,6 @@ JSTerm.prototype = {
         }
       }
     }
-    else {
-      throw new Error("Invalid argument 0");
-    }
-
-    return true;
   },
 
   refocus: function JSTF_refocus()
@@ -4590,28 +4524,17 @@ JSTerm.prototype = {
     this.inputNode.focus();
   },
 
-  /**
-   * Check if the caret is at the start of the input.
-   *
-   * @returns boolean
-   *          True if the caret is at the start of the input.
-   */
-  caretAtStartOfInput: function JST_caretAtStartOfInput()
+  caretInFirstLine: function JSTF_caretInFirstLine()
   {
-    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
-        this.inputNode.selectionStart == 0;
+    var firstLineBreak = this.codeInputString.indexOf("\n");
+    return ((firstLineBreak == -1) ||
+            (this.inputNode.selectionStart <= firstLineBreak));
   },
 
-  /**
-   * Check if the caret is at the end of the input.
-   *
-   * @returns boolean
-   *          True if the caret is at the end of the input, or false otherwise.
-   */
-  caretAtEndOfInput: function JST_caretAtEndOfInput()
+  caretInLastLine: function JSTF_caretInLastLine()
   {
-    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
-        this.inputNode.selectionStart == this.inputNode.value.length;
+    var lastLineBreak = this.codeInputString.lastIndexOf("\n");
+    return (this.inputNode.selectionEnd > lastLineBreak);
   },
 
   history: [],
@@ -4643,8 +4566,7 @@ JSTerm.prototype = {
    *          the inputNode.value is set to this value and the selection is set
    *          from the current cursor position to the end of the completed text.
    *
-   * @returns boolean true if there existed a completion for the current input,
-   *          or false otherwise.
+   * @returns void
    */
   complete: function JSTF_complete(type)
   {
@@ -4652,7 +4574,7 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
-      return false;
+      return;
     }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
@@ -4666,7 +4588,7 @@ JSTerm.prototype = {
     // Only complete if the selection is at the end of the input.
     if (selEnd != inputValue.length) {
       this.lastCompletion = null;
-      return false;
+      return;
     }
 
     // Remove the selected text from the inputValue.
@@ -4694,7 +4616,7 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
-        return false;
+        return;
       }
       matches = completion.matches;
       matchIndexToUse = 0;
@@ -4734,11 +4656,7 @@ JSTerm.prototype = {
       else {
         inputNode.setSelectionRange(selEnd, selEnd);
       }
-
-      return completionStr ? true : false;
     }
-
-    return false;
   }
 };
 
@@ -4884,12 +4802,8 @@ LogMessage.prototype = {
 
     this.messageNode.appendChild(messageTxtNode);
 
-    this.messageNode.classList.add("hud-msg-node");
-    this.messageNode.classList.add("hud-" + this.level);
-
-    if (this.activityObject.category == "CSS Parser") {
-      this.messageNode.classList.add("hud-cssparser");
-    }
+    var klass = "hud-msg-node hud-" + this.level;
+    this.messageNode.setAttribute("class", klass);
 
     var self = this;
 
@@ -5465,81 +5379,15 @@ HUDConsoleObserver = {
 
     if (aSubject instanceof Ci.nsIScriptError) {
       switch (aSubject.category) {
-        // We ignore chrome-originating errors as we only
-        // care about content.
         case "XPConnect JavaScript":
-          // nsXPCWrappedJSClass::CheckForException()
-          // nsXPCComponents_Utils::ReportError()
         case "component javascript":
         case "chrome javascript":
-          // ScriptErrorEvent in nsJSEnvironment.cpp
-        case "chrome registration":
-          // nsChromeRegistry::LogMessageWithContext()
-        case "XBL":
-          // nsXBLService
-        case "XBL Prototype Handler":
-          // nsXBLPrototypeHandler::ReportKeyConflict()
-        case "XBL Content Sink":
-          // nsXBLContentSink
-        case "xbl javascript":
-          // XBL_ProtoErrorReporter in nsXBLDocumentInfo.cpp
-        case "FrameConstructor":
-          // nsCSSFrameConstructor::ProcessChildren()
+          // we ignore these CHROME-originating errors as we only
+          // care about content
           return;
-
-        // Display the messages from the following categories.
         case "HUDConsole":
         case "CSS Parser":
-          // nsCSSScanner::OutputError()
-        case "CSS Loader":
-          // SheetLoadData::OnStreamComplete()
         case "content javascript":
-          // ScriptErrorEvent in nsJSEnvironment.cpp
-        case "DOM Events":
-          // nsHtml5StreamParser::ContinueAfterScripts()
-          // ReportUseOfDeprecatedMethod() in nsGlobalWindow.cpp,
-          // nsHTMLDocument.cpp, nsDOMEvent.cpp
-          // nsDOMEvent::ReportWrongPropertyAccessWarning()
-          // nsHTMLDocument::WriteCommon()
-        case "DOM:HTML":
-          // PrintWarningOnConsole() in nsDOMClassInfo.cpp
-        case "DOM Window":
-          // nsGlobalWindow::Close()
-          // TODO: This message is never displayed because its origin cannot be
-          // determined, no sourceName is given. See bug 603711.
-        case "SVG":
-          // nsSVGUtils::ReportToConsole()
-          // nsSVGElement::ReportAttributeParseFailure()
-        case "ImageMap":
-          // logMessage() in nsImageMap.cpp
-        case "HTML":
-          // SendJSWarning() in nsFormSubmission.cpp
-        case "Canvas":
-          // nsCanvasRenderingContext2D::SetStyleFromStringOrInterface()
-          // TODO: This message is never displayed because its origin cannot be
-          // determined, no sourceName is given. See bug 603714.
-        case "DOM3 Load":
-          // ReportUseOfDeprecatedMethod() in nsXMLDocument.cpp
-          // TODO: This message is generally not displayed because its origin
-          // (sourceName) points to the previous URI of the document object -
-          // not the URI of the page in which the script tries to load the new
-          // URI. See bug 603720.
-        case "DOM":
-          // nsDocument::ReportEmptyGetElementByIdArg()
-          //   TODO: This message is never displayed because its origin cannot
-          //   be determined, no sourceName is given. See bug 603723.
-          // nsXMLDocument::Load() - for chrome code.
-        case "malformed-xml":
-          // nsExpatDriver::HandleError()
-          // TODO: This message is only displayed when its origin (sourceName)
-          // is the same as the tab location for which a Web Console is open.
-          // See bug 603727.
-        case "DOM Worker javascript":
-          // nsReportErrorRunnable and DOMWorkerErrorReporter in
-          // nsDOMThreadService.cpp
-          // TODO: This message is never displayed because its origin
-          // (sourceName) points us only to the script that thrown the exception
-          // - no way to associate it to a specific tab. See bug 603730.
           HUDService.reportConsoleServiceContentScriptError(aSubject);
           return;
         default:

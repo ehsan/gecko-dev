@@ -685,13 +685,13 @@ JS_STATIC_ASSERT(JSVAL_PAYLOAD_MASK == 0x00007FFFFFFFFFFFLL);
 bool
 ThreadData::Initialize()
 {
-    execAlloc = new JSC::ExecutableAllocator();
-    if (!execAlloc)
+    execPool = new JSC::ExecutableAllocator();
+    if (!execPool)
         return false;
     
-    TrampolineCompiler tc(execAlloc, &trampolines);
+    TrampolineCompiler tc(execPool, &trampolines);
     if (!tc.compile()) {
-        delete execAlloc;
+        delete execPool;
         return false;
     }
 
@@ -709,7 +709,7 @@ void
 ThreadData::Finish()
 {
     TrampolineCompiler::release(&trampolines);
-    delete execAlloc;
+    delete execPool;
 #ifdef JS_METHODJIT_PROFILE_STUBS
     FILE *fp = fopen("/tmp/stub-profiling", "wt");
 # define OPDEF(op,val,name,image,length,nuses,ndefs,prec,format) \
@@ -720,12 +720,15 @@ ThreadData::Finish()
 #endif
 }
 
-extern "C" JSBool
-JaegerTrampoline(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLimit);
+extern "C" JSBool JaegerTrampoline(JSContext *cx, JSStackFrame *fp, void *code,
+                                   Value *stackLimit);
 
-JSBool
-mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLimit)
+static inline JSBool
+EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code)
 {
+    JS_ASSERT(cx->regs);
+    JS_CHECK_RECURSION(cx, return JS_FALSE;);
+
 #ifdef JS_METHODJIT_SPEW
     Profiler prof;
     JSScript *script = fp->script();
@@ -735,17 +738,22 @@ mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLi
     prof.start();
 #endif
 
-    JS_ASSERT(cx->regs->fp  == fp);
+#ifdef DEBUG
+    JSStackFrame *checkFp = fp;
+#endif
+
+    Value *stackLimit = cx->stack().getStackLimit(cx);
+    if (!stackLimit)
+        return false;
+
     JSFrameRegs *oldRegs = cx->regs;
 
     JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
     JSBool ok = JaegerTrampoline(cx, fp, code, stackLimit);
 
     cx->setCurrentRegs(oldRegs);
-    JS_ASSERT(fp == cx->fp());
 
-    /* The trampoline wrote the return value but did not set the HAS_RVAL flag. */
-    fp->markReturnValue();
+    JS_ASSERT(checkFp == cx->fp());
 
 #ifdef JS_METHODJIT_SPEW
     prof.stop();
@@ -755,24 +763,12 @@ mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLi
     return ok;
 }
 
-static inline JSBool
-CheckStackAndEnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code)
-{
-    JS_CHECK_RECURSION(cx, return JS_FALSE;);
-
-    Value *stackLimit = cx->stack().getStackLimit(cx);
-    if (!stackLimit)
-        return false;
-
-    return EnterMethodJIT(cx, fp, code, stackLimit);
-}
-
 JSBool
 mjit::JaegerShot(JSContext *cx)
 {
-    JSStackFrame *fp = cx->fp();
-    JSScript *script = fp->script();
-    JITScript *jit = script->getJIT(fp->isConstructing());
+    JSScript *script = cx->fp()->script();
+
+    JS_ASSERT(script->ncode && script->ncode != JS_UNJITTABLE_METHOD);
 
 #ifdef JS_TRACER
     if (TRACE_RECORDER(cx))
@@ -781,7 +777,7 @@ mjit::JaegerShot(JSContext *cx)
 
     JS_ASSERT(cx->regs->pc == script->code);
 
-    return CheckStackAndEnterMethodJIT(cx, cx->fp(), jit->invokeEntry);
+    return EnterMethodJIT(cx, cx->fp(), script->jit->invoke);
 }
 
 JSBool
@@ -791,7 +787,7 @@ js::mjit::JaegerShotAtSafePoint(JSContext *cx, void *safePoint)
     JS_ASSERT(!TRACE_RECORDER(cx));
 #endif
 
-    return CheckStackAndEnterMethodJIT(cx, cx->fp(), safePoint);
+    return EnterMethodJIT(cx, cx->fp(), safePoint);
 }
 
 template <typename T>
@@ -801,54 +797,37 @@ static inline void Destroy(T &t)
 }
 
 void
-mjit::JITScript::release()
+mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
 {
+    if (script->jit) {
 #if defined DEBUG && (defined JS_CPU_X86 || defined JS_CPU_X64) 
-    void *addr = code.m_code.executableAddress();
-    memset(addr, 0xcc, code.m_size);
+        memset(script->jit->invoke, 0xcc, script->jit->inlineLength +
+               script->jit->outOfLineLength);
 #endif
+        script->jit->execPool->release();
+        script->jit->execPool = NULL;
 
-    code.m_executablePool->release();
+        // Releasing the execPool takes care of releasing the code.
+        script->ncode = NULL;
 
 #if defined JS_POLYIC
-    for (uint32 i = 0; i < nPICs; i++) {
-        pics[i].releasePools();
-        Destroy(pics[i].execPools);
-    }
+        for (uint32 i = 0; i < script->jit->nPICs; i++) {
+            script->pics[i].releasePools();
+            Destroy(script->pics[i].execPools);
+        }
 #endif
 
 #if defined JS_MONOIC
-    for (JSC::ExecutablePool **pExecPool = execPools.begin();
-         pExecPool != execPools.end();
-         ++pExecPool)
-    {
-        (*pExecPool)->release();
-    }
-    
-    for (uint32 i = 0; i < nCallICs; i++)
-        callICs[i].releasePools();
+        for (uint32 i = 0; i < script->jit->nCallICs; i++)
+            script->callICs[i].releasePools();
 #endif
-}
 
-void
-mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
-{
-    // NB: The recompiler may call ReleaseScriptCode, in which case it
-    // will get called again when the script is destroyed, so we
-    // must protect against calling ReleaseScriptCode twice.
+        cx->free(script->jit);
 
-    if (script->jitNormal) {
-        script->jitNormal->release();
-        script->jitArityCheckNormal = NULL;
-        cx->free(script->jitNormal);
-        script->jitNormal = NULL;
-    }
-
-    if (script->jitCtor) {
-        script->jitCtor->release();
-        script->jitArityCheckCtor = NULL;
-        cx->free(script->jitCtor);
-        script->jitCtor = NULL;
+        // The recompiler may call ReleaseScriptCode, in which case it
+        // will get called again when the script is destroyed, so we
+        // must protect against calling ReleaseScriptCode twice.
+        script->jit = NULL;
     }
 }
 

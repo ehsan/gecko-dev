@@ -45,7 +45,7 @@
 #include "jstl.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/MacroAssembler.h"
-#include "assembler/assembler/LinkBuffer.h"
+#include "assembler/assembler/RepatchBuffer.h"
 #include "assembler/moco/MocoStubs.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/MachineRegs.h"
@@ -91,11 +91,11 @@ struct ImmIntPtr : public JSC::MacroAssembler::ImmPtr
 class BaseAssembler : public JSC::MacroAssembler
 {
     struct CallPatch {
-        CallPatch(Call cl, void *fun)
-          : call(cl), fun(fun)
+        CallPatch(ptrdiff_t distance, void *fun)
+          : distance(distance), fun(fun)
         { }
 
-        Call call;
+        ptrdiff_t distance;
         JSC::FunctionPtr fun;
     };
 
@@ -179,9 +179,14 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
      * Finds and returns the address of a known object and slot.
      */
     Address objSlotRef(JSObject *obj, RegisterID reg, uint32 slot) {
-        move(ImmPtr(&obj->slots), reg);
+        if (slot < JS_INITIAL_NSLOTS) {
+            void *vp = &obj->getSlotRef(slot);
+            move(ImmPtr(vp), reg);
+            return Address(reg, 0);
+        }
+        move(ImmPtr(&obj->dslots), reg);
         loadPtr(reg, reg);
-        return Address(reg, slot * sizeof(Value));
+        return Address(reg, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
     }
 
 #ifdef JS_CPU_X86
@@ -321,7 +326,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
 
     Call call(void *fun) {
         Call cl = JSC::MacroAssembler::call();
-        callPatches.append(CallPatch(cl, fun));
+
+        callPatches.append(CallPatch(differenceBetween(startLabel, cl), fun));
         return cl;
     }
 
@@ -329,18 +335,17 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
         return MacroAssembler::call(reg);
     }
 
-    void finalize(JSC::LinkBuffer &linker) {
+    void finalize(uint8 *ncode) {
+        JSC::JITCode jc(ncode, size());
+        JSC::CodeBlock cb(jc);
+        JSC::RepatchBuffer repatchBuffer(&cb);
+
         for (size_t i = 0; i < callPatches.length(); i++) {
-            CallPatch &patch = callPatches[i];
-            linker.link(patch.call, JSC::FunctionPtr(patch.fun));
+            JSC::MacroAssemblerCodePtr cp(ncode + callPatches[i].distance);
+            repatchBuffer.relink(JSC::CodeLocationCall(cp), callPatches[i].fun);
         }
     }
 };
-
-/* Return f<true> if the script is strict mode code, f<false> otherwise. */
-#define STRICT_VARIANT(f)                                                     \
-    (FunctionTemplateConditional(script->strictModeCode,                      \
-                                 f<true>, f<false>))
 
 /* Save some typing. */
 static const JSC::MacroAssembler::RegisterID JSFrameReg = BaseAssembler::JSFrameReg;

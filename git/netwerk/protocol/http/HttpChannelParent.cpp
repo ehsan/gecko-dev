@@ -227,11 +227,6 @@ HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 {
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
   httpChan->SetPriority(priority);
-
-  if (mChannelListener && mChannelListener->mRedirectChannel &&
-      mChannelListener->mRedirectChannel != this)
-    return mChannelListener->mRedirectChannel->RecvSetPriority(priority);
-  
   return true;
 }
 
@@ -294,7 +289,7 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
 }
 
 bool
-HttpChannelParent::RecvRedirect2Verify(const nsresult& result, 
+HttpChannelParent::RecvRedirect2Result(const nsresult& result, 
                                        const RequestHeaderTuples& changedHeaders)
 {
   if (mChannelListener)

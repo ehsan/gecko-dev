@@ -423,9 +423,8 @@ Connection::initialize(nsIFile *aDatabaseFile,
 #endif
   // Switch db to preferred page size in case the user vacuums.
   sqlite3_stmt *stmt;
-  nsCAutoString pageSizeQuery(NS_LITERAL_CSTRING("PRAGMA page_size = "));
-  pageSizeQuery.AppendInt(DEFAULT_PAGE_SIZE);
-  srv = prepareStmt(mDBConn, pageSizeQuery, &stmt);
+  srv = prepareStmt(mDBConn, NS_LITERAL_CSTRING("PRAGMA page_size = 32768"),
+                    &stmt);
   if (srv == SQLITE_OK) {
     (void)stepStmt(stmt);
     (void)::sqlite3_finalize(stmt);
@@ -1110,15 +1109,10 @@ Connection::RemoveProgressHandler(mozIStorageProgressHandler **_oldHandler)
 NS_IMETHODIMP
 Connection::SetGrowthIncrement(PRInt32 aChunkSize, const nsACString &aDatabaseName)
 {
-  // Bug 597215: Disk space is extremely limited on Android
-  // so don't preallocate space. This is also not effective
-  // on log structured file systems used by Android devices
-#ifndef ANDROID
   (void)::sqlite3_file_control(mDBConn,
                                aDatabaseName.Length() ? nsPromiseFlatCString(aDatabaseName).get() : NULL,
                                SQLITE_FCNTL_CHUNK_SIZE,
                                &aChunkSize);
-#endif
   return NS_OK;
 }
 

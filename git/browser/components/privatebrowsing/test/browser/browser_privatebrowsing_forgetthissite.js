@@ -59,7 +59,9 @@ function test() {
 
       Services.ww.unregisterNotification(observer);
       let organizer = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      SimpleTest.waitForFocus(function() {
+      organizer.addEventListener("load", function onLoad(event) {
+        organizer.removeEventListener("load", onLoad, false);
+        executeSoon(function () {
           // Select History in the left pane.
           let PO = organizer.PlacesOrganizer;
           PO.selectLeftPaneQuery('History');
@@ -90,13 +92,13 @@ function test() {
             // Proceed
             funcNext();
           }, false);
-          // Get cell coordinates
-          var x = {}, y = {}, width = {}, height = {};
-          tree.treeBoxObject.getCoordsForCellItem(0, tree.columns[0], "text",
-                                                  x, y, width, height);
-          // Initiate a context menu for the selected cell
-          EventUtils.synthesizeMouse(tree.body, x + 4, y + 4, {type: "contextmenu"}, organizer);
-      }, organizer);
+          let event = document.createEvent("MouseEvents");
+          event.initMouseEvent("contextmenu", true, true, organizer, 0,
+                               0, 0, 0, 0, false, false, false, false,
+                               0, null);
+          tree.dispatchEvent(event);
+        });
+      }, false);
     }
 
     Services.ww.registerNotification(observer);
