@@ -69,6 +69,7 @@ MAKEFILES_dom="
   dom/interfaces/storage/Makefile
   dom/interfaces/stylesheets/Makefile
   dom/interfaces/svg/Makefile
+  dom/interfaces/threads/Makefile
   dom/interfaces/traversal/Makefile
   dom/interfaces/xbl/Makefile
   dom/interfaces/xpath/Makefile
@@ -81,6 +82,7 @@ MAKEFILES_dom="
   dom/src/json/Makefile
   dom/src/offline/Makefile
   dom/src/storage/Makefile
+  dom/src/threads/Makefile
   dom/locales/Makefile
   dom/plugins/base/Makefile
   dom/plugins/ipc/Makefile
@@ -807,6 +809,7 @@ if [ "$ENABLE_TESTS" ]; then
     docshell/test/navigation/Makefile
     dom/src/json/test/Makefile
     dom/src/jsurl/test/Makefile
+    dom/src/threads/test/Makefile
     dom/tests/Makefile
     dom/tests/mochitest/Makefile
     dom/tests/mochitest/ajax/Makefile
