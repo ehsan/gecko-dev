@@ -137,7 +137,9 @@ js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
     JSOp op;
     uintN span, base;
 
-    op = js_GetOpcode(cx, script, pc);
+    op = (JSOp)*pc;
+    if (op == JSOP_TRAP)
+        op = JS_GetTrapOpcode(cx, script, pc);
     JS_ASSERT(js_CodeSpec[op].length >= 1 + pcoff + UINT16_LEN);
 
     /*
@@ -5208,7 +5210,9 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
     LOCAL_ASSERT(script->main <= target && target < script->code + script->length);
     pcdepth = 0;
     for (pc = script->main; pc < target; pc += oplen) {
-        op = js_GetOpcode(cx, script, pc);
+        op = (JSOp) *pc;
+        if (op == JSOP_TRAP)
+            op = JS_GetTrapOpcode(cx, script, pc);
         cs = &js_CodeSpec[op];
         oplen = cs->length;
         if (oplen < 0)
@@ -5228,7 +5232,7 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
             jmpoff = js_GetSrcNoteOffset(sn, 0);
             if (pc + jmpoff < target) {
                 pc += jmpoff;
-                op = js_GetOpcode(cx, script, pc);
+                op = (JSOp) *pc;
                 JS_ASSERT(op == JSOP_GOTO || op == JSOP_GOTOX);
                 cs = &js_CodeSpec[op];
                 oplen = cs->length;

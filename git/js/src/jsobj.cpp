@@ -71,7 +71,7 @@
 #include "jsstaticcheck.h"
 #include "jsstr.h"
 #include "jstracer.h"
-#include "jsdbgapi.h"
+#include "jsdbgapi.h"   /* whether or not JS_HAS_OBJ_WATCHPOINT */
 
 #if JS_HAS_GENERATORS
 #include "jsiter.h"
@@ -404,10 +404,9 @@ MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap)
             if (ok) {
                 if (OBJ_IS_NATIVE(obj2) &&
                     (attrs & (JSPROP_GETTER | JSPROP_SETTER))) {
-                    JSScopeProperty *sprop = (JSScopeProperty *) prop;
                     val = JSVAL_NULL;
                     if (attrs & JSPROP_GETTER)
-                        val = js_CastAsObjectJSVal(sprop->getter);
+                        val = (jsval) ((JSScopeProperty*)prop)->getter;
                     if (attrs & JSPROP_SETTER) {
                         if (val != JSVAL_NULL) {
                             /* Mark the getter, then set val to setter. */
@@ -415,7 +414,7 @@ MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap)
                                                    NULL)
                                   != NULL);
                         }
-                        val = js_CastAsObjectJSVal(sprop->setter);
+                        val = (jsval) ((JSScopeProperty*)prop)->setter;
                     }
                 } else {
                     ok = OBJ_GET_PROPERTY(cx, obj, id, &val);
@@ -770,9 +769,8 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
             }
             if (OBJ_IS_NATIVE(obj2) &&
                 (attrs & (JSPROP_GETTER | JSPROP_SETTER))) {
-                JSScopeProperty *sprop = (JSScopeProperty *) prop;
                 if (attrs & JSPROP_GETTER) {
-                    val[valcnt] = js_CastAsObjectJSVal(sprop->getter);
+                    val[valcnt] = (jsval) ((JSScopeProperty *)prop)->getter;
                     gsopold[valcnt] =
                         ATOM_TO_STRING(cx->runtime->atomState.getterAtom);
                     gsop[valcnt] =
@@ -781,7 +779,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
                     valcnt++;
                 }
                 if (attrs & JSPROP_SETTER) {
-                    val[valcnt] = js_CastAsObjectJSVal(sprop->setter);
+                    val[valcnt] = (jsval) ((JSScopeProperty *)prop)->setter;
                     gsopold[valcnt] =
                         ATOM_TO_STRING(cx->runtime->atomState.setterAtom);
                     gsop[valcnt] =
@@ -1194,10 +1192,9 @@ js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
         return principals->codebase;
     }
 
-    jsbytecode *pc = caller->regs->pc;
-    if (caller->regs && js_GetOpcode(cx, caller->script, pc) == JSOP_EVAL) {
-        JS_ASSERT(js_GetOpcode(cx, caller->script, pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        *linenop = GET_UINT16(pc + JSOP_EVAL_LENGTH);
+    if (caller->regs && *caller->regs->pc == JSOP_EVAL) {
+        JS_ASSERT(caller->regs->pc[JSOP_EVAL_LENGTH] == JSOP_LINENO);
+        *linenop = GET_UINT16(caller->regs->pc + JSOP_EVAL_LENGTH);
     } else {
         *linenop = js_FramePCToLineNumber(cx, caller);
     }
@@ -1281,7 +1278,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
      * object, then we need to provide one for the compiler to stick any
      * declared (var) variables into.
      */
-    if (caller && !caller->varobj && !js_GetCallObject(cx, caller))
+    if (caller && !caller->varobj && !js_GetCallObject(cx, caller, NULL))
         return JS_FALSE;
 
     /* Accept an optional trailing argument that overrides the scope object. */
@@ -1822,7 +1819,7 @@ js_obj_defineGetter(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     *vp = JSVAL_VOID;
     return OBJ_DEFINE_PROPERTY(cx, obj, id, JSVAL_VOID,
-                               js_CastAsPropertyOp(JSVAL_TO_OBJECT(fval)),
+                               (JSPropertyOp) JSVAL_TO_OBJECT(fval),
                                JS_PropertyStub,
                                JSPROP_ENUMERATE | JSPROP_GETTER | JSPROP_SHARED,
                                NULL);
@@ -1858,7 +1855,7 @@ js_obj_defineSetter(JSContext *cx, uintN argc, jsval *vp)
     *vp = JSVAL_VOID;
     return OBJ_DEFINE_PROPERTY(cx, obj, id, JSVAL_VOID,
                                JS_PropertyStub,
-                               js_CastAsPropertyOp(JSVAL_TO_OBJECT(fval)),
+                               (JSPropertyOp) JSVAL_TO_OBJECT(fval),
                                JSPROP_ENUMERATE | JSPROP_SETTER | JSPROP_SHARED,
                                NULL);
 }
@@ -1881,7 +1878,7 @@ obj_lookupGetter(JSContext *cx, uintN argc, jsval *vp)
         if (OBJ_IS_NATIVE(pobj)) {
             sprop = (JSScopeProperty *) prop;
             if (sprop->attrs & JSPROP_GETTER)
-                *vp = js_CastAsObjectJSVal(sprop->getter);
+                *vp = OBJECT_TO_JSVAL((JSObject *) sprop->getter);
         }
         OBJ_DROP_PROPERTY(cx, pobj, prop);
     }
@@ -1906,7 +1903,7 @@ obj_lookupSetter(JSContext *cx, uintN argc, jsval *vp)
         if (OBJ_IS_NATIVE(pobj)) {
             sprop = (JSScopeProperty *) prop;
             if (sprop->attrs & JSPROP_SETTER)
-                *vp = js_CastAsObjectJSVal(sprop->setter);
+                *vp = OBJECT_TO_JSVAL((JSObject *) sprop->setter);
         }
         OBJ_DROP_PROPERTY(cx, pobj, prop);
     }
@@ -2019,15 +2016,18 @@ static JS_REQUIRES_STACK JSBool
 Detecting(JSContext *cx, jsbytecode *pc)
 {
     JSScript *script;
+    jsbytecode *endpc;
     JSOp op;
     JSAtom *atom;
 
     if (!cx->fp)
         return JS_FALSE;
     script = cx->fp->script;
-    for (;; pc += js_CodeSpec[op].length) {
+    for (endpc = script->code + script->length;
+         pc < endpc;
+         pc += js_CodeSpec[op].length) {
         /* General case: a branch or equality op follows the access. */
-        op = js_GetOpcode(cx, script, pc);
+        op = (JSOp) *pc;
         if (js_CodeSpec[op].format & JOF_DETECTING)
             return JS_TRUE;
 
@@ -2037,9 +2037,9 @@ Detecting(JSContext *cx, jsbytecode *pc)
              * Special case #1: handle (document.all == null).  Don't sweat
              * about JS1.2's revision of the equality operators here.
              */
-            pc++;
-            op = js_GetOpcode(cx, script, pc);
-            return op == JSOP_EQ || op == JSOP_NE;
+            if (++pc < endpc)
+                return *pc == JSOP_EQ || *pc == JSOP_NE;
+            return JS_FALSE;
 
           case JSOP_NAME:
             /*
@@ -2048,9 +2048,9 @@ Detecting(JSContext *cx, jsbytecode *pc)
              * Edition 3, so is read/write for backward compatibility.
              */
             GET_ATOM_FROM_BYTECODE(script, pc, 0, atom);
-            if (atom == cx->runtime->atomState.typeAtoms[JSTYPE_VOID]) {
-                pc += js_CodeSpec[op].length;
-                op = js_GetOpcode(cx, script, pc);
+            if (atom == cx->runtime->atomState.typeAtoms[JSTYPE_VOID] &&
+                (pc += js_CodeSpec[op].length) < endpc) {
+                op = (JSOp) *pc;
                 return op == JSOP_EQ || op == JSOP_NE ||
                        op == JSOP_STRICTEQ || op == JSOP_STRICTNE;
             }
@@ -2066,6 +2066,7 @@ Detecting(JSContext *cx, jsbytecode *pc)
             break;
         }
     }
+    return JS_FALSE;
 }
 
 /*
@@ -2087,7 +2088,7 @@ InferFlags(JSContext *cx, uintN defaultFlags)
     if (!fp || !fp->regs)
         return defaultFlags;
     pc = fp->regs->pc;
-    cs = &js_CodeSpec[js_GetOpcode(cx, fp->script, pc)];
+    cs = &js_CodeSpec[*pc];
     format = cs->format;
     if (JOF_MODE(format) != JOF_NAME)
         flags |= JSRESOLVE_QUALIFIED;
@@ -3944,11 +3945,8 @@ js_GetCurrentBytecodePC(JSContext* cx)
             pc = fp->regs->pc;
             // FIXME: Set pc to imacpc when recording JSOP_CALL inside the 
             //        JSOP_GETELEM imacro (bug 476559).
-            if (*pc == JSOP_CALL &&
-                fp->imacpc &&
-                js_GetOpcode(cx, fp->script, fp->imacpc) == JSOP_GETELEM) {
+            if (*pc == JSOP_CALL && fp->imacpc && *fp->imacpc == JSOP_GETELEM)
                 pc = fp->imacpc;
-            }
         } else {
             pc = NULL;
         }
@@ -3996,10 +3994,6 @@ js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
             uintN flags;
 
             op = (JSOp) *pc;
-            if (op == JSOP_TRAP) {
-                JS_ASSERT_NOT_ON_TRACE(cx);
-                op = JS_GetTrapOpcode(cx, cx->fp->script, pc);
-            }
             if (op == JSOP_GETXPROP) {
                 flags = JSREPORT_ERROR;
             } else {
@@ -4015,15 +4009,10 @@ js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                 if (id == ATOM_TO_JSID(cx->runtime->atomState.iteratorAtom))
                     return JS_TRUE;
 
-                /* Do not warn about tests like (obj[prop] == undefined). */
-                if (cx->resolveFlags == JSRESOLVE_INFER) {
-                    js_LeaveTrace(cx);
-                    pc += js_CodeSpec[op].length;
-                    if (Detecting(cx, pc))
-                        return JS_TRUE;
-                } else if (cx->resolveFlags & JSRESOLVE_DETECTING) {
+                /* Kludge to allow (typeof foo == "undefined") tests. */
+                pc += js_CodeSpec[op].length;
+                if (Detecting(cx, pc))
                     return JS_TRUE;
-                }
 
                 flags = JSREPORT_WARNING | JSREPORT_STRICT;
             }
@@ -5664,7 +5653,7 @@ dumpValue(jsval val)
         fprintf(stderr, "<%s%s at %p>",
                 cls->name,
                 cls == &js_ObjectClass ? "" : " object",
-                (void *) obj);
+                obj);
     } else if (JSVAL_IS_INT(val)) {
         fprintf(stderr, "%d", JSVAL_TO_INT(val));
     } else if (JSVAL_IS_STRING(val)) {
@@ -5760,7 +5749,7 @@ js_DumpObject(JSObject *obj)
         if (sharesScope) {
             if (proto) {
                 fprintf(stderr, "no own properties - see proto (%s at %p)\n",
-                        STOBJ_GET_CLASS(proto)->name, (void *) proto);
+                        STOBJ_GET_CLASS(proto)->name, proto);
             } else {
                 fprintf(stderr, "no own properties - null proto\n");
             }

@@ -45,7 +45,6 @@
  */
 #include "jsatom.h"
 #include "jsprvtd.h"
-#include "jsdbgapi.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -315,15 +314,6 @@ js_LineNumberToPC(JSScript *script, uintN lineno);
 
 extern JS_FRIEND_API(uintN)
 js_GetScriptLineExtent(JSScript *script);
-
-static JS_INLINE JSOp
-js_GetOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
-{
-    JSOp op = (JSOp) *pc;
-    if (op == JSOP_TRAP)
-        op = JS_GetTrapOpcode(cx, script, pc);
-    return op;
-}
 
 /*
  * If magic is non-null, js_XDRScript succeeds on magic number mismatch but

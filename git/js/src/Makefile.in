@@ -316,21 +316,19 @@ endif
 MOZILLA_DTRACE_SRC = $(srcdir)/javascript-trace.d
 endif
 
-default::
+include $(topsrcdir)/config/rules.mk
 
-ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
-ifneq ($(OS_ARCH), WINCE)
 # nsinstall doesn't get built until we enter config/ in the exports phase,
 # so we'll have to manually ensure it gets built here if we want to use
 # $(EXPORTS)
-export:: config/nsinstall$(HOST_BIN_SUFFIX)
+ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
+ifneq ($(OS_ARCH), WINCE)
+$(EXPORTS) $(PUBLIC): config/nsinstall$(HOST_BIN_SUFFIX)
 
 config/nsinstall$(HOST_BIN_SUFFIX): $(srcdir)/config/nsinstall.c $(srcdir)/config/pathsub.c
 	$(MAKE) -C config/ nsinstall$(HOST_BIN_SUFFIX)
 endif
 endif
-
-include $(topsrcdir)/config/rules.mk
 
 ifdef MOZ_SYNC_BUILD_FILES
 # Because the SpiderMonkey can be distributed and built independently
@@ -495,6 +493,8 @@ jsdtoa.o: jsdtoa.cpp Makefile.in
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(CXX) -o $@ -c $(filter-out $(MOZ_OPTIMIZE_FLAGS), $(COMPILE_CFLAGS)) $<
 endif
+
+jsopcode.h jsopcode.cpp: jsopcode.tbl
 
 export:: jsautocfg.h
 
