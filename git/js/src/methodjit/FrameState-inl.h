@@ -442,6 +442,23 @@ FrameState::tempRegInMaskForData(FrameEntry *fe, uint32 mask)
     return reg;
 }
 
+inline JSC::MacroAssembler::RegisterID
+FrameState::tempRegForData(FrameEntry *fe, RegisterID reg, Assembler &masm) const
+{
+    JS_ASSERT(!fe->data.isConstant());
+
+    if (fe->isCopy())
+        fe = fe->copyOf();
+
+    if (fe->data.inRegister()) {
+        JS_ASSERT(fe->data.reg() != reg);
+        return fe->data.reg();
+    } else {
+        masm.loadPayload(addressOf(fe), reg);
+        return reg;
+    }
+}
+
 inline bool
 FrameState::shouldAvoidTypeRemat(FrameEntry *fe)
 {
@@ -481,9 +498,9 @@ FrameState::syncData(const FrameEntry *fe, Address to, Assembler &masm) const
         if (!fe->type.synced())
             masm.storeValue(fe->getValue(), to);
         else
-#if defined JS_32BIT
+#if defined JS_NUNBOX32
             masm.storePayload(Imm32(fe->getPayload32()), to);
-#elif defined JS_64BIT
+#elif defined JS_PUNBOX64
             masm.storePayload(Imm64(fe->getPayload64()), to);
 #endif
     } else {
@@ -754,16 +771,44 @@ FrameState::giveOwnRegs(FrameEntry *fe)
 }
 
 inline void
+FrameState::loadDouble(RegisterID t, RegisterID d, FrameEntry *fe, FPRegisterID fpReg,
+                       Assembler &masm) const
+{
+#ifdef JS_CPU_X86
+    masm.fastLoadDouble(d, t, fpReg);
+#else
+    loadDouble(fe, fpReg, masm);
+#endif
+}
+
+inline bool
+FrameState::tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const
+{
+#ifdef JS_CPU_X86
+    if (fe->type.inRegister() && fe->data.inRegister()) {
+        masm.fastLoadDouble(fe->data.reg(), fe->type.reg(), fpReg);
+        return true;
+    }
+#endif
+    return false;
+}
+
+inline void
 FrameState::loadDouble(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const
 {
     if (fe->isCopy()) {
         FrameEntry *backing = fe->copyOf();
+        if (tryFastDoubleLoad(fe, fpReg, masm))
+            return;
         if (backing->isCachedNumber() || (backing->type.synced() && backing->data.synced())) {
             masm.loadDouble(addressOf(backing), fpReg);
             return;
         }
         fe = backing;
     }
+
+    if (tryFastDoubleLoad(fe, fpReg, masm))
+        return;
 
     if ((fe->type.synced() && fe->data.synced()) || fe->isCachedNumber()) {
         masm.loadDouble(addressOf(fe), fpReg);

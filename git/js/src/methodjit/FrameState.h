@@ -321,6 +321,12 @@ class FrameState
     inline RegisterID tempRegInMaskForData(FrameEntry *fe, uint32 mask);
 
     /*
+     * Same as above, except loads into reg (using masm) if the entry does not
+     * already have a register, and does not change the frame state in doing so.
+     */
+    inline RegisterID tempRegForData(FrameEntry *fe, RegisterID reg, Assembler &masm) const;
+
+    /*
      * Forcibly loads the type tag for the specified FrameEntry
      * into a register already marked as owning the type.
      */
@@ -425,8 +431,15 @@ class FrameState
      */
     void allocForSameBinary(FrameEntry *fe, JSOp op, BinaryAlloc &alloc);
 
-    /* Loads an FE into an fp reg . */
+    /* Loads an FE into an fp reg. */
     inline void loadDouble(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
+
+    /*
+     * Slightly more specialized version when more precise register
+     * information is known.
+     */
+    inline void loadDouble(RegisterID type, RegisterID data, FrameEntry *fe, FPRegisterID fpReg,
+                           Assembler &masm) const;
 
     /*
      * Types don't always have to be in registers, sometimes the compiler
@@ -668,6 +681,7 @@ class FrameState
     void pushCopyOf(uint32 index);
     void syncFancy(Assembler &masm, Registers avail, uint32 resumeAt,
                    FrameEntry *bottom) const;
+    inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
 
     /*
      * "Uncopies" the backing store of a FrameEntry that has been copied. The
