@@ -190,9 +190,7 @@ function testAutocompletionDisabled() {
 function testEditorAddedDisabled(panel) {
   info("Editor added, getting the source editor and starting tests");
   panel.UI.editors[0].getSourceEditor().then(editor => {
-    is(editor.sourceEditor.getOption("autocomplete"), false,
-       "Autocompletion option does not exist");
-    ok(!editor.sourceEditor.getAutocompletionPopup(),
+    ok(!editor.sourceEditor.getAutocompletionPopup,
        "Autocompletion popup does not exist");
     cleanup();
   });

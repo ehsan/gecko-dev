@@ -4,10 +4,18 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional PopStateEventInit eventInitDict)]
+[Constructor(DOMString type, optional PopStateEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface PopStateEvent : Event
 {
+  [Throws]
   readonly attribute any state;
+
+  // initPopStateEvent is a Gecko specific deprecated method.
+  [Throws]
+  void initPopStateEvent(DOMString type,
+                         boolean canBubble,
+                         boolean cancelable,
+                         any state);
 };
 
 dictionary PopStateEventInit : EventInit

@@ -10,6 +10,7 @@
 #include "nsTArray.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
+#include "nsIDOMDeviceOrientationEvent.h"
 #include "mozilla/dom/DeviceMotionEvent.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/HalSensor.h"
@@ -52,7 +53,8 @@ private:
   void FireDOMUserProximityEvent(mozilla::dom::EventTarget* aTarget,
                                  bool aNear);
 
-  void FireDOMOrientationEvent(mozilla::dom::EventTarget* target,
+  void FireDOMOrientationEvent(class nsIDOMDocument *domDoc,
+                               mozilla::dom::EventTarget* target,
                                double alpha,
                                double beta,
                                double gamma);

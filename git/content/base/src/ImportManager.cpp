@@ -24,16 +24,15 @@
 
 class AutoError {
 public:
-  AutoError(mozilla::dom::ImportLoader* loader, bool scriptsBlocked = true)
+  AutoError(mozilla::dom::ImportLoader* loader)
     : mLoader(loader)
     , mPassed(false)
-    , mScriptsBlocked(scriptsBlocked)
   {}
 
   ~AutoError()
   {
     if (!mPassed) {
-      mLoader->Error(mScriptsBlocked);
+      mLoader->Error();
     }
   }
 
@@ -42,7 +41,6 @@ public:
 private:
   mozilla::dom::ImportLoader* mLoader;
   bool mPassed;
-  bool mScriptsBlocked;
 };
 
 namespace mozilla {
@@ -166,7 +164,7 @@ ImportLoader::Done()
 }
 
 void
-ImportLoader::Error(bool aUnblockScripts)
+ImportLoader::Error()
 {
   mDocument = nullptr;
   mStopped = true;
@@ -174,10 +172,7 @@ ImportLoader::Error(bool aUnblockScripts)
   for (uint32_t i = 0; i < count; i++) {
     DispatchErrorEvent(mLinks[i]);
   }
-  if (aUnblockScripts) {
-    UnblockScripts();
-  }
-
+  UnblockScripts();
   ReleaseResources();
 }
 
@@ -193,7 +188,7 @@ void ImportLoader::ReleaseResources()
 void
 ImportLoader::Open()
 {
-  AutoError ae(this, false);
+  AutoError ae(this);
   // Imports should obey to the master documents CSP.
   nsCOMPtr<nsIDocument> master = mImportParent->MasterDocument();
   nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(master);

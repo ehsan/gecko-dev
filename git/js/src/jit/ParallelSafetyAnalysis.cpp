@@ -759,7 +759,6 @@ ParallelSafetyVisitor::visitThrow(MThrow *thr)
     MBail *bail = MBail::New(alloc(), Bailout_ParallelUnsafe);
     TransplantResumePoint(thr, bail);
     block->discardLastIns();
-    block->add(bail);
     block->end(MUnreachable::New(alloc()));
     return true;
 }

@@ -86,6 +86,7 @@ using mozilla::ArrayLength;
 using mozilla::NumberEqualsInt32;
 using mozilla::Maybe;
 using mozilla::PodCopy;
+using mozilla::Range;
 
 enum JSShellExitCode {
     EXITCODE_RUNTIME_ERROR      = 3,
@@ -436,7 +437,7 @@ RunFile(JSContext *cx, Handle<JSObject*> obj, const char *filename, FILE *file, 
                .setCompileAndGo(true);
 
         gGotError = false;
-        (void) JS::Compile(cx, obj, options, file, &script);
+        script = JS::Compile(cx, obj, options, file);
         JS_ASSERT_IF(!script, gGotError);
     }
 
@@ -466,7 +467,8 @@ EvalAndPrint(JSContext *cx, Handle<JSObject*> global, const char *bytes, size_t 
            .setCompileAndGo(true)
            .setFileAndLine("typein", lineno);
     RootedScript script(cx);
-    if (!JS::Compile(cx, global, options, bytes, length, &script))
+    script = JS::Compile(cx, global, options, bytes, length);
+    if (!script)
         return false;
     if (compileOnly)
         return true;
@@ -854,8 +856,7 @@ LoadScript(JSContext *cx, unsigned argc, jsval *vp, bool scriptRelative)
             .setUTF8(true)
             .setCompileAndGo(true)
             .setNoScriptRval(true);
-        RootedScript script(cx);
-        if ((compileOnly && !Compile(cx, thisobj, opts, filename.ptr(), &script)) ||
+        if ((compileOnly && !Compile(cx, thisobj, opts, filename.ptr())) ||
             !Evaluate(cx, thisobj, opts, filename.ptr()))
         {
             return false;
@@ -1267,8 +1268,8 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             if (loadBytecode) {
                 script = JS_DecodeScript(cx, loadBuffer, loadLength, options.originPrincipals(cx));
             } else {
-                mozilla::Range<const jschar> chars = codeChars.twoByteRange();
-                (void) JS::Compile(cx, global, options, chars.start().get(), chars.length(), &script);
+                Range<const jschar> chars = codeChars.twoByteRange();
+                script = JS::Compile(cx, global, options, chars.start().get(), chars.length());
             }
 
             if (!script)
@@ -1471,7 +1472,8 @@ Run(JSContext *cx, unsigned argc, jsval *vp)
         options.setIntroductionType("js shell run")
                .setFileAndLine(filename.ptr(), 1)
                .setCompileAndGo(true);
-        if (!JS_CompileUCScript(cx, thisobj, ucbuf, buflen, options, &script))
+        script = JS_CompileUCScript(cx, thisobj, ucbuf, buflen, options);
+        if (!script)
             return false;
     }
 
@@ -1808,7 +1810,7 @@ TrapHandler(JSContext *cx, JSScript *, jsbytecode *pc, jsval *rvalArg,
     if (!stableChars.initTwoByte(cx, str))
         return JSTRAP_ERROR;
 
-    mozilla::Range<const jschar> chars = stableChars.twoByteRange();
+    Range<const jschar> chars = stableChars.twoByteRange();
     if (!frame.evaluateUCInStackFrame(cx, chars.start().get(), chars.length(),
                                       script->filename(),
                                       script->lineno(),
@@ -2317,7 +2319,8 @@ DisassFile(JSContext *cx, unsigned argc, jsval *vp)
                .setFileAndLine(filename.ptr(), 1)
                .setCompileAndGo(true);
 
-        if (!JS::Compile(cx, thisobj, options, filename.ptr(), &script))
+        script = JS::Compile(cx, thisobj, options, filename.ptr());
+        if (!script)
             return false;
     }
 
@@ -2529,7 +2532,7 @@ Intern(JSContext *cx, unsigned argc, jsval *vp)
     if (!strChars.initTwoByte(cx, str))
         return false;
 
-    mozilla::Range<const jschar> chars = strChars.twoByteRange();
+    Range<const jschar> chars = strChars.twoByteRange();
 
     if (!JS_InternUCStringN(cx, chars.start().get(), chars.length()))
         return false;
@@ -2764,7 +2767,7 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
     if (!strChars.initTwoByte(cx, str))
         return false;
 
-    mozilla::Range<const jschar> chars = strChars.twoByteRange();
+    Range<const jschar> chars = strChars.twoByteRange();
     size_t srclen = chars.length();
     const jschar *src = chars.start().get();
 
@@ -2862,7 +2865,7 @@ EvalInFrame(JSContext *cx, unsigned argc, jsval *vp)
     if (!stableChars.initTwoByte(cx, str))
         return JSTRAP_ERROR;
 
-    mozilla::Range<const jschar> chars = stableChars.twoByteRange();
+    Range<const jschar> chars = stableChars.twoByteRange();
     JSAbstractFramePtr frame(fi.abstractFramePtr().raw(), fi.pc());
     RootedScript fpscript(cx, frame.script());
     bool ok = !!frame.evaluateUCInStackFrame(cx, chars.start().get(), chars.length(),
@@ -2922,8 +2925,9 @@ WorkerMain(void *arg)
         options.setFileAndLine("<string>", 1)
                .setCompileAndGo(true);
 
-        RootedScript script(cx);
-        if (!JS::Compile(cx, global, options, input->chars, input->length, &script))
+        RootedScript script(cx, JS::Compile(cx, global, options,
+                                            input->chars, input->length));
+        if (!script)
             break;
         RootedValue result(cx);
         JS_ExecuteScript(cx, global, script, &result);
@@ -3556,10 +3560,10 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
     options.setIntroductionType("js shell compile")
            .setFileAndLine("<string>", 1)
            .setCompileAndGo(true);
-    RootedScript script(cx);
+
     const jschar *chars = stableChars.twoByteRange().start().get();
     bool ok = JS_CompileUCScript(cx, global, chars,
-                                 scriptContents->length(), options, &script);
+                                 scriptContents->length(), options);
     args.rval().setUndefined();
     return ok;
 }

@@ -826,10 +826,9 @@ CodeGeneratorARM::visitModMaskI(LModMaskI *ins)
 {
     Register src = ToRegister(ins->getOperand(0));
     Register dest = ToRegister(ins->getDef(0));
-    Register tmp1 = ToRegister(ins->getTemp(0));
-    Register tmp2 = ToRegister(ins->getTemp(1));
+    Register tmp = ToRegister(ins->getTemp(0));
     MMod *mir = ins->mir();
-    masm.ma_mod_mask(src, dest, tmp1, tmp2, ins->shift());
+    masm.ma_mod_mask(src, dest, tmp, ins->shift());
     if (mir->canBeNegativeDividend()) {
         if (!mir->isTruncated()) {
             JS_ASSERT(mir->fallible());

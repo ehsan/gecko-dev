@@ -45,6 +45,7 @@ using namespace js;
 
 using mozilla::IsFinite;
 using mozilla::IsNegativeZero;
+using mozilla::Range;
 
 #if ENABLE_INTL_API
 using icu::Locale;
@@ -973,8 +974,8 @@ intl_CompareStrings(JSContext *cx, UCollator *coll, HandleString str1, HandleStr
     if (!stableChars2.initTwoByte(cx, str2))
         return false;
 
-    mozilla::Range<const jschar> chars1 = stableChars1.twoByteRange();
-    mozilla::Range<const jschar> chars2 = stableChars2.twoByteRange();
+    Range<const jschar> chars1 = stableChars1.twoByteRange();
+    Range<const jschar> chars2 = stableChars2.twoByteRange();
 
     UCollationResult uresult = ucol_strcoll(coll,
                                             JSCharToUChar(chars1.start().get()), chars1.length(),
@@ -1799,7 +1800,7 @@ js::intl_patternForSkeleton(JSContext *cx, unsigned argc, Value *vp)
     if (!stableChars.initTwoByte(cx, skeletonFlat))
         return false;
 
-    mozilla::Range<const jschar> skeletonChars = stableChars.twoByteRange();
+    Range<const jschar> skeletonChars = stableChars.twoByteRange();
     uint32_t skeletonLen = u_strlen(JSCharToUChar(skeletonChars.start().get()));
 
     UErrorCode status = U_ZERO_ERROR;

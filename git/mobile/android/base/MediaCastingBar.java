@@ -20,7 +20,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 public class MediaCastingBar extends RelativeLayout implements View.OnClickListener, GeckoEventListener  {
-    private static final String LOGTAG = "GeckoMediaCastingBar";
+    private static final String LOGTAG = "MediaCastingBar";
 
     private TextView mCastingTo;
     private ImageButton mMediaPlay;

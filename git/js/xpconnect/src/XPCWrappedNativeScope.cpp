@@ -128,8 +128,8 @@ XPCWrappedNativeScope::IsDyingScope(XPCWrappedNativeScope *scope)
     return false;
 }
 
-bool
-XPCWrappedNativeScope::GetComponentsJSObject(JS::MutableHandleObject obj)
+JSObject*
+XPCWrappedNativeScope::GetComponentsJSObject()
 {
     AutoJSContext cx;
     if (!mComponents) {
@@ -145,17 +145,17 @@ XPCWrappedNativeScope::GetComponentsJSObject(JS::MutableHandleObject obj)
                                                    nullptr, nullptr, false,
                                                    nullptr);
     if (NS_WARN_IF(!ok))
-        return false;
+        return nullptr;
 
     if (NS_WARN_IF(!val.isObject()))
-        return false;
+        return nullptr;
 
     // The call to wrap() here is necessary even though the object is same-
     // compartment, because it applies our security wrapper.
-    obj.set(&val.toObject());
-    if (NS_WARN_IF(!JS_WrapObject(cx, obj)))
-        return false;
-    return true;
+    JS::RootedObject obj(cx, &val.toObject());
+    if (NS_WARN_IF(!JS_WrapObject(cx, &obj)))
+        return nullptr;
+    return obj;
 }
 
 void
@@ -174,8 +174,8 @@ XPCWrappedNativeScope::ForcePrivilegedComponents()
 bool
 XPCWrappedNativeScope::AttachComponentsObject(JSContext* aCx)
 {
-    RootedObject components(aCx);
-    if (!GetComponentsJSObject(&components))
+    RootedObject components(aCx, GetComponentsJSObject());
+    if (!components)
         return false;
 
     RootedObject global(aCx, GetGlobalJSObject());
@@ -697,7 +697,7 @@ XPCWrappedNativeScope::RemoveWrappedNativeProtos()
 }
 
 JSObject *
-XPCWrappedNativeScope::GetExpandoChain(HandleObject target)
+XPCWrappedNativeScope::GetExpandoChain(JSObject *target)
 {
     MOZ_ASSERT(GetObjectScope(target) == this);
     if (!mXrayExpandos.initialized())

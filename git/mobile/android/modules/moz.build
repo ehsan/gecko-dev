@@ -15,7 +15,6 @@ EXTRA_JS_MODULES += [
     'HomeProvider.jsm',
     'JNI.jsm',
     'LightweightThemeConsumer.jsm',
-    'MediaPlayerApp.jsm',
     'Messaging.jsm',
     'Notifications.jsm',
     'OrderedBroadcast.jsm',

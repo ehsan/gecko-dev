@@ -157,7 +157,7 @@ FileIOObject::OnInputStreamReady(nsIAsyncInputStream* aStream)
     rv = DoAsyncWait(aStream);
   }
 
-  if (NS_FAILED(rv) || !aCount) {
+  if (!aCount || NS_FAILED(rv)) {
     if (rv == NS_BASE_STREAM_CLOSED) {
       rv = NS_OK;
     }

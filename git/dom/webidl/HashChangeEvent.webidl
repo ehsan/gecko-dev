@@ -4,18 +4,19 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional HashChangeEventInit eventInitDict), LegacyEventInit]
+[Constructor(DOMString type, optional HashChangeEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface HashChangeEvent : Event
 {
   readonly attribute DOMString? oldURL;
   readonly attribute DOMString? newURL;
 
+  // initHashChangeEvent is a Gecko specific deprecated method.
   [Throws]
-  void initHashChangeEvent(DOMString typeArg,
-                           boolean canBubbleArg,
-                           boolean cancelableArg,
-                           DOMString? oldURLArg,
-                           DOMString? newURLArg);
+  void initHashChangeEvent(DOMString type,
+                           boolean canBubble,
+                           boolean cancelable,
+                           DOMString? oldURL,
+                           DOMString? newURL);
 };
 
 dictionary HashChangeEventInit : EventInit

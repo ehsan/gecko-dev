@@ -16,11 +16,12 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/HTMLIFrameElement.h"
 #include "mozilla/dom/ToJSValue.h"
+#include "nsIDOMCustomEvent.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsVariant.h"
 #include "mozilla/dom/BrowserElementDictionariesBinding.h"
 #include "nsCxPusher.h"
-#include "mozilla/dom/CustomEvent.h"
+#include "GeneratedEventClasses.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

@@ -6,7 +6,8 @@
 interface nsISupports;
 
 [Pref="media.webspeech.recognition.enable",
- Constructor(DOMString type, optional SpeechRecognitionEventInit eventInitDict)]
+ Constructor(DOMString type, optional SpeechRecognitionEventInit eventInitDict),
+ HeaderFile="GeneratedEventClasses.h"]
 interface SpeechRecognitionEvent : Event
 {
   readonly attribute unsigned long resultIndex;

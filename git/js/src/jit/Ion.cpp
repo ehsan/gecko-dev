@@ -633,7 +633,6 @@ JitCompartment::mark(JSTracer *trc, JSCompartment *compartment)
                 MarkScript(trc, const_cast<PreBarrieredScript *>(&e.front()), "par-script");
                 MOZ_ASSERT(script == e.front());
             } else {
-                script->parallelIonScript()->clearIsParallelEntryScript();
                 e.removeFront();
             }
         }

@@ -11,6 +11,7 @@
 #include "nsWeakReference.h"
 #include "nsIObserver.h"
 #include "nsWrapperCache.h"
+#include "nsMimeTypeArray.h"
 #include "nsPluginTags.h"
 #include "nsPIDOMWindow.h"
 
@@ -109,7 +110,7 @@ public:
   nsTArray<nsRefPtr<nsMimeType> >& MimeTypes();
 
 protected:
-  ~nsPluginElement();
+  ~nsPluginElement() {}
 
   void EnsurePluginMimeTypes();
 

@@ -2326,7 +2326,7 @@ DrawTitlebarHighlight(NSSize aWindowSize, CGFloat aRadius, CGFloat aDevicePixelW
   for (CGFloat y = 0; y < aRadius; y += aDevicePixelWidth) {
     CGFloat t = y / aRadius;
     [[NSColor colorWithDeviceWhite:1.0 alpha:0.4 * (1.0 - t)] set];
-    NSRectFillUsingOperation(NSMakeRect(0, y, aWindowSize.width, aDevicePixelWidth), NSCompositeSourceOver);
+    NSRectFill(NSMakeRect(0, y, aWindowSize.width, aDevicePixelWidth));
   }
 
   [NSGraphicsContext restoreGraphicsState];

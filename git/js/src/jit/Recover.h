@@ -30,7 +30,6 @@ namespace jit {
     _(Mul)                                      \
     _(Div)                                      \
     _(Mod)                                      \
-    _(Not)                                      \
     _(Concat)                                   \
     _(StringLength)                             \
     _(Floor)                                    \
@@ -259,18 +258,6 @@ class RMod MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RNot MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Not)
-
-    virtual uint32_t numOperands() const {
-        return 1;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;
