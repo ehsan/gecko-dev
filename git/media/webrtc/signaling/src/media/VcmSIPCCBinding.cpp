@@ -990,14 +990,9 @@ static short vcmGetDtlsIdentity_m(const char *peerconnection,
   unsigned char digest[TransportLayerDtls::kMaxDigestLength];
   size_t digest_len;
 
-  mozilla::RefPtr<DtlsIdentity> id = pc.impl()->GetIdentity();
-
-  if (!id) {
-    return VCM_ERROR;
-  }
-
-  nsresult res = id->ComputeFingerprint("sha-256", digest, sizeof(digest),
-                                        &digest_len);
+  nsresult res = pc.impl()->GetIdentity()->ComputeFingerprint("sha-256", digest,
+                                                               sizeof(digest),
+                                                               &digest_len);
   if (!NS_SUCCEEDED(res)) {
     CSFLogError( logTag, "%s: Could not compute identity fingerprint", __FUNCTION__);
     return VCM_ERROR;
@@ -1357,7 +1352,7 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     CSFLogDebug(logTag, "Created audio pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
                 pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
 
-    stream->StorePipeline(pc_track_id, false, pipeline);
+    stream->StorePipeline(pc_track_id, pipeline);
   } else if (CC_IS_VIDEO(mcap_id)) {
 
     std::vector<mozilla::VideoCodecConfig *> configs;
@@ -1401,7 +1396,7 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     CSFLogDebug(logTag, "Created video pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
                 pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
 
-    stream->StorePipeline(pc_track_id, true, pipeline);
+    stream->StorePipeline(pc_track_id, pipeline);
   } else {
     CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
     return VCM_ERROR;
@@ -2645,11 +2640,7 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
     // TODO(ekr@rtfm.com): implement the actpass logic above.
     dtls->SetRole(pc->GetRole() == sipcc::PeerConnectionImpl::kRoleOfferer ?
                   TransportLayerDtls::SERVER : TransportLayerDtls::CLIENT);
-    mozilla::RefPtr<DtlsIdentity> pcid = pc->GetIdentity();
-    if (!pcid) {
-      return nullptr;
-    }
-    dtls->SetIdentity(pcid);
+    dtls->SetIdentity(pc->GetIdentity());
 
     unsigned char remote_digest[TransportLayerDtls::kMaxDigestLength];
     size_t digest_len;

@@ -10,8 +10,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
-
-class nsLineLayout;
+#include "nsLineLayout.h"
 
 /**  In Bidi left (or right) margin/padding/border should be applied to left
  *  (or right) most frame (or a continuation frame).

@@ -449,7 +449,6 @@ MAKEFILES_embedding="
 "
 
 MAKEFILES_xulapp="
-  addon-sdk/Makefile
   toolkit/Makefile
   toolkit/library/Makefile
   toolkit/crashreporter/client/Makefile
@@ -720,7 +719,6 @@ fi
 
 if [ "$ENABLE_TESTS" ]; then
   add_makefiles "
-    addon-sdk/test/Makefile
     caps/tests/mochitest/Makefile
     chrome/test/Makefile
     content/base/test/Makefile

@@ -26,6 +26,7 @@
 #include "nsIDocument.h"
 #include "nsEventStates.h"
 #include "mozilla/TimeStamp.h"
+#include "nsContentUtils.h"
 #include "nsIFrame.h"
 
 class nsIPresShell;
@@ -174,7 +175,15 @@ public:
    * dom.event.handling-user-input-time-limit pref (default 1 second), this
    * function also returns false.
    */
-  static bool IsHandlingUserInput();
+  static bool IsHandlingUserInput()
+  {
+    if (sUserInputEventDepth <= 0) {
+      return false;
+    }
+    TimeDuration timeout = nsContentUtils::HandlingUserInputTimeout();
+    return timeout <= TimeDuration(0) ||
+           (TimeStamp::Now() - sHandlingInputStart) <= timeout;
+  }
 
   nsPresContext* GetPresContext() { return mPresContext; }
 

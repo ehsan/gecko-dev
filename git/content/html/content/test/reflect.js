@@ -61,7 +61,8 @@ function reflectString(aParameters)
     input: [ "accept", "alt", "formTarget", "max", "min", "name", "pattern", "placeholder", "step", "defaultValue" ],
     link: [ "crossOrigin" ],
     source: [ "media" ],
-    textarea: [ "name", "placeholder" ]
+    textarea: [ "name", "placeholder" ],
+    style: [ "media", "type" ]
   };
   if (!(element.localName in todoAttrs) || todoAttrs[element.localName].indexOf(idlAttr) == -1) {
     is(element.getAttribute(contentAttr), "null",

@@ -1660,13 +1660,15 @@ public class GeckoAppShell
     }
 
     public static String handleGeckoMessage(String message) {
-        // {
-        //   "type": "value",
-        //   "event_specific": "value",
-        //   ...
+        //        
+        //        {"gecko": {
+        //                "type": "value",
+        //                "event_specific": "value",
+        //                ....
         try {
             JSONObject json = new JSONObject(message);
-            String type = json.getString("type");
+            final JSONObject geckoObject = json.getJSONObject("gecko");
+            String type = geckoObject.getString("type");
             
             if (type.equals("Gecko:Ready")) {
                 onAppShellReady();

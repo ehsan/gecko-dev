@@ -212,7 +212,7 @@ protected:
   /**
    * Helper to make a JS array object out of an array of clone buffers.
    */
-  static nsresult ConvertToArrayAndCleanup(
+  static nsresult ConvertCloneReadInfosToArray(
                                 JSContext* aCx,
                                 nsTArray<StructuredCloneReadInfo>& aReadInfos,
                                 jsval* aResult);

@@ -349,13 +349,13 @@ public:
 #endif
 
   /** return the width of the column at aColIndex    */
-  int32_t GetColumnWidth(int32_t aColIndex);
+  virtual int32_t GetColumnWidth(int32_t aColIndex);
 
   /** helper to get the cell spacing X style value */
-  nscoord GetCellSpacingX();
+  virtual nscoord GetCellSpacingX();
 
   /** helper to get the cell spacing Y style value */
-  nscoord GetCellSpacingY();
+  virtual nscoord GetCellSpacingY();
  
   virtual nscoord GetBaseline() const;
   /** return the row span of a cell, taking into account row span magic at the bottom
@@ -369,10 +369,10 @@ public:
     * @return  the row span, correcting for row spans that extend beyond the bottom
     *          of the table.
     */
-  int32_t  GetEffectiveRowSpan(int32_t                 aStartRowIndex,
-                               const nsTableCellFrame& aCell) const;
-  int32_t  GetEffectiveRowSpan(const nsTableCellFrame& aCell,
-                               nsCellMap*              aCellMap = nullptr);
+  virtual int32_t  GetEffectiveRowSpan(int32_t                 aStartRowIndex,
+                                       const nsTableCellFrame& aCell) const;
+  virtual int32_t  GetEffectiveRowSpan(const nsTableCellFrame& aCell,
+                                       nsCellMap*              aCellMap = nullptr);
 
   /** return the col span of a cell, taking into account col span magic at the edge
     * of a table.
@@ -382,8 +382,8 @@ public:
     * @return  the col span, correcting for col spans that extend beyond the edge
     *          of the table.
     */
-  int32_t  GetEffectiveColSpan(const nsTableCellFrame& aCell,
-                               nsCellMap*              aCellMap = nullptr) const;
+  virtual int32_t  GetEffectiveColSpan(const nsTableCellFrame& aCell,
+                                       nsCellMap*              aCellMap = nullptr) const;
 
   /** indicate whether the row has more than one cell that either originates
     * or is spanned from the rows above
@@ -427,15 +427,15 @@ public:
 
   void DidResizeColumns();
 
-  void AppendCell(nsTableCellFrame& aCellFrame,
-                  int32_t           aRowIndex);
+  virtual void AppendCell(nsTableCellFrame& aCellFrame,
+                          int32_t           aRowIndex);
 
-  void InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
-                   int32_t                      aRowIndex,
-                   int32_t                      aColIndexBefore);
+  virtual void InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
+                           int32_t                      aRowIndex,
+                           int32_t                      aColIndexBefore);
 
-  void RemoveCell(nsTableCellFrame* aCellFrame,
-                  int32_t           aRowIndex);
+  virtual void RemoveCell(nsTableCellFrame* aCellFrame,
+                          int32_t           aRowIndex);
 
   void AppendRows(nsTableRowGroupFrame*       aRowGroupFrame,
                   int32_t                     aRowIndex,
@@ -446,9 +446,9 @@ public:
                      int32_t                     aRowIndex,
                      bool                        aConsiderSpans);
 
-  void RemoveRows(nsTableRowFrame& aFirstRowFrame,
-                  int32_t          aNumRowsToRemove,
-                  bool             aConsiderSpans);
+  virtual void RemoveRows(nsTableRowFrame& aFirstRowFrame,
+                          int32_t          aNumRowsToRemove,
+                          bool             aConsiderSpans);
 
   /** Insert multiple rowgroups into the table cellmap handling
     * @param aRowGroups - iterator that iterates over the rowgroups to insert
@@ -458,10 +458,10 @@ public:
   void InsertColGroups(int32_t                   aStartColIndex,
                        const nsFrameList::Slice& aColgroups);
 
-  void RemoveCol(nsTableColGroupFrame* aColGroupFrame,
-                 int32_t               aColIndex,
-                 bool                  aRemoveFromCache,
-                 bool                  aRemoveFromCellMap);
+  virtual void RemoveCol(nsTableColGroupFrame* aColGroupFrame,
+                         int32_t               aColIndex,
+                         bool                  aRemoveFromCache,
+                         bool                  aRemoveFromCellMap);
 
   bool ColumnHasCellSpacingBefore(int32_t aColIndex) const;
 
@@ -657,7 +657,7 @@ public:
   /** Get the cell map for this table frame.  It is not always mCellMap.
     * Only the firstInFlow has a legit cell map
     */
-  nsTableCellMap* GetCellMap() const;
+  virtual nsTableCellMap* GetCellMap() const;
 
   /** Iterate over the row groups and adjust the row indices of all rows 
     * whose index is >= aRowIndex.  
@@ -719,7 +719,7 @@ public: /* ----- Cell Map public methods ----- */
   int32_t GetIndexOfLastRealCol();
 
   /** returns true if table-layout:auto  */
-  bool IsAutoLayout();
+  virtual bool IsAutoLayout();
 
 public:
  

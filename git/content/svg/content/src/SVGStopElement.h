@@ -8,6 +8,7 @@
 
 #include "nsSVGElement.h"
 #include "nsSVGNumber2.h"
+#include "nsIDOMSVGStopElement.h"
 
 nsresult NS_NewSVGStopElement(nsIContent **aResult,
                               already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -18,7 +19,7 @@ namespace mozilla {
 namespace dom {
 
 class SVGStopElement MOZ_FINAL : public SVGStopElementBase,
-                                 public nsIDOMSVGElement
+                                 public nsIDOMSVGStopElement
 {
 protected:
   friend nsresult (::NS_NewSVGStopElement(nsIContent **aResult,
@@ -30,6 +31,7 @@ public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGSTOPELEMENT
 
   // xxx If xpcom allowed virtual inheritance we wouldn't need to
   // forward here :-(
@@ -42,6 +44,8 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  virtual nsXPCClassInfo* GetClassInfo();
+
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
@@ -50,6 +54,7 @@ public:
 protected:
 
   virtual NumberAttributesInfo GetNumberInfo();
+  // nsIDOMSVGStopElement properties:
   nsSVGNumber2 mOffset;
   static NumberInfo sNumberInfo;
 };

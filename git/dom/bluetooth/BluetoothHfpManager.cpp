@@ -667,7 +667,7 @@ BluetoothHfpManager::HandleShutdown()
 
 // Virtual function of class SocketConsumer
 void
-BluetoothHfpManager::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
+BluetoothHfpManager::ReceiveSocketData(UnixSocketRawData* aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
 

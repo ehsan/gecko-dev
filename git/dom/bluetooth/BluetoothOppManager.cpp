@@ -894,7 +894,7 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
 
 // Virtual function of class SocketConsumer
 void
-BluetoothOppManager::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
+BluetoothOppManager::ReceiveSocketData(UnixSocketRawData* aMessage)
 {
   if (mLastCommand) {
     ClientDataHandler(aMessage);

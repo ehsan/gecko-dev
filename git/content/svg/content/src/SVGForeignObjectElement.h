@@ -7,6 +7,7 @@
 #define mozilla_dom_SVGForeignObjectElement_h
 
 #include "mozilla/dom/SVGGraphicsElement.h"
+#include "nsIDOMSVGForeignObjectElem.h"
 #include "nsSVGLength2.h"
 
 nsresult NS_NewSVGForeignObjectElement(nsIContent **aResult,
@@ -18,7 +19,7 @@ namespace mozilla {
 namespace dom {
 
 class SVGForeignObjectElement MOZ_FINAL : public SVGGraphicsElement,
-                                          public nsIDOMSVGElement
+                                          public nsIDOMSVGForeignObjectElement
 {
   friend class ::nsSVGForeignObjectFrame;
 
@@ -32,6 +33,7 @@ public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGFOREIGNOBJECTELEMENT
 
   // xxx I wish we could use virtual inheritance
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
@@ -47,6 +49,8 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 

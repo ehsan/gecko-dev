@@ -18,7 +18,7 @@ class WMFByteStream;
 class WMFReader : public MediaDecoderReader
 {
 public:
-  WMFReader(AbstractMediaDecoder* aDecoder);
+  WMFReader(MediaDecoder* aDecoder);
 
   virtual ~WMFReader();
 

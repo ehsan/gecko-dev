@@ -10,5 +10,5 @@ function Engineer(name, projs, machine) {
     this.base(name, "engineering", projs)
     this.machine = machine || "";
 }
-Engineer.prototype = {};
+Engineer.prototype = new XMLList();
 var les = new Engineer("Morris, Les", new Array("JavaScript"), "indy");

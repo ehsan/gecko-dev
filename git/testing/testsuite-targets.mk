@@ -344,9 +344,6 @@ cppunittests-remote:
           echo "please prepare your host with environment variables for TEST_DEVICE"; \
         fi
 
-jetpack-tests:
-	$(PYTHON) $(topsrcdir)/addon-sdk/source/bin/cfx -b $(browser_path) --parseable testpkgs
-
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
@@ -433,7 +430,6 @@ stage-android: make-stage-dir
 
 stage-jetpack: make-stage-dir
 	$(NSINSTALL) $(topsrcdir)/testing/jetpack/jetpack-location.txt $(PKG_STAGE)/jetpack
-	$(MAKE) -C $(DEPTH)/addon-sdk stage-tests-package
 
 stage-peptest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/peptest stage-package

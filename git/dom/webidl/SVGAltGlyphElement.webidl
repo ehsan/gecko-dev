@@ -11,9 +11,7 @@
  */
 
 interface SVGAltGlyphElement : SVGTextPositioningElement {
-  [SetterThrows]
   attribute DOMString glyphRef;
-  [SetterThrows]
   attribute DOMString format;
 };
 

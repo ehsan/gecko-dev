@@ -1493,10 +1493,7 @@ protected:
 
 public:
   // Optimized way to get classinfo.
-  virtual nsXPCClassInfo* GetClassInfo()
-  {
-    return nullptr;
-  }
+  virtual nsXPCClassInfo* GetClassInfo() = 0;
 
   // Makes nsINode object to keep aObject alive.
   void BindObject(nsISupports* aObject);

@@ -68,11 +68,6 @@ AppsService.prototype = {
     return DOMApplicationRegistry.getWebAppsBasePath();
   },
 
-  getAppInfo: function getAppInfo(aAppId) {
-    debug("getAppInfo()");
-    return DOMApplicationRegistry.getAppInfo(aAppId);
-  },
-
   classID : APPS_SERVICE_CID,
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIAppsService])
 }

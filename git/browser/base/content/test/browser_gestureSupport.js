@@ -33,7 +33,7 @@ function test()
   test_commandset = document.getElementById("mainCommandSet");
   test_swipeGestures();
   test_latchedGesture("pinch", "out", "in", "MozMagnifyGesture");
-  // We don't latch the rotate event (see bug 833511)
+  test_latchedGesture("twist", "right", "left", "MozRotateGesture");
   test_thresholdGesture("pinch", "out", "in", "MozMagnifyGesture");
   test_thresholdGesture("twist", "right", "left", "MozRotateGesture");
 }

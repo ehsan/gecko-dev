@@ -33,7 +33,7 @@
 #include "nsPresArena.h"
 #include "nsFrameSelection.h"
 #include "nsGUIEvent.h"
-#include "nsContentUtils.h" // For AddScriptBlocker().
+#include "nsContentUtils.h"
 #include "nsRefreshDriver.h"
 #include "mozilla/Attributes.h"
 

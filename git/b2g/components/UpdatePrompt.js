@@ -96,6 +96,11 @@ UpdateCheckListener.prototype = {
 
     Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
     Services.aus.onError(request, update);
+  },
+
+  onProgress: function UCL_onProgress(request, position, totalSize) {
+    Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
+    Services.aus.onProgress(request, position, totalSize);
   }
 };
 

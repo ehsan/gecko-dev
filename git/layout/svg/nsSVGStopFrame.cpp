@@ -82,7 +82,8 @@ nsSVGStopFrame::Init(nsIContent* aContent,
                      nsIFrame* aParent,
                      nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::stop), "Content is not a stop element");
+  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::stop),
+               "Content doesn't support nsIDOMSVGStopElement");
 
   return nsSVGStopFrameBase::Init(aContent, aParent, aPrevInFlow);
 }

@@ -36,6 +36,7 @@ public:
   nsBlockReflowState(const nsHTMLReflowState& aReflowState,
                      nsPresContext* aPresContext,
                      nsBlockFrame* aFrame,
+                     const nsHTMLReflowMetrics& aMetrics,
                      bool aTopMarginRoot, bool aBottomMarginRoot,
                      bool aBlockNeedsFloatManager);
 

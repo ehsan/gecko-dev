@@ -12,7 +12,6 @@
 #include "nsError.h"
 #include "nsRuleData.h"
 #include "nsStyleConsts.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -234,17 +233,5 @@ nsHTMLIFrameElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
                                             aNotify);
-}
 
-uint32_t
-nsHTMLIFrameElement::GetSandboxFlags()
-{
-  nsAutoString sandboxAttr;
-
-  if (GetAttr(kNameSpaceID_None, nsGkAtoms::sandbox, sandboxAttr)) {
-    return nsContentUtils::ParseSandboxAttributeToFlags(sandboxAttr);
-  }
-
-  // No sandbox attribute, no sandbox flags.
-  return 0;
 }

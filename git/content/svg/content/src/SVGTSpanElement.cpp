@@ -5,7 +5,6 @@
 
 #include "mozilla/dom/SVGTSpanElement.h"
 #include "mozilla/dom/SVGTSpanElementBinding.h"
-#include "nsContentUtils.h"
 
 DOMCI_NODE_DATA(SVGTSpanElement, mozilla::dom::SVGTSpanElement)
 

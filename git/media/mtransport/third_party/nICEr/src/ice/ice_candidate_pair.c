@@ -144,17 +144,14 @@ int nr_ice_candidate_pair_create(nr_ice_peer_ctx *pctx, nr_ice_candidate *lcand,
     if(!(r2lpass=r_strdup(lpwd)))
       ABORT(R_NO_MEMORY);
     INIT_DATA(pair->r2l_pwd,(UCHAR *)r2lpass,strlen(r2lpass));
-    // Give up ownership of r2lpass
-    r2lpass=0;
 
     *pairp=pair;
 
     _status=0;
   abort:
     RFREE(l2ruser);
-    RFREE(r2lpass);
     if(_status){
-      nr_ice_candidate_pair_destroy(&pair);
+      RFREE(r2lpass);
     }
     return(_status);
   }

@@ -351,16 +351,6 @@ template <class T> class MediaQueue : private nsDeque {
     }
   }
 
-  uint32_t FrameCount() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    uint32_t frames = 0;
-    for (int32_t i = 0; i < GetSize(); ++i) {
-      T* v = static_cast<T*>(ObjectAt(i));
-      frames += v->mFrames;
-    }
-    return frames;
-  }
-
 private:
   mutable ReentrantMonitor mReentrantMonitor;
 

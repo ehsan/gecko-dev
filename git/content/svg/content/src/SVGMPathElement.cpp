@@ -13,6 +13,8 @@
 #include "nsContentUtils.h"
 #include "mozilla/dom/SVGMPathElementBinding.h"
 
+DOMCI_NODE_DATA(SVGMpathElement, mozilla::dom::SVGMPathElement)
+
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(MPath)
 
 namespace mozilla {
@@ -47,9 +49,10 @@ NS_IMPL_ADDREF_INHERITED(SVGMPathElement,SVGMPathElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGMPathElement,SVGMPathElementBase)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(SVGMPathElement)
-  NS_NODE_INTERFACE_TABLE5(SVGMPathElement, nsIDOMNode, nsIDOMElement,
+  NS_NODE_INTERFACE_TABLE6(SVGMPathElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement,  nsIDOMSVGURIReference,
-                           nsIMutationObserver)
+                           nsIDOMSVGMpathElement, nsIMutationObserver)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGMpathElement)
 NS_INTERFACE_MAP_END_INHERITING(SVGMPathElementBase)
 
 // Constructor

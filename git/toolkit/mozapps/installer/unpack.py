@@ -7,7 +7,6 @@ import os
 from mozpack.packager.unpack import unpack
 import buildconfig
 
-
 def main():
     if len(sys.argv) != 2:
         print >>sys.stderr, "Usage: %s directory" % \

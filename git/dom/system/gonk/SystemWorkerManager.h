@@ -31,12 +31,6 @@
 class nsIWorkerHolder;
 
 namespace mozilla {
-
-namespace ipc {
-  class RilConsumer;
-  class UnixSocketRawData;
-}
-
 namespace dom {
 namespace gonk {
 
@@ -59,8 +53,6 @@ public:
   static nsIInterfaceRequestor*
   GetInterfaceRequestor();
 
-  static bool SendRilRawData(ipc::UnixSocketRawData* aRaw);
-
 private:
   SystemWorkerManager();
   ~SystemWorkerManager();
@@ -74,8 +66,6 @@ private:
   nsCOMPtr<nsIWorkerHolder> mNetdWorker;
 #endif
   nsCOMPtr<nsIWorkerHolder> mWifiWorker;
-
-  nsRefPtr<ipc::RilConsumer> mRilConsumer;
 
   bool mShutdown;
 };

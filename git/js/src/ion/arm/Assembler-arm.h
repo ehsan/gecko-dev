@@ -1172,6 +1172,7 @@ class Assembler
     // TODO: this should actually be a pool-like object
     //       It is currently a big hack, and probably shouldn't exist
     class JumpPool;
+    js::Vector<DeferredData *, 0, SystemAllocPolicy> data_;
     js::Vector<CodeLabel *, 0, SystemAllocPolicy> codeLabels_;
     js::Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
     js::Vector<JumpPool *, 0, SystemAllocPolicy> jumpPools_;
@@ -1189,6 +1190,7 @@ class Assembler
     CompactBufferWriter dataRelocations_;
     CompactBufferWriter relocations_;
     CompactBufferWriter preBarriers_;
+    size_t dataBytesNeeded_;
 
     bool enoughMemory_;
 
@@ -1211,7 +1213,8 @@ class Assembler
 
   public:
     Assembler()
-      : enoughMemory_(true),
+      : dataBytesNeeded_(0),
+        enoughMemory_(true),
         m_buffer(4, 4, 0, &pools_[0], 8),
         int32Pool(m_buffer.getPool(1)),
         doublePool(m_buffer.getPool(0)),
@@ -1285,10 +1288,13 @@ class Assembler
   public:
     void finish();
     void executableCopy(void *buffer);
+    void processDeferredData(IonCode *code, uint8_t *data);
     void processCodeLabels(IonCode *code);
     void copyJumpRelocationTable(uint8_t *dest);
     void copyDataRelocationTable(uint8_t *dest);
     void copyPreBarrierTable(uint8_t *dest);
+
+    bool addDeferredData(DeferredData *data, size_t bytes);
 
     bool addCodeLabel(CodeLabel *label);
 
@@ -1300,6 +1306,7 @@ class Assembler
     size_t preBarrierTableBytes() const;
 
     // Size of the data table, in bytes.
+    size_t dataSize() const;
     size_t bytesNeeded() const;
 
     // Write a blob of binary into the instruction stream *OR*
@@ -1313,7 +1320,9 @@ class Assembler
     static void writeInstStatic(uint32_t x, uint32_t *dest);
 
   public:
-    void writeCodePointer(AbsoluteLabel *label);
+    // resreve enough space in the instruction stream for a jumpPool.
+    // return the reserved space.
+    BufferOffset as_jumpPool(uint32_t size);
 
     BufferOffset align(int alignment);
     BufferOffset as_nop();
@@ -1531,7 +1540,6 @@ class Assembler
     void retarget(Label *label, Label *target);
     // I'm going to pretend this doesn't exist for now.
     void retarget(Label *label, void *target, Relocation::Kind reloc);
-    void Bind(IonCode *code, AbsoluteLabel *label, const void *address);
 
     void call(Label *label);
     void call(void *target);

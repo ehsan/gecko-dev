@@ -120,7 +120,11 @@
         document.getElementById("last-url").value = aData;
       }, "Feedback:LastUrl", false);
 
-      sendMessageToJava({ type: "Feedback:LastUrl" });
+      sendMessageToJava({
+        gecko: {
+          type: "Feedback:LastUrl"
+        }
+      });
     }
 
     function uninit() {
@@ -138,7 +142,11 @@
     }
 
     function openPlayStore() {
-      sendMessageToJava({ type: "Feedback:OpenPlayStore" });
+      sendMessageToJava({
+        gecko: {
+          type: "Feedback:OpenPlayStore"
+        }
+      });
 
       window.close();
     }
@@ -146,7 +154,11 @@
     function maybeLater() {
       window.close();
 
-      sendMessageToJava({ type: "Feedback:MaybeLater" });
+      sendMessageToJava({
+        gecko: {
+          type: "Feedback:MaybeLater"
+        }
+      });
     }
 
     function sendFeedback(aEvent) {

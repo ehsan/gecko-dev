@@ -7,7 +7,6 @@
 #include "nsAtomTable.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsCOMArray.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemoryReporterManager.h"
@@ -758,72 +757,9 @@ nsMemoryReporterManager::Init()
     return NS_OK;
 }
 
-namespace {
-
-/**
- * HastableEnumerator takes an nsTHashtable<nsISupportsHashKey>& in its
- * constructor and creates an nsISimpleEnumerator from its contents.
- *
- * The resultant enumerator works over a copy of the hashtable, so it's safe to
- * mutate or destroy the hashtable after the enumerator is created.
- */
-
-class HashtableEnumerator MOZ_FINAL : public nsISimpleEnumerator
-{
-public:
-    HashtableEnumerator(nsTHashtable<nsISupportsHashKey>& aHashtable)
-        : mIndex(0)
-    {
-        aHashtable.EnumerateEntries(EnumeratorFunc, this);
-    }
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSISIMPLEENUMERATOR
-
-private:
-    static PLDHashOperator
-    EnumeratorFunc(nsISupportsHashKey* aEntry, void* aData);
-
-    uint32_t mIndex;
-    nsCOMArray<nsISupports> mArray;
-};
-
-NS_IMPL_ISUPPORTS1(HashtableEnumerator, nsISimpleEnumerator)
-
-/* static */ PLDHashOperator
-HashtableEnumerator::EnumeratorFunc(nsISupportsHashKey* aElem, void* aData)
-{
-    HashtableEnumerator* enumerator = static_cast<HashtableEnumerator*>(aData);
-    enumerator->mArray.AppendObject(aElem->GetKey());
-    return PL_DHASH_NEXT;
-}
-
-NS_IMETHODIMP HashtableEnumerator::HasMoreElements(bool* aResult)
-{
-    *aResult = mIndex < mArray.Count();
-    return NS_OK;
-}
-
-NS_IMETHODIMP HashtableEnumerator::GetNext(nsISupports** aNext)
-{
-    if (mIndex < mArray.Count()) {
-        nsCOMPtr<nsISupports> next = mArray.ObjectAt(mIndex);
-        next.forget(aNext);
-        mIndex++;
-        return NS_OK;
-    }
-
-    *aNext = nullptr;
-    return NS_ERROR_FAILURE;
-}
-
-} // anonymous namespace
-
 nsMemoryReporterManager::nsMemoryReporterManager()
   : mMutex("nsMemoryReporterManager::mMutex")
 {
-    mReporters.Init();
-    mMultiReporters.Init();
 }
 
 nsMemoryReporterManager::~nsMemoryReporterManager()
@@ -833,123 +769,60 @@ nsMemoryReporterManager::~nsMemoryReporterManager()
 NS_IMETHODIMP
 nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator **result)
 {
-    // Memory reporters are not necessarily threadsafe, so EnumerateReporters()
-    // must be called from the main thread.
-    if (!NS_IsMainThread()) {
-        MOZ_CRASH();
-    }
-
+    nsresult rv;
     mozilla::MutexAutoLock autoLock(mMutex);
-
-    nsRefPtr<HashtableEnumerator> enumerator =
-        new HashtableEnumerator(mReporters);
-    enumerator.forget(result);
-    return NS_OK;
+    rv = NS_NewArrayEnumerator(result, mReporters);
+    return rv;
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::EnumerateMultiReporters(nsISimpleEnumerator **result)
 {
-    // Memory multi-reporters are not necessarily threadsafe, so
-    // EnumerateMultiReporters() must be called from the main thread.
-    if (!NS_IsMainThread()) {
-        MOZ_CRASH();
-    }
-
+    nsresult rv;
     mozilla::MutexAutoLock autoLock(mMutex);
-
-    nsRefPtr<HashtableEnumerator> enumerator =
-        new HashtableEnumerator(mMultiReporters);
-    enumerator.forget(result);
-    return NS_OK;
-}
-
-static void
-DebugAssertRefcountIsNonZero(nsISupports* aObj)
-{
-#ifdef DEBUG
-    // This will probably crash if the object's refcount is 0.
-    uint32_t refcnt = NS_ADDREF(aObj);
-    MOZ_ASSERT(refcnt >= 2);
-    NS_RELEASE(aObj);
-#endif
+    rv = NS_NewArrayEnumerator(result, mMultiReporters);
+    return rv;
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter *reporter)
 {
-    // This method is thread-safe.
     mozilla::MutexAutoLock autoLock(mMutex);
-
-    if (mReporters.Contains(reporter)) {
+    if (mReporters.IndexOf(reporter) != -1)
         return NS_ERROR_FAILURE;
-    }
 
-    // This method needs to be safe even if |reporter| has a refcnt of 0, so we
-    // take a kung fu death grip before calling PutEntry.  Otherwise, if
-    // PutEntry addref'ed and released reporter before finally addref'ing it for
-    // good, it would free reporter!
-    //
-    // The kung fu death grip could itself be problematic if PutEntry didn't
-    // addref |reporter| (because then when the death grip goes out of scope, we
-    // would delete the reporter).  In debug mode, we check that this doesn't
-    // happen.
-
-    {
-        nsCOMPtr<nsIMemoryReporter> kungFuDeathGrip = reporter;
-        mReporters.PutEntry(reporter);
-    }
-
-    DebugAssertRefcountIsNonZero(reporter);
-
+    mReporters.AppendObject(reporter);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::RegisterMultiReporter(nsIMemoryMultiReporter *reporter)
 {
-    // This method is thread-safe.
     mozilla::MutexAutoLock autoLock(mMutex);
-
-    if (mMultiReporters.Contains(reporter)) {
+    if (mMultiReporters.IndexOf(reporter) != -1)
         return NS_ERROR_FAILURE;
-    }
 
-    {
-        nsCOMPtr<nsIMemoryMultiReporter> kungFuDeathGrip = reporter;
-        mMultiReporters.PutEntry(reporter);
-    }
-
-    DebugAssertRefcountIsNonZero(reporter);
-
+    mMultiReporters.AppendObject(reporter);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::UnregisterReporter(nsIMemoryReporter *reporter)
 {
-    // This method is thread-safe.
     mozilla::MutexAutoLock autoLock(mMutex);
-
-    if (!mReporters.Contains(reporter)) {
+    if (!mReporters.RemoveObject(reporter))
         return NS_ERROR_FAILURE;
-    }
 
-    mReporters.RemoveEntry(reporter);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::UnregisterMultiReporter(nsIMemoryMultiReporter *reporter)
 {
-    // This method is thread-safe.
     mozilla::MutexAutoLock autoLock(mMutex);
-
-    if (!mMultiReporters.Contains(reporter)) {
+    if (!mMultiReporters.RemoveObject(reporter))
         return NS_ERROR_FAILURE;
-    }
 
-    mMultiReporters.RemoveEntry(reporter);
     return NS_OK;
 }
 

@@ -2065,9 +2065,6 @@ nsDisplayBackgroundImage::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* a
 nsRect
 nsDisplayBackgroundImage::GetPositioningArea()
 {
-  if (mIsThemed) {
-    return nsRect(ToReferenceFrame(), mFrame->GetSize());
-  }
   if (!mBackgroundStyle) {
     return nsRect();
   }
@@ -2141,7 +2138,7 @@ void nsDisplayBackgroundImage::ComputeInvalidationRegion(nsDisplayListBuilder* a
                                                          const nsDisplayItemGeometry* aGeometry,
                                                          nsRegion* aInvalidRegion)
 {
-  if (!mIsThemed && !mBackgroundStyle) {
+  if (!mBackgroundStyle) {
     return;
   }
 

@@ -1007,8 +1007,8 @@ nsHTMLInputElement::GetValue(nsAString& aValue)
 {
   nsresult rv = GetValueInternal(aValue);
 
-  // Don't return non-sanitized value for types that are experimental on mobile.
-  if (IsExperimentalMobileType(mType)) {
+  // Don't return non-sanitized value for number inputs.
+  if (mType == NS_FORM_INPUT_NUMBER) {
     SanitizeValue(aValue);
   }
 
@@ -1282,7 +1282,7 @@ nsHTMLInputElement::ConvertNumberToString(double aValue,
         aResultString.AppendPrintf("%04.0f-%02.0f-%02.0f", year.toNumber(),
                                    month.toNumber() + 1, day.toNumber());
 
-        return true;
+	return true;
       }
     case NS_FORM_INPUT_TIME:
       {
@@ -1311,7 +1311,7 @@ nsHTMLInputElement::ConvertNumberToString(double aValue,
         } else {
           aResultString.AppendPrintf("%02d:%02d", hours, minutes);
         }
-
+      
         return true;
       }
     default:
@@ -1445,8 +1445,8 @@ nsHTMLInputElement::SetValueAsNumber(double aValueAsNumber)
 double
 nsHTMLInputElement::GetMinimum() const
 {
-  MOZ_ASSERT(DoesValueAsNumberApply(),
-             "GetMinAsDouble() should only be used for types that allow .valueAsNumber");
+  // Should only be used for <input type='number'/'date'> for the moment.
+  MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE);
 
   // Once we add support for types that have a default minimum/maximum, take
   // account of the default minimum here.
@@ -1465,8 +1465,8 @@ nsHTMLInputElement::GetMinimum() const
 double
 nsHTMLInputElement::GetMaximum() const
 {
-  MOZ_ASSERT(DoesValueAsNumberApply(),
-             "GetMaxAsDouble() should only be used for types that allow .valueAsNumber");
+  // Should only be used for <input type='number'/'date'> for the moment.
+  MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE);
 
   // Once we add support for types that have a default minimum/maximum, take
   // account of the default maximum here.
@@ -1680,7 +1680,8 @@ NS_IMETHODIMP
 nsHTMLInputElement::MozIsTextField(bool aExcludePassword, bool* aResult)
 {
   // TODO: temporary until bug 635240 and 773205 are fixed.
-  if (IsExperimentalMobileType(mType)) {
+  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE ||
+      mType == NS_FORM_INPUT_TIME) {
     *aResult = false;
     return NS_OK;
   }
@@ -2482,10 +2483,8 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   // Fire onchange (if necessary), before we do the blur, bug 357684.
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
-    // Experimental mobile types rely on the system UI to prevent users to not
-    // set invalid values but we have to be extra-careful. Especially if the
-    // option has been enabled on desktop.
-    if (IsExperimentalMobileType(mType)) {
+    // In number inputs we can't allow the user to set an invalid value.
+    if (mType == NS_FORM_INPUT_NUMBER) {
       nsAutoString aValue;
       GetValueInternal(aValue);
       SetValueInternal(aValue, false, false);
@@ -2774,8 +2773,10 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               (keyEvent->keyCode == NS_VK_RETURN ||
                keyEvent->keyCode == NS_VK_ENTER) &&
                (IsSingleLineTextControl(false, mType) ||
-                IsExperimentalMobileType(mType))) {
-            FireChangeEventIfNeeded();
+                mType == NS_FORM_INPUT_NUMBER ||
+                mType == NS_FORM_INPUT_TIME ||
+                mType == NS_FORM_INPUT_DATE)) {
+            FireChangeEventIfNeeded();   
             rv = MaybeSubmitForm(aVisitor.mPresContext);
             NS_ENSURE_SUCCESS(rv, rv);
           }
@@ -3287,7 +3288,9 @@ nsHTMLInputElement::ParseAttribute(int32_t aNamespaceID,
       bool success = aResult.ParseEnumValue(aValue, kInputTypeTable, false);
       if (success) {
         newType = aResult.GetEnumValue();
-        if (IsExperimentalMobileType(newType) &&
+        if ((newType == NS_FORM_INPUT_NUMBER ||
+             newType == NS_FORM_INPUT_TIME ||
+             newType == NS_FORM_INPUT_DATE) && 
             !Preferences::GetBool("dom.experimental_forms", false)) {
           newType = kInputDefaultType->value;
           aResult.SetTo(newType, &aValue);
@@ -4442,7 +4445,8 @@ bool
 nsHTMLInputElement::DoesPatternApply() const
 {
   // TODO: temporary until bug 635240 and bug 773205 are fixed.
-  if (IsExperimentalMobileType(mType)) {
+  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE ||
+      mType == NS_FORM_INPUT_TIME) {
     return false;
   }
 
@@ -4456,7 +4460,6 @@ nsHTMLInputElement::DoesMinMaxApply() const
   {
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_TIME:
     // TODO:
     // case NS_FORM_INPUT_RANGE:
     // All date/time types.
@@ -4476,6 +4479,8 @@ nsHTMLInputElement::DoesMinMaxApply() const
     case NS_FORM_INPUT_TEL:
     case NS_FORM_INPUT_EMAIL:
     case NS_FORM_INPUT_URL:
+    // TODO: temp until bug 781572 is fixed.
+    case NS_FORM_INPUT_TIME:
       return false;
     default:
       NS_NOTYETIMPLEMENTED("Unexpected input type in DoesRequiredApply()");
@@ -4490,7 +4495,8 @@ nsHTMLInputElement::DoesMinMaxApply() const
 double
 nsHTMLInputElement::GetStep() const
 {
-  MOZ_ASSERT(DoesStepApply(), "GetStep() can only be called if @step applies");
+  MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE,
+             "We can't be there if type!=number or date!");
 
   // NOTE: should be defaultStep, which is 1 for type=number and date.
   double step = 1;
@@ -4650,7 +4656,8 @@ nsHTMLInputElement::HasPatternMismatch() const
 bool
 nsHTMLInputElement::IsRangeOverflow() const
 {
-  if (!DoesMinMaxApply()) {
+  // Ignore type=time until bug 781572 is fixed.
+  if (!DoesMinMaxApply() || mType == NS_FORM_INPUT_TIME) {
     return false;
   }
 
@@ -4943,7 +4950,7 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
         MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(maximum));
 
         maxStr.AppendFloat(maximum);
-      } else if (mType == NS_FORM_INPUT_DATE || mType == NS_FORM_INPUT_TIME) {
+      } else if (mType == NS_FORM_INPUT_DATE) {
         GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
       } else {
         NS_NOTREACHED("Unexpected input type");
@@ -4966,7 +4973,7 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
         MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(minimum));
 
         minStr.AppendFloat(minimum);
-      } else if (mType == NS_FORM_INPUT_DATE || mType == NS_FORM_INPUT_TIME) {
+      } else if (mType == NS_FORM_INPUT_DATE) {
         GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
       } else {
         NS_NOTREACHED("Unexpected input type");
@@ -5470,16 +5477,13 @@ nsHTMLInputElement::UpdateValidityUIBits(bool aIsFocused)
 void
 nsHTMLInputElement::UpdateHasRange()
 {
-  /*
-   * There is a range if min/max applies for the type and if the element
-   * currently have a valid min or max.
-   */
-
   mHasRange = false;
 
-  if (!DoesMinMaxApply()) {
+  if (mType != NS_FORM_INPUT_NUMBER && mType != NS_FORM_INPUT_DATE) {
     return;
   }
+
+  // <input type=number> has a range if min or max is a valid double.
 
   double minimum = GetMinimum();
   if (!MOZ_DOUBLE_IS_NaN(minimum)) {

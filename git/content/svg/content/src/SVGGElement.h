@@ -8,6 +8,7 @@
 
 #include "mozilla/Util.h"
 #include "mozilla/dom/SVGGraphicsElement.h"
+#include "nsIDOMSVGGElement.h"
 
 nsresult NS_NewSVGGElement(nsIContent **aResult,
                            already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -16,7 +17,7 @@ namespace mozilla {
 namespace dom {
 
 class SVGGElement MOZ_FINAL : public SVGGraphicsElement,
-                              public nsIDOMSVGElement
+                              public nsIDOMSVGGElement
 {
 protected:
   SVGGElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -28,6 +29,7 @@ public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGGELEMENT
 
   // xxx I wish we could use virtual inheritance
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
@@ -38,6 +40,8 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 };

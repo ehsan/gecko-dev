@@ -75,7 +75,7 @@ this.DOMApplicationRegistry = {
                      "Webapps:GetSelf", "Webapps:CheckInstalled",
                      "Webapps:GetInstalled", "Webapps:GetNotInstalled",
                      "Webapps:Launch", "Webapps:GetAll",
-                     "Webapps:InstallPackage",
+                     "Webapps:InstallPackage", "Webapps:GetAppInfo",
                      "Webapps:GetList", "Webapps:RegisterForMessages",
                      "Webapps:UnregisterForMessages",
                      "Webapps:CancelDownload", "Webapps:CheckForUpdate",
@@ -273,7 +273,6 @@ this.DOMApplicationRegistry = {
         file.copyTo(destDir, aFile);
       });
 
-    app.installState = "installed";
     app.basePath = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true, true)
                             .path;
 
@@ -799,6 +798,14 @@ this.DOMApplicationRegistry = {
       case "Webapps:InstallPackage":
         this.doInstallPackage(msg, mm);
         break;
+      case "Webapps:GetAppInfo":
+        if (!this.webapps[msg.id]) {
+          debug("No webapp for " + msg.id);
+          return null;
+        }
+        return { "basePath":  this.webapps[msg.id].basePath + "/",
+                 "isCoreApp": !this.webapps[msg.id].removable };
+        break;
       case "Webapps:RegisterForMessages":
         this.addMessageListener(msg, mm);
         break;
@@ -827,15 +834,6 @@ this.DOMApplicationRegistry = {
         this.notifyAppsRegistryReady();
         break;
     }
-  },
-
-  getAppInfo: function getAppInfo(aAppId) {
-    if (!this.webapps[aAppId]) {
-      debug("No webapp for " + aAppId);
-      return null;
-    }
-    return { "basePath":  this.webapps[aAppId].basePath + "/",
-             "isCoreApp": !this.webapps[aAppId].removable };
   },
 
   // Some messages can be listened by several content processes:
@@ -947,17 +945,6 @@ this.DOMApplicationRegistry = {
     let app = this.webapps[id];
     if (!app) {
       debug("startDownload: No app found for " + aManifestURL);
-      return;
-    }
-
-    // If the caller is trying to start a download but we have nothing to
-    // download, send an error.
-    if (!app.downloadAvailable) {
-      this.broadcastMessage("Webapps:PackageEvent",
-                            { type: "canceled",
-                              manifestURL: app.manifestURL,
-                              app: app,
-                              error: "NO_DOWNLOAD_AVAILABLE" });
       return;
     }
 
@@ -2121,17 +2108,9 @@ this.DOMApplicationRegistry = {
             return;
           }
 
-          // If we get a 4XX or a 5XX http status, bail out like if we had a
-          // network error.
-          let responseStatus = requestChannel.responseStatus;
-          if (responseStatus >= 400 && responseStatus <= 599) {
-            cleanup("NETWORK_ERROR");
-            return;
-          }
-
           self.computeFileHash(zipFile, function onHashComputed(aHash) {
             debug("packageHash=" + aHash);
-            let newPackage = (responseStatus != 304) &&
+            let newPackage = (requestChannel.responseStatus != 304) &&
                              (aHash != app.packageHash);
 
             if (!newPackage) {
@@ -2257,17 +2236,13 @@ this.DOMApplicationRegistry = {
                   if (!app.staged) {
                     app.staged = { };
                   }
-                  try {
-                    app.staged.packageEtag =
-                      requestChannel.getResponseHeader("Etag");
-                  } catch(e) { }
+                  app.staged.packageEtag =
+                    requestChannel.getResponseHeader("Etag");
                   app.staged.packageHash = aHash;
                   app.staged.appStatus =
                     AppsUtils.getAppManifestStatus(manifest);
                 } else {
-                  try {
-                    app.packageEtag = requestChannel.getResponseHeader("Etag");
-                  } catch(e) { }
+                  app.packageEtag = requestChannel.getResponseHeader("Etag");
                   app.packageHash = aHash;
                   app.appStatus = AppsUtils.getAppManifestStatus(manifest);
                 }

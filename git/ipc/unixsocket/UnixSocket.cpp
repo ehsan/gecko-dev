@@ -772,8 +772,7 @@ UnixSocketConsumer::NotifyDisconnect()
 
 bool
 UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
-                                  const char* aAddress,
-                                  int aDelayMs)
+                                  const char* aAddress)
 {
   MOZ_ASSERT(aConnector);
   MOZ_ASSERT(NS_IsMainThread());
@@ -784,12 +783,8 @@ UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
   nsCString addr;
   addr.Assign(aAddress);
   mImpl = new UnixSocketImpl(this, aConnector, addr);
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
-  if (aDelayMs > 0) {
-    ioLoop->PostDelayedTask(FROM_HERE, new SocketConnectTask(mImpl), aDelayMs);
-  } else {
-    ioLoop->PostTask(FROM_HERE, new SocketConnectTask(mImpl));
-  }
+  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
+                                   new SocketConnectTask(mImpl));
   mConnectionStatus = SOCKET_CONNECTING;
   return true;
 }

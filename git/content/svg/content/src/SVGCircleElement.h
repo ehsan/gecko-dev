@@ -7,6 +7,7 @@
 #define mozilla_dom_SVGCircleElement_h
 
 #include "nsSVGPathGeometryElement.h"
+#include "nsIDOMSVGCircleElement.h"
 #include "nsSVGLength2.h"
 
 nsresult NS_NewSVGCircleElement(nsIContent **aResult,
@@ -18,7 +19,7 @@ namespace mozilla {
 namespace dom {
 
 class SVGCircleElement MOZ_FINAL : public SVGCircleElementBase,
-                                   public nsIDOMSVGElement
+                                   public nsIDOMSVGCircleElement
 {
 protected:
   SVGCircleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -29,6 +30,7 @@ protected:
 public:
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGCIRCLEELEMENT
 
   // xxx I wish we could use virtual inheritance
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
@@ -42,6 +44,8 @@ public:
   virtual void ConstructPath(gfxContext *aCtx);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 

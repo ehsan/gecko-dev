@@ -39,10 +39,7 @@ let myGlobal = this;
 this.DOMContactManager = {
   init: function() {
     if (DEBUG) debug("Init");
-    this._messages = ["Contacts:Find", "Contacts:Clear", "Contact:Save",
-                      "Contact:Remove", "Contacts:GetSimContacts",
-                      "Contacts:RegisterForMessages", "child-process-shutdown"];
-    this._children = [];
+    this._messages = ["Contacts:Find", "Contacts:Clear", "Contact:Save", "Contact:Remove", "Contacts:GetSimContacts"];
     this._messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
     }).bind(this));
@@ -75,12 +72,6 @@ this.DOMContactManager = {
       return false;
     }
     return true;
-  },
-
-  broadcastMessage: function broadcastMessage(aMsgName, aContent) {
-    this._children.forEach(function(msgMgr) {
-      msgMgr.sendAsyncMessage(aMsgName, aContent);
-    });
   },
 
   receiveMessage: function(aMessage) {
@@ -164,10 +155,7 @@ this.DOMContactManager = {
         }
         this._db.saveContact(
           msg.options.contact,
-          function() {
-            mm.sendAsyncMessage("Contact:Save:Return:OK", { requestID: msg.requestID, contactID: msg.options.contact.id });
-            this.broadcastMessage("Contact:Changed", { contactID: msg.options.contact.id, reason: msg.options.reason });
-          }.bind(this),
+          function() { mm.sendAsyncMessage("Contact:Save:Return:OK", { requestID: msg.requestID, contactID: msg.options.contact.id }); }.bind(this),
           function(aErrorMsg) { mm.sendAsyncMessage("Contact:Save:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
@@ -177,10 +165,7 @@ this.DOMContactManager = {
         }
         this._db.removeContact(
           msg.options.id,
-          function() {
-            mm.sendAsyncMessage("Contact:Remove:Return:OK", { requestID: msg.requestID, contactID: msg.options.id });
-            this.broadcastMessage("Contact:Changed", { contactID: msg.options.id, reason: "remove" });
-          }.bind(this),
+          function() { mm.sendAsyncMessage("Contact:Remove:Return:OK", { requestID: msg.requestID, contactID: msg.options.id }); }.bind(this),
           function(aErrorMsg) { mm.sendAsyncMessage("Contact:Remove:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
@@ -189,10 +174,7 @@ this.DOMContactManager = {
           return null;
         }
         this._db.clear(
-          function() {
-            mm.sendAsyncMessage("Contacts:Clear:Return:OK", { requestID: msg.requestID });
-            this.broadcastMessage("Contact:Changed", { reason: "remove" });
-          }.bind(this),
+          function() { mm.sendAsyncMessage("Contacts:Clear:Return:OK", { requestID: msg.requestID }); }.bind(this),
           function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Clear:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
@@ -213,23 +195,6 @@ this.DOMContactManager = {
                                    contacts: aContacts});
             }
           }.bind(this));
-        break;
-      case "Contacts:RegisterForMessages":
-        if (!aMessage.target.assertPermission("contacts-read")) {
-          return null;
-        }
-        if (DEBUG) debug("Register!");
-        if (this._children.indexOf(mm) == -1) {
-          this._children.push(mm);
-        }
-        break;
-      case "child-process-shutdown":
-        if (DEBUG) debug("Unregister");
-        let index = this._children.indexOf(mm);
-        if (index != -1) {
-          if (DEBUG) debug("Unregister index: " + index);
-          this._children.splice(index, 1);
-        }
         break;
       default:
         if (DEBUG) debug("WRONG MESSAGE NAME: " + aMessage.name);

@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGMPathElement_h
 #define mozilla_dom_SVGMPathElement_h
 
+#include "nsIDOMSVGMpathElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsSVGElement.h"
 #include "nsStubMutationObserver.h"
@@ -22,7 +23,7 @@ namespace dom {
 class SVGPathElement;
 
 class SVGMPathElement MOZ_FINAL : public SVGMPathElementBase,
-                                  public nsIDOMSVGElement,
+                                  public nsIDOMSVGMpathElement,
                                   public nsIDOMSVGURIReference,
                                   public nsStubMutationObserver
 {
@@ -37,6 +38,7 @@ protected:
 public:
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGMPATHELEMENT
   NS_DECL_NSIDOMSVGURIREFERENCE
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SVGMPathElement,
@@ -68,6 +70,8 @@ public:
   // element, this method returns a pointer to that element. Otherwise,
   // this returns nullptr.
   SVGPathElement* GetReferencedPath();
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 

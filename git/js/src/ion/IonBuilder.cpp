@@ -3131,9 +3131,7 @@ IonBuilder::makeInliningDecision(AutoObjectVector &targets, uint32_t argc)
         if (targetScript->length > js_IonOptions.smallFunctionMaxBytecodeLength)
             allFunctionsAreSmall = false;
 
-        if (targetScript->length > 1 && // Always inline the empty script.
-            calleeUses * js_IonOptions.inlineUseCountRatio < callerUses)
-        {
+        if (calleeUses * js_IonOptions.inlineUseCountRatio < callerUses) {
             IonSpew(IonSpew_Inlining, "Not inlining, callee is not hot");
             return false;
         }

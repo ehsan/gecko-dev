@@ -10,20 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-interface SVGGraphicsElement : SVGElement {
-  readonly attribute SVGAnimatedTransformList transform;
-
-  readonly attribute SVGElement? nearestViewportElement;
-  readonly attribute SVGElement? farthestViewportElement;
-
-  [Throws]
-  SVGRect getBBox();
-  // Not implemented
-  // SVGRect getStrokeBBox();
-  SVGMatrix? getCTM();
-  SVGMatrix? getScreenCTM();
-  [Throws]
-  SVGMatrix getTransformToElement(SVGGraphicsElement element);
+interface SVGGraphicsElement : SVGTransformableElement {
 };
 
 SVGGraphicsElement implements SVGTests;

@@ -23,7 +23,6 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsIConstraintValidation.h"
 #include "nsIWidget.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -107,8 +106,8 @@ public:
 
   void StartObjectLoad() { StartObjectLoad(true); }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLObjectElement,
-                                           nsGenericHTMLFormElement)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(HTMLObjectElement,
+                                                     nsGenericHTMLFormElement)
 
   virtual nsXPCClassInfo* GetClassInfo();
 
@@ -172,12 +171,7 @@ HTMLObjectElement::DoneAddingChildren(bool aHaveNotified)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLObjectElement,
                                                   nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)
   nsObjectLoadingContent::Traverse(tmp, cb);
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLObjectElement,
-                                                nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mValidity)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(HTMLObjectElement, Element)

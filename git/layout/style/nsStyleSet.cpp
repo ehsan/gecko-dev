@@ -703,10 +703,12 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
                        // because aParentContext has one, then aRuleNode
                        // should be used.)
                        nsRuleNode* aVisitedRuleNode,
+                       bool aIsLink,
+                       bool aIsVisitedLink,
                        nsIAtom* aPseudoTag,
                        nsCSSPseudoElements::Type aPseudoType,
-                       Element* aElementForAnimation,
-                       uint32_t aFlags)
+                       bool aDoAnimations,
+                       Element* aElementForAnimation)
 {
   NS_PRECONDITION((!aPseudoTag &&
                    aPseudoType ==
@@ -736,7 +738,7 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
     }
   }
 
-  if (aFlags & eIsLink) {
+  if (aIsLink) {
     // If this node is a link, we want its visited's style context's
     // parent to be the regular style context of its parent, because
     // only the visitedness of the relevant link should influence style.
@@ -747,7 +749,7 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
   if (aParentContext)
     result = aParentContext->FindChildWithRules(aPseudoTag, aRuleNode,
                                                 aVisitedRuleNode,
-                                                aFlags & eIsVisitedLink);
+                                                aIsVisitedLink);
 
 #ifdef NOISY_DEBUG
   if (result)
@@ -774,24 +776,22 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
       resultIfVisited->SetIsStyleIfVisited();
       result->SetStyleIfVisited(resultIfVisited.forget());
 
-      bool relevantLinkVisited = (aFlags & eIsLink) ?
-        (aFlags & eIsVisitedLink) :
-        (aParentContext && aParentContext->RelevantLinkVisited());
-
+      bool relevantLinkVisited =
+        aIsLink ? aIsVisitedLink
+                : (aParentContext && aParentContext->RelevantLinkVisited());
       if (relevantLinkVisited) {
         result->AddStyleBit(NS_STYLE_RELEVANT_LINK_VISITED);
       }
     }
-    if (!aParentContext) {
+    if (!aParentContext)
       mRoots.AppendElement(result);
-    }
   }
   else {
     NS_ASSERTION(result->GetPseudoType() == aPseudoType, "Unexpected type");
     NS_ASSERTION(result->GetPseudo() == aPseudoTag, "Unexpected pseudo");
   }
 
-  if (aFlags & eDoAnimation) {
+  if (aDoAnimations) {
     // Normally the animation manager has already added the correct
     // style rule.  However, if the animation-name just changed, it
     // might have been wrong.  So ask it to double-check based on the
@@ -814,8 +814,8 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
         ? ReplaceAnimationRule(aVisitedRuleNode, oldAnimRule, animRule)
         : nullptr;
       result = GetContext(aParentContext, ruleNode, visitedRuleNode,
-                          aPseudoTag, aPseudoType, nullptr,
-                          aFlags & ~eDoAnimation);
+                          aIsLink, aIsVisitedLink,
+                          aPseudoTag, aPseudoType, false, nullptr);
     }
   }
 
@@ -1157,18 +1157,12 @@ nsStyleSet::ResolveStyleFor(Element* aElement,
     visitedRuleNode = ruleWalker.CurrentNode();
   }
 
-  uint32_t flags = eDoAnimation;
-  if (nsCSSRuleProcessor::IsLink(aElement)) {
-    flags |= eIsLink;
-  }
-  if (nsCSSRuleProcessor::GetContentState(aElement, aTreeMatchContext).
-                            HasState(NS_EVENT_STATE_VISITED)) {
-    flags |= eIsVisitedLink;
-  }
-
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
+                    nsCSSRuleProcessor::IsLink(aElement),
+                    nsCSSRuleProcessor::GetContentState(aElement, aTreeMatchContext).
+                      HasState(NS_EVENT_STATE_VISITED),
                     nullptr, nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                    aElement, flags);
+                    true, aElement);
 }
 
 already_AddRefed<nsStyleContext>
@@ -1186,8 +1180,9 @@ nsStyleSet::ResolveStyleForRules(nsStyleContext* aParentContext,
   }
 
   return GetContext(aParentContext, ruleWalker.CurrentNode(), nullptr,
+                    false, false,
                     nullptr, nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                    nullptr, eNoFlags);
+                    false, nullptr);
 }
 
 already_AddRefed<nsStyleContext>
@@ -1201,17 +1196,10 @@ nsStyleSet::ResolveStyleForRules(nsStyleContext* aParentContext,
     ruleWalker.ForwardOnPossiblyCSSRule(aRules[i].mRule);
   }
 
-  uint32_t flags = eNoFlags;
-  if (aOldStyle->IsLinkContext()) {
-    flags |= eIsLink;
-  }
-  if (aOldStyle->RelevantLinkVisited()) {
-    flags |= eIsVisitedLink;
-  }
-
   return GetContext(aParentContext, ruleWalker.CurrentNode(), nullptr,
+                    aOldStyle->IsLinkContext(), aOldStyle->RelevantLinkVisited(),
                     nullptr, nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                    nullptr, flags);
+                    false, nullptr);
 }
 
 already_AddRefed<nsStyleContext>
@@ -1240,26 +1228,21 @@ nsStyleSet::ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
     visitedRuleNode = ruleWalker.CurrentNode();
   }
 
-  uint32_t flags = eNoFlags;
-  if (aBaseContext->IsLinkContext()) {
-    flags |= eIsLink;
-  }
-  if (aBaseContext->RelevantLinkVisited()) {
-    flags |= eIsVisitedLink;
-  }
   return GetContext(aBaseContext->GetParent(), ruleNode, visitedRuleNode,
+                    aBaseContext->IsLinkContext(),
+                    aBaseContext->RelevantLinkVisited(),
                     aBaseContext->GetPseudo(),
                     aBaseContext->GetPseudoType(),
-                    nullptr, flags);
+                    false, nullptr);
 }
 
 already_AddRefed<nsStyleContext>
 nsStyleSet::ResolveStyleForNonElement(nsStyleContext* aParentContext)
 {
   return GetContext(aParentContext, mRuleTree, nullptr,
+                    false, false,
                     nsCSSAnonBoxes::mozNonElement,
-                    nsCSSPseudoElements::ePseudo_AnonBox, nullptr,
-                    eNoFlags);
+                    nsCSSPseudoElements::ePseudo_AnonBox, false, nullptr);
 }
 
 void
@@ -1308,17 +1291,14 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
     visitedRuleNode = ruleWalker.CurrentNode();
   }
 
-  // For pseudos, |data.IsLink()| being true means that
-  // our parent node is a link.
-  uint32_t flags = eNoFlags;
-  if (aType == nsCSSPseudoElements::ePseudo_before ||
-      aType == nsCSSPseudoElements::ePseudo_after) {
-    flags |= eDoAnimation;
-  }
-
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
+                    // For pseudos, |data.IsLink()| being true means that
+                    // our parent node is a link.
+                    false, false,
                     nsCSSPseudoElements::GetPseudoAtom(aType), aType,
-                    aParentElement, flags);
+                    aType == nsCSSPseudoElements::ePseudo_before ||
+                    aType == nsCSSPseudoElements::ePseudo_after,
+                    aParentElement);
 }
 
 already_AddRefed<nsStyleContext>
@@ -1371,18 +1351,15 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
     visitedRuleNode = ruleWalker.CurrentNode();
   }
 
-  // For pseudos, |data.IsLink()| being true means that
-  // our parent node is a link.
-  uint32_t flags = eNoFlags;
-  if (aType == nsCSSPseudoElements::ePseudo_before ||
-      aType == nsCSSPseudoElements::ePseudo_after) {
-    flags |= eDoAnimation;
-  }
-
   nsRefPtr<nsStyleContext> result =
     GetContext(aParentContext, ruleNode, visitedRuleNode,
+               // For pseudos, |data.IsLink()| being true means that
+               // our parent node is a link.
+               false, false,
                pseudoTag, aType,
-               aParentElement, flags);
+               aType == nsCSSPseudoElements::ePseudo_before ||
+               aType == nsCSSPseudoElements::ePseudo_after,
+               aParentElement);
 
   // For :before and :after pseudo-elements, having display: none or no
   // 'content' property is equivalent to not having the pseudo-element
@@ -1441,8 +1418,9 @@ nsStyleSet::ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag,
   }
 
   return GetContext(aParentContext, ruleWalker.CurrentNode(), nullptr,
+                    false, false,
                     aPseudoTag, nsCSSPseudoElements::ePseudo_AnonBox,
-                    nullptr, eNoFlags);
+                    false, nullptr);
 }
 
 #ifdef MOZ_XUL
@@ -1480,8 +1458,9 @@ nsStyleSet::ResolveXULTreePseudoStyle(Element* aParentElement,
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
                     // For pseudos, |data.IsLink()| being true means that
                     // our parent node is a link.
+                    false, false,
                     aPseudoTag, nsCSSPseudoElements::ePseudo_XULTree,
-                    nullptr, eNoFlags);
+                    false, nullptr);
 }
 #endif
 
@@ -1688,11 +1667,6 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
      }
   }
 
-  uint32_t flags = eNoFlags;
-  if (aStyleContext->IsLinkContext()) {
-    flags |= eIsLink;
-  }
-
   // If we're a style context for a link, then we already know whether
   // our relevant link is visited, since that does not depend on our
   // parent.  Otherwise, we need to match aNewParentContext.
@@ -1700,19 +1674,14 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
     aStyleContext->RelevantLinkVisited() :
     aNewParentContext->RelevantLinkVisited();
 
-  if (relevantLinkVisited) {
-    flags |= eIsVisitedLink;
-  }
-
-  if (pseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
-      pseudoType == nsCSSPseudoElements::ePseudo_before ||
-      pseudoType == nsCSSPseudoElements::ePseudo_after) {
-    flags |= eDoAnimation;
-  }
-
   return GetContext(aNewParentContext, ruleNode, visitedRuleNode,
+                    aStyleContext->IsLinkContext(),
+                    relevantLinkVisited,
                     pseudoTag, pseudoType,
-                    aElement, flags);
+                    pseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
+                    pseudoType == nsCSSPseudoElements::ePseudo_before ||
+                    pseudoType == nsCSSPseudoElements::ePseudo_after,
+                    aElement);
 }
 
 struct StatefulData : public StateRuleProcessorData {

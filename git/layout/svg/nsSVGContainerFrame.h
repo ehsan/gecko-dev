@@ -73,14 +73,14 @@ public:
 
   // nsIFrame:
   NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                         nsIFrame*       aOldFrame);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsSVGContainerFrameBase::IsFrameOfType(
             aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGContainer));
@@ -88,11 +88,11 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE {
+                              const nsDisplayListSet& aLists) {
     return NS_OK;
   }
 
-  virtual bool UpdateOverflow() MOZ_OVERRIDE;
+  virtual bool UpdateOverflow();
 };
 
 /**
@@ -129,18 +129,18 @@ public:
                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+                  nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   virtual bool IsSVGTransformed(gfxMatrix *aOwnTransform = nullptr,
-                                gfxMatrix *aFromParentTransform = nullptr) const MOZ_OVERRIDE;
+                                gfxMatrix *aFromParentTransform = nullptr) const;
 
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect *aDirtyRect) MOZ_OVERRIDE;
+                      const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint) MOZ_OVERRIDE;
   NS_IMETHOD_(nsRect) GetCoveredRegion() MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;

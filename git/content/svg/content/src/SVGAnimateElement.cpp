@@ -6,6 +6,8 @@
 #include "mozilla/dom/SVGAnimateElement.h"
 #include "mozilla/dom/SVGAnimateElementBinding.h"
 
+DOMCI_NODE_DATA(SVGAnimateElement, mozilla::dom::SVGAnimateElement)
+
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Animate)
 
 namespace mozilla {
@@ -20,9 +22,16 @@ SVGAnimateElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGAnimateElement, SVGAnimationElement,
-                             nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+
+NS_IMPL_ADDREF_INHERITED(SVGAnimateElement, SVGAnimationElement)
+NS_IMPL_RELEASE_INHERITED(SVGAnimateElement, SVGAnimationElement)
+
+NS_INTERFACE_TABLE_HEAD(SVGAnimateElement)
+  NS_NODE_INTERFACE_TABLE5(SVGAnimateElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGAnimationElement,
+                           nsIDOMSVGAnimateElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimateElement)
+NS_INTERFACE_MAP_END_INHERITING(SVGAnimationElement)
 
 //----------------------------------------------------------------------
 // Implementation

@@ -19,6 +19,7 @@ from mozpack.copier import (
     FileRegistry,
     Jarrer,
 )
+from mozpack.errors import errors
 
 STARTUP_CACHE_PATHS = [
     'jsloader',
@@ -59,7 +60,6 @@ chrome.
 Formatters all take a FileCopier instance they will fill with the packaged
 data.
 '''
-
 
 class FlatFormatter(object):
     '''
@@ -192,8 +192,8 @@ class JarFormatter(FlatFormatter):
             return self.copier.contains(path)
         if not self.copier.contains(chrome + '.jar'):
             return False
-        return self.copier[chrome + '.jar']. \
-            contains(mozpack.path.relpath(path, chrome))
+        return self.copier[chrome + '.jar'].contains(mozpack.path.relpath(path,
+                                                                          chrome))
 
 
 class OmniJarFormatter(FlatFormatter):

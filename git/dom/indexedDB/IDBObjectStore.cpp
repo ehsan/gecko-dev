@@ -3960,12 +3960,13 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
 {
   NS_ASSERTION(mCloneReadInfos.Length() <= mLimit, "Too many results!");
 
-  nsresult rv = ConvertToArrayAndCleanup(aCx, mCloneReadInfos, aVal);
+  nsresult rv = ConvertCloneReadInfosToArray(aCx, mCloneReadInfos, aVal);
 
-  NS_ASSERTION(mCloneReadInfos.IsEmpty(),
-               "Should have cleared in ConvertToArrayAndCleanup");
+  for (uint32_t index = 0; index < mCloneReadInfos.Length(); index++) {
+    mCloneReadInfos[index].mCloneBuffer.clear();
+  }
+
   NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 

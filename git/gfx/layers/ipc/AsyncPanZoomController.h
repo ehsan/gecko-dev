@@ -14,6 +14,7 @@
 #include "mozilla/TimeStamp.h"
 #include "InputData.h"
 #include "Axis.h"
+#include "nsContentUtils.h"
 #include "TaskThrottler.h"
 
 #include "base/message_loop.h"

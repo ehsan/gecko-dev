@@ -5,7 +5,7 @@
 
 /* General Partial MAR File Background Patch Apply Test */
 
-const TEST_ID = "0114_svc";
+const TEST_ID = "0114";
 // All we care about is that the last modified time has changed so that Mac OS
 // X Launch Services invalidates its cache so the test allows up to one minute
 // difference in the last modified time.

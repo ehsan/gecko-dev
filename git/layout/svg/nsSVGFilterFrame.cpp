@@ -18,7 +18,6 @@
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGUtils.h"
-#include "nsContentUtils.h"
 
 nsIFrame*
 NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
