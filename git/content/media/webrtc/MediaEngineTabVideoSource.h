@@ -7,7 +7,6 @@
 #include "ImageContainer.h"
 #include "nsITimer.h"
 #include "mozilla/Monitor.h"
-#include "nsITabSource.h"
 
 namespace mozilla {
 
@@ -17,8 +16,7 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
     NS_DECL_NSIDOMEVENTLISTENER
     NS_DECL_NSITIMERCALLBACK
     MediaEngineTabVideoSource();
-    ~MediaEngineTabVideoSource();
-
+    ~MediaEngineTabVideoSource() { free(mData); }
     virtual void GetName(nsAString_internal&);
     virtual void GetUUID(nsAString_internal&);
     virtual nsresult Allocate(const mozilla::MediaEnginePrefs&);
@@ -62,6 +60,6 @@ private:
     nsCOMPtr<nsITimer> mTimer;
     nsAutoString mName, mUuid;
     Monitor mMonitor;
-    nsCOMPtr<nsITabSource> mTabSource;
   };
+
 }

@@ -121,6 +121,10 @@ MediaEngineWebRTC::EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSourc
     return;
   }
 #endif
+
+  if (mHasTabVideoSource)
+    aVSources->AppendElement(new MediaEngineTabVideoSource());
+
   if (!mVideoEngine) {
     if (!(mVideoEngine = webrtc::VideoEngine::Create())) {
       return;
@@ -224,9 +228,6 @@ MediaEngineWebRTC::EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSourc
       aVSources->AppendElement(vSource);
     }
   }
-
-  if (mHasTabVideoSource)
-    aVSources->AppendElement(new MediaEngineTabVideoSource());
 
   return;
 #endif
