@@ -160,10 +160,6 @@ function getLocalizedString(strings, id, property) {
   return id;
 }
 
-function makeContentReadable(obj, window) {
-  return Cu.cloneInto(obj, window);
-}
-
 // PDF data storage
 function PdfDataListener(length) {
   this.length = length; // less than 0, if length is unknown
@@ -690,7 +686,7 @@ var StandardChromeActions = (function StandardChromeActionsClosure() {
   return StandardChromeActions;
 })();
 
-// Event listener to trigger chrome privileged code.
+// Event listener to trigger chrome privedged code.
 function RequestListener(actions) {
   this.actions = actions;
 }
@@ -708,18 +704,21 @@ RequestListener.prototype.receive = function(event) {
   }
   if (sync) {
     var response = actions[action].call(this.actions, data);
-    event.detail.response = response;
+    var detail = event.detail;
+    detail.__exposedProps__ = {response: 'r'};
+    detail.response = response;
   } else {
     var response;
-    if (!event.detail.responseExpected) {
+    if (!event.detail.callback) {
       doc.documentElement.removeChild(message);
       response = null;
     } else {
       response = function sendResponse(response) {
         try {
           var listener = doc.createEvent('CustomEvent');
-          let detail = makeContentReadable({response: response}, doc.defaultView);
-          listener.initCustomEvent('pdf.js.response', true, false, detail);
+          listener.initCustomEvent('pdf.js.response', true, false,
+                                   {response: response,
+                                    __exposedProps__: {response: 'r'}});
           return message.dispatchEvent(listener);
         } catch (e) {
           // doc is no longer accessible because the requestor is already
@@ -762,13 +761,13 @@ FindEventManager.prototype.handleEvent = function(e) {
   var contentWindow = this.contentWindow;
   // Only forward the events if they are for our dom window.
   if (chromeWindow.gBrowser.selectedBrowser.contentWindow === contentWindow) {
-    var detail = {
-      query: e.detail.query,
-      caseSensitive: e.detail.caseSensitive,
-      highlightAll: e.detail.highlightAll,
-      findPrevious: e.detail.findPrevious
+    var detail = e.detail;
+    detail.__exposedProps__ = {
+      query: 'r',
+      caseSensitive: 'r',
+      highlightAll: 'r',
+      findPrevious: 'r'
     };
-    detail = makeContentReadable(detail, contentWindow);
     var forward = contentWindow.document.createEvent('CustomEvent');
     forward.initCustomEvent(e.type, true, true, detail);
     contentWindow.dispatchEvent(forward);

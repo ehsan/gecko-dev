@@ -41,16 +41,6 @@ function createSidebarItem() {
   gSidebarMenu.insertBefore(gTestSidebarItem, gSidebarMenu.firstChild);
 }
 
-function addWidget() {
-  CustomizableUI.addWidgetToArea("sidebar-button", "nav-bar");
-  PanelUI.disableSingleSubviewPanelAnimations();
-}
-
-function removeWidget() {
-  CustomizableUI.removeWidgetFromArea("sidebar-button");
-  PanelUI.enableSingleSubviewPanelAnimations();
-}
-
 // Filters out the trailing menuseparators from the sidebar list
 function getSidebarList() {
   let sidebars = [...gSidebarMenu.children];
@@ -86,7 +76,7 @@ let showSidebarPopup = Task.async(function*() {
 
 // Check the sidebar widget shows the default items
 add_task(function*() {
-  addWidget();
+  CustomizableUI.addWidgetToArea("sidebar-button", "nav-bar");
 
   yield showSidebarPopup();
 
@@ -99,14 +89,13 @@ add_task(function*() {
   document.getElementById("customizationui-widget-panel").hidePopup();
   yield subviewHiddenPromise;
 
-  removeWidget();
+  return resetCustomization();
 });
 
 function add_sidebar_task(description, setup, teardown) {
   add_task(function*() {
     info(description);
     createSidebarItem();
-    addWidget();
     yield setup();
 
     CustomizableUI.addWidgetToArea("sidebar-button", "nav-bar");
@@ -125,7 +114,7 @@ function add_sidebar_task(description, setup, teardown) {
 
     yield teardown();
     gTestSidebarItem.remove();
-    removeWidget();
+    return resetCustomization();
   });
 }
 

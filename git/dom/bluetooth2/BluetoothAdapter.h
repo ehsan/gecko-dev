@@ -9,8 +9,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/dom/BluetoothAdapter2Binding.h"
-#include "mozilla/dom/Promise.h"
 #include "BluetoothCommon.h"
 #include "BluetoothPropertyContainer.h"
 #include "nsCOMPtr.h"
@@ -49,11 +47,6 @@ public:
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue) MOZ_OVERRIDE;
 
   virtual void DisconnectFromOwner() MOZ_OVERRIDE;
-
-  BluetoothAdapterState State() const
-  {
-    return mState;
-  }
 
   void GetAddress(nsString& aAddress) const
   {
@@ -122,11 +115,6 @@ public:
     SetAuthorization(const nsAString& aDeviceAddress, bool aAllow,
                      ErrorResult& aRv);
 
-  already_AddRefed<Promise>
-    Enable();
-  already_AddRefed<Promise>
-    Disable();
-
   already_AddRefed<DOMRequest>
     Connect(BluetoothDevice& aDevice,
             const Optional<short unsigned int>& aServiceUuid, ErrorResult& aRv);
@@ -165,7 +153,6 @@ public:
   IMPL_EVENT_HANDLER(pairedstatuschanged);
   IMPL_EVENT_HANDLER(requestmediaplaystatus);
   IMPL_EVENT_HANDLER(scostatuschanged);
-  IMPL_EVENT_HANDLER(attributechanged);
 
   nsPIDOMWindow* GetParentObject() const
   {
@@ -188,7 +175,6 @@ private:
 
   JS::Heap<JSObject*> mJsUuids;
   JS::Heap<JSObject*> mJsDeviceAddresses;
-  BluetoothAdapterState mState;
   nsString mAddress;
   nsString mName;
   bool mDiscoverable;
