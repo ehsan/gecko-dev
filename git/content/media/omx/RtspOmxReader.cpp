@@ -322,7 +322,6 @@ void RtspOmxReader::SetIdle() {
     if (controller) {
       controller->Pause();
     }
-    mRtspResource->SetSuspend(true);
   }
 }
 
@@ -334,7 +333,6 @@ void RtspOmxReader::SetActive() {
     if (controller) {
       controller->Play();
     }
-    mRtspResource->SetSuspend(false);
   }
 
   // Call parent class to set OMXCodec active.

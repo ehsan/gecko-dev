@@ -4,15 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsString.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIScriptableUConv.h"
 #include "nsScriptableUConv.h"
 #include "nsIStringStream.h"
 #include "nsComponentManagerUtils.h"
-#include "nsIUnicodeDecoder.h"
-#include "nsIUnicodeEncoder.h"
-#include "mozilla/dom/EncodingUtils.h"
-
-using mozilla::dom::EncodingUtils;
+#include "nsCharsetAlias.h"
+#include "nsServiceManagerUtils.h"
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
@@ -255,37 +253,44 @@ nsScriptableUnicodeConverter::SetIsInternal(const bool aIsInternal)
 nsresult
 nsScriptableUnicodeConverter::InitConverter()
 {
+  nsresult rv = NS_OK;
   mEncoder = nullptr;
 
-  nsAutoCString encoding;
-  if (mIsInternal) {
-    encoding.Assign(mCharset);
-    // Better have a valid encoding name at this point! Otherwise, we'll
-    // crash with MOZ_ASSERT in debug builds. However, since this code
-    // might be called by severely misguided extensions in opt builds, the
-    // error condition is tested for below.
-    mEncoder = EncodingUtils::EncoderForEncoding(mCharset);
-    mDecoder = EncodingUtils::DecoderForEncoding(mCharset);
-    if (!mEncoder || !mDecoder) {
-      return NS_ERROR_UCONV_NOCONV;
-    }
-  } else {
-    if (!EncodingUtils::FindEncodingForLabelNoReplacement(mCharset, encoding)) {
-      return NS_ERROR_UCONV_NOCONV;
-    }
-    mEncoder = EncodingUtils::EncoderForEncoding(encoding);
-    mDecoder = EncodingUtils::DecoderForEncoding(encoding);
+  nsCOMPtr<nsICharsetConverterManager> ccm = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  if (NS_FAILED(rv) || !ccm) {
+    return rv;
+  }
+
+  // get an unicode converter
+  rv = ccm->GetUnicodeEncoder(mCharset.get(), getter_AddRefs(mEncoder));
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  rv = mEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, nullptr, (char16_t)'?');
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  nsAutoCString charset;
+  rv = mIsInternal ? nsCharsetAlias::GetPreferredInternal(mCharset, charset)
+                   : nsCharsetAlias::GetPreferred(mCharset, charset);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  rv = ccm->GetUnicodeDecoderRaw(charset.get(), getter_AddRefs(mDecoder));
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   // The UTF-8 decoder used to throw regardless of the error behavior.
   // Simulating the old behavior for compatibility with legacy callers
   // (including addons). If callers want a control over the behavior,
   // they should switch to TextDecoder.
-  if (encoding.EqualsLiteral("UTF-8")) {
+  if (charset.EqualsLiteral("UTF-8")) {
     mDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Signal);
   }
 
-  return mEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace,
-                                          nullptr,
-                                          (char16_t)'?');
+  return rv ;
 }

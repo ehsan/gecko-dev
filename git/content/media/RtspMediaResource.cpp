@@ -357,7 +357,6 @@ RtspMediaResource::RtspMediaResource(MediaDecoder* aDecoder,
   : BaseMediaResource(aDecoder, aChannel, aURI, aContentType)
   , mIsConnected(false)
   , mRealTime(false)
-  , mIsSuspend(true)
 {
 #ifndef NECKO_PROTOCOL_rtsp
   MOZ_CRASH("Should not be called except for B2G platform");
@@ -382,28 +381,6 @@ RtspMediaResource::~RtspMediaResource()
   if (mListener) {
     // Kill its reference to us since we're going away
     mListener->Revoke();
-  }
-}
-
-void RtspMediaResource::SetSuspend(bool aIsSuspend)
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
-  RTSPMLOG("SetSuspend %d",aIsSuspend);
-
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethodWithArg<bool>(this, &RtspMediaResource::NotifySuspend,
-                                      aIsSuspend);
-  NS_DispatchToMainThread(runnable);
-}
-
-void RtspMediaResource::NotifySuspend(bool aIsSuspend)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  RTSPMLOG("NotifySuspend %d",aIsSuspend);
-
-  mIsSuspend = aIsSuspend;
-  if (mDecoder) {
-    mDecoder->NotifySuspendedStatusChanged();
   }
 }
 
@@ -661,8 +638,6 @@ RtspMediaResource::OnDisconnected(uint8_t aTrackIdx, nsresult aReason)
 void RtspMediaResource::Suspend(bool aCloseImmediately)
 {
   NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
-
-  mIsSuspend = true;
   if (NS_WARN_IF(!mDecoder)) {
     return;
   }
@@ -674,14 +649,11 @@ void RtspMediaResource::Suspend(bool aCloseImmediately)
 
   mMediaStreamController->Suspend();
   element->DownloadSuspended();
-  mDecoder->NotifySuspendedStatusChanged();
 }
 
 void RtspMediaResource::Resume()
 {
   NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
-
-  mIsSuspend = false;
   if (NS_WARN_IF(!mDecoder)) {
     return;
   }
@@ -695,7 +667,6 @@ void RtspMediaResource::Resume()
     element->DownloadResumed();
   }
   mMediaStreamController->Resume();
-  mDecoder->NotifySuspendedStatusChanged();
 }
 
 nsresult RtspMediaResource::Open(nsIStreamListener **aStreamListener)

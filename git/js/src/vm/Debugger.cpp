@@ -1983,7 +1983,7 @@ Debugger::unwrapDebuggeeArgument(JSContext *cx, const Value &v)
     }
 
     /* If that produced an outer window, innerize it. */
-    obj = GetInnerObject(obj);
+    obj = GetInnerObject(cx, obj);
     if (!obj)
         return nullptr;
 

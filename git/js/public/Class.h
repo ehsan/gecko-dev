@@ -177,6 +177,11 @@ typedef bool
 typedef void
 (* JSTraceOp)(JSTracer *trc, JSObject *obj);
 
+// A generic type for functions mapping an object to another object, or null
+// if an error or exception was thrown on cx.
+typedef JSObject *
+(* JSObjectOp)(JSContext *cx, JS::HandleObject obj);
+
 // Hook that creates an iterator object for a given object. Returns the
 // iterator object or null if an error or exception was thrown on cx.
 typedef JSObject *
@@ -247,15 +252,8 @@ typedef bool
 (* SliceOp)(JSContext *cx, JS::HandleObject obj, uint32_t begin, uint32_t end,
             JS::HandleObject result); // result is actually preallocted.
 
-// A generic type for functions mapping an object to another object, or null
-// if an error or exception was thrown on cx.
 typedef JSObject *
 (* ObjectOp)(JSContext *cx, JS::HandleObject obj);
-
-// Hook to map an object to its inner object. Infallible.
-typedef JSObject *
-(* InnerObjectOp)(JSObject *obj);
-
 typedef void
 (* FinalizeOp)(FreeOp *fop, JSObject *obj);
 
@@ -298,8 +296,8 @@ struct ClassSpec
 
 struct ClassExtension
 {
-    ObjectOp            outerObject;
-    InnerObjectOp       innerObject;
+    JSObjectOp          outerObject;
+    JSObjectOp          innerObject;
     JSIteratorOp        iteratorObject;
 
     /*

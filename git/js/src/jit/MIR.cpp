@@ -292,11 +292,6 @@ MDefinition::dump(FILE *fp) const
     fprintf(fp, " = ");
     printOpcode(fp);
     fprintf(fp, "\n");
-
-    if (isInstruction()) {
-        if (MResumePoint *resume = toInstruction()->resumePoint())
-            resume->dump(fp);
-    }
 }
 
 void
@@ -2309,41 +2304,6 @@ MResumePoint::inherit(MBasicBlock *block)
         MDefinition *def = block->getSlot(i);
         setOperand(i, def);
     }
-}
-
-void MResumePoint::dump(FILE *fp) const
-{
-    fprintf(fp, "resumepoint mode=");
-
-    switch (mode()) {
-      case MResumePoint::ResumeAt:
-        fprintf(fp, "At");
-        break;
-      case MResumePoint::ResumeAfter:
-        fprintf(fp, "After");
-        break;
-      case MResumePoint::Outer:
-        fprintf(fp, "Outer");
-        break;
-    }
-
-    if (MResumePoint *c = caller())
-        fprintf(fp, " (caller in block%u)", c->block()->id());
-
-    for (size_t i = 0; i < numOperands(); i++) {
-        fprintf(fp, " ");
-        if (operands_[i].hasProducer())
-            getOperand(i)->printName(fp);
-        else
-            fprintf(fp, "(null)");
-    }
-    fprintf(fp, "\n");
-}
-
-void
-MResumePoint::dump() const
-{
-    dump(stderr);
 }
 
 MDefinition *

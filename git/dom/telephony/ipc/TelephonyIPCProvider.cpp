@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "TelephonyIPCProvider.h"
+#include "ipc/TelephonyIPCProvider.h"
 
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/telephony/TelephonyChild.h"
@@ -53,17 +53,7 @@ TelephonyIPCProvider::TelephonyIPCProvider()
 
 TelephonyIPCProvider::~TelephonyIPCProvider()
 {
-  if (mPTelephonyChild) {
-    mPTelephonyChild->Send__delete__(mPTelephonyChild);
-    mPTelephonyChild = nullptr;
-  }
-}
-
-void
-TelephonyIPCProvider::NoteActorDestroyed()
-{
-  MOZ_ASSERT(mPTelephonyChild);
-
+  mPTelephonyChild->Send__delete__(mPTelephonyChild);
   mPTelephonyChild = nullptr;
 }
 
@@ -104,11 +94,6 @@ TelephonyIPCProvider::RegisterListener(nsITelephonyListener *aListener)
 {
   MOZ_ASSERT(!mListeners.Contains(aListener));
 
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   // nsTArray doesn't fail.
   mListeners.AppendElement(aListener);
 
@@ -122,11 +107,6 @@ NS_IMETHODIMP
 TelephonyIPCProvider::UnregisterListener(nsITelephonyListener *aListener)
 {
   MOZ_ASSERT(mListeners.Contains(aListener));
-
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
 
   // We always have the element here, so it can't fail.
   mListeners.RemoveElement(aListener);
@@ -142,11 +122,6 @@ TelephonyIPCProvider::SendRequest(nsITelephonyListener *aListener,
                                   nsITelephonyCallback *aCallback,
                                   const IPCTelephonyRequest& aRequest)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   // Life time of newly allocated TelephonyRequestChild instance is managed by
   // IPDL itself.
   TelephonyRequestChild* actor = new TelephonyRequestChild(aListener, aCallback);
@@ -171,11 +146,6 @@ TelephonyIPCProvider::Dial(uint32_t aClientId, const nsAString& aNumber,
 NS_IMETHODIMP
 TelephonyIPCProvider::HangUp(uint32_t aClientId, uint32_t aCallIndex)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendHangUpCall(aClientId, aCallIndex);
   return NS_OK;
 }
@@ -183,11 +153,6 @@ TelephonyIPCProvider::HangUp(uint32_t aClientId, uint32_t aCallIndex)
 NS_IMETHODIMP
 TelephonyIPCProvider::AnswerCall(uint32_t aClientId, uint32_t aCallIndex)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendAnswerCall(aClientId, aCallIndex);
   return NS_OK;
 }
@@ -195,11 +160,6 @@ TelephonyIPCProvider::AnswerCall(uint32_t aClientId, uint32_t aCallIndex)
 NS_IMETHODIMP
 TelephonyIPCProvider::RejectCall(uint32_t aClientId, uint32_t aCallIndex)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendRejectCall(aClientId, aCallIndex);
   return NS_OK;
 }
@@ -207,11 +167,6 @@ TelephonyIPCProvider::RejectCall(uint32_t aClientId, uint32_t aCallIndex)
 NS_IMETHODIMP
 TelephonyIPCProvider::HoldCall(uint32_t aClientId, uint32_t aCallIndex)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendHoldCall(aClientId, aCallIndex);
   return NS_OK;
 }
@@ -219,11 +174,6 @@ TelephonyIPCProvider::HoldCall(uint32_t aClientId, uint32_t aCallIndex)
 NS_IMETHODIMP
 TelephonyIPCProvider::ResumeCall(uint32_t aClientId, uint32_t aCallIndex)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendResumeCall(aClientId, aCallIndex);
   return NS_OK;
 }
@@ -231,11 +181,6 @@ TelephonyIPCProvider::ResumeCall(uint32_t aClientId, uint32_t aCallIndex)
 NS_IMETHODIMP
 TelephonyIPCProvider::ConferenceCall(uint32_t aClientId)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendConferenceCall(aClientId);
   return NS_OK;
 }
@@ -243,11 +188,6 @@ TelephonyIPCProvider::ConferenceCall(uint32_t aClientId)
 NS_IMETHODIMP
 TelephonyIPCProvider::SeparateCall(uint32_t aClientId, uint32_t aCallIndex)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendSeparateCall(aClientId, aCallIndex);
   return NS_OK;
 }
@@ -255,11 +195,6 @@ TelephonyIPCProvider::SeparateCall(uint32_t aClientId, uint32_t aCallIndex)
 NS_IMETHODIMP
 TelephonyIPCProvider::HoldConference(uint32_t aClientId)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendHoldConference(aClientId);
   return NS_OK;
 }
@@ -267,11 +202,6 @@ TelephonyIPCProvider::HoldConference(uint32_t aClientId)
 NS_IMETHODIMP
 TelephonyIPCProvider::ResumeConference(uint32_t aClientId)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendResumeConference(aClientId);
   return NS_OK;
 }
@@ -279,11 +209,6 @@ TelephonyIPCProvider::ResumeConference(uint32_t aClientId)
 NS_IMETHODIMP
 TelephonyIPCProvider::StartTone(uint32_t aClientId, const nsAString& aDtmfChar)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendStartTone(aClientId, nsString(aDtmfChar));
   return NS_OK;
 }
@@ -291,11 +216,6 @@ TelephonyIPCProvider::StartTone(uint32_t aClientId, const nsAString& aDtmfChar)
 NS_IMETHODIMP
 TelephonyIPCProvider::StopTone(uint32_t aClientId)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendStopTone(aClientId);
   return NS_OK;
 }
@@ -303,11 +223,6 @@ TelephonyIPCProvider::StopTone(uint32_t aClientId)
 NS_IMETHODIMP
 TelephonyIPCProvider::GetMicrophoneMuted(bool* aMuted)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendGetMicrophoneMuted(aMuted);
   return NS_OK;
 }
@@ -315,11 +230,6 @@ TelephonyIPCProvider::GetMicrophoneMuted(bool* aMuted)
 NS_IMETHODIMP
 TelephonyIPCProvider::SetMicrophoneMuted(bool aMuted)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendSetMicrophoneMuted(aMuted);
   return NS_OK;
 }
@@ -327,11 +237,6 @@ TelephonyIPCProvider::SetMicrophoneMuted(bool aMuted)
 NS_IMETHODIMP
 TelephonyIPCProvider::GetSpeakerEnabled(bool* aEnabled)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendGetSpeakerEnabled(aEnabled);
   return NS_OK;
 }
@@ -339,11 +244,6 @@ TelephonyIPCProvider::GetSpeakerEnabled(bool* aEnabled)
 NS_IMETHODIMP
 TelephonyIPCProvider::SetSpeakerEnabled(bool aEnabled)
 {
-  if (!mPTelephonyChild) {
-    NS_WARNING("TelephonyProvider used after shutdown has begun!");
-    return NS_ERROR_FAILURE;
-  }
-
   mPTelephonyChild->SendSetSpeakerEnabled(aEnabled);
   return NS_OK;
 }
