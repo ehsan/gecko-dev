@@ -926,7 +926,7 @@ IonBuilder::inlineRegExpTest(CallInfo &callInfo)
         return InliningStatus_NotInlined;
     types::StackTypeSet *thisTypes = callInfo.thisArg()->resultTypeSet();
     Class *clasp = thisTypes ? thisTypes->getKnownClass() : NULL;
-    if (clasp != &RegExpObject::class_)
+    if (clasp != &RegExpClass)
         return InliningStatus_NotInlined;
     if (callInfo.getArg(0)->type() != MIRType_String)
         return InliningStatus_NotInlined;

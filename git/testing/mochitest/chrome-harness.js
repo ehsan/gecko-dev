@@ -82,6 +82,7 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
 
   var base = "content/" + aDir + "/";
 
+  var singleTestPath;
   if (aTestPath) {
     var extraPath = aTestPath;
     var pathToCheck = base + aTestPath;
@@ -90,21 +91,21 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
       if (pathEntry.isDirectory) {
         base = pathToCheck;
       } else {
-        var singleTestPath = basePath + '/' + base + aTestPath;
+        singleTestPath = basePath + '/' + base + aTestPath;
         var singleObject = {};
         singleObject[singleTestPath] = true;
-        return singleObject;
+        return [singleObject, singleTestPath];
       }
     }
     else if (zReader.hasEntry(pathToCheck + "/")) {
       base = pathToCheck + "/";
     }
     else {
-      return null;
+      return [];
     }
   }
   var [links, count] = zList(base, zReader, basePath, true);
-  return links;
+  return [links, null];
 }
 
 /*
@@ -171,6 +172,7 @@ function getFileListing(basePath, testPath, dir, srvScope)
   var testsDir = ioSvc.newURI(testPath, null, testsDirURI)
                   .QueryInterface(Components.interfaces.nsIFileURL).file;
 
+  var singleTestPath;
   if (testPath != undefined) {
     var extraPath = testPath;
     
@@ -178,24 +180,24 @@ function getFileListing(basePath, testPath, dir, srvScope)
 
     // Invalid testPath...
     if (!testsDir.exists())
-      return null;
+      return [];
 
     if (testsDir.isFile()) {
       if (fileNameRegexp.test(testsDir.leafName))
         var singlePath = basePath + '/' + testPath;
         var links = {};
         links[singlePath] = true;
-        return links;
+        return [links, null];
 
       // We were passed a file that's not a test...
-      return null;
+      return [];
     }
 
     // otherwise, we were passed a directory of tests
     basePath += "/" + testPath;
   }
   var [links, count] = srvScope.list(basePath, testsDir, true);
-  return links;
+  return [links, null];
 }
 
 
@@ -377,12 +379,13 @@ function getTestList() {
   var srvScope = {};
   scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
                              srvScope);
+  var singleTestPath;
   var links;
 
   if (getResolvedURI(baseurl).JARFile) {
-    links = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
+    [links, singleTestPath] = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
   } else {
-    links = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
+    [links, singleTestPath] = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
   }
-  return links;
+  return [links, singleTestPath];
 }

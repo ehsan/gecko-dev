@@ -15,6 +15,7 @@
 
 #include "jsfuninlines.h"
 
+#include "vm/String-inl.h"
 #include "vm/StringBuffer.h"
 
 using namespace js;

@@ -24,6 +24,7 @@
 #include "jsobjinlines.h"
 
 #include "vm/GlobalObject-inl.h"
+#include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 
 using namespace js;
@@ -134,7 +135,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
      * which due to their complicated delegate-object shenanigans can't easily
      * have a mutable [[Prototype]].
      */
-    if (obj->isProxy() || obj->is<ArrayBufferObject>()) {
+    if (obj->isProxy() || obj->isArrayBuffer()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
                              "Object", "__proto__ setter",
                              obj->isProxy() ? "Proxy" : "ArrayBuffer");

@@ -84,7 +84,7 @@ CodeOffsetJump::fixup(MacroAssembler *masm)
 const char *
 IonCache::CacheName(IonCache::Kind kind)
 {
-    static const char * const names[] =
+    static const char *names[] =
     {
 #define NAME(x) #x,
         IONCACHE_KIND_LIST(NAME)
@@ -555,10 +555,10 @@ IsCacheableNoProperty(JSObject *obj, JSObject *holder, Shape *shape, jsbytecode 
 static bool
 IsOptimizableArgumentsObjectForLength(JSObject *obj)
 {
-    if (!obj->is<ArgumentsObject>())
+    if (!obj->isArguments())
         return false;
 
-    if (obj->as<ArgumentsObject>().hasOverriddenLength())
+    if (obj->asArguments().hasOverriddenLength())
         return false;
 
     return true;
@@ -570,7 +570,7 @@ IsOptimizableArgumentsObjectForGetElem(JSObject *obj, Value idval)
     if (!IsOptimizableArgumentsObjectForLength(obj))
         return false;
 
-    ArgumentsObject &argsObj = obj->as<ArgumentsObject>();
+    ArgumentsObject &argsObj = obj->asArguments();
 
     if (argsObj.isAnyElementDeleted())
         return false;
@@ -1252,7 +1252,7 @@ GetPropertyIC::attachTypedArrayLength(JSContext *cx, IonScript *ion, JSObject *o
 bool
 GetPropertyIC::attachArgumentsLength(JSContext *cx, IonScript *ion, JSObject *obj)
 {
-    JS_ASSERT(obj->is<ArgumentsObject>());
+    JS_ASSERT(obj->isArguments());
     JS_ASSERT(!idempotent());
 
     Label failures;
@@ -1268,8 +1268,8 @@ GetPropertyIC::attachArgumentsLength(JSContext *cx, IonScript *ion, JSObject *ob
     }
     JS_ASSERT(object() != tmpReg);
 
-    Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
-                                                    : &NormalArgumentsObject::class_;
+    Class *clasp = obj->isStrictArguments() ? &StrictArgumentsObjectClass
+                                            : &NormalArgumentsObjectClass;
 
     Label fail;
     Label pass;
@@ -1293,7 +1293,7 @@ GetPropertyIC::attachArgumentsLength(JSContext *cx, IonScript *ion, JSObject *ob
     masm.bind(&failures);
     attacher.jumpNextStub(masm);
 
-    if (obj->is<StrictArgumentsObject>()) {
+    if (obj->isStrictArguments()) {
         JS_ASSERT(!hasStrictArgumentsLengthStub_);
         hasStrictArgumentsLengthStub_ = true;
         return linkAndAttachStub(cx, masm, attacher, ion, "ArgsObj length (strict)");
@@ -1462,7 +1462,7 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
         if (name == cx->names().length &&
             IsOptimizableArgumentsObjectForLength(obj) &&
             (cache.output().type() == MIRType_Value || cache.output().type() == MIRType_Int32) &&
-            !cache.hasArgumentsLengthStub(obj->is<StrictArgumentsObject>()))
+            !cache.hasArgumentsLengthStub(obj->isStrictArguments()))
         {
             isCacheable = true;
             if (!cache.attachArgumentsLength(cx, ion, obj))
@@ -2372,7 +2372,7 @@ GetElementIC::attachTypedArrayElement(JSContext *cx, IonScript *ion, JSObject *o
 bool
 GetElementIC::attachArgumentsElement(JSContext *cx, IonScript *ion, JSObject *obj)
 {
-    JS_ASSERT(obj->is<ArgumentsObject>());
+    JS_ASSERT(obj->isArguments());
 
     Label failures;
     MacroAssembler masm(cx);
@@ -2381,8 +2381,8 @@ GetElementIC::attachArgumentsElement(JSContext *cx, IonScript *ion, JSObject *ob
     Register tmpReg = output().scratchReg().gpr();
     JS_ASSERT(tmpReg != InvalidReg);
 
-    Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
-                                                    : &NormalArgumentsObject::class_;
+    Class *clasp = obj->isStrictArguments() ? &StrictArgumentsObjectClass
+                                            : &NormalArgumentsObjectClass;
 
     Label fail;
     Label pass;
@@ -2467,7 +2467,7 @@ GetElementIC::attachArgumentsElement(JSContext *cx, IonScript *ion, JSObject *ob
     attacher.jumpNextStub(masm);
 
 
-    if (obj->is<StrictArgumentsObject>()) {
+    if (obj->isStrictArguments()) {
         JS_ASSERT(!hasStrictArgumentsStub_);
         hasStrictArgumentsStub_ = true;
         return linkAndAttachStub(cx, masm, attacher, ion, "ArgsObj element (strict)");
@@ -2507,7 +2507,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     bool attachedStub = false;
     if (cache.canAttachStub()) {
         if (IsOptimizableArgumentsObjectForGetElem(obj, idval) &&
-            !cache.hasArgumentsStub(obj->is<StrictArgumentsObject>()) &&
+            !cache.hasArgumentsStub(obj->isStrictArguments()) &&
             !cache.index().constant() &&
             (cache.index().reg().hasValue() ||
              cache.index().reg().type() == MIRType_Int32) &&
@@ -2734,11 +2734,11 @@ static inline void
 GenerateScopeChainGuard(MacroAssembler &masm, JSObject *scopeObj,
                         Register scopeObjReg, Shape *shape, Label *failures)
 {
-    if (scopeObj->is<CallObject>()) {
+    if (scopeObj->isCall()) {
         // We can skip a guard on the call object if the script's bindings are
         // guaranteed to be immutable (and thus cannot introduce shadowing
         // variables).
-        CallObject *callObj = &scopeObj->as<CallObject>();
+        CallObject *callObj = &scopeObj->asCall();
         if (!callObj->isForEval()) {
             JSFunction *fun = &callObj->callee();
             JSScript *script = fun->nonLazyScript();
@@ -2923,7 +2923,7 @@ IsCacheableNameReadSlot(JSContext *cx, HandleObject scopeChain, HandleObject obj
         if (!IsCacheableGetPropReadSlot(obj, holder, shape) &&
             !IsCacheableNoProperty(obj, holder, shape, pc, output))
             return false;
-    } else if (obj->is<CallObject>()) {
+    } else if (obj->isCall()) {
         if (!shape->hasDefaultGetter())
             return false;
     } else {

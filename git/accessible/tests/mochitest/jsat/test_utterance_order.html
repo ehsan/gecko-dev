@@ -13,7 +13,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=753984
     <script type="application/javascript"
             src="../common.js"></script>
     <script type="application/javascript"
-            src="./output.js"></script>
+            src="./utterance.js"></script>
     <script type="application/javascript">
 
       function doTest() {
@@ -120,7 +120,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=753984
             function testUtteranceOrder(utteranceOrder) {
               SpecialPowers.setIntPref(PREF_UTTERANCE_ORDER, utteranceOrder);
               var expected = test.expected[utteranceOrder];
-              testOutput(expected, test.accOrElmOrID, test.oldAccOrElmOrID, 1);
+              testUtterance(expected, test.accOrElmOrID, test.oldAccOrElmOrID);
             }
           );
         });

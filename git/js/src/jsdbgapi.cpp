@@ -1265,7 +1265,7 @@ JSAbstractFramePtr::callObject(JSContext *cx)
      */
     while (o) {
         ScopeObject &scope = o->asDebugScope().scope();
-        if (scope.is<CallObject>())
+        if (scope.isCall())
             return o;
         o = o->enclosingScope();
     }

@@ -19,7 +19,7 @@
 *  in some more global way at runtime.
 */
 
-static const struct ResultMap
+static struct ResultMap
 {nsresult rv; const char* name; const char* format;} map[] = {
 #define XPC_MSG_DEF(val, format) \
     {(val), #val, format},
@@ -37,7 +37,7 @@ nsXPCException::NameAndFormatForNSResult(nsresult rv,
                                          const char** format)
 {
 
-    for (const ResultMap* p = map; p->name; p++) {
+    for (ResultMap* p = map; p->name; p++) {
         if (rv == p->rv) {
             if (name) *name = p->name;
             if (format) *format = p->format;
@@ -48,13 +48,13 @@ nsXPCException::NameAndFormatForNSResult(nsresult rv,
 }
 
 // static
-const void*
+void*
 nsXPCException::IterateNSResults(nsresult* rv,
                                  const char** name,
                                  const char** format,
-                                 const void** iterp)
+                                 void** iterp)
 {
-    const ResultMap* p = (const ResultMap*) *iterp;
+    ResultMap* p = (ResultMap*) *iterp;
     if (!p)
         p = map;
     else

@@ -1980,7 +1980,7 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
      * refcounted JIT code blob for them across compartments instead of just
      * swapping guts.
      */
-    JS_ASSERT(!a->is<RegExpObject>() && !b->is<RegExpObject>());
+    JS_ASSERT(!a->isRegExp() && !b->isRegExp());
 
     /* Arrays can use their fixed storage for elements. */
     JS_ASSERT(!a->isArray() && !b->isArray());
@@ -1989,7 +1989,7 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
      * Callers should not try to swap ArrayBuffer objects,
      * these use a different slot representation from other objects.
      */
-    JS_ASSERT(!a->is<ArrayBufferObject>() && !b->is<ArrayBufferObject>());
+    JS_ASSERT(!a->isArrayBuffer() && !b->isArrayBuffer());
 
     /* Trade the guts of the objects. */
     const size_t size = a->tenuredSizeOfThis();
@@ -2553,7 +2553,7 @@ JSObject::shrinkSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32
      * allowing the slots pointer to change may require updating pointers in
      * the function's active args/vars information.
      */
-    if (obj->is<CallObject>())
+    if (obj->isCall())
         return;
 
     if (newCount == 0) {
@@ -3210,7 +3210,7 @@ js_PurgeScopeChainHelper(JSContext *cx, HandleObject objArg, HandleId id)
      * properties with the same names have been cached or traced. Call objects
      * may gain such properties via eval introducing new vars; see bug 490364.
      */
-    if (obj->is<CallObject>()) {
+    if (obj->isCall()) {
         while ((obj = obj->enclosingScope()) != NULL) {
             if (!PurgeProtoChain(cx, obj, id))
                 return false;
@@ -3408,7 +3408,8 @@ js::DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
                          PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
                          unsigned flags, int shortid, unsigned defineHow /* = 0 */)
 {
-    JS_ASSERT((defineHow & ~(DNP_DONT_PURGE | DNP_SKIP_TYPE)) == 0);
+    JS_ASSERT((defineHow & ~(DNP_CACHE_RESULT | DNP_DONT_PURGE |
+                             DNP_SKIP_TYPE)) == 0);
     JS_ASSERT(!(attrs & JSPROP_NATIVE_ACCESSORS));
 
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
@@ -4002,6 +4003,9 @@ GetPropertyHelperInline(JSContext *cx,
         return true;
     }
 
+    if (getHow & JSGET_CACHE_RESULT)
+        cx->propertyCache().fill(cx, obj, obj2, shape);
+
     /* This call site is hot -- use the always-inlined variant of js_NativeGet(). */
     if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, getHow, vp))
         return JS_FALSE;
@@ -4268,7 +4272,7 @@ JSBool
 baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                            unsigned defineHow, MutableHandleValue vp, JSBool strict)
 {
-    JS_ASSERT((defineHow & ~DNP_UNQUALIFIED) == 0);
+    JS_ASSERT((defineHow & ~(DNP_CACHE_RESULT | DNP_UNQUALIFIED)) == 0);
 
     if (JS_UNLIKELY(obj->watched())) {
         /* Fire watchpoints, if any. */
@@ -4307,7 +4311,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
         }
     } else {
         /* We should never add properties to lexical blocks. */
-        JS_ASSERT(!obj->is<BlockObject>());
+        JS_ASSERT(!obj->isBlock());
 
         if (obj->isGlobal() &&
             (defineHow & DNP_UNQUALIFIED) &&
@@ -4356,6 +4360,9 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
              * We found id in a prototype object: prepare to share or shadow.
              */
             if (!shape->shadowable()) {
+                if (defineHow & DNP_CACHE_RESULT)
+                    cx->propertyCache().fill(cx, obj, pobj, shape);
+
                 if (shape->hasDefaultSetter() && !shape->hasGetterValue())
                     return JS_TRUE;
 
@@ -4433,6 +4440,9 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
         return DefinePropertyOrElement(cx, obj, id, getter, setter,
                                        attrs, flags, shortid, vp, true, strict);
     }
+
+    if (defineHow & DNP_CACHE_RESULT)
+        cx->propertyCache().fill(cx, obj, obj, shape);
 
     return js_NativeSet(cx, obj, receiver, shape, strict, vp);
 }
@@ -5320,7 +5330,7 @@ JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, JS::ObjectsExtraSi
 #if defined (JS_CPU_X64)
             // On x64, ArrayBufferObject::prepareForAsmJS switches the
             // ArrayBufferObject to use mmap'd storage.
-            sizes->elementsAsmJSNonHeap = as<ArrayBufferObject>().byteLength();
+            sizes->elementsAsmJSNonHeap = asArrayBuffer().byteLength();
 #else
             sizes->elementsAsmJSHeap = mallocSizeOf(elements);
 #endif
@@ -5331,12 +5341,12 @@ JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, JS::ObjectsExtraSi
 
     // Other things may be measured in the future if DMD indicates it is worthwhile.
     // Note that sizes->private_ is measured elsewhere.
-    if (is<ArgumentsObject>()) {
-        sizes->argumentsData = as<ArgumentsObject>().sizeOfMisc(mallocSizeOf);
+    if (isArguments()) {
+        sizes->argumentsData = asArguments().sizeOfMisc(mallocSizeOf);
     } else if (isRegExpStatics()) {
         sizes->regExpStatics = js::SizeOfRegExpStaticsData(this, mallocSizeOf);
-    } else if (is<PropertyIteratorObject>()) {
-        sizes->propertyIteratorData = as<PropertyIteratorObject>().sizeOfMisc(mallocSizeOf);
+    } else if (isPropertyIterator()) {
+        sizes->propertyIteratorData = asPropertyIterator().sizeOfMisc(mallocSizeOf);
 #ifdef JS_HAS_CTYPES
     } else {
         // This must be the last case.

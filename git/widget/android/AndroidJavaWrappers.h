@@ -545,7 +545,6 @@ public:
     const nsIntRect& Rect() { return mRect; }
     nsAString& Characters() { return mCharacters; }
     nsAString& CharactersExtra() { return mCharactersExtra; }
-    nsAString& Data() { return mData; }
     int KeyCode() { return mKeyCode; }
     int MetaState() { return mMetaState; }
     uint32_t DomKeyLocation() { return mDomKeyLocation; }
@@ -601,7 +600,7 @@ protected:
     int mRangeForeColor, mRangeBackColor, mRangeLineColor;
     double mX, mY, mZ;
     int mPointerIndex;
-    nsString mCharacters, mCharactersExtra, mData;
+    nsString mCharacters, mCharactersExtra;
     nsRefPtr<nsGeoPosition> mGeoPosition;
     double mBandwidth;
     bool mCanBeMetered;
@@ -624,7 +623,6 @@ protected:
     void ReadRectField(JNIEnv *jenv);
     void ReadCharactersField(JNIEnv *jenv);
     void ReadCharactersExtraField(JNIEnv *jenv);
-    void ReadDataField(JNIEnv *jenv);
 
     uint32_t ReadDomKeyLocation(JNIEnv* jenv, jobject jGeckoEventObj);
 
@@ -647,7 +645,6 @@ protected:
 
     static jfieldID jCharactersField;
     static jfieldID jCharactersExtraField;
-    static jfieldID jDataField;
     static jfieldID jKeyCodeField;
     static jfieldID jMetaStateField;
     static jfieldID jDomKeyLocationField;
@@ -706,19 +703,7 @@ public:
         COMPOSITOR_RESUME = 30,
         NATIVE_GESTURE_EVENT = 31,
         IME_KEY_EVENT = 32,
-        CALL_OBSERVER = 33,
-        LOW_MEMORY = 34,
-        NETWORK_LINK_CHANGE = 35,
         dummy_java_enum_list_end
-    };
-
-    enum {
-        // Memory pressue levels, keep in sync with those in MemoryMonitor.java
-        MEMORY_PRESSURE_NONE = 0,
-        MEMORY_PRESSURE_CLEANUP = 1,
-        MEMORY_PRESSURE_LOW = 2,
-        MEMORY_PRESSURE_MEDIUM = 3,
-        MEMORY_PRESSURE_HIGH = 4
     };
 
     enum {

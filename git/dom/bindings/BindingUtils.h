@@ -59,10 +59,6 @@ UnwrapArg(JSContext* cx, jsval v, Interface** ppArg,
 
 bool
 ThrowErrorMessage(JSContext* aCx, const ErrNum aErrorNumber, ...);
-bool
-ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
-                 const ErrNum aErrorNumber,
-                 const char* aInterfaceName);
 
 template<bool mainThread>
 inline bool
@@ -809,7 +805,7 @@ HandleNewBindingWrappingFailure(JSContext* cx, JS::Handle<JSObject*> scope,
 template<bool Fatal>
 inline bool
 EnumValueNotFound(JSContext* cx, const jschar* chars, size_t length,
-                  const char* type, const char* sourceDescription)
+                  const char* type)
 {
   return false;
 }
@@ -817,7 +813,7 @@ EnumValueNotFound(JSContext* cx, const jschar* chars, size_t length,
 template<>
 inline bool
 EnumValueNotFound<false>(JSContext* cx, const jschar* chars, size_t length,
-                         const char* type, const char* sourceDescription)
+                         const char* type)
 {
   // TODO: Log a warning to the console.
   return true;
@@ -826,19 +822,18 @@ EnumValueNotFound<false>(JSContext* cx, const jschar* chars, size_t length,
 template<>
 inline bool
 EnumValueNotFound<true>(JSContext* cx, const jschar* chars, size_t length,
-                        const char* type, const char* sourceDescription)
+                        const char* type)
 {
   NS_LossyConvertUTF16toASCII deflated(static_cast<const PRUnichar*>(chars),
                                        length);
-  return ThrowErrorMessage(cx, MSG_INVALID_ENUM_VALUE, sourceDescription,
-                           deflated.get(), type);
+  return ThrowErrorMessage(cx, MSG_INVALID_ENUM_VALUE, deflated.get(), type);
 }
 
 
 template<bool InvalidValueFatal>
 inline int
 FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values,
-                    const char* type, const char* sourceDescription, bool* ok)
+                    const char* type, bool* ok)
 {
   // JS_StringEqualsAscii is slow as molasses, so don't use it here.
   JSString* str = JS_ValueToString(cx, v);
@@ -874,8 +869,7 @@ FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values,
     }
   }
 
-  *ok = EnumValueNotFound<InvalidValueFatal>(cx, chars, length, type,
-                                             sourceDescription);
+  *ok = EnumValueNotFound<InvalidValueFatal>(cx, chars, length, type);
   return -1;
 }
 

@@ -562,7 +562,7 @@ FilterArguments(JSContext *cx, JSString *str)
     if (!chars)
         return false;
 
-    static const jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
+    static jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
     return !StringHasPattern(chars, str->length(), arguments, mozilla::ArrayLength(arguments));
 }
 
@@ -639,7 +639,7 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, JSBool ok)
         JS_ASSERT_IF(ok, frame->hasReturnValue());
         DebugScopes::onPopCall(frame, cx);
     } else if (frame->isStrictEvalFrame()) {
-        JS_ASSERT_IF(frame->hasCallObj(), frame->scopeChain()->as<CallObject>().isForEval());
+        JS_ASSERT_IF(frame->hasCallObj(), frame->scopeChain()->asCall().isForEval());
         DebugScopes::onPopStrictEvalScope(frame);
     }
 

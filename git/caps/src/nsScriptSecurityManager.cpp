@@ -2076,7 +2076,7 @@ nsScriptSecurityManager::old_doGetObjectPrincipal(JS::Handle<JSObject*> aObj,
 
         jsClass = js::GetObjectClass(obj);
 
-        if (js::IsCallObject(obj)) {
+        if (jsClass == &js::CallClass) {
             obj = js::GetObjectParentMaybeScope(obj);
 
             if (!obj)

@@ -11,6 +11,8 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/StandardInteger.h"
 
+#include <math.h>
+
 #include "NumericConversions.h"
 
 namespace js {

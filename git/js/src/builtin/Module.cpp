@@ -10,7 +10,7 @@
 
 using namespace js;
 
-Class Module::class_ = {
+Class js::ModuleClass = {
     "Module",
     JSCLASS_HAS_RESERVED_SLOTS(2) | JSCLASS_IS_ANONYMOUS,
     JS_PropertyStub,        /* addProperty */
@@ -37,10 +37,10 @@ Module::setScript(JSScript *script)
 Module *
 Module::create(JSContext *cx, HandleAtom atom)
 {
-    RootedObject object(cx, NewBuiltinClassInstance(cx, &class_));
+    RootedObject object(cx, NewBuiltinClassInstance(cx, &ModuleClass));
     if (!object)
         return NULL;
-    RootedModule module(cx, &object->as<Module>());
+    RootedModule module(cx, &object->asModule());
     module->setAtom(atom);
     module->setScript(NULL);
     return module;

@@ -914,8 +914,8 @@ ShellObjectMetadataCallback(JSContext *cx)
 {
     Value thisv = UndefinedValue();
 
-    RootedValue rval(cx);
-    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, rval.address())) {
+    Value rval;
+    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, &rval)) {
         cx->clearPendingException();
         return NULL;
     }

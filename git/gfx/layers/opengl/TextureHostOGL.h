@@ -555,7 +555,7 @@ private:
   gfx::IntSize mSize;
   GLuint mTextureHandle;
   GLenum mGLFormat;
-  nsRefPtr<gl::GLContext> mGL;
+  gl::GLContext* mGL;
 };
 
 #ifdef MOZ_WIDGET_GONK

@@ -10,6 +10,10 @@
 #include "vm/Probes.h"
 
 #include "jscntxt.h"
+#include "jsobj.h"
+#include "jsscript.h"
+
+#include "vm/Stack-inl.h"
 
 namespace js {
 

@@ -1789,23 +1789,14 @@ CSSParserImpl::ParseMediaQuery(bool aInAtRule,
       if (!mediaType) {
         NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
       }
-      if (!gotNotOrOnly && mediaType == nsGkAtoms::_not) {
-        gotNotOrOnly = true;
-        query->SetNegated();
-      } else if (!gotNotOrOnly && mediaType == nsGkAtoms::only) {
-        gotNotOrOnly = true;
-        query->SetHasOnly();
-      } else if (mediaType == nsGkAtoms::_not ||
-                 mediaType == nsGkAtoms::only ||
-                 mediaType == nsGkAtoms::_and ||
-                 mediaType == nsGkAtoms::_or) {
-        REPORT_UNEXPECTED_TOKEN(PEGatherMediaReservedMediaType);
-        UngetToken();
-        return false;
-      } else {
-        // valid media type
+      if (gotNotOrOnly ||
+          (mediaType != nsGkAtoms::_not && mediaType != nsGkAtoms::only))
         break;
-      }
+      gotNotOrOnly = true;
+      if (mediaType == nsGkAtoms::_not)
+        query->SetNegated();
+      else
+        query->SetHasOnly();
     }
     query->SetType(mediaType);
   }

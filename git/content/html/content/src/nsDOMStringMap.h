@@ -13,20 +13,17 @@
 #include "nsString.h"
 #include "nsWrapperCache.h"
 #include "nsGenericHTMLElement.h"
-#include "jsfriendapi.h"
 
 namespace mozilla {
 class ErrorResult;
 }
 
-class nsDOMStringMap : public nsStubMutationObserver,
+class nsDOMStringMap : public nsISupports,
                        public nsWrapperCache
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMStringMap)
-
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
   nsINode* GetParentObject()
   {
@@ -44,8 +41,6 @@ public:
                    mozilla::ErrorResult& rv);
   void NamedDeleter(const nsAString& aProp, bool &found);
   void GetSupportedNames(nsTArray<nsString>& aNames);
-
-  js::ExpandoAndGeneration mExpandoAndGeneration;
 
 private:
   virtual ~nsDOMStringMap();

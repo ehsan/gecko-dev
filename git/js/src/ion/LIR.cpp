@@ -170,7 +170,7 @@ LPhi::New(MIRGenerator *gen, MPhi *ins)
 void
 LInstruction::printName(FILE *fp, Opcode op)
 {
-    static const char * const names[] =
+    static const char *names[] =
     {
 #define LIROP(x) #x,
         LIR_OPCODE_LIST(LIROP)
@@ -188,7 +188,7 @@ LInstruction::printName(FILE *fp)
     printName(fp, op());
 }
 
-static const char * const TypeChars[] =
+static const char *TypeChars[] =
 {
     "i",            // INTEGER
     "o",            // OBJECT

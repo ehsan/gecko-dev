@@ -13,11 +13,14 @@
 #include "ion/AsmJS.h"
 #include "vm/GlobalObject.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "frontend/ParseMaps-inl.h"
+#include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"
 #include "frontend/SharedContext-inl.h"
+#include "vm/Probes-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -105,8 +108,8 @@ MaybeCheckEvalFreeVariables(JSContext *cx, HandleScript evalCaller, HandleObject
     if (pc.sc->hasDebuggerStatement()) {
         RootedObject scope(cx, scopeChain);
         while (scope->isScope() || scope->isDebugScope()) {
-            if (scope->is<CallObject>() && !scope->as<CallObject>().isForEval()) {
-                RootedScript script(cx, scope->as<CallObject>().callee().nonLazyScript());
+            if (scope->isCall() && !scope->asCall().isForEval()) {
+                RootedScript script(cx, scope->asCall().callee().nonLazyScript());
                 if (script->argumentsHasVarBinding()) {
                     if (!JSScript::argumentsOptimizationFailed(cx, script))
                         return false;

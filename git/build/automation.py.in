@@ -30,12 +30,17 @@ import automationutils
 here = os.path.dirname(__file__)
 mozbase = os.path.realpath(os.path.join(os.path.dirname(here), 'mozbase'))
 
-if os.path.isdir(mozbase):
-    for package in os.listdir(mozbase):
-        sys.path.append(os.path.join(mozbase, package))
-
-import mozcrash
-
+try:
+    import mozcrash
+except:
+    deps = ['mozcrash',
+            'mozfile',
+            'mozlog']
+    for dep in deps:
+        module = os.path.join(mozbase, dep)
+        if module not in sys.path:
+            sys.path.append(module)
+    import mozcrash
 # ---------------------------------------------------------------
 
 _DEFAULT_PREFERENCE_FILE = os.path.join(SCRIPT_DIR, 'prefs_general.js')
