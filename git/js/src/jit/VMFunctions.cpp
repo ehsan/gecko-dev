@@ -94,9 +94,9 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
 }
 
 JSObject *
-NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize, gc::InitialHeap initialHeap)
+NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize)
 {
-    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, initialHeap);
+    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, gc::DefaultHeap);
 }
 
 bool
@@ -269,8 +269,6 @@ NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 {
     RootedTypeObject type(cx, typeArg);
     NewObjectKind newKind = !type ? SingletonObject : GenericObject;
-    if (type && type->isLongLivedForJITAlloc())
-        newKind = TenuredObject;
     RootedObject obj(cx, NewDenseAllocatedArray(cx, count, NULL, newKind));
     if (!obj)
         return NULL;
@@ -287,8 +285,6 @@ JSObject*
 NewInitObject(JSContext *cx, HandleObject templateObject)
 {
     NewObjectKind newKind = templateObject->hasSingletonType() ? SingletonObject : GenericObject;
-    if (!templateObject->hasLazyType() && templateObject->type()->isLongLivedForJITAlloc())
-        newKind = TenuredObject;
     RootedObject obj(cx, CopyInitializerObject(cx, templateObject, newKind));
 
     if (!obj)
@@ -306,16 +302,11 @@ JSObject *
 NewInitObjectWithClassPrototype(JSContext *cx, HandleObject templateObject)
 {
     JS_ASSERT(!templateObject->hasSingletonType());
-    JS_ASSERT(!templateObject->hasLazyType());
 
-    NewObjectKind newKind = templateObject->type()->isLongLivedForJITAlloc()
-                            ? TenuredObject
-                            : GenericObject;
     JSObject *obj = NewObjectWithGivenProto(cx,
                                             templateObject->getClass(),
                                             templateObject->getProto(),
-                                            cx->global(),
-                                            newKind);
+                                            cx->global());
     if (!obj)
         return NULL;
 
@@ -760,10 +751,7 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
         return arrRes;
     }
 
-    NewObjectKind newKind = templateObj->type()->isLongLivedForJITAlloc()
-                            ? TenuredObject
-                            : GenericObject;
-    ArrayObject *arrRes = NewDenseCopiedArray(cx, length, rest, NULL, newKind);
+    ArrayObject *arrRes = NewDenseCopiedArray(cx, length, rest, NULL);
     if (arrRes)
         arrRes->setType(templateObj->type());
     return arrRes;

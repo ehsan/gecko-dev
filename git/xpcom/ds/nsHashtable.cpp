@@ -15,12 +15,13 @@
  */
 
 #include <string.h>
+#include "pratom.h"
 #include "prlog.h"
-#include "prlock.h"
 #include "nsHashtable.h"
+#include "nsReadableUtils.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 #include "mozilla/HashFunctions.h"
 
 using namespace mozilla;

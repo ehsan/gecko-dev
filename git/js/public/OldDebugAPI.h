@@ -11,8 +11,6 @@
  * JS debugger API.
  */
 
-#include "mozilla/NullPtr.h"
- 
 #include "jsbytecode.h"
 
 #include "js/CallArgs.h"
@@ -52,7 +50,7 @@ FormatStackDump(JSContext *cx, char *buf, bool showArgs, bool showLocals, bool s
 # ifdef DEBUG
 JS_FRIEND_API(void) js_DumpValue(const JS::Value &val);
 JS_FRIEND_API(void) js_DumpId(jsid id);
-JS_FRIEND_API(void) js_DumpStackFrame(JSContext *cx, js::StackFrame *start = nullptr);
+JS_FRIEND_API(void) js_DumpStackFrame(JSContext *cx, js::StackFrame *start = NULL);
 # endif
 
 JS_FRIEND_API(void)
@@ -427,7 +425,7 @@ class JS_PUBLIC_API(JSBrokenFrameIterator)
  * in 'closure' to cause the 'after' invocation to be called with the same
  * 'closure' value as the 'before'.
  *
- * Returning nullptr in the 'before' hook will cause the 'after' hook *not* to
+ * Returning NULL in the 'before' hook will cause the 'after' hook *not* to
  * be called.
  */
 typedef void *

@@ -9,11 +9,12 @@
 #include "nsIPersistentProperties2.h"
 #include "pldhash.h"
 #include "plarena.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
 
-class nsIUnicharInputStream;
+#include "nsIUnicharInputStream.h"
+
 
 class nsPersistentProperties MOZ_FINAL : public nsIPersistentProperties
 {

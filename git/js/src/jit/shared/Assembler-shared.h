@@ -613,18 +613,6 @@ class CodeLocationLabel
     }
 };
 
-struct AsmJSGlobalAccess
-{
-    CodeOffsetLabel patchAt;
-    unsigned globalDataOffset;
-
-    AsmJSGlobalAccess(CodeOffsetLabel patchAt, unsigned globalDataOffset)
-      : patchAt(patchAt), globalDataOffset(globalDataOffset)
-    {}
-};
-
-typedef Vector<AsmJSGlobalAccess, 0, IonAllocPolicy> AsmJSGlobalAccessVector;
-
 
 } // namespace jit
 } // namespace js

@@ -11,7 +11,6 @@
 // change in the future. Depend on them at your own risk.
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/NullPtr.h"
 #include "mozilla/PodOperations.h"
 
 #include <string.h>
@@ -319,7 +318,7 @@ struct ZoneStats : js::ZoneStatsPod
 struct CompartmentStats
 {
     CompartmentStats()
-      : extra(nullptr),
+      : extra(NULL),
         gcHeapObjectsOrdinary(0),
         gcHeapObjectsFunction(0),
         gcHeapObjectsDenseArray(0),
@@ -464,7 +463,7 @@ struct RuntimeStats
         zTotals(),
         compartmentStatsVector(),
         zoneStatsVector(),
-        currZoneStats(nullptr),
+        currZoneStats(NULL),
         mallocSizeOf_(mallocSizeOf)
     {}
 

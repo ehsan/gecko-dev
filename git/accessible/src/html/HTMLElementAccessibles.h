@@ -61,7 +61,6 @@ public:
 
   // Accessible
   virtual a11y::role NativeRole();
-  virtual Relation RelationByType(uint32_t aType) MOZ_OVERRIDE;
 
 protected:
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;

@@ -57,16 +57,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     typedef HashMap<double, size_t, DefaultHasher<double>, SystemAllocPolicy> DoubleMap;
     DoubleMap doubleMap_;
 
-    struct Float {
-        float value;
-        NonAssertingLabel uses;
-        Float(float value) : value(value) {}
-    };
-    Vector<Float, 0, SystemAllocPolicy> floats_;
-
-    typedef HashMap<float, size_t, DefaultHasher<float>, SystemAllocPolicy> FloatMap;
-    FloatMap floatMap_;
-
     void setupABICall(uint32_t arg);
 
   protected:
@@ -1020,7 +1010,15 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void loadConstantDouble(double d, const FloatRegister &dest);
-    void loadConstantFloat32(float f, const FloatRegister &dest);
+    void loadConstantFloat32(float f, const FloatRegister &dest) {
+        union FloatPun {
+            uint32_t u;
+            float f;
+        } pun;
+        pun.f = f;
+        mov(ImmWord(pun.u), ScratchReg);
+        movq(ScratchReg, dest);
+    }
 
     void branchTruncateDouble(const FloatRegister &src, const Register &dest, Label *fail) {
         const uint64_t IndefiniteIntegerValue = 0x8000000000000000;
@@ -1150,8 +1148,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // Save an exit frame (which must be aligned to the stack pointer) to
     // ThreadData::ionTop of the main thread.
     void linkExitFrame() {
-        storePtr(StackPointer,
-                 AbsoluteAddress(&GetIonContext()->runtime->mainThread.ionTop));
+        mov(ImmPtr(GetIonContext()->runtime), ScratchReg);
+        mov(StackPointer, Operand(ScratchReg, offsetof(JSRuntime, mainThread.ionTop)));
     }
 
     void callWithExitFrame(IonCode *target, Register dynStack) {
@@ -1176,10 +1174,10 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     // See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.
-    void patchAsmJSGlobalAccess(CodeOffsetLabel patchAt, uint8_t *code, uint8_t *globalData,
+    void patchAsmJSGlobalAccess(unsigned offset, uint8_t *code, uint8_t *globalData,
                                 unsigned globalDataOffset)
     {
-        uint8_t *nextInsn = code + patchAt.offset();
+        uint8_t *nextInsn = code + offset;
         JS_ASSERT(nextInsn <= globalData);
         uint8_t *target = globalData + globalDataOffset;
         ((int32_t *)nextInsn)[-1] = target - nextInsn;

@@ -32,11 +32,8 @@ public class EnvironmentBuilder {
    * Fetch the storage object associated with the provided
    * {@link ContentProviderClient}. If no storage instance can be found --
    * perhaps because the {@link ContentProvider} is running in a different
-   * process -- returns <code>null</code>. On success, the returned
-   * {@link HealthReportDatabaseStorage} instance is owned by the underlying
-   * {@link HealthReportProvider} and thus does not need to be closed by the
-   * caller.
-   *
+   * process -- returns <code>null</code>.
+   * 
    * If the provider is not a {@link HealthReportProvider}, throws a
    * {@link ClassCastException}, because that would be disastrous.
    */

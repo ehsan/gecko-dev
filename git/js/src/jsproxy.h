@@ -376,8 +376,7 @@ enum ProxyCallable {
 
 JS_FRIEND_API(JSObject *)
 NewProxyObject(JSContext *cx, BaseProxyHandler *handler, HandleValue priv,
-               JSObject *proto, JSObject *parent,
-               ProxyCallable callable = ProxyNotCallable, bool singleton = false);
+               JSObject *proto, JSObject *parent, ProxyCallable callable = ProxyNotCallable);
 
 JSObject *
 RenewProxyObject(JSContext *cx, JSObject *obj, BaseProxyHandler *handler, Value priv);

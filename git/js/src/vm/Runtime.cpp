@@ -39,13 +39,9 @@ using namespace js::gc;
 
 using mozilla::Atomic;
 using mozilla::DebugOnly;
-using mozilla::NegativeInfinity;
 using mozilla::PodZero;
 using mozilla::PodArrayZero;
-using mozilla::PositiveInfinity;
 using mozilla::ThreadLocal;
-using JS::GenericNaN;
-using JS::DoubleNaNValue;
 
 /* static */ ThreadLocal<PerThreadData*> js::TlsPerThreadData;
 
@@ -230,9 +226,9 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcFinalizeCallback(NULL),
     gcMallocBytes(0),
     scriptAndCountsVector(NULL),
-    NaNValue(DoubleNaNValue()),
-    negativeInfinityValue(DoubleValue(NegativeInfinity())),
-    positiveInfinityValue(DoubleValue(PositiveInfinity())),
+    NaNValue(UndefinedValue()),
+    negativeInfinityValue(UndefinedValue()),
+    positiveInfinityValue(UndefinedValue()),
     emptyString(NULL),
     sourceHook(NULL),
     debugMode(false),
