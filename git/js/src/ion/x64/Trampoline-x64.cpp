@@ -40,7 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jscompartment.h"
-#include "jsinterp.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "ion/IonCompartment.h"
 #include "ion/IonLinker.h"
@@ -406,7 +405,7 @@ IonCompartment::generateBailoutHandler(JSContext *cx)
 }
 
 IonCode *
-IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
+IonCompartment::generateCWrapper(JSContext *cx, const VMFunction& f)
 {
     typedef MoveResolver::MoveOperand MoveOperand;
 
@@ -421,7 +420,8 @@ IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
     // Avoid conflicts with argument registers while discarding the result after
     // the function call.
-    GeneralRegisterSet regs = GeneralRegisterSet::VolatileNot(GeneralRegisterSet());
+    const GeneralRegisterSet allocatableRegs(Registers::AllocatableMask & ~Registers::ArgRegMask);
+    GeneralRegisterSet regs(allocatableRegs);
 
     // Stack is:
     //    ... frame ...
@@ -431,7 +431,6 @@ IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
     //
     // We're aligned to an exit frame, so link it up.
     masm.linkExitFrame();
-    regs.take(ArgReg0);
 
     // Save the current stack pointer as the base for copying arguments.
     Register argsBase = InvalidReg;
@@ -448,7 +447,7 @@ IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
         masm.movl(rsp, outReg);
     }
 
-    Register temp = regs.getAny();
+    Register temp = regs.takeAny();
     masm.setupUnalignedABICall(f.argc(), temp);
 
     // Initialize and set the context parameter.
@@ -470,40 +469,21 @@ IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
     // Test for failure.
     Label exception;
-    if (f.failCond != VMFunction::FallibleNone) {
-        if (f.failCond == VMFunction::FalliblePointer)
-            masm.testq(rax, rax);
-        else // VMFunction::FallibleBool
-            masm.testl(rax, rax);
-        masm.j(Assembler::Zero, &exception);
-    }
+    if (f.returnType == VMFunction::ReturnPointer)
+        masm.testq(rax, rax);
+    else
+        masm.testl(rax, rax);
+    masm.j(Assembler::Zero, &exception);
 
     // Load the outparam and free any allocated stack.
     if (f.outParam == VMFunction::OutParam_Value) {
-        JS_ASSERT(f.returnType == VMFunction::ReturnValue);
         masm.loadValue(Operand(esp, 0), JSReturnOperand);
         masm.freeStack(sizeof(Value));
     }
 
-    // TODO: Removed this as soon as we use retn.
-    switch (f.returnType) {
-      case VMFunction::ReturnNothing:
-        regs = GeneralRegisterSet::VolatileNot(GeneralRegisterSet());
-        break;
-      case VMFunction::ReturnBool:
-      case VMFunction::ReturnPointer:
-        regs = GeneralRegisterSet::VolatileNot(GeneralRegisterSet(Registers::JSCCallMask));
-        break;
-      case VMFunction::ReturnValue:
-        regs = GeneralRegisterSet::VolatileNot(GeneralRegisterSet(Registers::JSCallMask));
-        break;
-      default:
-        JS_NOT_REACHED("Unknown ReturnType.");
-        break;
-    }
-
     // Pick a register which is not among the return registers.
-    temp = regs.getAny();
+    regs = GeneralRegisterSet(Registers::AllocatableMask & ~Registers::JSCCallMask);
+    temp = regs.takeAny();
 
     // Save the return address, remove the caller's arguments, then push the
     // return address back again.
@@ -512,10 +492,8 @@ IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
     masm.push(temp);
     masm.ret();
 
-    if (f.failCond != VMFunction::FallibleNone) {
-        masm.bind(&exception);
-        masm.handleException();
-    }
+    masm.bind(&exception);
+    masm.handleException();
 
     Linker linker(masm);
     IonCode *wrapper = linker.newCode(cx);

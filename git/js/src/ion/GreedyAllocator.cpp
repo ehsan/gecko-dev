@@ -588,7 +588,9 @@ GreedyAllocator::allocateInputs(LInstruction *ins)
 bool
 GreedyAllocator::spillForCall(LInstruction *ins)
 {
-    for (AnyRegisterIterator iter(ins->spillRegs()); iter.more(); iter++) {
+    GeneralRegisterSet genset(Registers::JSCallClobberMask);
+    FloatRegisterSet floatset(FloatRegisters::JSCallClobberMask);
+    for (AnyRegisterIterator iter(genset, floatset); iter.more(); iter++) {
         if (!maybeEvict(*iter))
             return false;
     }
@@ -646,7 +648,7 @@ GreedyAllocator::allocateInstruction(LBlock *block, LInstruction *ins)
     assertValidRegisterState();
 
     // Step 1. Around a call, save all registers used downstream.
-    if (ins->isCall() && !spillForCall(ins))
+    if (ins->isCallGeneric() && !spillForCall(ins))
         return false;
 
     // Step 2. Find all fixed writable registers, adding them to the

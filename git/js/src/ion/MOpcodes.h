@@ -76,7 +76,6 @@ namespace ion {
     _(ToDouble)                                                             \
     _(ToInt32)                                                              \
     _(TruncateToInt32)                                                      \
-    _(NewArray)                                                             \
     _(Start)                                                                \
     _(OsrEntry)                                                             \
     _(Slots)                                                                \

@@ -154,7 +154,7 @@ IonBuilder::getInliningTarget(uint32 argc, jsbytecode *pc, JSFunction **out)
         return true;
     }
 
-    JSFunction *fun = obj->getFunctionPrivate();
+    JSFunction *fun = obj->toFunction();
     if (!fun->isInterpreted()) {
         IonSpew(IonSpew_Inlining, "Cannot inline due to non-interpreted");
         return true;
@@ -640,12 +640,6 @@ IonBuilder::inspectOpcode(JSOp op)
         current->pop();
         return true;
 
-      case JSOP_NEWARRAY:
-        return jsop_newarray(GET_UINT24(pc));
-
-      case JSOP_ENDINIT:
-        return true;
-
       case JSOP_IFEQX:
         return jsop_ifeq(JSOP_IFEQX);
 
@@ -683,7 +677,7 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_INT32:
         return pushConstant(Int32Value(GET_INT32(pc)));
 
-      case JSOP_TRACE:
+      case JSOP_LOOPHEAD:
         assertValidTraceOp(op);
         return true;
 
@@ -1390,11 +1384,11 @@ IonBuilder::assertValidTraceOp(JSOp op)
         break;
 
       default:
-        JS_NOT_REACHED("JSOP_TRACE appeared in unknown control flow construct");
+        JS_NOT_REACHED("JSOP_LOOPHEAD appeared in unknown control flow construct");
         return;
     }
 
-    // Make sure this trace op goes to the same ifne as the loop header's
+    // Make sure this loop goes to the same ifne as the loop header's
     // source notes or GOTO.
     JS_ASSERT(ifne == expected_ifne);
 #endif
@@ -1419,8 +1413,8 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote *sn)
     jsbytecode *ifne = pc + offset + 1;
     JS_ASSERT(ifne > pc);
 
-    // Verify that the IFNE goes back to a trace op.
-    JS_ASSERT(JSOp(*GetNextPc(pc)) == JSOP_TRACE);
+    // Verify that the IFNE goes back to a loophead op.
+    JS_ASSERT(JSOp(*GetNextPc(pc)) == JSOP_LOOPHEAD);
     JS_ASSERT(GetNextPc(pc) == ifne + GetJumpOffset(ifne));
 
     if (GetNextPc(pc) == info().osrPc()) {
@@ -1465,8 +1459,8 @@ IonBuilder::whileLoop(JSOp op, jssrcnote *sn)
     jsbytecode *ifne = pc + ifneOffset;
     JS_ASSERT(ifne > pc);
 
-    // Verify that the IFNE goes back to a trace op.
-    JS_ASSERT(JSOp(*GetNextPc(pc)) == JSOP_TRACE);
+    // Verify that the IFNE goes back to a loophead op.
+    JS_ASSERT(JSOp(*GetNextPc(pc)) == JSOP_LOOPHEAD);
     JS_ASSERT(GetNextPc(pc) == ifne + GetJumpOffset(ifne));
 
     if (GetNextPc(pc) == info().osrPc()) {
@@ -1482,7 +1476,7 @@ IonBuilder::whileLoop(JSOp op, jssrcnote *sn)
         return ControlStatus_Error;
     current->end(MGoto::New(header));
 
-    // Skip past the JSOP_TRACE for the body start.
+    // Skip past the JSOP_LOOPHEAD for the body start.
     jsbytecode *bodyStart = GetNextPc(GetNextPc(pc));
     jsbytecode *bodyEnd = pc + GetJumpOffset(pc);
     jsbytecode *exitpc = GetNextPc(ifne);
@@ -1528,7 +1522,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote *sn)
         JS_ASSERT(bodyStart + GetJumpOffset(bodyStart) == condpc);
         bodyStart = GetNextPc(bodyStart);
     }
-    JS_ASSERT(JSOp(*bodyStart) == JSOP_TRACE);
+    JS_ASSERT(JSOp(*bodyStart) == JSOP_LOOPHEAD);
     JS_ASSERT(ifne + GetJumpOffset(ifne) == bodyStart);
     bodyStart = GetNextPc(bodyStart);
 
@@ -2247,29 +2241,6 @@ IonBuilder::jsop_compare(JSOp op)
     return true;
 }
 
-bool
-IonBuilder::jsop_newarray(uint32 count)
-{
-    using namespace types;
-
-    // This type object will stay the same for each couple (script, pc).  We do
-    // not use the type oracle here because the type oracle needs to see a few
-    // runs before giving us a typeset containing only the result of the
-    // InitObject function.
-    TypeObject *type = TypeScript::InitObject(cx, script, pc, JSProto_Array);
-    if (!type)
-        return false;
-
-    MNewArray *ins = new MNewArray(count, type);
-
-    current->add(ins);
-    current->push(ins);
-
-    if (!resumeAfter(ins))
-        return false;
-    return true;
-}
-
 MBasicBlock *
 IonBuilder::newBlock(MBasicBlock *predecessor, jsbytecode *pc)
 {
@@ -2281,7 +2252,7 @@ IonBuilder::newBlock(MBasicBlock *predecessor, jsbytecode *pc)
 MBasicBlock *
 IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *pc)
 {
-    JS_ASSERT((JSOp)*pc == JSOP_TRACE);
+    JS_ASSERT((JSOp)*pc == JSOP_LOOPHEAD);
     JS_ASSERT(pc == info().osrPc());
 
     // Create two blocks: one for the OSR entry with no predecessors, one for
@@ -2443,7 +2414,7 @@ TestSingletonProperty(JSContext *cx, JSObject *obj, jsid id, bool *isKnownConsta
     if (shape->hasDefaultGetter()) {
         if (!shape->hasSlot())
             return true;
-        if (holder->getSlot(shape->slot).isUndefined())
+        if (holder->getSlot(shape->slot()).isUndefined())
             return true;
     } else if (!shape->isMethod()) {
         return true;
@@ -2603,11 +2574,11 @@ IonBuilder::jsop_getgname(JSAtom *atom)
         current->add(guard);
     }
 
-    JS_ASSERT(shape->slot >= globalObj->numFixedSlots());
+    JS_ASSERT(shape->slot() >= globalObj->numFixedSlots());
 
     MSlots *slots = MSlots::New(global);
     current->add(slots);
-    MLoadSlot *load = MLoadSlot::New(slots, shape->slot - globalObj->numFixedSlots());
+    MLoadSlot *load = MLoadSlot::New(slots, shape->slot() - globalObj->numFixedSlots());
     current->add(load);
 
     // Slot loads can be typed, if they have a single, known, definitive type.
@@ -2661,13 +2632,13 @@ IonBuilder::jsop_setgname(JSAtom *atom)
         current->add(guard);
     }
 
-    JS_ASSERT(shape->slot >= globalObj->numFixedSlots());
+    JS_ASSERT(shape->slot() >= globalObj->numFixedSlots());
 
     MSlots *slots = MSlots::New(global);
     current->add(slots);
 
     MDefinition *value = current->pop();
-    MStoreSlot *store = MStoreSlot::New(slots, shape->slot - globalObj->numFixedSlots(), value);
+    MStoreSlot *store = MStoreSlot::New(slots, shape->slot() - globalObj->numFixedSlots(), value);
     current->add(store);
 
 #ifdef JSGC_INCREMENTAL
@@ -2690,7 +2661,7 @@ IonBuilder::jsop_setgname(JSAtom *atom)
     // storing the type tag. This only works if the property does not have its initial
     // |undefined| value; if |undefined| is assigned at a later point, it will be added
     // to the type set.
-    if (propertyTypes && !globalObj->getSlot(shape->slot).isUndefined()) {
+    if (propertyTypes && !globalObj->getSlot(shape->slot()).isUndefined()) {
         JSValueType knownType = propertyTypes->getKnownTypeTag(cx);
         if (knownType != JSVAL_TYPE_UNKNOWN)
             store->setSlotType(MIRTypeFromValueType(knownType));

@@ -59,6 +59,7 @@ typedef void (*DoOsrIonCode)(void *code, int argc, Value *argv, Value *vp,
                                CalleeToken calleeToken, StackFrame *fp);
 
 class IonActivation;
+struct VMFunction;
 
 class IonCompartment
 {
@@ -96,7 +97,7 @@ class IonCompartment
     IonCode *generateBailoutHandler(JSContext *cx);
 
   public:
-    IonCode *generateVMWrapper(JSContext *cx, const VMFunction &f);
+    IonCode *generateCWrapper(JSContext *cx, const VMFunction &f);
 
   public:
     bool initialize(JSContext *cx);

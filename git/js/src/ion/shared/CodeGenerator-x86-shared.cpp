@@ -106,18 +106,21 @@ CodeGeneratorX86Shared::generateEpilogue()
 }
 
 
-// Before doing any call to Cpp, you should ensure that volatile
+// Before doing any call to callVM, you should ensure that volatile
 // registers are evicted by the register allocator.
 bool
-CodeGeneratorX86Shared::callVM(const VMFunction &fun, LInstruction *ins)
+CodeGeneratorX86Shared::callVM(const VMFunction * f, LInstruction *ins)
 {
+    JS_ASSERT(f);
+    const VMFunction& fun = *f;
+
     // Stack is:
     //    ... frame ...
     //    [args]
 
     // Generate the wrapper of the VM function.
     IonCompartment *ion = gen->cx->compartment->ionCompartment();
-    IonCode *wrapper = ion->generateVMWrapper(gen->cx, fun);
+    IonCode *wrapper = ion->generateCWrapper(gen->cx, fun);
     if (!wrapper)
         return false;
 
@@ -137,9 +140,6 @@ CodeGeneratorX86Shared::callVM(const VMFunction &fun, LInstruction *ins)
     masm.call(wrapper);
     if (!createSafepoint(ins))
         return false;
-
-    // Pop arguments from framePushed.
-    masm.implicitPop(fun.explicitArgs);
 
     // Stack is:
     //    ... frame ...
@@ -765,22 +765,6 @@ CodeGeneratorX86Shared::visitTableSwitch(LTableSwitch *ins)
 }
 
 bool
-CodeGeneratorX86Shared::visitNewArray(LNewArray *ins)
-{
-    // ReturnReg is used for the returned value, so we don't care using it
-    // because it would be erased by the function call.
-    const Register type = ReturnReg;
-    masm.movePtr(ImmWord(ins->mir()->type()), type);
-
-    JS_ASSERT(ins->function().explicitArgs == 2);
-    masm.Push(type);
-    masm.Push(Imm32(ins->mir()->count()));
-    if (!callVM(ins->function(), ins))
-        return false;
-    return true;
-}
-
-bool
 CodeGeneratorX86Shared::visitCallGeneric(LCallGeneric *call)
 {
     // Holds the function object.
@@ -799,13 +783,10 @@ CodeGeneratorX86Shared::visitCallGeneric(LCallGeneric *call)
     uint32 unused_stack = StackOffsetOfPassedArg(callargslot);
 
     // Guard that objreg is actually a function object.
-    masm.movePtr(Operand(objreg, JSObject::offsetOfClassPointer()), tokreg);
+    masm.loadObjClass(objreg, tokreg);
     masm.cmpPtr(tokreg, ImmWord(&js::FunctionClass));
     if (!bailoutIf(Assembler::NotEqual, call->snapshot()))
         return false;
-
-    // Extract the function object.
-    masm.movePtr(Operand(objreg, offsetof(JSObject, privateData)), objreg);
 
     // Guard that objreg is a non-native function:
     // Non-native iff (obj->flags & JSFUN_KINDMASK >= JSFUN_INTERPRETED).
