@@ -1375,7 +1375,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::Scale(float x, float y)
 {
     if (!FloatValidate(x,y))
-        return NS_OK;
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     mThebes->Scale(x, y);
     return NS_OK;
@@ -1966,7 +1966,7 @@ nsresult
 nsCanvasRenderingContext2D::DrawRect(const gfxRect& rect, Style style)
 {
     if (!FloatValidate(rect.pos.x, rect.pos.y, rect.size.width, rect.size.height))
-        return NS_OK;
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     PathAutoSaveRestore pathSR(this);
 
@@ -2158,7 +2158,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::Arc(float x, float y, float r, float startAngle, float endAngle, PRBool ccw)
 {
     if (!FloatValidate(x,y,r,startAngle,endAngle))
-        return NS_OK;
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     if (r < 0.0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;

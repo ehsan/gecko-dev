@@ -4,7 +4,7 @@
 // found in the LICENSE file.
 //
 
-// compilerdebug.h: Debugging utilities.
+// debug.h: Debugging utilities.
 
 #ifndef COMPILER_DEBUG_H_
 #define COMPILER_DEBUG_H_
