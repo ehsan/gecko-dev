@@ -48,7 +48,7 @@ function test() {
     "The first column displayed for tree items is correct.");
   is(C.target.childNodes[1].getAttribute("type"), "percentage",
     "The second column displayed for tree items is correct.");
-  is(C.target.childNodes[2].getAttribute("type"), "samples",
+  is(C.target.childNodes[2].getAttribute("type"), "invocations",
     "The third column displayed for tree items is correct.");
   is(C.target.childNodes[3].getAttribute("type"), "function",
     "The fourth column displayed for tree items is correct.");

@@ -529,11 +529,9 @@
           if (PlacesControllerDragHelper.disallowInsertion(container))
             return null;
 
-          let tagName = PlacesUtils.nodeIsTagQuery(container) ?
-                          container.title : null;
           return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
                                     index, orientation,
-                                    tagName,
+                                    PlacesUtils.nodeIsTagQuery(container),
                                     dropNearItemId);
         ]]></body>
       </method>

@@ -59,7 +59,8 @@ public class testEventDispatcher extends UITest
 
     public void testEventDispatcher() {
         GeckoHelper.blockForReady();
-        NavigationHelper.enterAndLoadUrl(StringHelper.getHarnessUrlForJavascript(TEST_JS));
+        NavigationHelper.enterAndLoadUrl(StringHelper.ROBOCOP_JS_HARNESS_URL +
+                                         "?path=" + TEST_JS);
 
         js.syncCall("send_test_message", GECKO_EVENT);
         js.syncCall("send_message_for_response", GECKO_RESPONSE_EVENT, "success");

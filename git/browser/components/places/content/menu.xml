@@ -103,12 +103,9 @@
                 dropPoint.folderElt = elt;
               return dropPoint;
             }
-
-            let tagName = PlacesUtils.nodeIsTagQuery(elt._placesNode) ?
-                            elt._placesNode.title : null;
-            if ((PlacesUtils.nodeIsFolder(elt._placesNode) ||
-                 PlacesUtils.nodeIsTagQuery(elt._placesNode)) &&
-                !PlacesUtils.nodeIsReadOnly(elt._placesNode)) {
+            else if ((PlacesUtils.nodeIsFolder(elt._placesNode) ||
+                      PlacesUtils.nodeIsTagQuery(elt._placesNode)) &&
+                     !PlacesUtils.nodeIsReadOnly(elt._placesNode)) {
               // This is a folder or a tag container.
               if (eventY - eltY < eltHeight * 0.20) {
                 // If mouse is in the top part of the element, drop above folder.
@@ -116,7 +113,7 @@
                                     PlacesUtils.getConcreteItemId(resultNode),
                                     -1,
                                     Ci.nsITreeView.DROP_BEFORE,
-                                    tagName,
+                                    PlacesUtils.nodeIsTagQuery(elt._placesNode),
                                     elt._placesNode.itemId);
                 return dropPoint;
               }
@@ -126,7 +123,7 @@
                                     PlacesUtils.getConcreteItemId(elt._placesNode),
                                     -1,
                                     Ci.nsITreeView.DROP_ON,
-                                    tagName);
+                                    PlacesUtils.nodeIsTagQuery(elt._placesNode));
                 dropPoint.folderElt = elt;
                 return dropPoint;
               }
@@ -138,7 +135,7 @@
                                   PlacesUtils.getConcreteItemId(resultNode),
                                   -1,
                                   Ci.nsITreeView.DROP_BEFORE,
-                                  tagName,
+                                  PlacesUtils.nodeIsTagQuery(elt._placesNode),
                                   elt._placesNode.itemId);
               return dropPoint;
             }
@@ -148,7 +145,7 @@
                                 PlacesUtils.getConcreteItemId(resultNode),
                                 -1,
                                 Ci.nsITreeView.DROP_AFTER,
-                                tagName,
+                                PlacesUtils.nodeIsTagQuery(elt._placesNode),
                                 elt._placesNode.itemId);
             return dropPoint;
         ]]></body>
@@ -367,8 +364,7 @@
 
         let dropPoint = this._getDropPoint(event);
         if (dropPoint && dropPoint.ip) {
-          PlacesControllerDragHelper.onDrop(dropPoint.ip, event.dataTransfer)
-                                    .then(null, Components.utils.reportError);
+          PlacesControllerDragHelper.onDrop(dropPoint.ip, event.dataTransfer);
           event.preventDefault();
         }
 
