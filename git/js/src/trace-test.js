@@ -4387,6 +4387,10 @@ load("mandelbrot-results.js");
   const numRows = 600;
   const numCols = 600;
 
+  // For now, avoid hitting memory pressure
+  gcparam("maxBytes", 1300000000);
+  gcparam("maxMallocBytes", 1300000000);
+
   const colorNames = [
     "black",
     "green",
