@@ -56,11 +56,11 @@
 #include "mozIStorageFunction.h"
 
 #include "mozStorageEvents.h"
-#include "mozStorageUnicodeFunctions.h"
+#include "mozStorageSQLFunctions.h"
 #include "mozStorageConnection.h"
 #include "mozStorageService.h"
 #include "mozStorageStatement.h"
-#include "mozStorageValueArray.h"
+#include "mozStorageArgValueArray.h"
 #include "mozStoragePrivateHelpers.h"
 
 #include "prlog.h"
@@ -206,8 +206,7 @@ basicFunctionHelper(sqlite3_context *aCtx,
 
   mozIStorageFunction *func = static_cast<mozIStorageFunction *>(userData);
 
-  nsRefPtr<mozStorageArgvValueArray> arguments =
-    new mozStorageArgvValueArray(aArgc, aArgv);
+  nsRefPtr<ArgValueArray> arguments(new ArgValueArray(aArgc, aArgv));
   if (!arguments)
       return;
 
@@ -236,8 +235,7 @@ aggregateFunctionStepHelper(sqlite3_context *aCtx,
   mozIStorageAggregateFunction *func =
     static_cast<mozIStorageAggregateFunction *>(userData);
 
-  nsRefPtr<mozStorageArgvValueArray> arguments =
-    new mozStorageArgvValueArray(aArgc, aArgv);
+  nsRefPtr<ArgValueArray> arguments(new ArgValueArray(aArgc, aArgv));
   if (!arguments)
     return;
 
@@ -369,9 +367,8 @@ Connection::initialize(nsIFile *aDatabaseFile)
                                       leafName.get(), this));
 #endif
 
-  // Hook up i18n functions
-  srv = StorageUnicodeFunctions::RegisterFunctions(mDBConn);
-  if (srv != SQLITE_OK) {
+  // Register our built-in SQL functions.
+  if (registerFunctions(mDBConn) != SQLITE_OK) {
     mDBConn = nsnull;
     return ConvertResultCode(srv);
   }
