@@ -9,14 +9,11 @@
 
 #include "mozilla/HashFunctions.h"
 
-#include "jsalloc.h"
-
 #include "gc/Barrier.h"
 #include "gc/Rooting.h"
 #include "vm/CommonPropertyNames.h"
 
 class JSAtom;
-class JSAutoByteString;
 
 struct JSIdArray {
     int length;

@@ -7,6 +7,7 @@
 #ifndef vm_TypedArrayObject_h
 #define vm_TypedArrayObject_h
 
+#include "jsapi.h"
 #include "jsobj.h"
 
 #include "builtin/TypeRepresentation.h"

@@ -1475,8 +1475,6 @@ NodeBuilder::function(ASTType type, TokenPos *pos,
                    dst);
 }
 
-namespace {
-
 /*
  * Serialization of parse nodes to JavaScript objects.
  *
@@ -1587,8 +1585,6 @@ class ASTSerializer
 
     bool program(ParseNode *pn, MutableHandleValue dst);
 };
-
-} /* anonymous namespace */
 
 AssignmentOperator
 ASTSerializer::aop(JSOp op)

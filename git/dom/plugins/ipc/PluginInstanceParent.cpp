@@ -26,6 +26,7 @@
 #include "gfxContext.h"
 #include "gfxColor.h"
 #include "gfxUtils.h"
+#include "nsNPAPIPluginInstance.h"
 #include "Layers.h"
 #include "SharedTextureImage.h"
 #include "GLContext.h"

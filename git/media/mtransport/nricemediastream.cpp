@@ -197,7 +197,6 @@ nsresult NrIceMediaStream::ParseTrickleCandidate(const std::string& candidate) {
   return NS_OK;
 }
 
-// Returns NS_ERROR_NOT_AVAILABLE if component is unpaired or disabled.
 nsresult NrIceMediaStream::GetActivePair(int component,
                                          NrIceCandidate **localp,
                                          NrIceCandidate **remotep) {
@@ -209,10 +208,6 @@ nsresult NrIceMediaStream::GetActivePair(int component,
                                      stream_,
                                      component,
                                      &local_int, &remote_int);
-  // If result is R_REJECTED then component is unpaired or disabled.
-  if (r == R_REJECTED)
-    return NS_ERROR_NOT_AVAILABLE;
-
   if (r)
     return NS_ERROR_FAILURE;
 
@@ -307,21 +302,6 @@ std::vector<std::string> NrIceMediaStream::GetCandidates() const {
   RFREE(attrs);
 
   return ret;
-}
-
-nsresult NrIceMediaStream::DisableComponent(int component_id) {
-  if (!stream_)
-    return NS_ERROR_FAILURE;
-
-  int r = nr_ice_media_stream_disable_component(stream_,
-                                                component_id);
-  if (r) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable '" << name_ << "':" <<
-              component_id);
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
 }
 
 nsresult NrIceMediaStream::SendPacket(int component_id,

@@ -432,6 +432,12 @@ class IonCompartment
         }
     }
 
+    AutoFlushCache *flusher() {
+        return rt->flusher();
+    }
+    void setFlusher(AutoFlushCache *fl) {
+        rt->setFlusher(fl);
+    }
     OptimizedICStubSpace *optimizedStubSpace() {
         return &optimizedStubSpace_;
     }

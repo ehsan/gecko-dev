@@ -27,7 +27,6 @@ using namespace mozilla::ipc;
 
 SharedPlanarYCbCrImage::SharedPlanarYCbCrImage(ImageClient* aCompositable)
 : PlanarYCbCrImage(nullptr)
-, mCompositable(aCompositable)
 {
   mTextureClient = aCompositable->CreateBufferTextureClient(gfx::FORMAT_YUV);
   MOZ_COUNT_CTOR(SharedPlanarYCbCrImage);

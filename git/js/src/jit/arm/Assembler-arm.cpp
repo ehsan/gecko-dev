@@ -2741,8 +2741,7 @@ void Assembler::updateBoundsCheck(uint32_t logHeapSize, Instruction *inst)
     // O2RegImmShift shift = reg.toO2RegImmShift();
 
     *inst = InstALU(ScratchRegister, InvalidReg, lsr(index, logHeapSize), op_mov, SetCond, Always);
-    // NOTE: we don't update the Auto Flush Cache!  this function is currently only called from
-    // within AsmJSModule::patchHeapAccesses, which does that for us.  Don't call this!
+    AutoFlushCache::updateTop(uintptr_t(inst), 4);
 }
 
 void

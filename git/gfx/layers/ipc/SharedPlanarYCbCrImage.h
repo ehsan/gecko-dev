@@ -119,7 +119,6 @@ public:
 
 private:
   RefPtr<BufferTextureClient> mTextureClient;
-  RefPtr<ImageClient> mCompositable;
 };
 
 } // namespace

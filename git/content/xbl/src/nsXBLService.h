@@ -12,7 +12,7 @@
 #include "nsString.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
-#include "js/Class.h"           // nsXBLJSClass derives from JSClass
+#include "jsapi.h"              // nsXBLJSClass derives from JSClass
 #include "nsTArray.h"
 
 class nsXBLBinding;
