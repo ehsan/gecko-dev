@@ -64,8 +64,7 @@ class B2GDesktopReftest(RefTest):
 
         log.info("%s | Running tests: start.", os.path.basename(__file__))
         cmd, args = self.build_command_line(options.app,
-                            ignore_window_size=options.ignoreWindowSize,
-                            browser_arg=options.browser_arg)
+                            ignore_window_size=options.ignoreWindowSize)
         self.runner = FirefoxRunner(profile=self.profile,
                                     binary=cmd,
                                     cmdargs=args,
@@ -124,13 +123,9 @@ class B2GDesktopReftest(RefTest):
         profile.set_preferences(prefs)
         return profile
 
-    def build_command_line(self, app, ignore_window_size=False,
-                           browser_arg=None):
+    def build_command_line(self, app, ignore_window_size=False):
         cmd = os.path.abspath(app)
         args = ['-marionette']
-
-        if browser_arg:
-            args += [browser_arg]
 
         if not ignore_window_size:
             args.extend(['--screen', '800x1000'])

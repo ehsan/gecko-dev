@@ -31,9 +31,6 @@
 #ifdef ANDROID
 #include "base/message_pump_android.h"
 #endif
-#ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
-#endif
 
 #include "MessagePump.h"
 
@@ -280,11 +277,6 @@ void MessageLoop::PostNonNestableDelayedTask(
 void MessageLoop::PostIdleTask(
     const tracked_objects::Location& from_here, Task* task) {
   DCHECK(current() == this);
-
-#ifdef MOZ_TASK_TRACER
-  task = mozilla::tasktracer::CreateTracedTask(task);
-#endif
-
   task->SetBirthPlace(from_here);
   PendingTask pending_task(task, false);
   deferred_non_nestable_work_queue_.push(pending_task);
@@ -294,11 +286,6 @@ void MessageLoop::PostIdleTask(
 void MessageLoop::PostTask_Helper(
     const tracked_objects::Location& from_here, Task* task, int delay_ms,
     bool nestable) {
-
-#ifdef MOZ_TASK_TRACER
-  task = mozilla::tasktracer::CreateTracedTask(task);
-#endif
-
   task->SetBirthPlace(from_here);
 
   PendingTask pending_task(task, nestable);

@@ -347,8 +347,6 @@ URL::GetHostname(nsString& aHostname) const
 void
 URL::SetHostname(const nsAString& aHostname)
 {
-  // nsStandardURL returns NS_ERROR_UNEXPECTED for an empty hostname
-  // The return code is silently ignored
   mURI->SetHost(NS_ConvertUTF16toUTF8(aHostname));
 }
 

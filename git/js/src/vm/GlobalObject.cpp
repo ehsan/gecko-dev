@@ -762,7 +762,7 @@ GlobalObject::addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger 
     if (debuggers->empty() && !global->compartment()->addDebuggee(cx, global))
         return false;
     if (!debuggers->append(dbg)) {
-        (void) global->compartment()->removeDebuggee(cx, global);
+        global->compartment()->removeDebuggee(cx->runtime()->defaultFreeOp(), global);
         return false;
     }
     return true;

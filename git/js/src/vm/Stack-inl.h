@@ -14,7 +14,6 @@
 #include "jscntxt.h"
 
 #include "jit/BaselineFrame.h"
-#include "jit/RematerializedFrame.h"
 #include "vm/ScopeObject.h"
 
 #include "jsobjinlines.h"
@@ -411,9 +410,7 @@ AbstractFramePtr::scopeChain() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->scopeChain();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->scopeChain();
-    return asRematerializedFrame()->scopeChain();
+    return asBaselineFrame()->scopeChain();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -439,9 +436,7 @@ AbstractFramePtr::callObj() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->callObj();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->callObj();
-    return asRematerializedFrame()->callObj();
+    return asBaselineFrame()->callObj();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -471,9 +466,7 @@ AbstractFramePtr::numActualArgs() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->numActualArgs();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->numActualArgs();
-    return asRematerializedFrame()->numActualArgs();
+    return asBaselineFrame()->numActualArgs();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -484,9 +477,7 @@ AbstractFramePtr::numFormalArgs() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->numFormalArgs();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->numFormalArgs();
-    return asRematerializedFrame()->numActualArgs();
+    return asBaselineFrame()->numFormalArgs();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -498,9 +489,7 @@ AbstractFramePtr::unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing)
     if (isInterpreterFrame())
         return asInterpreterFrame()->unaliasedVar(i, checkAliasing);
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->unaliasedVar(i, checkAliasing);
-    return asRematerializedFrame()->unaliasedVar(i, checkAliasing);
+    return asBaselineFrame()->unaliasedVar(i, checkAliasing);
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -512,9 +501,7 @@ AbstractFramePtr::unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing)
     if (isInterpreterFrame())
         return asInterpreterFrame()->unaliasedLocal(i, checkAliasing);
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->unaliasedLocal(i, checkAliasing);
-    return asRematerializedFrame()->unaliasedLocal(i, checkAliasing);
+    return asBaselineFrame()->unaliasedLocal(i, checkAliasing);
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -526,9 +513,7 @@ AbstractFramePtr::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
     if (isInterpreterFrame())
         return asInterpreterFrame()->unaliasedFormal(i, checkAliasing);
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->unaliasedFormal(i, checkAliasing);
-    return asRematerializedFrame()->unaliasedFormal(i, checkAliasing);
+    return asBaselineFrame()->unaliasedFormal(i, checkAliasing);
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -540,9 +525,7 @@ AbstractFramePtr::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
     if (isInterpreterFrame())
         return asInterpreterFrame()->unaliasedActual(i, checkAliasing);
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->unaliasedActual(i, checkAliasing);
-    return asRematerializedFrame()->unaliasedActual(i, checkAliasing);
+    return asBaselineFrame()->unaliasedActual(i, checkAliasing);
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -554,9 +537,7 @@ AbstractFramePtr::hasCallObj() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->hasCallObj();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->hasCallObj();
-    return asRematerializedFrame()->hasCallObj();
+    return asBaselineFrame()->hasCallObj();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -588,9 +569,7 @@ AbstractFramePtr::isFunctionFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isFunctionFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isFunctionFrame();
-    return asRematerializedFrame()->isFunctionFrame();
+    return asBaselineFrame()->isFunctionFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -601,9 +580,7 @@ AbstractFramePtr::isGlobalFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isGlobalFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isGlobalFrame();
-    return asRematerializedFrame()->isGlobalFrame();
+    return asBaselineFrame()->isGlobalFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -614,10 +591,7 @@ AbstractFramePtr::isEvalFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isEvalFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isEvalFrame();
-    MOZ_ASSERT(isRematerializedFrame());
-    return false;
+    return asBaselineFrame()->isEvalFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -633,10 +607,7 @@ AbstractFramePtr::isDebuggerFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isDebuggerFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isDebuggerFrame();
-    MOZ_ASSERT(isRematerializedFrame());
-    return false;
+    return asBaselineFrame()->isDebuggerFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -651,9 +622,7 @@ AbstractFramePtr::script() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->script();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->script();
-    return asRematerializedFrame()->script();
+    return asBaselineFrame()->script();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -664,9 +633,7 @@ AbstractFramePtr::fun() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->fun();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->fun();
-    return asRematerializedFrame()->fun();
+    return asBaselineFrame()->fun();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -677,9 +644,7 @@ AbstractFramePtr::maybeFun() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->maybeFun();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->maybeFun();
-    return asRematerializedFrame()->maybeFun();
+    return asBaselineFrame()->maybeFun();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -690,9 +655,7 @@ AbstractFramePtr::callee() const
     if (isInterpreterFrame())
         return &asInterpreterFrame()->callee();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->callee();
-    return asRematerializedFrame()->callee();
+    return asBaselineFrame()->callee();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -703,9 +666,7 @@ AbstractFramePtr::calleev() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->calleev();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->calleev();
-    return asRematerializedFrame()->calleev();
+    return asBaselineFrame()->calleev();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -716,9 +677,7 @@ AbstractFramePtr::isNonEvalFunctionFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isNonEvalFunctionFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isNonEvalFunctionFrame();
-    return asRematerializedFrame()->isNonEvalFunctionFrame();
+    return asBaselineFrame()->isNonEvalFunctionFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -729,10 +688,7 @@ AbstractFramePtr::isNonStrictDirectEvalFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isNonStrictDirectEvalFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isNonStrictDirectEvalFrame();
-    MOZ_ASSERT(isRematerializedFrame());
-    return false;
+    return asBaselineFrame()->isNonStrictDirectEvalFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -743,10 +699,7 @@ AbstractFramePtr::isStrictEvalFrame() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->isStrictEvalFrame();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->isStrictEvalFrame();
-    MOZ_ASSERT(isRematerializedFrame());
-    return false;
+    return asBaselineFrame()->isStrictEvalFrame();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -758,9 +711,7 @@ AbstractFramePtr::argv() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->argv();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->argv();
-    return asRematerializedFrame()->argv();
+    return asBaselineFrame()->argv();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -772,9 +723,7 @@ AbstractFramePtr::hasArgsObj() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->hasArgsObj();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->hasArgsObj();
-    return asRematerializedFrame()->hasArgsObj();
+    return asBaselineFrame()->hasArgsObj();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -785,9 +734,7 @@ AbstractFramePtr::argsObj() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->argsObj();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->argsObj();
-    return asRematerializedFrame()->argsObj();
+    return asBaselineFrame()->argsObj();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -823,9 +770,7 @@ AbstractFramePtr::prevUpToDate() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->prevUpToDate();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->prevUpToDate();
-    return asRematerializedFrame()->prevUpToDate();
+    return asBaselineFrame()->prevUpToDate();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -838,11 +783,7 @@ AbstractFramePtr::setPrevUpToDate() const
         return;
     }
 #ifdef JS_ION
-    if (isBaselineFrame()) {
-        asBaselineFrame()->setPrevUpToDate();
-        return;
-    }
-    asRematerializedFrame()->setPrevUpToDate();
+    asBaselineFrame()->setPrevUpToDate();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
@@ -854,9 +795,7 @@ AbstractFramePtr::thisValue() const
     if (isInterpreterFrame())
         return asInterpreterFrame()->thisValue();
 #ifdef JS_ION
-    if (isBaselineFrame())
-        return asBaselineFrame()->thisValue();
-    return asRematerializedFrame()->thisValue();
+    return asBaselineFrame()->thisValue();
 #else
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif

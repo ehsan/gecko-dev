@@ -8,6 +8,12 @@ XPIDL_SOURCES += [
     'nsIStyleSheetService.idl',
 ]
 
+if CONFIG['IBMBIDI']:
+    UNIFIED_SOURCES += [
+        'nsBidi.cpp',
+        'nsBidiPresUtils.cpp',
+    ]
+
 if CONFIG['MOZ_DEBUG']:
     UNIFIED_SOURCES += [
         'nsAutoLayoutPhase.cpp',
@@ -66,8 +72,6 @@ UNIFIED_SOURCES += [
     'FramePropertyTable.cpp',
     'GeometryUtils.cpp',
     'MaskLayerImageCache.cpp',
-    'nsBidi.cpp',
-    'nsBidiPresUtils.cpp',
     'nsCaret.cpp',
     'nsCounterManager.cpp',
     'nsCSSColorUtils.cpp',

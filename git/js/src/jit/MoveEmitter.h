@@ -11,10 +11,8 @@
 # include "jit/shared/MoveEmitter-x86-shared.h"
 #elif defined(JS_CODEGEN_ARM)
 # include "jit/arm/MoveEmitter-arm.h"
-#elif defined(JS_CODEGEN_MIPS)
-# include "jit/mips/MoveEmitter-mips.h"
 #else
-# error "Unknown architecture!"
+# error "CPU Not Supported"
 #endif
 
 #endif /* jit_MoveEmitter_h */

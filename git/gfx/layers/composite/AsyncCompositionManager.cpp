@@ -101,8 +101,6 @@ AsyncCompositionManager::ResolveRefLayers()
   if (!mLayerManager->GetRoot()) {
     return;
   }
-
-  mReadyForCompose = true;
   WalkTheTree<Resolve>(mLayerManager->GetRoot(),
                        mReadyForCompose,
                        mTargetConfig);

@@ -74,9 +74,7 @@ namespace jit {
     /* OSR from Baseline => Ion. */         \
     _(BaselineOSR)                          \
     /* Bailouts. */                         \
-    _(BaselineBailouts)                     \
-    /* Debug Mode On Stack Recompile . */   \
-    _(BaselineDebugModeOSR)
+    _(BaselineBailouts)
 
 
 enum IonSpewChannel {

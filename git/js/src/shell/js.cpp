@@ -112,8 +112,8 @@ static size_t gMaxStackSize = 128 * sizeof(size_t) * 1024;
  */
 static double MAX_TIMEOUT_INTERVAL = 1800.0;
 static double gTimeoutInterval = -1.0;
-static volatile bool gServiceInterrupt = false;
-static Maybe<JS::PersistentRootedValue> gInterruptFunc;
+static volatile bool gTimedOut = false;
+static Maybe<JS::PersistentRootedValue> gTimeoutFunc;
 
 static bool enableDisassemblyDumps = false;
 
@@ -335,7 +335,7 @@ static JSShellContextData *
 NewContextData()
 {
     /* Prevent creation of new contexts after we have been canceled. */
-    if (gServiceInterrupt)
+    if (gTimedOut)
         return nullptr;
 
     JSShellContextData *data = (JSShellContextData *)
@@ -358,16 +358,16 @@ GetContextData(JSContext *cx)
 static bool
 ShellInterruptCallback(JSContext *cx)
 {
-    if (!gServiceInterrupt)
+    if (!gTimedOut)
         return true;
 
     bool result;
-    RootedValue interruptFunc(cx, gInterruptFunc.ref());
-    if (!interruptFunc.isNull()) {
+    RootedValue timeoutFunc(cx, gTimeoutFunc.ref());
+    if (!timeoutFunc.isNull()) {
         JS::AutoSaveExceptionState savedExc(cx);
-        JSAutoCompartment ac(cx, &interruptFunc.toObject());
+        JSAutoCompartment ac(cx, &timeoutFunc.toObject());
         RootedValue rval(cx);
-        if (!JS_CallFunctionValue(cx, JS::NullPtr(), interruptFunc,
+        if (!JS_CallFunctionValue(cx, JS::NullPtr(), timeoutFunc,
                                   JS::HandleValueArray::empty(), &rval))
         {
             return false;
@@ -451,7 +451,7 @@ RunFile(JSContext *cx, Handle<JSObject*> obj, const char *filename, FILE *file, 
     #endif
     if (script && !compileOnly) {
         if (!JS_ExecuteScript(cx, obj, script)) {
-            if (!gQuitting && !gServiceInterrupt)
+            if (!gQuitting && !gTimedOut)
                 gExitCode = EXITCODE_RUNTIME_ERROR;
         }
         int64_t t2 = PRMJ_Now() - t1;
@@ -514,7 +514,7 @@ ReadEvalPrintLoop(JSContext *cx, Handle<JSObject*> global, FILE *in, FILE *out, 
         CharBuffer buffer(cx);
         do {
             ScheduleWatchdog(cx->runtime(), -1);
-            gServiceInterrupt = false;
+            gTimedOut = false;
             errno = 0;
 
             char *line = GetLine(in, startline == lineno ? "js> " : "");
@@ -3081,7 +3081,7 @@ Sleep_fn(JSContext *cx, unsigned argc, Value *vp)
     int64_t to_wakeup = PRMJ_Now() + t_ticks;
     for (;;) {
         PR_WaitCondVar(gSleepWakeup, t_ticks);
-        if (gServiceInterrupt)
+        if (gTimedOut)
             break;
         int64_t now = PRMJ_Now();
         if (!IsBefore(now, to_wakeup))
@@ -3089,7 +3089,7 @@ Sleep_fn(JSContext *cx, unsigned argc, Value *vp)
         t_ticks = to_wakeup - now;
     }
     PR_Unlock(gWatchdogLock);
-    return !gServiceInterrupt;
+    return !gTimedOut;
 }
 
 static bool
@@ -3281,10 +3281,10 @@ ScheduleWatchdog(JSRuntime *rt, double t)
 static void
 CancelExecution(JSRuntime *rt)
 {
-    gServiceInterrupt = true;
+    gTimedOut = true;
     JS_RequestInterruptCallback(rt);
 
-    if (!gInterruptFunc.ref().get().isNull()) {
+    if (!gTimeoutFunc.ref().get().isNull()) {
         static const char msg[] = "Script runs for too long, terminating.\n";
 #if defined(XP_UNIX) && !defined(JS_THREADSAFE)
         /* It is not safe to call fputs from signals. */
@@ -3338,51 +3338,11 @@ Timeout(JSContext *cx, unsigned argc, Value *vp)
             JS_ReportError(cx, "Second argument must be a timeout function");
             return false;
         }
-        gInterruptFunc.ref() = value;
+        gTimeoutFunc.ref() = value;
     }
 
     args.rval().setUndefined();
     return SetTimeoutValue(cx, t);
-}
-
-static bool
-InterruptIf(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return false;
-    }
-
-    if (ToBoolean(args[0])) {
-        gServiceInterrupt = true;
-        JS_RequestInterruptCallback(cx->runtime());
-    }
-
-    args.rval().setUndefined();
-    return true;
-}
-
-static bool
-SetInterruptCallback(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return false;
-    }
-
-    RootedValue value(cx, args[0]);
-    if (!value.isObject() || !value.toObject().is<JSFunction>()) {
-        JS_ReportError(cx, "Argument must be a function");
-        return false;
-    }
-    gInterruptFunc.ref() = value;
-
-    args.rval().setUndefined();
-    return true;
 }
 
 static bool
@@ -4638,18 +4598,7 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "timeout([seconds], [func])",
 "  Get/Set the limit in seconds for the execution time for the current context.\n"
 "  A negative value (default) means that the execution time is unlimited.\n"
-"  If a second argument is provided, it will be invoked when the timer elapses.\n"
-"  Calling this function will replace any callback set by |setInterruptCallback|.\n"),
-
-    JS_FN_HELP("interruptIf", InterruptIf, 1, 0,
-"interruptIf(cond)",
-"  Requests interrupt callback if cond is true. If a callback function is set via\n"
-"  |timeout| or |setInterruptCallback|, it will be called. No-op otherwise."),
-
-    JS_FN_HELP("setInterruptCallback", SetInterruptCallback, 1, 0,
-"setInterruptCallback(func)",
-"  Sets func as the interrupt callback function.\n"
-"  Calling this function will replace any callback set by |timeout|.\n"),
+"  If a second argument is provided, it will be invoked when the timer elapses.\n"),
 
     JS_FN_HELP("elapsed", Elapsed, 0, 0,
 "elapsed()",
@@ -6185,7 +6134,7 @@ main(int argc, char **argv, char **envp)
     if (!SetRuntimeOptions(rt, op))
         return 1;
 
-    gInterruptFunc.construct(rt, NullValue());
+    gTimeoutFunc.construct(rt, NullValue());
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
 #ifdef JSGC_GENERATIONAL
@@ -6235,7 +6184,7 @@ main(int argc, char **argv, char **envp)
 
     KillWatchdog();
 
-    gInterruptFunc.destroy();
+    gTimeoutFunc.destroy();
 
 #ifdef JS_THREADSAFE
     for (size_t i = 0; i < workerThreads.length(); i++)

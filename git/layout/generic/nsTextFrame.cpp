@@ -3972,8 +3972,10 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
   // NOTE: bypassing nsTextFrame::Init!!!
   nsFrame::Init(aContent, aParent, aPrevInFlow);
 
+#ifdef IBMBIDI
   nsTextFrame* nextContinuation =
     static_cast<nsTextFrame*>(aPrevInFlow->GetNextContinuation());
+#endif // IBMBIDI
   // Hook the frame into the flow
   SetPrevInFlow(aPrevInFlow);
   aPrevInFlow->SetNextInFlow(this);
@@ -3997,6 +3999,7 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
       }
     }
   }
+#ifdef IBMBIDI
   if (aPrevInFlow->GetStateBits() & NS_FRAME_IS_BIDI) {
     FramePropertyTable *propTable = PresContext()->PropertyTable();
     // Get all the properties from the prev-in-flow first to take
@@ -4025,6 +4028,7 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
     }
     mState |= NS_FRAME_IS_BIDI;
   } // prev frame is bidi
+#endif // IBMBIDI
 }
 
 void

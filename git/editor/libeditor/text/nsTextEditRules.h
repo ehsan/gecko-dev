@@ -47,7 +47,6 @@ public:
 
   // nsIEditRules methods
   NS_IMETHOD Init(nsPlaintextEditor *aEditor);
-  NS_IMETHOD SetInitialValue(const nsAString& aValue);
   NS_IMETHOD DetachEditor();
   NS_IMETHOD BeforeEdit(EditAction action,
                         nsIEditor::EDirection aDirection);

@@ -110,14 +110,6 @@ GetValueType(const Value &val)
     return Type::PrimitiveType(val.extractNonDoubleType());
 }
 
-inline Type
-GetMaybeOptimizedOutValueType(const Value &val)
-{
-    if (val.isMagic() && val.whyMagic() == JS_OPTIMIZED_OUT)
-        return Type::UndefinedType();
-    return GetValueType(val);
-}
-
 inline TypeFlags
 PrimitiveTypeFlag(JSValueType type)
 {

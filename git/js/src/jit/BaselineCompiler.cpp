@@ -25,7 +25,7 @@
 using namespace js;
 using namespace js::jit;
 
-BaselineCompiler::BaselineCompiler(JSContext *cx, TempAllocator &alloc, JSScript *script)
+BaselineCompiler::BaselineCompiler(JSContext *cx, TempAllocator &alloc, HandleScript script)
   : BaselineCompilerSpecific(cx, alloc, script),
     modifiesArguments_(false)
 {
@@ -70,7 +70,7 @@ MethodStatus
 BaselineCompiler::compile()
 {
     IonSpew(IonSpew_BaselineScripts, "Baseline compiling script %s:%d (%p)",
-            script->filename(), script->lineno(), script);
+            script->filename(), script->lineno(), script.get());
 
     IonSpew(IonSpew_Codegen, "# Emitting baseline code for script %s:%d",
             script->filename(), script->lineno());
@@ -121,8 +121,7 @@ BaselineCompiler::compile()
     if (script->functionNonDelazifying()) {
         RootedFunction fun(cx, script->functionNonDelazifying());
         if (fun->isHeavyweight()) {
-            RootedScript scriptRoot(cx, script);
-            templateScope = CallObject::createTemplateObject(cx, scriptRoot, gc::TenuredHeap);
+            templateScope = CallObject::createTemplateObject(cx, script, gc::TenuredHeap);
             if (!templateScope)
                 return Method_Error;
 
@@ -175,17 +174,13 @@ BaselineCompiler::compile()
         return Method_Error;
 
     prologueOffset_.fixup(&masm);
-    epilogueOffset_.fixup(&masm);
     spsPushToggleOffset_.fixup(&masm);
-    postDebugPrologueOffset_.fixup(&masm);
 
     // Note: There is an extra entry in the bytecode type map for the search hint, see below.
     size_t bytecodeTypeMapEntries = script->nTypeSets() + 1;
 
     BaselineScript *baselineScript = BaselineScript::New(cx, prologueOffset_.offset(),
-                                                         epilogueOffset_.offset(),
                                                          spsPushToggleOffset_.offset(),
-                                                         postDebugPrologueOffset_.offset(),
                                                          icEntries_.length(),
                                                          pcMappingIndexEntries.length(),
                                                          pcEntries.length(),
@@ -394,10 +389,6 @@ BaselineCompiler::emitPrologue()
 bool
 BaselineCompiler::emitEpilogue()
 {
-    // Record the offset of the epilogue, so we can do early return from
-    // Debugger handlers during on-stack recompile.
-    epilogueOffset_ = masm.currentOffset();
-
     masm.bind(&return_);
 
 #ifdef JS_TRACE_LOGGING
@@ -442,8 +433,6 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
     // On ARM, save the link register before calling.  It contains the return
     // address.  The |masm.ret()| later will pop this into |pc| to return.
     masm.push(lr);
-#elif defined(JS_CODEGEN_MIPS)
-    masm.push(ra);
 #endif
 
     masm.setupUnalignedABICall(2, scratch);
@@ -458,9 +447,9 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
 #endif // JSGC_GENERATIONAL
 
 bool
-BaselineCompiler::emitIC(ICStub *stub, ICEntry::Kind kind)
+BaselineCompiler::emitIC(ICStub *stub, bool isForOp)
 {
-    ICEntry *entry = allocateICEntry(stub, kind);
+    ICEntry *entry = allocateICEntry(stub, isForOp);
     if (!entry)
         return false;
 
@@ -538,32 +527,27 @@ static const VMFunction DebugPrologueInfo = FunctionInfo<DebugPrologueFn>(jit::D
 bool
 BaselineCompiler::emitDebugPrologue()
 {
-    if (debugMode_) {
-        // Load pointer to BaselineFrame in R0.
-        masm.loadBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
+    if (!debugMode_)
+        return true;
 
-        prepareVMCall();
-        pushArg(ImmPtr(pc));
-        pushArg(R0.scratchReg());
-        if (!callVM(DebugPrologueInfo))
-            return false;
+    // Load pointer to BaselineFrame in R0.
+    masm.loadBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
 
-        // Fix up the fake ICEntry appended by callVM for on-stack recompilation.
-        icEntries_.back().setForDebugPrologue();
+    prepareVMCall();
+    pushArg(ImmPtr(pc));
+    pushArg(R0.scratchReg());
+    if (!callVM(DebugPrologueInfo))
+        return false;
 
-        // If the stub returns |true|, we have to return the value stored in the
-        // frame's return value slot.
-        Label done;
-        masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &done);
-        {
-            masm.loadValue(frame.addressOfReturnValue(), JSReturnOperand);
-            masm.jump(&return_);
-        }
-        masm.bind(&done);
+    // If the stub returns |true|, we have to return the value stored in the
+    // frame's return value slot.
+    Label done;
+    masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &done);
+    {
+        masm.loadValue(frame.addressOfReturnValue(), JSReturnOperand);
+        masm.jump(&return_);
     }
-
-    postDebugPrologueOffset_ = masm.currentOffset();
-
+    masm.bind(&done);
     return true;
 }
 
@@ -737,7 +721,7 @@ BaselineCompiler::emitDebugTrap()
 #endif
 
     // Add an IC entry for the return offset -> pc mapping.
-    ICEntry icEntry(script->pcToOffset(pc), ICEntry::Kind_DebugTrap);
+    ICEntry icEntry(script->pcToOffset(pc), false);
     icEntry.setReturnOffset(masm.currentOffset());
     if (!icEntries_.append(icEntry))
         return false;
@@ -2118,6 +2102,7 @@ BaselineCompiler::emit_JSOP_SETALIASEDVAR()
     frame.syncStack(0);
     Register temp = R1.scratchReg();
 
+    Nursery &nursery = cx->runtime()->gcNursery;
     Label skipBarrier;
     masm.branchTestObject(Assembler::NotEqual, R0, &skipBarrier);
     masm.branchPtrInNurseryRange(objReg, temp, &skipBarrier);
@@ -2437,6 +2422,7 @@ BaselineCompiler::emitFormalArgAccess(uint32_t arg, bool get)
         Register reg = R2.scratchReg();
         masm.loadPtr(Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfArgsObj()), reg);
 
+        Nursery &nursery = cx->runtime()->gcNursery;
         Label skipBarrier;
         masm.branchPtrInNurseryRange(reg, temp, &skipBarrier);
 
@@ -2757,9 +2743,6 @@ static const VMFunction OnDebuggerStatementInfo =
 bool
 BaselineCompiler::emit_JSOP_DEBUGGER()
 {
-    if (!debugMode_)
-        return true;
-
     prepareVMCall();
     pushArg(ImmPtr(pc));
 
@@ -2801,9 +2784,6 @@ BaselineCompiler::emitReturn()
         pushArg(R0.scratchReg());
         if (!callVM(DebugEpilogueInfo))
             return false;
-
-        // Fix up the fake ICEntry appended by callVM for on-stack recompilation.
-        icEntries_.back().setForDebugEpilogue();
 
         masm.loadValue(frame.addressOfReturnValue(), JSReturnOperand);
     }

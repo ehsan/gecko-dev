@@ -260,7 +260,7 @@ public:
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE { return LayerRenderState(); }
 
-  virtual bool CreatedIncrementalTexture(ISurfaceAllocator* aAllocator,
+  virtual void CreatedIncrementalTexture(ISurfaceAllocator* aAllocator,
                                          const TextureInfo& aTextureInfo,
                                          const nsIntRect& aBufferRect) MOZ_OVERRIDE;
 

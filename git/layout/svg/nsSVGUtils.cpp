@@ -597,8 +597,8 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
 
   /* Paint the child */
   if (effectProperties.HasValidFilter()) {
-    nsRegion* dirtyRegion = nullptr;
-    nsRegion tmpDirtyRegion;
+    nsRect* dirtyRect = nullptr;
+    nsRect tmpDirtyRect;
     if (aDirtyRect) {
       // aDirtyRect is in outer-<svg> device pixels, but the filter code needs
       // it in frame space.
@@ -612,15 +612,15 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
       gfxRect dirtyBounds = deviceToUserSpace.TransformBounds(
                               gfxRect(aDirtyRect->x, aDirtyRect->y,
                                       aDirtyRect->width, aDirtyRect->height));
-      tmpDirtyRegion =
+      tmpDirtyRect =
         nsLayoutUtils::RoundGfxRectToAppRect(
           dirtyBounds, aFrame->PresContext()->AppUnitsPerCSSPixel()) -
         aFrame->GetPosition();
-      dirtyRegion = &tmpDirtyRegion;
+      dirtyRect = &tmpDirtyRect;
     }
     SVGPaintCallback paintCallback;
     nsFilterInstance::PaintFilteredFrame(aContext, aFrame, &paintCallback,
-                                         dirtyRegion, aTransformRoot);
+                                         dirtyRect, aTransformRoot);
   } else {
     svgChildFrame->PaintSVG(aContext, aDirtyRect, aTransformRoot);
   }

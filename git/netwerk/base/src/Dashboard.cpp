@@ -13,7 +13,6 @@
 #include "nsIInputStream.h"
 #include "nsISocketTransport.h"
 #include "nsIThread.h"
-#include "nsProxyRelease.h"
 #include "nsSocketTransportService2.h"
 #include "nsThreadUtils.h"
 #include "nsURLHelper.h"
@@ -44,7 +43,7 @@ public:
     uint64_t mTotalSent;
     uint64_t mTotalRecv;
     nsTArray<SocketInfo> mData;
-    nsMainThreadPtrHandle<NetDashboardCallback> mCallback;
+    nsCOMPtr<NetDashboardCallback> mCallback;
     nsIThread *mThread;
 };
 
@@ -67,7 +66,7 @@ public:
     }
 
     nsTArray<HttpRetParams> mData;
-    nsMainThreadPtrHandle<NetDashboardCallback> mCallback;
+    nsCOMPtr<NetDashboardCallback> mCallback;
     nsIThread *mThread;
 };
 
@@ -89,7 +88,7 @@ public:
     {
     }
 
-    nsMainThreadPtrHandle<NetDashboardCallback> mCallback;
+    nsCOMPtr<NetDashboardCallback> mCallback;
     nsIThread *mThread;
 };
 
@@ -112,7 +111,7 @@ public:
     }
 
     nsTArray<DNSCacheEntries> mData;
-    nsMainThreadPtrHandle<NetDashboardCallback> mCallback;
+    nsCOMPtr<NetDashboardCallback> mCallback;
     nsIThread *mThread;
 };
 
@@ -147,7 +146,7 @@ public:
     nsCOMPtr<nsISocketTransport> mSocket;
     nsCOMPtr<nsIInputStream> mStreamIn;
     nsCOMPtr<nsITimer> mTimer;
-    nsMainThreadPtrHandle<NetDashboardCallback> mCallback;
+    nsCOMPtr<NetDashboardCallback> mCallback;
     nsIThread *mThread;
     Dashboard *mDashboard;
 
@@ -266,7 +265,7 @@ public:
     nsresult ConstructAnswer(LookupArgument *aArgument);
 public:
     nsCOMPtr<nsICancelable> mCancel;
-    nsMainThreadPtrHandle<NetDashboardCallback> mCallback;
+    nsCOMPtr<NetDashboardCallback> mCallback;
     nsIThread *mThread;
     nsresult mStatus;
 };
@@ -342,8 +341,7 @@ NS_IMETHODIMP
 Dashboard::RequestSockets(NetDashboardCallback *aCallback)
 {
     nsRefPtr<SocketData> socketData = new SocketData();
-    socketData->mCallback =
-        new nsMainThreadPtrHolder<NetDashboardCallback>(aCallback, true);
+    socketData->mCallback = aCallback;
     socketData->mThread = NS_GetCurrentThread();
     nsCOMPtr<nsIRunnable> event =
         NS_NewRunnableMethodWithArg<nsRefPtr<SocketData> >
@@ -413,8 +411,7 @@ NS_IMETHODIMP
 Dashboard::RequestHttpConnections(NetDashboardCallback *aCallback)
 {
     nsRefPtr<HttpData> httpData = new HttpData();
-    httpData->mCallback =
-        new nsMainThreadPtrHolder<NetDashboardCallback>(aCallback, true);
+    httpData->mCallback = aCallback;
     httpData->mThread = NS_GetCurrentThread();
 
     nsCOMPtr<nsIRunnable> event =
@@ -453,6 +450,8 @@ Dashboard::GetHttpConnections(HttpData *aHttpData)
 
     uint32_t length = httpData->mData.Length();
     if (!connections.SetCapacity(length)) {
+            httpData->mCallback = nullptr;
+            httpData->mData.Clear();
             JS_ReportOutOfMemory(cx);
             return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -476,6 +475,8 @@ Dashboard::GetHttpConnections(HttpData *aHttpData)
         if (!active.SetCapacity(httpData->mData[i].active.Length()) ||
             !idle.SetCapacity(httpData->mData[i].idle.Length()) ||
             !halfOpens.SetCapacity(httpData->mData[i].halfOpens.Length())) {
+                httpData->mCallback = nullptr;
+                httpData->mData.Clear();
                 JS_ReportOutOfMemory(cx);
                 return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -590,8 +591,7 @@ NS_IMETHODIMP
 Dashboard::RequestWebsocketConnections(NetDashboardCallback *aCallback)
 {
     nsRefPtr<WebSocketRequest> wsRequest = new WebSocketRequest();
-    wsRequest->mCallback =
-        new nsMainThreadPtrHolder<NetDashboardCallback>(aCallback, true);
+    wsRequest->mCallback = aCallback;
     wsRequest->mThread = NS_GetCurrentThread();
 
     nsCOMPtr<nsIRunnable> event =
@@ -642,8 +642,7 @@ NS_IMETHODIMP
 Dashboard::RequestDNSInfo(NetDashboardCallback *aCallback)
 {
     nsRefPtr<DnsData> dnsData = new DnsData();
-    dnsData->mCallback =
-        new nsMainThreadPtrHolder<NetDashboardCallback>(aCallback, true);
+    dnsData->mCallback = aCallback;
 
     nsresult rv;
     dnsData->mData.Clear();
@@ -728,7 +727,7 @@ Dashboard::GetDNSCacheEntries(DnsData *dnsData)
 
 NS_IMETHODIMP
 Dashboard::RequestDNSLookup(const nsACString &aHost,
-                            NetDashboardCallback *aCallback)
+                            NetDashboardCallback *mCallback)
 {
     nsresult rv;
 
@@ -740,8 +739,7 @@ Dashboard::RequestDNSLookup(const nsACString &aHost,
     }
 
     nsRefPtr<LookupHelper> helper = new LookupHelper();
-    helper->mCallback =
-        new nsMainThreadPtrHolder<NetDashboardCallback>(aCallback, true);
+    helper->mCallback = mCallback;
     helper->mThread = NS_GetCurrentThread();
     rv = mDnsService->AsyncResolve(aHost, 0, helper.get(),
                                    NS_GetCurrentThread(),
@@ -795,8 +793,7 @@ Dashboard::RequestConnection(const nsACString& aHost, uint32_t aPort,
     connectionData->mProtocol = aProtocol;
     connectionData->mTimeout = aTimeout;
 
-    connectionData->mCallback =
-        new nsMainThreadPtrHolder<NetDashboardCallback>(aCallback, true);
+    connectionData->mCallback = aCallback;
     connectionData->mThread = NS_GetCurrentThread();
 
     rv = TestNewConnection(connectionData);

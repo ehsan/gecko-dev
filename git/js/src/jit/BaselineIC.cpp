@@ -13,7 +13,6 @@
 #include "jstypes.h"
 
 #include "builtin/Eval.h"
-#include "jit/BaselineDebugModeOSR.h"
 #include "jit/BaselineHelpers.h"
 #include "jit/BaselineJIT.h"
 #include "jit/IonLinker.h"
@@ -671,20 +670,6 @@ ICStubCompiler::leaveStubFrame(MacroAssembler &masm, bool calledIntoIon)
 }
 
 void
-ICStubCompiler::leaveStubFrameHead(MacroAssembler &masm, bool calledIntoIon)
-{
-    JS_ASSERT(entersStubFrame_);
-    EmitLeaveStubFrameHead(masm, calledIntoIon);
-}
-
-void
-ICStubCompiler::leaveStubFrameCommonTail(MacroAssembler &masm)
-{
-    JS_ASSERT(entersStubFrame_);
-    EmitLeaveStubFrameCommonTail(masm);
-}
-
-void
 ICStubCompiler::guardProfilingEnabled(MacroAssembler &masm, Register scratch, Label *skip)
 {
     // This should only be called from the following stubs.
@@ -760,7 +745,7 @@ ICStubCompiler::emitPostWriteBarrierSlot(MacroAssembler &masm, Register obj, Val
     masm.branchPtr(Assembler::AboveOrEqual, valReg, ImmWord(nursery.heapEnd()), &skipBarrier);
 
     // void PostWriteBarrier(JSRuntime *rt, JSObject *obj);
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+#ifdef JS_CODEGEN_ARM
     saveRegs.add(BaselineTailCallReg);
 #endif
     saveRegs = GeneralRegisterSet::Intersect(saveRegs, GeneralRegisterSet::Volatile());
@@ -1772,12 +1757,9 @@ ICNewObject_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 //
 
 static bool
-DoCompareFallback(JSContext *cx, BaselineFrame *frame, ICCompare_Fallback *stub_, HandleValue lhs,
+DoCompareFallback(JSContext *cx, BaselineFrame *frame, ICCompare_Fallback *stub, HandleValue lhs,
                   HandleValue rhs, MutableHandleValue ret)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICCompare_Fallback *> stub(frame, stub_);
-
     jsbytecode *pc = stub->icEntry()->pc(frame->script());
     JSOp op = JSOp(*pc);
 
@@ -1833,10 +1815,6 @@ DoCompareFallback(JSContext *cx, BaselineFrame *frame, ICCompare_Fallback *stub_
     }
 
     ret.setBoolean(out);
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     // Check to see if a new stub should be generated.
     if (stub->numOptimizedStubs() >= ICCompare_Fallback::MAX_OPTIMIZED_STUBS) {
@@ -2511,12 +2489,9 @@ ICToNumber_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 # pragma optimize("g", off)
 #endif
 static bool
-DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallback *stub_,
+DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallback *stub,
                       HandleValue lhs, HandleValue rhs, MutableHandleValue ret)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICBinaryArith_Fallback *> stub(frame, stub_);
-
     RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(script);
     JSOp op = JSOp(*pc);
@@ -2595,10 +2570,6 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
       default:
         MOZ_ASSUME_UNREACHABLE("Unhandled baseline arith op");
     }
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     if (ret.isDouble())
         stub->setSawDoubleResult();
@@ -3077,12 +3048,9 @@ ICBinaryArith_DoubleWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
 # pragma optimize("g", off)
 #endif
 static bool
-DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback *stub_,
+DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback *stub,
                      HandleValue val, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICUnaryArith_Fallback *> stub(frame, stub_);
-
     RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(script);
     JSOp op = JSOp(*pc);
@@ -3103,10 +3071,6 @@ DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback 
       default:
         MOZ_ASSUME_UNREACHABLE("Unexpected op");
     }
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     if (res.isDouble())
         stub->setSawDoubleResult();
@@ -4013,13 +3977,9 @@ TryAttachGetElemStub(JSContext *cx, JSScript *script, jsbytecode *pc, ICGetElem_
 }
 
 static bool
-DoGetElemFallback(JSContext *cx, BaselineFrame *frame, ICGetElem_Fallback *stub_, HandleValue lhs,
+DoGetElemFallback(JSContext *cx, BaselineFrame *frame, ICGetElem_Fallback *stub, HandleValue lhs,
                   HandleValue rhs, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICGetElem_Fallback *> stub(frame, stub_);
-
-    RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(frame->script());
     JSOp op = JSOp(*pc);
     FallbackICSpew(cx, stub, "GetElem(%s)", js_CodeName[op]);
@@ -4043,10 +4003,6 @@ DoGetElemFallback(JSContext *cx, BaselineFrame *frame, ICGetElem_Fallback *stub_
             return false;
         types::TypeScript::Monitor(cx, frame->script(), pc, res);
     }
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     // Add a type monitor stub for the resulting value.
     if (!stub->addMonitorStubForValue(cx, frame->script(), res))
@@ -4989,12 +4945,9 @@ CanOptimizeDenseSetElem(JSContext *cx, HandleObject obj, uint32_t index,
 }
 
 static bool
-DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub_, Value *stack,
+DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub, Value *stack,
                   HandleValue objv, HandleValue index, HandleValue rhs)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICSetElem_Fallback *> stub(frame, stub_);
-
     RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(script);
     JSOp op = JSOp(*pc);
@@ -5033,10 +4986,6 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub_
     // Overwrite the object on the stack (pushed for the decompiler) with the rhs.
     JS_ASSERT(stack[2] == objv);
     stack[2] = rhs;
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     if (stub->numOptimizedStubs() >= ICSetElem_Fallback::MAX_OPTIMIZED_STUBS) {
         // TODO: Discard all stubs in this IC and replace with inert megamorphic stub.
@@ -5808,12 +5757,9 @@ TryAttachScopeNameStub(JSContext *cx, HandleScript script, ICGetName_Fallback *s
 }
 
 static bool
-DoGetNameFallback(JSContext *cx, BaselineFrame *frame, ICGetName_Fallback *stub_,
+DoGetNameFallback(JSContext *cx, BaselineFrame *frame, ICGetName_Fallback *stub,
                   HandleObject scopeChain, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICGetName_Fallback *> stub(frame, stub_);
-
     RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(script);
     mozilla::DebugOnly<JSOp> op = JSOp(*pc);
@@ -5832,10 +5778,6 @@ DoGetNameFallback(JSContext *cx, BaselineFrame *frame, ICGetName_Fallback *stub_
     }
 
     types::TypeScript::Monitor(cx, script, pc, res);
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     // Add a type monitor stub for the resulting value.
     if (!stub->addMonitorStubForValue(cx, script, res))
@@ -5992,12 +5934,9 @@ ICBindName_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 //
 
 static bool
-DoGetIntrinsicFallback(JSContext *cx, BaselineFrame *frame, ICGetIntrinsic_Fallback *stub_,
+DoGetIntrinsicFallback(JSContext *cx, BaselineFrame *frame, ICGetIntrinsic_Fallback *stub,
                        MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICGetIntrinsic_Fallback *> stub(frame, stub_);
-
     RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(script);
     mozilla::DebugOnly<JSOp> op = JSOp(*pc);
@@ -6013,10 +5952,6 @@ DoGetIntrinsicFallback(JSContext *cx, BaselineFrame *frame, ICGetIntrinsic_Fallb
     // directly.
 
     types::TypeScript::Monitor(cx, script, pc, res);
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     IonSpew(IonSpew_BaselineIC, "  Generating GetIntrinsic optimized stub");
     ICGetIntrinsic_Constant::Compiler compiler(cx, res);
@@ -6379,12 +6314,9 @@ TryAttachPrimitiveGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc
 }
 
 static bool
-DoGetPropFallback(JSContext *cx, BaselineFrame *frame, ICGetProp_Fallback *stub_,
+DoGetPropFallback(JSContext *cx, BaselineFrame *frame, ICGetProp_Fallback *stub,
                   MutableHandleValue val, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICGetProp_Fallback *> stub(frame, stub_);
-
     jsbytecode *pc = stub->icEntry()->pc(frame->script());
     JSOp op = JSOp(*pc);
     FallbackICSpew(cx, stub, "GetProp(%s)", js_CodeName[op]);
@@ -6429,10 +6361,6 @@ DoGetPropFallback(JSContext *cx, BaselineFrame *frame, ICGetProp_Fallback *stub_
 #endif
 
     types::TypeScript::Monitor(cx, frame->script(), pc, res);
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     // Add a type monitor stub for the resulting value.
     if (!stub->addMonitorStubForValue(cx, frame->script(), res))
@@ -6495,27 +6423,17 @@ ICGetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     if (!tailCallVM(DoGetPropFallbackInfo, masm))
         return false;
 
-    // What follows is bailout for inlined scripted getters or for on-stack
-    // debug mode recompile. The return address pointed to by the baseline
-    // stack points here.
-    //
+    // What follows is bailout-only code for inlined scripted getters
+    // The return address pointed to by the baseline stack points here.
+    returnOffset_ = masm.currentOffset();
+
     // Even though the fallback frame doesn't enter a stub frame, the CallScripted
     // frame that we are emulating does. Again, we lie.
 #ifdef DEBUG
     entersStubFrame_ = true;
 #endif
 
-    Label leaveStubCommon;
-
-    returnFromStubOffset_ = masm.currentOffset();
-    leaveStubFrameHead(masm, false);
-    masm.jump(&leaveStubCommon);
-
-    returnFromIonOffset_ = masm.currentOffset();
-    leaveStubFrameHead(masm, true);
-
-    masm.bind(&leaveStubCommon);
-    leaveStubFrameCommonTail(masm);
+    leaveStubFrame(masm, true);
 
     // When we get here, BaselineStubReg contains the ICGetProp_Fallback stub,
     // which we can't use to enter the TypeMonitor IC, because it's a MonitoredFallbackStub
@@ -6530,16 +6448,9 @@ ICGetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 bool
 ICGetProp_Fallback::Compiler::postGenerateStubCode(MacroAssembler &masm, Handle<JitCode *> code)
 {
-    JitCompartment *comp = cx->compartment()->jitCompartment();
-
-    CodeOffsetLabel fromIon(returnFromIonOffset_);
-    fromIon.fixup(&masm);
-    comp->initBaselineGetPropReturnFromIonAddr(code->raw() + fromIon.offset());
-
-    CodeOffsetLabel fromVM(returnFromStubOffset_);
-    fromVM.fixup(&masm);
-    comp->initBaselineGetPropReturnFromStubAddr(code->raw() + fromVM.offset());
-
+    CodeOffsetLabel offset(returnOffset_);
+    offset.fixup(&masm);
+    cx->compartment()->jitCompartment()->initBaselineGetPropReturnAddr(code->raw() + offset.offset());
     return true;
 }
 
@@ -7337,12 +7248,9 @@ TryAttachSetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc, ICSetPr
 }
 
 static bool
-DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub_,
-                  HandleValue lhs, HandleValue rhs, MutableHandleValue res)
+DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub, HandleValue lhs,
+                  HandleValue rhs, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICSetProp_Fallback *> stub(frame, stub_);
-
     RootedScript script(cx, frame->script());
     jsbytecode *pc = stub->icEntry()->pc(script);
     JSOp op = JSOp(*pc);
@@ -7391,10 +7299,6 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub_
     // Leave the RHS on the stack.
     res.set(rhs);
 
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
-
     if (stub->numOptimizedStubs() >= ICSetProp_Fallback::MAX_OPTIMIZED_STUBS) {
         // TODO: Discard all stubs in this IC and replace with generic setprop stub.
         return true;
@@ -7440,27 +7344,17 @@ ICSetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     if (!tailCallVM(DoSetPropFallbackInfo, masm))
         return false;
 
-    // What follows is bailout debug mode recompile code for inlined scripted
-    // getters The return address pointed to by the baseline stack points
-    // here.
-    //
+    // What follows is bailout-only code for inlined scripted getters
+    // The return address pointed to by the baseline stack points here.
+    returnOffset_ = masm.currentOffset();
+
     // Even though the fallback frame doesn't enter a stub frame, the CallScripted
     // frame that we are emulating does. Again, we lie.
 #ifdef DEBUG
     entersStubFrame_ = true;
 #endif
 
-    Label leaveStubCommon;
-
-    returnFromStubOffset_ = masm.currentOffset();
-    leaveStubFrameHead(masm, false);
-    masm.jump(&leaveStubCommon);
-
-    returnFromIonOffset_ = masm.currentOffset();
-    leaveStubFrameHead(masm, true);
-
-    masm.bind(&leaveStubCommon);
-    leaveStubFrameCommonTail(masm);
+    leaveStubFrame(masm, true);
 
     // Retrieve the stashed initial argument from the caller's frame before returning
     EmitUnstowICValues(masm, 1);
@@ -7472,16 +7366,9 @@ ICSetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 bool
 ICSetProp_Fallback::Compiler::postGenerateStubCode(MacroAssembler &masm, Handle<JitCode *> code)
 {
-    JitCompartment *comp = cx->compartment()->jitCompartment();
-
-    CodeOffsetLabel fromIon(returnFromIonOffset_);
-    fromIon.fixup(&masm);
-    comp->initBaselineSetPropReturnFromIonAddr(code->raw() + fromIon.offset());
-
-    CodeOffsetLabel fromVM(returnFromStubOffset_);
-    fromVM.fixup(&masm);
-    comp->initBaselineSetPropReturnFromStubAddr(code->raw() + fromVM.offset());
-
+    CodeOffsetLabel offset(returnOffset_);
+    offset.fixup(&masm);
+    cx->compartment()->jitCompartment()->initBaselineSetPropReturnAddr(code->raw() + offset.offset());
     return true;
 }
 
@@ -8197,12 +8084,9 @@ MaybeCloneFunctionAtCallsite(JSContext *cx, MutableHandleValue callee, HandleScr
 }
 
 static bool
-DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub_, uint32_t argc,
+DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub, uint32_t argc,
                Value *vp, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICCall_Fallback *> stub(frame, stub_);
-
     // Ensure vp array is rooted - we may GC in here.
     AutoArrayRooter vpRoot(cx, argc + 2, vp);
 
@@ -8253,10 +8137,6 @@ DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub_, uint
     }
 
     types::TypeScript::Monitor(cx, script, pc, res);
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     // Attach a new TypeMonitor stub for this value.
     ICTypeMonitor_Fallback *typeMonFbStub = stub->fallbackMonitorStub();
@@ -8502,35 +8382,17 @@ ICCall_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     leaveStubFrame(masm);
     EmitReturnFromIC(masm);
 
-    // The following asmcode is only used either when an Ion inlined frame
-    // bails out into baseline jitcode or we need to do on-stack script
-    // replacement for debug mode recompile.
-    Label leaveStubCommon;
-    returnFromStubOffset_ = masm.currentOffset();
+    // The following asmcode is only used when an Ion inlined frame bails out into
+    // baseline jitcode.  The return address pushed onto the reconstructed baseline stack
+    // points here.
+    returnOffset_ = masm.currentOffset();
 
     // Load passed-in ThisV into R1 just in case it's needed.  Need to do this before
     // we leave the stub frame since that info will be lost.
     // Current stack:  [...., ThisV, ActualArgc, CalleeToken, Descriptor ]
     masm.loadValue(Address(BaselineStackReg, 3 * sizeof(size_t)), R1);
 
-    // Emit the coming-from-VM specific part of the stub-leaving code.
-    leaveStubFrameHead(masm, /* calledIntoIon = */ false);
-
-    // Jump to the common leave stub tail.
-    masm.jump(&leaveStubCommon);
-
-    // For Ion bailouts, the return address pushed onto the reconstructed
-    // baseline stack points here.
-    returnFromIonOffset_ = masm.currentOffset();
-
-    masm.loadValue(Address(BaselineStackReg, 3 * sizeof(size_t)), R1);
-
-    // Emit the coming-from-Ion specific part of the stub-leaving code.
-    leaveStubFrameHead(masm, /* calledIntoIon = */ true);
-
-    // Emit the common stub-leaving tail.
-    masm.bind(&leaveStubCommon);
-    leaveStubFrameCommonTail(masm);
+    leaveStubFrame(masm, true);
 
     // R1 and R0 are taken.
     regs = availableGeneralRegs(2);
@@ -8565,16 +8427,9 @@ ICCall_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 bool
 ICCall_Fallback::Compiler::postGenerateStubCode(MacroAssembler &masm, Handle<JitCode *> code)
 {
-    JitCompartment *comp = cx->compartment()->jitCompartment();
-
-    CodeOffsetLabel fromIon(returnFromIonOffset_);
-    fromIon.fixup(&masm);
-    comp->initBaselineCallReturnFromIonAddr(code->raw() + fromIon.offset());
-
-    CodeOffsetLabel fromVM(returnFromStubOffset_);
-    fromVM.fixup(&masm);
-    comp->initBaselineCallReturnFromStubAddr(code->raw() + fromVM.offset());
-
+    CodeOffsetLabel offset(returnOffset_);
+    offset.fixup(&masm);
+    cx->compartment()->jitCompartment()->initBaselineCallReturnAddr(code->raw() + offset.offset());
     return true;
 }
 
@@ -9347,7 +9202,7 @@ ICTableSwitch::Compiler::getStub(ICStubSpace *space)
 }
 
 void
-ICTableSwitch::fixupJumpTable(JSScript *script, BaselineScript *baseline)
+ICTableSwitch::fixupJumpTable(HandleScript script, BaselineScript *baseline)
 {
     defaultTarget_ = baseline->nativeCodeForPC(script, (jsbytecode *) defaultTarget_);
 
@@ -9396,22 +9251,15 @@ ICIteratorNew_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 //
 
 static bool
-DoIteratorMoreFallback(JSContext *cx, BaselineFrame *frame, ICIteratorMore_Fallback *stub_,
+DoIteratorMoreFallback(JSContext *cx, BaselineFrame *frame, ICIteratorMore_Fallback *stub,
                        HandleValue iterValue, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICIteratorMore_Fallback *> stub(frame, stub_);
-
     FallbackICSpew(cx, stub, "IteratorMore");
 
     bool cond;
     if (!IteratorMore(cx, &iterValue.toObject(), &cond, res))
         return false;
     res.setBoolean(cond);
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     if (iterValue.toObject().is<PropertyIteratorObject>() &&
         !stub->hasStub(ICStub::IteratorMore_Native))
@@ -9484,21 +9332,14 @@ ICIteratorMore_Native::Compiler::generateStubCode(MacroAssembler &masm)
 //
 
 static bool
-DoIteratorNextFallback(JSContext *cx, BaselineFrame *frame, ICIteratorNext_Fallback *stub_,
+DoIteratorNextFallback(JSContext *cx, BaselineFrame *frame, ICIteratorNext_Fallback *stub,
                        HandleValue iterValue, MutableHandleValue res)
 {
-    // This fallback stub may trigger debug mode toggling.
-    DebugModeOSRVolatileStub<ICIteratorNext_Fallback *> stub(frame, stub_);
-
     FallbackICSpew(cx, stub, "IteratorNext");
 
     RootedObject iteratorObject(cx, &iterValue.toObject());
     if (!IteratorNext(cx, iteratorObject, res))
         return false;
-
-    // Check if debug mode toggling made the stub invalid.
-    if (stub.invalid())
-        return true;
 
     if (!res.isString() && !stub->hasNonStringResult())
         stub->setHasNonStringResult();

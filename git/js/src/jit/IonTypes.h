@@ -48,10 +48,7 @@ enum BailoutKind
     Bailout_ShapeGuard,
 
     // A bailout caused by invalid assumptions based on Baseline code.
-    Bailout_BaselineInfo,
-
-    // A bailout to baseline from Ion on exception to handle Debugger hooks.
-    Bailout_IonExceptionDebugMode,
+    Bailout_BaselineInfo
 };
 
 inline const char *
@@ -68,8 +65,6 @@ BailoutKindString(BailoutKind kind)
         return "Bailout_ShapeGuard";
       case Bailout_BaselineInfo:
         return "Bailout_BaselineInfo";
-      case Bailout_IonExceptionDebugMode:
-        return "Bailout_IonExceptionDebugMode";
       default:
         MOZ_ASSUME_UNREACHABLE("Invalid BailoutKind");
     }
@@ -96,7 +91,6 @@ enum MIRType
     MIRType_String,
     MIRType_Object,
     MIRType_MagicOptimizedArguments, // JS_OPTIMIZED_ARGUMENTS magic value.
-    MIRType_MagicOptimizedOut,       // JS_OPTIMIZED_OUT magic value.
     MIRType_MagicHole,               // JS_ELEMENTS_HOLE magic value.
     MIRType_MagicIsConstructing,     // JS_IS_CONSTRUCTING magic value.
     MIRType_Value,
@@ -170,7 +164,6 @@ ValueTypeFromMIRType(MIRType type)
     case MIRType_String:
       return JSVAL_TYPE_STRING;
     case MIRType_MagicOptimizedArguments:
-    case MIRType_MagicOptimizedOut:
     case MIRType_MagicHole:
     case MIRType_MagicIsConstructing:
       return JSVAL_TYPE_MAGIC;
@@ -208,8 +201,6 @@ StringFromMIRType(MIRType type)
       return "Object";
     case MIRType_MagicOptimizedArguments:
       return "MagicOptimizedArguments";
-    case MIRType_MagicOptimizedOut:
-      return "MagicOptimizedOut";
     case MIRType_MagicHole:
       return "MagicHole";
     case MIRType_MagicIsConstructing:

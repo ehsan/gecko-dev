@@ -434,6 +434,7 @@ protected:
    */
   void AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling);
 
+#ifdef IBMBIDI
   /**
    * Perform Bidi resolution on this frame
    */
@@ -448,6 +449,7 @@ protected:
    * @return whether the frame is a BIDI form control
    */
   bool IsVisualFormControl(nsPresContext* aPresContext);
+#endif
 
 public:
   /**

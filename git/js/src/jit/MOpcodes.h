@@ -41,7 +41,6 @@ namespace jit {
     _(LoadArrowThis)                                                        \
     _(Call)                                                                 \
     _(ApplyArgs)                                                            \
-    _(ArraySplice)                                                          \
     _(Bail)                                                                 \
     _(AssertFloat32)                                                        \
     _(GetDynamicName)                                                       \

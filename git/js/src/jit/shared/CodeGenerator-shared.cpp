@@ -67,7 +67,7 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
         // An MAsmJSCall does not align the stack pointer at calls sites but instead
         // relies on the a priori stack adjustment (in the prologue) on platforms
         // (like x64) which require the stack to be aligned.
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+#ifdef JS_CODEGEN_ARM
         bool forceAlign = true;
 #else
         bool forceAlign = false;
@@ -150,7 +150,7 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
             mir = mir->toBox()->getOperand(0);
 
         MIRType type = mir->isUnused()
-                       ? MIRType_MagicOptimizedOut
+                       ? MIRType_Undefined
                        : mir->type();
 
         RValueAllocation alloc;
@@ -194,14 +194,9 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
             break;
           }
           case MIRType_MagicOptimizedArguments:
-          case MIRType_MagicOptimizedOut:
           {
             uint32_t index;
-            JSWhyMagic why = (type == MIRType_MagicOptimizedArguments
-                              ? JS_OPTIMIZED_ARGUMENTS
-                              : JS_OPTIMIZED_OUT);
-            Value v = MagicValue(why);
-            if (!graph.addConstantToPool(v, &index))
+            if (!graph.addConstantToPool(MagicValue(JS_OPTIMIZED_ARGUMENTS), &index))
                 return false;
             alloc = RValueAllocation::ConstantPool(index);
             break;

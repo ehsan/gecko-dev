@@ -5050,6 +5050,10 @@ MOZ_ARG_DISABLE_BOOL(dbm,
     NSS_DISABLE_DBM=1,
     NSS_DISABLE_DBM=)
 
+dnl bi-directional support always on
+IBMBIDI=1
+AC_DEFINE(IBMBIDI)
+
 dnl ========================================================
 dnl accessibility support on by default on all platforms
 dnl ========================================================
@@ -7436,18 +7440,6 @@ if test -n "$MOZ_VISUAL_EVENT_TRACER"; then
 fi
 
 dnl ========================================================
-dnl = Enable TaskTracer
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(tasktracer,
-[  --enable-tasktracer       Set compile flags necessary for using TaskTracer],
-    MOZ_TASK_TRACER=1,
-    MOZ_TASK_TRACER= )
-if test "$MOZ_WIDGET_TOOLKIT" = "gonk" -a -n "$MOZ_TASK_TRACER"; then
-    AC_DEFINE(MOZ_TASK_TRACER)
-    AC_SUBST(MOZ_TASK_TRACER)
-fi
-
-dnl ========================================================
 dnl Turn on reflow counting
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(reflow-perf,
@@ -8495,6 +8487,7 @@ AC_SUBST(KEYTOOL)
 AC_SUBST(MOZ_PROFILELOCKING)
 
 AC_SUBST(ENABLE_TESTS)
+AC_SUBST(IBMBIDI)
 AC_SUBST(MOZ_UNIVERSALCHARDET)
 AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_SPELLCHECK)
@@ -8909,7 +8902,9 @@ fi # COMPILE_ENVIRONMENT
 dnl Set various defines and substitutions
 dnl ========================================================
 
-if test "$OS_ARCH" != "WINNT"; then
+if test "$OS_ARCH" = "Darwin"; then
+  AC_DEFINE(XP_UNIX)
+elif test "$OS_ARCH" != "WINNT"; then
   AC_DEFINE(XP_UNIX)
 fi
 

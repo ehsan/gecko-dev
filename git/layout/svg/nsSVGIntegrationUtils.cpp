@@ -283,12 +283,12 @@ nsRect
   return overflowRect - (aFrame->GetOffsetTo(firstFrame) + firstFrameToBoundingBox);
 }
 
-nsIntRegion
+nsIntRect
 nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
                                                       const nsPoint& aToReferenceFrame,
-                                                      const nsIntRegion& aInvalidRegion)
+                                                      const nsIntRect& aInvalidRect)
 {
-  if (aInvalidRegion.IsEmpty()) {
+  if (aInvalidRect.IsEmpty()) {
     return nsIntRect();
   }
 
@@ -298,7 +298,7 @@ nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
     nsLayoutUtils::FirstContinuationOrIBSplitSibling(aFrame);
   nsSVGFilterProperty *prop = nsSVGEffects::GetFilterProperty(firstFrame);
   if (!prop || !prop->IsInObserverLists()) {
-    return aInvalidRegion;
+    return aInvalidRect;
   }
 
   int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
@@ -312,18 +312,18 @@ nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
     return overflow.ToOutsidePixels(appUnitsPerDevPixel);
   }
 
-  // Convert aInvalidRegion into bounding box frame space in app units:
+  // Convert aInvalidRect into bounding box frame space in app units:
   nsPoint toBoundingBox =
     aFrame->GetOffsetTo(firstFrame) + GetOffsetToBoundingBox(firstFrame);
   // The initial rect was relative to the reference frame, so we need to
   // remove that offset to get a rect relative to the current frame.
   toBoundingBox -= aToReferenceFrame;
-  nsRegion preEffectsRegion = aInvalidRegion.ToAppUnits(appUnitsPerDevPixel).MovedBy(toBoundingBox);
+  nsRect preEffectsRect = aInvalidRect.ToAppUnits(appUnitsPerDevPixel) + toBoundingBox;
 
   // Adjust the dirty area for effects, and shift it back to being relative to
   // the reference frame.
-  nsRegion result = nsFilterInstance::GetPostFilterDirtyArea(firstFrame,
-    preEffectsRegion).MovedBy(-toBoundingBox);
+  nsRect result = nsFilterInstance::GetPostFilterDirtyArea(firstFrame,
+    preEffectsRect) - toBoundingBox;
   // Return the result, in pixels relative to the reference frame.
   return result.ToOutsidePixels(appUnitsPerDevPixel);
 }
@@ -347,7 +347,7 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   nsRect postEffectsRect = aDirtyRect + toUserSpace;
 
   // Return ther result, relative to aFrame, not in user space:
-  return nsFilterInstance::GetPreFilterNeededArea(firstFrame, postEffectsRect).GetBounds()
+  return nsFilterInstance::GetPreFilterNeededArea(firstFrame, postEffectsRect)
     - toUserSpace;
 }
 
@@ -521,8 +521,8 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
     RegularFramePaintCallback callback(aBuilder, aLayerManager,
                                        offsetToUserSpace);
 
-    nsRegion dirtyRegion = aDirtyRect - offsetToBoundingBox;
-    nsFilterInstance::PaintFilteredFrame(aCtx, aFrame, &callback, &dirtyRegion);
+    nsRect dirtyRect = aDirtyRect - offsetToBoundingBox;
+    nsFilterInstance::PaintFilteredFrame(aCtx, aFrame, &callback, &dirtyRect);
   } else {
     gfx->SetMatrix(matrixAutoSaveRestore.Matrix());
     aLayerManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer, aBuilder);
