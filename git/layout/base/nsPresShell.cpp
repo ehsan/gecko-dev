@@ -1521,11 +1521,8 @@ PresShell::SetPrefNoScriptRule()
   // also handle the case where print is done from print preview
   // see bug #342439 for more details
   nsIDocument* doc = mDocument;
-  if (mPresContext->Type() == nsPresContext::eContext_PrintPreview ||
-      mPresContext->Type() == nsPresContext::eContext_Print) {
-    while (doc->GetOriginalDocument()) {
-      doc = doc->GetOriginalDocument();
-    }
+  if (doc->IsStaticDocument()) {
+    doc = doc->GetOriginalDocument();
   }
 
   bool scriptEnabled = doc->IsScriptEnabled();
@@ -4085,9 +4082,12 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
         mDocument->GetAnimationController()->FlushResampleRequests();
       }
 
-      nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
-      mFrameConstructor->ProcessPendingRestyles();
+      // The FlushResampleRequests() above flushed style changes.
+      if (!mIsDestroying) {
+        nsAutoScriptBlocker scriptBlocker;
+        mFrameConstructor->CreateNeededFrames();
+        mFrameConstructor->ProcessPendingRestyles();
+      }
     }
 
     // Dispatch any 'animationstart' events those (or earlier) restyles
