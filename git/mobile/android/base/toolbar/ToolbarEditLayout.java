@@ -25,12 +25,6 @@ import android.view.View.OnFocusChangeListener;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageButton;
 
-/**
-* {@code ToolbarEditLayout} is the UI for when the toolbar is in
-* edit state. It controls a text entry ({@code ToolbarEditText})
-* and its matching 'go' button which changes depending on the
-* current type of text in the entry.
-*/
 public class ToolbarEditLayout extends GeckoLinearLayout {
 
     private final ToolbarEditText mEditText;

@@ -95,9 +95,6 @@
  */
 
 #include "SSLServerCertVerification.h"
-
-#include <cstring>
-
 #include "CertVerifier.h"
 #include "nsIBadCertListener2.h"
 #include "nsICertOverrideService.h"
@@ -636,7 +633,7 @@ class SSLServerCertVerificationJob : public nsRunnable
 public:
   // Must be called only on the socket transport thread
   static SECStatus Dispatch(const void * fdForLogging,
-                            nsNSSSocketInfo * infoObject,
+                            TransportSecurityInfo * infoObject,
                             CERTCertificate * serverCert,
                             SECItem * stapledOCSPResponse,
                             uint32_t providerFlags);
@@ -645,12 +642,12 @@ private:
 
   // Must be called only on the socket transport thread
   SSLServerCertVerificationJob(const void * fdForLogging,
-                               nsNSSSocketInfo * infoObject,
+                               TransportSecurityInfo * infoObject, 
                                CERTCertificate * cert,
                                SECItem * stapledOCSPResponse,
                                uint32_t providerFlags);
   const void * const mFdForLogging;
-  const RefPtr<nsNSSSocketInfo> mInfoObject;
+  const RefPtr<TransportSecurityInfo> mInfoObject;
   const ScopedCERTCertificate mCert;
   const uint32_t mProviderFlags;
   const TimeStamp mJobStartTime;
@@ -658,7 +655,7 @@ private:
 };
 
 SSLServerCertVerificationJob::SSLServerCertVerificationJob(
-    const void * fdForLogging, nsNSSSocketInfo * infoObject,
+    const void * fdForLogging, TransportSecurityInfo * infoObject,
     CERTCertificate * cert, SECItem * stapledOCSPResponse,
     uint32_t providerFlags)
   : mFdForLogging(fdForLogging)
@@ -858,7 +855,7 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
 }
 
 SECStatus
-AuthCertificate(nsNSSSocketInfo * infoObject, CERTCertificate * cert,
+AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
                 SECItem * stapledOCSPResponse, uint32_t providerFlags)
 {
   if (cert->serialNumber.data &&
@@ -926,25 +923,6 @@ AuthCertificate(nsNSSSocketInfo * infoObject, CERTCertificate * cert,
   } else {
     // no stapled OCSP response
     Telemetry::Accumulate(Telemetry::SSL_OCSP_STAPLING, 2);
-
-    uint32_t reasonsForNotFetching = 0;
-
-    char* ocspURI = CERT_GetOCSPAuthorityInfoAccessLocation(cert);
-    if (!ocspURI) {
-      reasonsForNotFetching |= 1; // invalid/missing OCSP URI
-    } else {
-      if (std::strncmp(ocspURI, "http://", 7)) { // approximation
-        reasonsForNotFetching |= 1; // invalid/missing OCSP URI
-      }
-      PORT_Free(ocspURI);
-    }
-
-    if (!infoObject->SharedState().IsOCSPFetchingEnabled()) {
-      reasonsForNotFetching |= 2;
-    }
-
-    Telemetry::Accumulate(Telemetry::SSL_OCSP_MAY_FETCH,
-                          reasonsForNotFetching);
   }
 
   CERTCertList *verifyCertChain = nullptr;
@@ -1066,7 +1044,7 @@ AuthCertificate(nsNSSSocketInfo * infoObject, CERTCertificate * cert,
 
 /*static*/ SECStatus
 SSLServerCertVerificationJob::Dispatch(const void * fdForLogging,
-                                       nsNSSSocketInfo * infoObject,
+                                       TransportSecurityInfo * infoObject,
                                        CERTCertificate * serverCert,
                                        SECItem * stapledOCSPResponse,
                                        uint32_t providerFlags)

@@ -1239,9 +1239,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     let copyUrlElement = $("#request-menu-context-copy-url");
     copyUrlElement.hidden = !this.selectedItem;
-
-    let newTabElement = $("#request-menu-context-newtab");
-    newTabElement.hidden = !this.selectedItem;
   },
 
   /**

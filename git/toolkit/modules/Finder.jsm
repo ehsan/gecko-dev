@@ -56,16 +56,10 @@ Finder.prototype = {
       linkURL = this._textToSubURIService.unEscapeURIForUI(docCharset, foundLink.href);
     }
 
-    let data = {
-      result: aResult,
-      findBackwards: aFindBackwards,
-      linkURL: linkURL,
-      rect: this._getResultRect(),
-      searchString: this._searchString,
-    };
+    let rect = this._getResultRect();
 
     for (let l of this._listeners) {
-      l.onFindResult(data);
+      l.onFindResult(aResult, aFindBackwards, linkURL, rect);
     }
   },
 

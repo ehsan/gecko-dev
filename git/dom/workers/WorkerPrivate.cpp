@@ -4857,23 +4857,19 @@ WorkerPrivate::RunCurrentSyncLoop()
 
         ProcessAllControlRunnablesLocked();
 
-        // NB: If we processed a NotifyRunnable, we might have run non-control
-        // runnables, one of which may have shut down the sync loop.
-        if (normalRunnablesPending || loopInfo->mCompleted) {
+        if (normalRunnablesPending) {
           break;
         }
       }
     }
 
-    if (normalRunnablesPending) {
-      // Make sure the periodic timer is running before we continue.
-      SetGCTimerMode(PeriodicTimer);
+    // Make sure the periodic timer is running before we continue.
+    SetGCTimerMode(PeriodicTimer);
 
-      MOZ_ALWAYS_TRUE(NS_ProcessNextEvent(thread, false));
+    MOZ_ALWAYS_TRUE(NS_ProcessNextEvent(thread, false));
 
-      // Now *might* be a good time to GC. Let the JS engine make the decision.
-      JS_MaybeGC(cx);
-    }
+    // Now *might* be a good time to GC. Let the JS engine make the decision.
+    JS_MaybeGC(cx);
   }
 
   // Make sure that the stack didn't change underneath us.

@@ -64,7 +64,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private RenderContext mLastPageContext;
     private int mMaxTextureSize;
     private int mBackgroundColor;
-    private int mOverscrollColor;
 
     private long mLastFrameTime;
     private final CopyOnWriteArrayList<RenderTask> mTasks;
@@ -135,7 +134,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
     public LayerRenderer(LayerView view) {
         mView = view;
-        mOverscrollColor = view.getContext().getResources().getColor(R.color.background_normal);
 
         Bitmap scrollbarImage = view.getScrollbarImage();
         IntSize size = new IntSize(scrollbarImage.getWidth(), scrollbarImage.getHeight());
@@ -588,9 +586,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             // CompositorOGL::RestoreState
 
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-
-            // Draw the overscroll background area as a solid color
-            clear(mOverscrollColor);
 
             // Update background color.
             mBackgroundColor = mView.getBackgroundColor();

@@ -64,18 +64,6 @@ this.UITour = {
       },
       widgetName: "search-container",
     }],
-    ["selectedTabIcon", {
-      query: (aDocument) => {
-        let selectedtab = aDocument.defaultView.gBrowser.selectedTab;
-        let element = aDocument.getAnonymousElementByAttribute(selectedtab,
-                                                               "anonid",
-                                                               "tab-icon-image");
-        if (!element || !_isElementVisible(element)) {
-          return null;
-        }
-        return element;
-      },
-    }],
     ["urlbar",      {
       query: "#urlbar",
       widgetName: "urlbar-container",
@@ -501,10 +489,6 @@ this.UITour = {
       highlighter.parentElement.openPopup(aTargetEl, "overlap", offsetX, offsetY);
     }
 
-    // Prevent showing a panel at an undefined position.
-    if (!_isElementVisible(aTarget.node))
-      return;
-
     this._setAppMenuStateForAnnotation(aTarget.node.ownerDocument.defaultView, "highlight",
                                        this.targetIsInAppMenu(aTarget),
                                        showHighlightPanel.bind(this, aTarget.node));
@@ -542,10 +526,6 @@ this.UITour = {
       let alignment = "bottomcenter topright";
       tooltip.openPopup(aAnchorEl, alignment);
     }
-
-    // Prevent showing a panel at an undefined position.
-    if (!_isElementVisible(aAnchor.node))
-      return;
 
     this._setAppMenuStateForAnnotation(aAnchor.node.ownerDocument.defaultView, "info",
                                        this.targetIsInAppMenu(aAnchor),
@@ -635,8 +615,3 @@ this.UITour = {
     aWindow.gBrowser.selectedTab = tab;
   },
 };
-
-function _isElementVisible(aElement) {
-  let targetStyle = aElement.ownerDocument.defaultView.getComputedStyle(aElement);
-  return (targetStyle.display != "none" && targetStyle.visibility == "visible");
-}

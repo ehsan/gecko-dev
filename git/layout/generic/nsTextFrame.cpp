@@ -5211,6 +5211,9 @@ static bool GetSelectionTextShadow(nsIFrame* aFrame,
                                    nsTextPaintStyle& aTextPaintStyle,
                                    nsCSSShadowArray** aShadow)
 {
+  if (aFrame->IsSVGText()) {
+    return false;
+  }
   switch (aType) {
     case nsISelectionController::SELECTION_NORMAL:
       return aTextPaintStyle.GetSelectionShadow(aShadow);
@@ -5508,7 +5511,7 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
 
     // Determine what shadow, if any, to draw - either from textStyle
     // or from the ::-moz-selection pseudo-class if specified there
-    nsCSSShadowArray* shadow = textStyle->GetTextShadow();
+    nsCSSShadowArray *shadow = textStyle->GetTextShadow(this);
     GetSelectionTextShadow(this, type, aTextPaintStyle, &shadow);
 
     // Draw shadows, if any
@@ -5894,7 +5897,7 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
   nscolor foregroundColor = textPaintStyle.GetTextColor();
   if (!aCallbacks) {
     const nsStyleText* textStyle = StyleText();
-    if (textStyle->HasTextShadow()) {
+    if (textStyle->HasTextShadow(this)) {
       // Text shadow happens with the last value being painted at the back,
       // ie. it is painted first.
       gfxTextRun::Metrics shadowMetrics = 

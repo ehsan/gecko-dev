@@ -2370,11 +2370,7 @@ UserProperties.prototype = {
 
     if (entry && aName in entry) {
       let item = entry[aName];
-      if (item != aDefault) {
-        delete entry[aName];
-        return aDefault;
-      }
-      return item;
+      return item || aDefault;
     }
     return aDefault;
   },

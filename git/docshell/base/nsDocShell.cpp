@@ -9115,21 +9115,13 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         aLoadType == LOAD_HISTORY ||
         aLoadType == LOAD_LINK) {
 
-        nsCOMPtr<nsIURI> currentURI;
-        if (sURIFixup && mCurrentURI) {
-            rv = sURIFixup->CreateExposableURI(mCurrentURI,
-                                               getter_AddRefs(currentURI));
-            NS_ENSURE_SUCCESS(rv, rv);
-        } else {
-            currentURI = mCurrentURI;
-        }
-        // Split currentURI and aURI on the '#' character.  Make sure we read
+        // Split mCurrentURI and aURI on the '#' character.  Make sure we read
         // the return values of SplitURIAtHash; if it fails, we don't want to
         // allow a short-circuited navigation.
         nsAutoCString curBeforeHash, curHash, newBeforeHash, newHash;
         nsresult splitRv1, splitRv2;
-        splitRv1 = currentURI ?
-            nsContentUtils::SplitURIAtHash(currentURI,
+        splitRv1 = mCurrentURI ?
+            nsContentUtils::SplitURIAtHash(mCurrentURI,
                                            curBeforeHash, curHash) :
             NS_ERROR_FAILURE;
         splitRv2 = nsContentUtils::SplitURIAtHash(aURI, newBeforeHash, newHash);
@@ -9186,6 +9178,9 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             if (aSHEntry && mDocumentRequest) {
                 mDocumentRequest->Cancel(NS_BINDING_ABORTED);
             }
+
+            // Save the current URI; we need it if we fire a hashchange later.
+            nsCOMPtr<nsIURI> oldURI = mCurrentURI;
 
             // Save the position of the scrollers.
             nscoord cx = 0, cy = 0;
@@ -9347,15 +9342,15 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 }
 
                 if (doHashchange) {
-                    // Note that currentURI hasn't changed because it's on the
-                    // stack, so we can just use it directly as the old URI.
-                    win->DispatchAsyncHashchange(currentURI, aURI);
+                    // Make sure to use oldURI here, not mCurrentURI, because by
+                    // now, mCurrentURI has changed!
+                    win->DispatchAsyncHashchange(oldURI, aURI);
                 }
             }
 
             // Inform the favicon service that the favicon for oldURI also
             // applies to aURI.
-            CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
+            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
 
             return NS_OK;
         }
@@ -10566,18 +10561,10 @@ nsDocShell::AddState(const JS::Value &aData, const nsAString& aTitle,
 
     // Step 2: Resolve aURL
     bool equalURIs = true;
-    nsCOMPtr<nsIURI> currentURI;
-    if (sURIFixup && mCurrentURI) {
-        rv = sURIFixup->CreateExposableURI(mCurrentURI,
-                                           getter_AddRefs(currentURI));
-        NS_ENSURE_SUCCESS(rv, rv);
-    } else {
-        currentURI = mCurrentURI;
-    }
-    nsCOMPtr<nsIURI> oldURI = currentURI;
+    nsCOMPtr<nsIURI> oldURI = mCurrentURI;
     nsCOMPtr<nsIURI> newURI;
     if (aURL.Length() == 0) {
-        newURI = currentURI;
+        newURI = mCurrentURI;
     }
     else {
         // 2a: Resolve aURL relative to mURI
@@ -10607,7 +10594,7 @@ nsDocShell::AddState(const JS::Value &aData, const nsAString& aTitle,
             // the new URI has the same origin as our current URI, we also
             // check that the two URIs have the same userpass. (The
             // security manager says that |http://foo.com| and
-            // |http://me@foo.com| have the same origin.)  currentURI
+            // |http://me@foo.com| have the same origin.)  mCurrentURI
             // won't contain the password part of the userpass, so this
             // means that it's never valid to specify a password in a
             // pushState or replaceState URI.
@@ -10617,14 +10604,14 @@ nsDocShell::AddState(const JS::Value &aData, const nsAString& aTitle,
             NS_ENSURE_TRUE(secMan, NS_ERROR_FAILURE);
 
             // It's very important that we check that newURI is of the same
-            // origin as currentURI, not docBaseURI, because a page can
+            // origin as mCurrentURI, not docBaseURI, because a page can
             // set docBaseURI arbitrarily to any domain.
             nsAutoCString currentUserPass, newUserPass;
-            NS_ENSURE_SUCCESS(currentURI->GetUserPass(currentUserPass),
+            NS_ENSURE_SUCCESS(mCurrentURI->GetUserPass(currentUserPass),
                               NS_ERROR_FAILURE);
             NS_ENSURE_SUCCESS(newURI->GetUserPass(newUserPass),
                               NS_ERROR_FAILURE);
-            if (NS_FAILED(secMan->CheckSameOriginURI(currentURI,
+            if (NS_FAILED(secMan->CheckSameOriginURI(mCurrentURI,
                                                      newURI, true)) ||
                 !currentUserPass.Equals(newUserPass)) {
 
@@ -10649,8 +10636,8 @@ nsDocShell::AddState(const JS::Value &aData, const nsAString& aTitle,
             }
         }
 
-        if (currentURI) {
-            currentURI->Equals(newURI, &equalURIs);
+        if (mCurrentURI) {
+            mCurrentURI->Equals(newURI, &equalURIs);
         }
         else {
             equalURIs = false;
@@ -10712,7 +10699,7 @@ nsDocShell::AddState(const JS::Value &aData, const nsAString& aTitle,
     // SHEntry's URI was modified in this way by a push/replaceState call
     // set URIWasModified to true for the current SHEntry (bug 669671).
     bool sameExceptHashes = true, oldURIWasModified = false;
-    newURI->EqualsExceptRef(currentURI, &sameExceptHashes);
+    newURI->EqualsExceptRef(mCurrentURI, &sameExceptHashes);
     oldOSHE->GetURIWasModified(&oldURIWasModified);
     newSHEntry->SetURIWasModified(!sameExceptHashes || oldURIWasModified);
 

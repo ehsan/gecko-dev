@@ -2390,7 +2390,7 @@ typedef struct JSNativeWrapper {
  * Macro static initializers which make it easy to pass no JSJitInfo as part of a
  * JSPropertySpec or JSFunctionSpec.
  */
-#define JSOP_WRAPPER(op) { {op, nullptr} }
+#define JSOP_WRAPPER(op) {op, nullptr}
 #define JSOP_NULLWRAPPER JSOP_WRAPPER(nullptr)
 
 /*
@@ -2399,30 +2399,13 @@ typedef struct JSNativeWrapper {
  * JSPROP_INDEX bit in flags.
  */
 struct JSPropertySpec {
-    struct SelfHostedWrapper {
-        void       *unused;
-        const char *funname;
-    };
-
     const char                  *name;
     int8_t                      tinyid;
     uint8_t                     flags;
-    union {
-        JSPropertyOpWrapper propertyOp;
-        SelfHostedWrapper   selfHosted;
-    } getter;
-    union {
-        JSStrictPropertyOpWrapper propertyOp;
-        SelfHostedWrapper         selfHosted;
-    } setter;
-
-private:
-    void StaticAsserts() {
-        JS_STATIC_ASSERT(sizeof(SelfHostedWrapper) == sizeof(JSPropertyOpWrapper));
-        JS_STATIC_ASSERT(sizeof(SelfHostedWrapper) == sizeof(JSStrictPropertyOpWrapper));
-        JS_STATIC_ASSERT(offsetof(SelfHostedWrapper, funname) ==
-                         offsetof(JSPropertyOpWrapper, info));
-    }
+    JSPropertyOpWrapper         getter;
+    JSStrictPropertyOpWrapper   setter;
+    const char                 *selfHostedGetter;
+    const char                 *selfHostedSetter;
 };
 
 namespace JS {
@@ -2431,21 +2414,12 @@ namespace detail {
 /* NEVER DEFINED, DON'T USE.  For use by JS_CAST_NATIVE_TO only. */
 inline int CheckIsNative(JSNative native);
 
-/* NEVER DEFINED, DON'T USE.  For use by JS_CAST_STRING_TO only. */
-template<size_t N>
-inline int
-CheckIsCharacterLiteral(const char (&arr)[N]);
-
 } // namespace detail
 } // namespace JS
 
 #define JS_CAST_NATIVE_TO(v, To) \
   (static_cast<void>(sizeof(JS::detail::CheckIsNative(v))), \
    reinterpret_cast<To>(v))
-
-#define JS_CAST_STRING_TO(s, To) \
-  (static_cast<void>(sizeof(JS::detail::CheckIsCharacterLiteral(s))), \
-   reinterpret_cast<To>(s))
 
 #define JS_CHECK_ACCESSOR_FLAGS(flags) \
   (static_cast<mozilla::EnableIf<!((flags) & (JSPROP_READONLY | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS))>::Type>(0), \
@@ -2462,23 +2436,23 @@ CheckIsCharacterLiteral(const char (&arr)[N]);
     {name, 0, \
      uint8_t(JS_CHECK_ACCESSOR_FLAGS(flags) | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS), \
      JSOP_WRAPPER(JS_CAST_NATIVE_TO(getter, JSPropertyOp)), \
-     JSOP_NULLWRAPPER}
+     JSOP_NULLWRAPPER, nullptr, nullptr}
 #define JS_PSGS(name, getter, setter, flags) \
     {name, 0, \
      uint8_t(JS_CHECK_ACCESSOR_FLAGS(flags) | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS), \
      JSOP_WRAPPER(JS_CAST_NATIVE_TO(getter, JSPropertyOp)), \
-     JSOP_WRAPPER(JS_CAST_NATIVE_TO(setter, JSStrictPropertyOp))}
+     JSOP_WRAPPER(JS_CAST_NATIVE_TO(setter, JSStrictPropertyOp)), \
+     nullptr, nullptr}
 #define JS_SELF_HOSTED_GET(name, getterName, flags) \
     {name, 0, \
      uint8_t(JS_CHECK_ACCESSOR_FLAGS(flags) | JSPROP_SHARED | JSPROP_GETTER), \
-     { nullptr, JS_CAST_STRING_TO(getterName, const JSJitInfo *) }, \
-     JSOP_NULLWRAPPER }
+     JSOP_NULLWRAPPER, JSOP_NULLWRAPPER, getterName, nullptr}
 #define JS_SELF_HOSTED_GETSET(name, getterName, setterName, flags) \
     {name, 0, \
      uint8_t(JS_CHECK_ACCESSOR_FLAGS(flags) | JSPROP_SHARED | JSPROP_GETTER | JSPROP_SETTER), \
-     { nullptr, JS_CAST_STRING_TO(getterName, const JSJitInfo *) },  \
-     { nullptr, JS_CAST_STRING_TO(setterName, const JSJitInfo *) } }
-#define JS_PS_END {0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+     JSOP_NULLWRAPPER, JSOP_NULLWRAPPER, getterName, setterName}
+#define JS_PS_END {0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER, \
+                   nullptr, nullptr}
 
 /*
  * To define a native function, set call to a JSNativeWrapper. To define a

@@ -75,11 +75,7 @@ AlertsService.prototype = {
       title: aTitle,
       text: aText,
       manifestURL: aDetails.manifestURL,
-      imageURL: aImageURL,
-      lang: aDetails.lang || undefined,
-      id: aDetails.id || undefined,
-      dir: aDetails.dir || undefined,
-      tag: aDetails.tag || undefined
+      imageURL: aImageURL
     };
 
     cpmm.sendAsyncMessage("app-notification-send", {
@@ -113,11 +109,7 @@ AlertsService.prototype = {
         gSystemMessenger.sendMessage("notification", {
             title: listener.title,
             body: listener.text,
-            imageURL: listener.imageURL,
-            lang: listener.lang,
-            dir: listener.dir,
-            id: listener.id,
-            tag: listener.tag
+            imageURL: listener.imageURL
           },
           Services.io.newURI(data.target, null, null),
           Services.io.newURI(listener.manifestURL, null, null));
