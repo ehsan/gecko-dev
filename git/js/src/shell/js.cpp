@@ -104,7 +104,7 @@
 #endif
 
 #ifdef XP_WIN
-#include <windows.h>
+#include "jswin.h"
 #endif
 
 using namespace js;
@@ -144,7 +144,8 @@ static jsdouble MAX_TIMEOUT_INTERVAL = 1800.0;
 static jsdouble gTimeoutInterval = -1.0;
 static volatile bool gCanceled = false;
 
-static bool enableJit = false;
+static bool enableTraceJit = false;
+static bool enableMethodJit = false;
 
 static JSBool
 SetTimeoutValue(JSContext *cx, jsdouble t);
@@ -568,7 +569,8 @@ static const struct {
 } js_options[] = {
     {"anonfunfix",      JSOPTION_ANONFUNFIX},
     {"atline",          JSOPTION_ATLINE},
-    {"jit",             JSOPTION_JIT},
+    {"tracejit",        JSOPTION_JIT},
+    {"methodjit",       JSOPTION_METHODJIT},
     {"relimit",         JSOPTION_RELIMIT},
     {"strict",          JSOPTION_STRICT},
     {"werror",          JSOPTION_WERROR},
@@ -720,13 +722,18 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
 
         case 'j':
-            enableJit = !enableJit;
+            enableTraceJit = !enableTraceJit;
             JS_ToggleOptions(cx, JSOPTION_JIT);
 #if defined(JS_TRACER) && defined(DEBUG)
             js::InitJITStatsClass(cx, JS_GetGlobalObject(cx));
             JS_DefineObject(cx, JS_GetGlobalObject(cx), "tracemonkey",
                             &js::jitstats_class, NULL, 0);
 #endif
+            break;
+
+        case 'm':
+            enableMethodJit = !enableMethodJit;
+            JS_ToggleOptions(cx, JSOPTION_METHODJIT);
             break;
 
         case 'o':
@@ -4900,8 +4907,10 @@ NewContext(JSRuntime *rt)
     JS_SetErrorReporter(cx, my_ErrorReporter);
     JS_SetVersion(cx, JSVERSION_LATEST);
     SetContextOptions(cx);
-    if (enableJit)
+    if (enableTraceJit)
         JS_ToggleOptions(cx, JSOPTION_JIT);
+    if (enableMethodJit)
+        JS_ToggleOptions(cx, JSOPTION_METHODJIT);
     return cx;
 }
 
@@ -5067,6 +5076,10 @@ main(int argc, char **argv, char **envp)
     JSBool jsdbc;
 #endif /* JSDEBUGGER_C_UI */
 #endif /* JSDEBUGGER */
+#ifdef XP_WIN
+    DWORD oldmode = SetErrorMode(SEM_NOGPFAULTERRORBOX);
+    SetErrorMode(oldmode | SEM_NOGPFAULTERRORBOX);
+#endif
 
     CheckHelpMessages();
 #ifdef HAVE_SETLOCALE
