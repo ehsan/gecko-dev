@@ -5261,9 +5261,10 @@ function middleMousePaste(event) {
     Cu.reportError(ex);
   }
 
-  openUILink(url, event,
-             { ignoreButton: true,
-               disallowInheritPrincipal: !mayInheritPrincipal.value });
+  // FIXME: Bug 631500, use openUILink directly
+  let where = whereToOpenLink(event, true);
+  openUILinkIn(url, where,
+               { disallowInheritPrincipal: !mayInheritPrincipal.value });
 
   event.stopPropagation();
 }
