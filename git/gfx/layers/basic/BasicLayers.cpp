@@ -713,13 +713,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
 
   pat->SetFilter(mFilter);
 
-  // The visible region can extend outside the image.  If we're not
-  // tiling, we don't want to draw into that area, so just draw within
-  // the image bounds.
-  const nsIntRect* tileSrcRect = GetTileSourceRect();
-  PaintContext(pat,
-               tileSrcRect ? GetVisibleRegion() : nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
-               tileSrcRect,
+  PaintContext(pat, GetVisibleRegion(), GetTileSourceRect(),
                aOpacity, aContext); 
   return pat.forget();
 }
