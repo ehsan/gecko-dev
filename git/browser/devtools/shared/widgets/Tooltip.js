@@ -1265,14 +1265,6 @@ EventTooltip.prototype = {
         editor.setText(tidied);
 
         eventEditors.appended = true;
-
-        let container = header.parentElement.getBoundingClientRect();
-        if (header.getBoundingClientRect().top < container.top) {
-          header.scrollIntoView(true);
-        } else if (content.getBoundingClientRect().bottom > container.bottom) {
-          content.scrollIntoView(false);
-        }
-
         this._tooltip.emit("event-tooltip-ready");
       });
     }

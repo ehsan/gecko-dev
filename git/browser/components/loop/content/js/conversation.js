@@ -77,10 +77,13 @@ loop.conversation = (function(OT, mozL10n) {
 
     render: function() {
       /* jshint ignore:start */
-      var btnClassAccept = "btn btn-accept";
+      var btnClassAccept = "btn btn-success btn-accept call-audio-video";
+      var btnClassBlock = "btn btn-error btn-block";
       var btnClassDecline = "btn btn-error btn-decline";
-      var conversationPanelClass = "incoming-call";
-      var dropdownMenuClassesDecline = React.addons.classSet({
+      var conversationPanelClass = "incoming-call " +
+                                  loop.shared.utils.getTargetPlatform();
+      var cx = React.addons.classSet;
+      var dropdownMenuClassesDecline = cx({
         "native-dropdown-menu": true,
         "conversation-window-dropdown": true,
         "visually-hidden": !this.state.showDeclineMenu
@@ -88,13 +91,10 @@ loop.conversation = (function(OT, mozL10n) {
       return (
         React.DOM.div({className: conversationPanelClass}, 
           React.DOM.h2(null, __("incoming_call")), 
-          React.DOM.div({className: "btn-group incoming-call-action-group"}, 
-
-            React.DOM.div({className: "fx-embedded-incoming-call-button-spacer"}), 
-
-            React.DOM.div({className: "btn-chevron-menu-group"}, 
-              React.DOM.div({className: "btn-group-chevron"}, 
-                React.DOM.div({className: "btn-group"}, 
+          React.DOM.div({className: "button-group incoming-call-action-group"}, 
+            React.DOM.div({className: "button-chevron-menu-group"}, 
+              React.DOM.div({className: "button-group-chevron"}, 
+                React.DOM.div({className: "button-group"}, 
 
                   React.DOM.button({className: btnClassDecline, 
                           onClick: this._handleDecline}, 
@@ -114,27 +114,18 @@ loop.conversation = (function(OT, mozL10n) {
               )
             ), 
 
-            React.DOM.div({className: "fx-embedded-incoming-call-button-spacer"}), 
-
-            React.DOM.div({className: "btn-chevron-menu-group"}, 
-              React.DOM.div({className: "btn-group"}, 
+            React.DOM.div({className: "button-chevron-menu-group"}, 
+              React.DOM.div({className: "button-group"}, 
                 React.DOM.button({className: btnClassAccept, 
                         onClick: this._handleAccept("audio-video")}, 
-                  React.DOM.span({className: "fx-embedded-answer-btn-text"}, 
-                    __("incoming_call_answer_button")
-                  ), 
-                  React.DOM.span({className: "fx-embedded-btn-icon-video"}
-                  )
+                  __("incoming_call_answer_button")
                 ), 
                 React.DOM.div({className: "call-audio-only", 
                      onClick: this._handleAccept("audio"), 
                      title: __("incoming_call_answer_audio_only_tooltip")}
                 )
               )
-            ), 
-
-            React.DOM.div({className: "fx-embedded-incoming-call-button-spacer"})
-
+            )
           )
         )
       );
@@ -347,8 +338,6 @@ loop.conversation = (function(OT, mozL10n) {
     mozL10n.initialize(navigator.mozLoop);
 
     document.title = mozL10n.get("incoming_call_title");
-
-    document.body.classList.add(loop.shared.utils.getTargetPlatform());
 
     var client = new loop.Client();
     router = new ConversationRouter({

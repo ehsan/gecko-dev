@@ -45,12 +45,14 @@
       &weaveDesc.label;
     </description>
     <separator/>
-    <label id="noAccountSetup" class="text-link">
+    <label class="text-link"
+           onclick="event.stopPropagation(); gSyncPane.openSetup(null);">
       &setupButton.label;
     </label>
     <vbox id="pairDevice">
       <separator/>
-      <label id="noAccountPair" class="text-link">
+      <label class="text-link"
+             onclick="event.stopPropagation(); gSyncPane.openSetup('pair');">
         &pairDevice.label;
       </label>
     </vbox>
@@ -70,19 +72,24 @@
                 label="&manageAccount.label;"
                 accesskey="&manageAccount.accesskey;">
           <menupopup>
-            <menuitem id="syncViewQuota" label="&viewQuota.label;"/>
+            <menuitem label="&viewQuota.label;"
+                      oncommand="gSyncPane.openQuotaDialog();"/>
             <menuseparator/>
-            <menuitem id="syncChangePassword" label="&changePassword2.label;"/>
-            <menuitem id="syncResetPassphrase" label="&myRecoveryKey.label;"/>
+            <menuitem label="&changePassword2.label;"
+                      oncommand="gSyncUtils.changePassword();"/>
+            <menuitem label="&myRecoveryKey.label;"
+                      oncommand="gSyncUtils.resetPassphrase();"/>
             <menuseparator/>
-            <menuitem id="syncReset" label="&resetSync2.label;"/>
+            <menuitem label="&resetSync2.label;"
+                      oncommand="gSyncPane.resetSync();"/>
           </menupopup>
         </button>
       </hbox>
 
       <hbox>
         <label id="syncAddDeviceLabel"
-               class="text-link">
+               class="text-link"
+               onclick="gSyncPane.openAddDevice(); return false;">
           &pairDevice.label;
         </label>
       </hbox>
@@ -90,7 +97,8 @@
       <vbox>
         <label>&syncMy.label;</label>
         <richlistbox id="syncEnginesList"
-                     orient="vertical">
+                     orient="vertical"
+                     onselect="if (this.selectedCount) this.clearSelection();">
           <richlistitem>
             <checkbox label="&engine.addons.label;"
                       accesskey="&engine.addons.accesskey;"
@@ -137,21 +145,25 @@
                    control="syncComputerName">
               &syncDeviceName.label;
             </label>
-            <textbox id="syncComputerName"/>
+            <textbox id="syncComputerName"
+                     onchange="gSyncUtils.changeName(this)"/>
           </row>
         </rows>
       </grid>
       <hbox>
-        <label id="unlinkDevice" class="text-link">
+        <label class="text-link"
+               onclick="gSyncPane.startOver(true); return false;">
           &unlinkDevice.label;
         </label>
       </hbox>
     </groupbox>
-    <hbox id="tosPP-normal" pack="center">
-      <label id="tosPP-normal-ToS" class="text-link">
+    <hbox id="tosPP" pack="center">
+      <label class="text-link"
+             onclick="event.stopPropagation();gSyncUtils.openToS();">
         &prefs.tosLink.label;
       </label>
-      <label id="tosPP-normal-PP" class="text-link">
+      <label class="text-link"
+             onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();">
         &prefs.ppLink.label;
       </label>
     </hbox>
@@ -160,14 +172,17 @@
   <vbox id="needsUpdate" align="center" pack="center">
     <hbox>
       <label id="loginError"/>
-      <label id="loginErrorUpdatePass" class="text-link">
+      <label class="text-link"
+             onclick="gSyncPane.updatePass(); return false;">
         &updatePass.label;
       </label>
-      <label id="loginErrorResetPass" class="text-link">
+      <label class="text-link"
+             onclick="gSyncPane.resetPass(); return false;">
         &resetPass.label;
       </label>
     </hbox>
-    <label id="loginErrorStartOver" class="text-link">
+    <label class="text-link"
+           onclick="gSyncPane.startOver(true); return false;">
       &unlinkDevice.label;
     </label>
   </vbox>
@@ -181,14 +196,17 @@
 
   <vbox id="noFxaAccount" align="start">
     <label>&welcome.description;</label>
-    <label id="noFxaSignUp" class="text-link">
+    <label class="text-link"
+           onclick="gSyncPane.signUp(); return false;">
       &welcome.createAccount.label;
     </label>
-    <label id="noFxaSignIn" class="text-link">
+    <label class="text-link"
+           onclick="gSyncPane.signIn(); return false;">
       &welcome.signIn.label;
     </label>
     <separator/>
-    <label id="noFxaUseOldSync" class="text-link">
+    <label class="text-link"
+           onclick="gSyncPane.openOldSyncSupportPage(); return false;">
       &welcome.useOldSync.label;
     </label>
   </vbox>
@@ -203,9 +221,10 @@
         <hbox align="center">
           <label id="fxaEmailAddress1"/>
           <spacer flex="1"/>
-          <button id="verifiedManage"
+          <button oncommand="gSyncPane.manageFirefoxAccount();"
                   label="&manage.label;"/>
           <button id="fxaUnlinkButton"
+                  oncommand="gSyncPane.unlinkFirefoxAccount(true);"
                   label="&disconnect.label;"/>
         </hbox>
 
@@ -218,9 +237,10 @@
           </description>
           <spacer flex="1"/>
           <vbox align="end">
-            <button id="verifyFxaAccount"
+            <button oncommand="gSyncPane.verifyFirefoxAccount();"
                     label="&verify.label;"/>
-            <label id="unverifiedUnlinkFxaAccount" class="text-link">
+            <label class="text-link"
+                   onclick="/* no warning as account can't have previously synced */ gSyncPane.unlinkFirefoxAccount(false);">
               &forget.label;
             </label>
           </vbox>
@@ -235,9 +255,10 @@
           </description>
           <spacer flex="1"/>
           <vbox align="end">
-            <button id="rejectReSignIn"
+            <button oncommand="gSyncPane.reSignIn();"
                     label="&signIn.label;"/>
-            <label id="rejectUnlinkFxaAccount" class="text-link">
+            <label class="text-link"
+                    onclick="gSyncPane.unlinkFirefoxAccount(true);">
               &forget.label;
             </label>
           </vbox>
@@ -277,14 +298,17 @@
         &syncDeviceName.label;
       </label>
       <textbox id="fxaSyncComputerName"
-                flex="1"/>
+                flex="1"
+                onchange="gSyncUtils.changeName(this)"/>
     </hbox>
     <spacer flex="1"/>
-    <hbox id="tosPP-small" pack="center">
-      <label id="tosPP-small-ToS" class="text-link small">
+    <hbox id="tosPP" pack="center">
+      <label class="text-link small"
+             onclick="event.stopPropagation();gSyncUtils.openToS();">
         &prefs.tosLink.label;
       </label>
-      <label id="tosPP-small-PP" class="text-link small">
+      <label class="text-link small"
+              onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();">
         &fxaPrivacyNotice.link.label;
       </label>
     </hbox>

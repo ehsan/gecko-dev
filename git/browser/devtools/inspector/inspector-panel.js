@@ -219,9 +219,7 @@ InspectorPanel.prototype = {
       }
 
       rootNode = aRootNode;
-      if (this.selectionCssSelector) {
-        return walker.querySelector(rootNode, this.selectionCssSelector);
-      }
+      return walker.querySelector(rootNode, this.selectionCssSelector);
     }).then(front => {
       if (hasNavigated()) {
         return promise.reject("navigated; resolution of _defaultNode aborted");

@@ -39,7 +39,7 @@ class Test1BrowserCall(MarionetteTestCase):
             .until(lambda m: m.find_element(by, locator).is_displayed())
         return self.marionette.find_element(by, locator)
 
-    # XXX workaround for Marionette bug 1055309
+    # XXX workaround for Marionette bug YYY
     def wait_for_element_exists(self, by, locator, timeout=None):
         Wait(self.marionette, timeout,
              ignored_exceptions=[NoSuchElementException, StaleElementException]) \
@@ -95,8 +95,7 @@ class Test1BrowserCall(MarionetteTestCase):
 
     def start_and_verify_outgoing_call(self):
         # make the call!
-        call_button = self.marionette.find_element(By.CLASS_NAME,
-                                                   "btn-accept")
+        call_button = self.marionette.find_element(By.CLASS_NAME, "btn-success")
         call_button.click()
 
         # expect a video container on standalone side
@@ -117,7 +116,7 @@ class Test1BrowserCall(MarionetteTestCase):
 
         # Accept the incoming call
         call_button = self.marionette.find_element(By.CLASS_NAME,
-                                                   "btn-accept")
+                                                   "btn-success")
         # accept call from the desktop side
         call_button.click()
 

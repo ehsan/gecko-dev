@@ -567,13 +567,10 @@ var DebuggerServer = {
 
     let actor, childTransport;
     let prefix = aConnection.allocID("child");
-    let childID = null;
     let netMonitor = null;
 
     let onActorCreated = DevToolsUtils.makeInfallible(function (msg) {
       mm.removeMessageListener("debug:actor", onActorCreated);
-
-      childID = msg.json.childID;
 
       // Pipe Debugger message from/to parent/child via the message manager
       childTransport = new ChildDebuggerTransport(mm, prefix);
@@ -607,7 +604,7 @@ var DebuggerServer = {
           aConnection.cancelForwarding(prefix);
 
           // ... and notify the child process to clean the tab actors.
-          mm.sendAsyncMessage("debug:disconnect", { childID: childID });
+          mm.sendAsyncMessage("debug:disconnect");
         } else {
           // Otherwise, the app has been closed before the actor
           // had a chance to be created, so we are not able to create
@@ -644,12 +641,7 @@ var DebuggerServer = {
         aConnection.cancelForwarding(prefix);
 
         // ... and notify the child process to clean the tab actors.
-        mm.sendAsyncMessage("debug:disconnect", { childID: childID });
-
-        if (netMonitor) {
-          netMonitor.destroy();
-          netMonitor = null;
-        }
+        mm.sendAsyncMessage("debug:disconnect");
       }
     });
 

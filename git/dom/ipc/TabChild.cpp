@@ -1532,8 +1532,6 @@ TabChild::DestroyWindow()
             runnable->Dispatch();
         }
     }
-
-    mCachedFileDescriptorInfos.Clear();
 }
 
 void

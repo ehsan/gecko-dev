@@ -17,8 +17,7 @@
   var IncomingCallView = loop.conversation.IncomingCallView;
 
   // 2. Standalone webapp
-  var CallUrlExpiredView    = loop.webapp.CallUrlExpiredView;
-  var StartConversationView = loop.webapp.StartConversationView;
+  var CallUrlExpiredView = loop.webapp.CallUrlExpiredView;
 
   // 3. Shared components
   var ConversationToolbar = loop.shared.views.ConversationToolbar;
@@ -39,14 +38,7 @@
   var stageFeedbackApiClient = new loop.FeedbackAPIClient(
     "https://input.allizom.org/api/v1/feedback", {
       product: "Loop"
-    }
-  );
-
-  var mockClient = {
-    requestCallUrl: function() {}
-  };
-
-  var mockConversationModel = new loop.shared.models.ConversationModel({}, {sdk: {}});
+    });
 
   var Example = React.createClass({
     render: function() {
@@ -80,7 +72,7 @@
         <div className="showcase">
           <header>
             <h1>Loop UI Components Showcase</h1>
-            <nav className="showcase-menu">{
+            <nav className="menu">{
               React.Children.map(this.props.children, function(section) {
                 return (
                   <a className="btn btn-info" href={"#" + section.props.name}>
@@ -104,11 +96,11 @@
             <p className="note">
               <strong>Note:</strong> 332px wide.
             </p>
-            <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
-              <PanelView callUrl="http://invalid.example.url/" client={mockClient} />
-            </Example>
             <Example summary="Pending call url retrieval" dashed="true" style={{width: "332px"}}>
-              <PanelView client={mockClient} />
+              <PanelView />
+            </Example>
+            <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
+              <PanelView callUrl="http://invalid.example.url/" />
             </Example>
           </Section>
 
@@ -119,58 +111,20 @@
           </Section>
 
           <Section name="ConversationToolbar">
-            <h3>Desktop Conversation Window</h3>
-            <div className="conversation-window">
-              <Example summary="Default (260x265)" dashed="true">
-                <ConversationToolbar video={{enabled: true}} audio={{enabled: true}} />
-              </Example>
-              <Example summary="Video muted">
-                <ConversationToolbar video={{enabled: false}} audio={{enabled: true}} />
-              </Example>
-              <Example summary="Audio muted">
-                <ConversationToolbar video={{enabled: true}} audio={{enabled: false}} />
-              </Example>
-            </div>
-
-            <h3>Standalone</h3>
-            <div className="standalone">
-              <Example summary="Default">
-                <ConversationToolbar video={{enabled: true}} audio={{enabled: true}} />
-              </Example>
-              <Example summary="Video muted">
-                <ConversationToolbar video={{enabled: false}} audio={{enabled: true}} />
-              </Example>
-              <Example summary="Audio muted">
-                <ConversationToolbar video={{enabled: true}} audio={{enabled: false}} />
-              </Example>
-            </div>
-          </Section>
-
-          <Section name="StartConversationView">
-
-            <Example summary="Start conversation view" dashed="true">
-              <div className="standalone">
-                <StartConversationView model={mockConversationModel}
-                  client={mockClient} />
-              </div>
+            <Example summary="Default">
+              <ConversationToolbar video={{enabled: true}} audio={{enabled: true}} />
             </Example>
-
+            <Example summary="Video muted">
+              <ConversationToolbar video={{enabled: false}} audio={{enabled: true}} />
+            </Example>
+            <Example summary="Audio muted">
+              <ConversationToolbar video={{enabled: true}} audio={{enabled: false}} />
+            </Example>
           </Section>
 
           <Section name="ConversationView">
-
-            <Example summary="Desktop conversation window" dashed="true"
-                     style={{width: "260px", height: "265px"}}>
-              <div className="conversation-window">
-                <ConversationView video={{enabled: true}} audio={{enabled: true}}
-                                  model={mockConversationModel} />
-              </div>
-            </Example>
-            <Example summary="Standalone version">
-              <div className="standalone">
-                <ConversationView video={{enabled: true}} audio={{enabled: true}}
-                                  model={mockConversationModel} />
-              </div>
+            <Example summary="Default">
+              <ConversationView video={{enabled: true}} audio={{enabled: true}} />
             </Example>
           </Section>
 
@@ -204,8 +158,6 @@
   });
 
   window.addEventListener("DOMContentLoaded", function() {
-    var body = document.body;
-    body.className = loop.shared.utils.getTargetPlatform();
     React.renderComponent(<App />, document.body);
   });
 })();

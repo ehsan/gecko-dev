@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const {Cc, Ci, Cu} = require("chrome");
+const { Cu } = require("chrome");
 
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
@@ -754,22 +754,15 @@ Column.prototype = {
    * by this column.
    */
   sort: function(items) {
+
     // Only sort the array if we are sorting based on this column
     if (this.sorted == 1) {
       items.sort((a, b) => {
-        let val1 = (a[this.id] instanceof Ci.nsIDOMNode) ?
-            a[this.id].textContent : a[this.id];
-        let val2 = (b[this.id] instanceof Ci.nsIDOMNode) ?
-            b[this.id].textContent : b[this.id];
-        return val1 > val2;
+        return a[this.id] > b[this.id]
       });
     } else if (this.sorted > 1) {
       items.sort((a, b) => {
-        let val1 = (a[this.id] instanceof Ci.nsIDOMNode) ?
-            a[this.id].textContent : a[this.id];
-        let val2 = (b[this.id] instanceof Ci.nsIDOMNode) ?
-            b[this.id].textContent : b[this.id];
-        return val2 > val1;
+        return b[this.id] > a[this.id]
       });
     }
 
@@ -813,18 +806,8 @@ Column.prototype = {
       return;
     }
     if (event.button == 0) {
-      let target = event.originalTarget;
-      let dataid = null;
-
-      while (target) {
-        dataid = target.getAttribute("data-id");
-        if (dataid) {
-          break;
-        }
-        target = target.parentNode;
-      }
-
-      this.table.emit(EVENTS.ROW_SELECTED, dataid);
+      this.table.emit(EVENTS.ROW_SELECTED,
+        event.originalTarget.getAttribute("data-id"));
     }
   },
 
@@ -871,9 +854,7 @@ Column.prototype = {
  * @param {Column} column
  *        The column object to which the cell belongs.
  * @param {object} item
- *        The object representing the row. It contains a key value pair
- *        representing the column id and its associated value. The value
- *        can be a DOMNode that is appended or a string value.
+ *        The object representing the row.
  * @param {Cell} nextCell
  *        The cell object which is next to this cell. null if this cell is last
  *        cell of the column
@@ -911,23 +892,10 @@ Cell.prototype = {
       this.label.setAttribute("value", "");
       return;
     }
-
-    if (!(value instanceof Ci.nsIDOMNode) &&
-        value.length > MAX_VISIBLE_STRING_SIZE) {
+    if (value.length > MAX_VISIBLE_STRING_SIZE) {
       value = value .substr(0, MAX_VISIBLE_STRING_SIZE) + "\u2026"; // …
     }
-
-    if (value instanceof Ci.nsIDOMNode) {
-      this.label.removeAttribute("value");
-
-      while (this.label.firstChild) {
-        this.label.removeChild(this.label.firstChild);
-      }
-
-      this.label.appendChild(value);
-    } else {
-      this.label.setAttribute("value", value + "");
-    }
+    this.label.setAttribute("value", value + "");
   },
 
   get value() {
