@@ -53,6 +53,7 @@ nsIAtom** const kElementsHTML[] = {
   &nsGkAtoms::code,
   &nsGkAtoms::col,
   &nsGkAtoms::colgroup,
+  &nsGkAtoms::command,
   &nsGkAtoms::datalist,
   &nsGkAtoms::dd,
   &nsGkAtoms::del,

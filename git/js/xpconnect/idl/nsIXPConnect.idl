@@ -11,8 +11,6 @@
 %{ C++
 #include "jspubtd.h"
 #include "js/TypeDecls.h"
-#include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 
 struct JSFreeOp;
 
@@ -91,12 +89,13 @@ interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
     nsISupports* Native() const { return mIdentity; }
 
 protected:
-    nsCOMPtr<nsISupports> mIdentity;
+    nsISupports *mIdentity;
 public:
 %}
 };
 
 %{C++
+#include "nsCOMPtr.h"
 
 inline
 const nsQueryInterface

@@ -4908,16 +4908,17 @@ nsTextFrame::GetTextDecorations(
       break;
     }
 
-    // In quirks mode, if we're on an HTML table element, we're done.
-    if (compatMode == eCompatibility_NavQuirks &&
-        f->GetContent()->IsHTML(nsGkAtoms::table)) {
-      break;
-    }
-
-    // If we're on an absolutely-positioned element or a floating
-    // element, we're done.
-    if (f->IsFloating() || f->IsAbsolutelyPositioned()) {
-      break;
+    if (compatMode == eCompatibility_NavQuirks) {
+      // In quirks mode, if we're on an HTML table element, we're done.
+      if (f->GetContent()->IsHTML(nsGkAtoms::table)) {
+        break;
+      }
+    } else {
+      // In standards/almost-standards mode, if we're on an
+      // absolutely-positioned element or a floating element, we're done.
+      if (f->IsFloating() || f->IsAbsolutelyPositioned()) {
+        break;
+      }
     }
   }
 }

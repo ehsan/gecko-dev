@@ -148,6 +148,7 @@ public:
   virtual bool  IsEnabled() const;
   // ShouldUseOffMainThreadCompositing is defined in base widget
   virtual bool  ShouldUseOffMainThreadCompositing();
+  bool          ShouldUseMainThreadD3D10Manager();
   bool          ShouldUseBasicManager();
   bool          ShouldUseAPZC();
   virtual LayerManager* GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,

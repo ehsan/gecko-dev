@@ -1312,6 +1312,11 @@ GCRuntime::finish()
     FreeChunkPool(rt, availableChunks_);
     FreeChunkPool(rt, emptyChunks_);
 
+    if (rootsHash.initialized())
+        rootsHash.clear();
+
+    FinishPersistentRootedChains(rt);
+
     if (lock) {
         PR_DestroyLock(lock);
         lock = nullptr;
@@ -1320,33 +1325,16 @@ GCRuntime::finish()
     FinishTrace();
 }
 
-template <typename T>
-static void
-FinishPersistentRootedChain(mozilla::LinkedList<PersistentRooted<T>>& list)
-{
-    while (!list.isEmpty())
-        list.getFirst()->reset();
-}
-
 void
 js::gc::FinishPersistentRootedChains(JSRuntime *rt)
 {
     /* The lists of persistent roots are stored on the shadow runtime. */
-    FinishPersistentRootedChain(rt->functionPersistentRooteds);
-    FinishPersistentRootedChain(rt->idPersistentRooteds);
-    FinishPersistentRootedChain(rt->objectPersistentRooteds);
-    FinishPersistentRootedChain(rt->scriptPersistentRooteds);
-    FinishPersistentRootedChain(rt->stringPersistentRooteds);
-    FinishPersistentRootedChain(rt->valuePersistentRooteds);
-}
-
-void
-GCRuntime::finishRoots()
-{
-    if (rootsHash.initialized())
-        rootsHash.clear();
-
-    FinishPersistentRootedChains(rt);
+    rt->functionPersistentRooteds.clear();
+    rt->idPersistentRooteds.clear();
+    rt->objectPersistentRooteds.clear();
+    rt->scriptPersistentRooteds.clear();
+    rt->stringPersistentRooteds.clear();
+    rt->valuePersistentRooteds.clear();
 }
 
 void
@@ -1495,6 +1483,10 @@ GCRuntime::setMarkStackLimit(size_t limit)
     marker.setMaxCapacity(limit);
 }
 
+template <typename T> struct BarrierOwner {};
+template <typename T> struct BarrierOwner<T *> { typedef T result; };
+template <> struct BarrierOwner<Value> { typedef HeapValue result; };
+
 bool
 GCRuntime::addBlackRootsTracer(JSTraceDataOp traceOp, void *data)
 {
@@ -1592,8 +1584,9 @@ GCRuntime::setSliceCallback(JS::GCSliceCallback callback) {
     return stats.setSliceCallback(callback);
 }
 
+template <typename T>
 bool
-GCRuntime::addRoot(Value *vp, const char *name)
+GCRuntime::addRoot(T *rp, const char *name, JSGCRootType rootType)
 {
     /*
      * Sometimes Firefox will hold weak references to objects and then convert
@@ -1602,33 +1595,87 @@ GCRuntime::addRoot(Value *vp, const char *name)
      * cases.
      */
     if (isIncrementalGCInProgress())
-        HeapValue::writeBarrierPre(*vp);
+        BarrierOwner<T>::result::writeBarrierPre(*rp);
 
-    return rootsHash.put(vp, name);
+    return rootsHash.put((void *)rp, RootInfo(name, rootType));
 }
 
 void
-GCRuntime::removeRoot(Value *vp)
+GCRuntime::removeRoot(void *rp)
 {
-    rootsHash.remove(vp);
+    rootsHash.remove(rp);
     poke();
 }
 
-extern JS_FRIEND_API(bool)
-js::AddRawValueRoot(JSContext *cx, Value *vp, const char *name)
+template <typename T>
+static bool
+AddRoot(JSRuntime *rt, T *rp, const char *name, JSGCRootType rootType)
 {
-    MOZ_ASSERT(vp);
-    MOZ_ASSERT(name);
-    bool ok = cx->runtime()->gc.addRoot(vp, name);
+    return rt->gc.addRoot(rp, name, rootType);
+}
+
+template <typename T>
+static bool
+AddRoot(JSContext *cx, T *rp, const char *name, JSGCRootType rootType)
+{
+    bool ok = cx->runtime()->gc.addRoot(rp, name, rootType);
     if (!ok)
         JS_ReportOutOfMemory(cx);
     return ok;
 }
 
+bool
+js::AddValueRoot(JSContext *cx, Value *vp, const char *name)
+{
+    return AddRoot(cx, vp, name, JS_GC_ROOT_VALUE_PTR);
+}
+
+extern bool
+js::AddValueRootRT(JSRuntime *rt, js::Value *vp, const char *name)
+{
+    return AddRoot(rt, vp, name, JS_GC_ROOT_VALUE_PTR);
+}
+
+extern bool
+js::AddStringRoot(JSContext *cx, JSString **rp, const char *name)
+{
+    return AddRoot(cx, rp, name, JS_GC_ROOT_STRING_PTR);
+}
+
+extern bool
+js::AddObjectRoot(JSContext *cx, JSObject **rp, const char *name)
+{
+    return AddRoot(cx, rp, name, JS_GC_ROOT_OBJECT_PTR);
+}
+
+extern bool
+js::AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name)
+{
+    return AddRoot(rt, rp, name, JS_GC_ROOT_OBJECT_PTR);
+}
+
+extern bool
+js::AddScriptRoot(JSContext *cx, JSScript **rp, const char *name)
+{
+    return AddRoot(cx, rp, name, JS_GC_ROOT_SCRIPT_PTR);
+}
+
+extern JS_FRIEND_API(bool)
+js::AddRawValueRoot(JSContext *cx, Value *vp, const char *name)
+{
+    return AddRoot(cx, vp, name, JS_GC_ROOT_VALUE_PTR);
+}
+
 extern JS_FRIEND_API(void)
 js::RemoveRawValueRoot(JSContext *cx, Value *vp)
 {
-    cx->runtime()->gc.removeRoot(vp);
+    RemoveRoot(cx->runtime(), vp);
+}
+
+void
+js::RemoveRoot(JSRuntime *rt, void *rp)
+{
+    rt->gc.removeRoot(rp);
 }
 
 void
@@ -2490,8 +2537,8 @@ GCRuntime::updateAllCellPointersParallel(MovingTracer *trc)
 
     const size_t minTasks = 2;
     const size_t maxTasks = 8;
-    unsigned taskCount = Min(Max(HelperThreadState().cpuCount / 2, minTasks) + 1,
-                             maxTasks);
+    unsigned taskCount = Min(Max(HelperThreadState().cpuCount / 2, minTasks),
+                             maxTasks) + 1;
     UpdateCellPointersTask updateTasks[maxTasks];
 
     ArenasToUpdate fgArenas(rt, ArenasToUpdate::FOREGROUND);

@@ -65,8 +65,7 @@ class TabChildBase;
 class TabChildGlobal : public DOMEventTargetHelper,
                        public nsIContentFrameMessageManager,
                        public nsIScriptObjectPrincipal,
-                       public nsIGlobalObject,
-                       public nsSupportsWeakReference
+                       public nsIGlobalObject
 {
 public:
   explicit TabChildGlobal(TabChildBase* aTabChild);

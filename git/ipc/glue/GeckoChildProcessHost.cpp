@@ -97,7 +97,6 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     mDelegate(nullptr),
 #if defined(MOZ_SANDBOX) && defined(XP_WIN)
     mEnableSandboxLogging(false),
-    mEnableNPAPISandbox(false),
 #if defined(MOZ_CONTENT_SANDBOX)
     mMoreStrictContentSandbox(false),
 #endif
@@ -801,7 +800,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     }
   }
 
-#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+#if defined(XP_WIN)
   bool shouldSandboxCurrentProcess = false;
   switch (mProcessType) {
     case GeckoProcessType_Content:
@@ -814,12 +813,10 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 #endif // MOZ_CONTENT_SANDBOX
       break;
     case GeckoProcessType_Plugin:
-      if (mEnableNPAPISandbox &&
-          !PR_GetEnv("MOZ_DISABLE_NPAPI_SANDBOX")) {
-        mSandboxBroker.SetSecurityLevelForPluginProcess();
-        cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
-        shouldSandboxCurrentProcess = true;
-      }
+      // XXX: We don't sandbox this process type yet
+      // mSandboxBroker.SetSecurityLevelForPluginProcess();
+      // cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
+      // shouldSandboxCurrentProcess = true;
       break;
     case GeckoProcessType_IPDLUnitTest:
       // XXX: We don't sandbox this process type yet
@@ -828,11 +825,13 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       // shouldSandboxCurrentProcess = true;
       break;
     case GeckoProcessType_GMPlugin:
+#ifdef MOZ_SANDBOX
       if (!PR_GetEnv("MOZ_DISABLE_GMP_SANDBOX")) {
         mSandboxBroker.SetSecurityLevelForGMPlugin();
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
+#endif
       break;
     case GeckoProcessType_Default:
     default:
@@ -840,6 +839,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       break;
   };
 
+#ifdef MOZ_SANDBOX
   if (shouldSandboxCurrentProcess) {
     for (auto it = mAllowedFilesRead.begin();
          it != mAllowedFilesRead.end();
@@ -847,7 +847,9 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       mSandboxBroker.AllowReadFile(it->c_str());
     }
   }
-#endif // XP_WIN && MOZ_SANDBOX
+#endif
+
+#endif // XP_WIN
 
   // Add the application directory path (-appdir path)
   AddAppDirToCommandLine(cmdLine);

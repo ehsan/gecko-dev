@@ -1134,12 +1134,6 @@ nsEditor::CanCopy(bool *aCanCut)
 }
 
 NS_IMETHODIMP
-nsEditor::CanDelete(bool *aCanDelete)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 nsEditor::Paste(int32_t aSelectionType)
 {
   return NS_ERROR_NOT_IMPLEMENTED; 

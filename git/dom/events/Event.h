@@ -205,7 +205,6 @@ public:
 
   EventTarget* GetOriginalTarget() const;
   EventTarget* GetExplicitOriginalTarget() const;
-  EventTarget* GetComposedTarget() const;
 
   bool GetPreventDefault() const;
 

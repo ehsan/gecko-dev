@@ -371,9 +371,6 @@ JSRuntime::~JSRuntime()
         /* Clear atoms to remove GC roots and heap allocations. */
         finishAtoms();
 
-        /* Remove persistent GC roots. */
-        gc.finishRoots();
-
         /*
          * Flag us as being destroyed. This allows the GC to free things like
          * interned atoms and Ion trampolines.
