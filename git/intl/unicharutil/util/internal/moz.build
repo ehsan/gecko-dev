@@ -12,4 +12,6 @@ UNIFIED_SOURCES += intl_unicharutil_util_cppsrcs
 
 LIBRARY_NAME = 'unicharutil_s'
 
-LIBXUL_LIBRARY = True
+EXPORT_LIBRARY = True
+
+FORCE_STATIC_LIB = True

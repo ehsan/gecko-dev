@@ -238,60 +238,29 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   /* Helper class for maintaining the ancestor state */
   class MOZ_STACK_CLASS AutoAncestorPusher {
   public:
-    AutoAncestorPusher(TreeMatchContext& aTreeMatchContext
+    AutoAncestorPusher(bool aDoPush,
+                       TreeMatchContext &aTreeMatchContext,
+                       mozilla::dom::Element *aElement
                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mPushedAncestor(false)
-      , mPushedStyleScope(false)
-      , mTreeMatchContext(aTreeMatchContext)
-      , mElement(nullptr)
+      : mPushed(aDoPush && aElement),
+        mTreeMatchContext(aTreeMatchContext),
+        mElement(aElement)
     {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    void PushAncestorAndStyleScope(mozilla::dom::Element* aElement) {
-      MOZ_ASSERT(!mElement);
-      if (aElement) {
-        mElement = aElement;
-        mPushedAncestor = true;
-        mPushedStyleScope = true;
+      if (mPushed) {
         mTreeMatchContext.mAncestorFilter.PushAncestor(aElement);
         mTreeMatchContext.PushStyleScope(aElement);
       }
     }
-
-    void PushAncestorAndStyleScope(nsIContent* aContent) {
-      if (aContent && aContent->IsElement()) {
-        PushAncestorAndStyleScope(aContent->AsElement());
-      }
-    }
-
-    void PushStyleScope(mozilla::dom::Element* aElement) {
-      MOZ_ASSERT(!mElement);
-      if (aElement) {
-        mElement = aElement;
-        mPushedStyleScope = true;
-        mTreeMatchContext.PushStyleScope(aElement);
-      }
-    }
-
-    void PushStyleScope(nsIContent* aContent) {
-      if (aContent && aContent->IsElement()) {
-        PushStyleScope(aContent->AsElement());
-      }
-    }
-
     ~AutoAncestorPusher() {
-      if (mPushedAncestor) {
+      if (mPushed) {
         mTreeMatchContext.mAncestorFilter.PopAncestor();
-      }
-      if (mPushedStyleScope) {
         mTreeMatchContext.PopStyleScope(mElement);
       }
     }
 
   private:
-    bool mPushedAncestor;
-    bool mPushedStyleScope;
+    bool mPushed;
     TreeMatchContext& mTreeMatchContext;
     mozilla::dom::Element* mElement;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER

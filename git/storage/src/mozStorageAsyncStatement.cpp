@@ -138,8 +138,10 @@ AsyncStatement::initialize(Connection *aDBConnection,
   mDBConnection = aDBConnection;
   mSQLString = aSQLStatement;
 
+#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Inited async statement '%s' (0x%p)",
                                       mSQLString.get()));
+#endif
 
 #ifdef DEBUG
   // We want to try and test for LIKE and that consumers are using
@@ -300,17 +302,22 @@ AsyncStatement::getAsyncStatement(sqlite3_stmt **_stmt)
   if (!mAsyncStatement) {
     int rc = mDBConnection->prepareStatement(mSQLString, &mAsyncStatement);
     if (rc != SQLITE_OK) {
+#ifdef PR_LOGGING
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Sqlite statement prepare error: %d '%s'", rc,
               ::sqlite3_errmsg(mDBConnection->GetNativeConnection())));
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Statement was: '%s'", mSQLString.get()));
+#endif
       *_stmt = nullptr;
       return rc;
     }
+
+#ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Initialized statement '%s' (0x%p)",
                                         mSQLString.get(),
                                         mAsyncStatement));
+#endif
   }
 
   *_stmt = mAsyncStatement;
@@ -362,8 +369,10 @@ AsyncStatement::Finalize()
 
   mFinalized = true;
 
+#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Finalizing statement '%s'",
                                       mSQLString.get()));
+#endif
 
   asyncFinalize();
   cleanupJSHelpers();

@@ -20,12 +20,6 @@ ValueNumberer::ValueNumberer(MIRGenerator *mir, MIRGraph &graph, bool optimistic
     count_(0)
 { }
 
-TempAllocator &
-ValueNumberer::alloc() const
-{
-    return mir->temp();
-}
-
 uint32_t
 ValueNumberer::lookupValue(MDefinition *ins)
 {
@@ -57,7 +51,7 @@ ValueNumberer::simplify(MDefinition *def, bool useValueNumbers)
 
     // ensure this instruction has a VN
     if (!ins->valueNumberData())
-        ins->setValueNumberData(new(alloc()) ValueNumberData);
+        ins->setValueNumberData(new ValueNumberData);
     if (!ins->block()) {
         // In this case, we made a new def by constant folding, for
         // example, we replaced add(#3,#4) with a new const(#7) node.
@@ -89,7 +83,7 @@ ValueNumberer::simplifyControlInstruction(MControlInstruction *def)
 
     // Ensure this instruction has a value number.
     if (!repl->valueNumberData())
-        repl->setValueNumberData(new(alloc()) ValueNumberData);
+        repl->setValueNumberData(new ValueNumberData);
 
     MBasicBlock *block = def->block();
 
@@ -183,9 +177,9 @@ ValueNumberer::computeValueNumbers()
         if (mir->shouldCancel("Value Numbering (preparation loop"))
             return false;
         for (MDefinitionIterator iter(*block); iter; iter++)
-            iter->setValueNumberData(new(alloc()) ValueNumberData);
+            iter->setValueNumberData(new ValueNumberData);
         MControlInstruction *jump = block->lastIns();
-        jump->setValueNumberData(new(alloc()) ValueNumberData);
+        jump->setValueNumberData(new ValueNumberData);
     }
 
     // Assign unique value numbers if pessimistic.
