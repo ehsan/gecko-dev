@@ -84,7 +84,7 @@ function _clickOnInspectMenuItem(node) {
   document.popupNode = node;
   var contentAreaContextMenu = document.getElementById("contentAreaContextMenu");
   var contextMenu = new nsContextMenu(contentAreaContextMenu);
-  var {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+  var promise = devtools.require("sdk/core/promise");
   var deferred = promise.defer();
   contextMenu.inspectNode().then(() => {
     let i = getActiveInspector();

@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+let promise = devtools.require("sdk/core/promise");
 let Toolbox = devtools.Toolbox;
 let TargetFactory = devtools.TargetFactory;
 

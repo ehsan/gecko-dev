@@ -3,7 +3,7 @@ Cu.import("resource://gre/modules/osfile.jsm");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm");
 const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 
 // XXX: bug 912476 make this module a real protocol.js front
 // by converting webapps actor to protocol.js
