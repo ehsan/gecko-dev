@@ -23,9 +23,7 @@ function send(type, data, callback) {
     msg[i] = data[i];
   }
 
-  Messaging.sendRequestForResult(msg)
-    .then(result => callback(result, null),
-          error => callback(null, error));
+  sendMessageToJava(msg, callback);
 }
 
 /* These apps represent players supported natively by the platform. This class will proxy commands

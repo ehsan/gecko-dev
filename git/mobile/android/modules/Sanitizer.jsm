@@ -153,9 +153,8 @@ Sanitizer.prototype = {
     history: {
       clear: function ()
       {
-        return Messaging.sendRequestForResult({ type: "Sanitize:ClearHistory" })
-          .catch() // Purge Gecko-side data even if request failed
-          .then(function() {
+        return new Promise(function(resolve, reject) {
+          sendMessageToJava({ type: "Sanitize:ClearHistory" }, function() {
             try {
               Services.obs.notifyObservers(null, "browser:purge-session-history", "");
             }
@@ -165,7 +164,10 @@ Sanitizer.prototype = {
               var predictor = Cc["@mozilla.org/network/predictor;1"].getService(Ci.nsINetworkPredictor);
               predictor.reset();
             } catch (e) { }
+
+            resolve();
           });
+        });
       },
 
       get canClear()

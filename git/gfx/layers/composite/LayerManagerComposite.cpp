@@ -351,7 +351,8 @@ LayerManagerComposite::RenderDebugOverlay(const Rect& aBounds)
     int width;
     int border;
     float alpha = 1;
-    if ((now - mWarnTime).ToMilliseconds() < kVisualWarningDuration) {
+    if ((now - mWarnTime).ToMilliseconds() < 150) {
+      printf_stderr("Draw\n");
       EffectChain effects;
 
       // Black blorder

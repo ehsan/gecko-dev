@@ -154,7 +154,7 @@ struct UploadData
     int64_t mSelfProgress;
     int64_t mSelfProgressMax;
 
-    explicit UploadData(nsIURI *aFile) :
+    UploadData(nsIURI *aFile) :
         mFile(aFile),
         mSelfProgress(0),
         mSelfProgressMax(10000)

@@ -7,7 +7,7 @@
 #include "jit/LICM.h"
 
 #include "jit/IonAnalysis.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
 
@@ -27,7 +27,7 @@ LoopContainsPossibleCall(MIRGraph &graph, MBasicBlock *header, MBasicBlock *back
         for (auto insIter(block->begin()), insEnd(block->end()); insIter != insEnd; ++insIter) {
             MInstruction *ins = *insIter;
             if (ins->possiblyCalls()) {
-                JitSpew(JitSpew_LICM, "    Possile call found at %s%u", ins->opName(), ins->id());
+                IonSpew(IonSpew_LICM, "    Possile call found at %s%u", ins->opName(), ins->id());
                 return true;
             }
         }
@@ -152,7 +152,7 @@ MoveDeferredOperands(MInstruction *ins, MInstruction *hoistPoint, bool hasCalls)
         // because we require RequiresHoistedUse to be set at each level.
         MoveDeferredOperands(opIns, hoistPoint, hasCalls);
 
-        JitSpew(JitSpew_LICM, "    Hoisting %s%u (now that a user will be hoisted)",
+        IonSpew(IonSpew_LICM, "    Hoisting %s%u (now that a user will be hoisted)",
                 opIns->opName(), opIns->id());
 
         opIns->block()->moveBefore(hoistPoint, opIns);
@@ -168,7 +168,7 @@ VisitLoopBlock(MBasicBlock *block, MBasicBlock *header, MInstruction *hoistPoint
         if (!IsHoistable(ins, header, hasCalls)) {
 #ifdef DEBUG
             if (IsHoistableIgnoringDependency(ins, hasCalls)) {
-                JitSpew(JitSpew_LICM, "    %s%u isn't hoistable due to dependency on %s%u",
+                IonSpew(IonSpew_LICM, "    %s%u isn't hoistable due to dependency on %s%u",
                         ins->opName(), ins->id(),
                         ins->dependency()->opName(), ins->dependency()->id());
             }
@@ -180,7 +180,7 @@ VisitLoopBlock(MBasicBlock *block, MBasicBlock *header, MInstruction *hoistPoint
         // its uses. We want those instructions as close as possible to their
         // use, to minimize register pressure.
         if (RequiresHoistedUse(ins, hasCalls)) {
-            JitSpew(JitSpew_LICM, "    %s%u will be hoisted only if its users are",
+            IonSpew(IonSpew_LICM, "    %s%u will be hoisted only if its users are",
                     ins->opName(), ins->id());
             continue;
         }
@@ -188,7 +188,7 @@ VisitLoopBlock(MBasicBlock *block, MBasicBlock *header, MInstruction *hoistPoint
         // Hoist operands which were too cheap to hoist on their own.
         MoveDeferredOperands(ins, hoistPoint, hasCalls);
 
-        JitSpew(JitSpew_LICM, "    Hoisting %s%u", ins->opName(), ins->id());
+        IonSpew(IonSpew_LICM, "    Hoisting %s%u", ins->opName(), ins->id());
 
         // Move the instruction to the hoistPoint.
         block->moveBefore(hoistPoint, ins);
@@ -200,7 +200,7 @@ VisitLoop(MIRGraph &graph, MBasicBlock *header)
 {
     MInstruction *hoistPoint = header->loopPredecessor()->lastIns();
 
-    JitSpew(JitSpew_LICM, "  Visiting loop with header block%u, hoisting to %s%u",
+    IonSpew(IonSpew_LICM, "  Visiting loop with header block%u, hoisting to %s%u",
             header->id(), hoistPoint->opName(), hoistPoint->id());
 
     MBasicBlock *backedge = header->backedge();
@@ -227,7 +227,7 @@ VisitLoop(MIRGraph &graph, MBasicBlock *header)
 bool
 jit::LICM(MIRGenerator *mir, MIRGraph &graph)
 {
-    JitSpew(JitSpew_LICM, "Beginning LICM pass");
+    IonSpew(IonSpew_LICM, "Beginning LICM pass");
 
     // Iterate in RPO to visit outer loops before inner loops. We'd hoist the
     // same things either way, but outer first means we do a little less work.
@@ -245,7 +245,7 @@ jit::LICM(MIRGenerator *mir, MIRGraph &graph)
         if (!canOsr)
             VisitLoop(graph, header);
         else
-            JitSpew(JitSpew_LICM, "  Skipping loop with header block%u due to OSR", header->id());
+            IonSpew(IonSpew_LICM, "  Skipping loop with header block%u due to OSR", header->id());
 
         UnmarkLoopBlocks(graph, header);
 

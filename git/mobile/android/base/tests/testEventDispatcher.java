@@ -68,6 +68,7 @@ public class testEventDispatcher extends UITest
         js.syncCall("send_test_message", NATIVE_EVENT);
         js.syncCall("send_message_for_response", NATIVE_RESPONSE_EVENT, "success");
         js.syncCall("send_message_for_response", NATIVE_RESPONSE_EVENT, "error");
+        js.syncCall("send_message_for_response", NATIVE_RESPONSE_EVENT, "cancel");
         js.syncCall("send_test_message", NATIVE_EXCEPTION_EVENT);
         js.syncCall("finish_test");
     }
@@ -148,6 +149,8 @@ public class testEventDispatcher extends UITest
                 callback.sendSuccess(response);
             } else if ("error".equals(response)) {
                 callback.sendError(response);
+            } else if ("cancel".equals(response)) {
+                callback.sendCancel();
             } else {
                 fFail("Response type should be valid: " + response);
             }

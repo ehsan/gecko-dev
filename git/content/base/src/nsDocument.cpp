@@ -1601,12 +1601,6 @@ nsDocument::~nsDocument()
 
   NS_ASSERTION(!mIsShowing, "Destroying a currently-showing document");
 
-  // Note: This assert is only non-fatal because mochitest-bc triggers
-  // it... as well as the preceding assert about !mIsShowing.
-  NS_ASSERTION(!mObservingAppThemeChanged,
-               "Document leaked to shutdown, then the observer service dropped "
-               "its ref to us so we were able to go away.");
-
   if (IsTopLevelContentDocument()) {
     //don't report for about: pages
     nsCOMPtr<nsIPrincipal> principal = GetPrincipal();
@@ -8879,10 +8873,7 @@ nsDocument::OnPageShow(bool aPersisted,
                         "chrome-page-shown" :
                         "content-page-shown",
                       nullptr);
-  if (!mObservingAppThemeChanged) {
-    os->AddObserver(this, "app-theme-changed", /* ownsWeak */ false);
-    mObservingAppThemeChanged = true;
-  }
+  os->AddObserver(this, "app-theme-changed", /* ownsWeak */ false);
 
   DispatchPageTransition(target, NS_LITERAL_STRING("pageshow"), aPersisted);
 }
@@ -8958,7 +8949,6 @@ nsDocument::OnPageHide(bool aPersisted,
                         nullptr);
 
     os->RemoveObserver(this, "app-theme-changed");
-    mObservingAppThemeChanged = false;
   }
 
   DispatchPageTransition(target, NS_LITERAL_STRING("pagehide"), aPersisted);

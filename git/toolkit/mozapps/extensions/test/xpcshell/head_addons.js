@@ -1575,16 +1575,7 @@ function callback_soon(aFunction) {
  * its callback.
  */
 function promiseAddonsByIDs(list) {
-  return new Promise((resolve, reject) => AddonManager.getAddonsByIDs(list, resolve));
-}
-
-/**
- * A promise-based variant of AddonManager.getAddonByID.
- *
- * @param {string} aId The ID of the add-on.
- * @return {promise}
- * @resolve {AddonWrapper} The corresponding add-on, or null.
- */
-function promiseAddonByID(aId) {
-  return new Promise((resolve, reject) => AddonManager.getAddonByID(aId, resolve));
+  let deferred = Promise.defer();
+  AddonManager.getAddonsByIDs(list, deferred.resolve);
+  return deferred.promise;
 }

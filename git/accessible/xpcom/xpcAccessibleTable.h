@@ -21,10 +21,7 @@ class TableAccessible;
 class xpcAccessibleTable
 {
 public:
-  explicit xpcAccessibleTable(TableAccessible* aTable) :
-    mTable(aTable)
-  {
-  }
+  explicit xpcAccessibleTable(mozilla::a11y::TableAccessible* aTable) : mTable(aTable) { }
 
   nsresult GetCaption(nsIAccessible** aCaption);
   nsresult GetSummary(nsAString& aSummary);

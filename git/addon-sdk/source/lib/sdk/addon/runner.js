@@ -7,26 +7,21 @@ module.metadata = {
 };
 
 const { Cc, Ci, Cu } = require('chrome');
-const { rootURI, metadata, isNative } = require('@loader/options');
-const { id, loadReason } = require('../self');
+const { isNative } = require('@loader/options');
 const { descriptor, Sandbox, evaluate, main, resolveURI } = require('toolkit/loader');
 const { once } = require('../system/events');
 const { exit, env, staticArgs } = require('../system');
 const { when: unload } = require('../system/unload');
+const { loadReason } = require('../self');
+const { rootURI, metadata } = require("@loader/options");
 const globals = require('../system/globals');
 const xulApp = require('../system/xul-app');
-const { get } = require('../preferences/service');
+const { id } = require('sdk/self');
 const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 const { preferences } = metadata;
 
 const Startup = Cu.import("resource://gre/modules/sdk/system/Startup.js", {}).exports;
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyGetter(this, "BrowserToolboxProcess", function () {
-  return Cu.import("resource:///modules/devtools/ToolboxProcess.jsm", {}).
-         BrowserToolboxProcess;
-});
 
 // Initializes default preferences
 function setDefaultPrefs(prefsURI) {
@@ -107,9 +102,7 @@ function run(options) {
     // native-options does stuff directly with preferences key from package.json
     if (preferences && preferences.length > 0) {
       try {
-        require('../preferences/native-options').
-          enable({ preferences: preferences, id: id }).
-          catch(console.exception);
+        require('../preferences/native-options').enable({ preferences: preferences, id: id });
       }
       catch (error) {
         console.exception(error);
@@ -148,6 +141,7 @@ function run(options) {
       unload(program.onUnload);
 
     if (typeof(program.main) === 'function') {
+
       program.main({
         loadReason: loadReason,
         staticArgs: staticArgs
@@ -155,10 +149,6 @@ function run(options) {
         print: function print(_) { dump(_ + '\n') },
         quit: exit
       });
-    }
-
-    if (get("extensions." + id + ".sdk.debug.show", false)) {
-      BrowserToolboxProcess.init({ addonID: id });
     }
   } catch (error) {
     console.exception(error);

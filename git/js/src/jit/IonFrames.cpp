@@ -18,9 +18,9 @@
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "jit/IonMacroAssembler.h"
+#include "jit/IonSpewer.h"
 #include "jit/JitcodeMap.h"
 #include "jit/JitCompartment.h"
-#include "jit/JitSpewer.h"
 #include "jit/ParallelFunctions.h"
 #include "jit/PcScriptCache.h"
 #include "jit/Recover.h"
@@ -628,7 +628,7 @@ HandleException(ResumeFromException *rfe)
 
     rfe->kind = ResumeFromException::RESUME_ENTRY_FRAME;
 
-    JitSpew(JitSpew_Invalidate, "handling exception");
+    IonSpew(IonSpew_Invalidate, "handling exception");
 
     // Clear any Ion return override that's been set.
     // This may happen if a callVM function causes an invalidation (setting the
@@ -828,18 +828,17 @@ EnsureExitFrame(IonCommonFrameLayout *frame)
 CalleeToken
 MarkCalleeToken(JSTracer *trc, CalleeToken token)
 {
-    switch (CalleeTokenTag tag = GetCalleeTokenTag(token)) {
+    switch (GetCalleeTokenTag(token)) {
       case CalleeToken_Function:
-      case CalleeToken_FunctionConstructing:
       {
         JSFunction *fun = CalleeTokenToFunction(token);
-        MarkObjectRoot(trc, &fun, "jit-callee");
-        return CalleeToToken(fun, tag == CalleeToken_FunctionConstructing);
+        MarkObjectRoot(trc, &fun, "ion-callee");
+        return CalleeToToken(fun);
       }
       case CalleeToken_Script:
       {
         JSScript *script = CalleeTokenToScript(token);
-        MarkScriptRoot(trc, &script, "jit-script");
+        MarkScriptRoot(trc, &script, "ion-entry");
         return CalleeToToken(script);
       }
       default:
@@ -1361,7 +1360,7 @@ void UpdateJitActivationsForMinorGC<gc::ForkJoinNursery>(PerThreadData *ptd, JST
 void
 GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
 {
-    JitSpew(JitSpew_Snapshots, "Recover PC & Script from the last frame.");
+    IonSpew(IonSpew_Snapshots, "Recover PC & Script from the last frame.");
 
     JSRuntime *rt = cx->runtime();
 
@@ -1768,13 +1767,19 @@ JitFrameIterator::ionScriptFromCalleeToken() const
     JS_ASSERT(type() == JitFrame_IonJS);
     JS_ASSERT(!checkInvalidation());
 
-    switch (mode_) {
-      case SequentialExecution:
-        return script()->ionScript();
-      case ParallelExecution:
-        return script()->parallelIonScript();
+    switch (GetCalleeTokenTag(calleeToken())) {
+      case CalleeToken_Function:
+      case CalleeToken_Script:
+        switch (mode_) {
+          case SequentialExecution:
+            return script()->ionScript();
+          case ParallelExecution:
+            return script()->parallelIonScript();
+          default:
+            MOZ_CRASH("No such execution mode");
+        }
       default:
-        MOZ_CRASH("No such execution mode");
+        MOZ_CRASH("unknown callee token type");
     }
 }
 
@@ -2015,7 +2020,42 @@ InlineFrameIterator::isConstructing() const
 bool
 JitFrameIterator::isConstructing() const
 {
-    return GetCalleeTokenTag(calleeToken()) == CalleeToken_FunctionConstructing;
+    JitFrameIterator parent(*this);
+
+    // Skip the current frame and look at the caller's.
+    do {
+        ++parent;
+    } while (!parent.done() && !parent.isScripted());
+
+    if (parent.isIonJS()) {
+        // In the case of a JS frame, look up the pc from the snapshot.
+        InlineFrameIterator inlinedParent(GetJSContextFromJitCode(), &parent);
+
+        //Inlined Getters and Setters are never constructing.
+        if (IsGetPropPC(inlinedParent.pc()) || IsSetPropPC(inlinedParent.pc()))
+            return false;
+
+        JS_ASSERT(IsCallPC(inlinedParent.pc()));
+
+        return (JSOp)*inlinedParent.pc() == JSOP_NEW;
+    }
+
+    if (parent.isBaselineJS()) {
+        jsbytecode *pc;
+        parent.baselineScriptAndPc(nullptr, &pc);
+
+        // Inlined Getters and Setters are never constructing.
+        // Baseline may call getters from [GET|SET]PROP or [GET|SET]ELEM ops.
+        if (IsGetPropPC(pc) || IsSetPropPC(pc) || IsGetElemPC(pc) || IsSetElemPC(pc))
+            return false;
+
+        JS_ASSERT(IsCallPC(pc));
+
+        return JSOp(*pc) == JSOP_NEW;
+    }
+
+    JS_ASSERT(parent.done());
+    return activation_->firstFrameIsConstructing();
 }
 
 unsigned
@@ -2224,7 +2264,7 @@ JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
     if (!jitrt->getJitcodeGlobalTable()->lookup(returnAddressToFp_, &entry))
         return true;
 
-    JitSpew(JitSpew_Profiling, "Found nativeToBytecode entry for %p: %p - %p",
+    IonSpew(IonSpew_Profiling, "Found nativeToBytecode entry for %p: %p - %p",
             returnAddressToFp_, entry.nativeStartAddr(), entry.nativeEndAddr());
 
     JitcodeGlobalEntry::BytecodeLocationVector location;
@@ -2234,9 +2274,9 @@ JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
     JS_ASSERT(depth > 0 && depth != UINT32_MAX);
     JS_ASSERT(location.length() == depth);
 
-    JitSpew(JitSpew_Profiling, "Found bytecode location of depth %d:", depth);
+    IonSpew(IonSpew_Profiling, "Found bytecode location of depth %d:", depth);
     for (size_t i = 0; i < location.length(); i++) {
-        JitSpew(JitSpew_Profiling, "   %s:%d - %d",
+        IonSpew(IonSpew_Profiling, "   %s:%d - %d",
                 location[i].script->filename(), location[i].script->lineno(),
                 (int) (location[i].pc - location[i].script->code()));
     }
@@ -2248,7 +2288,7 @@ JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
             JS_ASSERT(idx < location.length());
             JS_ASSERT_IF(idx < location.length() - 1, inlineFrames.more());
 
-            JitSpew(JitSpew_Profiling, "Match %d: ION %s:%d(%d) vs N2B %s:%d(%d)",
+            IonSpew(IonSpew_Profiling, "Match %d: ION %s:%d(%d) vs N2B %s:%d(%d)",
                     (int)idx,
                     inlineFrames.script()->filename(),
                     inlineFrames.script()->lineno(),

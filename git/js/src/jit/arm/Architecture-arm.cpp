@@ -184,7 +184,7 @@ ParseARMHwCapFlags(const char *armHwCap)
 #endif
 
     armHwCapFlags = CanonicalizeARMHwCapFlags(flags);
-    JitSpew(JitSpew_Codegen, "ARM HWCAP: 0x%x\n", armHwCapFlags);
+    IonSpew(IonSpew_Codegen, "ARM HWCAP: 0x%x\n", armHwCapFlags);
     return true;
 }
 
@@ -263,7 +263,7 @@ InitARMFlags()
 
     armHwCapFlags = CanonicalizeARMHwCapFlags(flags);
 
-    JitSpew(JitSpew_Codegen, "ARM HWCAP: 0x%x\n", armHwCapFlags);
+    IonSpew(IonSpew_Codegen, "ARM HWCAP: 0x%x\n", armHwCapFlags);
     return;
 }
 

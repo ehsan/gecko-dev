@@ -63,7 +63,7 @@ class CompositeDataSourceImpl : public nsIRDFCompositeDataSource,
 {
 public:
     CompositeDataSourceImpl(void);
-    explicit CompositeDataSourceImpl(char** dataSources);
+    CompositeDataSourceImpl(char** dataSources);
 
     // nsISupports interface
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -408,7 +408,7 @@ public:
     NS_DECL_NSIRDFLITERAL
 
 protected:
-    explicit LiteralImpl(const char16_t* s);
+    LiteralImpl(const char16_t* s);
     virtual ~LiteralImpl();
 
     const char16_t* GetValue() const {
@@ -521,7 +521,7 @@ LiteralImpl::GetValueConst(const char16_t** aValue)
 
 class DateImpl : public nsIRDFDate {
 public:
-    explicit DateImpl(const PRTime s);
+    DateImpl(const PRTime s);
 
     // nsISupports
     NS_DECL_ISUPPORTS
@@ -628,7 +628,7 @@ DateImpl::EqualsDate(nsIRDFDate* date, bool* result)
 
 class IntImpl : public nsIRDFInt {
 public:
-    explicit IntImpl(int32_t s);
+    IntImpl(int32_t s);
 
     // nsISupports
     NS_DECL_ISUPPORTS

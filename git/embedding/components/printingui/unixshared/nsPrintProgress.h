@@ -24,7 +24,7 @@ public:
   NS_DECL_NSIWEBPROGRESSLISTENER
   NS_DECL_NSIPRINTSTATUSFEEDBACK
 
-  explicit nsPrintProgress(nsIPrintSettings* aPrintSettings);
+	nsPrintProgress(nsIPrintSettings* aPrintSettings);
 
 protected:
 	virtual ~nsPrintProgress();

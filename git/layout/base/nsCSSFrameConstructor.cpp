@@ -10549,15 +10549,12 @@ nsCSSFrameConstructor::RemoveFirstLetterFrames(nsPresContext* aPresContext,
       break;
     }
     else if (IsInlineFrame(kid)) {
-      nsContainerFrame* kidAsContainerFrame = do_QueryFrame(kid);
-      if (kidAsContainerFrame) {
-        // Look inside child inline frame for the letter frame.
-        RemoveFirstLetterFrames(aPresContext, aPresShell,
-                                kidAsContainerFrame,
-                                aBlockFrame, aStopLooking);
-        if (*aStopLooking) {
-          break;
-        }
+      // Look inside child inline frame for the letter frame
+      RemoveFirstLetterFrames(aPresContext, aPresShell,
+                              static_cast<nsContainerFrame*>(kid),
+                              aBlockFrame, aStopLooking);
+      if (*aStopLooking) {
+        break;
       }
     }
     prevSibling = kid;

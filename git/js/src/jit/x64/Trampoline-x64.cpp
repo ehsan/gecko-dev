@@ -371,9 +371,7 @@ JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Load the number of |undefined|s to push into %rcx.
     masm.loadPtr(Address(rsp, IonRectifierFrameLayout::offsetOfCalleeToken()), rax);
-    masm.mov(rax, rcx);
-    masm.andq(Imm32(uint32_t(CalleeTokenMask)), rcx);
-    masm.movzwl(Operand(rcx, JSFunction::offsetOfNargs()), rcx);
+    masm.movzwl(Operand(rax, JSFunction::offsetOfNargs()), rcx);
     masm.subq(r8, rcx);
 
     // Copy the number of actual arguments
@@ -420,7 +418,6 @@ JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Call the target function.
     // Note that this code assumes the function is JITted.
-    masm.andq(Imm32(uint32_t(CalleeTokenMask)), rax);
     masm.loadPtr(Address(rax, JSFunction::offsetOfNativeOrScript()), rax);
     masm.loadBaselineOrIonRaw(rax, rax, mode, nullptr);
     masm.call(rax);

@@ -88,9 +88,6 @@ def set_default_logger(default_logger):
 log_levels = dict((k.upper(), v) for v, k in
                   enumerate(["critical", "error", "warning", "info", "debug"]))
 
-def log_actions():
-    """Returns the set of actions implemented by mozlog."""
-    return set(convertor_registry.keys())
 
 class LoggerState(object):
     def __init__(self):

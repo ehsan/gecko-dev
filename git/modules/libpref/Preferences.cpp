@@ -105,7 +105,7 @@ public:
   ValueObserverHashKey(const char *aPref, PrefChangedFunc aCallback) :
     mPrefName(aPref), mCallback(aCallback) { }
 
-  explicit ValueObserverHashKey(const ValueObserverHashKey *aOther) :
+  ValueObserverHashKey(const ValueObserverHashKey *aOther) :
     mPrefName(aOther->mPrefName), mCallback(aOther->mCallback)
   { }
 

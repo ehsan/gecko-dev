@@ -1351,7 +1351,7 @@ class ParallelIonInvoke
         JitCode *code = ion->method();
         jitcode_ = code->raw();
         enter_ = rt->jitRuntime()->enterIon();
-        calleeToken_ = CalleeToToken(callee, /* constructing = */ false);
+        calleeToken_ = CalleeToToken(callee);
     }
 
     bool invoke(ForkJoinContext *cx) {

@@ -444,7 +444,7 @@ namespace mozilla {
 class WebShellWindowTimerCallback MOZ_FINAL : public nsITimerCallback
 {
 public:
-  explicit WebShellWindowTimerCallback(nsWebShellWindow* aWindow)
+  WebShellWindowTimerCallback(nsWebShellWindow* aWindow)
     : mWindow(aWindow)
   {}
 

@@ -28,9 +28,9 @@ class mozIStorageAsyncStatement;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsPermissionManager MOZ_FINAL : public nsIPermissionManager,
-                                      public nsIObserver,
-                                      public nsSupportsWeakReference
+class nsPermissionManager : public nsIPermissionManager,
+                            public nsIObserver,
+                            public nsSupportsWeakReference
 {
 public:
   class PermissionEntry
@@ -67,7 +67,7 @@ public:
   class PermissionKey
   {
   public:
-    explicit PermissionKey(nsIPrincipal* aPrincipal);
+    PermissionKey(nsIPrincipal* aPrincipal);
     PermissionKey(const nsACString& aHost,
                   uint32_t aAppId,
                   bool aIsInBrowserElement)
@@ -109,7 +109,7 @@ public:
   class PermissionHashKey : public nsRefPtrHashKey<PermissionKey>
   {
   public:
-    explicit PermissionHashKey(const PermissionKey* aPermissionKey)
+    PermissionHashKey(const PermissionKey* aPermissionKey)
       : nsRefPtrHashKey<PermissionKey>(aPermissionKey)
     {}
 

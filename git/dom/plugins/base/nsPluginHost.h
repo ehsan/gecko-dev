@@ -58,10 +58,10 @@ public:
   nsRefPtr<nsInvalidPluginTag> mNext;
 };
 
-class nsPluginHost MOZ_FINAL : public nsIPluginHost,
-                               public nsIObserver,
-                               public nsITimerCallback,
-                               public nsSupportsWeakReference
+class nsPluginHost : public nsIPluginHost,
+                     public nsIObserver,
+                     public nsITimerCallback,
+                     public nsSupportsWeakReference
 {
   virtual ~nsPluginHost();
 public:
@@ -307,7 +307,7 @@ class MOZ_STACK_CLASS PluginDestructionGuard : protected PRCList
 public:
   explicit PluginDestructionGuard(nsNPAPIPluginInstance *aInstance);
 
-  explicit PluginDestructionGuard(NPP npp);
+  PluginDestructionGuard(NPP npp);
 
   ~PluginDestructionGuard();
 

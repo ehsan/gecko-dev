@@ -41,7 +41,6 @@ public:
 protected:
   struct FlushEvent : public nsIRunnable
   {
-    MOZ_CONSTEXPR FlushEvent() : mReason(nullptr) {}
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIRUNNABLE
     const char16_t* mReason;

@@ -52,7 +52,7 @@ namespace SystemMemoryReporter {
  */
 struct MOZ_STACK_CLASS AutoDir
 {
-  explicit AutoDir(DIR* aDir) : mDir(aDir) {}
+  AutoDir(DIR* aDir) : mDir(aDir) {}
   ~AutoDir() { if (mDir) closedir(mDir); };
   DIR* mDir;
 };
@@ -62,7 +62,7 @@ struct MOZ_STACK_CLASS AutoDir
  */
 struct MOZ_STACK_CLASS AutoFile
 {
-  explicit AutoFile(FILE* aFile) : mFile(aFile) {}
+  AutoFile(FILE* aFile) : mFile(aFile) {}
   ~AutoFile() { if (mFile) fclose(mFile); }
   FILE* mFile;
 };

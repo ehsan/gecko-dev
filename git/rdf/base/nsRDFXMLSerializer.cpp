@@ -1010,7 +1010,7 @@ class QNameCollector MOZ_FINAL : public rdfITripleVisitor {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_RDFITRIPLEVISITOR
-    explicit QNameCollector(nsRDFXMLSerializer* aParent)
+    QNameCollector(nsRDFXMLSerializer* aParent)
         : mParent(aParent){}
 private:
     ~QNameCollector() {}

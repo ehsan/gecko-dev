@@ -109,13 +109,13 @@ SharedPreferencesImpl.prototype = Object.freeze({
 
   _get: function _get(prefs, callback) {
     let result = null;
-    Messaging.sendRequestForResult({
+    sendMessageToJava({
       type: "SharedPreferences:Get",
       preferences: prefs,
       scope: this._scope,
       profileName: this._profileName,
       branch: this._branch,
-    }).then((data) => {
+    }, (data) => {
       result = data.values;
     });
 

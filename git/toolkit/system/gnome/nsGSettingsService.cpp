@@ -83,8 +83,8 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGSETTINGSCOLLECTION
 
-  explicit nsGSettingsCollection(GSettings* aSettings) : mSettings(aSettings),
-                                                         mKeys(nullptr) {}
+  nsGSettingsCollection(GSettings* aSettings) : mSettings(aSettings),
+                                                mKeys(nullptr) {}
 private:
   ~nsGSettingsCollection();
 

@@ -157,7 +157,6 @@ WebMReader::WebMReader(AbstractMediaDecoder* aDecoder)
   mAudioTrack(0),
   mAudioStartUsec(-1),
   mAudioFrames(0),
-  mLastVideoFrameTime(0),
   mAudioCodec(-1),
   mVideoCodec(-1),
   mHasVideo(false),
@@ -865,7 +864,6 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
   if (r == -1) {
     return false;
   }
-  mLastVideoFrameTime = tstamp;
 
   // The end time of this frame is the start time of the next frame.  Fetch
   // the timestamp of the next packet for this track.  If we've reached the
@@ -880,8 +878,12 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
     }
     PushVideoPacket(next_holder.disown());
   } else {
-    next_tstamp = tstamp;
-    next_tstamp += tstamp - mLastVideoFrameTime;
+    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+    int64_t endTime = mDecoder->GetEndMediaTime();
+    if (endTime == -1) {
+      return false;
+    }
+    next_tstamp = endTime * NS_PER_USEC;
   }
 
   int64_t tstamp_usecs = tstamp / NS_PER_USEC;

@@ -41,7 +41,7 @@ public:
     protected:
         friend class nsNameSpaceMap;
 
-        explicit const_iterator(const Entry* aCurrent)
+        const_iterator(const Entry* aCurrent)
             : mCurrent(aCurrent) {}
 
         const Entry* mCurrent;

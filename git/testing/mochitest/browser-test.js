@@ -25,7 +25,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
   "resource:///modules/ContentSearch.jsm");
 
 const SIMPLETEST_OVERRIDES =
-  ["ok", "is", "isnot", "ise", "todo", "todo_is", "todo_isnot", "info", "expectAssertions", "requestCompleteLog"];
+  ["ok", "is", "isnot", "ise", "todo", "todo_is", "todo_isnot", "info", "expectAssertions"];
 
 window.addEventListener("load", function testOnLoad() {
   window.removeEventListener("load", testOnLoad);
@@ -907,13 +907,6 @@ function testScope(aTester, aTest) {
         }
       });
     }
-  };
-
-  this.requestCompleteLog = function test_requestCompleteLog() {
-    self.__tester.dumper.structuredLogger.deactivateBuffering();
-    self.registerCleanupFunction(function() {
-      self.__tester.dumper.structuredLogger.activateBuffering();
-    })
   };
 }
 testScope.prototype = {

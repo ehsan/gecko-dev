@@ -32,7 +32,6 @@ enum MethodStatus
 enum AbortReason {
     AbortReason_Alloc,
     AbortReason_Inlining,
-    AbortReason_NewScriptProperties,
     AbortReason_Disable,
     AbortReason_Error,
     AbortReason_NoAbort

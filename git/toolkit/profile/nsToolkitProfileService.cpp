@@ -154,7 +154,7 @@ private:
         NS_DECL_ISUPPORTS
         NS_DECL_NSISIMPLEENUMERATOR
 
-        explicit ProfileEnumerator(nsToolkitProfile *first)
+        ProfileEnumerator(nsToolkitProfile *first)
           { mCurrent = first; }
     private:
         ~ProfileEnumerator() { }

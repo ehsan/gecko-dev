@@ -16,7 +16,7 @@
 
 #include "jit/BaselineInspector.h"
 #include "jit/IonBuilder.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #include "jit/MIRGraph.h"
 #include "jit/RangeAnalysis.h"
 
@@ -467,17 +467,11 @@ MDefinition::hasLiveDefUses() const
 void
 MDefinition::replaceAllUsesWith(MDefinition *dom)
 {
-    for (size_t i = 0, e = numOperands(); i < e; ++i)
-        getOperand(i)->setUseRemovedUnchecked();
-
-    justReplaceAllUsesWith(dom);
-}
-
-void
-MDefinition::justReplaceAllUsesWith(MDefinition *dom)
-{
     JS_ASSERT(dom != nullptr);
     JS_ASSERT(dom != this);
+
+    for (size_t i = 0, e = numOperands(); i < e; i++)
+        getOperand(i)->setUseRemovedUnchecked();
 
     for (MUseIterator i(usesBegin()); i != usesEnd(); i++)
         i->setProducerUnchecked(dom);
@@ -511,6 +505,7 @@ MConstant::NewConstraintlessObject(TempAllocator &alloc, JSObject *v)
     return new(alloc) MConstant(v);
 }
 
+
 types::TemporaryTypeSet *
 jit::MakeSingletonTypeSet(types::CompilerConstraintList *constraints, JSObject *obj)
 {
@@ -522,8 +517,7 @@ jit::MakeSingletonTypeSet(types::CompilerConstraintList *constraints, JSObject *
     types::TypeObjectKey *objType = types::TypeObjectKey::get(obj);
     objType->hasFlags(constraints, types::OBJECT_FLAG_UNKNOWN_PROPERTIES);
 
-    LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-    return alloc->new_<types::TemporaryTypeSet>(alloc, types::Type::ObjectType(obj));
+    return GetIonContext()->temp->lifoAlloc()->new_<types::TemporaryTypeSet>(types::Type::ObjectType(obj));
 }
 
 MConstant::MConstant(const js::Value &vp, types::CompilerConstraintList *constraints)
@@ -1192,8 +1186,7 @@ MakeMIRTypeSet(MIRType type)
     types::Type ntype = type == MIRType_Object
                         ? types::Type::AnyObjectType()
                         : types::Type::PrimitiveType(ValueTypeFromMIRType(type));
-    LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-    return alloc->new_<types::TemporaryTypeSet>(alloc, ntype);
+    return GetIonContext()->temp->lifoAlloc()->new_<types::TemporaryTypeSet>(ntype);
 }
 
 bool
@@ -3277,7 +3270,7 @@ InlinePropertyTable::trimTo(ObjectVector &targets, BoolVector &choiceSet)
 void
 InlinePropertyTable::trimToTargets(ObjectVector &targets)
 {
-    JitSpew(JitSpew_Inlining, "Got inlineable property cache with %d cases",
+    IonSpew(IonSpew_Inlining, "Got inlineable property cache with %d cases",
             (int)numEntries());
 
     size_t i = 0;
@@ -3295,7 +3288,7 @@ InlinePropertyTable::trimToTargets(ObjectVector &targets)
             i++;
     }
 
-    JitSpew(JitSpew_Inlining, "%d inlineable cases left after trimming to %d targets",
+    IonSpew(IonSpew_Inlining, "%d inlineable cases left after trimming to %d targets",
             (int)numEntries(), (int)targets.length());
 }
 
@@ -3883,7 +3876,7 @@ TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *c
 
         jsid id = name ? NameToId(name) : JSID_VOID;
         types::HeapTypeSetKey property = object->property(id);
-        if (!property.maybeTypes() || property.couldBeConstant(constraints))
+        if (!property.maybeTypes())
             return false;
 
         if (TypeSetIncludes(property.maybeTypes(), (*pvalue)->type(), (*pvalue)->resultTypeSet()))
@@ -3967,16 +3960,6 @@ AddTypeGuard(TempAllocator &alloc, MBasicBlock *current, MDefinition *obj,
     return guard;
 }
 
-// Whether value can be written to property without changing type information.
-bool
-jit::CanWriteProperty(types::CompilerConstraintList *constraints,
-                      types::HeapTypeSetKey property, MDefinition *value)
-{
-    if (property.couldBeConstant(constraints))
-        return false;
-    return TypeSetIncludes(property.maybeTypes(), value->type(), value->resultTypeSet());
-}
-
 bool
 jit::PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstraintList *constraints,
                                    MBasicBlock *current, MDefinition **pobj,
@@ -4010,7 +3993,7 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstrai
 
         jsid id = name ? NameToId(name) : JSID_VOID;
         types::HeapTypeSetKey property = object->property(id);
-        if (!CanWriteProperty(constraints, property, *pvalue)) {
+        if (!TypeSetIncludes(property.maybeTypes(), (*pvalue)->type(), (*pvalue)->resultTypeSet())) {
             // Either pobj or pvalue needs to be modified to filter out the
             // types which the value could have but are not in the property,
             // or a VM call is required. A VM call is always required if pobj
@@ -4042,7 +4025,7 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstrai
 
         jsid id = name ? NameToId(name) : JSID_VOID;
         types::HeapTypeSetKey property = object->property(id);
-        if (CanWriteProperty(constraints, property, *pvalue))
+        if (TypeSetIncludes(property.maybeTypes(), (*pvalue)->type(), (*pvalue)->resultTypeSet()))
             continue;
 
         if ((property.maybeTypes() && !property.maybeTypes()->empty()) || excluded)

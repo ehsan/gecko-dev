@@ -282,7 +282,7 @@ public class BrowserLocaleManager implements LocaleManager {
     public void resetToSystemLocale(Context context) {
         // Wipe the pref.
         final SharedPreferences settings = getSharedPreferences(context);
-        settings.edit().remove(PREF_LOCALE).apply();
+        settings.edit().remove(PREF_LOCALE).commit();
 
         // Apply the system locale.
         updateLocale(context, systemLocale);
@@ -324,7 +324,7 @@ public class BrowserLocaleManager implements LocaleManager {
 
     private void persistLocale(Context context, String localeCode) {
         final SharedPreferences settings = getSharedPreferences(context);
-        settings.edit().putString(PREF_LOCALE, localeCode).apply();
+        settings.edit().putString(PREF_LOCALE, localeCode).commit();
     }
 
     @Override

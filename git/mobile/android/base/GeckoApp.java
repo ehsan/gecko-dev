@@ -1222,7 +1222,8 @@ public abstract class GeckoApp
             // injecting states.
             final SharedPreferences prefs = getSharedPreferences();
             if (prefs.getBoolean(PREFS_ALLOW_STATE_BUNDLE, false)) {
-                prefs.edit().remove(PREFS_ALLOW_STATE_BUNDLE).apply();
+                Log.i(LOGTAG, "Restoring state from intent bundle");
+                prefs.edit().remove(PREFS_ALLOW_STATE_BUNDLE).commit();
                 savedInstanceState = stateBundle;
             }
         } else if (savedInstanceState != null) {
@@ -1278,13 +1279,14 @@ public abstract class GeckoApp
                 // on exit, or if we were suddenly killed (crash or native OOM).
                 editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
 
-                editor.apply();
+                editor.commit();
 
                 // The lifecycle of mHealthRecorder is "shortly after onCreate"
                 // through "onDestroy" -- essentially the same as the lifecycle
                 // of the activity itself.
                 final String profilePath = getProfile().getDir().getAbsolutePath();
                 final EventDispatcher dispatcher = EventDispatcher.getInstance();
+                Log.i(LOGTAG, "Creating HealthRecorder.");
 
                 final String osLocale = Locale.getDefault().toString();
                 String appLocale = localeManager.getAndApplyPersistedLocale(GeckoApp.this);
@@ -1689,7 +1691,15 @@ public abstract class GeckoApp
         if (prefs.getInt(PREFS_VERSION_CODE, 0) != versionCode) {
             // If the version has changed, the user has done an upgrade, so restore
             // previous tabs.
-            prefs.edit().putInt(PREFS_VERSION_CODE, versionCode).apply();
+            ThreadUtils.postToBackgroundThread(new Runnable() {
+                @Override
+                public void run() {
+                    prefs.edit()
+                         .putInt(PREFS_VERSION_CODE, versionCode)
+                         .commit();
+                }
+            });
+
             shouldRestore = true;
         } else if (savedInstanceState != null ||
                    getSessionRestorePreference().equals("always") ||
@@ -1698,7 +1708,12 @@ public abstract class GeckoApp
             // has chosen to always restore, or we restarted.
             shouldRestore = true;
         } else if (prefs.getBoolean(GeckoApp.PREFS_CRASHED, false)) {
-            prefs.edit().putBoolean(PREFS_CRASHED, false).apply();
+            ThreadUtils.postToBackgroundThread(new Runnable() {
+                @Override
+                public void run() {
+                    prefs.edit().putBoolean(PREFS_CRASHED, false).commit();
+                }
+            });
             shouldRestore = true;
         }
 
@@ -1944,7 +1959,7 @@ public abstract class GeckoApp
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
                 currentSession.recordBegin(editor);
-                editor.apply();
+                editor.commit();
 
                 final HealthRecorder rec = mHealthRecorder;
                 if (rec != null) {
@@ -1993,7 +2008,7 @@ public abstract class GeckoApp
                     editor.putBoolean(GeckoApp.PREFS_CLEANUP_TEMP_FILES, false);
                 }
 
-                editor.apply();
+                editor.commit();
 
                 // In theory, the first browser session will not run long enough that we need to
                 // prune during it and we'd rather run it when the browser is inactive so we wait
@@ -2012,22 +2027,24 @@ public abstract class GeckoApp
     }
 
     @Override
-    public void onRestart() {
-        // Faster on main thread with an async apply().
-        final StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskReads();
-        try {
-            SharedPreferences.Editor editor = GeckoApp.this.getSharedPreferences().edit();
-            editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
-            editor.apply();
-        } finally {
-            StrictMode.setThreadPolicy(savedPolicy);
-        }
+    public void onRestart()
+    {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                SharedPreferences prefs = GeckoApp.this.getSharedPreferences();
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
+                editor.commit();
+            }
+        });
 
         super.onRestart();
     }
 
     @Override
-    public void onDestroy() {
+    public void onDestroy()
+    {
         EventDispatcher.getInstance().unregisterGeckoThreadListener((GeckoEventListener)this,
             "Gecko:Ready",
             "Gecko:DelayedStartup",
@@ -2077,7 +2094,6 @@ public abstract class GeckoApp
             mTextSelection.destroy();
         NotificationHelper.destroy();
         IntentHelper.destroy();
-        GeckoNetworkManager.destroy();
 
         if (SmsManager.getInstance() != null) {
             SmsManager.getInstance().stop();
@@ -2234,11 +2250,14 @@ public abstract class GeckoApp
                 if (dir.exists() && dir.isDirectory()) {
                     for (File file : dir.listFiles()) {
                         if (file.isFile() && file.getName().endsWith(".ttf")) {
+                            Log.i(LOGTAG, "deleting " + file.toString());
                             file.delete();
                         }
                     }
                     if (!dir.delete()) {
                         Log.w(LOGTAG, "unable to delete res/fonts directory (not empty?)");
+                    } else {
+                        Log.i(LOGTAG, "res/fonts directory deleted");
                     }
                 }
             }
@@ -2248,7 +2267,7 @@ public abstract class GeckoApp
             if (cleanupVersion != CURRENT_CLEANUP_VERSION) {
                 SharedPreferences.Editor editor = GeckoApp.this.getSharedPreferences().edit();
                 editor.putInt(CLEANUP_VERSION, CURRENT_CLEANUP_VERSION);
-                editor.apply();
+                editor.commit();
             }
         }
     }
@@ -2573,6 +2592,7 @@ public abstract class GeckoApp
      * and poke HealthRecorder to tell it of our changed state.
      */
     protected void setLocale(final String locale) {
+        Log.d(LOGTAG, "setLocale: " + locale);
         if (locale == null) {
             return;
         }

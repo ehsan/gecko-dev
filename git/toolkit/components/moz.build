@@ -23,7 +23,6 @@ DIRS += [
     'downloads',
     'exthelper',
     'filepicker',
-    'filewatcher',
     'finalizationwitness',
     'formautofill',
     'find',
