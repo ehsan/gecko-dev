@@ -61,6 +61,7 @@ const PanelUI = {
     }
 
     this.helpView.addEventListener("ViewShowing", this._onHelpViewShow, false);
+    this.helpView.addEventListener("ViewHiding", this._onHelpViewHide, false);
     this._eventListenersAdded = true;
   },
 
@@ -73,6 +74,7 @@ const PanelUI = {
       this.panel.removeEventListener(event, this);
     }
     this.helpView.removeEventListener("ViewShowing", this._onHelpViewShow);
+    this.helpView.removeEventListener("ViewHiding", this._onHelpViewHide);
     this.menuButton.removeEventListener("mousedown", this);
     this.menuButton.removeEventListener("keypress", this);
   },
@@ -165,6 +167,9 @@ const PanelUI = {
 
   handleEvent: function(aEvent) {
     switch (aEvent.type) {
+      case "command":
+        this.onCommandHandler(aEvent);
+        break;
       case "popupshowing":
         // Fall through
       case "popupshown":
@@ -414,6 +419,12 @@ const PanelUI = {
       fragment.appendChild(button);
     }
     items.appendChild(fragment);
+
+    this.addEventListener("command", PanelUI);
+  },
+
+  _onHelpViewHide: function(aEvent) {
+    this.removeEventListener("command", PanelUI);
   },
 
   _updateQuitTooltip: function() {

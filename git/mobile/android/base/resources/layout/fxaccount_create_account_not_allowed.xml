@@ -17,6 +17,11 @@
 
         <TextView
             style="@style/FxAccountHeaderItem"
+            android:text="@string/firefox_accounts" >
+        </TextView>
+
+        <TextView
+            style="@style/FxAccountSubHeaderItem"
             android:text="@string/fxaccount_account_create_not_allowed" >
         </TextView>
 

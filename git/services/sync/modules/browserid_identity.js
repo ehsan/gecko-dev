@@ -20,7 +20,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://services-sync/stages/cluster.js");
-Cu.import("resource://gre/modules/FxAccounts.jsm");
 
 // Lazy imports to prevent unnecessary load on startup.
 XPCOMUtils.defineLazyModuleGetter(this, "BulkKeyBundle",
@@ -44,15 +43,6 @@ function deriveKeyBundle(kB) {
   // [encryptionKey, hmacKey]
   bundle.keyPair = [out.slice(0, 32), out.slice(32, 64)];
   return bundle;
-}
-
-/*
-  General authentication error for abstracting authentication
-  errors from multiple sources (e.g., from FxAccounts, TokenServer)
-    'message' is a string with a description of the error
-*/
-function AuthenticationError(message) {
-  this.message = message || "";
 }
 
 this.BrowserIDManager = function BrowserIDManager() {
@@ -95,7 +85,6 @@ this.BrowserIDManager.prototype = {
   initialize: function() {
     Services.obs.addObserver(this, fxAccountsCommon.ONLOGIN_NOTIFICATION, false);
     Services.obs.addObserver(this, fxAccountsCommon.ONLOGOUT_NOTIFICATION, false);
-    Services.obs.addObserver(this, "weave:service:logout:finish", false);
     return this.initializeWithCurrentIdentity();
   },
 
@@ -155,11 +144,12 @@ this.BrowserIDManager.prototype = {
         this._shouldHaveSyncKeyBundle = true; // but we probably don't have one...
         this.whenReadyToAuthenticate.reject(err);
         // report what failed...
-        this._log.error("Background fetch for key bundle failed: " + err.message);
+        this._log.error("Background fetch for key bundle failed: " + err);
+        throw err;
       });
       // and we are done - the fetch continues on in the background...
     }).then(null, err => {
-      this._log.error("Processing logged in account: " + err.message);
+      dump("err in processing logged in account "+err.message);
     });
   },
 
@@ -176,14 +166,6 @@ this.BrowserIDManager.prototype = {
       this.username = "";
       this._account = null;
       Weave.Service.logout();
-      break;
-
-    case "weave:service:logout:finish":
-      // This signals an auth error with the storage server,
-      // or that the user unlinked her account from the browser.
-      // Either way, we clear our auth token. In the case of an
-      // auth error, this will force the fetch of a new one.
-      this._token = null;
       break;
     }
   },
@@ -211,11 +193,7 @@ this.BrowserIDManager.prototype = {
    * Provide override point for testing token expiration.
    */
   _now: function() {
-    return this._fxaService.now()
-  },
-
-  get _localtimeOffsetMsec() {
-    return this._fxaService.localtimeOffsetMsec;
+    return Date.now();
   },
 
   get account() {
@@ -381,12 +359,10 @@ this.BrowserIDManager.prototype = {
   _fetchSyncKeyBundle: function() {
     // Fetch a sync token for the logged in user from the token server.
     return this._fxaService.getKeys().then(userData => {
-      // Unlikely, but if the logged in user somehow changed between these
-      // calls we better fail. TODO: add tests for these
-      if (!userData) {
-        throw new AuthenticationError("No userData in _fetchSyncKeyBundle");
-      } else if (userData.email !== this.account) {
-        throw new AuthenticationError("Unexpected user change in _fetchSyncKeyBundle");
+      // unlikely, but if the logged in user somehow changed between these
+      // calls we better fail.
+      if (!userData || userData.email !== this.account) {
+        throw new Error("The currently logged-in user has changed.");
       }
       return this._fetchTokenForUser(userData).then(token => {
         this._token = token;
@@ -416,7 +392,7 @@ this.BrowserIDManager.prototype = {
       let cb = function (err, token) {
         if (err) {
           log.info("TokenServerClient.getTokenFromBrowserIDAssertion() failed with: " + err.message);
-          return deferred.reject(new AuthenticationError(err.message));
+          return deferred.reject(err);
         } else {
           return deferred.resolve(token);
         }
@@ -426,44 +402,19 @@ this.BrowserIDManager.prototype = {
       return deferred.promise;
     }
 
-    function getAssertion() {
-      let audience = Services.io.newURI(tokenServerURI, null, null).prePath;
-      return fxAccounts.getAssertion(audience).then(null, err => {
-        if (err.code === 401) {
-          throw new AuthenticationError("Unable to get assertion for user");
-        } else {
-          throw err;
-        }
-      });
-    };
-
+    let audience = Services.io.newURI(tokenServerURI, null, null).prePath;
     // wait until the account email is verified and we know that
     // getAssertion() will return a real assertion (not null).
     return this._fxaService.whenVerified(userData)
-      .then(() => getAssertion())
+      .then(() => this._fxaService.getAssertion(audience))
       .then(assertion => getToken(tokenServerURI, assertion))
       .then(token => {
-        // TODO: Make it be only 80% of the duration, so refresh the token
-        // before it actually expires. This is to avoid sync storage errors
-        // otherwise, we get a nasty notification bar briefly. Bug 966568.
-        token.expiration = this._now() + (token.duration * 1000) * 0.80;
+        token.expiration = this._now() + (token.duration * 1000);
         return token;
       })
       .then(null, err => {
-        // TODO: write tests to make sure that different auth error cases are handled here
-        // properly: auth error getting assertion, auth error getting token (invalid generation
-        // and client-state error)
-        if (err instanceof AuthenticationError) {
-          this._log.error("Authentication error in _fetchTokenForUser: " + err.message);
-          // Drop the sync key bundle, but still expect to have one.
-          // This will arrange for us to be in the right 'currentAuthState'
-          // such that UI will show the right error.
-          this._shouldHaveSyncKeyBundle = true;
-          this._syncKeyBundle = null;
-          Weave.Status.login = this.currentAuthState;
-          Services.obs.notifyObservers(null, "weave:service:login:error", null);
-        }
-        throw err;
+        Cu.reportError("Failed to fetch token: " + err);
+        // XXX - TODO - work out how to set sync to an error state.
       });
   },
 
@@ -513,16 +464,8 @@ this.BrowserIDManager.prototype = {
                        key: this._token.key,
                       };
     method = method || httpObject.method;
-
-    // Get the local clock offset from the Firefox Accounts server.  This should
-    // be close to the offset from the storage server.
-    let options = {
-      now: this._now(),
-      localtimeOffsetMsec: this._localtimeOffsetMsec,
-      credentials: credentials,
-    };
-
-    let headerValue = CryptoUtils.computeHAWK(httpObject.uri, method, options);
+    let headerValue = CryptoUtils.computeHAWK(httpObject.uri, method,
+                                              {credentials: credentials});
     return {headers: {authorization: headerValue.field}};
   },
 

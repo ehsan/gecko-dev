@@ -1125,9 +1125,8 @@ var BrowserUI = {
 
   confirmSanitizeDialog: function () {
     let bundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    let title = bundle.GetStringFromName("clearPrivateData.title2");
-    let options = bundle.GetStringFromName("optionsCharm");
-    let message = bundle.GetStringFromName("clearPrivateData.message2").replace("#1", options);
+    let title = bundle.GetStringFromName("clearPrivateData.title");
+    let message = bundle.GetStringFromName("clearPrivateData.message");
     let clearbutton = bundle.GetStringFromName("clearPrivateData.clearButton");
 
     let prefsClearButton = document.getElementById("prefs-clear-data");

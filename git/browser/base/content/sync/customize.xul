@@ -32,9 +32,9 @@
     <label id="sync-customize-title" value="&syncCustomize.title;"/>
     <description id="sync-customize-subtitle"
 #ifdef XP_UNIX
-                 value="&syncCustomizeUnix.description;"
+                 value="&syncCustomize.subTitleUnix;"
 #else
-                 value="&syncCustomize.description;"
+                 value="&syncCustomize.subTitle;"
 #endif
                  />
 

@@ -667,21 +667,6 @@ protected:
         eFrameTypeApp
     };
 
-    static const nsCString FrameTypeToString(FrameType aFrameType)
-    {
-      switch (aFrameType) {
-      case FrameType::eFrameTypeApp:
-        return NS_LITERAL_CSTRING("app");
-      case FrameType::eFrameTypeBrowser:
-        return NS_LITERAL_CSTRING("browser");
-      case FrameType::eFrameTypeRegular:
-        return NS_LITERAL_CSTRING("regular");
-      default:
-        NS_ERROR("Unknown frame type");
-        return EmptyCString();
-      }
-    }
-
     FrameType GetInheritedFrameType();
 
     bool HasUnloadedParent();

@@ -16,6 +16,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
+Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 
 const DEBUG = false;
 function debug(aMsg) {
@@ -174,7 +175,7 @@ InterAppMessagePort.prototype = {
   },
 
   _dispatchMessage: function _dispatchMessage(aMessage) {
-    let wrappedMessage = Cu.cloneInto(aMessage, this._window);
+    let wrappedMessage = ObjectWrapper.wrap(aMessage, this._window);
     if (DEBUG) {
       debug("_dispatchMessage: wrappedMessage: " +
             JSON.stringify(wrappedMessage));

@@ -9,8 +9,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 this.EXPORTED_SYMBOLS = [
   "RESTRequest",
   "RESTResponse",
-  "TokenAuthenticatedRESTRequest",
-  "HAWKAuthenticatedRESTRequest",
+  "TokenAuthenticatedRESTRequest"
 ];
 
 #endif
@@ -146,11 +145,6 @@ RESTRequest.prototype = {
   IN_PROGRESS: 2,
   COMPLETED:   4,
   ABORTED:     8,
-
-  /**
-   * HTTP status text of response
-   */
-  statusText: null,
 
   /**
    * Request timeout (in seconds, though decimal values can be used for
@@ -618,7 +612,8 @@ RESTResponse.prototype = {
   get status() {
     let status;
     try {
-      status = this.request.channel.responseStatus;
+      let channel = this.request.channel.QueryInterface(Ci.nsIHttpChannel);
+      status = channel.responseStatus;
     } catch (ex) {
       this._log.debug("Caught exception fetching HTTP status code:" +
                       CommonUtils.exceptionStr(ex));
@@ -629,28 +624,13 @@ RESTResponse.prototype = {
   },
 
   /**
-   * HTTP status text
-   */
-  get statusText() {
-    let statusText;
-    try {
-      statusText = this.request.channel.responseStatusText;
-    } catch (ex) {
-      this._log.debug("Caught exception fetching HTTP status text:" +
-                      CommonUtils.exceptionStr(ex));
-      return null;
-    }
-    delete this.statusText;
-    return this.statusText = statusText;
-  },
-
-  /**
    * Boolean flag that indicates whether the HTTP status code is 2xx or not.
    */
   get success() {
     let success;
     try {
-      success = this.request.channel.requestSucceeded;
+      let channel = this.request.channel.QueryInterface(Ci.nsIHttpChannel);
+      success = channel.requestSucceeded;
     } catch (ex) {
       this._log.debug("Caught exception fetching HTTP success flag:" +
                       CommonUtils.exceptionStr(ex));
@@ -723,67 +703,4 @@ TokenAuthenticatedRESTRequest.prototype = {
       this, method, data, onComplete, onProgress
     );
   },
-};
-
-/**
- * Single-use HAWK-authenticated HTTP requests to RESTish resources.
- *
- * @param uri
- *        (String) URI for the RESTRequest constructor
- *
- * @param credentials
- *        (Object) Optional credentials for computing HAWK authentication
- *        header.
- *
- * @param payloadObj
- *        (Object) Optional object to be converted to JSON payload
- *
- * @param extra
- *        (Object) Optional extra params for HAWK header computation.
- *        Valid properties are:
- *
- *          now:                 <current time in milliseconds>,
- *          localtimeOffsetMsec: <local clock offset vs server>
- *
- * extra.localtimeOffsetMsec is the value in milliseconds that must be added to
- * the local clock to make it agree with the server's clock.  For instance, if
- * the local clock is two minutes ahead of the server, the time offset in
- * milliseconds will be -120000.
- */
-this.HAWKAuthenticatedRESTRequest =
- function HawkAuthenticatedRESTRequest(uri, credentials, extra={}) {
-  RESTRequest.call(this, uri);
-
-  this.credentials = credentials;
-  this.now = extra.now || Date.now();
-  this.localtimeOffsetMsec = extra.localtimeOffsetMsec || 0;
-  this._log.trace("local time, offset: " + this.now + ", " + (this.localtimeOffsetMsec));
-};
-HAWKAuthenticatedRESTRequest.prototype = {
-  __proto__: RESTRequest.prototype,
-
-  dispatch: function dispatch(method, data, onComplete, onProgress) {
-    let contentType = "text/plain";
-    if (method == "POST" || method == "PUT") {
-      contentType = "application/json";
-    }
-    if (this.credentials) {
-      let options = {
-        now: this.now,
-        localtimeOffsetMsec: this.localtimeOffsetMsec,
-        credentials: this.credentials,
-        payload: data && JSON.stringify(data) || "",
-        contentType: contentType,
-      };
-      let header = CryptoUtils.computeHAWK(this.uri, method, options);
-      this.setHeader("Authorization", header.field);
-      this._log.trace("hawk auth header: " + header.field);
-    }
-
-    this.setHeader("Content-Type", contentType);
-
-    return RESTRequest.prototype.dispatch.call(
-      this, method, data, onComplete, onProgress
-    );
-  }
 };

@@ -16,12 +16,12 @@
 
         <TextView
             style="@style/FxAccountHeaderItem"
-            android:text="@string/fxaccount_status_header" >
+            android:text="@string/firefox_account" >
         </TextView>
 
         <TextView
             android:id="@+id/email"
-            style="@style/FxAccountTextItem" >
+            style="@style/FxAccountSubHeaderItem" >
         </TextView>
 
         <TextView
@@ -29,6 +29,12 @@
             style="@style/FxAccountHeaderItem"
             android:text="@string/fxaccount_status_sync" >
         </TextView>
+
+        <LinearLayout
+            android:id="@+id/spacer1"
+            android:layout_width="fill_parent"
+            android:layout_height="20dp"
+            android:orientation="vertical" />
 
         <ViewFlipper
             android:id="@+id/connection_status_view"
@@ -103,6 +109,12 @@
             style="@style/FxAccountHeaderItem"
             android:text="@string/fxaccount_status_legal" >
         </TextView>
+
+        <LinearLayout
+            android:id="@+id/spacer2"
+            android:layout_width="fill_parent"
+            android:layout_height="20dp"
+            android:orientation="vertical" />
 
         <TextView
             android:id="@+id/fxaccount_status_linktos"

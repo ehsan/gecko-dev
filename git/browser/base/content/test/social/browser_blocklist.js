@@ -7,7 +7,7 @@
 let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
 
 const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
-let blocklistURL = "http://example.com/browser/browser/base/content/test/social/blocklist.xml";
+let blocklistURL = "http://example.org/browser/browser/base/content/test/social/blocklist.xml";
 
 let manifest = { // normal provider
   name: "provider ok",
@@ -26,11 +26,6 @@ let manifest_bad = { // normal provider
 
 function test() {
   waitForExplicitFinish();
-  // turn on logging for nsBlocklistService.js
-  Services.prefs.setBoolPref("extensions.logging.enabled", true);
-  registerCleanupFunction(function () {
-    Services.prefs.clearUserPref("extensions.logging.enabled");
-  });
 
   runSocialTests(tests, undefined, undefined, function () {
     resetBlocklist(finish); //restore to original pref
@@ -50,7 +45,7 @@ var tests = {
     });
   },
   testAddingNonBlockedProvider: function(next) {
-    function finishTest(isgood) {
+    function finish(isgood) {
       ok(isgood, "adding non-blocked provider ok");
       Services.prefs.clearUserPref("social.manifest.good");
       resetBlocklist(next);
@@ -62,21 +57,21 @@ var tests = {
           try {
             SocialService.removeProvider(provider.origin, function() {
               ok(true, "added and removed provider");
-              finishTest(true);
+              finish(true);
             });
           } catch(e) {
             ok(false, "SocialService.removeProvider threw exception: " + e);
-            finishTest(false);
+            finish(false);
           }
         });
       } catch(e) {
         ok(false, "SocialService.addProvider threw exception: " + e);
-        finishTest(false);
+        finish(false);
       }
     });
   },
   testAddingBlockedProvider: function(next) {
-    function finishTest(good) {
+    function finish(good) {
       ok(good, "Unable to add blocklisted provider");
       Services.prefs.clearUserPref("social.manifest.blocked");
       resetBlocklist(next);
@@ -85,19 +80,17 @@ var tests = {
     setAndUpdateBlocklist(blocklistURL, function() {
       try {
         SocialService.addProvider(manifest_bad, function(provider) {
-          SocialService.removeProvider(provider.origin, function() {
-            ok(false, "SocialService.addProvider should throw blocklist exception");
-            finishTest(false);
-          });
+          ok(false, "SocialService.addProvider should throw blocklist exception");
+          finish(false);
         });
       } catch(e) {
         ok(true, "SocialService.addProvider should throw blocklist exception: " + e);
-        finishTest(true);
+        finish(true);
       }
     });
   },
   testInstallingBlockedProvider: function(next) {
-    function finishTest(good) {
+    function finish(good) {
       ok(good, "Unable to add blocklisted provider");
       Services.prefs.clearUserPref("social.whitelist");
       resetBlocklist(next);
@@ -115,16 +108,24 @@ var tests = {
           // provider
           Social.installProvider(doc, manifest_bad, function(addonManifest) {
             gBrowser.removeTab(tab);
-            finishTest(false);
+            finish(false);
           });
         } catch(e) {
           gBrowser.removeTab(tab);
-          finishTest(true);
+          finish(true);
         }
       });
     });
   },
   testBlockingExistingProvider: function(next) {
+    let windowWasClosed = false;
+    function finish() {
+      waitForCondition(function() windowWasClosed, function() {
+        Services.wm.removeListener(listener);
+        next();
+      }, "blocklist dialog was closed");
+    }
+
     let listener = {
       _window: null,
       onOpenWindow: function(aXULWindow) {
@@ -139,18 +140,12 @@ var tests = {
           domwindow.addEventListener("unload", function _unload() {
             domwindow.removeEventListener("unload", _unload, false);
             info("blocklist window was closed");
-            Services.wm.removeListener(listener);
-            next();
+            windowWasClosed = true;
           }, false);
 
           is(domwindow.document.location.href, URI_EXTENSION_BLOCKLIST_DIALOG, "dialog opened and focused");
-          // wait until after load to cancel so the dialog has initalized. we
-          // don't want to accept here since that restarts the browser.
-          executeSoon(() => {
-            let cancelButton = domwindow.document.documentElement.getButton("cancel");
-            info("***** hit the cancel button\n");
-            cancelButton.doCommand();
-          });
+          domwindow.close();
+
         }, false);
       },
       onCloseWindow: function(aXULWindow) { },
@@ -172,7 +167,7 @@ var tests = {
           SocialService.getProvider(provider.origin, function(p) {
             ok(p == null, "blocklisted provider disabled");
             Services.prefs.clearUserPref("social.manifest.blocked");
-            resetBlocklist();
+            resetBlocklist(finish);
           });
         });
         // no callback - the act of updating should cause the listener above
@@ -181,7 +176,7 @@ var tests = {
       });
     } catch(e) {
       ok(false, "unable to add provider " + e);
-      next();
+      finish();
     }
   }
 }
