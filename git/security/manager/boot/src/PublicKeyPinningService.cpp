@@ -375,8 +375,7 @@ PublicKeyPinningService::CanonicalizeHostname(const char* hostname)
 {
   nsAutoCString canonicalizedHostname(hostname);
   ToLowerCase(canonicalizedHostname);
-  while (canonicalizedHostname.Length() > 0 &&
-         canonicalizedHostname.Last() == '.') {
+  while (canonicalizedHostname.Last() == '.') {
     canonicalizedHostname.Truncate(canonicalizedHostname.Length() - 1);
   }
   return canonicalizedHostname;

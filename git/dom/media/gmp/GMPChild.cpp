@@ -37,6 +37,9 @@ static const int MAX_VOUCHER_LENGTH = 500000;
 #if defined(XP_WIN)
 #define TARGET_SANDBOX_EXPORTS
 #include "mozilla/sandboxTarget.h"
+#elif defined (XP_LINUX)
+#include "mozilla/Sandbox.h"
+#include "mozilla/SandboxInfo.h"
 #elif defined(XP_MACOSX)
 #include "mozilla/Sandbox.h"
 #endif

@@ -17,7 +17,7 @@ class Task(object):
         self.out = []
         self.err = []
 
-def spawn_test(test, passthrough=False):
+def spawn_test(test, passthrough = False):
     """Spawn one child, return a task struct."""
     if not passthrough:
         (rout, wout) = os.pipe()
@@ -45,8 +45,7 @@ def total_seconds(td):
     """
     Return the total number of seconds contained in the duration as a float
     """
-    return (float(td.microseconds) \
-            + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
+    return (float(td.microseconds) + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
 
 def get_max_wait(tasks, results, timeout):
     """
@@ -117,7 +116,7 @@ def remove_task(tasks, pid):
             index = i
             break
     else:
-        raise KeyError("No such pid: {}".format(pid))
+        raise KeyError("No such pid: %s" % pid)
 
     out = tasks[index]
     tasks.pop(index)
@@ -162,13 +161,13 @@ def reap_zombies(tasks, results, timeout):
             returncode = -os.WTERMSIG(status)
 
         out = TestOutput(
-            ended.test,
-            ended.cmd,
-            ''.join(ended.out),
-            ''.join(ended.err),
-            returncode,
-            total_seconds(datetime.now() - ended.start),
-            timed_out(ended, timeout))
+                   ended.test,
+                   ended.cmd,
+                   ''.join(ended.out),
+                   ''.join(ended.err),
+                   returncode,
+                   total_seconds(datetime.now() - ended.start),
+                   timed_out(ended, timeout))
         results.push(out)
     return tasks
 

@@ -219,13 +219,15 @@ function runTests()
     }
 
     // IME
+    // start composition
+    synthesizeComposition({ type: "compositionstart" });
     // input first character
     synthesizeCompositionChange(
       { "composition":
         { "string": "\u3089",
           "clauses":
           [
-            { "length": 1, "attr": COMPOSITION_ATTR_RAW_CLAUSE }
+            { "length": 1, "attr": COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         "caret": { "start": 1, "length": 0 }

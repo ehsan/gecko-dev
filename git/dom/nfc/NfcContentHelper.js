@@ -147,10 +147,6 @@ NfcContentHelper.prototype = {
   },
 
   encodeNDEFRecords: function encodeNDEFRecords(records) {
-    if (!Array.isArray(records)) {
-      return null;
-    }
-
     let encodedRecords = [];
     for (let i = 0; i < records.length; i++) {
       let record = records[i];
@@ -280,16 +276,6 @@ NfcContentHelper.prototype = {
     cpmm.sendAsyncMessage("NFC:ChangeRFState",
                           {requestId: requestId,
                            rfState: rfState});
-  },
-
-  callDefaultFoundHandler: function callDefaultFoundHandler(sessionToken,
-                                                            isP2P,
-                                                            records) {
-    let encodedRecords = this.encodeNDEFRecords(records);
-    cpmm.sendAsyncMessage("NFC:CallDefaultFoundHandler",
-                          {sessionToken: sessionToken,
-                           isP2P: isP2P,
-                           records: encodedRecords});
   },
 
   // nsIObserver

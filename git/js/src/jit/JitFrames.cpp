@@ -389,10 +389,10 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
         // debuggee of a Debugger with a live onExceptionUnwind hook, or if a
         // Debugger has observed this frame (e.g., for onPop).
         bool shouldBail = Debugger::hasLiveHook(cx->global(), Debugger::OnExceptionUnwind);
-        RematerializedFrame *rematFrame = nullptr;
         if (!shouldBail) {
             JitActivation *act = cx->runtime()->activation()->asJit();
-            rematFrame = act->lookupRematerializedFrame(frame.frame().fp(), frame.frameNo());
+            RematerializedFrame *rematFrame =
+                act->lookupRematerializedFrame(frame.frame().fp(), frame.frameNo());
             shouldBail = rematFrame && rematFrame->isDebuggee();
         }
 
@@ -414,19 +414,7 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
             uint32_t retval = ExceptionHandlerBailout(cx, frame, rfe, propagateInfo, overrecursed);
             if (retval == BAILOUT_RETURN_OK)
                 return;
-
-            // If bailout failed (e.g., due to overrecursion), clean up any
-            // Debugger.Frame instances here. Normally this should happen
-            // inside the debug epilogue, but due to bailout failure, we
-            // cannot honor any Debugger hooks.
-            if (rematFrame)
-                Debugger::handleUnrecoverableIonBailoutError(cx, rematFrame);
         }
-
-#ifdef DEBUG
-        if (rematFrame)
-            Debugger::assertNotInFrameMaps(rematFrame);
-#endif
     }
 
     if (!script->hasTrynotes())
@@ -972,24 +960,23 @@ ReadAllocation(const JitFrameIterator &frame, const LAllocation *a)
 #endif
 
 static void
-MarkThisAndExtraActualArguments(JSTracer *trc, const JitFrameIterator &frame)
+MarkExtraActualArguments(JSTracer *trc, const JitFrameIterator &frame)
 {
-    // Mark |this| and any extra actual arguments for an Ion frame. Marking of
-    // formal arguments is taken care of by the frame's safepoint/snapshot.
+    // Mark any extra actual arguments for an Ion frame. Marking of |this| and
+    // the formal arguments is taken care of by the frame's safepoint/snapshot.
 
     JitFrameLayout *layout = frame.jsFrame();
 
+    if (!CalleeTokenIsFunction(layout->calleeToken())) {
+        MOZ_ASSERT(frame.numActualArgs() == 0);
+        return;
+    }
+
     size_t nargs = frame.numActualArgs();
-    size_t nformals = 0;
-    if (CalleeTokenIsFunction(layout->calleeToken()))
-        nformals = CalleeTokenToFunction(layout->calleeToken())->nargs();
+    size_t nformals = CalleeTokenToFunction(layout->calleeToken())->nargs();
 
+    // Trace actual arguments. Note + 1 for thisv.
     Value *argv = layout->argv();
-
-    // Trace |this|.
-    gc::MarkValueRoot(trc, argv, "ion-thisv");
-
-    // Trace actual arguments beyond the formals. Note + 1 for thisv.
     for (size_t i = nformals + 1; i < nargs + 1; i++)
         gc::MarkValueRoot(trc, &argv[i], "ion-argv");
 }
@@ -1024,7 +1011,7 @@ MarkIonJSFrame(JSTracer *trc, const JitFrameIterator &frame)
         ionScript = frame.ionScriptFromCalleeToken();
     }
 
-    MarkThisAndExtraActualArguments(trc, frame);
+    MarkExtraActualArguments(trc, frame);
 
     const SafepointIndex *si = ionScript->getSafepointIndex(frame.returnAddressToFp());
 
@@ -1083,7 +1070,7 @@ MarkBailoutFrame(JSTracer *trc, const JitFrameIterator &frame)
 
     // We have to mark the list of actual arguments, as only formal arguments
     // are represented in the Snapshot.
-    MarkThisAndExtraActualArguments(trc, frame);
+    MarkExtraActualArguments(trc, frame);
 
     // Under a bailout, do not have a Safepoint to only iterate over GC-things.
     // Thus we use a SnapshotIterator to trace all the locations which would be
@@ -2780,12 +2767,15 @@ JitProfilingFrameIterator::JitProfilingFrameIterator(
     // Profiler sampling must NOT be suppressed if we are here.
     MOZ_ASSERT(rt->isProfilerSamplingEnabled());
 
+    // Since the frame is on stack, and is a jit frame, it MUST have Baseline jitcode.
+    MOZ_ASSERT(frameScript()->hasBaselineScript());
+
     // Try initializing with sampler pc
     if (tryInitWithPC(state.pc))
         return;
 
     // Try initializing with sampler pc using native=>bytecode table.
-    if (tryInitWithTable(table, state.pc, rt, /* forLastCallSite = */ false))
+    if (tryInitWithTable(table, state.pc, rt))
         return;
 
     // Try initializing with lastProfilingCallSite pc
@@ -2794,24 +2784,15 @@ JitProfilingFrameIterator::JitProfilingFrameIterator(
             return;
 
         // Try initializing with lastProfilingCallSite pc using native=>bytecode table.
-        if (tryInitWithTable(table, lastCallSite, rt, /* forLastCallSite = */ true))
+        if (tryInitWithTable(table, lastCallSite, rt))
             return;
-    }
-
-    // In some rare cases (e.g. baseline eval frame), the callee script may
-    // not have a baselineScript.  Treat this is an empty frame-sequence and
-    // move on.
-    if (!frameScript()->hasBaselineScript()) {
-        type_ = JitFrame_Entry;
-        fp_ = nullptr;
-        returnAddressToFp_ = nullptr;
-        return;
     }
 
     // If nothing matches, for now just assume we are at the start of the last frame's
     // baseline jit code.
     type_ = JitFrame_BaselineJS;
     returnAddressToFp_ = frameScript()->baselineScript()->method()->raw();
+    //++(*this);
 }
 
 template <typename FrameType, typename ReturnType=CommonFrameLayout*>
@@ -2868,7 +2849,7 @@ JitProfilingFrameIterator::tryInitWithPC(void *pc)
     }
 
     // Check for containment in Baseline jitcode second.
-    if (callee->hasBaselineScript() && callee->baselineScript()->method()->containsNativePC(pc)) {
+    if (callee->baselineScript()->method()->containsNativePC(pc)) {
         type_ = JitFrame_BaselineJS;
         returnAddressToFp_ = pc;
         return true;
@@ -2878,8 +2859,7 @@ JitProfilingFrameIterator::tryInitWithPC(void *pc)
 }
 
 bool
-JitProfilingFrameIterator::tryInitWithTable(JitcodeGlobalTable *table, void *pc, JSRuntime *rt,
-                                            bool forLastCallSite)
+JitProfilingFrameIterator::tryInitWithTable(JitcodeGlobalTable *table, void *pc, JSRuntime *rt)
 {
     if (!pc)
         return false;
@@ -2903,7 +2883,7 @@ JitProfilingFrameIterator::tryInitWithTable(JitcodeGlobalTable *table, void *pc,
 
     if (entry.isBaseline()) {
         // If looked-up callee doesn't match frame callee, don't accept lastProfilingCallSite
-        if (forLastCallSite && entry.baselineEntry().script() != callee)
+        if (entry.baselineEntry().script() != callee)
             return false;
 
         type_ = JitFrame_BaselineJS;

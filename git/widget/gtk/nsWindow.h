@@ -260,6 +260,7 @@ public:
     bool               DispatchKeyDownEvent(GdkEventKey *aEvent,
                                             bool *aIsCancelled);
 
+    NS_IMETHOD NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction) MOZ_OVERRIDE;
     NS_IMETHOD_(InputContext) GetInputContext() MOZ_OVERRIDE;
@@ -317,10 +318,6 @@ protected:
                                       GtkWidget* aNewContainer,
                                       GdkWindow* aNewParentWindow,
                                       GtkWidget* aOldContainer);
-
-    virtual nsresult NotifyIMEInternal(
-                         const IMENotification& aIMENotification) MOZ_OVERRIDE;
-
     nsCOMPtr<nsIWidget> mParent;
     // Is this a toplevel window?
     bool                mIsTopLevel;

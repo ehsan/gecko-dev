@@ -10,7 +10,6 @@
 
 #include "nsAutoPtr.h"
 #include "nsColor.h"
-#include "nsITextInputProcessor.h"
 #include "nsStyleConsts.h"
 #include "nsTArray.h"
 
@@ -127,25 +126,16 @@ struct TextRangeStyle
  * mozilla::TextRange
  ******************************************************************************/
 
-// XXX NS_TEXTRANGE_* should be moved into TextRange as an typed enum.
-enum
-{
-  NS_TEXTRANGE_UNDEFINED = 0x00,
-  NS_TEXTRANGE_CARETPOSITION = 0x01,
-  NS_TEXTRANGE_RAWINPUT =
-    nsITextInputProcessor::ATTR_RAW_CLAUSE,
-  NS_TEXTRANGE_SELECTEDRAWTEXT =
-    nsITextInputProcessor::ATTR_SELECTED_RAW_CLAUSE,
-  NS_TEXTRANGE_CONVERTEDTEXT =
-    nsITextInputProcessor::ATTR_CONVERTED_CLAUSE,
-  NS_TEXTRANGE_SELECTEDCONVERTEDTEXT =
-    nsITextInputProcessor::ATTR_SELECTED_CLAUSE
-};
+#define NS_TEXTRANGE_CARETPOSITION         0x01
+#define NS_TEXTRANGE_RAWINPUT              0x02
+#define NS_TEXTRANGE_SELECTEDRAWTEXT       0x03
+#define NS_TEXTRANGE_CONVERTEDTEXT         0x04
+#define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT 0x05
 
 struct TextRange
 {
   TextRange() :
-    mStartOffset(0), mEndOffset(0), mRangeType(NS_TEXTRANGE_UNDEFINED)
+    mStartOffset(0), mEndOffset(0), mRangeType(0)
   {
   }
 

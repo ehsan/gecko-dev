@@ -715,10 +715,13 @@ public:
         if (!mMap.IsInitialized()) {
             return;
         }
-        FNCMapEntry *entry =
-            static_cast<FNCMapEntry*>(PL_DHashTableSearch(&mMap,
-                                                          aFileName.get()));
-        if (entry) {
+        PLDHashEntryHdr *hdr =
+            PL_DHashTableLookup(&mMap, aFileName.get());
+        if (!hdr) {
+            return;
+        }
+        FNCMapEntry* entry = static_cast<FNCMapEntry*>(hdr);
+        if (entry && entry->mFilesize) {
             *aTimestamp = entry->mTimestamp;
             *aFilesize = entry->mFilesize;
             aFaceList.Assign(entry->mFaces);

@@ -5,7 +5,6 @@
 
 
 Cu.import("resource:///modules/experiments/Experiments.jsm");
-Cu.import("resource://gre/modules/TelemetrySession.jsm", this);
 
 const FILE_MANIFEST            = "experiments.manifest";
 const SEC_IN_ONE_DAY = 24 * 60 * 60;
@@ -52,7 +51,6 @@ function run_test() {
 add_task(function* test_setup() {
   createAppInfo();
   gProfileDir = do_get_profile();
-  yield TelemetrySession.setup();
   gPolicy = new Experiments.Policy();
 
   gReporter = yield getReporter("json_payload_simple");
@@ -309,8 +307,4 @@ add_task(function* test_times() {
       Assert.equal(reason, entry[1], "Experiment rejection reason should match for test " + i);
     }
   }
-});
-
-add_task(function* test_shutdown() {
-  yield TelemetrySession.shutdown();
 });

@@ -1772,12 +1772,12 @@ NPObjWrapper_ObjectMoved(JSObject *obj, const JSObject *old)
     return;
   }
 
-  // Calling PL_DHashTableSearch() will not result in GC.
+  // Calling PL_DHashTableLookup() will not result in GC.
   JS::AutoSuppressGCAnalysis nogc;
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableSearch(&sNPObjWrappers, npobj));
-  MOZ_ASSERT(entry && entry->mJSObj);
+    (PL_DHashTableLookup(&sNPObjWrappers, npobj));
+  MOZ_ASSERT(PL_DHASH_ENTRY_IS_BUSY(entry) && entry->mJSObj);
   MOZ_ASSERT(entry->mJSObj == old);
   entry->mJSObj = obj;
 }
@@ -1829,9 +1829,9 @@ nsNPObjWrapper::OnDestroy(NPObject *npobj)
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableSearch(&sNPObjWrappers, npobj));
+    (PL_DHashTableLookup(&sNPObjWrappers, npobj));
 
-  if (entry && entry->mJSObj) {
+  if (PL_DHASH_ENTRY_IS_BUSY(entry) && entry->mJSObj) {
     // Found a live NPObject wrapper, null out its JSObjects' private
     // data.
 
@@ -1889,7 +1889,7 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
     return nullptr;
   }
 
-  if (entry->mJSObj) {
+  if (PL_DHASH_ENTRY_IS_BUSY(entry) && entry->mJSObj) {
     // Found a live NPObject wrapper. It may not be in the same compartment
     // as cx, so we need to wrap it before returning it.
     JS::Rooted<JSObject*> obj(cx, entry->mJSObj);
@@ -1913,7 +1913,9 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
       // Reload entry if the JS_NewObject call caused a GC and reallocated
       // the table (see bug 445229). This is guaranteed to succeed.
 
-      NS_ASSERTION(PL_DHashTableSearch(&sNPObjWrappers, npobj),
+      entry = static_cast<NPObjWrapperHashEntry *>
+        (PL_DHashTableLookup(&sNPObjWrappers, npobj));
+      NS_ASSERTION(entry && PL_DHASH_ENTRY_IS_BUSY(entry),
                    "Hashtable didn't find what we just added?");
   }
 
@@ -2046,7 +2048,7 @@ LookupNPP(NPObject *npobj)
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
     (PL_DHashTableAdd(&sNPObjWrappers, npobj));
 
-  if (!entry) {
+  if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     return nullptr;
   }
 

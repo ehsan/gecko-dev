@@ -180,8 +180,6 @@ public:
     GetDOMCodeName(mCodeNameIndex, aCodeName);
   }
 
-  static uint32_t ComputeLocationFromCodeValue(CodeNameIndex aCodeNameIndex);
-
   static void GetDOMKeyName(KeyNameIndex aKeyNameIndex,
                             nsAString& aKeyName);
   static void GetDOMCodeName(CodeNameIndex aCodeNameIndex,

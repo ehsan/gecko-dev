@@ -29,12 +29,10 @@
 #include "TiledLayerBuffer.h"
 #include "mozilla/dom/WindowBinding.h"  // for Overfill Callback
 #include "FrameLayerBuilder.h"          // for FrameLayerbuilder
+#include "gfxPrefs.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #include "LayerMetricsWrapper.h"
-#endif
-#ifdef XP_WIN
-#include "gfxWindowsPlatform.h"
 #endif
 
 namespace mozilla {
@@ -209,16 +207,11 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // composited (including resampling) asynchronously before we get
   // a chance to repaint, so we have to ensure that it's all valid
   // and not rotated.
-  //
-  // Desktop does not support async zoom yet, so we ignore this for those
-  // platforms.
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
   if (mWidget) {
     if (dom::TabChild* window = mWidget->GetOwningTabChild()) {
       mCompositorMightResample = window->IsAsyncPanZoomEnabled();
     }
   }
-#endif
 
   // If we have a non-default target, we need to let our shadow manager draw
   // to it. This will happen at the end of the transaction.
@@ -743,16 +736,7 @@ ClientLayerManager::GetBackendName(nsAString& aName)
     case LayersBackend::LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LayersBackend::LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
     case LayersBackend::LAYERS_D3D10: aName.AssignLiteral("Direct3D 10"); return;
-    case LayersBackend::LAYERS_D3D11: {
-#ifdef XP_WIN
-      if (gfxWindowsPlatform::GetPlatform()->IsWARP()) {
-        aName.AssignLiteral("Direct3D 11 WARP");
-      } else {
-        aName.AssignLiteral("Direct3D 11");
-      }
-#endif
-      return;
-    }
+    case LayersBackend::LAYERS_D3D11: aName.AssignLiteral("Direct3D 11"); return;
     default: NS_RUNTIMEABORT("Invalid backend");
   }
 }

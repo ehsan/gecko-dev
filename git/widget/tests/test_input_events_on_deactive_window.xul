@@ -154,18 +154,22 @@ function startTests()
 
     // IME events
     clear();
+    // start composition
+    synthesizeComposition({ type: "compositionstart" });
+    checkCompositionEvents(true, false, false, false, "compositionstart");
+    clear();
     // input first character
     synthesizeCompositionChange(
       { "composition":
         { "string": "\u3089",
           "clauses":
           [
-            { "length": 1, "attr": COMPOSITION_ATTR_RAW_CLAUSE }
+            { "length": 1, "attr": COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         "caret": { "start": 1, "length": 0 }
       });
-    checkCompositionEvents(true, false, true, true, "starting to compose");
+    checkCompositionEvents(false, false, true, true, "composing");
     var queryText = synthesizeQueryTextContent(0, 100);
     ok(queryText, "query text event result is null");
     if (!queryText) {

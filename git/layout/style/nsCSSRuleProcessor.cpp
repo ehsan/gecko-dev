@@ -700,24 +700,24 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
   // universal rules within the namespace
   if (kNameSpaceID_Unknown != nameSpace && mNameSpaceTable.IsInitialized()) {
     RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                           (PL_DHashTableSearch(&mNameSpaceTable, NS_INT32_TO_PTR(nameSpace)));
-    if (entry) {
+                                           (PL_DHashTableLookup(&mNameSpaceTable, NS_INT32_TO_PTR(nameSpace)));
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       mEnumList[valueCount++] = ToEnumData(entry->mRules);
       RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementNameSpaceCalls);
     }
   }
   if (mTagTable.IsInitialized()) {
     RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                           (PL_DHashTableSearch(&mTagTable, tag));
-    if (entry) {
+                                           (PL_DHashTableLookup(&mTagTable, tag));
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       mEnumList[valueCount++] = ToEnumData(entry->mRules);
       RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementTagCalls);
     }
   }
   if (id && mIdTable.IsInitialized()) {
     RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                           (PL_DHashTableSearch(&mIdTable, id));
-    if (entry) {
+                                           (PL_DHashTableLookup(&mIdTable, id));
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       mEnumList[valueCount++] = ToEnumData(entry->mRules);
       RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementIdCalls);
     }
@@ -725,8 +725,8 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
   if (mClassTable.IsInitialized()) {
     for (int32_t index = 0; index < classCount; ++index) {
       RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                             (PL_DHashTableSearch(&mClassTable, classList->AtomAt(index)));
-      if (entry) {
+                                             (PL_DHashTableLookup(&mClassTable, classList->AtomAt(index)));
+      if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         mEnumList[valueCount++] = ToEnumData(entry->mRules);
         RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementClassCalls);
       }
@@ -2582,8 +2582,8 @@ nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
 
   if (cascade && cascade->mAnonBoxRules.EntryCount()) {
     RuleHashTagTableEntry* entry = static_cast<RuleHashTagTableEntry*>
-      (PL_DHashTableSearch(&cascade->mAnonBoxRules, aData->mPseudoTag));
-    if (entry) {
+      (PL_DHashTableLookup(&cascade->mAnonBoxRules, aData->mPseudoTag));
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       nsTArray<RuleValue>& rules = entry->mRules;
       for (RuleValue *value = rules.Elements(), *end = value + rules.Length();
            value != end; ++value) {
@@ -2602,8 +2602,8 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 
   if (cascade && cascade->mXULTreeRules.EntryCount()) {
     RuleHashTagTableEntry* entry = static_cast<RuleHashTagTableEntry*>
-      (PL_DHashTableSearch(&cascade->mXULTreeRules, aData->mPseudoTag));
-    if (entry) {
+      (PL_DHashTableLookup(&cascade->mXULTreeRules, aData->mPseudoTag));
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       NodeMatchContext nodeContext(EventStates(),
                                    nsCSSRuleProcessor::IsLink(aData->mElement));
       nsTArray<RuleValue>& rules = entry->mRules;
@@ -2837,15 +2837,15 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
       if (id) {
         AtomSelectorEntry *entry =
           static_cast<AtomSelectorEntry*>
-                     (PL_DHashTableSearch(&cascade->mIdSelectors, id));
-        if (entry) {
+                     (PL_DHashTableLookup(&cascade->mIdSelectors, id));
+        if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
           EnumerateSelectors(entry->mSelectors, &data);
         }
       }
 
       EnumerateSelectors(cascade->mPossiblyNegatedIDSelectors, &data);
     }
-
+    
     if (aData->mAttribute == nsGkAtoms::_class) {
       const nsAttrValue* elementClasses = aData->mElement->GetClasses();
       if (elementClasses) {
@@ -2854,9 +2854,9 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
           nsIAtom* curClass = elementClasses->AtomAt(i);
           AtomSelectorEntry *entry =
             static_cast<AtomSelectorEntry*>
-                       (PL_DHashTableSearch(&cascade->mClassSelectors,
+                       (PL_DHashTableLookup(&cascade->mClassSelectors,
                                             curClass));
-          if (entry) {
+          if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
             EnumerateSelectors(entry->mSelectors, &data);
           }
         }
@@ -2867,9 +2867,9 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
 
     AtomSelectorEntry *entry =
       static_cast<AtomSelectorEntry*>
-                 (PL_DHashTableSearch(&cascade->mAttributeSelectors,
+                 (PL_DHashTableLookup(&cascade->mAttributeSelectors,
                                       aData->mAttribute));
-    if (entry) {
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       EnumerateSelectors(entry->mSelectors, &data);
     }
   }

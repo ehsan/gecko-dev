@@ -1540,8 +1540,7 @@ nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
     event.mIsRepeat =
         (event.message == NS_KEY_DOWN || event.message == NS_KEY_PRESS) &&
         (!!(key.Flags() & AKEY_EVENT_FLAG_LONG_PRESS) || !!key.RepeatCount());
-    event.location =
-        WidgetKeyboardEvent::ComputeLocationFromCodeValue(event.mCodeNameIndex);
+    event.location = key.DomKeyLocation();
     event.time = key.Time();
 
     if (gMenu)
@@ -2048,8 +2047,8 @@ nsWindow::UserActivity()
   }
 }
 
-nsresult
-nsWindow::NotifyIMEInternal(const IMENotification& aIMENotification)
+NS_IMETHODIMP
+nsWindow::NotifyIME(const IMENotification& aIMENotification)
 {
     switch (aIMENotification.mMessage) {
         case REQUEST_TO_COMMIT_COMPOSITION:

@@ -2039,7 +2039,7 @@ nsHttpChannel::ResolveProxy()
         rv = pps2->AsyncResolve2(this, mProxyResolveFlags,
                                  this, getter_AddRefs(mProxyRequest));
     } else {
-        rv = pps->AsyncResolve(static_cast<nsIChannel*>(this), mProxyResolveFlags,
+        rv = pps->AsyncResolve(this, mProxyResolveFlags,
                                this, getter_AddRefs(mProxyRequest));
     }
 
@@ -4902,15 +4902,11 @@ nsHttpChannel::BeginConnect()
             nsCOMPtr<nsIPrincipal> principal = GetPrincipal(false);
             bool tp = false;
             channelClassifier->ShouldEnableTrackingProtection(this, &tp);
-            // See bug 1122691
-            if (tp) {
-                nsresult response = NS_OK;
-                classifier->ClassifyLocal(principal, tp, &response);
-                if (NS_FAILED(response)) {
-                    LOG(("nsHttpChannel::Found principal on local blocklist "
-                         "[this=%p]", this));
-                    mLocalBlocklist = true;
-                }
+            nsresult response = NS_OK;
+            classifier->ClassifyLocal(principal, tp, &response);
+            if (NS_FAILED(response)) {
+                LOG(("nsHttpChannel::Found principal on local blocklist [this=%p]", this));
+                mLocalBlocklist = true;
             }
         }
     }
@@ -4977,26 +4973,16 @@ nsHttpChannel::BeginConnect()
         }
         mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
     }
-    // mLocalBlocklist is true only if the URI is not a tracking domain, it
-    // makes not guarantees about phishing or malware, so we must call
-    // nsChannelClassifier to catch phishing and malware URIs.
-    bool callContinueBeginConnect = true;
     if (mCanceled || !mLocalBlocklist) {
-        rv = ContinueBeginConnect();
-        if (NS_FAILED(rv)) {
-            return rv;
-        }
-        callContinueBeginConnect = false;
+        return ContinueBeginConnect();
     }
-    // nsChannelClassifier calls ContinueBeginConnect if it has not already
-    // been called, after optionally cancelling the channel once we have a
-    // remote verdict. We call a concrete class instead of an nsI* that might
-    // be overridden.
-    if (!mCanceled) {
-      LOG(("nsHttpChannel::Starting nsChannelClassifier %p [this=%p]",
-           channelClassifier.get(), this));
-      channelClassifier->Start(this, callContinueBeginConnect);
-    }
+    MOZ_ASSERT(!mCanceled && mLocalBlocklist);
+    // nsChannelClassifier must call ContinueBeginConnect after optionally
+    // cancelling the channel once we have a remote verdict. We call a concrete
+    // class instead of an nsI* that might be overridden.
+    LOG(("nsHttpChannel::Starting nsChannelClassifier %p [this=%p]",
+         channelClassifier.get(), this));
+    channelClassifier->Start(this);
     return NS_OK;
 }
 

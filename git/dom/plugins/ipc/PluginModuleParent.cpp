@@ -412,7 +412,6 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId,
         return nullptr;
     }
     parent->mIsFlashPlugin = aPluginTag->mIsFlashPlugin;
-    parent->mIsBlocklisted = aPluginTag->GetBlocklistState() != 0;
     if (!parent->mIsStartingAsync) {
         int32_t launchTimeoutSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
         if (!parent->mSubprocess->WaitUntilConnected(launchTimeoutSecs * 1000)) {
@@ -471,7 +470,7 @@ PluginModuleChromeParent::OnProcessLaunched(const bool aSucceeded)
 #endif
 
 #ifdef XP_WIN
-    if (!mIsBlocklisted && mIsFlashPlugin &&
+    if (mIsFlashPlugin &&
         Preferences::GetBool("dom.ipc.plugins.flash.disable-protected-mode", false)) {
         SendDisableFlashProtectedMode();
     }

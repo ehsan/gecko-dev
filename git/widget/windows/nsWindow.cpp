@@ -6703,8 +6703,8 @@ nsWindow::OnSysColorChanged()
  **************************************************************
  **************************************************************/
 
-nsresult
-nsWindow::NotifyIMEInternal(const IMENotification& aIMENotification)
+NS_IMETHODIMP
+nsWindow::NotifyIME(const IMENotification& aIMENotification)
 {
   return IMEHandler::NotifyIME(this, aIMENotification);
 }
