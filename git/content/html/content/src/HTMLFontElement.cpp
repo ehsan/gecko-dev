@@ -20,9 +20,9 @@ HTMLFontElement::~HTMLFontElement()
 }
 
 JSObject*
-HTMLFontElement::WrapNode(JSContext *aCx)
+HTMLFontElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLFontElementBinding::Wrap(aCx, this);
+  return HTMLFontElementBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMPL_ELEMENT_CLONE(HTMLFontElement)

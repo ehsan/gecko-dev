@@ -16,9 +16,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGMaskElement::WrapNode(JSContext *aCx)
+SVGMaskElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGMaskElementBinding::Wrap(aCx, this);
+  return SVGMaskElementBinding::Wrap(aCx, aScope, this);
 }
 
 //--------------------- Masks ------------------------

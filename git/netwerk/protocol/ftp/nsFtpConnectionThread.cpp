@@ -43,7 +43,7 @@
 #include "nsICacheSession.h"
 
 #ifdef MOZ_WIDGET_GONK
-#include "NetStatistics.h"
+#include "nsINetworkStatsServiceProxy.h"
 #endif
 
 #if defined(PR_LOGGING)
@@ -1691,10 +1691,7 @@ nsFtpState::Init(nsFtpChannel *channel)
     mCountRecv = 0;
 
 #ifdef MOZ_WIDGET_GONK
-    nsCOMPtr<nsINetworkInterface> activeNetwork;
-    GetActiveNetworkInterface(activeNetwork);
-    mActiveNetwork =
-        new nsMainThreadPtrHolder<nsINetworkInterface>(activeNetwork);
+    NS_GetActiveNetworkInterface(mActiveNetwork);
 #endif
 
     mKeepRunning = true;
@@ -2221,11 +2218,20 @@ nsFtpState::SaveNetworkStats(bool enforce)
         return NS_OK;
     }
 
-    // Create the event to save the network statistics.
-    // the event is then dispathed to the main thread.
-    nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(appId, mActiveNetwork, mCountRecv, 0, false);
-    NS_DispatchToMainThread(event);
+    nsresult rv;
+    nsCOMPtr<nsINetworkStatsServiceProxy> networkStatsServiceProxy =
+        do_GetService("@mozilla.org/networkstatsServiceProxy;1", &rv);
+    if (NS_FAILED(rv)) {
+        return rv;
+    }
+
+    networkStatsServiceProxy->SaveAppStats(appId,
+                                           mActiveNetwork,
+                                           PR_Now() / 1000,
+                                           mCountRecv,
+                                           0,
+                                           false,
+                                           nullptr);
 
     // Reset the counters after saving.
     mCountRecv = 0;

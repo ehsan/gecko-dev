@@ -32,11 +32,10 @@ class TempAllocator
         rootList_(nullptr)
     { }
 
-    void *allocateOrCrash(size_t bytes)
+    void *allocateInfallible(size_t bytes)
     {
-        void *p = lifoScope_.alloc().alloc(bytes);
-        if (!p)
-            js::CrashAtUnhandlableOOM("LifoAlloc::allocOrCrash");
+        void *p = lifoScope_.alloc().allocInfallible(bytes);
+        JS_ASSERT(p);
         return p;
     }
 
@@ -178,7 +177,7 @@ class AutoIonContextAlloc
 struct TempObject
 {
     inline void *operator new(size_t nbytes, TempAllocator &alloc) {
-        return alloc.allocateOrCrash(nbytes);
+        return alloc.allocateInfallible(nbytes);
     }
     template <class T>
     inline void *operator new(size_t nbytes, T *pos) {

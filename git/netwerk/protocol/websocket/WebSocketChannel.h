@@ -21,7 +21,7 @@
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsINetworkManager.h"
-#include "nsProxyRelease.h"
+#include "nsProxyRelease.h" // for nsMainThreadPtrHandle
 #endif
 
 #include "nsCOMPtr.h"

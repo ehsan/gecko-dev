@@ -21,9 +21,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGAElement::WrapNode(JSContext *aCx)
+SVGAElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGAElementBinding::Wrap(aCx, this);
+  return SVGAElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::StringInfo SVGAElement::sStringInfo[2] =

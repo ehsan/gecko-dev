@@ -148,7 +148,7 @@ public:
 
   // WebIDL
   JSObject*
-  WrapObject(JSContext* aCx);
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope);
 
   nsISupports*
   GetParentObject() const

@@ -33,9 +33,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(PowerManager)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(PowerManager)
 
 /* virtual */ JSObject*
-PowerManager::WrapObject(JSContext* aCx)
+PowerManager::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MozPowerManagerBinding::Wrap(aCx, this);
+  return MozPowerManagerBinding::Wrap(aCx, aScope, this);
 }
 
 nsresult

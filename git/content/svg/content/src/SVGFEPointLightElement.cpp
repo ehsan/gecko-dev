@@ -15,9 +15,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEPointLightElement::WrapNode(JSContext *aCx)
+SVGFEPointLightElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGFEPointLightElementBinding::Wrap(aCx, this);
+  return SVGFEPointLightElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::NumberInfo SVGFEPointLightElement::sNumberInfo[3] =

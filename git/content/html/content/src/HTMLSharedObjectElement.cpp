@@ -343,14 +343,14 @@ HTMLSharedObjectElement::CopyInnerTo(Element* aDest)
 }
 
 JSObject*
-HTMLSharedObjectElement::WrapNode(JSContext* aCx)
+HTMLSharedObjectElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   JSObject* obj;
   if (mNodeInfo->Equals(nsGkAtoms::applet)) {
-    obj = HTMLAppletElementBinding::Wrap(aCx, this);
+    obj = HTMLAppletElementBinding::Wrap(aCx, aScope, this);
   } else {
     MOZ_ASSERT(mNodeInfo->Equals(nsGkAtoms::embed));
-    obj = HTMLEmbedElementBinding::Wrap(aCx, this);
+    obj = HTMLEmbedElementBinding::Wrap(aCx, aScope, this);
   }
   if (!obj) {
     return nullptr;

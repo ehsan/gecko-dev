@@ -780,7 +780,11 @@ public:
     nsRefPtr<IDBFileHandle> fileHandle = IDBFileHandle::Create(aDatabase,
       aData.name, aData.type, fileInfo.forget());
 
-    return fileHandle->WrapObject(aCx);
+    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    if (!global) {
+      return nullptr;
+    }
+    return fileHandle->WrapObject(aCx, global);
   }
 
   static JSObject* CreateAndWrapBlobOrFile(JSContext* aCx,
@@ -2614,9 +2618,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(IDBObjectStore)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(IDBObjectStore)
 
 JSObject*
-IDBObjectStore::WrapObject(JSContext* aCx)
+IDBObjectStore::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return IDBObjectStoreBinding::Wrap(aCx, this);
+  return IDBObjectStoreBinding::Wrap(aCx, aScope, this);
 }
 
 JS::Value

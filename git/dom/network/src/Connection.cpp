@@ -92,9 +92,9 @@ Connection::Notify(const hal::NetworkInformation& aNetworkInfo)
 }
 
 JSObject*
-Connection::WrapObject(JSContext* aCx)
+Connection::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return NetworkInformationBinding::Wrap(aCx, this);
+  return NetworkInformationBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace network

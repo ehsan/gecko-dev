@@ -18,20 +18,17 @@
 #include "ctr.h"
 #include "gcm.h"
 
-#ifdef USE_HW_AES
+#if USE_HW_AES
+#include "intel-gcm.h"
 #include "intel-aes.h"
 #include "mpi.h"
 
 static int has_intel_aes = 0;
-static PRBool use_hw_aes = PR_FALSE;
-
-#ifdef INTEL_GCM
-#include "intel-gcm.h"
 static int has_intel_avx = 0;
 static int has_intel_clmul = 0;
+static PRBool use_hw_aes = PR_FALSE;
 static PRBool use_hw_gcm = PR_FALSE;
 #endif
-#endif  /* USE_HW_AES */
 
 /*
  * There are currently five ways to build this code, varying in performance
@@ -969,7 +966,7 @@ AESContext * AES_AllocateContext(void)
 }
 
 
-#ifdef INTEL_GCM
+#if USE_HW_AES
 /*
  * Adapted from the example code in "How to detect New Instruction support in
  * the 4th generation Intel Core processor family" by Max Locktyukhin.
@@ -1025,7 +1022,7 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
     	return SECFailure;
     }
-#ifdef USE_HW_AES
+#if USE_HW_AES
     if (has_intel_aes == 0) {
 	unsigned long eax, ebx, ecx, edx;
 	char *disable_hw_aes = getenv("NSS_DISABLE_HW_AES");
@@ -1033,7 +1030,6 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 	if (disable_hw_aes == NULL) {
 	    freebl_cpuid(1, &eax, &ebx, &ecx, &edx);
 	    has_intel_aes = (ecx & (1 << 25)) != 0 ? 1 : -1;
-#ifdef INTEL_GCM
 	    has_intel_clmul = (ecx & (1 << 1)) != 0 ? 1 : -1;
 	    if ((ecx & (1 << 27)) != 0 && (ecx & (1 << 28)) != 0 &&
 		check_xcr0_ymm()) {
@@ -1041,22 +1037,17 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 	    } else {
 		has_intel_avx = -1;
 	    }
-#endif
 	} else {
 	    has_intel_aes = -1;
-#ifdef INTEL_GCM
 	    has_intel_avx = -1;
 	    has_intel_clmul = -1;
-#endif
 	}
     }
     use_hw_aes = (PRBool)
 		(has_intel_aes > 0 && (keysize % 8) == 0 && blocksize == 16);
-#ifdef INTEL_GCM
     use_hw_gcm = (PRBool)
 		(use_hw_aes && has_intel_avx>0 && has_intel_clmul>0);
 #endif
-#endif  /* USE_HW_AES */
     /* Nb = (block size in bits) / 32 */
     cx->Nb = blocksize / 4;
     /* Nk = (key size in bits) / 32 */
@@ -1066,7 +1057,7 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
     /* copy in the iv, if neccessary */
     if (mode == NSS_AES_CBC) {
 	memcpy(cx->iv, iv, blocksize);
-#ifdef USE_HW_AES
+#if USE_HW_AES
 	if (use_hw_aes) {
 	    cx->worker = (freeblCipherFunc)
 				intel_aes_cbc_worker(encrypt, keysize);
@@ -1075,7 +1066,7 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 	    cx->worker = (freeblCipherFunc) (encrypt
 			  ? &rijndael_encryptCBC : &rijndael_decryptCBC);
     } else {
-#ifdef  USE_HW_AES
+#if  USE_HW_AES
 	if (use_hw_aes) {
 	    cx->worker = (freeblCipherFunc) 
 				intel_aes_ecb_worker(encrypt, keysize);
@@ -1161,7 +1152,7 @@ AES_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 	cx->isBlock = PR_FALSE;
 	break;
     case NSS_AES_GCM:
-#ifdef INTEL_GCM
+#if USE_HW_AES
 	if(use_hw_gcm) {
         	cx->worker_cx = intel_AES_GCM_CreateContext(cx, cx->worker, iv, blocksize);
 		cx->worker = (freeblCipherFunc)

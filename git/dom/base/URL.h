@@ -45,7 +45,7 @@ public:
   }
 
   JSObject*
-  WrapObject(JSContext* aCx);
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope);
 
   static already_AddRefed<URL>
   Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,

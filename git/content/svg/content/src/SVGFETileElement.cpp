@@ -15,9 +15,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFETileElement::WrapNode(JSContext *aCx)
+SVGFETileElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGFETileElementBinding::Wrap(aCx, this);
+  return SVGFETileElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::StringInfo SVGFETileElement::sStringInfo[2] =

@@ -474,9 +474,9 @@ Exception::Initialize(const nsACString& aMessage, nsresult aResult,
 }
 
 JSObject*
-Exception::WrapObject(JSContext* cx)
+Exception::WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
 {
-  return ExceptionBinding::Wrap(cx, this);
+  return ExceptionBinding::Wrap(cx, scope, this);
 }
 
 void
@@ -664,9 +664,9 @@ DOMException::GetMessageMoz(nsString& retval)
 }
 
 JSObject*
-DOMException::WrapObject(JSContext* aCx)
+DOMException::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return DOMExceptionBinding::Wrap(aCx, this);
+  return DOMExceptionBinding::Wrap(aCx, aScope, this);
 }
 
 /* static */already_AddRefed<DOMException>

@@ -600,9 +600,9 @@ XMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 JSObject*
-XMLDocument::WrapNode(JSContext *aCx)
+XMLDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return XMLDocumentBinding::Wrap(aCx, this);
+  return XMLDocumentBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

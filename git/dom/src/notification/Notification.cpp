@@ -73,7 +73,8 @@ public:
                                                                        aTitle,
                                                                        options);
     JSAutoCompartment ac(aCx, mGlobal);
-    JS::Rooted<JSObject*> element(aCx, notification->WrapObject(aCx));
+    JS::Rooted<JSObject*> scope(aCx, mGlobal);
+    JS::Rooted<JSObject*> element(aCx, notification->WrapObject(aCx, scope));
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
 
     if (!JS_DefineElement(aCx, mNotifications, mCount++,
@@ -735,9 +736,9 @@ Notification::Get(const GlobalObject& aGlobal,
 }
 
 JSObject*
-Notification::WrapObject(JSContext* aCx)
+Notification::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return mozilla::dom::NotificationBinding::Wrap(aCx, this);
+  return mozilla::dom::NotificationBinding::Wrap(aCx, aScope, this);
 }
 
 void

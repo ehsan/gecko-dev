@@ -5,7 +5,6 @@
 
 #include "nsUTF16ToUnicode.h"
 #include "nsCharTraits.h"
-#include "mozilla/Endian.h"
 
 enum {
   STATE_NORMAL = 0,
@@ -76,7 +75,7 @@ nsUTF16ToUnicodeBase::UTF16ConvertToUnicode(const char * aSrc,
     // the 1st byte of a 16-bit code unit was stored in |mOddByte| in the
     // previous run while the 2nd byte has to come from |*src|.
     mState = STATE_NORMAL;
-#if MOZ_BIG_ENDIAN
+#ifdef IS_BIG_ENDIAN
     u = (mOddByte << 8) | uint8_t(*src++); // safe, we know we have at least one byte.
 #else
     u = (*src++ << 8) | mOddByte; // safe, we know we have at least one byte.
@@ -210,7 +209,7 @@ nsUTF16BEToUnicode::Convert(const char * aSrc, int32_t * aSrcLength,
         mState = STATE_SECOND_BYTE;
         return NS_OK_UDEC_MOREINPUT;
       }
-#if MOZ_LITTLE_ENDIAN
+#ifdef IS_LITTLE_ENDIAN
       // on LE machines, BE BOM is 0xFFFE
       if (0xFFFE != *((char16_t*)aSrc)) {
         mState = STATE_NORMAL;
@@ -234,8 +233,14 @@ nsUTF16BEToUnicode::Convert(const char * aSrc, int32_t * aSrcLength,
       break;
   }
 
-  return UTF16ConvertToUnicode(aSrc, aSrcLength, aDest, aDestLength,
-                               bool(MOZ_LITTLE_ENDIAN));
+  nsresult rv = UTF16ConvertToUnicode(aSrc, aSrcLength, aDest, aDestLength,
+#ifdef IS_LITTLE_ENDIAN
+                                      true
+#else
+                                      false
+#endif
+                                      );
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -257,7 +262,7 @@ nsUTF16LEToUnicode::Convert(const char * aSrc, int32_t * aSrcLength,
         mState = STATE_SECOND_BYTE;
         return NS_OK_UDEC_MOREINPUT;
       }
-#if MOZ_BIG_ENDIAN
+#ifdef IS_BIG_ENDIAN
       // on BE machines, LE BOM is 0xFFFE
       if (0xFFFE != *((char16_t*)aSrc)) {
         mState = STATE_NORMAL;
@@ -281,8 +286,14 @@ nsUTF16LEToUnicode::Convert(const char * aSrc, int32_t * aSrcLength,
       break;
   }
 
-  return UTF16ConvertToUnicode(aSrc, aSrcLength, aDest, aDestLength,
-                               bool(MOZ_BIG_ENDIAN));
+  nsresult rv = UTF16ConvertToUnicode(aSrc, aSrcLength, aDest, aDestLength,
+#ifdef IS_BIG_ENDIAN
+                                      true
+#else
+                                      false
+#endif
+                                      );
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -337,10 +348,12 @@ nsUTF16ToUnicode::Convert(const char * aSrc, int32_t * aSrcLength,
     }
     
     nsresult rv = UTF16ConvertToUnicode(aSrc, aSrcLength, aDest, aDestLength,
-#if MOZ_BIG_ENDIAN
+#ifdef IS_BIG_ENDIAN
                                         (mEndian == kLittleEndian)
-#else
+#elif defined(IS_LITTLE_ENDIAN)
                                         (mEndian == kBigEndian)
+#else
+    #error "Unknown endianness"
 #endif
                                         );
 

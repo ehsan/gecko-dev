@@ -17,9 +17,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEConvolveMatrixElement::WrapNode(JSContext* aCx)
+SVGFEConvolveMatrixElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGFEConvolveMatrixElementBinding::Wrap(aCx, this);
+  return SVGFEConvolveMatrixElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::NumberInfo SVGFEConvolveMatrixElement::sNumberInfo[2] =

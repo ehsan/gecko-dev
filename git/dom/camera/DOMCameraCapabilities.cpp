@@ -61,9 +61,9 @@ CameraCapabilities::~CameraCapabilities()
 }
 
 JSObject*
-CameraCapabilities::WrapObject(JSContext* aCx)
+CameraCapabilities::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return CameraCapabilitiesBinding::Wrap(aCx, this);
+  return CameraCapabilitiesBinding::Wrap(aCx, aScope, this);
 }
 
 #define LOG_IF_ERROR(rv, param)                               \

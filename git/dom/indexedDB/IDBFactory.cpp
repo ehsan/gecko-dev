@@ -696,9 +696,9 @@ IDBFactory::OpenInternal(const nsAString& aName,
 }
 
 JSObject*
-IDBFactory::WrapObject(JSContext* aCx)
+IDBFactory::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return IDBFactoryBinding::Wrap(aCx, this);
+  return IDBFactoryBinding::Wrap(aCx, aScope, this);
 }
 
 already_AddRefed<IDBOpenDBRequest>

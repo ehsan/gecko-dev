@@ -42,9 +42,10 @@ SVGAnimatedRect::GetAnimVal()
 }
 
 JSObject*
-SVGAnimatedRect::WrapObject(JSContext* aCx)
+SVGAnimatedRect::WrapObject(JSContext* aCx,
+                            JS::Handle<JSObject*> aScope)
 {
-  return SVGAnimatedRectBinding::Wrap(aCx, this);
+  return SVGAnimatedRectBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

@@ -48,7 +48,6 @@ class AFakePCObserver;
 class Fake_DOMMediaStream;
 #endif
 
-class nsGlobalWindow;
 class nsIDOMMediaStream;
 class nsDOMDataChannel;
 
@@ -218,7 +217,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
 #ifdef MOZILLA_INTERNAL_API
-  virtual JSObject* WrapObject(JSContext* cx);
+  virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> scope);
 #endif
 
   static already_AddRefed<PeerConnectionImpl>

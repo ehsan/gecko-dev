@@ -60,9 +60,9 @@ MediaStreamAudioSourceNode::DestroyMediaStream()
 }
 
 JSObject*
-MediaStreamAudioSourceNode::WrapObject(JSContext* aCx)
+MediaStreamAudioSourceNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MediaStreamAudioSourceNodeBinding::Wrap(aCx, this);
+  return MediaStreamAudioSourceNodeBinding::Wrap(aCx, aScope, this);
 }
 
 }

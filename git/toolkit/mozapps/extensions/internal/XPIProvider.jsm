@@ -1664,8 +1664,7 @@ this.XPIProvider = {
 
     // XXX Convert to Set(), once it gets stable with stable iterators
     let enabled = Object.create(null);
-    let enabledAddons = this.enabledAddons || "";
-    for (let a of enabledAddons.split(",")) {
+    for (let a of this.enabledAddons.split(",")) {
       a = decodeURIComponent(a.split(":")[0]);
       enabled[a] = null;
     }
@@ -1901,11 +1900,6 @@ this.XPIProvider = {
       }
 
       this.enabledAddons = Prefs.getCharPref(PREF_EM_ENABLED_ADDONS, "");
-
-      // Invalidate the URI mappings now that |enabledAddons| was updated.
-      // |_ensureMappings()| will re-create the mappings when needed.
-      delete this._uriMappings;
-
       if ("nsICrashReporter" in Ci &&
           Services.appinfo instanceof Ci.nsICrashReporter) {
         // Annotate the crash report with relevant add-on information.

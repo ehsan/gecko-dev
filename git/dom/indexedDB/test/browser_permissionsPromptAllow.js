@@ -10,9 +10,6 @@ const notificationID = "indexedDB-permissions-prompt";
 function test()
 {
   waitForExplicitFinish();
-
-  PopupNotifications.transitionsEnabled = false;
-
   // We want a prompt.
   setPermission(testPageURL, "indexedDB", "allow");
   executeSoon(test1);
@@ -72,7 +69,6 @@ function test2()
       gBrowser.removeCurrentTab();
       unregisterAllPopupEventHandlers();
       removePermission(testPageURL, "indexedDB");
-      PopupNotifications.transitionsEnabled = true;
       executeSoon(finish);
     });
 

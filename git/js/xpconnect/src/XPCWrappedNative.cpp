@@ -140,6 +140,7 @@ nsresult
 XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
                                 nsIPrincipal *principal,
                                 bool initStandardClasses,
+                                bool fireOnNewGlobalHook,
                                 JS::CompartmentOptions& aOptions,
                                 XPCWrappedNative **wrappedGlobal)
 {
@@ -269,6 +270,8 @@ XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
                                wrapper, wrappedGlobal);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    if (fireOnNewGlobalHook)
+        JS_FireOnNewGlobalObject(cx, global);
     return NS_OK;
 }
 
@@ -1323,7 +1326,6 @@ RescueOrphans(HandleObject obj)
                                           realParent, wn->GetIdentityObject());
     }
 
-    JSAutoCompartment ac(cx, obj);
     return ReparentWrapper(cx, obj);
 }
 

@@ -46,9 +46,9 @@ URL::URL(nsIURI* aURI)
 }
 
 JSObject*
-URL::WrapObject(JSContext* aCx)
+URL::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return URLBinding::Wrap(aCx, this);
+  return URLBinding::Wrap(aCx, aScope, this);
 }
 
 /* static */ already_AddRefed<URL>

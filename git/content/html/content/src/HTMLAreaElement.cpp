@@ -260,9 +260,9 @@ HTMLAreaElement::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 JSObject*
-HTMLAreaElement::WrapNode(JSContext* aCx)
+HTMLAreaElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLAreaElementBinding::Wrap(aCx, this);
+  return HTMLAreaElementBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

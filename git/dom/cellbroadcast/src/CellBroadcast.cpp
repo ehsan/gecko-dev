@@ -84,9 +84,10 @@ CellBroadcast::~CellBroadcast()
 }
 
 JSObject*
-CellBroadcast::WrapObject(JSContext* aCx)
+CellBroadcast::WrapObject(JSContext* aCx,
+                          JS::Handle<JSObject*> aScope)
 {
-  return MozCellBroadcastBinding::Wrap(aCx, this);
+  return MozCellBroadcastBinding::Wrap(aCx, aScope, this);
 }
 
 // Forwarded nsICellBroadcastListener methods

@@ -2694,23 +2694,8 @@ class CheckOverRecursedFailure : public OutOfLineCodeBase<CodeGenerator>
 };
 
 bool
-CodeGenerator::omitOverRecursedCheck() const
-{
-    // If the current function makes no calls (which means it isn't recursive)
-    // and it uses only a small amount of stack space, it doesn't need a
-    // stack overflow check. Note that the actual number here is somewhat
-    // arbitrary, and codegen actually uses small bounded amounts of
-    // additional stack space in some cases too.
-    return frameSize() < 64 && !gen->performsCall();
-}
-
-bool
 CodeGenerator::visitCheckOverRecursed(LCheckOverRecursed *lir)
 {
-    // If we don't push anything on the stack, skip the check.
-    if (omitOverRecursedCheck())
-        return true;
-
     // Ensure that this frame will not cross the stack limit.
     // This is a weak check, justified by Ion using the C stack: we must always
     // be some distance away from the actual limit, since if the limit is
@@ -7953,15 +7938,15 @@ static const VMFunction SPSEnterInfo = FunctionInfo<SPSFn>(SPSEnter);
 static const VMFunction SPSExitInfo = FunctionInfo<SPSFn>(SPSExit);
 
 bool
-CodeGenerator::visitProfilerStackOp(LProfilerStackOp *lir)
+CodeGenerator::visitFunctionBoundary(LFunctionBoundary *lir)
 {
     Register temp = ToRegister(lir->temp()->output());
     bool inlinedFunction = lir->inlineLevel() > 0;
 
     switch (lir->type()) {
-        case MProfilerStackOp::InlineEnter:
+        case MFunctionBoundary::Inline_Enter:
             // Multiple scripts can be inlined at one depth, but there is only
-            // one InlineExit node to signify this. To deal with this, if we
+            // one Inline_Exit node to signify this. To deal with this, if we
             // reach the entry of another inline script on the same level, then
             // just reset the sps metadata about the frame. We must balance
             // calls to leave()/reenter(), so perform the balance without
@@ -7980,7 +7965,7 @@ CodeGenerator::visitProfilerStackOp(LProfilerStackOp *lir)
                 return false;
             // fallthrough
 
-        case MProfilerStackOp::Enter:
+        case MFunctionBoundary::Enter:
             if (gen->options.spsSlowAssertionsEnabled()) {
                 if (!inlinedFunction || js_JitOptions.profileInlineFrames) {
                     saveLive(lir);
@@ -7995,7 +7980,7 @@ CodeGenerator::visitProfilerStackOp(LProfilerStackOp *lir)
 
             return sps_.push(lir->script(), masm, temp, /* inlinedFunction = */ inlinedFunction);
 
-        case MProfilerStackOp::InlineExit:
+        case MFunctionBoundary::Inline_Exit:
             // all inline returns were covered with ::Exit, so we just need to
             // maintain the state of inline frames currently active and then
             // reenter the caller
@@ -8003,7 +7988,7 @@ CodeGenerator::visitProfilerStackOp(LProfilerStackOp *lir)
             sps_.reenter(masm, temp, /* inlinedFunction = */ true);
             return true;
 
-        case MProfilerStackOp::Exit:
+        case MFunctionBoundary::Exit:
             if (gen->options.spsSlowAssertionsEnabled()) {
                 if (!inlinedFunction || js_JitOptions.profileInlineFrames) {
                     saveLive(lir);
@@ -8023,7 +8008,7 @@ CodeGenerator::visitProfilerStackOp(LProfilerStackOp *lir)
             return true;
 
         default:
-            MOZ_ASSUME_UNREACHABLE("invalid LProfilerStackOp type");
+            MOZ_ASSUME_UNREACHABLE("invalid LFunctionBoundary type");
     }
 }
 
@@ -8213,10 +8198,6 @@ CodeGenerator::visitAsmJSVoidReturn(LAsmJSVoidReturn *lir)
 bool
 CodeGenerator::visitAsmJSCheckOverRecursed(LAsmJSCheckOverRecursed *lir)
 {
-    // If we don't push anything on the stack, skip the check.
-    if (omitOverRecursedCheck())
-        return true;
-
     masm.branchPtr(Assembler::AboveOrEqual,
                    AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
                    StackPointer,

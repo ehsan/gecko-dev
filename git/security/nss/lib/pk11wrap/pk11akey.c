@@ -1713,13 +1713,7 @@ done:
 SECKEYPrivateKeyInfo *
 PK11_ExportPrivateKeyInfo(CERTCertificate *cert, void *wincx)
 {
-    SECKEYPrivateKeyInfo *pki = NULL;
-    SECKEYPrivateKey     *pk  = PK11_FindKeyByAnyCert(cert, wincx);
-    if (pk != NULL) {
-	pki = PK11_ExportPrivKeyInfo(pk, wincx);
-	SECKEY_DestroyPrivateKey(pk);
-    }
-    return pki;
+    return NULL;
 }
 
 SECKEYEncryptedPrivateKeyInfo * 

@@ -108,9 +108,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(HTMLOptionsCollection)
 
 
 JSObject*
-HTMLOptionsCollection::WrapObject(JSContext* aCx)
+HTMLOptionsCollection::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLOptionsCollectionBinding::Wrap(aCx, this);
+  return HTMLOptionsCollectionBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMETHODIMP

@@ -9,7 +9,6 @@
 #include "base/thread_local.h"
 #include "base/waitable_event.h"
 #include "GeckoProfiler.h"
-#include "mozilla/IOInterposer.h"
 
 namespace base {
 
@@ -140,7 +139,6 @@ void Thread::StopSoon() {
 void Thread::ThreadMain() {
   char aLocal;
   profiler_register_thread(name_.c_str(), &aLocal);
-  mozilla::IOInterposer::RegisterCurrentThread();
 
   // The message loop for this thread.
   MessageLoop message_loop(startup_data_->options.message_loop_type);
@@ -169,7 +167,6 @@ void Thread::ThreadMain() {
   // Assert that MessageLoop::Quit was called by ThreadQuitTask.
   DCHECK(GetThreadWasQuitProperly());
 
-  mozilla::IOInterposer::UnregisterCurrentThread();
   profiler_unregister_thread();
 
   // We can't receive messages anymore.

@@ -56,7 +56,8 @@ public:
     SetHTMLAttr(nsGkAtoms::scheme, aScheme, aRv);
   }
 
-  virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx,
+                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
 protected:
   virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;

@@ -15,9 +15,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGForeignObjectElement::WrapNode(JSContext *aCx)
+SVGForeignObjectElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGForeignObjectElementBinding::Wrap(aCx, this);
+  return SVGForeignObjectElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::LengthInfo SVGForeignObjectElement::sLengthInfo[4] =

@@ -12,9 +12,8 @@
 #include "jit/IonSpewer.h"
 #ifdef TRACK_SNAPSHOTS
 # include "jit/LIR.h"
+# include "jit/MIR.h"
 #endif
-#include "jit/MIR.h"
-#include "jit/Recover.h"
 
 using namespace js;
 using namespace js::jit;
@@ -482,9 +481,9 @@ static const uint32_t RECOVER_RESUMEAFTER_SHIFT = 0;
 static const uint32_t RECOVER_RESUMEAFTER_BITS = 1;
 static const uint32_t RECOVER_RESUMEAFTER_MASK = COMPUTE_MASK_(RECOVER_RESUMEAFTER);
 
-static const uint32_t RECOVER_RINSCOUNT_SHIFT = COMPUTE_SHIFT_AFTER_(RECOVER_RESUMEAFTER);
-static const uint32_t RECOVER_RINSCOUNT_BITS = 32 - RECOVER_RINSCOUNT_SHIFT;
-static const uint32_t RECOVER_RINSCOUNT_MASK = COMPUTE_MASK_(RECOVER_RINSCOUNT);
+static const uint32_t RECOVER_FRAMECOUNT_SHIFT = COMPUTE_SHIFT_AFTER_(RECOVER_RESUMEAFTER);
+static const uint32_t RECOVER_FRAMECOUNT_BITS = 32 - RECOVER_FRAMECOUNT_SHIFT;
+static const uint32_t RECOVER_FRAMECOUNT_MASK = COMPUTE_MASK_(RECOVER_FRAMECOUNT);
 
 #undef COMPUTE_MASK_
 #undef COMPUTE_SHIFT_AFTER_
@@ -531,18 +530,13 @@ SnapshotReader::spewBailingFrom() const
 }
 #endif
 
-uint32_t
-SnapshotReader::readAllocationIndex()
-{
-    allocRead_++;
-    return reader_.readUnsigned();
-}
-
 RValueAllocation
 SnapshotReader::readAllocation()
 {
     IonSpew(IonSpew_Snapshots, "Reading slot %u", allocRead_);
-    uint32_t offset = readAllocationIndex() * ALLOCATION_TABLE_ALIGNMENT;
+    allocRead_++;
+
+    uint32_t offset = reader_.readUnsigned() * ALLOCATION_TABLE_ALIGNMENT;
     allocReader_.seek(allocTable_, offset);
     return RValueAllocation::read(allocReader_);
 }
@@ -558,14 +552,15 @@ SnapshotWriter::init()
 
 RecoverReader::RecoverReader(SnapshotReader &snapshot, const uint8_t *recovers, uint32_t size)
   : reader_(nullptr, nullptr),
-    numInstructions_(0),
-    numInstructionsRead_(0)
+    frameCount_(0),
+    framesRead_(0),
+    allocCount_(0)
 {
     if (!recovers)
         return;
     reader_ = CompactBufferReader(recovers + snapshot.recoverOffset(), recovers + size);
     readRecoverHeader();
-    readInstruction();
+    readFrame(snapshot);
 }
 
 void
@@ -573,20 +568,26 @@ RecoverReader::readRecoverHeader()
 {
     uint32_t bits = reader_.readUnsigned();
 
-    numInstructions_ = (bits & RECOVER_RINSCOUNT_MASK) >> RECOVER_RINSCOUNT_SHIFT;
+    frameCount_ = (bits & RECOVER_FRAMECOUNT_MASK) >> RECOVER_FRAMECOUNT_SHIFT;
     resumeAfter_ = (bits & RECOVER_RESUMEAFTER_MASK) >> RECOVER_RESUMEAFTER_SHIFT;
-    MOZ_ASSERT(numInstructions_);
+    JS_ASSERT(frameCount_);
 
-    IonSpew(IonSpew_Snapshots, "Read recover header with instructionCount %u (ra: %d)",
-            numInstructions_, resumeAfter_);
+    IonSpew(IonSpew_Snapshots, "Read recover header with frameCount %u (ra: %d)",
+            frameCount_, resumeAfter_);
 }
 
 void
-RecoverReader::readInstruction()
+RecoverReader::readFrame(SnapshotReader &snapshot)
 {
-    MOZ_ASSERT(moreInstructions());
-    RInstruction::readRecoverData(reader_, &rawData_);
-    numInstructionsRead_++;
+    JS_ASSERT(moreFrames());
+    JS_ASSERT(snapshot.allocRead_ == allocCount_);
+
+    pcOffset_ = reader_.readUnsigned();
+    allocCount_ = reader_.readUnsigned();
+    IonSpew(IonSpew_Snapshots, "Read pc offset %u, nslots %u", pcOffset_, allocCount_);
+
+    framesRead_++;
+    snapshot.allocRead_ = 0;
 }
 
 SnapshotOffset
@@ -672,23 +673,37 @@ RecoverWriter::startRecover(uint32_t frameCount, bool resumeAfter)
             frameCount);
 
     MOZ_ASSERT(!(uint32_t(resumeAfter) &~ RECOVER_RESUMEAFTER_MASK));
-    MOZ_ASSERT(frameCount < uint32_t(1 << RECOVER_RINSCOUNT_BITS));
+    MOZ_ASSERT(frameCount < uint32_t(1 << RECOVER_FRAMECOUNT_BITS));
     uint32_t bits =
         (uint32_t(resumeAfter) << RECOVER_RESUMEAFTER_SHIFT) |
-        (frameCount << RECOVER_RINSCOUNT_SHIFT);
+        (frameCount << RECOVER_FRAMECOUNT_SHIFT);
 
     RecoverOffset recoverOffset = writer_.length();
     writer_.writeUnsigned(bits);
     return recoverOffset;
 }
 
-bool
-RecoverWriter::writeFrame(const MResumePoint *rp)
+void
+RecoverWriter::writeFrame(JSFunction *fun, JSScript *script,
+                          jsbytecode *pc, uint32_t exprStack)
 {
-    if (!rp->writeRecoverData(writer_))
-        return false;
+    // Test if we honor the maximum of arguments at all times.
+    // This is a sanity check and not an algorithm limit. So check might be a bit too loose.
+    // +4 to account for scope chain, return value, this value and maybe arguments_object.
+    JS_ASSERT(CountArgSlots(script, fun) < SNAPSHOT_MAX_NARGS + 4);
+
+    uint32_t implicit = StartArgSlot(script);
+    uint32_t formalArgs = CountArgSlots(script, fun);
+    uint32_t nallocs = formalArgs + script->nfixed() + exprStack;
+
+    IonSpew(IonSpew_Snapshots, "Starting frame; implicit %u, formals %u, fixed %u, exprs %u",
+            implicit, formalArgs - implicit, script->nfixed(), exprStack);
+
+    uint32_t pcoff = script->pcToOffset(pc);
+    IonSpew(IonSpew_Snapshots, "Writing pc offset %u, nslots %u", pcoff, nallocs);
+    writer_.writeUnsigned(pcoff);
+    writer_.writeUnsigned(nallocs);
     framesWritten_++;
-    return true;
 }
 
 void
