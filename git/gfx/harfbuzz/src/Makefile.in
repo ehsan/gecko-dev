@@ -24,21 +24,6 @@
 # Mozilla author(s): Jonathan Kew
 #
 
-
-DEPTH     = @DEPTH@
-topsrcdir = @top_srcdir@
-srcdir    = @srcdir@
-VPATH     = @srcdir@
-
-include $(DEPTH)/config/autoconf.mk
-
-MSVC_ENABLE_PGO := 1
-ifneq ($(OS_ARCH),WINNT)
-LIBXUL_LIBRARY = 1
-else
-FORCE_STATIC_LIB = 1
-endif
-
 LOCAL_INCLUDES  += -I$(srcdir) 
 
 

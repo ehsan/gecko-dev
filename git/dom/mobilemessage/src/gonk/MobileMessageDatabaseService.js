@@ -66,12 +66,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageService",
                                    "@mozilla.org/mobilemessage/mobilemessageservice;1",
                                    "nsIMobileMessageService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gIDBManager",
-                                   "@mozilla.org/dom/indexeddb/manager;1",
-                                   "nsIIndexedDatabaseManager");
-
-const GLOBAL_SCOPE = this;
-
 /**
  * MobileMessageDatabaseService
  */
@@ -79,8 +73,6 @@ function MobileMessageDatabaseService() {
   // Prime the directory service's cache to ensure that the ProfD entry exists
   // by the time IndexedDB queries for it off the main thread. (See bug 743635.)
   Services.dirsvc.get("ProfD", Ci.nsIFile);
-
-  gIDBManager.initWindowless(GLOBAL_SCOPE);
 
   let that = this;
   this.newTxn(READ_ONLY, function(error, txn, messageStore){
@@ -157,7 +149,7 @@ MobileMessageDatabaseService.prototype = {
       callback(null, db);
     }
 
-    let request = GLOBAL_SCOPE.indexedDB.open(DB_NAME, DB_VERSION);
+    let request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onsuccess = function (event) {
       if (DEBUG) debug("Opened database:", DB_NAME, DB_VERSION);
       gotDB(event.target.result);
@@ -1381,8 +1373,8 @@ MobileMessageDatabaseService.prototype = {
       if (receivers.length >= 2) {
         let isSuccess = false;
         let slicedReceivers = receivers.slice();
-        if (aMessage.msisdn) {
-          let found = slicedReceivers.indexOf(aMessage.msisdn);
+        if (aMessage.phoneNumber) {
+          let found = slicedReceivers.indexOf(aMessage.phoneNumber);
           if (found !== -1) {
             isSuccess = true;
             slicedReceivers.splice(found, 1);
@@ -1390,9 +1382,10 @@ MobileMessageDatabaseService.prototype = {
         }
 
         if (!isSuccess) {
-          // For some SIMs we cannot retrieve the vaild MSISDN (i.e. the user's
-          // own phone number), so we cannot correcly exclude the user's own
-          // number from the receivers, thus wrongly building the thread index.
+          // For some SIMs we cannot retrieve the vaild MSISDN or MDN (i.e. the
+          // user's own phone number), so we cannot correcly exclude the user's
+          // own number from the receivers, thus wrongly building the thread
+          // index.
           if (DEBUG) debug("Error! Cannot strip out user's own phone number!");
         }
 

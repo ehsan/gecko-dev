@@ -28,7 +28,7 @@ EXPORTS.mozilla += [
     'ModuleUtils.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'ManifestParser.cpp',
     'nsCategoryManager.cpp',
     'nsComponentManager.cpp',
@@ -36,4 +36,8 @@ CPP_SOURCES += [
 ]
 
 LIBRARY_NAME = 'xpcomcomponents_s'
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
 

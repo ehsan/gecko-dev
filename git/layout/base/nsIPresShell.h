@@ -20,26 +20,26 @@
 #ifndef nsIPresShell_h___
 #define nsIPresShell_h___
 
+#include "mozilla/EventForwards.h"
 #include "mozilla/MemoryReporting.h"
+#include "gfxPoint.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsISupports.h"
 #include "nsQueryFrame.h"
 #include "nsCoord.h"
 #include "nsColor.h"
-#include "nsEvent.h"
 #include "nsCompatibility.h"
 #include "nsFrameManagerBase.h"
-#include "nsRect.h"
 #include "mozFlushType.h"
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
 #include "nsChangeHint.h"
-#include "nsGUIEvent.h"
 #include "nsRefPtrHashtable.h"
 #include "nsEventStates.h"
 #include "nsPresArena.h"
 #include "nsIImageLoadingContent.h"
+#include "nsMargin.h"
 
 class nsIContent;
 class nsIDocument;
@@ -73,9 +73,11 @@ class nsPIDOMWindow;
 struct nsPoint;
 struct nsIntPoint;
 struct nsIntRect;
+struct nsRect;
 class nsRegion;
 class nsRefreshDriver;
 class nsARefreshObserver;
+class nsAPostRefreshObserver;
 #ifdef ACCESSIBILITY
 class nsAccessibilityService;
 namespace mozilla {
@@ -95,6 +97,7 @@ class Selection;
 
 namespace dom {
 class Element;
+class Touch;
 } // namespace dom
 
 namespace layers{
@@ -122,10 +125,11 @@ typedef struct CapturingContentInfo {
   nsIContent* mContent;
 } CapturingContentInfo;
 
-// fac033dd-938d-45bc-aaa5-dc2fa7ef5a40
+
+// f5b542a9-eaf0-4560-a656-37a9d379864c
 #define NS_IPRESSHELL_IID \
-{ 0xfac033dd, 0x938d, 0x45bc, \
-  { 0xaa, 0xa5, 0xdc, 0x2f, 0xa7, 0xef, 0x5a, 0x40 } }
+{ 0xf5b542a9, 0xeaf0, 0x4560, \
+  { 0x37, 0xa9, 0xd3, 0x79, 0x86, 0x4c } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -303,7 +307,7 @@ public:
   }
 #endif
 
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   nsStyleSet* StyleSet() const { return mStyleSet; }
 
   nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
@@ -337,7 +341,7 @@ public:
    */
   virtual NS_HIDDEN_(void) ReconstructStyleDataExternal();
   NS_HIDDEN_(void) ReconstructStyleDataInternal();
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   void ReconstructStyleData() { ReconstructStyleDataInternal(); }
 #else
   void ReconstructStyleData() { ReconstructStyleDataExternal(); }
@@ -418,7 +422,7 @@ public:
    */
   virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;
   nsIFrame* GetRootFrame() const {
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
     return mFrameManager->GetRootFrame();
 #else
     return GetRootFrameExternal();
@@ -453,7 +457,7 @@ public:
 
   /**
    * Returns the page sequence frame associated with the frame hierarchy.
-   * Returns NULL if not a paginated view.
+   * Returns nullptr if not a paginated view.
    */
   virtual NS_HIDDEN_(nsIPageSequenceFrame*) GetPageSequenceFrame() const = 0;
 
@@ -766,18 +770,20 @@ public:
     * Interface to dispatch events via the presshell
     * @note The caller must have a strong reference to the PresShell.
     */
-  virtual NS_HIDDEN_(nsresult) HandleEventWithTarget(nsEvent* aEvent,
-                                                     nsIFrame* aFrame,
-                                                     nsIContent* aContent,
-                                                     nsEventStatus* aStatus) = 0;
+  virtual NS_HIDDEN_(nsresult) HandleEventWithTarget(
+                                 mozilla::WidgetEvent* aEvent,
+                                 nsIFrame* aFrame,
+                                 nsIContent* aContent,
+                                 nsEventStatus* aStatus) = 0;
 
   /**
    * Dispatch event to content only (NOT full processing)
    * @note The caller must have a strong reference to the PresShell.
    */
-  virtual NS_HIDDEN_(nsresult) HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                                        nsEvent* aEvent,
-                                                        nsEventStatus* aStatus) = 0;
+  virtual NS_HIDDEN_(nsresult) HandleDOMEventWithTarget(
+                                 nsIContent* aTargetContent,
+                                 mozilla::WidgetEvent* aEvent,
+                                 nsEventStatus* aStatus) = 0;
 
   /**
    * Dispatch event to content only (NOT full processing)
@@ -795,7 +801,8 @@ public:
   /**
     * Gets the current target event frame from the PresShell
     */
-  virtual NS_HIDDEN_(already_AddRefed<nsIContent>) GetEventTargetContent(nsEvent* aEvent) = 0;
+  virtual NS_HIDDEN_(already_AddRefed<nsIContent>) GetEventTargetContent(
+                                                     mozilla::WidgetEvent* aEvent) = 0;
 
   /**
    * Get and set the history state for the current document 
@@ -1026,7 +1033,7 @@ public:
 
   void AddWeakFrame(nsWeakFrame* aWeakFrame)
   {
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
     AddWeakFrameInternal(aWeakFrame);
 #else
     AddWeakFrameExternal(aWeakFrame);
@@ -1038,7 +1045,7 @@ public:
 
   void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
   {
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
     RemoveWeakFrameInternal(aWeakFrame);
 #else
     RemoveWeakFrameExternal(aWeakFrame);
@@ -1129,7 +1136,7 @@ public:
 
   static CapturingContentInfo gCaptureInfo;
 
-  static nsRefPtrHashtable<nsUint32HashKey, mozilla::dom::Touch> gCaptureTouchList;
+  static nsRefPtrHashtable<nsUint32HashKey, mozilla::dom::Touch>* gCaptureTouchList;
   static bool gPreventMouseEvents;
 
   /**
@@ -1258,10 +1265,10 @@ public:
   };
   virtual void Paint(nsView* aViewToPaint, const nsRegion& aDirtyRegion,
                      uint32_t aFlags) = 0;
-  virtual nsresult HandleEvent(nsIFrame*       aFrame,
-                               nsGUIEvent*     aEvent,
-                               bool            aDontRetargetEvents,
-                               nsEventStatus*  aEventStatus) = 0;
+  virtual nsresult HandleEvent(nsIFrame* aFrame,
+                               mozilla::WidgetGUIEvent* aEvent,
+                               bool aDontRetargetEvents,
+                               nsEventStatus* aEventStatus) = 0;
   virtual bool ShouldIgnoreInvalidation() = 0;
   /**
    * Notify that we're going to call Paint with PAINT_LAYERS
@@ -1291,14 +1298,15 @@ public:
   virtual void ScheduleViewManagerFlush() = 0;
   virtual void ClearMouseCaptureOnView(nsView* aView) = 0;
   virtual bool IsVisible() = 0;
-  virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
+  virtual void DispatchSynthMouseMove(mozilla::WidgetGUIEvent* aEvent,
+                                      bool aFlushOnHoverChange) = 0;
 
-  virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                   nsArenaMemoryStats *aArenaObjectsSize,
-                                   size_t *aPresShellSize,
-                                   size_t *aStyleSetsSize,
-                                   size_t *aTextRunsSize,
-                                   size_t *aPresContextSize) = 0;
+  virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                      nsArenaMemoryStats *aArenaObjectsSize,
+                                      size_t *aPresShellSize,
+                                      size_t *aStyleSetsSize,
+                                      size_t *aTextRunsSize,
+                                      size_t *aPresContextSize) = 0;
 
   /**
    * Methods that retrieve the cached font inflation preferences.
@@ -1356,18 +1364,24 @@ public:
   // Ensures the image is in the list of visible images.
   virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) = 0;
 
+  // Removes the image from the list of visible images if it is present there.
+  virtual void RemoveImageFromVisibleList(nsIImageLoadingContent* aImage) = 0;
+
+  // Whether we should assume all images are visible.
+  virtual bool AssumeAllImagesVisible() = 0;
+
   /**
    * Refresh observer management.
    */
 protected:
   virtual bool AddRefreshObserverExternal(nsARefreshObserver* aObserver,
-                                            mozFlushType aFlushType);
+                                          mozFlushType aFlushType);
   bool AddRefreshObserverInternal(nsARefreshObserver* aObserver,
-                                    mozFlushType aFlushType);
+                                  mozFlushType aFlushType);
   virtual bool RemoveRefreshObserverExternal(nsARefreshObserver* aObserver,
-                                               mozFlushType aFlushType);
+                                             mozFlushType aFlushType);
   bool RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
-                                       mozFlushType aFlushType);
+                                     mozFlushType aFlushType);
 
   /**
    * Do computations necessary to determine if font size inflation is enabled.
@@ -1378,8 +1392,8 @@ protected:
 
 public:
   bool AddRefreshObserver(nsARefreshObserver* aObserver,
-                            mozFlushType aFlushType) {
-#ifdef _IMPL_NS_LAYOUT
+                          mozFlushType aFlushType) {
+#ifdef MOZILLA_INTERNAL_API
     return AddRefreshObserverInternal(aObserver, aFlushType);
 #else
     return AddRefreshObserverExternal(aObserver, aFlushType);
@@ -1387,13 +1401,16 @@ public:
   }
 
   bool RemoveRefreshObserver(nsARefreshObserver* aObserver,
-                               mozFlushType aFlushType) {
-#ifdef _IMPL_NS_LAYOUT
+                             mozFlushType aFlushType) {
+#ifdef MOZILLA_INTERNAL_API
     return RemoveRefreshObserverInternal(aObserver, aFlushType);
 #else
     return RemoveRefreshObserverExternal(aObserver, aFlushType);
 #endif
   }
+
+  virtual bool AddPostRefreshObserver(nsAPostRefreshObserver* aObserver);
+  virtual bool RemovePostRefreshObserver(nsAPostRefreshObserver* aObserver);
 
   /**
    * Initialize and shut down static variables.
@@ -1448,6 +1465,17 @@ public:
    */
   void ClearReflowOnZoomPending() {
     mReflowOnZoomPending = false;
+  }
+
+  /**
+   * Documents belonging to an invisible DocShell must not be painted ever.
+   */
+  bool IsNeverPainting() {
+    return mIsNeverPainting;
+  }
+
+  void SetNeverPainting(bool aNeverPainting) {
+    mIsNeverPainting = aNeverPainting;
   }
 
 protected:
@@ -1571,6 +1599,16 @@ protected:
   // The maximum width of a line box. Text on a single line that exceeds this
   // width will be wrapped. A value of 0 indicates that no limit is enforced.
   nscoord mMaxLineBoxWidth;
+  
+  // If a document belongs to an invisible DocShell, this flag must be set
+  // to true, so we can avoid any paint calls for widget related to this
+  // presshell.
+  bool mIsNeverPainting;
+};
+
+class nsIPresShell_MOZILLA27 : public nsIPresShell {
+public:
+  virtual gfxSize GetCumulativeResolution() = 0;
 };
 
 #endif /* nsIPresShell_h___ */

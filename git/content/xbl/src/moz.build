@@ -16,7 +16,7 @@ EXPORTS.mozilla.dom += [
     'XBLChildrenElement.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'nsBindingManager.cpp',
     'nsXBLBinding.cpp',
     'nsXBLContentSink.cpp',
@@ -36,3 +36,22 @@ CPP_SOURCES += [
     'XBLChildrenElement.cpp',
 ]
 
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'gkconxbl_s'
+
+LOCAL_INCLUDES += [
+    '/content/base/src',
+    '/content/events/src',
+    '/content/html/document/src',
+    '/content/xml/document/src',
+    '/content/xul/content/src',
+    '/content/xul/document/src',
+    '/dom/base',
+    '/layout/style',
+    '/xpcom/ds',
+]

@@ -59,6 +59,7 @@
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
 #include "DOMStorageObserver.h"
+#include "CacheObserver.h"
 #include "DisplayItemClip.h"
 
 #include "AudioChannelService.h"
@@ -92,6 +93,7 @@
 #endif
 
 #include "AudioStream.h"
+#include "Latency.h"
 #include "WebAudioUtils.h"
 
 #ifdef MOZ_WIDGET_GONK
@@ -119,9 +121,10 @@ using namespace mozilla::system;
 #include "nsDocument.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 
-extern void NS_ShutdownEventTargetChainItemRecyclePool();
+extern void NS_ShutdownEventTargetChainRecycler();
 
 using namespace mozilla;
+using namespace mozilla::net;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
 using namespace mozilla::dom::time;
@@ -151,7 +154,7 @@ nsLayoutStatics::Initialize()
   nsColorNames::AddRefTable();
   nsGkAtoms::AddRefAtoms();
 
-  nsJSRuntime::Startup();
+  StartupJSEnvironment();
   rv = nsRegion::InitStatic();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsRegion");
@@ -249,6 +252,7 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+  AsyncLatencyLogger::InitializeStatics();
   AudioStream::InitLibrary();
 
   nsContentSink::InitializeStatics();
@@ -275,6 +279,8 @@ nsLayoutStatics::Initialize()
   InitializeDateCacheCleaner();
 
   HTMLVideoElement::Init();
+
+  CacheObserver::Init();
 
   return NS_OK;
 }
@@ -336,7 +342,7 @@ nsLayoutStatics::Shutdown()
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
 
-  nsJSRuntime::Shutdown();
+  ShutdownJSEnvironment();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
   nsListControlFrame::Shutdown();
@@ -354,6 +360,7 @@ nsLayoutStatics::Shutdown()
 #endif
 
   AudioStream::ShutdownLibrary();
+  AsyncLatencyLogger::ShutdownLogger();
   WebAudioUtils::Shutdown();
 
 #ifdef MOZ_WMF
@@ -378,7 +385,7 @@ nsLayoutStatics::Shutdown()
 
   nsRegion::ShutdownStatic();
 
-  NS_ShutdownEventTargetChainItemRecyclePool();
+  NS_ShutdownEventTargetChainRecycler();
 
   HTMLInputElement::DestroyUploadLastDir();
 
@@ -396,4 +403,6 @@ nsLayoutStatics::Shutdown()
   DisplayItemClip::Shutdown();
 
   nsDocument::XPCOMShutdown();
+
+  CacheObserver::Shutdown();
 }

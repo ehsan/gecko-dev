@@ -243,7 +243,7 @@ class IDLScope(IDLObject):
                 return
 
             # ensureUnique twice with the same object is not allowed
-            assert object != self._dict[identifier.name]
+            assert id(object) != id(self._dict[identifier.name])
 
             replacement = self.resolveIdentifierConflict(self, identifier,
                                                          self._dict[identifier.name],
@@ -320,7 +320,7 @@ class IDLUnresolvedIdentifier(IDLObject):
                               [location])
         if name[0] == '_' and not allowDoubleUnderscore:
             name = name[1:]
-        if (name in ["constructor", "iterator", "toString", "toJSON"] and
+        if (name in ["constructor", "toString", "toJSON"] and
             not allowForbidden):
             raise WebIDLError("Cannot use reserved identifier '%s'" % (name),
                               [location])
@@ -523,6 +523,7 @@ class IDLInterface(IDLObjectWithScope):
         # have self as a consequential interface
         self.interfacesImplementingSelf = set()
         self._hasChildInterfaces = False
+        self._isOnGlobalProtoChain = False
 
         IDLObjectWithScope.__init__(self, location, parentScope, name)
 
@@ -585,6 +586,15 @@ class IDLInterface(IDLObjectWithScope):
             self.parent.finish(scope)
 
             self.parent._hasChildInterfaces = True
+
+            # Interfaces with [Global] must not have anything inherit from them
+            if self.parent.getExtendedAttribute("Global"):
+                # Note: This is not a self.parent.isOnGlobalProtoChain() check
+                # because ancestors of a [Global] interface can have other
+                # descendants.
+                raise WebIDLError("[Global] interface has another interface "
+                                  "inheriting from it",
+                                  [self.location, self.parent.location])
 
             # Callbacks must not inherit from non-callbacks or inherit from
             # anything that has consequential interfaces.
@@ -667,6 +677,11 @@ class IDLInterface(IDLObjectWithScope):
             for ancestorConsequential in ancestor.getConsequentialInterfaces():
                 ancestorConsequential.interfacesBasedOnSelf.add(self)
 
+        for member in self.members:
+            if (member.isAttr() and member.isUnforgeable() and
+                not hasattr(member, "originatingInterface")):
+                member.originatingInterface = self
+
         if self.parent:
             # Make sure we don't shadow any of the [Unforgeable] attributes on
             # our ancestor interfaces.  We don't have to worry about
@@ -741,6 +756,31 @@ class IDLInterface(IDLObjectWithScope):
 
             specialMembersSeen[memberType] = member
 
+        if self._isOnGlobalProtoChain:
+            # Make sure we have no named setters, creators, or deleters
+            for memberType in ["setter", "creator", "deleter"]:
+                memberId = "named " + memberType + "s"
+                if memberId in specialMembersSeen:
+                    raise WebIDLError("Interface with [Global] has a named %s" %
+                                      memberType,
+                                      [self.location,
+                                       specialMembersSeen[memberId].location])
+            # Make sure we're not [OverrideBuiltins]
+            if self.getExtendedAttribute("OverrideBuiltins"):
+                raise WebIDLError("Interface with [Global] also has "
+                                  "[OverrideBuiltins]",
+                                  [self.location])
+            # Mark all of our ancestors as being on the global's proto chain too
+            parent = self.parent
+            while parent:
+                # Must not inherit from an interface with [OverrideBuiltins]
+                if parent.getExtendedAttribute("OverrideBuiltins"):
+                    raise WebIDLError("Interface with [Global] inherits from "
+                                      "interface with [OverrideBuiltins]",
+                                      [self.location, parent.location])
+                parent._isOnGlobalProtoChain = True
+                parent = parent.parent
+
     def validate(self):
         for member in self.members:
             member.validate()
@@ -807,6 +847,9 @@ class IDLInterface(IDLObjectWithScope):
     def isSingleOperationInterface(self):
         assert self.isCallback() or self.isJSImplemented()
         return (
+            # JS-implemented things should never need the
+            # this-handling weirdness of single-operation interfaces.
+            not self.isJSImplemented() and
             # Not inheriting from another interface
             not self.parent and
             # No consequential interfaces
@@ -881,12 +924,12 @@ class IDLInterface(IDLObjectWithScope):
 
                 method = IDLMethod(self.location, methodIdentifier, retType,
                                    args, static=True)
-                # Constructors are always Creators and are always
+                # Constructors are always NewObject and are always
                 # assumed to be able to throw (since there's no way to
                 # indicate otherwise) and never have any other
                 # extended attributes.
                 method.addExtendedAttributes(
-                    [IDLExtendedAttribute(self.location, ("Creator",)),
+                    [IDLExtendedAttribute(self.location, ("NewObject",)),
                      IDLExtendedAttribute(self.location, ("Throws",))])
 
 
@@ -921,6 +964,11 @@ class IDLInterface(IDLObjectWithScope):
                     raise WebIDLError("[ArrayClass] must not be specified on "
                                       "an interface with inherited interfaces",
                                       [attr.location, self.location])
+            elif identifier == "Global":
+                if not attr.noArguments():
+                    raise WebIDLError("[Global] must take no arguments",
+                                      [attr.location])
+                self._isOnGlobalProtoChain = True
             elif (identifier == "PrefControlled" or
                   identifier == "NeedNewResolve" or
                   identifier == "OverrideBuiltins" or
@@ -1038,6 +1086,9 @@ class IDLInterface(IDLObjectWithScope):
 
     def hasChildInterfaces(self):
         return self._hasChildInterfaces
+
+    def isOnGlobalProtoChain(self):
+        return self._isOnGlobalProtoChain
 
     def _getDependentObjects(self):
         deps = set(self.members)
@@ -2386,16 +2437,31 @@ class IDLValue(IDLObject):
         if type == self.type:
             return self # Nothing to do
 
+        # We first check for unions to ensure that even if the union is nullable
+        # we end up with the right flat member type, not the union's type.
+        if type.isUnion():
+            # We use the flat member types here, because if we have a nullable
+            # member type, or a nested union, we want the type the value
+            # actually coerces to, not the nullable or nested union type.
+            for subtype in type.unroll().flatMemberTypes:
+                try:
+                    coercedValue = self.coerceToType(subtype, location)
+                    # Create a new IDLValue to make sure that we have the
+                    # correct float/double type.  This is necessary because we
+                    # use the value's type when it is a default value of a
+                    # union, and the union cares about the exact float type.
+                    return IDLValue(self.location, subtype, coercedValue.value)
+                except:
+                    pass
         # If the type allows null, rerun this matching on the inner type, except
         # nullable enums.  We handle those specially, because we want our
         # default string values to stay strings even when assigned to a nullable
         # enum.
-        if type.nullable() and not type.isEnum():
+        elif type.nullable() and not type.isEnum():
             innerValue = self.coerceToType(type.inner, location)
             return IDLValue(self.location, type, innerValue.value)
 
-        # Else, see if we can coerce to 'type'.
-        if self.type.isInteger() and type.isInteger():
+        elif self.type.isInteger() and type.isInteger():
             # We're both integer types.  See if we fit.
 
             (min, max) = integerTypeSizes[type._typeTag]
@@ -2428,9 +2494,8 @@ class IDLValue(IDLObject):
                 raise WebIDLError("Trying to convert unrestricted value %s to non-unrestricted"
                                   % self.value, [location]);
             return self
-        else:
-            raise WebIDLError("Cannot coerce type %s to type %s." %
-                              (self.type, type), [location])
+        raise WebIDLError("Cannot coerce type %s to type %s." %
+                          (self.type, type), [location])
 
     def _getDependentObjects(self):
         return set()
@@ -2444,12 +2509,20 @@ class IDLNullValue(IDLObject):
     def coerceToType(self, type, location):
         if (not isinstance(type, IDLNullableType) and
             not (type.isUnion() and type.hasNullableType) and
+            not (type.isUnion() and type.hasDictionaryType) and
             not type.isDictionary() and
             not type.isAny()):
             raise WebIDLError("Cannot coerce null value to type %s." % type,
                               [location])
 
         nullValue = IDLNullValue(self.location)
+        if type.isUnion() and not type.nullable() and type.hasDictionaryType:
+            # We're actually a default value for the union's dictionary member.
+            # Use its type.
+            for t in type.flatMemberTypes:
+                if t.isDictionary():
+                    nullValue.type = t
+                    return nullValue
         nullValue.type = type
         return nullValue
 
@@ -2553,6 +2626,8 @@ class IDLAttribute(IDLInterfaceMember):
         self.lenientThis = False
         self._unforgeable = False
         self.stringifier = stringifier
+        self.enforceRange = False
+        self.clamp = False
 
         if static and identifier.name == "prototype":
             raise WebIDLError("The identifier of a static attribute must not be 'prototype'",
@@ -2601,6 +2676,10 @@ class IDLAttribute(IDLInterfaceMember):
             raise WebIDLError("An attribute with [PutForwards] must have an "
                               "interface type as its type", [self.location])
 
+        if not self.type.isInterface() and self.getExtendedAttribute("SameObject"):
+            raise WebIDLError("An attribute with [SameObject] must have an "
+                              "interface type as its type", [self.location])
+
     def validate(self):
         pass
 
@@ -2615,12 +2694,14 @@ class IDLAttribute(IDLInterfaceMember):
                               [self.location])
         elif (((identifier == "Throws" or identifier == "GetterThrows") and
                (self.getExtendedAttribute("Pure") or
+                self.getExtendedAttribute("SameObject") or
                 self.getExtendedAttribute("Constant"))) or
-              ((identifier == "Pure" or identifier == "Constant") and
+              ((identifier == "Pure" or identifier == "SameObject" or
+                identifier == "Constant") and
                (self.getExtendedAttribute("Throws") or
                 self.getExtendedAttribute("GetterThrows")))):
-            raise WebIDLError("Throwing things can't be [Pure] or [Constant]",
-                              [attr.location])
+            raise WebIDLError("Throwing things can't be [Pure] or [Constant] "
+                              "or [SameObject]", [attr.location])
         elif identifier == "LenientThis":
             if not attr.noArguments():
                 raise WebIDLError("[LenientThis] must take no arguments",
@@ -2637,6 +2718,9 @@ class IDLAttribute(IDLInterfaceMember):
                 raise WebIDLError("[Unforgeable] is only allowed on non-static "
                                   "attributes", [attr.location, self.location])
             self._unforgeable = True
+        elif identifier == "SameObject" and not self.readonly:
+            raise WebIDLError("[SameObject] only allowed on readonly attributes",
+                              [attr.location, self.location])
         elif identifier == "Constant" and not self.readonly:
             raise WebIDLError("[Constant] only allowed on readonly attributes",
                               [attr.location, self.location])
@@ -2667,15 +2751,26 @@ class IDLAttribute(IDLInterfaceMember):
                 raise WebIDLError("[LenientFloat] used on an attribute with a "
                                   "non-restricted-float type",
                                   [attr.location, self.location])
+        elif identifier == "EnforceRange":
+            if self.readonly:
+                raise WebIDLError("[EnforceRange] used on a readonly attribute",
+                                  [attr.location, self.location])
+            self.enforceRange = True
+        elif identifier == "Clamp":
+            if self.readonly:
+                raise WebIDLError("[Clamp] used on a readonly attribute",
+                                  [attr.location, self.location])
+            self.clamp = True
         elif (identifier == "Pref" or
               identifier == "SetterThrows" or
               identifier == "Pure" or
               identifier == "Throws" or
               identifier == "GetterThrows" or
               identifier == "ChromeOnly" or
+              identifier == "SameObject" or
               identifier == "Constant" or
               identifier == "Func" or
-              identifier == "Creator"):
+              identifier == "NewObject"):
             # Known attributes that we don't need to do anything with here
             pass
         else:
@@ -2761,7 +2856,9 @@ class IDLArgument(IDLObjectWithIdentifier):
             assert not isinstance(type.name, IDLUnresolvedIdentifier)
             self.type = type
 
-        if self.type.isDictionary() and self.optional and not self.defaultValue:
+        if ((self.type.isDictionary() or
+             self.type.isUnion() and self.type.unroll().hasDictionaryType) and
+            self.optional and not self.defaultValue):
             # Default optional dictionaries to null, for simplicity,
             # so the codegen doesn't have to special-case this.
             self.defaultValue = IDLNullValue(self.location)
@@ -3196,6 +3293,9 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             raise WebIDLError("Methods must not be flagged as "
                               "[Unforgeable]",
                               [attr.location, self.location])
+        elif identifier == "SameObject":
+            raise WebIDLError("Methods must not be flagged as [SameObject]",
+                              [attr.location, self.location]);
         elif identifier == "Constant":
             raise WebIDLError("Methods must not be flagged as [Constant]",
                               [attr.location, self.location]);
@@ -3218,7 +3318,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                                   "restricted float type arguments",
                                   [attr.location, self.location])
         elif (identifier == "Throws" or
-              identifier == "Creator" or
+              identifier == "NewObject" or
               identifier == "ChromeOnly" or
               identifier == "Pref" or
               identifier == "Func" or
@@ -3690,21 +3790,33 @@ class Parser(Tokenizer):
 
     def p_EnumValueList(self, p):
         """
-            EnumValueList : STRING EnumValues
+            EnumValueList : STRING EnumValueListComma
         """
         p[0] = [p[1]]
         p[0].extend(p[2])
 
-    def p_EnumValues(self, p):
+    def p_EnumValueListComma(self, p):
         """
-            EnumValues : COMMA STRING EnumValues
+            EnumValueListComma : COMMA EnumValueListString
         """
-        p[0] = [p[2]]
-        p[0].extend(p[3])
+        p[0] = p[2]
 
-    def p_EnumValuesEmpty(self, p):
+    def p_EnumValueListCommaEmpty(self, p):
         """
-            EnumValues :
+            EnumValueListComma :
+        """
+        p[0] = []
+
+    def p_EnumValueListString(self, p):
+        """
+            EnumValueListString : STRING EnumValueListComma
+        """
+        p[0] = [p[1]]
+        p[0].extend(p[2])
+
+    def p_EnumValueListStringEmpty(self, p):
+        """
+            EnumValueListString :
         """
         p[0] = []
 
@@ -4678,7 +4790,8 @@ class Parser(Tokenizer):
 
     def p_error(self, p):
         if not p:
-            raise WebIDLError("Syntax Error at end of file. Possibly due to missing semicolon(;), braces(}) or both", [])
+            raise WebIDLError("Syntax Error at end of file. Possibly due to missing semicolon(;), braces(}) or both",
+                              [self._filename])
         else:
             raise WebIDLError("invalid syntax", [Location(self.lexer, p.lineno, p.lexpos, self._filename)])
 

@@ -4,8 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Effects.h"
-#include "LayersLogging.h"
-#include "nsPrintfCString.h"
+#include "LayersLogging.h"              // for AppendToString
+#include "nsAString.h"
+#include "nsPrintfCString.h"            // for nsPrintfCString
+#include "nsString.h"                   // for nsAutoCString
 
 using namespace mozilla::layers;
 
@@ -36,14 +38,6 @@ EffectMask::PrintInfo(nsACString& aTo, const char* aPrefix)
 
   if (mIs3D) {
     aTo += " [is-3d]";
-  }
-
-  if (mMaskTexture) {
-    nsAutoCString prefix(aPrefix);
-    prefix += "  ";
-
-    aTo += "\n";
-    mMaskTexture->PrintInfo(aTo, prefix.get());
   }
 }
 

@@ -188,14 +188,15 @@ nsSVGPathGeometryFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
-                                 const nsIntRect *aDirtyRect)
+                                 const nsIntRect *aDirtyRect,
+                                 nsIFrame* aTransformRoot)
 {
   if (!StyleVisibility()->IsVisible())
     return NS_OK;
 
   uint32_t paintOrder = StyleSVG()->mPaintOrder;
   if (paintOrder == NS_STYLE_PAINT_ORDER_NORMAL) {
-    Render(aContext, eRenderFill | eRenderStroke);
+    Render(aContext, eRenderFill | eRenderStroke, aTransformRoot);
     PaintMarkers(aContext);
   } else {
     while (paintOrder) {
@@ -203,10 +204,10 @@ nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
         paintOrder & ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) - 1);
       switch (component) {
         case NS_STYLE_PAINT_ORDER_FILL:
-          Render(aContext, eRenderFill);
+          Render(aContext, eRenderFill, aTransformRoot);
           break;
         case NS_STYLE_PAINT_ORDER_STROKE:
-          Render(aContext, eRenderStroke);
+          Render(aContext, eRenderStroke, aTransformRoot);
           break;
         case NS_STYLE_PAINT_ORDER_MARKERS:
           PaintMarkers(aContext);
@@ -497,9 +498,9 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGGeometryFrame methods:
 
 gfxMatrix
-nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor)
+nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -511,7 +512,9 @@ nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor)
   nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
   dom::SVGGraphicsElement *content = static_cast<dom::SVGGraphicsElement*>(mContent);
 
-  return content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
+  return content->PrependLocalTransformsTo(
+      this == aTransformRoot ? gfxMatrix() :
+                               parent->GetCanvasTM(aFor, aTransformRoot));
 }
 
 //----------------------------------------------------------------------
@@ -565,7 +568,8 @@ nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
 
 void
 nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
-                               uint32_t aRenderComponents)
+                               uint32_t aRenderComponents,
+                               nsIFrame* aTransformRoot)
 {
   gfxContext *gfx = aContext->ThebesContext();
 
@@ -581,16 +585,39 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
     break;
   }
 
-  /* save/restore the state so we don't screw up the xform */
-  gfx->Save();
-
-  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING));
-
   if (renderMode != SVGAutoRenderState::NORMAL) {
     NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::CLIP ||
                       renderMode == SVGAutoRenderState::CLIP_MASK,
                       "Unknown render mode");
-    gfx->Restore();
+
+    // In the case that |renderMode == SVGAutoRenderState::CLIP| then we don't
+    // use the path we generate here until further up the call stack when
+    // nsSVGClipPathFrame::Clip calls gfxContext::Clip. That's a problem for
+    // Moz2D which emits paths in user space (unlike cairo which emits paths in
+    // device space). gfxContext has hacks to deal with code changing the
+    // transform then using the current path when it is backed by Moz2D, but
+    // Moz2D itself does not since that would fundamentally go against its API.
+    // Therefore we do not want to Save()/Restore() the gfxContext here in the
+    // SVGAutoRenderState::CLIP case since that would block us from killing off
+    // gfxContext and using Moz2D directly. Not bothering to Save()/Restore()
+    // is actually okay, since we know that doesn't matter in the
+    // SVGAutoRenderState::CLIP case (at least for the current implementation).
+    gfxContextMatrixAutoSaveRestore autoSaveRestore;
+    if (renderMode != SVGAutoRenderState::CLIP) {
+      autoSaveRestore.SetContext(gfx);
+    }
+
+    GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
+
+    // We used to call gfx->Restore() here, since for the
+    // SVGAutoRenderState::CLIP case it is important to leave the fill rule
+    // that we set below untouched so that the value is still set when return
+    // to gfxContext::Clip() further up the call stack. Since we no longer
+    // call gfx->Save() in the SVGAutoRenderState::CLIP case we don't need to
+    // worry that autoSaveRestore will delay the Restore() call for the
+    // CLIP_MASK case until we exit this function.
+
+    gfxContext::FillRule oldFillRull = gfx->CurrentFillRule();
 
     if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
       gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
@@ -600,28 +627,31 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
     if (renderMode == SVGAutoRenderState::CLIP_MASK) {
       gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
       gfx->Fill();
+      gfx->SetFillRule(oldFillRull); // restore, but only for CLIP_MASK
       gfx->NewPath();
     }
 
     return;
   }
 
-  gfxTextObjectPaint *objectPaint =
-    (gfxTextObjectPaint*)aContext->GetUserData(&gfxTextObjectPaint::sUserDataKey);
+  gfxContextAutoSaveRestore autoSaveRestore(gfx);
+
+  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
+
+  gfxTextContextPaint *contextPaint =
+    (gfxTextContextPaint*)aContext->GetUserData(&gfxTextContextPaint::sUserDataKey);
 
   if ((aRenderComponents & eRenderFill) &&
-      nsSVGUtils::SetupCairoFillPaint(this, gfx, objectPaint)) {
+      nsSVGUtils::SetupCairoFillPaint(this, gfx, contextPaint)) {
     gfx->Fill();
   }
 
   if ((aRenderComponents & eRenderStroke) &&
-       nsSVGUtils::SetupCairoStroke(this, gfx, objectPaint)) {
+       nsSVGUtils::SetupCairoStroke(this, gfx, contextPaint)) {
     gfx->Stroke();
   }
 
   gfx->NewPath();
-
-  gfx->Restore();
 }
 
 void
@@ -649,14 +679,14 @@ nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
 void
 nsSVGPathGeometryFrame::PaintMarkers(nsRenderingContext* aContext)
 {
-  gfxTextObjectPaint *objectPaint =
-    (gfxTextObjectPaint*)aContext->GetUserData(&gfxTextObjectPaint::sUserDataKey);
+  gfxTextContextPaint *contextPaint =
+    (gfxTextContextPaint*)aContext->GetUserData(&gfxTextContextPaint::sUserDataKey);
 
   if (static_cast<nsSVGPathGeometryElement*>(mContent)->IsMarkable()) {
     MarkerProperties properties = GetMarkerProperties(this);
 
     if (properties.MarkersExist()) {
-      float strokeWidth = nsSVGUtils::GetStrokeWidth(this, objectPaint);
+      float strokeWidth = nsSVGUtils::GetStrokeWidth(this, contextPaint);
 
       nsTArray<nsSVGMark> marks;
       static_cast<nsSVGPathGeometryElement*>

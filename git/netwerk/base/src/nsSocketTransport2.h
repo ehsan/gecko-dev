@@ -15,18 +15,19 @@
 #include "nsCOMPtr.h"
 
 #include "nsISocketTransport.h"
-#include "nsIInterfaceRequestor.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsIDNSListener.h"
-#include "nsIDNSRecord.h"
-#include "nsICancelable.h"
 #include "nsIClassInfo.h"
 #include "mozilla/net/DNS.h"
+#include "nsASocketHandler.h"
 
 #include "prerror.h"
 
 class nsSocketTransport;
+class nsICancelable;
+class nsIDNSRecord;
+class nsIInterfaceRequestor;
 
 nsresult
 ErrorAccordingToNSPR(PRErrorCode errorCode);
@@ -129,8 +130,13 @@ public:
     nsresult InitWithConnectedSocket(PRFileDesc *socketFD,
                                      const mozilla::net::NetAddr *addr);
 
+    // This method instructs the socket transport to open a socket
+    // connected to the given Unix domain address. We can only create
+    // unlayered, simple, stream sockets.
+    nsresult InitWithFilename(const char *filename);
+
     // nsASocketHandler methods:
-    void OnSocketReady(PRFileDesc *, int16_t outFlags); 
+    void OnSocketReady(PRFileDesc *, int16_t outFlags);
     void OnSocketDetached(PRFileDesc *);
     void IsLocal(bool *aIsLocal);
 

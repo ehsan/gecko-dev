@@ -6,8 +6,6 @@
 
 MODULE = 'gl'
 
-# NOTE: Please keep gl_provider in sync with Makefile.in until all variables
-# are moved over.
 gl_provider = 'Null'
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
@@ -15,18 +13,12 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     gl_provider = 'CGL'
 elif CONFIG['MOZ_WIDGET_GTK']:
-    if CONFIG['fdef MOZ_PLATFORM_MAEMO']:
-        gl_provider = 'EGL'
-    else:
-        if CONFIG['MOZ_EGL_XRENDER_COMPOSITE']:
-            gl_provider = 'EGL'
-        else:
-            gl_provider = 'GLX'
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
-    if CONFIG['fdef MOZ_PLATFORM_MAEMO']:
+    if CONFIG['MOZ_EGL_XRENDER_COMPOSITE']:
         gl_provider = 'EGL'
     else:
         gl_provider = 'GLX'
+elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
+    gl_provider = 'GLX'
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     gl_provider = 'EGL'
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
@@ -37,6 +29,8 @@ if CONFIG['MOZ_GL_PROVIDER']:
 
 EXPORTS += [
     'ForceDiscreteGPUHelperCGL.h',
+    'GfxTexturesReporter.h',
+    'GLConsts.h',
     'GLContext.h',
     'GLContextProvider.h',
     'GLContextProviderImpl.h',
@@ -47,12 +41,15 @@ EXPORTS += [
     'GLLibraryLoader.h',
     'GLScreenBuffer.h',
     'GLTextureImage.h',
+    'GLTypes.h',
     'SharedSurface.h',
     'SharedSurfaceEGL.h',
     'SharedSurfaceGL.h',
     'SurfaceFactory.h',
     'SurfaceStream.h',
     'SurfaceTypes.h',
+    'TextureGarbageBin.h',
+    'VBOArena.h',
 ]
 
 if CONFIG['MOZ_X11']:
@@ -64,46 +61,42 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'SharedSurfaceANGLE.h',
         'WGLLibrary.h',
     ]
-    CPP_SOURCES += [
+    SOURCES += [
         'GLContextProviderEGL.cpp',
-        'GLLibraryEGL.cpp',
         'SharedSurfaceANGLE.cpp',
     ]
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
     EXPORTS += ['GLContextSkia.h']
-    CPP_SOURCES += [
+    SOURCES += [
         'GLContextSkia.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    CPP_SOURCES += ['SharedSurfaceGralloc.cpp']
+    SOURCES += ['SharedSurfaceGralloc.cpp']
     EXPORTS += ['SharedSurfaceGralloc.h']
 
 if gl_provider == 'CGL':
-    CMMSRCS += [
+    SOURCES += [
         "GLContextProvider%s.mm" % (gl_provider),
     ]
     EXPORTS += [
         'SharedSurfaceIO.h',
     ]
-    CPP_SOURCES += [
+    SOURCES += [
         'SharedSurfaceIO.cpp',
     ]
 else:
-    CPP_SOURCES += [
+    SOURCES += [
         'GLContextProvider%s.cpp' % gl_provider,
     ]
 
-if gl_provider == 'EGL':
-    CPP_SOURCES += [
-        'GLLibraryEGL.cpp',
-    ]
-
-CPP_SOURCES += [
+SOURCES += [
+    'GfxTexturesReporter.cpp',
     'GLContext.cpp',
-    'GLContextExtensionGroupQueries.cpp',
+    'GLContextFeatures.cpp',
     'GLContextTypes.cpp',
     'GLContextUtils.cpp',
+    'GLLibraryEGL.cpp',
     'GLLibraryLoader.cpp',
     'GLScreenBuffer.cpp',
     'GLTextureImage.cpp',
@@ -112,5 +105,20 @@ CPP_SOURCES += [
     'SharedSurfaceGL.cpp',
     'SurfaceFactory.cpp',
     'SurfaceStream.cpp',
+    'TextureGarbageBin.cpp',
+    'TextureImageEGL.cpp',
+    'VBOArena.cpp',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'gl'
+
+EXPORT_LIBRARY = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
 

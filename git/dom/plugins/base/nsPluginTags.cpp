@@ -17,12 +17,10 @@
 #include "nsICharsetConverterManager.h"
 #include "nsPluginLogging.h"
 #include "nsNPAPIPlugin.h"
-#include "mozilla/TimeStamp.h"
 #include "mozilla/Preferences.h"
 #include <cctype>
 
 using namespace mozilla;
-using mozilla::TimeStamp;
 
 // These legacy flags are used in the plugin registry. The states are now
 // stored in prefs, but we still need to be able to import them.
@@ -83,6 +81,7 @@ nsPluginTag::nsPluginTag(nsPluginInfo* aPluginInfo)
            aPluginInfo->fExtensionArray,
            aPluginInfo->fVariantCount);
   EnsureMembersAreUTF8();
+  FixupVersion();
 }
 
 nsPluginTag::nsPluginTag(const char* aName,
@@ -113,6 +112,7 @@ nsPluginTag::nsPluginTag(const char* aName,
            static_cast<uint32_t>(aVariants));
   if (!aArgsAreUTF8)
     EnsureMembersAreUTF8();
+  FixupVersion();
 }
 
 nsPluginTag::~nsPluginTag()
@@ -249,6 +249,15 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
     }
   }
   return NS_OK;
+#endif
+}
+
+void nsPluginTag::FixupVersion()
+{
+#if defined(XP_LINUX)
+  if (mIsFlashPlugin) {
+    mVersion.ReplaceChar(',', '.');
+  }
 #endif
 }
 

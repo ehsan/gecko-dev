@@ -5,7 +5,7 @@
 MOZ_APP_BASENAME=Fennec
 MOZ_APP_VENDOR=Mozilla
 
-MOZ_APP_VERSION=25.0
+MOZ_APP_VERSION=27.0
 MOZ_APP_UA_NAME=Firefox
 
 MOZ_BRANDING_DIRECTORY=mobile/android/branding/unofficial
@@ -33,6 +33,7 @@ MOZ_RAW=1
 MOZ_PLACES=
 MOZ_SOCIAL=
 MOZ_ANDROID_HISTORY=1
+MOZ_DISABLE_EXPORT_JS=1
 
 # Needed for building our components as part of libxul
 MOZ_APP_COMPONENT_LIBS="browsercomps"
@@ -41,16 +42,11 @@ MOZ_APP_COMPONENT_INCLUDE=nsBrowserComponents.h
 # use custom widget for html:select
 MOZ_USE_NATIVE_POPUP_WINDOWS=1
 
-# dispatch only touch events (no mouse events)
-MOZ_ONLY_TOUCH_EVENTS=1
-
 MOZ_APP_ID={aa3c5121-dab2-40e2-81ca-7ea25febc110}
 
 MOZ_ANDROID_OMTC=1
 MOZ_EXTENSION_MANAGER=1
 MOZ_APP_STATIC_INI=1
-
-MOZ_FENNEC=1
 
 # Enable on-demand decompression
 MOZ_ENABLE_SZIP=1

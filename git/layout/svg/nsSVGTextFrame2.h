@@ -7,18 +7,19 @@
 #define NS_SVGTEXTFRAME2_H
 
 #include "mozilla/Attributes.h"
-#include "gfxFont.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "gfxSVGGlyphs.h"
+#include "nsIContent.h"
 #include "nsStubMutationObserver.h"
-#include "nsSVGGlyphFrame.h" // for SVGTextObjectPaint
+#include "nsSVGPaintServerFrame.h"
 #include "nsSVGTextContainerFrame.h"
 
 class nsDisplaySVGText;
 class nsRenderingContext;
 class nsSVGTextFrame2;
 class nsTextFrame;
+class gfxPath;
 
 typedef nsSVGDisplayContainerFrame nsSVGTextFrame2Base;
 
@@ -135,7 +136,72 @@ private:
   nsSVGTextFrame2* mFrame;
 };
 
-}
+// Slightly horrible callback for deferring application of opacity
+struct SVGTextContextPaint : public gfxTextContextPaint {
+  already_AddRefed<gfxPattern> GetFillPattern(float aOpacity,
+                                              const gfxMatrix& aCTM) MOZ_OVERRIDE;
+  already_AddRefed<gfxPattern> GetStrokePattern(float aOpacity,
+                                                const gfxMatrix& aCTM) MOZ_OVERRIDE;
+
+  void SetFillOpacity(float aOpacity) { mFillOpacity = aOpacity; }
+  float GetFillOpacity() MOZ_OVERRIDE { return mFillOpacity; }
+
+  void SetStrokeOpacity(float aOpacity) { mStrokeOpacity = aOpacity; }
+  float GetStrokeOpacity() MOZ_OVERRIDE { return mStrokeOpacity; }
+
+  struct Paint {
+    Paint() : mPaintType(eStyleSVGPaintType_None) {}
+
+    void SetPaintServer(nsIFrame *aFrame, const gfxMatrix& aContextMatrix,
+                        nsSVGPaintServerFrame *aPaintServerFrame) {
+      mPaintType = eStyleSVGPaintType_Server;
+      mPaintDefinition.mPaintServerFrame = aPaintServerFrame;
+      mFrame = aFrame;
+      mContextMatrix = aContextMatrix;
+    }
+
+    void SetColor(const nscolor &aColor) {
+      mPaintType = eStyleSVGPaintType_Color;
+      mPaintDefinition.mColor = aColor;
+    }
+
+    void SetContextPaint(gfxTextContextPaint *aContextPaint,
+                         nsStyleSVGPaintType aPaintType) {
+      NS_ASSERTION(aPaintType == eStyleSVGPaintType_ContextFill ||
+                   aPaintType == eStyleSVGPaintType_ContextStroke,
+                   "Invalid context paint type");
+      mPaintType = aPaintType;
+      mPaintDefinition.mContextPaint = aContextPaint;
+    }
+
+    union {
+      nsSVGPaintServerFrame *mPaintServerFrame;
+      gfxTextContextPaint *mContextPaint;
+      nscolor mColor;
+    } mPaintDefinition;
+
+    nsIFrame *mFrame;
+    // CTM defining the user space for the pattern we will use.
+    gfxMatrix mContextMatrix;
+    nsStyleSVGPaintType mPaintType;
+
+    // Device-space-to-pattern-space
+    gfxMatrix mPatternMatrix;
+    nsRefPtrHashtable<nsFloatHashKey, gfxPattern> mPatternCache;
+
+    already_AddRefed<gfxPattern> GetPattern(float aOpacity,
+                                            nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
+                                            const gfxMatrix& aCTM);
+  };
+
+  Paint mFillPaint;
+  Paint mStrokePaint;
+
+  float mFillOpacity;
+  float mStrokeOpacity;
+};
+
+} // namespace mozilla
 
 /**
  * Frame class for SVG <text> elements, used when the
@@ -184,6 +250,8 @@ class nsSVGTextFrame2 : public nsSVGTextFrame2Base
   friend class mozilla::TextRenderedRunIterator;
   friend class MutationObserver;
   friend class nsDisplaySVGText;
+
+  typedef mozilla::SVGTextContextPaint SVGTextContextPaint;
 
 protected:
   nsSVGTextFrame2(nsStyleContext* aContext)
@@ -245,7 +313,8 @@ public:
   // nsISVGChildFrame interface:
   virtual void NotifySVGChanged(uint32_t aFlags) MOZ_OVERRIDE;
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect* aDirtyRect) MOZ_OVERRIDE;
+                      const nsIntRect* aDirtyRect,
+                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint) MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;
   NS_IMETHOD_(nsRect) GetCoveredRegion() MOZ_OVERRIDE;
@@ -253,7 +322,8 @@ public:
                                       uint32_t aFlags) MOZ_OVERRIDE;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
+                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
   
   // SVG DOM text methods:
   uint32_t GetNumberOfChars(nsIContent* aContent);
@@ -515,49 +585,49 @@ private:
 
   // Methods to get information for a <textPath> frame.
   nsIFrame* GetTextPathPathFrame(nsIFrame* aTextPathFrame);
-  already_AddRefed<gfxFlattenedPath> GetFlattenedTextPath(nsIFrame* aTextPathFrame);
+  already_AddRefed<gfxPath> GetTextPath(nsIFrame* aTextPathFrame);
   gfxFloat GetOffsetScale(nsIFrame* aTextPathFrame);
   gfxFloat GetStartOffset(nsIFrame* aTextPathFrame);
 
-  gfxFont::DrawMode SetupCairoState(gfxContext* aContext,
-                                    nsIFrame* aFrame,
-                                    gfxTextObjectPaint* aOuterObjectPaint,
-                                    gfxTextObjectPaint** aThisObjectPaint);
+  DrawMode SetupCairoState(gfxContext* aContext,
+                           nsIFrame* aFrame,
+                           gfxTextContextPaint* aOuterContextPaint,
+                           gfxTextContextPaint** aThisContextPaint);
 
   /**
    * Sets up the stroke style for |aFrame| in |aContext| and stores stroke
-   * pattern information in |aThisObjectPaint|.
+   * pattern information in |aThisContextPaint|.
    */
   bool SetupCairoStroke(gfxContext* aContext,
                         nsIFrame* aFrame,
-                        gfxTextObjectPaint* aOuterObjectPaint,
-                        SVGTextObjectPaint* aThisObjectPaint);
+                        gfxTextContextPaint* aOuterContextPaint,
+                        SVGTextContextPaint* aThisContextPaint);
 
   /**
    * Sets up the fill style for |aFrame| in |aContext| and stores fill pattern
-   * information in |aThisObjectPaint|.
+   * information in |aThisContextPaint|.
    */
   bool SetupCairoFill(gfxContext* aContext,
                       nsIFrame* aFrame,
-                      gfxTextObjectPaint* aOuterObjectPaint,
-                      SVGTextObjectPaint* aThisObjectPaint);
+                      gfxTextContextPaint* aOuterContextPaint,
+                      SVGTextContextPaint* aThisContextPaint);
 
   /**
    * Sets the current pattern for |aFrame| to the fill or stroke style of the
-   * outer text object. Will also set the paint opacity to transparent if the
+   * outer text context. Will also set the paint opacity to transparent if the
    * paint is set to "none".
    */
-  bool SetupObjectPaint(gfxContext* aContext,
+  bool SetupContextPaint(gfxContext* aContext,
                         nsIFrame* aFrame,
                         nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                         float& aOpacity,
-                        gfxTextObjectPaint* aObjectPaint);
+                        gfxTextContextPaint* aContextPaint);
 
   /**
    * Stores in |aTargetPaint| information on how to reconstruct the current
    * fill or stroke pattern. Will also set the paint opacity to transparent if
    * the paint is set to "none".
-   * @param aOuterObjectPaint pattern information from the outer text object
+   * @param aOuterContextPaint pattern information from the outer text context
    * @param aTargetPaint where to store the current pattern information
    * @param aFillOrStroke member pointer to the paint we are setting up
    * @param aProperty the frame property descriptor of the fill or stroke paint
@@ -566,8 +636,8 @@ private:
   void SetupInheritablePaint(gfxContext* aContext,
                              nsIFrame* aFrame,
                              float& aOpacity,
-                             gfxTextObjectPaint* aOuterObjectPaint,
-                             SVGTextObjectPaint::Paint& aTargetPaint,
+                             gfxTextContextPaint* aOuterContextPaint,
+                             SVGTextContextPaint::Paint& aTargetPaint,
                              nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                              const FramePropertyDescriptor* aProperty);
 

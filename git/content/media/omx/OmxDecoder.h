@@ -5,10 +5,12 @@
 #include <stagefright/DataSource.h>
 #include <stagefright/MediaSource.h>
 #include <utils/RefBase.h>
+#include <stagefright/MediaExtractor.h>
 
 #include "GonkNativeWindow.h"
 #include "GonkNativeWindowClient.h"
 #include "GrallocImages.h"
+#include "MP3FrameParser.h"
 #include "MPAPI.h"
 #include "MediaResource.h"
 #include "AbstractMediaDecoder.h"
@@ -76,6 +78,7 @@ private:
 class OmxDecoder : public OMXCodecProxy::EventListener {
   typedef MPAPI::AudioFrame AudioFrame;
   typedef MPAPI::VideoFrame VideoFrame;
+  typedef mozilla::MP3FrameParser MP3FrameParser;
   typedef mozilla::MediaResource MediaResource;
   typedef mozilla::AbstractMediaDecoder AbstractMediaDecoder;
 
@@ -109,6 +112,8 @@ class OmxDecoder : public OMXCodecProxy::EventListener {
   int64_t mDurationUs;
   VideoFrame mVideoFrame;
   AudioFrame mAudioFrame;
+  MP3FrameParser mMP3FrameParser;
+  bool mIsMp3;
 
   // Lifetime of these should be handled by OMXCodec, as long as we release
   //   them after use: see ReleaseVideoBuffer(), ReleaseAudioBuffer()
@@ -168,7 +173,16 @@ public:
   // MediaResourceManagerClient::EventListener
   virtual void statusChanged();
 
-  bool Init();
+  // The MediaExtractor provides essential information for creating OMXCodec
+  // instance. Such as video/audio codec, we can retrieve them through the
+  // MediaExtractor::getTrackMetaData().
+  // In general cases, the extractor is created by a sp<DataSource> which
+  // connect to a MediaResource like ChannelMediaResource.
+  // Data is read from the MediaResource to create a suitable extractor which
+  // extracts data from a container.
+  // Note: RTSP requires a custom extractor because it doesn't have a container.
+  bool Init(sp<MediaExtractor>& extractor);
+
   bool TryLoad();
   bool IsDormantNeeded();
   bool IsWaitingMediaResources();
@@ -176,6 +190,10 @@ public:
   void ReleaseMediaResources();
   bool SetVideoFormat();
   bool SetAudioFormat();
+
+  void ReleaseDecoder();
+
+  bool NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
 
   void GetDuration(int64_t *durationUs) {
     *durationUs = mDurationUs;
@@ -199,7 +217,7 @@ public:
     return mAudioSource != nullptr;
   }
 
-  bool ReadVideo(VideoFrame *aFrame, int64_t aSeekTimeUs, 
+  bool ReadVideo(VideoFrame *aFrame, int64_t aSeekTimeUs,
                  bool aKeyframeSkip = false,
                  bool aDoSeek = false);
   bool ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs);
@@ -220,6 +238,7 @@ public:
   // Called on ALooper thread.
   void onMessageReceived(const sp<AMessage> &msg);
 
+  bool ProcessCachedData(int64_t aOffset, bool aWaitForCompletion);
 };
 
 }

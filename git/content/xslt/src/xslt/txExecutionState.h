@@ -56,8 +56,13 @@ public:
 class txLoadedDocumentsHash : public nsTHashtable<txLoadedDocumentEntry>
 {
 public:
+    txLoadedDocumentsHash()
+        : nsTHashtable<txLoadedDocumentEntry>(8),
+          mSourceDocument(nullptr)
+    {
+    }
     ~txLoadedDocumentsHash();
-    nsresult init(txXPathNode* aSourceDocument);
+    void init(txXPathNode* aSourceDocument);
 
 private:
     friend class txExecutionState;

@@ -8,28 +8,45 @@
 
 #include "nsIConsoleService.h"
 #include "nsIDiskSpaceWatcher.h"
-#include "nsIDOMScriptObjectFactory.h"
 #include "nsIFile.h"
 #include "nsIFileStorage.h"
 #include "nsIObserverService.h"
 #include "nsIScriptError.h"
 
+#include "jsapi.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/CondVar.h"
+#include "mozilla/ContentEvents.h"
+#include "mozilla/dom/quota/OriginOrPatternString.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/quota/Utilities.h"
 #include "mozilla/dom/TabContext.h"
 #include "mozilla/Services.h"
 #include "mozilla/storage.h"
+#include "mozilla/Util.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
-#include "pratom.h"
 
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IDBKeyRange.h"
 #include "IDBRequest.h"
+
+// Bindings for ResolveConstructors
+#include "mozilla/dom/IDBCursorBinding.h"
+#include "mozilla/dom/IDBDatabaseBinding.h"
+#include "mozilla/dom/IDBFactoryBinding.h"
+#include "mozilla/dom/IDBFileHandleBinding.h"
+#include "mozilla/dom/IDBKeyRangeBinding.h"
+#include "mozilla/dom/IDBIndexBinding.h"
+#include "mozilla/dom/IDBObjectStoreBinding.h"
+#include "mozilla/dom/IDBOpenDBRequestBinding.h"
+#include "mozilla/dom/IDBRequestBinding.h"
+#include "mozilla/dom/IDBTransactionBinding.h"
+#include "mozilla/dom/IDBVersionChangeEventBinding.h"
+
+#define IDB_STR "indexedDB"
 
 // The two possible values for the data argument when receiving the disk space
 // observer notification.
@@ -40,14 +57,88 @@ USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::dom;
 USING_QUOTA_NAMESPACE
 
-static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
+BEGIN_INDEXEDDB_NAMESPACE
+
+class FileManagerInfo
+{
+public:
+  already_AddRefed<FileManager>
+  GetFileManager(PersistenceType aPersistenceType,
+                 const nsAString& aName) const;
+
+  void
+  AddFileManager(FileManager* aFileManager);
+
+  bool
+  HasFileManagers() const
+  {
+    AssertIsOnIOThread();
+
+    return !mPersistentStorageFileManagers.IsEmpty() ||
+           !mTemporaryStorageFileManagers.IsEmpty();
+  }
+
+  void
+  InvalidateAllFileManagers() const;
+
+  void
+  InvalidateAndRemoveFileManagers(PersistenceType aPersistenceType);
+
+  void
+  InvalidateAndRemoveFileManager(PersistenceType aPersistenceType,
+                                 const nsAString& aName);
+
+private:
+  nsTArray<nsRefPtr<FileManager> >&
+  GetArray(PersistenceType aPersistenceType);
+
+  const nsTArray<nsRefPtr<FileManager> >&
+  GetImmutableArray(PersistenceType aPersistenceType) const
+  {
+    return const_cast<FileManagerInfo*>(this)->GetArray(aPersistenceType);
+  }
+
+  nsTArray<nsRefPtr<FileManager> > mPersistentStorageFileManagers;
+  nsTArray<nsRefPtr<FileManager> > mTemporaryStorageFileManagers;
+};
+
+END_INDEXEDDB_NAMESPACE
 
 namespace {
 
 mozilla::StaticRefPtr<IndexedDatabaseManager> gInstance;
 
-int32_t gInitialized = 0;
-int32_t gClosed = 0;
+mozilla::Atomic<int32_t> gInitialized(0);
+mozilla::Atomic<int32_t> gClosed(0);
+
+// See ResolveConstructors below.
+struct ConstructorInfo {
+  const char* const name;
+  JS::Handle<JSObject*> (* const resolve)(JSContext*, JS::Handle<JSObject*>,
+                                          bool);
+  jsid id;
+};
+
+ConstructorInfo gConstructorInfo[] = {
+
+#define BINDING_ENTRY(_name) \
+  { #_name, _name##Binding::GetConstructorObject, JSID_VOID },
+
+  BINDING_ENTRY(IDBCursor)
+  BINDING_ENTRY(IDBCursorWithValue)
+  BINDING_ENTRY(IDBDatabase)
+  BINDING_ENTRY(IDBFactory)
+  BINDING_ENTRY(IDBFileHandle)
+  BINDING_ENTRY(IDBIndex)
+  BINDING_ENTRY(IDBKeyRange)
+  BINDING_ENTRY(IDBObjectStore)
+  BINDING_ENTRY(IDBOpenDBRequest)
+  BINDING_ENTRY(IDBRequest)
+  BINDING_ENTRY(IDBTransaction)
+  BINDING_ENTRY(IDBVersionChangeEvent)
+
+#undef BINDING_ENTRY
+};
 
 class AsyncDeleteFileRunnable MOZ_FINAL : public nsIRunnable
 {
@@ -68,10 +159,14 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  GetFileReferencesHelper(const nsACString& aOrigin,
+  GetFileReferencesHelper(PersistenceType aPersistenceType,
+                          const nsACString& aOrigin,
                           const nsAString& aDatabaseName,
                           int64_t aFileId)
-  : mOrigin(aOrigin), mDatabaseName(aDatabaseName), mFileId(aFileId),
+  : mPersistenceType(aPersistenceType),
+    mOrigin(aOrigin),
+    mDatabaseName(aDatabaseName),
+    mFileId(aFileId),
     mMutex(IndexedDatabaseManager::FileMutex()),
     mCondVar(mMutex, "GetFileReferencesHelper::mCondVar"),
     mMemRefCnt(-1),
@@ -88,6 +183,7 @@ public:
                                   bool* aResult);
 
 private:
+  PersistenceType mPersistenceType;
   nsCString mOrigin;
   nsString mDatabaseName;
   int64_t mFileId;
@@ -101,28 +197,61 @@ private:
   bool mWaiting;
 };
 
-PLDHashOperator
-InvalidateAndRemoveFileManagers(
-                           const nsACString& aKey,
-                           nsAutoPtr<nsTArray<nsRefPtr<FileManager> > >& aValue,
-                           void* aUserArg)
+struct MOZ_STACK_CLASS InvalidateInfo
 {
-  AssertIsOnIOThread();
-  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
-  NS_ASSERTION(aValue, "Null pointer!");
+  InvalidateInfo(PersistenceType aPersistenceType, const nsACString& aPattern)
+  : persistenceType(aPersistenceType), pattern(aPattern)
+  { }
 
-  const nsACString* pattern =
-    static_cast<const nsACString*>(aUserArg);
+  PersistenceType persistenceType;
+  const nsACString& pattern;
+};
 
-  if (!pattern || PatternMatchesOrigin(*pattern, aKey)) {
-    for (uint32_t i = 0; i < aValue->Length(); i++) {
-      nsRefPtr<FileManager>& fileManager = aValue->ElementAt(i);
-      fileManager->Invalidate();
-    }
-    return PL_DHASH_REMOVE;
+bool
+GetIndexedDB(JSContext* aCx, JS::HandleObject aGlobal,
+             JS::MutableHandleValue aResult)
+{
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome(), "Only for chrome!");
+  MOZ_ASSERT(js::GetObjectClass(aGlobal)->flags & JSCLASS_DOM_GLOBAL,
+             "Not a global object!");
+
+  nsRefPtr<IDBFactory> factory;
+  if (NS_FAILED(IDBFactory::Create(aCx, aGlobal, nullptr,
+                                   getter_AddRefs(factory)))) {
+    return false;
   }
 
-  return PL_DHASH_NEXT;
+  MOZ_ASSERT(factory, "This should never fail for chrome!");
+
+  return !!WrapNewBindingObject(aCx, aGlobal, factory, aResult);
+}
+
+bool
+IndexedDBLazyGetter(JSContext* aCx, JS::HandleObject aGlobal,
+                    JS::HandleId aId, JS::MutableHandleValue aVp)
+{
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome(), "Only for chrome!");
+  MOZ_ASSERT(JSID_IS_STRING(aId), "Bad id!");
+  MOZ_ASSERT(JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(aId), IDB_STR),
+             "Bad id!");
+
+  JS::RootedObject global(aCx, CheckedUnwrap(aGlobal,
+                                             /* stopAtOuter = */ false));
+  NS_ENSURE_TRUE(global, false);
+  NS_ENSURE_TRUE(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL, false);
+
+  JS::RootedValue indexedDB(aCx);
+  if (!GetIndexedDB(aCx, global, &indexedDB)) {
+    return false;
+  }
+
+  if (!JS_DefinePropertyById(aCx, global, aId, indexedDB, nullptr, nullptr,
+                             JSPROP_ENUMERATE)) {
+    return false;
+  }
+
+  aVp.set(indexedDB);
+  return true;
 }
 
 } // anonymous namespace
@@ -131,8 +260,6 @@ IndexedDatabaseManager::IndexedDatabaseManager()
 : mFileMutex("IndexedDatabaseManager.mFileMutex")
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  mFileManagers.Init();
 }
 
 IndexedDatabaseManager::~IndexedDatabaseManager()
@@ -141,7 +268,7 @@ IndexedDatabaseManager::~IndexedDatabaseManager()
 }
 
 bool IndexedDatabaseManager::sIsMainProcess = false;
-int32_t IndexedDatabaseManager::sLowDiskSpaceMode = 0;
+mozilla::Atomic<int32_t> IndexedDatabaseManager::sLowDiskSpaceMode(0);
 
 // static
 IndexedDatabaseManager*
@@ -180,7 +307,7 @@ IndexedDatabaseManager::GetOrCreate()
     nsresult rv = instance->Init();
     NS_ENSURE_SUCCESS(rv, nullptr);
 
-    if (PR_ATOMIC_SET(&gInitialized, 1)) {
+    if (gInitialized.exchange(1)) {
       NS_ERROR("Initialized more than once?!");
     }
 
@@ -244,7 +371,7 @@ IndexedDatabaseManager::Destroy()
 {
   // Setting the closed flag prevents the service from being recreated.
   // Don't set it though if there's no real instance created.
-  if (!!gInitialized && PR_ATOMIC_SET(&gClosed, 1)) {
+  if (!!gInitialized && gClosed.exchange(1)) {
     NS_ERROR("Shutdown more than once?!");
   }
 
@@ -290,7 +417,7 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
     error->GetName(errorName);
   }
 
-  nsScriptErrorEvent event(true, NS_LOAD_ERROR);
+  mozilla::InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
   request->FillScriptErrorEvent(&event);
   NS_ABORT_IF_FALSE(event.fileName,
                     "FillScriptErrorEvent should give us a non-null string "
@@ -355,6 +482,55 @@ IndexedDatabaseManager::TabContextMayAccessOrigin(const TabContext& aContext,
 
 // static
 bool
+IndexedDatabaseManager::DefineConstructors(JSContext* aCx,
+                                           JS::HandleObject aGlobal)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  for (uint32_t i = 0; i < mozilla::ArrayLength(gConstructorInfo); i++) {
+    if (!gConstructorInfo[i].resolve(aCx, aGlobal, true)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// static
+bool
+IndexedDatabaseManager::DefineIndexedDBGetter(JSContext* aCx,
+                                              JS::HandleObject aGlobal)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome(), "Only for chrome!");
+  MOZ_ASSERT(js::GetObjectClass(aGlobal)->flags & JSCLASS_DOM_GLOBAL,
+             "Passed object is not a global object!");
+
+  JS::RootedValue indexedDB(aCx);
+  if (!GetIndexedDB(aCx, aGlobal, &indexedDB)) {
+    return false;
+  }
+
+  return JS_DefineProperty(aCx, aGlobal, IDB_STR, indexedDB, nullptr, nullptr,
+                           JSPROP_ENUMERATE);
+}
+
+// static
+bool
+IndexedDatabaseManager::DefineIndexedDBLazyGetter(JSContext* aCx,
+                                                  JS::HandleObject aGlobal)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome(), "Only for chrome!");
+  MOZ_ASSERT(js::GetObjectClass(aGlobal)->flags & JSCLASS_DOM_GLOBAL,
+             "Passed object is not a global object!");
+
+  return JS_DefineProperty(aCx, aGlobal, IDB_STR, JSVAL_VOID,
+                           IndexedDBLazyGetter, nullptr, 0);
+}
+
+// static
+bool
 IndexedDatabaseManager::IsClosed()
 {
   return !!gClosed;
@@ -384,26 +560,21 @@ IndexedDatabaseManager::InLowDiskSpaceMode()
 #endif
 
 already_AddRefed<FileManager>
-IndexedDatabaseManager::GetFileManager(const nsACString& aOrigin,
+IndexedDatabaseManager::GetFileManager(PersistenceType aPersistenceType,
+                                       const nsACString& aOrigin,
                                        const nsAString& aDatabaseName)
 {
   AssertIsOnIOThread();
 
-  nsTArray<nsRefPtr<FileManager> >* array;
-  if (!mFileManagers.Get(aOrigin, &array)) {
+  FileManagerInfo* info;
+  if (!mFileManagerInfos.Get(aOrigin, &info)) {
     return nullptr;
   }
 
-  for (uint32_t i = 0; i < array->Length(); i++) {
-    nsRefPtr<FileManager>& fileManager = array->ElementAt(i);
+  nsRefPtr<FileManager> fileManager =
+    info->GetFileManager(aPersistenceType, aDatabaseName);
 
-    if (fileManager->DatabaseName().Equals(aDatabaseName)) {
-      nsRefPtr<FileManager> result = fileManager;
-      return result.forget();
-    }
-  }
-
-  return nullptr;
+  return fileManager.forget();
 }
 
 void
@@ -412,13 +583,42 @@ IndexedDatabaseManager::AddFileManager(FileManager* aFileManager)
   AssertIsOnIOThread();
   NS_ASSERTION(aFileManager, "Null file manager!");
 
-  nsTArray<nsRefPtr<FileManager> >* array;
-  if (!mFileManagers.Get(aFileManager->Origin(), &array)) {
-    array = new nsTArray<nsRefPtr<FileManager> >();
-    mFileManagers.Put(aFileManager->Origin(), array);
+  FileManagerInfo* info;
+  if (!mFileManagerInfos.Get(aFileManager->Origin(), &info)) {
+    info = new FileManagerInfo();
+    mFileManagerInfos.Put(aFileManager->Origin(), info);
   }
 
-  array->AppendElement(aFileManager);
+  info->AddFileManager(aFileManager);
+}
+
+// static
+PLDHashOperator
+IndexedDatabaseManager::InvalidateAndRemoveFileManagers(
+                                             const nsACString& aKey,
+                                             nsAutoPtr<FileManagerInfo>& aValue,
+                                             void* aUserArg)
+{
+  AssertIsOnIOThread();
+  NS_ASSERTION(!aKey.IsEmpty(), "Empty key!");
+  NS_ASSERTION(aValue, "Null pointer!");
+
+  if (!aUserArg) {
+    aValue->InvalidateAllFileManagers();
+    return PL_DHASH_REMOVE;
+  }
+
+  InvalidateInfo* info = static_cast<InvalidateInfo*>(aUserArg);
+
+  if (PatternMatchesOrigin(info->pattern, aKey)) {
+    aValue->InvalidateAndRemoveFileManagers(info->persistenceType);
+
+    if (!aValue->HasFileManagers()) {
+      return PL_DHASH_REMOVE;
+    }
+  }
+
+  return PL_DHASH_NEXT;
 }
 
 void
@@ -426,43 +626,51 @@ IndexedDatabaseManager::InvalidateAllFileManagers()
 {
   AssertIsOnIOThread();
 
-  mFileManagers.Enumerate(InvalidateAndRemoveFileManagers, nullptr);
+  mFileManagerInfos.Enumerate(InvalidateAndRemoveFileManagers, nullptr);
 }
 
 void
-IndexedDatabaseManager::InvalidateFileManagersForPattern(
-                                                     const nsACString& aPattern)
+IndexedDatabaseManager::InvalidateFileManagers(
+                                  PersistenceType aPersistenceType,
+                                  const OriginOrPatternString& aOriginOrPattern)
 {
   AssertIsOnIOThread();
-  NS_ASSERTION(!aPattern.IsEmpty(), "Empty pattern!");
+  NS_ASSERTION(!aOriginOrPattern.IsEmpty(), "Empty pattern!");
 
-  mFileManagers.Enumerate(InvalidateAndRemoveFileManagers,
-                          const_cast<nsACString*>(&aPattern));
+  if (aOriginOrPattern.IsOrigin()) {
+    FileManagerInfo* info;
+    if (!mFileManagerInfos.Get(aOriginOrPattern, &info)) {
+      return;
+    }
+
+    info->InvalidateAndRemoveFileManagers(aPersistenceType);
+
+    if (!info->HasFileManagers()) {
+      mFileManagerInfos.Remove(aOriginOrPattern);
+    }
+  }
+  else {
+    InvalidateInfo info(aPersistenceType, aOriginOrPattern);
+    mFileManagerInfos.Enumerate(InvalidateAndRemoveFileManagers, &info);
+  }
 }
 
 void
-IndexedDatabaseManager::InvalidateFileManager(const nsACString& aOrigin,
+IndexedDatabaseManager::InvalidateFileManager(PersistenceType aPersistenceType,
+                                              const nsACString& aOrigin,
                                               const nsAString& aDatabaseName)
 {
   AssertIsOnIOThread();
 
-  nsTArray<nsRefPtr<FileManager> >* array;
-  if (!mFileManagers.Get(aOrigin, &array)) {
+  FileManagerInfo* info;
+  if (!mFileManagerInfos.Get(aOrigin, &info)) {
     return;
   }
 
-  for (uint32_t i = 0; i < array->Length(); i++) {
-    nsRefPtr<FileManager> fileManager = array->ElementAt(i);
-    if (fileManager->DatabaseName().Equals(aDatabaseName)) {
-      fileManager->Invalidate();
-      array->RemoveElementAt(i);
+  info->InvalidateAndRemoveFileManager(aPersistenceType, aDatabaseName);
 
-      if (array->IsEmpty()) {
-        mFileManagers.Remove(aOrigin);
-      }
-
-      break;
-    }
+  if (!info->HasFileManagers()) {
+    mFileManagerInfos.Remove(aOrigin);
   }
 }
 
@@ -495,16 +703,18 @@ IndexedDatabaseManager::AsyncDeleteFile(FileManager* aFileManager,
 
 nsresult
 IndexedDatabaseManager::BlockAndGetFileReferences(
-                                                 const nsACString& aOrigin,
-                                                 const nsAString& aDatabaseName,
-                                                 int64_t aFileId,
-                                                 int32_t* aRefCnt,
-                                                 int32_t* aDBRefCnt,
-                                                 int32_t* aSliceRefCnt,
-                                                 bool* aResult)
+                                               PersistenceType aPersistenceType,
+                                               const nsACString& aOrigin,
+                                               const nsAString& aDatabaseName,
+                                               int64_t aFileId,
+                                               int32_t* aRefCnt,
+                                               int32_t* aDBRefCnt,
+                                               int32_t* aSliceRefCnt,
+                                               bool* aResult)
 {
   nsRefPtr<GetFileReferencesHelper> helper =
-    new GetFileReferencesHelper(aOrigin, aDatabaseName, aFileId);
+    new GetFileReferencesHelper(aPersistenceType, aOrigin, aDatabaseName,
+                                aFileId);
 
   nsresult rv = helper->DispatchAndReturnFileReferences(aRefCnt, aDBRefCnt,
                                                         aSliceRefCnt, aResult);
@@ -519,15 +729,18 @@ NS_IMPL_QUERY_INTERFACE2(IndexedDatabaseManager, nsIIndexedDatabaseManager,
                                                  nsIObserver)
 
 NS_IMETHODIMP
-IndexedDatabaseManager::InitWindowless(const jsval& aObj, JSContext* aCx)
+IndexedDatabaseManager::InitWindowless(const jsval& aGlobal, JSContext* aCx)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_ARG(!JSVAL_IS_PRIMITIVE(aObj));
 
-  JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(aObj));
+  JS::RootedObject global(aCx, JSVAL_TO_OBJECT(aGlobal));
+  if (!(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL)) {
+    NS_WARNING("Passed object is not a global object!");
+    return NS_ERROR_FAILURE;
+  }
 
-  JSBool hasIndexedDB;
-  if (!JS_HasProperty(aCx, obj, "indexedDB", &hasIndexedDB)) {
+  bool hasIndexedDB;
+  if (!JS_HasProperty(aCx, global, IDB_STR, &hasIndexedDB)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -536,40 +749,7 @@ IndexedDatabaseManager::InitWindowless(const jsval& aObj, JSContext* aCx)
     return NS_ERROR_FAILURE;
   }
 
-  // Instantiating this class will register exception providers so even 
-  // in xpcshell we will get typed (dom) exceptions, instead of general
-  // exceptions.
-  nsCOMPtr<nsIDOMScriptObjectFactory> sof(do_GetService(kDOMSOF_CID));
-
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, obj));
-  NS_ASSERTION(global, "What?! No global!");
-
-  nsRefPtr<IDBFactory> factory;
-  nsresult rv =
-    IDBFactory::Create(aCx, global, nullptr, getter_AddRefs(factory));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  NS_ASSERTION(factory, "This should never fail for chrome!");
-
-  JS::Rooted<JS::Value> indexedDBVal(aCx);
-  rv = nsContentUtils::WrapNative(aCx, obj, factory, indexedDBVal.address());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!JS_DefineProperty(aCx, obj, "indexedDB", indexedDBVal, nullptr,
-                         nullptr, JSPROP_ENUMERATE)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  JS::Rooted<JSObject*> keyrangeObj(aCx,
-    JS_NewObject(aCx, nullptr, nullptr, nullptr));
-  NS_ENSURE_TRUE(keyrangeObj, NS_ERROR_OUT_OF_MEMORY);
-
-  if (!IDBKeyRange::DefineConstructors(aCx, keyrangeObj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!JS_DefineProperty(aCx, obj, "IDBKeyRange", OBJECT_TO_JSVAL(keyrangeObj),
-                         nullptr, nullptr, JSPROP_ENUMERATE)) {
+  if (!DefineConstructors(aCx, global) || !DefineIndexedDBGetter(aCx, global)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -589,10 +769,10 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject, const char* aTopic,
     const nsDependentString data(aData);
 
     if (data.EqualsLiteral(LOW_DISK_SPACE_DATA_FULL)) {
-      PR_ATOMIC_SET(&sLowDiskSpaceMode, 1);
+      sLowDiskSpaceMode = 1;
     }
     else if (data.EqualsLiteral(LOW_DISK_SPACE_DATA_FREE)) {
-      PR_ATOMIC_SET(&sLowDiskSpaceMode, 0);
+      sLowDiskSpaceMode = 0;
     }
     else {
       NS_NOTREACHED("Unknown data value!");
@@ -604,6 +784,105 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject, const char* aTopic,
    NS_NOTREACHED("Unknown topic!");
    return NS_ERROR_UNEXPECTED;
  }
+
+already_AddRefed<FileManager>
+FileManagerInfo::GetFileManager(PersistenceType aPersistenceType,
+                                const nsAString& aName) const
+{
+  AssertIsOnIOThread();
+
+  const nsTArray<nsRefPtr<FileManager> >& managers =
+    GetImmutableArray(aPersistenceType);
+
+  for (uint32_t i = 0; i < managers.Length(); i++) {
+    const nsRefPtr<FileManager>& fileManager = managers[i];
+
+    if (fileManager->DatabaseName() == aName) {
+      nsRefPtr<FileManager> result = fileManager;
+      return result.forget();
+    }
+  }
+
+  return nullptr;
+}
+
+void
+FileManagerInfo::AddFileManager(FileManager* aFileManager)
+{
+  AssertIsOnIOThread();
+
+  nsTArray<nsRefPtr<FileManager> >& managers = GetArray(aFileManager->Type());
+
+  NS_ASSERTION(!managers.Contains(aFileManager), "Adding more than once?!");
+
+  managers.AppendElement(aFileManager);
+}
+
+void
+FileManagerInfo::InvalidateAllFileManagers() const
+{
+  AssertIsOnIOThread();
+
+  uint32_t i;
+
+  for (i = 0; i < mPersistentStorageFileManagers.Length(); i++) {
+    mPersistentStorageFileManagers[i]->Invalidate();
+  }
+
+  for (i = 0; i < mTemporaryStorageFileManagers.Length(); i++) {
+    mTemporaryStorageFileManagers[i]->Invalidate();
+  }
+}
+
+void
+FileManagerInfo::InvalidateAndRemoveFileManagers(
+                                               PersistenceType aPersistenceType)
+{
+  AssertIsOnIOThread();
+
+  nsTArray<nsRefPtr<FileManager > >& managers = GetArray(aPersistenceType);
+
+  for (uint32_t i = 0; i < managers.Length(); i++) {
+    managers[i]->Invalidate();
+  }
+
+  managers.Clear();
+}
+
+void
+FileManagerInfo::InvalidateAndRemoveFileManager(
+                                               PersistenceType aPersistenceType,
+                                               const nsAString& aName)
+{
+  AssertIsOnIOThread();
+
+  nsTArray<nsRefPtr<FileManager > >& managers = GetArray(aPersistenceType);
+
+  for (uint32_t i = 0; i < managers.Length(); i++) {
+    nsRefPtr<FileManager>& fileManager = managers[i];
+    if (fileManager->DatabaseName() == aName) {
+      fileManager->Invalidate();
+      managers.RemoveElementAt(i);
+      return;
+    }
+  }
+}
+
+nsTArray<nsRefPtr<FileManager> >&
+FileManagerInfo::GetArray(PersistenceType aPersistenceType)
+{
+  switch (aPersistenceType) {
+    case PERSISTENCE_TYPE_PERSISTENT:
+      return mPersistentStorageFileManagers;
+    case PERSISTENCE_TYPE_TEMPORARY:
+      return mTemporaryStorageFileManagers;
+
+    case PERSISTENCE_TYPE_INVALID:
+    default:
+      MOZ_CRASH("Bad storage type value!");
+      return mPersistentStorageFileManagers;
+  }
+}
 
 AsyncDeleteFileRunnable::AsyncDeleteFileRunnable(FileManager* aFileManager,
                                                  int64_t aFileId)
@@ -640,7 +919,9 @@ AsyncDeleteFileRunnable::Run()
     QuotaManager* quotaManager = QuotaManager::Get();
     NS_ASSERTION(quotaManager, "Shouldn't be null!");
 
-    quotaManager->DecreaseUsageForOrigin(mFileManager->Origin(), fileSize);
+    quotaManager->DecreaseUsageForOrigin(mFileManager->Type(),
+                                         mFileManager->Group(),
+                                         mFileManager->Origin(), fileSize);
   }
 
   directory = mFileManager->GetJournalDirectory();
@@ -695,7 +976,7 @@ GetFileReferencesHelper::Run()
   NS_ASSERTION(mgr, "This should never fail!");
 
   nsRefPtr<FileManager> fileManager =
-    mgr->GetFileManager(mOrigin, mDatabaseName);
+    mgr->GetFileManager(mPersistenceType, mOrigin, mDatabaseName);
 
   if (fileManager) {
     nsRefPtr<FileInfo> fileInfo = fileManager->GetFileInfo(mFileId);
@@ -720,3 +1001,48 @@ GetFileReferencesHelper::Run()
 
   return NS_OK;
 }
+
+BEGIN_INDEXEDDB_NAMESPACE
+
+bool
+ResolveConstructors(JSContext* aCx, JS::HandleObject aObj, JS::HandleId aId,
+                    JS::MutableHandleObject aObjp)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  // The first time this function is called we need to intern all the strings we
+  // care about.
+  if (JSID_IS_VOID(gConstructorInfo[0].id)) {
+    for (uint32_t i = 0; i < mozilla::ArrayLength(gConstructorInfo); i++) {
+      JS::RootedString str(aCx, JS_InternString(aCx, gConstructorInfo[i].name));
+      if (!str) {
+        NS_WARNING("Failed to intern string!");
+        while (i) {
+          gConstructorInfo[--i].id = JSID_VOID;
+        }
+        return false;
+      }
+      gConstructorInfo[i].id = INTERNED_STRING_TO_JSID(aCx, str);
+    }
+  }
+
+  // Now resolve.
+  for (uint32_t i = 0; i < mozilla::ArrayLength(gConstructorInfo); i++) {
+    if (gConstructorInfo[i].id == aId) {
+      JS::RootedObject constructor(aCx,
+        gConstructorInfo[i].resolve(aCx, aObj, true));
+      if (!constructor) {
+        return false;
+      }
+
+      aObjp.set(aObj);
+      return true;
+    }
+  }
+
+  // Not resolved.
+  aObjp.set(nullptr);
+  return true;
+}
+
+END_INDEXEDDB_NAMESPACE

@@ -12,31 +12,18 @@
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
-#include "nsILinkHandler.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsPIDOMWindow.h"
 #include "nsStyleSet.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
-#include "nsIURL.h"
 #include "nsIDocument.h"
 #include "nsIPrintSettings.h"
 #include "nsILanguageAtomService.h"
-#include "nsStyleContext.h"
 #include "mozilla/LookAndFeel.h"
-#include "nsIComponentManager.h"
-#include "nsIURIContentListener.h"
-#include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIServiceManager.h"
-#include "nsIDOMElement.h"
-#include "nsContentPolicyUtils.h"
-#include "nsIDOMWindow.h"
-#include "nsXPIDLString.h"
 #include "nsIWeakReferenceUtils.h"
-#include "nsCSSRendering.h"
-#include "prprf.h"
 #include "nsAutoPtr.h"
 #include "nsEventStateManager.h"
 #include "nsThreadUtils.h"
@@ -45,16 +32,12 @@
 #include "nsViewManager.h"
 #include "RestyleManager.h"
 #include "nsCSSRuleProcessor.h"
-#include "nsStyleChangeList.h"
 #include "nsRuleNode.h"
 #include "nsEventDispatcher.h"
-#include "gfxUserFontSet.h"
 #include "gfxPlatform.h"
 #include "nsCSSRules.h"
 #include "nsFontFaceLoader.h"
 #include "nsEventListenerManager.h"
-#include "nsStyleStructInlines.h"
-#include "nsIAppShell.h"
 #include "prenv.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
@@ -62,17 +45,12 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsIMessageManager.h"
-#include "FrameLayerBuilder.h"
 #include "nsDOMMediaQueryList.h"
 #include "nsSMILAnimationController.h"
 #include "mozilla/css/ImageLoader.h"
-#include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"
-#include "RestyleManager.h"
-
-#ifdef IBMBIDI
-#include "nsBidiPresUtils.h"
-#endif // IBMBIDI
+#include "nsRefreshDriver.h"
+#include "Layers.h"
 
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
@@ -83,16 +61,25 @@
 #include "imgIContainer.h"
 #include "nsIImageLoadingContent.h"
 
-//needed for resetting of image service color
-#include "nsLayoutCID.h"
-
 #include "nsCSSParser.h"
+#include "nsBidiUtils.h"
+#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 uint8_t gNotifySubDocInvalidationData;
+
+/**
+ * Layer UserData for ContainerLayers that want to be notified
+ * of local invalidations of them and their descendant layers.
+ * Pass a callback to ComputeDifferences to have these called.
+ */
+class ContainerLayerPresContext : public LayerUserData {
+public:
+  nsPresContext* mPresContext;
+};
 
 namespace {
 
@@ -187,8 +174,6 @@ IsVisualCharset(const nsCString& aCharset)
   }
 }
 #endif // IBMBIDI
-
-#include "nsContentCID.h"
 
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -755,10 +740,6 @@ nsPresContext::GetUserPreferences()
   // * use fonts?
   mUseDocumentFonts =
     Preferences::GetInt("browser.display.use_document_fonts") != 0;
-
-  // * replace backslashes with Yen signs? (bug 245770)
-  mEnableJapaneseTransform =
-    Preferences::GetBool("layout.enable_japanese_specific_transform");
 
   mPrefScrollbarSide = Preferences::GetInt("layout.scrollbar.side");
 
@@ -1509,6 +1490,30 @@ nsPresContext::GetContainerExternal() const
   return GetContainerInternal();
 }
 
+bool
+nsPresContext::ThrottledStyleIsUpToDate() const
+{
+  return mLastUpdateThrottledStyle == mRefreshDriver->MostRecentRefresh();
+}
+
+void
+nsPresContext::TickLastUpdateThrottledStyle()
+{
+  mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
+}
+
+bool
+nsPresContext::StyleUpdateForAllAnimationsIsUpToDate()
+{
+  return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
+}
+
+void
+nsPresContext::TickLastStyleUpdateForAllAnimations()
+{
+  mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
+}
+
 #ifdef IBMBIDI
 bool
 nsPresContext::BidiEnabledExternal() const
@@ -1868,9 +1873,8 @@ nsPresContext::HandleMediaFeatureValuesChangedEvent()
   }
 }
 
-void
-nsPresContext::MatchMedia(const nsAString& aMediaQueryList,
-                          nsIDOMMediaQueryList** aResult)
+already_AddRefed<nsIDOMMediaQueryList>
+nsPresContext::MatchMedia(const nsAString& aMediaQueryList)
 {
   nsRefPtr<nsDOMMediaQueryList> result =
     new nsDOMMediaQueryList(this, aMediaQueryList);
@@ -1878,7 +1882,7 @@ nsPresContext::MatchMedia(const nsAString& aMediaQueryList,
   // Insert the new item at the end of the linked list.
   PR_INSERT_BEFORE(result, &mDOMMediaQueryLists);
 
-  result.forget(aResult);
+  return result.forget();
 }
 
 nsCompatibility
@@ -2199,7 +2203,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
     return false;
 
   nsEventListenerManager* manager = nullptr;
-  if ((manager = parentTarget->GetListenerManager(false)) &&
+  if ((manager = parentTarget->GetExistingListenerManager()) &&
       manager->MayHavePaintEventListener()) {
     return true;
   }
@@ -2227,7 +2231,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   EventTarget* tabChildGlobal;
   return root &&
          (tabChildGlobal = root->GetParentTarget()) &&
-         (manager = tabChildGlobal->GetListenerManager(false)) &&
+         (manager = tabChildGlobal->GetExistingListenerManager()) &&
          manager->MayHavePaintEventListener();
 }
 
@@ -2324,6 +2328,20 @@ nsPresContext::NotifySubDocInvalidation(ContainerLayer* aContainer,
     rect.MoveBy(-topLeft);
     data->mPresContext->NotifyInvalidation(rect, 0);
   }
+}
+
+void
+nsPresContext::SetNotifySubDocInvalidationData(ContainerLayer* aContainer)
+{
+  ContainerLayerPresContext* pres = new ContainerLayerPresContext;
+  pres->mPresContext = this;
+  aContainer->SetUserData(&gNotifySubDocInvalidationData, pres);
+}
+
+/* static */ void
+nsPresContext::ClearNotifySubDocInvalidationData(ContainerLayer* aContainer)
+{
+  aContainer->SetUserData(&gNotifySubDocInvalidationData, nullptr);
 }
 
 struct NotifyDidPaintSubdocumentCallbackClosure {
@@ -2634,7 +2652,7 @@ nsPresContext::IsCrossProcessRootContentDocument()
     return true;
   }
 
-  TabChild* tabChild = GetTabChildFrom(mShell);
+  TabChild* tabChild = TabChild::GetFrom(mShell);
   return (tabChild && tabChild->IsRootContentDocument());
 }
 
@@ -2651,12 +2669,29 @@ bool nsPresContext::GetPaintFlashing() const
   return mPaintFlashing;
 }
 
+int32_t
+nsPresContext::AppUnitsPerDevPixel() const
+{
+  return mDeviceContext->AppUnitsPerDevPixel();
+}
+
+nscoord
+nsPresContext::GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
+{
+  return mDeviceContext->GfxUnitsToAppUnits(aGfxUnits);
+}
+
+gfxFloat
+nsPresContext::AppUnitsToGfxUnits(nscoord aAppUnits) const
+{
+  return mDeviceContext->AppUnitsToGfxUnits(aAppUnits);
+}
+
 nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
                                      nsPresContextType aType)
   : nsPresContext(aDocument, aType),
     mDOMGeneration(0)
 {
-  mRegisteredPlugins.Init();
 }
 
 nsRootPresContext::~nsRootPresContext()

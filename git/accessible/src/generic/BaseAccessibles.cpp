@@ -12,9 +12,6 @@
 #include "nsCoreUtils.h"
 #include "Role.h"
 #include "States.h"
-
-#include "nsGUIEvent.h"
-#include "nsILink.h"
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 

@@ -8,13 +8,11 @@
 
 #include "IDBIndex.h"
 
-#include "nsIIDBKeyRange.h"
-
+#include <algorithm>
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/storage.h"
-#include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
@@ -417,7 +415,7 @@ IDBIndex::~IDBIndex()
 
   if (mRooted) {
     mCachedKeyPath = JSVAL_VOID;
-    NS_DROP_JS_OBJECTS(this, IDBIndex);
+    mozilla::DropJSObjects(this);
   }
 
   if (mActorChild) {
@@ -564,6 +562,7 @@ IDBIndex::GetAllKeysInternal(IDBKeyRange* aKeyRange, uint32_t aLimit,
   IDBTransaction* transaction = mObjectStore->Transaction();
   if (!transaction->IsOpen()) {
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR);
+    return nullptr;
   }
 
   nsRefPtr<IDBRequest> request = GenerateRequest(this);
@@ -807,7 +806,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBIndex)
   tmp->mCachedKeyPath = JSVAL_VOID;
 
   if (tmp->mRooted) {
-    NS_DROP_JS_OBJECTS(tmp, IDBIndex);
+    mozilla::DropJSObjects(tmp);
     tmp->mRooted = false;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -839,7 +838,7 @@ IDBIndex::GetKeyPath(JSContext* aCx, ErrorResult& aRv)
   ENSURE_SUCCESS(aRv, JSVAL_VOID);
 
   if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
-    NS_HOLD_JS_OBJECTS(this, IDBIndex);
+    mozilla::HoldJSObjects(this);
     mRooted = true;
   }
 
@@ -1281,7 +1280,7 @@ GetHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "GetHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  FIXME_Bug_521898_index::GetParams params;
+  GetParams params;
 
   mKeyRange->ToSerializedKeyRange(params.keyRange());
 
@@ -1368,10 +1367,11 @@ GetHelper::UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
 nsresult
 GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
+  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
 
-  PROFILER_LABEL("IndexedDB", "GetAllKeysHelper::DoDatabaseWork");
+  PROFILER_LABEL("IndexedDB",
+                 "GetAllKeysHelper::DoDatabaseWork [IDBIndex.cpp]");
 
   nsCString tableName;
   if (mIndex->IsUnique()) {
@@ -1411,7 +1411,7 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  mKeys.SetCapacity(50);
+  mKeys.SetCapacity(std::min<uint32_t>(50, mLimit));
 
   bool hasResult;
   while(NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
@@ -1434,7 +1434,12 @@ nsresult
 GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
                                    JS::MutableHandle<JS::Value> aVal)
 {
-  NS_ASSERTION(mKeys.Length() <= mLimit, "Too many results!");
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(mKeys.Length() <= mLimit);
+
+  PROFILER_MAIN_THREAD_LABEL("IndexedDB",
+                             "GetAllKeysHelper::GetSuccessResult "
+                             "[IDBIndex.cpp]");
 
   nsTArray<Key> keys;
   mKeys.SwapElements(keys);
@@ -1462,7 +1467,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
         return rv;
       }
 
-      if (!JS_SetElement(aCx, array, index, value.address())) {
+      if (!JS_SetElement(aCx, array, index, &value)) {
         NS_WARNING("Failed to set array element!");
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
@@ -1476,16 +1481,17 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
 nsresult
 GetAllKeysHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(!IndexedDatabaseManager::IsMainProcess());
 
   PROFILER_MAIN_THREAD_LABEL("IndexedDB",
-                             "GetAllKeysHelper::PackArgumentsForParentProcess");
+                             "GetAllKeysHelper::PackArgumentsForParentProcess "
+                             "[IDBIndex.cpp]");
 
   GetAllKeysParams params;
 
   if (mKeyRange) {
-    FIXME_Bug_521898_index::KeyRange keyRange;
+    KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -1502,11 +1508,12 @@ GetAllKeysHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
 AsyncConnectionHelper::ChildProcessSendResult
 GetAllKeysHelper::SendResponseToChildProcess(nsresult aResultCode)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
 
   PROFILER_MAIN_THREAD_LABEL("IndexedDB",
-                             "GetAllKeysHelper::SendResponseToChildProcess");
+                             "GetAllKeysHelper::SendResponseToChildProcess "
+                             "[IDBIndex.cpp]");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
   NS_ASSERTION(actor, "How did we get this far without an actor?");
@@ -1532,8 +1539,9 @@ nsresult
 GetAllKeysHelper::UnpackResponseFromParentProcess(
                                             const ResponseValue& aResponseValue)
 {
-  NS_ASSERTION(aResponseValue.type() == ResponseValue::TGetAllKeysResponse,
-               "Bad response type!");
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(!IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(aResponseValue.type() == ResponseValue::TGetAllKeysResponse);
 
   mKeys.AppendElements(aResponseValue.get_GetAllKeysResponse().keys());
   return NS_OK;
@@ -1641,10 +1649,10 @@ GetAllHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "GetAllHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  FIXME_Bug_521898_index::GetAllParams params;
+  GetAllParams params;
 
   if (mKeyRange) {
-    FIXME_Bug_521898_index::KeyRange keyRange;
+    KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -1981,12 +1989,12 @@ OpenKeyCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
 
   PROFILER_MAIN_THREAD_LABEL("IndexedDB",
                              "OpenKeyCursorHelper::"
-                             "PackArgumentsForParentProcess");
+                             "PackArgumentsForParentProcess [IDBIndex.cpp]");
 
   OpenKeyCursorParams params;
 
   if (mKeyRange) {
-    FIXME_Bug_521898_index::KeyRange keyRange;
+    KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -2327,10 +2335,10 @@ OpenCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "OpenCursorHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  FIXME_Bug_521898_index::OpenCursorParams params;
+  OpenCursorParams params;
 
   if (mKeyRange) {
-    FIXME_Bug_521898_index::KeyRange keyRange;
+    KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -2521,10 +2529,10 @@ CountHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "CountHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  FIXME_Bug_521898_index::CountParams params;
+  CountParams params;
 
   if (mKeyRange) {
-    FIXME_Bug_521898_index::KeyRange keyRange;
+    KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }

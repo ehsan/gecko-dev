@@ -4,10 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsString.h"
-#include "nsReadableUtils.h"
 #include "nsNetUtil.h"
-#include "nsEscape.h"
 #include "nsCRT.h"
 
 #include "nsIPlatformCharset.h"
@@ -21,7 +18,11 @@
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/dom/ContentChild.h"
+#include "mozilla/ipc/InputStreamUtils.h"
+#include "mozilla/ipc/URIUtils.h"
 #include "nsIObserverService.h"
+#include "nsXULAppAPI.h"
 
 using namespace mozilla;
 
@@ -335,6 +336,28 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
     }
     keyword.Trim(" ");
 
+    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+        dom::ContentChild* contentChild = dom::ContentChild::GetSingleton();
+        if (!contentChild) {
+            return NS_ERROR_NOT_AVAILABLE;
+        }
+
+        ipc::OptionalInputStreamParams postData;
+        ipc::OptionalURIParams uri;
+        if (!contentChild->SendKeywordToURI(keyword, &postData, &uri)) {
+            return NS_ERROR_FAILURE;
+        }
+
+        if (aPostData) {
+            nsCOMPtr<nsIInputStream> temp = DeserializeInputStream(postData);
+            temp.forget(aPostData);
+        }
+
+        nsCOMPtr<nsIURI> temp = DeserializeURI(uri);
+        temp.forget(aURI);
+        return NS_OK;
+    }
+
 #ifdef MOZ_TOOLKIT_SEARCH
     // Try falling back to the search service's default search engine
     nsCOMPtr<nsIBrowserSearchService> searchSvc = do_GetService("@mozilla.org/browser/search-service;1");
@@ -380,7 +403,9 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                 // the search engine's name through various function calls.
                 nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
                 if (obsSvc) {
-                    obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());
+                  // Note that "keyword-search" refers to a search via the url
+                  // bar, not a bookmarks keyword search.
+                  obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());
                 }
 
                 return submission->GetUri(aURI);

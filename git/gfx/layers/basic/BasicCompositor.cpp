@@ -9,8 +9,10 @@
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
 #include "nsIWidget.h"
 #include "gfx2DGlue.h"
+#include "mozilla/gfx/2D.h"
 #include "gfxUtils.h"
 #include <algorithm>
+#include "ImageContainer.h"
 
 namespace mozilla {
 using namespace mozilla::gfx;
@@ -27,6 +29,46 @@ public:
   virtual gfx::SourceSurface* GetSurface() = 0;
 };
 
+class DataTextureSourceBasic : public DataTextureSource
+                             , public TextureSourceBasic
+{
+public:
+
+  virtual TextureSourceBasic* AsSourceBasic() MOZ_OVERRIDE { return this; }
+
+  virtual gfx::SourceSurface* GetSurface() MOZ_OVERRIDE { return mSurface; }
+
+  SurfaceFormat GetFormat() const MOZ_OVERRIDE
+  {
+    return mSurface->GetFormat();
+  }
+
+  virtual IntSize GetSize() const MOZ_OVERRIDE
+  {
+    return mSurface->GetSize();
+  }
+
+  virtual bool Update(gfx::DataSourceSurface* aSurface,
+                      TextureFlags aFlags,
+                      nsIntRegion* aDestRegion = nullptr,
+                      gfx::IntPoint* aSrcOffset = nullptr) MOZ_OVERRIDE
+  {
+    // XXX - For this to work with IncrementalContentHost we will need to support
+    // the aDestRegion and aSrcOffset parameters properly;
+    mSurface = aSurface;
+    return true;
+  }
+
+  virtual void DeallocateDeviceData() MOZ_OVERRIDE
+  {
+    mSurface = nullptr;
+    SetUpdateSerial(0);
+  }
+
+public:
+  RefPtr<gfx::DataSourceSurface> mSurface;
+};
+
 /**
  * Texture source and host implementaion for software compositing.
  */
@@ -34,6 +76,12 @@ class DeprecatedTextureHostBasic : public DeprecatedTextureHost
                                  , public TextureSourceBasic
 {
 public:
+  DeprecatedTextureHostBasic()
+  : mCompositor(nullptr)
+  {}
+
+  SurfaceFormat GetFormat() const MOZ_OVERRIDE { return mFormat; }
+
   virtual IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
   virtual TextureSourceBasic* AsSourceBasic() MOZ_OVERRIDE { return this; }
@@ -88,10 +136,11 @@ protected:
   nsRefPtr<gfxImageSurface> mThebesImage;
   nsRefPtr<gfxASurface> mThebesSurface;
   IntSize mSize;
+  SurfaceFormat mFormat;
 };
 
 void
-DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrImage::Data& aData)
+DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrData& aData)
 {
   aData.mYChannel = aDeserializer.GetYData();
   aData.mYStride = aDeserializer.GetYStride();
@@ -133,10 +182,10 @@ public:
   void ConvertImageToRGB(const SurfaceDescriptor& aImage)
   {
     YCbCrImageDataDeserializer deserializer(aImage.get_YCbCrImage().data().get<uint8_t>());
-    PlanarYCbCrImage::Data data;
+    PlanarYCbCrData data;
     DeserializerToPlanarYCbCrImageData(deserializer, data);
 
-    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatRGB24;
+    gfxImageFormat format = gfxImageFormatRGB24;
     gfxIntSize size;
     gfxUtils::GetYCbCrToRGBDestFormatAndSize(data, format, size);
     if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
@@ -154,7 +203,7 @@ public:
 
     mSize = IntSize(size.width, size.height);
     mFormat =
-      (format == gfxASurface::ImageFormatARGB32) ? FORMAT_B8G8R8A8 :
+      (format == gfxImageFormatARGB32) ? FORMAT_B8G8R8A8 :
                                                    FORMAT_B8G8R8X8;
   }
 
@@ -229,6 +278,19 @@ BasicCompositor::CreateRenderTargetFromSource(const IntRect &aRect,
 
   rt->mDrawTarget->CopySurface(snapshot, aRect, IntPoint(0, 0));
   return rt.forget();
+}
+
+TemporaryRef<DataTextureSource>
+BasicCompositor::CreateDataTextureSource(TextureFlags aFlags)
+{
+  RefPtr<DataTextureSource> result = new DataTextureSourceBasic();
+  return result.forget();
+}
+
+bool
+BasicCompositor::SupportsEffect(EffectTypes aEffect)
+{
+  return static_cast<EffectTypes>(aEffect) != EFFECT_YCBCR;
 }
 
 static void
@@ -373,7 +435,7 @@ BasicCompositor::BeginFrame(const gfx::Rect *aClipRectIn,
   if (mCopyTarget) {
     // If we have a copy target, then we don't have a widget-provided mDrawTarget (currently). Create a dummy
     // placeholder so that CreateRenderTarget() works.
-    mDrawTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1,1), FORMAT_B8G8R8A8);
+    mDrawTarget = gfxPlatform::GetPlatform()->CreateOffscreenCanvasDrawTarget(IntSize(1,1), FORMAT_B8G8R8A8);
   } else {
     mDrawTarget = mWidget->StartRemoteDrawing();
   }
@@ -408,22 +470,17 @@ BasicCompositor::EndFrame()
 {
   mRenderTarget->mDrawTarget->PopClip();
 
+  RefPtr<SourceSurface> source = mRenderTarget->mDrawTarget->Snapshot();
   if (mCopyTarget) {
-    nsRefPtr<gfxASurface> thebes = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mRenderTarget->mDrawTarget);
-    gfxContextAutoSaveRestore restore(mCopyTarget);
-    mCopyTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
-    mCopyTarget->SetSource(thebes);
-    mCopyTarget->Paint();
-    mCopyTarget = nullptr;
+    mCopyTarget->CopySurface(source,
+                             IntRect(0, 0, mWidgetSize.width, mWidgetSize.height),
+                             IntPoint(0, 0));
   } else {
     // Most platforms require us to buffer drawing to the widget surface.
     // That's why we don't draw to mDrawTarget directly.
-    RefPtr<SourceSurface> source = mRenderTarget->mDrawTarget->Snapshot();
-    mDrawTarget->DrawSurface(source,
-                             Rect(0, 0, mWidgetSize.width, mWidgetSize.height),
-                             Rect(0, 0, mWidgetSize.width, mWidgetSize.height),
-                             DrawSurfaceOptions(),
-                             DrawOptions());
+    mDrawTarget->CopySurface(source,
+	                           IntRect(0, 0, mWidgetSize.width, mWidgetSize.height),
+			                       IntPoint(0, 0));
     mWidget->EndRemoteDrawing();
   }
   mDrawTarget = nullptr;

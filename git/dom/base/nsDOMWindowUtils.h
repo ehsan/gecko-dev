@@ -6,11 +6,9 @@
 #ifndef nsDOMWindowUtils_h_
 #define nsDOMWindowUtils_h_
 
-#include "nsAutoPtr.h"
 #include "nsWeakReference.h"
 
 #include "nsIDOMWindowUtils.h"
-#include "nsEvent.h"
 #include "mozilla/Attributes.h"
 
 class nsGlobalWindow;
@@ -50,7 +48,7 @@ protected:
                                   bool aToWindow,
                                   bool *aPreventDefault);
 
-  static mozilla::widget::Modifiers GetWidgetModifiers(int32_t aModifiers);
+  static mozilla::Modifiers GetWidgetModifiers(int32_t aModifiers);
 };
 
 #endif

@@ -53,13 +53,6 @@ class Configuration:
                 entry.append({})
             self.descriptors.extend([Descriptor(self, iface, x) for x in entry])
 
-        # Mark the descriptors for which the nativeType corresponds to exactly
-        # one interface.
-        for descriptor in self.descriptors:
-            descriptor.unsharedImplementation = all(
-                d.nativeType != descriptor.nativeType or d == descriptor
-                for d in self.descriptors)
-
         # Keep the descriptor list sorted for determinism.
         self.descriptors.sort(lambda x,y: cmp(x.name, y.name))
 
@@ -99,8 +92,6 @@ class Configuration:
                     item.setUserData("mainThread", True)
                 if item in worker:
                     item.setUserData("workers", True)
-        flagWorkerOrMainThread(self.dictionaries, mainDictionaries,
-                               workerDictionaries);
         flagWorkerOrMainThread(self.callbacks, mainCallbacks, workerCallbacks)
 
     def getInterface(self, ifname):
@@ -218,10 +209,7 @@ class Descriptor(DescriptorProvider):
             else:
                 nativeTypeDefault = "nsIDOM" + ifaceName
         elif self.interface.isCallback():
-            if self.workers:
-                nativeTypeDefault = "JSObject"
-            else:
-                nativeTypeDefault = "mozilla::dom::" + ifaceName
+            nativeTypeDefault = "mozilla::dom::" + ifaceName
         else:
             if self.workers:
                 nativeTypeDefault = "mozilla::dom::workers::" + ifaceName
@@ -233,7 +221,7 @@ class Descriptor(DescriptorProvider):
 
         # Do something sane for JSObject
         if self.nativeType == "JSObject":
-            headerDefault = "jsapi.h"
+            headerDefault = "js/TypeDecls.h"
         elif self.interface.isCallback() or self.interface.isJSImplemented():
             # A copy of CGHeaders.getDeclarationFilename; we can't
             # import it here, sadly.
@@ -358,7 +346,7 @@ class Descriptor(DescriptorProvider):
                     iface = iface.parent
         self.operations = operations
 
-        if self.workers and desc.get('nativeOwnership', 'worker') == 'worker':
+        if self.workers and desc.get('nativeOwnership', None) == 'worker':
             self.nativeOwnership = "worker"
         else:
             self.nativeOwnership = desc.get('nativeOwnership', 'refcounted')
@@ -366,8 +354,8 @@ class Descriptor(DescriptorProvider):
                 raise TypeError("Descriptor for %s has unrecognized value (%s) "
                                 "for nativeOwnership" %
                                 (self.interface.identifier.name, self.nativeOwnership))
-        self.customTrace = desc.get('customTrace', self.workers)
-        self.customFinalize = desc.get('customFinalize', self.workers)
+        self.customTrace = (self.nativeOwnership == 'worker')
+        self.customFinalize = desc.get('customFinalize', self.nativeOwnership == 'worker')
         if desc.get('wantsQI', None) != None:
             self._wantsQI = desc.get('wantsQI', None)
         self.wrapperCache = (not self.interface.isCallback() and
@@ -488,26 +476,6 @@ class Descriptor(DescriptorProvider):
             self.interface.hasInterfacePrototypeObject() or
             any((m.isAttr() or m.isMethod()) and m.isStatic() for m
                 in self.interface.members))
-
-    def wantsQI(self):
-        # If it was specified explicitly use that.
-        if hasattr(self, '_wantsQI'):
-            return self._wantsQI
-
-        # Make sure to not stick QueryInterface on abstract interfaces that
-        # have hasXPConnectImpls (like EventTarget).  So only put it on
-        # interfaces that are concrete and all of whose ancestors are abstract.
-        def allAncestorsAbstract(iface):
-            if not iface.parent:
-                return True
-            desc = self.getDescriptor(iface.parent.identifier.name)
-            if desc.concrete:
-                return False
-            return allAncestorsAbstract(iface.parent)
-        return (not self.workers and
-                self.interface.hasInterfacePrototypeObject() and
-                self.concrete and
-                allAncestorsAbstract(self.interface))
 
 # Some utility methods
 def getTypesFromDescriptor(descriptor):

@@ -101,8 +101,6 @@ static const char kRBracket[] = "]";
 nsresult
 nsINIParser::InitFromFILE(FILE *fd)
 {
-    mSections.Init();
-
     /* get file size */
     if (fseek(fd, 0, SEEK_END) != 0)
         return NS_ERROR_FAILURE;
@@ -150,10 +148,10 @@ nsINIParser::InitFromFILE(FILE *fd)
                                    0,
                                    reinterpret_cast<LPWSTR>(buffer),
                                    -1,
-                                   NULL,
+                                   nullptr,
                                    0,
-                                   NULL,
-                                   NULL);
+                                   nullptr,
+                                   nullptr);
         if (0 == flen) {
             return NS_ERROR_FAILURE;
         }
@@ -165,8 +163,8 @@ nsINIParser::InitFromFILE(FILE *fd)
                                      -1,
                                      utf8Buffer,
                                      flen,
-                                     NULL,
-                                     NULL)) {
+                                     nullptr,
+                                     nullptr)) {
             return NS_ERROR_FAILURE;
         }
         mFileContents = utf8Buffer.forget();

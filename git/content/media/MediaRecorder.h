@@ -7,18 +7,19 @@
 #ifndef MediaRecorder_h
 #define MediaRecorder_h
 
-#include "DOMMediaStream.h"
-#include "MediaEncoder.h"
 #include "mozilla/dom/MediaRecorderBinding.h"
 #include "nsDOMEventTargetHelper.h"
-#include "EncodedBufferCache.h"
-#include "TrackUnionStream.h"
 
 // Max size for allowing queue encoded data in memory
 #define MAX_ALLOW_MEMORY_BUFFER 1024000
 namespace mozilla {
 
 class ErrorResult;
+class DOMMediaStream;
+class EncodedBufferCache;
+class MediaEncoder;
+class ProcessedMediaStream;
+class MediaInputPort;
 
 namespace dom {
 
@@ -35,9 +36,8 @@ namespace dom {
 
 class MediaRecorder : public nsDOMEventTargetHelper
 {
-  class ExtractEncodedDataTask;
-  class PushBlobTask;
-  class PushErrorMessageTask;
+  class Session;
+
 public:
   MediaRecorder(DOMMediaStream&);
   virtual ~MediaRecorder();
@@ -70,11 +70,11 @@ public:
   // The current state of the MediaRecorder object.
   RecordingState State() const { return mState; }
   // Return the current encoding MIME type selected by the MediaEncoder.
-  void GetMimeType(nsString &aMimeType) { aMimeType = mMimeType; }
+  void GetMimeType(nsString &aMimeType);
 
   static already_AddRefed<MediaRecorder>
-  Constructor(const GlobalObject& aGlobal, JSContext* aCx, DOMMediaStream& aStream,
-              ErrorResult& aRv);
+  Constructor(const GlobalObject& aGlobal,
+              DOMMediaStream& aStream, ErrorResult& aRv);
 
   // EventHandler
   IMPL_EVENT_HANDLER(dataavailable)
@@ -82,43 +82,33 @@ public:
   IMPL_EVENT_HANDLER(stop)
   IMPL_EVENT_HANDLER(warning)
 
-  friend class ExtractEncodedData;
-
 protected:
-  void Init(JSContext* aCx, nsPIDOMWindow* aOwnerWindow);
-  // Copy encoded data from encoder to EncodedBufferCache. This function runs in the Media Encoder Thread.
-  void ExtractEncodedData();
+  void Init(nsPIDOMWindow* aOwnerWindow);
 
   MediaRecorder& operator = (const MediaRecorder& x) MOZ_DELETE;
   // Create dataavailable event with Blob data and it runs in main thread
-  nsresult CreateAndDispatchBlobEvent();
+  nsresult CreateAndDispatchBlobEvent(Session *session);
   // Creating a simple event to notify UA simple event.
   void DispatchSimpleEvent(const nsAString & aStr);
   // Creating a error event with message.
   void NotifyError(nsresult aRv);
   // Check if the recorder's principal is the subsume of mediaStream
   bool CheckPrincipal();
+  // Set encoded MIME type.
+  void SetMimeType(const nsString &aMimeType);
 
   MediaRecorder(const MediaRecorder& x) MOZ_DELETE; // prevent bad usage
 
-
-  // Runnable thread for read data from mediaEncoder. It starts at MediaRecorder::Start() and stops at MediaRecorder::Stop().
-  nsCOMPtr<nsIThread> mReadThread;
-  // The MediaEncoder object initializes on start() and destroys in ~MediaRecorder.
-  nsRefPtr<MediaEncoder> mEncoder;
   // MediaStream passed from js context
   nsRefPtr<DOMMediaStream> mStream;
-  // This media stream is used for notifying raw data to encoder and can be blocked.
-  nsRefPtr<ProcessedMediaStream> mTrackUnionStream;
-  // This object creates on start() and destroys in ~MediaRecorder.
-  nsAutoPtr<EncodedBufferCache> mEncodedBufferCache;
-  // It specifies the container format as well as the audio and video capture formats.
-  nsString mMimeType;
-  // The interval of timer passed from Start(). On every mTimeSlice milliseconds, if there are buffers store in the EncodedBufferCache,
-  // a dataavailable event will be fired.
-  int32_t mTimeSlice;
   // The current state of the MediaRecorder object.
   RecordingState mState;
+  // Current recording session.
+  Session *mSession;
+  // Thread safe for mMimeType.
+  Mutex mMutex;
+  // It specifies the container format as well as the audio and video capture formats.
+  nsString mMimeType;
 };
 
 }

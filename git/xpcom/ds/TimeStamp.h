@@ -7,10 +7,10 @@
 #ifndef mozilla_TimeStamp_h
 #define mozilla_TimeStamp_h
 
+#include <stdint.h>
 #include "mozilla/Assertions.h"
-
-#include "prinrval.h"
-#include "nsDebug.h"
+#include "mozilla/Attributes.h"
+#include "nscore.h"
 
 namespace IPC {
 template <typename T> struct ParamTraits;
@@ -44,7 +44,7 @@ class TimeDuration
 {
 public:
   // The default duration is 0.
-  TimeDuration() : mValue(0) {}
+  MOZ_CONSTEXPR TimeDuration() : mValue(0) {}
   // Allow construction using '0' as the initial value, for readability,
   // but no other numbers (so we don't have any implicit unit conversions).
   struct _SomethingVeryRandomHere;
@@ -260,7 +260,7 @@ public:
   TimeDuration operator-(const TimeStamp& aOther) const {
     MOZ_ASSERT(!IsNull(), "Cannot compute with a null value");
     MOZ_ASSERT(!aOther.IsNull(), "Cannot compute with aOther null value");
-    PR_STATIC_ASSERT(-INT64_MAX > INT64_MIN);
+    static_assert(-INT64_MAX > INT64_MIN, "int64_t sanity check");
     int64_t ticks = int64_t(mValue - aOther.mValue);
     // Check for overflow.
     if (mValue > aOther.mValue) {

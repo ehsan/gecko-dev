@@ -2,9 +2,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#include "nsCOMPtr.h" 
-#include "nsReadableUtils.h"
+
 #include "nsSimplePageSequence.h"
+
+#include "nsCOMPtr.h"
 #include "nsPresContext.h"
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
@@ -13,15 +14,15 @@
 #include "nsIPrintSettings.h"
 #include "nsPageFrame.h"
 #include "nsSubDocumentFrame.h"
-#include "nsStyleConsts.h"
 #include "nsRegion.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
-#include "mozilla/Preferences.h"
 #include "nsHTMLCanvasFrame.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
+#include "nsIDateTimeFormat.h"
+#include "nsServiceManagerUtils.h"
 #include <algorithm>
 
 // DateTime Includes
@@ -31,8 +32,6 @@
 
 // Print Options
 #include "nsIPrintOptions.h"
-#include "nsGfxCIID.h"
-#include "nsIServiceManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -468,10 +467,7 @@ GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<HTMLCanvasElem
       if (canvasFrame) {
         HTMLCanvasElement* canvas =
           HTMLCanvasElement::FromContentOrNull(canvasFrame->GetContent());
-        nsCOMPtr<nsIPrintCallback> printCallback;
-        if (canvas &&
-            NS_SUCCEEDED(canvas->GetMozPrintCallback(getter_AddRefs(printCallback))) &&
-            printCallback) {
+        if (canvas && canvas->GetMozPrintCallback()) {
           aArr->AppendElement(canvas);
           continue;
         }
@@ -609,7 +605,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
 
         nsRefPtr<gfxASurface> printSurface = renderingSurface->
            CreateSimilarSurface(
-             gfxASurface::CONTENT_COLOR_ALPHA,
+             GFX_CONTENT_COLOR_ALPHA,
              size
            );
 
@@ -624,7 +620,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
         }
 
           // Initialize the context with the new printSurface.
-        ctx->InitializeWithSurface(NULL, printSurface, size.width, size.height);
+        ctx->InitializeWithSurface(nullptr, printSurface, size.width, size.height);
 
         // Start the rendering process.
         nsWeakFrame weakFrame = this;

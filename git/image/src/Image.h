@@ -9,9 +9,10 @@
 #include "mozilla/MemoryReporting.h"
 #include "imgIContainer.h"
 #include "imgStatusTracker.h"
-#include "nsIURI.h"
-#include "nsIRequest.h"
-#include "nsIInputStream.h"
+#include "ImageURL.h"
+
+class nsIRequest;
+class nsIInputStream;
 
 namespace mozilla {
 namespace image {
@@ -61,7 +62,8 @@ public:
   virtual nsresult Init(const char* aMimeType,
                         uint32_t aFlags) = 0;
 
-  virtual imgStatusTracker& GetStatusTracker() = 0;
+  virtual already_AddRefed<imgStatusTracker> GetStatusTracker() = 0;
+  virtual void SetStatusTracker(imgStatusTracker* aStatusTracker) {}
 
   /**
    * The rectangle defining the location and size of the given frame.
@@ -130,13 +132,22 @@ public:
   virtual bool HasError() = 0;
   virtual void SetHasError() = 0;
 
-  virtual nsIURI* GetURI() = 0;
+  virtual ImageURL* GetURI() = 0;
 };
 
 class ImageResource : public Image
 {
 public:
-  virtual imgStatusTracker& GetStatusTracker() MOZ_OVERRIDE { return *mStatusTracker; }
+  already_AddRefed<imgStatusTracker> GetStatusTracker() MOZ_OVERRIDE {
+    nsRefPtr<imgStatusTracker> statusTracker = mStatusTracker;
+    MOZ_ASSERT(statusTracker);
+    return statusTracker.forget();
+  }
+  void SetStatusTracker(imgStatusTracker* aStatusTracker) MOZ_OVERRIDE MOZ_FINAL {
+    MOZ_ASSERT(aStatusTracker);
+    MOZ_ASSERT(!mStatusTracker);
+    mStatusTracker = aStatusTracker;
+  }
   virtual uint32_t SizeOfData() MOZ_OVERRIDE;
 
   virtual void IncrementAnimationConsumers() MOZ_OVERRIDE;
@@ -155,11 +166,12 @@ public:
 
   /*
    * Returns a non-AddRefed pointer to the URI associated with this image.
+   * Illegal to use off-main-thread.
    */
-  virtual nsIURI* GetURI() MOZ_OVERRIDE { return mURI; }
+  virtual ImageURL* GetURI() MOZ_OVERRIDE { return mURI.get(); }
 
 protected:
-  ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI);
+  ImageResource(ImageURL* aURI);
 
   // Shared functionality for implementors of imgIContainer. Every
   // implementation of attribute animationMode should forward here.
@@ -184,14 +196,14 @@ protected:
   virtual nsresult StopAnimation() = 0;
 
   // Member data shared by all implementations of this abstract class
-  nsRefPtr<imgStatusTracker>  mStatusTracker;
-  nsCOMPtr<nsIURI>            mURI;
-  uint64_t                    mInnerWindowId;
-  uint32_t                    mAnimationConsumers;
-  uint16_t                    mAnimationMode;   // Enum values in imgIContainer
-  bool                        mInitialized:1;   // Have we been initalized?
-  bool                        mAnimating:1;     // Are we currently animating?
-  bool                        mError:1;         // Error handling
+  nsRefPtr<imgStatusTracker>    mStatusTracker;
+  nsRefPtr<ImageURL>            mURI;
+  uint64_t                      mInnerWindowId;
+  uint32_t                      mAnimationConsumers;
+  uint16_t                      mAnimationMode; // Enum values in imgIContainer
+  bool                          mInitialized:1; // Have we been initalized?
+  bool                          mAnimating:1;   // Are we currently animating?
+  bool                          mError:1;       // Error handling
 };
 
 } // namespace image

@@ -10,7 +10,13 @@ EXPORTS.mozilla.dom += [
     'CellBroadcast.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'CellBroadcast.cpp',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'dom_cellbroadcast_s'
 

@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/MouseEvents.h"
 #include "mozilla/Util.h"
 #include "nsAString.h"
 #include "nsCOMPtr.h"
@@ -13,7 +14,6 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
-#include "nsGUIEvent.h"
 #include "nsIClipboard.h"
 #include "nsIContent.h"
 #include "nsIDOMDataTransfer.h"
@@ -182,8 +182,8 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     NS_ENSURE_TRUE(sourceNode, NS_ERROR_FAILURE);
   }
 
-  nsDragEvent* dragEventInternal = static_cast<nsDragEvent *>(aDropEvent->GetInternalNSEvent());
-  if (nsContentUtils::CheckForSubFrameDrop(dragSession, dragEventInternal)) {
+  if (nsContentUtils::CheckForSubFrameDrop(dragSession,
+        aDropEvent->GetInternalNSEvent()->AsDragEvent())) {
     // Don't allow drags from subframe documents with different origins than
     // the drop destination.
     if (srcdomdoc && !IsSafeToInsertData(srcdomdoc))
@@ -322,7 +322,7 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
 
 NS_IMETHODIMP nsPlaintextEditor::Paste(int32_t aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE))
+  if (!FireClipboardEvent(NS_PASTE, aSelectionType))
     return NS_OK;
 
   // Get Clipboard Service
@@ -353,7 +353,9 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(int32_t aSelectionType)
 
 NS_IMETHODIMP nsPlaintextEditor::PasteTransferable(nsITransferable *aTransferable)
 {
-  if (!FireClipboardEvent(NS_PASTE))
+  // Use an invalid value for the clipboard type as data comes from aTransferable
+  // and we don't currently implement a way to put that in the data transfer yet.
+  if (!FireClipboardEvent(NS_PASTE, -1))
     return NS_OK;
 
   if (!IsModifiable())

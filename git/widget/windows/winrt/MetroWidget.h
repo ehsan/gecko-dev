@@ -11,7 +11,6 @@
 #include "nsAutoPtr.h"
 #include "nsBaseWidget.h"
 #include "nsWindowBase.h"
-#include "nsGUIEvent.h"
 #include "nsString.h"
 #include "nsTArray.h"
 #include "nsWindowDbg.h"
@@ -21,12 +20,12 @@
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/Accessible.h"
 #endif
+#include "mozilla/EventForwards.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/GeckoContentController.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
-#include "Units.h"
-#include "MetroInput.h"
+#include "nsDeque.h"
+#include "APZController.h"
 
 #include "mozwrlbase.h"
 
@@ -45,8 +44,10 @@ class FrameworkView;
 
 } } }
 
+class DispatchMsg;
+
 class MetroWidget : public nsWindowBase,
-                    public mozilla::layers::GeckoContentController
+                    public nsIObserver
 {
   typedef mozilla::widget::WindowHook WindowHook;
   typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
@@ -55,6 +56,7 @@ class MetroWidget : public nsWindowBase,
   typedef ABI::Windows::UI::Core::IKeyEventArgs IKeyEventArgs;
   typedef ABI::Windows::UI::Core::ICharacterReceivedEventArgs ICharacterReceivedEventArgs;
   typedef mozilla::widget::winrt::FrameworkView FrameworkView;
+  typedef mozilla::widget::winrt::APZController APZController;
 
   static LRESULT CALLBACK
   StaticWindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParan, LPARAM aLParam);
@@ -65,12 +67,21 @@ public:
   virtual ~MetroWidget();
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIOBSERVER
 
   static HWND GetICoreWindowHWND() { return sICoreHwnd; }
 
   // nsWindowBase
-  virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
-  virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) MOZ_OVERRIDE;
+  virtual bool DispatchWindowEvent(mozilla::WidgetGUIEvent* aEvent) MOZ_OVERRIDE;
+  virtual bool DispatchKeyboardEvent(mozilla::WidgetGUIEvent* aEvent) MOZ_OVERRIDE;
+  virtual bool DispatchScrollEvent(mozilla::WidgetGUIEvent* aEvent) MOZ_OVERRIDE;
+  virtual bool DispatchPluginEvent(const MSG &aMsg) MOZ_OVERRIDE { return false; }
+  virtual bool IsTopLevelWidget() MOZ_OVERRIDE { return true; }
+  virtual nsWindowBase* GetParentWindowBase(bool aIncludeOwner) MOZ_OVERRIDE { return nullptr; }
+  // InitEvent assumes physical coordinates and is used by shared win32 code. Do
+  // not hand winrt event coordinates to this routine.
+  virtual void InitEvent(mozilla::WidgetGUIEvent& aEvent,
+                         nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
 
   // nsBaseWidget
   virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
@@ -93,7 +104,8 @@ public:
                 bool aUpdateNCArea = false,
                 bool aIncludeChildren = false);
   NS_IMETHOD    Invalidate(const nsIntRect & aRect);
-  NS_IMETHOD    DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
+  NS_IMETHOD    DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
+                              nsEventStatus& aStatus);
   NS_IMETHOD    ConstrainPosition(bool aAllowSlop, int32_t *aX, int32_t *aY);
   NS_IMETHOD    Move(double aX, double aY);
   NS_IMETHOD    Resize(double aWidth, double aHeight, bool aRepaint);
@@ -136,7 +148,7 @@ public:
                                         LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                         LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                         bool* aAllowRetaining = nullptr);
-  virtual mozilla::layers::LayersBackend GetPreferredCompositorBackend() { return mozilla::layers::LAYERS_D3D11; }
+  virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints) { aHints.AppendElement(mozilla::layers::LAYERS_D3D11); }
 
   // IME related interfaces
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
@@ -186,23 +198,15 @@ public:
   virtual void SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
 
+  // APZ related apis
+  void ApzContentConsumingTouch();
+  void ApzContentIgnoringTouch();
+  nsEventStatus ApzReceiveInputEvent(mozilla::WidgetInputEvent* aEvent);
+  nsEventStatus ApzReceiveInputEvent(mozilla::WidgetInputEvent* aInEvent,
+                                     mozilla::WidgetInputEvent* aOutEvent);
+  bool HitTestAPZC(mozilla::ScreenPoint& pt);
   nsresult RequestContentScroll();
   void RequestContentRepaintImplMainThread();
-
-  // GeckoContentController interface impl
-  virtual void RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrameMetrics);
-  virtual void HandleDoubleTap(const mozilla::CSSIntPoint& aPoint);
-  virtual void HandleSingleTap(const mozilla::CSSIntPoint& aPoint);
-  virtual void HandleLongTap(const mozilla::CSSIntPoint& aPoint);
-  virtual void SendAsyncScrollDOMEvent(mozilla::layers::FrameMetrics::ViewID aScrollId, const mozilla::CSSRect &aContentRect, const mozilla::CSSSize &aScrollableSize);
-  virtual void PostDelayedTask(Task* aTask, int aDelayMs);
-  virtual void HandlePanBegin();
-  virtual void HandlePanEnd();
-
-  void SetMetroInput(mozilla::widget::winrt::MetroInput* aMetroInput)
-  {
-    mMetroInput = aMetroInput;
-  }
 
 protected:
   friend class FrameworkView;
@@ -211,7 +215,7 @@ protected:
     HRESULT const hr;
 
     OleInitializeWrapper()
-      : hr(::OleInitialize(NULL))
+      : hr(::OleInitialize(nullptr))
     {
     }
 
@@ -227,6 +231,16 @@ protected:
   void RemoveSubclass();
   nsIWidgetListener* GetPaintListener();
 
+  // Async event dispatching
+  void DispatchAsyncScrollEvent(DispatchMsg* aEvent);
+  void DeliverNextScrollEvent();
+  void DeliverNextKeyboardEvent();
+  DispatchMsg* CreateDispatchMsg(UINT aMsg, WPARAM aWParam, LPARAM aLParam);
+
+public:
+  static nsRefPtr<mozilla::layers::APZCTreeManager> sAPZC;
+
+protected:
   OleInitializeWrapper mOleInitializeWrapper;
   WindowHook mWindowHook;
   Microsoft::WRL::ComPtr<FrameworkView> mView;
@@ -237,9 +251,8 @@ protected:
   static HWND sICoreHwnd;
   WNDPROC mMetroWndProc;
   bool mTempBasicLayerInUse;
-  Microsoft::WRL::ComPtr<mozilla::widget::winrt::MetroInput> mMetroInput;
-  mozilla::layers::FrameMetrics mFrameMetrics;
-
-public:
-  static nsRefPtr<mozilla::layers::APZCTreeManager> sAPZC;
+  uint64_t mRootLayerTreeId;
+  nsDeque mEventQueue;
+  nsDeque mKeyEventQueue;
+  nsRefPtr<APZController> mController;
 };

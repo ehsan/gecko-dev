@@ -6,9 +6,19 @@
 
 MODULE = 'dom'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsJSEventListener.cpp',
 ]
 
 LIBRARY_NAME = 'jsdomevents_s'
 
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LOCAL_INCLUDES += [
+    "/content/base/src",
+    "/dom/base",
+]

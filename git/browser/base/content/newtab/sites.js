@@ -131,13 +131,20 @@ Site.prototype = {
 
     if (this.isPinned())
       this._updateAttributes(true);
-#ifndef RELEASE_BUILD
-    // request a staleness check for the thumbnail, which will cause page.js
+    // Capture the page if the thumbnail is missing, which will cause page.js
     // to be notified and call our refreshThumbnail() method.
-    BackgroundPageThumbs.captureIfStale(this.url);
+    this.captureIfMissing();
     // but still display whatever thumbnail might be available now.
-#endif
     this.refreshThumbnail();
+  },
+
+  /**
+   * Captures the site's thumbnail in the background, but only if there's no
+   * existing thumbnail and the page allows background captures.
+   */
+  captureIfMissing: function Site_captureIfMissing() {
+    if (gPage.allowBackgroundCaptures)
+      BackgroundPageThumbs.captureIfMissing(this.url);
   },
 
   /**
@@ -146,10 +153,6 @@ Site.prototype = {
   refreshThumbnail: function Site_refreshThumbnail() {
     let thumbnailURL = PageThumbs.getThumbnailURL(this.url);
     let thumbnail = this._querySelector(".newtab-thumbnail");
-    // if this is being called due to the thumbnail being updated we will
-    // be setting it to the same value it had before.  To be confident the
-    // change wont be optimized away we remove the property first.
-    thumbnail.style.removeProperty("backgroundImage");
     thumbnail.style.backgroundImage = "url(" + thumbnailURL + ")";
   },
 

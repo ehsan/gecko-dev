@@ -17,20 +17,19 @@
 #include "nsDisplayList.h"
 #include "imgIContainer.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/DebugOnly.h"
+#include "nsIReflowCallback.h"
 
-class nsIFrame;
 class nsImageMap;
 class nsIURI;
 class nsILoadGroup;
 struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
-struct nsSize;
 class nsDisplayImage;
 class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
 class nsImageLoadingContent;
-class imgRequestProxy;
 
 namespace mozilla {
 namespace layers {
@@ -60,7 +59,8 @@ private:
 
 #define ImageFrameSuper nsSplittableFrame
 
-class nsImageFrame : public ImageFrameSuper {
+class nsImageFrame : public ImageFrameSuper,
+                     public nsIReflowCallback {
 public:
   typedef mozilla::layers::ImageContainer ImageContainer;
   typedef mozilla::layers::ImageLayer ImageLayer;
@@ -82,18 +82,18 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual IntrinsicSize GetIntrinsicSize();
+  virtual mozilla::IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
   
-  NS_IMETHOD  GetContentForEvent(nsEvent* aEvent,
+  NS_IMETHOD  GetContentForEvent(mozilla::WidgetEvent* aEvent,
                                  nsIContent** aContent);
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                        nsGUIEvent* aEvent,
-                        nsEventStatus* aEventStatus);
+                         mozilla::WidgetGUIEvent* aEvent,
+                         nsEventStatus* aEventStatus);
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
@@ -169,6 +169,11 @@ public:
                                  InlineMinWidthData *aData);
 
   void DisconnectMap();
+
+  // nsIReflowCallback
+  virtual bool ReflowFinished() MOZ_OVERRIDE;
+  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
+
 protected:
   virtual ~nsImageFrame();
 
@@ -280,12 +285,14 @@ private:
 
   nsCOMPtr<imgINotificationObserver> mListener;
 
+  nsCOMPtr<imgIContainer> mImage;
   nsSize mComputedSize;
-  nsIFrame::IntrinsicSize mIntrinsicSize;
+  mozilla::IntrinsicSize mIntrinsicSize;
   nsSize mIntrinsicRatio;
 
   bool mDisplayingIcon;
   bool mFirstFrameComplete;
+  bool mReflowCallbackPosted;
 
   static nsIIOService* sIOService;
   
@@ -321,11 +328,8 @@ private:
     }
 
     void RemoveIconObserver(nsImageFrame *frame) {
-#ifdef DEBUG
-        bool rv =
-#endif
-            mIconObservers.RemoveElement(frame);
-        NS_ABORT_IF_FALSE(rv, "Observer not in array");
+      mozilla::DebugOnly<bool> didRemove = mIconObservers.RemoveElement(frame);
+      NS_ABORT_IF_FALSE(didRemove, "Observer not in array");
     }
 
   private:

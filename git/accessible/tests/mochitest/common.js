@@ -79,7 +79,8 @@ const COORDTYPE_PARENT_RELATIVE = nsIAccessibleCoordinateType.COORDTYPE_PARENT_R
 
 const kEmbedChar = String.fromCharCode(0xfffc);
 
-const kDiscBulletText = String.fromCharCode(0x2022) + " ";
+const kDiscBulletChar = String.fromCharCode(0x2022);
+const kDiscBulletText = kDiscBulletChar + " ";
 const kCircleBulletText = String.fromCharCode(0x25e6) + " ";
 const kSquareBulletText = String.fromCharCode(0x25aa) + " ";
 
@@ -329,6 +330,11 @@ function getApplicationAccessible()
 }
 
 /**
+ * Flags used for testAccessibleTree
+ */
+const kSkipTreeFullCheck = 1;
+
+/**
  * Compare expected and actual accessibles trees.
  *
  * @param  aAccOrElmOrID  [in] accessible identifier
@@ -339,8 +345,9 @@ function getApplicationAccessible()
  *                                      children of accessible
  *                          states   - an object having states and extraStates
  *                                      fields
+ * @param aFlags          [in, optional] flags, see constants above
  */
-function testAccessibleTree(aAccOrElmOrID, aAccTree)
+function testAccessibleTree(aAccOrElmOrID, aAccTree, aFlags)
 {
   var acc = getAccessible(aAccOrElmOrID);
   if (!acc)
@@ -361,30 +368,101 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
   // Test accessible properties.
   for (var prop in accTree) {
     var msg = "Wrong value of property '" + prop + "' for " + prettyName(acc) + ".";
-    if (prop == "role") {
-      is(roleToString(acc[prop]), roleToString(accTree[prop]), msg);
 
-    } else if (prop == "states") {
-      var statesObj = accTree[prop];
-      testStates(acc, statesObj.states, statesObj.extraStates,
-                 statesObj.absentStates, statesObj.absentExtraStates);
+    switch (prop) {
+    case "actions": {
+      var actions = (typeof accTree.actions == "string") ?
+        [ accTree.actions ] : (accTree.actions || []);
+      is(acc.actionCount, actions.length, "Wong number of actions.");
+      for (var i = 0; i < actions.length; i++ )
+        is(acc.getActionName(i), actions[i], "Wrong action name at " + i + " index.");
+      break;
+    }
 
-    } else if (prop == "tagName") {
+    case "attributes":
+      testAttrs(acc, accTree[prop], true);
+      break;
+
+    case "absentAttributes":
+      testAbsentAttrs(acc, accTree[prop]);
+      break;
+
+    case "interfaces": {
+      var ifaces = (accTree[prop] instanceof Array) ?
+        accTree[prop] : [ accTree[prop] ];
+      for (var i = 0; i < ifaces.length; i++) {
+        ok((acc instanceof ifaces[i]),
+           "No " + ifaces[i] + " interface on " + prettyName(acc));
+      }
+      break;
+    }
+
+    case "relations": {
+      for (var rel in accTree[prop])
+        testRelation(acc, window[rel], accTree[prop][rel]);
+      break;
+    }
+
+    case "role":
+      isRole(acc, accTree[prop], msg);
+      break;
+
+    case "states":
+    case "extraStates":
+    case "absentStates":
+    case "absentExtraStates": {
+      testStates(acc, accTree["states"], accTree["extraStates"],
+                 accTree["absentStates"], accTree["absentExtraStates"]);
+      break;
+    }
+
+    case "tagName":
       is(accTree[prop], acc.DOMNode.tagName, msg);
+      break;
 
-    } else if (prop != "children") {
-      is(acc[prop], accTree[prop], msg);
+    case "textAttrs": {
+      var prevOffset = -1;
+      for (var offset in accTree[prop]) {
+        if (prevOffset !=- 1) {
+          var attrs = accTree[prop][prevOffset];
+          testTextAttrs(acc, prevOffset, attrs, { }, prevOffset, offset, true);
+        }
+        prevOffset = offset;
+      }
+
+      if (prevOffset != -1) {
+        var charCount = getAccessible(acc, [nsIAccessibleText]).characterCount;
+        var attrs = accTree[prop][prevOffset];
+        testTextAttrs(acc, prevOffset, attrs, { }, prevOffset, charCount, true);
+      }
+
+      break;
+    } 
+
+    default:
+      if (prop.indexOf("todo_") == 0)
+        todo(false, msg);
+      else if (prop != "children")
+        is(acc[prop], accTree[prop], msg);
     }
   }
 
   // Test children.
   if ("children" in accTree && accTree["children"] instanceof Array) {
     var children = acc.children;
-    is(children.length, accTree.children.length,
+    var childCount = children.length;
+
+    is(childCount, accTree.children.length,
        "Different amount of expected children of " + prettyName(acc) + ".");
 
-    if (accTree.children.length == children.length) {
-      var childCount = children.length;
+    if (accTree.children.length == childCount) {
+      if (aFlags & kSkipTreeFullCheck) {
+        for (var i = 0; i < childCount; i++) {
+          var child = children.queryElementAt(i, nsIAccessible);
+          testAccessibleTree(child, accTree.children[i], aFlags);
+        }
+        return;
+      }
 
       // nsIAccessible::firstChild
       var expectedFirstChild = childCount > 0 ?
@@ -402,7 +480,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
       is(lastChild, expectedLastChild,
          "Wrong last child of " + prettyName(acc));
 
-      for (var i = 0; i < children.length; i++) {
+      for (var i = 0; i < childCount; i++) {
         var child = children.queryElementAt(i, nsIAccessible);
 
         // nsIAccessible::parent
@@ -433,7 +511,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
            "Wrong previous sibling of " + prettyName(child));
 
         // Go down through subtree
-        testAccessibleTree(child, accTree.children[i]);
+        testAccessibleTree(child, accTree.children[i], aFlags);
       }
     }
   }
@@ -677,6 +755,21 @@ function getMainChromeWindow(aWindow)
                 .getInterface(Components.interfaces.nsIDOMWindow);
 }
 
+/** Sets the test plugin(s) initially expected enabled state.
+ * It will automatically be reset to it's previous value after the test
+ * ends.
+ * @param aNewEnabledState [in] the enabled state, e.g. SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED
+ * @param aPluginName [in, optional] The name of the plugin, defaults to "Test Plug-in"
+ */
+function setTestPluginEnabledState(aNewEnabledState, aPluginName)
+{
+  var plugin = getTestPluginTag(aPluginName);
+  var oldEnabledState = plugin.enabledState;
+  plugin.enabledState = aNewEnabledState;
+  SimpleTest.registerCleanupFunction(function() {
+    getTestPluginTag(aPluginName).enabledState = oldEnabledState;
+  });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Private
@@ -711,4 +804,20 @@ function getObjAddress(aObj)
     return match[1];
 
   return aObj.toString();
+}
+
+function getTestPluginTag(aPluginName)
+{
+  var ph = SpecialPowers.Cc["@mozilla.org/plugin/host;1"]
+                        .getService(SpecialPowers.Ci.nsIPluginHost);
+  var tags = ph.getPluginTags();
+  var name = aPluginName || "Test Plug-in";
+  for (var tag of tags) {
+    if (tag.name == name) {
+      return tag;
+    }
+  }
+
+  ok(false, "Could not find plugin tag with plugin name '" + name + "'");
+  return null;
 }

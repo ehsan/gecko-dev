@@ -4,6 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+# export required interfaces, even if --disable-cookies has been given
 XPIDL_SOURCES += [
     'nsICookie.idl',
     'nsICookie2.idl',
@@ -18,15 +19,20 @@ XPIDL_MODULE = 'necko_cookie'
 MODULE = 'necko'
 
 if CONFIG['NECKO_COOKIES']:
+    LIBXUL_LIBRARY = True
+    MSVC_ENABLE_PGO = True
+
+    LIBRARY_NAME = 'neckocookie_s'
+
     EXPORTS.mozilla.net = [
-        'CookieServiceParent.h',
         'CookieServiceChild.h',
+        'CookieServiceParent.h',
     ]
-    CPP_SOURCES += [
+    SOURCES += [
+        'CookieServiceChild.cpp',
+        'CookieServiceParent.cpp',
         'nsCookie.cpp',
         'nsCookieService.cpp',
-        'CookieServiceParent.cpp',
-        'CookieServiceChild.cpp',
     ]
 
 if CONFIG['NECKO_COOKIES']:
@@ -39,3 +45,8 @@ if CONFIG['NECKO_COOKIES'] and CONFIG['OS_ARCH'] != 'Darwin':
 IPDL_SOURCES = [
     'PCookieService.ipdl',
 ]
+
+FAIL_ON_WARNINGS = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+

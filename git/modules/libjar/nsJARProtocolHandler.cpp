@@ -21,6 +21,7 @@
 #include "nsIHashable.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
+#include "nsTArray.h"
 
 static NS_DEFINE_CID(kZipReaderCacheCID, NS_ZIPREADERCACHE_CID);
 
@@ -34,10 +35,6 @@ nsJARProtocolHandler::nsJARProtocolHandler()
 : mIsMainProcess(XRE_GetProcessType() == GeckoProcessType_Default)
 {
     MOZ_ASSERT(NS_IsMainThread());
-
-    if (!mIsMainProcess) {
-        mRemoteFileListeners.Init();
-    }
 }
 
 nsJARProtocolHandler::~nsJARProtocolHandler()

@@ -7,14 +7,12 @@
 #define mozilla_dom_workers_location_h__
 
 #include "Workers.h"
-#include "DOMBindingBase.h"
 #include "WorkerPrivate.h"
-
-#include "jspubtd.h"
+#include "nsWrapperCache.h"
 
 BEGIN_WORKERS_NAMESPACE
 
-class WorkerLocation MOZ_FINAL : public DOMBindingBase
+class WorkerLocation MOZ_FINAL : public nsWrapperCache
 {
   nsString mHref;
   nsString mProtocol;
@@ -25,8 +23,7 @@ class WorkerLocation MOZ_FINAL : public DOMBindingBase
   nsString mSearch;
   nsString mHash;
 
-  WorkerLocation(JSContext* aCx,
-                 const nsAString& aHref,
+  WorkerLocation(const nsAString& aHref,
                  const nsAString& aProtocol,
                  const nsAString& aHost,
                  const nsAString& aHostname,
@@ -34,8 +31,7 @@ class WorkerLocation MOZ_FINAL : public DOMBindingBase
                  const nsAString& aPathname,
                  const nsAString& aSearch,
                  const nsAString& aHash)
-    : DOMBindingBase(aCx)
-    , mHref(aHref)
+    : mHref(aHref)
     , mProtocol(aProtocol)
     , mHost(aHost)
     , mHostname(aHostname)
@@ -44,23 +40,29 @@ class WorkerLocation MOZ_FINAL : public DOMBindingBase
     , mSearch(aSearch)
     , mHash(aHash)
   {
-    MOZ_COUNT_CTOR(mozilla::dom::workers::WorkerLocation);
+    MOZ_COUNT_CTOR(WorkerLocation);
+    SetIsDOMBinding();
   }
 
 public:
+
+  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WorkerLocation)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WorkerLocation)
+
   static already_AddRefed<WorkerLocation>
   Create(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
          WorkerPrivate::LocationInfo& aInfo);
 
-  virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
-  virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  nsISupports* GetParentObject() const {
+    return nullptr;
+  }
 
   ~WorkerLocation()
   {
-    MOZ_COUNT_DTOR(mozilla::dom::workers::WorkerLocation);
+    MOZ_COUNT_DTOR(WorkerLocation);
   }
 
   void Stringify(nsString& aHref) const
@@ -99,7 +101,6 @@ public:
   {
     aHash = mHash;
   }
-
 };
 
 END_WORKERS_NAMESPACE

@@ -3,14 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/ImageDataSerializer.h"
-#include "gfxImageSurface.h"
-#include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
-#include "mozilla/gfx/Tools.h"
+#include "ImageDataSerializer.h"
+#include "gfx2DGlue.h"                  // for SurfaceFormatToImageFormat
+#include "gfxASurface.h"                // for gfxASurface
+#include "gfxImageSurface.h"            // for gfxImageSurface
+#include "gfxPoint.h"                   // for gfxIntSize
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
+#include "mozilla/gfx/2D.h"             // for DataSourceSurface, Factory
+#include "mozilla/gfx/Tools.h"          // for GetAlignedStride, etc
+#include "mozilla/mozalloc.h"           // for operator delete, etc
 
 namespace mozilla {
 namespace layers {
+
+using namespace gfx;
 
 // The Data is layed out as follows:
 //
@@ -32,24 +38,25 @@ struct SurfaceBufferInfo
 {
   uint32_t width;
   uint32_t height;
-  gfx::SurfaceFormat format;
+  SurfaceFormat format;
 
   static uint32_t GetOffset()
   {
-    return gfx::GetAlignedStride<16>(sizeof(SurfaceBufferInfo));
+    return GetAlignedStride<16>(sizeof(SurfaceBufferInfo));
   }
 };
 } // anonymous namespace
 
-static SurfaceBufferInfo* GetBufferInfo(uint8_t* aBuffer)
+static SurfaceBufferInfo*
+GetBufferInfo(uint8_t* aBuffer)
 {
   return reinterpret_cast<SurfaceBufferInfo*>(aBuffer);
 }
 
 
 void
-ImageDataSerializer::InitializeBufferInfo(gfx::IntSize aSize,
-                                          gfx::SurfaceFormat aFormat)
+ImageDataSerializer::InitializeBufferInfo(IntSize aSize,
+                                          SurfaceFormat aFormat)
 {
   SurfaceBufferInfo* info = GetBufferInfo(mData);
   info->width = aSize.width;
@@ -57,16 +64,19 @@ ImageDataSerializer::InitializeBufferInfo(gfx::IntSize aSize,
   info->format = aFormat;
 }
 
-uint32_t
-ImageDataSerializer::ComputeMinBufferSize(gfx::IntSize aSize,
-                                          gfx::SurfaceFormat aFormat)
+static inline uint32_t
+ComputeStride(SurfaceFormat aFormat, uint32_t aWidth)
 {
-  // Note that at the moment we pack the image data with the minimum possible
-  // stride, we may decide to change that if we want aligned stride.
-  gfxIntSize gfxSize = gfxIntSize(aSize.width, aSize.height);
-  uint32_t bufsize = aSize.height * gfx::BytesPerPixel(aFormat) * aSize.width;
+  return GetAlignedStride<4>(BytesPerPixel(aFormat) * aWidth);
+}
+
+uint32_t
+ImageDataSerializer::ComputeMinBufferSize(IntSize aSize,
+                                          SurfaceFormat aFormat)
+{
+  uint32_t bufsize = aSize.height * ComputeStride(aFormat, aSize.width);
   return SurfaceBufferInfo::GetOffset()
-       + gfx::GetAlignedStride<16>(bufsize);
+       + GetAlignedStride<16>(bufsize);
 }
 
 bool
@@ -83,15 +93,23 @@ ImageDataSerializerBase::GetData()
   return mData + SurfaceBufferInfo::GetOffset();
 }
 
-gfx::IntSize
+uint32_t
+ImageDataSerializerBase::GetStride() const
+{
+  MOZ_ASSERT(IsValid());
+  SurfaceBufferInfo* info = GetBufferInfo(mData);
+  return ComputeStride(GetFormat(), info->width);
+}
+
+IntSize
 ImageDataSerializerBase::GetSize() const
 {
   MOZ_ASSERT(IsValid());
   SurfaceBufferInfo* info = GetBufferInfo(mData);
-  return gfx::IntSize(info->width, info->height);
+  return IntSize(info->width, info->height);
 }
 
-gfx::SurfaceFormat
+SurfaceFormat
 ImageDataSerializerBase::GetFormat() const
 {
   MOZ_ASSERT(IsValid());
@@ -102,27 +120,31 @@ TemporaryRef<gfxImageSurface>
 ImageDataSerializerBase::GetAsThebesSurface()
 {
   MOZ_ASSERT(IsValid());
-  SurfaceBufferInfo* info = GetBufferInfo(mData);
-  uint32_t stride = gfxASurface::BytesPerPixel(
-    gfx::SurfaceFormatToImageFormat(GetFormat())) * info->width;
-  gfxIntSize size(info->width, info->height);
-  RefPtr<gfxImageSurface> surf =
-    new gfxImageSurface(GetData(), size, stride,
-                        gfx::SurfaceFormatToImageFormat(GetFormat()));
-  return surf.forget();
+  IntSize size = GetSize();
+  return new gfxImageSurface(GetData(),
+                             gfxIntSize(size.width, size.height),
+                             GetStride(),
+                             SurfaceFormatToImageFormat(GetFormat()));
 }
 
-TemporaryRef<gfx::DataSourceSurface>
+TemporaryRef<DrawTarget>
+ImageDataSerializerBase::GetAsDrawTarget()
+{
+  MOZ_ASSERT(IsValid());
+  return gfxPlatform::GetPlatform()->CreateDrawTargetForData(GetData(),
+                                                             GetSize(),
+                                                             GetStride(),
+                                                             GetFormat());
+}
+
+TemporaryRef<DataSourceSurface>
 ImageDataSerializerBase::GetAsSurface()
 {
   MOZ_ASSERT(IsValid());
-  SurfaceBufferInfo* info = GetBufferInfo(mData);
-  gfx::IntSize size(info->width, info->height);
-  uint32_t stride = gfxASurface::BytesPerPixel(
-    gfx::SurfaceFormatToImageFormat(GetFormat())) * info->width;
-  RefPtr<gfx::DataSourceSurface> surf =
-    gfx::Factory::CreateWrappingDataSourceSurface(GetData(), stride, size, GetFormat());
-  return surf.forget();
+  return Factory::CreateWrappingDataSourceSurface(GetData(),
+                                                  GetStride(),
+                                                  GetSize(),
+                                                  GetFormat());
 }
 
 } // namespace layers

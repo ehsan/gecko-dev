@@ -17,6 +17,7 @@ XPIDL_SOURCES += [
 ]
 
 MODULE = 'jar'
+LIBRARY_NAME	= 'jar'
 
 EXPORTS += [
     'nsJARURI.h',
@@ -24,7 +25,7 @@ EXPORTS += [
     'zipstruct.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'nsJAR.cpp',
     'nsJARChannel.cpp',
     'nsJARFactory.cpp',
@@ -33,4 +34,14 @@ CPP_SOURCES += [
     'nsJARURI.cpp',
     'nsZipArchive.cpp',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+EXPORT_LIBRARY = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
 

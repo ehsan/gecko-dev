@@ -8,7 +8,7 @@ DIRS += ['public']
 
 MODULE = 'imgicon'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsIconChannel.cpp',
 ]
 
@@ -21,4 +21,6 @@ EXTRA_PP_COMPONENTS += [
 ]
 
 LIBRARY_NAME = 'imgiconqt_s'
+
+LIBXUL_LIBRARY = True
 

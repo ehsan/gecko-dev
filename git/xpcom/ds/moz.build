@@ -37,7 +37,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     ]
     EXPORTS += ['nsWindowsRegKey.h']
     EXPORTS.mozilla += ['TimeStamp_windows.h']
-    CPP_SOURCES += [
+    SOURCES += [
         'nsWindowsRegKey.cpp'
     ]
 
@@ -48,15 +48,12 @@ MODULE = 'xpcom'
 EXPORTS += [
     'nsArray.h',
     'nsAtomService.h',
-    'nsCRT.h',
     'nsCharSeparatedTokenizer.h',
     'nsCheapSets.h',
-    'nsCppSharedAllocator.h',
+    'nsCRT.h',
     'nsExpirationTracker.h',
     'nsHashPropertyBag.h',
     'nsHashtable.h',
-    'nsIByteBuffer.h',
-    'nsIUnicharBuffer.h',
     'nsMathUtils.h',
     'nsObserverList.h',
     'nsObserverService.h',
@@ -75,11 +72,10 @@ EXPORTS.mozilla += [
     'TimeStamp.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'nsArray.cpp',
     'nsAtomService.cpp',
     'nsAtomTable.cpp',
-    'nsByteBuffer.cpp',
     'nsCRT.cpp',
     'nsHashPropertyBag.cpp',
     'nsHashtable.cpp',
@@ -93,21 +89,20 @@ CPP_SOURCES += [
     'nsSupportsArray.cpp',
     'nsSupportsArrayEnumerator.cpp',
     'nsSupportsPrimitives.cpp',
-    'nsUnicharBuffer.cpp',
     'nsVariant.cpp',
     'TimeStamp.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    CPP_SOURCES += [
+    SOURCES += [
         'TimeStamp_windows.cpp',
     ]
 elif CONFIG['HAVE_CLOCK_MONOTONIC']:
-    CPP_SOURCES += [
+    SOURCES += [
         'TimeStamp_posix.cpp',
     ]
 elif CONFIG['OS_ARCH'] == 'Darwin':
-    CPP_SOURCES += [
+    SOURCES += [
         'TimeStamp_darwin.cpp',
     ]
 else:
@@ -120,3 +115,10 @@ EXTRA_COMPONENTS += [
 
 LIBRARY_NAME = 'xpcomds_s'
 
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LOCAL_INCLUDES += [
+    '../io',
+]

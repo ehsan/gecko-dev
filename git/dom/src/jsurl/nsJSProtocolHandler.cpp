@@ -3,6 +3,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "jsapi.h"
@@ -197,8 +198,6 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         return NS_ERROR_FAILURE;
     }
 
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(global));
-
     // Sandboxed document check: javascript: URI's are disabled
     // in a sandboxed document unless 'allow-scripts' was specified.
     nsIDocument* doc = aOriginalInnerWindow->GetExtantDoc();
@@ -207,9 +206,10 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     }
 
     // Push our popup control state
-    nsAutoPopupStatePusher popupStatePusher(win, aPopupState);
+    nsAutoPopupStatePusher popupStatePusher(aPopupState);
 
     // Make sure we still have the same inner window as we used to.
+    nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(global);
     nsPIDOMWindow *innerWin = win->GetCurrentInnerWindow();
 
     if (innerWin != aOriginalInnerWindow) {
@@ -330,7 +330,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
 
     // If we took the sandbox path above, v might be in the sandbox
     // compartment.
-    if (!JS_WrapValue(cx, v.address())) {
+    if (!JS_WrapValue(cx, &v)) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 

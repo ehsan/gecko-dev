@@ -18,7 +18,7 @@ load 307979-1.html
 load 309322-1.html
 load 309322-2.html
 load 309322-3.html
-load 309322-4.html
+skip load 309322-4.html # Bug 859424
 load 310556-1.xhtml
 load 321224.xul
 load 322780-1.xul
@@ -389,7 +389,7 @@ load 570160.html
 load 570289-1.html
 load 571618-1.svg
 asserts(1) load 571975-1.html # bug 574889
-asserts(7) load 571995.xhtml # 761848
+asserts(1) load 571995.xhtml # 761848
 load 574958.xhtml
 asserts(0-4) load 578977.html # bug 757305
 load 580504-1.xhtml
@@ -466,6 +466,7 @@ load 769303-2.html
 load 769120.html
 load 786740-1.html
 asserts(0-4) test-pref(font.size.inflation.emPerLine,15) load 791601.xhtml # 3 counts of bug 871327, 1 bug 367185
+test-pref(font.size.inflation.minTwips,120) load 794693.html
 asserts(8) test-pref(layout.css.flexbox.enabled,true) load 798020-1.html
 test-pref(layout.css.flexbox.enabled,true) load 798235-1.html
 test-pref(layout.css.flexbox.enabled,true) load 799207-1.html
@@ -499,3 +500,5 @@ test-pref(layout.css.flexbox.enabled,true) load 866547-1.html
 asserts(1-4) test-pref(layout.css.flexbox.enabled,true) load 876074-1.html # bug 876749
 load 885009-1.html
 load 893523.html
+test-pref(layout.css.sticky.enabled,true) load 914891.html
+test-pref(layout.css.sticky.enabled,true) load 915475.xhtml

@@ -6,7 +6,20 @@
 
 MODULE = 'accessibility'
 
-CPP_SOURCES += [
+SOURCES += [
     'uiaRawElmProvider.cpp',
 ]
+
+LIBXUL_LIBRARY = True
+
+LOCAL_INCLUDES += [
+    '../../base',
+    '../../generic',
+    '../../html',
+    '../../xpcom',
+    '../../xul',
+    '../msaa',
+]
+
+LIBRARY_NAME = 'accessibility_toolkit_uia_s'
 

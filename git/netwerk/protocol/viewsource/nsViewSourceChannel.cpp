@@ -6,15 +6,9 @@
 
 #include "nsViewSourceChannel.h"
 #include "nsIIOService.h"
-#include "nsIServiceManager.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsXPIDLString.h"
-#include "nsReadableUtils.h"
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 #include "nsIHttpHeaderVisitor.h"
-#include "nsStringStream.h"
 
 NS_IMPL_ADDREF(nsViewSourceChannel)
 NS_IMPL_RELEASE(nsViewSourceChannel)
@@ -63,7 +57,9 @@ nsViewSourceChannel::Init(nsIURI* uri)
     rv = pService->NewChannel(path, nullptr, nullptr, getter_AddRefs(mChannel));
     if (NS_FAILED(rv))
       return rv;
- 
+
+    mIsSrcdocChannel = false;
+
     mChannel->SetOriginalURI(mOriginalURI);
     mHttpChannel = do_QueryInterface(mChannel);
     mHttpChannelInternal = do_QueryInterface(mChannel);
@@ -94,6 +90,7 @@ nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc)
 
     NS_ENSURE_SUCCESS(rv, rv);
     mOriginalURI = aURI;
+    mIsSrcdocChannel = true;
     
     mChannel->SetOriginalURI(mOriginalURI);
     mHttpChannel = do_QueryInterface(mChannel);
@@ -492,6 +489,13 @@ nsViewSourceChannel::SetOriginalContentType(const nsACString &aContentType)
     mContentType.Truncate();
 
     return mChannel->SetContentType(aContentType);
+}
+
+NS_IMETHODIMP
+nsViewSourceChannel::GetIsSrcdocChannel(bool* aIsSrcdocChannel)
+{
+    *aIsSrcdocChannel = mIsSrcdocChannel;
+    return NS_OK;
 }
 
 // nsIRequestObserver methods

@@ -12,6 +12,7 @@
 #include "mozilla/TimeStamp.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
+#include "Latency.h"
 
 namespace mozilla {
 
@@ -71,11 +72,11 @@ struct StreamUpdate {
 
 /**
  * This represents a message passed from the main thread to the graph thread.
- * A ControlMessage always references a particular affected stream.
+ * A ControlMessage always has a weak reference a particular affected stream.
  */
 class ControlMessage {
 public:
-  ControlMessage(MediaStream* aStream) : mStream(aStream)
+  explicit ControlMessage(MediaStream* aStream) : mStream(aStream)
   {
     MOZ_COUNT_CTOR(ControlMessage);
   }
@@ -365,6 +366,13 @@ public:
    * Remove aPort from the graph and release it.
    */
   void DestroyPort(MediaInputPort* aPort);
+  /**
+   * Mark the media stream order as dirty.
+   */
+  void SetStreamOrderDirty()
+  {
+    mStreamOrderDirty = true;
+  }
 
   // Data members
 
@@ -554,6 +562,15 @@ public:
    * value is only accessed on the main thread.
    */
   bool mNonRealtimeProcessing;
+  /**
+   * True when a change has happened which requires us to recompute the stream
+   * blocking order.
+   */
+  bool mStreamOrderDirty;
+  /**
+   * Hold a ref to the Latency logger
+   */
+  nsRefPtr<AsyncLatencyLogger> mLatencyLog;
 };
 
 }

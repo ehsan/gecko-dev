@@ -27,6 +27,7 @@ public final class GeckoProfile {
     private static final String LOGTAG = "GeckoProfile";
     // Used to "lock" the guest profile, so that we'll always restart in it
     private static final String LOCK_FILE_NAME = ".active_lock";
+    public static final String DEFAULT_PROFILE = "default";
 
     private static HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
     private static String sDefaultProfileName = null;
@@ -35,6 +36,7 @@ public final class GeckoProfile {
     private final String mName;
     private File mMozDir;
     private File mDir;
+    public static boolean sIsUsingCustomProfile = false;
 
     // Constants to cache whether or not a profile is "locked".
     private enum LockState {
@@ -60,19 +62,27 @@ public final class GeckoProfile {
     }
 
     public static GeckoProfile get(Context context) {
-        if (context instanceof GeckoApp) {
+        boolean isGeckoApp = false;
+        try {
+            isGeckoApp = context instanceof GeckoApp;
+        } catch (NoClassDefFoundError ex) {}
+        
+
+        if (isGeckoApp) {
             // Check for a cached profile on this context already
             // TODO: We should not be caching profile information on the Activity context
             if (((GeckoApp)context).mProfile != null) {
                 return ((GeckoApp)context).mProfile;
             }
+        }
 
-            GeckoProfile guest = GeckoProfile.getGuestProfile(context);
-            // if the guest profile exists and is locked, return it
-            if (guest != null && guest.locked()) {
-                return guest;
-            }
+        // If the guest profile exists and is locked, return it
+        GeckoProfile guest = GeckoProfile.getGuestProfile(context);
+        if (guest != null && guest.locked()) {
+            return guest;
+        }
 
+        if (isGeckoApp) {
             // Otherwise, get the default profile for the Activity
             return get(context, ((GeckoApp)context).getDefaultProfileName());
         }
@@ -106,7 +116,7 @@ public final class GeckoProfile {
         if (TextUtils.isEmpty(profileName) && profileDir == null) {
             profileName = GeckoProfile.findDefaultProfile(context);
             if (profileName == null)
-                profileName = "default";
+                profileName = DEFAULT_PROFILE;
         }
 
         // actually try to look up the profile
@@ -128,6 +138,8 @@ public final class GeckoProfile {
             File mozDir = new File(filesDir, "mozilla");
             if (! mozDir.exists()) {
                 if (! mozDir.mkdirs()) {
+                    // Although this leaks a path to the system log, the path is
+                    // predictable (unlike a profile directory), so this is fine.
                     throw new IOException("Unable to create mozilla directory at " + mozDir.getAbsolutePath());
                 }
             }
@@ -231,14 +243,21 @@ public final class GeckoProfile {
             return mLocked == LockState.LOCKED;
         }
 
-        File lockFile = new File(getDir(), LOCK_FILE_NAME);
-        boolean res = lockFile.exists();
-        mLocked = res ? LockState.LOCKED : LockState.UNLOCKED;
-        return res;
+        // Don't use getDir() as it will create a dir if none exists
+        if (mDir != null && mDir.exists()) {
+            File lockFile = new File(mDir, LOCK_FILE_NAME);
+            boolean res = lockFile.exists();
+            mLocked = res ? LockState.LOCKED : LockState.UNLOCKED;
+        } else {
+            mLocked = LockState.UNLOCKED;
+        }
+
+        return mLocked == LockState.LOCKED;
     }
 
     public boolean lock() {
         try {
+            // If this dir doesn't exist getDir will create it for us
             File lockFile = new File(getDir(), LOCK_FILE_NAME);
             boolean result = lockFile.createNewFile();
             if (result) {
@@ -255,8 +274,13 @@ public final class GeckoProfile {
     }
 
     public boolean unlock() {
+        // Don't use getDir() as it will create a dir
+        if (mDir == null || !mDir.exists()) {
+            return true;
+        }
+
         try {
-            File lockFile = new File(getDir(), LOCK_FILE_NAME);
+            File lockFile = new File(mDir, LOCK_FILE_NAME);
             boolean result = delete(lockFile);
             if (result) {
                 mLocked = LockState.UNLOCKED;
@@ -290,7 +314,7 @@ public final class GeckoProfile {
         if (dir != null && dir.exists() && dir.isDirectory()) {
             mDir = dir;
         } else {
-            Log.w(LOGTAG, "requested profile directory missing: " + dir);
+            Log.w(LOGTAG, "Requested profile directory missing.");
         }
     }
 
@@ -299,8 +323,13 @@ public final class GeckoProfile {
     }
 
     public synchronized File getDir() {
+        forceCreate();
+        return mDir;
+    }
+
+    public synchronized GeckoProfile forceCreate() {
         if (mDir != null) {
-            return mDir;
+            return this;
         }
 
         try {
@@ -311,12 +340,12 @@ public final class GeckoProfile {
                 // otherwise create it
                 mDir = createProfileDir(mozillaDir);
             } else {
-                Log.d(LOGTAG, "Found profile dir: " + mDir.getAbsolutePath());
+                Log.d(LOGTAG, "Found profile dir.");
             }
         } catch (IOException ioe) {
             Log.e(LOGTAG, "Error getting profile dir", ioe);
         }
-        return mDir;
+        return this;
     }
 
     public File getFile(String aFile) {
@@ -452,7 +481,7 @@ public final class GeckoProfile {
             parser.write();
             return true;
         } catch (IOException ex) {
-            Log.w(LOGTAG, "Failed to remove profile " + mName + ":\n" + ex);
+            Log.w(LOGTAG, "Failed to remove profile.", ex);
             return false;
         }
     }
@@ -520,10 +549,10 @@ public final class GeckoProfile {
         }
 
         // Attempt to create the salted profile dir
-        if (! profileDir.mkdirs()) {
-            throw new IOException("Unable to create profile at " + profileDir.getAbsolutePath());
+        if (!profileDir.mkdirs()) {
+            throw new IOException("Unable to create profile.");
         }
-        Log.d(LOGTAG, "Created new profile dir at " + profileDir.getAbsolutePath());
+        Log.d(LOGTAG, "Created new profile dir.");
 
         // Now update profiles.ini
         // If this is the first time its created, we also add a General section

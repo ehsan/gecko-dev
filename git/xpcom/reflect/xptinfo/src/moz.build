@@ -6,7 +6,7 @@
 
 MODULE = 'xpcom'
 
-CPP_SOURCES += [
+SOURCES += [
     'xptiInterfaceInfo.cpp',
     'xptiInterfaceInfoManager.cpp',
     'xptiTypelibGuts.cpp',
@@ -15,3 +15,11 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'xptinfo'
 
+MSVC_ENABLE_PGO = True
+
+LIBXUL_LIBRARY = True
+
+# For nsManifestLineReader class.
+LOCAL_INCLUDES += [
+    '/xpcom/ds',
+]

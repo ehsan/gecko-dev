@@ -21,10 +21,14 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "devtools",
   "resource://gre/modules/devtools/Loader.jsm");
+
+XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
+  "@mozilla.org/widget/clipboardhelper;1",
+  "nsIClipboardHelper");
 
 Object.defineProperty(this, "WebConsoleUtils", {
   get: function() {
@@ -78,11 +82,13 @@ this.VariablesView = function VariablesView(aParentNode, aFlags = {}) {
   this._onSearchboxInput = this._onSearchboxInput.bind(this);
   this._onSearchboxKeyPress = this._onSearchboxKeyPress.bind(this);
   this._onViewKeyPress = this._onViewKeyPress.bind(this);
+  this._onViewKeyDown = this._onViewKeyDown.bind(this);
 
   // Create an internal scrollbox container.
   this._list = this.document.createElement("scrollbox");
   this._list.setAttribute("orient", "vertical");
   this._list.addEventListener("keypress", this._onViewKeyPress, false);
+  this._list.addEventListener("keydown", this._onViewKeyDown, false);
   this._parent.appendChild(this._list);
   this._boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
@@ -103,7 +109,9 @@ VariablesView.prototype = {
    */
   set rawObject(aObject) {
     this.empty();
-    this.addScope().addItem().populate(aObject, { sorted: true });
+    this.addScope()
+        .addItem("", { enumerable: true })
+        .populate(aObject, { sorted: true });
   },
 
   /**
@@ -179,11 +187,11 @@ VariablesView.prototype = {
     this._store.length = 0;
     this._itemsByElement.clear();
 
-    this._emptyTimeout = this.window.setTimeout(() => {
-      this._emptyTimeout = null;
-
+    this.window.setTimeout(() => {
       prevList.removeEventListener("keypress", this._onViewKeyPress, false);
+      prevList.removeEventListener("keydown", this._onViewKeyDown, false);
       currList.addEventListener("keypress", this._onViewKeyPress, false);
+      currList.addEventListener("keydown", this._onViewKeyDown, false);
       currList.setAttribute("orient", "vertical");
 
       this._parent.removeChild(prevList);
@@ -224,6 +232,11 @@ VariablesView.prototype = {
    * @see Scope.prototype.expand
    */
   lazyExpand: true,
+
+  /**
+   * Specifies if nodes in this view may be searched lazily.
+   */
+  lazySearch: true,
 
   /**
    * Function called each time a variable or property's value is changed via
@@ -458,7 +471,7 @@ VariablesView.prototype = {
    * Listener handling the searchbox input event.
    */
   _onSearchboxInput: function() {
-    this.performSearch(this._searchboxNode.value);
+    this.scheduleSearch(this._searchboxNode.value);
   },
 
   /**
@@ -478,80 +491,51 @@ VariablesView.prototype = {
   },
 
   /**
-   * Allows searches to be scheduled and delayed to avoid redundant calls.
-   */
-  delayedSearch: true,
-
-  /**
    * Schedules searching for variables or properties matching the query.
    *
-   * @param string aQuery
+   * @param string aToken
    *        The variable or property to search for.
+   * @param number aWait
+   *        The amount of milliseconds to wait until draining.
    */
-  scheduleSearch: function(aQuery) {
-    if (!this.delayedSearch) {
-      this.performSearch(aQuery);
+  scheduleSearch: function(aToken, aWait) {
+    // Check if this search operation may not be executed lazily.
+    if (!this.lazySearch) {
+      this._doSearch(aToken);
       return;
     }
-    let delay = Math.max(SEARCH_ACTION_MAX_DELAY / aQuery.length, 0);
 
-    this.window.clearTimeout(this._searchTimeout);
-    this._searchFunction = this._startSearch.bind(this, aQuery);
-    this._searchTimeout = this.window.setTimeout(this._searchFunction, delay);
-  },
+    // The amount of time to wait for the requests to settle.
+    let maxDelay = SEARCH_ACTION_MAX_DELAY;
+    let delay = aWait === undefined ? maxDelay / aToken.length : aWait;
 
-  /**
-   * Immediately searches for variables or properties matching the query.
-   *
-   * @param string aQuery
-   *        The variable or property to search for.
-   */
-  performSearch: function(aQuery) {
-    this.window.clearTimeout(this._searchTimeout);
-    this._searchFunction = null;
-    this._startSearch(aQuery);
+    // Allow requests to settle down first.
+    setNamedTimeout("vview-search", delay, () => this._doSearch(aToken));
   },
 
   /**
    * Performs a case insensitive search for variables or properties matching
    * the query, and hides non-matched items.
    *
-   * If aQuery is empty string, then all the scopes are unhidden and expanded,
+   * If aToken is falsy, then all the scopes are unhidden and expanded,
    * while the available variables and properties inside those scopes are
    * just unhidden.
    *
-   * If aQuery is null or undefined, then all the scopes are just unhidden,
-   * and the available variables and properties inside those scopes are also
-   * just unhidden.
-   *
-   * @param string aQuery
+   * @param string aToken
    *        The variable or property to search for.
    */
-  _startSearch: function(aQuery) {
+  _doSearch: function(aToken) {
     for (let scope of this._store) {
-      switch (aQuery) {
+      switch (aToken) {
         case "":
-          scope.expand();
-          // fall through
         case null:
         case undefined:
+          scope.expand();
           scope._performSearch("");
           break;
         default:
-          scope._performSearch(aQuery.toLowerCase());
+          scope._performSearch(aToken.toLowerCase());
           break;
-      }
-    }
-  },
-
-  /**
-   * Expands the first search results in this container.
-   */
-  expandFirstSearchResults: function() {
-    for (let scope of this._store) {
-      let match = scope._firstMatch;
-      if (match) {
-        match.expand();
       }
     }
   },
@@ -598,6 +582,18 @@ VariablesView.prototype = {
       }
     }
     return null;
+  },
+
+  /**
+   * Gets the scope at the specified index.
+   *
+   * @param number aIndex
+   *        The scope's index.
+   * @return Scope
+   *         The scope if found, undefined if not.
+   */
+  getScopeAtIndex: function(aIndex) {
+    return this._store[aIndex];
   },
 
   /**
@@ -835,6 +831,21 @@ VariablesView.prototype = {
   },
 
   /**
+   * Listener handling a key down event on the view.
+   */
+  _onViewKeyDown: function(e) {
+    if (e.keyCode == e.DOM_VK_C) {
+      // Copy current selection to clipboard.
+      if (e.ctrlKey || e.metaKey) {
+        let item = this.getFocusedItem();
+        clipboardHelper.copyString(
+          item._nameString + item.separatorStr + item._valueString
+        );
+      }
+    }
+  },
+
+  /**
    * The number of elements in this container to jump when Page Up or Page Down
    * keys are pressed. If falsy, then the page size will be based on the
    * container height.
@@ -882,6 +893,40 @@ VariablesView.prototype = {
   },
 
   /**
+   * Gets if all values should be aligned together.
+   * @return boolean
+   */
+  get alignedValues() {
+    return this._alignedValues;
+  },
+
+  /**
+   * Sets if all values should be aligned together.
+   * @param boolean aFlag
+   */
+  set alignedValues(aFlag) {
+    this._alignedValues = aFlag;
+    if (aFlag) {
+      this._parent.setAttribute("aligned-values", "");
+    } else {
+      this._parent.removeAttribute("aligned-values");
+    }
+  },
+
+  /**
+   * Sets if action buttons (like delete) should be placed at the beginning or
+   * end of a line.
+   * @param boolean aFlag
+   */
+  set actionsFirst(aFlag) {
+    if (aFlag) {
+      this._parent.setAttribute("actions-first", "");
+    } else {
+      this._parent.removeAttribute("actions-first");
+    }
+  },
+
+  /**
    * Gets the parent node holding this view.
    * @return nsIDOMNode
    */
@@ -907,9 +952,6 @@ VariablesView.prototype = {
   _currHierarchy: null,
   _enumVisible: true,
   _nonEnumVisible: true,
-  _emptyTimeout: null,
-  _searchTimeout: null,
-  _searchFunction: null,
   _parent: null,
   _list: null,
   _boxObject: null,
@@ -1106,21 +1148,14 @@ function Scope(aView, aName, aFlags = {}) {
   this.eval = aView.eval;
   this.switch = aView.switch;
   this.delete = aView.delete;
-  this.editableValueTooltip = aView.editableValueTooltip;
+  this.preventDisableOnChage = aView.preventDisableOnChage;
+  this.preventDescriptorModifiers = aView.preventDescriptorModifiers;
   this.editableNameTooltip = aView.editableNameTooltip;
+  this.editableValueTooltip = aView.editableValueTooltip;
   this.editButtonTooltip = aView.editButtonTooltip;
   this.deleteButtonTooltip = aView.deleteButtonTooltip;
-  this.preventDescriptorModifiers = aView.preventDescriptorModifiers;
   this.contextMenuId = aView.contextMenuId;
   this.separatorStr = aView.separatorStr;
-
-  // Creating maps and arrays thousands of times for variables or properties
-  // with a large number of children fills up a lot of memory. Make sure
-  // these are instantiated only if needed.
-  XPCOMUtils.defineLazyGetter(this, "_store", () => new Map());
-  XPCOMUtils.defineLazyGetter(this, "_enumItems", () => []);
-  XPCOMUtils.defineLazyGetter(this, "_nonEnumItems", () => []);
-  XPCOMUtils.defineLazyGetter(this, "_batchItems", () => []);
 
   this._init(aName.trim(), aFlags);
 }
@@ -1153,7 +1188,8 @@ Scope.prototype = {
    * @param object aDescriptor
    *        Specifies the value and/or type & class of the child,
    *        or 'get' & 'set' accessor properties. If the type is implicit,
-   *        it will be inferred from the value.
+   *        it will be inferred from the value. If this parameter is omitted,
+   *        a property without a value will be added (useful for branch nodes).
    *        e.g. - { value: 42 }
    *             - { value: true }
    *             - { value: "nasu" }
@@ -1376,7 +1412,6 @@ Scope.prototype = {
       // Only allow left-click to trigger this event.
       return;
     }
-    this._wasToggled = true;
     this.expanded ^= 1;
 
     // Make sure the scope and its contents are visibile.
@@ -1643,7 +1678,8 @@ Scope.prototype = {
    * The click listener for this scope's title.
    */
   _onClick: function(e) {
-    if (e.target == this._inputNode ||
+    if (e.button != 0 ||
+        e.target == this._inputNode ||
         e.target == this._editNode ||
         e.target == this._deleteNode) {
       return;
@@ -1724,7 +1760,8 @@ Scope.prototype = {
     }
     let throbber = this._throbber = this.document.createElement("hbox");
     throbber.className = "variables-view-throbber";
-    this._title.appendChild(throbber);
+    throbber.setAttribute("optional-visibility", "");
+    this._title.insertBefore(throbber, this._spacer);
   },
 
   /**
@@ -1817,30 +1854,21 @@ Scope.prototype = {
         // If the variable was ever expanded, there's a possibility it may
         // contain some matched properties, so make sure they're visible
         // ("expand downwards").
-
-        if (variable._wasToggled && aLowerCaseQuery) {
+        if (variable._store.size) {
           variable.expand();
-        }
-        if (variable._isExpanded && !aLowerCaseQuery) {
-          variable._wasToggled = true;
         }
 
         // If the variable is contained in another Scope, Variable, or Property,
         // the parent may not be a match, thus hidden. It should be visible
         // ("expand upwards").
-        while ((variable = variable.ownerView) &&  /* Parent object exists. */
-               variable instanceof Scope) {
-
-          // Show and expand the parent, as it is certainly accessible.
+        while ((variable = variable.ownerView) && variable instanceof Scope) {
           variable._matched = true;
-          aLowerCaseQuery && variable.expand();
+          variable.expand();
         }
       }
 
       // Proceed with the search recursively inside this variable or property.
-      if (currentObject._wasToggled ||
-          currentObject.getter ||
-          currentObject.setter) {
+      if (currentObject._store.size || currentObject.getter || currentObject.setter) {
         currentObject._performSearch(aLowerCaseQuery);
       }
     }
@@ -2024,7 +2052,6 @@ Scope.prototype = {
   _locked: false,
   _isExpanding: false,
   _isExpanded: false,
-  _wasToggled: false,
   _isContentVisible: true,
   _isHeaderVisible: true,
   _isArrowVisible: true,
@@ -2039,6 +2066,14 @@ Scope.prototype = {
   _nonenum: null,
   _throbber: null
 };
+
+// Creating maps and arrays thousands of times for variables or properties
+// with a large number of children fills up a lot of memory. Make sure
+// these are instantiated only if needed.
+DevToolsUtils.defineLazyPrototypeGetter(Scope.prototype, "_store", Map);
+DevToolsUtils.defineLazyPrototypeGetter(Scope.prototype, "_enumItems", Array);
+DevToolsUtils.defineLazyPrototypeGetter(Scope.prototype, "_nonEnumItems", Array);
+DevToolsUtils.defineLazyPrototypeGetter(Scope.prototype, "_batchItems", Array);
 
 /**
  * A Variable is a Scope holding Property instances.
@@ -2240,19 +2275,14 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    *             - { type: "object", class: "Object" }
    */
   setGrip: function(aGrip) {
-    // Don't allow displaying grip information if there's no name available.
+    // Don't allow displaying grip information if there's no name available
+    // or the grip is malformed.
     if (!this._nameString || aGrip === undefined || aGrip === null) {
       return;
     }
     // Getters and setters should display grip information in sub-properties.
-    if (!this._isUndefined && (this.getter || this.setter)) {
-      this._valueLabel.setAttribute("value", "");
+    if (this.getter || this.setter) {
       return;
-    }
-
-    // Make sure the value is escaped unicode if it's a string.
-    if (typeof aGrip == "string") {
-      aGrip = NetworkHelper.convertToUnicode(unescape(aGrip));
     }
 
     let prevGrip = this._valueGrip;
@@ -2325,18 +2355,25 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
     let valueLabel = this._valueLabel = document.createElement("label");
     valueLabel.className = "plain value";
     valueLabel.setAttribute("crop", "center");
-    valueLabel.setAttribute('flex', "1");
+
+    let spacer = this._spacer = document.createElement("spacer");
+    spacer.setAttribute("optional-visibility", "");
+    spacer.setAttribute("flex", "1");
 
     this._title.appendChild(separatorLabel);
     this._title.appendChild(valueLabel);
+    this._title.appendChild(spacer);
 
-    let isPrimitive = this._isPrimitive = VariablesView.isPrimitive(descriptor);
-    let isUndefined = this._isUndefined = VariablesView.isUndefined(descriptor);
-
-    if (isPrimitive || isUndefined) {
+    if (VariablesView.isPrimitive(descriptor)) {
       this.hideArrow();
     }
-    if (!isUndefined && (descriptor.get || descriptor.set)) {
+
+    // If no value will be displayed, we don't need the separator.
+    if (!descriptor.get && !descriptor.set && !("value" in descriptor)) {
+      separatorLabel.hidden = true;
+    }
+
+    if (descriptor.get || descriptor.set) {
       separatorLabel.hidden = true;
       valueLabel.hidden = true;
 
@@ -2374,22 +2411,17 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
     let ownerView = this.ownerView;
     let descriptor = this._initialDescriptor;
 
-    if (ownerView.eval) {
-      if (!this._isUndefined && (this.getter || this.setter)) {
-        let editNode = this._editNode = this.document.createElement("toolbarbutton");
-        editNode.className = "plain variables-view-edit";
-        editNode.addEventListener("mousedown", this._onEdit.bind(this), false);
-        this._title.appendChild(editNode);
-      }
+    if (ownerView.eval && this.getter || this.setter) {
+      let editNode = this._editNode = this.document.createElement("toolbarbutton");
+      editNode.className = "plain variables-view-edit";
+      editNode.addEventListener("mousedown", this._onEdit.bind(this), false);
+      this._title.insertBefore(editNode, this._spacer);
     }
     if (ownerView.delete) {
-      if (!this._isUndefined || !(ownerView.getter && ownerView.setter)) {
-        let deleteNode = this._deleteNode = this.document.createElement("toolbarbutton");
-        deleteNode.className = "plain variables-view-delete";
-        deleteNode.setAttribute("ordinal", 2);
-        deleteNode.addEventListener("click", this._onDelete.bind(this), false);
-        this._title.appendChild(deleteNode);
-      }
+      let deleteNode = this._deleteNode = this.document.createElement("toolbarbutton");
+      deleteNode.className = "plain variables-view-delete";
+      deleteNode.addEventListener("click", this._onDelete.bind(this), false);
+      this._title.appendChild(deleteNode);
     }
     if (ownerView.contextMenuId) {
       this._title.setAttribute("context", ownerView.contextMenuId);
@@ -2402,24 +2434,28 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
     if (!descriptor.writable && !ownerView.getter && !ownerView.setter) {
       let nonWritableIcon = this.document.createElement("hbox");
       nonWritableIcon.className = "variable-or-property-non-writable-icon";
+      nonWritableIcon.setAttribute("optional-visibility", "");
       this._title.appendChild(nonWritableIcon);
     }
     if (descriptor.value && typeof descriptor.value == "object") {
       if (descriptor.value.frozen) {
         let frozenLabel = this.document.createElement("label");
         frozenLabel.className = "plain variable-or-property-frozen-label";
+        frozenLabel.setAttribute("optional-visibility", "");
         frozenLabel.setAttribute("value", "F");
         this._title.appendChild(frozenLabel);
       }
       if (descriptor.value.sealed) {
         let sealedLabel = this.document.createElement("label");
         sealedLabel.className = "plain variable-or-property-sealed-label";
+        sealedLabel.setAttribute("optional-visibility", "");
         sealedLabel.setAttribute("value", "S");
         this._title.appendChild(sealedLabel);
       }
       if (!descriptor.value.extensible) {
         let nonExtensibleLabel = this.document.createElement("label");
         nonExtensibleLabel.className = "plain variable-or-property-non-extensible-label";
+        nonExtensibleLabel.setAttribute("optional-visibility", "");
         nonExtensibleLabel.setAttribute("value", "N");
         this._title.appendChild(nonExtensibleLabel);
       }
@@ -2477,7 +2513,8 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
 
   /**
    * Sets a variable's configurable, enumerable and writable attributes,
-   * and specifies if it's a 'this', '<exception>' or '__proto__' reference.
+   * and specifies if it's a 'this', '<exception>', '<return>' or '__proto__'
+   * reference.
    */
   _setAttributes: function() {
     let ownerView = this.ownerView;
@@ -2521,7 +2558,6 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
     if (name == "this") {
       target.setAttribute("self", "");
     }
-
     else if (name == "<exception>") {
       target.setAttribute("exception", "");
     }
@@ -2560,7 +2596,9 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
     let input = this.document.createElement("textbox");
     input.className = "plain " + aClassName;
     input.setAttribute("value", initialString);
-    input.setAttribute("flex", "1");
+    if (!this._variablesView.alignedValues) {
+      input.setAttribute("flex", "1");
+    }
 
     // Replace the specified label with a textbox input element.
     aLabel.parentNode.replaceChild(input, aLabel);
@@ -2689,18 +2727,15 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    * Disables this variable prior to a new name switch or value evaluation.
    */
   _disable: function() {
+    // Prevent the variable from being collapsed or expanded.
     this.hideArrow();
-    this._separatorLabel.hidden = true;
-    this._valueLabel.hidden = true;
+
+    // Hide any nodes that may offer information about the variable.
+    for (let node of this._title.childNodes) {
+      node.hidden = node != this._arrow && node != this._name;
+    }
     this._enum.hidden = true;
     this._nonenum.hidden = true;
-
-    if (this._editNode) {
-      this._editNode.hidden = true;
-    }
-    if (this._deleteNode) {
-      this._deleteNode.hidden = true;
-    }
   },
 
   /**
@@ -2786,6 +2821,10 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    * The click listener for the edit button.
    */
   _onEdit: function(e) {
+    if (e.button != 0) {
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
     this._activateValueInput();
@@ -2795,6 +2834,10 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    * The click listener for the delete button.
    */
   _onDelete: function(e) {
+    if ("button" in e && e.button != 0) {
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -2808,9 +2851,8 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
   _symbolicName: "",
   _absoluteName: "",
   _initialDescriptor: null,
-  _isPrimitive: false,
-  _isUndefined: false,
   _separatorLabel: null,
+  _spacer: null,
   _valueLabel: null,
   _inputNode: null,
   _editNode: null,
@@ -2955,7 +2997,6 @@ VariablesView.prototype.commitHierarchy = function() {
 
     // Re-expand the variable if not previously collapsed.
     if (expanded) {
-      currVariable._wasToggled = prevVariable._wasToggled;
       currVariable.expand();
     }
     // This variable was either not changed or removed, no need to continue.
@@ -3005,9 +3046,16 @@ VariablesView.isPrimitive = function(aDescriptor) {
     return true;
   }
 
-  // For convenience, undefined, null and long strings are considered types.
+  // For convenience, undefined, null, Infinity, -Infinity, NaN, -0, and long
+  // strings are considered types.
   let type = grip.type;
-  if (type == "undefined" || type == "null" || type == "longString") {
+  if (type == "undefined" ||
+      type == "null" ||
+      type == "Infinity" ||
+      type == "-Infinity" ||
+      type == "NaN" ||
+      type == "-0" ||
+      type == "longString") {
     return true;
   }
 
@@ -3054,9 +3102,12 @@ VariablesView.isFalsy = function(aDescriptor) {
     return !grip;
   }
 
-  // For convenience, undefined and null are both considered types.
+  // For convenience, undefined, null, NaN, and -0 are all considered types.
   let type = grip.type;
-  if (type == "undefined" || type == "null") {
+  if (type == "undefined" ||
+      type == "null" ||
+      type == "NaN" ||
+      type == "-0") {
     return true;
   }
 
@@ -3082,16 +3133,38 @@ VariablesView.isVariable = function(aValue) {
  *         The value's grip.
  */
 VariablesView.getGrip = function(aValue) {
-  if (aValue === undefined) {
-    return { type: "undefined" };
+  switch (typeof aValue) {
+    case "boolean":
+    case "string":
+      return aValue;
+    case "number":
+      if (aValue === Infinity) {
+        return { type: "Infinity" };
+      } else if (aValue === -Infinity) {
+        return { type: "-Infinity" };
+      } else if (Number.isNaN(aValue)) {
+        return { type: "NaN" };
+      } else if (1 / aValue === -Infinity) {
+        return { type: "-0" };
+      }
+      return aValue;
+    case "undefined":
+      // document.all is also "undefined"
+      if (aValue === undefined) {
+        return { type: "undefined" };
+      }
+    case "object":
+      if (aValue === null) {
+        return { type: "null" };
+      }
+    case "function":
+      return { type: "object",
+               class: WebConsoleUtils.getObjectClassName(aValue) };
+    default:
+      Cu.reportError("Failed to provide a grip for value of " + typeof value +
+                     ": " + aValue);
+      return null;
   }
-  if (aValue === null) {
-    return { type: "null" };
-  }
-  if (typeof aValue == "object" || typeof aValue == "function") {
-    return { type: "object", class: WebConsoleUtils.getObjectClassName(aValue) };
-  }
-  return aValue;
 };
 
 /**
@@ -3108,27 +3181,33 @@ VariablesView.getString = function(aGrip, aConciseFlag) {
   if (aGrip && typeof aGrip == "object") {
     switch (aGrip.type) {
       case "undefined":
-        return "undefined";
       case "null":
-        return "null";
+      case "NaN":
+      case "Infinity":
+      case "-Infinity":
+      case "-0":
+        return aGrip.type;
       case "longString":
         return "\"" + aGrip.initial + "\"";
       default:
         if (!aConciseFlag) {
           return "[" + aGrip.type + " " + aGrip.class + "]";
-        } else {
-          return aGrip.class;
         }
-    }
-  } else {
-    switch (typeof aGrip) {
-      case "string":
-        return "\"" + aGrip + "\"";
-      case "boolean":
-        return aGrip ? "true" : "false";
+        return aGrip.class;
     }
   }
-  return aGrip + "";
+  switch (typeof aGrip) {
+    case "string":
+      return "\"" + aGrip + "\"";
+    case "boolean":
+      return aGrip ? "true" : "false";
+    case "number":
+      if (!aGrip && 1 / aGrip === -Infinity) {
+        return "-0";
+      }
+    default:
+      return aGrip + "";
+  }
 };
 
 /**
@@ -3146,20 +3225,25 @@ VariablesView.getClass = function(aGrip) {
         return "token-undefined";
       case "null":
         return "token-null";
+      case "Infinity":
+      case "-Infinity":
+      case "NaN":
+      case "-0":
+        return "token-number";
       case "longString":
         return "token-string";
     }
-  } else {
-    switch (typeof aGrip) {
-      case "string":
-        return "token-string";
-      case "boolean":
-        return "token-boolean";
-      case "number":
-        return "token-number";
-    }
   }
-  return "token-other";
+  switch (typeof aGrip) {
+    case "string":
+      return "token-string";
+    case "boolean":
+      return "token-boolean";
+    case "number":
+      return "token-number";
+    default:
+      return "token-other";
+  }
 };
 
 /**

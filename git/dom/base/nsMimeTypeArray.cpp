@@ -5,14 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMimeTypeArray.h"
+
 #include "mozilla/dom/MimeTypeArrayBinding.h"
 #include "mozilla/dom/MimeTypeBinding.h"
 #include "nsIDOMNavigator.h"
-#include "nsContentUtils.h"
 #include "nsPluginArray.h"
 #include "nsIMIMEService.h"
 #include "nsIMIMEInfo.h"
 #include "Navigator.h"
+#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -24,10 +25,11 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsMimeTypeArray)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsMimeTypeArray,
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsMimeTypeArray,
+                                        mWindow,
                                         mMimeTypes)
 
-nsMimeTypeArray::nsMimeTypeArray(nsWeakPtr aWindow)
+nsMimeTypeArray::nsMimeTypeArray(nsPIDOMWindow* aWindow)
   : mWindow(aWindow),
     mPluginMimeTypeCount(0)
 {
@@ -51,12 +53,11 @@ nsMimeTypeArray::Refresh()
   mPluginMimeTypeCount = 0;
 }
 
-nsPIDOMWindow *
+nsPIDOMWindow*
 nsMimeTypeArray::GetParentObject() const
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
-  MOZ_ASSERT(win);
-  return win;
+  MOZ_ASSERT(mWindow);
+  return mWindow;
 }
 
 nsMimeType*
@@ -184,14 +185,12 @@ nsMimeTypeArray::GetSupportedNames(nsTArray< nsString >& aRetval)
 void
 nsMimeTypeArray::EnsureMimeTypes()
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
-
-  if (!mMimeTypes.IsEmpty() || !win) {
+  if (!mMimeTypes.IsEmpty() || !mWindow) {
     return;
   }
 
   nsCOMPtr<nsIDOMNavigator> navigator;
-  win->GetNavigator(getter_AddRefs(navigator));
+  mWindow->GetNavigator(getter_AddRefs(navigator));
 
   if (!navigator) {
     return;
@@ -219,9 +218,9 @@ nsMimeTypeArray::EnsureMimeTypes()
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsMimeType, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsMimeType, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsMimeType, mPluginElement)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsMimeType, mWindow, mPluginElement)
 
-nsMimeType::nsMimeType(nsWeakPtr aWindow, nsPluginElement* aPluginElement,
+nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
                        uint32_t aPluginTagMimeIndex, const nsAString& aType)
   : mWindow(aWindow),
     mPluginElement(aPluginElement),
@@ -231,7 +230,7 @@ nsMimeType::nsMimeType(nsWeakPtr aWindow, nsPluginElement* aPluginElement,
   SetIsDOMBinding();
 }
 
-nsMimeType::nsMimeType(nsWeakPtr aWindow, const nsAString& aType)
+nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aType)
   : mWindow(aWindow),
     mPluginElement(nullptr),
     mPluginTagMimeIndex(0),
@@ -244,12 +243,11 @@ nsMimeType::~nsMimeType()
 {
 }
 
-nsPIDOMWindow *
+nsPIDOMWindow*
 nsMimeType::GetParentObject() const
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
-  MOZ_ASSERT(win);
-  return win;
+  MOZ_ASSERT(mWindow);
+  return mWindow;
 }
 
 JSObject*

@@ -7,6 +7,7 @@ package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoThread;
+import org.mozilla.gecko.mozglue.GeneratableAndroidBridgeTarget;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
 
@@ -82,12 +83,12 @@ class NativePanZoomController implements PanZoomController, GeckoEventListener {
     public native void setOverScrollMode(int overscrollMode);
     public native int getOverScrollMode();
 
-    /* Invoked from JNI */
+    @GeneratableAndroidBridgeTarget(allowMultithread = true, stubName = "RequestContentRepaintWrapper")
     private void requestContentRepaint(float x, float y, float width, float height, float resolution) {
         mTarget.forceRedraw(new DisplayPortMetrics(x, y, x + width, y + height, resolution));
     }
 
-    /* Invoked from JNI */
+    @GeneratableAndroidBridgeTarget(allowMultithread = true, stubName = "PostDelayedCallbackWrapper")
     private void postDelayedCallback(long delay) {
         mTarget.postDelayed(mCallbackRunnable, delay);
     }
@@ -103,4 +104,7 @@ class NativePanZoomController implements PanZoomController, GeckoEventListener {
     }
 
     public native void updateScrollOffset(float cssX, float cssY);
+
+    public void setOverscrollHandler(final Overscroll listener) {
+    }
 }

@@ -210,6 +210,7 @@ BrowserElementChild.prototype = {
       "owner-visibility-change": this._recvOwnerVisibilityChange,
       "exit-fullscreen": this._recvExitFullscreen.bind(this),
       "activate-next-paint-listener": this._activateNextPaintListener.bind(this),
+      "set-input-method-active": this._recvSetInputMethodActive.bind(this),
       "deactivate-next-paint-listener": this._deactivateNextPaintListener.bind(this)
     }
 
@@ -239,6 +240,9 @@ BrowserElementChild.prototype = {
     els.addSystemEventListener(global, 'DOMWindowCreated',
                                this._windowCreatedHandler.bind(this),
                                /* useCapture = */ true);
+    els.addSystemEventListener(global, 'DOMWindowResize',
+                               this._windowResizeHandler.bind(this),
+                               /* useCapture = */ false);
     els.addSystemEventListener(global, 'contextmenu',
                                this._contextmenuHandler.bind(this),
                                /* useCapture = */ false);
@@ -261,12 +265,18 @@ BrowserElementChild.prototype = {
     Services.obs.addObserver(this,
                              'xpcom-shutdown',
                              /* ownsWeak = */ true);
+
+    Services.obs.addObserver(this,
+                             'activity-done',
+                             /* ownsWeak = */ true);
   },
 
   observe: function(subject, topic, data) {
     // Ignore notifications not about our document.  (Note that |content| /can/
     // be null; see bug 874900.)
-    if (!content || subject != content.document)
+    if (topic !== 'activity-done' && (!content || subject != content.document))
+      return;
+    if (topic == 'activity-done' && docShell !== subject)
       return;
     switch (topic) {
       case 'fullscreen-origin-change':
@@ -277,6 +287,9 @@ BrowserElementChild.prototype = {
         break;
       case 'ask-parent-to-rollback-fullscreen':
         sendAsyncMsg('rollback-fullscreen');
+        break;
+      case 'activity-done':
+        sendAsyncMsg('activitydone', { success: (data == 'activity-success') });
         break;
       case 'xpcom-shutdown':
         this._shuttingDown = true;
@@ -316,6 +329,8 @@ BrowserElementChild.prototype = {
 
     let returnValue = this._waitForResult(win);
 
+    Services.obs.notifyObservers(null, 'BEC:ShownModalPrompt', null);
+
     if (args.promptType == 'prompt' ||
         args.promptType == 'confirm' ||
         args.promptType == 'custom-prompt') {
@@ -346,12 +361,7 @@ BrowserElementChild.prototype = {
     debug("Entering modal state (outerWindowID=" + outerWindowID + ", " +
                                 "innerWindowID=" + innerWindowID + ")");
 
-    // In theory, we're supposed to pass |modalStateWin| back to
-    // leaveModalStateWithWindow.  But in practice, the window is always null,
-    // because it's the window associated with this script context, which
-    // doesn't have a window.  But we'll play along anyway in case this
-    // changes.
-    var modalStateWin = utils.enterModalStateWithWindow();
+    utils.enterModalState();
 
     // We'll decrement win.modalDepth when we receive a unblock-modal-prompt message
     // for the window.
@@ -388,7 +398,7 @@ BrowserElementChild.prototype = {
     delete win.modalReturnValue;
 
     if (!this._shuttingDown) {
-      utils.leaveModalStateWithWindow(modalStateWin);
+      utils.leaveModalState();
     }
 
     debug("Leaving modal state (outerID=" + outerWindowID + ", " +
@@ -449,8 +459,12 @@ BrowserElementChild.prototype = {
 
   _iconChangedHandler: function(e) {
     debug('Got iconchanged: (' + e.target.href + ')');
+    let icon = { href: e.target.href };
+    if (e.target.getAttribute('sizes')) {
+      icon.sizes = e.target.getAttribute('sizes');
+    }
 
-    sendAsyncMsg('iconchange', { _payload_: e.target.href });
+    sendAsyncMsg('iconchange', icon);
   },
 
   _openSearchHandler: function(e) {
@@ -553,6 +567,19 @@ BrowserElementChild.prototype = {
         sendAsyncMsg('documentfirstpaint');
       });
     }
+  },
+
+  _windowResizeHandler: function(e) {
+    let win = e.target;
+    if (win != content || e.defaultPrevented) {
+      return;
+    }
+
+    debug("resizing window " + win);
+    sendAsyncMsg('resize', { width: e.detail.width, height: e.detail.height });
+
+    // Inform the window implementation that we handled this resize ourselves.
+    e.preventDefault();
   },
 
   _contextmenuHandler: function(e) {
@@ -698,6 +725,13 @@ BrowserElementChild.prototype = {
     debug("Taking a screenshot: maxWidth=" + maxWidth +
           ", maxHeight=" + maxHeight +
           ", domRequestID=" + domRequestID + ".");
+
+    if (!content) {
+      // If content is not loaded yet, bail out since even sendAsyncMessage
+      // fails...
+      debug("No content yet!");
+      return;
+    }
 
     let scaleWidth = Math.min(1, maxWidth / content.innerWidth);
     let scaleHeight = Math.min(1, maxHeight / content.innerHeight);
@@ -866,6 +900,20 @@ BrowserElementChild.prototype = {
   _recvStop: function(data) {
     let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
     webNav.stop(webNav.STOP_NETWORK);
+  },
+
+  _recvSetInputMethodActive: function(data) {
+    let msgData = { id: data.json.id };
+    // Unwrap to access webpage content.
+    let nav = XPCNativeWrapper.unwrap(content.document.defaultView.navigator);
+    if (nav.mozInputMethod) {
+      // Wrap to access the chrome-only attribute setActive.
+      new XPCNativeWrapper(nav.mozInputMethod).setActive(data.json.args.isActive);
+      msgData.successRv = null;
+    } else {
+      msgData.errorMsg = 'Cannot access mozInputMethod.';
+    }
+    sendAsyncMsg('got-set-input-method-active', msgData);
   },
 
   _keyEventHandler: function(e) {

@@ -23,15 +23,16 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsGenericDOMDataNode.h"
-#include "nsClientRect.h"
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsFontFaceList.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/DocumentType.h"
 #include "mozilla/dom/RangeBinding.h"
+#include "mozilla/dom/DOMRect.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Likely.h"
+#include "nsCSSFrameConstructor.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -364,7 +365,6 @@ nsRange::RegisterCommonAncestor(nsINode* aNode)
     static_cast<RangeHashTable*>(aNode->GetProperty(nsGkAtoms::range));
   if (!ranges) {
     ranges = new RangeHashTable;
-    ranges->Init();
     aNode->SetProperty(nsGkAtoms::range, ranges, RangeHashTableDtor, true);
   }
   ranges->PutEntry(this);
@@ -643,16 +643,16 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
   nsINode* container = NODE_FROM(aContainer, aDocument);
   bool gravitateStart = false;
   bool gravitateEnd = false;
+  bool didCheckStartParentDescendant = false;
 
   // Adjust position if a sibling was removed...
   if (container == mStartParent) {
     if (aIndexInContainer < mStartOffset) {
       --mStartOffset;
     }
-  }
-  // ...or gravitate if an ancestor was removed.
-  else if (nsContentUtils::ContentIsDescendantOf(mStartParent, aChild)) {
-    gravitateStart = true;
+  } else { // ...or gravitate if an ancestor was removed.
+    didCheckStartParentDescendant = true;
+    gravitateStart = nsContentUtils::ContentIsDescendantOf(mStartParent, aChild);
   }
 
   // Do same thing for end boundry.
@@ -660,9 +660,10 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
     if (aIndexInContainer < mEndOffset) {
       --mEndOffset;
     }
-  }
-  else if (nsContentUtils::ContentIsDescendantOf(mEndParent, aChild)) {
-    gravitateEnd = true;
+  } else if (didCheckStartParentDescendant && mStartParent == mEndParent) {
+    gravitateEnd = gravitateStart;
+  } else {
+    gravitateEnd = nsContentUtils::ContentIsDescendantOf(mEndParent, aChild);
   }
 
   if (!mEnableGravitationOnElementRemoval) {
@@ -1091,19 +1092,10 @@ nsRange::IsValidBoundary(nsINode* aNode)
     return root;
   }
 
-  root = aNode;
-  while ((aNode = aNode->GetParentNode())) {
-    root = aNode;
-  }
+  root = aNode->SubtreeRoot();
 
   NS_ASSERTION(!root->IsNodeOfType(nsINode::eDOCUMENT),
                "GetCurrentDoc should have returned a doc");
-
-#ifdef DEBUG_smaug
-  NS_WARN_IF_FALSE(root->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT) ||
-                   root->IsNodeOfType(nsINode::eATTRIBUTE),
-                   "Creating a DOM Range using root which isn't in DOM!");
-#endif
 
   // We allow this because of backward compatibility.
   return root;
@@ -2756,12 +2748,25 @@ static void ExtractRectFromOffset(nsIFrame* aFrame,
   }
 }
 
+static nsTextFrame*
+GetTextFrameForContent(nsIContent* aContent)
+{
+  nsIPresShell* presShell = aContent->OwnerDoc()->GetShell();
+  if (presShell) {
+    nsIFrame* frame = presShell->FrameConstructor()->EnsureFrameForTextNode(
+        static_cast<nsGenericDOMDataNode*>(aContent));
+    if (frame && frame->GetType() == nsGkAtoms::textFrame) {
+      return static_cast<nsTextFrame*>(frame);
+    }
+  }
+  return nullptr;
+}
+
 static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
                                    nsIContent* aContent, int32_t aStartOffset, int32_t aEndOffset)
 {
-  nsIFrame* frame = aContent->GetPrimaryFrame();
-  if (frame && frame->GetType() == nsGkAtoms::textFrame) {
-    nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
+  nsTextFrame* textFrame = GetTextFrameForContent(aContent);
+  if (textFrame) {
     nsIFrame* relativeTo = nsLayoutUtils::GetContainingBlockForClientRect(textFrame);
     for (nsTextFrame* f = textFrame; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
       int32_t fstart = f->GetContentOffset(), fend = f->GetContentEnd();
@@ -2817,9 +2822,8 @@ static void CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
     // the range is collapsed, only continue if the cursor is in a text node
     nsCOMPtr<nsIContent> content = do_QueryInterface(aStartParent);
     if (content && content->IsNodeOfType(nsINode::eTEXT)) {
-      nsIFrame* frame = content->GetPrimaryFrame();
-      if (frame && frame->GetType() == nsGkAtoms::textFrame) {
-        nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
+      nsTextFrame* textFrame = GetTextFrameForContent(content);
+      if (textFrame) {
         int32_t outOffset;
         nsIFrame* outFrame;
         textFrame->GetChildFrameContainingOffset(aStartOffset, false, 
@@ -2870,10 +2874,10 @@ nsRange::GetBoundingClientRect(nsIDOMClientRect** aResult)
   return NS_OK;
 }
 
-already_AddRefed<nsClientRect>
+already_AddRefed<DOMRect>
 nsRange::GetBoundingClientRect()
 {
-  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
+  nsRefPtr<DOMRect> rect = new DOMRect(ToSupports(this));
   if (!mStartParent) {
     return rect.forget();
   }
@@ -2895,15 +2899,15 @@ nsRange::GetClientRects(nsIDOMClientRectList** aResult)
   return NS_OK;
 }
 
-already_AddRefed<nsClientRectList>
+already_AddRefed<DOMRectList>
 nsRange::GetClientRects()
 {
   if (!mStartParent) {
     return nullptr;
   }
 
-  nsRefPtr<nsClientRectList> rectList =
-    new nsClientRectList(static_cast<nsIDOMRange*>(this));
+  nsRefPtr<DOMRectList> rectList =
+    new DOMRectList(static_cast<nsIDOMRange*>(this));
 
   nsLayoutUtils::RectListBuilder builder(rectList);
 
@@ -3008,9 +3012,10 @@ nsRange::AutoInvalidateSelection::~AutoInvalidateSelection()
 }
 
 /* static */ already_AddRefed<nsRange>
-nsRange::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
+nsRange::Constructor(const GlobalObject& aGlobal,
+                     ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   if (!window || !window->GetDoc()) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;

@@ -349,7 +349,18 @@
   #define NS_CheckThreadSafe(owningThread, msg)
 #else
   #define NS_CheckThreadSafe(owningThread, msg)                 \
-    MOZ_ASSERT(owningThread == PR_GetCurrentThread(), msg)
+    if (MOZ_UNLIKELY(owningThread != PR_GetCurrentThread())) {  \
+      MOZ_CRASH(msg);                                           \
+    }
+#endif
+
+#ifdef MOZILLA_INTERNAL_API
+void NS_ABORT_OOM(size_t size);
+#else
+inline void NS_ABORT_OOM(size_t)
+{
+  MOZ_CRASH();
+}
 #endif
 
 /* When compiling the XPCOM Glue on Windows, we pretend that it's going to

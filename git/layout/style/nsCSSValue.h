@@ -29,8 +29,6 @@ class nsIDocument;
 class nsIPrincipal;
 class nsPresContext;
 class nsIURI;
-template <class T>
-class nsPtrHashKey;
 
 // Deletes a linked list iteratively to avoid blowing up the stack (bug 456196).
 #define NS_CSS_DELETE_LIST_MEMBER(type_, ptr_, member_)                        \
@@ -141,13 +139,14 @@ enum nsCSSUnit {
   eCSSUnit_Auto         = 1,      // (n/a) value is algorithmic
   eCSSUnit_Inherit      = 2,      // (n/a) value is inherited
   eCSSUnit_Initial      = 3,      // (n/a) value is default UA value
-  eCSSUnit_None         = 4,      // (n/a) value is none
-  eCSSUnit_Normal       = 5,      // (n/a) value is normal (algorithmic, different than auto)
-  eCSSUnit_System_Font  = 6,      // (n/a) value is -moz-use-system-font
-  eCSSUnit_All          = 7,      // (n/a) value is all
-  eCSSUnit_Dummy        = 8,      // (n/a) a fake but specified value, used
+  eCSSUnit_Unset        = 4,      // (n/a) value equivalent to 'initial' if on a reset property, 'inherit' otherwise
+  eCSSUnit_None         = 5,      // (n/a) value is none
+  eCSSUnit_Normal       = 6,      // (n/a) value is normal (algorithmic, different than auto)
+  eCSSUnit_System_Font  = 7,      // (n/a) value is -moz-use-system-font
+  eCSSUnit_All          = 8,      // (n/a) value is all
+  eCSSUnit_Dummy        = 9,      // (n/a) a fake but specified value, used
                                   //       only in temporary values
-  eCSSUnit_DummyInherit = 9,      // (n/a) a fake but specified value, used
+  eCSSUnit_DummyInherit = 10,     // (n/a) a fake but specified value, used
                                   //       only in temporary values
 
   eCSSUnit_String       = 11,     // (PRUnichar*) a string value
@@ -494,6 +493,7 @@ public:
   void SetAutoValue();
   void SetInheritValue();
   void SetInitialValue();
+  void SetUnsetValue();
   void SetNoneValue();
   void SetAllValue();
   void SetNormalValue();
@@ -514,8 +514,8 @@ public:
   // Checks if this is a function value with the specified function id.
   bool EqualsFunction(nsCSSKeyword aFunctionId) const;
 
-  // Returns an already addrefed buffer.  Can return null on allocation
-  // failure.
+  // Returns an already addrefed buffer.  Guaranteed to return non-null.
+  // (Will abort on allocation failure.)
   static already_AddRefed<nsStringBuffer>
     BufferFromString(const nsString& aValue);
 

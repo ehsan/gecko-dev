@@ -4,9 +4,7 @@
 "use strict";
 
 function test() {
-  let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
-  Services.scriptloader.loadSubScript(testDir + "/perfhelpers.js", this);
-  requestLongerTimeout(5);
+  requestLongerTimeout(2);
   runTests();
 }
 

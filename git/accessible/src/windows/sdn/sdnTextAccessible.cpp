@@ -16,6 +16,8 @@
 #include "nsPresContext.h"
 #include "nsLayoutUtils.h"
 #include "gfxFont.h"
+#include "nsIAccessibleTypes.h"
+#include "mozilla/gfx/2D.h"
 
 using namespace mozilla::a11y;
 

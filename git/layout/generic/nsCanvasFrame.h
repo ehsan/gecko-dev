@@ -9,14 +9,13 @@
 #define nsCanvasFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "mozilla/EventForwards.h"
 #include "nsContainerFrame.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
-#include "nsGkAtoms.h"
 
 class nsPresContext;
 class nsRenderingContext;
-class nsEvent;
 
 /**
  * Root frame class.
@@ -103,7 +102,7 @@ public:
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
-  NS_IMETHOD GetContentForEvent(nsEvent* aEvent,
+  NS_IMETHOD GetContentForEvent(mozilla::WidgetEvent* aEvent,
                                 nsIContent** aContent) MOZ_OVERRIDE;
 
   nsRect CanvasArea() const;
@@ -176,6 +175,7 @@ public:
   virtual void NotifyRenderingChanged() MOZ_OVERRIDE
   {
     mFrame->Properties().Delete(nsIFrame::CachedBackgroundImage());
+    mFrame->Properties().Delete(nsIFrame::CachedBackgroundImageDT());
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,

@@ -20,15 +20,24 @@ EXPORTS.mozilla.docshell += [
     'OfflineCacheUpdateParent.h',
 ]
 
-CPP_SOURCES += [
-    'OfflineCacheUpdateChild.cpp',
-    'OfflineCacheUpdateGlue.cpp',
-    'OfflineCacheUpdateParent.cpp',
+SOURCES += [
     'nsOfflineCacheUpdate.cpp',
     'nsOfflineCacheUpdateService.cpp',
     'nsPrefetchService.cpp',
+    'OfflineCacheUpdateChild.cpp',
+    'OfflineCacheUpdateGlue.cpp',
+    'OfflineCacheUpdateParent.cpp',
 ]
 
 IPDL_SOURCES += [
     'POfflineCacheUpdate.ipdl',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'prefetch_s'
+
+include('/ipc/chromium/chromium-config.mozbuild')
+

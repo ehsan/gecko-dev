@@ -10,6 +10,8 @@
 #include "imgDecoderObserver.h"
 #include "mozilla/RefPtr.h"
 #include "ImageMetadata.h"
+#include "Orientation.h"
+#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace image {
@@ -158,7 +160,7 @@ public:
   // will be called again with nullptr and 0 as arguments.
   void NeedNewFrame(uint32_t frameNum, uint32_t x_offset, uint32_t y_offset,
                     uint32_t width, uint32_t height,
-                    gfxASurface::gfxImageFormat format,
+                    gfxImageFormat format,
                     uint8_t palette_depth = 0);
 
   virtual bool NeedsNewFrame() const { return mNeedsNewFrame; }
@@ -189,7 +191,9 @@ protected:
 
   // Called by decoders when they determine the size of the image. Informs
   // the image of its size and sends notifications.
-  void PostSize(int32_t aWidth, int32_t aHeight);
+  void PostSize(int32_t aWidth,
+                int32_t aHeight,
+                Orientation aOrientation = Orientation());
 
   // Called by decoders when they begin a frame. Informs the image, sends
   // notifications, and does internal book-keeping.
@@ -255,7 +259,7 @@ private:
 
     NewFrameData(uint32_t num, uint32_t offsetx, uint32_t offsety,
                  uint32_t width, uint32_t height,
-                 gfxASurface::gfxImageFormat format, uint8_t paletteDepth)
+                 gfxImageFormat format, uint8_t paletteDepth)
       : mFrameNum(num)
       , mOffsetX(offsetx)
       , mOffsetY(offsety)
@@ -269,7 +273,7 @@ private:
     uint32_t mOffsetY;
     uint32_t mWidth;
     uint32_t mHeight;
-    gfxASurface::gfxImageFormat mFormat;
+    gfxImageFormat mFormat;
     uint8_t mPaletteDepth;
   };
   NewFrameData mNewFrameData;

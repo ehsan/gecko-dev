@@ -223,11 +223,6 @@ nsJAR::Extract(const nsACString &aEntryName, nsIFile* outFile)
   // If it's a directory that already exists and contains files, throw
   // an exception and return.
 
-  //XXX Bug 332139:
-  //XXX If we guarantee that rv in the case of a non-empty directory
-  //XXX is always FILE_DIR_NOT_EMPTY, we can remove
-  //XXX |rv == NS_ERROR_FAILURE| - bug 322183 needs to be completely
-  //XXX fixed before that can happen
   nsresult rv = outFile->Remove(false);
   if (rv == NS_ERROR_FILE_DIR_NOT_EMPTY ||
       rv == NS_ERROR_FAILURE)
@@ -916,6 +911,7 @@ nsJARItem::nsJARItem(nsZipItem* aZipItem)
       mCrc32(aZipItem->CRC32()),
       mLastModTime(aZipItem->LastModTime()),
       mCompression(aZipItem->Compression()),
+      mPermissions(aZipItem->Mode()),
       mIsDirectory(aZipItem->IsDirectory()),
       mIsSynthetic(aZipItem->isSynthetic)
 {
@@ -1002,6 +998,18 @@ nsJARItem::GetLastModifiedTime(PRTime* aLastModTime)
     NS_ENSURE_ARG_POINTER(aLastModTime);
 
     *aLastModTime = mLastModTime;
+    return NS_OK;
+}
+
+//------------------------------------------
+// nsJARItem::GetPermissions
+//------------------------------------------
+NS_IMETHODIMP
+nsJARItem::GetPermissions(uint32_t* aPermissions)
+{
+    NS_ENSURE_ARG_POINTER(aPermissions);
+
+    *aPermissions = mPermissions;
     return NS_OK;
 }
 

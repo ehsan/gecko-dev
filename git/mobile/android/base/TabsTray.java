@@ -251,12 +251,13 @@ public class TabsTray extends TwoWayView
             row.id = tab.getId();
 
             Drawable thumbnailImage = tab.getThumbnail();
-            if (thumbnailImage != null)
+            if (thumbnailImage != null) {
                 row.thumbnail.setImageDrawable(thumbnailImage);
-            else if (TextUtils.equals(tab.getURL(), ABOUT_HOME))
+            } else if (AboutPages.isAboutHome(tab.getURL())) {
                 row.thumbnail.setImageResource(R.drawable.abouthome_thumbnail);
-            else
+            } else {
                 row.thumbnail.setImageResource(R.drawable.tab_thumbnail_default);
+            }
 
             row.title.setText(tab.getDisplayTitle());
             row.close.setTag(row);
@@ -315,7 +316,7 @@ public class TabsTray extends TwoWayView
         mCloseAnimationCount++;
         mPendingClosedTabs.add(view);
 
-        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
+        animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() { }
             @Override
@@ -353,7 +354,7 @@ public class TabsTray extends TwoWayView
 	if (mOriginalSize == 0)
             mOriginalSize = (isVertical ? view.getHeight() : view.getWidth());
 
-        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
+        animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() { }
             @Override
@@ -377,7 +378,7 @@ public class TabsTray extends TwoWayView
             animator.attach(view, Property.TRANSLATION_Y, 0);
 
 
-        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
+        animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() { }
             @Override

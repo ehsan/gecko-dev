@@ -6,7 +6,7 @@
 
 MODULE = 'rdf'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsCompositeDataSource.cpp',
     'nsContainerEnumerator.cpp',
     'nsDefaultResourceFactory.cpp',
@@ -24,4 +24,6 @@ CPP_SOURCES += [
 ]
 
 LIBRARY_NAME = 'rdfbase_s'
+
+LIBXUL_LIBRARY = True
 

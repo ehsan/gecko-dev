@@ -12,8 +12,6 @@
 #include "mozilla/css/StyleRule.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsPresContext.h"
-#include "nsIDocument.h"
-#include "nsCOMPtr.h"
 #include "nsRuleWalker.h"
 #include "nsRuleProcessorData.h"
 #include "mozilla/dom/Element.h"
@@ -42,7 +40,6 @@ ClearAttrCache(const nsAString& aKey, MiscContainer*& aValue, void*)
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
 {
-  mCachedStyleAttrs.Init();
 }
 
 nsHTMLCSSStyleSheet::~nsHTMLCSSStyleSheet()
@@ -87,6 +84,18 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 /* virtual */ void
 nsHTMLCSSStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
+  if (nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(aData->mPseudoType)) {
+    MOZ_ASSERT(aData->mPseudoElement,
+        "If pseudo element is supposed to support style attribute, it must "
+        "have a pseudo element set");
+
+    // just get the one and only style rule from the content's STYLE attribute
+    css::StyleRule* rule = aData->mPseudoElement->GetInlineStyleRule();
+    if (rule) {
+      rule->RuleMatched();
+      aData->mRuleWalker->Forward(rule);
+    }
+  }
 }
 
 /* virtual */ void

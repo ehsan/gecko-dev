@@ -18,7 +18,8 @@
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
-#include "mozilla/dom/Element.h"
+#include "mozilla/dom/DOMRect.h"
+#include "mozilla/dom/ElementInlines.h"
 #include "nsISupportsImpl.h"
 #include "nsStyledElement.h"
 #include "nsSVGClass.h"
@@ -304,10 +305,9 @@ public:
   virtual bool IsTransformable() { return false; }
 
   // WebIDL
-  mozilla::dom::SVGSVGElement* GetOwnerSVGElement(mozilla::ErrorResult& rv);
+  mozilla::dom::SVGSVGElement* GetOwnerSVGElement();
   nsSVGElement* GetViewportElement();
   already_AddRefed<mozilla::dom::SVGAnimatedString> ClassName();
-  already_AddRefed<mozilla::dom::CSSValue> GetPresentationAttribute(const nsAString& aName, mozilla::ErrorResult& rv);
 protected:
   virtual JSObject* WrapNode(JSContext *cx,
                              JS::Handle<JSObject*> scope) MOZ_OVERRIDE;

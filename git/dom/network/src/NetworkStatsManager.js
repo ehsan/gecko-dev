@@ -55,16 +55,46 @@ NetworkStatsData.prototype = {
   QueryInterface : XPCOMUtils.generateQI([nsIDOMMozNetworkStatsData])
 };
 
+// NetworkStatsInterface
+const NETWORKSTATSINTERFACE_CONTRACTID = "@mozilla.org/networkstatsinterface;1";
+const NETWORKSTATSINTERFACE_CID        = Components.ID("{f540615b-d803-43ff-8200-2a9d145a5645}");
+const nsIDOMMozNetworkStatsInterface   = Components.interfaces.nsIDOMMozNetworkStatsInterface;
+
+function NetworkStatsInterface(aNetwork) {
+  if (DEBUG) {
+    debug("NetworkStatsInterface Constructor");
+  }
+  this.type = aNetwork.type;
+  this.id = aNetwork.id;
+}
+
+NetworkStatsInterface.prototype = {
+  __exposedProps__: {
+                      id: 'r',
+                      type: 'r',
+                    },
+
+  classID : NETWORKSTATSINTERFACE_CID,
+  classInfo : XPCOMUtils.generateCI({classID: NETWORKSTATSINTERFACE_CID,
+                                     contractID: NETWORKSTATSINTERFACE_CONTRACTID,
+                                     classDescription: "NetworkStatsInterface",
+                                     interfaces: [nsIDOMMozNetworkStatsInterface],
+                                     flags: nsIClassInfo.DOM_OBJECT}),
+
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMMozNetworkStatsInterface])
+}
+
 // NetworkStats
 const NETWORKSTATS_CONTRACTID = "@mozilla.org/networkstats;1";
-const NETWORKSTATS_CID        = Components.ID("{037435a6-f563-48f3-99b3-a0106d8ba5bd}");
+const NETWORKSTATS_CID        = Components.ID("{b6fc4b14-628d-4c99-bf4e-e4ed56916cbe}");
 const nsIDOMMozNetworkStats   = Components.interfaces.nsIDOMMozNetworkStats;
 
 function NetworkStats(aWindow, aStats) {
   if (DEBUG) {
     debug("NetworkStats Constructor");
   }
-  this.connectionType = aStats.connectionType || null;
+  this.manifestURL = aStats.manifestURL || null;
+  this.network = new NetworkStatsInterface(aStats.network);
   this.start = aStats.start || null;
   this.end = aStats.end || null;
 
@@ -76,7 +106,8 @@ function NetworkStats(aWindow, aStats) {
 
 NetworkStats.prototype = {
   __exposedProps__: {
-                      connectionType: 'r',
+                      manifestURL: 'r',
+                      network: 'r',
                       start: 'r',
                       end:  'r',
                       data:  'r',
@@ -90,13 +121,14 @@ NetworkStats.prototype = {
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
   QueryInterface : XPCOMUtils.generateQI([nsIDOMMozNetworkStats,
-                                          nsIDOMMozNetworkStatsData])
+                                          nsIDOMMozNetworkStatsData,
+                                          nsIDOMMozNetworkStatsInterface])
 }
 
 // NetworkStatsManager
 
 const NETWORKSTATSMANAGER_CONTRACTID = "@mozilla.org/networkStatsManager;1";
-const NETWORKSTATSMANAGER_CID        = Components.ID("{87529a6c-aef6-11e1-a595-4f034275cfa6}");
+const NETWORKSTATSMANAGER_CID        = Components.ID("{5fbdcae6-a2cd-47b3-929f-83ac75bd4881}");
 const nsIDOMMozNetworkStatsManager   = Components.interfaces.nsIDOMMozNetworkStatsManager;
 
 function NetworkStatsManager() {
@@ -114,42 +146,69 @@ NetworkStatsManager.prototype = {
     }
   },
 
-  getNetworkStats: function getNetworkStats(aOptions) {
+  getSamples: function getSamples(aNetwork, aStart, aEnd, aManifestURL) {
     this.checkPrivileges();
 
-    if (!aOptions.start || !aOptions.end ||
-      aOptions.start > aOptions.end) {
+    if (aStart.constructor.name !== "Date" ||
+        aEnd.constructor.name !== "Date" ||
+        aStart > aEnd) {
       throw Components.results.NS_ERROR_INVALID_ARG;
     }
 
+    // TODO Bug 929410 Date object cannot correctly pass through cpmm/ppmm IPC
+    // This is just a work-around by passing timestamp numbers.
+    aStart = aStart.getTime();
+    aEnd = aEnd.getTime();
+
     let request = this.createRequest();
     cpmm.sendAsyncMessage("NetworkStats:Get",
-                          {data: aOptions, id: this.getRequestId(request)});
+                          { network: aNetwork,
+                            start: aStart,
+                            end: aEnd,
+                            manifestURL: aManifestURL,
+                            id: this.getRequestId(request) });
     return request;
   },
 
-  clearAllData: function clearAllData() {
+  clearStats: function clearStats(aNetwork) {
     this.checkPrivileges();
 
     let request = this.createRequest();
     cpmm.sendAsyncMessage("NetworkStats:Clear",
+                          { network: aNetwork,
+                            id: this.getRequestId(request) });
+    return request;
+  },
+
+  clearAllStats: function clearAllStats() {
+    this.checkPrivileges();
+
+    let request = this.createRequest();
+    cpmm.sendAsyncMessage("NetworkStats:ClearAll",
                           {id: this.getRequestId(request)});
     return request;
   },
 
-  get connectionTypes() {
+  get availableNetworks() {
     this.checkPrivileges();
-    return ObjectWrapper.wrap(cpmm.sendSyncMessage("NetworkStats:Types")[0], this._window);
+
+    let result = ObjectWrapper.wrap(cpmm.sendSyncMessage("NetworkStats:Networks")[0], this._window);
+    let networks = this.data = Cu.createArrayIn(this._window);
+    for (let i = 0; i < result.length; i++) {
+      networks.push(new NetworkStatsInterface(result[i]));
+    }
+
+    return networks;
   },
 
   get sampleRate() {
     this.checkPrivileges();
-    return cpmm.sendSyncMessage("NetworkStats:SampleRate")[0] / 1000;
+    return cpmm.sendSyncMessage("NetworkStats:SampleRate")[0];
   },
 
-  get maxStorageSamples() {
+  get maxStorageAge() {
     this.checkPrivileges();
-    return cpmm.sendSyncMessage("NetworkStats:MaxStorageSamples")[0];
+    return cpmm.sendSyncMessage("NetworkStats:MaxStorageAge")[0];
   },
 
   receiveMessage: function(aMessage) {
@@ -181,6 +240,7 @@ NetworkStatsManager.prototype = {
         break;
 
       case "NetworkStats:Clear:Return":
+      case "NetworkStats:ClearAll:Return":
         if (msg.error) {
           Services.DOMRequest.fireError(req, msg.error);
           return;
@@ -220,7 +280,8 @@ NetworkStatsManager.prototype = {
     }
 
     this.initDOMRequestHelper(aWindow, ["NetworkStats:Get:Return",
-                              "NetworkStats:Clear:Return"]);
+                                        "NetworkStats:Clear:Return",
+                                        "NetworkStats:ClearAll:Return"]);
   },
 
   // Called from DOMRequestIpcHelper
@@ -243,5 +304,6 @@ NetworkStatsManager.prototype = {
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkStatsData,
+                                                     NetworkStatsInterface,
                                                      NetworkStats,
                                                      NetworkStatsManager]);

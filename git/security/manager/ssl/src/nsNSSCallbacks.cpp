@@ -18,7 +18,7 @@
 #include "nsProxyRelease.h"
 #include "PSMRunnable.h"
 #include "ScopedNSSTypes.h"
-#include "nsIConsoleService.h"
+#include "nsContentUtils.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsNetUtil.h"
 #include "SharedSSLState.h"
@@ -33,6 +33,9 @@ static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
+
+static void AccumulateCipherSuite(Telemetry::ID probe,
+                                  const SSLChannelInfo& channelInfo);
 
 class nsHTTPDownloadEvent : public nsRunnable {
 public:
@@ -248,6 +251,30 @@ SECStatus nsNSSHttpRequestSession::trySendAndReceiveFcn(PRPollDesc **pPollDesc,
 {
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
          ("nsNSSHttpRequestSession::trySendAndReceiveFcn to %s\n", mURL.get()));
+
+  bool onSTSThread;
+  nsresult nrv;
+  nsCOMPtr<nsIEventTarget> sts
+    = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &nrv);
+  if (NS_FAILED(nrv)) {
+    NS_ERROR("Could not get STS service");
+    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+    return SECFailure;
+  }
+
+  nrv = sts->IsOnCurrentThread(&onSTSThread);
+  if (NS_FAILED(nrv)) {
+    NS_ERROR("IsOnCurrentThread failed");
+    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+    return SECFailure;
+  }
+
+  if (onSTSThread) {
+    NS_ERROR("nsNSSHttpRequestSession::trySendAndReceiveFcn called on socket "
+             "thread; this will not work.");
+    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+    return SECFailure;
+  }
 
   const int max_retries = 2;
   int retry_count = 0;
@@ -830,7 +857,6 @@ PreliminaryHandshakeDone(PRFileDesc* fd)
     return;
 
   infoObject->SetPreliminaryHandshakeDone();
-  infoObject->SetFirstServerHelloReceived();
 
   // Get the NPN value.
   SSLNextProtoState state;
@@ -998,26 +1024,124 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
   return SECSuccess;
 }
 
+static void
+AccumulateNonECCKeySize(Telemetry::ID probe, uint32_t bits)
+{
+  unsigned int value = bits <   512 ?  1 : bits ==   512 ?  2
+                     : bits <   768 ?  3 : bits ==   768 ?  4
+                     : bits <  1024 ?  5 : bits ==  1024 ?  6
+                     : bits <  1280 ?  7 : bits ==  1280 ?  8
+                     : bits <  1536 ?  9 : bits ==  1536 ? 10
+                     : bits <  2048 ? 11 : bits ==  2048 ? 12
+                     : bits <  3072 ? 13 : bits ==  3072 ? 14
+                     : bits <  4096 ? 15 : bits ==  4096 ? 16
+                     : bits <  8192 ? 17 : bits ==  8192 ? 18
+                     : bits < 16384 ? 19 : bits == 16384 ? 20
+                     : 0;
+  Telemetry::Accumulate(probe, value);
+}
+
+// XXX: This attempts to map a bit count to an ECC named curve identifier. In
+// the vast majority of situations, we only have the Suite B curves available.
+// In that case, this mapping works fine. If we were to have more curves
+// available, the mapping would be ambiguous since there could be multiple
+// named curves for a given size (e.g. secp256k1 vs. secp256r1). We punt on
+// that for now. See also NSS bug 323674.
+static void
+AccumulateECCCurve(Telemetry::ID probe, uint32_t bits)
+{
+  unsigned int value = bits == 256 ? 23 // P-256
+                     : bits == 384 ? 24 // P-384
+                     : bits == 521 ? 25 // P-521
+                     : 0; // Unknown
+  Telemetry::Accumulate(probe, value);
+}
+
+static void
+AccumulateCipherSuite(Telemetry::ID probe, const SSLChannelInfo& channelInfo)
+{
+  uint32_t value;
+  switch (channelInfo.cipherSuite) {
+    // ECDHE key exchange
+    case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: value = 1; break;
+    case TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: value = 2; break;
+    case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA: value = 3; break;
+    case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA: value = 4; break;
+    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA: value = 5; break;
+    case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA: value = 6; break;
+    case TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA: value = 7; break;
+    case TLS_ECDHE_RSA_WITH_RC4_128_SHA: value = 8; break;
+    case TLS_ECDHE_ECDSA_WITH_RC4_128_SHA: value = 9; break;
+    case TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA: value = 10; break;
+    // DHE key exchange
+    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA: value = 21; break;
+    case TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: value = 22; break;
+    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA: value = 23; break;
+    case TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: value = 24; break;
+    case SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA: value = 25; break;
+    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA: value = 26; break;
+    case TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA: value = 27; break;
+    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA: value = 28; break;
+    case TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA: value = 29; break;
+    case SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA: value = 30; break;
+    // ECDH key exchange
+    case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA: value = 41; break;
+    case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA: value = 42; break;
+    case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA: value = 43; break;
+    case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA: value = 44; break;
+    case TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA: value = 45; break;
+    case TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA: value = 46; break;
+    case TLS_ECDH_ECDSA_WITH_RC4_128_SHA: value = 47; break;
+    case TLS_ECDH_RSA_WITH_RC4_128_SHA: value = 48; break;
+    // RSA key exchange
+    case TLS_RSA_WITH_AES_128_CBC_SHA: value = 61; break;
+    case TLS_RSA_WITH_CAMELLIA_128_CBC_SHA: value = 62; break;
+    case TLS_RSA_WITH_AES_256_CBC_SHA: value = 63; break;
+    case TLS_RSA_WITH_CAMELLIA_256_CBC_SHA: value = 64; break;
+    case SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA: value = 65; break;
+    case SSL_RSA_WITH_3DES_EDE_CBC_SHA: value = 66; break;
+    case TLS_RSA_WITH_SEED_CBC_SHA: value = 67; break;
+    case SSL_RSA_WITH_RC4_128_SHA: value = 68; break;
+    case SSL_RSA_WITH_RC4_128_MD5: value = 69; break;
+    // unknown
+    default:
+      value = 0;
+      break;
+  }
+  MOZ_ASSERT(value != 0);
+  Telemetry::Accumulate(probe, value);
+}
+
 void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   nsNSSShutDownPreventionLock locker;
   SECStatus rv;
 
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
-  // certificate validation sets FirstServerHelloReceived, so if that flag
+  // certificate validation sets IsFullHandshake, so if that flag
   // is absent at handshake time we have a resumed session. Check this before
   // PreliminaryHandshakeDone() because that function also sets that flag.
-  bool isResumedSession = !(infoObject->GetFirstServerHelloReceived());
+  bool isResumedSession = !infoObject->IsFullHandshake();
 
   // Do the bookkeeping that needs to be done after the
   // server's ServerHello...ServerHelloDone have been processed, but that doesn't
   // need the handshake to be completed.
   PreliminaryHandshakeDone(fd);
 
-  // If the handshake completed, then we know the site is TLS tolerant (if this
-  // was a TLS connection).
-  nsSSLIOLayerHelpers& ioLayerHelpers = infoObject->SharedState().IOLayerHelpers();
-  ioLayerHelpers.rememberTolerantSite(infoObject);
+  nsSSLIOLayerHelpers& ioLayerHelpers
+    = infoObject->SharedState().IOLayerHelpers();
+
+  SSLVersionRange versions(infoObject->GetTLSVersionRange());
+
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+         ("[%p] HandshakeCallback: succeeded using TLS version range (0x%04x,0x%04x)\n",
+          fd, static_cast<unsigned int>(versions.min),
+              static_cast<unsigned int>(versions.max)));
+
+  // If the handshake completed, then we know the site is TLS tolerant
+  ioLayerHelpers.rememberTolerantAtVersion(infoObject->GetHostName(),
+                                           infoObject->GetPort(),
+                                           versions.max);
 
   PRBool siteSupportsSafeRenego;
   rv = SSL_HandshakeNegotiatedExtension(fd, ssl_renegotiation_info_xtn,
@@ -1042,16 +1166,14 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   // localized.
   if (!siteSupportsSafeRenego &&
       ioLayerHelpers.getWarnLevelMissingRFC5746() > 0) {
-    nsCOMPtr<nsIConsoleService> console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console) {
-      nsXPIDLCString hostName;
-      infoObject->GetHostName(getter_Copies(hostName));
+    nsXPIDLCString hostName;
+    infoObject->GetHostName(getter_Copies(hostName));
 
-      nsAutoString msg;
-      msg.Append(NS_ConvertASCIItoUTF16(hostName));
-      msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
-      console->LogStringMessage(msg.get());
-    }
+    nsAutoString msg;
+    msg.Append(NS_ConvertASCIItoUTF16(hostName));
+    msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
+
+    nsContentUtils::LogSimpleConsoleError(msg, "SSL");
   }
 
   ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
@@ -1103,6 +1225,10 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
     // 0=ssl3, 1=tls1, 2=tls1.1, 3=tls1.2
     unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
     Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_VERSION, versionEnum);
+    AccumulateCipherSuite(
+      infoObject->IsFullHandshake() ? Telemetry::SSL_CIPHER_SUITE_FULL
+                                    : Telemetry::SSL_CIPHER_SUITE_RESUMED,
+      channelInfo);
 
     SSLCipherSuiteInfo cipherInfo;
     rv = SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
@@ -1115,9 +1241,62 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       status->mCipherName.Assign(cipherInfo.cipherSuiteName);
 
       // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
-      Telemetry::Accumulate(Telemetry::SSL_KEY_EXCHANGE_ALGORITHM,
-                            cipherInfo.keaType);
+      Telemetry::Accumulate(
+        infoObject->IsFullHandshake()
+          ? Telemetry::SSL_KEY_EXCHANGE_ALGORITHM_FULL
+          : Telemetry::SSL_KEY_EXCHANGE_ALGORITHM_RESUMED,
+        cipherInfo.keaType);
       infoObject->SetKEAUsed(cipherInfo.keaType);
+
+      if (infoObject->IsFullHandshake()) {
+        switch (cipherInfo.keaType) {
+          case ssl_kea_rsa:
+            AccumulateNonECCKeySize(Telemetry::SSL_KEA_RSA_KEY_SIZE_FULL,
+                                    channelInfo.keaKeyBits);
+            break;
+          case ssl_kea_dh:
+            AccumulateNonECCKeySize(Telemetry::SSL_KEA_DHE_KEY_SIZE_FULL,
+                                    channelInfo.keaKeyBits);
+            break;
+          case ssl_kea_ecdh:
+            AccumulateECCCurve(Telemetry::SSL_KEA_ECDHE_CURVE_FULL,
+                               channelInfo.keaKeyBits);
+            break;
+          default:
+            MOZ_CRASH("impossible KEA");
+            break;
+        }
+
+        Telemetry::Accumulate(Telemetry::SSL_AUTH_ALGORITHM_FULL,
+                              cipherInfo.authAlgorithm);
+
+        // RSA key exchange doesn't use a signature for auth.
+        if (cipherInfo.keaType != ssl_kea_rsa) {
+          switch (cipherInfo.authAlgorithm) {
+            case ssl_auth_rsa:
+              AccumulateNonECCKeySize(Telemetry::SSL_AUTH_RSA_KEY_SIZE_FULL,
+                                      channelInfo.authKeyBits);
+              break;
+            case ssl_auth_dsa:
+              AccumulateNonECCKeySize(Telemetry::SSL_AUTH_DSA_KEY_SIZE_FULL,
+                                      channelInfo.authKeyBits);
+              break;
+            case ssl_auth_ecdsa:
+              AccumulateECCCurve(Telemetry::SSL_AUTH_ECDSA_CURVE_FULL,
+                                 channelInfo.authKeyBits);
+              break;
+            default:
+              MOZ_CRASH("impossible auth algorithm");
+              break;
+          }
+        }
+      }
+
+      Telemetry::Accumulate(
+          infoObject->IsFullHandshake()
+            ? Telemetry::SSL_SYMMETRIC_CIPHER_FULL
+            : Telemetry::SSL_SYMMETRIC_CIPHER_RESUMED,
+          cipherInfo.symCipher);
       infoObject->SetSymmetricCipherUsed(cipherInfo.symCipher);
     }
   }

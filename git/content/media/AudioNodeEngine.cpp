@@ -4,9 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/arm.h"
 #include "AudioNodeEngine.h"
 #ifdef BUILD_ARM_NEON
+#include "mozilla/arm.h"
 #include "AudioNodeEngineNEON.h"
 #endif
 
@@ -123,6 +123,19 @@ BufferComplexMultiply(const float* aInput,
     aOutput[i] = realResult;
     aOutput[i + 1] = imagResult;
   }
+}
+
+float
+AudioBufferPeakValue(const float *aInput, uint32_t aSize)
+{
+  float max = 0.0f;
+  for (uint32_t i = 0; i < aSize; i++) {
+    float mag = fabs(aInput[i]);
+    if (mag > max) {
+      max = mag;
+    }
+  }
+  return max;
 }
 
 void

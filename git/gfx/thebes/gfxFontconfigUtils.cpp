@@ -19,6 +19,8 @@
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
+#include "gfxFontConstants.h"
+#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 
@@ -308,11 +310,11 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
 }
 
 gfxFontconfigUtils::gfxFontconfigUtils()
-    : mLastConfig(nullptr)
+    : mFontsByFamily(50)
+    , mFontsByFullname(50)
+    , mLangSupportTable(50)
+    , mLastConfig(nullptr)
 {
-    mFontsByFamily.Init(50);
-    mFontsByFullname.Init(50);
-    mLangSupportTable.Init(20);
     UpdateFontListInternal();
 }
 

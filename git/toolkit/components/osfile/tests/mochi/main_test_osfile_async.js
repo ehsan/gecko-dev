@@ -3,6 +3,7 @@
 Components.utils.import("resource://gre/modules/osfile.jsm");
 Components.utils.import("resource://gre/modules/Promise.jsm");
 Components.utils.import("resource://gre/modules/Task.jsm");
+Components.utils.import("resource://gre/modules/AsyncShutdown.jsm");
 
 // The following are used to compare against a well-tested reference
 // implementation of file I/O.
@@ -60,6 +61,9 @@ let maketest = function(prefix, test) {
         utils.info("Complete");
       }, function catch_uncaught_errors(err) {
         utils.fail("Uncaught error " + err);
+        if (err && typeof err == "object" && "message" in err) {
+          utils.fail("(" + err.message + ")");
+        }
         if (err && typeof err == "object" && "stack" in err) {
           utils.fail("at " + err.stack);
         }
@@ -154,12 +158,10 @@ let test = maketest("Main", function main(test) {
     yield test_read_write();
     yield test_read_write_all();
     yield test_position();
-    yield test_copy();
     yield test_mkdir();
     yield test_iter();
     yield test_exists();
     yield test_debug_test();
-    yield test_system_shutdown();
     yield test_duration();
     info("Test is over");
     SimpleTest.finish();
@@ -473,40 +475,6 @@ let test_position = maketest("position", function position(test) {
 });
 
 /**
- * Test OS.File.prototype.{copy, move}
- */
-let test_copy = maketest("copy", function copy(test) {
-  return Task.spawn(function() {
-    let currentDir = yield OS.File.getCurrentDirectory();
-    let pathSource = OS.Path.join(currentDir, EXISTING_FILE);
-    let pathDest = OS.Path.join(OS.Constants.Path.tmpDir,
-      "osfile async test 2.tmp");
-    yield OS.File.copy(pathSource, pathDest);
-    test.info("Copy complete");
-    yield reference_compare_files(pathSource, pathDest, test);
-    test.info("First compare complete");
-
-    let pathDest2 = OS.Path.join(OS.Constants.Path.tmpDir,
-      "osfile async test 3.tmp");
-    yield OS.File.move(pathDest, pathDest2);
-    test.info("Move complete");
-    yield reference_compare_files(pathSource, pathDest2, test);
-    test.info("Second compare complete");
-    OS.File.remove(pathDest2);
-
-    try {
-      let field = yield OS.File.open(pathDest);
-      test.fail("I should not have been able to open " + pathDest);
-      file.close();
-    } catch (err) {
-      test.ok(err, "Could not open a file after it has been moved away " + err);
-      test.ok(err instanceof OS.File.Error, "Error is an OS.File.Error");
-      test.ok(err.becauseNoSuchFile, "Error mentions that the file does not exist");
-    }
-  });
-});
-
-/**
  * Test OS.File.{removeEmptyDir, makeDir}
  */
 let test_mkdir = maketest("mkdir", function mkdir(test) {
@@ -755,117 +723,6 @@ let test_debug_test = maketest("debug_test", function debug_test(test) {
   });
 });
 
-/**
- * Test logging of file descriptors leaks.
- */
-let test_system_shutdown = maketest("system_shutdown", function system_shutdown(test) {
-  return Task.spawn(function () {
-    // Count the number of times the leaks are logged.
-    let logCounter = 0;
-    // Create a console listener.
-    function inDebugTest(resource, f) {
-      return Task.spawn(function task() {
-        let originalDebug = OS.Shared.DEBUG;
-        OS.Shared.TEST = true;
-        OS.Shared.DEBUG = true;
-
-        let waitObservation = Promise.defer();
-        // Unregister a listener, reset DEBUG and TEST both when the promise is
-        // resolved or rejected.
-        let cleanUp = function cleanUp() {
-          toggleDebugTest(false, listener);
-        };
-        waitObservation.promise.then(cleanUp, cleanUp);
-
-        // Measure how long it takes to receive a log message.
-        let logStart;
-
-        let listener = {
-          observe: function (aMessage) {
-            test.info("Waiting for a console message mentioning resource " + resource);
-            // Ignore unexpected messages.
-            if (!(aMessage instanceof Components.interfaces.nsIConsoleMessage)) {
-              test.info("Not a console message");
-              return;
-            }
-            if (aMessage.message.indexOf("TEST OS Controller WARNING") < 0) {
-              test.info("Not a warning");
-              return;
-            }
-            test.ok(aMessage.message.indexOf("WARNING: File descriptors leaks " +
-              "detected.") >= 0, "Noticing file descriptors leaks, as expected.");
-            let found = aMessage.message.indexOf(resource) >= 0;
-            if (found) {
-              if (++logCounter > 2) {
-                test.fail("test.osfile.web-workers-shutdown observer should only " +
-                  "be activated 2 times.");
-              }
-              test.ok(true, "Leaked resource is correctly listed in the log.");
-              test.info(
-                "It took " + (Date.now() - logStart) + "MS to receive a log message.");
-              setTimeout(function() { waitObservation.resolve(); });
-            } else {
-              test.info("This log didn't list the expected resource: " + resource + "\ngot " + aMessage.message);
-            }
-          }
-        };
-        toggleDebugTest(true, listener);
-        logStart = Date.now();
-        f();
-        // If listener does not resolve webObservation in timely manner (1000MS),
-        // reject it.
-        setTimeout(function() {
-          test.info("waitObservation timeout exceeded.");
-          waitObservation.reject();
-        }, 1000);
-        yield waitObservation.promise;
-      });
-    }
-
-    // Enable test shutdown observer.
-    Services.prefs.setBoolPref("toolkit.osfile.test.shutdown.observer", true);
-
-    let currentDir = yield OS.File.getCurrentDirectory();
-    test.info("Testing for leaks of directory iterator " + currentDir);
-    let iterator = new OS.File.DirectoryIterator(currentDir);
-    try {
-      yield inDebugTest(currentDir, function() {
-        Services.obs.notifyObservers(null, "test.osfile.web-workers-shutdown",
-          null);
-      });
-      test.ok(true, "Log messages observation promise resolved as expected.");
-    } catch (ex) {
-      test.fail("Log messages observation promise was rejected.");
-    }
-    yield iterator.close();
-
-    let testFileDescriptorsLeaks = function testFileDescriptorsLeaks(shouldResolve) {
-      return Task.spawn(function task() {
-        let openedFile = yield OS.File.open(EXISTING_FILE);
-        try {
-          yield inDebugTest(EXISTING_FILE, function() {
-            Services.obs.notifyObservers(null, "test.osfile.web-workers-shutdown",
-              null);
-          });
-          test.ok(shouldResolve,
-            "Log message observation promise resolved as expected.");
-        } catch (ex) {
-          test.ok(!shouldResolve,
-            "Log message observation promise was rejected as expected.");
-        }
-        yield openedFile.close();
-      });
-    };
-
-    test.info("Testing for leaks of file " + EXISTING_FILE);
-    yield testFileDescriptorsLeaks(true);
-
-    // Disable test shutdown observer.
-    Services.prefs.clearUserPref("toolkit.osfile.test.shutdown.observer");
-    // Nothing should be logged since the test shutdown observer is unregistered.
-    yield testFileDescriptorsLeaks(false);
-  });
-});
 
 /**
  * Test optional duration reporting that can be used for telemetry.
@@ -948,12 +805,9 @@ let test_duration = maketest("duration", function duration(test) {
     test.ok(copyOptions.outExecutionDuration >= backupDuration, "duration has increased 3");
     OS.File.remove(pathDest);
 
-    OS.Shared.TEST = true;
-
     // Testing an operation that doesn't take arguments at all
     let file = yield OS.File.open(pathSource);
     yield file.stat();
     yield file.close();
-    Services.prefs.setBoolPref("toolkit.osfile.log", false);
   });
 });

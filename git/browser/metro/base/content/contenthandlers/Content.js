@@ -140,6 +140,7 @@ let Content = {
     addEventListener("MozApplicationManifest", this, false);
     addEventListener("DOMContentLoaded", this, false);
     addEventListener("DOMAutoComplete", this, false);
+    addEventListener("DOMFormHasPassword", this, false);
     addEventListener("blur", this, false);
     addEventListener("pagehide", this, false);
     // Attach a listener to watch for "click" events bubbling up from error
@@ -183,10 +184,20 @@ let Content = {
         break;
 
       case "click":
+        // Workaround for bug 925457: we sometimes don't recognize the
+        // correct tap target or are unable to identify if it's editable.
+        // Instead always save tap co-ordinates for the keyboard to look for
+        // when it is up.
+        SelectionHandler.onClickCoords(aEvent.clientX, aEvent.clientY);
+
         if (aEvent.eventPhase == aEvent.BUBBLING_PHASE)
           this._onClickBubble(aEvent);
         else
           this._onClickCapture(aEvent);
+        break;
+
+      case "DOMFormHasPassword":
+        LoginManagerContent.onFormPassword(aEvent);
         break;
 
       case "DOMContentLoaded":

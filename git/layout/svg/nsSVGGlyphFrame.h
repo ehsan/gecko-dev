@@ -7,13 +7,15 @@
 #define __NS_SVGGLYPHFRAME_H__
 
 #include "mozilla/Attributes.h"
-#include "gfxFont.h"
 #include "gfxSVGGlyphs.h"
 #include "nsISVGChildFrame.h"
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsSVGGeometryFrame.h"
+#include "nsSVGTextFrame2.h" // for SVGTextContextPaint
 #include "nsSVGUtils.h"
 #include "nsTextFragment.h"
+#include "nsIContent.h"
+#include "DrawMode.h"
 
 class CharacterIterator;
 class gfxContext;
@@ -22,88 +24,17 @@ class nsRenderingContext;
 class nsSVGGlyphFrame;
 class nsSVGTextFrame;
 class nsSVGTextPathFrame;
-class gfxTextObjectPaint;
+class gfxTextContextPaint;
 
 struct CharacterPosition;
 
 namespace mozilla {
-
 namespace dom {
 class SVGIRect;
 }
-
-// Slightly horrible callback for deferring application of opacity
-struct SVGTextObjectPaint : public gfxTextObjectPaint {
-  already_AddRefed<gfxPattern> GetFillPattern(float aOpacity,
-                                              const gfxMatrix& aCTM) MOZ_OVERRIDE;
-  already_AddRefed<gfxPattern> GetStrokePattern(float aOpacity,
-                                                const gfxMatrix& aCTM) MOZ_OVERRIDE;
-
-  void SetFillOpacity(float aOpacity) { mFillOpacity = aOpacity; }
-  float GetFillOpacity() MOZ_OVERRIDE { return mFillOpacity; }
-
-  void SetStrokeOpacity(float aOpacity) { mStrokeOpacity = aOpacity; }
-  float GetStrokeOpacity() MOZ_OVERRIDE { return mStrokeOpacity; }
-
-  struct Paint {
-    Paint() {
-      mPatternCache.Init();
-    }
-
-    void SetPaintServer(nsIFrame *aFrame, const gfxMatrix& aContextMatrix,
-                        nsSVGPaintServerFrame *aPaintServerFrame) {
-      mPaintType = eStyleSVGPaintType_Server;
-      mPaintDefinition.mPaintServerFrame = aPaintServerFrame;
-      mFrame = aFrame;
-      mContextMatrix = aContextMatrix;
-    }
-
-    void SetColor(const nscolor &aColor) {
-      mPaintType = eStyleSVGPaintType_Color;
-      mPaintDefinition.mColor = aColor;
-    }
-
-    void SetObjectPaint(gfxTextObjectPaint *aObjectPaint,
-                        nsStyleSVGPaintType aPaintType) {
-      NS_ASSERTION(aPaintType == eStyleSVGPaintType_ObjectFill ||
-                   aPaintType == eStyleSVGPaintType_ObjectStroke,
-                   "Invalid object paint type");
-      mPaintType = aPaintType;
-      mPaintDefinition.mObjectPaint = aObjectPaint;
-    }
-
-    union {
-      nsSVGPaintServerFrame *mPaintServerFrame;
-      gfxTextObjectPaint *mObjectPaint;
-      nscolor mColor;
-    } mPaintDefinition;
-
-    nsIFrame *mFrame;
-    // CTM defining the user space for the pattern we will use.
-    gfxMatrix mContextMatrix;
-    nsStyleSVGPaintType mPaintType;
-
-    // Device-space-to-pattern-space
-    gfxMatrix mPatternMatrix;
-    nsRefPtrHashtable<nsFloatHashKey, gfxPattern> mPatternCache;
-
-    already_AddRefed<gfxPattern> GetPattern(float aOpacity,
-                                            nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
-                                            const gfxMatrix& aCTM);
-  };
-
-  Paint mFillPaint;
-  Paint mStrokePaint;
-
-  float mFillOpacity;
-  float mStrokeOpacity;
-};
-
-} // namespace mozilla
+}
 
 using namespace mozilla;
-
-typedef gfxFont::DrawMode DrawMode;
 
 typedef nsSVGGeometryFrame nsSVGGlyphFrameBase;
 
@@ -229,7 +160,8 @@ public:
   // nsISVGChildFrame interface:
   // These four always use the global transform, even if NS_STATE_NONDISPLAY_CHILD
   NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
-                      const nsIntRect *aDirtyRect) MOZ_OVERRIDE;
+                      const nsIntRect *aDirtyRect,
+                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint) MOZ_OVERRIDE;
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       uint32_t aFlags) MOZ_OVERRIDE;
@@ -240,7 +172,8 @@ public:
   NS_IMETHOD_(bool) IsDisplayContainer() MOZ_OVERRIDE { return false; }
 
   // nsSVGGeometryFrame methods
-  gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
+  gfxMatrix GetCanvasTM(uint32_t aFor,
+                        nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
 
   // nsISVGGlyphFragmentNode interface:
   // These do not use the global transform if NS_STATE_NONDISPLAY_CHILD
@@ -312,10 +245,11 @@ private:
   void DrawCharacters(CharacterIterator *aIter,
                       gfxContext *aContext,
                       DrawMode aDrawMode,
-                      gfxTextObjectPaint *aObjectPaint = nullptr);
+                      gfxTextContextPaint *aContextPaint = nullptr);
 
   void NotifyGlyphMetricsChange();
-  void SetupGlobalTransform(gfxContext *aContext, uint32_t aFor);
+  void SetupGlobalTransform(gfxContext *aContext, uint32_t aFor,
+                            nsIFrame* aTransformRoot = nullptr);
   float GetSubStringAdvance(uint32_t charnum, uint32_t fragmentChars,
                             float aMetricsScale);
   gfxFloat GetBaselineOffset(float aMetricsScale);
@@ -339,40 +273,40 @@ private:
 
 private:
   DrawMode SetupCairoState(gfxContext *aContext,
-                           gfxTextObjectPaint *aOuterObjectPaint,
-                           gfxTextObjectPaint **aThisObjectPaint);
+                           gfxTextContextPaint *aOuterContextPaint,
+                           gfxTextContextPaint **aThisContextPaint);
 
   /**
    * Sets up the stroke style in |aContext| and stores stroke pattern
-   * information in |aThisObjectPaint|.
+   * information in |aThisContextPaint|.
    */
   bool SetupCairoStroke(gfxContext *aContext,
-                        gfxTextObjectPaint *aOuterObjectPaint,
-                        SVGTextObjectPaint *aThisObjectPaint);
+                        gfxTextContextPaint *aOuterContextPaint,
+                        SVGTextContextPaint *aThisContextPaint);
 
   /**
    * Sets up the fill style in |aContext| and stores fill pattern information
-   * in |aThisObjectPaint|.
+   * in |aThisContextPaint|.
    */
   bool SetupCairoFill(gfxContext *aContext,
-                      gfxTextObjectPaint *aOuterObjectPaint,
-                      SVGTextObjectPaint *aThisObjectPaint);
+                      gfxTextContextPaint *aOuterContextPaint,
+                      SVGTextContextPaint *aThisContextPaint);
 
   /**
    * Sets the current pattern to the fill or stroke style of the outer text
-   * object. Will also set the paint opacity to transparent if the paint is set
+   * context. Will also set the paint opacity to transparent if the paint is set
    * to "none".
    */
-  bool SetupObjectPaint(gfxContext *aContext,
+  bool SetupContextPaint(gfxContext *aContext,
                         nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                         float& aOpacity,
-                        gfxTextObjectPaint *aObjectPaint);
+                        gfxTextContextPaint *aContextPaint);
 
   /**
    * Stores in |aTargetPaint| information on how to reconstruct the current
    * fill or stroke pattern. Will also set the paint opacity to transparent if
    * the paint is set to "none".
-   * @param aOuterObjectPaint pattern information from the outer text object
+   * @param aOuterContextPaint pattern information from the outer text context
    * @param aTargetPaint where to store the current pattern information
    * @param aFillOrStroke member pointer to the paint we are setting up
    * @param aProperty the frame property descriptor of the fill or stroke paint
@@ -380,8 +314,8 @@ private:
    */
   void SetupInheritablePaint(gfxContext *aContext,
                              float& aOpacity,
-                             gfxTextObjectPaint *aOuterObjectPaint,
-                             SVGTextObjectPaint::Paint& aTargetPaint,
+                             gfxTextContextPaint *aOuterContextPaint,
+                             SVGTextContextPaint::Paint& aTargetPaint,
                              nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                              const FramePropertyDescriptor *aProperty);
 

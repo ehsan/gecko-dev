@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+"use strict";
+
 /**
  * Session Storage and Restoration
  *
@@ -79,7 +81,8 @@ SessionStartup.prototype = {
     }
 
     _SessionFile.read().then(
-      this._onSessionFileRead.bind(this)
+      this._onSessionFileRead.bind(this),
+      Cu.reportError
     );
   },
 

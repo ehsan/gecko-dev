@@ -8,17 +8,20 @@
 #include "nsIDOMCrypto.h"
 #else
 #include "nsIDOMCryptoLegacy.h"
-#include "nsIDOMCRMFObject.h"
+class nsIDOMCRMFObject;
 #endif
 
 #include "nsPIDOMWindow.h"
+
 #include "nsWrapperCache.h"
-#include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/TypedArray.h"
 #define NS_DOMCRYPTO_CID \
   {0x929d9320, 0x251e, 0x11d4, { 0x8a, 0x7c, 0x00, 0x60, 0x08, 0xc8, 0x44, 0xc3} }
 
 namespace mozilla {
+
+class ErrorResult;
+
 namespace dom {
 
 class Crypto : public nsIDOMCrypto,
@@ -34,13 +37,14 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Crypto)
 
   JSObject *
-  GetRandomValues(JSContext* aCx, ArrayBufferView& aArray, ErrorResult& aRv);
+  GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
+		  ErrorResult& aRv);
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
-  virtual bool EnableSmartCardEvents() = 0;
-  virtual void SetEnableSmartCardEvents(bool aEnable, ErrorResult& aRv) = 0;
+  virtual bool EnableSmartCardEvents();
+  virtual void SetEnableSmartCardEvents(bool aEnable, ErrorResult& aRv);
 
-  virtual void GetVersion(nsString& aVersion) = 0;
+  virtual void GetVersion(nsString& aVersion);
 
   virtual already_AddRefed<nsIDOMCRMFObject>
   GenerateCRMFRequest(JSContext* aContext,
@@ -50,29 +54,29 @@ public:
                       const nsCString& aEaCert,
                       const nsCString& aJsCallback,
                       const Sequence<JS::Value>& aArgs,
-                      ErrorResult& aRv) = 0;
+                      ErrorResult& aRv);
 
   virtual void ImportUserCertificates(const nsAString& aNickname,
                                       const nsAString& aCmmfResponse,
                                       bool aDoForcedBackup,
                                       nsAString& aReturn,
-                                      ErrorResult& aRv) = 0;
+                                      ErrorResult& aRv);
 
   virtual void PopChallengeResponse(const nsAString& aChallenge,
                                     nsAString& aReturn,
-                                    ErrorResult& aRv) = 0;
+                                    ErrorResult& aRv);
 
-  virtual void Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv) = 0;
+  virtual void Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv);
 
   virtual void SignText(JSContext* aContext,
                         const nsAString& aStringToSign,
                         const nsAString& aCaOption,
                         const Sequence<nsCString>& aArgs,
-                        nsAString& aReturn) = 0;
+                        nsAString& aReturn);
 
-  virtual void Logout(ErrorResult& aRv) = 0;
+  virtual void Logout(ErrorResult& aRv);
 
-  virtual void DisableRightClick(ErrorResult& aRv) = 0;
+  virtual void DisableRightClick(ErrorResult& aRv);
 #endif
 
   // WebIDL

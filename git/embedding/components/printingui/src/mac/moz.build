@@ -6,13 +6,18 @@
 
 MODULE = 'embedcomponents'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsPrintProgress.cpp',
     'nsPrintProgressParams.cpp',
 ]
 
 LIBRARY_NAME = 'printingui_s'
 
-CMMSRCS += [
+SOURCES += [
     'nsPrintingPromptServiceX.mm',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+

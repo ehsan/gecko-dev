@@ -16,7 +16,6 @@
 #include "mozilla/dom/battery/Types.h"
 #include "mozilla/dom/network/Types.h"
 #include "mozilla/dom/power/Types.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/hal_sandbox/PHal.h"
 #include "mozilla/dom/ScreenOrientation.h"
 
@@ -261,6 +260,12 @@ void SetTimezone(const nsCString& aTimezoneSpec);
 nsCString GetTimezone();
 
 /**
+ * Get timezone offset
+ * returns the timezone offset relative to UTC in minutes (DST effect included)
+ */
+int32_t GetTimezoneOffset();
+
+/**
  * Register observer for system clock changed notification.
  * @param aObserver The observer that should be added.
  */
@@ -484,7 +489,8 @@ bool SetAlarm(int32_t aSeconds, int32_t aNanoseconds);
  */
 void SetProcessPriority(int aPid,
                         hal::ProcessPriority aPriority,
-                        hal::ProcessCPUPriority aCPUPriority);
+                        hal::ProcessCPUPriority aCPUPriority,
+                        uint32_t aLRU = 0);
 
 /**
  * Register an observer for the FM radio.
@@ -590,6 +596,13 @@ void StartDiskSpaceWatcher();
  * This API is currently only allowed to be used from the main process.
  */
 void StopDiskSpaceWatcher();
+
+/**
+ * Get total system memory of device being run on in bytes.
+ *
+ * Returns 0 if we are unable to determine this information from /proc/meminfo.
+ */
+uint32_t GetTotalSystemMemory();
 
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla

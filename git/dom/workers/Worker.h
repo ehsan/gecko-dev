@@ -8,8 +8,6 @@
 
 #include "Workers.h"
 
-#include "jspubtd.h"
-#include "mozilla/dom/DOMJSClass.h"
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -30,7 +28,7 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
 } // namespace chromeworker
 
 bool
-ClassIsWorker(JSClass* aClass);
+ClassIsWorker(const JSClass* aClass);
 
 END_WORKERS_NAMESPACE
 

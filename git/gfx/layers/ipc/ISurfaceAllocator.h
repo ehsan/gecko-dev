@@ -6,10 +6,12 @@
 #ifndef GFX_LAYERS_ISURFACEDEALLOCATOR
 #define GFX_LAYERS_ISURFACEDEALLOCATOR
 
-#include "mozilla/ipc/SharedMemory.h"
-#include "mozilla/RefPtr.h"
-#include "gfxPoint.h"
-#include "gfxASurface.h"
+#include <stddef.h>                     // for size_t
+#include <stdint.h>                     // for uint32_t
+#include "gfxTypes.h"
+#include "gfxPoint.h"                   // for gfxIntSize
+#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
+#include "mozilla/WeakPtr.h"
 
 /*
  * FIXME [bjacob] *** PURE CRAZYNESS WARNING ***
@@ -23,16 +25,16 @@
 #endif
 
 class gfxSharedImageSurface;
-class gfxASurface;
 
 namespace base {
 class Thread;
-} // namespace
+}
 
 namespace mozilla {
 namespace ipc {
 class Shmem;
-} // namespace
+}
+
 namespace layers {
 
 class PGrallocBufferChild;
@@ -67,7 +69,7 @@ bool ReleaseOwnedSurfaceDescriptor(const SurfaceDescriptor& aDescriptor);
  * These methods should be only called in the ipdl implementor's thread, unless
  * specified otherwise in the implementing class.
  */
-class ISurfaceAllocator
+class ISurfaceAllocator : public SupportsWeakPtr<ISurfaceAllocator>
 {
 public:
 ISurfaceAllocator() {}
@@ -95,29 +97,19 @@ ISurfaceAllocator() {}
 
   // was AllocBuffer
   virtual bool AllocSharedImageSurface(const gfxIntSize& aSize,
-                                       gfxASurface::gfxContentType aContent,
+                                       gfxContentType aContent,
                                        gfxSharedImageSurface** aBuffer);
   virtual bool AllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                      gfxASurface::gfxContentType aContent,
+                                      gfxContentType aContent,
                                       SurfaceDescriptor* aBuffer);
 
   // was AllocBufferWithCaps
   virtual bool AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
-                                              gfxASurface::gfxContentType aContent,
+                                              gfxContentType aContent,
                                               uint32_t aCaps,
                                               SurfaceDescriptor* aBuffer);
 
   virtual void DestroySharedSurface(SurfaceDescriptor* aSurface);
-
-protected:
-  // this method is needed for a temporary fix, will be removed after
-  // DeprecatedTextureClient/Host rework.
-  virtual bool IsOnCompositorSide() const = 0;
-  static bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
-  virtual bool PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                              gfxASurface::gfxContentType aContent,
-                                              uint32_t aCaps,
-                                              SurfaceDescriptor* aBuffer);
 
   // method that does the actual allocation work
   virtual PGrallocBufferChild* AllocGrallocBuffer(const gfxIntSize& aSize,
@@ -127,6 +119,16 @@ protected:
   {
     return nullptr;
   }
+protected:
+  // this method is needed for a temporary fix, will be removed after
+  // DeprecatedTextureClient/Host rework.
+  virtual bool IsOnCompositorSide() const = 0;
+  static bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
+  virtual bool PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
+                                              gfxContentType aContent,
+                                              uint32_t aCaps,
+                                              SurfaceDescriptor* aBuffer);
+
 
   ~ISurfaceAllocator() {}
 };

@@ -6,12 +6,15 @@
 #ifndef MOZILLA_GFX_COMPOSITOR_H
 #define MOZILLA_GFX_COMPOSITOR_H
 
-#include "mozilla/gfx/Rect.h"
-#include "mozilla/gfx/Matrix.h"
-#include "gfxMatrix.h"
-#include "Layers.h"
-#include "mozilla/RefPtr.h"
-#include "mozilla/layers/CompositorTypes.h"
+#include "Units.h"                      // for ScreenPoint
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
+#include "mozilla/RefPtr.h"             // for TemporaryRef, RefCounted
+#include "mozilla/gfx/Point.h"          // for IntSize, Point
+#include "mozilla/gfx/Rect.h"           // for Rect, IntRect
+#include "mozilla/gfx/Types.h"          // for Float
+#include "mozilla/layers/CompositorTypes.h"  // for DiagnosticTypes, etc
+#include "mozilla/layers/LayersTypes.h"  // for LayersBackend
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 /**
  * Different elements of a web pages are rendered into separate "layers" before
@@ -98,11 +101,14 @@
  * add specific TextureClient implementations.
  */
 
-class gfxContext;
 class nsIWidget;
+struct gfxMatrix;
+struct nsIntSize;
+class nsIntRegion;
 
 namespace mozilla {
 namespace gfx {
+class Matrix4x4;
 class DrawTarget;
 }
 
@@ -172,7 +178,7 @@ class Compositor : public RefCounted<Compositor>
 public:
   Compositor()
     : mCompositorID(0)
-    , mDrawColoredBorders(false)
+    , mDiagnosticTypes(DIAGNOSTIC_NONE)
   {
     MOZ_COUNT_CTOR(Compositor);
   }
@@ -204,7 +210,7 @@ public:
   /**
    * Properties of the compositor.
    */
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize& aSize) = 0;
+  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize& aSize) = 0;
   virtual int32_t GetMaxTextureSize() const = 0;
 
   /**
@@ -214,7 +220,7 @@ public:
    * If this method is not used, or we pass in nullptr, we target the compositor's
    * usual swap chain and render to the screen.
    */
-  virtual void SetTargetContext(gfxContext* aTarget) = 0;
+  virtual void SetTargetContext(gfx::DrawTarget* aTarget) = 0;
 
   typedef uint32_t MakeCurrentFlags;
   static const MakeCurrentFlags ForceMakeCurrent = 0x1;
@@ -335,17 +341,19 @@ public:
    */
   virtual bool SupportsPartialTextureUpdate() = 0;
 
-  void EnableColoredBorders()
+  void SetDiagnosticTypes(DiagnosticTypes aDiagnostics)
   {
-    mDrawColoredBorders = true;
-  }
-  void DisableColoredBorders()
-  {
-    mDrawColoredBorders = false;
+    mDiagnosticTypes = aDiagnostics;
   }
 
-  void DrawDiagnostics(const gfx::Color& color,
+  void DrawDiagnostics(DiagnosticFlags aFlags,
                        const gfx::Rect& visibleRect,
+                       const gfx::Rect& aClipRect,
+                       const gfx::Matrix4x4& transform,
+                       const gfx::Point& aOffset);
+
+  void DrawDiagnostics(DiagnosticFlags aFlags,
+                       const nsIntRegion& visibleRegion,
                        const gfx::Rect& aClipRect,
                        const gfx::Matrix4x4& transform,
                        const gfx::Point& aOffset);
@@ -398,6 +406,12 @@ public:
   virtual nsIWidget* GetWidget() const { return nullptr; }
   virtual const nsIntSize& GetWidgetSize() = 0;
 
+  // Call before and after any rendering not done by this compositor but which
+  // might affect the compositor's internal state or the state of any APIs it
+  // uses. For example, internal GL state.
+  virtual void SaveState() {}
+  virtual void RestoreState() {}
+
   /**
    * Debug-build assertion that can be called to ensure code is running on the
    * compositor thread.
@@ -415,9 +429,25 @@ public:
   static LayersBackend GetBackend();
 
 protected:
+  void DrawDiagnosticsInternal(DiagnosticFlags aFlags,
+                               const gfx::Rect& aVisibleRect,
+                               const gfx::Rect& aClipRect,
+                               const gfx::Matrix4x4& transform,
+                               const gfx::Point& aOffset);
+
+  bool ShouldDrawDiagnostics(DiagnosticFlags);
+
   uint32_t mCompositorID;
   static LayersBackend sBackend;
-  bool mDrawColoredBorders;
+  DiagnosticTypes mDiagnosticTypes;
+
+  /**
+   * We keep track of the total number of pixels filled as we composite the
+   * current frame. This value is an approximation and is not accurate,
+   * especially in the presence of transforms.
+   */
+  size_t mPixelsPerFrame;
+  size_t mPixelsFilled;
 };
 
 } // namespace layers

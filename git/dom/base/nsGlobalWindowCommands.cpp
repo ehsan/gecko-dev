@@ -6,6 +6,7 @@
 #include "nsGlobalWindowCommands.h"
 
 #include "nsIComponentManager.h"
+#include "nsIDOMElement.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCRT.h"
@@ -25,8 +26,9 @@
 #include "nsIContentViewer.h"
 #include "nsFocusManager.h"
 #include "nsCopySupport.h"
-#include "nsGUIEvent.h"
+#include "nsIClipboard.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/BasicEvents.h"
 
 #include "nsIClipboardDragDropHooks.h"
 #include "nsIClipboardDragDropHookList.h"
@@ -365,7 +367,7 @@ nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
   nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
-  nsCopySupport::FireClipboardEvent(NS_COPY, presShell, nullptr);
+  nsCopySupport::FireClipboardEvent(NS_COPY, nsIClipboard::kGlobalClipboard, presShell, nullptr);
   return NS_OK;
 }
 

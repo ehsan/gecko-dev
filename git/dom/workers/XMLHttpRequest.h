@@ -12,8 +12,9 @@
 // Need this for XMLHttpRequestResponseType.
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 
-#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TypedArray.h"
+
+#include "js/StructuredClone.h"
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -73,16 +74,16 @@ public:
   _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
   static XMLHttpRequest*
-  Constructor(const WorkerGlobalObject& aGlobal,
-              const MozXMLHttpRequestParametersWorkers& aParams,
+  Constructor(const GlobalObject& aGlobal,
+              const MozXMLHttpRequestParameters& aParams,
               ErrorResult& aRv);
 
   static XMLHttpRequest*
-  Constructor(const WorkerGlobalObject& aGlobal, const nsAString& ignored,
+  Constructor(const GlobalObject& aGlobal, const nsAString& ignored,
               ErrorResult& aRv)
   {
     // Pretend like someone passed null, so we can pick up the default values
-    MozXMLHttpRequestParametersWorkers params;
+    MozXMLHttpRequestParameters params;
     if (!params.Init(aGlobal.GetContext(), JS::NullHandleValue)) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
@@ -98,15 +99,14 @@ public:
   Notify(JSContext* aCx, Status aStatus) MOZ_OVERRIDE;
 
 #define IMPL_GETTER_AND_SETTER(_type)                                          \
-  JSObject*                                                                    \
-  GetOn##_type(JSContext* /* unused */, ErrorResult& aRv)                      \
+  already_AddRefed<EventHandlerNonNull>                                        \
+  GetOn##_type(ErrorResult& aRv)                                               \
   {                                                                            \
     return GetEventListener(NS_LITERAL_STRING(#_type), aRv);                   \
   }                                                                            \
                                                                                \
   void                                                                         \
-  SetOn##_type(JSContext* /* unused */,  JS::Handle<JSObject*> aListener,      \
-               ErrorResult& aRv)                                               \
+  SetOn##_type(EventHandlerNonNull* aListener,  ErrorResult& aRv)              \
   {                                                                            \
     SetEventListener(NS_LITERAL_STRING(#_type), aListener, aRv);               \
   }
@@ -176,12 +176,12 @@ public:
   }
 
   void
-  Send(ArrayBuffer& aBody, ErrorResult& aRv) {
+  Send(const ArrayBuffer& aBody, ErrorResult& aRv) {
     return Send(aBody.Obj(), aRv);
   }
 
   void
-  Send(ArrayBufferView& aBody, ErrorResult& aRv) {
+  Send(const ArrayBufferView& aBody, ErrorResult& aRv) {
     return Send(aBody.Obj(), aRv);
   }
 

@@ -11,6 +11,7 @@
 
 #include "ASpdySession.h"
 #include "mozilla/Attributes.h"
+#include "nsAHttpConnection.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsDeque.h"
@@ -21,6 +22,7 @@ class nsISocketTransport;
 
 namespace mozilla { namespace net {
 
+class SpdyPushedStream3;
 class SpdyStream3;
 
 class SpdySession3 MOZ_FINAL : public ASpdySession

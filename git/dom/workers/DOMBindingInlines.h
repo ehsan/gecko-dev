@@ -6,23 +6,19 @@
 #ifndef mozilla_dom_workers_dombindinginlines_h__
 #define mozilla_dom_workers_dombindinginlines_h__
 
-#include "mozilla/dom/FileReaderSyncBinding.h"
-#include "mozilla/dom/TextDecoderBinding.h"
-#include "mozilla/dom/TextEncoderBinding.h"
+#include "jsfriendapi.h"
+#include "mozilla/dom/JSSlots.h"
+#include "mozilla/dom/URLBinding.h"
+#include "mozilla/dom/WorkerMessagePortBinding.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
-#include "mozilla/dom/WorkerLocationBinding.h"
-#include "mozilla/dom/WorkerNavigatorBinding.h"
 
 BEGIN_WORKERS_NAMESPACE
 
-class FileReaderSync;
-class TextDecoder;
-class TextEncoder;
+class URL;
+class WorkerMessagePort;
 class XMLHttpRequest;
 class XMLHttpRequestUpload;
-class WorkerLocation;
-class WorkerNavigator;
 
 namespace {
 
@@ -36,11 +32,11 @@ struct WrapPrototypeTraits
   template <>                                                                  \
   struct WrapPrototypeTraits<_class>                                           \
   {                                                                            \
-    static inline JSClass*                                                     \
+    static inline const JSClass*                                               \
     GetJSClass()                                                               \
     {                                                                          \
       using namespace mozilla::dom;                                            \
-      return _class##Binding_workers::Class.ToJSClass();                       \
+      return _class##Binding_workers::GetJSClass();                            \
     }                                                                          \
                                                                                \
     static inline JSObject*                                                    \
@@ -51,13 +47,10 @@ struct WrapPrototypeTraits
     }                                                                          \
   };
 
-SPECIALIZE_PROTO_TRAITS(FileReaderSync)
-SPECIALIZE_PROTO_TRAITS(TextDecoder)
-SPECIALIZE_PROTO_TRAITS(TextEncoder)
+SPECIALIZE_PROTO_TRAITS(URL)
+SPECIALIZE_PROTO_TRAITS(WorkerMessagePort)
 SPECIALIZE_PROTO_TRAITS(XMLHttpRequest)
 SPECIALIZE_PROTO_TRAITS(XMLHttpRequestUpload)
-SPECIALIZE_PROTO_TRAITS(WorkerLocation)
-SPECIALIZE_PROTO_TRAITS(WorkerNavigator)
 
 #undef SPECIALIZE_PROTO_TRAITS
 

@@ -3,8 +3,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-// IWYU pragma: private, include "nsAString.h"
+// IWYU pragma: private, include "nsString.h"
 
 #include "mozilla/MemoryReporting.h"
 
@@ -131,7 +130,7 @@ class nsTSubstring_CharT
       char_iterator BeginWriting()
         {
           if (!EnsureMutable())
-            NS_RUNTIMEABORT("OOM");
+            NS_ABORT_OOM(mLength);
 
           return mData;
         }
@@ -144,7 +143,7 @@ class nsTSubstring_CharT
       char_iterator EndWriting()
         {
           if (!EnsureMutable())
-            NS_RUNTIMEABORT("OOM");
+            NS_ABORT_OOM(mLength);
 
           return mData + mLength;
         }
@@ -342,8 +341,8 @@ class nsTSubstring_CharT
       void NS_FASTCALL Assign( char_type c );
       bool NS_FASTCALL Assign( char_type c, const fallible_t& ) NS_WARN_UNUSED_RESULT;
 
-      void NS_FASTCALL
-        Assign( const char_type* data, size_type length = size_type(-1) );
+      void NS_FASTCALL Assign( const char_type* data );
+      void NS_FASTCALL Assign( const char_type* data, size_type length );
       bool NS_FASTCALL Assign( const char_type* data, size_type length, const fallible_t& ) NS_WARN_UNUSED_RESULT;
 
       void NS_FASTCALL Assign( const self_type& );
@@ -522,7 +521,7 @@ class nsTSubstring_CharT
           *data = mData;
           return mLength;
         }
-        
+
         /**
          * Get a pointer to the string's internal buffer, optionally resizing
          * the buffer first.  If size_type(-1) is passed for newLen, then the
@@ -536,7 +535,7 @@ class nsTSubstring_CharT
       size_type GetMutableData( char_type** data, size_type newLen = size_type(-1) )
         {
           if (!EnsureMutable(newLen))
-            NS_RUNTIMEABORT("OOM");
+            NS_ABORT_OOM(newLen == size_type(-1) ? mLength : newLen);
 
           *data = mData;
           return mLength;

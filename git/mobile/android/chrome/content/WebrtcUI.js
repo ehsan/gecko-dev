@@ -54,13 +54,13 @@ var WebrtcUI = {
 
       if (cameraActive && audioActive) {
         msg.text = Strings.browser.GetStringFromName("getUserMedia.sharingCameraAndMicrophone.message2");
-        msg.smallicon = "drawable:alert_mic_camera";
+        msg.smallIcon = "drawable:alert_mic_camera";
       } else if (cameraActive) {
         msg.text = Strings.browser.GetStringFromName("getUserMedia.sharingCamera.message2");
-        msg.smallicon = "drawable:alert_camera";
+        msg.smallIcon = "drawable:alert_camera";
       } else if (audioActive) {
         msg.text = Strings.browser.GetStringFromName("getUserMedia.sharingMicrophone.message2");
-        msg.smallicon = "drawable:alert_mic";
+        msg.smallIcon = "drawable:alert_mic";
       } else {
         // somethings wrong. lets throw
         throw "Couldn't find any cameras or microphones being used"
@@ -74,14 +74,13 @@ var WebrtcUI = {
   },
 
   handleRequest: function handleRequest(aSubject, aTopic, aData) {
-    let { windowID: windowID, callID: callID } = JSON.parse(aData);
-
-    let contentWindow = Services.wm.getOuterWindowWithId(windowID);
-    let params = aSubject.QueryInterface(Ci.nsIMediaStreamOptions);
+    let constraints = aSubject.getConstraints();
 
     Services.wm.getMostRecentWindow(null).navigator.mozGetUserMediaDevices(
+      constraints,
       function (devices) {
-        WebrtcUI.prompt(windowID, callID, params.audio, params.video, devices);
+        WebrtcUI.prompt(aSubject.windowID, aSubject.callID, constraints.audio,
+                        constraints.video, devices);
       },
       function (error) {
         Cu.reportError(error);

@@ -214,20 +214,20 @@ gfxDWriteFontFamily::LocalizedName(nsAString &aLocalizedName)
 }
 
 void
-gfxDWriteFontFamily::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                         FontListSizes*    aSizes) const
+gfxDWriteFontFamily::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                            FontListSizes* aSizes) const
 {
-    gfxFontFamily::SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFontFamily::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
     // TODO:
     // This doesn't currently account for |mDWFamily|
 }
 
 void
-gfxDWriteFontFamily::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                         FontListSizes*    aSizes) const
+gfxDWriteFontFamily::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                            FontListSizes* aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,20 +556,20 @@ gfxDWriteFontEntry::IsCJKFont()
 }
 
 void
-gfxDWriteFontEntry::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                        FontListSizes*    aSizes) const
+gfxDWriteFontEntry::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                           FontListSizes* aSizes) const
 {
-    gfxFontEntry::SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFontEntry::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
     // TODO:
     // This doesn't currently account for the |mFont| and |mFontFile| members
 }
 
 void
-gfxDWriteFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                        FontListSizes*    aSizes) const
+gfxDWriteFontEntry::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                           FontListSizes* aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -578,7 +578,6 @@ gfxDWriteFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 gfxDWriteFontList::gfxDWriteFontList()
     : mInitialized(false), mForceGDIClassicMaxFontSize(0.0)
 {
-    mFontSubstitutes.Init();
 }
 
 // bug 602792 - CJK systems default to large CJK fonts which cause excessive
@@ -622,8 +621,8 @@ gfxDWriteFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     }
 
     // lookup in name lookup tables, return null if not found
-    if (!(lookup = mPostscriptNames.GetWeak(aFullname)) &&
-        !(lookup = mFullnames.GetWeak(aFullname))) 
+    if (!(lookup = mExtraNames->mPostscriptNames.GetWeak(aFullname)) &&
+        !(lookup = mExtraNames->mFullnames.GetWeak(aFullname)))
     {
         return nullptr;
     }
@@ -1219,10 +1218,10 @@ gfxDWriteFontList::ResolveFontName(const nsAString& aFontName,
 }
 
 void
-gfxDWriteFontList::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                       FontListSizes*    aSizes) const
+gfxDWriteFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                          FontListSizes* aSizes) const
 {
-    gfxPlatformFontList::SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxPlatformFontList::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
 
     aSizes->mFontListSize +=
         mFontSubstitutes.SizeOfExcludingThis(SizeOfFamilyNameEntryExcludingThis,
@@ -1237,11 +1236,11 @@ gfxDWriteFontList::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxDWriteFontList::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                       FontListSizes*    aSizes) const
+gfxDWriteFontList::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                          FontListSizes* aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 static HRESULT GetFamilyName(IDWriteFont *aFont, nsString& aFamilyName)

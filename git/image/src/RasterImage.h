@@ -22,27 +22,25 @@
 #include "nsCOMPtr.h"
 #include "imgIContainer.h"
 #include "nsIProperties.h"
-#include "nsITimer.h"
-#include "nsIRequest.h"
 #include "nsTArray.h"
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
-#include "nsISupportsImpl.h"
+#include "Orientation.h"
+#include "nsIObserver.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Mutex.h"
+#include "mozilla/ReentrantMonitor.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
-#include "mozilla/LinkedList.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/WeakPtr.h"
-#include "mozilla/Mutex.h"
-#include "gfx2DGlue.h"
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
 
 class nsIInputStream;
 class nsIThreadPool;
+class nsIRequest;
 
 #define NS_RASTERIMAGE_CID \
 { /* 376ff2c1-9bf6-418a-b143-3340c00112f7 */         \
@@ -125,11 +123,13 @@ class nsIThreadPool;
 class ScaleRequest;
 
 namespace mozilla {
+
 namespace layers {
 class LayerManager;
 class ImageContainer;
 class Image;
 }
+
 namespace image {
 
 class Decoder;
@@ -186,13 +186,11 @@ public:
   /* Callbacks for decoders */
   nsresult SetFrameAsNonPremult(uint32_t aFrameNum, bool aIsNonPremult);
 
-  /**
-   * Sets the size of the container. This should only be called by the
-   * decoder. This function may be called multiple times, but will throw an
-   * error if subsequent calls do not match the first.
+  /** Sets the size and inherent orientation of the container. This should only
+   * be called by the decoder. This function may be called multiple times, but
+   * will throw an error if subsequent calls do not match the first.
    */
-  nsresult SetSize(int32_t aWidth, int32_t aHeight);
-
+  nsresult SetSize(int32_t aWidth, int32_t aHeight, Orientation aOrientation);
 
   /**
    * Ensures that a given frame number exists with the given parameters, and
@@ -202,7 +200,7 @@ public:
    */
   nsresult EnsureFrame(uint32_t aFramenum, int32_t aX, int32_t aY,
                        int32_t aWidth, int32_t aHeight,
-                       gfxASurface::gfxImageFormat aFormat,
+                       gfxImageFormat aFormat,
                        uint8_t aPaletteDepth,
                        uint8_t** imageData,
                        uint32_t* imageLength,
@@ -216,7 +214,7 @@ public:
    */
   nsresult EnsureFrame(uint32_t aFramenum, int32_t aX, int32_t aY,
                        int32_t aWidth, int32_t aHeight,
-                       gfxASurface::gfxImageFormat aFormat,
+                       gfxImageFormat aFormat,
                        uint8_t** imageData,
                        uint32_t* imageLength,
                        imgFrame** aFrame);
@@ -250,6 +248,10 @@ public:
                                        nsresult aStatus,
                                        bool aLastPart) MOZ_OVERRIDE;
   virtual nsresult OnNewSourceData() MOZ_OVERRIDE;
+
+  static already_AddRefed<nsIEventTarget> GetEventTarget() {
+    return DecodePool::Singleton()->GetEventTarget();
+  }
 
   /**
    * A hint of the number of bytes of source data that the image contains. If
@@ -310,13 +312,13 @@ public:
   };
 
 private:
-  imgStatusTracker& CurrentStatusTracker()
+  already_AddRefed<imgStatusTracker> CurrentStatusTracker()
   {
-    if (mDecodeRequest) {
-      return *mDecodeRequest->mStatusTracker;
-    } else {
-      return *mStatusTracker;
-    }
+    nsRefPtr<imgStatusTracker> statusTracker;
+    statusTracker = mDecodeRequest ? mDecodeRequest->mStatusTracker
+                                   : mStatusTracker;
+    MOZ_ASSERT(statusTracker);
+    return statusTracker.forget();
   }
 
   nsresult OnImageDataCompleteCore(nsIRequest* aRequest, nsISupports*, nsresult aStatus);
@@ -334,6 +336,9 @@ private:
       , mChunkCount(0)
       , mAllocatedNewFrame(false)
     {
+      MOZ_ASSERT(aImage, "aImage cannot be null");
+      MOZ_ASSERT(aImage->mStatusTracker,
+                 "aImage should have an imgStatusTracker");
       mStatusTracker = aImage->mStatusTracker->CloneForRecording();
     }
 
@@ -419,6 +424,14 @@ private:
      */
     nsresult DecodeUntilSizeAvailable(RasterImage* aImg);
 
+    /**
+     * Returns an event target interface to the thread pool; primarily for
+     * OnDataAvailable delivery off main thread.
+     *
+     * @return An nsIEventTarget interface to mThreadPool.
+     */
+    already_AddRefed<nsIEventTarget> GetEventTarget();
+
     virtual ~DecodePool();
 
   private: /* statics */
@@ -462,10 +475,10 @@ private:
   private: /* members */
 
     // mThreadPoolMutex protects mThreadPool. For all RasterImages R,
-    // R::mDecodingMutex must be acquired before mThreadPoolMutex if both are
-    // acquired; the other order may cause deadlock.
-    mozilla::Mutex          mThreadPoolMutex;
-    nsCOMPtr<nsIThreadPool> mThreadPool;
+    // R::mDecodingMonitor must be acquired before mThreadPoolMutex
+    // if both are acquired; the other order may cause deadlock.
+    mozilla::Mutex            mThreadPoolMutex;
+    nsCOMPtr<nsIThreadPool>   mThreadPool;
   };
 
   class DecodeDoneWorker : public nsRunnable
@@ -518,7 +531,7 @@ private:
 
   void DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                                     gfxContext *aContext,
-                                    gfxPattern::GraphicsFilter aFilter,
+                                    GraphicsFilter aFilter,
                                     const gfxMatrix &aUserSpaceToImageSpace,
                                     const gfxRect &aFill,
                                     const nsIntRect &aSubimage,
@@ -544,7 +557,7 @@ private:
   imgFrame* GetCurrentImgFrame();
   uint32_t GetCurrentImgFrameIndex() const;
 
-  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
+  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  mozilla::MallocSizeOf aMallocSizeOf) const;
 
   void EnsureAnimExists();
@@ -554,7 +567,7 @@ private:
                                   uint32_t **paletteData, uint32_t *paletteLength,
                                   imgFrame** aRetFrame);
   nsresult InternalAddFrame(uint32_t framenum, int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
-                            gfxASurface::gfxImageFormat aFormat, uint8_t aPaletteDepth,
+                            gfxImageFormat aFormat, uint8_t aPaletteDepth,
                             uint8_t **imageData, uint32_t *imageLength,
                             uint32_t **paletteData, uint32_t *paletteLength,
                             imgFrame** aRetFrame);
@@ -583,6 +596,7 @@ private:
 
 private: // data
   nsIntSize                  mSize;
+  Orientation                mOrientation;
 
   // Whether our frames were decoded using any special flags.
   // Some flags (e.g. unpremultiplied data) may not be compatible
@@ -631,10 +645,10 @@ private: // data
 #endif
 
   // Below are the pieces of data that can be accessed on more than one thread
-  // at once, and hence need to be locked by mDecodingMutex.
+  // at once, and hence need to be locked by mDecodingMonitor.
 
   // BEGIN LOCKED MEMBER VARIABLES
-  mozilla::Mutex             mDecodingMutex;
+  mozilla::ReentrantMonitor  mDecodingMonitor;
 
   FallibleTArray<char>       mSourceData;
 
@@ -645,10 +659,6 @@ private: // data
 
   bool                       mInDecoder;
   // END LOCKED MEMBER VARIABLES
-
-  // Notification state. Used to avoid recursive notifications.
-  ImageStatusDiff            mStatusDiff;
-  bool                       mNotifying:1;
 
   // Boolean flags (clustered together to conserve space):
   bool                       mHasSize:1;       // Has SetSize() been called?
@@ -675,11 +685,12 @@ private: // data
   // off a full decode.
   bool                       mWantFullDecode:1;
 
+  // Set when a decode worker detects an error off-main-thread. Once the error
+  // is handled on the main thread, mError is set, but mPendingError is used to
+  // stop decode work immediately.
+  bool                       mPendingError:1;
+
   // Decoding
-  nsresult RequestDecodeIfNeeded(nsresult aStatus,
-                                 eShutdownIntent aIntent,
-                                 bool aDone,
-                                 bool aWasSize);
   nsresult WantDecodedFrames();
   nsresult SyncDecode();
   nsresult InitDecoder(bool aDoSizeDecode, bool aIsSynchronous = false);
@@ -689,7 +700,7 @@ private: // data
   TimeStamp mDrawStartTime;
 
   inline bool CanQualityScale(const gfxSize& scale);
-  inline bool CanScale(gfxPattern::GraphicsFilter aFilter, gfxSize aScale, uint32_t aFlags);
+  inline bool CanScale(GraphicsFilter aFilter, gfxSize aScale, uint32_t aFlags);
 
   struct ScaleResult
   {
@@ -709,17 +720,41 @@ private: // data
   // will inform us when to let go of this pointer.
   ScaleRequest* mScaleRequest;
 
+  // Initializes imgStatusTracker and resets it on RasterImage destruction.
+  nsAutoPtr<imgStatusTrackerInit> mStatusTrackerInit;
+
   nsresult ShutdownDecoder(eShutdownIntent aIntent);
 
-  // Helpers
+  // Error handling.
   void DoError();
+
+  class HandleErrorWorker : public nsRunnable
+  {
+  public:
+    /**
+     * Called from decoder threads when DoError() is called, since errors can't
+     * be handled safely off-main-thread. Dispatches an event which reinvokes
+     * DoError on the main thread if there isn't one already pending.
+     */
+    static void DispatchIfNeeded(RasterImage* aImage);
+
+    NS_IMETHOD Run();
+
+  private:
+    HandleErrorWorker(RasterImage* aImage);
+
+    nsRefPtr<RasterImage> mImage;
+  };
+
+  // Helpers
   bool CanDiscard();
   bool CanForciblyDiscard();
   bool DiscardingActive();
   bool StoringSourceData() const;
 
 protected:
-  RasterImage(imgStatusTracker* aStatusTracker = nullptr, nsIURI* aURI = nullptr);
+  RasterImage(imgStatusTracker* aStatusTracker = nullptr,
+              ImageURL* aURI = nullptr);
 
   bool ShouldAnimate();
 
