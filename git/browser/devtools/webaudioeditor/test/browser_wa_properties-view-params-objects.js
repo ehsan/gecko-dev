@@ -6,7 +6,7 @@
  * like AudioBuffer and Float32Array in properties of AudioNodes.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(BUFFER_AND_ARRAY_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, InspectorView } = panelWin;
@@ -42,5 +42,6 @@ add_task(function*() {
   state = aVar.target.querySelector(".theme-twisty").hasAttribute("invisible");
   ok(state, "AudioBuffer property should not have a dropdown.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

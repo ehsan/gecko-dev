@@ -5,7 +5,7 @@
  * Tests that the graph's scale and position is reset on a page reload.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, ContextView } = panelWin;
@@ -39,5 +39,7 @@ add_task(function*() {
   is(ContextView.getCurrentTranslation()[0], 20, "After refresh, x-translation is 20.");
   is(ContextView.getCurrentTranslation()[1], 20, "After refresh, y-translation is 20.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}
+

@@ -32,11 +32,15 @@ let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
 Services.scriptloader.loadSubScript(testDir + "../../../commandline/test/helpers.js", this);
 
 gDevTools.testing = true;
-registerCleanupFunction(() => {
+SimpleTest.registerCleanupFunction(() => {
   gDevTools.testing = false;
 });
 
-registerCleanupFunction(() => {
+SimpleTest.registerCleanupFunction(() => {
+  console.error("Here we are\n");
+  let {DebuggerServer} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
+  console.error("DebuggerServer open connections: " + Object.getOwnPropertyNames(DebuggerServer._connections).length);
+
   Services.prefs.clearUserPref("devtools.dump.emit");
   Services.prefs.clearUserPref("devtools.inspector.activeSidebar");
 });
@@ -54,6 +58,7 @@ registerCleanupFunction(function*() {
   while (gBrowser.tabs.length > 1) {
     gBrowser.removeCurrentTab();
   }
+
 });
 
 /**

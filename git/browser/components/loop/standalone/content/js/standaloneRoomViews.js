@@ -115,20 +115,14 @@ loop.standaloneRoomViews = (function(mozL10n) {
           );
         }
         case ROOM_STATES.ENDED: {
-          if (this.props.roomUsed)
-            return (
-              React.DOM.div({className: "ended-conversation"}, 
-                sharedViews.FeedbackView({
-                  feedbackStore: this.props.feedbackStore, 
-                  onAfterFeedbackReceived: this.onFeedbackSent}
-                )
+          return (
+            React.DOM.div({className: "ended-conversation"}, 
+              sharedViews.FeedbackView({
+                feedbackStore: this.props.feedbackStore, 
+                onAfterFeedbackReceived: this.onFeedbackSent}
               )
-            );
-
-          // In case the room was not used (no one was here), we
-          // bypass the feedback form.
-          this.onFeedbackSent();
-          return null;
+            )
+          );
         }
         case ROOM_STATES.FAILED: {
           return (
@@ -368,8 +362,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
                                   joinRoom: this.joinRoom, 
                                   helper: this.props.helper, 
                                   activeRoomStore: this.props.activeRoomStore, 
-                                  feedbackStore: this.props.feedbackStore, 
-                                  roomUsed: this.state.used}), 
+                                  feedbackStore: this.props.feedbackStore}), 
           React.DOM.div({className: "video-layout-wrapper"}, 
             React.DOM.div({className: "conversation room-conversation"}, 
               React.DOM.h2({className: "room-name"}, this.state.roomName), 

@@ -5,7 +5,7 @@
  * Tests that params view shows params when they exist, and are hidden otherwise.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, InspectorView } = panelWin;
@@ -38,5 +38,6 @@ add_task(function*() {
   ok(isVisible($("#properties-tabpanel-content-empty")),
     "Empty message shown when no AudioParams exist.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

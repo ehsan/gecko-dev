@@ -6,7 +6,7 @@
  * the container bounds.
  */
 
-add_task(function*() {
+let test = Task.async(function*() {
   let { target, panel } = yield initTimelinePanel(SIMPLE_URL);
   let { $, EVENTS, TimelineView, TimelineController } = panel.panelWin;
 
@@ -41,4 +41,7 @@ add_task(function*() {
     "The canvas width is correct.");
   is(TimelineView.waterfall._canvas.height, 1,
     "The canvas height is correct.");
+
+  yield teardown(panel);
+  finish();
 });

@@ -47,6 +47,8 @@ add_task(function*() {
     let style = yield getRootNodeStyle(toolbox);
     is(style, expected, "The style attribute of the root element is correct");
   }
+
+  gBrowser.removeCurrentTab();
 });
 
 function* hoverElement(selector, inspector) {

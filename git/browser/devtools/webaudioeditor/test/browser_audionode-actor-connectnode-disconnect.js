@@ -6,7 +6,7 @@
  * Uses the editor front as the actors do not retain connect state.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, gAudioNodes } = panelWin;
@@ -28,6 +28,7 @@ add_task(function*() {
   ]);
   ok(true, "Oscillator disconnected, event emitted.");
 
+
   info("Reconnecting oscillator...");
   osc.connectNode(gain);
   yield Promise.all([
@@ -36,5 +37,8 @@ add_task(function*() {
   ]);
   ok(true, "Oscillator reconnected.");
 
-  yield teardown(target);
-});
+
+  yield teardown(panel);
+  finish();
+}
+
