@@ -381,7 +381,7 @@
       </method>
 
       <!-- nsIPlacesView -->
-      <method name="getDraggableSelection">
+      <method name="getDragableSelection">
         <body><![CDATA[
           return [this._draggedNode];
         ]]></body>
@@ -1165,7 +1165,8 @@
           this._containerPopupShowing(popup);
 
         var parent = popup.parentNode;
-        if (parent.localName == "toolbarbutton")
+        if (parent.localName == "toolbarbutton" &&
+            !PlacesControllerDragHelper.getSession())
           this._openedMenuButton = parent;
       ]]></handler>
 
@@ -1182,7 +1183,8 @@
 
         var parent = popup.parentNode;
         if (parent.localName == "toolbarbutton") {
-          this._openedMenuButton = null;
+          if (!PlacesControllerDragHelper.getSession())
+            this._openedMenuButton = null;
           // Clear the dragover attribute if present, if we are dragging into a
           // folder in the hierachy of current opened popup we don't clear
           // this attribute on clearOverFolder.  See Notify for closeTimer.

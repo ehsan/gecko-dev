@@ -318,6 +318,7 @@ class nsOggDecoder : public nsMediaDecoder
   virtual nsresult PlaybackRateChanged();
 
   virtual void Pause();
+  virtual float GetVolume();
   virtual void SetVolume(float volume);
   virtual float GetDuration();
 

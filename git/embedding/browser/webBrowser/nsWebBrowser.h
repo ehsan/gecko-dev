@@ -70,7 +70,7 @@
 #include "nsIPrintSettings.h"
 #include "nsEmbedStream.h"
 
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsWeakPtr.h"
 
 class nsIContentViewerFile;
@@ -188,8 +188,8 @@ protected:
    nsCOMPtr<nsISupports>          mStreamGuard;
 
    //Weak Reference interfaces...
-   nsIWidget*                            mParentWidget;
-   nsTArray<nsWebBrowserListenerState*>* mListenerArray;
+   nsIWidget*                 mParentWidget;
+   nsVoidArray *              mListenerArray;
 };
 
 #endif /* nsWebBrowser_h__ */

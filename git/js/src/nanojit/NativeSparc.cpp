@@ -770,9 +770,9 @@ namespace nanojit
         int d = disp->constval();
         Register ra = getBaseReg(base, d, GpRegs);
         if (op == LIR_ldcb) {
-            LDUB32(ra, d, rr);
+            LDSB32(ra, d, rr);
         } else if (op == LIR_ldcs) {
-            LDUH32(ra, d, rr);
+            LDSH32(ra, d, rr);
         } else {
             LDSW32(ra, d, rr);
         }

@@ -2162,9 +2162,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
     {
         gfxTextRun::Metrics textRunMetrics = mTextRun->MeasureText(0,
                                                                    mTextRun->GetLength(),
-                                                                   mDoMeasureBoundingBox ?
-                                                                       gfxFont::TIGHT_INK_EXTENTS :
-                                                                       gfxFont::LOOSE_INK_EXTENTS,
+                                                                   mDoMeasureBoundingBox,
                                                                    mThebes,
                                                                    nsnull);
 

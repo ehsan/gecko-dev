@@ -71,7 +71,6 @@ class nsSyncLoader : public nsIDOMLoadListener,
                      public nsSupportsWeakReference
 {
 public:
-    nsSyncLoader() : mLoading(PR_FALSE), mLoadSuccess(PR_FALSE) {}
     virtual ~nsSyncLoader();
 
     NS_DECL_ISUPPORTS

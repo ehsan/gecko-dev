@@ -28,7 +28,7 @@
 
 #ifdef USE_ARM_SIMD
 
-pixman_bool_t pixman_have_arm_simd(void);
+static inline pixman_bool_t pixman_have_arm_simd(void) { return TRUE; }
 
 #else
 #define pixman_have_arm_simd() FALSE

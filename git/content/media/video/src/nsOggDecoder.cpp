@@ -295,8 +295,9 @@ public:
   // be seeked. The decoder monitor must be obtained before calling this.
   void SetSeekable(PRBool aSeekable);
 
-  // Set the audio volume. The decoder monitor must be obtained before
-  // calling this.
+  // Get and set the audio volume. The decoder monitor must be
+  // obtained before calling this.
+  float GetVolume();
   void SetVolume(float aVolume);
 
   // Clear the flag indicating that a playback position change event
@@ -451,7 +452,7 @@ private:
   float mSeekTime;
 
   // The audio stream resource. Used on the decode thread and the
-  // main thread (Via the SetVolume call). Synchronisation via
+  // main thread (Via the Get/SetVolume calls). Synchronisation via
   // mDecoder monitor.
   nsAutoPtr<nsAudioStream> mAudioStream;
 
@@ -815,6 +816,12 @@ void nsOggDecodeStateMachine::ClearPositionChangeFlag()
 {
   //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "ClearPositionChangeFlag() called without acquiring decoder monitor");
   mPositionChangeQueued = PR_FALSE;
+}
+
+float nsOggDecodeStateMachine::GetVolume()
+{
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "GetVolume() called without acquiring decoder monitor");
+  return mVolume;
 }
 
 void nsOggDecodeStateMachine::SetVolume(float volume)
@@ -1255,6 +1262,12 @@ void nsOggDecoder::Pause()
   }
 
   ChangeState(PLAY_STATE_PAUSED);
+}
+
+float nsOggDecoder::GetVolume()
+{
+  nsAutoMonitor mon(mMonitor);
+  return mDecodeStateMachine ? mDecodeStateMachine->GetVolume() : mInitialVolume;
 }
 
 void nsOggDecoder::SetVolume(float volume)

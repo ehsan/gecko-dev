@@ -90,13 +90,11 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
   JS_GetReservedSlot(cx, obj, 2, &v);
   jsid id = ida->vector[idx++];
   if (JSVAL_TO_BOOLEAN(v)) {
-    JSString *str;
-    if (!JS_IdToValue(cx, id, &v) ||
-        !(str = JS_ValueToString(cx, v))) {
+    if (!JS_IdToValue(cx, id, &v)) {
       return JS_FALSE;
     }
 
-    *vp = STRING_TO_JSVAL(str);
+    *vp = v;
   } else {
     // We need to return an [id, value] pair.
     if (!OBJ_GET_PROPERTY(cx, STOBJ_GET_PARENT(obj), id, &v)) {
@@ -104,13 +102,11 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
     }
 
     jsval name;
-    JSString *str;
-    if (!JS_IdToValue(cx, id, &name) ||
-        !(str = JS_ValueToString(cx, name))) {
+    if (!JS_IdToValue(cx, id, &name)) {
       return JS_FALSE;
     }
 
-    jsval vec[2] = { STRING_TO_JSVAL(str), v };
+    jsval vec[2] = { name, v };
     JSAutoTempValueRooter tvr(cx, 2, vec);
     JSObject *array = JS_NewArrayObject(cx, 2, vec);
     if (!array) {

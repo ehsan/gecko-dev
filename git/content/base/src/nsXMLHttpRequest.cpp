@@ -145,21 +145,6 @@
 
 #define NS_PROGRESS_EVENT_INTERVAL 50
 
-class nsResumeTimeoutsEvent : public nsRunnable
-{
-public:
-  nsResumeTimeoutsEvent(nsPIDOMWindow* aWindow) : mWindow(aWindow) {}
-
-  NS_IMETHOD Run()
-  {
-    mWindow->ResumeTimeouts(PR_FALSE);
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsPIDOMWindow> mWindow;
-};
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventListenerWrapper)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMEventListenerWrapper)
@@ -1790,8 +1775,6 @@ CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel)
 nsresult
 nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 {
-  nsresult rv;
-
   // First check if this is a same-origin request, or if cross-site requests
   // are enabled.
   if ((mState & XML_HTTP_REQUEST_XSITEENABLED) ||
@@ -1801,35 +1784,6 @@ nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 
   // This is a cross-site request
   mState |= XML_HTTP_REQUEST_USE_XSITE_AC;
-
-  // Check if we need to do a preflight request.
-  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aChannel);
-  NS_ENSURE_TRUE(httpChannel, NS_ERROR_DOM_BAD_URI);
-    
-  nsCAutoString method;
-  httpChannel->GetRequestMethod(method);
-  if (!mACUnsafeHeaders.IsEmpty() ||
-      HasListenersFor(NS_LITERAL_STRING(UPLOADPROGRESS_STR)) ||
-      (mUpload && mUpload->HasListeners())) {
-    mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
-  }
-  else if (method.LowerCaseEqualsLiteral("post")) {
-    nsCAutoString contentTypeHeader;
-    httpChannel->GetRequestHeader(NS_LITERAL_CSTRING("Content-Type"),
-                                  contentTypeHeader);
-
-    nsCAutoString contentType, charset;
-    rv = NS_ParseContentType(contentTypeHeader, contentType, charset);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!contentType.LowerCaseEqualsLiteral("text/plain")) {
-      mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
-    }
-  }
-  else if (!method.LowerCaseEqualsLiteral("get") &&
-           !method.LowerCaseEqualsLiteral("head")) {
-    mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
-  }
 
   return NS_OK;
 }
@@ -1961,9 +1915,6 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
     // Chrome callers are always allowed to read from different origins.
     mState |= XML_HTTP_REQUEST_XSITEENABLED;
   }
-
-  mState &= ~(XML_HTTP_REQUEST_USE_XSITE_AC |
-              XML_HTTP_REQUEST_NEED_AC_PREFLIGHT);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mChannel));
   if (httpChannel) {
@@ -2175,8 +2126,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
   request->GetStatus(&status);
   mErrorLoad = mErrorLoad || NS_FAILED(status);
 
-  if (mUpload && !mUploadComplete && !mErrorLoad &&
-      (mState & XML_HTTP_REQUEST_ASYNC)) {
+  if (mUpload && !mUploadComplete && !mErrorLoad) {
     mUploadComplete = PR_TRUE;
     DispatchProgressEvent(mUpload, NS_LITERAL_STRING(LOAD_STR),
                           PR_TRUE, mUploadTotal, mUploadTotal);
@@ -2679,38 +2629,68 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
 
   PRBool withCredentials = !!(mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS);
 
-  // If so, set up the preflight
-  if (mState & XML_HTTP_REQUEST_NEED_AC_PREFLIGHT) {
-    // Check to see if this initial OPTIONS request has already been cached
-    // in our special Access Control Cache.
-    nsCOMPtr<nsIURI> uri;
-    rv = mChannel->GetURI(getter_AddRefs(uri));
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (mState & XML_HTTP_REQUEST_USE_XSITE_AC) {
+    // Check if we need to do a preflight request.
+    NS_ENSURE_TRUE(httpChannel, NS_ERROR_DOM_BAD_URI);
+    
+    nsCAutoString method;
+    httpChannel->GetRequestMethod(method);
+    if (!mACUnsafeHeaders.IsEmpty() ||
+        HasListenersFor(NS_LITERAL_STRING(UPLOADPROGRESS_STR)) ||
+        (mUpload && mUpload->HasListeners())) {
+      mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
+    }
+    else if (method.LowerCaseEqualsLiteral("post")) {
+      nsCAutoString contentTypeHeader;
+      httpChannel->GetRequestHeader(NS_LITERAL_CSTRING("Content-Type"),
+                                    contentTypeHeader);
 
-    nsAccessControlLRUCache::CacheEntry* entry =
-      sAccessControlCache ?
-      sAccessControlCache->GetEntry(uri, mPrincipal, withCredentials, PR_FALSE) :
-      nsnull;
+      nsCAutoString contentType, charset;
+      NS_ParseContentType(contentTypeHeader, contentType, charset);
 
-    if (!entry || !entry->CheckRequest(method, mACUnsafeHeaders)) {
-      // Either it wasn't cached or the cached result has expired. Build a
-      // channel for the OPTIONS request.
-      nsCOMPtr<nsILoadGroup> loadGroup;
-      GetLoadGroup(getter_AddRefs(loadGroup));
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (!contentType.LowerCaseEqualsLiteral("text/plain")) {
+        mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
+      }
+    }
+    else if (!method.LowerCaseEqualsLiteral("get") &&
+             !method.LowerCaseEqualsLiteral("head")) {
+      mState |= XML_HTTP_REQUEST_NEED_AC_PREFLIGHT;
+    }
 
-      nsLoadFlags loadFlags;
-      rv = mChannel->GetLoadFlags(&loadFlags);
+    // If so, set up the preflight
+    if (mState & XML_HTTP_REQUEST_NEED_AC_PREFLIGHT) {
+      // Check to see if this initial OPTIONS request has already been cached
+      // in our special Access Control Cache.
+      nsCOMPtr<nsIURI> uri;
+      rv = mChannel->GetURI(getter_AddRefs(uri));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = NS_NewChannel(getter_AddRefs(mACGetChannel), uri, nsnull,
-                         loadGroup, nsnull, loadFlags);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsAccessControlLRUCache::CacheEntry* entry =
+        sAccessControlCache ?
+        sAccessControlCache->GetEntry(uri, mPrincipal, withCredentials, PR_FALSE) :
+        nsnull;
 
-      nsCOMPtr<nsIHttpChannel> acHttp = do_QueryInterface(mACGetChannel);
-      NS_ASSERTION(acHttp, "Failed to QI to nsIHttpChannel!");
+      if (!entry || !entry->CheckRequest(method, mACUnsafeHeaders)) {
+        // Either it wasn't cached or the cached result has expired. Build a
+        // channel for the OPTIONS request.
+        nsCOMPtr<nsILoadGroup> loadGroup;
+        GetLoadGroup(getter_AddRefs(loadGroup));
 
-      rv = acHttp->SetRequestMethod(NS_LITERAL_CSTRING("OPTIONS"));
-      NS_ENSURE_SUCCESS(rv, rv);
+        nsLoadFlags loadFlags;
+        rv = mChannel->GetLoadFlags(&loadFlags);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = NS_NewChannel(getter_AddRefs(mACGetChannel), uri, nsnull,
+                           loadGroup, nsnull, loadFlags);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIHttpChannel> acHttp = do_QueryInterface(mACGetChannel);
+        NS_ASSERTION(acHttp, "Failed to QI to nsIHttpChannel!");
+
+        rv = acHttp->SetRequestMethod(NS_LITERAL_CSTRING("OPTIONS"));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
     }
   }
 
@@ -2802,20 +2782,16 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
   if (!(mState & XML_HTTP_REQUEST_ASYNC)) {
     mState |= XML_HTTP_REQUEST_SYNCLOOPING;
 
-    nsCOMPtr<nsIDocument> suspendedDoc;
     nsCOMPtr<nsIRunnable> resumeTimeoutRunnable;
     if (mOwner) {
       nsCOMPtr<nsIDOMWindow> topWindow;
       if (NS_SUCCEEDED(mOwner->GetTop(getter_AddRefs(topWindow)))) {
         nsCOMPtr<nsPIDOMWindow> suspendedWindow(do_QueryInterface(topWindow));
-        if (suspendedWindow &&
-            (suspendedWindow = suspendedWindow->GetCurrentInnerWindow())) {
-          suspendedDoc = do_QueryInterface(suspendedWindow->GetExtantDocument());
-          if (suspendedDoc) {
-            suspendedDoc->SuppressEventHandling();
-          }
-          suspendedWindow->SuspendTimeouts(1, PR_FALSE);
-          resumeTimeoutRunnable = new nsResumeTimeoutsEvent(suspendedWindow);
+        if (suspendedWindow) {
+          suspendedWindow->SuspendTimeouts();
+          resumeTimeoutRunnable = NS_NEW_RUNNABLE_METHOD(nsPIDOMWindow,
+                                                         suspendedWindow.get(),
+                                                         ResumeTimeouts);
         }
       }
     }
@@ -2826,12 +2802,6 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
         rv = NS_ERROR_UNEXPECTED;
         break;
       }
-    }
-
-    if (suspendedDoc) {
-      NS_DispatchToCurrentThread(
-        NS_NEW_RUNNABLE_METHOD(nsIDocument, suspendedDoc.get(),
-                               UnsuppressEventHandling));
     }
 
     if (resumeTimeoutRunnable) {
@@ -3248,7 +3218,7 @@ nsXMLHttpRequest::OnProgress(nsIRequest *aRequest, nsISupports *aContext, PRUint
     return NS_OK;
   }
 
-  if (!mErrorLoad && (mState & XML_HTTP_REQUEST_ASYNC)) {
+  if (!mErrorLoad) {
     StartProgressEventTimer();
     NS_NAMED_LITERAL_STRING(progress, PROGRESS_STR);
     NS_NAMED_LITERAL_STRING(uploadprogress, UPLOADPROGRESS_STR);
@@ -3374,8 +3344,7 @@ NS_IMETHODIMP
 nsXMLHttpRequest::Notify(nsITimer* aTimer)
 {
   mTimerIsActive = PR_FALSE;
-  if (NS_SUCCEEDED(CheckInnerWindowCorrectness()) && !mErrorLoad &&
-      (mState & XML_HTTP_REQUEST_ASYNC)) {
+  if (NS_SUCCEEDED(CheckInnerWindowCorrectness()) && !mErrorLoad) {
     if (mProgressEventWasDelayed) {
       mProgressEventWasDelayed = PR_FALSE;
       if (!(XML_HTTP_REQUEST_MPART_HEADERS & mState)) {

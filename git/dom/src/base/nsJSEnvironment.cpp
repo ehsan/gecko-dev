@@ -425,28 +425,26 @@ NS_ScriptErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
 {
-  // We don't want to report exceptions too eagerly, but warnings in the
-  // absence of werror are swallowed whole, so report those now.
-  if (!JSREPORT_IS_WARNING(report->flags)) {
+  { // Scope for |fp|
     JSStackFrame * fp = nsnull;
     while ((fp = JS_FrameIterator(cx, &fp))) {
       if (!JS_IsNativeFrame(cx, fp)) {
         return;
       }
     }
+  }
 
-    nsIXPConnect* xpc = nsContentUtils::XPConnect();
-    if (xpc) {
-      nsAXPCNativeCallContext *cc = nsnull;
-      xpc->GetCurrentNativeCallContext(&cc);
-      if (cc) {
-        nsAXPCNativeCallContext *prev = cc;
-        while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
-          PRUint16 lang;
-          if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
-            lang == nsAXPCNativeCallContext::LANG_JS) {
-            return;
-          }
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    nsAXPCNativeCallContext *cc = nsnull;
+    xpc->GetCurrentNativeCallContext(&cc);
+    if (cc) {
+      nsAXPCNativeCallContext *prev = cc;
+      while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
+        PRUint16 lang;
+        if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
+          lang == nsAXPCNativeCallContext::LANG_JS) {
+          return;
         }
       }
     }

@@ -52,6 +52,7 @@
 #include "nsNativeCharsetUtils.h"
 #include "nsNetUtil.h"
 #include "nsUnicharUtils.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 #include "nsXPCOMCID.h"
 #include "plstr.h"

@@ -102,7 +102,6 @@ public:
 
     nsresult OpenChannel();
     nsresult Cancel();
-    nsresult GetRequestSucceeded(PRBool * succeeded);
 
 private:
     nsOfflineCacheUpdate*          mUpdate;

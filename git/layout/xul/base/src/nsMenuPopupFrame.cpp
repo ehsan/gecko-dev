@@ -983,10 +983,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
 
     // mXPos and mYPos specify an additonal offset passed to OpenPopup that
     // should be added to the position
-    if (GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL)
-      screenPoint.x -= presContext->CSSPixelsToAppUnits(mXPos);
-    else
-      screenPoint.x += presContext->CSSPixelsToAppUnits(mXPos);
+    screenPoint.x += presContext->CSSPixelsToAppUnits(mXPos);
     screenPoint.y += presContext->CSSPixelsToAppUnits(mYPos);
   }
   else {

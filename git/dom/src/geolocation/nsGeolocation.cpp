@@ -637,6 +637,7 @@ nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere)
     geoService->SetCachedPosition(aSomewhere);
   }
 
+
   if (!OwnerStillExists())
   {
     Shutdown();

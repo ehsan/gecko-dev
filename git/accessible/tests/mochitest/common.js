@@ -37,8 +37,6 @@ const nsIAccessibleValue = Components.interfaces.nsIAccessibleValue;
 const nsIObserverService = Components.interfaces.nsIObserverService;
 
 const nsIDOMDocument = Components.interfaces.nsIDOMDocument;
-const nsIDOMEvent = Components.interfaces.nsIDOMEvent;
-const nsIDOMHTMLDocument = Components.interfaces.nsIDOMHTMLDocument;
 const nsIDOMNode = Components.interfaces.nsIDOMNode;
 const nsIDOMWindow = Components.interfaces.nsIDOMWindow;
 
@@ -60,9 +58,7 @@ const ROLE_FORM = nsIAccessibleRole.ROLE_FORM;
 const ROLE_GRAPHIC = nsIAccessibleRole.ROLE_GRAPHIC;
 const ROLE_GRID_CELL = nsIAccessibleRole.ROLE_GRID_CELL;
 const ROLE_HEADING = nsIAccessibleRole.ROLE_HEADING;
-const ROLE_IMAGE_MAP = nsIAccessibleRole.ROLE_IMAGE_MAP;
 const ROLE_LABEL = nsIAccessibleRole.ROLE_LABEL;
-const ROLE_LINK = nsIAccessibleRole.ROLE_LINK;
 const ROLE_LIST = nsIAccessibleRole.ROLE_LIST;
 const ROLE_LISTBOX = nsIAccessibleRole.ROLE_LISTBOX;
 const ROLE_OPTION = nsIAccessibleRole.ROLE_OPTION;
@@ -84,18 +80,15 @@ const STATE_EXTSELECTABLE = nsIAccessibleStates.STATE_EXTSELECTABLE;
 const STATE_FOCUSABLE = nsIAccessibleStates.STATE_FOCUSABLE;
 const STATE_FOCUSED = nsIAccessibleStates.STATE_FOCUSED;
 const STATE_HASPOPUP = nsIAccessibleStates.STATE_HASPOPUP;
-const STATE_LINKED = nsIAccessibleStates.STATE_LINKED;
 const STATE_MIXED = nsIAccessibleStates.STATE_MIXED;
 const STATE_MULTISELECTABLE = nsIAccessibleStates.STATE_MULTISELECTABLE;
 const STATE_PRESSED = nsIAccessibleStates.STATE_PRESSED;
 const STATE_READONLY = nsIAccessibleStates.STATE_READONLY;
 const STATE_SELECTABLE = nsIAccessibleStates.STATE_SELECTABLE;
 const STATE_SELECTED = nsIAccessibleStates.STATE_SELECTED;
-const STATE_TRAVERSED = nsIAccessibleStates.STATE_TRAVERSED;
 
 const EXT_STATE_EDITABLE = nsIAccessibleStates.EXT_STATE_EDITABLE;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
-const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
 const EXT_STATE_INVALID = nsIAccessibleStates.STATE_INVALID;
 const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
 const EXT_STATE_REQUIRED = nsIAccessibleStates.STATE_REQUIRED;
@@ -171,17 +164,6 @@ function getNode(aNodeOrID)
 }
 
 /**
- * Constants indicates getAccessible doesn't fail if there is no accessible.
- */
-const DONOTFAIL_IF_NO_ACC = 1;
-
-/**
- * Constants indicates getAccessible won't fail if accessible doesn't implement
- * the requested interfaces.
- */
-const DONOTFAIL_IF_NO_INTERFACE = 2;
-
-/**
  * Return accessible for the given identifier (may be ID attribute or DOM
  * element or accessible object).
  *
@@ -191,10 +173,10 @@ const DONOTFAIL_IF_NO_INTERFACE = 2;
  *                           to query it/them from obtained accessible
  * @param aElmObj            [out, optional] object to store DOM element which
  *                           accessible is obtained for
- * @param aDoNotFailIf       [in, optional] no error for special cases (see
- *                            constants above)
+ * @param aDoNotFailIfNoAcc  [in, optional] no error if the given identifier is
+ *                           not accessible
  */
-function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
+function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIfNoAcc)
 {
   if (!aAccOrElmOrID)
     return;
@@ -227,7 +209,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
     }
 
     if (!acc) {
-      if (!(aDoNotFailIf & DONOTFAIL_IF_NO_ACC))
+      if (!aDoNotFailIfNoAcc)
         ok(false, "Can't get accessible for " + aAccOrElmOrID);
 
       return null;
@@ -242,9 +224,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
       try {
         acc.QueryInterface(aInterfaces[index]);
       } catch (e) {
-        if (!(aDoNotFailIf & DONOTFAIL_IF_NO_INTERFACE))
-          ok(false, "Can't query " + aInterfaces[index] + " for " + aID);
-
+        ok(false, "Can't query " + aInterfaces[index] + " for " + aID);
         return null;
       }
     }
@@ -266,8 +246,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
  */
 function isAccessible(aAccOrElmOrID)
 {
-  return getAccessible(aAccOrElmOrID, null, null, DONOTFAIL_IF_NO_ACC) ?
-    true : false;
+  return getAccessible(aAccOrElmOrID, null, null, true) ? true : false;
 }
 
 /**
@@ -336,8 +315,7 @@ function prettyName(aIdentifier)
 {
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier, [nsIAccessNode]);
-    return getNodePrettyName(acc.DOMNode) + ", role: " +
-      roleToString(acc.finalRole);
+    return getNodePrettyName(acc.DOMNode);
   }
 
   if (aIdentifier instanceof nsIDOMNode)

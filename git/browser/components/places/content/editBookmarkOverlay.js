@@ -55,10 +55,6 @@ var gEditItemOverlay = {
   _staticFoldersListBuilt: false,
   _initialized: false,
 
-  // the first field which was edited after this panel was initialized for
-  // a certain item
-  _firstEditedField: "",
-
   get itemId() {
     return this._itemId;
   },
@@ -552,19 +548,18 @@ var gEditItemOverlay = {
     this._allTags = [];
     this._itemIds = [];
     this._multiEdit = false;
-    this._firstEditedField = "";
     this._initialized = false;
   },
 
   onTagsFieldBlur: function EIO_onTagsFieldBlur() {
-    if (this._updateTags()) // if anything has changed
-      this._mayUpdateFirstEditField("tagsField");
+    this._updateTags();
   },
 
   _updateTags: function EIO__updateTags() {
     if (this._multiEdit)
-      return this._updateMultipleTagsForItems();
-    return this._updateSingleTagForItem();
+      this._updateMultipleTagsForItems();
+    else
+      this._updateSingleTagForItem();
   },
 
   _updateSingleTagForItem: function EIO__updateSingleTagForItem() {
@@ -596,32 +591,8 @@ var gEditItemOverlay = {
         // Ensure the tagsField is in sync, clean it up from empty tags
         var tags = PlacesUtils.tagging.getTagsForURI(this._uri, {}).join(", ");
         this._initTextField("tagsField", tags, false);
-        return true;
       }
     }
-    return false;
-  },
-
-   /**
-    * Stores the first-edit field for this dialog, if the passed-in field
-    * is indeed the first edited field
-    * @param aNewField
-    *        the id of the field that may be set (without the "editBMPanel_"
-    *        prefix)
-    */
-  _mayUpdateFirstEditField: function EIO__mayUpdateFirstEditField(aNewField) {
-    // * The first-edit-field behavior is not applied in the multi-edit case
-    // * if this._firstEditedField is already set, this is not the first field,
-    //   so there's nothing to do
-    if (this._multiEdit || this._firstEditedField)
-      return;
-
-    this._firstEditedField = aNewField;
-
-    // set the pref
-    var prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
-    prefs.setCharPref("browser.bookmarks.editDialog.firstEditField", aNewField);
   },
 
   _updateMultipleTagsForItems: function EIO__updateMultipleTagsForItems() {
@@ -665,10 +636,8 @@ var gEditItemOverlay = {
 
         // Ensure the tagsField is in sync, clean it up from empty tags
         this._initTextField("tagsField", tags, false);
-        return true;
       }
     }
-    return false;
   },
 
   onNamePickerInput: function EIO_onNamePickerInput() {
@@ -687,7 +656,6 @@ var gEditItemOverlay = {
     // Here we update either the item title or its cached static title
     var newTitle = this._element("userEnteredName").label;
     if (this._getItemStaticTitle() != newTitle) {
-      this._mayUpdateFirstEditField("namePicker");
       if (PlacesUIUtils.microsummaries.hasMicrosummary(this._itemId)) {
         // Note: this implicitly also takes care of the microsummary->static
         // title case, the removeMicorosummary method in the service will set
