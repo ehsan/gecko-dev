@@ -625,11 +625,6 @@ nsObjectLoadingContent::InstantiatePluginInstance(const char* aMimeType, nsIURI*
     return NS_OK;
   }
 
-  // We don't want to have nsPluginHost handle channel opening
-  if (strlen(aMimeType) == 0) {
-    return NS_OK;
-  }
-
   // Don't allow re-entry into initialization code.
   if (mInstantiating) {
     return NS_OK;
