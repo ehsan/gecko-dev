@@ -32,8 +32,6 @@ var gPlayTests = [
   { name:"bug500311.ogv", type:"video/ogg", duration:1.96 },
   // Small audio file
   { name:"small-shot.ogg", type:"video/ogg" },
-  // More audio in file than video.
-  { name: "short-video.ogv", type:"video/ogg", duration:1.081 },
 
   { name:"bogus.duh", type:"bogus/duh" }
 ];

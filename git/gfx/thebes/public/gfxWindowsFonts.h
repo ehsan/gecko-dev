@@ -83,7 +83,7 @@ class FontFamily : public gfxFontFamily
 {
 public:
     FontFamily(const nsAString& aName) :
-        gfxFontFamily(aName), mIsBadUnderlineFontFamily(PR_FALSE) { }
+        gfxFontFamily(aName), mIsBadUnderlineFontFamily(PR_FALSE), mHasStyles(PR_FALSE) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
@@ -97,11 +97,14 @@ private:
                                             DWORD fontType, LPARAM data);
 
 protected:
-    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
-                               PRBool anItalic, PRInt16 aStretch);
+    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gfxFontStyle& aFontStyle);
 
 public:
+    nsTArray<nsRefPtr<FontEntry> > mVariations;
     PRPackedBool mIsBadUnderlineFontFamily;
+
+private:
+    PRPackedBool mHasStyles;
 };
 
 class FontEntry : public gfxFontEntry

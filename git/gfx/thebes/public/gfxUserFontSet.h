@@ -82,11 +82,11 @@ public:
 // platform/user fonts as downloaded
 
 class gfxMixedFontFamily : public gfxFontFamily {
-public:
-    friend class gfxUserFontSet;
 
+public:
     gfxMixedFontFamily(const nsAString& aName)
-        : gfxFontFamily(aName) { }
+        : gfxFontFamily(aName)
+    { }
 
     virtual ~gfxMixedFontFamily() { }
 
@@ -130,6 +130,13 @@ public:
         }
         return PR_TRUE;
     }
+
+    nsTArray<nsRefPtr<gfxFontEntry> >  mAvailableFonts;
+
+protected:
+    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], 
+                               const gfxFontStyle& aFontStyle);
+
 };
 
 class gfxProxyFontEntry;
@@ -227,7 +234,6 @@ protected:
 // acts a placeholder until the real font is downloaded
 
 class gfxProxyFontEntry : public gfxFontEntry {
-    friend class gfxUserFontSet;
 
 public:
     gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList, 
@@ -242,6 +248,7 @@ public:
     PRPackedBool                           mIsLoading;
     nsTArray<gfxFontFaceSrc>               mSrcList;
     PRUint32                               mSrcIndex; // index of loading src item
+    gfxMixedFontFamily*                    mFamily;
 };
 
 
