@@ -1272,11 +1272,10 @@ MobileMessageDatabaseService.prototype = {
 
   getMessageRecordByTransactionId: function getMessageRecordByTransactionId(aTransactionId, aCallback) {
     if (DEBUG) debug("Retrieving message with transaction ID " + aTransactionId);
-    let self = this;
     this.newTxn(READ_ONLY, function (error, txn, messageStore) {
       if (error) {
         if (DEBUG) debug(error);
-        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null, null);
+        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null);
         return;
       }
       let request = messageStore.index("transactionId").get(aTransactionId);
@@ -1286,13 +1285,10 @@ MobileMessageDatabaseService.prototype = {
         let messageRecord = request.result;
         if (!messageRecord) {
           if (DEBUG) debug("Transaction ID " + aTransactionId + " not found");
-          aCallback.notify(Ci.nsIMobileMessageCallback.NOT_FOUND_ERROR, null, null);
+          aCallback.notify(Ci.nsIMobileMessageCallback.NOT_FOUND_ERROR, null);
           return;
         }
-        // In this case, we don't need a dom message. Just pass null to the
-        // third argument.
-        aCallback.notify(Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR,
-                         messageRecord, null);
+        aCallback.notify(Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR, messageRecord);
       };
 
       txn.onerror = function onerror(event) {
@@ -1300,18 +1296,17 @@ MobileMessageDatabaseService.prototype = {
           if (event.target)
             debug("Caught error on transaction", event.target.errorCode);
         }
-        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null, null);
+        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null);
       };
     });
   },
 
   getMessageRecordById: function getMessageRecordById(aMessageId, aCallback) {
     if (DEBUG) debug("Retrieving message with ID " + aMessageId);
-    let self = this;
     this.newTxn(READ_ONLY, function (error, txn, messageStore) {
       if (error) {
         if (DEBUG) debug(error);
-        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null, null);
+        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null);
         return;
       }
       let request = messageStore.mozGetAll(aMessageId);
@@ -1320,13 +1315,13 @@ MobileMessageDatabaseService.prototype = {
         if (DEBUG) debug("Transaction " + txn + " completed.");
         if (request.result.length > 1) {
           if (DEBUG) debug("Got too many results for id " + aMessageId);
-          aCallback.notify(Ci.nsIMobileMessageCallback.UNKNOWN_ERROR, null, null);
+          aCallback.notify(Ci.nsIMobileMessageCallback.UNKNOWN_ERROR, null);
           return;
         }
         let messageRecord = request.result[0];
         if (!messageRecord) {
           if (DEBUG) debug("Message ID " + aMessageId + " not found");
-          aCallback.notify(Ci.nsIMobileMessageCallback.NOT_FOUND_ERROR, null, null);
+          aCallback.notify(Ci.nsIMobileMessageCallback.NOT_FOUND_ERROR, null);
           return;
         }
         if (messageRecord.id != aMessageId) {
@@ -1334,12 +1329,10 @@ MobileMessageDatabaseService.prototype = {
             debug("Requested message ID (" + aMessageId + ") is " +
                   "different from the one we got");
           }
-          aCallback.notify(Ci.nsIMobileMessageCallback.UNKNOWN_ERROR, null, null);
+          aCallback.notify(Ci.nsIMobileMessageCallback.UNKNOWN_ERROR, null);
           return;
         }
-        let domMessage = self.createDomMessageFromRecord(messageRecord);
-        aCallback.notify(Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR,
-                         messageRecord, domMessage);
+        aCallback.notify(Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR, messageRecord);
       };
 
       txn.onerror = function onerror(event) {
@@ -1348,7 +1341,7 @@ MobileMessageDatabaseService.prototype = {
             debug("Caught error on transaction", event.target.errorCode);
           }
         }
-        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null, null);
+        aCallback.notify(Ci.nsIMobileMessageCallback.INTERNAL_ERROR, null);
       };
     });
   },
@@ -1359,10 +1352,12 @@ MobileMessageDatabaseService.prototype = {
 
   getMessage: function getMessage(aMessageId, aRequest) {
     if (DEBUG) debug("Retrieving message with ID " + aMessageId);
+    let self = this;
     let notifyCallback = {
-      notify: function notify(aRv, aMessageRecord, aDomMessage) {
+      notify: function notify(aRv, aMessageRecord) {
         if (Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR == aRv) {
-          aRequest.notifyMessageGot(aDomMessage);
+          let domMessage = self.createDomMessageFromRecord(aMessageRecord);
+          aRequest.notifyMessageGot(domMessage);
           return;
         }
         aRequest.notifyGetMessageFailed(aRv, null);

@@ -159,18 +159,10 @@ SystemMessageManager.prototype = {
   //     retrieve the pending system messages from the parent (i.e. after
   //     sending SystemMessageManager:GetPendingMessages).
   receiveMessage: function sysMessMgr_receiveMessage(aMessage) {
-    let msg = aMessage.data;
-    debug("receiveMessage " + aMessage.name + " for [" + msg.type + "] " +
-          "with manifest = " + msg.manifest + " and uri = " + msg.uri);
+    debug("receiveMessage " + aMessage.name + " for [" + aMessage.data.type + "] " +
+          "with manifest = " + this._manifest + " and uri = " + this._uri);
 
-    // Multiple windows can share the same target (process), the content
-    // window needs to check if the manifest/page URL is matched. Only
-    // *one* window should handle the system message.
-    if (msg.manifest !== this._manifest || msg.uri !== this._uri) {
-      debug("This page shouldn't handle the messages because its " +
-            "manifest = " + this._manifest + " and uri = " + this._uri);
-      return;
-    }
+    let msg = aMessage.data;
 
     if (aMessage.name == "SystemMessageManager:Message") {
       // Send an acknowledgement to parent to clean up the pending message,

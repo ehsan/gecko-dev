@@ -21,7 +21,7 @@ let Keyboard = {
   _messageManager: null,
   _messageNames: [
     'SetValue', 'RemoveFocus', 'SetSelectedOption', 'SetSelectedOptions',
-    'SetSelectionRange', 'ReplaceSurroundingText'
+    'SetSelectionRange'
   ],
 
   get messageManager() {
@@ -116,9 +116,6 @@ let Keyboard = {
       case 'Keyboard:SetSelectionRange':
         this.setSelectionRange(msg);
         break;
-      case 'Keyboard:ReplaceSurroundingText':
-        this.replaceSurroundingText(msg);
-        break;
     }
   },
 
@@ -154,11 +151,6 @@ let Keyboard = {
 
   removeFocus: function keyboardRemoveFocus() {
     this.messageManager.sendAsyncMessage('Forms:Select:Blur', {});
-  },
-
-  replaceSurroundingText: function keyboardReplaceSurroundingText(msg) {
-    this.messageManager.sendAsyncMessage('Forms:ReplaceSurroundingText',
-                                         msg.data);
   }
 };
 

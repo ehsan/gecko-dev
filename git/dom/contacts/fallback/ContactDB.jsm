@@ -739,35 +739,28 @@ ContactDB.prototype = {
     if (!aFindOptions)
       return;
     if (aFindOptions.sortBy != "undefined") {
-      const sortOrder = aFindOptions.sortOrder;
-      const sortBy = aFindOptions.sortBy == "familyName" ? [ "familyName", "givenName" ] : [ "givenName" , "familyName" ];
-
       aResults.sort(function (a, b) {
         let x, y;
         let result = 0;
+        let sortOrder = aFindOptions.sortOrder;
+        let sortBy = aFindOptions.sortBy == "familyName" ? [ "familyName", "givenName" ] : [ "givenName" , "familyName" ];
         let xIndex = 0;
         let yIndex = 0;
 
         do {
           while (xIndex < sortBy.length && !x) {
-            x = a.properties[sortBy[xIndex]];
-            if (x) {
-              x = x.join("").toLowerCase();
-            }
+            x = a.properties[sortBy[xIndex]] && a.properties[sortBy[xIndex]][0] ? a.properties[sortBy[xIndex]][0].toLowerCase() : null;
             xIndex++;
           }
           if (!x) {
-            return sortOrder == "descending" ? 1 : -1;
+            return sortOrder == 'descending' ? 1 : -1;
           }
           while (yIndex < sortBy.length && !y) {
-            y = b.properties[sortBy[yIndex]];
-            if (y) {
-              y = y.join("").toLowerCase();
-            }
+            y = b.properties[sortBy[yIndex]] && b.properties[sortBy[yIndex]][0] ? b.properties[sortBy[yIndex]][0].toLowerCase() : null;
             yIndex++;
           }
           if (!y) {
-            return sortOrder == "ascending" ? 1 : -1;
+            return sortOrder == 'ascending' ? 1 : -1;
           }
 
           result = x.localeCompare(y);
@@ -775,7 +768,7 @@ ContactDB.prototype = {
           y = null;
         } while (result == 0);
 
-        return sortOrder == "ascending" ? result : -result;
+        return sortOrder == 'ascending' ? result : -result;
       });
     }
     if (aFindOptions.filterLimit && aFindOptions.filterLimit != 0) {
@@ -846,8 +839,7 @@ ContactDB.prototype = {
         let index = store.index(key);
         let filterValue = options.filterValue;
         if (key == "tel") {
-          filterValue = PhoneNumberUtils.normalize(filterValue,
-                                                   /*numbersOnly*/ true);
+          filterValue = PhoneNumberUtils.normalize(filterValue);
         }
         request = index.mozGetAll(filterValue, limit);
       } else if (options.filterOp == "match") {
@@ -858,14 +850,13 @@ ContactDB.prototype = {
         }
 
         let index = store.index("telMatch");
-        let normalized = PhoneNumberUtils.normalize(options.filterValue,
-                                                    /*numbersOnly*/ true);
+        let normalized = PhoneNumberUtils.normalize(options.filterValue)
         request = index.mozGetAll(normalized, limit);
       } else {
         // not case sensitive
         let tmp = options.filterValue.toString().toLowerCase();
-        if (key === "tel") {
-          tmp = PhoneNumberUtils.normalize(tmp, /*numbersOnly*/ true);
+        if (key === 'tel') {
+          tmp = PhoneNumberUtils.normalize(tmp);
         }
         let range = this._global.IDBKeyRange.bound(tmp, tmp + "\uFFFF");
         let index = store.index(key + "LowerCase");

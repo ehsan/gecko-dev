@@ -69,13 +69,6 @@ SmsChild::RecvNotifyReceivedMessage(const MobileMessageData& aData)
 }
 
 bool
-SmsChild::RecvNotifyRetrievingMessage(const MobileMessageData& aData)
-{
-  NotifyObserversWithMobileMessage(kSmsRetrievingObserverTopic, aData);
-  return true;
-}
-
-bool
 SmsChild::RecvNotifySendingMessage(const MobileMessageData& aData)
 {
   NotifyObserversWithMobileMessage(kSmsSendingObserverTopic, aData);

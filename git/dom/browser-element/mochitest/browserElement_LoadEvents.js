@@ -45,7 +45,6 @@ function runTest() {
     ok(e.isTrusted, 'Event should be trusted.');
     ok(seenLoadStart, 'loadend after loadstart.');
     ok(!seenLoadEnd, 'Just one loadend event.');
-    ok(seenLocationChange, 'loadend after locationchange.');
     seenLoadEnd = true;
   }
 

@@ -23,10 +23,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gDNSService",
-                                   "@mozilla.org/network/dns-service;1",
-                                   "nsIDNSService");
-
 const TOPIC_INTERFACE_STATE_CHANGED  = "network-interface-state-changed";
 const TOPIC_INTERFACE_REGISTERED     = "network-interface-registered";
 const TOPIC_INTERFACE_UNREGISTERED   = "network-interface-unregistered";
@@ -133,8 +129,6 @@ function isComplete(code) {
 function NetworkManager() {
   this.networkInterfaces = {};
   Services.obs.addObserver(this, TOPIC_INTERFACE_STATE_CHANGED, true);
-  Services.obs.addObserver(this, TOPIC_INTERFACE_REGISTERED, true);
-  Services.obs.addObserver(this, TOPIC_INTERFACE_UNREGISTERED, true);
   Services.obs.addObserver(this, TOPIC_XPCOM_SHUTDOWN, false);
   Services.obs.addObserver(this, TOPIC_MOZSETTINGS_CHANGED, false);
 
@@ -279,28 +273,6 @@ NetworkManager.prototype = {
             break;
         }
         break;
-      case TOPIC_INTERFACE_REGISTERED:
-        let regNetwork = subject.QueryInterface(Ci.nsINetworkInterface);
-        debug("Network '" + regNetwork.name + "' registered, adding mmsproxy and/or mmsc route");
-        if (regNetwork.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
-	  let mmsHosts = this.resolveHostname(
-	      [ Services.prefs.getCharPref("ril.mms.mmsproxy"),
-                Services.prefs.getCharPref("ril.mms.mmsc") ]
-	    );
-          this.addHostRouteWithResolve(regNetwork, mmsHosts);
-        }
-        break;
-      case TOPIC_INTERFACE_UNREGISTERED:
-        let unregNetwork = subject.QueryInterface(Ci.nsINetworkInterface);
-        debug("Network '" + regNetwork.name + "' unregistered, removing mmsproxy and/or mmsc route");
-        if (unregNetwork.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
-	  let mmsHosts = this.resolveHostname(
-	      [ Services.prefs.getCharPref("ril.mms.mmsproxy"),
-                Services.prefs.getCharPref("ril.mms.mmsc") ]
-	    );
-          this.removeHostRouteWithResolve(unregNetwork, mmsHosts);
-        }
-        break;
       case TOPIC_MOZSETTINGS_CHANGED:
         let setting = JSON.parse(data);
         this.handle(setting.key, setting.value);
@@ -313,8 +285,6 @@ NetworkManager.prototype = {
       case TOPIC_XPCOM_SHUTDOWN:
         Services.obs.removeObserver(this, TOPIC_XPCOM_SHUTDOWN);
         Services.obs.removeObserver(this, TOPIC_MOZSETTINGS_CHANGED);
-        Services.obs.removeObserver(this, TOPIC_INTERFACE_REGISTERED);
-        Services.obs.removeObserver(this, TOPIC_INTERFACE_UNREGISTERED);
         Services.obs.removeObserver(this, TOPIC_INTERFACE_STATE_CHANGED);
         break;
     }
@@ -553,8 +523,11 @@ NetworkManager.prototype = {
     let options = {
       cmd: "addHostRoute",
       ifname: network.name,
+      dns1: network.dns1,
+      dns2: network.dns2,
       gateway: network.gateway,
-      hostnames: [network.dns1, network.dns2, network.httpProxyHost]
+      httpproxy: network.httpProxyHost,
+      mmsproxy: Services.prefs.getCharPref("ril.mms.mmsproxy")
     };
     this.worker.postMessage(options);
   },
@@ -564,49 +537,11 @@ NetworkManager.prototype = {
     let options = {
       cmd: "removeHostRoute",
       ifname: network.name,
+      dns1: network.dns1,
+      dns2: network.dns2,
       gateway: network.gateway,
-      hostnames: [network.dns1, network.dns2, network.httpProxyHost]
-    };
-    this.worker.postMessage(options);
-  },
-
-  resolveHostname: function resolveHostname(hosts) {
-    let retval = [];
-
-    for(var i = 0; i < hosts.length; i++) {
-      let hostname = hosts[i].split('/')[2];
-      if (!hostname) {
-        continue;
-      }
-
-      let hostnameIps = gDNSService.resolve(hostname, 0);
-      while (hostnameIps.hasMore()) {
-        retval.push(hostnameIps.getNextAddrAsString());
-        debug("Found IP at: " + JSON.stringify(retval));
-      }
-    }
-
-    return retval;
-  },
-
-  addHostRouteWithResolve: function addHostRouteWithResolve(network, hosts) {
-    debug("Going to add host route after dns resolution on " + network.name);
-    let options = {
-      cmd: "addHostRoute",
-      ifname: network.name,
-      gateway: network.gateway,
-      hostnames: hosts
-    };
-    this.worker.postMessage(options);
-  },
-
-  removeHostRouteWithResolve: function removeHostRouteWithResolve(network, hosts) {
-    debug("Going to remove host route after dns resolution on " + network.name);
-    let options = {
-      cmd: "removeHostRoute",
-      ifname: network.name,
-      gateway: network.gateway,
-      hostnames: hosts
+      httpproxy: network.httpProxyHost,
+      mmsproxy: Services.prefs.getCharPref("ril.mms.mmsproxy")
     };
     this.worker.postMessage(options);
   },
