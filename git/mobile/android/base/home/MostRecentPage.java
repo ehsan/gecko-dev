@@ -35,9 +35,9 @@ import java.util.EnumSet;
 /**
  * Fragment that displays recent history in a ListView.
  */
-public class MostRecentPanel extends HomeFragment {
+public class MostRecentPage extends HomeFragment {
     // Logging tag name
-    private static final String LOGTAG = "GeckoMostRecentPanel";
+    private static final String LOGTAG = "GeckoMostRecentPage";
 
     // Cursor loader ID for history query
     private static final int LOADER_ID_HISTORY = 0;
@@ -57,11 +57,11 @@ public class MostRecentPanel extends HomeFragment {
     // On URL open listener
     private OnUrlOpenListener mUrlOpenListener;
 
-    public static MostRecentPanel newInstance() {
-        return new MostRecentPanel();
+    public static MostRecentPage newInstance() {
+        return new MostRecentPage();
     }
 
-    public MostRecentPanel() {
+    public MostRecentPage() {
         mUrlOpenListener = null;
     }
 
@@ -85,7 +85,7 @@ public class MostRecentPanel extends HomeFragment {
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.home_most_recent_panel, container, false);
+        return inflater.inflate(R.layout.home_most_recent_page, container, false);
     }
 
     @Override
@@ -155,7 +155,7 @@ public class MostRecentPanel extends HomeFragment {
 
         // Cursor is empty, so set the empty view if it hasn't been set already.
         if (mEmptyView == null) {
-            // Set empty panel view. We delay this so that the empty view won't flash.
+            // Set empty page view. We delay this so that the empty view won't flash.
             final ViewStub emptyViewStub = (ViewStub) getView().findViewById(R.id.home_empty_view_stub);
             mEmptyView = emptyViewStub.inflate();
 

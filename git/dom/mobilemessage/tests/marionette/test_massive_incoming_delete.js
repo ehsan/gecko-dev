@@ -22,7 +22,7 @@ function sendSmsToEmulator(from, text) {
   ++pendingEmulatorCmdCount;
 
   let cmd = "sms send " + from + " " + text;
-  runEmulatorCmd(cmd, function(result) {
+  runEmulatorCmd(cmd, function (result) {
     --pendingEmulatorCmdCount;
 
     is(result[0], "OK", "Emulator response");
@@ -35,11 +35,11 @@ let tasks = {
   _tasks: [],
   _nextTaskIndex: 0,
 
-  push: function(func) {
+  push: function push(func) {
     this._tasks.push(func);
   },
 
-  next: function() {
+  next: function next() {
     let index = this._nextTaskIndex++;
     let task = this._tasks[index];
     try {
@@ -53,11 +53,11 @@ let tasks = {
     }
   },
 
-  finish: function() {
+  finish: function finish() {
     this._tasks[this._tasks.length - 1]();
   },
 
-  run: function() {
+  run: function run() {
     this.next();
   }
 };

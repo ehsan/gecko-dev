@@ -10,9 +10,9 @@ function run_test() {
 function _getWorker() {
   let _postedMessage;
   let _worker = newWorker({
-    postRILMessage: function(data) {
+    postRILMessage: function fakePostRILMessage(data) {
     },
-    postMessage: function(message) {
+    postMessage: function fakePostMessage(message) {
       _postedMessage = message;
     }
   });

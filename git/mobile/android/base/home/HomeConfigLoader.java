@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko.home;
 
-import org.mozilla.gecko.home.HomeConfig.PanelConfig;
+import org.mozilla.gecko.home.HomeConfig.PageEntry;
 import org.mozilla.gecko.home.HomeConfig.OnChangeListener;
 
 import android.content.Context;
@@ -13,9 +13,9 @@ import android.support.v4.content.AsyncTaskLoader;
 
 import java.util.List;
 
-public class HomeConfigLoader extends AsyncTaskLoader<List<PanelConfig>> {
+public class HomeConfigLoader extends AsyncTaskLoader<List<PageEntry>> {
     private final HomeConfig mConfig;
-    private List<PanelConfig> mPanelConfigs;
+    private List<PageEntry> mPageEntries;
 
     public HomeConfigLoader(Context context, HomeConfig homeConfig) {
         super(context);
@@ -23,32 +23,32 @@ public class HomeConfigLoader extends AsyncTaskLoader<List<PanelConfig>> {
     }
 
     @Override
-    public List<PanelConfig> loadInBackground() {
+    public List<PageEntry> loadInBackground() {
         return mConfig.load();
     }
 
     @Override
-    public void deliverResult(List<PanelConfig> panelConfigs) {
+    public void deliverResult(List<PageEntry> pageEntries) {
         if (isReset()) {
-            mPanelConfigs = null;
+            mPageEntries = null;
             return;
         }
 
-        mPanelConfigs = panelConfigs;
+        mPageEntries = pageEntries;
         mConfig.setOnChangeListener(new ForceLoadChangeListener());
 
         if (isStarted()) {
-            super.deliverResult(panelConfigs);
+            super.deliverResult(pageEntries);
         }
     }
 
     @Override
     protected void onStartLoading() {
-        if (mPanelConfigs != null) {
-            deliverResult(mPanelConfigs);
+        if (mPageEntries != null) {
+            deliverResult(mPageEntries);
         }
 
-        if (takeContentChanged() || mPanelConfigs == null) {
+        if (takeContentChanged() || mPageEntries == null) {
             forceLoad();
         }
     }
@@ -59,8 +59,8 @@ public class HomeConfigLoader extends AsyncTaskLoader<List<PanelConfig>> {
     }
 
     @Override
-    public void onCanceled(List<PanelConfig> panelConfigs) {
-        mPanelConfigs = null;
+    public void onCanceled(List<PageEntry> pageEntries) {
+        mPageEntries = null;
     }
 
     @Override
@@ -70,7 +70,7 @@ public class HomeConfigLoader extends AsyncTaskLoader<List<PanelConfig>> {
         // Ensure the loader is stopped.
         onStopLoading();
 
-        mPanelConfigs = null;
+        mPageEntries = null;
         mConfig.setOnChangeListener(null);
     }
 

@@ -222,6 +222,11 @@ BrowserCLH.prototype = {
         // Default to the saved homepage
         let defaultURL = getHomePage();
 
+        // Show page for first run or upgrade.
+        if (needHomepageOverride() == "new profile") {
+          defaultURL = 'about:newtab?firstrun';
+        }
+
         // Override the default if we have a URL passed on command line
         if (uris.length > 0) {
           defaultURL = uris[0].spec;

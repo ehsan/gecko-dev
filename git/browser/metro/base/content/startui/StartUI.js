@@ -26,10 +26,9 @@ var StartUI = {
     document.getElementById("bcast_preciseInput").setAttribute("input",
       this.chromeWin.InputSourceHelper.isPrecise ? "precise" : "imprecise");
 
-    let firstRunCount = Services.prefs.getIntPref("browser.firstrun.count");
-    if (firstRunCount > 0) {
+    // NOTE: location.search doesn't work for about: pages
+    if (location.href.indexOf("?firstrun") > 0) {
       document.loadOverlay("chrome://browser/content/FirstRunOverlay.xul", null);
-      Services.prefs.setIntPref("browser.firstrun.count", firstRunCount - 1);
     }
 
     this._adjustDOMforViewState(this.chromeWin.ContentAreaObserver.viewstate);

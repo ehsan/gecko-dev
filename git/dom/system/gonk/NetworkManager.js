@@ -183,7 +183,7 @@ NetworkManager.prototype = {
 
   // nsIObserver
 
-  observe: function(subject, topic, data) {
+  observe: function observe(subject, topic, data) {
     switch (topic) {
       case TOPIC_INTERFACE_STATE_CHANGED:
         let network = subject.QueryInterface(Ci.nsINetworkInterface);
@@ -288,7 +288,7 @@ NetworkManager.prototype = {
     }
   },
 
-  receiveMessage: function(aMsg) {
+  receiveMessage: function receiveMessage(aMsg) {
     switch (aMsg.name) {
       case "NetworkInterfaceList:ListInterface": {
 #ifdef MOZ_B2G_RIL
@@ -325,7 +325,7 @@ NetworkManager.prototype = {
 
   // nsINetworkManager
 
-  registerNetworkInterface: function(network) {
+  registerNetworkInterface: function registerNetworkInterface(network) {
     if (!(network instanceof Ci.nsINetworkInterface)) {
       throw Components.Exception("Argument must be nsINetworkInterface.",
                                  Cr.NS_ERROR_INVALID_ARG);
@@ -351,7 +351,7 @@ NetworkManager.prototype = {
     debug("Network '" + network.name + "' registered.");
   },
 
-  unregisterNetworkInterface: function(network) {
+  unregisterNetworkInterface: function unregisterNetworkInterface(network) {
     if (!(network instanceof Ci.nsINetworkInterface)) {
       throw Components.Exception("Argument must be nsINetworkInterface.",
                                  Cr.NS_ERROR_INVALID_ARG);
@@ -400,7 +400,7 @@ NetworkManager.prototype = {
   // Clone network info so we can still get information when network is disconnected
   _activeInfo: null,
 
-  overrideActive: function(network) {
+  overrideActive: function overrideActive(network) {
 #ifdef MOZ_B2G_RIL
     if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS ||
         network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL) {
@@ -412,7 +412,7 @@ NetworkManager.prototype = {
   },
 
 #ifdef MOZ_B2G_RIL
-  setExtraHostRoute: function(network) {
+  setExtraHostRoute: function setExtraHostRoute(network) {
     if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
       if (!(network instanceof Ci.nsIRilNetworkInterface)) {
         debug("Network for MMS must be an instance of nsIRilNetworkInterface");
@@ -434,7 +434,7 @@ NetworkManager.prototype = {
     }
   },
 
-  removeExtraHostRoute: function(network) {
+  removeExtraHostRoute: function removeExtraHostRoute(network) {
     if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
       if (!(network instanceof Ci.nsIRilNetworkInterface)) {
         debug("Network for MMS must be an instance of nsIRilNetworkInterface");
@@ -460,7 +460,7 @@ NetworkManager.prototype = {
   /**
    * Determine the active interface and configure it.
    */
-  setAndConfigureActive: function() {
+  setAndConfigureActive: function setAndConfigureActive() {
     debug("Evaluating whether active network needs to be changed.");
     let oldActive = this.active;
 
@@ -539,7 +539,7 @@ NetworkManager.prototype = {
   },
 
 #ifdef MOZ_B2G_RIL
-  resolveHostname: function(hosts) {
+  resolveHostname: function resolveHostname(hosts) {
     let retval = [];
 
     for (let hostname of hosts) {
@@ -578,7 +578,7 @@ NetworkManager.prototype = {
 
   tetheringSettings: {},
 
-  initTetheringSettings: function() {
+  initTetheringSettings: function initTetheringSettings() {
     this.tetheringSettings[SETTINGS_USB_ENABLED] = false;
     this.tetheringSettings[SETTINGS_USB_IP] = DEFAULT_USB_IP;
     this.tetheringSettings[SETTINGS_USB_PREFIX] = DEFAULT_USB_PREFIX;
@@ -593,7 +593,7 @@ NetworkManager.prototype = {
 
   _requestCount: 0,
 
-  handle: function(aName, aResult) {
+  handle: function handle(aName, aResult) {
     switch(aName) {
       case SETTINGS_USB_ENABLED:
         this._oldUsbTetheringEnabledState = this.tetheringSettings[SETTINGS_USB_ENABLED];
@@ -633,13 +633,13 @@ NetworkManager.prototype = {
     };
   },
 
-  handleError: function(aErrorMessage) {
+  handleError: function handleError(aErrorMessage) {
     debug("There was an error while reading Tethering settings.");
     this.tetheringSettings = {};
     this.tetheringSettings[SETTINGS_USB_ENABLED] = false;
   },
 
-  getNetworkInterface: function(type) {
+  getNetworkInterface: function getNetworkInterface(type) {
     for each (let network in this.networkInterfaces) {
       if (network.type == type) {
         return network;
@@ -657,7 +657,7 @@ NetworkManager.prototype = {
   // External and internal interface name.
   _tetheringInterface: null,
 
-  handleLastRequest: function() {
+  handleLastRequest: function handleLastRequest() {
     let count = this._requestCount;
     this._requestCount = 0;
 
@@ -677,7 +677,7 @@ NetworkManager.prototype = {
     }
   },
 
-  handleUSBTetheringToggle: function(enable) {
+  handleUSBTetheringToggle: function handleUSBTetheringToggle(enable) {
     if (!enable) {
       this.tetheringSettings[SETTINGS_USB_ENABLED] = false;
       gNetworkService.enableUsbRndis(false, this.enableUsbRndisResult.bind(this));
@@ -696,7 +696,7 @@ NetworkManager.prototype = {
     gNetworkService.enableUsbRndis(true, this.enableUsbRndisResult.bind(this));
   },
 
-  getUSBTetheringParameters: function(enable, tetheringinterface) {
+  getUSBTetheringParameters: function getUSBTetheringParameters(enable, tetheringinterface) {
     let interfaceIp;
     let prefix;
     let wifiDhcpStartIp;
@@ -742,7 +742,7 @@ NetworkManager.prototype = {
     };
   },
 
-  notifyError: function(resetSettings, callback, msg) {
+  notifyError: function notifyError(resetSettings, callback, msg) {
     if (resetSettings) {
       let settingsLock = gSettingsService.createLock();
       // Disable wifi tethering with a useful error message for the user.
@@ -757,7 +757,7 @@ NetworkManager.prototype = {
   },
 
   // Enable/disable WiFi tethering by sending commands to netd.
-  setWifiTethering: function(enable, network, config, callback) {
+  setWifiTethering: function setWifiTethering(enable, network, config, callback) {
     if (!network) {
       this.notifyError(true, callback, "invalid network information");
       return;
@@ -780,14 +780,16 @@ NetworkManager.prototype = {
     config.internalIfname = this._tetheringInterface[TETHERING_TYPE_WIFI].internalInterface;
     config.externalIfname = this._tetheringInterface[TETHERING_TYPE_WIFI].externalInterface;
 
-    gNetworkService.setWifiTethering(enable, config, (function(error) {
+    gNetworkService.setWifiTethering(enable, config, (function (error) {
       let resetSettings = error;
       this.notifyError(resetSettings, callback, error);
     }).bind(this));
   },
 
   // Enable/disable USB tethering by sending commands to netd.
-  setUSBTethering: function(enable, tetheringInterface, callback) {
+  setUSBTethering: function setUSBTethering(enable,
+                                            tetheringInterface,
+                                            callback) {
     let params = this.getUSBTetheringParameters(enable, tetheringInterface);
 
     if (params === null) {
@@ -800,7 +802,7 @@ NetworkManager.prototype = {
     gNetworkService.setUSBTethering(enable, params, callback);
   },
 
-  getUsbInterface: function() {
+  getUsbInterface: function getUsbInterface() {
     // Find the rndis interface.
     for (let i = 0; i < this.possibleInterface.length; i++) {
       try {
@@ -817,7 +819,7 @@ NetworkManager.prototype = {
     return DEFAULT_USB_INTERFACE_NAME;
   },
 
-  enableUsbRndisResult: function(success, enable) {
+  enableUsbRndisResult: function enableUsbRndisResult(success, enable) {
     if (success) {
       this._tetheringInterface[TETHERING_TYPE_USB].internalInterface = this.getUsbInterface();
       this.setUSBTethering(enable,
@@ -829,7 +831,7 @@ NetworkManager.prototype = {
     }
   },
 
-  usbTetheringResultReport: function(error) {
+  usbTetheringResultReport: function usbTetheringResultReport(error) {
     let settingsLock = gSettingsService.createLock();
 
     this._usbTetheringAction = TETHERING_STATE_IDLE;
@@ -844,7 +846,7 @@ NetworkManager.prototype = {
     }
   },
 
-  onConnectionChangedReport: function(success, externalIfname) {
+  onConnectionChangedReport: function onConnectionChangedReport(success, externalIfname) {
     debug("onConnectionChangedReport result: success " + success);
 
     if (success) {
@@ -854,7 +856,7 @@ NetworkManager.prototype = {
     }
   },
 
-  onConnectionChanged: function(network) {
+  onConnectionChanged: function onConnectionChanged(network) {
     if (network.state != Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED) {
       debug("We are only interested in CONNECTED event");
       return;
@@ -881,7 +883,7 @@ NetworkManager.prototype = {
       externalIfname: network.name
     };
 
-    let callback = (function() {
+    let callback = (function () {
       // Update external network interface.
       debug("Update upstream interface to " + network.name);
       gNetworkService.updateUpStream(previous, current, this.onConnectionChangedReport.bind(this));
@@ -904,19 +906,19 @@ let CaptivePortalDetectionHelper = (function() {
   const EVENT_DISCONNECT = "Disconnect";
   let _ongoingInterface = null;
   let _available = ("nsICaptivePortalDetector" in Ci);
-  let getService = function() {
+  let getService = function () {
     return Cc['@mozilla.org/toolkit/captive-detector;1']
              .getService(Ci.nsICaptivePortalDetector);
   };
 
-  let _performDetection = function(interfaceName, callback) {
+  let _performDetection = function (interfaceName, callback) {
     let capService = getService();
     let capCallback = {
       QueryInterface: XPCOMUtils.generateQI([Ci.nsICaptivePortalCallback]),
-      prepare: function() {
+      prepare: function prepare() {
         capService.finishPreparation(interfaceName);
       },
-      complete: function(success) {
+      complete: function complete(success) {
         _ongoingInterface = null;
         callback(success);
       }
@@ -935,7 +937,7 @@ let CaptivePortalDetectionHelper = (function() {
     }
   };
 
-  let _abort = function(interfaceName) {
+  let _abort = function (interfaceName) {
     if (_ongoingInterface !== interfaceName) {
       return;
     }
@@ -948,13 +950,13 @@ let CaptivePortalDetectionHelper = (function() {
   return {
     EVENT_CONNECT: EVENT_CONNECT,
     EVENT_DISCONNECT: EVENT_DISCONNECT,
-    notify: function(eventType, network) {
+    notify: function notify(eventType, network) {
       switch (eventType) {
         case EVENT_CONNECT:
           // perform captive portal detection on wifi interface
           if (_available && network &&
               network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
-            _performDetection(network.name, function() {
+            _performDetection(network.name, function () {
               // TODO: bug 837600
               // We can disconnect wifi in here if user abort the login procedure.
             });
@@ -983,9 +985,9 @@ this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkManager]);
 
 let debug;
 if (DEBUG) {
-  debug = function(s) {
+  debug = function (s) {
     dump("-*- NetworkManager: " + s + "\n");
   };
 } else {
-  debug = function(s) {};
+  debug = function (s) {};
 }
