@@ -2733,7 +2733,7 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                 PRUint32 aColumnNumber,
                                 PRUint32 aErrorFlags,
                                 const char *aCategory,
-                                PRUint64 aInnerWindowId)
+                                PRUint64 aWindowId)
 {
   NS_ASSERTION((aParams && aParamsLength) || (!aParams && !aParamsLength),
                "Supply either both parameters and their number or no"
@@ -2767,8 +2767,7 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                      NS_ConvertUTF8toUTF16(spec).get(), // file name
                                      aSourceLine.get(),
                                      aLineNumber, aColumnNumber,
-                                     aErrorFlags, aCategory,
-                                     aInnerWindowId);
+                                     aErrorFlags, aCategory, aWindowId);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
@@ -2789,17 +2788,17 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                 nsIDocument* aDocument)
 {
   nsIURI* uri = aURI;
-  PRUint64 innerWindowID = 0;
+  PRUint64 windowID = 0;
   if (aDocument) {
     if (!uri) {
       uri = aDocument->GetDocumentURI();
     }
-    innerWindowID = aDocument->InnerWindowID();
+    windowID = aDocument->OuterWindowID();
   }
 
   return ReportToConsole(aFile, aMessageName, aParams, aParamsLength, uri,
                          aSourceLine, aLineNumber, aColumnNumber, aErrorFlags,
-                         aCategory, innerWindowID);
+                         aCategory, windowID);
 }
 
 PRBool
@@ -5517,8 +5516,9 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-nsIWidget *
-nsContentUtils::WidgetForDocument(nsIDocument *aDoc)
+static already_AddRefed<LayerManager>
+LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
+                                bool* aAllowRetaining)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -5553,26 +5553,18 @@ nsContentUtils::WidgetForDocument(nsIDocument *aDoc)
       if (rootView) {
         nsIView* displayRoot = nsIViewManager::GetDisplayRootFor(rootView);
         if (displayRoot) {
-          return displayRoot->GetNearestWidget(nsnull);
+          nsIWidget* widget = displayRoot->GetNearestWidget(nsnull);
+          if (widget) {
+            nsRefPtr<LayerManager> manager =
+              widget->
+                GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
+                                                     nsIWidget::LAYER_MANAGER_CURRENT,
+                                aAllowRetaining);
+            return manager.forget();
+          }
         }
       }
     }
-  }
-
-  return nsnull;
-}
-
-static already_AddRefed<LayerManager>
-LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
-                                bool* aAllowRetaining)
-{
-  nsIWidget *widget = nsContentUtils::WidgetForDocument(aDoc);
-  if (widget) {
-    nsRefPtr<LayerManager> manager =
-      widget->GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
-                              nsIWidget::LAYER_MANAGER_CURRENT,
-                              aAllowRetaining);
-    return manager.forget();
   }
 
   return nsnull;

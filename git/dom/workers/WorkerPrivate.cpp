@@ -895,11 +895,11 @@ public:
       aWorkerPrivate->AssertInnerWindowIsCorrect();
     }
 
-    PRUint64 innerWindowId;
+    PRUint64 windowId;
 
     WorkerPrivate* parent = aWorkerPrivate->GetParent();
     if (parent) {
-      innerWindowId = 0;
+      windowId = 0;
     }
     else {
       AssertIsOnMainThread();
@@ -909,13 +909,13 @@ public:
         return true;
       }
 
-      innerWindowId = aWorkerPrivate->GetInnerWindowId();
+      windowId = aWorkerPrivate->GetOuterWindowId();
     }
 
     return ReportErrorRunnable::ReportError(aCx, parent, true, target, mMessage,
                                             mFilename, mLine, mLineNumber,
                                             mColumnNumber, mFlags,
-                                            mErrorNumber, innerWindowId);
+                                            mErrorNumber, windowId);
   }
 
   static bool
@@ -923,7 +923,7 @@ public:
               bool aFireAtScope, JSObject* aTarget, const nsString& aMessage,
               const nsString& aFilename, const nsString& aLine,
               PRUint32 aLineNumber, PRUint32 aColumnNumber, PRUint32 aFlags,
-              PRUint32 aErrorNumber, PRUint64 aInnerWindowId)
+              PRUint32 aErrorNumber, PRUint64 aWindowId)
   {
     if (aWorkerPrivate) {
       aWorkerPrivate->AssertIsOnWorkerThread();
@@ -1030,7 +1030,7 @@ public:
                                                      aLine.get(), aLineNumber,
                                                      aColumnNumber, aFlags,
                                                      "Web Worker",
-                                                     aInnerWindowId))) {
+                                                     aWindowId))) {
         consoleMessage = do_QueryInterface(scriptError);
         NS_ASSERTION(consoleMessage, "This should never fail!");
       }
@@ -1932,10 +1932,10 @@ WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx, jsval aMessage)
 
 template <class Derived>
 PRUint64
-WorkerPrivateParent<Derived>::GetInnerWindowId()
+WorkerPrivateParent<Derived>::GetOuterWindowId()
 {
   AssertIsOnMainThread();
-  return mDocument->InnerWindowID();
+  return mDocument->OuterWindowID();
 }
 
 template <class Derived>

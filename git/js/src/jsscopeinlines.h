@@ -67,18 +67,9 @@ js::Shape::freeTable(JSContext *cx)
 }
 
 inline js::EmptyShape *
-js::types::TypeObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
-                                     /* gc::FinalizeKind */ unsigned kind)
+JSObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
+                        /* gc::FinalizeKind */ unsigned kind)
 {
-    JS_ASSERT(!singleton);
-
-    /*
-     * Empty shapes can only be on the default 'new' type for a prototype.
-     * Objects with a common prototype use the same shape lineage, even if
-     * their prototypes differ.
-     */
-    JS_ASSERT(this == proto->newType);
-
     JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
     int i = kind - js::gc::FINALIZE_OBJECT0;
 
@@ -112,9 +103,9 @@ js::types::TypeObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
 }
 
 inline bool
-js::types::TypeObject::canProvideEmptyShape(js::Class *aclasp)
+JSObject::canProvideEmptyShape(js::Class *aclasp)
 {
-    return proto && !singleton && (!emptyShapes || emptyShapes[0]->getClass() == aclasp);
+    return !emptyShapes || emptyShapes[0]->getClass() == aclasp;
 }
 
 inline void

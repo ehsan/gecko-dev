@@ -267,11 +267,11 @@ public:
                    const nsAString& aFileName,
                    const nsAString& aSourceLine,
                    PRBool aDispatchEvent,
-                   PRUint64 aInnerWindowID)
+                   PRUint64 aWindowID)
   : mScriptGlobal(aScriptGlobal), mLineNr(aLineNr), mColumn(aColumn),
     mFlags(aFlags), mErrorMsg(aErrorMsg), mFileName(aFileName),
     mSourceLine(aSourceLine), mDispatchEvent(aDispatchEvent),
-    mInnerWindowID(aInnerWindowID)
+    mWindowID(aWindowID)
   {}
 
   NS_IMETHOD Run()
@@ -364,7 +364,7 @@ public:
           rv = error2->InitWithWindowID(mErrorMsg.get(), mFileName.get(),
                                         mSourceLine.get(),
                                         mLineNr, mColumn, mFlags,
-                                        category, mInnerWindowID);
+                                        category, mWindowID);
         } else {
           rv = errorObject->Init(mErrorMsg.get(), mFileName.get(),
                                  mSourceLine.get(),
@@ -393,7 +393,7 @@ public:
   nsString                        mFileName;
   nsString                        mSourceLine;
   PRBool                          mDispatchEvent;
-  PRUint64                        mInnerWindowID;
+  PRUint64                        mWindowID;
 
   static PRBool sHandlingScriptError;
 };
@@ -474,19 +474,13 @@ NS_ScriptErrorReporter(JSContext *cx,
       nsAutoString sourceLine;
       sourceLine.Assign(reinterpret_cast<const PRUnichar*>(report->uclinebuf));
       nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(globalObject);
-      PRUint64 innerWindowID = 0;
-      if (win) {
-        nsCOMPtr<nsPIDOMWindow> innerWin = win->GetCurrentInnerWindow();
-        if (innerWin) {
-          innerWindowID = innerWin->WindowID();
-        }
-      }
+      PRUint64 windowID = win ? win->WindowID() : 0;
       nsContentUtils::AddScriptRunner(
         new ScriptErrorEvent(globalObject, report->lineno,
                              report->uctokenptr - report->uclinebuf,
                              report->flags, msg, fileName, sourceLine,
                              report->errorNumber != JSMSG_OUT_OF_MEMORY,
-                             innerWindowID));
+                             windowID));
     }
   }
 
@@ -915,7 +909,6 @@ static const char js_methodjit_chrome_str[]   = JS_OPTIONS_DOT_STR "methodjit.ch
 static const char js_profiling_content_str[]  = JS_OPTIONS_DOT_STR "jitprofiling.content";
 static const char js_profiling_chrome_str[]   = JS_OPTIONS_DOT_STR "jitprofiling.chrome";
 static const char js_methodjit_always_str[]   = JS_OPTIONS_DOT_STR "methodjit_always";
-static const char js_typeinfer_str[]          = JS_OPTIONS_DOT_STR "typeinference";
 static const char js_memlog_option_str[] = JS_OPTIONS_DOT_STR "mem.log";
 
 int
@@ -948,7 +941,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
                                                js_profiling_chrome_str :
                                                js_profiling_content_str);
   PRBool useMethodJITAlways = Preferences::GetBool(js_methodjit_always_str);
-  PRBool useTypeInference = !chromeWindow && Preferences::GetBool(js_typeinfer_str);
   nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
   if (xr) {
     PRBool safeMode = PR_FALSE;
@@ -957,7 +949,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
       useTraceJIT = PR_FALSE;
       useMethodJIT = PR_FALSE;
       useProfiling = PR_FALSE;
-      useTypeInference = PR_FALSE;
       useMethodJITAlways = PR_TRUE;
     }
   }    
@@ -981,11 +972,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     newDefaultJSOptions |= JSOPTION_METHODJIT_ALWAYS;
   else
     newDefaultJSOptions &= ~JSOPTION_METHODJIT_ALWAYS;
-
-  if (useTypeInference)
-    newDefaultJSOptions |= JSOPTION_TYPE_INFERENCE;
-  else
-    newDefaultJSOptions &= ~JSOPTION_TYPE_INFERENCE;
 
 #ifdef DEBUG
   // In debug builds, warnings are enabled in chrome context if
