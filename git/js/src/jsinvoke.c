@@ -1,5 +1,7 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=78:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,15 +14,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2002
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Scott MacGregor <mscott@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,24 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsAlertsService_h__
-#define nsAlertsService_h__
+#define js_invoke_c__
 
-#include "nsIAlertsService.h"
-#include "nsCOMPtr.h"
-
-#define NS_ALERTSSERVICE_CID { 0xa0ccaaf8, 0x9da, 0x44d8, { 0xb2, 0x50, 0x9a, 0xc3, 0xe9, 0x3c, 0x81, 0x17 } }
-
-class nsAlertsService : public nsIAlertsService
-{
-public:
-  NS_DECL_NSIALERTSSERVICE
-  NS_DECL_ISUPPORTS
-
-  nsAlertsService();
-  virtual ~nsAlertsService();
-
-protected:
-};
-
-#endif /* nsAlertsService_h__ */
+#include "jsinterp.c"
