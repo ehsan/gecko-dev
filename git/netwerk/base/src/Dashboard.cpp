@@ -7,9 +7,15 @@
 #include "mozilla/net/HttpInfo.h"
 #include "nsCxPusher.h"
 #include "nsHttp.h"
+#include "nsICancelable.h"
 #include "nsIDNSService.h"
+#include "nsIDNSRecord.h"
+#include "nsIInputStream.h"
+#include "nsISocketTransport.h"
 #include "nsIThread.h"
-#include "nsSocketTransport2.h"
+#include "nsSocketTransportService2.h"
+#include "nsThreadUtils.h"
+#include "nsURLHelper.h"
 
 using mozilla::AutoSafeJSContext;
 namespace mozilla {
@@ -566,10 +572,12 @@ HttpConnInfo::SetHTTP1ProtocolVersion(uint8_t pv)
 void
 HttpConnInfo::SetHTTP2ProtocolVersion(uint8_t pv)
 {
-    if (pv == SPDY_VERSION_2)
-        protocolVersion.Assign(NS_LITERAL_STRING("spdy/2"));
-    else
+    if (pv == SPDY_VERSION_3)
         protocolVersion.Assign(NS_LITERAL_STRING("spdy/3"));
+    else {
+        MOZ_ASSERT (pv == SPDY_VERSION_31);
+        protocolVersion.Assign(NS_LITERAL_STRING("spdy/3.1"));
+    }
 }
 
 NS_IMETHODIMP
@@ -735,7 +743,7 @@ Dashboard::GetErrorString(nsresult rv)
         if (errors[i].key == rv)
             return errors[i].error;
 
-    return NULL;
+    return nullptr;
 }
 
 } } // namespace mozilla::net

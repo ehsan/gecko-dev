@@ -15,6 +15,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
+#include "nsContentPermissionHelper.h"
 #include "nsIDocument.h"
 #include "nsIObserverService.h"
 #include "nsPIDOMWindow.h"
@@ -225,23 +226,6 @@ private:
   nsRefPtr<Geolocation> mLocator;
 };
 
-class RequestRestartTimerEvent : public nsRunnable
-{
-public:
-  RequestRestartTimerEvent(nsGeolocationRequest* aRequest)
-    : mRequest(aRequest)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    mRequest->SetTimeoutTimer();
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsGeolocationRequest> mRequest;
-};
-
 ////////////////////////////////////////////////////
 // PositionError
 ////////////////////////////////////////////////////
@@ -395,17 +379,11 @@ nsGeolocationRequest::GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
 }
 
 NS_IMETHODIMP
-nsGeolocationRequest::GetType(nsACString & aType)
+nsGeolocationRequest::GetTypes(nsIArray** aTypes)
 {
-  aType = "geolocation";
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGeolocationRequest::GetAccess(nsACString & aAccess)
-{
-  aAccess = "unused";
-  return NS_OK;
+  return CreatePermissionArray(NS_LITERAL_CSTRING("geolocation"),
+                               NS_LITERAL_CSTRING("unused"),
+                               aTypes);
 }
 
 NS_IMETHODIMP
@@ -454,15 +432,11 @@ nsGeolocationRequest::Allow()
   }
 
   // check to see if we can use a cached value
-  //
-  // either:
-  // a) the user has specified a maximumAge which allows us to return a cached value,
-  // -or-
-  // b) the cached position time is some reasonable value to return to the user (<30s)
+  // if the user has specified a maximumAge, return a cached value.
 
-  uint32_t maximumAge = 30 * PR_MSEC_PER_SEC;
+  uint32_t maximumAge = 0;
   if (mOptions) {
-    if (mOptions->mMaximumAge >= 0) {
+    if (mOptions->mMaximumAge > 0) {
       maximumAge = mOptions->mMaximumAge;
     }
   }
@@ -640,14 +614,12 @@ NS_IMPL_RELEASE(nsGeolocationService)
 
 static bool sGeoEnabled = true;
 static bool sGeoInitPending = true;
-static bool sGeoIgnoreLocationFilter = false;
 static int32_t sProviderTimeout = 6000; // Time, in milliseconds, to wait for the location provider to spin up.
 
 nsresult nsGeolocationService::Init()
 {
   Preferences::AddIntVarCache(&sProviderTimeout, "geo.timeout", sProviderTimeout);
   Preferences::AddBoolVarCache(&sGeoEnabled, "geo.enabled", sGeoEnabled);
-  Preferences::AddBoolVarCache(&sGeoIgnoreLocationFilter, "geo.ignore.location_filter", sGeoIgnoreLocationFilter);
 
   if (!sGeoEnabled) {
     return NS_ERROR_FAILURE;
@@ -698,7 +670,8 @@ nsresult nsGeolocationService::Init()
 #endif
 
 #ifdef MOZ_WIDGET_COCOA
-  if (Preferences::GetBool("geo.provider.use_corelocation", false)) {
+  if (Preferences::GetBool("geo.provider.use_corelocation", true) &&
+      CoreLocationLocationProvider::IsCoreLocationAvailable()) {
     mProvider = new CoreLocationLocationProvider();
   }
 #endif
@@ -1128,8 +1101,6 @@ Geolocation::RemoveRequest(nsGeolocationRequest* aRequest)
     (mPendingCallbacks.RemoveElement(aRequest) !=
      mWatchingCallbacks.RemoveElement(aRequest));
 
-  // request must have been in one of the lists
-  MOZ_ASSERT(requestWasKnown);
   unused << requestWasKnown;
 }
 
@@ -1469,12 +1440,15 @@ Geolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
       return false;
     }
 
+    nsTArray<PermissionRequest> permArray;
+    permArray.AppendElement(PermissionRequest(NS_LITERAL_CSTRING("geolocation"),
+                                              NS_LITERAL_CSTRING("unused")));
+
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
     // Corresponding release occurs in DeallocPContentPermissionRequest.
     request->AddRef();
     child->SendPContentPermissionRequestConstructor(request,
-                                                    NS_LITERAL_CSTRING("geolocation"),
-                                                    NS_LITERAL_CSTRING("unused"),
+                                                    permArray,
                                                     IPC::Principal(mPrincipal));
 
     request->Sendprompt();

@@ -8,8 +8,6 @@
 
 #include <elf.h>
 #include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include "jit/arm/Assembler-arm.h"
@@ -31,7 +29,7 @@
 namespace js {
 namespace jit {
 
-uint32_t getFlags()
+uint32_t GetARMFlags()
 {
     static bool isSet = false;
     static uint32_t flags = 0;
@@ -60,6 +58,13 @@ uint32_t getFlags()
         }
         close(fd);
     }
+
+#if defined(__ARM_ARCH_7__) || defined (__ARM_ARCH_7A__)
+    flags = HWCAP_ARMv7;
+#endif
+    isSet = true;
+    return flags;
+
 #elif defined(WTF_OS_ANDROID) || defined(MOZ_B2G)
     FILE *fp = fopen("/proc/cpuinfo", "r");
     if (!fp)
@@ -98,25 +103,25 @@ uint32_t getFlags()
     return flags;
 #endif
 
-    return false;
+    return 0;
 }
 
 bool hasMOVWT()
 {
-    return js::jit::getFlags() & HWCAP_ARMv7;
+    return js::jit::GetARMFlags() & HWCAP_ARMv7;
 }
 bool hasVFPv3()
 {
-    return js::jit::getFlags() & HWCAP_VFPv3;
+    return js::jit::GetARMFlags() & HWCAP_VFPv3;
 }
 bool hasVFP()
 {
-    return js::jit::getFlags() & HWCAP_VFP;
+    return js::jit::GetARMFlags() & HWCAP_VFP;
 }
 
 bool has32DP()
 {
-    return !(js::jit::getFlags() & HWCAP_VFPv3D16 && !(js::jit::getFlags() & HWCAP_NEON));
+    return !(js::jit::GetARMFlags() & HWCAP_VFPv3D16 && !(js::jit::GetARMFlags() & HWCAP_NEON));
 }
 bool useConvReg()
 {
@@ -126,7 +131,7 @@ bool useConvReg()
 bool hasIDIV()
 {
 #if defined HWCAP_IDIVA
-    return js::jit::getFlags() & HWCAP_IDIVA;
+    return js::jit::GetARMFlags() & HWCAP_IDIVA;
 #else
     return false;
 #endif

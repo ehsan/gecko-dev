@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <errno.h>
-
 #include "cpr_in.h"
 #include "cpr_rand.h"
 #include "cpr_stdlib.h"
@@ -102,38 +100,6 @@ gsmsdp_add_remote_track(uint16_t idx, uint16_t track,
 extern cc_media_cap_table_t g_media_table;
 
 extern boolean g_disable_mass_reg_debug_print;
-
-/*
- * gsmsdp_requires_two_dc_components
- *
- * returns TRUE if we are talking to Firefox and it's
- * a version that required two components for datachannel.
- */
-static boolean gsmsdp_requires_two_dc_components(void *sdp) {
-#define FIRST_VERSION_TO_USE_ONE_DC_COMPONENT 26
-    const char *owner_name = sdp_get_owner_username(sdp);
-    unsigned long remote_version;
-    char* strtoul_end;
-
-    if (strncmp(owner_name, SIPSDP_ORIGIN_APPNAME,
-        strlen(SIPSDP_ORIGIN_APPNAME)) == 0) {
-        /* This means we are talking to firefox, now read the major version */
-        errno = 0;
-        remote_version = strtoul(owner_name + strlen(SIPSDP_ORIGIN_APPNAME),
-            &strtoul_end, 10);
-        if (errno ||
-            strtoul_end == (owner_name + strlen(SIPSDP_ORIGIN_APPNAME)) ||
-            !remote_version) {
-            /* Unable to parse remote, must not be earlier firefox */
-            return FALSE;
-        }
-
-        return (remote_version < FIRST_VERSION_TO_USE_ONE_DC_COMPONENT) ?
-            TRUE : FALSE;
-    }
-
-    return FALSE;
-}
 
 /**
  * A wraper function to return the media capability supported by
@@ -245,17 +211,10 @@ static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dc
  * Process a single constraint for one media capablity
  */
 void gsmsdp_process_cap_constraint(cc_media_cap_t *cap,
-                                   const char *constraint) {
-  /* Check constraint string for values "TRUE" or "FALSE"
-     (currently set in PeerConnectionImpl.cpp, with only
-     two possible hardcoded values).
-     TODO -- The values that constraints can take are
-     fairly narrow and enumerated; they should probably
-     use an enumeration rather than a string. See bug 811360.
-  */
-  if (constraint[0] == 'F') {
+                                   cc_boolean constraint) {
+  if (!constraint) {
     cap->support_direction &= ~SDP_DIRECTION_FLAG_RECV;
-  } else if (constraint[0] == 'T') {
+  } else {
     cap->support_direction |= SDP_DIRECTION_FLAG_RECV;
     cap->enabled = TRUE;
   }
@@ -267,23 +226,18 @@ void gsmsdp_process_cap_constraint(cc_media_cap_t *cap,
  */
 void gsmsdp_process_cap_constraints(fsmdef_dcb_t *dcb,
                                     cc_media_constraints_t* constraints) {
-  int i = 0;
-
-  for (i=0; i<constraints->constraint_count; i++) {
-    if (strcmp(constraints_table[OfferToReceiveAudio].name,
-               constraints->constraints[i]->name) == 0) {
-      gsmsdp_process_cap_constraint(&dcb->media_cap_tbl->cap[CC_AUDIO_1],
-                                    constraints->constraints[i]->value);
-    } else if (strcmp(constraints_table[OfferToReceiveVideo].name,
-               constraints->constraints[i]->name) == 0) {
-      gsmsdp_process_cap_constraint(&dcb->media_cap_tbl->cap[CC_VIDEO_1],
-                                    constraints->constraints[i]->value);
-    } else if (strcmp(constraints_table[MozDontOfferDataChannel].name,
-               constraints->constraints[i]->name) == 0) {
-      /* Hack to suppress data channel */
-      if (constraints->constraints[i]->value[0] == 'T') {
-        dcb->media_cap_tbl->cap[CC_DATACHANNEL_1].enabled = FALSE;
-      }
+  if (constraints->offer_to_receive_audio.was_passed) {
+    gsmsdp_process_cap_constraint(&dcb->media_cap_tbl->cap[CC_AUDIO_1],
+                                  constraints->offer_to_receive_audio.value);
+  }
+  if (constraints->offer_to_receive_video.was_passed) {
+    gsmsdp_process_cap_constraint(&dcb->media_cap_tbl->cap[CC_VIDEO_1],
+                                  constraints->offer_to_receive_video.value);
+  }
+  if (constraints->moz_dont_offer_datachannel.was_passed) {
+    /* Hack to suppress data channel */
+    if (constraints->moz_dont_offer_datachannel.value) {
+      dcb->media_cap_tbl->cap[CC_DATACHANNEL_1].enabled = FALSE;
     }
   }
 }
@@ -1180,6 +1134,8 @@ gsmsdp_set_video_media_attributes (uint32_t media_type, void *cc_sdp_p, uint16_t
 {
     uint16_t a_inst;
     void *sdp_p = ((cc_sdp_t*)cc_sdp_p)->src_sdp;
+    int max_fs = 0;
+    int max_fr = 0;
 
     switch (media_type) {
         case RTP_H263:
@@ -1216,6 +1172,31 @@ gsmsdp_set_video_media_attributes (uint32_t media_type, void *cc_sdp_p, uint16_t
                                                SIPSDP_ATTR_ENCNAME_VP8);
             (void) sdp_attr_set_rtpmap_clockrate(sdp_p, level, 0, a_inst,
                                              RTPMAP_VIDEO_CLOCKRATE);
+
+            max_fs = config_get_video_max_fs((rtp_ptype) media_type);
+            max_fr = config_get_video_max_fr((rtp_ptype) media_type);
+
+            if (max_fs || max_fr) {
+                if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_FMTP, &a_inst)
+                    != SDP_SUCCESS) {
+                    GSM_ERR_MSG("Failed to add attribute");
+                    return;
+                }
+
+                (void) sdp_attr_set_fmtp_payload_type(sdp_p, level, 0, a_inst,
+                                                      payload_number);
+
+                if (max_fs) {
+                    (void) sdp_attr_set_fmtp_max_fs(sdp_p, level, 0, a_inst,
+                                                    max_fs);
+                }
+
+                if (max_fr) {
+                    (void) sdp_attr_set_fmtp_max_fr(sdp_p, level, 0, a_inst,
+                                                    max_fr);
+                }
+            }
+
             break;
         }
     GSM_DEBUG("gsmsdp_set_video_media_attributes- populate attribs %d", payload_number );
@@ -1486,17 +1467,19 @@ gsmsdp_set_sctp_attributes (void *sdp_p, uint16_t level, fsmdef_media_t *media)
 {
     uint16_t a_inst;
 
-    if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_FMTP, &a_inst)
+    if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_SCTPMAP, &a_inst)
         != SDP_SUCCESS) {
-         return;
+            return;
     }
 
-    /* Use SCTP port in place of fmtp payload type */
-    (void) sdp_attr_set_fmtp_payload_type(sdp_p, level, 0, a_inst, media->local_datachannel_port);
+    sdp_attr_set_sctpmap_port(sdp_p, level, 0, a_inst,
+        media->local_datachannel_port);
 
-    sdp_attr_set_fmtp_data_channel_protocol (sdp_p, level, 0, a_inst, media->datachannel_protocol);
+    sdp_attr_set_sctpmap_protocol (sdp_p, level, 0, a_inst,
+        media->datachannel_protocol);
 
-    sdp_attr_set_fmtp_streams (sdp_p, level, 0, a_inst, media->datachannel_streams);
+    sdp_attr_set_sctpmap_streams (sdp_p, level, 0, a_inst,
+        media->datachannel_streams);
 }
 
 /*
@@ -1980,13 +1963,16 @@ gsmsdp_set_local_sdp_direction (fsmdef_dcb_t *dcb_p,
      * before adding the specified direction. Save the direction in previous
      * direction before clearing it.
      */
-    if (media->direction_set) {
-        media->previous_sdp.direction = media->direction;
-        gsmsdp_remove_sdp_direction(media, media->direction,
-                                    dcb_p->sdp ? dcb_p->sdp->src_sdp : NULL );
-        media->direction_set = FALSE;
+    if (media->type != SDP_MEDIA_APPLICATION) {
+      if (media->direction_set) {
+          media->previous_sdp.direction = media->direction;
+          gsmsdp_remove_sdp_direction(media, media->direction,
+                                      dcb_p->sdp ? dcb_p->sdp->src_sdp : NULL );
+          media->direction_set = FALSE;
+      }
+      gsmsdp_set_sdp_direction(media, direction, dcb_p->sdp ? dcb_p->sdp->src_sdp : NULL);
     }
-    gsmsdp_set_sdp_direction(media, direction, dcb_p->sdp ? dcb_p->sdp->src_sdp : NULL);
+
     /*
      * We could just get the direction from the local SDP when we need it in
      * GSM, but setting the direction in the media structure gives a quick way
@@ -2776,6 +2762,7 @@ gsmsdp_update_local_sdp (fsmdef_dcb_t *dcb_p, boolean offer,
     cc_action_data_t data;
     sdp_direction_e direction;
     boolean         local_hold = (boolean)FSM_CHK_FLAGS(media->hold, FSM_HOLD_LCL);
+    sdp_result_e    sdp_res;
 
     if (media->src_port == 0) {
         GSM_DEBUG(DEB_L_C_F_PREFIX"allocate receive port for media line",
@@ -3444,23 +3431,19 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
 
                     /* This should ultimately use RFC 6236 a=imageattr
                        if present */
-                    switch (codec) {
-                        case RTP_VP8:
-                            payload_info->video.width = 640;
-                            payload_info->video.height = 480;
-                        break;
-                        case RTP_I420:
-                            payload_info->video.width = 176;
-                            payload_info->video.height = 144;
-                        break;
-                        default:
-                            GSM_DEBUG(DEB_L_C_F_PREFIX"codec=%d not setting "
-                                "codec parameters (not implemented)\n",
-                                DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line,
-                                dcb_p->call_id, fname), codec);
-                            payload_info->video.width = -1;
-                            payload_info->video.height = -1;
-                    }
+
+                    payload_info->video.width = 0;
+                    payload_info->video.height = 0;
+
+                    /* Set maximum frame size */
+                    payload_info->video.max_fs = 0;
+                    sdp_attr_get_fmtp_max_fs(sdp_p->dest_sdp, level, 0, 1,
+                                             &payload_info->video.max_fs);
+
+                    /* Set maximum frame rate */
+                    payload_info->video.max_fr = 0;
+                    sdp_attr_get_fmtp_max_fr(sdp_p->dest_sdp, level, 0, 1,
+                                             &payload_info->video.max_fr);
                 } /* end video */
 
                 GSM_DEBUG(DEB_L_C_F_PREFIX"codec= %d",
@@ -3536,11 +3519,11 @@ gsmsdp_negotiate_datachannel_attribs(fsmdef_dcb_t* dcb_p, cc_sdp_t* sdp_p, uint1
     uint32          num_streams;
     char           *protocol;
 
-    sdp_attr_get_fmtp_streams (sdp_p->dest_sdp, level, 0, 1, &num_streams);
+    sdp_attr_get_sctpmap_streams (sdp_p->dest_sdp, level, 0, 1, &num_streams);
 
     media->datachannel_streams = num_streams;
 
-    sdp_attr_get_fmtp_data_channel_protocol(sdp_p->dest_sdp, level, 0, 1, media->datachannel_protocol);
+    sdp_attr_get_sctpmap_protocol(sdp_p->dest_sdp, level, 0, 1, media->datachannel_protocol);
 
     media->remote_datachannel_port = sdp_get_media_sctp_port(sdp_p->dest_sdp, level);
 }
@@ -4718,6 +4701,8 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
     sdp_result_e    sdp_res;
     boolean         created_media_stream = FALSE;
     int             lsm_rc;
+    int             sctp_port;
+    u32             datachannel_streams;
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
@@ -5009,6 +4994,27 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
               if (SDP_SUCCESS == sdp_res) {
                 media->rtcp_mux = TRUE;
               }
+            }
+
+            /*
+              Negotiate datachannel attributes.
+              We are using our port from config and reflecting the
+              number of streams from the other side.
+             */
+            if (media_type == SDP_MEDIA_APPLICATION) {
+              config_get_value(CFGID_SCTP_PORT, &sctp_port, sizeof(sctp_port));
+              media->local_datachannel_port = sctp_port;
+
+              sdp_res = sdp_attr_get_sctpmap_streams(sdp_p->dest_sdp,
+                media->level, 0, 1, &datachannel_streams);
+
+              /* If no streams value from the other side we will use our default
+               */
+              if (sdp_res == SDP_SUCCESS) {
+                  media->datachannel_streams = datachannel_streams;
+              }
+
+              gsmsdp_set_sctp_attributes(sdp_p->src_sdp, i, media);
             }
 
             if (!unsupported_line) {
@@ -5693,6 +5699,13 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
          */
         if (media_enabled && ( media_cap->enabled || force_streams_enabled)) {
             level = level + 1;  /* next level */
+
+            /* Only audio and video use two ICE components */
+            if (media_cap->type != SDP_MEDIA_AUDIO &&
+                media_cap->type != SDP_MEDIA_VIDEO) {
+                vcmDisableRtcpComponent(dcb_p->peerconnection, level);
+            }
+
             ip_mode = platform_get_ip_address_mode();
             if (ip_mode >= CPR_IP_MODE_IPV6) {
                 if (gsmsdp_add_media_line(dcb_p, media_cap, cap_index,
@@ -6981,19 +6994,6 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
         }
       }
 
-      /* If this is Datachannel and we are talking to anything other
-         than an older version of Firefox then disable the second component
-         of the ICE stream */
-      if (media->type == DATA &&
-          !gsmsdp_requires_two_dc_components(sdp_p->dest_sdp)) {
-        vcm_res = vcmDisableRtcpComponent(dcb_p->peerconnection,
-          media->level);
-
-        if (vcm_res) {
-          return CC_CAUSE_SETTING_ICE_SESSION_PARAMETERS_FAILED;
-        }
-      }
-
       sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, media->level, 0,
         SDP_ATTR_ICE_UFRAG, 1, &ufrag);
       if (sdp_res != SDP_SUCCESS)
@@ -7367,3 +7367,31 @@ gsmsdp_find_level_from_mid(fsmdef_dcb_t * dcb_p, const char * mid, uint16_t *lev
     }
     return CC_CAUSE_VALUE_NOT_FOUND;
 }
+
+/**
+ * The function performs cleaning candidate list of a given call. It walks
+ * through the list and deallocates each candidate entry.
+ *
+ * @param[in]dcb   - pointer to fsmdef_def_t for the dcb whose
+ *                   media list to be cleaned.
+ *
+ * @return  none
+ *
+ * @pre     (dcb not_eq NULL)
+ */
+void gsmsdp_clean_candidate_list (fsmdef_dcb_t *dcb_p)
+{
+    fsmdef_candidate_t *candidate = NULL;
+
+    while (TRUE) {
+        /* unlink head and free the media */
+        candidate = (fsmdef_candidate_t *)sll_lite_unlink_head(&dcb_p->candidate_list);
+        if (candidate) {
+            strlib_free(candidate->candidate);
+            free(candidate);
+        } else {
+            break;
+        }
+    }
+}
+

@@ -10,6 +10,7 @@ import org.mozilla.gecko.ThumbnailHelper;
 import org.mozilla.gecko.db.BrowserDB.TopSitesCursorWrapper;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
+import org.mozilla.gecko.util.StringUtils;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -32,9 +33,9 @@ import java.util.EnumSet;
 public class TopSitesGridView extends GridView {
     private static final String LOGTAG = "GeckoTopSitesGridView";
 
-    // Listener for pinning sites.
-    public static interface OnPinSiteListener {
-        public void onPinSite(int position);
+    // Listener for editing pinned sites.
+    public static interface OnEditPinnedSiteListener {
+        public void onEditPinnedSite(int position);
     }
 
     // Max number of top sites that needs to be shown.
@@ -58,8 +59,8 @@ public class TopSitesGridView extends GridView {
     // On URL open listener.
     private OnUrlOpenListener mUrlOpenListener;
 
-    // Pin site listener.
-    private OnPinSiteListener mPinSiteListener;
+    // Edit pinned site listener.
+    private OnEditPinnedSiteListener mEditPinnedSiteListener;
 
     // Context menu info.
     private TopSitesGridContextMenuInfo mContextMenuInfo;
@@ -113,8 +114,8 @@ public class TopSitesGridView extends GridView {
                         mUrlOpenListener.onUrlOpen(url, EnumSet.noneOf(OnUrlOpenListener.Flags.class));
                     }
                 } else {
-                    if (mPinSiteListener != null) {
-                        mPinSiteListener.onPinSite(position);
+                    if (mEditPinnedSiteListener != null) {
+                        mEditPinnedSiteListener.onEditPinnedSite(position);
                     }
                 }
             }
@@ -135,7 +136,7 @@ public class TopSitesGridView extends GridView {
         super.onDetachedFromWindow();
 
         mUrlOpenListener = null;
-        mPinSiteListener = null;
+        mEditPinnedSiteListener = null;
     }
 
     @Override
@@ -228,21 +229,18 @@ public class TopSitesGridView extends GridView {
     }
 
     /**
-     * Set a pin site listener to be used by this view.
+     * Set an edit pinned site listener to be used by this view.
      *
-     * @param listener A pin site listener for this view.
+     * @param listener An edit pinned site listener for this view.
      */
-    public void setOnPinSiteListener(OnPinSiteListener listener) {
-        mPinSiteListener = listener;
+    public void setOnEditPinnedSiteListener(final OnEditPinnedSiteListener listener) {
+        mEditPinnedSiteListener = listener;
     }
 
     /**
      * A ContextMenuInfo for TopBoomarksView that adds details from the cursor.
      */
     public static class TopSitesGridContextMenuInfo extends AdapterContextMenuInfo {
-
-        // URL to Title replacement regex.
-        private static final String REGEX_URL_TO_TITLE = "^([a-z]+://)?(www\\.)?";
 
         public String url;
         public String title;
@@ -261,7 +259,8 @@ public class TopSitesGridView extends GridView {
         }
 
         public String getDisplayTitle() {
-            return TextUtils.isEmpty(title) ? url.replaceAll(REGEX_URL_TO_TITLE, "") : title;
+            return TextUtils.isEmpty(title) ?
+                StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url, StringUtils.UrlFlags.STRIP_HTTPS)) : title;
         }
     }
 }

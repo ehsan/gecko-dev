@@ -13,6 +13,8 @@
 #include "nsGlobalWindow.h"
 #include "nsIAppsService.h"
 #include "PCOMContentPermissionRequestChild.h"
+#include "nsIScriptSecurityManager.h"
+#include "nsServiceManagerUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -92,7 +94,7 @@ DesktopNotification::PostDesktopNotification()
       appsService->GetManifestURLByLocalId(appId, manifestUrl);
       mozilla::AutoSafeJSContext cx;
       JS::RootedValue val(cx);
-      AppNotificationServiceOptionsInitializer ops;
+      AppNotificationServiceOptions ops;
       ops.mTextClickable = true;
       ops.mManifestURL = manifestUrl;
 
@@ -175,9 +177,12 @@ DesktopNotification::Init()
     // Corresponding release occurs in DeallocPContentPermissionRequest.
     nsRefPtr<DesktopNotificationRequest> copy = request;
 
+    nsTArray<PermissionRequest> permArray;
+    permArray.AppendElement(PermissionRequest(
+                            NS_LITERAL_CSTRING("desktop-notification"),
+                            NS_LITERAL_CSTRING("unused")));
     child->SendPContentPermissionRequestConstructor(copy.forget().get(),
-                                                    NS_LITERAL_CSTRING("desktop-notification"),
-                                                    NS_LITERAL_CSTRING("unused"),
+                                                    permArray,
                                                     IPC::Principal(mPrincipal));
 
     request->Sendprompt();
@@ -349,17 +354,11 @@ DesktopNotificationRequest::Allow()
 }
 
 NS_IMETHODIMP
-DesktopNotificationRequest::GetType(nsACString & aType)
+DesktopNotificationRequest::GetTypes(nsIArray** aTypes)
 {
-  aType = "desktop-notification";
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DesktopNotificationRequest::GetAccess(nsACString & aAccess)
-{
-  aAccess = "unused";
-  return NS_OK;
+  return CreatePermissionArray(NS_LITERAL_CSTRING("desktop-notification"),
+                               NS_LITERAL_CSTRING("unused"),
+                               aTypes);
 }
 
 } // namespace dom

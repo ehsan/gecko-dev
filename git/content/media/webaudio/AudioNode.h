@@ -57,44 +57,6 @@ private:
   bool mHeld;
 };
 
-template<class T>
-class SelfCountedReference {
-public:
-  SelfCountedReference() : mRefCnt(0) {}
-  ~SelfCountedReference()
-  {
-    NS_ASSERTION(mRefCnt == 0, "Forgot to drop the self reference?");
-  }
-
-  void Take(T* t)
-  {
-    if (mRefCnt++ == 0) {
-      t->AddRef();
-    }
-  }
-  void Drop(T* t)
-  {
-    if (mRefCnt > 0) {
-      --mRefCnt;
-      if (mRefCnt == 0) {
-        t->Release();
-      }
-    }
-  }
-  void ForceDrop(T* t)
-  {
-    if (mRefCnt > 0) {
-      mRefCnt = 0;
-      t->Release();
-    }
-  }
-
-  operator bool() const { return mRefCnt > 0; }
-
-private:
-  nsrefcnt mRefCnt;
-};
-
 /**
  * The DOM object representing a Web Audio AudioNode.
  *
@@ -104,7 +66,21 @@ private:
  * We track the incoming and outgoing connections to other AudioNodes.
  * Outgoing connections have strong ownership.  Also, AudioNodes that will
  * produce sound on their output even when they have silent or no input ask
- * the AudioContext to keep them alive until the context is finished.
+ * the AudioContext to keep playing or tail-time references to keep them alive
+ * until the context is finished.
+ *
+ * Explicit disconnections will only remove references from output nodes after
+ * the graph is notified and the main thread receives a reply.  Similarly,
+ * nodes with playing or tail-time references release these references only
+ * after receiving notification from their engine on the graph thread that
+ * playing has stopped.  Engines notifying the main thread that they have
+ * finished do so strictly *after* producing and returning their last block.
+ * In this way, an engine that receives non-null input knows that the input
+ * comes from nodes that are still alive and will keep their output nodes
+ * alive for at least as long as it takes to process messages from the graph
+ * thread.  i.e. the engine receiving non-null input knows that its node is
+ * still alive, and will still be alive when it receives a message from the
+ * engine.
  */
 class AudioNode : public nsDOMEventTargetHelper,
                   public EnableWebAudioCheck
@@ -212,10 +188,16 @@ public:
   {
     return mInputNodes;
   }
+  const nsTArray<nsRefPtr<AudioNode> >& OutputNodes() const
+  {
+    return mOutputNodes;
+  }
+  const nsTArray<nsRefPtr<AudioParam> >& OutputParams() const
+  {
+    return mOutputParams;
+  }
 
   void RemoveOutputParam(AudioParam* aParam);
-
-  virtual void NotifyInputConnected() {}
 
   // MarkActive() asks the context to keep the AudioNode alive until the
   // context is finished.  This takes care of "playing" references and

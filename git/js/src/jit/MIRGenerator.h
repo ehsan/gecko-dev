@@ -17,8 +17,10 @@
 
 #include "jit/CompileInfo.h"
 #include "jit/IonAllocPolicy.h"
-#include "jit/IonCompartment.h"
-#include "jit/PerfSpewer.h"
+#include "jit/JitCompartment.h"
+#ifdef JS_ION_PERF
+# include "jit/PerfSpewer.h"
+#endif
 #include "jit/RegisterSets.h"
 
 namespace js {
@@ -27,18 +29,6 @@ namespace jit {
 class MBasicBlock;
 class MIRGraph;
 class MStart;
-
-struct AsmJSGlobalAccess
-{
-    unsigned offset;
-    unsigned globalDataOffset;
-
-    AsmJSGlobalAccess(unsigned offset, unsigned globalDataOffset)
-      : offset(offset), globalDataOffset(globalDataOffset)
-    {}
-};
-
-typedef Vector<AsmJSGlobalAccess, 0, IonAllocPolicy> AsmJSGlobalAccessVector;
 
 class MIRGenerator
 {
@@ -54,11 +44,11 @@ class MIRGenerator
     bool ensureBallast() {
         return temp().ensureBallast();
     }
-    IonCompartment *ionCompartment() const {
-        return compartment->ionCompartment();
+    JitCompartment *jitCompartment() const {
+        return compartment->jitCompartment();
     }
-    IonRuntime *ionRuntime() const {
-        return GetIonContext()->runtime->ionRuntime();
+    JitRuntime *jitRuntime() const {
+        return GetIonContext()->runtime->jitRuntime();
     }
     CompileInfo &info() {
         return *info_;
@@ -91,7 +81,7 @@ class MIRGenerator
     }
 
     bool compilingAsmJS() const {
-        return info_->script() == NULL;
+        return info_->script() == nullptr;
     }
 
     uint32_t maxAsmJSStackArgBytes() const {

@@ -26,6 +26,33 @@ const LAYOUT_CHANGE_TIMER = 250;
  * The inspector controls the highlighter, the breadcrumbs,
  * the markup view, and the sidebar (computed view, rule view
  * and layout view).
+ *
+ * Events:
+ * - ready
+ *      Fired when the inspector panel is opened for the first time and ready to
+ *      use
+ * - new-root
+ *      Fired after a new root (navigation to a new page) event was fired by
+ *      the walker, and taken into account by the inspector (after the markup
+ *      view has been reloaded)
+ * - markuploaded
+ *      Fired when the markup-view frame has loaded
+ * - layout-change
+ *      Fired when the layout of the inspector changes
+ * - breadcrumbs-updated
+ *      Fired when the breadcrumb widget updates to a new node
+ * - layoutview-updated
+ *      Fired when the layoutview (box model) updates to a new node
+ * - markupmutation
+ *      Fired after markup mutations have been processed by the markup-view
+ * - computed-view-refreshed
+ *      Fired when the computed rules view updates to a new node
+ * - computed-view-property-expanded
+ *      Fired when a property is expanded in the computed rules view
+ * - computed-view-property-collapsed
+ *      Fired when a property is collapsed in the computed rules view
+ * - rule-view-refreshed
+ *      Fired when the rule view updates to a new node
  */
 function InspectorPanel(iframeWindow, toolbox) {
   this._toolbox = toolbox;
@@ -33,6 +60,9 @@ function InspectorPanel(iframeWindow, toolbox) {
   this.panelDoc = iframeWindow.document;
   this.panelWin = iframeWindow;
   this.panelWin.inspector = this;
+
+  this._onBeforeNavigate = this._onBeforeNavigate.bind(this);
+  this._target.on("will-navigate", this._onBeforeNavigate);
 
   EventEmitter.decorate(this);
 }
@@ -55,6 +85,8 @@ InspectorPanel.prototype = {
 
   _deferredOpen: function(defaultSelection) {
     let deferred = promise.defer();
+
+    this.outerHTMLEditable = this._target.client.traits.editOuterHTML;
 
     this.onNewRoot = this.onNewRoot.bind(this);
     this.walker.on("new-root", this.onNewRoot);
@@ -144,6 +176,13 @@ InspectorPanel.prototype = {
     return deferred.promise;
   },
 
+  _onBeforeNavigate: function() {
+    this._defaultNode = null;
+    this.selection.setNodeFront(null);
+    this._destroyMarkup();
+    this.isDirty = false;
+  },
+
   _getWalker: function() {
     let inspector = this.target.inspector;
     return inspector.getWalker().then(walker => {
@@ -168,7 +207,7 @@ InspectorPanel.prototype = {
     // as default selected, else set documentElement
     return walker.getRootNode().then(aRootNode => {
       rootNode = aRootNode;
-      return walker.querySelector(aRootNode, this.selectionCssSelector);
+      return walker.querySelector(rootNode, this.selectionCssSelector);
     }).then(front => {
       if (front) {
         return front;
@@ -310,6 +349,7 @@ InspectorPanel.prototype = {
       this.once("markuploaded", () => {
         this.markup.expandNode(this.selection.nodeFront);
         this.setupSearchBox();
+        this.emit("new-root");
       });
     });
   },
@@ -399,7 +439,7 @@ InspectorPanel.prototype = {
           }
 
           self._updateProgress = null;
-          self.emit("inspector-updated");
+          self.emit("inspector-updated", name);
         },
       };
     }
@@ -432,7 +472,9 @@ InspectorPanel.prototype = {
   },
 
   /**
-   * When a node is deleted, select its parent node.
+   * When a node is deleted, select its parent node or the defaultNode if no
+   * parent is found (may happen when deleting an iframe inside which the
+   * node was selected).
    */
   onDetached: function InspectorPanel_onDetached(event, parentNode) {
     this.cancelLayoutChange();
@@ -470,6 +512,8 @@ InspectorPanel.prototype = {
       this.browser.removeEventListener("resize", this.scheduleLayoutChange, true);
       this.browser = null;
     }
+
+    this.target.off("will-navigate", this._onBeforeNavigate);
 
     this.target.off("thread-paused", this.updateDebuggerPausedWarning);
     this.target.off("thread-resumed", this.updateDebuggerPausedWarning);
@@ -551,7 +595,8 @@ InspectorPanel.prototype = {
     let unique = this.panelDoc.getElementById("node-menu-copyuniqueselector");
     let copyInnerHTML = this.panelDoc.getElementById("node-menu-copyinner");
     let copyOuterHTML = this.panelDoc.getElementById("node-menu-copyouter");
-    if (this.selection.isElementNode()) {
+    let selectionIsElement = this.selection.isElementNode();
+    if (selectionIsElement) {
       unique.removeAttribute("disabled");
       copyInnerHTML.removeAttribute("disabled");
       copyOuterHTML.removeAttribute("disabled");
@@ -559,6 +604,13 @@ InspectorPanel.prototype = {
       unique.setAttribute("disabled", "true");
       copyInnerHTML.setAttribute("disabled", "true");
       copyOuterHTML.setAttribute("disabled", "true");
+    }
+
+    let editHTML = this.panelDoc.getElementById("node-menu-edithtml");
+    if (this.outerHTMLEditable && selectionIsElement) {
+      editHTML.removeAttribute("disabled");
+    } else {
+      editHTML.setAttribute("disabled", "true");
     }
   },
 
@@ -664,6 +716,19 @@ InspectorPanel.prototype = {
   },
 
   /**
+   * Edit the outerHTML of the selected Node.
+   */
+  editHTML: function InspectorPanel_editHTML()
+  {
+    if (!this.selection.isNode()) {
+      return;
+    }
+    if (this.markup) {
+      this.markup.beginEditingOuterHTML(this.selection.nodeFront);
+    }
+  },
+
+  /**
    * Copy the innerHTML of the selected Node to the clipboard.
    */
   copyInnerHTML: function InspectorPanel_copyInnerHTML()
@@ -730,18 +795,30 @@ InspectorPanel.prototype = {
   },
 
   /**
+  * Trigger a high-priority layout change for things that need to be
+  * updated immediately
+  */
+  immediateLayoutChange: function Inspector_immediateLayoutChange()
+  {
+    this.emit("layout-change");
+  },
+
+  /**
    * Schedule a low-priority change event for things like paint
    * and resize.
    */
-  scheduleLayoutChange: function Inspector_scheduleLayoutChange()
+  scheduleLayoutChange: function Inspector_scheduleLayoutChange(event)
   {
-    if (this._timer) {
-      return null;
+    // Filter out non browser window resize events (i.e. triggered by iframes)
+    if (this.browser.contentWindow === event.target) {
+      if (this._timer) {
+        return null;
+      }
+      this._timer = this.panelWin.setTimeout(function() {
+        this.emit("layout-change");
+        this._timer = null;
+      }.bind(this), LAYOUT_CHANGE_TIMER);
     }
-    this._timer = this.panelWin.setTimeout(function() {
-      this.emit("layout-change");
-      this._timer = null;
-    }.bind(this), LAYOUT_CHANGE_TIMER);
   },
 
   /**

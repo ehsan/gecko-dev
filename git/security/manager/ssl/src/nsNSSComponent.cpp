@@ -17,6 +17,7 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsICertOverrideService.h"
 #include "mozilla/Preferences.h"
+#include "nsThreadUtils.h"
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
 #include "nsIDOMNode.h"
@@ -867,6 +868,8 @@ static CipherPref CipherPrefs[] = {
  {"security.ssl3.dhe_rsa_des_ede3_sha", SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with RSA, DHE, and a SHA1 MAC
  {"security.ssl3.dhe_dss_des_ede3_sha", SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with DSA, DHE, and a SHA1 MAC
  {"security.ssl3.rsa_seed_sha", TLS_RSA_WITH_SEED_CBC_SHA}, // SEED encryption with RSA and a SHA1 MAC
+ {"security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256", TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256}, // 128-bit AES-GCM encryption with ECDHE-ECDSA
+ {"security.ssl3.ecdhe_rsa_aes_128_gcm_sha256", TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, // 128-bit AES-GCM encryption with ECDHE-RSA
  {nullptr, 0} /* end marker */
 };
 
@@ -1039,7 +1042,6 @@ static void configureMD5(bool enabled)
 
 static const bool SUPPRESS_WARNING_PREF_DEFAULT = false;
 static const bool MD5_ENABLED_DEFAULT = false;
-static const bool TLS_SESSION_TICKETS_ENABLED_DEFAULT = true;
 static const bool REQUIRE_SAFE_NEGOTIATION_DEFAULT = false;
 static const bool ALLOW_UNRESTRICTED_RENEGO_DEFAULT = false;
 static const bool FALSE_START_ENABLED_DEFAULT = true;
@@ -1199,11 +1201,7 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
                                              MD5_ENABLED_DEFAULT);
       configureMD5(md5Enabled);
 
-      // Configure TLS session tickets
-      bool tlsSessionTicketsEnabled =
-        Preferences::GetBool("security.enable_tls_session_tickets",
-                             TLS_SESSION_TICKETS_ENABLED_DEFAULT);
-      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, tlsSessionTicketsEnabled);
+      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, true);
 
       bool requireSafeNegotiation =
         Preferences::GetBool("security.ssl.require_safe_negotiation",
@@ -1635,11 +1633,6 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
                                              MD5_ENABLED_DEFAULT);
       configureMD5(md5Enabled);
       clearSessionCache = true;
-    } else if (prefName.Equals("security.enable_tls_session_tickets")) {
-      bool tlsSessionTicketsEnabled =
-        Preferences::GetBool("security.enable_tls_session_tickets",
-                             TLS_SESSION_TICKETS_ENABLED_DEFAULT);
-      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, tlsSessionTicketsEnabled);
     } else if (prefName.Equals("security.ssl.require_safe_negotiation")) {
       bool requireSafeNegotiation =
         Preferences::GetBool("security.ssl.require_safe_negotiation",

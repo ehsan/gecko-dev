@@ -12,6 +12,10 @@ const promise = require("sdk/core/promise");
 let {CssLogic} = require("devtools/styleinspector/css-logic");
 let {InplaceEditor, editableField, editableItem} = require("devtools/shared/inplace-editor");
 let {ELEMENT_STYLE, PSEUDO_ELEMENTS} = require("devtools/server/actors/styles");
+let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+let {Tooltip} = require("devtools/shared/widgets/Tooltip");
+
+const {OutputParser} = require("devtools/output-parser");
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -1000,7 +1004,7 @@ TextProperty.prototype = {
   remove: function TextProperty_remove()
   {
     this.rule.removeProperty(this);
-  }
+  },
 };
 
 
@@ -1026,6 +1030,7 @@ TextProperty.prototype = {
  * apply to a given element.  After construction, the 'element'
  * property will be available with the user interface.
  *
+ * @param {Inspector} aInspector
  * @param {Document} aDoc
  *        The document that will contain the rule view.
  * @param {object} aStore
@@ -1036,8 +1041,9 @@ TextProperty.prototype = {
  *        The PageStyleFront for communicating with the remote server.
  * @constructor
  */
-function CssRuleView(aDoc, aStore, aPageStyle)
+function CssRuleView(aInspector, aDoc, aStore, aPageStyle)
 {
+  this.inspector = aInspector;
   this.doc = aDoc;
   this.store = aStore || {};
   this.pageStyle = aPageStyle;
@@ -1045,8 +1051,17 @@ function CssRuleView(aDoc, aStore, aPageStyle)
   this.element.className = "ruleview devtools-monospace";
   this.element.flex = 1;
 
-  this._boundCopy = this._onCopy.bind(this);
-  this.element.addEventListener("copy", this._boundCopy);
+  this._outputParser = new OutputParser();
+
+  this._buildContextMenu = this._buildContextMenu.bind(this);
+  this._contextMenuUpdate = this._contextMenuUpdate.bind(this);
+  this._onSelectAll = this._onSelectAll.bind(this);
+  this._onCopy = this._onCopy.bind(this);
+
+  this.element.addEventListener("copy", this._onCopy);
+
+  this._handlePrefChange = this._handlePrefChange.bind(this);
+  gDevTools.on("pref-changed", this._handlePrefChange);
 
   let options = {
     fixedWidth: true,
@@ -1055,6 +1070,10 @@ function CssRuleView(aDoc, aStore, aPageStyle)
   };
   this.popup = new AutocompletePopup(aDoc.defaultView.parent.document, options);
 
+  this.tooltip = new Tooltip(this.inspector.panelDoc);
+  this.tooltip.startTogglingOnHover(this.element, this._buildTooltipContent.bind(this));
+
+  this._buildContextMenu();
   this._showEmpty();
 }
 
@@ -1063,6 +1082,151 @@ exports.CssRuleView = CssRuleView;
 CssRuleView.prototype = {
   // The element that we're inspecting.
   _viewedElement: null,
+
+  /**
+   * Build the context menu.
+   */
+  _buildContextMenu: function() {
+    let doc = this.doc.defaultView.parent.document;
+
+    this._contextmenu = doc.createElementNS(XUL_NS, "menupopup");
+    this._contextmenu.addEventListener("popupshowing", this._contextMenuUpdate);
+    this._contextmenu.id = "rule-view-context-menu";
+
+    this.menuitemSelectAll = createMenuItem(this._contextmenu, {
+      label: "ruleView.contextmenu.selectAll",
+      accesskey: "ruleView.contextmenu.selectAll.accessKey",
+      command: this._onSelectAll
+    });
+    this.menuitemCopy = createMenuItem(this._contextmenu, {
+      label: "ruleView.contextmenu.copy",
+      accesskey: "ruleView.contextmenu.copy.accessKey",
+      command: this._onCopy
+    });
+
+    let popupset = doc.documentElement.querySelector("popupset");
+    if (!popupset) {
+      popupset = doc.createElementNS(XUL_NS, "popupset");
+      doc.documentElement.appendChild(popupset);
+    }
+
+    popupset.appendChild(this._contextmenu);
+  },
+
+  /**
+   * Verify that target is indeed a css value we want a tooltip on, and if yes
+   * prepare some content for the tooltip
+   */
+  _buildTooltipContent: function(target) {
+    let isValueWithImage = target.classList.contains("ruleview-propertyvalue") &&
+      target.querySelector(".theme-link");
+
+    let isImageHref = target.classList.contains("theme-link") &&
+      target.parentNode.classList.contains("ruleview-propertyvalue");
+    if (isImageHref) {
+      target = target.parentNode;
+    }
+
+    let isEditing = this.isEditing;
+
+    // If the inplace-editor is visible or if this is not a background image
+    // don't show the tooltip
+    if (this.isEditing || (!isImageHref && !isValueWithImage)) {
+      return false;
+    }
+
+    // Retrieve the TextProperty for the hovered element
+    let property = target.textProperty;
+    let href = property.rule.domRule.href;
+
+    // Fill some content
+    this.tooltip.setCssBackgroundImageContent(property.value, href);
+    return true;
+  },
+
+  /**
+   * Update the context menu. This means enabling or disabling menuitems as
+   * appropriate.
+   */
+  _contextMenuUpdate: function() {
+    let win = this.doc.defaultView;
+
+    // Copy selection.
+    let selection = win.getSelection();
+    let copy;
+
+    if (selection.toString()) {
+      // Panel text selected
+      copy = true;
+    } else if (selection.anchorNode) {
+      // input type="text"
+      let { selectionStart, selectionEnd } = this.doc.popupNode;
+
+      if (isFinite(selectionStart) && isFinite(selectionEnd) &&
+          selectionStart !== selectionEnd) {
+        copy = true;
+      }
+    } else {
+      // No text selected, disable copy.
+      copy = false;
+    }
+
+    this.menuitemCopy.disabled = !copy;
+  },
+
+  /**
+   * Select all text.
+   */
+  _onSelectAll: function()
+  {
+    let win = this.doc.defaultView;
+    let selection = win.getSelection();
+
+    selection.selectAllChildren(this.doc.documentElement);
+  },
+
+  /**
+   * Copy selected text from the rule view.
+   *
+   * @param {Event} event
+   *        The event object.
+   */
+  _onCopy: function(event)
+  {
+    try {
+      let target = event.target;
+      let text;
+
+      if (event.target.nodeName === "menuitem") {
+        target = this.doc.popupNode;
+      }
+
+      if (target.nodeName == "input") {
+        let start = Math.min(target.selectionStart, target.selectionEnd);
+        let end = Math.max(target.selectionStart, target.selectionEnd);
+        let count = end - start;
+        text = target.value.substr(start, count);
+      } else {
+        let win = this.doc.defaultView;
+        let selection = win.getSelection();
+        debugger;
+        text = selection.toString();
+
+        // Remove any double newlines.
+        text = text.replace(/(\r?\n)\r?\n/g, "$1");
+
+        // Remove "inline"
+        let inline = _strings.GetStringFromName("rule.sourceInline");
+        let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
+        text = text.replace(rx, "");
+      }
+
+      clipboardHelper.copyString(text, this.doc);
+      event.preventDefault();
+    } catch(e) {
+      console.error(e);
+    }
+  },
 
   setPageStyle: function(aPageStyle) {
     this.pageStyle = aPageStyle;
@@ -1075,12 +1239,46 @@ CssRuleView.prototype = {
     return this.element.querySelectorAll(".styleinspector-propertyeditor").length > 0;
   },
 
+  _handlePrefChange: function(event, data) {
+    if (data.pref == "devtools.defaultColorUnit") {
+      let element = this._viewedElement;
+      this._viewedElement = null;
+      this.highlight(element);
+    }
+  },
+
   destroy: function CssRuleView_destroy()
   {
     this.clear();
 
-    this.element.removeEventListener("copy", this._boundCopy);
-    delete this._boundCopy;
+    gDevTools.off("pref-changed", this._handlePrefChange);
+
+    this.element.removeEventListener("copy", this._onCopy);
+    delete this._onCopy;
+
+    delete this._outputParser;
+
+    // Remove context menu
+    if (this._contextmenu) {
+      // Destroy the Select All menuitem.
+      this.menuitemSelectAll.removeEventListener("command", this._onSelectAll);
+      this.menuitemSelectAll = null;
+
+      // Destroy the Copy menuitem.
+      this.menuitemCopy.removeEventListener("command", this._onCopy);
+      this.menuitemCopy = null;
+
+      // Destroy the context menu.
+      this._contextmenu.removeEventListener("popupshowing", this._contextMenuUpdate);
+      this._contextmenu.parentNode.removeChild(this._contextmenu);
+      this._contextmenu = null;
+    }
+
+    // We manage the popupNode ourselves so we also need to destroy it.
+    this.doc.popupNode = null;
+
+    this.tooltip.stopTogglingOnHover(this.element);
+    this.tooltip.destroy();
 
     if (this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
@@ -1132,13 +1330,13 @@ CssRuleView.prototype = {
   {
     // Ignore refreshes during editing or when no element is selected.
     if (this.isEditing || !this._elementStyle) {
-      return promise.resolve(null);
+      return;
     }
 
     this._clearRules();
 
     // Repopulate the element style.
-    return this._populate();
+    this._populate();
   },
 
   _populate: function() {
@@ -1148,7 +1346,6 @@ CssRuleView.prototype = {
         return promise.reject("element changed");
       }
       this._createEditors();
-
 
       // Notify anyone that cares that we refreshed.
       var evt = this.doc.createEvent("Events");
@@ -1327,41 +1524,6 @@ CssRuleView.prototype = {
     this.togglePseudoElementVisibility(this.showPseudoElements);
   },
 
-  /**
-   * Copy selected text from the rule view.
-   *
-   * @param {Event} aEvent
-   *        The event object.
-   */
-  _onCopy: function CssRuleView_onCopy(aEvent)
-  {
-    let target = aEvent.target;
-
-    let text;
-
-    if (target.nodeName == "input") {
-      let start = Math.min(target.selectionStart, target.selectionEnd);
-      let end = Math.max(target.selectionStart, target.selectionEnd);
-      let count = end - start;
-      text = target.value.substr(start, count);
-    } else {
-      let win = this.doc.defaultView;
-      text = win.getSelection().toString();
-
-      // Remove any double newlines.
-      text = text.replace(/(\r?\n)\r?\n/g, "$1");
-
-      // Remove "inline"
-      let inline = _strings.GetStringFromName("rule.sourceInline");
-      let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
-      text = text.replace(rx, "");
-    }
-
-    clipboardHelper.copyString(text, this.doc);
-
-    aEvent.preventDefault();
-  },
-
 };
 
 /**
@@ -1442,6 +1604,22 @@ RuleEditor.prototype = {
     this.element.addEventListener("mousedown", function() {
       this.doc.defaultView.focus();
     }.bind(this), false);
+
+    this.element.addEventListener("contextmenu", event => {
+      try {
+        // In the sidebar we do not have this.doc.popupNode so we need to save
+        // the node ourselves.
+        this.doc.popupNode = event.explicitOriginalTarget;
+        let win = this.doc.defaultView;
+        win.focus();
+
+        this.ruleView._contextmenu.openPopup(
+          event.target.ownerDocument.documentElement,
+          "overlap", event.clientX, event.clientY, true, false, null);
+      } catch(e) {
+        console.error(e);
+      }
+    }, false);
 
     this.propertyList = createChild(code, "ul", {
       class: "ruleview-propertylist"
@@ -1616,8 +1794,8 @@ function TextPropertyEditor(aRuleEditor, aProperty)
   this.browserWindow = this.doc.defaultView.top;
   this.removeOnRevert = this.prop.value === "";
 
-  let sheet = this.prop.rule.sheet;
-  let href = sheet ? (sheet.href || sheet.nodeHref) : null;
+  let domRule = this.prop.rule.domRule;
+  let href = domRule ? domRule.href : null;
   if (href) {
     this.sheetURI = IOService.newURI(href, null, null);
   }
@@ -1714,6 +1892,10 @@ TextPropertyEditor.prototype = {
       tabindex: "0",
     });
 
+    // Storing the TextProperty on the valuespan for easy access
+    // (for instance by the tooltip)
+    this.valueSpan.textProperty = this.prop;
+
     // Save the initial value as the last committed value,
     // for restoring after pressing escape.
     this.committed = { name: this.prop.name,
@@ -1807,6 +1989,15 @@ TextPropertyEditor.prototype = {
     if (this.prop.priority) {
       val += " !" + this.prop.priority;
     }
+
+    let store = this.prop.rule.elementStyle.store;
+    let propDirty = store.userProperties.contains(this.prop.rule.style, name);
+    if (propDirty) {
+      this.element.setAttribute("dirty", "");
+    } else {
+      this.element.removeAttribute("dirty");
+    }
+
     // Treat URLs differently than other properties.
     // Allow the user to click a link to the resource and open it.
     let resourceURI = this.getResourceURI();
@@ -1823,7 +2014,6 @@ TextPropertyEditor.prototype = {
       });
 
       a.addEventListener("click", (aEvent) => {
-
         // Clicks within the link shouldn't trigger editing.
         aEvent.stopPropagation();
         aEvent.preventDefault();
@@ -1834,15 +2024,13 @@ TextPropertyEditor.prototype = {
 
       appendText(this.valueSpan, val.split(resourceURI)[1]);
     } else {
-      this.valueSpan.textContent = val;
-    }
-
-    let store = this.prop.rule.elementStyle.store;
-    let propDirty = store.userProperties.contains(this.prop.rule.style, name);
-    if (propDirty) {
-      this.element.setAttribute("dirty", "");
-    } else {
-      this.element.removeAttribute("dirty");
+      let outputParser = this.ruleEditor.ruleView._outputParser;
+      let frag = outputParser.parseCssProperty(name, val, {
+        colorSwatchClass: "ruleview-colorswatch",
+        defaultColorType: !propDirty
+      });
+      this.valueSpan.innerHTML = "";
+      this.valueSpan.appendChild(frag);
     }
 
     // Populate the computed styles.
@@ -1889,10 +2077,18 @@ TextPropertyEditor.prototype = {
       });
       appendText(li, ": ");
 
+      let outputParser = this.ruleEditor.ruleView._outputParser;
+      let frag = outputParser.parseCssProperty(
+        computed.name, computed.value, {
+          colorSwatchClass: "ruleview-colorswatch"
+        }
+      );
+
       createChild(li, "span", {
         class: "ruleview-propertyvalue theme-fg-color1",
-        textContent: computed.value
+        child: frag
       });
+
       appendText(li, ";");
     }
 
@@ -1979,6 +2175,7 @@ TextPropertyEditor.prototype = {
   {
     this.element.parentNode.removeChild(this.element);
     this.ruleEditor.rule.editClosestTextProperty(this.prop);
+    this.valueSpan.textProperty = null;
     this.prop.remove();
   },
 
@@ -2169,6 +2366,8 @@ function createChild(aParent, aTag, aAttributes)
     if (aAttributes.hasOwnProperty(attr)) {
       if (attr === "textContent") {
         elt.textContent = aAttributes[attr];
+      } else if(attr === "child") {
+        elt.appendChild(aAttributes[attr]);
       } else {
         elt.setAttribute(attr, aAttributes[attr]);
       }
@@ -2181,6 +2380,7 @@ function createChild(aParent, aTag, aAttributes)
 function createMenuItem(aMenu, aAttributes)
 {
   let item = aMenu.ownerDocument.createElementNS(XUL_NS, "menuitem");
+
   item.setAttribute("label", _strings.GetStringFromName(aAttributes.label));
   item.setAttribute("accesskey", _strings.GetStringFromName(aAttributes.accesskey));
   item.addEventListener("command", aAttributes.command);

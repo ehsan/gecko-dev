@@ -166,8 +166,8 @@ public:
     return nsDocument::GetElementById(aElementId);
   }
 
-  virtual void DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const MOZ_OVERRIDE;
-  // DocSizeOfIncludingThis is inherited from nsIDocument.
+  virtual void DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const MOZ_OVERRIDE;
+  // DocAddSizeOfIncludingThis is inherited from nsIDocument.
 
   virtual bool WillIgnoreCharsetOverride() MOZ_OVERRIDE;
 
@@ -311,15 +311,10 @@ protected:
   static void TryCacheCharset(nsICachingChannel* aCachingChannel,
                                 int32_t& aCharsetSource,
                                 nsACString& aCharset);
-  // aParentDocument could be null.
   void TryParentCharset(nsIDocShell*  aDocShell,
-                        nsIDocument* aParentDocument,
                         int32_t& charsetSource, nsACString& aCharset);
   static void TryWeakDocTypeDefault(int32_t& aCharsetSource,
                                     nsACString& aCharset);
-  static void TryDefaultCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                                int32_t& aCharsetSource,
-                                nsACString& aCharset);
 
   // Override so we can munge the charset on our wyciwyg channel as needed.
   virtual void SetDocumentCharacterSet(const nsACString& aCharSetID) MOZ_OVERRIDE;

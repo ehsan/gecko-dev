@@ -113,9 +113,9 @@
 #include "nsXPCOMCIDInternal.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIConsoleService.h"
 #include "PSMRunnable.h"
 #include "SharedSSLState.h"
+#include "nsContentUtils.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -213,11 +213,7 @@ LogInvalidCertError(TransportSecurityInfo *socketInfo,
   socketInfo->GetErrorLogMessage(errorCode, errorMessageType, message);
   
   if (!message.IsEmpty()) {
-    nsCOMPtr<nsIConsoleService> console;
-    console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console) {
-      console->LogStringMessage(message.get());
-    }
+    nsContentUtils::LogSimpleConsoleError(message, "SSL");
   }
 }
 
@@ -303,7 +299,7 @@ CertErrorRunnable::CheckCertOverrides()
   mInfoObject->GetPort(&port);
 
   nsCString hostWithPortString;
-  hostWithPortString.AppendASCII(mInfoObject->GetHostName());
+  hostWithPortString.AppendASCII(mInfoObject->GetHostNameRaw());
   hostWithPortString.AppendLiteral(":");
   hostWithPortString.AppendInt(port);
 
@@ -319,7 +315,7 @@ CertErrorRunnable::CheckCertOverrides()
     = do_GetService(NS_SSSERVICE_CONTRACTID, &nsrv);
   if (NS_SUCCEEDED(nsrv)) {
     nsrv = sss->IsSecureHost(nsISiteSecurityService::HEADER_HSTS,
-                             mInfoObject->GetHostName(),
+                             mInfoObject->GetHostNameRaw(),
                              mProviderFlags,
                              &strictTransportSecurityEnabled);
   }
@@ -417,7 +413,7 @@ CertErrorRunnable::CheckCertOverrides()
                                         OverridableCertErrorMessage);
 
   LogInvalidCertError(mInfoObject,
-                      nsDependentCString(mInfoObject->GetHostName()),
+                      mInfoObject->GetHostName(),
                       hostWithPortString,
                       port,
                       result->mErrorCode,
@@ -514,7 +510,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
   }
 
   // Check the name field against the desired hostname.
-  if (CERT_VerifyCertName(cert, infoObject->GetHostName()) != SECSuccess) {
+  if (CERT_VerifyCertName(cert, infoObject->GetHostNameRaw()) != SECSuccess) {
     collected_errors |= nsICertOverrideService::ERROR_MISMATCH;
     errorCodeMismatch = SSL_ERROR_BAD_CERT_DOMAIN;
   }
@@ -887,7 +883,7 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
 
   CERTCertList *verifyCertChain = nullptr;
   SECOidTag evOidPolicy;
-  rv = PSM_SSL_PKIX_AuthCertificate(cert, infoObject, infoObject->GetHostName(),
+  rv = PSM_SSL_PKIX_AuthCertificate(cert, infoObject, infoObject->GetHostNameRaw(),
                                     &verifyCertChain, &evOidPolicy);
 
   // We want to remember the CA certs in the temp db, so that the application can find the
@@ -1168,17 +1164,14 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
 
   nsNSSSocketInfo *socketInfo = static_cast<nsNSSSocketInfo*>(arg);
   
-  if (socketInfo) {
-    // This is the first callback during full handshakes.
-    socketInfo->SetFirstServerHelloReceived();
-  }
-
   ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
 
   if (!checkSig || isServer || !socketInfo || !serverCert) {
       PR_SetError(PR_INVALID_STATE_ERROR, 0);
       return SECFailure;
   }
+
+  socketInfo->SetFullHandshake();
 
   if (BlockServerCertChangeForSpdy(socketInfo, serverCert) != SECSuccess)
     return SECFailure;

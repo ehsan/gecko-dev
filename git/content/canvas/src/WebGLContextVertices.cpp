@@ -247,10 +247,10 @@ WebGLContext::GetVertexAttrib(JSContext* cx, GLuint index, GLenum pname,
         {
             if (!ValidateAttribIndex(index, "getVertexAttrib"))
                 return JS::NullValue();
-            
+
             if (!mBoundVertexArray->mAttribs[index].enabled)
                 return JS::Int32Value(4);
-            
+
             // Don't break; fall through.
         }
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_TYPE:
@@ -379,7 +379,7 @@ WebGLContext::VertexAttribPointer(GLuint index, GLint size, GLenum type,
     if (byteOffset & requiredAlignmentMask) {
         return ErrorInvalidOperation("vertexAttribPointer: byteOffset doesn't satisfy the alignment "
                                      "requirement of given type");
-        
+
     }
 
     InvalidateBufferFetching();
@@ -423,6 +423,30 @@ WebGLContext::VertexAttribDivisor(GLuint index, GLuint divisor)
     MakeContextCurrent();
 
     gl->fVertexAttribDivisor(index, divisor);
+}
+
+bool
+WebGLContext::DrawInstanced_check(const char* info)
+{
+    // This restriction was removed in GLES3, so WebGL2 shouldn't have it.
+    if (!IsWebGL2() &&
+        IsExtensionEnabled(ANGLE_instanced_arrays) &&
+        !mBufferFetchingHasPerVertex)
+    {
+        /* http://www.khronos.org/registry/gles/extensions/ANGLE/ANGLE_instanced_arrays.txt
+         *  If all of the enabled vertex attribute arrays that are bound to active
+         *  generic attributes in the program have a non-zero divisor, the draw
+         *  call should return INVALID_OPERATION.
+         *
+         * NB: This also appears to apply to NV_instanced_arrays, though the
+         * INVALID_OPERATION emission is not explicitly stated.
+         * ARB_instanced_arrays does not have this restriction.
+         */
+        ErrorInvalidOperation("%s: at least one vertex attribute divisor should be 0", info);
+        return false;
+    }
+
+    return true;
 }
 
 bool WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount, const char* info)
@@ -473,20 +497,10 @@ bool WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcoun
         return false;
     }
 
-    if (!mBufferFetchingHasPerVertex && !IsWebGL2()) {
-        /* http://www.khronos.org/registry/gles/extensions/ANGLE/ANGLE_instanced_arrays.txt
-         *  If all of the enabled vertex attribute arrays that are bound to active
-         *  generic attributes in the program have a non-zero divisor, the draw
-         *  call should return INVALID_OPERATION.
-         */
-        ErrorInvalidOperation("%s: at least one vertex attribute divisor should be 0", info);
-        return false;
-    }
-
     MakeContextCurrent();
 
     if (mBoundFramebuffer) {
-        if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers()) {
+        if (!mBoundFramebuffer->CheckAndInitializeAttachments()) {
             ErrorInvalidFramebufferOperation("%s: incomplete framebuffer", info);
             return false;
         }
@@ -528,6 +542,9 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
         return;
 
     if (!DrawArrays_check(first, count, primcount, "drawArraysInstanced"))
+        return;
+
+    if (!DrawInstanced_check("drawArraysInstanced"))
         return;
 
     SetupContextLossTimer();
@@ -637,20 +654,10 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type, WebGLintptr byteOff
         return false;
     }
 
-    if (!mBufferFetchingHasPerVertex && !IsWebGL2()) {
-        /* http://www.khronos.org/registry/gles/extensions/ANGLE/ANGLE_instanced_arrays.txt
-         *  If all of the enabled vertex attribute arrays that are bound to active
-         *  generic attributes in the program have a non-zero divisor, the draw
-         *  call should return INVALID_OPERATION.
-         */
-        ErrorInvalidOperation("%s: at least one vertex attribute divisor should be 0", info);
-        return false;
-    }
-
     MakeContextCurrent();
 
     if (mBoundFramebuffer) {
-        if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers()) {
+        if (!mBoundFramebuffer->CheckAndInitializeAttachments()) {
             ErrorInvalidFramebufferOperation("%s: incomplete framebuffer", info);
             return false;
         }
@@ -696,6 +703,9 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
     if (!DrawElements_check(count, type, byteOffset, primcount, "drawElementsInstanced"))
         return;
 
+    if (!DrawInstanced_check("drawElementsInstanced"))
+        return;
+
     SetupContextLossTimer();
     gl->fDrawElementsInstanced(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset), primcount);
 
@@ -716,7 +726,7 @@ void WebGLContext::Draw_cleanup()
     if (gl->WorkAroundDriverBugs()) {
         if (gl->Renderer() == gl::GLContext::RendererTegra) {
             mDrawCallsSinceLastFlush++;
-            
+
             if (mDrawCallsSinceLastFlush >= MAX_DRAW_CALLS_SINCE_FLUSH) {
                 gl->fFlush();
                 mDrawCallsSinceLastFlush = 0;

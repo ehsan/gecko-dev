@@ -16,7 +16,11 @@
 namespace js {
 
 namespace jit {
-class IonCompartment;
+class JitCompartment;
+}
+
+namespace gc {
+template<class Node> class ComponentFinder;
 }
 
 struct NativeIterator;
@@ -31,14 +35,14 @@ struct NativeIterator;
 class DtoaCache {
     double       d;
     int          base;
-    JSFlatString *s;      // if s==NULL, d and base are not valid
+    JSFlatString *s;      // if s==nullptr, d and base are not valid
 
   public:
-    DtoaCache() : s(NULL) {}
-    void purge() { s = NULL; }
+    DtoaCache() : s(nullptr) {}
+    void purge() { s = nullptr; }
 
     JSFlatString *lookup(int base, double d) {
-        return this->s && base == this->base && d == this->d ? this->s : NULL;
+        return this->s && base == this->base && d == this->d ? this->s : nullptr;
     }
 
     void cache(int base, double d, JSFlatString *s) {
@@ -67,18 +71,18 @@ struct CrossCompartmentKey
     js::gc::Cell *wrapped;
 
     CrossCompartmentKey()
-      : kind(ObjectWrapper), debugger(NULL), wrapped(NULL) {}
+      : kind(ObjectWrapper), debugger(nullptr), wrapped(nullptr) {}
     CrossCompartmentKey(JSObject *wrapped)
-      : kind(ObjectWrapper), debugger(NULL), wrapped(wrapped) {}
+      : kind(ObjectWrapper), debugger(nullptr), wrapped(wrapped) {}
     CrossCompartmentKey(JSString *wrapped)
-      : kind(StringWrapper), debugger(NULL), wrapped(wrapped) {}
+      : kind(StringWrapper), debugger(nullptr), wrapped(wrapped) {}
     CrossCompartmentKey(Value wrapped)
       : kind(wrapped.isString() ? StringWrapper : ObjectWrapper),
-        debugger(NULL),
+        debugger(nullptr),
         wrapped((js::gc::Cell *)wrapped.toGCThing()) {}
     CrossCompartmentKey(const RootedValue &wrapped)
       : kind(wrapped.get().isString() ? StringWrapper : ObjectWrapper),
-        debugger(NULL),
+        debugger(nullptr),
         wrapped((js::gc::Cell *)wrapped.get().toGCThing()) {}
     CrossCompartmentKey(Kind kind, JSObject *dbg, js::gc::Cell *wrapped)
       : kind(kind), debugger(dbg), wrapped(wrapped) {}
@@ -161,11 +165,11 @@ struct JSCompartment
     }
 
     /*
-     * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
-     * compartment's global has been collected.  The latter can happen if e.g.
-     * a string in a compartment is rooted but no object is, and thus the global
-     * isn't rooted, and thus the global can be finalized while the compartment
-     * lives on.
+     * Nb: global_ might be nullptr, if (a) it's the atoms compartment, or
+     * (b) the compartment's global has been collected.  The latter can happen
+     * if e.g. a string in a compartment is rooted but no object is, and thus
+     * the global isn't rooted, and thus the global can be finalized while the
+     * compartment lives on.
      *
      * In contrast, JSObject::global() is infallible because marking a JSObject
      * always marks its global as well.
@@ -192,9 +196,9 @@ struct JSCompartment
 
     void                         *data;
 
+  private:
     js::ObjectMetadataCallback   objectMetadataCallback;
 
-  private:
     js::WrapperMap               crossCompartmentWrappers;
 
   public:
@@ -204,17 +208,29 @@ struct JSCompartment
     js::RegExpCompartment        regExps;
 
     /* Set of all currently living type representations. */
-    js::TypeRepresentationSet    typeReprs;
+    js::TypeRepresentationHash   typeReprs;
 
-  private:
-    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, mozilla::MallocSizeOf mallocSizeOf);
+    /*
+     * For generational GC, record whether a write barrier has added this
+     * compartment's global to the store buffer since the last minor GC.
+     *
+     * This is used to avoid adding it to the store buffer on every write, which
+     * can quickly fill the buffer and also cause performance problems.
+     */
+    bool                         globalWriteBarriered;
 
   public:
-    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *compartmentObject,
-                             JS::TypeInferenceSizes *tiSizes,
-                             size_t *shapesCompartmentTables, size_t *crossCompartmentWrappers,
-                             size_t *regexpCompartment, size_t *debuggeesSet,
-                             size_t *baselineStubsOptimized);
+    void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
+                                size_t *tiPendingArrays,
+                                size_t *tiAllocationSiteTables,
+                                size_t *tiArrayTypeTables,
+                                size_t *tiObjectTypeTables,
+                                size_t *compartmentObject,
+                                size_t *shapesCompartmentTables,
+                                size_t *crossCompartmentWrappers,
+                                size_t *regexpCompartment,
+                                size_t *debuggeesSet,
+                                size_t *baselineStubsOptimized);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -310,6 +326,12 @@ struct JSCompartment
     void purge();
     void clearTables();
 
+    bool hasObjectMetadataCallback() const { return objectMetadataCallback; }
+    void setObjectMetadataCallback(js::ObjectMetadataCallback callback);
+    bool callObjectMetadataCallback(JSContext *cx, JSObject **obj) const {
+        return objectMetadataCallback(cx, obj);
+    }
+
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
     js::DtoaCache dtoaCache;
@@ -350,10 +372,10 @@ struct JSCompartment
     bool addDebuggee(JSContext *cx, js::GlobalObject *global,
                      js::AutoDebugModeGC &dmgc);
     void removeDebuggee(js::FreeOp *fop, js::GlobalObject *global,
-                        js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
+                        js::GlobalObjectSet::Enum *debuggeesEnum = nullptr);
     void removeDebuggee(js::FreeOp *fop, js::GlobalObject *global,
                         js::AutoDebugModeGC &dmgc,
-                        js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
+                        js::GlobalObjectSet::Enum *debuggeesEnum = nullptr);
     bool setDebugModeFromC(JSContext *cx, bool b, js::AutoDebugModeGC &dmgc);
 
     void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JSObject *handler);
@@ -383,12 +405,12 @@ struct JSCompartment
 
 #ifdef JS_ION
   private:
-    js::jit::IonCompartment *ionCompartment_;
+    js::jit::JitCompartment *jitCompartment_;
 
   public:
-    bool ensureIonCompartmentExists(JSContext *cx);
-    js::jit::IonCompartment *ionCompartment() {
-        return ionCompartment_;
+    bool ensureJitCompartmentExists(JSContext *cx);
+    js::jit::JitCompartment *jitCompartment() {
+        return jitCompartment_;
     }
 #endif
 };

@@ -24,7 +24,8 @@ Cu.import("resource://gre/modules/devtools/SourceMap.jsm", SourceMap);
 let loader = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}).Loader;
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
 
-this.EXPORTED_SYMBOLS = ["DevToolsLoader", "devtools"];
+this.EXPORTED_SYMBOLS = ["DevToolsLoader", "devtools", "BuiltinProvider",
+                         "SrcdirProvider"];
 
 /**
  * Providers are different strategies for loading the devtools.
@@ -50,6 +51,8 @@ var BuiltinProvider = {
         "source-map": SourceMap,
       },
       paths: {
+        // When you add a line to this mapping, don't forget to make a
+        // corresponding addition to the SrcdirProvider mapping below as well.
         "": "resource://gre/modules/commonjs/",
         "main": "resource:///modules/devtools/main.js",
         "devtools": "resource:///modules/devtools",
@@ -57,11 +60,12 @@ var BuiltinProvider = {
         "devtools/toolkit/webconsole": "resource://gre/modules/devtools/toolkit/webconsole",
         "devtools/app-actor-front": "resource://gre/modules/devtools/app-actor-front.js",
         "devtools/styleinspector/css-logic": "resource://gre/modules/devtools/styleinspector/css-logic",
+        "devtools/css-color": "resource://gre/modules/devtools/css-color",
+        "devtools/output-parser": "resource://gre/modules/devtools/output-parser",
         "devtools/touch-events": "resource://gre/modules/devtools/touch-events",
         "devtools/client": "resource://gre/modules/devtools/client",
 
-        "escodegen/escodegen": "resource://gre/modules/devtools/escodegen/escodegen",
-        "escodegen/package.json": "resource://gre/modules/devtools/escodegen/package.json",
+        "escodegen": "resource://gre/modules/devtools/escodegen",
         "estraverse": "resource://gre/modules/devtools/escodegen/estraverse",
 
         // Allow access to xpcshell test items from the loader.
@@ -93,15 +97,19 @@ var SrcdirProvider = {
                                                 Ci.nsISupportsString);
     srcdir = OS.Path.normalize(srcdir.data.trim());
     let devtoolsDir = OS.Path.join(srcdir, "browser", "devtools");
+    let toolkitDir = OS.Path.join(srcdir, "toolkit", "devtools");
+    let mainURI = this.fileURI(OS.Path.join(devtoolsDir, "main.js"));
     let devtoolsURI = this.fileURI(devtoolsDir);
-    let toolkitURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools"));
-    let serverURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools", "server"));
-    let webconsoleURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools", "webconsole"));
-    let appActorURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools", "apps", "app-actor-front.js"));
-    let cssLogicURI = this.fileURI(OS.Path.join(toolkitURI, "styleinspector", "css-logic"));
+    let serverURI = this.fileURI(OS.Path.join(toolkitDir, "server"));
+    let webconsoleURI = this.fileURI(OS.Path.join(toolkitDir, "webconsole"));
+    let appActorURI = this.fileURI(OS.Path.join(toolkitDir, "apps", "app-actor-front.js"));
+    let cssLogicURI = this.fileURI(OS.Path.join(toolkitDir, "styleinspector", "css-logic"));
+    let cssColorURI = this.fileURI(OS.Path.join(toolkitDir, "css-color"));
+    let outputParserURI = this.fileURI(OS.Path.join(toolkitDir, "output-parser"));
     let touchEventsURI = this.fileURI(OS.Path.join(toolkitDir, "touch-events"));
-    let clientURI = this.fileURI(OS.Path.join(srcdir, "toolkit", "devtools", "client"));
-    let mainURI = this.fileURI(OS.Path.join(srcdir, "browser", "devtools", "main.js"));
+    let clientURI = this.fileURI(OS.Path.join(toolkitDir, "client"));
+    let escodegenURI = this.fileURI(OS.Path.join(toolkitDir, "escodegen"));
+    let estraverseURI = this.fileURI(OS.Path.join(toolkitDir, "escodegen", "estraverse"));
     this.loader = new loader.Loader({
       modules: {
         "toolkit/loader": loader,
@@ -109,14 +117,18 @@ var SrcdirProvider = {
       },
       paths: {
         "": "resource://gre/modules/commonjs/",
+        "main": mainURI,
+        "devtools": devtoolsURI,
         "devtools/server": serverURI,
         "devtools/toolkit/webconsole": webconsoleURI,
         "devtools/app-actor-front": appActorURI,
-        "devtools/client": clientURI,
-        "devtools": devtoolsURI,
         "devtools/styleinspector/css-logic": cssLogicURI,
+        "devtools/css-color": cssColorURI,
+        "devtools/output-parser": outputParserURI,
         "devtools/touch-events": touchEventsURI,
-        "main": mainURI
+        "devtools/client": clientURI,
+        "escodegen": escodegenURI,
+        "estraverse": estraverseURI
       },
       globals: loaderGlobals
     });

@@ -15,6 +15,12 @@
 #include "mozilla/dom/quota/QuotaObject.h"
 #include "mozilla/IOInterposer.h"
 
+// The last VFS version for which this file has been updated.
+#define LAST_KNOWN_VFS_VERSION 3
+
+// The last io_methods version for which this file has been updated.
+#define LAST_KNOWN_IOMETHODS_VERSION 3
+
 /**
  * This preference is a workaround to allow users/sysadmins to identify
  * that the profile exists on an NFS share whose implementation
@@ -81,11 +87,27 @@ public:
   {
   }
 
-  ~IOThreadAutoTimer() {
+  /**
+   * This constructor is for when we want to report an operation to
+   * IOInterposer but do not require a telemetry probe.
+   *
+   * @param aOp IO Operation to report through the IOInterposer.
+   */
+  IOThreadAutoTimer(IOInterposeObserver::Operation aOp)
+    : start(TimeStamp::Now()),
+      id(Telemetry::HistogramCount),
+      op(aOp)
+  {
+  }
+
+  ~IOThreadAutoTimer()
+  {
     TimeStamp end(TimeStamp::Now());
     uint32_t mainThread = NS_IsMainThread() ? 1 : 0;
-    Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
-                                   start, end);
+    if (id != Telemetry::HistogramCount) {
+      Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
+                                     start, end);
+    }
 #ifdef MOZ_ENABLE_PROFILER_SPS
     if (IOInterposer::IsObservedOperation(op)) {
       const char* main_ref  = "sqlite-mainthread";
@@ -128,7 +150,10 @@ xClose(sqlite3_file *pFile)
 {
   telemetry_file *p = (telemetry_file *)pFile;
   int rc;
-  rc = p->pReal->pMethods->xClose(p->pReal);
+  { // Scope for IOThreadAutoTimer
+    IOThreadAutoTimer ioTimer(IOInterposeObserver::OpClose);
+    rc = p->pReal->pMethods->xClose(p->pReal);
+  }
   if( rc==SQLITE_OK ){
     delete p->base.pMethods;
     p->base.pMethods = nullptr;
@@ -204,6 +229,7 @@ xSync(sqlite3_file *pFile, int flags)
 int
 xFileSize(sqlite3_file *pFile, sqlite_int64 *pSize)
 {
+  IOThreadAutoTimer ioTimer(IOInterposeObserver::OpStat);
   telemetry_file *p = (telemetry_file *)pFile;
   int rc;
   rc = p->pReal->pMethods->xFileSize(p->pReal, pSize);
@@ -333,7 +359,8 @@ int
 xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
           int flags, int *pOutFlags)
 {
-  IOThreadAutoTimer ioTimer(Telemetry::MOZ_SQLITE_OPEN_MS);
+  IOThreadAutoTimer ioTimer(Telemetry::MOZ_SQLITE_OPEN_MS,
+                            IOInterposeObserver::OpCreateOrOpen);
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_OPEN_MS> timer;
   sqlite3_vfs *orig_vfs = static_cast<sqlite3_vfs*>(vfs->pAppData);
   int rc;
@@ -379,10 +406,11 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
     sqlite3_io_methods *pNew = new sqlite3_io_methods;
     const sqlite3_io_methods *pSub = p->pReal->pMethods;
     memset(pNew, 0, sizeof(*pNew));
-    // If you update this version number, you must add appropriate IO methods
-    // for any methods added in the version change.
-    pNew->iVersion = 3;
-    MOZ_ASSERT(pNew->iVersion >= pSub->iVersion);
+    // If the io_methods version is higher than the last known one, you should
+    // update this VFS adding appropriate IO methods for any methods added in
+    // the version change.
+    pNew->iVersion = pSub->iVersion;
+    MOZ_ASSERT(pNew->iVersion <= LAST_KNOWN_IOMETHODS_VERSION);
     pNew->xClose = xClose;
     pNew->xRead = xRead;
     pNew->xWrite = xWrite;
@@ -395,19 +423,23 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
     pNew->xFileControl = xFileControl;
     pNew->xSectorSize = xSectorSize;
     pNew->xDeviceCharacteristics = xDeviceCharacteristics;
-    // Methods added in version 2.
-    pNew->xShmMap = pSub->xShmMap ? xShmMap : 0;
-    pNew->xShmLock = pSub->xShmLock ? xShmLock : 0;
-    pNew->xShmBarrier = pSub->xShmBarrier ? xShmBarrier : 0;
-    pNew->xShmUnmap = pSub->xShmUnmap ? xShmUnmap : 0;
-    // Methods added in version 3.
-    // SQLite 3.7.17 calls these methods without checking for nullptr first,
-    // so we always define them.  Verify that we're not going to call
-    // nullptrs, though.
-    MOZ_ASSERT(pSub->xFetch);
-    pNew->xFetch = xFetch;
-    MOZ_ASSERT(pSub->xUnfetch);
-    pNew->xUnfetch = xUnfetch;
+    if (pNew->iVersion >= 2) {
+      // Methods added in version 2.
+      pNew->xShmMap = pSub->xShmMap ? xShmMap : 0;
+      pNew->xShmLock = pSub->xShmLock ? xShmLock : 0;
+      pNew->xShmBarrier = pSub->xShmBarrier ? xShmBarrier : 0;
+      pNew->xShmUnmap = pSub->xShmUnmap ? xShmUnmap : 0;
+    }
+    if (pNew->iVersion >= 3) {
+      // Methods added in version 3.
+      // SQLite 3.7.17 calls these methods without checking for nullptr first,
+      // so we always define them.  Verify that we're not going to call
+      // nullptrs, though.
+      MOZ_ASSERT(pSub->xFetch);
+      pNew->xFetch = xFetch;
+      MOZ_ASSERT(pSub->xUnfetch);
+      pNew->xUnfetch = xUnfetch;
+    }
     pFile->pMethods = pNew;
   }
   return rc;
@@ -551,10 +583,11 @@ sqlite3_vfs* ConstructTelemetryVFS()
 
   sqlite3_vfs *tvfs = new ::sqlite3_vfs;
   memset(tvfs, 0, sizeof(::sqlite3_vfs));
-  // If you update this version number, you must add appropriate VFS methods
-  // for any methods added in the version change.
-  tvfs->iVersion = 3;
-  MOZ_ASSERT(vfs->iVersion == tvfs->iVersion);
+  // If the VFS version is higher than the last known one, you should update
+  // this VFS adding appropriate methods for any methods added in the version
+  // change.
+  tvfs->iVersion = vfs->iVersion;
+  MOZ_ASSERT(vfs->iVersion <= LAST_KNOWN_VFS_VERSION);
   tvfs->szOsFile = sizeof(telemetry_file) - sizeof(sqlite3_file) + vfs->szOsFile;
   tvfs->mxPathname = vfs->mxPathname;
   tvfs->zName = "telemetry-vfs";
@@ -571,13 +604,16 @@ sqlite3_vfs* ConstructTelemetryVFS()
   tvfs->xSleep = xSleep;
   tvfs->xCurrentTime = xCurrentTime;
   tvfs->xGetLastError = xGetLastError;
-  // Methods added in version 2.
-  tvfs->xCurrentTimeInt64 = xCurrentTimeInt64;
-  // Methods added in version 3.
-  tvfs->xSetSystemCall = xSetSystemCall;
-  tvfs->xGetSystemCall = xGetSystemCall;
-  tvfs->xNextSystemCall = xNextSystemCall;
-
+  if (tvfs->iVersion >= 2) {
+    // Methods added in version 2.
+    tvfs->xCurrentTimeInt64 = xCurrentTimeInt64;
+  }
+  if (tvfs->iVersion >= 3) {
+    // Methods added in version 3.
+    tvfs->xSetSystemCall = xSetSystemCall;
+    tvfs->xGetSystemCall = xGetSystemCall;
+    tvfs->xNextSystemCall = xNextSystemCall;
+  }
   return tvfs;
 }
 

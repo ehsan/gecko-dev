@@ -159,10 +159,11 @@ SocialUI = {
           }
           break;
         case "social:profile-changed":
+          // make sure anything that happens here only affects the provider for
+          // which the profile is changing, and that anything we call actually
+          // needs to change based on profile data.
           if (this._matchesCurrentProvider(data)) {
             SocialToolbar.updateProvider();
-            SocialMarks.update();
-            SocialChatBar.update();
           }
           break;
         case "social:frameworker-error":
@@ -215,13 +216,20 @@ SocialUI = {
       // enabled == true means we at least have a defaultProvider
       let provider = Social.provider || Social.defaultProvider;
       // We only need to update the command itself - all our menu items use it.
-      let label = gNavigatorBundle.getFormattedString(Social.provider ?
-                                                        "social.turnOff.label" :
-                                                        "social.turnOn.label",
-                                                      [provider.name]);
-      let accesskey = gNavigatorBundle.getString(Social.provider ?
-                                                   "social.turnOff.accesskey" :
-                                                   "social.turnOn.accesskey");
+      let label;
+      if (Social.providers.length == 1) {
+        label = gNavigatorBundle.getFormattedString(Social.provider
+                                                    ? "social.turnOff.label"
+                                                    : "social.turnOn.label",
+                                                    [provider.name]);
+      } else {
+        label = gNavigatorBundle.getString(Social.provider
+                                           ? "social.turnOffAll.label"
+                                           : "social.turnOnAll.label");
+      }
+      let accesskey = gNavigatorBundle.getString(Social.provider
+                                                 ? "social.turnOff.accesskey"
+                                                 : "social.turnOn.accesskey");
       toggleCommand.setAttribute("label", label);
       toggleCommand.setAttribute("accesskey", accesskey);
     }
@@ -1439,7 +1447,17 @@ SocialStatus = {
   removeProvider: function(origin) {
     if (!Social.allowMultipleWorkers)
       return;
+    this._removeFrame(origin);
     this._toolbarHelper.removeProviderButton(origin);
+  },
+
+  _removeFrame: function(origin) {
+    let notificationFrameId = "social-status-" + origin;
+    let frame = document.getElementById(notificationFrameId);
+    if (frame) {
+      SharedFrame.forgetGroup(frame.id);
+      frame.parentNode.removeChild(frame);
+    }
   },
 
   get _toolbarHelper() {

@@ -18,7 +18,7 @@
 #include "nsProxyRelease.h"
 #include "PSMRunnable.h"
 #include "ScopedNSSTypes.h"
-#include "nsIConsoleService.h"
+#include "nsContentUtils.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsNetUtil.h"
 #include "SharedSSLState.h"
@@ -854,7 +854,6 @@ PreliminaryHandshakeDone(PRFileDesc* fd)
     return;
 
   infoObject->SetPreliminaryHandshakeDone();
-  infoObject->SetFirstServerHelloReceived();
 
   // Get the NPN value.
   SSLNextProtoState state;
@@ -1028,20 +1027,30 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
 
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
-  // certificate validation sets FirstServerHelloReceived, so if that flag
+  // certificate validation sets IsFullHandshake, so if that flag
   // is absent at handshake time we have a resumed session. Check this before
   // PreliminaryHandshakeDone() because that function also sets that flag.
-  bool isResumedSession = !(infoObject->GetFirstServerHelloReceived());
+  bool isResumedSession = !infoObject->IsFullHandshake();
 
   // Do the bookkeeping that needs to be done after the
   // server's ServerHello...ServerHelloDone have been processed, but that doesn't
   // need the handshake to be completed.
   PreliminaryHandshakeDone(fd);
 
-  // If the handshake completed, then we know the site is TLS tolerant (if this
-  // was a TLS connection).
-  nsSSLIOLayerHelpers& ioLayerHelpers = infoObject->SharedState().IOLayerHelpers();
-  ioLayerHelpers.rememberTolerantSite(infoObject);
+  nsSSLIOLayerHelpers& ioLayerHelpers
+    = infoObject->SharedState().IOLayerHelpers();
+
+  SSLVersionRange versions(infoObject->GetTLSVersionRange());
+
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+         ("[%p] HandshakeCallback: succeeded using TLS version range (0x%04x,0x%04x)\n",
+          fd, static_cast<unsigned int>(versions.min),
+              static_cast<unsigned int>(versions.max)));
+
+  // If the handshake completed, then we know the site is TLS tolerant
+  ioLayerHelpers.rememberTolerantAtVersion(infoObject->GetHostName(),
+                                           infoObject->GetPort(),
+                                           versions.max);
 
   PRBool siteSupportsSafeRenego;
   rv = SSL_HandshakeNegotiatedExtension(fd, ssl_renegotiation_info_xtn,
@@ -1066,16 +1075,14 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   // localized.
   if (!siteSupportsSafeRenego &&
       ioLayerHelpers.getWarnLevelMissingRFC5746() > 0) {
-    nsCOMPtr<nsIConsoleService> console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console) {
-      nsXPIDLCString hostName;
-      infoObject->GetHostName(getter_Copies(hostName));
+    nsXPIDLCString hostName;
+    infoObject->GetHostName(getter_Copies(hostName));
 
-      nsAutoString msg;
-      msg.Append(NS_ConvertASCIItoUTF16(hostName));
-      msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
-      console->LogStringMessage(msg.get());
-    }
+    nsAutoString msg;
+    msg.Append(NS_ConvertASCIItoUTF16(hostName));
+    msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
+
+    nsContentUtils::LogSimpleConsoleError(msg, "SSL");
   }
 
   ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
