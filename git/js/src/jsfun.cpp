@@ -329,7 +329,7 @@ bool
 js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
                            MutableHandleObject objp)
 {
-    /* NB: Keep this in sync with CloneFunctionAndScript. */
+    /* NB: Keep this in sync with CloneInterpretedFunction. */
     RootedAtom atom(xdr->cx());
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
@@ -354,8 +354,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
         atom = fun->atom();
         script = fun->nonLazyScript();
     } else {
-        fun = NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, NullPtr(), NullPtr(),
-                          JSFunction::FinalizeKind, TenuredObject);
+        fun = NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, NullPtr(), NullPtr());
         if (!fun)
             return false;
         atom = NULL;
@@ -396,13 +395,14 @@ template bool
 js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, MutableHandleObject);
 
 JSObject *
-js::CloneFunctionAndScript(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
+js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun,
+                             NewObjectKind newKind /* = GenericObject */)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedFunction clone(cx, NewFunction(cx, NullPtr(), NULL, 0,
                                          JSFunction::INTERPRETED, NullPtr(), NullPtr(),
-                                         JSFunction::FinalizeKind, TenuredObject));
+                                         JSFunction::FinalizeKind, newKind));
     if (!clone)
         return NULL;
 
@@ -1462,8 +1462,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
      */
     RootedAtom anonymousAtom(cx, cx->names().anonymous);
     RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED_LAMBDA,
-                                       global, anonymousAtom, JSFunction::FinalizeKind,
-                                       TenuredObject));
+                                       global, anonymousAtom));
     if (!fun)
         return false;
 

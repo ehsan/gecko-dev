@@ -22,7 +22,6 @@
 #include "nsIFrame.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIDocShell.h"
 #include "nsError.h"
 #include "nsNodeInfoManager.h"
 #include "nsNetUtil.h"
@@ -1059,15 +1058,6 @@ nsresult HTMLMediaElement::LoadResource()
   if (mChannel) {
     mChannel->Cancel(NS_BINDING_ABORTED);
     mChannel = nullptr;
-  }
-
-  // Check if media is allowed for the docshell.
-  nsCOMPtr<nsISupports> container = OwnerDoc()->GetContainer();
-  if (container) {
-    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
-    if (docShell && !docShell->GetAllowMedia()) {
-      return NS_ERROR_FAILURE;
-    }
   }
 
   int16_t shouldLoad = nsIContentPolicy::ACCEPT;

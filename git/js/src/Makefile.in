@@ -517,8 +517,7 @@ JS_CONFIG_SUBSTITUTIONS=\
 	-DMOZJS_PATCH_VERSION="$(MOZJS_PATCH_VERSION)" \
 	-DMOZJS_ALPHA="$(MOZJS_ALPHA)" \
 	-DNSPR_CFLAGS="$(NSPR_CFLAGS)" \
-	-DNSPR_PKGCONF_CHECK="$(NSPR_PKGCONF_CHECK)" \
-	-DUSE_CXX11="$(USE_CXX11)"
+	-DNSPR_PKGCONF_CHECK="$(NSPR_PKGCONF_CHECK)"
 
 $(JS_CONFIG_NAME): js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config/config.mk $(topsrcdir)/config/rules.mk
 	$(RM) $@.tmp

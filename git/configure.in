@@ -83,7 +83,7 @@ AC_PROG_AWK
 dnl Initialize the Pthread test variables early so they can be
 dnl  overridden by each platform.
 dnl ========================================================
-MOZ_USE_PTHREADS=
+USE_PTHREADS=
 _PTHREAD_LDFLAGS=""
 
 dnl Do not allow a separate objdir build if a srcdir build exists.
@@ -3156,17 +3156,17 @@ dnl = Start by checking whether the system support pthreads
 dnl ========================================================
 case "$target_os" in
 darwin*)
-    MOZ_USE_PTHREADS=1
+    USE_PTHREADS=1
     ;;
 *)
     MOZ_CHECK_PTHREADS(pthreads,
-        MOZ_USE_PTHREADS=1 _PTHREAD_LDFLAGS="-lpthreads",
+        USE_PTHREADS=1 _PTHREAD_LDFLAGS="-lpthreads",
         MOZ_CHECK_PTHREADS(pthread,
-            MOZ_USE_PTHREADS=1 _PTHREAD_LDFLAGS="-lpthread",
+            USE_PTHREADS=1 _PTHREAD_LDFLAGS="-lpthread",
             MOZ_CHECK_PTHREADS(c_r,
-                MOZ_USE_PTHREADS=1 _PTHREAD_LDFLAGS="-lc_r",
+                USE_PTHREADS=1 _PTHREAD_LDFLAGS="-lc_r",
                 MOZ_CHECK_PTHREADS(c,
-                    MOZ_USE_PTHREADS=1
+                    USE_PTHREADS=1
                 )
             )
         )
@@ -3179,17 +3179,17 @@ dnl Check the command line for --with-pthreads
 dnl ========================================================
 MOZ_ARG_WITH_BOOL(pthreads,
 [  --with-pthreads         Force use of system pthread library with NSPR ],
-[ if test "$MOZ_USE_PTHREADS"x = x; then
+[ if test "$USE_PTHREADS"x = x; then
     AC_MSG_ERROR([ --with-pthreads specified for a system without pthread support ]);
 fi],
-    MOZ_USE_PTHREADS=
+    USE_PTHREADS=
     _PTHREAD_LDFLAGS=
 )
 
 dnl ========================================================
 dnl Do the platform specific pthread hackery
 dnl ========================================================
-if test "$MOZ_USE_PTHREADS"x != x
+if test "$USE_PTHREADS"x != x
 then
 	dnl
 	dnl See if -pthread is supported.
@@ -3275,7 +3275,6 @@ then
 			;;
 	esac
     LDFLAGS="${_PTHREAD_LDFLAGS} ${LDFLAGS}"
-    AC_SUBST(MOZ_USE_PTHREADS)
 fi
 
 
