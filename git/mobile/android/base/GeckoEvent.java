@@ -63,6 +63,9 @@ import android.util.Log;
  * Fields have different meanings depending on the event type.
  */
 
+/* This class is referenced by Robocop via reflection; use care when 
+ * modifying the signature.
+ */
 public class GeckoEvent {
     private static final String LOGTAG = "GeckoEvent";
 
@@ -71,26 +74,28 @@ public class GeckoEvent {
     private static final int KEY_EVENT = 1;
     private static final int MOTION_EVENT = 2;
     private static final int SENSOR_EVENT = 3;
-    private static final int LOCATION_EVENT = 4;
-    private static final int IME_EVENT = 5;
-    private static final int DRAW = 6;
-    private static final int SIZE_CHANGED = 7;
-    private static final int ACTIVITY_STOPPING = 8;
-    private static final int ACTIVITY_PAUSING = 9;
-    private static final int ACTIVITY_SHUTDOWN = 10;
-    private static final int LOAD_URI = 11;
-    private static final int SURFACE_CREATED = 12;
-    private static final int SURFACE_DESTROYED = 13;
-    private static final int GECKO_EVENT_SYNC = 14;
-    private static final int FORCED_RESIZE = 15;
-    private static final int ACTIVITY_START = 16;
-    private static final int BROADCAST = 17;
-    private static final int VIEWPORT = 18;
-    private static final int VISITED = 19;
-    private static final int NETWORK_CHANGED = 20;
-    private static final int ACTIVITY_RESUMING = 21;
-    private static final int SCREENSHOT = 22;
-    private static final int SCREENORIENTATION_CHANGED = 23;
+    private static final int UNUSED1_EVENT = 4;
+    private static final int LOCATION_EVENT = 5;
+    private static final int IME_EVENT = 6;
+    private static final int DRAW = 7;
+    private static final int SIZE_CHANGED = 8;
+    private static final int ACTIVITY_STOPPING = 9;
+    private static final int ACTIVITY_PAUSING = 10;
+    private static final int ACTIVITY_SHUTDOWN = 11;
+    private static final int LOAD_URI = 12;
+    private static final int SURFACE_CREATED = 13;
+    private static final int SURFACE_DESTROYED = 14;
+    private static final int GECKO_EVENT_SYNC = 15;
+    private static final int ACTIVITY_START = 17;
+    private static final int BROADCAST = 19;
+    private static final int VIEWPORT = 20;
+    private static final int VISITED = 21;
+    private static final int NETWORK_CHANGED = 22;
+    private static final int UNUSED3_EVENT = 23;
+    private static final int ACTIVITY_RESUMING = 24;
+    private static final int SCREENSHOT = 25;
+    private static final int UNUSED2_EVENT = 26;
+    private static final int SCREENORIENTATION_CHANGED = 27;
 
     public static final int IME_COMPOSITION_END = 0;
     public static final int IME_COMPOSITION_BEGIN = 1;
@@ -387,7 +392,7 @@ public class GeckoEvent {
                                                  int rangeType, int rangeStyles,
                                                  int rangeForeColor, int rangeBackColor) {
         GeckoEvent event = new GeckoEvent(IME_EVENT);
-        event.InitIMERange(IME_SET_TEXT, offset, count, rangeType, rangeStyles,
+        event.InitIMERange(IME_ADD_RANGE, offset, count, rangeType, rangeStyles,
                            rangeForeColor, rangeBackColor);
         return event;
     }
