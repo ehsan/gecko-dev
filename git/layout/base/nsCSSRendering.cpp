@@ -1536,9 +1536,16 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     drawBackgroundColor = aPresContext->GetBackgroundColorDraw();
   }
 
-  imgIRequest *bottomImage = aColor.BottomLayer().mImage;
-  if (!drawBackgroundImage || !UseImageRequestForBackground(bottomImage)) {
-    bottomImage = nsnull;
+  nsStyleBackground::Image bottomImage(aColor.BottomLayer().mImage);
+  PRBool useFallbackColor = PR_FALSE;
+  if (bottomImage.mSpecified) {
+    if (!drawBackgroundImage ||
+        !UseImageRequestForBackground(bottomImage.mRequest)) {
+      bottomImage.mRequest = nsnull;
+    }
+    useFallbackColor = bottomImage.mRequest == nsnull;
+  } else {
+    NS_ASSERTION(bottomImage.mRequest == nsnull, "malformed image struct");
   }
 
   // If GetBackgroundColorDraw() is false, we are still expected to
@@ -1547,7 +1554,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // color was specified.
   nscolor bgColor;
   if (drawBackgroundColor) {
-    bgColor = aColor.mBackgroundColor;
+    bgColor = useFallbackColor ? aColor.mFallbackBackgroundColor
+                               : aColor.mBackgroundColor;
     if (NS_GET_A(bgColor) == 0)
       drawBackgroundColor = PR_FALSE;
   } else {
@@ -1635,11 +1643,11 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // association of the style data with the frame.
   aPresContext->SetupBackgroundImageLoaders(aForFrame, &aColor);
 
-  if (bottomImage &&
+  if (bottomImage.mRequest &&
       aColor.BottomLayer().mRepeat == NS_STYLE_BG_REPEAT_XY &&
       drawBackgroundColor) {
     nsCOMPtr<imgIContainer> image;
-    bottomImage->GetImage(getter_AddRefs(image));
+    bottomImage.mRequest->GetImage(getter_AddRefs(image));
     // If the image is completely opaque, we may not need to paint
     // the background color.
     nsCOMPtr<gfxIImageFrame> gfxImgFrame;
@@ -1709,7 +1717,7 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
                      PRBool aUsePrintSettings)
 {
   // Lookup the image
-  imgIRequest *req = aLayer.mImage;
+  imgIRequest *req = aLayer.mImage.mRequest;
   if (!UseImageRequestForBackground(req)) {
     // There's no image or it's not ready to be painted.
     return;

@@ -77,7 +77,6 @@ XPIDLSRCS =					\
 	nsIDOMNSFeatureFactory.idl		\
         nsIDOMClientRect.idl			\
         nsIDOMClientRectList.idl		\
-	nsIFocusManager.idl			\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -86,10 +86,6 @@
 // the DirectDraw surface or not.
 #include "cairo-features.h"
 
-#if defined(MOZ_SPLASHSCREEN)
-#include "nsSplashScreen.h"
-#endif
-
 #ifdef WINCE
 
 #include "aygshell.h"
@@ -822,22 +818,13 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
 
 //-------------------------------------------------------------------------
 //
-// Add extra height if needed (on Windows CE)
+// Default for height modification is to do nothing
 //
 //-------------------------------------------------------------------------
 
 PRInt32 nsWindow::GetHeight(PRInt32 aProposedHeight)
 {
-  PRInt32 extra = 0;
-
-#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
-  DWORD style = WindowStyle();
-  if ((style & WS_SYSMENU) && (style & WS_POPUP)) {
-    extra = GetSystemMetrics(SM_CYCAPTION);
-  }
-#endif
-
-  return aProposedHeight + extra;
+  return(aProposedHeight);
 }
 
 //-------------------------------------------------------------------------
@@ -972,7 +959,8 @@ NS_IMETHODIMP nsWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus
   aStatus = nsEventStatus_eIgnore;
 
   // skip processing of suppressed blur events
-  if (event->message == NS_DEACTIVATE && BlurEventsSuppressed())
+  if ((event->message == NS_DEACTIVATE || event->message == NS_LOSTFOCUS) &&
+      BlurEventsSuppressed())
     return NS_OK;
 
   if (nsnull != mEventCallback) {
@@ -1464,7 +1452,7 @@ NS_METHOD nsWindow::Destroy()
   // the rollup widget, rollup and turn off capture.
   if ( this == gRollupWidget ) {
     if ( gRollupListener )
-      gRollupListener->Rollup(nsnull, nsnull);
+      gRollupListener->Rollup(nsnull);
     CaptureRollupEvents(nsnull, PR_FALSE, PR_TRUE);
   }
 
@@ -1647,19 +1635,6 @@ PRBool nsWindow::CanTakeFocus()
 
 NS_METHOD nsWindow::Show(PRBool bState)
 {
-#if defined(MOZ_SPLASHSCREEN)
-  // we're about to show the first toplevel window,
-  // so kill off any splash screen if we had one
-  nsSplashScreen *splash = nsSplashScreen::Get();
-  if (splash && splash->IsOpen() && mWnd && bState &&
-      (mWindowType == eWindowType_toplevel ||
-       mWindowType == eWindowType_dialog ||
-       mWindowType == eWindowType_popup))
-  {
-    splash->Close();
-  }
-#endif
-
   PRBool wasVisible = mIsVisible;
   // Set the status now so that anyone asking during ShowWindow or
   // SetWindowPos would get the correct answer.
@@ -4138,6 +4113,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   PRBool result = PR_FALSE;                 // call the default nsWindow proc
   static PRBool getWheelInfo = PR_TRUE;
   *aRetValue = 0;
+  PRBool isMozWindowTakingFocus = PR_TRUE;
   nsPaletteInfo palInfo;
 
   // Uncomment this to see all windows messages
@@ -4621,12 +4597,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_ACTIVATE:
-      // The WM_ACTIVATE event is fired when a window is raised or lowered,
-      // and the loword of wParam specifies which. But we don't want to tell
-      // the focus system about this until the WM_SETFOCUS or WM_KILLFOCUS
-      // events are fired. Instead, set either the gJustGotActivate or
-      // gJustGotDeativate flags and fire the NS_ACTIVATE or NS_DEACTIVATE
-      // events once the focus events arrive.
       if (mEventCallback) {
         PRInt32 fActive = LOWORD(wParam);
 
@@ -4636,14 +4606,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #endif
 
         if (WA_INACTIVE == fActive) {
-          // when minimizing a window, the deactivation and focus events will
-          // be fired in the reverse order. Instead, just dispatch
-          // NS_DEACTIVATE right away.
-          if (HIWORD(wParam))
-            result = DispatchFocusToTopLevelWindow(NS_DEACTIVATE);
-          else
-            gJustGotDeactivate = PR_TRUE;
-
+          gJustGotDeactivate = PR_TRUE;
 #ifndef WINCE
           if (mIsTopWidgetWindow)
             mLastKeyboardLayout = gKbdLayout.GetLayout();
@@ -4705,8 +4668,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #endif
 
     case WM_SETFOCUS:
-      if (gJustGotActivate)
-        result = DispatchFocusToTopLevelWindow(NS_ACTIVATE);
+      result = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
+      if (gJustGotActivate) {
+        gJustGotActivate = PR_FALSE;
+        gJustGotDeactivate = PR_FALSE;
+        result = DispatchFocus(NS_ACTIVATE, PR_TRUE);
+      }
 
 #ifdef ACCESSIBILITY
       if (nsWindow::gIsAccessibilityOn) {
@@ -4735,8 +4702,20 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         ImmSetOpenStatus(IMEContext.get(), FALSE);
       }
 #endif
-      if (gJustGotDeactivate)
-        result = DispatchFocusToTopLevelWindow(NS_DEACTIVATE);
+      WCHAR className[kMaxClassNameLength];
+      ::GetClassNameW((HWND)wParam, className, kMaxClassNameLength);
+      if (wcscmp(className, kClassNameUI) &&
+          wcscmp(className, kClassNameContent) &&
+          wcscmp(className, kClassNameContentFrame) &&
+          wcscmp(className, kClassNameDialog) &&
+          wcscmp(className, kClassNameGeneral)) {
+        isMozWindowTakingFocus = PR_FALSE;
+      }
+      if (gJustGotDeactivate) {
+        gJustGotDeactivate = PR_FALSE;
+        result = DispatchFocus(NS_DEACTIVATE, isMozWindowTakingFocus);
+      }
+      result = DispatchFocus(NS_LOSTFOCUS, isMozWindowTakingFocus);
       
       break;
 
@@ -4840,6 +4819,30 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         InitEvent(event);
 
         result = DispatchWindowEvent(&event);
+
+#ifndef WINCE
+        if (pl.showCmd == SW_SHOWMINIMIZED) {
+          // Deactivate
+          WCHAR className[kMaxClassNameLength];
+          ::GetClassNameW((HWND)wParam, className, kMaxClassNameLength);
+          if (wcscmp(className, kClassNameUI) &&
+              wcscmp(className, kClassNameContent) &&
+              wcscmp(className, kClassNameContentFrame) &&
+              wcscmp(className, kClassNameDialog) &&
+              wcscmp(className, kClassNameGeneral)) {
+            isMozWindowTakingFocus = PR_FALSE;
+          }
+          gJustGotDeactivate = PR_FALSE;
+          result = DispatchFocus(NS_DEACTIVATE, isMozWindowTakingFocus);
+        } else if (pl.showCmd == SW_SHOWNORMAL && !(wp->flags & SWP_NOACTIVATE)){
+          // Make sure we're active
+          result = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
+          result = DispatchFocus(NS_ACTIVATE, PR_TRUE);
+        }
+#else
+        result = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
+        result = DispatchFocus(NS_ACTIVATE, PR_TRUE);
+#endif
       }
     }
     break;
@@ -6629,45 +6632,27 @@ PRBool nsWindow::DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aA
 // Deal with focus messages
 //
 //-------------------------------------------------------------------------
-PRBool nsWindow::DispatchFocusToTopLevelWindow(PRUint32 aEventType)
-{
-  if (aEventType == NS_ACTIVATE)
-    gJustGotActivate = PR_FALSE;
-  gJustGotDeactivate = PR_FALSE;
-
-  // clear the flags, and retrieve the toplevel window. This way, it doesn't
-  // mattter what child widget received the focus event and it will always be
-  // fired at the toplevel window.
-  HWND toplevelWnd = GetTopLevelHWND(mWnd);
-  if (toplevelWnd) {
-    nsWindow *win = GetNSWindowPtr(toplevelWnd);
-    if (win)
-      return win->DispatchFocus(aEventType);
-  }
-
-  return PR_FALSE;
-}
-
-
-PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
+PRBool nsWindow::DispatchFocus(PRUint32 aEventType, PRBool isMozWindowTakingFocus)
 {
   // call the event callback
   if (mEventCallback) {
-    nsGUIEvent event(PR_TRUE, aEventType, this);
+    nsFocusEvent event(PR_TRUE, aEventType, this);
     InitEvent(event);
 
     //focus and blur event should go to their base widget loc, not current mouse pos
     event.refPoint.x = 0;
     event.refPoint.y = 0;
 
+    event.isMozWindowTakingFocus = isMozWindowTakingFocus;
+
     nsPluginEvent pluginEvent;
 
     switch (aEventType)//~~~
     {
-      case NS_ACTIVATE:
+      case NS_GOTFOCUS:
         pluginEvent.event = WM_SETFOCUS;
         break;
-      case NS_DEACTIVATE:
+      case NS_LOSTFOCUS:
         pluginEvent.event = WM_KILLFOCUS;
         break;
       case NS_PLUGIN_ACTIVATE:
@@ -7347,25 +7332,15 @@ nsWindow :: DealWithPopups ( HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inL
 
       // If we're dealing with menus, we probably have submenus and we don't
       // want to rollup if the click is in a parent menu of the current submenu.
-      PRUint32 popupsToRollup = PR_UINT32_MAX;
       if (rollup) {
         nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
         if ( menuRollup ) {
           nsAutoTArray<nsIWidget*, 5> widgetChain;
-          PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
+          menuRollup->GetSubmenuWidgetChain ( &widgetChain );
           for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
             nsIWidget* widget = widgetChain[i];
             if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)widget) ) {
-              // don't roll up if the mouse event occured within a menu of the
-              // same type. If the mouse event occured in a menu higher than
-              // that, roll up, but pass the number of popups to Rollup so
-              // that only those of the same type close up.
-              if (i < sameTypeCount) {
-                rollup = PR_FALSE;
-              }
-              else {
-                popupsToRollup = sameTypeCount;
-              }
+              rollup = PR_FALSE;
               break;
             }
           } // foreach parent menu widget
@@ -7373,7 +7348,7 @@ nsWindow :: DealWithPopups ( HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inL
       }
 
 #ifndef WINCE
-      if (inMsg == WM_MOUSEACTIVATE && popupsToRollup == PR_UINT32_MAX) {
+      if (inMsg == WM_MOUSEACTIVATE) {
         // Prevent the click inside the popup from causing a change in window
         // activation. Since the popup is shown non-activated, we need to eat
         // any requests to activate the window while it is displayed. Windows
@@ -7406,7 +7381,7 @@ nsWindow :: DealWithPopups ( HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inL
         // nsIRollupListener::Rollup.
         PRBool consumeRollupEvent = gRollupConsumeRollupEvent;
         // only need to deal with the last rollup for left mouse down events.
-        gRollupListener->Rollup(popupsToRollup, inMsg == WM_LBUTTONDOWN ? &mLastRollup : nsnull);
+        gRollupListener->Rollup(inMsg == WM_LBUTTONDOWN ? &mLastRollup : nsnull);
 
         // Tell hook to stop processing messages
         gProcessHook = PR_FALSE;
@@ -7421,15 +7396,6 @@ nsWindow :: DealWithPopups ( HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inL
           *outResult = TRUE;
           return TRUE;
         }
-#ifndef WINCE
-        // if we are only rolling up some popups, don't activate and don't let
-        // the event go through. This prevents clicks menus higher in the
-        // chain from opening when a context menu is open
-        if (popupsToRollup != PR_UINT32_MAX && inMsg == WM_MOUSEACTIVATE) {
-          *outResult = MA_NOACTIVATEANDEAT;
-          return TRUE;
-        }
-#endif
       }
     } // if event that might trigger a popup to rollup
   } // if rollup listeners registered

@@ -84,7 +84,7 @@ nsSVGTSpanFrame::Init(nsIContent* aContent,
     nsIFrame* ancestorFrame = nsSVGUtils::GetFirstNonAAncestorFrame(aParent);
     NS_ASSERTION(ancestorFrame, "Must have ancestor");
 
-    nsSVGTextContainerFrame *metrics = do_QueryFrame(ancestorFrame);
+    nsISVGTextContentMetrics *metrics = do_QueryFrame(ancestorFrame);
     NS_ASSERTION(metrics,
                  "trying to construct an SVGTSpanFrame for an invalid "
                  "container");
@@ -126,25 +126,25 @@ nsSVGTSpanFrame::GetCanvasTM()
 //----------------------------------------------------------------------
 // nsISVGGlyphFragmentNode methods:
 
-PRUint32
+NS_IMETHODIMP_(PRUint32)
 nsSVGTSpanFrame::GetNumberOfChars()
 {
   return nsSVGTSpanFrameBase::GetNumberOfChars();
 }
 
-float
+NS_IMETHODIMP_(float)
 nsSVGTSpanFrame::GetComputedTextLength()
 {
   return nsSVGTSpanFrameBase::GetComputedTextLength();
 }
 
-float
+NS_IMETHODIMP_(float)
 nsSVGTSpanFrame::GetSubStringLength(PRUint32 charnum, PRUint32 nchars)
 {
-  return nsSVGTSpanFrameBase::GetSubStringLength(charnum, nchars);
+  return nsSVGTSpanFrameBase::GetSubStringLengthNoValidation(charnum, nchars);
 }
 
-PRInt32
+NS_IMETHODIMP_(PRInt32)
 nsSVGTSpanFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 {
   return nsSVGTSpanFrameBase::GetCharNumAtPosition(point);

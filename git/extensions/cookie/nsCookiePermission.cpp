@@ -24,8 +24,6 @@
  *   Darin Fisher <darin@meer.net>
  *   Daniel Witte <dwitte@stanford.edu>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Kathleen Brade <brade@pearlcrescent.com>
- *   Mark Smith <mcs@pearlcrescent.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -55,7 +53,6 @@
 #include "nsIDocShell.h"
 #include "nsIWebNavigation.h"
 #include "nsIChannel.h"
-#include "nsIHttpChannelInternal.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
 #include "nsIPrincipal.h"
@@ -429,22 +426,21 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
    * the window owning the load, and from there, we find the top same-type
    * window and its URI. there are several possible cases:
    *
-   * 1) no channel.
+   * 1) no channel. this will occur for plugins using the nsICookieStorage
+   *    interface, since they have none to provide. other consumers should
+   *    have a channel.
    *
-   * 2) a channel with the "force allow third party cookies" option set.
-   *    since we may not have a window, we return the channel URI in this case.
-   *
-   * 3) a channel, but no window. this can occur when the consumer kicking
+   * 2) a channel, but no window. this can occur when the consumer kicking
    *    off the load doesn't provide one to the channel, and should be limited
    *    to loads of certain types of resources.
    *
-   * 4) a window equal to the top window of same type, with the channel its
+   * 3) a window equal to the top window of same type, with the channel its
    *    document channel. this covers the case of a freshly kicked-off load
    *    (e.g. the user typing something in the location bar, or clicking on a
    *    bookmark), where the window's URI hasn't yet been set, and will be
    *    bogus. we return the channel URI in this case.
    *
-   * 5) Anything else. this covers most cases for an ordinary page load from
+   * 4) Anything else. this covers most cases for an ordinary page load from
    *    the location bar, and will catch nested frames within a page, image
    *    loads, etc. we return the URI of the root window's document's principal
    *    in this case.
@@ -456,22 +452,6 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
   if (!aChannel)
     return NS_ERROR_NULL_POINTER;
 
-  // case 2)
-  nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal = do_QueryInterface(aChannel);
-  if (httpChannelInternal)
-  {
-    PRBool doForce = PR_FALSE;
-    if (NS_SUCCEEDED(httpChannelInternal->GetForceAllowThirdPartyCookie(&doForce)) && doForce)
-    {
-      // return the channel's URI (we may not have a window)
-      aChannel->GetURI(aURI);
-      if (!*aURI)
-        return NS_ERROR_NULL_POINTER;
-
-      return NS_OK;
-    }
-  }
-
   // find the associated window and its top window
   nsCOMPtr<nsILoadContext> ctx;
   NS_QueryNotificationCallbacks(aChannel, ctx);
@@ -481,11 +461,11 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
     ctx->GetAssociatedWindow(getter_AddRefs(ourWin));
   }
 
-  // case 3)
+  // case 2)
   if (!topWin)
     return NS_ERROR_INVALID_ARG;
 
-  // case 4)
+  // case 3)
   if (ourWin == topWin) {
     // Check whether this is the document channel for this window (representing
     // a load of a new page).  This is a bit of a nasty hack, but we will
@@ -503,7 +483,7 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
     }
   }
 
-  // case 5) - get the originating URI from the top window's principal
+  // case 4) - get the originating URI from the top window's principal
   nsCOMPtr<nsIScriptObjectPrincipal> scriptObjPrin = do_QueryInterface(topWin);
   NS_ENSURE_TRUE(scriptObjPrin, NS_ERROR_UNEXPECTED);
 

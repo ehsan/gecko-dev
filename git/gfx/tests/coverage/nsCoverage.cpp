@@ -373,7 +373,7 @@ nsresult CoverageTest(int *argc, char **argv)
 
     if (NS_OK == res)
     {
-      deviceContext->Init(gWindow);
+      deviceContext->Init(gWindow->GetNativeData(NS_NATIVE_WIDGET));
       NS_ADDREF(deviceContext);
     }
 

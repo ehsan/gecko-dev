@@ -63,7 +63,6 @@
 #include "nsIXPConnect.h"
 #include "nsXTFWeakTearoff.h"
 #include "mozAutoDocUpdate.h"
-#include "nsFocusManager.h"
 
 nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
                                          nsIXTFElement* aXTFElement)
@@ -554,9 +553,22 @@ nsXTFElementWrapper::PerformAccesskey(PRBool aKeyCausesActivation,
                                       PRBool aIsTrustedEvent)
 {
   if (mNotificationMask & nsIXTFElement::NOTIFY_PERFORM_ACCESSKEY) {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm)
-      fm->SetFocus(this, nsIFocusManager::FLAG_BYKEY);
+    nsIDocument* doc = GetCurrentDoc();
+    if (!doc)
+      return;
+
+    // Get presentation shell 0
+    nsIPresShell *presShell = doc->GetPrimaryShell();
+    if (!presShell)
+      return;
+
+    nsPresContext *presContext = presShell->GetPresContext();
+    if (!presContext)
+      return;
+
+    nsIEventStateManager *esm = presContext->EventStateManager();
+    if (esm)
+      esm->ChangeFocusWith(this, nsIEventStateManager::eEventFocusedByKey);
 
     if (aKeyCausesActivation)
       GetXTFElement()->PerformAccesskey();

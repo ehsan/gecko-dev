@@ -41,7 +41,7 @@
 #include "nsAccessibilityService.h"
 #include "nsCoreUtils.h"
 #include "nsAccUtils.h"
-#include "nsARIAGridAccessibleWrap.h"
+#include "nsARIAGridAccessible.h"
 #include "nsARIAMap.h"
 #include "nsIContentViewer.h"
 #include "nsCURILoader.h"
@@ -458,11 +458,12 @@ nsAccessibilityService::CreateRootAccessible(nsIPresShell *aShell,
   if (!*aRootAcc)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsRefPtr<nsAccessible> rootAcc = nsAccUtils::QueryAccessible(*aRootAcc);
+  nsRefPtr<nsAccessNode> rootAcc = nsAccUtils::QueryAccessNode(*aRootAcc);
   rootAcc->Init();
 
   nsRoleMapEntry *roleMapEntry = nsAccUtils::GetRoleMapEntry(rootNode);
-  rootAcc->SetRoleMapEntry(roleMapEntry);
+  nsCOMPtr<nsPIAccessible> privateAccessible(do_QueryInterface(*aRootAcc));
+  privateAccessible->SetRoleMapEntry(roleMapEntry);
 
   NS_ADDREF(*aRootAcc);
 
@@ -556,10 +557,6 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame *aFrame,
 #endif
            tag == nsAccessibilityAtoms::q) {
     return CreateHyperTextAccessible(aFrame, aAccessible);
-  }
-  else if (tag == nsAccessibilityAtoms::tr) {
-    *aAccessible = new nsEnumRoleAccessible(aNode, aWeakShell,
-                                            nsIAccessibleRole::ROLE_ROW);
   }
   else if (nsCoreUtils::IsHTMLTableHeader(content)) {
     *aAccessible = new nsHTMLTableHeaderAccessible(aNode, aWeakShell);
@@ -1265,11 +1262,13 @@ nsresult nsAccessibilityService::InitAccessible(nsIAccessible *aAccessibleIn,
   }
   NS_ASSERTION(aAccessibleOut && !*aAccessibleOut, "Out param should already be cleared out");
 
-  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(aAccessibleIn);
+  nsRefPtr<nsAccessNode> acc = nsAccUtils::QueryAccessNode(aAccessibleIn);
   nsresult rv = acc->Init(); // Add to cache, etc.
   NS_ENSURE_SUCCESS(rv, rv);
 
-  acc->SetRoleMapEntry(aRoleMapEntry);
+  nsCOMPtr<nsPIAccessible> privateAccessible =
+    do_QueryInterface(aAccessibleIn);
+  privateAccessible->SetRoleMapEntry(aRoleMapEntry);
   NS_ADDREF(*aAccessibleOut = aAccessibleIn);
 
   return NS_OK;
@@ -1551,21 +1550,16 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
         tryTagNameOrFrame = PR_FALSE;
     }
 
-    if (roleMapEntry) {
-      // Create ARIA grid/treegrid accessibles if node is not of a child or
-      // valid child of HTML table and is not a HTML table.
-      if ((!partOfHTMLTable || !tryTagNameOrFrame) &&
-          frameType != nsAccessibilityAtoms::tableOuterFrame) {
-
-        if (roleMapEntry->role == nsIAccessibleRole::ROLE_TABLE ||
-            roleMapEntry->role == nsIAccessibleRole::ROLE_TREE_TABLE) {
-          newAcc = new nsARIAGridAccessibleWrap(aNode, aWeakShell);
-
-        } else if (roleMapEntry->role == nsIAccessibleRole::ROLE_GRID_CELL ||
-            roleMapEntry->role == nsIAccessibleRole::ROLE_ROWHEADER ||
-            roleMapEntry->role == nsIAccessibleRole::ROLE_COLUMNHEADER) {
-          newAcc = new nsARIAGridCellAccessible(aNode, aWeakShell);
-        }
+    if (roleMapEntry && (!partOfHTMLTable || !tryTagNameOrFrame ||
+        frameType != nsAccessibilityAtoms::tableOuterFrame)) {
+      // Try to create ARIA grid/treegrid accessibles.
+      if (roleMapEntry->role == nsIAccessibleRole::ROLE_TABLE ||
+          roleMapEntry->role == nsIAccessibleRole::ROLE_TREE_TABLE) {
+        newAcc = new nsARIAGridAccessible(aNode, aWeakShell);
+      } else if (roleMapEntry->role == nsIAccessibleRole::ROLE_GRID_CELL ||
+                 roleMapEntry->role == nsIAccessibleRole::ROLE_ROWHEADER ||
+                 roleMapEntry->role == nsIAccessibleRole::ROLE_COLUMNHEADER) {
+        newAcc = new nsARIAGridCellAccessible(aNode, aWeakShell);
       }
     }
 
@@ -1721,9 +1715,10 @@ nsAccessibilityService::GetRelevantContentNodeFor(nsIDOMNode *aNode,
         rv = GetAccessibleByType(bindingNode, getter_AddRefs(accessible));
 
         if (NS_SUCCEEDED(rv)) {
-          nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
-          if (acc) {
-            PRBool allowsAnonChildren = acc->GetAllowsAnonChildAccessibles();
+          nsCOMPtr<nsPIAccessible> paccessible(do_QueryInterface(accessible));
+          if (paccessible) {
+            PRBool allowsAnonChildren = PR_FALSE;
+            paccessible->GetAllowsAnonChildAccessibles(&allowsAnonChildren);
             if (!allowsAnonChildren) {
               NS_ADDREF(*aRelevantNode = bindingNode);
               return NS_OK;

@@ -736,12 +736,10 @@ var gUpdatesAvailablePage = {
         gUpdates.wiz.currentPage.setAttribute("next", "incompatibleList");
     }
 
-    var updateName = gUpdates.update.name;
-    if (gUpdates.update.channel == "nightly") {
-      updateName = gUpdates.getAUSString("updateName", [gUpdates.brandName,
-                                                        gUpdates.update.version]);
+    var updateName = gUpdates.getAUSString("updateName", [gUpdates.brandName,
+                                                          gUpdates.update.version]);
+    if (gUpdates.update.channel == "nightly")
       updateName = updateName + " " + gUpdates.update.buildID + " nightly";
-    }
     var updateNameElement = document.getElementById("updateName");
     updateNameElement.value = updateName;
     var updateTypeElement = document.getElementById("updateType");

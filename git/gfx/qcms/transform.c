@@ -547,30 +547,17 @@ qcms_bool set_rgb_colorants(qcms_profile *profile, qcms_CIE_xyY white_point, qcm
 	return true;
 }
 
-/*
- The number of entries needed to invert a lookup table should not
- necessarily be the same as the original number of entries.  This is
- especially true of lookup tables that have a small number of entries.
-
- For example:
- Using a table like:
-    {0, 3104, 14263, 34802, 65535}
- invert_lut will produce an inverse of:
-    {3, 34459, 47529, 56801, 65535}
- which has an maximum error of about 9855 (pixel difference of ~38.346)
-
- For now, we punt the decision of output size to the caller. */
-static uint16_t *invert_lut(uint16_t *table, int length, int out_length)
+static uint16_t *invert_lut(uint16_t *table, int length)
 {
 	int i;
-	/* for now we invert the lut by creating a lut of size out_length
+	/* for now we invert the lut by creating a lut of the same size
 	 * and attempting to lookup a value for each entry using lut_inverse_interp16 */
-	uint16_t *output = malloc(sizeof(uint16_t)*out_length);
+	uint16_t *output = malloc(sizeof(uint16_t)*length);
 	if (!output)
 		return NULL;
 
-	for (i = 0; i < out_length; i++) {
-		double x = ((double) i * 65535.) / (double) (out_length - 1);
+	for (i = 0; i < length; i++) {
+		double x = ((double) i * 65535.) / (double) (length - 1);
 		uint16_fract_t input = floor(x + .5);
 		output[i] = lut_inverse_interp16(input, table, length);
 	}
@@ -667,12 +654,6 @@ static void qcms_transform_data_gray_out_lut(qcms_transform *transform, unsigned
 		*dest++ = clamp_u8(out_device_b*255);
 	}
 }
-
-/* Alpha is not corrected.
-   A rationale for this is found in Alvy Ray's "Should Alpha Be Nonlinear If
-   RGB Is?" Tech Memo 17 (December 14, 1998).
-	See: ftp://ftp.alvyray.com/Acrobat/17_Nonln.pdf
-*/
 
 static void qcms_transform_data_graya_out_lut(qcms_transform *transform, unsigned char *src, unsigned char *dest, size_t length)
 {
@@ -1364,17 +1345,10 @@ qcms_bool compute_precache(struct curveType *trc, uint8_t *output)
 	} else if (trc->count == 1) {
 		compute_precache_pow(output, 1./u8Fixed8Number_to_float(trc->data[0]));
 	} else {
-		uint16_t *inverted;
-		int inverted_size = trc->count;
-		//XXX: the choice of a minimum of 256 here is not backed by any theory, measurement or data, however it is what lcms uses.
-		// the maximum number we would need is 65535 because that's the accuracy used for computing the precache table
-		if (inverted_size < 256)
-			inverted_size = 256;
-
-		inverted = invert_lut(trc->data, trc->count, inverted_size);
+		uint16_t *inverted = invert_lut(trc->data, trc->count);
 		if (!inverted)
 			return false;
-		compute_precache_lut(output, inverted, inverted_size);
+		compute_precache_lut(output, inverted, trc->count);
 		free(inverted);
 	}
 	return true;
@@ -1449,6 +1423,7 @@ static qcms_bool sse2_available(void)
        return false;
 }
 
+
 void build_output_lut(struct curveType *trc,
 		uint16_t **output_gamma_lut, size_t *output_gamma_lut_length)
 {
@@ -1460,12 +1435,8 @@ void build_output_lut(struct curveType *trc,
 		*output_gamma_lut = build_pow_table(gamma, 4096);
 		*output_gamma_lut_length = 4096;
 	} else {
-		//XXX: the choice of a minimum of 256 here is not backed by any theory, measurement or data, however it is what lcms uses.
+		*output_gamma_lut = invert_lut(trc->data, trc->count);
 		*output_gamma_lut_length = trc->count;
-		if (*output_gamma_lut_length < 256)
-			*output_gamma_lut_length = 256;
-
-		*output_gamma_lut = invert_lut(trc->data, trc->count, *output_gamma_lut_length);
 	}
 
 }

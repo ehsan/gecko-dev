@@ -64,7 +64,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDocument.h"
 #include "nsIDOMNodeSelector.h"
-#include "nsIDOMXPathNSResolver.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -145,14 +144,14 @@ private:
 /**
  * A tearoff class for nsGenericElement to implement additional interfaces
  */
-class nsNode3Tearoff : public nsIDOM3Node, public nsIDOMXPathNSResolver
+class nsNode3Tearoff : public nsIDOM3Node
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   NS_DECL_NSIDOM3NODE
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsNode3Tearoff, nsIDOM3Node)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsNode3Tearoff)
 
   nsNode3Tearoff(nsIContent *aContent) : mContent(aContent)
   {
@@ -418,6 +417,7 @@ public:
                               PRBool aNotify);
   virtual PRBool TextIsOnlyWhitespace();
   virtual void AppendTextTo(nsAString& aResult);
+  virtual void SetFocus(nsPresContext* aContext);
   virtual nsIContent *GetBindingParent() const;
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
@@ -583,6 +583,8 @@ public:
   
   static already_AddRefed<nsIDOMNSFeatureFactory>
     GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion);
+
+  static PRBool ShouldFocus(nsIContent *aContent);
 
   static PRBool ShouldBlur(nsIContent *aContent);
 

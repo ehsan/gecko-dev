@@ -155,21 +155,22 @@ oggplay_seek_cleanup(OggPlay* me, ogg_int64_t milliseconds)
   /*
    * store the old buffer in it next.
    */
-  if (me->buffer != NULL) {
-
-    trash->old_buffer = (OggPlayBuffer *)me->buffer;
-
-    /*
-     * replace the buffer with a new one.  From here on, the presentation thread
-     * will start using this buffer instead.
-     */
-    me->buffer = oggplay_buffer_new_buffer(me->buffer->buffer_size);
-
-    if (me->buffer == NULL) {
-      return;
-    }
-  }
+  if (me->buffer == NULL)
+    return;
   
+  trash->old_buffer = (OggPlayBuffer *)me->buffer;
+
+  /*
+   * replace the buffer with a new one.  From here on, the presentation thread
+   * will start using this buffer instead.
+   */
+  me->buffer = oggplay_buffer_new_buffer(me->buffer->buffer_size);
+
+  if (me->buffer == NULL)
+  {
+    return;
+  }
+
   /*
    * strip all of the data packets out of the streams and put them into the
    * trash.  We can free the untimed packets immediately - they are USELESS

@@ -24,8 +24,6 @@
 #   Fredrik Holmqvist <thesuckiestemail@yahoo.se>
 #   Asaf Romano <mozilla.mano@sent.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Kathleen Brade <brade@pearlcrescent.com>
-#   Mark Smith <mcs@pearlcrescent.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -393,8 +391,7 @@ function internalPersist(persistArgs)
 
   // Calculate persist flags.
   const nsIWBP = Components.interfaces.nsIWebBrowserPersist;
-  const flags = nsIWBP.PERSIST_FLAGS_REPLACE_EXISTING_FILES |
-                nsIWBP.PERSIST_FLAGS_FORCE_ALLOW_COOKIES;
+  const flags = nsIWBP.PERSIST_FLAGS_REPLACE_EXISTING_FILES;
   if (persistArgs.bypassCache)
     persist.persistFlags = flags | nsIWBP.PERSIST_FLAGS_BYPASS_CACHE;
   else

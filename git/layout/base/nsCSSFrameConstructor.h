@@ -52,6 +52,7 @@
 #include "nsHashKeys.h"
 #include "nsThreadUtils.h"
 #include "nsPageContentFrame.h"
+#include "nsIViewManager.h"
 
 class nsIDocument;
 struct nsFrameItems;
@@ -87,6 +88,7 @@ public:
   nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell);
   ~nsCSSFrameConstructor(void) {
     NS_ASSERTION(mUpdateCount == 0, "Dying in the middle of our own update?");
+    NS_ASSERTION(mFocusSuppressCount == 0, "Focus suppression will be wrong");
   }
 
   // Maintain global objects - gXBLService
@@ -841,8 +843,7 @@ private:
       mNameSpaceID(aNameSpaceID), mStyleContext(aStyleContext),
       mIsText(PR_FALSE), mIsGeneratedContent(PR_FALSE),
       mIsRootPopupgroup(PR_FALSE), mIsAllInline(PR_FALSE),
-      mHasInlineEnds(PR_FALSE), mIsPopup(PR_FALSE),
-      mIsLineParticipant(PR_FALSE)
+      mHasInlineEnds(PR_FALSE), mIsPopup(PR_FALSE)
     {}
     ~FrameConstructionItem() {
       if (mIsGeneratedContent) {
@@ -888,8 +889,6 @@ private:
     // Whether construction from this item will create a popup that needs to
     // go into the global popup items.
     PRPackedBool mIsPopup;
-    // Whether this item should be treated as a line participant
-    PRPackedBool mIsLineParticipant;
 
     // Child frame construction items.
     FrameConstructionItemList mChildItems;
@@ -1605,6 +1604,7 @@ private:
   nsQuoteList         mQuoteList;
   nsCounterManager    mCounterManager;
   PRUint16            mUpdateCount;
+  PRUint32            mFocusSuppressCount;
   PRPackedBool        mQuotesDirty : 1;
   PRPackedBool        mCountersDirty : 1;
   PRPackedBool        mIsDestroyingFrameTree : 1;

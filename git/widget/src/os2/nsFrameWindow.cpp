@@ -225,7 +225,7 @@ void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
 
       rc = CallCreateInstance(kDeviceContextCID, &mContext);
       if( NS_SUCCEEDED(rc))
-         mContext->Init(this);
+         mContext->Init( (nsNativeWidget) mWnd);
 #ifdef DEBUG
       else
          printf( "Couldn't find DC instance for nsWindow\n");
@@ -331,7 +331,7 @@ MRESULT EXPENTRY fnwpFrame( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
           msg == WM_BUTTON1DOWN || msg == WM_BUTTON2DOWN || msg == WM_BUTTON3DOWN) {
          // Rollup if the event is outside the popup
          if (PR_FALSE == nsWindow::EventIsInsideWindow((nsWindow*)gRollupWidget)) {
-            gRollupListener->Rollup(PR_UINT32_MAX, nsnull);
+            gRollupListener->Rollup(nsnull);
 
             // if we are supposed to be consuming events and it is
             // a Mouse Button down, let it go through
@@ -468,6 +468,14 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
             }
          }
          break;
+
+      case WM_ACTIVATE:
+        DEBUGFOCUS(frame WM_ACTIVATE);
+        if (SHORT1FROMMP(mp1) &&
+            !(WinQueryWindowULong(mFrameWnd, QWL_STYLE) & WS_MINIMIZED)) {
+           bDone = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
+        }
+        break;
    }
 
    if( !bDone)

@@ -92,7 +92,7 @@ nsSVGNumber2::SetBaseValueString(const nsAString &aValueAsString,
   
   char *rest;
   float val = float(PR_strtod(str, &rest));
-  if (rest == str || *rest != '\0' || !NS_FloatIsFinite(val)) {
+  if (rest == str || *rest != '\0') {
     return NS_ERROR_FAILURE;
   }
 

@@ -231,17 +231,17 @@ void nsHyperTextAccessible::CacheChildren()
       return;
     }
     nsAccessibleTreeWalker walker(mWeakShell, editorRootDOMNode, PR_TRUE);
-    nsRefPtr<nsAccessible> prevAcc;
+    nsCOMPtr<nsPIAccessible> privatePrevAccessible;
     PRInt32 childCount = 0;
     walker.GetFirstChild();
     SetFirstChild(walker.mState.accessible);
 
     while (walker.mState.accessible) {
       ++ childCount;
-      prevAcc = nsAccUtils::QueryAccessible(walker.mState.accessible);
-      prevAcc->SetParent(this);
+      privatePrevAccessible = do_QueryInterface(walker.mState.accessible);
+      privatePrevAccessible->SetParent(this);
       walker.GetNextSibling();
-      prevAcc->SetNextSibling(walker.mState.accessible);
+      privatePrevAccessible->SetNextSibling(walker.mState.accessible);
     }
     mAccChildCount = childCount;
   }
@@ -439,9 +439,9 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
               *aText += '*'; // Show *'s only for password text
           }
           else {
-            nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
-            acc->AppendTextTo(*aText, startOffset,
-                              substringEndOffset - startOffset);
+            nsCOMPtr<nsPIAccessible> pAcc(do_QueryInterface(accessible));
+            pAcc->AppendTextTo(*aText, startOffset,
+                               substringEndOffset - startOffset);
           }
         }
         if (aBoundsRect) {    // Caller wants the bounds of the text

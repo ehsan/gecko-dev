@@ -118,7 +118,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsJSEnvironment.h"
 #include "nsIFocusController.h"
-#include "nsFocusManager.h"
 
 #include "nsIScrollableView.h"
 #include "nsIHTMLDocument.h"
@@ -1178,13 +1177,6 @@ DocumentViewerImpl::PageHide(PRBool aIsUnload)
   }
 
   mDocument->OnPageHide(!aIsUnload, nsnull);
-
-  // inform the window so that the focus state is reset.
-  NS_ENSURE_STATE(mDocument);
-  nsPIDOMWindow *window = mDocument->GetWindow();
-  if (window)
-    window->PageHidden();
-
   if (aIsUnload) {
     // if Destroy() was called during OnPageHide(), mDocument is nsnull.
     NS_ENSURE_STATE(mDocument);
@@ -2318,7 +2310,16 @@ DocumentViewerImpl::CreateDeviceContext(nsIWidget* aWidget)
   // might have changed.
   mDeviceContext = do_CreateInstance(kDeviceContextCID);
   NS_ENSURE_TRUE(mDeviceContext, NS_ERROR_FAILURE);
-  mDeviceContext->Init(aWidget ? aWidget->GetTopLevelWidget() : nsnull);
+  nsNativeWidget nativeWidget = nsnull;
+  if (aWidget) {
+    // The device context should store NS_NATIVE_WINDOW of TopLevelWidget,
+    // because NS_NATIVE_WIDGET and NS_NATIVE_WINDOW of the given widget can be
+    // destroyed earlier than the device context.
+    nsIWidget* toplevelWidget = aWidget->GetTopLevelWidget();
+    NS_ASSERTION(toplevelWidget, "GetTopLevelWidget returns NULL");
+    nativeWidget = aWidget->GetNativeData(NS_NATIVE_WINDOW);
+  }
+  mDeviceContext->Init(nativeWidget);
   return NS_OK;
 }
 
@@ -4119,23 +4120,29 @@ DocumentViewerImpl::ReturnToGalleyPresentation()
 static void
 ResetFocusState(nsIDocShell* aDocShell)
 {
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return;
-
   nsCOMPtr<nsISimpleEnumerator> docShellEnumerator;
   aDocShell->GetDocShellEnumerator(nsIDocShellTreeItem::typeContent,
                                    nsIDocShell::ENUMERATE_FORWARDS,
                                    getter_AddRefs(docShellEnumerator));
   
+  nsCOMPtr<nsIDocShell> currentDocShell;
   nsCOMPtr<nsISupports> currentContainer;
   PRBool hasMoreDocShells;
   while (NS_SUCCEEDED(docShellEnumerator->HasMoreElements(&hasMoreDocShells))
          && hasMoreDocShells) {
     docShellEnumerator->GetNext(getter_AddRefs(currentContainer));
-    nsCOMPtr<nsIDOMWindow> win = do_GetInterface(currentContainer);
-    if (win)
-      fm->ClearFocus(win);
+    currentDocShell = do_QueryInterface(currentContainer);
+    if (!currentDocShell) {
+      break;
+    }
+    nsCOMPtr<nsPresContext> presContext;
+    currentDocShell->GetPresContext(getter_AddRefs(presContext));
+    nsIEventStateManager* esm =
+      presContext ? presContext->EventStateManager() : nsnull;
+    if (esm) {
+       esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
+       esm->SetFocusedContent(nsnull);
+    }
   }
 }
 

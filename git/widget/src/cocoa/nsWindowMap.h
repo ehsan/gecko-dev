@@ -63,7 +63,6 @@
 
 + (WindowDataMap*)sharedWindowDataMap;
 
-- (void)ensureDataForWindow:(NSWindow*)inWindow;
 - (id)dataForWindow:(NSWindow*)inWindow;
 
 // set data for a given window. inData is retained (and any previously set data
@@ -87,9 +86,13 @@
 @interface TopLevelWindowData : NSObject
 {
 @private
+  ChildView *mShouldFocusView; // Strong
 }
 
 - (id)initWithWindow:(NSWindow*)inWindow;
+- (ChildView *)getShouldFocusView;
+- (void)markShouldFocus:(ChildView *)aView;
+- (void)markShouldUnfocus:(ChildView *)aView;
 + (void)activateInWindow:(NSWindow*)aWindow;
 + (void)deactivateInWindow:(NSWindow*)aWindow;
 + (void)activateInWindowViews:(NSWindow*)aWindow;

@@ -403,8 +403,7 @@ NS_PurgeAtomTable()
 {
   if (gAtomTable.ops) {
 #ifdef DEBUG
-    const char *dumpAtomLeaks = PR_GetEnv("MOZ_DUMP_ATOM_LEAKS");
-    if (dumpAtomLeaks && *dumpAtomLeaks) {
+    if (PR_GetEnv("MOZ_DUMP_ATOM_LEAKS")) {
       PRUint32 leaked = 0;
       printf("*** %d atoms still exist (including permanent):\n",
              gAtomTable.entryCount);

@@ -47,6 +47,7 @@
 #include "nsSVGGeometryFrame.h"
 #include "nsSVGGradientFrame.h"
 #include "gfxContext.h"
+#include "nsIDOMSVGRect.h"
 #include "gfxPattern.h"
 
 //----------------------------------------------------------------------
@@ -167,8 +168,15 @@ nsSVGGradientFrame::GetGradientTransform(nsSVGGeometryFrame *aSource)
 
     nsIFrame *frame = (callerType == nsGkAtoms::svgGlyphFrame) ?
                         aSource->GetParent() : aSource;
-    gfxRect bbox = nsSVGUtils::GetBBox(frame);
-    bboxMatrix = gfxMatrix(bbox.Width(), 0, 0, bbox.Height(), bbox.X(), bbox.Y());
+    nsCOMPtr<nsIDOMSVGRect> rect = nsSVGUtils::GetBBox(frame);
+    if (rect) {
+      float x, y, width, height;
+      rect->GetX(&x);
+      rect->GetY(&y);
+      rect->GetWidth(&width);
+      rect->GetHeight(&height);
+      bboxMatrix = gfxMatrix(width, 0, 0, height, x, y);
+    }
   }
 
   nsSVGGradientElement *element =

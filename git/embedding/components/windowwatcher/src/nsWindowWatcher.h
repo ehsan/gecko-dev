@@ -146,6 +146,7 @@ private:
 
   nsTArray<nsWatcherWindowEnumerator*> mEnumeratorList;
   nsWatcherWindowEntry *mOldestWindow;
+  nsIDOMWindow         *mActiveWindow;
   PRLock               *mListLock;
 
   nsCOMPtr<nsIWindowCreator> mWindowCreator;

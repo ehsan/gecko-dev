@@ -111,12 +111,20 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
   PRUint16 primitiveUnits =
     filter->mEnumAttributes[nsSVGFilterElement::PRIMITIVEUNITS].GetAnimValue();
 
-  gfxRect bbox;
+  nsCOMPtr<nsIDOMSVGRect> bbox;
   if (aOverrideSourceBBox) {
-    bbox = gfxRect(aOverrideSourceBBox->x, aOverrideSourceBBox->y,
-                   aOverrideSourceBBox->width, aOverrideSourceBBox->height);
+    NS_NewSVGRect(getter_AddRefs(bbox),
+                  aOverrideSourceBBox->x, aOverrideSourceBBox->y,
+                  aOverrideSourceBBox->width, aOverrideSourceBBox->height);
   } else {
     bbox = nsSVGUtils::GetBBox(aTarget);
+  }
+
+  if (!bbox &&
+       (filterUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX ||
+        primitiveUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX)) {
+    // XXX dispatch error console warning?
+    return;
   }
 
   // Get the filter region (in the filtered element's user space):

@@ -209,7 +209,7 @@ GetValueFromString(const nsAString &aValueAsString,
   
   char *rest;
   *aValue = float(PR_strtod(str, &rest));
-  if (rest != str && NS_FloatIsFinite(*aValue)) {
+  if (rest != str) {
     *aUnitType = GetUnitTypeForString(rest);
     if (IsValidUnitType(*aUnitType)) {
       return NS_OK;

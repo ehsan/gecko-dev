@@ -76,19 +76,15 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAccEvent)
 // nsAccEvent. Constructors
 
 nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
-                       PRBool aIsAsynch, EEventRule aEventRule)
-  : mEventType(aEventType)
-  , mEventRule(aEventRule)
-  , mAccessible(aAccessible)
+                       PRBool aIsAsynch, EEventRule aEventRule):
+  mEventType(aEventType), mAccessible(aAccessible), mEventRule(aEventRule)
 {
   CaptureIsFromUserInput(aIsAsynch);
 }
 
 nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIDOMNode *aDOMNode,
-                       PRBool aIsAsynch, EEventRule aEventRule)
-  : mEventType(aEventType)
-  , mEventRule(aEventRule)
-  , mDOMNode(aDOMNode)
+                       PRBool aIsAsynch, EEventRule aEventRule):
+  mEventType(aEventType), mDOMNode(aDOMNode), mEventRule(aEventRule)
 {
   CaptureIsFromUserInput(aIsAsynch);
 }

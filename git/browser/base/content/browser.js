@@ -1077,8 +1077,7 @@ function BrowserStartup() {
     document.documentElement.setAttribute("height", defaultHeight);
   }
 
-  if (gURLBar &&
-      document.documentElement.getAttribute("chromehidden").indexOf("toolbar") != -1) {
+  if (gURLBar && document.documentElement.getAttribute("chromehidden").indexOf("toolbar") != -1) {
     gURLBar.setAttribute("readonly", "true");
     gURLBar.setAttribute("enablehistory", "false");
   }
@@ -1238,7 +1237,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     focusElement(content);
 
   if (gURLBar)
-    gURLBar.emptyText = gURLBarEmptyText.value;
+    gURLBar.setAttribute("emptytext", gURLBarEmptyText.value);
 
   gNavToolbox.customizeDone = BrowserToolboxCustomizeDone;
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
@@ -1591,10 +1590,7 @@ function initializeSanitizer()
         var clearOnShutdownBranch = prefService.getBranch("privacy.clearOnShutdown.");
         itemArray.forEach(function (name) {
           try {
-            // don't migrate password or offlineApps clearing in the CRH dialog since
-            // there's no UI for those anymore. They default to false. bug 497656
-            if (name != "passwords" && name != "offlineApps")
-              cpdBranch.setBoolPref(name, itemBranch.getBoolPref(name));
+            cpdBranch.setBoolPref(name, itemBranch.getBoolPref(name));
             clearOnShutdownBranch.setBoolPref(name, itemBranch.getBoolPref(name));
           }
           catch(e) {
@@ -4531,15 +4527,14 @@ function onViewToolbarsPopupShowing(aEvent)
   for (i = 0; i < gNavToolbox.childNodes.length; ++i) {
     var toolbar = gNavToolbox.childNodes[i];
     var toolbarName = toolbar.getAttribute("toolbarname");
-    if (toolbarName) {
-      let menuItem = document.createElement("menuitem");
-      let hidingAttribute = toolbar.getAttribute("type") == "menubar" ?
-                            "autohide" : "collapsed";
+    var type = toolbar.getAttribute("type");
+    if (toolbarName && type != "menubar") {
+      var menuItem = document.createElement("menuitem");
       menuItem.setAttribute("toolbarindex", i);
       menuItem.setAttribute("type", "checkbox");
       menuItem.setAttribute("label", toolbarName);
       menuItem.setAttribute("accesskey", toolbar.getAttribute("accesskey"));
-      menuItem.setAttribute("checked", toolbar.getAttribute(hidingAttribute) != "true");
+      menuItem.setAttribute("checked", toolbar.getAttribute("collapsed") != "true");
       popup.insertBefore(menuItem, firstMenuItem);
 
       menuItem.addEventListener("command", onViewToolbarCommand, false);
@@ -4552,12 +4547,9 @@ function onViewToolbarCommand(aEvent)
 {
   var index = aEvent.originalTarget.getAttribute("toolbarindex");
   var toolbar = gNavToolbox.childNodes[index];
-  var hidingAttribute = toolbar.getAttribute("type") == "menubar" ?
-                        "autohide" : "collapsed";
 
-  toolbar.setAttribute(hidingAttribute,
-                       aEvent.originalTarget.getAttribute("checked") != "true");
-  document.persist(toolbar.id, hidingAttribute);
+  toolbar.collapsed = aEvent.originalTarget.getAttribute("checked") != "true";
+  document.persist(toolbar.id, "collapsed");
 }
 
 function displaySecurityInfo()

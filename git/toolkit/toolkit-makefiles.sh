@@ -398,6 +398,7 @@ MAKEFILES_netwerk="
   netwerk/streamconv/src/Makefile
   netwerk/streamconv/test/Makefile
   netwerk/test/Makefile
+  netwerk/testserver/Makefile
   netwerk/locales/Makefile
   netwerk/system/Makefile
   netwerk/system/win32/Makefile
@@ -442,8 +443,6 @@ MAKEFILES_caps="
   caps/idl/Makefile
   caps/include/Makefile
   caps/src/Makefile
-  caps/tests/Makefile
-  caps/tests/mochitest/Makefile
 "
 
 MAKEFILES_chrome="

@@ -377,21 +377,23 @@ nsHTMLSelectListAccessible::AccessibleForOption(nsIAccessibilityService *aAccSer
   // Accessibility service will initialize & cache any accessibles created
   nsCOMPtr<nsIAccessible> accessible;
   aAccService->GetAccessibleInWeakShell(domNode, mWeakShell, getter_AddRefs(accessible));
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
-  if (!acc)
+  nsCOMPtr<nsPIAccessible> privateAccessible(do_QueryInterface(accessible));
+  if (!privateAccessible) {
     return nsnull;
+  }
 
   ++ *aChildCount;
-  acc->SetParent(this);
-  nsRefPtr<nsAccessible> prevAcc =
-    nsAccUtils::QueryAccessible(aLastGoodAccessible);
-  if (prevAcc)
-    prevAcc->SetNextSibling(accessible);
-
-  if (!mFirstChild)
+  privateAccessible->SetParent(this);
+  nsCOMPtr<nsPIAccessible> privatePrevAccessible(do_QueryInterface(aLastGoodAccessible));
+  if (privatePrevAccessible) {
+    privatePrevAccessible->SetNextSibling(accessible);
+  }
+  if (!mFirstChild) {
     mFirstChild = accessible;
-
-  return accessible.forget();
+  }
+  nsIAccessible *returnAccessible = accessible;
+  NS_ADDREF(returnAccessible);
+  return returnAccessible;
 }
 
 already_AddRefed<nsIAccessible>
@@ -429,14 +431,13 @@ nsHTMLSelectListAccessible::CacheOptSiblings(nsIAccessibilityService *aAccServic
       }
     }
   }
-
   if (lastGoodAccessible) {
-    nsRefPtr<nsAccessible> lastAcc =
-      nsAccUtils::QueryAccessible(lastGoodAccessible);
-    lastAcc->SetNextSibling(nsnull);
+    nsCOMPtr<nsPIAccessible> privateLastAcc =
+      do_QueryInterface(lastGoodAccessible);
+    privateLastAcc->SetNextSibling(nsnull);
+    NS_ADDREF(aLastGoodAccessible = lastGoodAccessible);
   }
-
-  return lastGoodAccessible.forget();
+  return aLastGoodAccessible;
 }
 
 /**
@@ -844,14 +845,18 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
 
   nsCOMPtr<nsIAccessible> multiSelect =
     nsAccUtils::GetMultiSelectFor(optionNode);
-  if (!multiSelect)
+  nsCOMPtr<nsPIAccessible> privateMultiSelect = do_QueryInterface(multiSelect);
+  if (!privateMultiSelect) {
     return;
+  }
 
+  nsCOMPtr<nsIAccessibilityService> accService = 
+    do_GetService("@mozilla.org/accessibilityService;1");
   nsCOMPtr<nsIAccessible> optionAccessible;
-  GetAccService()->GetAccessibleFor(optionNode,
-                                    getter_AddRefs(optionAccessible));
-  if (!optionAccessible)
+  accService->GetAccessibleFor(optionNode, getter_AddRefs(optionAccessible));
+  if (!optionAccessible) {
     return;
+  }
 
   nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
                            multiSelect);
@@ -1245,10 +1250,10 @@ void nsHTMLComboboxTextFieldAccessible::CacheChildren()
 
     walker.GetFirstChild();
     SetFirstChild(walker.mState.accessible);
-    nsRefPtr<nsAccessible> child =
-      nsAccUtils::QueryAccessible(walker.mState.accessible);
-    child->SetParent(this);
-    child->SetNextSibling(nsnull);
+    nsCOMPtr<nsPIAccessible> privateChild = 
+      do_QueryInterface(walker.mState.accessible);
+    privateChild->SetParent(this);
+    privateChild->SetNextSibling(nsnull);
     mAccChildCount = 1;
   }
 }

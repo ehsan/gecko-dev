@@ -56,15 +56,11 @@ const kSyncFinished = "places-sync-finished";
 var observer = {
   observe: function(aSubject, aTopic, aData) {
     if (aTopic == kSyncFinished) {
-      // Set the preference for the timer to a large value so we don't sync.
-      prefs.setIntPref(kSyncPrefName, SYNC_INTERVAL);
-
-      // Now add another visit, be sure to use a different session, so we
-      // will also test grouping by uri.
+      // Now add another visit
       hs.addVisit(uri(TEST_URI), Date.now() * 1000, null,
-                  hs.TRANSITION_TYPED, false, 1);
-  
-      // Create the history menu query.
+                  hs.TRANSITION_TYPED, false, 0);
+
+      // Create the history menu query
       var options = hs.getNewQueryOptions();
       options.maxResults = 10;
       options.resultType = options.RESULTS_AS_URI;
@@ -76,23 +72,14 @@ var observer = {
       do_check_eq(root.childCount, 1);
       root.containerOpen = false;
 
-      // Create the most visited query.
-      options = hs.getNewQueryOptions();
+      // Create the most visited query
+      var options = hs.getNewQueryOptions();
       options.maxResults = 10;
       options.resultType = options.RESULTS_AS_URI;
       options.sortingMode = options.SORT_BY_VISITCOUNT_DESCENDING;
-      query = hs.getNewQuery();
-      result = hs.executeQuery(query, options);
-      root = result.root;
-      root.containerOpen = true;
-      do_check_eq(root.childCount, 1);
-      root.containerOpen = false;
-
-      // Create basic uri query.
-      options = hs.getNewQueryOptions();
-      query = hs.getNewQuery();
-      result = hs.executeQuery(query, options);
-      root = result.root;
+      var query = hs.getNewQuery();
+      var result = hs.executeQuery(query, options);
+      var root = result.root;
       root.containerOpen = true;
       do_check_eq(root.childCount, 1);
       root.containerOpen = false;
@@ -106,11 +93,15 @@ os.addObserver(observer, kSyncFinished, false);
 
 function run_test()
 {
-  // First set the preference for the timer to a small value so we sync
-  prefs.setIntPref(kSyncPrefName, 1);
+  // First set the preference for the timer to a large value so we don't sync
+  prefs.setIntPref(kSyncPrefName, SYNC_INTERVAL);
 
   // Now add the visit
   visitId = hs.addVisit(uri(TEST_URI), Date.now() * 1000, null,
                         hs.TRANSITION_TYPED, false, 0);
+
+  // Now add a bookmark to force a sync
+  bs.insertBookmark(bs.toolbarFolder, uri(TEST_URI), bs.DEFAULT_INDEX, "visited");
+
   do_test_pending();
 }

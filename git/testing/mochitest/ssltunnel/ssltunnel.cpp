@@ -822,7 +822,7 @@ PRIntn freeClientAuthHashItems(PLHashEntry *he, PRIntn i, void *arg)
 
 int main(int argc, char** argv)
 {
-  const char* configFilePath;
+  char* configFilePath;
   if (argc == 1)
     configFilePath = "ssltunnel.cfg";
   else

@@ -47,8 +47,8 @@ enum {
 };
 
 struct DialogDescription {
-    int          flags;
-    const gchar* icon;
+    int    flags;
+    gchar* icon;
 };
 
 // This table contains the optional widgets and icons associated with

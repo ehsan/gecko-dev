@@ -294,7 +294,7 @@ void nsProcess::ProcessComplete()
         mThread = nsnull;
     }
 
-    const char* topic;
+    char* topic;
     if (mExitValue < 0)
         topic = "process-failed";
     else

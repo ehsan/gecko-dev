@@ -548,7 +548,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     ToLowerCase(tmp);
 
     nsCOMPtr<nsIAtom> name = do_GetAtom(tmp);
-    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None);
   }
   else if (mNodeInfoCache[aNodeType]) {
     nodeInfo = mNodeInfoCache[aNodeType];
@@ -561,7 +561,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     nsIAtom *name = parserService->HTMLIdToAtomTag(aNodeType);
     NS_ASSERTION(name, "What? Reverse mapping of id to string broken!!!");
 
-    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None);
     NS_IF_ADDREF(mNodeInfoCache[aNodeType] = nodeInfo);
   }
 
@@ -583,8 +583,15 @@ NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
 
   nsIAtom *name = aNodeInfo->NameAtom();
 
-  NS_ASSERTION(aNodeInfo->NamespaceEquals(kNameSpaceID_XHTML), 
-               "Trying to HTML elements that don't have the XHTML namespace");
+#ifdef DEBUG
+  if (aNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    nsAutoString nameStr, lname;
+    name->ToString(nameStr);
+    ToLowerCase(nameStr, lname);
+    NS_ASSERTION(nameStr.Equals(lname), "name should be lowercase by now");
+    NS_ASSERTION(!aNodeInfo->GetPrefixAtom(), "should not have a prefix");
+  }
+#endif
   
   *aResult = CreateHTMLElement(parserService->
                                  HTMLCaseSensitiveAtomTagToId(name),
@@ -1675,7 +1682,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
-                                           kNameSpaceID_XHTML);
+                                           kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Make root part
@@ -1703,7 +1710,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 
   // Make head part
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head,
-                                           nsnull, kNameSpaceID_XHTML);
+                                           nsnull, kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mHead = NS_NewHTMLHeadElement(nodeInfo);
@@ -2896,7 +2903,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     // Create content object
     nsCOMPtr<nsIContent> element;
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_XHTML);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_None);
 
     result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(result, result);

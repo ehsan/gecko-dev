@@ -128,19 +128,20 @@ protected:
   const nsSVGPreserveAspectRatio &GetPreserveAspectRatio();
 
   NS_IMETHOD GetPatternFirstChild(nsIFrame **kid);
-  gfxRect    GetPatternRect(const gfxRect &bbox,
+  nsresult   GetPatternRect(nsIDOMSVGRect **patternRect,
+                            nsIDOMSVGRect *bbox,
                             nsIDOMSVGMatrix *callerCTM,
                             nsSVGElement *content);
-  gfxMatrix  GetPatternMatrix(const gfxRect &bbox,
-                              const gfxRect &callerBBox,
+  gfxMatrix  GetPatternMatrix(nsIDOMSVGRect *bbox,
+                              nsIDOMSVGRect *callerBBox,
                               nsIDOMSVGMatrix *callerCTM);
   nsresult   ConstructCTM(nsIDOMSVGMatrix **ctm,
-                          const gfxRect &callerBBox,
+                          nsIDOMSVGRect *callerBBox,
                           nsIDOMSVGMatrix *callerCTM);
-  nsresult   GetTargetGeometry(nsIDOMSVGMatrix **aCTM,
-                               gfxRect *aBBox,
-                               nsSVGElement **aTargetContent,
-                               nsSVGGeometryFrame *aTarget);
+  nsresult   GetCallerGeometry(nsIDOMSVGMatrix **aCTM,
+                               nsIDOMSVGRect **aBBox,
+                               nsSVGElement **aContent,
+                               nsSVGGeometryFrame *aSource);
 
 private:
   // this is a *temporary* reference to the frame of the element currently

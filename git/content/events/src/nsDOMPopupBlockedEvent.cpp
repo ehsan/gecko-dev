@@ -41,6 +41,35 @@
 #include "nsIURI.h"
 #include "nsContentUtils.h"
 
+nsDOMPopupBlockedEvent::nsDOMPopupBlockedEvent(nsPresContext* aPresContext,
+                                               nsPopupBlockedEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent ? aEvent :
+               new nsPopupBlockedEvent(PR_FALSE, 0))
+{
+  NS_ASSERTION(mEvent->eventStructType == NS_POPUPBLOCKED_EVENT, "event type mismatch");
+
+  if (aEvent) {
+    mEventIsInternal = PR_FALSE;
+  }
+  else {
+    mEventIsInternal = PR_TRUE;
+    mEvent->time = PR_Now();
+  }
+}
+
+nsDOMPopupBlockedEvent::~nsDOMPopupBlockedEvent() 
+{
+  if (mEventIsInternal) {
+    if (mEvent->eventStructType == NS_POPUPBLOCKED_EVENT) {
+      nsPopupBlockedEvent* event = static_cast<nsPopupBlockedEvent*>(mEvent);
+      NS_IF_RELEASE(event->mPopupWindowURI);
+
+      delete event;
+      mEvent = nsnull;
+    }
+  }
+}
+
 NS_IMPL_ADDREF_INHERITED(nsDOMPopupBlockedEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMPopupBlockedEvent, nsDOMEvent)
 
@@ -60,19 +89,34 @@ nsDOMPopupBlockedEvent::InitPopupBlockedEvent(const nsAString & aTypeArg,
   nsresult rv = nsDOMEvent::InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mRequestingWindow = do_GetWeakReference(aRequestingWindow);
-  mPopupWindowURI = aPopupWindowURI;
-  mPopupWindowFeatures = aPopupWindowFeatures;
-  mPopupWindowName = aPopupWindowName;
+  switch (mEvent->eventStructType)
+  {
+    case NS_POPUPBLOCKED_EVENT:
+    {
+       nsPopupBlockedEvent* event = static_cast<nsPopupBlockedEvent*>(mEvent);
+       event->mRequestingWindow = do_GetWeakReference(aRequestingWindow);
+       event->mPopupWindowURI = aPopupWindowURI;
+       NS_IF_ADDREF(event->mPopupWindowURI);
+       event->mPopupWindowFeatures = aPopupWindowFeatures;
+       event->mPopupWindowName = aPopupWindowName;
+       break;
+    }
+    default:
+       break;
+  }
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMPopupBlockedEvent::GetRequestingWindow(nsIDOMWindow **aRequestingWindow)
 {
-  *aRequestingWindow = nsnull;
-  if (mRequestingWindow)
-    CallQueryReferent(mRequestingWindow.get(), aRequestingWindow);
+  if (mEvent->eventStructType == NS_POPUPBLOCKED_EVENT) {
+    nsPopupBlockedEvent* event = static_cast<nsPopupBlockedEvent*>(mEvent);
+    CallQueryReferent(event->mRequestingWindow.get(), aRequestingWindow);
+  } else {
+    *aRequestingWindow = 0;
+  }
 
   return NS_OK;  // Don't throw an exception
 }
@@ -81,30 +125,43 @@ NS_IMETHODIMP
 nsDOMPopupBlockedEvent::GetPopupWindowURI(nsIURI **aPopupWindowURI)
 {
   NS_ENSURE_ARG_POINTER(aPopupWindowURI);
-
-  *aPopupWindowURI = mPopupWindowURI;
-  NS_IF_ADDREF(*aPopupWindowURI);
+  if (mEvent->eventStructType == NS_POPUPBLOCKED_EVENT) {
+    nsPopupBlockedEvent* event = static_cast<nsPopupBlockedEvent*>(mEvent);
+    *aPopupWindowURI = event->mPopupWindowURI;
+    NS_IF_ADDREF(*aPopupWindowURI);
+    return NS_OK;
+  }
+  *aPopupWindowURI = 0;
   return NS_OK;  // Don't throw an exception
 }
 
 NS_IMETHODIMP
 nsDOMPopupBlockedEvent::GetPopupWindowFeatures(nsAString &aPopupWindowFeatures)
 {
-
-  aPopupWindowFeatures = mPopupWindowFeatures;
+  if (mEvent->eventStructType == NS_POPUPBLOCKED_EVENT) {
+    nsPopupBlockedEvent* event = static_cast<nsPopupBlockedEvent*>(mEvent);
+    aPopupWindowFeatures = event->mPopupWindowFeatures;
+    return NS_OK;
+  }
+  aPopupWindowFeatures.Truncate();
   return NS_OK;  // Don't throw an exception
 }
 
 NS_IMETHODIMP
 nsDOMPopupBlockedEvent::GetPopupWindowName(nsAString &aPopupWindowName)
 {
-  aPopupWindowName = mPopupWindowName;
+  if (mEvent->eventStructType == NS_POPUPBLOCKED_EVENT) {
+    nsPopupBlockedEvent* event = static_cast<nsPopupBlockedEvent*>(mEvent);
+    aPopupWindowName = event->mPopupWindowName;
+    return NS_OK;
+  }
+  aPopupWindowName.Truncate();
   return NS_OK;  // Don't throw an exception
 }
 
 nsresult NS_NewDOMPopupBlockedEvent(nsIDOMEvent** aInstancePtrResult,
                                     nsPresContext* aPresContext,
-                                    nsEvent *aEvent) 
+                                    nsPopupBlockedEvent *aEvent) 
 {
   nsDOMPopupBlockedEvent* it = new nsDOMPopupBlockedEvent(aPresContext, aEvent);
   if (nsnull == it) {

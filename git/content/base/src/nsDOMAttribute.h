@@ -54,7 +54,6 @@
 #include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsContentUtils.h"
-#include "nsIDOMXPathNSResolver.h"
 
 class nsDOMAttribute;
 
@@ -62,8 +61,7 @@ class nsDOMAttribute;
 // object that implements nsIDOMAttr, nsIDOM3Attr, nsIDOMNode, nsIDOM3Node
 class nsDOMAttribute : public nsIAttribute,
                        public nsIDOMAttr,
-                       public nsIDOM3Attr,
-                       public nsIDOMXPathNSResolver
+                       public nsIDOM3Attr
 {
 public:
   nsDOMAttribute(nsDOMAttributeMap* aAttrMap, nsINodeInfo *aNodeInfo,

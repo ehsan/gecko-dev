@@ -478,8 +478,6 @@
           // object which is already set for this viewer. At that point,
           // we should do nothing.
           if (this._self._result != val) {
-            if (this._self._result)
-              this._self._result.root.containerOpen = false;
             this._self._containerNodesMap = [];
             this._self._result = val;
             if (val) // this calls _rebuild through invalidateContainer
@@ -727,7 +725,11 @@
         <parameter name="aPopup"/>
         <body><![CDATA[
           this._contextMenuShown = true;
-          window.updateCommands("places");
+          // Activate the controller
+          this.focus();
+          // The above call may not always fire a consumable event for
+          // commandUpdater, so we force a command update.
+          window.updateCommands("focus");
           return this.controller.buildContextMenu(aPopup);
         ]]></body>
       </method>

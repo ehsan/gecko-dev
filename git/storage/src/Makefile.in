@@ -63,10 +63,7 @@ REQUIRES = xpcom \
 
 EXPORTS_NAMESPACES = mozilla/storage
 
-EXPORTS_mozilla/storage = \
-  Variant.h \
-  Variant_inl.h \
-  $(NULL)
+EXPORTS_mozilla/storage = Variant.h
 
 CPPSRCS = \
   mozStorageService.cpp \
@@ -83,6 +80,7 @@ CPPSRCS = \
   mozStorageAsyncStatementExecution.cpp \
   mozStorageStatementJSHelper.cpp \
   mozStoragePrivateHelpers.cpp \
+  Variant.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

@@ -138,7 +138,6 @@ public:
     eColor__moz_buttonhovertext,                             //used to button text, when mouse is over
     eColor__moz_menuhover,                                   //used to menu item background, when mouse is over
     eColor__moz_menuhovertext,                               //used to menu item text, when mouse is over
-    eColor__moz_menubartext,                                 //used to menu bar item text
     eColor__moz_menubarhovertext,                            //used to menu bar item text, when mouse is over
     // On platforms where these colors are the same as
     // -moz-field, use -moz-fieldtext as foreground color

@@ -119,6 +119,7 @@
 #include "nsIPrincipal.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsStyleUtil.h"
+#include "nsIFocusEventSuppressor.h"
 #include "nsBox.h"
 #include "nsTArray.h"
 #include "nsGenericDOMDataNode.h"
@@ -162,7 +163,7 @@ NS_NewHTMLVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 #endif
 
 #ifdef MOZ_SVG
-#include "nsSVGTextContainerFrame.h"
+#include "nsISVGTextContentMetrics.h"
 
 PRBool
 NS_SVGEnabled();
@@ -1574,6 +1575,7 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mGfxScrollFrame(nsnull)
   , mPageSequenceFrame(nsnull)
   , mUpdateCount(0)
+  , mFocusSuppressCount(0)
   , mQuotesDirty(PR_FALSE)
   , mCountersDirty(PR_FALSE)
   , mIsDestroyingFrameTree(PR_FALSE)
@@ -3180,7 +3182,7 @@ nsCSSFrameConstructor::ConstructButtonFrame(nsFrameConstructorState& aState,
 #endif
 
     rv = ProcessChildren(aState, content, styleContext, blockFrame, PR_TRUE,
-                         childItems, aStyleDisplay->IsBlockInside());
+                         childItems, aStyleDisplay->IsBlockOutside());
     if (NS_FAILED(rv)) return rv;
   
     // Set the areas frame's initial child lists
@@ -3555,7 +3557,7 @@ nsCSSFrameConstructor::FindTextData(nsIFrame* aParentFrame)
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsSVGTextContainerFrame* metrics = do_QueryFrame(ancestorFrame);
+      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
       if (metrics) {
         static const FrameConstructionData sSVGGlyphData =
           SIMPLE_FCDATA(NS_NewSVGGlyphFrame);
@@ -4974,7 +4976,7 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsSVGTextContainerFrame* metrics = do_QueryFrame(ancestorFrame);
+      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
       // Text cannot be nested
       if (metrics) {
         return &sGenericContainerData;
@@ -4986,7 +4988,7 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
     if (ancestorFrame) {
-      nsSVGTextContainerFrame* metrics = do_QueryFrame(ancestorFrame);
+      nsISVGTextContentMetrics* metrics = do_QueryFrame(ancestorFrame);
       if (!metrics) {
         return &sGenericContainerData;
       }
@@ -5421,7 +5423,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
       // it's conservative in the sense that anything that will really end up
       // as an in-flow non-inline will have false mIsAllInline.  It just might
       // be that even an inline that has mIsAllInline false doesn't need an
-      // {ib} split.  So this is just an optimization to keep from doing too
+      // {ib} split.  So this is just an optimization to keep from doint to
       // much work when that happens.
       (!(bits & FCDATA_DISALLOW_OUT_OF_FLOW) &&
        aState.GetGeometricParent(display, nsnull)) ||
@@ -5433,14 +5435,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     aItems.InlineItemAdded();
   }
 
-  // Our item should be treated as a line participant if we have the relevant
-  // bit and are going to be in-flow.  Note that this really only matters if
-  // our ancestor is a box or some such, so the fact that we might have an
-  // inline ancestor that might become a containing block is not relevant here.
-  if ((bits & FCDATA_IS_LINE_PARTICIPANT) &&
-      ((bits & FCDATA_DISALLOW_OUT_OF_FLOW) ||
-       !aState.GetGeometricParent(display, nsnull))) {
-    item->mIsLineParticipant = PR_TRUE;
+  if (bits & FCDATA_IS_LINE_PARTICIPANT) {
     aItems.LineParticipantItemAdded();
   }
 }
@@ -6482,24 +6477,12 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
 
   nsIContent* container = parentFrame->GetContent();
 
-  nsIAtom* frameType = parentFrame->GetType();
-  if (frameType == nsGkAtoms::frameSetFrame &&
+  if (parentFrame->GetType() == nsGkAtoms::frameSetFrame &&
       IsSpecialFramesetChild(aChild)) {
     // Just reframe the parent, since framesets are weird like that.
     return RecreateFramesForContent(parentFrame->GetContent());
   }
-
-  if (frameType == nsGkAtoms::fieldSetFrame &&
-      aChild->Tag() == nsGkAtoms::legend) {
-    // Just reframe the parent, since figuring out whether this
-    // should be the new legend and then handling it is too complex.
-    // We could do a little better here --- check if the fieldset already
-    // has a legend which occurs earlier in its child list than this node,
-    // and if so, proceed. But we'd have to extend nsFieldSetFrame
-    // to locate this legend in the inserted frames and extract it.
-    return RecreateFramesForContent(parentFrame->GetContent());
-  }
-
+  
   // Don't construct kids of leaves
   if (parentFrame->IsLeaf()) {
     return NS_OK;
@@ -7273,17 +7256,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
         if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
           nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(aFrame);
           if (outerSVGFrame) {
-            // We need this to invalidate frames when their 'filter' or 'marker'
-            // property changes. XXX in theory changes to 'marker' should be
-            // handled in nsSVGPathGeometryFrame::DidSetStyleContext, but for
-            // some reason that's broken.
-            //
-            // This call is also currently the only mechanism for invalidating
-            // the area covered by a <foreignObject> when 'opacity' changes on
-            // it or one of its ancestors. (For 'opacity' changes on <image> or
-            // a graphical element such as <path>, or on one of their
-            // ancestors, this is redundant since
-            // nsSVGPathGeometryFrame::DidSetStyleContext also invalidates.)
+            // marker changes can change the covered region
             outerSVGFrame->UpdateAndInvalidateCoveredRegion(aFrame);
           }
         }
@@ -7801,9 +7774,8 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
 
 void
 nsCSSFrameConstructor::BeginUpdate() {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-               "Someone forgot a script blocker");
-
+  NS_SuppressFocusEvent();
+  ++mFocusSuppressCount;
   ++mUpdateCount;
 }
 
@@ -7818,6 +7790,10 @@ nsCSSFrameConstructor::EndUpdate()
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
   --mUpdateCount;
+  if (mFocusSuppressCount) {
+    NS_UnsuppressFocusEvent();
+    --mFocusSuppressCount;
+  }
 }
 
 void
@@ -7837,6 +7813,23 @@ nsCSSFrameConstructor::RecalcQuotesAndCounters()
   NS_ASSERTION(!mCountersDirty, "Counter updates will be lost");  
 }
 
+class nsFocusUnsuppressEvent : public nsRunnable {
+  public:
+    NS_DECL_NSIRUNNABLE
+    nsFocusUnsuppressEvent(PRUint32 aCount) : mCount(aCount) {}
+  private:
+    PRUint32 mCount;
+  };
+
+NS_IMETHODIMP nsFocusUnsuppressEvent::Run()
+{
+  while (mCount) {
+    --mCount;
+    NS_UnsuppressFocusEvent();
+  }
+  return NS_OK;
+}
+
 void
 nsCSSFrameConstructor::WillDestroyFrameTree()
 {
@@ -7852,6 +7845,14 @@ nsCSSFrameConstructor::WillDestroyFrameTree()
 
   // Cancel all pending re-resolves
   mRestyleEvent.Revoke();
+
+  if (mFocusSuppressCount && mPresShell->IsDestroying()) {
+    nsRefPtr<nsFocusUnsuppressEvent> ev =
+      new nsFocusUnsuppressEvent(mFocusSuppressCount);
+    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
+      mFocusSuppressCount = 0;
+    }
+  }
 }
 
 //STATIC
@@ -8712,14 +8713,6 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
 #endif
 
     *aResult = ReframeContainingBlock(aFrame);
-    return PR_TRUE;
-  }
-
-  if (aFrame->GetType() == nsGkAtoms::legendFrame &&
-      aFrame->GetParent()->GetType() == nsGkAtoms::fieldSetFrame) {
-    // When we remove the legend for a fieldset, we should reframe
-    // the fieldset to ensure another legend is used, if there is one
-    *aResult = RecreateFramesForContent(aFrame->GetParent()->GetContent());
     return PR_TRUE;
   }
 
@@ -11577,7 +11570,7 @@ AdjustCountsForItem(FrameConstructionItem* aItem, PRInt32 aDelta)
   if (aItem->mIsAllInline) {
     mInlineCount += aDelta;
   }
-  if (aItem->mIsLineParticipant) {
+  if (aItem->mFCData->mBits & FCDATA_IS_LINE_PARTICIPANT) {
     mLineParticipantCount += aDelta;
   }
   mDesiredParentCounts[aItem->DesiredParentType()] += aDelta;

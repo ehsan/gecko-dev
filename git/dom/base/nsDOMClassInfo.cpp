@@ -3549,6 +3549,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLMediaError, nsIDOMHTMLMediaError)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMediaError)
+    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLAudioElement, nsIDOMHTMLAudioElement)
@@ -4754,17 +4755,6 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       rv = WrapNative(cx, frameWin->GetGlobalJSObject(), frame,
                       &NS_GET_IID(nsIDOMWindow), vp,
                       getter_AddRefs(holder));
-
-      if (NS_SUCCEEDED(rv) && !win->IsChromeWindow()) {
-        JSObject *scopeobj = JS_GetScopeChain(cx);
-        if (!scopeobj) {
-          *_retval = JS_FALSE;
-          return NS_ERROR_FAILURE;
-        }
-
-        rv = sXPConnect->GetXOWForObject(cx, scopeobj, JSVAL_TO_OBJECT(*vp),
-                                         vp);
-      }
     }
 
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;

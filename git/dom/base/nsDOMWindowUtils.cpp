@@ -44,7 +44,7 @@
 #include "nsDOMWindowUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #include "nsIEventStateManager.h"
 
 #include "nsIScrollableView.h"
@@ -450,12 +450,17 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
     "UniversalXPConnect", &hasCap)) || !hasCap)
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    if (aElement)
-      fm->SetFocus(aElement, 0);
-    else
-      fm->ClearFocus(mWindow);
+  nsPresContext* pc = GetPresContext();
+  if (pc) {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+    if (content) {
+      nsCOMPtr<nsIDocument> doc(do_QueryInterface(mWindow->GetExtantDocument()));
+      if (!doc || content->GetCurrentDoc() != doc)
+        return NS_ERROR_FAILURE;
+    }
+
+    pc->EventStateManager()->ChangeFocusWith(content,
+        nsIEventStateManager::eEventFocusedByApplication);
   }
 
   return NS_OK;
@@ -598,7 +603,7 @@ CanvasToImageSurface(nsIDOMHTMLCanvasElement *canvas)
   ctx->Paint();
 
   ctx->SetOperator(gfxContext::OPERATOR_OVER);
-  rv = elt->RenderContexts(ctx, gfxPattern::FILTER_NEAREST);
+  rv = elt->RenderContexts(ctx);
   if (NS_FAILED(rv))
     return nsnull;
 

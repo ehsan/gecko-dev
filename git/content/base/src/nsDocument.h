@@ -110,7 +110,6 @@
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIDocumentViewer.h"
-#include "nsIDOMXPathNSResolver.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsILoadContext.h"
 #include "nsIProgressEventSink.h"
@@ -574,7 +573,6 @@ class nsDocument : public nsIDocument,
                    public nsIRadioGroupContainer,
                    public nsIDOMNodeSelector,
                    public nsIApplicationCacheContainer,
-                   public nsIDOMXPathNSResolver,
                    public nsStubMutationObserver
 {
 public:
