@@ -34,18 +34,6 @@
 #include "nptest_platform.h"
 #include <CoreServices/CoreServices.h>
 
-bool
-pluginSupportsWindowMode()
-{
-  return false;
-}
-
-bool
-pluginSupportsWindowlessMode()
-{
-  return true;
-}
-
 NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
@@ -61,15 +49,15 @@ pluginInstanceInit(InstanceData* instanceData)
   return NPERR_NO_ERROR;
 }
 
-void
-pluginInstanceShutdown(InstanceData* instanceData)
+int16_t
+pluginHandleEvent(InstanceData* instanceData, void* event)
 {
-}
-
-void
-pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
-{
-  // Should never be called since we don't support window mode
+  EventRecord* carbonEvent = (EventRecord*)event;
+  if (carbonEvent && (carbonEvent->what == updateEvt)) {
+    pluginDraw(instanceData);
+    return 1;
+  }
+  return 0;
 }
 
 static void 
@@ -81,7 +69,7 @@ GetColorsFromRGBA(PRUint32 rgba, float* r, float* g, float* b, float* a)
   *a = ((rgba & 0xFF000000) >> 24) / 255.0;
 }
 
-static void
+void
 pluginDraw(InstanceData* instanceData)
 {
   if (!instanceData)
@@ -207,15 +195,4 @@ pluginDraw(InstanceData* instanceData)
     break;
   }
   }
-}
-
-int16_t
-pluginHandleEvent(InstanceData* instanceData, void* event)
-{
-  EventRecord* carbonEvent = (EventRecord*)event;
-  if (carbonEvent && (carbonEvent->what == updateEvt)) {
-    pluginDraw(instanceData);
-    return 1;
-  }
-  return 0;
 }
