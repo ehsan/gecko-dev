@@ -48,8 +48,6 @@ Cu.import("resource://weave/util.js");
  * Asynchronous generator helpers
  */
 
-let currentId = 0;
-
 function AsyncException(initFrame, message) {
   this.message = message;
   this._trace = initFrame;
@@ -71,13 +69,11 @@ AsyncException.prototype = {
 };
 
 function Generator(thisArg, method, onComplete, args) {
-  this._outstandingCbs = 0;
   this._log = Log4Moz.Service.getLogger("Async.Generator");
   this._log.level =
     Log4Moz.Level[Utils.prefs.getCharPref("log.logger.async")];
   this._thisArg = thisArg;
   this._method = method;
-  this._id = currentId++;
   this.onComplete = onComplete;
   this._args = args;
   this._initFrame = Components.stack.caller;
@@ -87,15 +83,10 @@ function Generator(thisArg, method, onComplete, args) {
     this._initFrame = this._initFrame.caller;
 }
 Generator.prototype = {
-  get name() { return this._method.name + "-" + this._id; },
+  get name() { return this._method.name; },
   get generator() { return this._generator; },
 
   get cb() {
-    let caller = Components.stack.caller;
-    this._outstandingCbs++;
-    this._log.debug(this.name +
-                    ": self.cb generated at " +
-                    caller.filename + ":" + caller.lineNumber);
     let self = this, cb = function(data) { self.cont(data); };
     cb.parentGenerator = this;
     return cb;
@@ -135,7 +126,6 @@ Generator.prototype = {
 
   _handleException: function AsyncGen__handleException(e) {
     if (e instanceof StopIteration) {
-      this._log.debug(this.name + ": End of coroutine reached.");
       // skip to calling done()
 
     } else if (this.onComplete.parentGenerator instanceof Generator) {
@@ -168,20 +158,12 @@ Generator.prototype = {
     }
   },
 
-  _detectDeadlock: function AsyncGen_detectDeadlock() {
-    if (this._outstandingCbs == 0)
-      this._log.warn("Async method '" + this.name +
-                     "' may have yielded without an " +
-                     "outstanding callback.");
-  },
-
   run: function AsyncGen_run() {
     this._continued = false;
     try {
       this._generator = this._method.apply(this._thisArg, this._args);
       this.generator.next(); // must initialize before sending
       this.generator.send(this);
-      this._detectDeadlock();
     } catch (e) {
       if (!(e instanceof StopIteration) || !this._timer)
         this._handleException(e);
@@ -189,13 +171,9 @@ Generator.prototype = {
   },
 
   cont: function AsyncGen_cont(data) {
-    this._outstandingCbs--;
-    this._log.debug(this.name + ": self.cb() called, resuming coroutine.");
     this._continued = true;
-    try {
-      this.generator.send(data);
-      this._detectDeadlock();
-    } catch (e) {
+    try { this.generator.send(data); }
+    catch (e) {
       if (!(e instanceof StopIteration) || !this._timer)
         this._handleException(e);
     }
@@ -221,10 +199,6 @@ Generator.prototype = {
       return;
     let self = this;
     let cb = function() { self._done(retval); };
-    this._log.debug(this.name + ": done() called.");
-    if (this._outstandingCbs > 0)
-      this._log.warn("Async method '" + this.name +
-                     "' may have outstanding callbacks.");
     this._timer = Utils.makeTimerForCall(cb);
   },
 
