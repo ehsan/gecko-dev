@@ -3436,7 +3436,7 @@ Element::SetBoolAttr(nsIAtom* aAttr, bool aValue)
 float
 Element::FontSizeInflation()
 {
-  nsIFrame* frame = GetPrimaryFrame();
+  nsIFrame* frame = mPrimaryFrame;
   if (!frame) {
     return -1.0;
   }

@@ -45,12 +45,16 @@ struct JsidHasher
     }
 };
 
+} /* namespace js */
+
 /*
  * Return a printable, lossless char[] representation of a string-type atom.
  * The lifetime of the result matches the lifetime of bytes.
  */
 extern const char *
-AtomToPrintableString(ExclusiveContext *cx, JSAtom *atom, JSAutoByteString *bytes);
+js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes);
+
+namespace js {
 
 /* Compute a hash function from chars/length. */
 inline uint32_t
@@ -211,21 +215,21 @@ enum InternBehavior
 };
 
 extern JSAtom *
-Atomize(ExclusiveContext *cx, const char *bytes, size_t length,
+Atomize(JSContext *cx, const char *bytes, size_t length,
         js::InternBehavior ib = js::DoNotInternAtom);
 
 template <AllowGC allowGC>
 extern JSAtom *
-AtomizeChars(ExclusiveContext *cx, const jschar *chars, size_t length,
+AtomizeChars(JSContext *cx, const jschar *chars, size_t length,
              js::InternBehavior ib = js::DoNotInternAtom);
 
 template <AllowGC allowGC>
 extern JSAtom *
-AtomizeString(ExclusiveContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
+AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
 
 template <AllowGC allowGC>
 extern JSAtom *
-ToAtom(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v);
+ToAtom(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v);
 
 template<XDRMode mode>
 bool

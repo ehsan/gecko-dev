@@ -170,7 +170,7 @@ var gAllTests = [
     let iter = function() {
       for (let i = 0; i < 5; i++) {
         formEntries.push(addFormEntryWithMinutesAgo(iter, i));
-        yield undefined;
+        yield;
       }
       doNextTest();
     }();
@@ -329,7 +329,7 @@ var gAllTests = [
   function () {
     let iter = function() {
       formEntries = [ addFormEntryWithMinutesAgo(iter, 10) ];
-      yield undefined;
+      yield;
       doNextTest();
     }();
 
@@ -408,7 +408,7 @@ var gAllTests = [
   function () {
     let iter = function() {
       formEntries = [ addFormEntryWithMinutesAgo(iter, 10) ];
-      yield undefined;
+      yield;
       doNextTest();
     }();
 

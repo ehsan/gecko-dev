@@ -54,7 +54,6 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
     JSContext *cx;
   public:
     AutoCheckRequestDepth(JSContext *cx);
-    AutoCheckRequestDepth(js::ContextFriendFields *cx);
     ~AutoCheckRequestDepth();
 };
 
@@ -85,7 +84,6 @@ inline void AssertArgumentsAreSane(JSContext *cx, const Value &v) {
 class JS_PUBLIC_API(AutoGCRooter) {
   public:
     AutoGCRooter(JSContext *cx, ptrdiff_t tag);
-    AutoGCRooter(js::ContextFriendFields *cx, ptrdiff_t tag);
 
     ~AutoGCRooter() {
         JS_ASSERT(this == *stackTop);
@@ -223,13 +221,6 @@ class AutoVectorRooter : protected AutoGCRooter
 {
   public:
     explicit AutoVectorRooter(JSContext *cx, ptrdiff_t tag
-                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, tag), vector(cx), vectorRoot(cx, &vector)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    explicit AutoVectorRooter(js::ContextFriendFields *cx, ptrdiff_t tag
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, tag), vector(cx), vectorRoot(cx, &vector)
     {
@@ -587,14 +578,7 @@ class AutoFunctionVector : public AutoVectorRooter<JSFunction *>
 {
   public:
     explicit AutoFunctionVector(JSContext *cx
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<JSFunction *>(cx, FUNVECTOR)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    explicit AutoFunctionVector(js::ContextFriendFields *cx
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<JSFunction *>(cx, FUNVECTOR)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -622,8 +606,7 @@ class AutoScriptVector : public AutoVectorRooter<JSScript *>
 class JS_PUBLIC_API(CustomAutoRooter) : private AutoGCRooter
 {
   public:
-    template <typename CX>
-    explicit CustomAutoRooter(CX *cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit CustomAutoRooter(JSContext *cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, CUSTOM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -3955,10 +3938,6 @@ struct JS_PUBLIC_API(CompileOptions) {
     bool noScriptRval;
     bool selfHostingMode;
     bool canLazilyParse;
-    bool strictOption;
-    bool extraWarningsOption;
-    bool werrorOption;
-    bool asmJSOption;
     enum SourcePolicy {
         NO_SOURCE,
         LAZY_SOURCE,
@@ -4489,8 +4468,6 @@ class JSAutoByteString
         mBytes = JS_EncodeString(cx, str);
         return mBytes;
     }
-
-    char *encodeLatin1(js::ContextFriendFields *cx, JSString *str);
 
     char *encodeUtf8(JSContext *cx, JSString *str) {
         JS_ASSERT(!mBytes);

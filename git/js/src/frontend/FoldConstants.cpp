@@ -15,8 +15,6 @@
 #include "frontend/Parser.h"
 #include "vm/NumericConversions.h"
 
-#include "jscntxtinlines.h"
-
 using namespace js;
 using namespace js::frontend;
 
@@ -69,7 +67,7 @@ ContainsVarOrConst(ParseNode *pn)
  * XXX handles only strings and numbers for now
  */
 static bool
-FoldType(ExclusiveContext *cx, ParseNode *pn, ParseNodeKind kind)
+FoldType(JSContext *cx, ParseNode *pn, ParseNodeKind kind)
 {
     if (!pn->isKind(kind)) {
         switch (kind) {
@@ -109,7 +107,7 @@ FoldType(ExclusiveContext *cx, ParseNode *pn, ParseNodeKind kind)
  * a successful call to this function.
  */
 static bool
-FoldBinaryNumeric(ExclusiveContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
+FoldBinaryNumeric(JSContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
                   ParseNode *pn)
 {
     double d, d2;
@@ -246,9 +244,8 @@ condIf(const ParseNode *pn, ParseNodeKind kind)
 }
 
 static bool
-Fold(ExclusiveContext *cx, ParseNode **pnp,
-     FullParseHandler &handler, const CompileOptions &options,
-     bool inGenexpLambda, SyntacticContext sc)
+Fold(JSContext *cx, ParseNode **pnp, FullParseHandler &handler, bool inGenexpLambda,
+     SyntacticContext sc)
 {
     ParseNode *pn = *pnp;
     ParseNode *pn1 = NULL, *pn2 = NULL, *pn3 = NULL;
@@ -259,18 +256,18 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
     switch (pn->getArity()) {
       case PN_CODE:
         if (pn->isKind(PNK_FUNCTION) &&
-            pn->pn_funbox->useAsmOrInsideUseAsm() && options.asmJSOption)
+            pn->pn_funbox->useAsmOrInsideUseAsm() && cx->hasOption(JSOPTION_ASMJS))
         {
             return true;
         }
         if (pn->getKind() == PNK_MODULE) {
-            if (!Fold(cx, &pn->pn_body, handler, options, false, SyntacticContext::Other))
+            if (!Fold(cx, &pn->pn_body, handler, false, SyntacticContext::Other))
                 return false;
         } else {
             // Note: pn_body is NULL for functions which are being lazily parsed.
             JS_ASSERT(pn->getKind() == PNK_FUNCTION);
             if (pn->pn_body) {
-                if (!Fold(cx, &pn->pn_body, handler, options, pn->pn_funbox->inGenexpLambda,
+                if (!Fold(cx, &pn->pn_body, handler, pn->pn_funbox->inGenexpLambda,
                           SyntacticContext::Other))
                     return false;
             }
@@ -290,7 +287,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             listp = &(*listp)->pn_next;
 
         for (; *listp; listp = &(*listp)->pn_next) {
-            if (!Fold(cx, listp, handler, options, inGenexpLambda, kidsc))
+            if (!Fold(cx, listp, handler, inGenexpLambda, kidsc))
                 return false;
         }
 
@@ -306,13 +303,13 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
       case PN_TERNARY:
         /* Any kid may be null (e.g. for (;;)). */
         if (pn->pn_kid1) {
-            if (!Fold(cx, &pn->pn_kid1, handler, options, inGenexpLambda, condIf(pn, PNK_IF)))
+            if (!Fold(cx, &pn->pn_kid1, handler, inGenexpLambda, condIf(pn, PNK_IF)))
                 return false;
         }
         pn1 = pn->pn_kid1;
 
         if (pn->pn_kid2) {
-            if (!Fold(cx, &pn->pn_kid2, handler, options, inGenexpLambda, condIf(pn, PNK_FORHEAD)))
+            if (!Fold(cx, &pn->pn_kid2, handler, inGenexpLambda, condIf(pn, PNK_FORHEAD)))
                 return false;
             if (pn->isKind(PNK_FORHEAD) && pn->pn_kid2->isKind(PNK_TRUE)) {
                 handler.freeTree(pn->pn_kid2);
@@ -322,7 +319,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
         pn2 = pn->pn_kid2;
 
         if (pn->pn_kid3) {
-            if (!Fold(cx, &pn->pn_kid3, handler, options, inGenexpLambda, SyntacticContext::Other))
+            if (!Fold(cx, &pn->pn_kid3, handler, inGenexpLambda, SyntacticContext::Other))
                 return false;
         }
         pn3 = pn->pn_kid3;
@@ -334,17 +331,17 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             SyntacticContext kidsc = SyntacticContext::Other;
             if (sc == SyntacticContext::Condition)
                 kidsc = sc;
-            if (!Fold(cx, &pn->pn_left, handler, options, inGenexpLambda, kidsc))
+            if (!Fold(cx, &pn->pn_left, handler, inGenexpLambda, kidsc))
                 return false;
-            if (!Fold(cx, &pn->pn_right, handler, options, inGenexpLambda, kidsc))
+            if (!Fold(cx, &pn->pn_right, handler, inGenexpLambda, kidsc))
                 return false;
         } else {
             /* First kid may be null (for default case in switch). */
             if (pn->pn_left) {
-                if (!Fold(cx, &pn->pn_left, handler, options, inGenexpLambda, condIf(pn, PNK_WHILE)))
+                if (!Fold(cx, &pn->pn_left, handler, inGenexpLambda, condIf(pn, PNK_WHILE)))
                     return false;
             }
-            if (!Fold(cx, &pn->pn_right, handler, options, inGenexpLambda, condIf(pn, PNK_DOWHILE)))
+            if (!Fold(cx, &pn->pn_right, handler, inGenexpLambda, condIf(pn, PNK_DOWHILE)))
                 return false;
         }
         pn1 = pn->pn_left;
@@ -371,7 +368,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                 : pn->isKind(PNK_DELETE)
                 ? SyntacticContext::Delete
                 : SyntacticContext::Other;
-            if (!Fold(cx, &pn->pn_kid, handler, options, inGenexpLambda, kidsc))
+            if (!Fold(cx, &pn->pn_kid, handler, inGenexpLambda, kidsc))
                 return false;
         }
         pn1 = pn->pn_kid;
@@ -388,7 +385,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             ParseNode **lhsp = &pn->pn_expr;
             while (*lhsp && (*lhsp)->isArity(PN_NAME) && !(*lhsp)->isUsed())
                 lhsp = &(*lhsp)->pn_expr;
-            if (*lhsp && !Fold(cx, lhsp, handler, options, inGenexpLambda, SyntacticContext::Other))
+            if (*lhsp && !Fold(cx, lhsp, handler, inGenexpLambda, SyntacticContext::Other))
                 return false;
             pn1 = *lhsp;
         }
@@ -613,7 +610,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                 return true;
             RootedString left(cx, pn1->pn_atom);
             RootedString right(cx, pn2->pn_atom);
-            RootedString str(cx, ConcatStrings<CanGC>(cx->asJSContext(), left, right));
+            RootedString str(cx, ConcatStrings<CanGC>(cx, left, right));
             if (!str)
                 return false;
             pn->pn_atom = AtomizeString<CanGC>(cx, str);
@@ -807,14 +804,15 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
 }
 
 bool
-frontend::FoldConstants(ExclusiveContext *cx, ParseNode **pnp, Parser<FullParseHandler> *parser)
+frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser<FullParseHandler> *parser)
 {
+
     // Don't fold constants if the code has requested "use asm" as
     // constant-folding will misrepresent the source text for the purpose
     // of type checking. (Also guard against entering a function containing
     // "use asm", see PN_FUNC case below.)
-    if (parser->pc->useAsmOrInsideUseAsm() && parser->options().asmJSOption)
+    if (parser->pc->useAsmOrInsideUseAsm() && cx->hasOption(JSOPTION_ASMJS))
         return true;
 
-    return Fold(cx, pnp, parser->handler, parser->options(), false, SyntacticContext::Other);
+    return Fold(cx, pnp, parser->handler, false, SyntacticContext::Other);
 }

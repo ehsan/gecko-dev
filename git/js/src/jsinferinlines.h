@@ -509,7 +509,7 @@ GetTypeNewObject(JSContext *cx, JSProtoKey key)
     RootedObject proto(cx);
     if (!js_GetClassPrototype(cx, key, &proto))
         return NULL;
-    return cx->getNewType(GetClassForProtoKey(key), proto.get());
+    return proto->getNewType(cx, GetClassForProtoKey(key));
 }
 
 /* Get a type object for the immediate allocation site within a native. */
@@ -556,12 +556,12 @@ TypeMonitorCall(JSContext *cx, const js::CallArgs &args, bool constructing)
 }
 
 inline bool
-TrackPropertyTypes(ExclusiveContext *cx, JSObject *obj, jsid id)
+TrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
 {
     if (!cx->typeInferenceEnabled() || obj->hasLazyType() || obj->type()->unknownProperties())
         return false;
 
-    if (obj->hasSingletonType() && !obj->type()->maybeGetProperty(id, cx->asJSContext()))
+    if (obj->hasSingletonType() && !obj->type()->maybeGetProperty(id, cx))
         return false;
 
     return true;
@@ -587,23 +587,21 @@ EnsureTrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
 
 /* Add a possible type for a property of obj. */
 inline void
-AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, Type type)
+AddTypePropertyId(JSContext *cx, JSObject *obj, jsid id, Type type)
 {
-    if (cx->typeInferenceEnabled()) {
+    if (cx->typeInferenceEnabled())
         id = IdToTypeId(id);
-        if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->addPropertyType(cx->asJSContext(), id, type);
-    }
+    if (TrackPropertyTypes(cx, obj, id))
+        obj->type()->addPropertyType(cx, id, type);
 }
 
 inline void
-AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, const Value &value)
+AddTypePropertyId(JSContext *cx, JSObject *obj, jsid id, const Value &value)
 {
-    if (cx->typeInferenceEnabled()) {
+    if (cx->typeInferenceEnabled())
         id = IdToTypeId(id);
-        if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->addPropertyType(cx->asJSContext(), id, value);
-    }
+    if (TrackPropertyTypes(cx, obj, id))
+        obj->type()->addPropertyType(cx, id, value);
 }
 
 inline void
@@ -622,10 +620,10 @@ AddTypeProperty(JSContext *cx, TypeObject *obj, const char *name, const Value &v
 
 /* Set one or more dynamic flags on a type object. */
 inline void
-MarkTypeObjectFlags(ExclusiveContext *cx, JSObject *obj, TypeObjectFlags flags)
+MarkTypeObjectFlags(JSContext *cx, JSObject *obj, TypeObjectFlags flags)
 {
     if (cx->typeInferenceEnabled() && !obj->hasLazyType() && !obj->type()->hasAllFlags(flags))
-        obj->type()->setFlags(cx->asJSContext(), flags);
+        obj->type()->setFlags(cx, flags);
 }
 
 /*
@@ -651,21 +649,20 @@ MarkTypeObjectUnknownProperties(JSContext *cx, TypeObject *obj,
  * have a getter/setter.
  */
 inline void
-MarkTypePropertyConfigured(ExclusiveContext *cx, HandleObject obj, jsid id)
+MarkTypePropertyConfigured(JSContext *cx, HandleObject obj, jsid id)
 {
-    if (cx->typeInferenceEnabled()) {
+    if (cx->typeInferenceEnabled())
         id = IdToTypeId(id);
-        if (TrackPropertyTypes(cx, obj, id))
-            obj->type()->markPropertyConfigured(cx->asJSContext(), id);
-    }
+    if (TrackPropertyTypes(cx, obj, id))
+        obj->type()->markPropertyConfigured(cx, id);
 }
 
 /* Mark a state change on a particular object. */
 inline void
-MarkObjectStateChange(ExclusiveContext *cx, JSObject *obj)
+MarkObjectStateChange(JSContext *cx, JSObject *obj)
 {
     if (cx->typeInferenceEnabled() && !obj->hasLazyType() && !obj->type()->unknownProperties())
-        obj->type()->markStateChange(cx->asJSContext());
+        obj->type()->markStateChange(cx);
 }
 
 /*
@@ -674,23 +671,17 @@ MarkObjectStateChange(ExclusiveContext *cx, JSObject *obj)
  */
 
 inline void
-FixArrayType(ExclusiveContext *cxArg, HandleObject obj)
+FixArrayType(JSContext *cx, HandleObject obj)
 {
-    if (cxArg->isJSContext()) {
-        JSContext *cx = cxArg->asJSContext();
-        if (cx->typeInferenceEnabled())
-            cx->compartment()->types.fixArrayType(cx, obj);
-    }
+    if (cx->typeInferenceEnabled())
+        cx->compartment()->types.fixArrayType(cx, obj);
 }
 
 inline void
-FixObjectType(ExclusiveContext *cxArg, HandleObject obj)
+FixObjectType(JSContext *cx, HandleObject obj)
 {
-    if (cxArg->isJSContext()) {
-        JSContext *cx = cxArg->asJSContext();
-        if (cx->typeInferenceEnabled())
-            cx->compartment()->types.fixObjectType(cx, obj);
-    }
+    if (cx->typeInferenceEnabled())
+        cx->compartment()->types.fixObjectType(cx, obj);
 }
 
 /* Interface helpers for JSScript*. */
@@ -794,7 +785,7 @@ TypeScript::StandardType(JSContext *cx, JSProtoKey key)
     RootedObject proto(cx);
     if (!js_GetClassPrototype(cx, key, &proto, NULL))
         return NULL;
-    return cx->getNewType(GetClassForProtoKey(key), proto.get());
+    return proto->getNewType(cx, GetClassForProtoKey(key));
 }
 
 struct AllocationSiteKey {

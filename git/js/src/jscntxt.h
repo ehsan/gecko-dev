@@ -30,17 +30,6 @@
 #pragma warning(disable:4355) /* Silence warning about "this" used in base member initializer list */
 #endif
 
-struct DtoaState;
-
-extern void
-js_ReportOutOfMemory(js::ThreadSafeContext *cx);
-
-extern void
-js_ReportAllocationOverflow(js::ThreadSafeContext *cx);
-
-extern void
-js_ReportOverRecursed(js::ThreadSafeContext *cx);
-
 namespace js {
 
 struct CallsiteCloneKey {
@@ -109,44 +98,29 @@ TraceCycleDetectionSet(JSTracer *trc, ObjectSet &set);
 struct AutoResolving;
 
 class ForkJoinSlice;
-class RegExpCompartment;
-class DtoaCache;
 
 /*
- * Execution Context Overview:
+ * ThreadSafeContext is the base class for both JSContext, the "normal"
+ * sequential context, and ForkJoinSlice, the per-thread parallel context used
+ * in PJS.
  *
- * Several different structures may be used to provide a context for operations
- * on the VM. Each context is thread local, but varies in what data it can
- * access and what other threads may be running.
+ * When cast to a ThreadSafeContext, the only usable operations are casting
+ * back to the context from which it came, and generic allocation
+ * operations. These generic versions branch internally based on whether the
+ * underneath context is really a JSContext or a ForkJoinSlice, and are in
+ * general more expensive than using the context directly.
  *
- * - ThreadSafeContext is used by threads operating in one compartment which
- * may run in parallel with other threads operating on the same or other
- * compartments.
- *
- * - ExclusiveContext is used by threads operating in one compartment, where
- * other threads may operate in other compartments, but *not* the one which
- * the ExclusiveContext is in. A thread with an ExclusiveContext may enter the
- * atoms compartment and atomize strings, in which case a lock is used.
- *
- * - JSContext is used only by the runtime's main thread. The context may
- * operate in any compartment which is not locked by an ExclusiveContext or
- * ThreadSafeContext, and will only run in parallel with threads using such
- * contexts.
- *
- * An ExclusiveContext coerces to a ThreadSafeContext, and a JSContext coerces
- * to an ExclusiveContext or ThreadSafeContext.
- *
- * Contexts which are a ThreadSafeContext but not an ExclusiveContext are used
- * to represent a ForkJoinSlice, the per-thread parallel context used in PJS.
+ * Thus, ThreadSafeContext should only be used for VM functions that may be
+ * called in both sequential and parallel execution. The most likely class of
+ * VM functions that do these are those that allocate commonly used data
+ * structures, such as concatenating strings and extending elements.
  */
-
-struct ThreadSafeContext : ContextFriendFields,
+struct ThreadSafeContext : js::ContextFriendFields,
                            public MallocProvider<ThreadSafeContext>
 {
   public:
     enum ContextKind {
         Context_JS,
-        Context_Exclusive,
         Context_ForkJoin
     };
 
@@ -156,46 +130,14 @@ struct ThreadSafeContext : ContextFriendFields,
   public:
     PerThreadData *perThreadData;
 
-    ThreadSafeContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind);
+    explicit ThreadSafeContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind);
 
-    bool isJSContext() const {
-        return contextKind_ == Context_JS;
-    }
-
-    JSContext *maybeJSContext() const {
-        if (isJSContext())
-            return (JSContext *) this;
-        return NULL;
-    }
-
-    JSContext *asJSContext() const {
-        // Note: there is no way to perform an unchecked coercion from a
-        // ThreadSafeContext to a JSContext. This ensures that trying to use
-        // the context as a JSContext off the main thread will NULL crash
-        // rather than race.
-        JS_ASSERT(isJSContext());
-        return maybeJSContext();
-    }
-
-    bool isExclusiveContext() const {
-        return contextKind_ == Context_JS || contextKind_ == Context_Exclusive;
-    }
-
-    ExclusiveContext *maybeExclusiveContext() const {
-        if (isExclusiveContext())
-            return (ExclusiveContext *) this;
-        return NULL;
-    }
-
-    ExclusiveContext *asExclusiveContext() const {
-        JS_ASSERT(isExclusiveContext());
-        return maybeExclusiveContext();
-    }
+    bool isJSContext() const;
+    JSContext *asJSContext();
 
     bool isForkJoinSlice() const;
     ForkJoinSlice *asForkJoinSlice();
 
-    // The generational GC nursery may only be used on the main thread.
 #ifdef JSGC_GENERATIONAL
     inline bool hasNursery() const {
         return isJSContext();
@@ -207,16 +149,20 @@ struct ThreadSafeContext : ContextFriendFields,
     }
 #endif
 
+    /* Cut outs for string operations. */
+    StaticStrings &staticStrings() { return runtime_->staticStrings; }
+    JSAtomState &names() { return runtime_->atomState; }
+
     /*
      * Allocator used when allocating GCThings on this context. If we are a
-     * JSContext, this is the Zone allocator of the JSContext's zone.
-     * Otherwise, this is a per-thread allocator.
+     * JSContext, this is the Zone allocator of the JSContext's zone. If we
+     * are the per-thread data of a ForkJoinSlice, this is a per-thread
+     * allocator.
      *
      * This does not live in PerThreadData because the notion of an allocator
-     * is only per-thread when off the main thread. The runtime (and the main
-     * thread) can have more than one zone, each with its own allocator, and
-     * it's up to the context to specify what compartment and zone we are
-     * operating in.
+     * is only per-thread in PJS. The runtime (and the main thread) can have
+     * more than one zone, each with its own allocator, and it's up to the
+     * context to specify what compartment and zone we are operating in.
      */
   protected:
     Allocator *allocator_;
@@ -226,106 +172,39 @@ struct ThreadSafeContext : ContextFriendFields,
 
     inline Allocator *const allocator();
 
-    // Allocations can only trigger GC when running on the main thread.
-    inline AllowGC allowGC() const { return isJSContext() ? CanGC : NoGC; }
+    /* GC support. */
+    AllowGC allowGC() const {
+        switch (contextKind_) {
+          case Context_JS:
+            return CanGC;
+          case Context_ForkJoin:
+            return NoGC;
+          default:
+            /* Silence warnings. */
+            MOZ_ASSUME_UNREACHABLE("Bad context kind");
+        }
+    }
 
     template <typename T>
     bool isInsideCurrentZone(T thing) const {
         return thing->isInsideZone(zone_);
     }
 
-    template <typename T>
-    inline bool isInsideCurrentCompartment(T thing) const {
-        return thing->compartment() == compartment_;
-    }
-
     void *onOutOfMemory(void *p, size_t nbytes) {
-        return runtime_->onOutOfMemory(p, nbytes, maybeJSContext());
+        return runtime_->onOutOfMemory(p, nbytes, isJSContext() ? asJSContext() : NULL);
     }
-
     inline void updateMallocCounter(size_t nbytes) {
-        // Note: this is racy.
+        /* Note: this is racy. */
         runtime_->updateMallocCounter(zone_, nbytes);
     }
-
     void reportAllocationOverflow() {
-        js_ReportAllocationOverflow(this);
-    }
-
-    // Builtin atoms are immutable and may be accessed freely from any thread.
-    JSAtomState &names() { return runtime_->atomState; }
-    StaticStrings &staticStrings() { return runtime_->staticStrings; }
-    PropertyName *emptyString() { return runtime_->emptyString; }
-
-    // GCs cannot happen while non-main threads are running.
-    uint64_t gcNumber() { return runtime_->gcNumber; }
-    bool isHeapBusy() { return runtime_->isHeapBusy(); }
-
-    // Thread local data that may be accessed freely.
-    DtoaState *dtoaState() {
-        return perThreadData->dtoaState;
+        js_ReportAllocationOverflow(isJSContext() ? asJSContext() : NULL);
     }
 };
-
-class ExclusiveContext : public ThreadSafeContext
-{
-    friend class gc::ArenaLists;
-    friend class CompartmentChecker;
-    friend class AutoEnterAtomsCompartment;
-    friend struct StackBaseShape;
-    friend void JSScript::initCompartmentAndPrincipals(ExclusiveContext *cx,
-                                                       const JS::CompileOptions &options);
-
-    inline void privateSetCompartment(JSCompartment *comp);
-
-  public:
-
-    ExclusiveContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind)
-      : ThreadSafeContext(rt, pt, kind)
-    {}
-
-    inline bool typeInferenceEnabled() const;
-
-    // Per compartment data that can be accessed freely from an ExclusiveContext.
-    inline RegExpCompartment &regExps();
-    inline RegExpStatics *regExpStatics();
-    inline PropertyTree &propertyTree();
-    inline BaseShapeSet &baseShapes();
-    inline InitialShapeSet &initialShapes();
-    inline DtoaCache &dtoaCache();
-    types::TypeObject *getNewType(Class *clasp, TaggedProto proto, JSFunction *fun = NULL);
-
-    // Current global. This is only safe to use within the scope of the
-    // AutoCompartment from which it's called.
-    inline js::Handle<js::GlobalObject*> global() const;
-
-    // Methods to access runtime wide data that must be protected by locks.
-
-    frontend::ParseMapPool &parseMapPool() {
-        runtime_->assertValidThread();
-        return runtime_->parseMapPool;
-    }
-
-    AtomSet &atoms() {
-        runtime_->assertValidThread();
-        return runtime_->atoms;
-    }
-
-    ScriptDataTable &scriptDataTable() {
-        runtime_->assertValidThread();
-        return runtime_->scriptDataTable;
-    }
-};
-
-inline void
-MaybeCheckStackRoots(ExclusiveContext *cx)
-{
-    MaybeCheckStackRoots(cx->maybeJSContext());
-}
 
 } /* namespace js */
 
-struct JSContext : public js::ExclusiveContext,
+struct JSContext : js::ThreadSafeContext,
                    public mozilla::LinkedListElement<JSContext>
 {
     explicit JSContext(JSRuntime *rt);
@@ -415,6 +294,12 @@ struct JSContext : public js::ExclusiveContext,
     inline void setDefaultCompartmentObjectIfUnset(JSObject *obj);
     JSObject *maybeDefaultCompartmentObject() const { return defaultCompartmentObject_; }
 
+    /*
+     * Current global. This is only safe to use within the scope of the
+     * AutoCompartment from which it's called.
+     */
+    inline js::Handle<js::GlobalObject*> global() const;
+
     /* Wrap cx->exception for the current compartment. */
     void wrapPendingException();
 
@@ -430,6 +315,8 @@ struct JSContext : public js::ExclusiveContext,
     /* Client opaque pointers. */
     void                *data;
     void                *data2;
+
+    inline js::RegExpStatics *regExpStatics();
 
   public:
 
@@ -462,6 +349,8 @@ struct JSContext : public js::ExclusiveContext,
     inline js::LifoAlloc &analysisLifoAlloc();
     inline js::LifoAlloc &typeLifoAlloc();
 
+    inline js::PropertyTree &propertyTree();
+
 #ifdef JS_THREADSAFE
     unsigned            outstandingRequests;/* number of JS_BeginRequest calls
                                                without the corresponding
@@ -475,6 +364,8 @@ struct JSContext : public js::ExclusiveContext,
     js::Value           iterValue;
 
     bool jitIsBroken;
+
+    inline bool typeInferenceEnabled() const;
 
     void updateJITEnabled();
 
@@ -713,13 +604,13 @@ extern bool
 js_ReportErrorNumberUCArray(JSContext *cx, unsigned flags, JSErrorCallback callback,
                             void *userRef, const unsigned errorNumber,
                             const jschar **args);
-#endif
 
 extern JSBool
 js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                         void *userRef, const unsigned errorNumber,
                         char **message, JSErrorReport *reportp,
                         js::ErrorArgumentsType argumentsType, va_list ap);
+#endif
 
 namespace js {
 

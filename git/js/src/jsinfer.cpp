@@ -2338,9 +2338,9 @@ TypeZone::init(JSContext *cx)
 }
 
 TypeObject *
-TypeCompartment::newTypeObject(ExclusiveContext *cx, Class *clasp, Handle<TaggedProto> proto, bool unknown)
+TypeCompartment::newTypeObject(JSContext *cx, Class *clasp, Handle<TaggedProto> proto, bool unknown)
 {
-    JS_ASSERT_IF(proto.isObject(), cx->isInsideCurrentCompartment(proto.toObject()));
+    JS_ASSERT_IF(proto.isObject(), cx->compartment() == proto.toObject()->compartment());
 
     TypeObject *object = gc::NewGCThing<TypeObject, CanGC>(cx, gc::FINALIZE_TYPE_OBJECT,
                                                            sizeof(TypeObject), gc::TenuredHeap);
@@ -5879,13 +5879,10 @@ JSScript::makeAnalysis(JSContext *cx)
 }
 
 /* static */ bool
-JSFunction::setTypeForScriptedFunction(ExclusiveContext *cxArg, HandleFunction fun,
-                                       bool singleton /* = false */)
+JSFunction::setTypeForScriptedFunction(JSContext *cx, HandleFunction fun, bool singleton /* = false */)
 {
-    if (!cxArg->typeInferenceEnabled())
+    if (!cx->typeInferenceEnabled())
         return true;
-
-    JSContext *cx = cxArg->asJSContext();
 
     if (singleton) {
         if (!setSingletonType(cx, fun))
@@ -5957,7 +5954,7 @@ JSObject::splicePrototype(JSContext *cx, Class *clasp, Handle<TaggedProto> proto
     }
 
     if (!cx->typeInferenceEnabled()) {
-        TypeObject *type = cx->getNewType(clasp, proto);
+        TypeObject *type = cx->compartment()->getNewType(cx, clasp, proto);
         if (!type)
             return false;
         self->type_ = type;
@@ -6095,12 +6092,10 @@ JSObject::setNewTypeUnknown(JSContext *cx, Class *clasp, HandleObject obj)
 }
 
 TypeObject *
-ExclusiveContext::getNewType(Class *clasp, TaggedProto proto_, JSFunction *fun_)
+JSCompartment::getNewType(JSContext *cx, Class *clasp, TaggedProto proto_, JSFunction *fun_)
 {
     JS_ASSERT_IF(fun_, proto_.isObject());
-    JS_ASSERT_IF(proto_.isObject(), isInsideCurrentCompartment(proto_.toObject()));
-
-    TypeObjectSet &newTypeObjects = compartment_->newTypeObjects;
+    JS_ASSERT_IF(proto_.isObject(), cx->compartment() == proto_.toObject()->compartment());
 
     if (!newTypeObjects.initialized() && !newTypeObjects.init())
         return NULL;
@@ -6121,15 +6116,15 @@ ExclusiveContext::getNewType(Class *clasp, TaggedProto proto_, JSFunction *fun_)
          * 'prototype' property of some scripted function.
          */
         if (type->newScript && type->newScript->fun != fun_)
-            type->clearNewScript(asJSContext());
+            type->clearNewScript(cx);
 
         return type;
     }
 
-    Rooted<TaggedProto> proto(this, proto_);
-    RootedFunction fun(this, fun_);
+    Rooted<TaggedProto> proto(cx, proto_);
+    RootedFunction fun(cx, fun_);
 
-    if (proto.isObject() && !proto.toObject()->setDelegate(this))
+    if (proto.isObject() && !proto.toObject()->setDelegate(cx))
         return NULL;
 
     bool markUnknown =
@@ -6137,17 +6132,16 @@ ExclusiveContext::getNewType(Class *clasp, TaggedProto proto_, JSFunction *fun_)
         ? proto.toObject()->lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN)
         : true;
 
-    RootedTypeObject type(this, compartment_->types.newTypeObject(this, clasp, proto, markUnknown));
+    RootedTypeObject type(cx, types.newTypeObject(cx, clasp, proto, markUnknown));
     if (!type)
         return NULL;
 
     if (!newTypeObjects.relookupOrAdd(p, TypeObjectSet::Lookup(clasp, proto), type.get()))
         return NULL;
 
-    if (!typeInferenceEnabled())
+    if (!cx->typeInferenceEnabled())
         return type;
 
-    JSContext *cx = asJSContext();
     AutoEnterAnalysis enter(cx);
 
     /*
@@ -6186,6 +6180,12 @@ ExclusiveContext::getNewType(Class *clasp, TaggedProto proto_, JSFunction *fun_)
         type->flags |= OBJECT_FLAG_SETS_MARKED_UNKNOWN;
 
     return type;
+}
+
+TypeObject *
+JSObject::getNewType(JSContext *cx, Class *clasp, JSFunction *fun)
+{
+    return cx->compartment()->getNewType(cx, clasp, this, fun);
 }
 
 TypeObject *

@@ -12,9 +12,7 @@
 #include "mozilla/Casting.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/ReentrancyGuard.h"
 #include "mozilla/TypeTraits.h"
 #include "mozilla/Util.h"
 
@@ -138,18 +136,18 @@ class HashMap
     template<typename KeyInput, typename ValueInput>
     bool add(AddPtr &p, const KeyInput &k, const ValueInput &v) {
         Entry e(k, v);
-        return impl.add(p, mozilla::Move(e));
+        return impl.add(p, Move(e));
     }
 
     bool add(AddPtr &p, const Key &k) {
         Entry e(k, Value());
-        return impl.add(p, mozilla::Move(e));
+        return impl.add(p, Move(e));
     }
 
     template<typename KeyInput, typename ValueInput>
     bool relookupOrAdd(AddPtr &p, const KeyInput &k, const ValueInput &v) {
         Entry e(k, v);
-        return impl.relookupOrAdd(p, k, mozilla::Move(e));
+        return impl.relookupOrAdd(p, k, Move(e));
     }
 
     // |all()| returns a Range containing |count()| elements. E.g.:
@@ -231,7 +229,7 @@ class HashMap
     template<typename KeyInput, typename ValueInput>
     bool putNew(const KeyInput &k, const ValueInput &v) {
         Entry e(k, v);
-        return impl.putNew(k, mozilla::Move(e));
+        return impl.putNew(k, Move(e));
     }
 
     // Add (k,defaultValue) if |k| is not found. Return a false-y Ptr on oom.
@@ -258,8 +256,8 @@ class HashMap
     }
 
     // HashMap is movable
-    HashMap(mozilla::MoveRef<HashMap> rhs) : impl(mozilla::Move(rhs->impl)) {}
-    void operator=(mozilla::MoveRef<HashMap> rhs) { impl = mozilla::Move(rhs->impl); }
+    HashMap(MoveRef<HashMap> rhs) : impl(Move(rhs->impl)) {}
+    void operator=(MoveRef<HashMap> rhs) { impl = Move(rhs->impl); }
 
   private:
     // HashMap is not copyable or assignable
@@ -457,8 +455,8 @@ class HashSet
     }
 
     // HashSet is movable
-    HashSet(mozilla::MoveRef<HashSet> rhs) : impl(mozilla::Move(rhs->impl)) {}
-    void operator=(mozilla::MoveRef<HashSet> rhs) { impl = mozilla::Move(rhs->impl); }
+    HashSet(MoveRef<HashSet> rhs) : impl(Move(rhs->impl)) {}
+    void operator=(MoveRef<HashSet> rhs) { impl = Move(rhs->impl); }
 
   private:
     // HashSet is not copyable or assignable
@@ -578,8 +576,8 @@ class HashMapEntry
     template<typename KeyInput, typename ValueInput>
     HashMapEntry(const KeyInput &k, const ValueInput &v) : key(k), value(v) {}
 
-    HashMapEntry(mozilla::MoveRef<HashMapEntry> rhs)
-      : key(mozilla::Move(rhs->key)), value(mozilla::Move(rhs->value)) { }
+    HashMapEntry(MoveRef<HashMapEntry> rhs)
+      : key(Move(rhs->key)), value(Move(rhs->value)) { }
 
     typedef Key KeyType;
     typedef Value ValueType;
@@ -648,8 +646,8 @@ class HashTableEntry
     }
 
     void swap(HashTableEntry *other) {
-        mozilla::Swap(keyHash, other->keyHash);
-        mozilla::Swap(mem, other->mem);
+        Swap(keyHash, other->keyHash);
+        Swap(mem, other->mem);
     }
 
     T &get() { JS_ASSERT(isLive()); return *mem.addr(); }
@@ -830,13 +828,13 @@ class HashTable : private AllocPolicy
     };
 
     // HashTable is movable
-    HashTable(mozilla::MoveRef<HashTable> rhs)
+    HashTable(MoveRef<HashTable> rhs)
       : AllocPolicy(*rhs)
     {
         mozilla::PodAssign(this, &*rhs);
         rhs->table = NULL;
     }
-    void operator=(mozilla::MoveRef<HashTable> rhs) {
+    void operator=(MoveRef<HashTable> rhs) {
         if (table)
             destroyTable(*this, table, capacity());
         mozilla::PodAssign(this, &*rhs);
@@ -880,7 +878,7 @@ class HashTable : private AllocPolicy
 #   define METER(x)
 #endif
 
-    friend class mozilla::ReentrancyGuard;
+    friend class js::ReentrancyGuard;
     mutable mozilla::DebugOnly<bool> entered;
     mozilla::DebugOnly<uint64_t>     mutationCount;
 
@@ -1163,7 +1161,7 @@ class HashTable : private AllocPolicy
         for (Entry *src = oldTable, *end = src + oldCap; src < end; ++src) {
             if (src->isLive()) {
                 HashNumber hn = src->getKeyHash();
-                findFreeEntry(hn).setLive(hn, mozilla::Move(src->get()));
+                findFreeEntry(hn).setLive(hn, Move(src->get()));
                 src->destroy();
             }
         }
@@ -1356,7 +1354,7 @@ class HashTable : private AllocPolicy
 
     Ptr lookup(const Lookup &l) const
     {
-        mozilla::ReentrancyGuard g(*this);
+        ReentrancyGuard g(*this);
         HashNumber keyHash = prepareHash(l);
         return Ptr(lookup(l, keyHash, 0));
     }
@@ -1369,7 +1367,7 @@ class HashTable : private AllocPolicy
 
     AddPtr lookupForAdd(const Lookup &l) const
     {
-        mozilla::ReentrancyGuard g(*this);
+        ReentrancyGuard g(*this);
         HashNumber keyHash = prepareHash(l);
         Entry &entry = lookup(l, keyHash, sCollisionBit);
         AddPtr p(entry, keyHash);
@@ -1380,7 +1378,7 @@ class HashTable : private AllocPolicy
     template <class U>
     bool add(AddPtr &p, const U &rhs)
     {
-        mozilla::ReentrancyGuard g(*this);
+        ReentrancyGuard g(*this);
         JS_ASSERT(mutationCount == p.mutationCount);
         JS_ASSERT(table);
         JS_ASSERT(!p.found());
@@ -1441,7 +1439,7 @@ class HashTable : private AllocPolicy
     {
         p.mutationCount = mutationCount;
         {
-            mozilla::ReentrancyGuard g(*this);
+            ReentrancyGuard g(*this);
             p.entry_ = &lookup(l, p.keyHash, sCollisionBit);
         }
         return p.found() || add(p, u);
@@ -1450,7 +1448,7 @@ class HashTable : private AllocPolicy
     void remove(Ptr p)
     {
         JS_ASSERT(table);
-        mozilla::ReentrancyGuard g(*this);
+        ReentrancyGuard g(*this);
         JS_ASSERT(p.found());
         remove(*p.entry_);
         checkUnderloaded();
@@ -1459,12 +1457,12 @@ class HashTable : private AllocPolicy
     void rekey(Ptr p, const Lookup &l, const Key &k)
     {
         JS_ASSERT(table);
-        mozilla::ReentrancyGuard g(*this);
+        ReentrancyGuard g(*this);
         JS_ASSERT(p.found());
-        typename HashTableEntry<T>::NonConstT t(mozilla::Move(*p));
+        typename HashTableEntry<T>::NonConstT t(Move(*p));
         HashPolicy::setKey(t, const_cast<Key &>(k));
         remove(*p.entry_);
-        putNewInfallible(l, mozilla::Move(t));
+        putNewInfallible(l, Move(t));
     }
 
 #undef METER

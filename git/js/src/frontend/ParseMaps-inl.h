@@ -16,21 +16,21 @@ namespace frontend {
 
 template <class Map>
 inline bool
-AtomThingMapPtr<Map>::ensureMap(ExclusiveContext *cx)
+AtomThingMapPtr<Map>::ensureMap(JSContext *cx)
 {
     if (map_)
         return true;
-    map_ = cx->parseMapPool().acquire<Map>();
+    map_ = cx->runtime()->parseMapPool.acquire<Map>();
     return !!map_;
 }
 
 template <class Map>
 inline void
-AtomThingMapPtr<Map>::releaseMap(ExclusiveContext *cx)
+AtomThingMapPtr<Map>::releaseMap(JSContext *cx)
 {
     if (!map_)
         return;
-    cx->parseMapPool().release(map_);
+    cx->runtime()->parseMapPool.release(map_);
     map_ = NULL;
 }
 
@@ -38,7 +38,7 @@ template <typename ParseHandler>
 inline bool
 AtomDecls<ParseHandler>::init()
 {
-    map = cx->parseMapPool().acquire<AtomDefnListMap>();
+    map = cx->runtime()->parseMapPool.acquire<AtomDefnListMap>();
     return map;
 }
 
@@ -47,7 +47,7 @@ inline
 AtomDecls<ParseHandler>::~AtomDecls()
 {
     if (map)
-        cx->parseMapPool().release(map);
+        cx->runtime()->parseMapPool.release(map);
 }
 
 } /* namespace frontend */

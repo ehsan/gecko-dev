@@ -431,7 +431,7 @@ void
 ParallelSafetyAnalysis::replaceOperandsOnResumePoint(MResumePoint *resumePoint,
                                                      MDefinition *withDef)
 {
-    for (size_t i = 0, e = resumePoint->numOperands(); i < e; i++)
+    for (size_t i = 0; i < resumePoint->numOperands(); i++)
         resumePoint->replaceOperand(i, withDef);
 }
 
@@ -694,9 +694,9 @@ ParallelSafetyVisitor::visitCall(MCall *ins)
 
     JSFunction *target = ins->getSingleTarget();
     if (target) {
-        // Non-parallel native? Scary
-        if (target->isNative() && !target->hasParallelNative()) {
-            SpewMIR(ins, "call to non-parallel native function");
+        // Native? Scary.
+        if (target->isNative()) {
+            SpewMIR(ins, "call to native function");
             return markUnsafe();
         }
         return true;
@@ -799,14 +799,9 @@ ion::AddPossibleCallees(MIRGraph &graph, CallTargetVector &targets)
 
             RootedFunction target(cx, callIns->getSingleTarget());
             if (target) {
-                JS_ASSERT_IF(!target->isInterpreted(), target->hasParallelNative());
-
-                if (target->isInterpreted()) {
-                    RootedScript script(cx, target->nonLazyScript());
-                    if (!AddCallTarget(script, targets))
-                        return false;
-                }
-
+                RootedScript script(cx, target->nonLazyScript());
+                if (!AddCallTarget(script, targets))
+                    return false;
                 continue;
             }
 

@@ -110,9 +110,6 @@ class TreeMetadataEmitter(object):
             if sandbox[moz]:
                 passthru.variables[mak] = sandbox[moz]
 
-        if sandbox['NO_DIST_INSTALL']:
-            passthru.variables['NO_DIST_INSTALL'] = '1'
-
         if passthru.variables:
             yield passthru
 

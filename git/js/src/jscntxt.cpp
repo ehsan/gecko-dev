@@ -375,12 +375,8 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
  * not occur, so GC must be avoided or suppressed.
  */
 void
-js_ReportOutOfMemory(ThreadSafeContext *cxArg)
+js_ReportOutOfMemory(JSContext *cx)
 {
-    if (!cxArg->isJSContext())
-        return;
-    JSContext *cx = cxArg->asJSContext();
-
     cx->runtime()->hadOutOfMemory = true;
 
     if (JS_IsRunning(cx)) {
@@ -426,20 +422,12 @@ js_ReportOverRecursed(JSContext *maybecx)
 }
 
 void
-js_ReportOverRecursed(ThreadSafeContext *cx)
+js_ReportAllocationOverflow(JSContext *maybecx)
 {
-    js_ReportOverRecursed(cx->maybeJSContext());
-}
-
-void
-js_ReportAllocationOverflow(ThreadSafeContext *cxArg)
-{
-    if (!cxArg || !cxArg->isJSContext())
-        return;
-    JSContext *cx = cxArg->asJSContext();
-
-    AutoSuppressGC suppressGC(cx);
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_ALLOC_OVERFLOW);
+    if (maybecx) {
+        AutoSuppressGC suppressGC(maybecx);
+        JS_ReportErrorNumber(maybecx, js_GetErrorMessage, NULL, JSMSG_ALLOC_OVERFLOW);
+    }
 }
 
 /*
@@ -1038,6 +1026,19 @@ js::ThreadSafeContext::ThreadSafeContext(JSRuntime *rt, PerThreadData *pt, Conte
 { }
 
 bool
+ThreadSafeContext::isJSContext() const
+{
+    return contextKind_ == Context_JS;
+}
+
+JSContext *
+ThreadSafeContext::asJSContext()
+{
+    JS_ASSERT(isJSContext());
+    return reinterpret_cast<JSContext *>(this);
+}
+
+bool
 ThreadSafeContext::isForkJoinSlice() const
 {
     return contextKind_ == Context_ForkJoin;
@@ -1051,7 +1052,7 @@ ThreadSafeContext::asForkJoinSlice()
 }
 
 JSContext::JSContext(JSRuntime *rt)
-  : ExclusiveContext(rt, &rt->mainThread, Context_JS),
+  : ThreadSafeContext(rt, &rt->mainThread, Context_JS),
     throwing(false),
     exception(UndefinedValue()),
     options_(0),
@@ -1083,6 +1084,13 @@ JSContext::JSContext(JSRuntime *rt)
 
     JS_ASSERT(static_cast<ContextFriendFields*>(this) ==
               ContextFriendFields::get(this));
+
+#ifdef JSGC_TRACK_EXACT_ROOTS
+    PodArrayZero(thingGCRooters);
+#endif
+#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+    skipGCRooters = NULL;
+#endif
 }
 
 JSContext::~JSContext()
@@ -1303,22 +1311,10 @@ JS::AutoCheckRequestDepth::AutoCheckRequestDepth(JSContext *cx)
     cx->runtime()->checkRequestDepth++;
 }
 
-JS::AutoCheckRequestDepth::AutoCheckRequestDepth(ContextFriendFields *cxArg)
-    : cx(static_cast<ThreadSafeContext *>(cxArg)->maybeJSContext())
-{
-    if (cx) {
-        JS_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
-        cx->runtime()->assertValidThread();
-        cx->runtime()->checkRequestDepth++;
-    }
-}
-
 JS::AutoCheckRequestDepth::~AutoCheckRequestDepth()
 {
-    if (cx) {
-        JS_ASSERT(cx->runtime()->checkRequestDepth != 0);
-        cx->runtime()->checkRequestDepth--;
-    }
+    JS_ASSERT(cx->runtime()->checkRequestDepth != 0);
+    cx->runtime()->checkRequestDepth--;
 }
 
 #endif

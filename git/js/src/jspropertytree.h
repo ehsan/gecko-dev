@@ -72,9 +72,9 @@ class PropertyTree
 {
     friend class ::JSFunction;
 
-    JSCompartment *compartment_;
+    JSCompartment *compartment;
 
-    bool insertChild(ExclusiveContext *cx, Shape *parent, Shape *child);
+    bool insertChild(JSContext *cx, Shape *parent, Shape *child);
 
     PropertyTree();
 
@@ -90,14 +90,12 @@ class PropertyTree
     };
 
     PropertyTree(JSCompartment *comp)
-        : compartment_(comp)
+        : compartment(comp)
     {
     }
 
-    JSCompartment *compartment() { return compartment_; }
-
-    Shape *newShape(ExclusiveContext *cx);
-    Shape *getChild(ExclusiveContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child);
+    Shape *newShape(JSContext *cx);
+    Shape *getChild(JSContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child);
 
 #ifdef DEBUG
     static void dumpShapes(JSRuntime *rt);
