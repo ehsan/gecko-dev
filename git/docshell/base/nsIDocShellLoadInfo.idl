@@ -14,11 +14,10 @@
 interface nsIURI;
 interface nsIInputStream;
 interface nsISHEntry;
-interface nsIDocShell;
 
 typedef long nsDocShellInfoLoadType;
 
-[scriptable, uuid(c6b15de3-2f4f-4e80-bb20-95f43b5598c7)]
+[scriptable, uuid(5df91211-37db-47e9-8f83-2d5b0cb2eb9e)]
 interface nsIDocShellLoadInfo : nsISupports
 {
     /** This is the referrer for the load. */
@@ -96,6 +95,4 @@ interface nsIDocShellLoadInfo : nsISupports
      */
     attribute AString srcdocData;
 
-    /** When set, this is the Source Browsing Context for the navigation. */
-    attribute nsIDocShell sourceDocShell;
 };

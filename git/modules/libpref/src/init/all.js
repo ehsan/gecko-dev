@@ -229,8 +229,8 @@ pref("media.navigator.video.default_height",480);
 pref("media.navigator.video.default_fps",30);
 pref("media.navigator.video.default_minfps",10);
 #ifdef MOZ_WIDGET_GONK
-pref("media.peerconnection.enabled", true);
-pref("media.peerconnection.video.enabled", true);
+pref("media.peerconnection.enabled", false);
+pref("media.peerconnection.video.enabled", false);
 pref("media.navigator.video.max_fs", 1200); // 640x480 == 1200mb
 pref("media.navigator.video.max_fr", 30);
 #else
@@ -749,6 +749,7 @@ pref("javascript.options.ion.chrome",       false);
 pref("javascript.options.asmjs",            true);
 pref("javascript.options.parallel_parsing", true);
 pref("javascript.options.ion.parallel_compilation", true);
+pref("javascript.options.jit_hardening", true);
 pref("javascript.options.typeinference.content", true);
 pref("javascript.options.typeinference.chrome", false);
 // This preference limits the memory usage of javascript.
@@ -1273,8 +1274,6 @@ pref("network.seer.preconnect-min-confidence", 90);
 pref("network.seer.preresolve-min-confidence", 60);
 pref("network.seer.redirect-likely-confidence", 75);
 pref("network.seer.max-queue-size", 50);
-pref("network.seer.max-db-size", 157286400); // bytes
-pref("network.seer.preserve", 80); // percentage of seer data to keep when cleaning up
 
 
 // The following prefs pertain to the negotiate-auth extension (see bug 17578),

@@ -474,23 +474,12 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
   }
 
   // try to find an extant window with the given name
-  nsCOMPtr<nsIDOMWindow> foundWindow = SafeGetWindowByName(name, aParent);
-  GetWindowTreeItem(foundWindow, getter_AddRefs(newDocShellItem));
-
-  // Do sandbox checks here, instead of waiting until nsIDocShell::LoadURI.
-  // The state of the window can change before this call and if we are blocked
-  // because of sandboxing, we wouldn't want that to happen.
-  nsCOMPtr<nsPIDOMWindow> parentWindow = do_QueryInterface(aParent);
-  nsCOMPtr<nsIDocShell> parentDocShell;
-  if (parentWindow) {
-    parentDocShell = parentWindow->GetDocShell();
-    if (parentDocShell) {
-      nsCOMPtr<nsIDocShell> foundDocShell = do_QueryInterface(newDocShellItem);
-      if (parentDocShell->IsSandboxedFrom(foundDocShell)) {
-        return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-      }
-    }
+  nsCOMPtr<nsIDOMWindow> foundWindow;
+  if (SafeGetWindowByName(name, aParent, getter_AddRefs(foundWindow)) ==
+      NS_ERROR_DOM_INVALID_ACCESS_ERR) {
+    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
+  GetWindowTreeItem(foundWindow, getter_AddRefs(newDocShellItem));
 
   // no extant window? make a new one.
 
@@ -682,9 +671,9 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
         bool popupConditions = false;
 
         // is the parent under popup conditions?
-        if (parentWindow) {
-          popupConditions = parentWindow->IsLoadingOrRunningTimeout();
-        }
+        nsCOMPtr<nsPIDOMWindow> piWindow(do_QueryInterface(aParent));
+        if (piWindow)
+          popupConditions = piWindow->IsLoadingOrRunningTimeout();
 
         // chrome is always allowed, so clear the flag if the opener is chrome
         if (popupConditions) {
@@ -733,9 +722,9 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
   // The flags can only be non-zero for new windows.
   if (activeDocsSandboxFlags != 0) {
     newDocShell->SetSandboxFlags(activeDocsSandboxFlags);
-    if (parentWindow) {
-      newDocShell->
-        SetOnePermittedSandboxedNavigator(parentWindow->GetDocShell());
+    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aParent);
+    if (window) {
+      newDocShell->SetOnePermittedSandboxedNavigator(window->GetDocShell());
     }
   }
   
@@ -919,6 +908,11 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
   }
 
   // Copy the current session storage for the current domain.
+  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aParent);
+  nsIDocShell* parentDocShell = nullptr;
+  if (piWindow)
+    parentDocShell = piWindow->GetDocShell();
+
   if (subjectPrincipal && parentDocShell) {
     nsCOMPtr<nsIDOMStorageManager> parentStorageManager = do_QueryInterface(parentDocShell);
     nsCOMPtr<nsIDOMStorageManager> newStorageManager = do_QueryInterface(newDocShell);
@@ -1284,6 +1278,7 @@ nsWindowWatcher::GetWindowByName(const char16_t *aTargetName,
   if (!aResult) {
     return NS_ERROR_INVALID_ARG;
   }
+  nsresult rv;
 
   *aResult = nullptr;
 
@@ -1293,18 +1288,18 @@ nsWindowWatcher::GetWindowByName(const char16_t *aTargetName,
   GetWindowTreeItem(aCurrentWindow, getter_AddRefs(startItem));
   if (startItem) {
     // Note: original requestor is null here, per idl comments
-    startItem->FindItemWithName(aTargetName, nullptr, nullptr,
+    rv = startItem->FindItemWithName(aTargetName, nullptr, nullptr,
                                 getter_AddRefs(treeItem));
   }
   else {
     // Note: original requestor is null here, per idl comments
-    FindItemWithName(aTargetName, nullptr, nullptr, getter_AddRefs(treeItem));
+    rv = FindItemWithName(aTargetName, nullptr, nullptr, getter_AddRefs(treeItem));
   }
 
   nsCOMPtr<nsIDOMWindow> domWindow = do_GetInterface(treeItem);
   domWindow.swap(*aResult);
 
-  return NS_OK;
+  return rv;
 }
 
 bool
@@ -1710,10 +1705,14 @@ nsWindowWatcher::GetCallerTreeItem(nsIDocShellTreeItem* aParentItem)
   return callerItem.forget();
 }
 
-already_AddRefed<nsIDOMWindow>
+nsresult
 nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
-                                     nsIDOMWindow* aCurrentWindow)
+                                     nsIDOMWindow* aCurrentWindow,
+                                     nsIDOMWindow** aResult)
 {
+  *aResult = nullptr;
+  nsresult rv;
+  
   nsCOMPtr<nsIDocShellTreeItem> startItem;
   GetWindowTreeItem(aCurrentWindow, getter_AddRefs(startItem));
 
@@ -1723,16 +1722,17 @@ nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
 
   nsCOMPtr<nsIDocShellTreeItem> foundItem;
   if (startItem) {
-    startItem->FindItemWithName(flatName.get(), nullptr, callerItem,
+    rv = startItem->FindItemWithName(flatName.get(), nullptr, callerItem,
                                 getter_AddRefs(foundItem));
   }
   else {
-    FindItemWithName(flatName.get(), nullptr, callerItem,
+    rv = FindItemWithName(flatName.get(), nullptr, callerItem,
                      getter_AddRefs(foundItem));
   }
 
   nsCOMPtr<nsIDOMWindow> foundWin = do_GetInterface(foundItem);
-  return foundWin.forget();
+  foundWin.swap(*aResult);
+  return rv;
 }
 
 /* Fetch the nsIDOMWindow corresponding to the given nsIDocShellTreeItem.

@@ -698,10 +698,17 @@ nsMenuFrame::CloseMenu(bool aDeselectMenu)
 bool
 nsMenuFrame::IsSizedToPopup(nsIContent* aContent, bool aRequireAlways)
 {
-  nsAutoString sizedToPopup;
-  aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::sizetopopup, sizedToPopup);
-  return sizedToPopup.EqualsLiteral("always") ||
-         (!aRequireAlways && sizedToPopup.EqualsLiteral("pref"));
+  bool sizeToPopup;
+  if (aContent->Tag() == nsGkAtoms::select)
+    sizeToPopup = true;
+  else {
+    nsAutoString sizedToPopup;
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::sizetopopup, sizedToPopup);
+    sizeToPopup = sizedToPopup.EqualsLiteral("always") ||
+                  (!aRequireAlways && sizedToPopup.EqualsLiteral("pref"));
+  }
+  
+  return sizeToPopup;
 }
 
 nsSize

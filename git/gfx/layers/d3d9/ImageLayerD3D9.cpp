@@ -344,20 +344,19 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
     CairoImage *cairoImage =
       static_cast<CairoImage*>(aImage);
 
-    nsRefPtr<gfxASurface> surf = cairoImage->DeprecatedGetAsSurface();
-    if (!surf) {
+    if (!cairoImage->mSurface) {
       return nullptr;
     }
 
     if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
       nsAutoPtr<TextureD3D9BackendData> dat(new TextureD3D9BackendData());
-      dat->mTexture = SurfaceToTexture(device(), surf, cairoImage->GetSize());
+      dat->mTexture = SurfaceToTexture(device(), cairoImage->mSurface, cairoImage->mSize);
       if (dat->mTexture) {
         aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, dat.forget());
       }
     }
 
-    aHasAlpha = surf->GetContentType() == GFX_CONTENT_COLOR_ALPHA;
+    aHasAlpha = cairoImage->mSurface->GetContentType() == GFX_CONTENT_COLOR_ALPHA;
   } else if (aImage->GetFormat() == D3D9_RGB32_TEXTURE) {
     if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
       // The texture in which the frame is stored belongs to DXVA's D3D9 device.
@@ -414,9 +413,9 @@ ImageLayerD3D9::RenderLayer()
       image->GetFormat() == REMOTE_IMAGE_BITMAP ||
       image->GetFormat() == D3D9_RGB32_TEXTURE)
   {
-    nsRefPtr<gfxASurface> surf = image->DeprecatedGetAsSurface();
     NS_ASSERTION(image->GetFormat() != CAIRO_SURFACE ||
-                 !surf || surf->GetContentType() != GFX_CONTENT_ALPHA,
+                 !static_cast<CairoImage*>(image)->mSurface ||
+                 static_cast<CairoImage*>(image)->mSurface->GetContentType() != GFX_CONTENT_ALPHA,
                  "Image layer has alpha image");
 
     bool hasAlpha = false;

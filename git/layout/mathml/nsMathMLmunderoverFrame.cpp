@@ -607,16 +607,16 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
     if (overFrame) {
       dy = aDesiredSize.TopAscent() - mBoundingMetrics.ascent + bmOver.ascent 
         - overSize.TopAscent();
-      FinishReflowChild (overFrame, PresContext(), overSize, nullptr, dxOver, dy, 0);
+      FinishReflowChild (overFrame, PresContext(), nullptr, overSize, dxOver, dy, 0);
     }
     // place base
     dy = aDesiredSize.TopAscent() - baseSize.TopAscent();
-    FinishReflowChild (baseFrame, PresContext(), baseSize, nullptr, dxBase, dy, 0);
+    FinishReflowChild (baseFrame, PresContext(), nullptr, baseSize, dxBase, dy, 0);
     // place underscript
     if (underFrame) {
       dy = aDesiredSize.TopAscent() + mBoundingMetrics.descent - bmUnder.descent 
         - underSize.TopAscent();
-      FinishReflowChild (underFrame, PresContext(), underSize, nullptr,
+      FinishReflowChild (underFrame, PresContext(), nullptr, underSize,
                          dxUnder, dy, 0);
     }
   }

@@ -3046,15 +3046,13 @@ nsTextStore::OnFocusChange(bool aGotFocus,
 nsIMEUpdatePreference
 nsTextStore::GetIMEUpdatePreference()
 {
-  nsIMEUpdatePreference::Notifications notifications =
-    nsIMEUpdatePreference::NOTIFY_NOTHING;
+  int8_t notifications = nsIMEUpdatePreference::NOTIFY_NOTHING;
   if (sTsfThreadMgr && sTsfTextStore && sTsfTextStore->mDocumentMgr) {
     nsRefPtr<ITfDocumentMgr> docMgr;
     sTsfThreadMgr->GetFocus(getter_AddRefs(docMgr));
     if (docMgr == sTsfTextStore->mDocumentMgr) {
       notifications = (nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
-                       nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE |
-                       nsIMEUpdatePreference::NOTIFY_DURING_DEACTIVE);
+                       nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE);
     }
   }
   return nsIMEUpdatePreference(notifications, false);

@@ -842,7 +842,7 @@ GetErrorMessage(void* userRef, const char* locale, const unsigned errorNumber)
 }
 
 static bool
-TypeError(JSContext* cx, const char* expected, HandleValue actual)
+TypeError(JSContext* cx, const char* expected, jsval actual)
 {
   JSString* str = JS_ValueToSource(cx, actual);
   JSAutoByteString bytes;
@@ -903,7 +903,7 @@ InitCTypeClass(JSContext* cx, HandleObject parent)
 static JSObject*
 InitABIClass(JSContext* cx, JSObject* parent)
 {
-  RootedObject obj(cx, JS_NewObject(cx, nullptr, NullPtr(), NullPtr()));
+  RootedObject obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
 
   if (!obj)
     return nullptr;
@@ -933,7 +933,7 @@ InitCDataClass(JSContext* cx, HandleObject parent, HandleObject CTypeProto)
     return nullptr;
 
   // Set up ctypes.CData.prototype.
-  RootedObject prototype(cx, JS_NewObject(cx, &sCDataProtoClass, NullPtr(), parent));
+  RootedObject prototype(cx, JS_NewObject(cx, &sCDataProtoClass, nullptr, parent));
   if (!prototype)
     return nullptr;
 
@@ -1327,7 +1327,7 @@ JS_InitCTypesClass(JSContext* cx, JSObject *globalArg)
   RootedObject global(cx, globalArg);
 
   // attach ctypes property to global object
-  RootedObject ctypes(cx, JS_NewObject(cx, &sCTypesGlobalClass, NullPtr(), NullPtr()));
+  RootedObject ctypes(cx, JS_NewObject(cx, &sCTypesGlobalClass, nullptr, nullptr));
   if (!ctypes)
     return false;
 
@@ -1349,7 +1349,7 @@ JS_InitCTypesClass(JSContext* cx, JSObject *globalArg)
   if (!GetObjectProperty(cx, ctypes, "CDataFinalizer", &ctor))
     return false;
 
-  RootedObject prototype(cx, JS_NewObject(cx, &sCDataFinalizerProtoClass, NullPtr(), ctypes));
+  RootedObject prototype(cx, JS_NewObject(cx, &sCDataFinalizerProtoClass, nullptr, ctypes));
   if (!prototype)
     return false;
 
@@ -3010,8 +3010,7 @@ BuildDataSource(JSContext* cx,
       return false;
 
     // Escape characters, and quote as necessary.
-    RootedValue valStr(cx, StringValue(str));
-    JSString* src = JS_ValueToSource(cx, valStr);
+    JSString* src = JS_ValueToSource(cx, STRING_TO_JSVAL(str));
     if (!src)
       return false;
 
@@ -4701,7 +4700,7 @@ AddFieldToArray(JSContext* cx,
 {
   RootedObject typeObj(cx, typeObj_);
   Rooted<JSFlatString*> name(cx, name_);
-  RootedObject fieldObj(cx, JS_NewObject(cx, nullptr, NullPtr(), NullPtr()));
+  RootedObject fieldObj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
   if (!fieldObj)
     return false;
 
@@ -4793,7 +4792,7 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
   // Set up the 'prototype' and 'prototype.constructor' properties.
   // The prototype will reflect the struct fields as properties on CData objects
   // created from this type.
-  RootedObject prototype(cx, JS_NewObject(cx, &sCDataProtoClass, dataProto, NullPtr()));
+  RootedObject prototype(cx, JS_NewObject(cx, &sCDataProtoClass, dataProto, nullptr));
   if (!prototype)
     return false;
 
@@ -6007,7 +6006,7 @@ CClosure::Create(JSContext* cx,
   RootedValue errVal(cx, errVal_);
   JS_ASSERT(fnObj);
 
-  RootedObject result(cx, JS_NewObject(cx, &sCClosureClass, NullPtr(), NullPtr()));
+  RootedObject result(cx, JS_NewObject(cx, &sCClosureClass, nullptr, nullptr));
   if (!result)
     return nullptr;
 
@@ -6893,7 +6892,7 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
 
   // Get arguments
   if (args.length() == 0) { // Special case: the empty (already finalized) object
-    JSObject *objResult = JS_NewObject(cx, &sCDataFinalizerClass, objProto, NullPtr());
+    JSObject *objResult = JS_NewObject(cx, &sCDataFinalizerClass, objProto, nullptr);
     args.rval().setObject(*objResult);
     return true;
   }
@@ -6903,7 +6902,7 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
     return false;
   }
 
-  JS::HandleValue valCodePtr = args[1];
+  JS::Value valCodePtr = args[1];
   if (!valCodePtr.isObject()) {
     return TypeError(cx, "_a CData object_ of a function pointer type",
                      valCodePtr);
@@ -6919,13 +6918,12 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
                      valCodePtr);
   }
   RootedObject objCodePtrType(cx, CData::GetCType(objCodePtr));
-  RootedValue valCodePtrType(cx, ObjectValue(*objCodePtrType));
   MOZ_ASSERT(objCodePtrType);
 
   TypeCode typCodePtr = CType::GetTypeCode(objCodePtrType);
   if (typCodePtr != TYPE_pointer) {
     return TypeError(cx, "a CData object of a function _pointer_ type",
-                     valCodePtrType);
+                     OBJECT_TO_JSVAL(objCodePtrType));
   }
 
   JSObject *objCodeType = PointerType::GetBaseType(objCodePtrType);
@@ -6934,12 +6932,12 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
   TypeCode typCode = CType::GetTypeCode(objCodeType);
   if (typCode != TYPE_function) {
     return TypeError(cx, "a CData object of a _function_ pointer type",
-                     valCodePtrType);
+                     OBJECT_TO_JSVAL(objCodePtrType));
   }
   uintptr_t code = *reinterpret_cast<uintptr_t*>(CData::GetData(objCodePtr));
   if (!code) {
     return TypeError(cx, "a CData object of a _non-NULL_ function pointer type",
-                     valCodePtrType);
+                     OBJECT_TO_JSVAL(objCodePtrType));
   }
 
   FunctionInfo* funInfoFinalizer =
@@ -6948,9 +6946,8 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
 
   if ((funInfoFinalizer->mArgTypes.length() != 1)
       || (funInfoFinalizer->mIsVariadic)) {
-    RootedValue valCodeType(cx, ObjectValue(*objCodeType));
     return TypeError(cx, "a function accepting exactly one argument",
-                     valCodeType);
+                     OBJECT_TO_JSVAL(objCodeType));
   }
   RootedObject objArgType(cx, funInfoFinalizer->mArgTypes[0]);
   RootedObject returnType(cx, funInfoFinalizer->mReturnType);
@@ -6972,9 +6969,8 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
 
   if (!ImplicitConvert(cx, valData, objArgType, cargs.get(),
                        false, &freePointer)) {
-    RootedValue valArgType(cx, ObjectValue(*objArgType));
     return TypeError(cx, "(an object that can be converted to the following type)",
-                     valArgType);
+                     OBJECT_TO_JSVAL(objArgType));
   }
   if (freePointer) {
     // Note: We could handle that case, if necessary.
@@ -6992,7 +6988,7 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
 
   // 5. Create |objResult|
 
-  JSObject *objResult = JS_NewObject(cx, &sCDataFinalizerClass, objProto, NullPtr());
+  JSObject *objResult = JS_NewObject(cx, &sCDataFinalizerClass, objProto, nullptr);
   if (!objResult) {
     return false;
   }
@@ -7120,8 +7116,7 @@ CDataFinalizer::Methods::Forget(JSContext* cx, unsigned argc, jsval *vp)
   if (!obj)
     return false;
   if (!CDataFinalizer::IsCDataFinalizer(obj)) {
-    RootedValue val(cx, ObjectValue(*obj));
-    return TypeError(cx, "a CDataFinalizer", val);
+    return TypeError(cx, "a CDataFinalizer", OBJECT_TO_JSVAL(obj));
   }
 
   CDataFinalizer::Private *p = (CDataFinalizer::Private *)
@@ -7168,8 +7163,7 @@ CDataFinalizer::Methods::Dispose(JSContext* cx, unsigned argc, jsval *vp)
   if (!obj)
     return false;
   if (!CDataFinalizer::IsCDataFinalizer(obj)) {
-    RootedValue val(cx, ObjectValue(*obj));
-    return TypeError(cx, "a CDataFinalizer", val);
+    return TypeError(cx, "a CDataFinalizer", OBJECT_TO_JSVAL(obj));
   }
 
   CDataFinalizer::Private *p = (CDataFinalizer::Private *)

@@ -34,21 +34,21 @@ public:
   virtual ~WyciwygChannelParent();
 
 protected:
-  virtual bool RecvInit(const URIParams& uri) MOZ_OVERRIDE;
+  virtual bool RecvInit(const URIParams& uri);
   virtual bool RecvAsyncOpen(const URIParams& original,
                              const uint32_t& loadFlags,
                              const IPC::SerializedLoadContext& loadContext,
-                             PBrowserParent* parent) MOZ_OVERRIDE;
-  virtual bool RecvWriteToCacheEntry(const nsString& data) MOZ_OVERRIDE;
-  virtual bool RecvCloseCacheEntry(const nsresult& reason) MOZ_OVERRIDE;
+                             PBrowserParent* parent);
+  virtual bool RecvWriteToCacheEntry(const nsString& data);
+  virtual bool RecvCloseCacheEntry(const nsresult& reason);
   virtual bool RecvSetCharsetAndSource(const int32_t& source,
-                                       const nsCString& charset) MOZ_OVERRIDE;
-  virtual bool RecvSetSecurityInfo(const nsCString& securityInfo) MOZ_OVERRIDE;
-  virtual bool RecvCancel(const nsresult& statusCode) MOZ_OVERRIDE;
+                                       const nsCString& charset);
+  virtual bool RecvSetSecurityInfo(const nsCString& securityInfo);
+  virtual bool RecvCancel(const nsresult& statusCode);
   virtual bool RecvAppData(const IPC::SerializedLoadContext& loadContext,
-                           PBrowserParent* parent) MOZ_OVERRIDE;
+                           PBrowserParent* parent);
 
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  virtual void ActorDestroy(ActorDestroyReason why);
 
   bool SetupAppData(const IPC::SerializedLoadContext& loadContext,
                     PBrowserParent* aParent);

@@ -11,13 +11,10 @@ public class AnnotationInfo {
     public final String wrapperName;
     public final boolean isStatic;
     public final boolean isMultithreaded;
-    public final boolean noThrow;
 
-    public AnnotationInfo(String aWrapperName, boolean aIsStatic, boolean aIsMultithreaded,
-                          boolean aNoThrow) {
+    public AnnotationInfo(String aWrapperName, boolean aIsStatic, boolean aIsMultithreaded) {
         wrapperName = aWrapperName;
         isStatic = aIsStatic;
         isMultithreaded = aIsMultithreaded;
-        noThrow = aNoThrow;
     }
 }

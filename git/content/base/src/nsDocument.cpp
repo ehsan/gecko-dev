@@ -5287,7 +5287,7 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
 
   JS::Rooted<JSObject*> protoObject(aCx);
   if (!aOptions.mPrototype) {
-    protoObject = JS_NewObject(aCx, nullptr, htmlProto, JS::NullPtr());
+    protoObject = JS_NewObject(aCx, nullptr, htmlProto, nullptr);
     if (!protoObject) {
       rv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
@@ -5386,7 +5386,7 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
   // Create constructor to return. Store the name of the custom element as the
   // name of the function.
   JSFunction* constructor = JS_NewFunction(aCx, CustomElementConstructor, 0,
-                                           JSFUN_CONSTRUCTOR, JS::NullPtr(),
+                                           JSFUN_CONSTRUCTOR, nullptr,
                                            NS_ConvertUTF16toUTF8(lcName).get());
   JSObject* constructorObject = JS_GetFunctionObject(constructor);
   return constructorObject;

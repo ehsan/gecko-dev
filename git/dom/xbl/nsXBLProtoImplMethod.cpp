@@ -320,8 +320,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   // Clone the function object, using thisObject as the parent so "this" is in
   // the scope chain of the resulting function (for backwards compat to the
   // days when this was an event handler).
-  JS::Rooted<JSObject*> jsMethodObject(cx, GetCompiledMethod());
-  JS::Rooted<JSObject*> method(cx, ::JS_CloneFunctionObject(cx, jsMethodObject, thisObject));
+  JS::Rooted<JSObject*> method(cx, ::JS_CloneFunctionObject(cx, GetCompiledMethod(), thisObject));
   if (!method)
     return NS_ERROR_OUT_OF_MEMORY;
 

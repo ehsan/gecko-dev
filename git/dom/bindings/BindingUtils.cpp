@@ -1479,7 +1479,7 @@ AppendNamedPropertyIds(JSContext* cx, JS::Handle<JSObject*> proxy,
     }
 
     JS::Rooted<jsid> id(cx);
-    if (!JS_ValueToId(cx, v, &id)) {
+    if (!JS_ValueToId(cx, v, id.address())) {
       return false;
     }
 
@@ -1609,8 +1609,7 @@ NativeToString(JSContext* cx, JS::Handle<JSObject*> wrapper,
           str = JS_NewStringCopyZ(cx, ifaceAndProtoJSClass->mToString);
         } else {
           MOZ_ASSERT(JS_IsNativeFunction(obj, Constructor));
-          JS::Rooted<JSFunction*> fun(cx, JS_GetObjectFunction(obj));
-          str = JS_DecompileFunction(cx, fun, 0);
+          str = JS_DecompileFunction(cx, JS_GetObjectFunction(obj), 0);
         }
       }
       str = ConcatJSString(cx, pre, str, post);
@@ -1728,7 +1727,7 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
 
     JS::Rooted<JSObject*> copyFrom(aCx, isProxy ? expandoObject : aObj);
     if (copyFrom) {
-      propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, JS::NullPtr(),
+      propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, nullptr,
                                                   newParent);
       if (!propertyHolder) {
         return NS_ERROR_OUT_OF_MEMORY;

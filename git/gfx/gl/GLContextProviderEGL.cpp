@@ -366,9 +366,6 @@ GLContextEGL::MakeCurrentImpl(bool aForce) {
         EGLSurface surface = mSurfaceOverride != EGL_NO_SURFACE
                               ? mSurfaceOverride
                               : mSurface;
-        if (surface == EGL_NO_SURFACE) {
-            return false;
-        }
         succeeded = sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
                                               surface, surface,
                                               mContext);
@@ -417,7 +414,7 @@ GLContextEGL::RenewSurface() {
 void
 GLContextEGL::ReleaseSurface() {
     DestroySurface(mSurface);
-    mSurface = EGL_NO_SURFACE;
+    mSurface = nullptr;
 }
 
 bool

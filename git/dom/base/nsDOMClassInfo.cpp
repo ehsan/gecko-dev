@@ -590,7 +590,7 @@ IdToString(JSContext *cx, jsid id)
   if (JSID_IS_STRING(id))
     return JSID_TO_STRING(id);
   JS::Rooted<JS::Value> idval(cx);
-  if (!::JS_IdToValue(cx, id, &idval))
+  if (!::JS_IdToValue(cx, id, idval.address()))
     return nullptr;
   return JS::ToString(cx, idval);
 }
@@ -1311,7 +1311,7 @@ nsDOMClassInfo::GetArrayIndexFromId(JSContext *cx, JS::Handle<jsid> id, bool *aI
   } else {
       JS::Rooted<JS::Value> idval(cx);
       double array_index;
-      if (!::JS_IdToValue(cx, id, &idval) ||
+      if (!::JS_IdToValue(cx, id, idval.address()) ||
           !JS::ToNumber(cx, idval, &array_index) ||
           !::JS_DoubleIsInt32(array_index, &i)) {
         return -1;
@@ -3293,14 +3293,14 @@ DefineComponentsShim(JSContext *cx, JS::Handle<JSObject*> global, nsPIDOMWindow 
   }
 
   // Create a fake Components object.
-  JS::Rooted<JSObject*> components(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), global));
+  JS::Rooted<JSObject*> components(cx, JS_NewObject(cx, nullptr, nullptr, global));
   NS_ENSURE_TRUE(components, NS_ERROR_OUT_OF_MEMORY);
   bool ok = JS_DefineProperty(cx, global, "Components", JS::ObjectValue(*components),
                               JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE);
   NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
 
   // Create a fake interfaces object.
-  JS::Rooted<JSObject*> interfaces(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), global));
+  JS::Rooted<JSObject*> interfaces(cx, JS_NewObject(cx, nullptr, nullptr, global));
   NS_ENSURE_TRUE(interfaces, NS_ERROR_OUT_OF_MEMORY);
   ok = JS_DefineProperty(cx, components, "interfaces", JS::ObjectValue(*interfaces),
                          JS_PropertyStub, JS_StrictPropertyStub,
@@ -4358,9 +4358,7 @@ nsStorage2SH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       JS_NewUCStringCopyN(cx, key.get(), key.Length());
     NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::Rooted<jsid> id(cx);
-    JS_ValueToId(cx, JS::StringValue(str), &id);
-    *idp = id;
+    JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
 
     keys->RemoveElementAt(0);
 

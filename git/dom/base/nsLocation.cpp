@@ -237,13 +237,6 @@ nsLocation::SetURI(nsIURI* aURI, bool aReplace)
       loadInfo->SetLoadType(nsIDocShellLoadInfo::loadStopContent);
     }
 
-    // Get the incumbent script's browsing context to set as source.
-    nsCOMPtr<nsPIDOMWindow> sourceWindow =
-      do_QueryInterface(mozilla::dom::GetIncumbentGlobal());
-    if (sourceWindow) {
-      loadInfo->SetSourceDocShell(sourceWindow->GetDocShell());
-    }
-
     return docShell->LoadURI(aURI, loadInfo,
                              nsIWebNavigation::LOAD_FLAGS_NONE, true);
   }
@@ -319,11 +312,11 @@ nsLocation::SetHash(const nsAString& aHash)
     hash.Insert(char16_t('#'), 0);
   }
   rv = uri->SetRef(hash);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
+  if (NS_SUCCEEDED(rv)) {
+    SetURI(uri);
   }
 
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -360,16 +353,15 @@ nsLocation::SetHost(const nsAString& aHost)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-  if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
-    return rv;
+
+  if (uri) {
+    rv = uri->SetHostPort(NS_ConvertUTF16toUTF8(aHost));
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(uri);
+    }
   }
 
-  rv = uri->SetHostPort(NS_ConvertUTF16toUTF8(aHost));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -406,16 +398,15 @@ nsLocation::SetHostname(const nsAString& aHostname)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-  if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
-    return rv;
+
+  if (uri) {
+    rv = uri->SetHost(NS_ConvertUTF16toUTF8(aHostname));
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(uri);
+    }
   }
 
-  rv = uri->SetHost(NS_ConvertUTF16toUTF8(aHostname));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -590,16 +581,15 @@ nsLocation::SetPathname(const nsAString& aPathname)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-  if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
-    return rv;
+
+  if (uri) {
+    rv = uri->SetPath(NS_ConvertUTF16toUTF8(aPathname));
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(uri);
+    }
   }
 
-  rv = uri->SetPath(NS_ConvertUTF16toUTF8(aPathname));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -640,30 +630,29 @@ nsLocation::SetPort(const nsAString& aPort)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-  if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
-    return rv;
-  }
 
-  // perhaps use nsReadingIterators at some point?
-  NS_ConvertUTF16toUTF8 portStr(aPort);
-  const char *buf = portStr.get();
-  int32_t port = -1;
+  if (uri) {
+    // perhaps use nsReadingIterators at some point?
+    NS_ConvertUTF16toUTF8 portStr(aPort);
+    const char *buf = portStr.get();
+    int32_t port = -1;
 
-  if (!portStr.IsEmpty() && buf) {
-    if (*buf == ':') {
-      port = atol(buf+1);
+    if (!portStr.IsEmpty() && buf) {
+      if (*buf == ':') {
+        port = atol(buf+1);
+      }
+      else {
+        port = atol(buf);
+      }
     }
-    else {
-      port = atol(buf);
+
+    rv = uri->SetPort(port);
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(uri);
     }
   }
 
-  rv = uri->SetPort(port);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -701,16 +690,15 @@ nsLocation::SetProtocol(const nsAString& aProtocol)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-  if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
-    return rv;
+
+  if (uri) {
+    rv = uri->SetScheme(NS_ConvertUTF16toUTF8(aProtocol));
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(uri);
+    }
   }
 
-  rv = uri->SetScheme(NS_ConvertUTF16toUTF8(aProtocol));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -752,16 +740,14 @@ nsLocation::SetSearch(const nsAString& aSearch)
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
-  if (NS_WARN_IF(NS_FAILED(rv) || !url)) {
-    return rv;
+  if (url) {
+    rv = url->SetQuery(NS_ConvertUTF16toUTF8(aSearch));
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(uri);
+    }
   }
 
-  rv = url->SetQuery(NS_ConvertUTF16toUTF8(aSearch));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  return SetURI(uri);
+  return rv;
 }
 
 NS_IMETHODIMP

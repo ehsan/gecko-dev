@@ -1051,7 +1051,7 @@ extern JS_PUBLIC_API(JSFunction *)
 JS_ValueToConstructor(JSContext *cx, JS::HandleValue v);
 
 extern JS_PUBLIC_API(JSString *)
-JS_ValueToSource(JSContext *cx, JS::Handle<JS::Value> v);
+JS_ValueToSource(JSContext *cx, jsval v);
 
 namespace js {
 /*
@@ -1226,7 +1226,7 @@ ToUint64(JSContext *cx, JS::HandleValue v, uint64_t *out)
 } /* namespace JS */
 
 extern JS_PUBLIC_API(JSType)
-JS_TypeOfValue(JSContext *cx, JS::Handle<JS::Value> v);
+JS_TypeOfValue(JSContext *cx, jsval v);
 
 extern JS_PUBLIC_API(const char *)
 JS_GetTypeName(JSContext *cx, JSType type);
@@ -1235,7 +1235,7 @@ extern JS_PUBLIC_API(bool)
 JS_StrictlyEqual(JSContext *cx, jsval v1, jsval v2, bool *equal);
 
 extern JS_PUBLIC_API(bool)
-JS_LooselyEqual(JSContext *cx, JS::Handle<JS::Value> v1, JS::Handle<JS::Value> v2, bool *equal);
+JS_LooselyEqual(JSContext *cx, jsval v1, jsval v2, bool *equal);
 
 extern JS_PUBLIC_API(bool)
 JS_SameValue(JSContext *cx, jsval v1, jsval v2, bool *same);
@@ -1624,6 +1624,9 @@ class JS_PUBLIC_API(AutoSaveContextOptions) {
 
 } /* namespace JS */
 
+extern JS_PUBLIC_API(void)
+JS_SetJitHardening(JSRuntime *rt, bool enabled);
+
 extern JS_PUBLIC_API(const char *)
 JS_GetImplementationVersion(void);
 
@@ -1667,7 +1670,7 @@ extern JS_PUBLIC_API(JSObject *)
 JS_TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
 
 extern JS_PUBLIC_API(bool)
-JS_RefreshCrossCompartmentWrappers(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *ob);
 
 /*
  * At any time, a JSContext has a current (possibly-nullptr) compartment.
@@ -1740,7 +1743,7 @@ JS_IterateCompartments(JSRuntime *rt, void *data,
  * NB: This sets cx's global object to obj if it was null.
  */
 extern JS_PUBLIC_API(bool)
-JS_InitStandardClasses(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_InitStandardClasses(JSContext *cx, JSObject *obj);
 
 /*
  * Resolve id, which must contain either a string or an int, to a standard
@@ -1763,11 +1766,10 @@ extern JS_PUBLIC_API(bool)
 JS_EnumerateStandardClasses(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(bool)
-JS_GetClassObject(JSContext *cx, JS::Handle<JSObject*> obj, JSProtoKey key,
-                  JS::MutableHandle<JSObject*> objp);
+JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject **objp);
 
 extern JS_PUBLIC_API(bool)
-JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> objp);
+JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JSObject **objp);
 
 extern JS_PUBLIC_API(JSProtoKey)
 JS_IdentifyClassPrototype(JSContext *cx, JSObject *obj);
@@ -2309,10 +2311,10 @@ class AutoIdArray : private AutoGCRooter
 } /* namespace JS */
 
 extern JS_PUBLIC_API(bool)
-JS_ValueToId(JSContext *cx, jsval v, JS::MutableHandle<jsid> idp);
+JS_ValueToId(JSContext *cx, jsval v, jsid *idp);
 
 extern JS_PUBLIC_API(bool)
-JS_IdToValue(JSContext *cx, jsid id, JS::MutableHandle<JS::Value> vp);
+JS_IdToValue(JSContext *cx, jsid id, jsval *vp);
 
 /*
  * JSNewResolveOp flag bits.
@@ -2326,8 +2328,7 @@ JS_IdToValue(JSContext *cx, jsid id, JS::MutableHandle<JS::Value> vp);
  * success the resulting value is stored in *vp.
  */
 extern JS_PUBLIC_API(bool)
-JS_DefaultValue(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint,
-                JS::MutableHandle<JS::Value> vp);
+JS_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
 extern JS_PUBLIC_API(bool)
 JS_PropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
@@ -2525,17 +2526,16 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
  * right property flags.
  */
 extern JS_PUBLIC_API(bool)
-JS_LinkConstructorAndPrototype(JSContext *cx, JS::Handle<JSObject*> ctor,
-                               JS::Handle<JSObject*> proto);
+JS_LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto);
 
 extern JS_PUBLIC_API(const JSClass *)
 JS_GetClass(JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
-JS_InstanceOf(JSContext *cx, JS::Handle<JSObject*> obj, const JSClass *clasp, jsval *argv);
+JS_InstanceOf(JSContext *cx, JSObject *obj, const JSClass *clasp, jsval *argv);
 
 extern JS_PUBLIC_API(bool)
-JS_HasInstance(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<JS::Value> v, bool *bp);
+JS_HasInstance(JSContext *cx, JSObject *obj, jsval v, bool *bp);
 
 extern JS_PUBLIC_API(void *)
 JS_GetPrivate(JSObject *obj);
@@ -2544,7 +2544,8 @@ extern JS_PUBLIC_API(void)
 JS_SetPrivate(JSObject *obj, void *data);
 
 extern JS_PUBLIC_API(void *)
-JS_GetInstancePrivate(JSContext *cx, JS::Handle<JSObject*> obj, const JSClass *clasp, jsval *argv);
+JS_GetInstancePrivate(JSContext *cx, JSObject *obj, const JSClass *clasp,
+                      jsval *argv);
 
 extern JS_PUBLIC_API(bool)
 JS_GetPrototype(JSContext *cx, JS::HandleObject obj, JS::MutableHandleObject protop);
@@ -2559,7 +2560,7 @@ extern JS_PUBLIC_API(bool)
 JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_GetConstructor(JSContext *cx, JS::Handle<JSObject*> proto);
+JS_GetConstructor(JSContext *cx, JSObject *proto);
 
 /*
  * Get a unique identifier for obj, good for the lifetime of obj (even if it
@@ -2718,8 +2719,7 @@ extern JS_PUBLIC_API(void)
 JS_FireOnNewGlobalObject(JSContext *cx, JS::HandleObject global);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_NewObject(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto,
-             JS::Handle<JSObject*> parent);
+JS_NewObject(JSContext *cx, const JSClass *clasp, JSObject *proto, JSObject *parent);
 
 /* Queries the [[Extensible]] property of the object. */
 extern JS_PUBLIC_API(bool)
@@ -2736,8 +2736,8 @@ JS_GetObjectRuntime(JSObject *obj);
  * proto if proto's actual parameter value is null.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto,
-                           JS::Handle<JSObject*> parent);
+JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *clasp, JSObject *proto,
+                           JSObject *parent);
 
 /*
  * Freeze obj, and all objects it refers to, recursively. This will not recurse
@@ -2745,13 +2745,13 @@ JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *clasp, JS::Handle<JSObj
  * deep-frozen.
  */
 extern JS_PUBLIC_API(bool)
-JS_DeepFreezeObject(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_DeepFreezeObject(JSContext *cx, JSObject *obj);
 
 /*
  * Freezes an object; see ES5's Object.freeze(obj) method.
  */
 extern JS_PUBLIC_API(bool)
-JS_FreezeObject(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_FreezeObject(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
 JS_PreventExtensions(JSContext *cx, JS::HandleObject obj);
@@ -3060,10 +3060,10 @@ extern JS_PUBLIC_API(bool)
 JS_IsArrayObject(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
-JS_GetArrayLength(JSContext *cx, JS::Handle<JSObject*> obj, uint32_t *lengthp);
+JS_GetArrayLength(JSContext *cx, JSObject *obj, uint32_t *lengthp);
 
 extern JS_PUBLIC_API(bool)
-JS_SetArrayLength(JSContext *cx, JS::Handle<JSObject*> obj, uint32_t length);
+JS_SetArrayLength(JSContext *cx, JSObject *obj, uint32_t length);
 
 extern JS_PUBLIC_API(bool)
 JS_DefineElement(JSContext *cx, JSObject *obj, uint32_t index, jsval value,
@@ -3158,7 +3158,7 @@ JS_Enumerate(JSContext *cx, JSObject *obj);
  * order, which uses order of property definition in obj.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_NewPropertyIterator(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_NewPropertyIterator(JSContext *cx, JSObject *obj);
 
 /*
  * Return true on success with *idp containing the id of the next enumerable
@@ -3166,11 +3166,11 @@ JS_NewPropertyIterator(JSContext *cx, JS::Handle<JSObject*> obj);
  * left to visit.  Return false on error.
  */
 extern JS_PUBLIC_API(bool)
-JS_NextProperty(JSContext *cx, JS::Handle<JSObject*> iterobj, jsid *idp);
+JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp);
 
 extern JS_PUBLIC_API(bool)
-JS_CheckAccess(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSAccessMode mode,
-               JS::MutableHandle<JS::Value> vp, unsigned *attrsp);
+JS_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
+               jsval *vp, unsigned *attrsp);
 
 extern JS_PUBLIC_API(jsval)
 JS_GetReservedSlot(JSObject *obj, uint32_t index);
@@ -3257,7 +3257,7 @@ JS_InitDestroyPrincipalsCallback(JSRuntime *rt, JSDestroyPrincipalsOp destroyPri
  */
 extern JS_PUBLIC_API(JSFunction *)
 JS_NewFunction(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
-               JS::Handle<JSObject*> parent, const char *name);
+               JSObject *parent, const char *name);
 
 /*
  * Create the function with the name given by the id. JSID_IS_STRING(id) must
@@ -3265,13 +3265,12 @@ JS_NewFunction(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
  */
 extern JS_PUBLIC_API(JSFunction *)
 JS_NewFunctionById(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
-                   JS::Handle<JSObject*> parent, JS::Handle<jsid> id);
+                   JSObject *parent, jsid id);
 
 namespace JS {
 
 extern JS_PUBLIC_API(JSFunction *)
-GetSelfHostedFunction(JSContext *cx, const char *selfHostedName, JS::Handle<jsid> id,
-                      unsigned nargs);
+GetSelfHostedFunction(JSContext *cx, const char *selfHostedName, jsid id, unsigned nargs);
 
 } /* namespace JS */
 
@@ -3328,10 +3327,10 @@ JS_IsConstructor(JSFunction *fun);
  * If |callable| is not callable, will throw and return nullptr.
  */
 extern JS_PUBLIC_API(JSObject*)
-JS_BindCallable(JSContext *cx, JS::Handle<JSObject*> callable, JS::Handle<JSObject*> newThis);
+JS_BindCallable(JSContext *cx, JSObject *callable, JSObject *newThis);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineFunctions(JSContext *cx, JS::Handle<JSObject*> obj, const JSFunctionSpec *fs);
+JS_DefineFunctions(JSContext *cx, JSObject *obj, const JSFunctionSpec *fs);
 
 extern JS_PUBLIC_API(JSFunction *)
 JS_DefineFunction(JSContext *cx, JSObject *obj, const char *name, JSNative call,
@@ -3351,7 +3350,7 @@ JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
  * fail if funobj was lexically nested inside some other function.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_CloneFunctionObject(JSContext *cx, JS::Handle<JSObject*> funobj, JS::Handle<JSObject*> parent);
+JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent);
 
 /*
  * Given a buffer, return false if the buffer might become a valid
@@ -3361,8 +3360,7 @@ JS_CloneFunctionObject(JSContext *cx, JS::Handle<JSObject*> funobj, JS::Handle<J
  * the compiler.
  */
 extern JS_PUBLIC_API(bool)
-JS_BufferIsCompilableUnit(JSContext *cx, JS::Handle<JSObject*> obj, const char *utf8,
-                          size_t length);
+JS_BufferIsCompilableUnit(JSContext *cx, JSObject *obj, const char *utf8, size_t length);
 
 extern JS_PUBLIC_API(JSScript *)
 JS_CompileScript(JSContext *cx, JS::HandleObject obj,
@@ -3686,7 +3684,7 @@ CompileFunction(JSContext *cx, JS::HandleObject obj, const ReadOnlyCompileOption
 } /* namespace JS */
 
 extern JS_PUBLIC_API(JSString *)
-JS_DecompileScript(JSContext *cx, JS::Handle<JSScript*> script, const char *name, unsigned indent);
+JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, unsigned indent);
 
 /*
  * API extension: OR this into indent to avoid pretty-printing the decompiled
@@ -3695,10 +3693,10 @@ JS_DecompileScript(JSContext *cx, JS::Handle<JSScript*> script, const char *name
 #define JS_DONT_PRETTY_PRINT    ((unsigned)0x8000)
 
 extern JS_PUBLIC_API(JSString *)
-JS_DecompileFunction(JSContext *cx, JS::Handle<JSFunction*> fun, unsigned indent);
+JS_DecompileFunction(JSContext *cx, JSFunction *fun, unsigned indent);
 
 extern JS_PUBLIC_API(JSString *)
-JS_DecompileFunctionBody(JSContext *cx, JS::Handle<JSFunction*> fun, unsigned indent);
+JS_DecompileFunctionBody(JSContext *cx, JSFunction *fun, unsigned indent);
 
 /*
  * NB: JS_ExecuteScript and the JS_Evaluate*Script* quadruplets use the obj

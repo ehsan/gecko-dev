@@ -42,14 +42,9 @@ function getTestManifest(url, params, callback) {
   req.onload = function() {
     if (req.readyState == 4) {
       if (req.status == 200) {
-        try {
-          parseTestManifest(JSON.parse(req.responseText), params, callback);
-        } catch (e) {
-          dump("TEST-UNEXPECTED-FAIL: setup.js | error parsing " + url + " (" + e + ")\n");
-          throw e;
-        }
+        parseTestManifest(JSON.parse(req.responseText), params, callback);
       } else {
-        dump("TEST-UNEXPECTED-FAIL: setup.js | error loading " + url + "\n");
+        dump("TEST-ERROR: setup.js | error loading " + url + "\n");
         callback({});
       }
     }
@@ -145,3 +140,4 @@ function filterTests(filter, testList, runOnly) {
   }
   return refilteredTests;
 }
+

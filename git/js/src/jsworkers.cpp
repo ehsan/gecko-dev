@@ -870,7 +870,7 @@ WorkerThread::handleCompressionWorkload(WorkerThreadState &state)
 
     {
         AutoUnlockWorkerThreadState unlock(runtime);
-        if (!compressionTask->work())
+        if (!compressionTask->compress())
             compressionTask->setOOM();
     }
 

@@ -7,6 +7,7 @@
 #include "ClientCanvasLayer.h"          // for ClientCanvasLayer
 #include "GLContext.h"                  // for GLContext
 #include "GLScreenBuffer.h"             // for GLScreenBuffer
+#include "Layers.h"                     // for Layer, etc
 #include "SurfaceStream.h"              // for SurfaceStream
 #include "SurfaceTypes.h"               // for SurfaceStreamHandle
 #include "gfx2DGlue.h"                  // for ImageFormatToSurfaceFormat
@@ -238,7 +239,7 @@ DeprecatedCanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLaye
 {
   if (!mDeprecatedTextureClient) {
     mDeprecatedTextureClient = CreateDeprecatedTextureClient(TEXTURE_STREAM_GL,
-                                                             aLayer->GetSurfaceMode() == SURFACE_OPAQUE
+                                                             aLayer->GetSurfaceMode() == Layer::SURFACE_OPAQUE
                                                                ? GFX_CONTENT_COLOR
                                                                : GFX_CONTENT_COLOR_ALPHA);
     MOZ_ASSERT(mDeprecatedTextureClient, "Failed to create texture client");
