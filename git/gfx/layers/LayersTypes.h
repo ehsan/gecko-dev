@@ -10,8 +10,6 @@
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRegion.h"
 
-#include "mozilla/TypedEnum.h"
-
 #ifdef MOZ_WIDGET_GONK
 #include <ui/GraphicBuffer.h>
 #endif
@@ -41,10 +39,7 @@ namespace layers {
 
 typedef uint32_t TextureFlags;
 
-#undef NONE
-#undef OPAQUE
-
-MOZ_BEGIN_ENUM_CLASS(LayersBackend, int8_t)
+enum LayersBackend {
   LAYERS_NONE = 0,
   LAYERS_BASIC,
   LAYERS_OPENGL,
@@ -53,25 +48,25 @@ MOZ_BEGIN_ENUM_CLASS(LayersBackend, int8_t)
   LAYERS_D3D11,
   LAYERS_CLIENT,
   LAYERS_LAST
-MOZ_END_ENUM_CLASS(LayersBackend)
+};
 
-MOZ_BEGIN_ENUM_CLASS(BufferMode, int8_t)
+enum BufferMode {
   BUFFER_NONE,
-  BUFFERED
-MOZ_END_ENUM_CLASS(BufferMode)
+  BUFFER_BUFFERED
+};
 
-MOZ_BEGIN_ENUM_CLASS(DrawRegionClip, int8_t)
-  DRAW,
-  DRAW_SNAPPED,
-  CLIP_NONE
-MOZ_END_ENUM_CLASS(DrawRegionClip)
+enum DrawRegionClip {
+  CLIP_DRAW,
+  CLIP_DRAW_SNAPPED,
+  CLIP_NONE,
+};
 
-MOZ_BEGIN_ENUM_CLASS(SurfaceMode, int8_t)
+enum SurfaceMode {
   SURFACE_NONE = 0,
   SURFACE_OPAQUE,
   SURFACE_SINGLE_CHANNEL_ALPHA,
   SURFACE_COMPONENT_ALPHA
-MOZ_END_ENUM_CLASS(SurfaceMode)
+};
 
 // LayerRenderState for Composer2D
 // We currently only support Composer2D using gralloc. If we want to be backed
@@ -132,12 +127,12 @@ struct LayerRenderState {
   bool mHasOwnOffset;
 };
 
-MOZ_BEGIN_ENUM_CLASS(ScaleMode, int8_t)
+enum ScaleMode {
   SCALE_NONE,
-  STRETCH,
-  SENTINEL
-// Unimplemented - PRESERVE_ASPECT_RATIO_CONTAIN
-MOZ_END_ENUM_CLASS(ScaleMode)
+  SCALE_STRETCH,
+  SCALE_SENTINEL
+// Unimplemented - SCALE_PRESERVE_ASPECT_RATIO_CONTAIN
+};
 
 struct EventRegions {
   nsIntRegion mHitRegion;

@@ -4,7 +4,7 @@
 
 
 ifdef GNU_AS
-ifeq ($(CPU_ARCH),arm)
+ifeq ($(findstring arm,$(OS_TEST)), arm)
 
 # These flags are a lie; they're just used to enable the requisite
 # opcodes; actual arch detection is done at runtime.

@@ -214,7 +214,7 @@ public:
    */
   struct PaintState {
     PaintState()
-      : mMode(SurfaceMode::SURFACE_NONE)
+      : mMode(SURFACE_NONE)
       , mDidSelfCopy(false)
     {}
 

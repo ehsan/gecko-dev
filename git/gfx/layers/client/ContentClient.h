@@ -310,7 +310,7 @@ public:
     , mDeprecatedTextureClient(nullptr)
     , mIsNewBuffer(false)
     , mFrontAndBackBufferDiffer(false)
-    , mContentType(gfxContentType::COLOR_ALPHA)
+    , mContentType(GFX_CONTENT_COLOR_ALPHA)
   {}
 
   typedef RotatedContentBuffer::PaintState PaintState;
@@ -537,7 +537,7 @@ class ContentClientIncremental : public ContentClientRemote
 public:
   ContentClientIncremental(CompositableForwarder* aFwd)
     : ContentClientRemote(aFwd)
-    , mContentType(gfxContentType::COLOR_ALPHA)
+    , mContentType(GFX_CONTENT_COLOR_ALPHA)
     , mHasBuffer(false)
     , mHasBufferOnWhite(false)
   {

@@ -151,31 +151,31 @@ ImageFormatForPixelFormat(android::PixelFormat aFormat)
 {
   switch (aFormat) {
   case PIXEL_FORMAT_RGBA_8888:
-    return gfxImageFormat::ARGB32;
+    return gfxImageFormatARGB32;
   case PIXEL_FORMAT_RGBX_8888:
-    return gfxImageFormat::RGB24;
+    return gfxImageFormatRGB24;
   case PIXEL_FORMAT_RGB_565:
-    return gfxImageFormat::RGB16_565;
+    return gfxImageFormatRGB16_565;
   default:
     MOZ_CRASH("Unknown gralloc pixel format");
   }
-  return gfxImageFormat::ARGB32;
+  return gfxImageFormatARGB32;
 }
 
 static android::PixelFormat
 PixelFormatForImageFormat(gfxImageFormat aFormat)
 {
   switch (aFormat) {
-  case gfxImageFormat::ARGB32:
+  case gfxImageFormatARGB32:
     return android::PIXEL_FORMAT_RGBA_8888;
-  case gfxImageFormat::RGB24:
+  case gfxImageFormatRGB24:
     return android::PIXEL_FORMAT_RGBX_8888;
-  case gfxImageFormat::RGB16_565:
+  case gfxImageFormatRGB16_565:
     return android::PIXEL_FORMAT_RGB_565;
   default:
     MOZ_CRASH("Unknown gralloc pixel format");
   }
-  return android::PIXEL_FORMAT_RGBA_8888;
+  return gfxImageFormatARGB32;
 }
 
 static size_t

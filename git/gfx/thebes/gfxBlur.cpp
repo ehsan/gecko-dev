@@ -71,7 +71,7 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
             new gfxImageSurface(mData,
                                 gfxIntSize(size.width, size.height),
                                 mBlur->GetStride(),
-                                gfxImageFormat::A8);
+                                gfxImageFormatA8);
         dt = Factory::CreateDrawTargetForCairoSurface(image->CairoSurface(), size);
         if (!dt) {
             return nullptr;

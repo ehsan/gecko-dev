@@ -274,7 +274,7 @@ ClientLayerManager::MakeSnapshotIfRequired()
       mWidget->GetBounds(bounds);
       SurfaceDescriptor inSnapshot, snapshot;
       if (mForwarder->AllocSurfaceDescriptor(bounds.Size().ToIntSize(),
-                                             gfxContentType::COLOR_ALPHA,
+                                             GFX_CONTENT_COLOR_ALPHA,
                                              &inSnapshot) &&
           // The compositor will usually reuse |snapshot| and return
           // it through |outSnapshot|, but if it doesn't, it's
@@ -389,7 +389,6 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
     NS_WARNING("failed to forward Layers transaction");
   }
 
-  mForwarder->ForceRemoveTexturesIfNecessary();
   mPhase = PHASE_NONE;
 
   // this may result in Layers being deleted, which results in
@@ -452,11 +451,11 @@ void
 ClientLayerManager::GetBackendName(nsAString& aName)
 {
   switch (mForwarder->GetCompositorBackendType()) {
-    case LayersBackend::LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
-    case LayersBackend::LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
-    case LayersBackend::LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
-    case LayersBackend::LAYERS_D3D10: aName.AssignLiteral("Direct3D 10"); return;
-    case LayersBackend::LAYERS_D3D11: aName.AssignLiteral("Direct3D 11"); return;
+    case LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
+    case LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
+    case LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
+    case LAYERS_D3D10: aName.AssignLiteral("Direct3D 10"); return;
+    case LAYERS_D3D11: aName.AssignLiteral("Direct3D 11"); return;
     default: NS_RUNTIMEABORT("Invalid backend");
   }
 }

@@ -32,7 +32,6 @@ namespace mozilla {
 namespace dom {
 
 class EventTarget;
-class Element;
 
 typedef CallbackObjectHolder<EventListener, nsIDOMEventListener>
   EventListenerHolder;
@@ -284,8 +283,6 @@ public:
    * function compiled from aFunc if !aDeferCompilation.  If
    * aDeferCompilation, then we assume that we can get the string from
    * mTarget later and compile lazily.
-   *
-   * aElement, if not null, is the element the string is associated with.
    */
   // XXXbz does that play correctly with nodes being adopted across
   // documents?  Need to double-check the spec here.
@@ -293,8 +290,7 @@ public:
                            const nsAString& aFunc,
                            uint32_t aLanguage,
                            bool aDeferCompilation,
-                           bool aPermitUntrustedEvents,
-                           mozilla::dom::Element* aElement);
+                           bool aPermitUntrustedEvents);
   /**
    * Remove the current "inline" event listener for aName.
    */
@@ -424,12 +420,10 @@ protected:
   /**
    * Compile the "inline" event listener for aListenerStruct.  The
    * body of the listener can be provided in aBody; if this is null we
-   * will look for it on mTarget.  If aBody is provided, aElement should be
-   * as well; otherwise it will also be inferred from mTarget.
+   * will look for it on mTarget.
    */
   nsresult CompileEventHandlerInternal(nsListenerStruct *aListenerStruct,
-                                       const nsAString* aBody,
-                                       mozilla::dom::Element* aElement);
+                                       const nsAString* aBody);
 
   /**
    * Find the nsListenerStruct for the "inline" event listener for aTypeAtom.

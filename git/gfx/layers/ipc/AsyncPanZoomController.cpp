@@ -1228,7 +1228,7 @@ bool FlingAnimation::Sample(FrameMetrics& aFrameMetrics,
     mX.AdjustDisplacement(cssOffset.x, overscroll.x,
                           aFrameMetrics.GetDisableScrollingX()),
     mY.AdjustDisplacement(cssOffset.y, overscroll.y,
-                          aFrameMetrics.GetDisableScrollingY())
+                          aFrameMetrics.GetDisableScrollingX())
   ));
 
   return true;
@@ -1323,8 +1323,8 @@ const CSSRect AsyncPanZoomController::CalculatePendingDisplayPort(
   displayPort = displayPort.ForceInside(scrollableRect) - scrollOffset;
 
   APZC_LOG_FM(aFrameMetrics,
-    "Calculated displayport as (%f %f %f %f) from velocity (%f %f) acceleration (%f %f) paint time %f metrics",
-    displayPort.x, displayPort.y, displayPort.width, displayPort.height,
+    "%p calculated displayport as (%f %f %f %f) from velocity (%f %f) acceleration (%f %f) paint time %f metrics",
+    this, displayPort.x, displayPort.y, displayPort.width, displayPort.height,
     aVelocity.x, aVelocity.y, aAcceleration.x, aAcceleration.y,
     (float)estimatedPaintDurationMillis);
 

@@ -231,7 +231,6 @@ int32_t AudioDeviceLinuxPulse::Init()
     _recWarning = 0;
     _recError = 0;
 
-#ifdef USE_X11
     //Get X display handle for typing detection
     _XDisplay = XOpenDisplay(NULL);
     if (!_XDisplay)
@@ -239,7 +238,6 @@ int32_t AudioDeviceLinuxPulse::Init()
         WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
           "  failed to open X display, typing detection will not work");
     }
-#endif
 
     // RECORDING
     const char* threadName = "webrtc_audio_module_rec_thread";
@@ -354,13 +352,11 @@ int32_t AudioDeviceLinuxPulse::Terminate()
         return -1;
     }
 
-#ifdef USE_X11
     if (_XDisplay)
     {
       XCloseDisplay(_XDisplay);
       _XDisplay = NULL;
     }
-#endif
 
     _initialized = false;
     _outputDeviceIsSpecified = false;
@@ -3119,13 +3115,11 @@ bool AudioDeviceLinuxPulse::KeyPressed() const{
   unsigned int i = 0;
   char state = 0;
 
-#ifdef USE_X11
   if (!_XDisplay)
     return false;
 
   // Check key map status
   XQueryKeymap(_XDisplay, szKey);
-#endif
 
   // A bit change in keymap means a key is pressed
   for (i = 0; i < sizeof(szKey); i++)

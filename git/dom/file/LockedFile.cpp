@@ -62,11 +62,10 @@ public:
   Init();
 
   nsresult
-  DoAsyncRun(nsISupports* aStream) MOZ_OVERRIDE;
+  DoAsyncRun(nsISupports* aStream);
 
   nsresult
-  GetSuccessResult(JSContext* aCx,
-                   JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::Value* aVal);
 
 protected:
   uint64_t mLocation;
@@ -88,8 +87,7 @@ public:
   { }
 
   nsresult
-  GetSuccessResult(JSContext* aCx,
-                   JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::Value* aVal);
 
 private:
   nsString mEncoding;
@@ -829,13 +827,13 @@ LockedFile::OpenInputStream(bool aWholeFile, uint64_t aStart, uint64_t aLength,
 
   nsCOMPtr<nsIInputStream>& result = helper->Result();
   NS_ENSURE_TRUE(result, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
-
+  
   result.forget(aResult);
   return NS_OK;
 }
 
 nsresult
-LockedFile::WriteOrAppend(JS::Handle<JS::Value> aValue,
+LockedFile::WriteOrAppend(const JS::Value& aValue,
                           JSContext* aCx,
                           nsISupports** _retval,
                           bool aAppend)
@@ -857,10 +855,11 @@ LockedFile::WriteOrAppend(JS::Handle<JS::Value> aValue,
     return NS_OK;
   }
 
+  JS::Rooted<JS::Value> val(aCx, aValue);
   nsCOMPtr<nsIInputStream> inputStream;
   uint64_t inputLength;
   nsresult rv =
-    GetInputStreamForJSVal(aValue, aCx, getter_AddRefs(inputStream),
+    GetInputStreamForJSVal(val, aCx, getter_AddRefs(inputStream),
                            &inputLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1020,21 +1019,24 @@ ReadHelper::DoAsyncRun(nsISupports* aStream)
 
 nsresult
 ReadHelper::GetSuccessResult(JSContext* aCx,
-                             JS::MutableHandle<JS::Value> aVal)
+                             JS::Value* aVal)
 {
   JS::Rooted<JSObject*> arrayBuffer(aCx);
   nsresult rv =
     nsContentUtils::CreateArrayBuffer(aCx, mStream->Data(), arrayBuffer.address());
   NS_ENSURE_SUCCESS(rv, rv);
 
-  aVal.setObject(*arrayBuffer);
+  *aVal = OBJECT_TO_JSVAL(arrayBuffer);
+
   return NS_OK;
 }
 
 nsresult
 ReadTextHelper::GetSuccessResult(JSContext* aCx,
-                                 JS::MutableHandle<JS::Value> aVal)
+                                 JS::Value* aVal)
 {
+  nsresult rv;
+
   nsAutoCString encoding;
   const nsCString& data = mStream->Data();
   // The BOM sniffing is baked into the "decode" part of the Encoding
@@ -1053,14 +1055,17 @@ ReadTextHelper::GetSuccessResult(JSContext* aCx,
   }
 
   nsString tmpString;
-  nsresult rv = nsContentUtils::ConvertStringFromEncoding(encoding, data,
-                                                          tmpString);
+  rv = nsContentUtils::ConvertStringFromEncoding(encoding, data,
+                                                 tmpString);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!xpc::StringToJsval(aCx, tmpString, aVal)) {
+  JS::Rooted<JS::Value> rval(aCx);
+  if (!xpc::StringToJsval(aCx, tmpString, &rval)) {
     NS_WARNING("Failed to convert string!");
     return NS_ERROR_FAILURE;
   }
+
+  *aVal = rval;
   return NS_OK;
 }
 
@@ -1102,7 +1107,7 @@ TruncateHelper::DoAsyncRun(nsISupports* aStream)
 
   nsresult rv = truncator->AsyncWork(this, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
-
+  
   return NS_OK;
 }
 

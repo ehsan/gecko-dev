@@ -506,31 +506,9 @@ var Output = {
 
     webspeechEnabled: false,
 
-    deferredOutputs: [],
-
     init: function init() {
       let window = Utils.win;
       this.webspeechEnabled = !!window.speechSynthesis;
-
-      let settingsToGet = 2;
-      let settingsCallback = (aName, aSetting) => {
-        if (--settingsToGet > 0) {
-          return;
-        }
-
-        this.inited = true;
-
-        for (let actions of this.deferredOutputs) {
-          this.output(actions);
-        }
-      };
-
-      this._volumeSetting = new SettingCache(
-        'accessibility.screenreader-volume', settingsCallback,
-        { defaultValue: 1, callbackNow: true, callbackOnce: true });
-      this._rateSetting = new SettingCache(
-        'accessibility.screenreader-rate', settingsCallback,
-        { defaultValue: 0, callbackNow: true, callbackOnce: true });
 
       for (let earcon of this.EARCONS) {
         let earconName = /(^.*)\..*$/.exec(earcon)[1];
@@ -538,20 +516,13 @@ var Output = {
         this.earconBuffers[earconName].set(
           window, new window.Audio('chrome://global/content/accessibility/' + earcon));
       }
-    },
 
-    uninit: function uninit() {
-      if (this.inited) {
-        delete this._volumeSetting;
-        delete this._rateSetting;
-      }
-      this.inited = false;
+      this.inited = true;
     },
 
     output: function output(aActions) {
       if (!this.inited) {
-        this.deferredOutputs.push(aActions);
-        return;
+        this.init();
       }
 
       for (let action of aActions) {
@@ -564,18 +535,12 @@ var Output = {
         }
 
         if (action.method === 'speak' && this.webspeechEnabled) {
-          let utterance = new window.SpeechSynthesisUtterance(action.data);
-          let requestedRate = this._rateSetting.value;
-          utterance.volume = this._volumeSetting.value;
-          utterance.rate = requestedRate >= 0 ?
-            requestedRate + 1 : 1 / (Math.abs(requestedRate) + 1);
-          window.speechSynthesis.speak(utterance);
+          window.speechSynthesis.speak(
+            new window.SpeechSynthesisUtterance(action.data));
         } else if (action.method === 'playEarcon') {
           let audioBufferWeakMap = this.earconBuffers[action.data];
           if (audioBufferWeakMap) {
-            let node = audioBufferWeakMap.get(window).cloneNode(false);
-            node.volume = this._volumeSetting.value;
-            node.play();
+            audioBufferWeakMap.get(window).cloneNode(false).play();
           }
         }
       }
@@ -584,7 +549,6 @@ var Output = {
 
   start: function start() {
     Cu.import('resource://gre/modules/Geometry.jsm');
-    this.speechHelper.init();
   },
 
   stop: function stop() {
@@ -597,8 +561,6 @@ var Output = {
       Utils.win.document.documentElement.removeChild(this.announceBox.get());
       delete this.announceBox;
     }
-
-    this.speechHelper.uninit();
   },
 
   Speech: function Speech(aDetails, aBrowser) {

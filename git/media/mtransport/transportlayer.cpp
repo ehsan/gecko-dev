@@ -39,11 +39,9 @@ void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
   WasInserted();
 }
 
-void TransportLayer::SetState(State state, const char *file, unsigned line) {
+void TransportLayer::SetState(State state) {
   if (state != state_) {
-    MOZ_MTLOG(state == TS_ERROR ? ML_ERROR : ML_DEBUG,
-              file << ":" << line << ": " <<
-              LAYER_INFO << "state " << state_ << "->" << state);
+    MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "state " << state_ << "->" << state);
     state_ = state;
     SignalStateChange(this, state);
   }
