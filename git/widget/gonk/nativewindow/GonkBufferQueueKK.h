@@ -334,6 +334,7 @@ private:
 
     // freeAllBuffersLocked frees the GraphicBuffer and sync resources for
     // all slots.
+    //void freeAllBuffersLocked();
     void freeAllBuffersLocked();
 
     // setDefaultMaxBufferCountLocked sets the maximum number of buffer slots

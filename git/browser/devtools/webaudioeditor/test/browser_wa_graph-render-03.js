@@ -5,7 +5,7 @@
  * Tests to ensure that selected nodes stay selected on graph redraw.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS } = panelWin;
@@ -31,5 +31,7 @@ add_task(function*() {
   ok(findGraphNode(panelWin, gain.actorID).classList.contains("selected"),
     "Node still selected after rerender.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}
+

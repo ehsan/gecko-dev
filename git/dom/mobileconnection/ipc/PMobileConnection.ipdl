@@ -20,6 +20,7 @@ sync protocol PMobileConnection
 child:
   NotifyVoiceInfoChanged(nsMobileConnectionInfo aInfo);
   NotifyDataInfoChanged(nsMobileConnectionInfo aInfo);
+  NotifyUssdReceived(nsString aMessage, bool aSessionEnd);
   NotifyDataError(nsString aMessage);
   NotifyCFStateChanged(uint16_t aAction, uint16_t aReason, nsString aNumber,
                        uint16_t aTimeSeconds, uint16_t aServiceClass);
@@ -96,6 +97,15 @@ struct GetVoicePrivacyModeRequest
 {
 };
 
+struct SendMmiRequest
+{
+  nsString mmi;
+};
+
+struct CancelMmiRequest
+{
+};
+
 struct SetCallForwardingRequest
 {
   uint16_t action;
@@ -169,6 +179,8 @@ union MobileConnectionRequest
   GetRoamingPreferenceRequest;
   SetVoicePrivacyModeRequest;
   GetVoicePrivacyModeRequest;
+  SendMmiRequest;
+  CancelMmiRequest;
   SetCallForwardingRequest;
   GetCallForwardingRequest;
   SetCallBarringRequest;

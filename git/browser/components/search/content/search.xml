@@ -121,17 +121,13 @@
 
         // Make sure to break the cycle from _textbox to us. Otherwise we leak
         // the world. But make sure it's actually pointing to us.
-        // Also make sure the textbox has ever been constructed, otherwise the
-        // _textbox getter will cause the textbox constructor to run, add an
-        // observer, and leak the world too.
-        if (this._textboxInitialized && this._textbox.mController.input == this)
+        if (this._textbox.mController.input == this)
           this._textbox.mController.input = null;
         ]]></body>
       </method>
 
       <field name="_stringBundle">document.getAnonymousElementByAttribute(this,
           "anonid", "searchbar-stringbundle");</field>
-      <field name="_textboxInitialized">false</field>
       <field name="_textbox">document.getAnonymousElementByAttribute(this,
           "anonid", "searchbar-textbox");</field>
       <field name="_popup">document.getAnonymousElementByAttribute(this,
@@ -274,7 +270,6 @@
               }
             }
           }
-          BrowserSearch.updateSearchButton();
         ]]></body>
       </method>
 
@@ -300,7 +295,6 @@
               }
             }
           }
-          BrowserSearch.updateSearchButton();
         ]]></body>
       </method>
 
@@ -611,7 +605,6 @@
           <xul:hbox class="searchbar-search-button-container">
             <xul:image class="searchbar-search-button"
                        anonid="searchbar-search-button"
-                       xbl:inherits="addengines"
                        tooltiptext="&searchEndCap.label;"/>
           </xul:hbox>
           <xul:button class="searchbar-engine-button"
@@ -644,8 +637,6 @@
         // is removed from the DOM.
         this.destroy();
       ]]></destructor>
-
-      <field name="_ignoreFocus">false</field>
 
       <method name="selectEngine">
         <body><![CDATA[
@@ -690,42 +681,16 @@
     <handlers>
       <handler event="input" action="this.inputChanged();"/>
       <handler event="drop" action="this.inputChanged();"/>
-
-      <handler event="blur">
-      <![CDATA[
-        // If the input field is still focused then a different window has
-        // received focus, ignore the next focus event.
-        this._ignoreFocus = (document.activeElement == this._textbox.inputField);
-      ]]></handler>
-
       <handler event="focus">
       <![CDATA[
-        if (this._ignoreFocus) {
-          // This window has been re-focused, don't show the suggestions
-          this._ignoreFocus = false;
-          return;
-        }
-
-        // Don't open the suggestions if there is no text in the textbox.
-        if (!this._textbox.value)
-          return;
-
-        // Don't open the suggestions if the mouse was used to focus the
-        // textbox, that will be taken care of in the click handler.
-        if (Services.focus.getLastFocusMethod(window) == Services.focus.FLAG_BYMOUSE)
-          return;
-
-        this.openSuggestionsPanel();
+        if (this._textbox.value)
+          this.openSuggestionsPanel();
       ]]></handler>
 
-      <handler event="click" button="0">
+      <handler event="click">
       <![CDATA[
-        // Open the suggestions whenever clicking on the search icon or if there
-        // is text in the textbox.
-        if (event.originalTarget.getAttribute("anonid") == "searchbar-search-button" ||
-            this._textbox.value) {
+        if (event.originalTarget.getAttribute("anonid") == "searchbar-search-button")
           this.openSuggestionsPanel(true);
-        }
       ]]></handler>
 
     </handlers>
@@ -812,7 +777,6 @@
         cxmenu.appendChild(element);
 
         this.controllers.appendController(this.searchbarController);
-        document.getBindingParent(this)._textboxInitialized = true;
 
         // Add observer for suggest preference
         var prefs = Components.classes["@mozilla.org/preferences-service;1"]

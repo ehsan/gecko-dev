@@ -5,7 +5,7 @@
  * Tests if the timeline actor isn't unnecessarily asked to record memory.
  */
 
-add_task(function*() {
+let test = Task.async(function*() {
   let { target, panel } = yield initTimelinePanel(SIMPLE_URL);
   let { $, EVENTS, TimelineView, TimelineController } = panel.panelWin;
 
@@ -30,4 +30,7 @@ add_task(function*() {
     "There are some markers available.");
   is(memory.length, 0,
     "There are no memory measurements available.");
+
+  yield teardown(panel);
+  finish();
 });

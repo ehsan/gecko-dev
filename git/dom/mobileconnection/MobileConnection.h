@@ -108,6 +108,12 @@ public:
   GetVoicePrivacyMode(ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
+  SendMMI(const nsAString& aMmi, ErrorResult& aRv);
+
+  already_AddRefed<DOMRequest>
+  CancelMMI(ErrorResult& aRv);
+
+  already_AddRefed<DOMRequest>
   SetCallForwardingOption(const MozCallForwardingOptions& aOptions,
                           ErrorResult& aRv);
 
@@ -144,6 +150,7 @@ public:
 
   IMPL_EVENT_HANDLER(voicechange)
   IMPL_EVENT_HANDLER(datachange)
+  IMPL_EVENT_HANDLER(ussdreceived)
   IMPL_EVENT_HANDLER(dataerror)
   IMPL_EVENT_HANDLER(cfstatechange)
   IMPL_EVENT_HANDLER(emergencycbmodechange)

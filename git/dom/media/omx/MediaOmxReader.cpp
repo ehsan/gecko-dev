@@ -112,7 +112,7 @@ private:
       mOffset += length;
     }
 
-    if (static_cast<uint64_t>(mOffset) < mFullLength) {
+    if (mOffset < mFullLength) {
       // We cannot read data in the main thread because it
       // might block for too long. Instead we post an IO task
       // to the IO thread if there is more data available.
