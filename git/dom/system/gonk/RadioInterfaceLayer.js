@@ -1327,19 +1327,20 @@ RadioInterface.prototype = {
 
   handleSignalStrengthChange: function handleSignalStrengthChange(message) {
     let voiceInfo = this.rilContext.voice;
-    if (voiceInfo.signalStrength != message.voice.signalStrength ||
-        voiceInfo.relSignalStrength != message.voice.relSignalStrength) {
-      voiceInfo.signalStrength = message.voice.signalStrength;
-      voiceInfo.relSignalStrength = message.voice.relSignalStrength;
+    // TODO CDMA, EVDO, LTE, etc. (see bug 726098)
+    if (voiceInfo.signalStrength != message.gsmDBM ||
+        voiceInfo.relSignalStrength != message.gsmRelative) {
+      voiceInfo.signalStrength = message.gsmDBM;
+      voiceInfo.relSignalStrength = message.gsmRelative;
       gMessageManager.sendMobileConnectionMessage("RIL:VoiceInfoChanged",
                                                   this.clientId, voiceInfo);
     }
 
     let dataInfo = this.rilContext.data;
-    if (dataInfo.signalStrength != message.data.signalStrength ||
-        dataInfo.relSignalStrength != message.data.relSignalStrength) {
-      dataInfo.signalStrength = message.data.signalStrength;
-      dataInfo.relSignalStrength = message.data.relSignalStrength;
+    if (dataInfo.signalStrength != message.gsmDBM ||
+        dataInfo.relSignalStrength != message.gsmRelative) {
+      dataInfo.signalStrength = message.gsmDBM;
+      dataInfo.relSignalStrength = message.gsmRelative;
       gMessageManager.sendMobileConnectionMessage("RIL:DataInfoChanged",
                                                   this.clientId, dataInfo);
     }
@@ -2031,13 +2032,11 @@ RadioInterface.prototype = {
       return;
     }
 
-    gMobileMessageDatabaseService
-      .setMessageDeliveryByMessageId(options.sms.id,
-                                     null,
-                                     DOM_MOBILE_MESSAGE_DELIVERY_SENT,
-                                     options.sms.deliveryStatus,
-                                     null,
-                                     function notifyResult(rv, domMessage) {
+    gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
+                                                     null,
+                                                     DOM_MOBILE_MESSAGE_DELIVERY_SENT,
+                                                     options.sms.deliveryStatus,
+                                                     function notifyResult(rv, domMessage) {
       // TODO bug 832140 handle !Components.isSuccessCode(rv)
       this.broadcastSmsSystemMessage("sms-sent", domMessage);
 
@@ -2066,13 +2065,11 @@ RadioInterface.prototype = {
       return;
     }
 
-    gMobileMessageDatabaseService
-      .setMessageDeliveryByMessageId(options.sms.id,
-                                     null,
-                                     options.sms.delivery,
-                                     message.deliveryStatus,
-                                     null,
-                                     function notifyResult(rv, domMessage) {
+    gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
+                                                     null,
+                                                     options.sms.delivery,
+                                                     message.deliveryStatus,
+                                                     function notifyResult(rv, domMessage) {
       // TODO bug 832140 handle !Components.isSuccessCode(rv)
       let topic = (message.deliveryStatus == RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS)
                   ? kSmsDeliverySuccessObserverTopic
@@ -2102,13 +2099,11 @@ RadioInterface.prototype = {
       return;
     }
 
-    gMobileMessageDatabaseService
-      .setMessageDeliveryByMessageId(options.sms.id,
-                                     null,
-                                     DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
-                                     RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
-                                     null,
-                                     function notifyResult(rv, domMessage) {
+    gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
+                                                     null,
+                                                     DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
+                                                     RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
+                                                     function notifyResult(rv, domMessage) {
       // TODO bug 832140 handle !Components.isSuccessCode(rv)
       options.request.notifySendMessageFailed(error);
       Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);
@@ -3280,12 +3275,11 @@ RadioInterface.prototype = {
         }
 
         gMobileMessageDatabaseService
-          .setMessageDeliveryByMessageId(domMessage.id,
-                                         null,
-                                         DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
-                                         RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
-                                         null,
-                                         function notifyResult(rv, domMessage) {
+          .setMessageDelivery(domMessage.id,
+                              null,
+                              DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
+                              RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
+                              function notifyResult(rv, domMessage) {
           // TODO bug 832140 handle !Components.isSuccessCode(rv)
           request.notifySendMessageFailed(errorCode);
           Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);

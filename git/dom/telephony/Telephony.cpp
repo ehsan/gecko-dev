@@ -531,12 +531,9 @@ Telephony::NotifyError(int32_t aCallIndex,
 {
   nsRefPtr<TelephonyCall> callToNotify;
   if (!mCalls.IsEmpty()) {
-    // The connection is not established yet. Get the latest dialing call object.
+    // The connection is not established yet. Get the latest call object.
     if (aCallIndex == -1) {
-      nsRefPtr<TelephonyCall>& lastCall = mCalls[mCalls.Length() - 1];
-      if (lastCall->CallIndex() == kOutgoingPlaceholderCallIndex) {
-        callToNotify = lastCall;
-      }
+      callToNotify = mCalls[mCalls.Length() - 1];
     } else {
       // The connection has been established. Get the failed call.
       for (uint32_t index = 0; index < mCalls.Length(); index++) {
