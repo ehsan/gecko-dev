@@ -35,10 +35,8 @@ class AssemblerX86Shared
     bool enoughMemory_;
 
     void writeDataRelocation(const Value &val) {
-        if (val.isMarkable()) {
-            JS_ASSERT(static_cast<gc::Cell*>(val.toGCThing())->isTenured());
+        if (val.isMarkable())
             dataRelocations_.writeUnsigned(masm.currentOffset());
-        }
     }
     void writeDataRelocation(const ImmGCPtr &ptr) {
         if (ptr.value)

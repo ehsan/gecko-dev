@@ -2334,7 +2334,8 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
                     else
                         enclosingScope = fun;
 
-                    clone = CloneFunctionAndScript(cx, enclosingScope, innerFun);
+                    clone = CloneInterpretedFunction(cx, enclosingScope, innerFun,
+                            src->selfHosted ? TenuredObject : newKind);
                 }
             } else {
                 /*

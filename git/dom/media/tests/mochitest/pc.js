@@ -249,19 +249,16 @@ var commandsPeerConnection = [
   [
     'PC_CHECK_INITIAL_SIGNALINGSTATE',
     function (test) {
-      is(test.pcLocal.signalingState, "stable",
-         "Initial local signalingState is 'stable'");
-      is(test.pcRemote.signalingState, "stable",
-         "Initial remote signalingState is 'stable'");
+      is(test.pcLocal.signalingState,"stable", "Initial local signalingState is stable");
+      is(test.pcRemote.signalingState,"stable", "Initial remote signalingState is stable");
       test.next();
     }
   ],
   [
     'PC_LOCAL_CREATE_OFFER',
     function (test) {
-      test.createOffer(test.pcLocal, function () {
-        is(test.pcLocal.signalingState, "stable",
-           "Local create offer does not change signaling state");
+      test.pcLocal.createOffer(function () {
+        is(test.pcLocal.signalingState, "stable", "Local create offer does not change signaling state");
         test.next();
       });
     }
@@ -269,29 +266,24 @@ var commandsPeerConnection = [
   [
     'PC_LOCAL_SET_LOCAL_DESCRIPTION',
     function (test) {
-      test.setLocalDescription(test.pcLocal, test.pcLocal._last_offer, function () {
-        is(test.pcLocal.signalingState, "have-local-offer",
-           "signalingState after local setLocalDescription is 'have-local-offer'");
-        test.next();
-      });
+      test.expectStateChange(test.pcLocal, "have-local-offer", test);
+      test.pcLocal.setLocalDescription(test.pcLocal._last_offer,
+        test.checkStateInCallback(test.pcLocal, "have-local-offer", test));
     }
   ],
   [
     'PC_REMOTE_SET_REMOTE_DESCRIPTION',
     function (test) {
-      test.setRemoteDescription(test.pcRemote, test.pcLocal._last_offer, function () {
-        is(test.pcRemote.signalingState, "have-remote-offer",
-           "signalingState after remote setRemoteDescription is 'have-remote-offer'");
-        test.next();
-      });
+      test.expectStateChange(test.pcRemote, "have-remote-offer", test);
+      test.pcRemote.setRemoteDescription(test.pcLocal._last_offer,
+        test.checkStateInCallback(test.pcRemote, "have-remote-offer", test));
     }
   ],
   [
     'PC_REMOTE_CREATE_ANSWER',
     function (test) {
-      test.createAnswer(test.pcRemote, function () {
-        is(test.pcRemote.signalingState, "have-remote-offer",
-           "Remote createAnswer does not change signaling state");
+      test.pcRemote.createAnswer(function () {
+        is(test.pcRemote.signalingState, "have-remote-offer", "Remote create offer does not change signaling state");
         test.next();
       });
     }
@@ -299,21 +291,17 @@ var commandsPeerConnection = [
   [
     'PC_LOCAL_SET_REMOTE_DESCRIPTION',
     function (test) {
-      test.setRemoteDescription(test.pcLocal, test.pcRemote._last_answer, function () {
-        is(test.pcLocal.signalingState, "stable",
-           "signalingState after local setRemoteDescription is 'stable'");
-        test.next();
-      });
+      test.expectStateChange(test.pcLocal, "stable", test);
+      test.pcLocal.setRemoteDescription(test.pcRemote._last_answer,
+        test.checkStateInCallback(test.pcLocal, "stable", test));
     }
   ],
   [
     'PC_REMOTE_SET_LOCAL_DESCRIPTION',
     function (test) {
-      test.setLocalDescription(test.pcRemote, test.pcRemote._last_answer, function () {
-        is(test.pcRemote.signalingState, "stable",
-           "signalingState after remote setLocalDescription is 'stable'");
-        test.next();
-      });
+      test.expectStateChange(test.pcRemote, "stable", test);
+      test.pcRemote.setLocalDescription(test.pcRemote._last_answer,
+        test.checkStateInCallback(test.pcRemote, "stable", test));
     }
   ],
   [
@@ -369,73 +357,6 @@ PeerConnectionTest.prototype.next = function PCT_next() {
 };
 
 /**
- * Creates an answer for the specified peer connection instance
- * and automatically handles the failure case.
- *
- * @param {PeerConnectionWrapper} peer
- *        The peer connection wrapper to run the command on
- * @param {function} onSuccess
- *        Callback to execute if the offer was created successfully
- */
-PeerConnectionTest.prototype.createAnswer =
-function PCT_createAnswer(peer, onSuccess) {
-  peer.createAnswer(function (answer) {
-    onSuccess(answer);
-  });
-};
-
-/**
- * Creates an offer for the specified peer connection instance
- * and automatically handles the failure case.
- *
- * @param {PeerConnectionWrapper} peer
- *        The peer connection wrapper to run the command on
- * @param {function} onSuccess
- *        Callback to execute if the offer was created successfully
- */
-PeerConnectionTest.prototype.createOffer =
-function PCT_createOffer(peer, onSuccess) {
-  peer.createOffer(function (offer) {
-    onSuccess(offer);
-  });
-};
-
-/**
- * Sets the local description for the specified peer connection instance
- * and automatically handles the failure case.
- *
- * @param {PeerConnectionWrapper} peer
-          The peer connection wrapper to run the command on
- * @param {mozRTCSessionDescription} desc
- *        Session description for the local description request
- * @param {function} onSuccess
- *        Callback to execute if the local description was set successfully
- */
-PeerConnectionTest.prototype.setLocalDescription =
-function PCT_setLocalDescription(peer, desc, onSuccess) {
-  var eventFired = false;
-  var stateChanged = false;
-
-  function check_next_test() {
-    if (eventFired && stateChanged) {
-      onSuccess();
-    }
-  }
-
-  peer.onsignalingstatechange = function () {
-    info(peer + ": 'onsignalingstatechange' event registered for async check");
-
-    eventFired = true;
-    check_next_test();
-  };
-
-  peer.setLocalDescription(desc, function () {
-    stateChanged = true;
-    check_next_test();
-  });
-};
-
-/**
  * Sets the media constraints for both peer connection instances.
  *
  * @param {object} constraintsLocal
@@ -456,41 +377,6 @@ function PCT_setMediaConstraints(constraintsLocal, constraintsRemote) {
 PeerConnectionTest.prototype.setOfferConstraints =
 function PCT_setOfferConstraints(constraints) {
   this.pcLocal.offerConstraints = constraints;
-};
-
-/**
- * Sets the remote description for the specified peer connection instance
- * and automatically handles the failure case.
- *
- * @param {PeerConnectionWrapper} peer
-          The peer connection wrapper to run the command on
- * @param {mozRTCSessionDescription} desc
- *        Session description for the remote description request
- * @param {function} onSuccess
- *        Callback to execute if the local description was set successfully
- */
-PeerConnectionTest.prototype.setRemoteDescription =
-function PCT_setRemoteDescription(peer, desc, onSuccess) {
-  var eventFired = false;
-  var stateChanged = false;
-
-  function check_next_test() {
-    if (eventFired && stateChanged) {
-      onSuccess();
-    }
-  }
-
-  peer.onsignalingstatechange = function () {
-    info(peer + ": 'onsignalingstatechange' event registered for async check");
-
-    eventFired = true;
-    check_next_test();
-  };
-
-  peer.setRemoteDescription(desc, function () {
-    stateChanged = true;
-    check_next_test();
-  });
 };
 
 /**
@@ -518,6 +404,64 @@ PeerConnectionTest.prototype.teardown = function PCT_teardown() {
   SimpleTest.finish();
 };
 
+/**
+ * Sets up the "onsignalingstatechange" handler for the indicated peerconnection
+ * as a one-shot test. If the test.commandSuccess flag is set when the event
+ * happens, then the next test in the command chain is triggered. After
+ * running, this sets the event handler so that it will fail the test if
+ * it fires again before we expect it. This is intended to be used in
+ * conjunction with checkStateInCallback, below.
+ *
+ * @param {pcw} PeerConnectionWrapper
+ *        The peer connection to expect a state change on
+ * @param {state} string
+ *        The state that we expect to change to
+ * @param {test} PeerConnectionTest
+ *        The test strucure currently in use.
+ */
+PeerConnectionTest.prototype.expectStateChange =
+function PCT_expectStateChange(pcw, state, test) {
+  pcw.signalingChangeEvent = false;
+  pcw._pc.onsignalingstatechange = function() {
+    pcw._pc.onsignalingstatechange = unexpectedCallbackAndFinish(new Error);
+    is(pcw._pc.signalingState, state, pcw.label + ": State is " + state + " in onsignalingstatechange");
+    pcw.signalingChangeEvent = true;
+    if (pcw.commandSuccess) {
+      test.next();
+    } else {
+      info("Waiting for success callback...");
+    }
+  };
+}
+
+/**
+ * Returns a function, suitable for use as a success callback, that
+ * checks the signaling state of the PC; and, if the signalingstatechange
+ * event has already fired, moves on to the next test case. This is
+ * intended to be used in conjunction with expectStateChange, above.
+ *
+ * @param {pcw} PeerConnectionWrapper
+ *        The peer connection to expect a state change on
+ * @param {state} string
+ *        The state that we expect to change to
+ * @param {test} PeerConnectionTest
+ *        The test strucure currently in use.
+ */
+
+PeerConnectionTest.prototype.checkStateInCallback =
+function PCT_checkStateInCallback(pcw, state, test) {
+  pcw.commandSuccess = false;
+  return function() {
+    pcw.commandSuccess = true;
+    is(pcw.signalingState, state, pcw.label + ": State is " + state + " in success callback");
+    if (pcw.signalingChangeEvent) {
+      test.next();
+    } else {
+      info("Waiting for signalingstatechange event...");
+    }
+  };
+}
+
 
 /**
  * This class handles acts as a wrapper around a PeerConnection instance.
@@ -536,15 +480,8 @@ function PeerConnectionWrapper(label, configuration) {
   this.offerConstraints = {};
   this.streams = [ ];
 
-  info("Creating new PeerConnectionWrapper: " + this);
+  info("Creating new PeerConnectionWrapper: " + this.label);
   this._pc = new mozRTCPeerConnection(this.configuration);
-
-  /**
-   * Setup callback handlers
-   */
-
-  this.onsignalingstatechange = unexpectedEventAndFinish(this, 'onsignalingstatechange');
-
 
   var self = this;
   this._pc.onaddstream = function (event) {
@@ -552,20 +489,8 @@ function PeerConnectionWrapper(label, configuration) {
     self.attachMedia(event.stream, 'video', 'remote');
   };
 
-  /**
-   * Callback for native peer connection 'onsignalingstatechange' events. If no
-   * custom handler has been specified via 'this.onsignalingstatechange', a
-   * failure will be raised if an event of this type is caught.
-   *
-   * @param {Object} aEvent
-   *        Event data which includes the newly created data channel
-   */
-  this._pc.onsignalingstatechange = function (aEvent) {
-    info(self + ": 'onsignalingstatechange' event fired");
-
-    self.onsignalingstatechange();
-    self.onsignalingstatechange = unexpectedEventAndFinish(self, 'onsignalingstatechange');
-  }
+  // Make sure no signaling state changes are fired until we expect them to
+  this._pc.onsignalingstatechange = unexpectedCallbackAndFinish(new Error);
 }
 
 PeerConnectionWrapper.prototype = {
@@ -668,7 +593,7 @@ PeerConnectionWrapper.prototype = {
           self.attachMedia(stream, type, 'local');
 
           _getAllUserMedia(constraintsList, index + 1);
-        }, unexpectedCallbackAndFinish());
+        }, unexpectedCallbackAndFinish(new Error));
       } else {
         onSuccess();
       }
@@ -691,7 +616,7 @@ PeerConnectionWrapper.prototype = {
       info("Got offer: " + JSON.stringify(offer));
       self._last_offer = offer;
       onSuccess(offer);
-    }, unexpectedCallbackAndFinish(), this.offerConstraints);
+    }, unexpectedCallbackAndFinish(new Error), this.offerConstraints);
   },
 
   /**
@@ -704,10 +629,10 @@ PeerConnectionWrapper.prototype = {
     var self = this;
 
     this._pc.createAnswer(function (answer) {
-      info(self + ": Got answer: " + JSON.stringify(answer));
+      info('Got answer for ' + self.label + ': ' + JSON.stringify(answer));
       self._last_answer = answer;
       onSuccess(answer);
-    }, unexpectedCallbackAndFinish());
+    }, unexpectedCallbackAndFinish(new Error));
   },
 
   /**
@@ -721,9 +646,9 @@ PeerConnectionWrapper.prototype = {
   setLocalDescription : function PCW_setLocalDescription(desc, onSuccess) {
     var self = this;
     this._pc.setLocalDescription(desc, function () {
-      info(self + ": Successfully set the local description");
+      info("Successfully set the local description for " + self.label);
       onSuccess();
-    }, unexpectedCallbackAndFinish());
+    }, unexpectedCallbackAndFinish(new Error));
   },
 
   /**
@@ -738,9 +663,9 @@ PeerConnectionWrapper.prototype = {
   setLocalDescriptionAndFail : function PCW_setLocalDescriptionAndFail(desc, onFailure) {
     var self = this;
     this._pc.setLocalDescription(desc,
-      unexpectedCallbackAndFinish("setLocalDescription should have failed."),
+      unexpectedSuccessCallbackAndFinish(new Error, "setLocalDescription should have failed."),
       function (err) {
-        info(self + ": As expected, failed to set the local description");
+        info("As expected, failed to set the local description for " + self.label);
         onFailure(err);
     });
   },
@@ -756,9 +681,9 @@ PeerConnectionWrapper.prototype = {
   setRemoteDescription : function PCW_setRemoteDescription(desc, onSuccess) {
     var self = this;
     this._pc.setRemoteDescription(desc, function () {
-      info(self + ": Successfully set remote description");
+      info("Successfully set remote description for " + self.label);
       onSuccess();
-    }, unexpectedCallbackAndFinish());
+    }, unexpectedCallbackAndFinish(new Error));
   },
 
   /**
@@ -773,9 +698,9 @@ PeerConnectionWrapper.prototype = {
   setRemoteDescriptionAndFail : function PCW_setRemoteDescriptionAndFail(desc, onFailure) {
     var self = this;
     this._pc.setRemoteDescription(desc,
-      unexpectedCallbackAndFinish("setRemoteDescription should have failed."),
+      unexpectedSuccessCallbackAndFinish(new Error, "setRemoteDescription should have failed."),
       function (err) {
-        info(self + ": As expected, failed to set the remote description");
+        info("As expected, failed to set the remote description for " + self.label);
         onFailure(err);
     });
   },
@@ -792,9 +717,9 @@ PeerConnectionWrapper.prototype = {
     var self = this;
 
     this._pc.addIceCandidate(candidate, function () {
-      info(self + ": Successfully added an ICE candidate");
+      info("Successfully added an ICE candidate to " + self.label);
       onSuccess();
-    }, unexpectedCallbackAndFinish());
+    }, unexpectedCallbackAndFinish(new Error));
   },
 
   /**
@@ -810,9 +735,9 @@ PeerConnectionWrapper.prototype = {
     var self = this;
 
     this._pc.addIceCandidate(candidate,
-      unexpectedCallbackAndFinish("addIceCandidate should have failed."),
+      unexpectedSuccessCallbackAndFinish(new Error, "addIceCandidate should have failed."),
       function (err) {
-        info(self + ": As expected, failed to add an ICE candidate");
+        info("As expected, failed to add an ICE candidate to " + self.label);
         onFailure(err);
     }) ;
   },
@@ -825,11 +750,11 @@ PeerConnectionWrapper.prototype = {
    */
   checkMedia : function PCW_checkMedia(constraintsRemote) {
     is(this._pc.localStreams.length, this.constraints.length,
-       this + ' has ' + this.constraints.length + ' local streams');
+       this.label + ' has ' + this.constraints.length + ' local streams');
 
     // TODO: change this when multiple incoming streams are allowed.
     is(this._pc.remoteStreams.length, 1,
-       this + ' has ' + 1 + ' remote streams');
+       this.label + ' has ' + 1 + ' remote streams');
   },
 
   /**
@@ -840,16 +765,9 @@ PeerConnectionWrapper.prototype = {
     // we should not fail.
     try {
       this._pc.close();
-      info(this + ": Closed connection.");
+      info(this.label + ": Closed connection.");
     } catch (e) {
-      info(this + ": Failure in closing connection - " + e.message);
+      info(this.label + ": Failure in closing connection - " + e.message);
     }
-  },
-
-  /**
-   * Returns the string representation of the object
-   */
-  toString : function PCW_toString() {
-    return "PeerConnectionWrapper (" + this.label + ")";
   }
 };

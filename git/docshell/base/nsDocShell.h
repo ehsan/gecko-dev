@@ -803,7 +803,6 @@ protected:
     bool                       mAllowJavascript;
     bool                       mAllowMetaRedirects;
     bool                       mAllowImages;
-    bool                       mAllowMedia;
     bool                       mAllowDNSPrefetch;
     bool                       mAllowWindowControl;
     bool                       mCreatingDocument; // (should be) debugging only

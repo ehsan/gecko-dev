@@ -5499,8 +5499,7 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
             return NULL;
     }
 
-    RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, obj,
-                                       funAtom, JSFunction::FinalizeKind, TenuredObject));
+    RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, obj, funAtom));
     if (!fun)
         return NULL;
 
