@@ -1,6 +1,6 @@
-/* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
+
 "use strict";
 
 // Test that the inspector has the correct pseudo-class locking menu items and
@@ -25,12 +25,20 @@ let test = asyncTest(function*() {
   yield openMenu(menu);
 
   yield testMenuItems(div, menu, inspector);
+
+  gBrowser.removeCurrentTab();
 });
 
 function openMenu(menu) {
-  let promise = once(menu, "popupshowing", true);
+  let def = promise.defer();
+
+  menu.addEventListener("popupshowing", function onOpen() {
+    menu.removeEventListener("popupshowing", onOpen, true);
+    def.resolve();
+  }, true);
   menu.openPopup();
-  return promise;
+
+  return def.promise;
 }
 
 function* testMenuItems(div,menu, inspector) {
@@ -41,7 +49,7 @@ function* testMenuItems(div,menu, inspector) {
     // Give the inspector panels a chance to update when the pseudoclass changes
     let onPseudo = inspector.selection.once("pseudoclass");
     let onRefresh = inspector.once("rule-view-refreshed");
-    let onMutations = inspector.walker.once("mutations");
+    let onMutations = waitForMutation(inspector);
 
     menuitem.doCommand();
 
@@ -52,4 +60,10 @@ function* testMenuItems(div,menu, inspector) {
     is(DOMUtils.hasPseudoClassLock(div, ":" + pseudo), true,
       "pseudo-class lock has been applied");
   }
+}
+
+function waitForMutation(inspector) {
+  let def = promise.defer();
+  inspector.walker.once("mutations", def.resolve);
+  return def.promise;
 }

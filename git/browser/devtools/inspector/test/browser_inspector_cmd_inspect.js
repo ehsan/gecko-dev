@@ -1,14 +1,13 @@
-/* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
-"use strict";
 
-// Testing that the gcli 'inspect' command works as it should.
+// Tests that the inspect command works as it should
 
-const TEST_URI = TEST_URL_ROOT + "browser_inspector_cmd_inspect.html";
+const TEST_URI = "http://example.com/browser/browser/devtools/inspector/" +
+                 "test/browser_inspector_cmd_inspect.html";
 
-let test = asyncTest(function* () {
-  return helpers.addTabWithToolbar(TEST_URI, function(options) {
+function test() {
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
     return helpers.audit(options, [
       {
         setup: "inspect",
@@ -129,6 +128,6 @@ let test = asyncTest(function* () {
           status: 'VALID'
         },
       },
-    ]); // helpers.audit
-  }); // helpers.addTabWithToolbar
-}); // asyncTest
+    ]);
+  }).then(finish);
+}

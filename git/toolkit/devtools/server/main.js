@@ -1121,12 +1121,6 @@ DebuggerServerConnection.prototype = {
     this._forwardingPrefixes.delete(aPrefix);
   },
 
-  sendActorEvent: function (actorID, eventName, event) {
-    event.from = actorID;
-    event.type = eventName;
-    this.send(event);
-  },
-
   // Transport hooks.
 
   /**

@@ -1,41 +1,77 @@
-/* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
-"use strict";
 
-// Test that markup view handles page navigation correctly.
+let Toolbox = devtools.Toolbox;
+let TargetFactory = devtools.TargetFactory;
 
-const SCHEMA = "data:text/html;charset=UTF-8,";
-const URL_1 = SCHEMA + "<div id='one' style='color:red;'>ONE</div>";
-const URL_2 = SCHEMA + "<div id='two' style='color:green;'>TWO</div>";
+function test() {
+  const URL_1 = "data:text/html;charset=UTF-8,<div id='one' style='color:red;'>ONE</div>";
+  const URL_2 = "data:text/html;charset=UTF-8,<div id='two' style='color:green;'>TWO</div>";
 
-let test = asyncTest(function* () {
-  let { inspector, toolbox } = yield openInspectorForURL(URL_1);
+  let toolbox, inspector;
 
-  let firstNode = getNode("#one");
+  // open tab, load URL_1, and wait for load to finish
+  let tab = gBrowser.selectedTab = gBrowser.addTab();
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
+  let deferred = promise.defer();
+  let browser = gBrowser.getBrowserForTab(tab);
 
-  assertMarkupViewIsLoaded();
-  yield selectNode(firstNode, inspector);
+  function onTabLoad() {
+    browser.removeEventListener("load", onTabLoad, true);
+    deferred.resolve(null);
+  }
+  browser.addEventListener("load", onTabLoad, true);
+  browser.loadURI(URL_1);
 
-  let willNavigate = toolbox.target.once("will-navigate");
-  content.location = URL_2;
+  // open devtools panel
+  deferred.promise.then(() => {
+    return gDevTools.showToolbox(target, null, Toolbox.HostType.BOTTOM);
+  }).then(aToolbox => {
+    toolbox = aToolbox;
+  }).then(() => {
+    // select the inspector
+    return toolbox.selectTool("inspector").then(i => {
+      inspector = i;
+      // Verify we are on page one
+      let testNode = content.document.querySelector("#one");
+      ok(testNode, "We have the test node on page 1");
 
-  info("Waiting for will-navigate");
-  yield willNavigate;
+      assertMarkupViewIsLoaded();
+    });
+  }).then(() => {
+    // navigate to URL_2
+    let deferred = promise.defer();
 
-  info("Navigation to page 2 has started, the inspector should be empty");
-  assertMarkupViewIsEmpty();
+    // Listen to will-navigate to check if the view is empty
+    target.on("will-navigate", () => {
+      info("Navigation to page 2 has started, the inspector should be empty");
+      assertMarkupViewIsEmpty();
+    });
+    inspector.once("new-root", () => {
+      info("Navigation to page 2 was done, the inspector should be back up");
 
-  info("Waiting for new-root");
-  yield inspector.once("new-root");
+      // Verify we are on page one
+      let testNode = content.document.querySelector("#two");
+      ok(testNode, "We have the test node on page 2");
 
-  info("Checking that the page has node #two.");
-  let secondNode = getNode("#two");
+      // On page 2 load, verify we have the right content
+      assertMarkupViewIsLoaded();
 
-  info("Navigation to page 2 was done, the inspector should be back up");
-  assertMarkupViewIsLoaded();
+      inspector.selection.setNode(content.document.querySelector("#two"));
+      inspector.once("inspector-updated", () => {
+        deferred.resolve();
+      });
+    });
 
-  yield selectNode(secondNode, inspector);
+    inspector.selection.setNode(content.document.querySelector("#one"));
+    inspector.once("inspector-updated", () => {
+      browser.loadURI(URL_2);
+    });
+
+    return deferred.promise;
+  }).then(() => {
+    endTests();
+  });
 
   function assertMarkupViewIsLoaded() {
     let markupViewBox = inspector.panelDoc.getElementById("markup-box");
@@ -46,4 +82,10 @@ let test = asyncTest(function* () {
     let markupViewBox = inspector.panelDoc.getElementById("markup-box");
     is(markupViewBox.childNodes.length, 0, "The markup-view is unloaded");
   }
-});
+
+  function endTests() {
+    target = browser = tab = inspector = TargetFactory = Toolbox = null;
+    gBrowser.removeCurrentTab();
+    finish();
+  }
+}

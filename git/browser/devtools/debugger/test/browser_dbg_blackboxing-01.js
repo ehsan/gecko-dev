@@ -39,10 +39,7 @@ function testBlackBoxSource() {
 function testBlackBoxReload() {
   return reloadActiveTab(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(() => {
     const bbButton = getBlackBoxButton(gPanel);
-    const selectedSource = getSelectedSourceElement(gPanel);
     ok(bbButton.checked, "Should still be black boxed.");
-    ok(selectedSource.classList.contains("black-boxed"),
-      "'black-boxed' class should still be applied");
   });
 }
 

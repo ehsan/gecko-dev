@@ -68,7 +68,7 @@ this.WebappManager = {
     // Perform the install if the user allows it
     if (choice == 0) {
       let nativeApp = new NativeApp(data.app, jsonManifest,
-                                    data.app.categories,
+                                    WebappRT.config.app.categories,
                                     WebappRT.config.registryDir);
       let localDir;
       try {

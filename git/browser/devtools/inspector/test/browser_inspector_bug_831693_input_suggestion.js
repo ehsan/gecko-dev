@@ -1,194 +1,112 @@
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
-"use strict";
 
-// Testing that searching for elements using the inspector search field
-// produces correct suggestions.
+function test()
+{
+  let inspector, searchBox, state, popup;
 
-const TEST_URL = TEST_URL_ROOT + "browser_inspector_bug_650804_search.html";
+  // The various states of the inspector: [key, suggestions array]
+  // [
+  //  what key to press,
+  //  suggestions array with count [
+  //    [suggestion1, count1], [suggestion2] ...
+  //  ] count can be left to represent 1
+  // ]
+  let keyStates = [
+    ["d", [["div", 2]]],
+    ["i", [["div", 2]]],
+    ["v", []],
+    [".", [["div.c1"]]],
+    ["VK_BACK_SPACE", []],
+    ["#", [["div#d1"], ["div#d2"]]],
+    ["VK_BACK_SPACE", []],
+    ["VK_BACK_SPACE", [["div", 2]]],
+    ["VK_BACK_SPACE", [["div", 2]]],
+    ["VK_BACK_SPACE", []],
+    [".", [[".c1", 3], [".c2"]]],
+    ["c", [[".c1", 3], [".c2"]]],
+    ["2", []],
+    ["VK_BACK_SPACE", [[".c1", 3], [".c2"]]],
+    ["1", []],
+    ["#", [["#d2"], ["#p1"], ["#s2"]]],
+    ["VK_BACK_SPACE", []],
+    ["VK_BACK_SPACE", [[".c1", 3], [".c2"]]],
+    ["VK_BACK_SPACE", [[".c1", 3], [".c2"]]],
+    ["VK_BACK_SPACE", []],
+    ["#", [["#b1"], ["#d1"], ["#d2"], ["#p1"], ["#p2"], ["#p3"], ["#s1"], ["#s2"]]],
+    ["p", [["#p1"], ["#p2"], ["#p3"]]],
+    ["VK_BACK_SPACE", [["#b1"], ["#d1"], ["#d2"], ["#p1"], ["#p2"], ["#p3"], ["#s1"], ["#s2"]]],
+    ["VK_BACK_SPACE", []],
+  ];
 
-// An array of (key, suggestions) pairs where key is a key to press and
-// suggestions is an array of suggestions that should be shown in the popup.
-// Suggestion is an object with label of the entry and optional count
-// (defaults to 1)
-let TEST_DATA = [
-  {
-    key: "d",
-    suggestions: [{label: "div", count: 2}]
-  },
-  {
-    key: "i",
-    suggestions: [{label: "div", count: 2}]
-  },
-  {
-    key: "v",
-    suggestions: []
-  },
-  {
-    key: ".",
-    suggestions: [{label: "div.c1"}]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: []
-  },
-  {
-    key: "#",
-    suggestions: [
-      {label: "div#d1"},
-      {label: "div#d2"}
-    ]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: []
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: [{label: "div", count: 2}]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: [{label: "div", count: 2}]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: []
-  },
-  {
-    key: ".",
-    suggestions: [
-      {label: ".c1", count: 3},
-      {label: ".c2"}
-    ]
-  },
-  {
-    key: "c",
-    suggestions: [
-      {label: ".c1", count: 3},
-      {label: ".c2"}
-    ]
-  },
-  {
-    key: "2",
-    suggestions: []
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: [
-      {label: ".c1", count: 3},
-      {label: ".c2"}
-    ]
-  },
-  {
-    key: "1",
-    suggestions: []
-  },
-  {
-    key: "#",
-    suggestions: [
-      {label: "#d2"},
-      {label: "#p1"},
-      {label: "#s2"}
-    ]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: []
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: [
-      {label: ".c1", count: 3},
-      {label: ".c2"}
-    ]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: [
-      {label: ".c1", count: 3},
-      {label: ".c2"}
-    ]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: []
-  },
-  {
-    key: "#",
-    suggestions: [
-      {label: "#b1"},
-      {label: "#d1"},
-      {label: "#d2"},
-      {label: "#p1"},
-      {label: "#p2"},
-      {label: "#p3"},
-      {label: "#s1"},
-      {label: "#s2"}
-    ]
-  },
-  {
-    key: "p",
-    suggestions: [
-      {label: "#p1"},
-      {label: "#p2"},
-      {label: "#p3"}
-    ]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: [
-      {label: "#b1"},
-      {label: "#d1"},
-      {label: "#d2"},
-      {label: "#p1"},
-      {label: "#p2"},
-      {label: "#p3"},
-      {label: "#s1"},
-      {label: "#s2"}
-    ]
-  },
-  {
-    key: "VK_BACK_SPACE",
-    suggestions: []
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedBrowser.addEventListener("load", function onload() {
+    gBrowser.selectedBrowser.removeEventListener("load", onload, true);
+    waitForFocus(setupTest, content);
+  }, true);
+
+  content.location = "http://mochi.test:8888/browser/browser/devtools/inspector/test/browser_inspector_bug_650804_search.html";
+
+  function $(id) {
+    if (id == null) return null;
+    return content.document.getElementById(id);
   }
-];
 
-let test = asyncTest(function* () {
-  let { inspector } = yield openInspectorForURL(TEST_URL);
-  let searchBox = inspector.searchBox;
-  let popup = inspector.searchSuggestions.searchPopup;
+  function setupTest()
+  {
+    openInspector(startTest);
+  }
 
-  yield focusSearchBoxUsingShortcut(inspector.panelWin);
+  function startTest(aInspector)
+  {
+    inspector = aInspector;
+    searchBox =
+      inspector.panelWin.document.getElementById("inspector-searchbox");
+    popup = inspector.searchSuggestions.searchPopup;
 
-  for (let { key, suggestions } of TEST_DATA) {
-    info("Pressing " + key + " to get " + formatSuggestions(suggestions));
+    focusSearchBoxUsingShortcut(inspector.panelWin, function() {
+      searchBox.addEventListener("command", checkState, true);
+      checkStateAndMoveOn(0);
+    });
+  }
 
-    let command = once(searchBox, "command");
-    EventUtils.synthesizeKey(key, {}, inspector.panelWin);
-    yield command;
-
-    info("Waiting for search query to complete");
-    yield inspector.searchSuggestions._lastQuery;
-
-    info("Query completed. Performing checks for input '" + searchBox.value + "'");
-    let actualSuggestions = popup.getItems().reverse();
-
-    is(popup.isOpen ? actualSuggestions.length: 0, suggestions.length,
-       "There are expected number of suggestions.");
-
-    for (let i = 0; i < suggestions.length; i++) {
-      is(suggestions[i].label, actualSuggestions[i].label,
-         "The suggestion at " + i + "th index is correct.");
-      is(suggestions[i].count || 1, actualSuggestions[i].count,
-         "The count for suggestion at " + i + "th index is correct.");
+  function checkStateAndMoveOn(index) {
+    if (index == keyStates.length) {
+      finishUp();
+      return;
     }
-  }
-});
 
-function formatSuggestions(suggestions) {
-  return "[" + suggestions
-                .map(s => "'" + s.label + "' (" + s.count || 1 + ")")
-                .join(", ") + "]";
+    let [key, suggestions] = keyStates[index];
+    state = index;
+
+    info("pressing key " + key + " to get suggestions " +
+         JSON.stringify(suggestions));
+    EventUtils.synthesizeKey(key, {}, inspector.panelWin);
+  }
+
+  function checkState(event) {
+    inspector.searchSuggestions._lastQuery.then(() => {
+      let [key, suggestions] = keyStates[state];
+      let actualSuggestions = popup.getItems();
+      is(popup.isOpen ? actualSuggestions.length: 0, suggestions.length,
+         "There are expected number of suggestions at " + state + "th step.");
+      actualSuggestions = actualSuggestions.reverse();
+      for (let i = 0; i < suggestions.length; i++) {
+        is(suggestions[i][0], actualSuggestions[i].label,
+           "The suggestion at " + i + "th index for " + state +
+           "th step is correct.")
+        is(suggestions[i][1] || 1, actualSuggestions[i].count,
+           "The count for suggestion at " + i + "th index for " + state +
+           "th step is correct.")
+      }
+      checkStateAndMoveOn(state + 1);
+    });
+  }
+
+  function finishUp() {
+    searchBox = null;
+    popup = null;
+    gBrowser.removeCurrentTab();
+    finish();
+  }
 }
