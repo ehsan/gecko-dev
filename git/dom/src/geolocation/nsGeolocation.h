@@ -55,25 +55,18 @@
 
 #include "nsIGeolocationProvider.h"
 
-#define NS_GEO_ERROR_CODE_PERMISSION_ERROR        1
-#define NS_GEO_ERROR_CODE_LOCATION_PROVIDER_ERROR 2
-#define NS_GEO_ERROR_CODE_POSITION_NOT_FOUND      3
-#define NS_GEO_ERROR_CODE_TIMEOUT                 4
-
 class nsGeolocationService;
 class nsGeolocation;
 
-class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallback
+class nsGeolocationRequest : public nsIGeolocationRequest
 {
  public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONREQUEST
-  NS_DECL_NSITIMERCALLBACK
- 
+
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
-                       nsIDOMGeoPositionErrorCallback* errorCallback,
-                       nsIDOMGeoPositionOptions* options);
+                       nsIDOMGeoPositionErrorCallback* errorCallback);
   void Shutdown();
 
   void SendLocation(nsIDOMGeoPosition* location);
@@ -83,20 +76,14 @@ class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallba
   ~nsGeolocationRequest();
 
  private:
+  PRBool mAllowed;
+  PRBool mCleared;
+  PRBool mFuzzLocation;
 
-  void NotifyError(PRInt16 errorCode);
-  PRPackedBool mAllowed;
-  PRPackedBool mCleared;
-  PRPackedBool mFuzzLocation;
-  PRPackedBool mHasSentData;
-
-  nsCOMPtr<nsITimer> mTimeoutTimer;
   nsCOMPtr<nsIDOMGeoPositionCallback> mCallback;
   nsCOMPtr<nsIDOMGeoPositionErrorCallback> mErrorCallback;
-  nsCOMPtr<nsIDOMGeoPositionOptions> mOptions;
 
-  nsGeolocation* mLocator; // The locator exists longer than this object.
-
+  nsGeolocation* mLocator; // The locator exists alonger than this object.
 };
 
 /**
@@ -199,13 +186,13 @@ public:
   void Update(nsIDOMGeoPosition* aPosition);
 
   // Returns true if any of the callbacks are repeating
-  PRBool HasActiveCallbacks();
+  PRBool   HasActiveCallbacks();
 
   // Remove request from all callbacks arrays
-  void RemoveRequest(nsGeolocationRequest* request);
+  void     RemoveRequest(nsGeolocationRequest* request);
 
   // Shutting down.
-  void Shutdown();
+  void     Shutdown();
 
   // Setter and Getter of the URI that this nsGeolocation was loaded from
   nsIURI* GetURI() { return mURI; }
@@ -225,8 +212,8 @@ private:
   // |mWatchingCallbacks| holds objects until the object is explictly removed or
   // there is a page change.
 
-  nsTArray<nsRefPtr<nsGeolocationRequest> > mPendingCallbacks;
-  nsTArray<nsRefPtr<nsGeolocationRequest> > mWatchingCallbacks;
+  nsCOMArray<nsGeolocationRequest> mPendingCallbacks;
+  nsCOMArray<nsGeolocationRequest> mWatchingCallbacks;
 
   PRBool mUpdateInProgress;
 

@@ -1664,14 +1664,6 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
     // In the absence of any computed data in the rule tree and with
     // no rules specified that didn't have values of 'inherit', we should check our parent.
     nsStyleContext* parentContext = aContext->GetParent();
-    if (isReset) {
-      /* Reset structs don't inherit from first-line. */
-      /* See similar code in COMPUTE_START_RESET */
-      while (parentContext &&
-             parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {
-        parentContext = parentContext->GetParent();
-      }
-    }
     if (parentContext) {
       // We have a parent, and so we should just inherit from the parent.
       // Set the inherit bits on our context.  These bits tell the style context that
@@ -2044,10 +2036,9 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
                "should not have bothered calling Compute*Data");              \
                                                                               \
   nsStyleContext* parentContext = aContext->GetParent();                      \
-  /* Reset structs don't inherit from first-line */                           \
-  /* See similar code in WalkRuleTree */                                      \
-  while (parentContext &&                                                     \
-         parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {  \
+  if (parentContext &&                                                        \
+      parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {     \
+    /* Reset structs don't inherit from first-line */                         \
     parentContext = parentContext->GetParent();                               \
   }                                                                           \
                                                                               \
