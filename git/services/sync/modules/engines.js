@@ -702,9 +702,6 @@ SyncEngine.prototype = {
   _recordObj: CryptoWrapper,
   version: 1,
 
-  // Which sortindex to use when retrieving records for this engine.
-  _defaultSort: undefined,
-
   // A relative priority to use when computing an order
   // for engines to be synced. Higher-priority engines
   // (lower numbers) are synced first.
@@ -930,10 +927,6 @@ SyncEngine.prototype = {
 
     if (!newitems) {
       newitems = this._itemSource();
-    }
-
-    if (this._defaultSort) {
-      newitems.sort = this._defaultSort;
     }
 
     if (isMobile) {

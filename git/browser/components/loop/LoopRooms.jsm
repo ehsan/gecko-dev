@@ -56,11 +56,7 @@ const extend = function(target, source) {
  */
 const containsParticipant = function(room, participant) {
   for (let user of room.participants) {
-    // XXX until a bug 1100318 is implemented and deployed,
-    // we need to check the "id" field here as well - roomConnectionId is the
-    // official value for the interface.
-    if (user.roomConnectionId == participant.roomConnectionId &&
-        user.id == participant.id) {
+    if (user.roomConnectionId == participant.roomConnectionId) {
       return true;
     }
   }
@@ -111,32 +107,11 @@ const checkForParticipantsUpdate = function(room, updatedRoom) {
  * violated. You'll notice this as well in the documentation for each method.
  */
 let LoopRoomsInternal = {
-  /**
-   * @var {Map} rooms Collection of rooms currently in cache.
-   */
   rooms: new Map(),
 
-  /**
-   * @var {String} sessionType The type of user session. May be 'FXA' or 'GUEST'.
-   */
   get sessionType() {
     return MozLoopService.userProfile ? LOOP_SESSION_TYPE.FXA :
                                         LOOP_SESSION_TYPE.GUEST;
-  },
-
-  /**
-   * @var {Number} participantsCount The total amount of participants currently
-   *                                 inside all rooms.
-   */
-  get participantsCount() {
-    let count = 0;
-    for (let room of this.rooms.values()) {
-      if (!("participants" in room)) {
-        continue;
-      }
-      count += room.participants.length;
-    }
-    return count;
   },
 
   /**
@@ -178,10 +153,6 @@ let LoopRoomsInternal = {
         let orig = this.rooms.get(room.roomToken);
         if (orig) {
           checkForParticipantsUpdate(orig, room);
-        }
-        // Remove the `currSize` for posterity.
-        if ("currSize" in room) {
-          delete room.currSize;
         }
         this.rooms.set(room.roomToken, room);
         // When a version is specified, all the data is already provided by this
@@ -232,6 +203,11 @@ let LoopRoomsInternal = {
         room.roomToken = roomToken;
         checkForParticipantsUpdate(room, data);
         extend(room, data);
+
+        // Remove the `currSize` for posterity.
+        if ("currSize" in room) {
+          delete room.currSize;
+        }
         this.rooms.set(roomToken, room);
 
         let eventName = !needsUpdate ? "update" : "add";
@@ -377,34 +353,6 @@ let LoopRoomsInternal = {
   },
 
   /**
-   * Renames a room.
-   *
-   * @param {String} roomToken   The room token
-   * @param {String} newRoomName The new name for the room
-   * @param {Function} callback   Function that will be invoked once the operation
-   *                              finished. The first argument passed will be an
-   *                              `Error` object or `null`.
-   */
-  rename: function(roomToken, newRoomName, callback) {
-    let room = this.rooms.get(roomToken);
-    let url = "/rooms/" + encodeURIComponent(roomToken);
-
-    let origRoom = this.rooms.get(roomToken);
-    let patchData = {
-      roomName: newRoomName,
-      // XXX We have to supply the max size and room owner due to bug 1099063.
-      maxSize: origRoom.maxSize,
-      roomOwner: origRoom.roomOwner
-    };
-    MozLoopService.hawkRequest(this.sessionType, url, "PATCH", patchData)
-      .then(response => {
-        let data = JSON.parse(response.body);
-        extend(room, data);
-        callback(null, room);
-      }, error => callback(error)).catch(error => callback(error));
-  },
-
-  /**
    * Callback used to indicate changes to rooms data on the LoopServer.
    *
    * @param {String} version   Version number assigned to this change set.
@@ -434,10 +382,6 @@ Object.freeze(LoopRoomsInternal);
  * See the internal code for the API documentation.
  */
 this.LoopRooms = {
-  get participantsCount() {
-    return LoopRoomsInternal.participantsCount;
-  },
-
   getAll: function(version, callback) {
     return LoopRoomsInternal.getAll(version, callback);
   },
@@ -469,10 +413,6 @@ this.LoopRooms = {
 
   leave: function(roomToken, sessionToken, callback) {
     return LoopRoomsInternal.leave(roomToken, sessionToken, callback);
-  },
-
-  rename: function(roomToken, newRoomName, callback) {
-    return LoopRoomsInternal.rename(roomToken, newRoomName, callback);
   },
 
   promise: function(method, ...params) {

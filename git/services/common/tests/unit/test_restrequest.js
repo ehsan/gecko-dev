@@ -271,10 +271,9 @@ add_test(function test_charsets() {
 });
 
 /**
- * Used for testing PATCH/PUT/POST methods.
+ * Test HTTP PUT with a simple string argument and default Content-Type.
  */
-function check_posting_data(method) {
-  let funcName = method.toLowerCase();
+add_test(function test_put() {
   let handler = httpd_handler(200, "OK", "Got it!");
   let server = httpd_setup({"/resource": handler});
 
@@ -300,7 +299,7 @@ function check_posting_data(method) {
     do_check_eq(this.response.status, 200);
     do_check_eq(this.response.body, "Got it!");
 
-    do_check_eq(handler.request.method, method);
+    do_check_eq(handler.request.method, "PUT");
     do_check_eq(handler.request.body, "Hullo?");
     do_check_eq(handler.request.getHeader("Content-Type"), "text/plain");
 
@@ -312,33 +311,61 @@ function check_posting_data(method) {
     });
   };
 
-  do_check_eq(request[funcName]("Hullo?", onComplete, onProgress), request);
+  do_check_eq(request.put("Hullo?", onComplete, onProgress), request);
   do_check_eq(request.status, request.SENT);
-  do_check_eq(request.method, method);
+  do_check_eq(request.method, "PUT");
   do_check_throws(function () {
-    request[funcName]("Hai!");
+    request.put("Hai!");
   });
-}
-
-/**
- * Test HTTP PATCH with a simple string argument and default Content-Type.
- */
-add_test(function test_patch() {
-  check_posting_data("PATCH");
-});
-
-/**
- * Test HTTP PUT with a simple string argument and default Content-Type.
- */
-add_test(function test_put() {
-  check_posting_data("PUT");
 });
 
 /**
  * Test HTTP POST with a simple string argument and default Content-Type.
  */
 add_test(function test_post() {
-  check_posting_data("POST");
+  let handler = httpd_handler(200, "OK", "Got it!");
+  let server = httpd_setup({"/resource": handler});
+
+  let request = new RESTRequest(server.baseURI + "/resource");
+  do_check_eq(request.status, request.NOT_SENT);
+
+  request.onProgress = request.onComplete = function () {
+    do_throw("This function should have been overwritten!");
+  };
+
+  let onProgress_called = false;
+  function onProgress() {
+    onProgress_called = true;
+    do_check_eq(this.status, request.IN_PROGRESS);
+    do_check_true(this.response.body.length > 0);
+  };
+
+  function onComplete(error) {
+    do_check_eq(error, null);
+
+    do_check_eq(this.status, this.COMPLETED);
+    do_check_true(this.response.success);
+    do_check_eq(this.response.status, 200);
+    do_check_eq(this.response.body, "Got it!");
+
+    do_check_eq(handler.request.method, "POST");
+    do_check_eq(handler.request.body, "Hullo?");
+    do_check_eq(handler.request.getHeader("Content-Type"), "text/plain");
+
+    do_check_true(onProgress_called);
+    CommonUtils.nextTick(function () {
+      do_check_eq(request.onComplete, null);
+      do_check_eq(request.onProgress, null);
+      server.stop(run_next_test);
+    });
+  };
+
+  do_check_eq(request.post("Hullo?", onComplete, onProgress), request);
+  do_check_eq(request.status, request.SENT);
+  do_check_eq(request.method, "POST");
+  do_check_throws(function () {
+    request.post("Hai!");
+  });
 });
 
 /**

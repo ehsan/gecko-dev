@@ -47,9 +47,6 @@ function installAddon(url) {
               logLevel: "verbose",
               format: "tbpl",
             },
-            console: {
-              logLevel: "info",
-            },
           }
           setPrefs("extensions." + install.addon.id + ".sdk", options);
 

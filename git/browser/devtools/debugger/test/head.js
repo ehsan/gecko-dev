@@ -567,7 +567,11 @@ AddonDebugger.prototype = {
     let addonActor = yield getAddonActorForUrl(this.client, aUrl);
 
     let targetOptions = {
-      form: addonActor,
+      form: {
+        addonActor: addonActor.actor,
+        consoleActor: addonActor.consoleActor,
+        title: addonActor.name
+      },
       client: this.client,
       chrome: true
     };

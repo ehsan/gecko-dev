@@ -150,7 +150,6 @@ loop.store.ActiveRoomStore = (function() {
     _registerActions: function() {
       this._dispatcher.register(this, [
         "roomFailure",
-        "setupRoomInfo",
         "updateRoomInfo",
         "joinRoom",
         "joinedRoom",
@@ -195,12 +194,12 @@ loop.store.ActiveRoomStore = (function() {
           }
 
           this._dispatcher.dispatch(
-            new sharedActions.SetupRoomInfo({
-              roomToken: actionData.roomToken,
-              roomName: roomData.roomName,
-              roomOwner: roomData.roomOwner,
-              roomUrl: roomData.roomUrl
-            }));
+            new sharedActions.UpdateRoomInfo({
+            roomToken: actionData.roomToken,
+            roomName: roomData.roomName,
+            roomOwner: roomData.roomOwner,
+            roomUrl: roomData.roomUrl
+          }));
 
           // For the conversation window, we need to automatically
           // join the room.
@@ -228,32 +227,11 @@ loop.store.ActiveRoomStore = (function() {
         roomToken: actionData.token,
         roomState: ROOM_STATES.READY
       });
-
-      this._mozLoop.rooms.on("update:" + actionData.roomToken,
-        this._handleRoomUpdate.bind(this));
     },
 
     /**
-     * Handles the setupRoomInfo action. Sets up the initial room data and
+     * Handles the updateRoomInfo action. Updates the room data and
      * sets the state to `READY`.
-     *
-     * @param {sharedActions.SetupRoomInfo} actionData
-     */
-    setupRoomInfo: function(actionData) {
-      this.setStoreState({
-        roomName: actionData.roomName,
-        roomOwner: actionData.roomOwner,
-        roomState: ROOM_STATES.READY,
-        roomToken: actionData.roomToken,
-        roomUrl: actionData.roomUrl
-      });
-
-      this._mozLoop.rooms.on("update:" + actionData.roomToken,
-        this._handleRoomUpdate.bind(this));
-    },
-
-    /**
-     * Handles the updateRoomInfo action. Updates the room data.
      *
      * @param {sharedActions.UpdateRoomInfo} actionData
      */
@@ -261,22 +239,10 @@ loop.store.ActiveRoomStore = (function() {
       this.setStoreState({
         roomName: actionData.roomName,
         roomOwner: actionData.roomOwner,
+        roomState: ROOM_STATES.READY,
+        roomToken: actionData.roomToken,
         roomUrl: actionData.roomUrl
       });
-    },
-
-    /**
-     * Handles room updates notified by the mozLoop rooms API.
-     *
-     * @param {String} eventName The name of the event
-     * @param {Object} roomData  The new roomData.
-     */
-    _handleRoomUpdate: function(eventName, roomData) {
-      this._dispatcher.dispatch(new sharedActions.UpdateRoomInfo({
-        roomName: roomData.roomName,
-        roomOwner: roomData.roomOwner,
-        roomUrl: roomData.roomUrl
-      }));
     },
 
     /**
@@ -385,10 +351,6 @@ loop.store.ActiveRoomStore = (function() {
      */
     windowUnload: function() {
       this._leaveRoom();
-
-      // If we're closing the window, we can stop listening to updates.
-      this._mozLoop.rooms.off("update:" + this.getStoreState().roomToken,
-        this._handleRoomUpdate.bind(this));
     },
 
     /**

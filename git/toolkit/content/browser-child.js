@@ -38,13 +38,9 @@ FocusSyncHandler.init();
 
 let WebProgressListener = {
   init: function() {
-    this._filter = Cc["@mozilla.org/appshell/component/browser-status-filter;1"]
-                     .createInstance(Ci.nsIWebProgress);
-    this._filter.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_ALL);
-
     let webProgress = docShell.QueryInterface(Ci.nsIInterfaceRequestor)
                               .getInterface(Ci.nsIWebProgress);
-    webProgress.addProgressListener(this._filter, Ci.nsIWebProgress.NOTIFY_ALL);
+    webProgress.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_ALL);
   },
 
   _requestSpec: function (aRequest, aPropertyName) {
@@ -54,18 +50,12 @@ let WebProgressListener = {
   },
 
   _setupJSON: function setupJSON(aWebProgress, aRequest) {
-    if (aWebProgress) {
-      aWebProgress = {
-        isTopLevel: aWebProgress.isTopLevel,
-        isLoadingDocument: aWebProgress.isLoadingDocument,
-        loadType: aWebProgress.loadType
-      };
-    }
-
     return {
-      webProgress: aWebProgress || null,
+      isTopLevel: aWebProgress.isTopLevel,
+      isLoadingDocument: aWebProgress.isLoadingDocument,
       requestURI: this._requestSpec(aRequest, "URI"),
       originalRequestURI: this._requestSpec(aRequest, "originalURI"),
+      loadType: aWebProgress.loadType,
       documentContentType: content.document && content.document.contentType
     };
   },
@@ -74,7 +64,7 @@ let WebProgressListener = {
     return {
       contentWindow: content,
       // DOMWindow is not necessarily the content-window with subframes.
-      DOMWindow: aWebProgress && aWebProgress.DOMWindow
+      DOMWindow: aWebProgress.DOMWindow
     };
   },
 
@@ -102,7 +92,7 @@ let WebProgressListener = {
     json.canGoBack = docShell.canGoBack;
     json.canGoForward = docShell.canGoForward;
 
-    if (aWebProgress && aWebProgress.isTopLevel) {
+    if (json.isTopLevel) {
       json.documentURI = content.document.documentURIObject.spec;
       json.charset = content.document.characterSet;
       json.mayEnableCharacterEncodingMenu = docShell.mayEnableCharacterEncodingMenu;

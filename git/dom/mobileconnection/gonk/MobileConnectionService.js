@@ -398,7 +398,6 @@ MobileConnectionProvider.prototype = {
         RIL.GECKO_SUPPORTED_NETWORK_TYPES_DEFAULT.split(",");
     }
 
-    let enumNetworkTypes = [];
     for (let type of supportedNetworkTypes) {
       // If the value in system property is not valid, use the default one which
       // is defined in ril_consts.js.
@@ -406,18 +405,15 @@ MobileConnectionProvider.prototype = {
         if (DEBUG) {
           this._debug("Unknown network type: " + type);
         }
-        RIL.GECKO_SUPPORTED_NETWORK_TYPES_DEFAULT.split(",").forEach(aType => {
-          enumNetworkTypes.push(RIL.GECKO_SUPPORTED_NETWORK_TYPES.indexOf(aType));
-        });
+        supportedNetworkTypes =
+          RIL.GECKO_SUPPORTED_NETWORK_TYPES_DEFAULT.split(",");
         break;
       }
-      enumNetworkTypes.push(RIL.GECKO_SUPPORTED_NETWORK_TYPES.indexOf(type));
     }
     if (DEBUG) {
-      this._debug("Supported Network Types: " + enumNetworkTypes);
+      this._debug("Supported Network Types: " + supportedNetworkTypes);
     }
-
-    return enumNetworkTypes;
+    return supportedNetworkTypes;
   },
 
   /**

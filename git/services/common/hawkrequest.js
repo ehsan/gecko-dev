@@ -67,7 +67,7 @@ HAWKAuthenticatedRESTRequest.prototype = {
 
   dispatch: function dispatch(method, data, onComplete, onProgress) {
     let contentType = "text/plain";
-    if (method == "POST" || method == "PUT" || method == "PATCH") {
+    if (method == "POST" || method == "PUT") {
       contentType = "application/json";
     }
     if (this.credentials) {

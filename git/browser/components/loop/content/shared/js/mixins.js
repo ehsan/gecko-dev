@@ -154,10 +154,6 @@ loop.shared.mixins = (function() {
      * @param {String} name The filename to play (excluding the extension).
      */
     play: function(name, options) {
-      if (this._isLoopDesktop() && rootObject.navigator.mozLoop.doNotDisturb) {
-        return;
-      }
-
       options = options || {};
       options.loop = options.loop || false;
 
