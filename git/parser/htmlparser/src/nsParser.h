@@ -294,8 +294,10 @@ class nsParser : public nsIParser,
   
     /**
      * Get the nsIStreamListener for this parser
+     * @param aDTD out param that will contain the result
+     * @return NS_OK if successful
      */
-    virtual nsIStreamListener* GetStreamListener();
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /** 
      * Detects the existence of a META tag with charset information in 

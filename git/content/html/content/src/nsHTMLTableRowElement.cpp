@@ -134,10 +134,15 @@ nsresult
 nsHTMLTableRowElement::GetSection(nsIDOMHTMLTableSectionElement** aSection)
 {
   NS_ENSURE_ARG_POINTER(aSection);
-  nsCOMPtr<nsIDOMHTMLTableSectionElement> section =
-    do_QueryInterface(GetParent());
-  section.forget(aSection);
-  return NS_OK;
+  *aSection = nsnull;
+
+  nsCOMPtr<nsIDOMNode> sectionNode;
+  nsresult rv = GetParentNode(getter_AddRefs(sectionNode));
+  if (NS_SUCCEEDED(rv) && sectionNode) {
+    rv = CallQueryInterface(sectionNode, aSection);
+  }
+
+  return rv;
 }
 
 // protected method
@@ -147,25 +152,25 @@ nsHTMLTableRowElement::GetTable(nsIDOMHTMLTableElement** aTable)
   NS_ENSURE_ARG_POINTER(aTable);
   *aTable = nsnull;
 
-  nsIContent* parent = GetParent();
-  if (!parent) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMNode> sectionNode;
+  nsresult rv = GetParentNode(getter_AddRefs(sectionNode));
+  if (!sectionNode) {
+    return rv;
   }
 
   // We may not be in a section
-  nsCOMPtr<nsIDOMHTMLTableElement> table = do_QueryInterface(parent);
-  if (table) {
-    table.forget(aTable);
-    return NS_OK;
+  rv = CallQueryInterface(sectionNode, aTable);
+  if (NS_SUCCEEDED(rv)) {
+    return rv;
   }
 
-  parent = parent->GetParent();
-  if (!parent) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMNode> tableNode;
+  rv = sectionNode->GetParentNode(getter_AddRefs(tableNode));
+  if (!tableNode) {
+    return rv;
   }
-  table = do_QueryInterface(parent);
-  table.forget(aTable);
-  return NS_OK;
+  
+  return CallQueryInterface(tableNode, aTable);
 }
 
 NS_IMETHODIMP
@@ -173,46 +178,62 @@ nsHTMLTableRowElement::GetRowIndex(PRInt32* aValue)
 {
   *aValue = -1;
   nsCOMPtr<nsIDOMHTMLTableElement> table;
-  nsresult rv = GetTable(getter_AddRefs(table));
-  if (NS_FAILED(rv) || !table) {
-    return rv;
-  }
 
-  nsCOMPtr<nsIDOMHTMLCollection> rows;
-  table->GetRows(getter_AddRefs(rows));
+  nsresult result = GetTable(getter_AddRefs(table));
 
-  PRUint32 numRows;
-  rows->GetLength(&numRows);
+  if (NS_SUCCEEDED(result) && table) {
+    nsCOMPtr<nsIDOMHTMLCollection> rows;
 
-  for (PRUint32 i = 0; i < numRows; i++) {
-    if (rows->GetNodeAt(i) == static_cast<nsIContent*>(this)) {
-      *aValue = i;
-      break;
+    table->GetRows(getter_AddRefs(rows));
+
+    PRUint32 numRows;
+    rows->GetLength(&numRows);
+
+    bool found = false;
+
+    for (PRUint32 i = 0; (i < numRows) && !found; i++) {
+      nsCOMPtr<nsIDOMNode> node;
+
+      rows->Item(i, getter_AddRefs(node));
+
+      if (node.get() == static_cast<nsIDOMNode *>(this)) {
+        *aValue = i;
+        found = true;
+      }
     }
   }
-  return NS_OK;
+
+  return result;
 }
 
 NS_IMETHODIMP
 nsHTMLTableRowElement::GetSectionRowIndex(PRInt32* aValue)
 {
   *aValue = -1;
+
   nsCOMPtr<nsIDOMHTMLTableSectionElement> section;
-  nsresult rv = GetSection(getter_AddRefs(section));
-  if (NS_FAILED(rv) || !section) {
-    return rv;
-  }
 
-  nsCOMPtr<nsIDOMHTMLCollection> rows;
-  section->GetRows(getter_AddRefs(rows));
+  nsresult result = GetSection(getter_AddRefs(section));
 
-  PRUint32 numRows;
-  rows->GetLength(&numRows);
-  for (PRUint32 i = 0; i < numRows; i++) {
-    if (rows->GetNodeAt(i) == static_cast<nsIContent*>(this)) {
-      *aValue = i;
-      break;
-    }
+  if (NS_SUCCEEDED(result) && section) {
+    nsCOMPtr<nsIDOMHTMLCollection> rows;
+
+    section->GetRows(getter_AddRefs(rows));
+
+    bool found = false;
+    PRUint32 numRows;
+
+    rows->GetLength(&numRows);
+
+    for (PRUint32 i = 0; (i < numRows) && !found; i++) {
+      nsCOMPtr<nsIDOMNode> node;
+      rows->Item(i, getter_AddRefs(node));
+
+      if (node.get() == static_cast<nsIDOMNode *>(this)) {
+        *aValue = i;
+        found = true;
+      }
+    } 
   }
 
   return NS_OK;
@@ -240,6 +261,8 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
                                nsnull,
                                kNameSpaceID_XHTML,
                                false);
+
+    NS_ENSURE_TRUE(mCells, NS_ERROR_OUT_OF_MEMORY);
   }
 
   NS_ADDREF(*aValue = mCells);
@@ -447,3 +470,4 @@ nsHTMLTableRowElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
 }
+

@@ -1447,7 +1447,9 @@ nsDOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
   return nsContentUtils::CreateDocument(aNamespaceURI, aQualifiedName, aDoctype,
                                         mDocumentURI, mBaseURI,
                                         mOwner->NodePrincipal(),
-                                        scriptHandlingObject, false, aReturn);
+                                        scriptHandlingObject,
+                                        DocumentFlavorLegacyGuess,
+                                        aReturn);
 }
 
 NS_IMETHODIMP
@@ -1479,7 +1481,8 @@ nsDOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
   rv = nsContentUtils::CreateDocument(EmptyString(), EmptyString(),
                                       doctype, mDocumentURI, mBaseURI,
                                       mOwner->NodePrincipal(),
-                                      scriptHandlingObject, false,
+                                      scriptHandlingObject,
+                                      DocumentFlavorLegacyGuess,
                                       getter_AddRefs(document));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(document);
@@ -4421,7 +4424,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_NewElement(aReturn, nodeInfo.forget(), NOT_FROM_PARSER);
+  PRInt32 ns = nodeInfo->NamespaceID();
+  return NS_NewElement(aReturn, ns,
+                       nodeInfo.forget(), NOT_FROM_PARSER);
 }
 
 NS_IMETHODIMP
@@ -6752,7 +6757,8 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
                                 getter_AddRefs(nodeInfo));
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
+  return NS_NewElement(aResult, aNamespaceID, nodeInfo.forget(),
+                       NOT_FROM_PARSER);
 }
 
 bool

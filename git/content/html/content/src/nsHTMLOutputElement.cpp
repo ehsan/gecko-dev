@@ -173,7 +173,9 @@ NS_IMETHODIMP
 nsHTMLOutputElement::Reset()
 {
   mValueModeFlag = eModeDefault;
-  return nsContentUtils::SetNodeTextContent(this, mDefaultValue, true);
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, mDefaultValue,
+                                                   true);
+  return rv;
 }
 
 NS_IMETHODIMP

@@ -272,7 +272,9 @@ nsresult
 nsXBLProtoImplMethod::Read(nsIScriptContext* aContext,
                            nsIObjectInputStream* aStream)
 {
-  nsresult rv = XBL_DeserializeFunction(aContext, aStream, &mJSMethodObject);
+  void* methodCode;
+  nsresult rv = XBL_DeserializeFunction(aContext, aStream, this, &methodCode);
+  mJSMethodObject = (JSObject *)methodCode;
   if (NS_FAILED(rv)) {
     SetUncompiledMethod(nsnull);
     return rv;

@@ -1558,7 +1558,10 @@ nsGlobalWindow::EnsureScriptEnvironment(PRUint32 aLangID)
   nsresult rv = NS_GetScriptRuntimeByID(aLangID, getter_AddRefs(scriptRuntime));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIScriptContext> context = scriptRuntime->CreateContext();
+  nsCOMPtr<nsIScriptContext> context;
+  rv = scriptRuntime->CreateContext(getter_AddRefs(context));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return SetScriptContext(aLangID, context);
 }
 

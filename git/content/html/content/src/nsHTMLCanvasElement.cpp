@@ -277,7 +277,7 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
 
   NS_ENSURE_SUCCESS(rv, rv);
 
-  imgStream.forget(aStream);
+  return CallQueryInterface(imgStream, aStream);
   return NS_OK;
 }
 
@@ -406,8 +406,7 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   nsRefPtr<nsDOMMemoryFile> file =
     new nsDOMMemoryFile(imgData, imgSize, aName, type);
 
-  file.forget(aResult);
-  return NS_OK;
+  return CallQueryInterface(file, aResult);
 }
 
 nsresult
@@ -458,7 +457,7 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
     return rv;
   }
 
-  ctx.forget(aContext);
+  *aContext = ctx.forget().get();
 
   return rv;
 }
@@ -573,8 +572,10 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
   if (!aContextId.Equals(NS_LITERAL_STRING("2d")))
     return NS_ERROR_INVALID_ARG;
 
+  nsresult rv;
+
   if (mCurrentContextId.IsEmpty()) {
-    nsresult rv = GetContextHelper(aContextId, false, getter_AddRefs(mCurrentContext));
+    rv = GetContextHelper(aContextId, false, getter_AddRefs(mCurrentContext));
     NS_ENSURE_SUCCESS(rv, rv);
     if (!mCurrentContext) {
       return NS_OK;
@@ -601,26 +602,27 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
   if (!mCurrentContext)
     return NS_OK;
 
+  nsresult rv = NS_OK;
   nsIntSize sz = GetWidthHeight();
 
-  nsresult rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
+  rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.Truncate();
+    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
   rv = mCurrentContext->SetContextOptions(aNewContextOptions);
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.Truncate();
+    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.Truncate();
+    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
@@ -713,10 +715,10 @@ nsHTMLCanvasElement::CountContexts()
 }
 
 nsICanvasRenderingContextInternal *
-nsHTMLCanvasElement::GetContextAtIndex(PRInt32 index)
+nsHTMLCanvasElement::GetContextAtIndex (PRInt32 index)
 {
   if (mCurrentContext && index == 0)
-    return mCurrentContext;
+    return mCurrentContext.get();
 
   return NULL;
 }

@@ -77,7 +77,7 @@ public:
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
 
-  virtual void DoneAddingChildren(bool aHaveNotified);
+  virtual nsresult DoneAddingChildren(bool aHaveNotified);
 
   virtual nsXPCClassInfo* GetClassInfo();
 private:
@@ -180,12 +180,13 @@ nsSVGTitleElement::UnbindFromTree(bool aDeep, bool aNullParent)
   nsSVGTitleElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
-void
+nsresult
 nsSVGTitleElement::DoneAddingChildren(bool aHaveNotified)
 {
   if (!aHaveNotified) {
     SendTitleChangeEvent(false);
   }
+  return NS_OK;
 }
 
 void

@@ -50,6 +50,13 @@
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
 
+// XXX this is to get around conflicts with windows.h defines
+// introduced through jni.h
+#ifdef XP_WIN
+#undef GetClassName
+#undef GetObject
+#endif
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -120,7 +127,7 @@ public:
   virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
-  virtual void DoneAddingChildren(bool aHaveNotified);
+  virtual nsresult DoneAddingChildren(bool aHaveNotified);
   virtual bool IsDoneAddingChildren();
 
   virtual bool ParseAttribute(PRInt32 aNamespaceID,
@@ -208,7 +215,7 @@ nsHTMLSharedObjectElement::IsDoneAddingChildren()
   return mIsDoneAddingChildren;
 }
 
-void
+nsresult
 nsHTMLSharedObjectElement::DoneAddingChildren(bool aHaveNotified)
 {
   if (!mIsDoneAddingChildren) {
@@ -220,6 +227,8 @@ nsHTMLSharedObjectElement::DoneAddingChildren(bool aHaveNotified)
       StartObjectLoad(aHaveNotified);
     }
   }
+
+  return NS_OK;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLSharedObjectElement)
