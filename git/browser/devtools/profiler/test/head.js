@@ -54,8 +54,10 @@ function openProfiler(tab, callback) {
 
 function closeProfiler(tab, callback) {
   let target = TargetFactory.forTab(tab);
-  let toolbox = gDevTools.getToolbox(target);
-  toolbox.destroy().then(callback);
+  let panel = gDevTools.getToolbox(target).getPanel("jsprofiler");
+  panel.once("destroyed", callback);
+
+  gDevTools.closeToolbox(target);
 }
 
 function setUp(url, callback=function(){}) {
