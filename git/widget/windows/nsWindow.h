@@ -238,8 +238,6 @@ public:
    */
   virtual bool            AutoErase(HDC dc);
 
-  static void             ClearCompositor(nsWindow* aWindow);
-
   /**
    * AssociateDefaultIMC() associates or disassociates the default IMC for
    * the window.

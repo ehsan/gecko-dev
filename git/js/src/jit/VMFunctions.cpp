@@ -192,12 +192,10 @@ MutatePrototype(JSContext *cx, HandlePlainObject obj, HandleValue value)
 }
 
 bool
-InitProp(JSContext *cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value,
-         jsbytecode *pc)
+InitProp(JSContext *cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value)
 {
     RootedId id(cx, NameToId(name));
-    unsigned propAttrs = GetInitDataPropAttrs(JSOp(*pc));
-    return NativeDefineProperty(cx, obj, id, value, nullptr, nullptr, propAttrs);
+    return NativeDefineProperty(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE);
 }
 
 template<bool Equal>

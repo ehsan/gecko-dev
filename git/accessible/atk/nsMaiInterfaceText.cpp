@@ -330,17 +330,12 @@ static gint
 getCharacterCountCB(AtkText *aText)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* textAcc = accWrap->AsHyperText();
-    return
-      textAcc->IsDefunct() ? 0 : static_cast<gint>(textAcc->CharacterCount());
-  }
+  if (!accWrap)
+    return 0;
 
-  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    return proxy->CharacterCount();
-  }
-
-  return 0;
+  HyperTextAccessible* textAcc = accWrap->AsHyperText();
+  return textAcc->IsDefunct() ?
+    0 : static_cast<gint>(textAcc->CharacterCount());
 }
 
 static gint
@@ -367,20 +362,14 @@ static gint
 getTextSelectionCountCB(AtkText *aText)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole()) {
-      return 0;
-    }
+  if (!accWrap)
+    return 0;
 
-    return text->SelectionCount();
-  }
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return 0;
 
-  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    return proxy->SelectionCount();
-  }
-
-  return 0;
+  return text->SelectionCount();
 }
 
 static gchar*

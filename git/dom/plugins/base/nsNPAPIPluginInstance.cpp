@@ -277,7 +277,7 @@ nsNPAPIPluginInstance::StopTime()
   return mStopTime;
 }
 
-nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsPluginInstanceOwner* aOwner, const nsACString& aMIMEType)
+nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsPluginInstanceOwner* aOwner, const char* aMIMEType)
 {
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Initialize this=%p\n",this));
 
@@ -287,8 +287,11 @@ nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsPluginInsta
   mPlugin = aPlugin;
   mOwner = aOwner;
 
-  if (!aMIMEType.IsEmpty()) {
-    mMIMEType = ToNewCString(aMIMEType);
+  if (aMIMEType) {
+    mMIMEType = (char*)PR_Malloc(strlen(aMIMEType) + 1);
+    if (mMIMEType) {
+      PL_strcpy(mMIMEType, aMIMEType);
+    }
   }
 
   return Start();

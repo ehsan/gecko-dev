@@ -178,8 +178,7 @@ class SharedContext
   public:
     ExclusiveContext *const context;
     AnyContextFlags anyCxFlags;
-    bool strictScript;
-    bool localStrict;
+    bool strict;
     bool extraWarnings;
 
     // If it's function code, funbox must be non-nullptr and scopeChain must be
@@ -187,8 +186,7 @@ class SharedContext
     SharedContext(ExclusiveContext *cx, Directives directives, bool extraWarnings)
       : context(cx),
         anyCxFlags(),
-        strictScript(directives.strict()),
-        localStrict(false),
+        strict(directives.strict()),
         extraWarnings(extraWarnings)
     {}
 
@@ -210,18 +208,9 @@ class SharedContext
 
     inline bool allLocalsAliased();
 
-    bool strict() {
-        return strictScript || localStrict;
-    }
-    bool setLocalStrictMode(bool strict) {
-        bool retVal = localStrict;
-        localStrict = strict;
-        return retVal;
-    }
-
     // JSOPTION_EXTRA_WARNINGS warnings or strict mode errors.
     bool needStrictChecks() {
-        return strict() || extraWarnings;
+        return strict || extraWarnings;
     }
 
     bool isDotVariable(JSAtom *atom) const {

@@ -2020,7 +2020,7 @@ public:
   };
 
   static already_AddRefed<nsIDocumentLoaderFactory>
-  FindInternalContentViewer(const nsACString& aType,
+  FindInternalContentViewer(const char* aType,
                             ContentViewerType* aLoaderType = nullptr);
 
   /**

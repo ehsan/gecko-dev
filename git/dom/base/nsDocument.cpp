@@ -1243,7 +1243,7 @@ nsExternalResourceMap::PendingLoad::SetupViewer(nsIRequest* aRequest,
   nsCOMPtr<nsIContentViewer> viewer;
   nsCOMPtr<nsIStreamListener> listener;
   rv = docLoaderFactory->CreateInstance("external-resource", chan, newLoadGroup,
-                                        type, nullptr, nullptr,
+                                        type.get(), nullptr, nullptr,
                                         getter_AddRefs(listener),
                                         getter_AddRefs(viewer));
   NS_ENSURE_SUCCESS(rv, rv);

@@ -2726,6 +2726,8 @@ public:
   void PaintSelectionDecorationLine(Rect aPath, nscolor aColor) MOZ_OVERRIDE;
   void NotifyBeforeText(nscolor aColor) MOZ_OVERRIDE;
   void NotifyGlyphPathEmitted() MOZ_OVERRIDE;
+  void NotifyBeforeSVGGlyphPainted() MOZ_OVERRIDE;
+  void NotifyAfterSVGGlyphPainted() MOZ_OVERRIDE;
   void NotifyAfterText() MOZ_OVERRIDE;
 
 private:
@@ -2811,6 +2813,19 @@ void
 SVGTextDrawPathCallbacks::NotifyGlyphPathEmitted()
 {
   HandleTextGeometry();
+  gfx->NewPath();
+}
+
+void
+SVGTextDrawPathCallbacks::NotifyBeforeSVGGlyphPainted()
+{
+  gfx->Save();
+}
+
+void
+SVGTextDrawPathCallbacks::NotifyAfterSVGGlyphPainted()
+{
+  gfx->Restore();
   gfx->NewPath();
 }
 

@@ -617,16 +617,15 @@ RenderFrameParent::TakeFocusForClick()
 }  // namespace mozilla
 
 nsDisplayRemote::nsDisplayRemote(nsDisplayListBuilder* aBuilder,
-                                 nsSubDocumentFrame* aFrame,
+                                 nsIFrame* aFrame,
                                  RenderFrameParent* aRemoteFrame)
   : nsDisplayItem(aBuilder, aFrame)
   , mRemoteFrame(aRemoteFrame)
   , mEventRegionsOverride(EventRegionsOverride::NoOverride)
 {
   if (aBuilder->IsBuildingLayerEventRegions()) {
-    bool frameIsPointerEventsNone = !aFrame->PassPointerEventsToChildren()
-        && (aFrame->StyleVisibility()->GetEffectivePointerEvents(aFrame) == NS_STYLE_POINTER_EVENTS_NONE);
-    if (aBuilder->IsInsidePointerEventsNoneDoc() || frameIsPointerEventsNone) {
+    if (aBuilder->IsInsidePointerEventsNoneDoc() ||
+        aFrame->StyleVisibility()->GetEffectivePointerEvents(aFrame) == NS_STYLE_POINTER_EVENTS_NONE) {
       mEventRegionsOverride |= EventRegionsOverride::ForceEmptyHitRegion;
     }
     if (nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(aFrame->PresContext()->PresShell())) {

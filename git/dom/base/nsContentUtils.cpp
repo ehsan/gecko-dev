@@ -6406,7 +6406,7 @@ nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
 }
 
 already_AddRefed<nsIDocumentLoaderFactory>
-nsContentUtils::FindInternalContentViewer(const nsACString& aType,
+nsContentUtils::FindInternalContentViewer(const char* aType,
                                           ContentViewerType* aLoaderType)
 {
   if (aLoaderType) {
@@ -6421,9 +6421,7 @@ nsContentUtils::FindInternalContentViewer(const nsACString& aType,
   nsCOMPtr<nsIDocumentLoaderFactory> docFactory;
 
   nsXPIDLCString contractID;
-  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers",
-                                         PromiseFlatCString(aType).get(),
-                                         getter_Copies(contractID));
+  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", aType, getter_Copies(contractID));
   if (NS_SUCCEEDED(rv)) {
     docFactory = do_GetService(contractID);
     if (docFactory && aLoaderType) {
@@ -6437,7 +6435,7 @@ nsContentUtils::FindInternalContentViewer(const nsACString& aType,
     return docFactory.forget();
   }
 
-  if (DecoderTraits::IsSupportedInVideoDocument(aType)) {
+  if (DecoderTraits::IsSupportedInVideoDocument(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;

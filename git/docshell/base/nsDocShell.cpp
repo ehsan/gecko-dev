@@ -7929,7 +7929,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   mFiredUnloadEvent = false;
 
   nsCOMPtr<nsIDocumentLoaderFactory> docFactory =
-    nsContentUtils::FindInternalContentViewer(NS_LITERAL_CSTRING("text/html"));
+    nsContentUtils::FindInternalContentViewer("text/html");
 
   if (docFactory) {
     nsCOMPtr<nsIPrincipal> principal;
@@ -8887,7 +8887,7 @@ nsDocShell::RestoreFromHistory()
 }
 
 nsresult
-nsDocShell::CreateContentViewer(const nsACString& aContentType,
+nsDocShell::CreateContentViewer(const char* aContentType,
                                 nsIRequest* aRequest,
                                 nsIStreamListener** aContentHandler)
 {
@@ -9083,7 +9083,7 @@ nsDocShell::CreateContentViewer(const nsACString& aContentType,
 }
 
 nsresult
-nsDocShell::NewContentViewerObj(const nsACString& aContentType,
+nsDocShell::NewContentViewerObj(const char* aContentType,
                                 nsIRequest* aRequest, nsILoadGroup* aLoadGroup,
                                 nsIStreamListener** aContentHandler,
                                 nsIContentViewer** aViewer)
