@@ -132,7 +132,7 @@ nsTableCaptionFrame::GetFrameName(nsAString& aResult) const
 }
 #endif
 
-nsTableCaptionFrame* 
+nsIFrame* 
 NS_NewTableCaptionFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableCaptionFrame(aContext);
@@ -1092,7 +1092,7 @@ nsTableOuterFrame::GetCellAt(uint32_t aRowIdx, uint32_t aColIdx) const
 }
 
 
-nsTableOuterFrame*
+nsIFrame*
 NS_NewTableOuterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableOuterFrame(aContext);

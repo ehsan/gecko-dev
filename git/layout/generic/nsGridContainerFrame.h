@@ -15,8 +15,8 @@
  * Factory function.
  * @return a newly allocated nsGridContainerFrame (infallible)
  */
-nsContainerFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
-                                           nsStyleContext* aContext);
+nsIFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
+                                   nsStyleContext* aContext);
 
 class nsGridContainerFrame MOZ_FINAL : public nsContainerFrame
 {
@@ -37,8 +37,8 @@ public:
 #endif
 
 protected:
-  friend nsContainerFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
-                                                    nsStyleContext* aContext);
+  friend nsIFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
+                                            nsStyleContext* aContext);
   nsGridContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
 #ifdef DEBUG

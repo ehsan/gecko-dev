@@ -5,7 +5,6 @@
 
 #include "mozilla/layers/ContentClient.h"
 #include "BasicLayers.h"                // for BasicLayerManager
-#include "CompositorChild.h"            // for CompositorChild
 #include "gfxColor.h"                   // for gfxRGBA
 #include "gfxContext.h"                 // for gfxContext, etc
 #include "gfxPlatform.h"                // for gfxPlatform
@@ -261,6 +260,9 @@ ContentClientRemoteBuffer::CreateBackBuffer(const nsIntRect& aBufferRect)
       return;
     }
   }
+
+  mBufferRect = aBufferRect;
+  mBufferRotation = nsIntPoint();
 }
 
 void
@@ -355,36 +357,6 @@ ContentClientDoubleBuffered::DestroyFrontBuffer()
     mOldTextures.AppendElement(mFrontClientOnWhite);
     mFrontClientOnWhite = nullptr;
   }
-}
-
-void
-ContentClientDoubleBuffered::Updated(const nsIntRegion& aRegionToDraw,
-                                     const nsIntRegion& aVisibleRegion,
-                                     bool aDidSelfCopy)
-{
-  ContentClientRemoteBuffer::Updated(aRegionToDraw, aVisibleRegion, aDidSelfCopy);
-
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  if (mFrontClient && CompositorChild::ChildProcessHasCompositor()) {
-    // remove old buffer from CompositableHost
-    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker(this);
-    // Hold TextureClient until transaction complete.
-    tracker->SetTextureClient(mFrontClient);
-    mFrontClient->SetRemoveFromCompositableTracker(tracker);
-    // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
-    GetForwarder()->RemoveTextureFromCompositableAsync(tracker, this, mFrontClient);
-  }
-
-  if (mFrontClientOnWhite && CompositorChild::ChildProcessHasCompositor()) {
-    // remove old buffer from CompositableHost
-    RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker(this);
-    // Hold TextureClient until transaction complete.
-    tracker->SetTextureClient(mFrontClientOnWhite);
-    mFrontClientOnWhite->SetRemoveFromCompositableTracker(tracker);
-    // RemoveTextureFromCompositableAsync() expects CompositorChild's presence.
-    GetForwarder()->RemoveTextureFromCompositableAsync(tracker, this, mFrontClientOnWhite);
-  }
-#endif
 }
 
 void
@@ -825,7 +797,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
 }
 
 DrawTarget*
-ContentClientIncremental::BorrowDrawTargetForPainting(PaintState& aPaintState,
+ContentClientIncremental::BorrowDrawTargetForPainting(const PaintState& aPaintState,
                                                       RotatedContentBuffer::DrawIterator* aIter)
 {
   if (aPaintState.mMode == SurfaceMode::SURFACE_NONE) {

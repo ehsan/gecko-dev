@@ -424,7 +424,7 @@ public:
    */
   GraphTime mStateComputedTime;
   /**
-   * A timestamp corresponding to INITIAL_CURRENT_TIME.
+   * This is only used for logging.
    */
   TimeStamp mInitialTimeStamp;
   /**

@@ -244,9 +244,5 @@
         <attr name="ellipsizeAtLine" format="integer"/>
     </declare-styleable>
 
-    <declare-styleable name="FloatingHintEditText">
-        <attr name="floatingHintEditTextStyle" format="reference" />
-    </declare-styleable>
-
 </resources>
 

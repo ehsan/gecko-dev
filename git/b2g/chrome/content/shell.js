@@ -76,6 +76,9 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'captivePortalDetector',
                                   'nsICaptivePortalDetector');
 #endif
 
+let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+let { RootActor } = devtools.require("devtools/server/actors/root");
+
 function getContentWindow() {
   return shell.contentBrowser.contentWindow;
 }
@@ -692,6 +695,15 @@ Services.obs.addObserver(function onSystemMessageOpenApp(subject, topic, data) {
   shell.openAppForSystemMessage(msg);
 }, 'system-messages-open-app', false);
 
+Services.obs.addObserver(function onInterAppCommConnect(subject, topic, data) {
+  data = JSON.parse(data);
+  shell.sendChromeEvent({ type: "inter-app-comm-permission",
+                          chromeEventID: data.callerID,
+                          manifestURL: data.manifestURL,
+                          keyword: data.keyword,
+                          peers: data.appsToSelect });
+}, 'inter-app-comm-select-app', false);
+
 Services.obs.addObserver(function onFullscreenOriginChange(subject, topic, data) {
   shell.sendChromeEvent({ type: "fullscreenoriginchange",
                           fullscreenorigin: data });
@@ -758,6 +770,13 @@ var CustomEventManager = {
         break;
       case 'captive-portal-login-cancel':
         CaptivePortalLoginHelper.handleEvent(detail);
+        break;
+      case 'inter-app-comm-permission':
+        Services.obs.notifyObservers(null, 'inter-app-comm-select-app-result',
+          JSON.stringify({ callerID: detail.chromeEventID,
+                           keyword: detail.keyword,
+                           manifestURL: detail.manifestURL,
+                           selectedApps: detail.peers }));
         break;
       case 'inputmethod-update-layouts':
         KeyboardHelper.handleEvent(detail);
@@ -952,8 +971,6 @@ let RemoteDebugger = {
             deviceActor: DebuggerServer.globalActorFactories.deviceActor,
           } : DebuggerServer.globalActorFactories
         };
-        let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-        let { RootActor } = devtools.require("devtools/server/actors/root");
         let root = new RootActor(connection, parameters);
         root.applicationType = "operating-system";
         return root;

@@ -60,36 +60,31 @@ struct VideoCodecConfig
    * The data-types for these properties mimic the
    * corresponding webrtc::VideoCodec data-types.
    */
-  int mType; // payload type
+  int mType;
   std::string mName;
   uint32_t mRtcpFbTypes;
   unsigned int mMaxFrameSize;
   unsigned int mMaxFrameRate;
   LoadManager* mLoadManager;
-  uint8_t mProfile;
-  uint8_t mConstraints;
-  uint8_t mLevel;
-  uint8_t mPacketizationMode;
-  // TODO: add external negotiated SPS/PPS
 
   VideoCodecConfig(int type,
                    std::string name,
                    int rtcpFbTypes,
-                   LoadManager* load_manager = nullptr,
-                   uint8_t profile = 0x42,
-                   uint8_t constraints = 0xC0,
-                   uint8_t level = 30,
-                   uint8_t packetization = 0) :
+                   LoadManager* load_manager = nullptr) :
                                      mType(type),
                                      mName(name),
                                      mRtcpFbTypes(rtcpFbTypes),
                                      mMaxFrameSize(0),
                                      mMaxFrameRate(0),
-                                     mLoadManager(load_manager),
-                                     mProfile(profile),
-                                     mConstraints(constraints),
-                                     mLevel(level),
-                                     mPacketizationMode(packetization) {}
+                                     mLoadManager(load_manager)
+  {
+    // Replace codec name here because  WebRTC.org code has a whitelist of
+    // supported video codec in |webrtc::ViECodecImpl::CodecValid()| and will
+    // reject registration of those not in it.
+    // TODO: bug 995884 to support H.264 in WebRTC.org code.
+    if (mName == "H264_P0")
+      mName = "I420";
+  }
 
   VideoCodecConfig(int type,
                    std::string name,
@@ -102,7 +97,16 @@ struct VideoCodecConfig
                                          mRtcpFbTypes(rtcpFbTypes),
                                          mMaxFrameSize(max_fs),
                                          mMaxFrameRate(max_fr),
-                                         mLoadManager(load_manager) {}
+                                         mLoadManager(load_manager)
+  {
+    // Replace codec name here because  WebRTC.org code has a whitelist of
+    // supported video codec in |webrtc::ViECodecImpl::CodecValid()| and will
+    // reject registration of those not in it.
+    // TODO: bug 995884 to support H.264 in WebRTC.org code.
+    if (mName == "H264_P0")
+      mName = "I420";
+  }
+
 
   bool RtcpFbIsSet(sdp_rtcp_fb_nack_type_e type) const
   {
@@ -118,6 +122,7 @@ struct VideoCodecConfig
   {
     return mRtcpFbTypes & sdp_rtcp_fb_ccm_to_bitmap(type);
   }
+
 };
 }
 #endif

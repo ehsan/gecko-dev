@@ -971,7 +971,7 @@ ChannelMediaResource::CacheClientNotifyDataReceived()
 
   mDataReceivedEvent =
     NS_NewNonOwningRunnableMethod(this, &ChannelMediaResource::DoNotifyDataReceived);
-  NS_DispatchToMainThread(mDataReceivedEvent.get());
+  NS_DispatchToMainThread(mDataReceivedEvent.get(), NS_DISPATCH_NORMAL);
 }
 
 class DataEnded : public nsRunnable {
@@ -990,12 +990,12 @@ private:
 void
 ChannelMediaResource::CacheClientNotifyDataEnded(nsresult aStatus)
 {
-  MOZ_ASSERT(NS_IsMainThread());
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
   // NOTE: this can be called with the media cache lock held, so don't
   // block or do anything which might try to acquire a lock!
 
   nsCOMPtr<nsIRunnable> event = new DataEnded(mDecoder, aStatus);
-  NS_DispatchToCurrentThread(event);
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
 void
@@ -1316,7 +1316,7 @@ void FileMediaResource::EnsureSizeInitialized()
   if (NS_SUCCEEDED(res) && size <= INT64_MAX) {
     mSize = (int64_t)size;
     nsCOMPtr<nsIRunnable> event = new DataEnded(mDecoder, NS_OK);
-    NS_DispatchToMainThread(event);
+    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
 }
 
@@ -1664,7 +1664,7 @@ void BaseMediaResource::DispatchBytesConsumed(int64_t aNumBytes, int64_t aOffset
     return;
   }
   RefPtr<nsIRunnable> event(new DispatchBytesConsumedEvent(mDecoder, aNumBytes, aOffset));
-  NS_DispatchToMainThread(event);
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
 } // namespace mozilla

@@ -79,6 +79,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
                                              MBasicBlock *pred, const BytecodeSite &site,
                                              unsigned loopStateSlots);
     static MBasicBlock *NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred);
+    static MBasicBlock *NewAbortPar(MIRGraph &graph, CompileInfo &info,
+                                    MBasicBlock *pred, const BytecodeSite &site,
+                                    MResumePoint *resumePoint);
     static MBasicBlock *NewAsmJS(MIRGraph &graph, CompileInfo &info,
                                  MBasicBlock *pred, Kind kind);
 

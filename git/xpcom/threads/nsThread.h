@@ -97,8 +97,8 @@ protected:
       return mQueue.GetEvent(mayWait, event);
     }
 
-    void PutEvent(nsIRunnable *event) {
-      mQueue.PutEvent(event);
+    bool PutEvent(nsIRunnable *event) {
+      return mQueue.PutEvent(event);
     }
 
     bool HasPendingEvent() {

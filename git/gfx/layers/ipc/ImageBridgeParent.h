@@ -44,7 +44,7 @@ public:
   typedef InfallibleTArray<EditReply> EditReplyArray;
   typedef InfallibleTArray<AsyncChildMessageData> AsyncChildMessageArray;
 
-  ImageBridgeParent(MessageLoop* aLoop, Transport* aTransport, ProcessId aChildProcessId);
+  ImageBridgeParent(MessageLoop* aLoop, Transport* aTransport);
   ~ImageBridgeParent();
 
   virtual LayersBackend GetCompositorBackendType() const MOZ_OVERRIDE;
@@ -52,7 +52,7 @@ public:
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   static PImageBridgeParent*
-  Create(Transport* aTransport, ProcessId aChildProcessId);
+  Create(Transport* aTransport, ProcessId aOtherProcess);
 
   // CompositableParentManager
   virtual void SendFenceHandle(AsyncTransactionTracker* aTracker,
@@ -60,11 +60,6 @@ public:
                                const FenceHandle& aFence) MOZ_OVERRIDE;
 
   virtual void SendAsyncMessage(const InfallibleTArray<AsyncParentMessageData>& aMessage) MOZ_OVERRIDE;
-
-  virtual base::ProcessId GetChildProcessId() MOZ_OVERRIDE
-  {
-    return mChildProcessId;
-  }
 
   // PImageBridge
   virtual bool RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply) MOZ_OVERRIDE;
@@ -83,10 +78,7 @@ public:
   virtual bool
   RecvChildAsyncMessages(const InfallibleTArray<AsyncChildMessageData>& aMessages) MOZ_OVERRIDE;
 
-  // Shutdown step 1
-  virtual bool RecvWillStop() MOZ_OVERRIDE;
-  // Shutdown step 2
-  virtual bool RecvStop() MOZ_OVERRIDE;
+  bool RecvStop() MOZ_OVERRIDE;
 
   MessageLoop * GetMessageLoop();
 
@@ -116,20 +108,6 @@ public:
 
   virtual void ReplyRemoveTexture(const OpReplyRemoveTexture& aReply) MOZ_OVERRIDE;
 
-  static void ReplyRemoveTexture(base::ProcessId aChildProcessId,
-                                 const OpReplyRemoveTexture& aReply);
-
-  void SendFenceHandleToTrackerIfPresent(uint64_t aDestHolderId,
-                                         uint64_t aTransactionId,
-                                         PTextureParent* aTexture);
-
-  static void SendFenceHandleToTrackerIfPresent(base::ProcessId aChildProcessId,
-                                                uint64_t aDestHolderId,
-                                                uint64_t aTransactionId,
-                                                PTextureParent* aTexture);
-
-  static ImageBridgeParent* GetInstance(ProcessId aId);
-
   // Overriden from IToplevelProtocol
   IToplevelProtocol*
   CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
@@ -141,16 +119,9 @@ private:
 
   MessageLoop* mMessageLoop;
   Transport* mTransport;
-  // Child side's process id.
-  base::ProcessId mChildProcessId;
   // This keeps us alive until ActorDestroy(), at which point we do a
   // deferred destruction of ourselves.
   nsRefPtr<ImageBridgeParent> mSelfRef;
-
-  /**
-   * Map of all living ImageBridgeParent instances
-   */
-  static std::map<base::ProcessId, ImageBridgeParent*> sImageBridges;
 };
 
 } // layers

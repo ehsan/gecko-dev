@@ -27,7 +27,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
-#include "nsContainerFrame.h"
+#include "nsIFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
@@ -218,7 +218,7 @@ nsIContent::UpdateEditableState(bool aNotify)
     if (root) {
       nsIFrame* rootFrame = root->GetPrimaryFrame();
       if (rootFrame) {
-        nsContainerFrame* parentFrame = rootFrame->GetParent();
+        nsIFrame* parentFrame = rootFrame->GetParent();
         nsITextControlFrame* textCtrl = do_QueryFrame(parentFrame);
         isUnknownNativeAnon = !textCtrl;
       }

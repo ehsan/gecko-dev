@@ -16,6 +16,7 @@ import java.net.URL;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -208,7 +209,6 @@ public abstract class GeckoApp
     private String mPrivateBrowsingSession;
 
     private volatile HealthRecorder mHealthRecorder = null;
-    private volatile Locale mLastLocale = null;
 
     private int mSignalStrenth;
     private PhoneStateListener mPhoneStateListener = null;
@@ -798,7 +798,7 @@ public abstract class GeckoApp
         });
     }
 
-    public ButtonToast getButtonToast() {
+    protected ButtonToast getButtonToast() {
         if (mToast != null) {
             return mToast;
         }
@@ -1277,10 +1277,9 @@ public abstract class GeckoApp
             public void run() {
                 final SharedPreferences prefs = GeckoApp.this.getSharedPreferences();
 
-                // Wait until now to set this, because we'd rather throw an exception than
+                // Wait until now to set this, because we'd rather throw an exception than 
                 // have a caller of BrowserLocaleManager regress startup.
-                final LocaleManager localeManager = BrowserLocaleManager.getInstance();
-                localeManager.initialize(getApplicationContext());
+                BrowserLocaleManager.getInstance().initialize(getApplicationContext());
 
                 SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
                 if (previousSession.wasKilled()) {
@@ -1304,7 +1303,7 @@ public abstract class GeckoApp
                 Log.i(LOGTAG, "Creating HealthRecorder.");
 
                 final String osLocale = Locale.getDefault().toString();
-                String appLocale = localeManager.getAndApplyPersistedLocale(GeckoApp.this);
+                String appLocale = BrowserLocaleManager.getInstance().getAndApplyPersistedLocale(GeckoApp.this);
                 Log.d(LOGTAG, "OS locale is " + osLocale + ", app locale is " + appLocale);
 
                 if (appLocale == null) {
@@ -1352,11 +1351,6 @@ public abstract class GeckoApp
             throw new RuntimeException("onLocaleReady must always be called from the UI thread.");
         }
 
-        final Locale loc = BrowserLocaleManager.parseLocaleCode(locale);
-        if (loc.equals(mLastLocale)) {
-            Log.d(LOGTAG, "New locale same as old; onLocaleReady has nothing to do.");
-        }
-
         // The URL bar hint needs to be populated.
         TextView urlBar = (TextView) findViewById(R.id.url_bar_title);
         if (urlBar != null) {
@@ -1366,13 +1360,8 @@ public abstract class GeckoApp
             Log.d(LOGTAG, "No URL bar in GeckoApp. Not loading localized hint string.");
         }
 
-        mLastLocale = loc;
-
         // Allow onConfigurationChanged to take care of the rest.
-        // We don't call this.onConfigurationChanged, because (a) that does
-        // work that's unnecessary after this locale action, and (b) it can
-        // cause a loop! See Bug 1011008, Comment 12.
-        super.onConfigurationChanged(getResources().getConfiguration());
+        onConfigurationChanged(getResources().getConfiguration());
     }
 
     protected void initializeChrome() {
@@ -2166,12 +2155,7 @@ public abstract class GeckoApp
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         Log.d(LOGTAG, "onConfigurationChanged: " + newConfig.locale);
-
-        final LocaleManager localeManager = BrowserLocaleManager.getInstance();
-        final Locale changed = localeManager.onSystemConfigurationChanged(this, getResources(), newConfig, mLastLocale);
-        if (changed != null) {
-            onLocaleChanged(BrowserLocaleManager.getLanguageTag(changed));
-        }
+        BrowserLocaleManager.getInstance().correctLocale(this, getResources(), newConfig);
 
         // onConfigurationChanged is not called for 180 degree orientation changes,
         // we will miss such rotations and the screen orientation will not be

@@ -78,7 +78,7 @@ private:
 
 class VolatileBufferPtr_base {
 public:
-  explicit VolatileBufferPtr_base(VolatileBuffer* vbuf) : mVBuf(vbuf) {
+  VolatileBufferPtr_base(VolatileBuffer* vbuf) : mVBuf(vbuf) {
     if (vbuf) {
       mPurged = !vbuf->Lock(&mMapping);
     } else {
@@ -109,7 +109,7 @@ template <class T>
 class VolatileBufferPtr : public VolatileBufferPtr_base
 {
 public:
-  explicit VolatileBufferPtr(VolatileBuffer* vbuf) : VolatileBufferPtr_base(vbuf) {}
+  VolatileBufferPtr(VolatileBuffer* vbuf) : VolatileBufferPtr_base(vbuf) {}
 
   operator T*() const {
     return (T*) mMapping;

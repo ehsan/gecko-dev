@@ -443,68 +443,41 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
         return true;
     }
 
+    // Find the properties available, if any.
+    const JSFunctionSpec *fs = clasp->spec.prototypeFunctions;
+    if (!fs)
+        return true;
+
     // Compute the property name we're looking for. We'll handle indexed
     // properties when we start supporting arrays.
     if (!JSID_IS_STRING(id))
         return true;
     Rooted<JSFlatString*> str(cx, JSID_TO_FLAT_STRING(id));
 
-    // Scan through the functions.
-    const JSFunctionSpec *fsMatch = nullptr;
-    for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
+    // Scan through the properties. If we don't find anything, we're done.
+    for (; fs->name; ++fs) {
         // We don't support self-hosted functions yet. See bug 972987.
         if (fs->selfHostedName)
             continue;
-        if (JS_FlatStringEqualsAscii(str, fs->name)) {
-            fsMatch = fs;
+        if (JS_FlatStringEqualsAscii(str, fs->name))
             break;
-        }
     }
-    if (fsMatch) {
-        // Generate an Xrayed version of the method.
-        Rooted<JSFunction*> fun(cx, JS_NewFunctionById(cx, fsMatch->call.op, fsMatch->nargs,
-                                                       0, wrapper, id));
-        if (!fun)
-            return false;
+    if (!fs->name)
+        return true;
 
-        // The generic Xray machinery only defines non-own properties on the holder.
-        // This is broken, and will be fixed at some point, but for now we need to
-        // cache the value explicitly. See the corresponding call to
-        // JS_GetPropertyById at the top of this function.
-        RootedObject funObj(cx, JS_GetFunctionObject(fun));
-        return JS_DefinePropertyById(cx, holder, id, funObj, 0) &&
-               JS_GetPropertyDescriptorById(cx, holder, id, desc);
-    }
+    // Generate an Xrayed version of the method.
+    Rooted<JSFunction*> fun(cx, JS_NewFunctionById(cx, fs->call.op, fs->nargs,
+                                                   0, wrapper, id));
+    if (!fun)
+        return false;
 
-    // Scan through the properties.
-    const JSPropertySpec *psMatch = nullptr;
-    for (const JSPropertySpec *ps = clasp->spec.prototypeProperties; ps && ps->name; ++ps) {
-        // We don't support self-hosted accessors yet (see bug 972987). And given
-        // the confusion outlined in bug 992977, we can't support JSPropertyOp-
-        // backed entries either (which in practice is fine).
-        if (!(ps->flags & JSPROP_NATIVE_ACCESSORS))
-            continue;
-        if (JS_FlatStringEqualsAscii(str, ps->name)) {
-            psMatch = ps;
-            break;
-        }
-    }
-    if (psMatch) {
-        // The generic Xray machinery only defines non-own properties on the holder.
-        // This is broken, and will be fixed at some point, but for now we need to
-        // cache the value explicitly. See the corresponding call to
-        // JS_GetPropertyById at the top of this function.
-        //
-        // Note also that the public-facing API here doesn't give us a way to
-        // pass along JITInfo. It's probably ok though, since Xrays are already
-        // pretty slow.
-        return JS_DefinePropertyById(cx, holder, id,
-                                     UndefinedHandleValue, psMatch->flags,
-                                     psMatch->getter.propertyOp.op, psMatch->setter.propertyOp.op) &&
-               JS_GetPropertyDescriptorById(cx, holder, id, desc);
-    }
-
-    return true;
+    // The generic Xray machinery only defines non-own properties on the holder.
+    // This is broken, and will be fixed at some point, but for now we need to
+    // cache the value explicitly. See the corresponding call to
+    // JS_GetPropertyById at the top of this function.
+    RootedValue value(cx, ObjectValue(*JS_GetFunctionObject(fun)));
+    return JS_DefinePropertyById(cx, holder, id, value, 0) &&
+           JS_GetPropertyDescriptorById(cx, holder, id, desc);
 }
 
 bool
@@ -525,24 +498,17 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
     MOZ_ASSERT(JSCLASS_CACHED_PROTO_KEY(clasp) == getProtoKey(holder));
     MOZ_ASSERT(clasp->spec.defined());
 
+    // Find the properties available, if any.
+    const JSFunctionSpec *fs = clasp->spec.prototypeFunctions;
+    if (!fs)
+        return true;
+
     // Intern all the strings, and pass theme to the caller.
-    for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
+    for (; fs->name; ++fs) {
         // We don't support self-hosted functions yet. See bug 972987.
         if (fs->selfHostedName)
             continue;
         RootedString str(cx, JS_InternString(cx, fs->name));
-        if (!str)
-            return false;
-        if (!props.append(INTERNED_STRING_TO_JSID(cx, str)))
-            return false;
-    }
-    for (const JSPropertySpec *ps = clasp->spec.prototypeProperties; ps && ps->name; ++ps) {
-        // We don't support self-hosted functions yet. See bug 972987.
-        // Note that this is also kind of an abuse of JSPROP_NATIVE_ACCESSORS.
-        // See bug 992977.
-        if (!(ps->flags & JSPROP_NATIVE_ACCESSORS))
-            continue;
-        RootedString str(cx, JS_InternString(cx, ps->name));
         if (!str)
             return false;
         if (!props.append(INTERNED_STRING_TO_JSID(cx, str)))

@@ -55,7 +55,7 @@ GetLayoutPrintingLog()
 #define PR_PL(_p1)
 #endif
 
-nsSimplePageSequenceFrame*
+nsIFrame*
 NS_NewSimplePageSequenceFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSimplePageSequenceFrame(aContext);

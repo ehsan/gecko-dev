@@ -336,7 +336,7 @@ gfxPlatform::Init()
 
     gGfxPlatformPrefsLock = new Mutex("gfxPlatform::gGfxPlatformPrefsLock");
 
-    AsyncTransactionTrackersHolder::Initialize();
+    AsyncTransactionTracker::Initialize();
 
     /* Initialize the GfxInfo service.
      * Note: we can't call functions on GfxInfo that depend
@@ -499,6 +499,16 @@ gfxPlatform::Shutdown()
     // WebGL on Optimus.
     mozilla::gl::GLContextProviderEGL::Shutdown();
 #endif
+
+    // This will block this thread untill the ImageBridge protocol is completely
+    // deleted.
+    ImageBridgeChild::ShutDown();
+#ifdef MOZ_WIDGET_GONK
+    SharedBufferManagerChild::ShutDown();
+#endif
+    CompositorParent::ShutDown();
+
+    AsyncTransactionTracker::Finalize();
 
     delete gGfxPlatformPrefsLock;
 

@@ -313,19 +313,17 @@ function downloadAndParseChromePins(filename,
   const cData = gStaticPins.chromium_data;
   let entries = chromePreloads.entries;
   entries.forEach(function(entry) {
-    let pinsetName = cData.substitute_pinsets[entry.pins];
-    if (!pinsetName) {
-      pinsetName = entry.pins;
-    }
+    let isExcludedPinset =
+      (cData.excluded_pinsets.indexOf(entry.pins) != -1);
     let isProductionDomain =
       (cData.production_domains.indexOf(entry.name) != -1);
-    if (entry.pins && chromeImportedPinsets[entry.pins]) {
+    if (entry.pins && chromeImportedPinsets[entry.pins] && !isExcludedPinset) {
       chromeImportedEntries.push({
         name: entry.name,
         include_subdomains: entry.include_subdomains,
         test_mode: !isProductionDomain,
         is_moz: false,
-        pins: pinsetName });
+        pins: entry.pins });
     }
   });
   return [ chromeImportedPinsets, chromeImportedEntries ];
@@ -414,9 +412,6 @@ function writeFingerprints(certNameToSKD, certSKDToName, name, hashes, type) {
   writeString("static const char* " + varPrefix + "_Data[] = {\n");
   let SKDList = [];
   for (let certName of hashes) {
-    if (!(certName in certNameToSKD)) {
-      throw "Can't find " + certName + " in certNameToSKD";
-    }
     SKDList.push(certNameToSKD[certName]);
   }
   for (let skd of SKDList.sort()) {
@@ -526,7 +521,7 @@ function writeFile(certNameToSKD, certSKDToName,
 
   // Write the pinsets
   writeString(PINSETDEF);
-  writeString("/* PreloadedHPKPins.json pinsets */\n");
+  writeString("/* Mozilla static pinsets */\n");
   gStaticPins.pinsets.sort(compareByName).forEach(function(pinset) {
     writeFullPinset(certNameToSKD, certSKDToName, pinset);
   });

@@ -1860,10 +1860,7 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
 #ifdef MOZ_WIDGET_GONK
   else if (!strcmp(aTopic, "phone-state-changed")) {
     nsString state(aData);
-    nsresult rv;
-    uint32_t phoneState = state.ToInteger(&rv);
-
-    if (NS_SUCCEEDED(rv) && phoneState == nsIAudioManager::PHONE_STATE_IN_CALL) {
+    if (atoi((const char*)state.get()) == nsIAudioManager::PHONE_STATE_IN_CALL) {
       StopMediaStreams();
     }
     return NS_OK;
