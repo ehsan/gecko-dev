@@ -14,10 +14,10 @@ namespace js {
 bool
 DefineTestingFunctions(JSContext *cx, HandleObject obj);
 
-bool
+JSBool
 testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp);
 
-bool
+JSBool
 testingFunc_bailout(JSContext *cx, unsigned argc, jsval *vp);
 
 } /* namespace js */

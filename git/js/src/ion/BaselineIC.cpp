@@ -7597,7 +7597,8 @@ ICCall_Native::Compiler::generateStubCode(MacroAssembler &masm)
     masm.callWithABI(Address(callee, JSFunction::offsetOfNativeOrScript()));
 
     // Test for failure.
-    masm.branchIfFalseBool(ReturnReg, masm.exceptionLabel());
+    Label success, exception;
+    masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &exception);
 
     // Load the return value into R0.
     masm.loadValue(Address(StackPointer, IonNativeExitFrameLayout::offsetOfResult()), R0);
@@ -7606,6 +7607,10 @@ ICCall_Native::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Enter type monitor IC to type-check result.
     EmitEnterTypeMonitorIC(masm);
+
+    // Handle exception case.
+    masm.bind(&exception);
+    masm.handleException();
 
     masm.bind(&failure);
     EmitStubGuardFailure(masm);

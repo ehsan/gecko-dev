@@ -424,7 +424,7 @@ WarnOnTooManyArgs(JSContext *cx, const CallArgs &args)
     return true;
 }
 
-bool
+JSBool
 js::IndirectEval(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

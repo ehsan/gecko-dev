@@ -106,7 +106,7 @@ GetKeyFromJSValOrThrow(JSContext* aCx,
   return true;
 }
 
-bool
+JSBool
 MakeOnlyKeyRange(JSContext* aCx,
                  unsigned aArgc,
                  jsval* aVp)
@@ -127,7 +127,7 @@ MakeOnlyKeyRange(JSContext* aCx,
   return ReturnKeyRange(aCx, aVp, keyRange);
 }
 
-bool
+JSBool
 MakeLowerBoundKeyRange(JSContext* aCx,
                        unsigned aArgc,
                        jsval* aVp)
@@ -150,7 +150,7 @@ MakeLowerBoundKeyRange(JSContext* aCx,
   return ReturnKeyRange(aCx, aVp, keyRange);
 }
 
-bool
+JSBool
 MakeUpperBoundKeyRange(JSContext* aCx,
                        unsigned aArgc,
                        jsval* aVp)
@@ -173,7 +173,7 @@ MakeUpperBoundKeyRange(JSContext* aCx,
   return ReturnKeyRange(aCx, aVp, keyRange);
 }
 
-bool
+JSBool
 MakeBoundKeyRange(JSContext* aCx,
                   unsigned aArgc,
                   jsval* aVp)
@@ -418,7 +418,17 @@ IDBKeyRange::GetUpperOpen(bool* aUpperOpen)
 
 // Explicitly instantiate for all our key range types... Grumble.
 template already_AddRefed<IDBKeyRange>
-IDBKeyRange::FromSerializedKeyRange<KeyRange> (const KeyRange& aKeyRange);
+IDBKeyRange::FromSerializedKeyRange<FIXME_Bug_521898_objectstore::KeyRange>
+(const FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
+
+template already_AddRefed<IDBKeyRange>
+IDBKeyRange::FromSerializedKeyRange<FIXME_Bug_521898_index::KeyRange>
+(const FIXME_Bug_521898_index::KeyRange& aKeyRange);
 
 template void
-IDBKeyRange::ToSerializedKeyRange<KeyRange> (KeyRange& aKeyRange);
+IDBKeyRange::ToSerializedKeyRange<FIXME_Bug_521898_objectstore::KeyRange>
+(FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
+
+template void
+IDBKeyRange::ToSerializedKeyRange<FIXME_Bug_521898_index::KeyRange>
+(FIXME_Bug_521898_index::KeyRange& aKeyRange);

@@ -1281,7 +1281,7 @@ GetHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "GetHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  GetParams params;
+  FIXME_Bug_521898_index::GetParams params;
 
   mKeyRange->ToSerializedKeyRange(params.keyRange());
 
@@ -1485,7 +1485,7 @@ GetAllKeysHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   GetAllKeysParams params;
 
   if (mKeyRange) {
-    KeyRange keyRange;
+    FIXME_Bug_521898_index::KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -1641,10 +1641,10 @@ GetAllHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "GetAllHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  GetAllParams params;
+  FIXME_Bug_521898_index::GetAllParams params;
 
   if (mKeyRange) {
-    KeyRange keyRange;
+    FIXME_Bug_521898_index::KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -1986,7 +1986,7 @@ OpenKeyCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   OpenKeyCursorParams params;
 
   if (mKeyRange) {
-    KeyRange keyRange;
+    FIXME_Bug_521898_index::KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -2327,10 +2327,10 @@ OpenCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "OpenCursorHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  OpenCursorParams params;
+  FIXME_Bug_521898_index::OpenCursorParams params;
 
   if (mKeyRange) {
-    KeyRange keyRange;
+    FIXME_Bug_521898_index::KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }
@@ -2521,10 +2521,10 @@ CountHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
                              "CountHelper::PackArgumentsForParentProcess "
                              "[IDBIndex.cpp]");
 
-  CountParams params;
+  FIXME_Bug_521898_index::CountParams params;
 
   if (mKeyRange) {
-    KeyRange keyRange;
+    FIXME_Bug_521898_index::KeyRange keyRange;
     mKeyRange->ToSerializedKeyRange(keyRange);
     params.optionalKeyRange() = keyRange;
   }

@@ -161,7 +161,7 @@ ToNumber(JSContext *cx, JS::MutableHandleValue vp)
     return true;
 }
 
-bool
+JSBool
 num_parseInt(JSContext *cx, unsigned argc, Value *vp);
 
 }  /* namespace js */
@@ -180,10 +180,10 @@ extern JSBool
 js_strtod(js::ThreadSafeContext *cx, const jschar *s, const jschar *send,
           const jschar **ep, double *dp);
 
-extern bool
+extern JSBool
 js_num_toString(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 js_num_valueOf(JSContext *cx, unsigned argc, js::Value *vp);
 
 namespace js {

@@ -86,7 +86,7 @@ Environment(JSObject* global)
     return static_cast<XPCShellEnvironment*>(v.get().toPrivate());
 }
 
-static bool
+static JSBool
 Print(JSContext *cx,
       unsigned argc,
       JS::Value *vp)
@@ -98,10 +98,10 @@ Print(JSContext *cx,
     for (i = n = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
-            return false;
+            return JS_FALSE;
         JSAutoByteString bytes(cx, str);
         if (!bytes)
-            return false;
+            return JS_FALSE;
         fprintf(stdout, "%s%s", i ? " " : "", bytes.ptr());
         fflush(stdout);
     }
@@ -109,7 +109,7 @@ Print(JSContext *cx,
     if (n)
         fputc('\n', stdout);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
 static JSBool
@@ -126,7 +126,7 @@ GetLine(char *bufp,
     return JS_TRUE;
 }
 
-static bool
+static JSBool
 Dump(JSContext *cx,
      unsigned argc,
      JS::Value *vp)
@@ -135,21 +135,21 @@ Dump(JSContext *cx,
 
     JSString *str;
     if (!argc)
-        return true;
+        return JS_TRUE;
 
     str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!str)
-        return false;
+        return JS_FALSE;
     JSAutoByteString bytes(cx, str);
     if (!bytes)
-      return false;
+      return JS_FALSE;
 
     fputs(bytes.ptr(), stdout);
     fflush(stdout);
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 Load(JSContext *cx,
      unsigned argc,
      JS::Value *vp)
@@ -158,21 +158,21 @@ Load(JSContext *cx,
 
     JS::Rooted<JSObject*> obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
-        return false;
+        return JS_FALSE;
 
     JS::Value *argv = JS_ARGV(cx, vp);
     for (unsigned i = 0; i < argc; i++) {
         JSString *str = JS_ValueToString(cx, argv[i]);
         if (!str)
-            return false;
+            return JS_FALSE;
         argv[i] = STRING_TO_JSVAL(str);
         JSAutoByteString filename(cx, str);
         if (!filename)
-            return false;
+            return JS_FALSE;
         FILE *file = fopen(filename.ptr(), "r");
         if (!file) {
             JS_ReportError(cx, "cannot open file '%s' for reading", filename.ptr());
-            return false;
+            return JS_FALSE;
         }
         JS::CompileOptions options(cx);
         options.setUTF8(true)
@@ -182,17 +182,17 @@ Load(JSContext *cx,
         JSScript *script = JS::Compile(cx, rootedObj, options, file);
         fclose(file);
         if (!script)
-            return false;
+            return JS_FALSE;
 
         if (!JS_ExecuteScript(cx, obj, script, result.address())) {
-            return false;
+            return JS_FALSE;
         }
     }
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 Version(JSContext *cx,
         unsigned argc,
         JS::Value *vp)
@@ -202,17 +202,17 @@ Version(JSContext *cx,
     if (argc > 0 && JSVAL_IS_INT(argv[0]))
         JS_SetVersionForCompartment(js::GetContextCompartment(cx),
                                     JSVersion(JSVAL_TO_INT(argv[0])));
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 BuildDate(JSContext *cx, unsigned argc, JS::Value *vp)
 {
     fprintf(stdout, "built on %s at %s\n", __DATE__, __TIME__);
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 Quit(JSContext *cx,
      unsigned argc,
      JS::Value *vp)
@@ -220,10 +220,10 @@ Quit(JSContext *cx,
     XPCShellEnvironment* env = Environment(JS::CurrentGlobalOrNull(cx));
     env->SetIsQuitting();
 
-    return false;
+    return JS_FALSE;
 }
 
-static bool
+static JSBool
 DumpXPC(JSContext *cx,
         unsigned argc,
         JS::Value *vp)
@@ -232,17 +232,17 @@ DumpXPC(JSContext *cx,
 
     if (argc > 0) {
         if (!JS_ValueToInt32(cx, JS_ARGV(cx, vp)[0], &depth))
-            return false;
+            return JS_FALSE;
     }
 
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
     if(xpc)
         xpc->DebugDump(int16_t(depth));
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 GC(JSContext *cx,
    unsigned argc,
    JS::Value *vp)
@@ -253,11 +253,11 @@ GC(JSContext *cx,
     js_DumpGCStats(rt, stdout);
 #endif
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
 #ifdef JS_GC_ZEAL
-static bool
+static JSBool
 GCZeal(JSContext *cx, 
        unsigned argc,
        JS::Value *vp)
@@ -266,16 +266,16 @@ GCZeal(JSContext *cx,
 
   uint32_t zeal;
   if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
-    return false;
+    return JS_FALSE;
 
   JS_SetGCZeal(cx, uint8_t(zeal), JS_DEFAULT_ZEAL_FREQ);
-  return true;
+  return JS_TRUE;
 }
 #endif
 
 #ifdef DEBUG
 
-static bool
+static JSBool
 DumpHeap(JSContext *cx,
          unsigned argc,
          JS::Value *vp)
@@ -298,10 +298,10 @@ DumpHeap(JSContext *cx,
 
         str = JS_ValueToString(cx, *vp);
         if (!str)
-            return false;
+            return JS_FALSE;
         *vp = STRING_TO_JSVAL(str);
         if (!fileName.encodeLatin1(cx, str))
-            return false;
+            return JS_FALSE;
     }
 
     vp = argv + 1;
@@ -324,7 +324,7 @@ DumpHeap(JSContext *cx,
         uint32_t depth;
 
         if (!JS_ValueToECMAUint32(cx, *vp, &depth))
-            return false;
+            return JS_FALSE;
         maxDepth = depth;
     }
 
@@ -342,7 +342,7 @@ DumpHeap(JSContext *cx,
         if (!dumpFile) {
             fprintf(stderr, "dumpHeap: can't open %s: %s\n",
                     fileName.ptr(), strerror(errno));
-            return false;
+            return JS_FALSE;
         }
     }
 
@@ -358,7 +358,7 @@ DumpHeap(JSContext *cx,
     fprintf(stderr,
             "dumpHeap: argument %u is not null or a heap-allocated thing\n",
             (unsigned)(vp - argv));
-    return false;
+    return JS_FALSE;
 }
 
 #endif /* DEBUG */

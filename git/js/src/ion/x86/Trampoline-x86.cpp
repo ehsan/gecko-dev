@@ -608,17 +608,17 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     masm.callWithABI(f.wrapped);
 
     // Test for failure.
+    Label failure;
     switch (f.failType()) {
       case Type_Object:
-        masm.branchTestPtr(Assembler::Zero, eax, eax, masm.failureLabel(f.executionMode));
+        masm.branchTestPtr(Assembler::Zero, eax, eax, &failure);
         break;
       case Type_Bool:
         masm.testb(eax, eax);
-        masm.j(Assembler::Zero, masm.failureLabel(f.executionMode));
+        masm.j(Assembler::Zero, &failure);
         break;
       case Type_ParallelResult:
-        masm.branchPtr(Assembler::NotEqual, eax, Imm32(TP_SUCCESS),
-                       masm.failureLabel(f.executionMode));
+        masm.branchPtr(Assembler::NotEqual, eax, Imm32(TP_SUCCESS), &failure);
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("unknown failure kind");
@@ -659,6 +659,9 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     masm.retn(Imm32(sizeof(IonExitFrameLayout) +
                     f.explicitStackSlots() * sizeof(void *) +
                     f.extraValuesToPop * sizeof(Value)));
+
+    masm.bind(&failure);
+    masm.handleFailure(f.executionMode);
 
     Linker linker(masm);
     IonCode *wrapper = linker.newCode(cx, JSC::OTHER_CODE);

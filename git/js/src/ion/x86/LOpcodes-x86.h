@@ -14,7 +14,6 @@
     _(BoxDouble)                \
     _(DivI)                     \
     _(DivPowTwoI)               \
-    _(DivSelfI)                 \
     _(ModI)                     \
     _(ModPowTwoI)               \
     _(PowHalfD)                 \

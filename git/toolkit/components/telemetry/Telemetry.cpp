@@ -616,80 +616,79 @@ IsEmpty(const Histogram *h)
   return ss.counts(0) == 0 && ss.sum() == 0;
 }
 
-bool
+JSBool
 JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   if (!argc) {
     JS_ReportError(cx, "Expected one argument");
-    return false;
+    return JS_FALSE;
   }
 
   JS::Value v = JS_ARGV(cx, vp)[0];
 
   if (!(JSVAL_IS_NUMBER(v) || JSVAL_IS_BOOLEAN(v))) {
     JS_ReportError(cx, "Not a number");
-    return false;
+    return JS_FALSE;
   }
 
   int32_t value;
   if (!JS_ValueToECMAInt32(cx, v, &value)) {
-    return false;
+    return JS_FALSE;
   }
 
   if (TelemetryImpl::CanRecord()) {
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj) {
-      return false;
+      return JS_FALSE;
     }
 
     Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
     h->Add(value);
   }
-  return true;
-
+  return JS_TRUE;
 }
 
-bool
+JSBool
 JSHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
-    return false;
+    return JS_FALSE;
   }
 
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
   JS::Rooted<JSObject*> snapshot(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
   if (!snapshot)
-    return false;
+    return JS_FALSE;
 
   switch (ReflectHistogramSnapshot(cx, snapshot, h)) {
   case REFLECT_FAILURE:
-    return false;
+    return JS_FALSE;
   case REFLECT_CORRUPT:
     JS_ReportError(cx, "Histogram is corrupt");
-    return false;
+    return JS_FALSE;
   case REFLECT_OK:
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(snapshot));
-    return true;
+    return JS_TRUE;
   default:
     MOZ_CRASH("unhandled reflection status");
   }
 }
 
-bool
+JSBool
 JSHistogram_Clear(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
-    return false;
+    return JS_FALSE;
   }
 
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
   h->Clear();
-  return true;
+  return JS_TRUE;
 }
 
-nsresult
+nsresult 
 WrapAndReturnHistogram(Histogram *h, JSContext *cx, JS::Value *ret)
 {
   static JSClass JSHistogram_class = {

@@ -44,13 +44,13 @@ static bool Reify(JSContext *cx, HandleObject type, HandleObject owner,
 static bool ConvertAndCopyTo(JSContext *cx, HandleObject type,
                              HandleValue from, uint8_t *mem);
 
-static bool
+static JSBool
 TypeThrowError(JSContext *cx, unsigned argc, Value *vp)
 {
     return ReportIsNotFunction(cx, *vp);
 }
 
-static bool
+static JSBool
 DataThrowError(JSContext *cx, unsigned argc, Value *vp)
 {
     return ReportIsNotFunction(cx, *vp);
@@ -401,7 +401,7 @@ NumericType<T>::convert(JSContext *cx, HandleValue val, T* converted)
 }
 
 template <typename T>
-bool
+JSBool
 NumericType<T>::call(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -426,7 +426,7 @@ NumericType<T>::call(JSContext *cx, unsigned argc, Value *vp)
 }
 
 template<unsigned int N>
-bool
+JSBool
 NumericTypeToString(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -718,7 +718,7 @@ ArrayType::create(JSContext *cx, HandleObject arrayTypeGlobal,
     return obj;
 }
 
-bool
+JSBool
 ArrayType::construct(JSContext *cx, unsigned argc, Value *vp)
 {
     if (!JS_IsConstructing(cx, vp)) {
@@ -755,7 +755,7 @@ ArrayType::construct(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 DataInstanceUpdate(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -813,7 +813,7 @@ FillBinaryArrayWithValue(JSContext *cx, HandleObject array, HandleValue val)
     return true;
 }
 
-bool
+JSBool
 ArrayType::repeat(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -845,7 +845,7 @@ ArrayType::repeat(JSContext *cx, unsigned int argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 ArrayType::toString(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -938,7 +938,7 @@ BinaryArray::create(JSContext *cx, HandleObject type,
     return obj;
 }
 
-bool
+JSBool
 BinaryArray::construct(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -981,7 +981,7 @@ BinaryArray::obj_trace(JSTracer *tracer, JSObject *obj)
     }
 }
 
-bool
+JSBool
 BinaryArray::lengthGetter(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1013,8 +1013,7 @@ BinaryArray::lengthGetter(JSContext *cx, unsigned int argc, Value *vp)
  * see: http://www.khronos.org/registry/typedarray/specs/latest/#7
  *
  */
-bool
-BinaryArray::subarray(JSContext *cx, unsigned int argc, Value *vp)
+JSBool BinaryArray::subarray(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1087,7 +1086,7 @@ BinaryArray::subarray(JSContext *cx, unsigned int argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 BinaryArray::fill(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1682,7 +1681,7 @@ StructType::create(JSContext *cx, HandleObject structTypeGlobal,
     return obj;
 }
 
-bool
+JSBool
 StructType::construct(JSContext *cx, unsigned int argc, Value *vp)
 {
     if (!JS_IsConstructing(cx, vp)) {
@@ -1727,7 +1726,7 @@ StructType::trace(JSTracer *tracer, JSObject *obj)
     }
 }
 
-bool
+JSBool
 StructType::toString(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1824,7 +1823,7 @@ BinaryStruct::create(JSContext *cx, HandleObject type,
     return obj;
 }
 
-bool
+JSBool
 BinaryStruct::construct(JSContext *cx, unsigned int argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

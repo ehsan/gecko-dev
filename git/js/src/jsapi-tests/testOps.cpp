@@ -26,7 +26,7 @@ static JSClass myClass = {
     JS_EnumerateStub, JS_ResolveStub, my_convert
 };
 
-static bool
+static JSBool
 createMyObject(JSContext* context, unsigned argc, jsval *vp)
 {
     JS_BeginRequest(context);

@@ -2329,7 +2329,6 @@ nsXULPrototypeElement::Unlink()
     mNumAttributes = 0;
     delete[] mAttributes;
     mAttributes = nullptr;
-    mChildren.Clear();
 }
 
 void

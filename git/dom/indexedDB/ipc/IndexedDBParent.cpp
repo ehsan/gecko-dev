@@ -1517,17 +1517,18 @@ IndexedDBObjectStoreRequestParent::GetAll(const GetAllParams& aParams)
 
   nsRefPtr<IDBRequest> request;
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1655,17 +1656,18 @@ IndexedDBObjectStoreRequestParent::Count(const CountParams& aParams)
   MOZ_ASSERT(mRequestType == ParamsUnionType::TCountParams);
   MOZ_ASSERT(mObjectStore);
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1693,17 +1695,18 @@ IndexedDBObjectStoreRequestParent::OpenCursor(const OpenCursorParams& aParams)
   MOZ_ASSERT(mRequestType == ParamsUnionType::TOpenCursorParams);
   MOZ_ASSERT(mObjectStore);
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1813,17 +1816,18 @@ IndexedDBIndexRequestParent::GetAll(const GetAllParams& aParams)
 
   nsRefPtr<IDBRequest> request;
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_index::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1851,17 +1855,18 @@ IndexedDBIndexRequestParent::GetAllKeys(const GetAllKeysParams& aParams)
 
   nsRefPtr<IDBRequest> request;
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_index::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1887,17 +1892,18 @@ IndexedDBIndexRequestParent::Count(const CountParams& aParams)
   MOZ_ASSERT(mRequestType == ParamsUnionType::TCountParams);
   MOZ_ASSERT(mIndex);
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_index::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1925,17 +1931,18 @@ IndexedDBIndexRequestParent::OpenCursor(const OpenCursorParams& aParams)
   MOZ_ASSERT(mRequestType == ParamsUnionType::TOpenCursorParams);
   MOZ_ASSERT(mIndex);
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_index::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::Tvoid_t:
       break;
 
     default:
@@ -1965,17 +1972,18 @@ IndexedDBIndexRequestParent::OpenKeyCursor(const OpenKeyCursorParams& aParams)
   MOZ_ASSERT(mRequestType == ParamsUnionType::TOpenKeyCursorParams);
   MOZ_ASSERT(mIndex);
 
-  const ipc::OptionalKeyRange keyRangeUnion = aParams.optionalKeyRange();
+  const ipc::FIXME_Bug_521898_index::OptionalKeyRange keyRangeUnion =
+    aParams.optionalKeyRange();
 
   nsRefPtr<IDBKeyRange> keyRange;
 
   switch (keyRangeUnion.type()) {
-    case ipc::OptionalKeyRange::TKeyRange:
+    case ipc::FIXME_Bug_521898_index::OptionalKeyRange::TKeyRange:
       keyRange =
         IDBKeyRange::FromSerializedKeyRange(keyRangeUnion.get_KeyRange());
       break;
 
-    case ipc::OptionalKeyRange::Tvoid_t:
+    case ipc::FIXME_Bug_521898_objectstore::OptionalKeyRange::Tvoid_t:
       break;
 
     default:

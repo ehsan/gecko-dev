@@ -16,7 +16,7 @@ using namespace js;
 
 JSScript *found = NULL;
 
-bool
+JSBool
 CheckEnclosing(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

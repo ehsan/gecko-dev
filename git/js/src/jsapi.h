@@ -3792,7 +3792,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp);
  * make any array-like object iterable. Just give the object an obj.iterator()
  * method using this JSNative as the implementation.
  */
-extern JS_PUBLIC_API(bool)
+extern JS_PUBLIC_API(JSBool)
 JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)

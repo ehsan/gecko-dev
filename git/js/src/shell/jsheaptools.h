@@ -11,7 +11,7 @@
 
 #include "jsapi.h"
 
-bool FindReferences(JSContext *cx, unsigned argc, jsval *vp);
+JSBool FindReferences(JSContext *cx, unsigned argc, jsval *vp);
 
 #endif /* DEBUG */
 

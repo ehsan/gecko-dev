@@ -26,7 +26,7 @@ using namespace JS;
 
 using mozilla::ArrayLength;
 
-static bool
+static JSBool
 GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 {
     RootedObject info(cx, JS_NewObject(cx, NULL, NULL, NULL));
@@ -190,7 +190,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 GC(JSContext *cx, unsigned argc, jsval *vp)
 {
     /*
@@ -233,7 +233,7 @@ GC(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 MinorGC(JSContext *cx, unsigned argc, jsval *vp)
 {
 #ifdef JSGC_GENERATIONAL
@@ -259,7 +259,7 @@ static const struct ParamPair {
     {"markStackLimit",      JSGC_MARK_STACK_LIMIT}
 };
 
-static bool
+static JSBool
 GCParameter(JSContext *cx, unsigned argc, jsval *vp)
 {
     JSString *str;
@@ -269,7 +269,7 @@ GCParameter(JSContext *cx, unsigned argc, jsval *vp)
     } else {
         str = JS_ValueToString(cx, vp[2]);
         if (!str)
-            return false;
+            return JS_FALSE;
         vp[2] = STRING_TO_JSVAL(str);
     }
 
@@ -328,7 +328,7 @@ GCParameter(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 IsProxy(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -344,7 +344,7 @@ IsProxy(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 InternalConst(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc != 1) {
@@ -368,7 +368,7 @@ InternalConst(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 GCPreserveCode(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -376,17 +376,17 @@ GCPreserveCode(JSContext *cx, unsigned argc, jsval *vp)
     if (argc != 0) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
+        return JS_FALSE;
     }
 
     cx->runtime()->alwaysPreserveCode = true;
 
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
 #ifdef JS_GC_ZEAL
-static bool
+static JSBool
 GCZeal(JSContext *cx, unsigned argc, jsval *vp)
 {
     uint32_t zeal, frequency = JS_DEFAULT_ZEAL_FREQ;
@@ -395,20 +395,20 @@ GCZeal(JSContext *cx, unsigned argc, jsval *vp)
     if (argc > 2) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Too many arguments");
-        return false;
+        return JS_FALSE;
     }
     if (!JS_ValueToECMAUint32(cx, argc < 1 ? JSVAL_VOID : args[0], &zeal))
-        return false;
+        return JS_FALSE;
     if (argc >= 2)
         if (!JS_ValueToECMAUint32(cx, args[1], &frequency))
-            return false;
+            return JS_FALSE;
 
     JS_SetGCZeal(cx, (uint8_t)zeal, frequency);
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 ScheduleGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -416,7 +416,7 @@ ScheduleGC(JSContext *cx, unsigned argc, jsval *vp)
     if (argc != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
+        return JS_FALSE;
     }
 
     if (args[0].isInt32()) {
@@ -432,10 +432,10 @@ ScheduleGC(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 SelectForGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     JSRuntime *rt = cx->runtime();
@@ -452,7 +452,7 @@ SelectForGC(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 VerifyPreBarriers(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -460,27 +460,27 @@ VerifyPreBarriers(JSContext *cx, unsigned argc, jsval *vp)
     if (argc) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Too many arguments");
-        return false;
+        return JS_FALSE;
     }
     gc::VerifyBarriers(cx->runtime(), gc::PreBarrierVerifier);
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 VerifyPostBarriers(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc) {
         RootedObject callee(cx, &JS_CALLEE(cx, vp).toObject());
         ReportUsageError(cx, callee, "Too many arguments");
-        return false;
+        return JS_FALSE;
     }
     gc::VerifyBarriers(cx->runtime(), gc::PostBarrierVerifier);
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 GCState(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -509,7 +509,7 @@ GCState(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 DeterministicGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -517,16 +517,16 @@ DeterministicGC(JSContext *cx, unsigned argc, jsval *vp)
     if (argc != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
+        return JS_FALSE;
     }
 
     gc::SetDeterministicGC(cx, ToBoolean(vp[2]));
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 #endif /* JS_GC_ZEAL */
 
-static bool
+static JSBool
 GCSlice(JSContext *cx, unsigned argc, jsval *vp)
 {
     bool limit = true;
@@ -536,7 +536,7 @@ GCSlice(JSContext *cx, unsigned argc, jsval *vp)
     if (argc > 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
+        return JS_FALSE;
     }
 
     if (argc == 1) {
@@ -548,10 +548,10 @@ GCSlice(JSContext *cx, unsigned argc, jsval *vp)
 
     GCDebugSlice(cx->runtime(), limit, budget);
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 ValidateGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -559,15 +559,15 @@ ValidateGC(JSContext *cx, unsigned argc, jsval *vp)
     if (argc != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
+        return JS_FALSE;
     }
 
     gc::SetValidateGC(cx, ToBoolean(vp[2]));
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 FullCompartmentChecks(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -575,16 +575,16 @@ FullCompartmentChecks(JSContext *cx, unsigned argc, jsval *vp)
     if (argc != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
-        return false;
+        return JS_FALSE;
     }
 
     gc::SetFullCompartmentChecks(cx, ToBoolean(vp[2]));
     *vp = JSVAL_VOID;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
-NondeterministicGetWeakMapKeys(JSContext *cx, unsigned argc, jsval *vp)
+static JSBool
+NondeterminsticGetWeakMapKeys(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -673,7 +673,7 @@ static const struct TraceKindPair {
     { "string",     JSTRACE_STRING      },
 };
 
-static bool
+static JSBool
 CountHeap(JSContext *cx, unsigned argc, jsval *vp)
 {
     jsval v;
@@ -692,7 +692,7 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
             JS_ReportError(cx,
                            "the first argument is not null or a heap-allocated "
                            "thing");
-            return false;
+            return JS_FALSE;
         }
     }
 
@@ -700,10 +700,10 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     if (argc > 1) {
         str = JS_ValueToString(cx, JS_ARGV(cx, vp)[1]);
         if (!str)
-            return false;
+            return JS_FALSE;
         JSFlatString *flatStr = JS_FlattenString(cx, str);
         if (!flatStr)
-            return false;
+            return JS_FALSE;
         for (size_t i = 0; ;) {
             if (JS_FlatStringEqualsAscii(flatStr, traceKindNames[i].name)) {
                 traceKind = traceKindNames[i].kind;
@@ -713,7 +713,7 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
                 JSAutoByteString bytes(cx, str);
                 if (!!bytes)
                     JS_ReportError(cx, "trace kind name '%s' is unknown", bytes.ptr());
-                return false;
+                return JS_FALSE;
             }
         }
     }
@@ -721,7 +721,7 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     JS_TracerInit(&countTracer.base, JS_GetRuntime(cx), CountHeapNotify);
     if (!countTracer.visited.init()) {
         JS_ReportOutOfMemory(cx);
-        return false;
+        return JS_FALSE;
     }
     countTracer.ok = true;
     countTracer.traceList = NULL;
@@ -756,7 +756,7 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 #ifdef DEBUG
-static bool
+static JSBool
 OOMAfterAllocations(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -798,7 +798,7 @@ static JSClass FinalizeCounterClass = {
     finalize_counter_finalize
 };
 
-static bool
+static JSBool
 MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
 {
     RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
@@ -813,14 +813,14 @@ MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 FinalizeCount(JSContext *cx, unsigned argc, jsval *vp)
 {
     *vp = INT_TO_JSVAL(finalizeCount);
     return true;
 }
 
-static bool
+static JSBool
 DumpHeapComplete(JSContext *cx, unsigned argc, jsval *vp)
 {
     const char *fileName = NULL;
@@ -854,14 +854,14 @@ DumpHeapComplete(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 Terminate(JSContext *cx, unsigned arg, jsval *vp)
 {
     JS_ClearPendingException(cx);
-    return false;
+    return JS_FALSE;
 }
 
-static bool
+static JSBool
 EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -882,7 +882,7 @@ EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 DisableSPSProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (cx->runtime()->spsProfiler.installed())
@@ -890,7 +890,7 @@ DisableSPSProfiling(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 DisplayName(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -906,7 +906,7 @@ DisplayName(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-bool
+JSBool
 js::testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp)
 {
     // If we were actually *in* a parallel section, then this function
@@ -933,7 +933,7 @@ ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
     return true;
 }
 
-static bool
+static JSBool
 SetObjectMetadataCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -956,7 +956,7 @@ SetObjectMetadataCallback(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static bool
+static JSBool
 SetObjectMetadata(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -972,7 +972,7 @@ SetObjectMetadata(JSContext *cx, unsigned argc, jsval *vp)
     return SetObjectMetadata(cx, obj, metadata);
 }
 
-static bool
+static JSBool
 GetObjectMetadata(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -985,7 +985,7 @@ GetObjectMetadata(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-bool
+JSBool
 js::testingFunc_bailout(JSContext *cx, unsigned argc, jsval *vp)
 {
     // NOP when not in IonMonkey
@@ -1101,7 +1101,7 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "fullcompartmentchecks(true|false)",
 "  If true, check for compartment mismatches before every GC."),
 
-    JS_FN_HELP("nondeterministicGetWeakMapKeys", NondeterministicGetWeakMapKeys, 1, 0,
+    JS_FN_HELP("nondeterministicGetWeakMapKeys", NondeterminsticGetWeakMapKeys, 1, 0,
 "nondeterministicGetWeakMapKeys(weakmap)",
 "  Return an array of the keys in the given WeakMap."),
 

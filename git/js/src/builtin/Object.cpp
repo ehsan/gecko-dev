@@ -23,7 +23,7 @@ using js::frontend::IsIdentifier;
 using mozilla::ArrayLength;
 
 
-bool
+JSBool
 js::obj_construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -46,7 +46,7 @@ js::obj_construct(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.2.4.7. */
-static bool
+static JSBool
 obj_propertyIsEnumerable(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -88,7 +88,7 @@ obj_propertyIsEnumerable(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 obj_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -283,7 +283,7 @@ JS_BasicObjectToString(JSContext *cx, HandleObject obj)
 }
 
 /* ES5 15.2.4.2.  Note steps 1 and 2 are errata. */
-static bool
+static JSBool
 obj_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -314,7 +314,7 @@ obj_toString(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.2.4.3. */
-static bool
+static JSBool
 obj_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
@@ -331,7 +331,7 @@ obj_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
     return obj->callMethod(cx, id, 0, NULL, args.rval());
 }
 
-static bool
+static JSBool
 obj_valueOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -397,44 +397,44 @@ DefineAccessor(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-JS_FRIEND_API(bool)
+JS_FRIEND_API(JSBool)
 js::obj_defineGetter(JSContext *cx, unsigned argc, Value *vp)
 {
     return DefineAccessor<Getter>(cx, argc, vp);
 }
 
-JS_FRIEND_API(bool)
+JS_FRIEND_API(JSBool)
 js::obj_defineSetter(JSContext *cx, unsigned argc, Value *vp)
 {
     return DefineAccessor<Setter>(cx, argc, vp);
 }
 
-static bool
+static JSBool
 obj_lookupGetter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args.get(0), &id))
-        return false;
+        return JS_FALSE;
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
-        return false;
+        return JS_FALSE;
     if (obj->is<ProxyObject>()) {
         // The vanilla getter lookup code below requires that the object is
         // native. Handle proxies separately.
         args.rval().setUndefined();
         AutoPropertyDescriptorRooter desc(cx);
         if (!Proxy::getPropertyDescriptor(cx, obj, id, &desc, 0))
-            return false;
+            return JS_FALSE;
         if (desc.obj && (desc.attrs & JSPROP_GETTER) && desc.getter)
             args.rval().set(CastAsObjectJsval(desc.getter));
-        return true;
+        return JS_TRUE;
     }
     RootedObject pobj(cx);
     RootedShape shape(cx);
     if (!JSObject::lookupGeneric(cx, obj, id, &pobj, &shape))
-        return false;
+        return JS_FALSE;
     args.rval().setUndefined();
     if (shape) {
         if (pobj->isNative() && !IsImplicitDenseElement(shape)) {
@@ -442,35 +442,35 @@ obj_lookupGetter(JSContext *cx, unsigned argc, Value *vp)
                 args.rval().set(shape->getterValue());
         }
     }
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 obj_lookupSetter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args.get(0), &id))
-        return false;
+        return JS_FALSE;
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
-        return false;
+        return JS_FALSE;
     if (obj->is<ProxyObject>()) {
         // The vanilla setter lookup code below requires that the object is
         // native. Handle proxies separately.
         args.rval().setUndefined();
         AutoPropertyDescriptorRooter desc(cx);
         if (!Proxy::getPropertyDescriptor(cx, obj, id, &desc, 0))
-            return false;
+            return JS_FALSE;
         if (desc.obj && (desc.attrs & JSPROP_SETTER) && desc.setter)
             args.rval().set(CastAsObjectJsval(desc.setter));
-        return true;
+        return JS_TRUE;
     }
     RootedObject pobj(cx);
     RootedShape shape(cx);
     if (!JSObject::lookupGeneric(cx, obj, id, &pobj, &shape))
-        return false;
+        return JS_FALSE;
     args.rval().setUndefined();
     if (shape) {
         if (pobj->isNative() && !IsImplicitDenseElement(shape)) {
@@ -478,12 +478,12 @@ obj_lookupSetter(JSContext *cx, unsigned argc, Value *vp)
                 args.rval().set(shape->setterValue());
         }
     }
-    return true;
+    return JS_TRUE;
 }
 #endif /* OLD_GETTER_SETTER_METHODS */
 
 /* ES5 15.2.3.2. */
-bool
+JSBool
 obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -546,7 +546,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj_, jsid id_, jsval old,
     return true;
 }
 
-static bool
+static JSBool
 obj_watch(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -578,7 +578,7 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
     return JS_SetWatchPoint(cx, obj, propid, obj_watch_handler, callable);
 }
 
-static bool
+static JSBool
 obj_unwatch(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -600,7 +600,7 @@ obj_unwatch(JSContext *cx, unsigned argc, Value *vp)
 #endif /* JS_HAS_OBJ_WATCHPOINT */
 
 /* ECMA 15.2.4.5. */
-static bool
+static JSBool
 obj_hasOwnProperty(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -650,7 +650,7 @@ obj_hasOwnProperty(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.2.4.6. */
-static bool
+static JSBool
 obj_isPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -675,7 +675,7 @@ obj_isPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.2.3.5: Object.create(O [, Properties]) */
-static bool
+static JSBool
 obj_create(JSContext *cx, unsigned argc, Value *vp)
 {
     if (argc == 0) {
@@ -723,20 +723,20 @@ obj_create(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 obj_getOwnPropertyDescriptor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
     if (!GetFirstArgumentAsObject(cx, args, "Object.getOwnPropertyDescriptor", &obj))
-        return false;
+        return JS_FALSE;
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args.get(1), &id))
-        return false;
+        return JS_FALSE;
     return GetOwnPropertyDescriptor(cx, obj, id, args.rval());
 }
 
-static bool
+static JSBool
 obj_keys(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -775,7 +775,7 @@ obj_keys(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES6 draft 15.2.3.16 */
-static bool
+static JSBool
 obj_is(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -788,7 +788,7 @@ obj_is(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 obj_getOwnPropertyNames(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -827,7 +827,7 @@ obj_getOwnPropertyNames(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.2.3.6: Object.defineProperty(O, P, Attributes) */
-static bool
+static JSBool
 obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -837,7 +837,7 @@ obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
 
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args.get(1), &id))
-        return false;
+        return JS_FALSE;
 
     JSBool junk;
     if (!DefineOwnProperty(cx, obj, id, args.get(2), &junk))
@@ -848,7 +848,7 @@ obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.2.3.7: Object.defineProperties(O, Properties) */
-static bool
+static JSBool
 obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -874,7 +874,7 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
     return DefineProperties(cx, obj, props);
 }
 
-static bool
+static JSBool
 obj_isExtensible(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -889,7 +889,7 @@ obj_isExtensible(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -908,7 +908,7 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
     return JSObject::preventExtensions(cx, obj);
 }
 
-static bool
+static JSBool
 obj_freeze(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -921,7 +921,7 @@ obj_freeze(JSContext *cx, unsigned argc, Value *vp)
     return JSObject::freeze(cx, obj);
 }
 
-static bool
+static JSBool
 obj_isFrozen(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -936,7 +936,7 @@ obj_isFrozen(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
+static JSBool
 obj_seal(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -949,7 +949,7 @@ obj_seal(JSContext *cx, unsigned argc, Value *vp)
     return JSObject::seal(cx, obj);
 }
 
-static bool
+static JSBool
 obj_isSealed(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

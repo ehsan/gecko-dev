@@ -540,7 +540,7 @@ ReferenceFinder::findReferences(HandleObject target)
 }
 
 /* See help(findReferences). */
-bool
+JSBool
 FindReferences(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc < 1) {

@@ -45,48 +45,48 @@ GETTER(eventsMeasured)
 
 // Calls
 
-static bool
+static JSBool
 pm_start(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     p->start();
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 pm_stop(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     p->stop();
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 pm_reset(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     p->reset();
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 pm_canMeasureSomething(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(p->canMeasureSomething()));
-    return true;
+    return JS_TRUE;
 }
 
 const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT;
@@ -150,7 +150,7 @@ static const struct pm_const {
 
 #undef CONSTANT
 
-static bool pm_construct(JSContext* cx, unsigned argc, jsval* vp);
+static JSBool pm_construct(JSContext* cx, unsigned argc, jsval* vp);
 static void pm_finalize(JSFreeOp* fop, JSObject* obj);
 
 static JSClass pm_class = {
@@ -161,29 +161,29 @@ static JSClass pm_class = {
 
 // Constructor and destructor
 
-static bool
+static JSBool
 pm_construct(JSContext* cx, unsigned argc, jsval* vp)
 {
     uint32_t mask;
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
-        return false;
+        return JS_FALSE;
 
     JS::RootedObject obj(cx, JS_NewObjectForConstructor(cx, &pm_class, vp));
     if (!obj)
-        return false;
+        return JS_FALSE;
 
     if (!JS_FreezeObject(cx, obj))
-        return false;
+        return JS_FALSE;
 
     PerfMeasurement* p = cx->new_<PerfMeasurement>(PerfMeasurement::EventMask(mask));
     if (!p) {
         JS_ReportOutOfMemory(cx);
-        return false;
+        return JS_FALSE;
     }
 
     JS_SetPrivate(obj, p);
     *vp = OBJECT_TO_JSVAL(obj);
-    return true;
+    return JS_TRUE;
 }
 
 static void

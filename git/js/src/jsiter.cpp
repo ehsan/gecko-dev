@@ -742,7 +742,7 @@ js_ThrowStopIteration(JSContext *cx)
 
 /*** Iterator objects ****************************************************************************/
 
-bool
+JSBool
 js::IteratorConstructor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -786,7 +786,7 @@ iterator_next_impl(JSContext *cx, CallArgs args)
     return js_IteratorNext(cx, thisObj, args.rval());
 }
 
-static bool
+static JSBool
 iterator_iterator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -794,7 +794,7 @@ iterator_iterator(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 iterator_next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -881,7 +881,7 @@ IsElementIterator(const Value &v)
     return v.isObject() && v.toObject().is<ElementIteratorObject>();
 }
 
-bool
+JSBool
 ElementIteratorObject::next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1668,7 +1668,7 @@ generator_send_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 generator_send(JSContext *cx, unsigned argc, Value *vp)
 {
     // FIXME: send() is only a method on legacy generator objects.
@@ -1696,7 +1696,7 @@ generator_next_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 generator_next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1724,7 +1724,7 @@ generator_throw_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 generator_throw(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1759,7 +1759,7 @@ generator_close_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-bool
+JSBool
 generator_close(JSContext *cx, unsigned argc, Value *vp)
 {
     // FIXME: close() is only a method on legacy generator objects.
