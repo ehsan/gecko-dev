@@ -217,7 +217,6 @@ class AbstractFramePtr
 
     inline bool prevUpToDate() const;
     inline void setPrevUpToDate() const;
-    inline void unsetPrevUpToDate() const;
 
     inline bool isDebuggee() const;
     inline void setIsDebuggee();
@@ -832,10 +831,6 @@ class InterpreterFrame
 
     void setPrevUpToDate() {
         flags_ |= PREV_UP_TO_DATE;
-    }
-
-    void unsetPrevUpToDate() {
-        flags_ &= ~PREV_UP_TO_DATE;
     }
 
     bool isDebuggee() const {

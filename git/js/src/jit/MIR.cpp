@@ -753,9 +753,6 @@ MConstant::printOpcode(FILE *fp) const
         fprintf(fp, "object %p (%s)", (void *)&value().toObject(),
                 value().toObject().getClass()->name);
         break;
-      case MIRType_Symbol:
-        fprintf(fp, "symbol at %p", (void *)value().toSymbol());
-        break;
       case MIRType_String:
         fprintf(fp, "string %p", (void *)value().toString());
         break;

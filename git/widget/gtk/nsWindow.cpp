@@ -123,8 +123,6 @@ extern "C" {
 #include "NativeKeyBindings.h"
 #include "nsWindow.h"
 
-#include "mozilla/layers/APZCTreeManager.h"
-
 using namespace mozilla;
 using namespace mozilla::gfx;
 using namespace mozilla::widget;
@@ -3158,19 +3156,8 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
 
     wheelEvent.time = aEvent->time;
 
-    if (mAPZC) {
-        uint64_t inputBlockId = 0;
-        ScrollableLayerGuid guid;
-
-        nsEventStatus result = mAPZC->ReceiveInputEvent(*wheelEvent.AsWheelEvent(), &guid, &inputBlockId);
-        if (result == nsEventStatus_eConsumeNoDefault) {
-            return;
-        }
-        DispatchEventForAPZ(&wheelEvent, guid, inputBlockId);
-    } else {
-        nsEventStatus status;
-        DispatchEvent(&wheelEvent, status);
-    }
+    nsEventStatus status;
+    DispatchEvent(&wheelEvent, status);
 }
 
 void

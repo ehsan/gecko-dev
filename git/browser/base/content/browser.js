@@ -1095,6 +1095,9 @@ var gBrowserInit = {
     socialBrowser.addEventListener("MozApplicationManifest",
                               OfflineApps, false);
 
+    let uriToLoad = this._getUriToLoad();
+    var isLoadingBlank = isBlankPageURL(uriToLoad);
+
     // This pageshow listener needs to be registered before we may call
     // swapBrowsersAndCloseOther() to receive pageshow events fired by that.
     let mm = window.messageManager;
@@ -1132,7 +1135,6 @@ var gBrowserInit = {
       SessionStore.reviveCrashedTab(tab);
     }, false, true);
 
-    let uriToLoad = this._getUriToLoad();
     if (uriToLoad && uriToLoad != "about:blank") {
       if (uriToLoad instanceof Ci.nsISupportsArray) {
         let count = uriToLoad.Count();
@@ -1217,10 +1219,8 @@ var gBrowserInit = {
 
     UpdateUrlbarSearchSplitterState();
 
-    if (!(isBlankPageURL(uriToLoad) || uriToLoad == "about:privatebrowsing") ||
-        !focusAndSelectUrlBar()) {
+    if (!isLoadingBlank || !focusAndSelectUrlBar())
       gBrowser.selectedBrowser.focus();
-    }
 
     // Set up Sanitize Item
     this._initializeSanitizer();

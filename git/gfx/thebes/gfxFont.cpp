@@ -2114,23 +2114,6 @@ NeedsGlyphExtents(gfxFont *aFont, gfxTextRun *aTextRun)
         aFont->GetFontEntry()->IsUserFont();
 }
 
-bool
-gfxFont::IsSpaceGlyphInvisible(gfxContext *aRefContext, gfxTextRun *aTextRun)
-{
-    if (!mFontEntry->mSpaceGlyphIsInvisibleInitialized &&
-        GetAdjustedSize() >= 1.0) {
-        gfxGlyphExtents *extents =
-            GetOrCreateGlyphExtents(aTextRun->GetAppUnitsPerDevUnit());
-        gfxRect glyphExtents;
-        mFontEntry->mSpaceGlyphIsInvisible =
-            extents->GetTightGlyphExtentsAppUnits(this, eHorizontal,
-                aRefContext, GetSpaceGlyph(), &glyphExtents) &&
-            glyphExtents.IsEmpty();
-        mFontEntry->mSpaceGlyphIsInvisibleInitialized = true;
-    }
-    return mFontEntry->mSpaceGlyphIsInvisible;
-}
-
 gfxFont::RunMetrics
 gfxFont::Measure(gfxTextRun *aTextRun,
                  uint32_t aStart, uint32_t aEnd,
@@ -2206,22 +2189,16 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     if (aSpacing) {
         x += direction*aSpacing[0].mBefore;
     }
-    uint32_t spaceGlyph = GetSpaceGlyph();
-    bool allGlyphsInvisible = true;
     uint32_t i;
     for (i = aStart; i < aEnd; ++i) {
         const gfxTextRun::CompressedGlyph *glyphData = &charGlyphs[i];
         if (glyphData->IsSimpleGlyph()) {
             double advance = glyphData->GetSimpleAdvance();
-            uint32_t glyphIndex = glyphData->GetSimpleGlyph();
-            if (glyphIndex != spaceGlyph ||
-                !IsSpaceGlyphInvisible(aRefContext, aTextRun)) {
-                allGlyphsInvisible = false;
-            }
             // Only get the real glyph horizontal extent if we were asked
             // for the tight bounding box or we're in quality mode
             if ((aBoundingBoxType != LOOSE_INK_EXTENTS || needsGlyphExtents) &&
-                extents){
+                extents) {
+                uint32_t glyphIndex = glyphData->GetSimpleGlyph();
                 uint16_t extentsWidth = extents->GetContainedGlyphWidthAppUnits(glyphIndex);
                 if (extentsWidth != gfxGlyphExtents::INVALID_WIDTH &&
                     aBoundingBoxType == LOOSE_INK_EXTENTS) {
@@ -2244,7 +2221,6 @@ gfxFont::Measure(gfxTextRun *aTextRun,
             }
             x += direction*advance;
         } else {
-            allGlyphsInvisible = false;
             uint32_t glyphCount = glyphData->GetGlyphCount();
             if (glyphCount > 0) {
                 const gfxTextRun::DetailedGlyph *details =
@@ -2285,18 +2261,14 @@ gfxFont::Measure(gfxTextRun *aTextRun,
         }
     }
 
-    if (allGlyphsInvisible) {
-        metrics.mBoundingBox.SetEmpty();
-    } else {
-        if (aBoundingBoxType == LOOSE_INK_EXTENTS) {
-            UnionRange(x, &advanceMin, &advanceMax);
-            gfxRect fontBox(advanceMin, -metrics.mAscent,
-                            advanceMax - advanceMin, metrics.mAscent + metrics.mDescent);
-            metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
-        }
-        if (isRTL) {
-            metrics.mBoundingBox -= gfxPoint(x, 0);
-        }
+    if (aBoundingBoxType == LOOSE_INK_EXTENTS) {
+        UnionRange(x, &advanceMin, &advanceMax);
+        gfxRect fontBox(advanceMin, -metrics.mAscent,
+                        advanceMax - advanceMin, metrics.mAscent + metrics.mDescent);
+        metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
+    }
+    if (isRTL) {
+        metrics.mBoundingBox -= gfxPoint(x, 0);
     }
 
     // If the font may be rendered with a fake-italic effect, we need to allow

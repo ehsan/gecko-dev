@@ -11,7 +11,6 @@
 #include "mozilla/a11y/DocManager.h"
 #include "mozilla/a11y/FocusManager.h"
 #include "mozilla/a11y/SelectionManager.h"
-#include "mozilla/Preferences.h"
 
 #include "nsIObserver.h"
 
@@ -255,8 +254,7 @@ IPCAccessibilityActive()
 #ifdef MOZ_B2G
   return false;
 #else
-  return XRE_GetProcessType() == GeckoProcessType_Content &&
-    mozilla::Preferences::GetBool("accessibility.ipc_architecture.enabled", true);
+  return XRE_GetProcessType() == GeckoProcessType_Content;
 #endif
 }
 

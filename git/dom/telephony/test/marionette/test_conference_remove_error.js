@@ -16,12 +16,10 @@ function handleConferenceRemoveError(callToRemove) {
     is(evt.name, 'removeError', 'conference removeError');
 
     deferred.resolve();
-  };
+  }
+  conference.remove(callToRemove);
 
-  return conference.remove(callToRemove)
-    .then(() => ok(false, "|conference.remove()| should be rejected"),
-          () => log("|conference.remove()| is rejected as expected"))
-    .then(() => deferred.promise);
+  return deferred.promise;
 }
 
 function testConferenceRemoveError() {

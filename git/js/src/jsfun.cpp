@@ -870,7 +870,7 @@ CreateFunctionPrototype(JSContext *cx, JSProtoKey key)
     if (!protoType)
         return nullptr;
 
-    protoType->setInterpretedFunction(functionProto);
+    protoType->interpretedFunction = functionProto;
     script->setFunction(functionProto);
 
     /*

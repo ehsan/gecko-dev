@@ -507,7 +507,6 @@ void TextureClient::ForceRemove()
 {
   if (mValid && mActor) {
     if (GetFlags() & TextureFlags::DEALLOCATE_CLIENT) {
-      MOZ_PERFORMANCE_WARNING("gfx", "TextureClient/Host pair requires synchronous deallocation");
       if (mActor->IPCOpen()) {
         mActor->SendClearTextureHostSync();
         mActor->SendRemoveTexture();

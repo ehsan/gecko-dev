@@ -1121,7 +1121,7 @@ HandleError(JSContext *cx, InterpreterRegs &regs)
             if (exception.isMagic(JS_GENERATOR_CLOSING)) {
                 cx->clearPendingException();
                 ok = true;
-                SetReturnValueForClosingGenerator(cx, regs.fp());
+                regs.fp()->clearReturnValue();
             }
         }
     } else {

@@ -202,8 +202,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mAmpleVideoFrames(2),
   mLowAudioThresholdUsecs(LOW_AUDIO_USECS),
   mAmpleAudioThresholdUsecs(AMPLE_AUDIO_USECS),
-  mIsAudioPrerolling(false),
-  mIsVideoPrerolling(false),
   mAudioRequestStatus(RequestStatus::Idle),
   mVideoRequestStatus(RequestStatus::Idle),
   mAudioCaptured(false),
@@ -614,20 +612,15 @@ MediaDecoderStateMachine::NeedToSkipToNextKeyframe()
   // data to decode. If we're running low on downloaded data to decode,
   // we won't start keyframe skipping, as we'll be pausing playback to buffer
   // soon anyway and we'll want to be able to display frames immediately
-  // after buffering finishes. We ignore the low audio calculations for
-  // readers that are async, as since their audio decode runs on a different
-  // task queue it should never run low and skipping won't help their decode.
-  bool isLowOnDecodedAudio = !mReader->IsAsync() &&
-                             !mIsAudioPrerolling && IsAudioDecoding() &&
+  // after buffering finishes.
+  bool isLowOnDecodedAudio = !mIsAudioPrerolling && IsAudioDecoding() &&
                              (GetDecodedAudioDuration() <
                               mLowAudioThresholdUsecs * mPlaybackRate);
   bool isLowOnDecodedVideo = !mIsVideoPrerolling &&
                              (mDecodedVideoEndTime - GetClock() <
                               LOW_VIDEO_THRESHOLD_USECS * mPlaybackRate);
-  bool lowUndecoded = HasLowUndecodedData();
-  if ((isLowOnDecodedAudio || isLowOnDecodedVideo) && !lowUndecoded) {
-    DECODER_LOG("Skipping video decode to the next keyframe lowAudio=%d lowVideo=%d lowUndecoded=%d async=%d",
-                isLowOnDecodedAudio, isLowOnDecodedVideo, lowUndecoded, mReader->IsAsync());
+  if ((isLowOnDecodedAudio || isLowOnDecodedVideo) && !HasLowUndecodedData()) {
+    DECODER_LOG("Skipping video decode to the next keyframe");
     return true;
   }
 
@@ -1001,14 +994,10 @@ MediaDecoderStateMachine::OnVideoDecoded(VideoData* aVideoSample)
         StopPrerollingVideo();
       }
 
-      // For non async readers, if the requested video sample was slow to
-      // arrive, increase the amount of audio we buffer to ensure that we
-      // don't run out of audio. This is unnecessary for async readers,
-      // since they decode audio and video on different threads so they
-      // are unlikely to run out of decoded audio.
-      if (mReader->IsAsync()) {
-        return;
-      }
+      // If the requested video sample was slow to arrive, increase the
+      // amount of audio we buffer to ensure that we don't run out of audio.
+      // TODO: Detect when we're truly async, and don't do this if so, as
+      // it's not necessary.
       TimeDuration decodeTime = TimeStamp::Now() - mVideoDecodeStartTime;
       if (THRESHOLD_FACTOR * DurationToUsecs(decodeTime) > mLowAudioThresholdUsecs &&
           !HasLowUndecodedData())
@@ -1200,13 +1189,7 @@ void MediaDecoderStateMachine::SetSyncPointForMediaStream()
   }
 
   mSyncPointInMediaStream = stream->GetLastOutputTime();
-  TimeDuration timeSincePlayStart = mPlayStartTime.IsNull() ? TimeDuration(0) :
-                                    TimeStamp::Now() - mPlayStartTime;
-  mSyncPointInDecodedStream = mStartTime + mPlayDuration +
-                              timeSincePlayStart.ToMicroseconds();
-
-  DECODER_LOG("SetSyncPointForMediaStream MediaStream=%lldus, DecodedStream=%lldus",
-              mSyncPointInMediaStream, mSyncPointInDecodedStream);
+  mSyncPointInDecodedStream = mStartTime + mPlayDuration;
 }
 
 void MediaDecoderStateMachine::ResyncMediaStreamClock()
@@ -1370,13 +1353,6 @@ void MediaDecoderStateMachine::SetAudioCaptured(bool aCaptured)
     // If mStopAudioThread is true then we're already stopping the audio sink
     // and since we set mAudioCaptured to true, nothing can start it again.
     ScheduleStateMachine();
-
-    if (HasAudio()) {
-      // The audio clock is active so force a resync now in case the audio
-      // clock is ahead of us (observed on Android), since after mAudioCaptured
-      // gets set can't call GetAudioClock().
-      ResyncAudioClock();
-    }
   }
   mAudioCaptured = aCaptured;
 }
@@ -1466,15 +1442,6 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
   DECODER_LOG("SetDormant=%d", aDormant);
 
   if (aDormant) {
-    if (mState == DECODER_STATE_SEEKING && !mQueuedSeekTarget.IsValid()) {
-      if (mSeekTarget.IsValid()) {
-        mQueuedSeekTarget = mSeekTarget;
-      } else if (mCurrentSeekTarget.IsValid()) {
-        mQueuedSeekTarget = mCurrentSeekTarget;
-      }
-    }
-    mSeekTarget.Reset();
-    mCurrentSeekTarget.Reset();
     ScheduleStateMachine();
     SetState(DECODER_STATE_DORMANT);
     mDecoder->GetReentrantMonitor().NotifyAll();
@@ -2949,15 +2916,16 @@ int64_t MediaDecoderStateMachine::GetClock() const
   int64_t clock_time = -1;
   if (!IsPlaying()) {
     clock_time = mPlayDuration + mStartTime;
+  } else if (mDecoder->GetDecodedStream()) {
+    clock_time = GetCurrentTimeViaMediaStreamSync();
   } else {
-    if (mDecoder->GetDecodedStream()) {
-      clock_time = GetCurrentTimeViaMediaStreamSync();
-    } else if (HasAudio() && !mAudioCompleted && !mAudioCaptured) {
+    if (HasAudio() && !mAudioCompleted && !mAudioCaptured) {
       clock_time = GetAudioClock();
     } else {
       // Audio is disabled on this system. Sync to the system clock.
       clock_time = GetVideoStreamPosition();
     }
+    // FIXME: This assertion should also apply the case of decoding to a stream.
     // Ensure the clock can never go backwards.
     NS_ASSERTION(GetMediaTime() <= clock_time || mPlaybackRate <= 0,
       "Clock should go forwards if the playback rate is > 0.");
@@ -2981,14 +2949,6 @@ void MediaDecoderStateMachine::AdvanceFrame()
   // state, per spec.
   if (mPlaybackRate == 0.0) {
     return;
-  }
-
-  DecodedStreamData* stream = mDecoder->GetDecodedStream();
-  if (stream && !stream->mStreamInitialized) {
-    // Output streams exist but are not initialized yet.
-    // Send the data we already have to allow stream clock to progress and
-    // avoid stalling playback.
-    SendStreamData();
   }
 
   const int64_t clock_time = GetClock();

@@ -204,9 +204,9 @@ WebSocketChannelChild::OnStart(const nsCString& aProtocol,
   mEffectiveURL = aEffectiveURL;
   mEncrypted = aEncrypted;
 
-  if (mListenerMT) {
+  if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    mListenerMT->mListener->OnStart(mListenerMT->mContext);
+    mListener->OnStart(mContext);
   }
 }
 
@@ -246,9 +246,9 @@ void
 WebSocketChannelChild::OnStop(const nsresult& aStatusCode)
 {
   LOG(("WebSocketChannelChild::RecvOnStop() %p\n", this));
-  if (mListenerMT) {
+  if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    mListenerMT->mListener->OnStop(mListenerMT->mContext, aStatusCode);
+    mListener->OnStop(mContext, aStatusCode);
   }
 }
 
@@ -295,9 +295,9 @@ void
 WebSocketChannelChild::OnMessageAvailable(const nsCString& aMsg)
 {
   LOG(("WebSocketChannelChild::RecvOnMessageAvailable() %p\n", this));
-  if (mListenerMT) {
+  if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    mListenerMT->mListener->OnMessageAvailable(mListenerMT->mContext, aMsg);
+    mListener->OnMessageAvailable(mContext, aMsg);
   }
 }
 
@@ -319,10 +319,9 @@ void
 WebSocketChannelChild::OnBinaryMessageAvailable(const nsCString& aMsg)
 {
   LOG(("WebSocketChannelChild::RecvOnBinaryMessageAvailable() %p\n", this));
-  if (mListenerMT) {
+  if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    mListenerMT->mListener->OnBinaryMessageAvailable(mListenerMT->mContext,
-                                                     aMsg);
+    mListener->OnBinaryMessageAvailable(mContext, aMsg);
   }
 }
 
@@ -362,9 +361,9 @@ void
 WebSocketChannelChild::OnAcknowledge(const uint32_t& aSize)
 {
   LOG(("WebSocketChannelChild::RecvOnAcknowledge() %p\n", this));
-  if (mListenerMT) {
+  if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    mListenerMT->mListener->OnAcknowledge(mListenerMT->mContext, aSize);
+    mListener->OnAcknowledge(mContext, aSize);
   }
 }
 
@@ -410,10 +409,9 @@ WebSocketChannelChild::OnServerClose(const uint16_t& aCode,
                                      const nsCString& aReason)
 {
   LOG(("WebSocketChannelChild::RecvOnServerClose() %p\n", this));
-  if (mListenerMT) {
+  if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    mListenerMT->mListener->OnServerClose(mListenerMT->mContext, aCode,
-                                          aReason);
+    mListener->OnServerClose(mContext, aCode, aReason);
   }
 }
 
@@ -426,7 +424,7 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   LOG(("WebSocketChannelChild::AsyncOpen() %p\n", this));
 
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-  NS_ABORT_IF_FALSE(aURI && aListener && !mListenerMT,
+  NS_ABORT_IF_FALSE(aURI && aListener && !mListener, 
                     "Invalid state for WebSocketChannelChild::AsyncOpen");
 
   mozilla::dom::TabChild* tabChild = nullptr;
@@ -456,7 +454,8 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
 
   mOriginalURI = aURI;
   mURI = mOriginalURI;
-  mListenerMT = new ListenerAndContextContainer(aListener, aContext);
+  mListener = aListener;
+  mContext = aContext;
   mOrigin = aOrigin;
   mWasOpened = 1;
 

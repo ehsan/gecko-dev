@@ -1477,6 +1477,8 @@ jit::JitActivation::clearRematerializedFrames()
 jit::RematerializedFrame *
 jit::JitActivation::getRematerializedFrame(JSContext *cx, const JitFrameIterator &iter, size_t inlineDepth)
 {
+    // Only allow rematerializing from the same thread.
+    MOZ_ASSERT(cx->perThreadData == cx_->perThreadData);
     MOZ_ASSERT(iter.activation() == this);
     MOZ_ASSERT(iter.isIonScripted());
 
@@ -1513,10 +1515,6 @@ jit::JitActivation::getRematerializedFrame(JSContext *cx, const JitFrameIterator
         {
             return nullptr;
         }
-
-        // All frames younger than the rematerialized frame need to have their
-        // prevUpToDate flag cleared.
-        DebugScopes::unsetPrevUpToDateUntil(cx, p->value()[inlineDepth]);
     }
 
     return p->value()[inlineDepth];

@@ -567,7 +567,7 @@ let Histogram = {
    * @return Unpacked histogram representation
    */
   unpack: function Histogram_unpack(aHgram) {
-    let sample_count = aHgram.counts.reduceRight((a, b) => a + b);
+    let sample_count = aHgram.counts.reduceRight(function (a, b) a + b);
     let buckets = [0, 1];
     if (aHgram.histogram_type != Telemetry.HISTOGRAM_BOOLEAN) {
       buckets = aHgram.ranges;
@@ -964,6 +964,7 @@ function setupListeners() {
       LateWritesSingleton.renderLateWrites(ping.lateWrites);
   }, false);
 
+
   // Clicking on the section name will toggle its state
   let sectionHeaders = document.getElementsByClassName("section-name");
   for (let sectionHeader of sectionHeaders) {
@@ -976,6 +977,7 @@ function setupListeners() {
     toggleLink.addEventListener("click", toggleSection, false);
   }
 }
+
 
 function onLoad() {
   window.removeEventListener("load", onLoad);

@@ -296,13 +296,12 @@ IonBuilder::getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constr
         if (!obj) {
             types::TypeObject *typeObj = calleeTypes->getTypeObject(i);
             MOZ_ASSERT(typeObj);
-            obj = typeObj->maybeInterpretedFunction();
-
-            if (!obj) {
+            if (!typeObj->interpretedFunction) {
                 targets.clear();
                 return true;
             }
 
+            obj = typeObj->interpretedFunction;
             *gotLambda = true;
         }
 
