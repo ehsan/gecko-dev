@@ -5,23 +5,6 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/service.js");
 
 function run_test() {
-  run_next_test();
-}
-
-function PetrolEngine() {}
-PetrolEngine.prototype.name = "petrol";
-
-function DieselEngine() {}
-DieselEngine.prototype.name = "diesel";
-
-function DummyEngine() {}
-DummyEngine.prototype.name = "dummy";
-
-function ActualEngine() {}
-ActualEngine.prototype = {__proto__: Engine.prototype,
-                          name: 'actual'};
-
-add_test(function test_basics() {
   _("We start out with a clean slate");
 
   let manager = new EngineManager(Service);
@@ -31,6 +14,8 @@ add_test(function test_basics() {
   do_check_eq(manager.get('dummy'), undefined);
 
   _("Register an engine");
+  function DummyEngine() {}
+  DummyEngine.prototype.name = "dummy";
   manager.register(DummyEngine);
   let dummy = manager.get('dummy');
   do_check_true(dummy instanceof DummyEngine);
@@ -44,6 +29,11 @@ add_test(function test_basics() {
   do_check_eq(manager.get('dummy'), dummy);
 
   _("Register multiple engines in one go");
+  function PetrolEngine() {}
+  PetrolEngine.prototype.name = "petrol";
+  function DieselEngine() {}
+  DieselEngine.prototype.name = "diesel";
+
   manager.register([PetrolEngine, DieselEngine]);
   let petrol = manager.get('petrol');
   let diesel = manager.get('diesel');
@@ -84,6 +74,9 @@ add_test(function test_basics() {
 
   _("Unregister an engine by value");
   // manager.unregister() checks for instanceof Engine, so let's make one:
+  function ActualEngine() {}
+  ActualEngine.prototype = {__proto__: Engine.prototype,
+                            name: 'actual'};
   manager.register(ActualEngine);
   let actual = manager.get('actual');
   do_check_true(actual instanceof ActualEngine);
@@ -91,7 +84,4 @@ add_test(function test_basics() {
 
   manager.unregister(actual);
   do_check_eq(manager.get('actual'), undefined);
-
-  run_next_test();
-});
-
+}

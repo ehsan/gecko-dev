@@ -398,7 +398,7 @@ FxAccountsInternal.prototype = {
   getAssertion: function getAssertion(audience) {
     log.debug("enter getAssertion()");
     let currentState = this.currentAccountState;
-    let mustBeValidUntil = this.now() + ASSERTION_USE_PERIOD;
+    let mustBeValidUntil = this.now() + ASSERTION_LIFETIME;
     return currentState.getUserAccountData().then(data => {
       if (!data) {
         // No signed-in user
@@ -540,7 +540,6 @@ FxAccountsInternal.prototype = {
     let payload = {};
     let d = Promise.defer();
     let options = {
-      duration: ASSERTION_LIFETIME,
       localtimeOffsetMsec: this.localtimeOffsetMsec,
       now: this.now()
     };

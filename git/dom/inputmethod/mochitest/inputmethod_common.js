@@ -1,6 +1,5 @@
 function inputmethod_setup(callback) {
   SimpleTest.waitForExplicitFinish();
-  SimpleTest.requestCompleteLog();
   let appInfo = SpecialPowers.Cc['@mozilla.org/xre/app-info;1']
                 .getService(SpecialPowers.Ci.nsIXULAppInfo);
   if (appInfo.name != 'B2G') {
