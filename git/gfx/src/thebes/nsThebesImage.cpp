@@ -693,12 +693,7 @@ nsThebesImage::Draw(gfxContext*        aContext,
 PRBool
 nsThebesImage::ShouldUseImageSurfaces()
 {
-#if defined(WINCE)
-    // There is no test on windows mobile to check for Gui resources.
-    // Allocate, until we run out of memory.
-    return PR_TRUE;
-
-#elif defined(XP_WIN)
+#ifdef XP_WIN
     static const DWORD kGDIObjectsHighWaterMark = 7000;
 
     // at 7000 GDI objects, stop allocating normal images to make sure

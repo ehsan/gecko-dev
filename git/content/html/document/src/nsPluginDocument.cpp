@@ -71,7 +71,7 @@ public:
   const nsCString& GetType() const { return mMimeType; }
   nsIContent*      GetPluginContent() { return mPluginContent; }
 
-  void AllowNormalInstantiation() {
+  void SkippedInstantiation() {
     mWillHandleInstantiation = PR_FALSE;
   }
 
@@ -114,7 +114,7 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   nsIPresShell* shell = mDocument->GetPrimaryShell();
   if (!shell) {
     // Can't instantiate w/o a shell
-    mPluginDoc->AllowNormalInstantiation();
+    mPluginDoc->SkippedInstantiation();
     return NS_BINDING_ABORTED;
   }
 
@@ -125,14 +125,14 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 
   nsIFrame* frame = shell->GetPrimaryFrameFor(embed);
   if (!frame) {
-    mPluginDoc->AllowNormalInstantiation();
+    mPluginDoc->SkippedInstantiation();
     return rv;
   }
 
   nsIObjectFrame* objFrame;
   CallQueryInterface(frame, &objFrame);
   if (!objFrame) {
-    mPluginDoc->AllowNormalInstantiation();
+    mPluginDoc->SkippedInstantiation();
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -141,10 +141,6 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   if (NS_FAILED(rv)) {
     return rv;
   }
-
-  // Now that we're done, allow normal instantiation in the future
-  // (say if there's a reframe of this entire presentation).
-  mPluginDoc->AllowNormalInstantiation();
 
   NS_ASSERTION(mNextStream, "We should have a listener by now");
   return mNextStream->OnStartRequest(request, ctxt);

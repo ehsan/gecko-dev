@@ -71,9 +71,7 @@ public:
 
   NS_HIDDEN_(nsresult) SetScrollState(const nsRect& aState);
 
-  nsRect               GetScrollState();
-
-  NS_HIDDEN_(void)     ClearNonScrollState();
+  nsRect GetScrollState();
 
 // MEMBER VARIABLES
 protected:
