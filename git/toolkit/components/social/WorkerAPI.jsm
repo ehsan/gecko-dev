@@ -63,14 +63,13 @@ WorkerAPI.prototype = {
       this._provider.setAmbientNotification(data);
     },
     "social.cookies-get": function(data) {
-      let document = getFrameWorkerHandle(this._provider.workerURL, null).
-                        _worker.frame.contentDocument;
+      let document = this._port._window.document;
       let cookies = document.cookie.split(";");
       let results = [];
       cookies.forEach(function(aCookie) {
         let [name, value] = aCookie.split("=");
         results.push({name: unescape(name.trim()),
-                      value: unescape(value.trim())});
+                      value: value ? unescape(value.trim()) : ""});
       });
       this._port.postMessage({topic: "social.cookies-get-response",
                               data: results});
