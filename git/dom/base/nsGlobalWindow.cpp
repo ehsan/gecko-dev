@@ -943,6 +943,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
     mContext = nsnull;            // Forces Release
   }
   mChromeEventHandler = nsnull; // Forces Release
+  mParentTarget = nsnull;
 
   nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
 
@@ -1197,6 +1198,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
 
   // Traverse stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChromeEventHandler)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParentTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFrameElement)
 
@@ -1230,6 +1232,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
 
   // Unlink stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChromeEventHandler)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParentTarget)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFrameElement)
 
@@ -2143,11 +2146,25 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
   }
 
+  nsContentUtils::AddScriptRunner(
+    NS_NewRunnableMethod(this, &nsGlobalWindow::DispatchDOMWindowCreated));
+
+  return NS_OK;
+}
+
+void
+nsGlobalWindow::DispatchDOMWindowCreated()
+{
+  // Fire DOMWindowCreated at chrome event listeners
+  nsContentUtils::DispatchChromeEvent(mDoc, mDocument, NS_LITERAL_STRING("DOMWindowCreated"),
+                                      PR_TRUE /* bubbles */,
+                                      PR_FALSE /* not cancellable */);
+
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService) {
     nsAutoString origin;
-    nsIPrincipal* principal = aDocument->NodePrincipal();
+    nsIPrincipal* principal = mDoc->NodePrincipal();
     nsContentUtils::GetUTFOrigin(principal, origin);
     observerService->
       NotifyObservers(static_cast<nsIDOMWindow*>(this),
@@ -2156,8 +2173,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                         "content-document-global-created",
                       origin.get());
   }
-
-  return NS_OK;
 }
 
 void
@@ -2357,6 +2372,21 @@ nsGlobalWindow::SetOpenerWindow(nsIDOMWindowInternal* aOpener,
 #endif
 }
 
+void
+nsGlobalWindow::UpdateParentTarget()
+{
+  nsCOMPtr<nsIFrameLoaderOwner> flo = do_QueryInterface(mChromeEventHandler);
+  if (flo) {
+    nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
+    if (fl) {
+      mParentTarget = fl->GetTabChildGlobalAsEventTarget();
+    }
+  }
+  if (!mParentTarget) {
+    mParentTarget = mChromeEventHandler;
+  }
+}
+
 nsresult
 nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
@@ -2399,16 +2429,7 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     }
   }
 
-  nsPIDOMEventTarget* chromeTarget = mChromeEventHandler;
-  nsCOMPtr<nsIFrameLoaderOwner> flo = do_QueryInterface(mChromeEventHandler);
-  if (flo) {
-    nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
-    if (fl) {
-      nsPIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
-      chromeTarget = t ? t : chromeTarget;
-    }
-  }
-  aVisitor.mParentTarget = chromeTarget;
+  aVisitor.mParentTarget = GetParentTarget();
   return NS_OK;
 }
 
@@ -7002,6 +7023,14 @@ nsGlobalWindow::SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler)
   }
 }
 
+static PRBool IsLink(nsIContent* aContent)
+{
+  nsCOMPtr<nsIDOMHTMLAnchorElement> anchor = do_QueryInterface(aContent);
+  return (anchor || (aContent &&
+                     aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
+                                           nsGkAtoms::simple, eCaseMatters)));
+}
+
 void
 nsGlobalWindow::SetFocusedNode(nsIContent* aNode,
                                PRUint32 aFocusMethod,
@@ -7021,18 +7050,19 @@ nsGlobalWindow::SetFocusedNode(nsIContent* aNode,
 
   if (mFocusedNode) {
     // if a node was focused by a keypress, turn on focus rings for the
-    // window. Focus rings are always shown when the FLAG_SHOWRING flag is
-    // used, or for XUL elements on GTK, but in this case we set
-    // mShowFocusRingForContent, as we don't want this to be permanent for
-    // the window.
-    if (mFocusMethod == nsIFocusManager::FLAG_BYKEY) {
+    // window.
+    if (mFocusMethod & nsIFocusManager::FLAG_BYKEY) {
       mFocusByKeyOccurred = PR_TRUE;
-    } else if (aFocusMethod & nsIFocusManager::FLAG_SHOWRING
-#ifdef MOZ_WIDGET_GTK2
-             || mFocusedNode->IsXUL()
+    } else if (
+      // otherwise, we set mShowFocusRingForContent, as we don't want this to
+      // be permanent for the window. On Windows, focus rings are only shown
+      // when the FLAG_SHOWRING flag is used. On other platforms, focus rings
+      // are only hidden for clicks on links.
+#ifndef XP_WIN
+      !(mFocusMethod & nsIFocusManager::FLAG_BYMOUSE) || !IsLink(aNode) ||
 #endif
-            ) {
-      mShowFocusRingForContent = PR_TRUE;
+      aFocusMethod & nsIFocusManager::FLAG_SHOWRING) {
+        mShowFocusRingForContent = PR_TRUE;
     }
   }
 
@@ -9184,10 +9214,7 @@ nsGlobalWindow::RestoreWindowState(nsISupports *aState)
   // if a link is focused, refocus with the FLAG_SHOWRING flag set. This makes
   // it easy to tell which link was last clicked when going back a page.
   nsIContent* focusedNode = inner->GetFocusedNode();
-  nsCOMPtr<nsIDOMHTMLAnchorElement> anchor = do_QueryInterface(focusedNode);
-  if (anchor || (focusedNode &&
-                 focusedNode->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
-                                          nsGkAtoms::simple, eCaseMatters))) {
+  if (IsLink(focusedNode)) {
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
     if (fm) {
       nsCOMPtr<nsIDOMElement> focusedElement(do_QueryInterface(focusedNode));
@@ -9256,10 +9283,18 @@ nsGlobalWindow::SuspendTimeouts(PRUint32 aIncrease,
         nsGlobalWindow *win =
           static_cast<nsGlobalWindow*>
                      (static_cast<nsPIDOMWindow*>(pWin));
-        win->SuspendTimeouts(aIncrease, aFreezeChildren);
-
         NS_ASSERTION(win->IsOuterWindow(), "Expected outer window");
         nsGlobalWindow* inner = win->GetCurrentInnerWindowInternal();
+
+        // This is a bit hackish. Only freeze/suspend windows which are truly our
+        // subwindows.
+        nsCOMPtr<nsIContent> frame = do_QueryInterface(pWin->GetFrameElementInternal());
+        if (!mDoc || !frame || mDoc != frame->GetOwnerDoc() || !inner) {
+          continue;
+        }
+
+        win->SuspendTimeouts(aIncrease, aFreezeChildren);
+
         if (inner && aFreezeChildren) {
           inner->Freeze();
         }
@@ -9353,6 +9388,14 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
 
         NS_ASSERTION(win->IsOuterWindow(), "Expected outer window");
         nsGlobalWindow* inner = win->GetCurrentInnerWindowInternal();
+
+        // This is a bit hackish. Only thaw/resume windows which are truly our
+        // subwindows.
+        nsCOMPtr<nsIContent> frame = do_QueryInterface(pWin->GetFrameElementInternal());
+        if (!mDoc || !frame || mDoc != frame->GetOwnerDoc() || !inner) {
+          continue;
+        }
+
         if (inner && aThawChildren) {
           inner->Thaw();
         }
