@@ -101,6 +101,16 @@ EventTargetIn(WidgetEvent* aEvent, nsIContent* aChild, nsIContent* aStop)
   return false;
 }
 
+static void
+DestroyMouseDownPoint(void *    /*aObject*/,
+                      nsIAtom * /*aPropertyName*/,
+                      void *    aPropertyValue,
+                      void *    /*aData*/)
+{
+  LayoutDeviceIntPoint* pt = static_cast<LayoutDeviceIntPoint*>(aPropertyValue);
+  delete pt;
+}
+
 nsresult
 HTMLLabelElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
 {
@@ -129,7 +139,7 @@ HTMLLabelElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
             new LayoutDeviceIntPoint(mouseEvent->refPoint);
           SetProperty(nsGkAtoms::labelMouseDownPtProperty,
                       static_cast<void*>(curPoint),
-                      nsINode::DeleteProperty<LayoutDeviceIntPoint>);
+                      DestroyMouseDownPoint);
         }
         break;
 

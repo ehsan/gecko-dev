@@ -27,7 +27,6 @@
 typedef mozilla::ipc::FileDescriptor::PlatformHandleType FileHandleType;
 
 using namespace mozilla::ipc;
-using mozilla::DebugOnly;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsFileStreamBase
@@ -534,8 +533,7 @@ nsFileInputStream::Available(uint64_t *aResult)
 }
 
 void
-nsFileInputStream::Serialize(InputStreamParams& aParams,
-                             FileDescriptorArray& aFileDescriptors)
+nsFileInputStream::Serialize(InputStreamParams& aParams)
 {
     FileInputStreamParams params;
 
@@ -543,10 +541,9 @@ nsFileInputStream::Serialize(InputStreamParams& aParams,
         FileHandleType fd = FileHandleType(PR_FileDesc2NativeHandle(mFD));
         NS_ASSERTION(fd, "This should never be null!");
 
-        DebugOnly<FileDescriptor*> dbgFD = aFileDescriptors.AppendElement(fd);
-        NS_ASSERTION(dbgFD->IsValid(), "Sending an invalid file descriptor!");
-
-        params.fileDescriptorIndex() = aFileDescriptors.Length() - 1;
+        params.file() = FileDescriptor(fd);
+        NS_ASSERTION(params.file().IsValid(),
+                     "Sending an invalid file descriptor!");
     } else {
         NS_WARNING("This file has not been opened (or could not be opened). "
                    "Sending an invalid file descriptor to the other process!");
@@ -573,8 +570,7 @@ nsFileInputStream::Serialize(InputStreamParams& aParams,
 }
 
 bool
-nsFileInputStream::Deserialize(const InputStreamParams& aParams,
-                               const FileDescriptorArray& aFileDescriptors)
+nsFileInputStream::Deserialize(const InputStreamParams& aParams)
 {
     NS_ASSERTION(!mFD, "Already have a file descriptor?!");
     NS_ASSERTION(!mDeferredOpen, "Deferring open?!");
@@ -588,15 +584,8 @@ nsFileInputStream::Deserialize(const InputStreamParams& aParams,
 
     const FileInputStreamParams& params = aParams.get_FileInputStreamParams();
 
-    uint32_t fileDescriptorIndex = params.fileDescriptorIndex();
-
-    FileDescriptor fd;
-    if (fileDescriptorIndex < aFileDescriptors.Length()) {
-        fd = aFileDescriptors[fileDescriptorIndex];
-        NS_WARN_IF_FALSE(fd.IsValid(), "Received an invalid file descriptor!");
-    } else {
-        NS_WARNING("Received a bad file descriptor index!");
-    }
+    const FileDescriptor& fd = params.file();
+    NS_WARN_IF_FALSE(fd.IsValid(), "Received an invalid file descriptor!");
 
     if (fd.IsValid()) {
         PRFileDesc* fileDesc = PR_ImportFile(PROsfd(fd.PlatformHandle()));
@@ -737,12 +726,16 @@ nsPartialFileInputStream::Seek(int32_t aWhence, int64_t aOffset)
 }
 
 void
-nsPartialFileInputStream::Serialize(InputStreamParams& aParams,
-                                    FileDescriptorArray& aFileDescriptors)
+nsPartialFileInputStream::Serialize(InputStreamParams& aParams)
 {
     // Serialize the base class first.
     InputStreamParams fileParams;
-    nsFileInputStream::Serialize(fileParams, aFileDescriptors);
+    nsFileInputStream::Serialize(fileParams);
+
+    if (fileParams.type() != InputStreamParams::TFileInputStreamParams) {
+        NS_ERROR("Base class serialize failed!");
+        return;
+    }
 
     PartialFileInputStreamParams params;
 
@@ -754,9 +747,7 @@ nsPartialFileInputStream::Serialize(InputStreamParams& aParams,
 }
 
 bool
-nsPartialFileInputStream::Deserialize(
-                                    const InputStreamParams& aParams,
-                                    const FileDescriptorArray& aFileDescriptors)
+nsPartialFileInputStream::Deserialize(const InputStreamParams& aParams)
 {
     NS_ASSERTION(!mFD, "Already have a file descriptor?!");
     NS_ASSERTION(!mStart, "Already have a start?!");
@@ -764,7 +755,7 @@ nsPartialFileInputStream::Deserialize(
     NS_ASSERTION(!mPosition, "Already have a position?!");
 
     if (aParams.type() != InputStreamParams::TPartialFileInputStreamParams) {
-        NS_WARNING("Received unknown parameters from the other process!");
+        NS_ERROR("Received unknown parameters from the other process!");
         return false;
     }
 
@@ -773,8 +764,8 @@ nsPartialFileInputStream::Deserialize(
 
     // Deserialize the base class first.
     InputStreamParams fileParams(params.fileStreamParams());
-    if (!nsFileInputStream::Deserialize(fileParams, aFileDescriptors)) {
-        NS_WARNING("Base class deserialize failed!");
+    if (!nsFileInputStream::Deserialize(fileParams)) {
+        NS_ERROR("Base class deserialize failed!");
         return false;
     }
 

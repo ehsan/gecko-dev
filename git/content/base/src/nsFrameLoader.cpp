@@ -2003,14 +2003,16 @@ nsFrameLoader::SetClampScrollPosition(bool aClamp)
   // When turning clamping on, make sure the current position is clamped.
   if (aClamp) {
     nsIFrame* frame = GetPrimaryFrameOfOwningContent();
-    nsSubDocumentFrame* subdocFrame = do_QueryFrame(frame);
-    if (subdocFrame) {
-      nsIFrame* subdocRootFrame = subdocFrame->GetSubdocumentRootFrame();
-      if (subdocRootFrame) {
-        nsIScrollableFrame* subdocRootScrollFrame = subdocRootFrame->PresContext()->PresShell()->
-          GetRootScrollFrameAsScrollable();
-        if (subdocRootScrollFrame) {
-          subdocRootScrollFrame->ScrollTo(subdocRootScrollFrame->GetScrollPosition(), nsIScrollableFrame::INSTANT);
+    if (frame) {
+      nsSubDocumentFrame* subdocFrame = do_QueryFrame(frame);
+      if (subdocFrame) {
+        nsIFrame* subdocRootFrame = subdocFrame->GetSubdocumentRootFrame();
+        if (subdocRootFrame) {
+          nsIScrollableFrame* subdocRootScrollFrame = subdocRootFrame->PresContext()->PresShell()->
+            GetRootScrollFrameAsScrollable();
+          if (subdocRootScrollFrame) {
+            subdocRootScrollFrame->ScrollTo(subdocRootScrollFrame->GetScrollPosition(), nsIScrollableFrame::INSTANT);
+          }
         }
       }
     }

@@ -1322,9 +1322,6 @@ gfxPlatform::GetLayerDiagnosticTypes()
   if (gfxPrefs::DrawBigImageBorders()) {
     type |= mozilla::layers::DIAGNOSTIC_BIGIMAGE_BORDERS;
   }
-  if (gfxPrefs::FlashLayerBorders()) {
-    type |= mozilla::layers::DIAGNOSTIC_FLASH_BORDERS;
-  }
   return type;
 }
 

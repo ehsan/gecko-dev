@@ -8,30 +8,23 @@
 #include "mozilla/ipc/InputStreamParams.h"
 #include "nsCOMPtr.h"
 #include "nsIInputStream.h"
-#include "nsTArray.h"
 
 namespace mozilla {
 namespace ipc {
 
-class FileDescriptor;
+void
+SerializeInputStream(nsIInputStream* aInputStream,
+                     InputStreamParams& aParams);
 
 void
 SerializeInputStream(nsIInputStream* aInputStream,
-                     InputStreamParams& aParams,
-                     nsTArray<FileDescriptor>& aFileDescriptors);
-
-void
-SerializeInputStream(nsIInputStream* aInputStream,
-                     OptionalInputStreamParams& aParams,
-                     nsTArray<FileDescriptor>& aFileDescriptors);
+                     OptionalInputStreamParams& aParams);
 
 already_AddRefed<nsIInputStream>
-DeserializeInputStream(const InputStreamParams& aParams,
-                       const nsTArray<FileDescriptor>& aFileDescriptors);
+DeserializeInputStream(const InputStreamParams& aParams);
 
 already_AddRefed<nsIInputStream>
-DeserializeInputStream(const OptionalInputStreamParams& aParams,
-                       const nsTArray<FileDescriptor>& aFileDescriptors);
+DeserializeInputStream(const OptionalInputStreamParams& aParams);
 
 } // namespace ipc
 } // namespace mozilla

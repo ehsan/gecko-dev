@@ -27,7 +27,6 @@ CompositableHost::CompositableHost(const TextureInfo& aTextureInfo)
   : mTextureInfo(aTextureInfo)
   , mCompositor(nullptr)
   , mLayer(nullptr)
-  , mFlashCounter(0)
   , mAttached(false)
   , mKeepAttached(false)
 {

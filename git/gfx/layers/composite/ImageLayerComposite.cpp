@@ -108,7 +108,6 @@ ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
                         GetEffectiveTransform(),
                         gfx::ToFilter(mFilter),
                         clipRect);
-  mImageHost->BumpFlashCounter();
 }
 
 void

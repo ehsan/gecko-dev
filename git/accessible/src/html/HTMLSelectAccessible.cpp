@@ -394,7 +394,11 @@ HTMLComboboxAccessible::InvalidateChildren()
 void
 HTMLComboboxAccessible::CacheChildren()
 {
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(GetFrame());
+  nsIFrame* frame = GetFrame();
+  if (!frame)
+    return;
+
+  nsIComboboxControlFrame* comboFrame = do_QueryFrame(frame);
   if (!comboFrame)
     return;
 
@@ -502,7 +506,11 @@ HTMLComboboxAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
   if (aIndex != HTMLComboboxAccessible::eAction_Click) {
     return NS_ERROR_INVALID_ARG;
   }
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(GetFrame());
+  nsIFrame* frame = GetFrame();
+  if (!frame) {
+    return NS_ERROR_FAILURE;
+  }
+  nsIComboboxControlFrame* comboFrame = do_QueryFrame(frame);
   if (!comboFrame) {
     return NS_ERROR_FAILURE;
   }
@@ -594,9 +602,12 @@ nsIFrame*
 HTMLComboboxListAccessible::GetFrame() const
 {
   nsIFrame* frame = HTMLSelectListAccessible::GetFrame();
-  nsIComboboxControlFrame* comboBox = do_QueryFrame(frame);
-  if (comboBox) {
-    return comboBox->GetDropDown();
+
+  if (frame) {
+    nsIComboboxControlFrame* comboBox = do_QueryFrame(frame);
+    if (comboBox) {
+      return comboBox->GetDropDown();
+    }
   }
 
   return nullptr;

@@ -611,11 +611,9 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
     // is actually okay, since we know that doesn't matter in the
     // SVGAutoRenderState::CLIP case (at least for the current implementation).
     gfxContextMatrixAutoSaveRestore autoSaveRestore;
-    // For now revent back to doing the save even for CLIP to fix bug 959128.
-    // Undo in bug 987193.
-    //if (renderMode != SVGAutoRenderState::CLIP) {
+    if (renderMode != SVGAutoRenderState::CLIP) {
       autoSaveRestore.SetContext(gfx);
-    //}
+    }
 
     GeneratePath(gfx, ToMatrix(GetCanvasTM(FOR_PAINTING, aTransformRoot)));
 

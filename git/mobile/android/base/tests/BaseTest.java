@@ -194,11 +194,11 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         boolean success = waitForCondition(new Condition() {
             @Override
             public boolean isSatisfied() {
-                EditText urlEditText = (EditText) mSolo.getView(R.id.url_edit_text);
+                EditText urlEditText = mSolo.getEditText(0);
                 if (urlEditText.isInputMethodTarget()) {
                     return true;
                 } else {
-                    mSolo.clickOnView(urlEditText);
+                    mSolo.clickOnEditText(0);
                     return false;
                 }
             }

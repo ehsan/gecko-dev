@@ -13,6 +13,15 @@
 
 using namespace mozilla;
 
+void
+IntPointDtorFunc(void *aObject, nsIAtom *aPropertyName,
+                 void *aPropertyValue, void *aData)
+{
+  nsIntPoint *propertyValue = static_cast<nsIntPoint*>(aPropertyValue);
+  delete propertyValue;
+}
+
+
 typedef nsImageFrame nsImageControlFrameSuper;
 class nsImageControlFrame : public nsImageControlFrameSuper,
                             public nsIFormControlFrame
@@ -98,7 +107,7 @@ nsImageControlFrame::Init(nsIContent*      aContent,
   
   mContent->SetProperty(nsGkAtoms::imageClickedPoint,
                         new nsIntPoint(0, 0),
-                        nsINode::DeleteProperty<nsIntPoint>);
+                        IntPointDtorFunc);
 }
 
 NS_QUERYFRAME_HEAD(nsImageControlFrame)

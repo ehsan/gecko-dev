@@ -675,8 +675,7 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget)
 #endif
 
   // 0 -> Full-tilt composite
-  if (gfxPrefs::LayersCompositionFrameRate() == 0
-    || mLayerManager->GetCompositor()->GetDiagnosticTypes() & DIAGNOSTIC_FLASH_BORDERS) {
+  if (gfxPrefs::LayersCompositionFrameRate() == 0) {
     // Special full-tilt composite mode for performance testing
     ScheduleComposition();
   }

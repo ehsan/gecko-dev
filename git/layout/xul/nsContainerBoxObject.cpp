@@ -48,12 +48,16 @@ NS_IMETHODIMP nsContainerBoxObject::GetDocShell(nsIDocShell** aResult)
 {
   *aResult = nullptr;
 
-  nsSubDocumentFrame *subDocFrame = do_QueryFrame(GetFrame(false));
-  if (subDocFrame) {
-    // Ok, the frame for mContent is an nsSubDocumentFrame, it knows how
-    // to reach the docshell, so ask it...
+  nsIFrame *frame = GetFrame(false);
 
-    return subDocFrame->GetDocShell(aResult);
+  if (frame) {
+    nsSubDocumentFrame *subDocFrame = do_QueryFrame(frame);
+    if (subDocFrame) {
+      // Ok, the frame for mContent is an nsSubDocumentFrame, it knows how
+      // to reach the docshell, so ask it...
+
+      return subDocFrame->GetDocShell(aResult);
+    }
   }
 
   if (!mContent) {
