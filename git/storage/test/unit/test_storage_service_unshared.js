@@ -35,67 +35,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const Ci = Components.interfaces;
-const Cc = Components.classes;
-const Cr = Components.results;
+// This file tests the openUnsharedDatabase function of mozIStorageService.
 
-var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-             getService(Ci.nsIProperties);
-
-function getTestDB()
+function test_openUnsharedDatabase_file_DNE()
 {
-  var db = dirSvc.get("CurProcD", Ci.nsIFile);
-  db.append("test_storage.sqlite");
-  return db;
+  // the file should be created after calling
+  var db = getTestDB();
+  do_check_false(db.exists());
+  getService().openUnsharedDatabase(db);
+  do_check_true(db.exists());
 }
 
-function cleanup()
+function test_openUnsharedDatabase_file_exists()
 {
-  // close the connection
-  print("*** Storage Tests: Trying to close!");
-  getOpenedDatabase().close();
-
-  // we need to null out the database variable to get a new connection the next
-  // time getOpenedDatabase is called
-  gDBConn = null;
-
-  // removing test db
-  print("*** Storage Tests: Trying to remove file!");
-  var dbFile = getTestDB();
-  if (dbFile.exists())
-    try { dbFile.remove(false); } catch(e) { /* stupid windows box */ }
+  // it should already exist from our last test
+  var db = getTestDB();
+  do_check_true(db.exists());
+  getService().openUnsharedDatabase(db);
+  do_check_true(db.exists());
 }
 
-function getService()
+var tests = [test_openUnsharedDatabase_file_DNE,
+             test_openUnsharedDatabase_file_exists];
+
+function run_test()
 {
-  return Cc["@mozilla.org/storage/service;1"].getService(Ci.mozIStorageService);
+  for (var i = 0; i < tests.length; i++)
+    tests[i]();
+    
+  cleanup();
 }
-
-var gDBConn = null;
-
-/**
- * Get a connection to the test database.  Creates and caches the connection
- * if necessary, otherwise reuses the existing cached connection.
- *
- * @param unshared {boolean}
- *        whether or not to open a connection to the database that doesn't share
- *        its cache; if true, we use mozIStorageService::openUnsharedDatabase
- *        to create the connection; otherwise we use openDatabase.
- */
-function getOpenedDatabase(unshared)
-{
-  if (!gDBConn) {
-    gDBConn = getService()
-              [unshared ? "openUnsharedDatabase" : "openDatabase"]
-              (getTestDB());
-  }
-  return gDBConn;
-}
-
-function createStatement(aSQL)
-{
-  return getOpenedDatabase().createStatement(aSQL);
-}
-
-cleanup();
 
