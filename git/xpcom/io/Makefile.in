@@ -77,10 +77,8 @@ EXPORTS		= \
 		nsStorageStream.h \
 		nsStringStream.h \
 		nsStreamUtils.h \
-		nsUnicharInputStream.h \
 		nsWildCard.h \
-		SpecialSystemDirectory.h \
-		$(NULL)
+		$(NULL)			
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 EXPORTS		+= nsLocalFileOS2.h
