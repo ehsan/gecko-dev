@@ -1036,10 +1036,8 @@ let TabItems = {
         item.reconnected = 
           (item.tab.linkedBrowser.currentURI.spec != 'about:blank' || item.parent);
       }
-      item.save();
 
-      if (item.reconnected)
-        item._sendToSubscribers("reconnected");
+      item.save();
     } catch(e) {
       Utils.log(e);
     }

@@ -43,9 +43,7 @@
   margin: 20px;
 }
 
-#view-port-container {
-  /* Needed to allow the radius to clip the inner content, see bug 595656 */
-  overflow: hidden;
+#view-port {
   background-color: #d2d7df;
   border: 1px solid black;
   border-radius: 5px;
@@ -658,14 +656,9 @@
   margin-bottom: 2em;
 }
 
-.detail-row[first-row="true"],
-.detail-row-complex[first-row="true"] {
-  border-top: none;
-}
-
 .detail-row,
 .detail-row-complex {
-  border-top: 1px solid grey;
+  border-bottom: 1px solid grey;
   -moz-box-align: center;
 }
 
@@ -733,9 +726,6 @@
 
 .download-progress .progress {
   background-color: transparent;
-  /* Force the progress meter to use the default binding rather than the OSX
-     animated binding */
-  -moz-binding: url("chrome://global/content/bindings/progressmeter.xml#progressmeter") !important;
 }
 
 .download-progress .start-cap, .download-progress .end-cap {
