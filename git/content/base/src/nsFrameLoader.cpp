@@ -883,10 +883,11 @@ nsFrameLoader::EnsureDocShell()
 
   // This is kinda whacky, this call doesn't really create anything,
   // but it must be called to make sure things are properly
-  // initialized.
+  // initialized...
   if (NS_FAILED(base_win->Create()) || !win_private) {
-    // Do not call Destroy() here. See bug 472312.
-    NS_WARNING("Something wrong when creating the docshell for a frameloader!");
+    // ...but if we couldn't create the shell properly, better
+    // to make sure it gets removed.
+    Destroy();
     return NS_ERROR_FAILURE;
   }
 

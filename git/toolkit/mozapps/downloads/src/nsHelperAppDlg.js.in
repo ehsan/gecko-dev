@@ -44,25 +44,6 @@
 # ***** END LICENSE BLOCK *****
 */
 
-///////////////////////////////////////////////////////////////////////////////
-//// Helper Functions
-
-/**
- * Determines if a given directory is able to be used to download to.
- *
- * @param aDirectory
- *        The directory to check.
- * @returns true if we can use the directory, false otherwise.
- */
-function isUsableDirectory(aDirectory)
-{
-  return aDirectory.exists() && aDirectory.isDirectory() &&
-         aDirectory.isWritable();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//// nsUnkownContentTypeDialog
-
 /* This file implements the nsIHelperAppLauncherDialog interface.
  *
  * The implementation consists of a JavaScript "class" named nsUnknownContentTypeDialog,
@@ -222,21 +203,19 @@ nsUnknownContentTypeDialog.prototype = {
 
       picker.appendFilters( nsIFilePicker.filterAll );
 
-      // Default to lastDir if it is valid, otherwise use the user's default
-      // downloads directory.  userDownloadsDirectory should always return a
-      // valid directory, so we can safely default to it.
+      // Default to lastDir if it's valid, use the user's default
+      // downloads directory otherwise.
       var dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
                               .getService(Components.interfaces.nsIDownloadManager);
-      picker.displayDirectory = dnldMgr.userDownloadsDirectory;
-
-      // The last directory preference may not exist, which will throw.
       try {
         var lastDir = prefs.getComplexValue("browser.download.lastDir",
                             Components.interfaces.nsILocalFile);
-        if (isUsableDirectory(lastDir))
+        if (lastDir.exists())
           picker.displayDirectory = lastDir;
-      }
-      catch (ex) {
+        else
+          picker.displayDirectory = dnldMgr.userDownloadsDirectory;
+      } catch (ex) {
+        picker.displayDirectory = dnldMgr.userDownloadsDirectory;
       }
 
       if (picker.show() == nsIFilePicker.returnCancel) {
@@ -295,7 +274,7 @@ nsUnknownContentTypeDialog.prototype = {
      */
     validateLeafName: function (aLocalFile, aLeafName, aFileExt)
     {
-      if (!(aLocalFile && isUsableDirectory(aLocalFile)))
+      if (!aLocalFile || !aLocalFile.exists())
         return null;
 
       // Remove any leading periods, since we don't want to save hidden files

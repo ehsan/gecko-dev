@@ -132,7 +132,7 @@ LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
 LCMS_VERSION=1.17
-SQLITE_VERSION=3.6.7
+SQLITE_VERSION=3.6.6.2
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -5817,6 +5817,19 @@ MOZ_ARG_DISABLE_BOOL(updater,
 [  --disable-updater       Disable building of updater],
     MOZ_UPDATER=,
     MOZ_UPDATER=1 )
+# The Windows build requires the iconv command line utility
+# in order to build the updater.
+case "$target_os" in
+    msvc*|mks*|cygwin*|mingw*|wince*)
+        if test -n "$MOZ_UPDATER"; then
+            AC_MSG_CHECKING([for iconv])
+            AC_CHECK_PROGS(HOST_ICONV, $HOST_ICONV "iconv", "")
+            if test -z "$HOST_ICONV"; then
+                AC_MSG_ERROR([iconv not found in \$PATH])
+            fi
+        fi
+        ;;
+esac
 AC_SUBST(MOZ_UPDATER)
 
 # app update channel is 'default' when not supplied.
