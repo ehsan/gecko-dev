@@ -62,7 +62,6 @@ var observer = {
     confirm_results();
   },
   onTitleChanged: function(aURI, aPageTitle) {},
-  onBeforeDeleteURI: function(aURI) {},
   onDeleteURI: function(aURI) {},
   onClearHistory: function() {},
   onPageChanged: function(aURI, aWhat, aValue) {},

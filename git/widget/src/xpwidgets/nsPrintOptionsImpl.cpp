@@ -48,7 +48,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindowInternal.h"
-#include "nsISupportsArray.h"
+#include "nsSupportsArray.h"
 #include "prprf.h"
 
 // For Prefs

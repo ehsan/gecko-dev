@@ -1882,7 +1882,7 @@ Tracing(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (cx->tracefp && cx->tracefp != stderr)
       fclose((FILE *)cx->tracefp);
     cx->tracefp = file;
-    cx->tracePrevPc = NULL;
+    cx->tracePrevOp = JSOP_LIMIT;
     return JS_TRUE;
 
  bad_argument:

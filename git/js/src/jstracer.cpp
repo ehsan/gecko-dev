@@ -2555,7 +2555,6 @@ checktype_fail_2:
 JS_REQUIRES_STACK void
 TraceRecorder::compile(JSTraceMonitor* tm)
 {
-    JS_ASSERT(!tm->needFlush);
     Fragmento* fragmento = tm->fragmento;
     if (treeInfo->maxNativeStackSlots >= MAX_NATIVE_STACK_SLOTS) {
         debug_only_v(printf("Blacklist: excessive stack use.\n"));
@@ -2631,8 +2630,6 @@ TraceRecorder::closeLoop(JSTraceMonitor* tm, bool& demote)
      * meantime JSOP_NOP.
      */
     JS_ASSERT((*cx->fp->regs->pc == JSOP_LOOP || *cx->fp->regs->pc == JSOP_NOP) && !cx->fp->imacpc);
-
-    JS_ASSERT(!tm->needFlush);
 
     bool stable;
     LIns* exitIns;
@@ -3104,52 +3101,6 @@ nanojit::Fragment::onDestroy()
     delete (TreeInfo *)vmprivate;
 }
 
-static JS_REQUIRES_STACK void
-FlushJITCache(JSContext* cx)
-{
-    if (!TRACING_ENABLED(cx))
-        return;
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    debug_only_v(printf("Flushing cache.\n");)
-    if (tm->recorder)
-        js_AbortRecording(cx, "flush cache");
-    TraceRecorder* tr;
-    while ((tr = tm->abortStack) != NULL) {
-        tr->removeFragmentoReferences();
-        tr->deepAbort();
-        tr->popAbortStack();
-    }
-    Fragmento* fragmento = tm->fragmento;
-    if (fragmento) {
-        if (tm->prohibitFlush) {
-            debug_only_v(printf("Deferring fragmento flush due to deep bail.\n");)
-            tm->needFlush = JS_TRUE;
-            return;
-        }
-
-        fragmento->clearFrags();
-#ifdef DEBUG
-        JS_ASSERT(fragmento->labels);
-        fragmento->labels->clear();
-#endif
-        tm->lirbuf->rewind();
-        for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
-            VMFragment* f = tm->vmfragments[i];
-            while (f) {
-                VMFragment* next = f->next;
-                fragmento->clearFragment(f);
-                f = next;
-            }
-            tm->vmfragments[i] = NULL;
-        }
-        for (size_t i = 0; i < MONITOR_N_GLOBAL_STATES; ++i) {
-            tm->globalStates[i].globalShape = -1;
-            tm->globalStates[i].globalSlots->clear();
-        }
-    }
-    tm->needFlush = JS_FALSE;
-}
-
 static JS_REQUIRES_STACK bool
 js_DeleteRecorder(JSContext* cx)
 {
@@ -3164,7 +3115,7 @@ js_DeleteRecorder(JSContext* cx)
      */
     if (JS_TRACE_MONITOR(cx).fragmento->assm()->error() == OutOMem
         || js_OverfullFragmento(tm->fragmento, MAX_MEM_IN_MAIN_FRAGMENTO)) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -3178,8 +3129,10 @@ static inline bool
 js_CheckGlobalObjectShape(JSContext* cx, JSTraceMonitor* tm, JSObject* globalObj,
                           uint32 *shape=NULL, SlotList** slots=NULL)
 {
-    if (tm->needFlush)
+    if (tm->needFlush) {
+        tm->needFlush = JS_FALSE;
         return false;
+    }
 
     uint32 globalShape = OBJ_SHAPE(globalObj);
 
@@ -3236,7 +3189,7 @@ js_StartRecorder(JSContext* cx, VMSideExit* anchor, Fragment* f, TreeInfo* ti,
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     JS_ASSERT(f->root != f || !cx->fp->imacpc);
 
-    if (JS_TRACE_MONITOR(cx).needFlush)
+    if (JS_TRACE_MONITOR(cx).prohibitRecording)
         return false;
 
     /* start recording if no exception during construction */
@@ -3463,7 +3416,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
 
     /* Make sure the global type map didn't change on us. */
     if (!js_CheckGlobalObjectShape(cx, tm, globalObj)) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -3476,7 +3429,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
         f = getAnchor(&JS_TRACE_MONITOR(cx), f->root->ip, globalObj, globalShape);
 
     if (!f) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -3485,7 +3438,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
 
     if (f->lirbuf->outOMem() ||
         js_OverfullFragmento(tm->fragmento, MAX_MEM_IN_MAIN_FRAGMENTO)) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         debug_only_v(printf("Out of memory recording new tree, flushing cache.\n");)
         return false;
     }
@@ -3499,12 +3452,9 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
     ti->typeMap.captureTypes(cx, *globalSlots, 0/*callDepth*/);
     ti->nStackTypes = ti->typeMap.length() - globalSlots->length();
 
-#ifdef DEBUG
-    /*
-     * Check for duplicate entry type maps.  This is always wrong and hints at
-     * trace explosion since we are trying to stabilize something without
-     * properly connecting peer edges.
-     */
+    /* Check for duplicate entry type maps.  This is always wrong and hints at trace explosion
+       since we are trying to stabilize something without properly connecting peer edges. */
+    #ifdef DEBUG
     TreeInfo* ti_other;
     for (Fragment* peer = getLoop(tm, f->root->ip, globalObj, globalShape); peer != NULL;
          peer = peer->peer) {
@@ -3517,7 +3467,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
     ti->treeFileName = cx->fp->script->filename;
     ti->treeLineNumber = js_FramePCToLineNumber(cx, cx->fp);
     ti->treePCOffset = FramePCOffset(cx->fp);
-#endif
+    #endif
 
     /* determine the native frame layout at the entry point */
     unsigned entryNativeStackSlots = ti->nStackTypes;
@@ -3553,7 +3503,6 @@ JS_REQUIRES_STACK static bool
 js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, jsbytecode* outer)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    JS_ASSERT(!tm->needFlush);
     VMFragment* from = (VMFragment*)exit->from->root;
     TreeInfo* from_ti = (TreeInfo*)from->vmprivate;
 
@@ -3652,8 +3601,6 @@ js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, jsbytecode* outer)
 static JS_REQUIRES_STACK bool
 js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom, jsbytecode* outer)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    JS_ASSERT(!tm->needFlush);
     Fragment* f = anchor->from->root;
     JS_ASSERT(f->vmprivate);
     TreeInfo* ti = (TreeInfo*)f->vmprivate;
@@ -3670,13 +3617,6 @@ js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom
         anchor->target = c;
         c->root = f;
     }
-
-    /*
-     * If we are recycling a fragment, it might have a different ip so reset it here. This
-     * can happen when attaching a branch to a NESTED_EXIT, which might extend along separate paths
-     * (i.e. after the loop edge, and after a return statement).
-     */
-    c->ip = cx->fp->regs->pc;
 
     debug_only_v(printf("trying to attach another branch to the tree (hits = %d)\n", c->hits());)
 
@@ -3799,7 +3739,7 @@ js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, uintN& inlineCallCount)
         if (!f) {
             f = getAnchor(tm, cx->fp->regs->pc, globalObj, globalShape);
             if (!f) {
-                FlushJITCache(cx);
+                js_FlushJITCache(cx);
                 return false;
             }
         }
@@ -4126,10 +4066,6 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
 
     AUDIT(traceTriggered);
 
-#ifdef DEBUG
-    cx->interpState = NULL;
-#endif
-
     JS_ASSERT(lr->exitType != LOOP_EXIT || !lr->calldepth);
     tm->onTrace = false;
     LeaveTree(*state, lr);
@@ -4223,9 +4159,7 @@ LeaveTree(InterpState& state, VMSideExit* lr)
                           typeMap[innermost->numStackSlots - 1],
                           (jsdouble *) state.sp + innermost->sp_adj / sizeof(jsdouble) - 1);
         }
-        JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-        if (tm->prohibitFlush && --tm->prohibitFlush == 0 && tm->needFlush)
-            FlushJITCache(cx);
+        JS_TRACE_MONITOR(cx).prohibitRecording = false;
         return;
     }
 
@@ -4401,7 +4335,7 @@ js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount)
     SlotList* globalSlots = NULL;
 
     if (!js_CheckGlobalObjectShape(cx, tm, globalObj, &globalShape, &globalSlots))
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
 
     /* Do not enter the JIT code with a pending operation callback. */
     if (cx->operationCallbackFlag)
@@ -4414,7 +4348,7 @@ js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount)
         f = getAnchor(tm, pc, globalObj, globalShape);
 
     if (!f) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -4529,7 +4463,7 @@ TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
         js_OverfullFragmento(JS_TRACE_MONITOR(cx).fragmento, 
                              MAX_MEM_IN_MAIN_FRAGMENTO)) {
         js_AbortRecording(cx, "no more LIR memory");
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return JSMRS_STOP;
     }
 
@@ -4957,6 +4891,45 @@ js_OverfullFragmento(Fragmento *frago, size_t maxsz)
     return (frago->_stats.pages > (maxsz >> NJ_LOG2_PAGE_SIZE));
 }
 
+JS_REQUIRES_STACK void
+js_FlushJITCache(JSContext* cx)
+{
+    if (!TRACING_ENABLED(cx))
+        return;
+    debug_only_v(printf("Flushing cache.\n");)
+    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    if (tm->recorder)
+        js_AbortRecording(cx, "flush cache");
+    TraceRecorder* tr;
+    while ((tr = tm->abortStack) != NULL) {
+        tr->removeFragmentoReferences();
+        tr->deepAbort();
+        tr->popAbortStack();
+    }
+    Fragmento* fragmento = tm->fragmento;
+    if (fragmento) {
+        fragmento->clearFrags();
+#ifdef DEBUG
+        JS_ASSERT(fragmento->labels);
+        fragmento->labels->clear();
+#endif
+        tm->lirbuf->rewind();
+        for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
+            VMFragment* f = tm->vmfragments[i];
+            while(f) {
+                VMFragment* next = f->next;
+                fragmento->clearFragment(f);
+                f = next;
+            }
+            tm->vmfragments[i] = NULL;
+        }
+        for (size_t i = 0; i < MONITOR_N_GLOBAL_STATES; ++i) {
+            tm->globalStates[i].globalShape = -1;
+            tm->globalStates[i].globalSlots->clear();
+        }
+    }
+}
+
 JS_FORCES_STACK JS_FRIEND_API(void)
 js_DeepBail(JSContext *cx)
 {
@@ -4966,8 +4939,7 @@ js_DeepBail(JSContext *cx)
     JS_ASSERT(cx->bailExit);
 
     JS_TRACE_MONITOR(cx).onTrace = false;
-    JS_TRACE_MONITOR(cx).prohibitFlush++;
-    debug_only_v(printf("Deep bail.\n");)
+    JS_TRACE_MONITOR(cx).prohibitRecording = true;
     LeaveTree(*cx->interpState, cx->bailExit);
     cx->bailExit = NULL;
     cx->interpState->builtinStatus |= JSBUILTIN_BAILED;
@@ -7208,9 +7180,7 @@ TraceRecorder::functionCall(bool constructing, uintN argc)
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_NEW()
 {
-    uintN argc = GET_ARGC(cx->fp->regs->pc);
-    cx->fp->assertValidStackDepth(argc + 2);
-    return functionCall(true, argc);
+    return functionCall(true, GET_ARGC(cx->fp->regs->pc));
 }
 
 JS_REQUIRES_STACK bool
@@ -7923,9 +7893,7 @@ TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc,
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_CALL()
 {
-    uintN argc = GET_ARGC(cx->fp->regs->pc);
-    cx->fp->assertValidStackDepth(argc + 2);
-    return functionCall(false, argc);
+    return functionCall(false, GET_ARGC(cx->fp->regs->pc));
 }
 
 static jsbytecode* apply_imacro_table[] = {
@@ -7958,9 +7926,8 @@ TraceRecorder::record_JSOP_APPLY()
     JSStackFrame* fp = cx->fp;
     jsbytecode *pc = fp->regs->pc;
     uintN argc = GET_ARGC(pc);
-    cx->fp->assertValidStackDepth(argc + 2);
-
     jsval* vp = fp->regs->sp - (argc + 2);
+    JS_ASSERT(vp >= StackBase(fp));
     jsuint length = 0;
     JSObject* aobj = NULL;
     LIns* aobj_ins = NULL;
@@ -9952,9 +9919,7 @@ TraceRecorder::record_JSOP_NEWARRAY()
     if (!getClassPrototype(JSProto_Array, proto_ins))
         return false;
 
-    uint32 len = GET_UINT16(cx->fp->regs->pc);
-    cx->fp->assertValidStackDepth(len);
-
+    uint32 len = GET_UINT24(cx->fp->regs->pc);
     LIns* args[] = { lir->insImm(len), proto_ins, cx_ins };
     LIns* v_ins = lir->insCall(&js_NewUninitializedArray_ci, args);
     guard(false, lir->ins_eq0(v_ins), OOM_EXIT);
