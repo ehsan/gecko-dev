@@ -746,7 +746,17 @@ public:
     }
 
     bool CanUploadSubTextures();
+
+    static void PlatformStartup();
+
+protected:
+    static bool sPowerOfTwoForced;
+    static bool sPowerOfTwoPrefCached;
+    static void CacheCanUploadNPOT();
+
+public:
     bool CanUploadNonPowerOfTwo();
+
     bool WantsSmallTiles();
     virtual bool HasLockSurface() { return false; }
 
@@ -1390,15 +1400,6 @@ public:
         AfterGLReadCall();
         AfterGLDrawCall();
     }
-
-#if defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE)
-    virtual gfxASurface* GetOffscreenPixmapSurface()
-    {
-      return 0;
-    };
-    
-    virtual bool WaitNative() { return false; }
-#endif
 
     virtual bool TextureImageSupportsGetBackingSurface() {
         return false;

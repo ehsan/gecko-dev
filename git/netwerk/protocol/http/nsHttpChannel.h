@@ -82,6 +82,7 @@ public:
     NS_IMETHOD SetWWWCredentials(const nsACString & aCredentials);
     NS_IMETHOD OnAuthAvailable();
     NS_IMETHOD OnAuthCancelled(bool userCancel);
+    NS_IMETHOD GetAsciiHostForAuth(nsACString &aHost);
     // Functions we implement from nsIHttpAuthenticableChannel but are
     // declared in HttpBaseChannel must be implemented in this class. We
     // just call the HttpBaseChannel:: impls.
@@ -113,6 +114,9 @@ public:
     NS_IMETHOD SetPriority(int32_t value);
     // nsIResumableChannel
     NS_IMETHOD ResumeAt(uint64_t startPos, const nsACString& entityID);
+
+    NS_IMETHOD SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks);
+    NS_IMETHOD SetLoadGroup(nsILoadGroup *aLoadGroup);
 
 public: /* internal necko use only */ 
 
@@ -269,6 +273,10 @@ private:
                rv == NS_ERROR_UNKNOWN_PROTOCOL      ||
                rv == NS_ERROR_MALFORMED_URI;
     }
+
+    // Create a aggregate set of the current notification callbacks
+    // and ensure the transaction is updated to use it.
+    void UpdateAggregateCallbacks();
 
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;

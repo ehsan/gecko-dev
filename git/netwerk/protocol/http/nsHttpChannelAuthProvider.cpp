@@ -16,15 +16,38 @@
 #include "nsAuthInformationHolder.h"
 #include "nsIStringBundle.h"
 #include "nsIPrompt.h"
+#include "nsIAuthModule.h"
+#include "nsIDNSService.h"
+#include "nsNetCID.h"
+#include "nsIDNSRecord.h"
+#include "nsNetUtil.h"
+
+static void
+GetAppIdAndBrowserStatus(nsIChannel* aChan, uint32_t* aAppId, bool* aInBrowserElem)
+{
+    nsCOMPtr<nsILoadContext> loadContext;
+    if (aChan) {
+        NS_QueryNotificationCallbacks(aChan, loadContext);
+    }
+    if (!loadContext) {
+        *aAppId = NECKO_NO_APP_ID;
+        *aInBrowserElem = false;
+    } else {
+        loadContext->GetAppId(aAppId);
+        loadContext->GetIsInBrowserElement(aInBrowserElem);
+    }
+}
 
 nsHttpChannelAuthProvider::nsHttpChannelAuthProvider()
     : mAuthChannel(nullptr)
+    , mIsPrivate(false)
     , mProxyAuthContinuationState(nullptr)
     , mAuthContinuationState(nullptr)
     , mProxyAuth(false)
     , mTriedProxyAuth(false)
     , mTriedHostAuth(false)
     , mSuppressDefensiveAuth(false)
+    , mResolvedHost(0)
 {
     // grab a reference to the handler to ensure that it doesn't go away.
     nsHttpHandler *handler = gHttpHandler;
@@ -63,6 +86,9 @@ nsHttpChannelAuthProvider::Init(nsIHttpAuthenticableChannel *channel)
     rv = mURI->GetPort(&mPort);
     if (NS_FAILED(rv)) return rv;
 
+    nsCOMPtr<nsIChannel> bareChannel = do_QueryInterface(channel);
+    mIsPrivate = NS_UsePrivateBrowsing(bareChannel);
+
     return NS_OK;
 }
 
@@ -75,6 +101,9 @@ nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
          this, mAuthChannel, httpStatus, SSLConnectFailed));
 
     NS_ASSERTION(mAuthChannel, "Channel not initialized");
+    
+    mCanonicalizedHost.Truncate();
+    mResolvedHost = 0;
 
     nsCOMPtr<nsIProxyInfo> proxyInfo;
     nsresult rv = mAuthChannel->GetProxyInfo(getter_AddRefs(proxyInfo));
@@ -84,19 +113,8 @@ nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
         if (!mProxyInfo) return NS_ERROR_NO_INTERFACE;
     }
 
-    uint32_t loadFlags;
-    rv = mAuthChannel->GetLoadFlags(&loadFlags);
-    if (NS_FAILED(rv)) return rv;
-
     nsAutoCString challenges;
     mProxyAuth = (httpStatus == 407);
-
-    // Do proxy auth even if we're LOAD_ANONYMOUS
-    if ((loadFlags & nsIRequest::LOAD_ANONYMOUS) &&
-        (!mProxyAuth || !UsingHttpProxy())) {
-        LOG(("Skipping authentication for anonymous non-proxy request\n"));
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
     rv = PrepareForAuthentication(mProxyAuth);
     if (NS_FAILED(rv))
@@ -163,7 +181,7 @@ nsHttpChannelAuthProvider::AddAuthorizationHeaders()
     if (NS_FAILED(rv)) return rv;
 
     // this getter never fails
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
 
     // check if proxy credentials should be sent
     const char *proxyHost = ProxyHost();
@@ -224,6 +242,10 @@ nsHttpChannelAuthProvider::Cancel(nsresult status)
         mAsyncPromptAuthCancelable->Cancel(status);
         mAsyncPromptAuthCancelable = nullptr;
     }
+    if (mDNSQuery) {
+        mDNSQuery->Cancel(status);
+        mDNSQuery = nullptr;
+    }
     return NS_OK;
 }
 
@@ -235,6 +257,10 @@ nsHttpChannelAuthProvider::Disconnect(nsresult status)
     if (mAsyncPromptAuthCancelable) {
         mAsyncPromptAuthCancelable->Cancel(status);
         mAsyncPromptAuthCancelable = nullptr;
+    }
+    if (mDNSQuery) {
+        mDNSQuery->Cancel(status);
+        mDNSQuery = nullptr;
     }
 
     NS_IF_RELEASE(mProxyAuthContinuationState);
@@ -361,7 +387,12 @@ nsHttpChannelAuthProvider::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
         0 == (generateFlags & nsIHttpAuthenticator::USING_INTERNAL_IDENTITY);
 
     // this getter never fails
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
+
+    nsCOMPtr<nsIChannel> chan = do_QueryInterface(mAuthChannel);
+    uint32_t appId;
+    bool isInBrowserElement;
+    GetAppIdAndBrowserStatus(chan, &appId, &isInBrowserElement);
 
     // create a cache entry.  we do this even though we don't yet know that
     // these credentials are valid b/c we need to avoid prompting the user
@@ -372,6 +403,7 @@ nsHttpChannelAuthProvider::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
     rv = authCache->SetAuthEntry(scheme, host, port, directory, realm,
                                  saveCreds ? *result : nullptr,
                                  saveChallenge ? challenge : nullptr,
+                                 appId, isInBrowserElement,
                                  saveIdentity ? &ident : nullptr,
                                  sessionState);
     return rv;
@@ -424,6 +456,58 @@ nsHttpChannelAuthProvider::PrepareForAuthentication(bool proxyAuth)
     }
 
     return NS_OK;
+}
+
+bool
+nsHttpChannelAuthProvider::AuthModuleRequiresCanonicalName(nsISupports *state)
+{
+    if (mResolvedHost || !state)
+        return false;
+
+    nsCOMPtr<nsIAuthModule> module = do_QueryInterface(state);
+    if (!module)
+        return false;
+
+    uint32_t flags;
+    if (NS_FAILED(module->GetModuleProperties(&flags)))
+        return false;
+
+    if (!(flags & nsIAuthModule::CANONICAL_NAME_REQUIRED))
+        return false;
+    
+    LOG(("nsHttpChannelAuthProvider::AuthModuleRequiresCanoncialName "
+         "this=%p\n", this));
+    return true;
+}
+
+nsresult
+nsHttpChannelAuthProvider::ResolveHost()
+{
+    mResolvedHost = 1;
+
+    nsresult rv;
+    static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
+        nsCOMPtr<nsIDNSService> dns = do_GetService(kDNSServiceCID, &rv);
+    if (NS_FAILED(rv))
+        return rv;
+
+    nsCOMPtr<nsIURI> uri;
+    rv = mAuthChannel->GetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv))
+        return rv;
+    nsAutoCString host;
+    rv = uri->GetAsciiHost(host);
+    if (NS_FAILED(rv))
+        return rv;
+
+    LOG(("nsHttpChannelAuthProvider::ResolveHost() this=%p "
+         "looking up canoncial of %s\n", this, host.get()));
+    nsRefPtr<DNSCallback> dnsCallback = new DNSCallback(this);
+    rv = dns->AsyncResolve(host,
+                           nsIDNSService::RESOLVE_CANONICAL_NAME,
+                           dnsCallback, NS_GetCurrentThread(),
+                           getter_AddRefs(mDNSQuery));
+    return rv;
 }
 
 nsresult
@@ -574,7 +658,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
         this, mAuthChannel, proxyAuth, challenge));
 
     // this getter never fails
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
 
     uint32_t authFlags;
     nsresult rv = auth->GetAuthFlags(&authFlags);
@@ -608,6 +692,10 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
                                  path, ident, continuationState);
     if (NS_FAILED(rv)) return rv;
 
+    uint32_t loadFlags;
+    rv = mAuthChannel->GetLoadFlags(&loadFlags);
+    if (NS_FAILED(rv)) return rv;
+
     if (!proxyAuth) {
         // if this is the first challenge, then try using the identity
         // specified in the URL.
@@ -615,7 +703,24 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
             GetIdentityFromURI(authFlags, mIdent);
             identFromURI = !mIdent.IsEmpty();
         }
+
+        if ((loadFlags & nsIRequest::LOAD_ANONYMOUS) && !identFromURI) {
+            LOG(("Skipping authentication for anonymous non-proxy request\n"));
+            return NS_ERROR_NOT_AVAILABLE;
+        }
+
+        // Let explicit URL credentials pass
+        // regardless of the LOAD_ANONYMOUS flag
     }
+    else if ((loadFlags & nsIRequest::LOAD_ANONYMOUS) && !UsingHttpProxy()) {
+        LOG(("Skipping authentication for anonymous non-proxy request\n"));
+        return NS_ERROR_NOT_AVAILABLE;
+    }
+
+    nsCOMPtr<nsIChannel> chan = do_QueryInterface(mAuthChannel);
+    uint32_t appId;
+    bool isInBrowserElement;
+    GetAppIdAndBrowserStatus(chan, &appId, &isInBrowserElement);
 
     //
     // if we already tried some credentials for this transaction, then
@@ -625,7 +730,8 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
     //
     nsHttpAuthEntry *entry = nullptr;
     authCache->GetAuthEntryForDomain(scheme.get(), host, port,
-                                     realm.get(), &entry);
+                                     realm.get(), appId,
+                                     isInBrowserElement, &entry);
 
     // hold reference to the auth session state (in case we clear our
     // reference to the entry).
@@ -650,17 +756,23 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
     if (identityInvalid) {
         if (entry) {
             if (ident->Equals(entry->Identity())) {
-                LOG(("  clearing bad auth cache entry\n"));
-                // ok, we've already tried this user identity, so clear the
-                // corresponding entry from the auth cache.
-                authCache->ClearAuthEntry(scheme.get(), host,
-                                          port, realm.get());
-                entry = nullptr;
-                ident->Clear();
+                if (!identFromURI) {
+                    LOG(("  clearing bad auth cache entry\n"));
+                    // ok, we've already tried this user identity, so clear the
+                    // corresponding entry from the auth cache.
+                    authCache->ClearAuthEntry(scheme.get(), host,
+                                              port, realm.get(),
+                                              appId, isInBrowserElement);
+                    entry = nullptr;
+                    ident->Clear();
+                }
             }
             else if (!identFromURI ||
-                     nsCRT::strcmp(ident->User(),
-                                   entry->Identity().User()) == 0) {
+                     (nsCRT::strcmp(ident->User(),
+                                    entry->Identity().User()) == 0 &&
+                     !(loadFlags &
+                       (nsIChannel::LOAD_ANONYMOUS |
+                        nsIChannel::LOAD_EXPLICIT_CREDENTIALS)))) {
                 LOG(("  taking identity from auth cache\n"));
                 // the password from the auth cache is more likely to be
                 // correct than the one in the URL.  at least, we know that it
@@ -712,6 +824,13 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
             // load the page that accompanies the HTTP auth challenge.
             return NS_ERROR_ABORT;
         }
+    }
+
+    if (AuthModuleRequiresCanonicalName(*continuationState)) {
+        nsresult rv = ResolveHost();
+        if (NS_SUCCEEDED(rv))
+            return NS_ERROR_IN_PROGRESS;
+        return rv;
     }
 
     //
@@ -968,10 +1087,17 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
     nsAutoCString realm;
     ParseRealm(mCurrentChallenge.get(), realm);
 
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
+    nsCOMPtr<nsIChannel> chan = do_QueryInterface(mAuthChannel);
+    uint32_t appId;
+    bool isInBrowserElement;
+    GetAppIdAndBrowserStatus(chan, &appId, &isInBrowserElement);
+
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
     nsHttpAuthEntry *entry = nullptr;
     authCache->GetAuthEntryForDomain(scheme.get(), host, port,
-                                     realm.get(), &entry);
+                                     realm.get(), appId,
+                                     isInBrowserElement,
+                                     &entry);
 
     nsCOMPtr<nsISupports> sessionStateGrip;
     if (entry)
@@ -979,9 +1105,18 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
 
     nsAuthInformationHolder* holder =
             static_cast<nsAuthInformationHolder*>(aAuthInfo);
-    ident->Set(holder->Domain().get(),
-               holder->User().get(),
-               holder->Password().get());
+    if (holder) {
+        ident->Set(holder->Domain().get(),
+                   holder->User().get(),
+                   holder->Password().get());
+    }
+
+    if (AuthModuleRequiresCanonicalName(*continuationState)) {
+        rv = ResolveHost();
+        if (NS_FAILED(rv))
+            OnAuthCancelled(aContext, true);
+        return NS_OK;
+    }
 
     nsAutoCString unused;
     nsCOMPtr<nsIHttpAuthenticator> auth;
@@ -1194,7 +1329,13 @@ nsHttpChannelAuthProvider::SetAuthorizationHeader(nsHttpAuthCache    *authCache,
         continuationState = &mAuthContinuationState;
     }
 
-    rv = authCache->GetAuthEntryForPath(scheme, host, port, path, &entry);
+    nsCOMPtr<nsIChannel> chan = do_QueryInterface(mAuthChannel);
+    uint32_t appId;
+    bool isInBrowserElement;
+    GetAppIdAndBrowserStatus(chan, &appId, &isInBrowserElement);
+
+    rv = authCache->GetAuthEntryForPath(scheme, host, port, path,
+                                        appId, isInBrowserElement, &entry);
     if (NS_SUCCEEDED(rv)) {
         // if we are trying to add a header for origin server auth and if the
         // URL contains an explicit username, then try the given username first.
@@ -1207,8 +1348,15 @@ nsHttpChannelAuthProvider::SetAuthorizationHeader(nsHttpAuthCache    *authCache,
             GetIdentityFromURI(0, ident);
             // if the usernames match, then clear the ident so we will pick
             // up the one from the auth cache instead.
-            if (nsCRT::strcmp(ident.User(), entry->User()) == 0)
-                ident.Clear();
+            // when this is undesired, specify LOAD_EXPLICIT_CREDENTIALS load
+            // flag.
+            if (nsCRT::strcmp(ident.User(), entry->User()) == 0) {
+                uint32_t loadFlags;
+                if (NS_SUCCEEDED(mAuthChannel->GetLoadFlags(&loadFlags)) &&
+                    !(loadFlags && nsIChannel::LOAD_EXPLICIT_CREDENTIALS)) {
+                    ident.Clear();
+                }
+            }
         }
         bool identFromURI;
         if (ident.IsEmpty()) {
@@ -1273,5 +1421,55 @@ nsHttpChannelAuthProvider::GetCurrentPath(nsACString &path)
     return rv;
 }
 
+nsresult
+nsHttpChannelAuthProvider::GetAsciiHostForAuth(nsACString &host)
+{
+    if (!mCanonicalizedHost.IsEmpty()) {
+        LOG(("nsHttpChannelAuthProvider::GetAsciiHostForAuth"
+             " this=%p host is %s\n", this, mCanonicalizedHost.get()));
+        host = mCanonicalizedHost;
+        return NS_OK;
+    }
+    
+    // fallback
+    nsresult rv;
+    nsCOMPtr<nsIURI> uri;
+    rv = mAuthChannel->GetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv))
+        return rv;
+    return uri->GetAsciiHost(host);
+}
+
+NS_IMETHODIMP
+nsHttpChannelAuthProvider::DNSCallback::OnLookupComplete(nsICancelable *request,
+                                                         nsIDNSRecord  *record,
+                                                         nsresult       rv)
+{
+    nsCString cname;
+    mAuthProvider->SetDNSQuery(nullptr);
+
+    LOG(("nsHttpChannelAuthProvider::OnLookupComplete this=%p "
+         "rv=%X\n", mAuthProvider.get(), rv));
+
+    if (NS_SUCCEEDED(rv))
+        rv = record->GetCanonicalName(cname);
+
+    if (NS_SUCCEEDED(rv)) {
+        LOG(("nsHttpChannelAuthProvider::OnLookupComplete this=%p "
+             "resolved to %s\n", mAuthProvider.get(), cname.get()));
+        mAuthProvider->SetCanonicalizedHost(cname);
+    }
+    else {
+        LOG(("nsHttpChannelAuthProvider::OnLookupComplete this=%p "
+             "GetCanonicalName failed\n", mAuthProvider.get()));
+    }
+
+    // Proceed whether or not DNS canonicalization succeeded
+    mAuthProvider->OnAuthAvailable(nullptr, nullptr);
+    return NS_OK;
+}
+
 NS_IMPL_ISUPPORTS3(nsHttpChannelAuthProvider, nsICancelable,
                    nsIHttpChannelAuthProvider, nsIAuthPromptCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsHttpChannelAuthProvider::DNSCallback,
+                              nsIDNSListener)

@@ -32,6 +32,7 @@
 
 class JSAutoStructuredCloneBuffer;
 class nsIDocument;
+class nsIMemoryMultiReporter;
 class nsIPrincipal;
 class nsIScriptContext;
 class nsIURI;
@@ -41,7 +42,6 @@ class nsIXPCScriptNotify;
 
 BEGIN_WORKERS_NAMESPACE
 
-class WorkerMemoryReporter;
 class WorkerPrivate;
 
 class WorkerRunnable : public nsIRunnable
@@ -167,6 +167,7 @@ public:
 protected:
   mozilla::Mutex mMutex;
   mozilla::CondVar mCondVar;
+  mozilla::CondVar mMemoryReportCondVar;
 
 private:
   JSObject* mJSObject;
@@ -518,7 +519,6 @@ public:
 class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 {
   friend class WorkerPrivateParent<WorkerPrivate>;
-  friend class WorkerMemoryReporter;
   typedef WorkerPrivateParent<WorkerPrivate> ParentType;
 
   struct TimeoutInfo;
@@ -558,7 +558,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsTArray<nsAutoPtr<TimeoutInfo> > mTimeouts;
 
   nsCOMPtr<nsITimer> mTimer;
-  nsRefPtr<WorkerMemoryReporter> mMemoryReporter;
+  nsCOMPtr<nsIMemoryMultiReporter> mMemoryReporter;
 
   mozilla::TimeStamp mKillTime;
   uint32_t mErrorHandlerRecursionCount;
@@ -569,7 +569,9 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   bool mRunningExpiredTimeouts;
   bool mCloseHandlerStarted;
   bool mCloseHandlerFinished;
+  bool mMemoryReporterAlive;
   bool mMemoryReporterRunning;
+  bool mBlockedForMemoryReporter;
   bool mXHRParamsAllowed;
 
 #ifdef DEBUG
@@ -661,6 +663,9 @@ public:
   void
   StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult);
 
+  void
+  DestroySyncLoop(uint32_t aSyncLoopKey);
+
   bool
   PostMessageToParent(JSContext* aCx, jsval aMessage,
                       jsval transferable);
@@ -675,7 +680,7 @@ public:
   SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp, bool aIsInterval);
 
   bool
-  ClearTimeout(JSContext* aCx, uint32 aId);
+  ClearTimeout(JSContext* aCx, uint32_t aId);
 
   bool
   RunExpiredTimeouts(JSContext* aCx);
@@ -707,10 +712,10 @@ public:
   ScheduleDeletion(bool aWasPending);
 
   bool
-  BlockAndCollectRuntimeStats(bool isQuick, void* aData);
+  BlockAndCollectRuntimeStats(bool aIsQuick, void* aData);
 
-  bool
-  DisableMemoryReporter();
+  void
+  NoteDeadMemoryReporter();
 
   bool
   XHRParamsAllowed() const
@@ -757,6 +762,14 @@ public:
 
   WorkerCrossThreadDispatcher*
   GetCrossThreadDispatcher();
+
+  // This may block!
+  void
+  BeginCTypesCall();
+
+  // This may block!
+  void
+  EndCTypesCall();
 
 private:
   WorkerPrivate(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -827,6 +840,15 @@ private:
   bool
   ProcessAllControlRunnables();
 
+  void
+  EnableMemoryReporter();
+
+  void
+  DisableMemoryReporter();
+
+  void
+  WaitForWorkerEvents(PRIntervalTime interval = PR_INTERVAL_NO_TIMEOUT);
+
   static bool
   CheckXHRParamsAllowed(nsPIDOMWindow* aWindow);
 };
@@ -847,6 +869,42 @@ WorkerStructuredCloneCallbacks(bool aMainRuntime);
 
 JSStructuredCloneCallbacks*
 ChromeWorkerStructuredCloneCallbacks(bool aMainRuntime);
+
+class AutoSyncLoopHolder
+{
+public:
+  AutoSyncLoopHolder(WorkerPrivate* aWorkerPrivate)
+  : mWorkerPrivate(aWorkerPrivate), mSyncLoopKey(UINT32_MAX)
+  {
+    mSyncLoopKey = mWorkerPrivate->CreateNewSyncLoop();
+  }
+
+  ~AutoSyncLoopHolder()
+  {
+    if (mWorkerPrivate) {
+      mWorkerPrivate->StopSyncLoop(mSyncLoopKey, false);
+      mWorkerPrivate->DestroySyncLoop(mSyncLoopKey);
+    }
+  }
+
+  bool
+  RunAndForget(JSContext* aCx)
+  {
+    WorkerPrivate* workerPrivate = mWorkerPrivate;
+    mWorkerPrivate = nullptr;
+    return workerPrivate->RunSyncLoop(aCx, mSyncLoopKey);
+  }
+
+  uint32_t
+  SyncQueueKey() const
+  {
+    return mSyncLoopKey;
+  }
+
+private:
+  WorkerPrivate* mWorkerPrivate;
+  uint32_t mSyncLoopKey;
+};
 
 END_WORKERS_NAMESPACE
 

@@ -32,6 +32,10 @@
           android:title="@string/desktop_mode"
           android:checkable="true" />
 
+    <item android:id="@+id/private_browsing"
+          android:visible="false"
+          android:title="@string/new_pb_tab"/>
+
     <item android:title="@string/tools"
           android:icon="@drawable/ic_menu_tools">
 
@@ -48,6 +52,10 @@
             <item android:id="@+id/addons"
                   android:icon="@drawable/ic_menu_addons"
                   android:title="@string/addons"/>
+
+            <item android:id="@+id/apps"
+                  android:icon="@drawable/ic_menu_apps"
+                  android:title="@string/apps"/>
         </menu>
 
     </item>

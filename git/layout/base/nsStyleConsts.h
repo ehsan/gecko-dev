@@ -680,6 +680,7 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TEXT_TRANSFORM_CAPITALIZE      1
 #define NS_STYLE_TEXT_TRANSFORM_LOWERCASE       2
 #define NS_STYLE_TEXT_TRANSFORM_UPPERCASE       3
+#define NS_STYLE_TEXT_TRANSFORM_FULLWIDTH       4
 
 // See nsStyleDisplay
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE         0
@@ -810,6 +811,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // See nsStyleColumn
 #define NS_STYLE_COLUMN_COUNT_AUTO              0
 #define NS_STYLE_COLUMN_COUNT_UNLIMITED         (-1)
+
+#define NS_STYLE_COLUMN_FILL_AUTO               0
+#define NS_STYLE_COLUMN_FILL_BALANCE            1
 
 // See nsStyleUIReset
 #define NS_STYLE_IME_MODE_AUTO                  0

@@ -50,9 +50,10 @@
 
 #include "vm/Stack-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::types;
+
+using mozilla::ArrayLength;
 
 /*
  * The JS 'Date' object is patterned after the Java 'Date' object.
@@ -318,7 +319,7 @@ WeekDay(double t)
 }
 
 /* ES5 15.9.1.7. Set by UpdateLocalTZA(). */
-static double LocalTZA;
+double js::LocalTZA;
 
 inline void
 UpdateLocalTZA()

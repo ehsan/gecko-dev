@@ -101,6 +101,12 @@ MOZ_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 // Is this property (which must be a shorthand) really an alias?
 #define CSS_PROPERTY_IS_ALIAS                     (1<<17)
 
+// Does the property apply to ::-moz-placeholder?
+#define CSS_PROPERTY_APPLIES_TO_PLACEHOLDER       (1<<18)
+
+// This property is allowed in an @page rule.
+#define CSS_PROPERTY_APPLIES_TO_PAGE_RULE         (1<<19)
+
 /**
  * Types of animatable values.
  */
@@ -368,6 +374,7 @@ public:
   static const int32_t kTextAnchorKTable[];
   static const int32_t kTextRenderingKTable[];
   static const int32_t kColorInterpolationKTable[];
+  static const int32_t kColumnFillKTable[];
   static const int32_t kBoxPropSourceKTable[];
   static const int32_t kBoxShadowTypeKTable[];
   static const int32_t kBoxSizingKTable[];

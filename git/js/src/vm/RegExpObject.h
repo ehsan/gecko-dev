@@ -132,7 +132,7 @@ class RegExpCode
 
 
     RegExpRunStatus
-    execute(JSContext *cx, const jschar *chars, size_t length, size_t start,
+    execute(JSContext *cx, StableCharPtr chars, size_t length, size_t start,
             int *output, size_t outputCount);
 };
 
@@ -140,9 +140,9 @@ class RegExpCode
 
 /*
  * A RegExpShared is the compiled representation of a regexp. A RegExpShared is
- * pointed to by potentially multiple RegExpObjects. Additionally, C++ code may
- * have pointers to RegExpShareds on the stack. The RegExpShareds are tracked in
- * a RegExpCompartment hashtable, and most are destroyed on every GC.
+ * potentially pointed to by multiple RegExpObjects. Additionally, C++ code may
+ * have pointers to RegExpShareds on the stack. The RegExpShareds are kept in a
+ * cache so that they can be reused when compiling the same regex string.
  *
  * During a GC, the trace hook for RegExpObject clears any pointers to
  * RegExpShareds so that there will be no dangling pointers when they are
@@ -160,6 +160,13 @@ class RegExpCode
  *
  * The activeUseCount and gcNumberWhenUsed fields are used to track these
  * conditions.
+ *
+ * There are two tables used to track RegExpShareds. map_ implements the cache
+ * and is cleared on every GC. inUse_ logically owns all RegExpShareds in the
+ * compartment and attempts to delete all RegExpShareds that aren't kept alive
+ * by the above conditions on every GC sweep phase. It is necessary to use two
+ * separate tables since map_ *must* be fully cleared on each GC since the Key
+ * points to a JSAtom that can become garbage.
  */
 class RegExpShared
 {
@@ -183,7 +190,7 @@ class RegExpShared
     /* Primary interface: run this regular expression on the given string. */
 
     RegExpRunStatus
-    execute(JSContext *cx, const jschar *chars, size_t length, size_t *lastIndex,
+    execute(JSContext *cx, StableCharPtr chars, size_t length, size_t *lastIndex,
             MatchPairs **output);
 
     /* Accessors */
@@ -251,8 +258,20 @@ class RegExpCompartment
         }
     };
 
+    /*
+     * Cache to reuse RegExpShareds with the same source/flags/etc. The cache
+     * is entirely cleared on each GC.
+     */
     typedef HashMap<Key, RegExpShared *, Key, RuntimeAllocPolicy> Map;
     Map map_;
+
+    /*
+     * The set of all RegExpShareds in the compartment. On every GC, every
+     * RegExpShared that is not actively being used is deleted and removed from
+     * the set.
+     */
+    typedef HashSet<RegExpShared *, DefaultHasher<RegExpShared*>, RuntimeAllocPolicy> PendingSet;
+    PendingSet inUse_;
 
     bool get(JSContext *cx, JSAtom *key, JSAtom *source, RegExpFlag flags, Type type,
              RegExpGuard *g);
@@ -314,11 +333,11 @@ class RegExpObject : public JSObject
      * execution, as opposed to during something like XDR.
      */
     static RegExpObject *
-    create(JSContext *cx, RegExpStatics *res, const jschar *chars, size_t length,
+    create(JSContext *cx, RegExpStatics *res, StableCharPtr chars, size_t length,
            RegExpFlag flags, frontend::TokenStream *ts);
 
     static RegExpObject *
-    createNoStatics(JSContext *cx, const jschar *chars, size_t length, RegExpFlag flags,
+    createNoStatics(JSContext *cx, StableCharPtr chars, size_t length, RegExpFlag flags,
                     frontend::TokenStream *ts);
 
     static RegExpObject *
@@ -336,7 +355,7 @@ class RegExpObject : public JSObject
      * into the |RegExpStatics| appropriately, if necessary.
      */
     RegExpRunStatus
-    execute(JSContext *cx, const jschar *chars, size_t length, size_t *lastIndex,
+    execute(JSContext *cx, StableCharPtr chars, size_t length, size_t *lastIndex,
             MatchPairs **output);
 
     /* Accessors. */
