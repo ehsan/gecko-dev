@@ -44,15 +44,8 @@
 }
 
 .mrName {
+  font-style: italic;
   color: #004;
-}
-
-.hasDesc:hover {
-  text-decoration: underline;
-}
-
-.mrStar {
-  color: #604;
 }
 
 .treeLine {
@@ -63,9 +56,3 @@
   font-size: 80%;
   -moz-user-select: none;  /* no need to include this when cutting+pasting */
 }
-
-.legend {
-  font-size: 80%;
-  -moz-user-select: none;  /* no need to include this when cutting+pasting */
-}
-

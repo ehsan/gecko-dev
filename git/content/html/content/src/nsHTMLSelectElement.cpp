@@ -57,6 +57,7 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsIBoxObject.h"
 #include "nsIDOMNSDocument.h"
+#include "nsIDOMDocumentEvent.h"
 
 // Notify/query select frame for selectedIndex
 #include "nsIDocument.h"

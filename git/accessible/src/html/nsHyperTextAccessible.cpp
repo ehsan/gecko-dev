@@ -916,7 +916,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
-      nsRefPtr<nsFrameSelection> frameSelection;
+      nsCOMPtr<nsFrameSelection> frameSelection;
       rv = privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1014,7 +1014,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   }
 
   if (aType == eGetBefore) {
-    finalEndOffset = aOffset;
+    endOffset = aOffset;
   }
   else {
     // Start moving forward from the start so that we don't get 
@@ -1680,7 +1680,7 @@ PRInt32 nsHyperTextAccessible::GetCaretLineNumber()
                 getter_AddRefs(domSel));
   nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
   NS_ENSURE_TRUE(privateSelection, -1);
-  nsRefPtr<nsFrameSelection> frameSelection;
+  nsCOMPtr<nsFrameSelection> frameSelection;
   privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
   NS_ENSURE_TRUE(frameSelection, -1);
 

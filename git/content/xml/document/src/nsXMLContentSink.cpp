@@ -40,6 +40,7 @@
 #include "nsCOMPtr.h"
 #include "nsXMLContentSink.h"
 #include "nsIParser.h"
+#include "nsIUnicharInputStream.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"

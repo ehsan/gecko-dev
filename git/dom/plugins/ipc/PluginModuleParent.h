@@ -139,8 +139,6 @@ public:
     PPluginIdentifierParent*
     GetIdentifierForNPIdentifier(NPIdentifier aIdentifier);
 
-    void ProcessRemoteNativeEventsInRPCCall();
-
 #ifdef OS_MACOSX
     void AddToRefreshTimer(PluginInstanceParent *aInstance);
     void RemoveFromRefreshTimer(PluginInstanceParent *aInstance);

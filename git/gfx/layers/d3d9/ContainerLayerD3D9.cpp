@@ -194,6 +194,7 @@ ContainerLayerD3D9::RenderLayer()
   PRBool useIntermediate = UseIntermediateSurface();
 
   mSupportsComponentAlphaChildren = PR_FALSE;
+  gfxMatrix contTransform;
   if (useIntermediate) {
     device()->GetRenderTarget(0, getter_AddRefs(previousRenderTarget));
     device()->CreateTexture(visibleRect.width, visibleRect.height, 1,
@@ -251,6 +252,11 @@ ContainerLayerD3D9::RenderLayer()
     device()->GetVertexShaderConstantF(CBmProjection, &oldViewMatrix[0][0], 4);
     device()->SetVertexShaderConstantF(CBmProjection, &viewMatrix._11, 4);
   } else {
+#ifdef DEBUG
+    PRBool is2d =
+#endif
+    GetEffectiveTransform().Is2D(&contTransform);
+    NS_ASSERTION(is2d, "Transform must be 2D");
     mSupportsComponentAlphaChildren = (GetContentFlags() & CONTENT_OPAQUE) ||
         (mParent && mParent->SupportsComponentAlphaChildren());
   }
@@ -267,7 +273,12 @@ ContainerLayerD3D9::RenderLayer()
     }
     
     nsIntRect scissorRect =
-      layerToRender->GetLayer()->CalculateScissorRect(oldScissor, nsnull);
+      layerToRender->GetLayer()->CalculateScissorRect(useIntermediate,
+                                                      visibleRect,
+                                                      oldScissor,
+                                                      contTransform);
+
+
     if (scissorRect.IsEmpty()) {
       continue;
     }

@@ -321,7 +321,6 @@ var Browser = {
 #if MOZ_PLATFORM_MAEMO == 6
     os.addObserver(ViewableAreaObserver, "softkb-change", false);
 #endif
-   messageManager.addMessageListener("Content:IsKeyboardOpened", ViewableAreaObserver);
 
     window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = new nsBrowserAccess();
 
@@ -3020,23 +3019,6 @@ var ViewableAreaObserver = {
     return (this._height || window.innerHeight);
   },
 
-  _isKeyboardOpened: false,
-  get isKeyboardOpened() {
-    return this._isKeyboardOpened;
-  },
-
-  set isKeyboardOpened(aValue) {
-    let oldValue = this._isKeyboardOpened;
-
-    if (oldValue != aValue) {
-      this._isKeyboardOpened = aValue;
-
-      let event = document.createEvent("UIEvents");
-      event.initUIEvent("KeyboardChanged", true, false, window, aValue);
-      window.dispatchEvent(event);
-    }
-  },
-
   observe: function va_observe(aSubject, aTopic, aData) {
 #if MOZ_PLATFORM_MAEMO == 6
     let rect = Rect.fromRect(JSON.parse(aData));
@@ -3054,10 +3036,6 @@ var ViewableAreaObserver = {
 #endif
   },
 
-  receiveMessage: function receiveMessage(aMessage) {
-    return this.isKeyboardOpened;
-  },
-
   update: function va_update() {
     let oldHeight = parseInt(Browser.styles["viewable-height"].height);
     let oldWidth = parseInt(Browser.styles["viewable-width"].width);
@@ -3066,9 +3044,6 @@ var ViewableAreaObserver = {
     let newHeight = this.height;
     if (newHeight == oldHeight && newWidth == oldWidth)
       return;
-
-    // Guess if the window has been resize to handle a virtual keyboard
-    this.isKeyboardOpened = (newHeight < oldHeight && newWidth == oldWidth);
 
     Browser.styles["viewable-height"].height = newHeight + "px";
     Browser.styles["viewable-height"].maxHeight = newHeight + "px";
@@ -3101,4 +3076,3 @@ var ViewableAreaObserver = {
     }, 0);
   }
 };
-

@@ -122,15 +122,9 @@ ConsoleAPI.prototype = {
     if (!aID)
       return;
 
-    let stack = this.getStackTrace();
-    // Skip the first frame since it contains an internal call.
-    let frame = stack[1];
     let consoleEvent = {
       ID: aID,
       level: aLevel,
-      filename: frame.filename,
-      lineNumber: frame.lineNumber,
-      functionName: frame.functionName,
       arguments: aArguments
     };
 
@@ -163,7 +157,7 @@ ConsoleAPI.prototype = {
     }
 
     return stack;
-  }
+  },
 };
 
 let NSGetFactory = XPCOMUtils.generateNSGetFactory([ConsoleAPI]);

@@ -903,20 +903,20 @@ nsDOMWorkerXHR::SetWithCredentials(PRBool aWithCredentials)
 }
 
 NS_IMETHODIMP
-nsDOMWorkerXHR::GetResponseType(nsAString& aResponseText)
+nsDOMWorkerXHR::GetMozResponseType(nsAString& aResponseText)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsDOMWorkerXHR::SetResponseType(const nsAString& aResponseText)
+nsDOMWorkerXHR::SetMozResponseType(const nsAString& aResponseText)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* readonly attribute jsval response; */
 NS_IMETHODIMP
-nsDOMWorkerXHR::GetResponse(JSContext *aCx, jsval *aResult)
+nsDOMWorkerXHR::GetMozResponse(JSContext *aCx, jsval *aResult)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -100,11 +100,6 @@ public:
         return NS_OK;
     }
 
-    NS_IMETHOD GetKind(PRInt32 *kind) {
-        *kind = MR_OTHER;
-        return NS_OK;
-    }
-
     NS_IMETHOD GetDescription(char **desc) {
         *desc = strdup("Memory used by the Direct2D internal surface cache.");
         return NS_OK;
@@ -129,11 +124,6 @@ public:
 
     NS_IMETHOD GetPath(char **memoryPath) {
         *memoryPath = strdup("gfx-d2d-surfacevram");
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetKind(PRInt32 *kind) {
-        *kind = MR_OTHER;
         return NS_OK;
     }
 

@@ -62,7 +62,6 @@
 #include "nsExceptionHandler.h"
 #endif
 #include "nsNPAPIPlugin.h"
-#include "nsILocalFile.h"
 
 using base::KillProcess;
 
@@ -1001,20 +1000,9 @@ PluginModuleParent::RecvProcessNativeEventsInRPCCall()
     return true;
 #else
     NS_NOTREACHED(
-        "PluginModuleParent::RecvProcessNativeEventsInRPCCall not implemented!");
+        "PluginInstanceParent::RecvProcessNativeEventsInRPCCall not implemented!");
     return false;
 #endif
-}
-
-void
-PluginModuleParent::ProcessRemoteNativeEventsInRPCCall()
-{
-#if defined(OS_WIN)
-    SendProcessNativeEventsInRPCCall();
-    return;
-#endif
-    NS_NOTREACHED(
-        "PluginModuleParent::ProcessRemoteNativeEventsInRPCCall not implemented!");
 }
 
 bool

@@ -48,21 +48,21 @@
 using namespace js;
 
 void
-JSONParser::error(const char *msg)
+JSONSourceParser::error(const char *msg)
 {
     if (errorHandling == RaiseError)
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE, msg);
 }
 
 bool
-JSONParser::errorReturn()
+JSONSourceParser::errorReturn()
 {
     return errorHandling == NoError;
 }
 
-template<JSONParser::StringType ST>
-JSONParser::Token
-JSONParser::readString()
+template<JSONSourceParser::StringType ST>
+JSONSourceParser::Token
+JSONSourceParser::readString()
 {
     JS_ASSERT(current < end);
     JS_ASSERT(*current == '"');
@@ -86,8 +86,8 @@ JSONParser::readString()
         if (*current == '"') {
             size_t length = current - start;
             current++;
-            JSFlatString *str = (ST == JSONParser::PropertyName)
-                                ? js_AtomizeChars(cx, start, length)
+            JSFlatString *str = (ST == JSONSourceParser::PropertyName)
+                                ? js_AtomizeChars(cx, start, length, 0)
                                 : js_NewStringCopyN(cx, start, length);
             if (!str)
                 return token(OOM);
@@ -118,7 +118,7 @@ JSONParser::readString()
 
         jschar c = *current++;
         if (c == '"') {
-            JSFlatString *str = (ST == JSONParser::PropertyName)
+            JSFlatString *str = (ST == JSONSourceParser::PropertyName)
                                 ? buffer.finishAtom()
                                 : buffer.finishString();
             if (!str)
@@ -181,8 +181,8 @@ JSONParser::readString()
     return token(Error);
 }
 
-JSONParser::Token
-JSONParser::readNumber()
+JSONSourceParser::Token
+JSONSourceParser::readNumber()
 {
     JS_ASSERT(current < end);
     JS_ASSERT(JS7_ISDEC(*current) || *current == '-');
@@ -276,8 +276,8 @@ IsJSONWhitespace(jschar c)
     return c == '\t' || c == '\r' || c == '\n' || c == ' ';
 }
 
-JSONParser::Token
-JSONParser::advance()
+JSONSourceParser::Token
+JSONSourceParser::advance()
 {
     while (current < end && IsJSONWhitespace(*current))
         current++;
@@ -357,8 +357,8 @@ JSONParser::advance()
     }
 }
 
-JSONParser::Token
-JSONParser::advanceAfterObjectOpen()
+JSONSourceParser::Token
+JSONSourceParser::advanceAfterObjectOpen()
 {
     JS_ASSERT(current[-1] == '{');
 
@@ -382,7 +382,7 @@ JSONParser::advanceAfterObjectOpen()
 }
 
 static inline void
-AssertPastValue(const RangeCheckedPointer<const jschar> current)
+AssertPastValue(const jschar *current)
 {
     /*
      * We're past an arbitrary JSON value, so the previous character is
@@ -408,8 +408,8 @@ AssertPastValue(const RangeCheckedPointer<const jschar> current)
               JS7_ISDEC(current[-1]));
 }
 
-JSONParser::Token
-JSONParser::advanceAfterArrayElement()
+JSONSourceParser::Token
+JSONSourceParser::advanceAfterArrayElement()
 {
     AssertPastValue(current);
 
@@ -434,8 +434,8 @@ JSONParser::advanceAfterArrayElement()
     return token(Error);
 }
 
-JSONParser::Token
-JSONParser::advancePropertyName()
+JSONSourceParser::Token
+JSONSourceParser::advancePropertyName()
 {
     JS_ASSERT(current[-1] == ',');
 
@@ -466,8 +466,8 @@ JSONParser::advancePropertyName()
     return token(Error);
 }
 
-JSONParser::Token
-JSONParser::advancePropertyColon()
+JSONSourceParser::Token
+JSONSourceParser::advancePropertyColon()
 {
     JS_ASSERT(current[-1] == '"');
 
@@ -487,8 +487,8 @@ JSONParser::advancePropertyColon()
     return token(Error);
 }
 
-JSONParser::Token
-JSONParser::advanceAfterProperty()
+JSONSourceParser::Token
+JSONSourceParser::advanceAfterProperty()
 {
     AssertPastValue(current);
 
@@ -514,13 +514,13 @@ JSONParser::advanceAfterProperty()
 }
 
 /*
- * This enum is local to JSONParser::parse, below, but ISO C++98 doesn't allow
- * templates to depend on local types.  Boo-urns!
+ * This enum is local to JSONSourceParser::parse, below, but ISO C++98 doesn't
+ * allow templates to depend on local types.  Boo-urns!
  */
 enum ParserState { FinishArrayElement, FinishObjectMember, JSONValue };
 
 bool
-JSONParser::parse(Value *vp)
+JSONSourceParser::parse(Value *vp)
 {
     Vector<ParserState> stateStack(cx);
     AutoValueVector valueStack(cx);

@@ -968,7 +968,20 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
   // get the selection details 
   SelectionDetails *details = nsnull;
   {
-    nsRefPtr<nsFrameSelection> frameSelection = presContext->PresShell()->FrameSelection();
+    nsCOMPtr<nsFrameSelection> frameSelection;
+    {
+      nsCOMPtr<nsISelectionController> controller;
+      GetSelectionController(presContext, getter_AddRefs(controller));
+      
+      if (!controller) {
+        NS_ERROR("no selection controller");
+        return NS_ERROR_FAILURE;
+      }
+      frameSelection = do_QueryInterface(controller);
+    }
+    if (!frameSelection) {
+      frameSelection = presContext->PresShell()->FrameSelection();
+    }
     if (!frameSelection) {
       NS_ERROR("no frameselection interface");
       return NS_ERROR_FAILURE;

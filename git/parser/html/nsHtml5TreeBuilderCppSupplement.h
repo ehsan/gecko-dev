@@ -602,18 +602,9 @@ nsHtml5TreeBuilder::HasScript()
 }
 
 PRBool
-nsHtml5TreeBuilder::Flush(PRBool aDiscretionary)
+nsHtml5TreeBuilder::Flush()
 {
-  if (!aDiscretionary ||
-      !(charBufferLen &&
-        currentPtr >= 0 &&
-        stack[currentPtr]->isFosterParenting())) {
-    // Don't flush text on discretionary flushes if the current element on
-    // the stack is a foster-parenting element and there's pending text,
-    // because flushing in that case would make the tree shape dependent on
-    // where the flush points fall.
-    flushCharacters();
-  }
+  flushCharacters();
   FlushLoads();
   if (mOpSink) {
     PRBool hasOps = !mOpQueue.IsEmpty();
@@ -674,6 +665,14 @@ nsHtml5TreeBuilder::AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRI
   NS_PRECONDITION(HasScript(), "No script to add a snapshot to!");
   NS_PRECONDITION(aSnapshot, "Got null snapshot.");
   mOpQueue.ElementAt(mOpQueue.Length() - 1).SetSnapshot(aSnapshot, aLine);
+}
+
+PRBool 
+nsHtml5TreeBuilder::IsDiscretionaryFlushSafe()
+{
+  return !(charBufferLen && 
+           currentPtr >= 0 && 
+           stack[currentPtr]->isFosterParenting());
 }
 
 void

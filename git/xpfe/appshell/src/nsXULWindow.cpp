@@ -58,6 +58,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMBarProp.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIPrivateDOMEvent.h"
@@ -271,17 +272,18 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
   nsCOMPtr<nsIContentViewer> cv;
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   if (cv) {
-    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(cv->GetDocument());
-    if (domDoc) {
+    nsCOMPtr<nsIDOMDocumentEvent> docEvent(
+      do_QueryInterface(cv->GetDocument()));
+    if (docEvent) {
       nsCOMPtr<nsIDOMEvent> event;
-      domDoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
+      docEvent->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
       if (event) {
         event->InitEvent(NS_LITERAL_STRING("windowZLevel"), PR_TRUE, PR_FALSE);
 
         nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
         privateEvent->SetTrusted(PR_TRUE);
 
-        nsCOMPtr<nsIDOMEventTarget> targ = do_QueryInterface(domDoc);
+        nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(docEvent));
         if (targ) {
           PRBool defaultActionEnabled;
           targ->DispatchEvent(event, &defaultActionEnabled);

@@ -51,6 +51,7 @@
 #include "nsIInputStream.h"
 #include "nsIMIMEService.h"
 #include "nsIPlatformCharset.h"
+#include "nsIUnicharInputStream.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
@@ -271,7 +272,7 @@ NS_IMETHODIMP
 nsDOMFileReader::Abort()
 {
   if (mReadyState != nsIDOMFileReader::LOADING)
-    return NS_ERROR_DOM_FILE_ABORT_ERR;
+    return NS_OK;
 
   //Clear progress and file data
   mProgressEventWasDelayed = PR_FALSE;

@@ -472,13 +472,6 @@ nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame,
                                            eCaseMatters);
 }
 
-PRBool
-nsNativeTheme::IsVerticalProgress(nsIFrame* aFrame)
-{
-  return aFrame &&
-         aFrame->GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL;
-}
-
 // menupopup:
 PRBool
 nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
@@ -557,7 +550,11 @@ nsNativeTheme::Notify(nsITimer* aTimer)
   for (PRUint32 index = 0; index < count; index++) {
     nsIFrame* frame = mAnimatedContentList[index]->GetPrimaryFrame();
     if (frame) {
+#ifdef MOZ_ENABLE_LIBXUL
       frame->InvalidateOverflowRect();
+#else
+      frame->InvalidateOverflowRectExternal();
+#endif
     }
   }
 

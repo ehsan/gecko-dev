@@ -511,7 +511,6 @@ Blocklist.prototype = {
       return;
     }
 
-    LOG("Blocklist::notify: Requesting " + uri.spec);
     var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                   createInstance(Ci.nsIXMLHttpRequest);
     request.open("GET", uri.spec, true);
@@ -860,23 +859,19 @@ Blocklist.prototype = {
         LOG("Blocklist state for " + addons[i].id + " changed from " +
             oldState + " to " + state);
 
+        // Don't warn about add-ons becoming unblocked.
+        if (state == 0)
+          continue;
+
         // We don't want to re-warn about add-ons
         if (state == oldState)
           continue;
 
-        // Ensure that softDisabled is false if the add-on is not soft blocked
-        if (state != Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
-          addons[i].softDisabled = false;
-
-        // Don't warn about add-ons becoming unblocked.
-        if (state == Ci.nsIBlocklistService.STATE_NOT_BLOCKED)
-          continue;
-
         // If an add-on has dropped from hard to soft blocked just mark it as
-        // soft disabled and don't warn about it.
+        // user disabled and don't warn about it.
         if (state == Ci.nsIBlocklistService.STATE_SOFTBLOCKED &&
             oldState == Ci.nsIBlocklistService.STATE_BLOCKED) {
-          addons[i].softDisabled = true;
+          addons[i].userDisabled = true;
           continue;
         }
 
@@ -934,10 +929,8 @@ Blocklist.prototype = {
         plugins[i].blocklisted = state == Ci.nsIBlocklistService.STATE_BLOCKED;
       }
 
-      if (addonList.length == 0) {
-        Services.obs.notifyObservers(self, "blocklist-updated", "");
+      if (addonList.length == 0)
         return;
-      }
 
       if ("@mozilla.org/addons/blocklist-prompt;1" in Cc) {
         try {
@@ -947,7 +940,6 @@ Blocklist.prototype = {
         } catch (e) {
           LOG(e);
         }
-        Services.obs.notifyObservers(self, "blocklist-updated", "");
         return;
       }
 
@@ -970,13 +962,11 @@ Blocklist.prototype = {
         if (addonList[i].item instanceof Ci.nsIPluginTag)
           addonList[i].item.disabled = true;
         else
-          addonList[i].item.softDisabled = true;
+          addonList[i].item.userDisabled = true;
       }
 
       if (args.restart)
         restartApp();
-
-      Services.obs.notifyObservers(self, "blocklist-updated", "");
     });
   },
 

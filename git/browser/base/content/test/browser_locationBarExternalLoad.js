@@ -9,46 +9,30 @@ function test() {
 
 let urls = [
   "javascript:'foopy';",
-  "data:text/html,<body>hi"
+  "data:text/html,<script>document.write(document.domain);</script>"
 ];
-
-function urlEnter(url) {
-  gURLBar.value = url;
-  gURLBar.focus();
-  EventUtils.synthesizeKey("VK_RETURN", {});
-}
-
-function urlClick(url) {
-  gURLBar.value = url;
-  gURLBar.focus();
-  let goButton = document.getElementById("urlbar-go-button");
-  EventUtils.synthesizeMouseAtCenter(goButton, {});
-}
 
 function nextTest() {
   let url = urls.shift();
-  if (url) {
-    testURL(url, urlEnter, function () {
-      testURL(url, urlClick, nextTest);
-    });
-  }
+  if (url)
+    testURL(url, nextTest);
   else
     finish();
 }
 
-function testURL(url, loadFunc, endFunc) {
+function testURL(newURL, func) {
   let tab = gBrowser.selectedTab = gBrowser.addTab();
   registerCleanupFunction(function () {
     gBrowser.removeTab(tab);
   });
   addPageShowListener(function () {
     let pagePrincipal = gBrowser.contentPrincipal;
-    loadFunc(url);
+    gURLBar.value = newURL;
+    gURLBar.handleCommand();
 
     addPageShowListener(function () {
-      ok(!gBrowser.contentPrincipal.equals(pagePrincipal),
-         "load of " + url + " by " + loadFunc.name + " should produce a page with a different principal");
-      endFunc();
+      ok(!gBrowser.contentPrincipal.equals(pagePrincipal), "load of " + newURL + " produced a page with a different principal");
+      func();
     });
   });
 }

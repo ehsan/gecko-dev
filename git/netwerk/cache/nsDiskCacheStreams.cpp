@@ -650,12 +650,8 @@ nsDiskCacheStreamIO::UpdateFileSize()
     
     nsDiskCacheRecord * record = &mBinding->mRecord;
     const PRUint32      oldSizeK  = record->DataFileSize();
-    PRUint32            newSizeK  = (mStreamEnd + 0x03FF) >> 10;
-
-    // make sure the size won't overflow (bug #651100)
-    if (newSizeK > kMaxDataSizeK)
-        newSizeK = kMaxDataSizeK;
-
+    const PRUint32      newSizeK  = (mStreamEnd + 0x03FF) >> 10;
+    
     if (newSizeK == oldSizeK)  return;
     
     record->SetDataFileSize(newSizeK);

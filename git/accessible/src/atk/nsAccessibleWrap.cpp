@@ -341,7 +341,9 @@ void nsAccessibleWrap::SetMaiHyperlink(MaiHyperlink* aMaiHyperlink)
         if (!maiHyperlink && !aMaiHyperlink) {
             return; // Never set and we're shutting down
         }
-        delete maiHyperlink;
+        if (maiHyperlink) {
+            delete maiHyperlink;
+        }
         g_object_set_qdata(G_OBJECT(mAtkObject), quark_mai_hyperlink,
                            aMaiHyperlink);
     }

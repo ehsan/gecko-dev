@@ -78,9 +78,6 @@ const PREF_INSTALL_DISTRO_ADDONS      = "extensions.installDistroAddons";
 const PREF_BRANCH_INSTALLED_ADDON     = "extensions.installedDistroAddon.";
 
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
-const URI_EXTENSION_STRINGS           = "chrome://mozapps/locale/extensions/extensions.properties";
-
-const STRING_TYPE_NAME                = "type.%ID%.name";
 
 const DIR_EXTENSIONS                  = "extensions";
 const DIR_STAGE                       = "staged";
@@ -118,7 +115,7 @@ const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-const DB_SCHEMA                       = 4;
+const DB_SCHEMA                       = 3;
 const REQ_VERSION                     = 2;
 
 // Properties that exist in the install manifest
@@ -133,8 +130,7 @@ const PROP_TARGETAPP     = ["id", "minVersion", "maxVersion"];
 const DB_METADATA        = ["installDate", "updateDate", "size", "sourceURI",
                             "releaseNotesURI", "applyBackgroundUpdates"];
 const DB_BOOL_METADATA   = ["visible", "active", "userDisabled", "appDisabled",
-                            "pendingUninstall", "bootstrap", "skinnable",
-                            "softDisabled"];
+                            "pendingUninstall", "bootstrap", "skinnable"];
 
 const BOOTSTRAP_REASONS = {
   APP_STARTUP     : 1,
@@ -154,8 +150,6 @@ const TYPES = {
   locale: 8,
   multipackage: 32
 };
-
-const MSG_JAR_FLUSH = "AddonJarFlush";
 
 /**
  * Valid IDs fit this pattern.
@@ -419,61 +413,6 @@ function findClosestLocale(aLocales) {
 }
 
 /**
- * Sets the userDisabled and softDisabled properties of an add-on based on what
- * values those properties had for a previous instance of the add-on. The
- * previous instance may be a previous install or in the case of an application
- * version change the same add-on.
- *
- * @param  aOldAddon
- *         The previous instance of the add-on
- * @param  aNewAddon
- *         The new instance of the add-on
- * @param  aAppVersion
- *         The optional application version to use when checking the blocklist
- *         or undefined to use the current application
- * @param  aPlatformVersion
- *         The optional platform version to use when checking the blocklist or
- *         undefined to use the current platform
- */
-function applyBlocklistChanges(aOldAddon, aNewAddon, aOldAppVersion,
-                               aOldPlatformVersion) {
-  // Copy the properties by default
-  aNewAddon.userDisabled = aOldAddon.userDisabled;
-  aNewAddon.softDisabled = aOldAddon.softDisabled;
-
-  let bs = Cc["@mozilla.org/extensions/blocklist;1"].
-           getService(Ci.nsIBlocklistService);
-
-  let oldBlocklistState = bs.getAddonBlocklistState(aOldAddon.id,
-                                                    aOldAddon.version,
-                                                    aOldAppVersion,
-                                                    aOldPlatformVersion);
-  let newBlocklistState = bs.getAddonBlocklistState(aNewAddon.id,
-                                                    aNewAddon.version);
-
-  // If the blocklist state hasn't changed then the properties don't need to
-  // change
-  if (newBlocklistState == oldBlocklistState)
-    return;
-
-  if (newBlocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED) {
-    if (aNewAddon.type != "theme") {
-      // The add-on has become softblocked, set softDisabled if it isn't already
-      // userDisabled
-      aNewAddon.softDisabled = !aNewAddon.userDisabled;
-    }
-    else {
-      // Themes just get userDisabled to switch back to the default theme
-      aNewAddon.userDisabled = true;
-    }
-  }
-  else {
-    // If the new add-on is not softblocked then it cannot be softDisabled
-    aNewAddon.softDisabled = false;
-  }
-}
-
-/**
  * Calculates whether an add-on should be appDisabled or not.
  *
  * @param  aAddon
@@ -504,10 +443,6 @@ function isUsableAddon(aAddon) {
   }
 
   return true;
-}
-
-function isAddonDisabled(aAddon) {
-  return aAddon.appDisabled || aAddon.softDisabled || aAddon.userDisabled;
 }
 
 this.__defineGetter__("gRDF", function() {
@@ -769,8 +704,7 @@ function loadManifestFromRDF(aUri, aStream) {
                          addon.internalName != XPIProvider.selectedSkin;
   }
   else {
-    addon.userDisabled = false;
-    addon.softDisabled = addon.blocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED;
+    addon.userDisabled = addon.blocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED;
   }
 
   addon.appDisabled = !isUsableAddon(addon);
@@ -906,18 +840,6 @@ function buildJarURI(aJarfile, aPath) {
 }
 
 /**
- * Sends local and remote notifications to flush a JAR file cache entry
- *
- * @param aJarFile
- *        The ZIP/XPI/JAR file as a nsIFile
- */
-function flushJarCache(aJarFile) {
-  Services.obs.notifyObservers(aJarFile, "flush-cache-entry", null);
-  Cc["@mozilla.org/globalmessagemanager;1"].getService(Ci.nsIChromeFrameMessageManager)
-    .sendAsyncMessage(MSG_JAR_FLUSH, aJarFile.path);
-}
-
-/**
  * Creates and returns a new unique temporary file. The caller should delete
  * the file when it is no longer needed.
  *
@@ -1035,8 +957,7 @@ function verifyZipSigning(aZip, aPrincipal) {
  */
 function escapeAddonURI(aAddon, aUri, aUpdateType, aAppVersion)
 {
-  var addonStatus = aAddon.userDisabled || aAddon.softDisabled ? "userDisabled"
-                                                               : "userEnabled";
+  var addonStatus = aAddon.userDisabled ? "userDisabled" : "userEnabled";
 
   if (!aAddon.isCompatible)
     addonStatus += ",incompatible";
@@ -1351,17 +1272,6 @@ var Prefs = {
     catch (e) {
     }
     return defaultValue;
-  },
-
-  /**
-   * Clears a preference if it has a user value
-   *
-   * @param  aName
-   *         The name of the preference
-   */
-  clearUserPref: function(aName) {
-    if (Services.prefs.prefHasUserValue(aName))
-      Services.prefs.clearUserPref(aName);
   }
 }
 
@@ -1419,14 +1329,8 @@ var XPIProvider = {
    *         last used with an application with a different version number,
    *         false means that the profile was last used by this version of the
    *         application.
-   * @param  aOldAppVersion
-   *         The version of the application last run with this profile or null
-   *         if it is a new profile or the version is unknown
-   * @param  aOldPlatformVersion
-   *         The version of the platform last run with this profile or null
-   *         if it is a new profile or the version is unknown
    */
-  startup: function XPI_startup(aAppChanged, aOldAppVersion, aOldPlatformVersion) {
+  startup: function XPI_startup(aAppChanged) {
     LOG("startup");
     this.installs = [];
     this.installLocations = [];
@@ -1527,8 +1431,7 @@ var XPIProvider = {
     Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
     Services.prefs.addObserver(PREF_EM_CHECK_UPDATE_SECURITY, this, false);
 
-    let flushCaches = this.checkForChanges(aAppChanged, aOldAppVersion,
-                                           aOldPlatformVersion);
+    let flushCaches = this.checkForChanges(aAppChanged);
 
     // Changes to installed extensions may have changed which theme is selected
     this.applyThemeChange();
@@ -2156,12 +2059,6 @@ var XPIProvider = {
    * @param  aUpdateCompatibility
    *         true to update add-ons appDisabled property when the application
    *         version has changed
-   * @param  aOldAppVersion
-   *         The version of the application last run with this profile or null
-   *         if it is a new profile or the version is unknown
-   * @param  aOldPlatformVersion
-   *         The version of the platform last run with this profile or null
-   *         if it is a new profile or the version is unknown
    * @param  aMigrateData
    *         an object generated from a previous version of the database
    *         holding information about what add-ons were previously userDisabled
@@ -2174,8 +2071,6 @@ var XPIProvider = {
    */
   processFileChanges: function XPI_processFileChanges(aState, aManifests,
                                                       aUpdateCompatibility,
-                                                      aOldAppVersion,
-                                                      aOldPlatformVersion,
                                                       aMigrateData,
                                                       aActiveBundles) {
     let visibleAddons = {};
@@ -2208,7 +2103,8 @@ var XPIProvider = {
         if (!newAddon) {
           let file = aInstallLocation.getLocationForID(aOldAddon.id);
           newAddon = loadManifestFromFile(file);
-          applyBlocklistChanges(aOldAddon, newAddon);
+          // Carry over the userDisabled setting for add-ons that just appeared
+          newAddon.userDisabled = aOldAddon.userDisabled;
         }
 
         // The ID in the manifest that was loaded must match the ID of the old
@@ -2239,11 +2135,6 @@ var XPIProvider = {
       XPIDatabase.updateAddonMetadata(aOldAddon, newAddon, aAddonState.descriptor);
       if (newAddon.visible) {
         visibleAddons[newAddon.id] = newAddon;
-
-        // If this was the active theme and it is now disabled then enable the
-        // default theme
-        if (aOldAddon.active && isAddonDisabled(newAddon))
-          XPIProvider.enableDefaultTheme();
 
         // If the new add-on is bootstrapped and active then call its install method
         if (newAddon.active && newAddon.bootstrap) {
@@ -2302,7 +2193,7 @@ var XPIProvider = {
 
             // If it should be active then mark it as active otherwise unload
             // its scope
-            if (!isAddonDisabled(aOldAddon)) {
+            if (!aOldAddon.appDisabled && !aOldAddon.userDisabled) {
               aOldAddon.active = true;
               XPIDatabase.updateAddonActive(aOldAddon);
             }
@@ -2319,40 +2210,26 @@ var XPIProvider = {
 
       // App version changed, we may need to update the appDisabled property.
       if (aUpdateCompatibility) {
-        // Create a basic add-on object for the new state to save reproducing
-        // the applyBlocklistChanges code
-        let newAddon = new AddonInternal();
-        newAddon.id = aOldAddon.id;
-        newAddon.version = aOldAddon.version;
-        newAddon.type = aOldAddon.type;
-        newAddon.appDisabled = !isUsableAddon(aOldAddon);
-
+        let appDisabled = !isUsableAddon(aOldAddon);
+        let userDisabled = aOldAddon.userDisabled;
         // Sync the userDisabled flag to the selectedSkin
         if (aOldAddon.type == "theme")
-          newAddon.userDisabled = aOldAddon.internalName != XPIProvider.selectedSkin;
-
-        applyBlocklistChanges(aOldAddon, newAddon, aOldAppVersion,
-                              aOldPlatformVersion);
-
-        let wasDisabled = isAddonDisabled(aOldAddon);
-        let isDisabled = isAddonDisabled(newAddon);
+          userDisabled = aOldAddon.internalName != XPIProvider.selectedSkin;
+        let wasDisabled = aOldAddon.appDisabled || aOldAddon.userDisabled;
+        let isDisabled = appDisabled || userDisabled;
 
         // Remember add-ons that became appDisabled by the application change
-        if (aOldAddon.visible && newAddon.appDisabled && !aOldAddon.appDisabled)
+        if (aOldAddon.visible && appDisabled && !aOldAddon.appDisabled)
           XPIProvider.startupChanges.appDisabled.push(aOldAddon.id);
 
         // If either property has changed update the database.
-        if (newAddon.appDisabled != aOldAddon.appDisabled ||
-            newAddon.userDisabled != aOldAddon.userDisabled ||
-            newAddon.softDisabled != aOldAddon.softDisabled) {
+        if (appDisabled != aOldAddon.appDisabled ||
+            userDisabled != aOldAddon.userDisabled) {
           LOG("Add-on " + aOldAddon.id + " changed appDisabled state to " +
-              newAddon.appDisabled + ", userDisabled state to " +
-              newAddon.userDisabled + " and softDisabled state to " +
-              newAddon.softDisabled);
+              appDisabled + " and userDisabled state to " + userDisabled);
           XPIDatabase.setAddonProperties(aOldAddon, {
-            appDisabled: newAddon.appDisabled,
-            userDisabled: newAddon.userDisabled,
-            softDisabled: newAddon.softDisabled
+            appDisabled: appDisabled,
+            userDisabled: userDisabled
           });
         }
 
@@ -2470,8 +2347,6 @@ var XPIProvider = {
           newAddon.userDisabled = aMigrateData.userDisabled;
         if ("installDate" in aMigrateData)
           newAddon.installDate = aMigrateData.installDate;
-        if ("softDisabled" in aMigrateData)
-          newAddon.softDisabled = aMigrateData.softDisabled;
 
         // Some properties should only be migrated if the add-on hasn't changed.
         // The version property isn't a perfect check for this but covers the
@@ -2480,33 +2355,24 @@ var XPIProvider = {
           if ("targetApplications" in aMigrateData)
             newAddon.applyCompatibilityUpdate(aMigrateData, true);
         }
-
-        // Since the DB schema has changed make sure softDisabled is correct
-        applyBlocklistChanges(newAddon, newAddon, aOldAppVersion,
-                              aOldPlatformVersion);
       }
 
+      // If we have a list of what add-ons should be marked as active then use it
       if (aActiveBundles) {
-        // If we have a list of what add-ons should be marked as active then use
-        // it to guess at migration data
         // For themes we know which is active by the current skin setting
         if (newAddon.type == "theme")
           newAddon.active = newAddon.internalName == XPIProvider.currentSkin;
         else
           newAddon.active = aActiveBundles.indexOf(aAddonState.descriptor) != -1;
 
-        // If the add-on wasn't active and it isn't already disabled in some way
-        // then it was probably either softDisabled or userDisabled
-        if (!newAddon.active && newAddon.visible && !isAddonDisabled(newAddon)) {
-          // If the add-on is softblocked then assume it is softDisabled
-          if (newAddon.blocklistState == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
-            newAddon.softDisabled = true;
-          else
-            newAddon.userDisabled = true;
-        }
+        // If the add-on isn't active and it isn't appDisabled then it is
+        // probably userDisabled
+        if (!newAddon.active && newAddon.visible && !newAddon.appDisabled)
+          newAddon.userDisabled = true;
       }
       else {
-        newAddon.active = (newAddon.visible && !isAddonDisabled(newAddon))
+        newAddon.active = (newAddon.visible && !newAddon.userDisabled &&
+                           !newAddon.appDisabled)
       }
 
       try {
@@ -2687,16 +2553,9 @@ var XPIProvider = {
    *         last used with an application with a different version number,
    *         false means that the profile was last used by this version of the
    *         application.
-   * @param  aOldAppVersion
-   *         The version of the application last run with this profile or null
-   *         if it is a new profile or the version is unknown
-   * @param  aOldPlatformVersion
-   *         The version of the platform last run with this profile or null
-   *         if it is a new profile or the version is unknown
    * @return true if a change requiring a restart was detected
    */
-  checkForChanges: function XPI_checkForChanges(aAppChanged, aOldAppVersion,
-                                                aOldPlatformVersion) {
+  checkForChanges: function XPI_checkForChanges(aAppChanged) {
     LOG("checkForChanges");
 
     // Import the website installation permissions if the application has changed
@@ -2773,8 +2632,6 @@ var XPIProvider = {
         try {
           extensionListChanged = this.processFileChanges(state, manifests,
                                                          aAppChanged,
-                                                         aOldAppVersion,
-                                                         aOldPlatformVersion,
                                                          migrateData, null);
         }
         catch (e) {
@@ -2787,7 +2644,7 @@ var XPIProvider = {
         // compatible otherwise switch back the default
         if (this.currentSkin != this.defaultSkin) {
           let oldSkin = XPIDatabase.getVisibleAddonForInternalName(this.currentSkin);
-          if (!oldSkin || isAddonDisabled(oldSkin))
+          if (!oldSkin || oldSkin.appDisabled)
             this.enableDefaultTheme();
         }
 
@@ -3089,27 +2946,10 @@ var XPIProvider = {
   enableDefaultTheme: function XPI_enableDefaultTheme() {
     LOG("Activating default theme");
     let addon = XPIDatabase.getVisibleAddonForInternalName(this.defaultSkin);
-    if (addon) {
-      if (addon.userDisabled) {
-        this.updateAddonDisabledState(addon, false);
-      }
-      else if (!this.extensionsActive) {
-        // During startup we may end up trying to enable the default theme when
-        // the database thinks it is already enabled (see f.e. bug 638847). In
-        // this case just force the theme preferences to be correct
-        Services.prefs.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN,
-                                   addon.internalName);
-        this.currentSkin = this.selectedSkin = addon.internalName;
-        Prefs.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
-        Prefs.clearUserPref(PREF_DSS_SWITCHPENDING);
-      }
-      else {
-        WARN("Attempting to activate an already active default theme");
-      }
-    }
-    else {
+    if (addon)
+      this.updateAddonDisabledState(addon, false);
+    else
       WARN("Unable to activate the default theme");
-    }
   },
 
   /**
@@ -3251,7 +3091,7 @@ var XPIProvider = {
 
     // If the add-on is not going to be active after installation then it
     // doesn't require a restart to install.
-    if (isAddonDisabled(aAddon))
+    if (aAddon.userDisabled || aAddon.appDisabled)
       return false;
 
     // Themes will require a restart (even if dynamic switching is enabled due
@@ -3432,49 +3272,29 @@ var XPIProvider = {
    * @param  aUserDisabled
    *         Value for the userDisabled property. If undefined the value will
    *         not change
-   * @param  aSoftDisabled
-   *         Value for the softDisabled property. If undefined the value will
-   *         not change. If true this will force userDisabled to be true
    * @throws if addon is not a DBAddonInternal
    */
   updateAddonDisabledState: function XPI_updateAddonDisabledState(aAddon,
-                                                                  aUserDisabled,
-                                                                  aSoftDisabled) {
+                                                                  aUserDisabled) {
     if (!(aAddon instanceof DBAddonInternal))
       throw new Error("Can only update addon states for installed addons.");
-    if (aUserDisabled !== undefined && aSoftDisabled !== undefined) {
-      throw new Error("Cannot change userDisabled and softDisabled at the " +
-                      "same time");
-    }
 
-    if (aUserDisabled === undefined) {
+    if (aUserDisabled === undefined)
       aUserDisabled = aAddon.userDisabled;
-    }
-    else if (!aUserDisabled) {
-      // If enabling the add-on then remove softDisabled
-      aSoftDisabled = false;
-    }
-
-    // If not changing softDisabled or the add-on is already userDisabled then
-    // use the existing value for softDisabled
-    if (aSoftDisabled === undefined || aUserDisabled)
-      aSoftDisabled = aAddon.softDisabled;
 
     let appDisabled = !isUsableAddon(aAddon);
     // No change means nothing to do here
     if (aAddon.userDisabled == aUserDisabled &&
-        aAddon.appDisabled == appDisabled &&
-        aAddon.softDisabled == aSoftDisabled)
+        aAddon.appDisabled == appDisabled)
       return;
 
-    let wasDisabled = isAddonDisabled(aAddon);
-    let isDisabled = aUserDisabled || aSoftDisabled || appDisabled;
+    let wasDisabled = aAddon.userDisabled || aAddon.appDisabled;
+    let isDisabled = aUserDisabled || appDisabled;
 
     // Update the properties in the database
     XPIDatabase.setAddonProperties(aAddon, {
       userDisabled: aUserDisabled,
-      appDisabled: appDisabled,
-      softDisabled: aSoftDisabled
+      appDisabled: appDisabled
     });
 
     // If the add-on is not visible or the add-on is not changing state then
@@ -3593,7 +3413,8 @@ var XPIProvider = {
         let wrappedAddon = createWrapper(aAddon);
         AddonManagerPrivate.callAddonListeners("onInstalling", wrappedAddon, false);
 
-        if (!isAddonDisabled(aAddon) && !XPIProvider.enableRequiresRestart(aAddon)) {
+        if (!aAddon.userDisabled && !aAddon.appDisabled &&
+            !XPIProvider.enableRequiresRestart(aAddon)) {
           aAddon.active = true;
           XPIDatabase.updateAddonActive(aAddon);
         }
@@ -3674,7 +3495,7 @@ const FIELDS_ADDON = "internal_id, id, location, version, type, internalName, " 
                      "icon64URL, defaultLocale, visible, active, userDisabled, " +
                      "appDisabled, pendingUninstall, descriptor, installDate, " +
                      "updateDate, applyBackgroundUpdates, bootstrap, skinnable, " +
-                     "size, sourceURI, releaseNotesURI, softDisabled";
+                     "size, sourceURI, releaseNotesURI";
 
 /**
  * A helper function to log an SQL error.
@@ -3819,7 +3640,7 @@ var XPIDatabase = {
                             ":userDisabled, :appDisabled, :pendingUninstall, " +
                             ":descriptor, :installDate, :updateDate, " +
                             ":applyBackgroundUpdates, :bootstrap, :skinnable, " +
-                            ":size, :sourceURI, :releaseNotesURI, :softDisabled)",
+                            ":size, :sourceURI, :releaseNotesURI)",
     addAddonMetadata_addon_locale: "INSERT INTO addon_locale VALUES " +
                                    "(:internal_id, :name, :locale)",
     addAddonMetadata_locale: "INSERT INTO locale (name, description, creator, " +
@@ -3862,12 +3683,11 @@ var XPIDatabase = {
 
     makeAddonVisible: "UPDATE addon SET visible=1 WHERE internal_id=:internal_id",
     removeAddonMetadata: "DELETE FROM addon WHERE internal_id=:internal_id",
-    // Equates to active = visible && !userDisabled && !softDisabled && !appDisabled
+    // Equates to active = visible && !userDisabled && !appDisabled
     setActiveAddons: "UPDATE addon SET active=MIN(visible, 1 - userDisabled, " +
-                     "1 - softDisabled, 1 - appDisabled)",
+                     "1 - appDisabled)",
     setAddonProperties: "UPDATE addon SET userDisabled=:userDisabled, " +
                         "appDisabled=:appDisabled, " +
-                        "softDisabled=:softDisabled, " +
                         "pendingUninstall=:pendingUninstall, " +
                         "applyBackgroundUpdates=:applyBackgroundUpdates WHERE " +
                         "internal_id=:internal_id",
@@ -4030,8 +3850,7 @@ var XPIDatabase = {
         this.beginTransaction();
         try {
           let state = XPIProvider.getInstallLocationStates();
-          XPIProvider.processFileChanges(state, {}, false, undefined, undefined,
-                                         migrateData, activeBundles)
+          XPIProvider.processFileChanges(state, {}, false, migrateData, activeBundles)
           // Make sure to update the active add-ons and add-ons list on shutdown
           Services.prefs.setBoolPref(PREF_PENDING_OPERATIONS, true);
           this.commitTransaction();
@@ -4179,28 +3998,10 @@ var XPIDatabase = {
     // Attempt to migrate data from a different (even future!) version of the
     // database
     try {
-      // Build a list of sql statements that might recover useful data from this
-      // and future versions of the schema
-      var sql = [];
-      sql.push("SELECT internal_id, id, location, userDisabled, " +
-               "softDisabled, installDate, version FROM addon");
-      sql.push("SELECT internal_id, id, location, userDisabled, installDate, " +
-               "version FROM addon");
-
-      var stmt = null;
-      if (!sql.some(function(aSql) {
-        try {
-          stmt = this.connection.createStatement(aSql);
-          return true;
-        }
-        catch (e) {
-          return false;
-        }
-      }, this)) {
-        ERROR("Unable to read anything useful from the database");
-        return migrateData;
-      }
-
+      var stmt = this.connection.createStatement("SELECT internal_id, id, " +
+                                                 "location, userDisabled, " +
+                                                 "installDate, version " +
+                                                 "FROM addon");
       for (let row in resultRows(stmt)) {
         if (!(row.location in migrateData))
           migrateData[row.location] = {};
@@ -4211,9 +4012,6 @@ var XPIDatabase = {
           userDisabled: row.userDisabled == 1,
           targetApplications: []
         };
-
-        if ("softDisabled" in row)
-          migrateData[row.location][row.id].softDisabled = row.softDisabled == 1;
       }
 
       var taStmt = this.connection.createStatement("SELECT id, minVersion, " +
@@ -4333,8 +4131,7 @@ var XPIDatabase = {
                                   "applyBackgroundUpdates INTEGER, " +
                                   "bootstrap INTEGER, skinnable INTEGER, " +
                                   "size INTEGER, sourceURI TEXT, " +
-                                  "releaseNotesURI TEXT, softDisabled INTEGER, " +
-                                  "UNIQUE (id, location)");
+                                  "releaseNotesURI TEXT, UNIQUE (id, location)");
       this.connection.createTable("targetApplication",
                                   "addon_internal_id INTEGER, " +
                                   "id TEXT, minVersion TEXT, maxVersion TEXT, " +
@@ -5095,7 +4892,7 @@ var XPIDatabase = {
     let stmt = this.getStatement("setAddonProperties");
     stmt.params.internal_id = aAddon._internal_id;
 
-    ["userDisabled", "appDisabled", "softDisabled",
+    ["userDisabled", "appDisabled",
      "pendingUninstall"].forEach(function(aProp) {
       if (aProp in aProperties) {
         stmt.params[aProp] = convertBoolean(aProperties[aProp]);
@@ -5306,7 +5103,7 @@ function AddonInstall(aCallback, aInstallLocation, aUrl, aHash, aName, aType,
         XPIDatabase.getVisibleAddonForID(self.addon.id, function(aAddon) {
           self.existingAddon = aAddon;
           if (aAddon)
-            applyBlocklistChanges(aAddon, self.addon);
+            self.addon.userDisabled = aAddon.userDisabled;
           self.addon.updateDate = Date.now();
           self.addon.installDate = aAddon ? aAddon.installDate : self.addon.updateDate;
 
@@ -5452,7 +5249,7 @@ AddonInstall.prototype = {
       LOG("Cancelling install of " + this.addon.id);
       let xpi = this.installLocation.getStagingDir();
       xpi.append(this.addon.id + ".xpi");
-      flushJarCache(xpi);
+      Services.obs.notifyObservers(xpi, "flush-cache-entry", null);
       cleanStagingDir(this.installLocation.getStagingDir(),
                       [this.addon.id, this.addon.id + ".xpi",
                        this.addon.id + ".json"]);
@@ -6011,8 +5808,8 @@ AddonInstall.prototype = {
 
       if (self.existingAddon) {
         self.addon.existingAddonID = self.existingAddon.id;
+        self.addon.userDisabled = self.existingAddon.userDisabled;
         self.addon.installDate = self.existingAddon.installDate;
-        applyBlocklistChanges(self.existingAddon, self.addon);
       }
       else {
         self.addon.installDate = self.addon.updateDate;
@@ -6182,7 +5979,8 @@ AddonInstall.prototype = {
         }
         else {
           this.addon.installDate = this.addon.updateDate;
-          this.addon.active = (this.addon.visible && !isAddonDisabled(this.addon))
+          this.addon.active = (this.addon.visible && !this.addon.userDisabled &&
+                               !this.addon.appDisabled)
           XPIDatabase.addAddonMetadata(this.addon, file.persistentDescriptor);
         }
 
@@ -6532,7 +6330,6 @@ AddonInternal.prototype = {
   visible: false,
   userDisabled: false,
   appDisabled: false,
-  softDisabled: false,
   sourceURI: null,
   releaseNotesURI: null,
 
@@ -6779,7 +6576,7 @@ function AddonWrapper(aAddon) {
 
   ["id", "version", "type", "isCompatible", "isPlatformCompatible",
    "providesUpdatesSecurely", "blocklistState", "appDisabled",
-   "softDisabled", "skinnable", "size"].forEach(function(aProp) {
+   "userDisabled", "skinnable", "size"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function() aAddon[aProp]);
   }, this);
 
@@ -6966,9 +6763,9 @@ function AddonWrapper(aAddon) {
       pending |= AddonManager.PENDING_UNINSTALL;
     }
 
-    if (aAddon.active && isAddonDisabled(aAddon))
+    if (aAddon.active && (aAddon.userDisabled || aAddon.appDisabled))
       pending |= AddonManager.PENDING_DISABLE;
-    else if (!aAddon.active && !isAddonDisabled(aAddon))
+    else if (!aAddon.active && (!aAddon.userDisabled && !aAddon.appDisabled))
       pending |= AddonManager.PENDING_ENABLE;
 
     if (aAddon.pendingUpgrade)
@@ -6999,7 +6796,7 @@ function AddonWrapper(aAddon) {
       return permissions;
 
     if (!aAddon.appDisabled) {
-      if (this.userDisabled)
+      if (aAddon.userDisabled)
         permissions |= AddonManager.PERM_CAN_ENABLE;
       else if (aAddon.type != "theme")
         permissions |= AddonManager.PERM_CAN_DISABLE;
@@ -7023,11 +6820,8 @@ function AddonWrapper(aAddon) {
     return aAddon.active;
   });
 
-  this.__defineGetter__("userDisabled", function() {
-    return aAddon.softDisabled || aAddon.userDisabled;
-  });
   this.__defineSetter__("userDisabled", function(val) {
-    if (val == this.userDisabled)
+    if (val == aAddon.userDisabled)
       return val;
 
     if (aAddon instanceof DBAddonInternal) {
@@ -7042,33 +6836,6 @@ function AddonWrapper(aAddon) {
     }
     else {
       aAddon.userDisabled = val;
-      // When enabling remove the softDisabled flag
-      if (!val)
-        aAddon.softDisabled = false;
-    }
-
-    return val;
-  });
-
-  this.__defineSetter__("softDisabled", function(val) {
-    if (val == aAddon.softDisabled)
-      return val;
-
-    if (aAddon instanceof DBAddonInternal) {
-      // When softDisabling a theme just enable the active theme
-      if (aAddon.type == "theme" && val && !aAddon.userDisabled) {
-        if (aAddon.internalName == XPIProvider.defaultSkin)
-          throw new Error("Cannot disable the default theme");
-        XPIProvider.enableDefaultTheme();
-      }
-      else {
-        XPIProvider.updateAddonDisabledState(aAddon, undefined, val);
-      }
-    }
-    else {
-      // Only set softDisabled if not already disabled
-      if (!aAddon.userDisabled)
-        aAddon.softDisabled = val;
     }
 
     return val;
@@ -7377,7 +7144,7 @@ DirectoryInstallLocation.prototype = {
       file = self._directory.clone().QueryInterface(Ci.nsILocalFile);
       file.append(aId + ".xpi");
       if (file.exists()) {
-        flushJarCache(file);
+        Services.obs.notifyObservers(file, "flush-cache-entry", null);
         transaction.move(file, trashDir);
       }
     }
@@ -7394,7 +7161,7 @@ DirectoryInstallLocation.prototype = {
       }
       else {
         if (aSource.isFile())
-          flushJarCache(aSource);
+          Services.obs.notifyObservers(aSource, "flush-cache-entry", null);
 
         transaction.move(aSource, this._directory);
       }
@@ -7457,7 +7224,7 @@ DirectoryInstallLocation.prototype = {
     let trashDir = this.getTrashDir();
 
     if (file.leafName != aId)
-      flushJarCache(file);
+      Services.obs.notifyObservers(file, "flush-cache-entry", null);
 
     let transaction = new SafeInstallOperation();
 
@@ -7672,15 +7439,4 @@ WinRegInstallLocation.prototype = {
 };
 #endif
 
-AddonManagerPrivate.registerProvider(XPIProvider, [
-  new AddonManagerPrivate.AddonType("extension", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 4000),
-  new AddonManagerPrivate.AddonType("theme", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 5000),
-  new AddonManagerPrivate.AddonType("locale", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 2000,
-                                    AddonManager.TYPE_UI_HIDE_EMPTY)
-]);
+AddonManagerPrivate.registerProvider(XPIProvider);
