@@ -1,7 +1,4 @@
-/* -*- Mode: JS; tab-width: 4; indent-tabs-mode: nil; -*-
- * vim: set sw=4 ts=8 et tw=78:
 /* ***** BEGIN LICENSE BLOCK *****
- *
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,14 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Narcissus JavaScript engine.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Brendan Eich <brendan@mozilla.org>.
- * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Felipe Gomes <felipc@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,30 +35,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * Narcissus - JS implemented in JS.
- *
- * Native objects and classes implemented metacircularly:
- *      the global object (singleton)
- *      eval
- *      function objects, Function
- *
- * SpiderMonkey extensions used:
- *      catch guards
- *      const declarations
- *      get and set functions in object initialisers
- *      Object.prototype.__proto__
- *      filename and line number arguments to *Error constructors
- *      callable regular expression objects
- *
- * SpiderMonkey extensions supported metacircularly:
- *      catch guards
- *      const declarations
- *      get and set functions in object initialisers
- */
+#ifndef nsDOMMozTouchEvent_h__
+#define nsDOMMozTouchEvent_h__
 
-load('jsdefs.js');
-load('jslex.js');
-load('jsparse.js');
-load('jsexec.js');
+#include "nsIDOMMozTouchEvent.h"
+#include "nsDOMMouseEvent.h"
 
+class nsPresContext;
+
+class nsDOMMozTouchEvent : public nsDOMMouseEvent,
+                           public nsIDOMMozTouchEvent
+{
+public:
+  nsDOMMozTouchEvent(nsPresContext* aPresCOntext, nsMozTouchEvent* aEvent);
+  virtual ~nsDOMMozTouchEvent();
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  NS_DECL_NSIDOMMOZTOUCHEVENT
+
+  // Forward to base class
+  NS_FORWARD_TO_NSDOMMOUSEEVENT
+};
+
+#endif
