@@ -76,7 +76,6 @@
 #include "jsscript.h"
 #include "jsstaticcheck.h"
 #include "jsstr.h"
-#include "jstask.h"
 #include "jstracer.h"
 
 #if JS_HAS_XML_SUPPORT
@@ -3364,7 +3363,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str, intN type, JSContext *cx)
                 JS_ASSERT(type < 0);
                 rt->unitStrings[*chars] = NULL;
             } else if (type < 0) {
-                rt->asynchronousFree(chars);
+                free(chars);
             } else {
                 JS_ASSERT((uintN) type < JS_ARRAY_LENGTH(str_finalizers));
                 finalizer = str_finalizers[type];
@@ -3600,6 +3599,7 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
 #ifdef JS_TRACER
     js_PurgeJITOracle();
 #endif
+    js_PurgeThreads(cx);
 
   restart:
     rt->gcNumber++;
@@ -3611,13 +3611,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
      * Same for the protoHazardShape proxy-shape standing in for all object
      * prototypes having readonly or setter properties.
      */
-    if (rt->shapeGen & SHAPE_OVERFLOW_BIT) {
-        rt->gcRegenShapes = true;
-        rt->shapeGen = 0;
-        rt->protoHazardShape = 0;
-    }
-
-    js_PurgeThreads(cx);
+    rt->shapeGen = 0;
+    rt->protoHazardShape = 0;
 
     /*
      * Mark phase.
@@ -3648,12 +3643,6 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
     JS_ASSERT(rt->gcTraceLaterCount == 0);
 
     rt->gcMarkingTracer = NULL;
-
-#ifdef JS_THREADSAFE
-    JS_ASSERT(!rt->deallocatorTask);
-    if (rt->deallocatorThread && !rt->deallocatorThread->busy())
-        rt->deallocatorTask = new JSFreePointerListTask();
-#endif
 
     /*
      * Sweep phase.
@@ -3841,13 +3830,6 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
      */
     DestroyGCArenas(rt, emptyArenas);
 
-#ifdef JS_THREADSAFE
-    if (rt->deallocatorTask) {
-        rt->deallocatorThread->schedule(rt->deallocatorTask);
-        rt->deallocatorTask = NULL;
-    }
-#endif
-
     if (rt->gcCallback)
         (void) rt->gcCallback(cx, JSGC_FINALIZE_END);
 #ifdef DEBUG_srcnotesize
@@ -3905,7 +3887,7 @@ out:
     rt->setGCLastBytes(rt->gcBytes);
   done_running:
     rt->gcLevel = 0;
-    rt->gcRunning = rt->gcRegenShapes = false;
+    rt->gcRunning = JS_FALSE;
 
 #ifdef JS_THREADSAFE
     rt->gcThread = NULL;
