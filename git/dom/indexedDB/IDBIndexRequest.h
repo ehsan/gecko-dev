@@ -21,7 +21,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com>
+ *   Shawn Wilsher <me@shawnwilsher.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,81 +37,49 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_indexeddb_databaseinfo_h__
-#define mozilla_dom_indexeddb_databaseinfo_h__
+#ifndef mozilla_dom_indexeddb_idbindexrequest_h__
+#define mozilla_dom_indexeddb_idbindexrequest_h__
 
-// Only meant to be included in IndexedDB source files, not exported.
-#include "IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
 
-#include "IDBObjectStoreRequest.h"
+#include "nsIIDBIndexRequest.h"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-struct DatabaseInfo
+class IDBObjectStoreRequest;
+struct IndexInfo;
+
+class IDBIndexRequest : public IDBRequest::Generator,
+                        public nsIIDBIndexRequest
 {
-  nsString name;
-  nsString description;
-  nsString version;
-  PRUint32 id;
-  nsString filePath;
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIIDBINDEX
+  NS_DECL_NSIIDBINDEXREQUEST
 
-  nsAutoRefCnt referenceCount;
+  static already_AddRefed<IDBIndexRequest>
+  Create(IDBObjectStoreRequest* aObjectStore,
+         const IndexInfo* aIndexInfo);
 
-  DatabaseInfo()
-  : id(0) { }
+  IDBObjectStoreRequest* ObjectStore()
+  {
+    return mObjectStore;
+  }
 
-  static bool Get(PRUint32 aId,
-                  DatabaseInfo** aInfo);
+protected:
+  IDBIndexRequest();
+  ~IDBIndexRequest();
 
-  static bool Put(DatabaseInfo* aInfo);
+private:
+  nsRefPtr<IDBObjectStoreRequest> mObjectStore;
 
-  static void Remove(PRUint32 aId);
-
-  bool GetObjectStoreNames(nsTArray<nsString>& aNames);
-  bool ContainsStoreName(const nsAString& aName);
-};
-
-struct IndexInfo
-{
-  IndexInfo()
-  : id(LL_MININT), unique(false), autoIncrement(false) { }
-
-  PRInt64 id;
-  nsString name;
-  nsString keyPath;
-  bool unique;
-  bool autoIncrement;
-};
-
-struct ObjectStoreInfo
-{
-  nsString name;
-  PRInt64 id;
-  nsString keyPath;
-  bool autoIncrement;
-  PRUint32 databaseId;
-  nsTArray<IndexInfo> indexes;
-
-  ObjectStoreInfo()
-  : id(0), autoIncrement(false), databaseId(0) { }
-
-  static bool Get(PRUint32 aDatabaseId,
-                  const nsAString& aName,
-                  ObjectStoreInfo** aInfo);
-
-  static bool Put(ObjectStoreInfo* aInfo);
-
-  static void Remove(PRUint32 aDatabaseId,
-                     const nsAString& aName);
-};
-
-struct IndexUpdateInfo
-{
-  IndexInfo info;
-  Key value;
+  PRInt64 mId;
+  nsString mName;
+  nsString mKeyPath;
+  bool mUnique;
+  bool mAutoIncrement;
 };
 
 END_INDEXEDDB_NAMESPACE
 
-#endif // mozilla_dom_indexeddb_databaseinfo_h__
-
+#endif // mozilla_dom_indexeddb_idbindexrequest_h__

@@ -1726,14 +1726,8 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
           plaintextEditor->InsertText(insertValue);
         }
         if (!weakFrame.IsAlive()) {
-          // If the frame was destroyed because of a flush somewhere inside
-          // InsertText, mBoundFrame here will be false.  But it's also possible
-          // for the frame to go away because of another reason (such as deleting
-          // the existing selection -- see bug 574558), in which case we don't
-          // need to reset the value here.
-          if (!mBoundFrame) {
-            SetValue(newValue, PR_FALSE);
-          }
+          NS_ASSERTION(!mBoundFrame, "The frame should have been unbounded");
+          SetValue(newValue, PR_FALSE);
           valueSetter.Cancel();
           return;
         }

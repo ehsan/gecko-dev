@@ -41,7 +41,7 @@
 #include "jscntxt.h"
 #include "jsapi.h"
 
-#include "IDBCursor.h"
+#include "IDBCursorRequest.h"
 
 #include "nsIIDBDatabaseException.h"
 #include "nsIVariant.h"
@@ -57,8 +57,8 @@
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
 #include "IDBEvents.h"
-#include "IDBIndex.h"
-#include "IDBObjectStore.h"
+#include "IDBIndexRequest.h"
+#include "IDBObjectStoreRequest.h"
 #include "IDBTransaction.h"
 #include "Savepoint.h"
 #include "TransactionThreadPool.h"
@@ -127,30 +127,30 @@ class ContinueRunnable : public nsRunnable
 public:
   NS_DECL_NSIRUNNABLE
 
-  ContinueRunnable(IDBCursor* aCursor,
+  ContinueRunnable(IDBCursorRequest* aCursor,
                    const Key& aKey)
   : mCursor(aCursor), mKey(aKey)
   { }
 
 private:
-  nsRefPtr<IDBCursor> mCursor;
+  nsRefPtr<IDBCursorRequest> mCursor;
   const Key mKey;
 };
 
 END_INDEXEDDB_NAMESPACE
 
 // static
-already_AddRefed<IDBCursor>
-IDBCursor::Create(IDBRequest* aRequest,
-                  IDBTransaction* aTransaction,
-                  IDBObjectStore* aObjectStore,
-                  PRUint16 aDirection,
-                  nsTArray<KeyValuePair>& aData)
+already_AddRefed<IDBCursorRequest>
+IDBCursorRequest::Create(IDBRequest* aRequest,
+                         IDBTransaction* aTransaction,
+                         IDBObjectStoreRequest* aObjectStore,
+                         PRUint16 aDirection,
+                         nsTArray<KeyValuePair>& aData)
 {
   NS_ASSERTION(aObjectStore, "Null pointer!");
 
-  nsRefPtr<IDBCursor> cursor =
-    IDBCursor::CreateCommon(aRequest, aTransaction, aDirection);
+  nsRefPtr<IDBCursorRequest> cursor =
+    IDBCursorRequest::CreateCommon(aRequest, aTransaction, aDirection);
 
   cursor->mObjectStore = aObjectStore;
 
@@ -167,17 +167,17 @@ IDBCursor::Create(IDBRequest* aRequest,
 }
 
 // static
-already_AddRefed<IDBCursor>
-IDBCursor::Create(IDBRequest* aRequest,
-                  IDBTransaction* aTransaction,
-                  IDBIndex* aIndex,
-                  PRUint16 aDirection,
-                  nsTArray<KeyKeyPair>& aData)
+already_AddRefed<IDBCursorRequest>
+IDBCursorRequest::Create(IDBRequest* aRequest,
+                         IDBTransaction* aTransaction,
+                         IDBIndexRequest* aIndex,
+                         PRUint16 aDirection,
+                         nsTArray<KeyKeyPair>& aData)
 {
   NS_ASSERTION(aIndex, "Null pointer!");
 
-  nsRefPtr<IDBCursor> cursor =
-    IDBCursor::CreateCommon(aRequest, aTransaction, aDirection);
+  nsRefPtr<IDBCursorRequest> cursor =
+    IDBCursorRequest::CreateCommon(aRequest, aTransaction, aDirection);
 
   cursor->mObjectStore = aIndex->ObjectStore();
   cursor->mIndex = aIndex;
@@ -195,17 +195,17 @@ IDBCursor::Create(IDBRequest* aRequest,
 }
 
 // static
-already_AddRefed<IDBCursor>
-IDBCursor::Create(IDBRequest* aRequest,
-                  IDBTransaction* aTransaction,
-                  IDBIndex* aIndex,
-                  PRUint16 aDirection,
-                  nsTArray<KeyValuePair>& aData)
+already_AddRefed<IDBCursorRequest>
+IDBCursorRequest::Create(IDBRequest* aRequest,
+                         IDBTransaction* aTransaction,
+                         IDBIndexRequest* aIndex,
+                         PRUint16 aDirection,
+                         nsTArray<KeyValuePair>& aData)
 {
   NS_ASSERTION(aIndex, "Null pointer!");
 
-  nsRefPtr<IDBCursor> cursor =
-    IDBCursor::CreateCommon(aRequest, aTransaction, aDirection);
+  nsRefPtr<IDBCursorRequest> cursor =
+    IDBCursorRequest::CreateCommon(aRequest, aTransaction, aDirection);
 
   cursor->mObjectStore = aIndex->ObjectStore();
   cursor->mIndex = aIndex;
@@ -223,16 +223,16 @@ IDBCursor::Create(IDBRequest* aRequest,
 }
 
 // static
-already_AddRefed<IDBCursor>
-IDBCursor::CreateCommon(IDBRequest* aRequest,
-                        IDBTransaction* aTransaction,
-                        PRUint16 aDirection)
+already_AddRefed<IDBCursorRequest>
+IDBCursorRequest::CreateCommon(IDBRequest* aRequest,
+                               IDBTransaction* aTransaction,
+                               PRUint16 aDirection)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aRequest, "Null pointer!");
   NS_ASSERTION(aTransaction, "Null pointer!");
 
-  nsRefPtr<IDBCursor> cursor(new IDBCursor());
+  nsRefPtr<IDBCursorRequest> cursor(new IDBCursorRequest());
   cursor->mRequest = aRequest;
   cursor->mTransaction = aTransaction;
   cursor->mDirection = aDirection;
@@ -240,7 +240,7 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
   return cursor.forget();
 }
 
-IDBCursor::IDBCursor()
+IDBCursorRequest::IDBCursorRequest()
 : mDirection(nsIIDBCursor::NEXT),
   mCachedValue(JSVAL_VOID),
   mHaveCachedValue(false),
@@ -252,7 +252,7 @@ IDBCursor::IDBCursor()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
 
-IDBCursor::~IDBCursor()
+IDBCursorRequest::~IDBCursorRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -261,19 +261,20 @@ IDBCursor::~IDBCursor()
   }
 }
 
-NS_IMPL_ADDREF(IDBCursor)
-NS_IMPL_RELEASE(IDBCursor)
+NS_IMPL_ADDREF(IDBCursorRequest)
+NS_IMPL_RELEASE(IDBCursorRequest)
 
-NS_INTERFACE_MAP_BEGIN(IDBCursor)
+NS_INTERFACE_MAP_BEGIN(IDBCursorRequest)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, IDBRequest::Generator)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBCursorRequest)
   NS_INTERFACE_MAP_ENTRY(nsIIDBCursor)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBCursor)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBCursorRequest)
 NS_INTERFACE_MAP_END
 
-DOMCI_DATA(IDBCursor, IDBCursor)
+DOMCI_DATA(IDBCursorRequest, IDBCursorRequest)
 
 NS_IMETHODIMP
-IDBCursor::GetDirection(PRUint16* aDirection)
+IDBCursorRequest::GetDirection(PRUint16* aDirection)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -282,7 +283,7 @@ IDBCursor::GetDirection(PRUint16* aDirection)
 }
 
 NS_IMETHODIMP
-IDBCursor::GetKey(nsIVariant** aKey)
+IDBCursorRequest::GetKey(nsIVariant** aKey)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -324,7 +325,7 @@ IDBCursor::GetKey(nsIVariant** aKey)
 }
 
 NS_IMETHODIMP
-IDBCursor::GetValue(nsIVariant** aValue)
+IDBCursorRequest::GetValue(nsIVariant** aValue)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -385,7 +386,7 @@ IDBCursor::GetValue(nsIVariant** aValue)
       JSRuntime* rt = JS_GetRuntime(cx);
 
       JSBool ok = JS_AddNamedRootRT(rt, &mCachedValue,
-                                   "IDBCursor::mCachedValue");
+                                   "IDBCursorRequest::mCachedValue");
       NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
       mJSRuntime = rt;
@@ -404,9 +405,9 @@ IDBCursor::GetValue(nsIVariant** aValue)
 }
 
 NS_IMETHODIMP
-IDBCursor::Continue(nsIVariant* aKey,
-                    PRUint8 aOptionalArgCount,
-                    PRBool* _retval)
+IDBCursorRequest::Continue(nsIVariant* aKey,
+                           PRUint8 aOptionalArgCount,
+                           PRBool* _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -419,7 +420,7 @@ IDBCursor::Continue(nsIVariant* aKey,
   }
 
   Key key;
-  nsresult rv = IDBObjectStore::GetKeyFromVariant(aKey, key);
+  nsresult rv = IDBObjectStoreRequest::GetKeyFromVariant(aKey, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (key.IsNull()) {
@@ -448,8 +449,8 @@ IDBCursor::Continue(nsIVariant* aKey,
 }
 
 NS_IMETHODIMP
-IDBCursor::Update(nsIVariant* aValue,
-                  nsIIDBRequest** _retval)
+IDBCursorRequest::Update(nsIVariant* aValue,
+                         nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -570,9 +571,9 @@ IDBCursor::Update(nsIVariant* aValue,
   }
 
   nsTArray<IndexUpdateInfo> indexUpdateInfo;
-  rv = IDBObjectStore::GetIndexUpdateInfo(mObjectStore->GetObjectStoreInfo(),
-                                          cx, clone.value(),
-                                          indexUpdateInfo);
+  rv = IDBObjectStoreRequest::GetIndexUpdateInfo(mObjectStore->GetObjectStoreInfo(),
+                                                 cx, clone.value(),
+                                                 indexUpdateInfo);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIJSON> json(new nsJSON());
@@ -595,7 +596,7 @@ IDBCursor::Update(nsIVariant* aValue,
 }
 
 NS_IMETHODIMP
-IDBCursor::Remove(nsIIDBRequest** _retval)
+IDBCursorRequest::Remove(nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -670,9 +671,9 @@ UpdateHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   // Update our indexes if needed.
   if (!mIndexUpdateInfo.IsEmpty()) {
     PRInt64 objectDataId = mAutoIncrement ? mKey.IntValue() : LL_MININT;
-    rv = IDBObjectStore::UpdateIndexes(mTransaction, mOSID, mKey,
-                                       mAutoIncrement, true,
-                                       objectDataId, mIndexUpdateInfo);
+    rv = IDBObjectStoreRequest::UpdateIndexes(mTransaction, mOSID, mKey,
+                                              mAutoIncrement, true,
+                                              objectDataId, mIndexUpdateInfo);
     if (rv == NS_ERROR_STORAGE_CONSTRAINT) {
       return nsIIDBDatabaseException::CONSTRAINT_ERR;
     }
@@ -770,7 +771,7 @@ ContinueRunnable::Run()
   mCursor->mHaveCachedValue = false;
   mCursor->mContinueCalled = false;
 
-  if (mCursor->mType == IDBCursor::INDEX) {
+  if (mCursor->mType == IDBCursorRequest::INDEX) {
     mCursor->mKeyData.RemoveElementAt(mCursor->mDataIndex);
   }
   else {
@@ -787,7 +788,7 @@ ContinueRunnable::Run()
     return NS_ERROR_FAILURE;
   }
 
-  PRBool empty = mCursor->mType == IDBCursor::INDEX ?
+  PRBool empty = mCursor->mType == IDBCursorRequest::INDEX ?
                  mCursor->mKeyData.IsEmpty() :
                  mCursor->mData.IsEmpty();
 
@@ -805,7 +806,7 @@ ContinueRunnable::Run()
       // Skip ahead to our next key match.
       PRInt32 index = PRInt32(mCursor->mDataIndex);
 
-      if (mCursor->mType == IDBCursor::INDEX) {
+      if (mCursor->mType == IDBCursorRequest::INDEX) {
         while (index >= 0) {
           const Key& key = mCursor->mKeyData[index].key;
           if (mKey == key) {
