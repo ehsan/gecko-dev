@@ -732,7 +732,7 @@ nsComponentManagerImpl::KnownModule::Load()
             nsresult rv = mModule->loadProc();
             if (NS_FAILED(rv)) {
                 mFailed = true;
-                return false;
+                return rv;
             }
         }
         mLoaded = true;
