@@ -71,7 +71,7 @@ function onConnectionReady(aType, aTraits) {
     document.body.classList.remove("connecting");
     document.body.classList.add("actors-mode");
 
-    let parent = document.getElementById("tabActors");
+    let parent = document.getElementById("actors");
 
     // Add Global Process debugging...
     let globals = JSON.parse(JSON.stringify(aResponse));
@@ -85,8 +85,6 @@ function onConnectionReady(aType, aTraits) {
       buildLink(aResponse.tabs[i], parent, i == aResponse.selected);
     }
 
-    let gParent = document.getElementById("globalActors");
-
     // Build the Remote Process button
     if (Object.keys(globals).length > 1) {
       let a = document.createElement("a");
@@ -94,10 +92,10 @@ function onConnectionReady(aType, aTraits) {
         openToolbox(globals, true);
 
       }
-      a.title = a.textContent = window.l10n.GetStringFromName("mainProcess");
+      a.title = a.textContent = window.l10n.GetStringFromName("remoteProcess");
       a.className = "remote-process";
       a.href = "#";
-      gParent.appendChild(a);
+      parent.appendChild(a);
     }
     // Move the selected tab on top
     let selectedLink = parent.querySelector("a.selected");
@@ -166,5 +164,4 @@ function handleConnectionTimeout() {
 function openToolbox(form, chrome=false) {
   let target = TargetFactory.forRemote(form, gClient, chrome);
   gDevTools.showToolbox(target, "webconsole", Toolbox.HostType.WINDOW);
-  window.close();
 }

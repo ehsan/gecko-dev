@@ -201,21 +201,13 @@ InspectorPanel.prototype = {
     this._destroyMarkup();
     this.isDirty = false;
     let self = this;
-
-    function onDOMReady() {
-      newWindow.removeEventListener("DOMContentLoaded", onDOMReady, true);
-
+    newWindow.addEventListener("DOMContentLoaded", function onDOMReady() {
+      newWindow.removeEventListener("DOMContentLoaded", onDOMReady, true);;
       if (!self.selection.node) {
         self.selection.setNode(newWindow.document.documentElement);
       }
       self._initMarkup();
-    }
-
-    if (newWindow.document.readyState == "loading") {
-      newWindow.addEventListener("DOMContentLoaded", onDOMReady, true);
-    } else {
-      onDOMReady();
-    }
+    }, true);
   },
 
   /**

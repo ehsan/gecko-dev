@@ -204,7 +204,8 @@ CreateGenericEvent(const nsAString& aType, bool aBubbles, bool aCancelable)
   nsresult rv = event->InitEvent(aType, aBubbles, aCancelable);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, nullptr);
 
   return event.forget();
 }

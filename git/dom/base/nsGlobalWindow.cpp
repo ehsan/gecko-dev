@@ -8103,7 +8103,8 @@ nsGlobalWindow::FireHashchange(const nsAString &aOldURL,
                                             aOldURL, aNewURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  domEvent->SetTrusted(true);
+  rv = domEvent->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
   return DispatchEvent(hashchangeEvent, &dummy);
@@ -8157,7 +8158,8 @@ nsGlobalWindow::DispatchSyncPopState()
                                         stateObj);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  domEvent->SetTrusted(true);
+  rv = domEvent->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMEventTarget> outerWindow =
     do_QueryInterface(GetOuterWindow());
@@ -9140,7 +9142,8 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       false, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    event->SetTrusted(true);
+    rv = event->SetTrusted(true);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     bool dummy;
     return DispatchEvent(event, &dummy);

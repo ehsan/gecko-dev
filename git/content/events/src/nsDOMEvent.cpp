@@ -264,10 +264,11 @@ nsDOMEvent::GetOriginalTarget(nsIDOMEventTarget** aOriginalTarget)
   return GetTarget(aOriginalTarget);
 }
 
-NS_IMETHODIMP_(void)
+NS_IMETHODIMP
 nsDOMEvent::SetTrusted(bool aTrusted)
 {
   mEvent->mFlags.mIsTrusted = aTrusted;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

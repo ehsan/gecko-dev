@@ -161,6 +161,7 @@
 
 #include "nsIDOMLSProgressEvent.h"
 #include "nsXMLHttpRequest.h"
+#include "nsEventSource.h"
 #include "nsIDOMSettingsManager.h"
 #include "nsIDOMContactManager.h"
 #include "nsIDOMPermissionSettings.h"
@@ -508,35 +509,39 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #endif
 
 #include "nsIDOMNavigatorSystemMessages.h"
-#include "DOMCameraManager.h"
-#include "DOMCameraControl.h"
-#include "DOMCameraCapabilities.h"
-#include "DOMError.h"
-#include "DOMRequest.h"
-#include "nsIOpenWindowEventDetail.h"
-#include "nsIDOMGlobalObjectConstructor.h"
-#include "nsIDOMCanvasRenderingContext2D.h"
-#include "DOMFileHandle.h"
-#include "FileRequest.h"
-#include "LockedFile.h"
-#include "GeneratedEvents.h"
-#include "nsDebug.h"
-
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/HTMLCollectionBinding.h"
-#include "mozilla/Likely.h"
 
 #ifdef MOZ_SYS_MSG
 #include "mozilla/dom/Activity.h"
 #endif
-
 #ifdef MOZ_TIME_MANAGER
 #include "TimeManager.h"
 #endif
 
+#include "DOMCameraManager.h"
+#include "DOMCameraControl.h"
+#include "DOMCameraCapabilities.h"
+
+#include "DOMError.h"
+#include "DOMRequest.h"
+#include "nsIOpenWindowEventDetail.h"
+#include "nsIDOMGlobalObjectConstructor.h"
+
+#include "nsIDOMCanvasRenderingContext2D.h"
+
+#include "DOMFileHandle.h"
+#include "FileRequest.h"
+#include "LockedFile.h"
+#include "GeneratedEvents.h"
+#include "mozilla/Likely.h"
+#include "nsDebug.h"
+
 #ifdef MOZ_WEBRTC
 #include "nsIDOMDataChannel.h"
 #endif
+
+#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/HTMLCollectionBinding.h"
+#include "mozilla/Likely.h"
 
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
 #include "nsIAudioChannelManager.h"
@@ -1372,6 +1377,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(XMLHttpProgressEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(EventSource, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
+
   NS_DEFINE_CLASSINFO_DATA(ClientRect, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(ClientRectList, nsDOMGenericSH,
@@ -1674,6 +1682,7 @@ NS_DEFINE_CONTRACT_CTOR(FileReader, NS_FILEREADER_CONTRACTID)
 NS_DEFINE_CONTRACT_CTOR(ArchiveReader, NS_ARCHIVEREADER_CONTRACTID)
 NS_DEFINE_CONTRACT_CTOR(XSLTProcessor,
                         "@mozilla.org/document-transformer;1?type=xslt")
+NS_DEFINE_CONTRACT_CTOR(EventSource, NS_EVENTSOURCE_CONTRACTID)
 #ifdef MOZ_SYS_MSG
 NS_DEFINE_CONTRACT_CTOR(MozActivity, NS_DOMACTIVITY_CONTRACTID)
 #endif
@@ -1734,6 +1743,7 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(FileReader, FileReaderCtor)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(ArchiveReader, ArchiveReaderCtor)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(XSLTProcessor, XSLTProcessorCtor)
+  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(EventSource, EventSourceCtor)
 #ifdef MOZ_SYS_MSG
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozActivity, MozActivityCtor)
 #endif
@@ -3815,6 +3825,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLSProgressEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMProgressEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(EventSource, nsIEventSource)
+    DOM_CLASSINFO_MAP_ENTRY(nsIEventSource)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(XULCommandEvent, nsIDOMXULCommandEvent)
@@ -6512,6 +6527,13 @@ ConstructorEnabled(const nsGlobalNameStruct *aStruct, nsGlobalWindow *aWin)
   if (aStruct->mChromeOnly &&
       !nsContentUtils::IsSystemPrincipal(aWin->GetPrincipal())) {
     return false;
+  }
+
+  // For now don't expose server events unless user has explicitly enabled them
+  if (aStruct->mDOMClassInfoID == eDOMClassInfo_EventSource_id) {
+    if (!nsEventSource::PrefEnabled()) {
+      return false;
+    }
   }
 
   // Don't expose CSSSupportsRule unless @supports processing is enabled.
