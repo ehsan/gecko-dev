@@ -253,7 +253,6 @@ static bool UseNativePopupWindows()
 nsresult nsCocoaWindow::Create(nsIWidget *aParent,
                                nsNativeWidget aNativeParent,
                                const nsIntRect &aRect,
-                               nsDeviceContext *aContext,
                                nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -276,7 +275,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
   // fortunately, BaseCreate doesn't actually use it so we don't
   // need to worry about trying to convert it to device pixels
   // when we don't have a window (or dev context, perhaps) yet
-  Inherited::BaseCreate(aParent, newBounds, aContext, aInitData);
+  Inherited::BaseCreate(aParent, newBounds, aInitData);
 
   mParent = aParent;
 
@@ -300,7 +299,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
     newBounds.y *= scale;
     newBounds.width *= scale;
     newBounds.height *= scale;
-    return CreatePopupContentView(newBounds, aContext);
+    return CreatePopupContentView(newBounds);
   }
 
   mIsAnimationSuppressed = aInitData->mIsAnimationSuppressed;
@@ -486,8 +485,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
-                             nsDeviceContext *aContext)
+NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -499,7 +497,7 @@ NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
   NS_ADDREF(mPopupContentView);
 
   nsIWidget* thisAsWidget = static_cast<nsIWidget*>(this);
-  mPopupContentView->Create(thisAsWidget, nullptr, aRect, aContext, nullptr);
+  mPopupContentView->Create(thisAsWidget, nullptr, aRect, nullptr);
 
   ChildView* newContentView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
   [mWindow setContentView:newContentView];
@@ -1812,7 +1810,7 @@ NS_IMETHODIMP nsCocoaWindow::SetFocus(bool aState)
   return NS_OK;
 }
 
-nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
+LayoutDeviceIntPoint nsCocoaWindow::WidgetToScreenOffset()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -1823,9 +1821,9 @@ nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
   }
   r = nsCocoaUtils::CocoaRectToGeckoRectDevPix(rect, BackingScaleFactor());
 
-  return r.TopLeft();
+  return LayoutDeviceIntPoint::FromUntyped(r.TopLeft());
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(LayoutDeviceIntPoint(0,0));
 }
 
 nsIntPoint nsCocoaWindow::GetClientOffset()
@@ -1931,6 +1929,7 @@ NS_IMETHODIMP nsCocoaWindow::SetWindowShadowStyle(int32_t aStyle)
 
   mShadowStyle = aStyle;
   [mWindow setHasShadow:(aStyle != NS_STYLE_WINDOW_SHADOW_NONE)];
+  [mWindow setUseMenuStyle:(aStyle == NS_STYLE_WINDOW_SHADOW_MENU)];
   AdjustWindowShadow();
   SetWindowBackgroundBlur();
 
@@ -2592,6 +2591,32 @@ static NSMutableSet *gSwizzledFrameViewClasses = nil;
  - (void)_addKnownSubview:(NSView*)aView positioned:(NSWindowOrderingMode)place relativeTo:(NSView*)otherView;
 @end
 
+// Available on 10.10
+@interface NSWindow(PrivateCornerMaskMethod)
+ - (id)_cornerMask;
+ - (void)_cornerMaskChanged;
+@end
+
+#if !defined(MAC_OS_X_VERSION_10_10) || \
+    MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_10
+
+@interface NSImage(CapInsets)
+- (void)setCapInsets:(NSEdgeInsets)capInsets;
+@end
+
+#endif
+
+#if !defined(MAC_OS_X_VERSION_10_8) || \
+    MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_8
+
+@interface NSImage(ImageCreationWithDrawingHandler)
++ (NSImage *)imageWithSize:(NSSize)size
+                   flipped:(BOOL)drawingHandlerShouldBeCalledWithFlippedContext
+            drawingHandler:(BOOL (^)(NSRect dstRect))drawingHandler;
+@end
+
+#endif
+
 @interface BaseWindow(Private)
 - (void)removeTrackingArea;
 - (void)cursorUpdated:(NSEvent*)aEvent;
@@ -2600,6 +2625,25 @@ static NSMutableSet *gSwizzledFrameViewClasses = nil;
 @end
 
 @implementation BaseWindow
+
+- (id)_cornerMask
+{
+  if (!mUseMenuStyle) {
+    return [super _cornerMask];
+  }
+
+  CGFloat radius = 4.0f;
+  NSEdgeInsets insets = { 5, 5, 5, 5 };
+  NSSize maskSize = { 12, 12 };
+  NSImage* maskImage = [NSImage imageWithSize:maskSize flipped:YES drawingHandler:^BOOL(NSRect dstRect) {
+    NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:dstRect xRadius:radius yRadius:radius];
+    [[NSColor colorWithDeviceWhite:1.0 alpha:1.0] set];
+    [path fill];
+    return YES;
+  }];
+  [maskImage setCapInsets:insets];
+  return maskImage;
+}
 
 // The frame of a window is implemented using undocumented NSView subclasses.
 // We offset the window buttons by overriding the methods _closeButtonOrigin
@@ -2667,9 +2711,20 @@ static NSMutableSet *gSwizzledFrameViewClasses = nil;
   mBeingShown = NO;
   mDrawTitle = NO;
   mBrightTitlebarForeground = NO;
+  mUseMenuStyle = NO;
   [self updateTrackingArea];
 
   return self;
+}
+
+- (void)setUseMenuStyle:(BOOL)aValue
+{
+  if (aValue != mUseMenuStyle) {
+    mUseMenuStyle = aValue;
+    if ([self respondsToSelector:@selector(_cornerMaskChanged)]) {
+      [self _cornerMaskChanged];
+    }
+  }
 }
 
 - (void)setBeingShown:(BOOL)aValue

@@ -288,12 +288,12 @@ public:
   }
 
 private:
-  void DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,
-                                    gfxContext* aContext,
-                                    const nsIntSize& aSize,
-                                    const ImageRegion& aRegion,
-                                    GraphicsFilter aFilter,
-                                    uint32_t aFlags);
+  DrawResult DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,
+                                          gfxContext* aContext,
+                                          const nsIntSize& aSize,
+                                          const ImageRegion& aRegion,
+                                          GraphicsFilter aFilter,
+                                          uint32_t aFlags);
 
   TemporaryRef<gfx::SourceSurface> CopyFrame(uint32_t aWhichFrame,
                                              uint32_t aFlags);
@@ -344,6 +344,13 @@ private:
    */
   already_AddRefed<Decoder> CreateDecoder(const Maybe<nsIntSize>& aSize,
                                           uint32_t aFlags);
+
+  /**
+   * In catastrophic circumstances like a GPU driver crash, we may lose our
+   * frames even if they're locked. RecoverFromLossOfFrames discards all
+   * existing frames and redecodes using the provided @aSize and @aFlags.
+   */
+  void RecoverFromLossOfFrames(const nsIntSize& aSize, uint32_t aFlags);
 
 private: // data
   nsIntSize                  mSize;

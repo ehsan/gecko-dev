@@ -92,7 +92,6 @@ public:
     NS_IMETHOD         Create(nsIWidget        *aParent,
                               nsNativeWidget   aNativeParent,
                               const nsIntRect  &aRect,
-                              nsDeviceContext *aContext,
                               nsWidgetInitData *aInitData) MOZ_OVERRIDE;
     NS_IMETHOD         Destroy(void) MOZ_OVERRIDE;
     virtual nsIWidget *GetParent() MOZ_OVERRIDE;
@@ -138,7 +137,7 @@ public:
     NS_IMETHOD         SetTitle(const nsAString& aTitle) MOZ_OVERRIDE;
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec) MOZ_OVERRIDE;
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType) MOZ_OVERRIDE;
-    virtual nsIntPoint WidgetToScreenOffset() MOZ_OVERRIDE;
+    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset() MOZ_OVERRIDE;
     NS_IMETHOD         EnableDragDrop(bool aEnable) MOZ_OVERRIDE;
     NS_IMETHOD         CaptureMouse(bool aCapture) MOZ_OVERRIDE;
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
@@ -498,7 +497,7 @@ private:
 
     // From GDK
     int GdkCoordToDevicePixels(gint coord);
-    nsIntPoint GdkPointToDevicePixels(GdkPoint point);
+    mozilla::LayoutDeviceIntPoint GdkPointToDevicePixels(GdkPoint point);
     nsIntRect GdkRectToDevicePixels(GdkRectangle rect);
 };
 

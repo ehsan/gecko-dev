@@ -16,7 +16,6 @@
 #include "jit/Lowering.h"
 #include "jit/MIRGraph.h"
 
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 
@@ -2484,8 +2483,8 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
 {
     MOZ_ASSERT(!*eliminated);
 
-    const types::TemporaryTypeSet *barrierTypes = barrier->resultTypeSet();
-    const types::TemporaryTypeSet *inputTypes = barrier->input()->resultTypeSet();
+    const TemporaryTypeSet *barrierTypes = barrier->resultTypeSet();
+    const TemporaryTypeSet *inputTypes = barrier->input()->resultTypeSet();
 
     // Disregard the possible unbox added before the Typebarrier.
     if (barrier->input()->isUnbox() && barrier->input()->toUnbox()->mode() != MUnbox::Fallible)
@@ -2494,8 +2493,8 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
     if (!barrierTypes || !inputTypes)
         return true;
 
-    bool filtersNull = barrierTypes->filtersType(inputTypes, types::Type::NullType());
-    bool filtersUndefined = barrierTypes->filtersType(inputTypes, types::Type::UndefinedType());
+    bool filtersNull = barrierTypes->filtersType(inputTypes, TypeSet::NullType());
+    bool filtersUndefined = barrierTypes->filtersType(inputTypes, TypeSet::UndefinedType());
 
     if (!filtersNull && !filtersUndefined)
         return true;
@@ -2880,10 +2879,10 @@ jit::ConvertLinearInequality(TempAllocator &alloc, MBasicBlock *block, const Lin
 }
 
 static bool
-AnalyzePoppedThis(JSContext *cx, types::ObjectGroup *group,
+AnalyzePoppedThis(JSContext *cx, ObjectGroup *group,
                   MDefinition *thisValue, MInstruction *ins, bool definitelyExecuted,
                   HandlePlainObject baseobj,
-                  Vector<types::TypeNewScript::Initializer> *initializerList,
+                  Vector<TypeNewScript::Initializer> *initializerList,
                   Vector<PropertyName *> *accessedProperties,
                   bool *phandled)
 {
@@ -2896,9 +2895,6 @@ AnalyzePoppedThis(JSContext *cx, types::ObjectGroup *group,
         if (setprop->object() != thisValue)
             return true;
 
-        // Don't use GetAtomId here, we need to watch for SETPROP on
-        // integer properties and bail out. We can't mark the aggregate
-        // JSID_VOID type property as being in a definite slot.
         if (setprop->name() == cx->names().prototype ||
             setprop->name() == cx->names().proto ||
             setprop->name() == cx->names().constructor)
@@ -2929,7 +2925,7 @@ AnalyzePoppedThis(JSContext *cx, types::ObjectGroup *group,
             return true;
 
         RootedId id(cx, NameToId(setprop->name()));
-        if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
+        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
             // The prototype chain already contains a getter/setter for this
             // property, or type information is too imprecise.
             return true;
@@ -2955,15 +2951,15 @@ AnalyzePoppedThis(JSContext *cx, types::ObjectGroup *group,
         for (int i = callerResumePoints.length() - 1; i >= 0; i--) {
             MResumePoint *rp = callerResumePoints[i];
             JSScript *script = rp->block()->info().script();
-            types::TypeNewScript::Initializer entry(types::TypeNewScript::Initializer::SETPROP_FRAME,
-                                                    script->pcToOffset(rp->pc()));
+            TypeNewScript::Initializer entry(TypeNewScript::Initializer::SETPROP_FRAME,
+                                             script->pcToOffset(rp->pc()));
             if (!initializerList->append(entry))
                 return false;
         }
 
         JSScript *script = ins->block()->info().script();
-        types::TypeNewScript::Initializer entry(types::TypeNewScript::Initializer::SETPROP,
-                                                script->pcToOffset(setprop->resumePoint()->pc()));
+        TypeNewScript::Initializer entry(TypeNewScript::Initializer::SETPROP,
+                                         script->pcToOffset(setprop->resumePoint()->pc()));
         if (!initializerList->append(entry))
             return false;
 
@@ -2989,7 +2985,7 @@ AnalyzePoppedThis(JSContext *cx, types::ObjectGroup *group,
         if (!baseobj->lookup(cx, id) && !accessedProperties->append(get->name()))
             return false;
 
-        if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
+        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
             // The |this| value can escape if any property reads it does go
             // through a getter.
             return true;
@@ -3016,8 +3012,8 @@ CmpInstructions(const void *a, const void *b)
 
 bool
 jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
-                                        types::ObjectGroup *group, HandlePlainObject baseobj,
-                                        Vector<types::TypeNewScript::Initializer> *initializerList)
+                                        ObjectGroup *group, HandlePlainObject baseobj,
+                                        Vector<TypeNewScript::Initializer> *initializerList)
 {
     MOZ_ASSERT(cx->zone()->types.activeAnalysis);
 
@@ -3053,7 +3049,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
             return true;
     }
 
-    types::TypeScript::SetThis(cx, script, types::Type::ObjectType(group));
+    TypeScript::SetThis(cx, script, TypeSet::ObjectType(group));
 
     MIRGraph graph(&temp);
     InlineScriptTree *inlineScriptTree = InlineScriptTree::New(&temp, nullptr, nullptr, script);
@@ -3068,7 +3064,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 
-    types::CompilerConstraintList *constraints = types::NewCompilerConstraintList(temp);
+    CompilerConstraintList *constraints = NewCompilerConstraintList(temp);
     if (!constraints) {
         js_ReportOutOfMemory(cx);
         return false;
@@ -3086,7 +3082,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
         return true;
     }
 
-    types::FinishDefinitePropertiesAnalysis(cx, constraints);
+    FinishDefinitePropertiesAnalysis(cx, constraints);
 
     if (!SplitCriticalEdges(graph))
         return false;
@@ -3186,7 +3182,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
             if (MResumePoint *rp = block->callerResumePoint()) {
                 if (block->numPredecessors() == 1 && block->getPredecessor(0) == rp->block()) {
                     JSScript *script = rp->block()->info().script();
-                    if (!types::AddClearDefiniteFunctionUsesInScript(cx, group, script, block->info().script()))
+                    if (!AddClearDefiniteFunctionUsesInScript(cx, group, script, block->info().script()))
                         return false;
                 }
             }
@@ -3237,7 +3233,7 @@ bool
 jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
 {
     RootedScript script(cx, scriptArg);
-    types::AutoEnterAnalysis enter(cx);
+    AutoEnterAnalysis enter(cx);
 
     MOZ_ASSERT(!script->analyzedArgsUsage());
 
@@ -3296,7 +3292,7 @@ jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 
-    types::CompilerConstraintList *constraints = types::NewCompilerConstraintList(temp);
+    CompilerConstraintList *constraints = NewCompilerConstraintList(temp);
     if (!constraints)
         return false;
 

@@ -1495,7 +1495,9 @@ OutlineTypedObject::createUnattachedWithClass(JSContext *cx,
     MOZ_ASSERT(clasp == &OutlineTransparentTypedObject::class_ ||
                clasp == &OutlineOpaqueTypedObject::class_);
 
-    RootedObjectGroup group(cx, cx->getNewGroup(clasp, TaggedProto(&descr->typedProto()), descr));
+    RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, clasp,
+                                                             TaggedProto(&descr->typedProto()),
+                                                             descr));
     if (!group)
         return nullptr;
 
@@ -2090,7 +2092,7 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, AutoIdVector &proper
             return false;
 
         for (int32_t index = 0; index < typedObj->length(); index++) {
-            id.set(INT_TO_JSID(index));
+            id = INT_TO_JSID(index);
             properties.infallibleAppend(id);
         }
         break;
@@ -2102,7 +2104,7 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, AutoIdVector &proper
             return false;
 
         for (size_t index = 0; index < fieldCount; index++) {
-            id.set(AtomToId(&descr->as<StructTypeDescr>().fieldName(index)));
+            id = AtomToId(&descr->as<StructTypeDescr>().fieldName(index));
             properties.infallibleAppend(id);
         }
         break;
@@ -2131,7 +2133,9 @@ InlineTypedObject::create(JSContext *cx, HandleTypeDescr descr, gc::InitialHeap 
                          ? &InlineOpaqueTypedObject::class_
                          : &InlineTransparentTypedObject::class_;
 
-    RootedObjectGroup group(cx, cx->getNewGroup(clasp, TaggedProto(&descr->typedProto()), descr));
+    RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, clasp,
+                                                             TaggedProto(&descr->typedProto()),
+                                                             descr));
     if (!group)
         return nullptr;
 
@@ -2725,7 +2729,7 @@ js::StoreReference##T::Func(JSContext *cx, unsigned argc, Value *vp)    \
     int32_t offset = args[1].toInt32();                                         \
                                                                                 \
     jsid id = args[2].isString()                                                \
-              ? types::IdToTypeId(AtomToId(&args[2].toString()->asAtom()))      \
+              ? IdToTypeId(AtomToId(&args[2].toString()->asAtom()))             \
               : JSID_VOID;                                                      \
                                                                                 \
     /* Should be guaranteed by the typed objects API: */                        \
@@ -2791,8 +2795,8 @@ StoreReferenceHeapValue::store(JSContext *cx, HeapValue *heap, const Value &v,
     // considered to contain undefined.
     if (!v.isUndefined()) {
         if (cx->isJSContext())
-            types::AddTypePropertyId(cx->asJSContext(), obj, id, v);
-        else if (!types::HasTypePropertyId(obj, id, v))
+            AddTypePropertyId(cx->asJSContext(), obj, id, v);
+        else if (!HasTypePropertyId(obj, id, v))
             return false;
     }
 
@@ -2811,8 +2815,8 @@ StoreReferenceHeapPtrObject::store(JSContext *cx, HeapPtrObject *heap, const Val
     // considered to contain null.
     if (v.isObject()) {
         if (cx->isJSContext())
-            types::AddTypePropertyId(cx->asJSContext(), obj, id, v);
-        else if (!types::HasTypePropertyId(obj, id, v))
+            AddTypePropertyId(cx->asJSContext(), obj, id, v);
+        else if (!HasTypePropertyId(obj, id, v))
             return false;
     }
 

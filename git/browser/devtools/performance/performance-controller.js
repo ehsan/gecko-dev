@@ -58,11 +58,13 @@ const BRANCH_NAME = "devtools.performance.ui.";
 // Events emitted by various objects in the panel.
 const EVENTS = {
   // Fired by the OptionsView when a preference changes.
-  PREF_CHANGED: "Preformance:PrefChanged",
+  PREF_CHANGED: "Performance:PrefChanged",
 
-  // Emitted by the PerformanceController or RecordingView
-  // when a recording model is selected
-  RECORDING_SELECTED: "Performance:RecordingSelected",
+  // Emitted by the PerformanceView when the state (display mode) changes.
+  UI_STATE_CHANGED: "Performance:UI:StateChanged",
+
+  // Emitted by the PerformanceView on clear button click
+  UI_CLEAR_RECORDINGS: "Performance:UI:ClearRecordings",
 
   // Emitted by the PerformanceView on record button click
   UI_START_RECORDING: "Performance:UI:StartRecording",
@@ -78,6 +80,13 @@ const EVENTS = {
   RECORDING_STOPPED: "Performance:RecordingStopped",
   RECORDING_WILL_START: "Performance:RecordingWillStart",
   RECORDING_WILL_STOP: "Performance:RecordingWillStop",
+
+  // Emitted by the PerformanceController or RecordingView
+  // when a recording model is selected
+  RECORDING_SELECTED: "Performance:RecordingSelected",
+
+  // When recordings have been cleared out
+  RECORDINGS_CLEARED: "Performance:RecordingsCleared",
 
   // When a recording is imported or exported via the PerformanceController
   RECORDING_IMPORTED: "Performance:RecordingImported",
@@ -130,7 +139,6 @@ let gToolbox, gTarget, gFront;
  */
 let startupPerformance = Task.async(function*() {
   yield promise.all([
-    PrefObserver.register(),
     PerformanceController.initialize(),
     PerformanceView.initialize()
   ]);
@@ -141,28 +149,10 @@ let startupPerformance = Task.async(function*() {
  */
 let shutdownPerformance = Task.async(function*() {
   yield promise.all([
-    PrefObserver.unregister(),
     PerformanceController.destroy(),
     PerformanceView.destroy()
   ]);
 });
-
-/**
- * Observes pref changes on the devtools.profiler branch and triggers the
- * required frontend modifications.
- */
-let PrefObserver = {
-  register: function() {
-    this.branch = Services.prefs.getBranch("devtools.profiler.");
-    this.branch.addObserver("", this, false);
-  },
-  unregister: function() {
-    this.branch.removeObserver("", this);
-  },
-  observe: function(subject, topic, pref) {
-    Prefs.refresh();
-  }
-};
 
 /**
  * Functions handling target-related lifetime events and
@@ -181,6 +171,7 @@ let PerformanceController = {
     this.stopRecording = this.stopRecording.bind(this);
     this.importRecording = this.importRecording.bind(this);
     this.exportRecording = this.exportRecording.bind(this);
+    this.clearRecordings = this.clearRecordings.bind(this);
     this._onTimelineData = this._onTimelineData.bind(this);
     this._onRecordingSelectFromView = this._onRecordingSelectFromView.bind(this);
     this._onPrefChanged = this._onPrefChanged.bind(this);
@@ -189,6 +180,7 @@ let PerformanceController = {
     PerformanceView.on(EVENTS.UI_START_RECORDING, this.startRecording);
     PerformanceView.on(EVENTS.UI_STOP_RECORDING, this.stopRecording);
     PerformanceView.on(EVENTS.UI_IMPORT_RECORDING, this.importRecording);
+    PerformanceView.on(EVENTS.UI_CLEAR_RECORDINGS, this.clearRecordings);
     RecordingsView.on(EVENTS.UI_EXPORT_RECORDING, this.exportRecording);
     RecordingsView.on(EVENTS.RECORDING_SELECTED, this._onRecordingSelectFromView);
 
@@ -207,6 +199,7 @@ let PerformanceController = {
     PerformanceView.off(EVENTS.UI_START_RECORDING, this.startRecording);
     PerformanceView.off(EVENTS.UI_STOP_RECORDING, this.stopRecording);
     PerformanceView.off(EVENTS.UI_IMPORT_RECORDING, this.importRecording);
+    PerformanceView.off(EVENTS.UI_CLEAR_RECORDINGS, this.clearRecordings);
     RecordingsView.off(EVENTS.UI_EXPORT_RECORDING, this.exportRecording);
     RecordingsView.off(EVENTS.RECORDING_SELECTED, this._onRecordingSelectFromView);
 
@@ -230,14 +223,14 @@ let PerformanceController = {
    * when the front has started to record.
    */
   startRecording: Task.async(function *() {
-    let recording = this._createRecording();
+    let withMemory = this.getPref("enable-memory");
+    let withTicks = this.getPref("enable-framerate");
+    let withAllocations = this.getPref("enable-memory");
+
+    let recording = this._createRecording({ withMemory, withTicks, withAllocations });
 
     this.emit(EVENTS.RECORDING_WILL_START, recording);
-    yield recording.startRecording({
-      withTicks: true,
-      withMemory: true,
-      withAllocations: true
-    });
+    yield recording.startRecording({ withTicks, withMemory, withAllocations });
     this.emit(EVENTS.RECORDING_STARTED, recording);
 
     this.setCurrentRecording(recording);
@@ -251,9 +244,7 @@ let PerformanceController = {
     let recording = this._getLatestRecording();
 
     this.emit(EVENTS.RECORDING_WILL_STOP, recording);
-    yield recording.stopRecording({
-      withAllocations: true
-    });
+    yield recording.stopRecording();
     this.emit(EVENTS.RECORDING_STOPPED, recording);
   }),
 
@@ -269,6 +260,22 @@ let PerformanceController = {
   exportRecording: Task.async(function*(_, recording, file) {
     yield recording.exportRecording(file);
     this.emit(EVENTS.RECORDING_EXPORTED, recording);
+  }),
+
+  /**
+   * Clears all recordings from the list as well as the current recording.
+   * Emits `EVENTS.RECORDINGS_CLEARED` when complete so other components can clean up.
+   */
+  clearRecordings: Task.async(function* () {
+    let latest = this._getLatestRecording();
+
+    if (latest && latest.isRecording()) {
+      yield this.stopRecording();
+    }
+
+    this._recordings.length = 0;
+    this.setCurrentRecording(null);
+    this.emit(EVENTS.RECORDINGS_CLEARED);
   }),
 
   /**
@@ -289,14 +296,19 @@ let PerformanceController = {
    * Creates a new RecordingModel, fires events and stores it
    * internally in the controller.
    *
+   * @param object options
+   *        @see PerformanceFront.prototype.startRecording
    * @return RecordingModel
    *         The newly created recording model.
    */
-  _createRecording: function () {
-    let recording = new RecordingModel({ front: gFront, performance });
-    this._recordings.push(recording);
+  _createRecording: function (options={}) {
+    let { withMemory, withTicks, withAllocations } = options;
+    let front = gFront;
 
-    this.emit(EVENTS.RECORDING_CREATED, recording);
+    let recording = new RecordingModel(
+      { front, performance, withMemory, withTicks, withAllocations });
+
+    this._recordings.push(recording);
     return recording;
   },
 
@@ -352,22 +364,15 @@ let PerformanceController = {
    */
   _onPrefChanged: function (_, prefName, value) {
     this.emit(EVENTS.PREF_CHANGED, prefName, value);
-  }
+  },
+
+  toString: () => "[object PerformanceController]"
 };
 
 /**
  * Convenient way of emitting events from the controller.
  */
 EventEmitter.decorate(PerformanceController);
-
-/**
- * Shortcuts for accessing various profiler preferences.
- */
-const Prefs = new ViewHelpers.Prefs("devtools.profiler", {
-  flattenTreeRecursion: ["Bool", "ui.flatten-tree-recursion"],
-  showPlatformData: ["Bool", "ui.show-platform-data"],
-  showIdleBlocks: ["Bool", "ui.show-idle-blocks"],
-});
 
 /**
  * DOM query helpers.

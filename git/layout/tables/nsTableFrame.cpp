@@ -261,13 +261,6 @@ nsTableFrame::PageBreakAfter(nsIFrame* aSourceFrame,
 typedef nsTArray<nsIFrame*> FrameTArray;
 
 /* static */ void
-nsTableFrame::DestroyPositionedTablePartArray(void* aPropertyValue)
-{
-  auto positionedObjs = static_cast<FrameTArray*>(aPropertyValue);
-  delete positionedObjs;
-}
-
-/* static */ void
 nsTableFrame::RegisterPositionedTablePart(nsIFrame* aFrame)
 {
   // Supporting relative positioning for table parts other than table cells has
@@ -1365,8 +1358,7 @@ nsTableFrame::PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
   nsMargin deflate = GetDeflationForBackground(presContext);
   // If 'deflate' is (0,0,0,0) then we'll paint the table background
   // in a separate display item, so don't do it here.
-  nsresult rv = painter.PaintTable(this, deflate, deflate != nsMargin(0, 0, 0, 0));
-  if (NS_FAILED(rv)) return;
+  painter.PaintTable(this, deflate, deflate != nsMargin(0, 0, 0, 0));
 
   if (StyleVisibility()->IsVisible()) {
     if (!IsBorderCollapse()) {
@@ -2549,14 +2541,7 @@ nsTableFrame::GetUsedMargin() const
   return nsMargin(0, 0, 0, 0);
 }
 
-// Destructor function for BCPropertyData properties
-static void
-DestroyBCProperty(void* aPropertyValue)
-{
-  delete static_cast<BCPropertyData*>(aPropertyValue);
-}
-
-NS_DECLARE_FRAME_PROPERTY(TableBCProperty, DestroyBCProperty)
+NS_DECLARE_FRAME_PROPERTY(TableBCProperty, DeleteValue<BCPropertyData>)
 
 BCPropertyData*
 nsTableFrame::GetBCProperty(bool aCreateIfNecessary) const

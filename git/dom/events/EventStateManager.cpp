@@ -481,32 +481,9 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   mCurrentTarget = aTargetFrame;
   mCurrentTargetContent = nullptr;
 
-  // Focus events don't necessarily need a frame.
-  if (NS_EVENT_NEEDS_FRAME(aEvent)) {
-    NS_ASSERTION(mCurrentTarget, "mCurrentTarget is null.  this should not happen.  see bug #13007");
-    if (!mCurrentTarget) return NS_ERROR_NULL_POINTER;
-  }
-#ifdef DEBUG
-  if (aEvent->HasDragEventMessage() && sIsPointerLocked) {
-    NS_ASSERTION(sIsPointerLocked,
-      "sIsPointerLocked is true. Drag events should be suppressed when the pointer is locked.");
-  }
-#endif
-  // Store last known screenPoint and clientPoint so pointer lock
-  // can use these values as constants.
-  WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-  if (aEvent->mFlags.mIsTrusted &&
-      ((mouseEvent && mouseEvent->IsReal()) ||
-       aEvent->mClass == eWheelEventClass) &&
-      !sIsPointerLocked) {
-    sLastScreenPoint =
-      UIEvent::CalculateScreenPoint(aPresContext, aEvent);
-    sLastClientPoint =
-      UIEvent::CalculateClientPoint(aPresContext, aEvent, nullptr);
-  }
-
   // Do not take account NS_MOUSE_ENTER/EXIT so that loading a page
   // when user is not active doesn't change the state to active.
+  WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
   if (aEvent->mFlags.mIsTrusted &&
       ((mouseEvent && mouseEvent->IsReal() &&
         mouseEvent->message != NS_MOUSE_ENTER &&
@@ -524,9 +501,34 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     ++gMouseOrKeyboardEventCounter;
   }
 
-  *aStatus = nsEventStatus_eIgnore;
-
   WheelTransaction::OnEvent(aEvent);
+
+  // Focus events don't necessarily need a frame.
+  if (NS_EVENT_NEEDS_FRAME(aEvent)) {
+    if (!mCurrentTarget) {
+      return NS_ERROR_NULL_POINTER;
+    }
+  }
+#ifdef DEBUG
+  if (aEvent->HasDragEventMessage() && sIsPointerLocked) {
+    NS_ASSERTION(sIsPointerLocked,
+      "sIsPointerLocked is true. Drag events should be suppressed when "
+      "the pointer is locked.");
+  }
+#endif
+  // Store last known screenPoint and clientPoint so pointer lock
+  // can use these values as constants.
+  if (aEvent->mFlags.mIsTrusted &&
+      ((mouseEvent && mouseEvent->IsReal()) ||
+       aEvent->mClass == eWheelEventClass) &&
+      !sIsPointerLocked) {
+    sLastScreenPoint =
+      UIEvent::CalculateScreenPoint(aPresContext, aEvent);
+    sLastClientPoint =
+      UIEvent::CalculateClientPoint(aPresContext, aEvent, nullptr);
+  }
+
+  *aStatus = nsEventStatus_eIgnore;
 
   switch (aEvent->message) {
   case NS_CONTEXTMENU:
@@ -1088,8 +1090,7 @@ bool
 EventStateManager::DispatchCrossProcessEvent(WidgetEvent* aEvent,
                                              nsFrameLoader* aFrameLoader,
                                              nsEventStatus *aStatus) {
-  PBrowserParent* remoteBrowser = aFrameLoader->GetRemoteBrowser();
-  TabParent* remote = static_cast<TabParent*>(remoteBrowser);
+  TabParent* remote = TabParent::GetFrom(aFrameLoader);
   if (!remote) {
     return false;
   }
@@ -1505,8 +1506,7 @@ EventStateManager::BeginTrackingDragGesture(nsPresContext* aPresContext,
 
   // Note that |inDownEvent| could be either a mouse down event or a
   // synthesized mouse move event.
-  mGestureDownPoint = inDownEvent->refPoint +
-    LayoutDeviceIntPoint::FromUntyped(inDownEvent->widget->WidgetToScreenOffset());
+  mGestureDownPoint = inDownEvent->refPoint + inDownEvent->widget->WidgetToScreenOffset();
 
   inDownFrame->GetContentForEvent(inDownEvent,
                                   getter_AddRefs(mGestureDownContent));
@@ -1544,8 +1544,7 @@ EventStateManager::FillInEventFromGestureDown(WidgetMouseEvent* aEvent)
   // Set the coordinates in the new event to the coordinates of
   // the old event, adjusted for the fact that the widget might be
   // different
-  aEvent->refPoint = mGestureDownPoint -
-    LayoutDeviceIntPoint::FromUntyped(aEvent->widget->WidgetToScreenOffset());
+  aEvent->refPoint = mGestureDownPoint - aEvent->widget->WidgetToScreenOffset();
   aEvent->modifiers = mGestureModifiers;
   aEvent->buttons = mGestureDownButtons;
 }
@@ -1601,8 +1600,7 @@ EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     }
 
     // fire drag gesture if mouse has moved enough
-    LayoutDeviceIntPoint pt = aEvent->refPoint +
-      LayoutDeviceIntPoint::FromUntyped(aEvent->widget->WidgetToScreenOffset());
+    LayoutDeviceIntPoint pt = aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
     LayoutDeviceIntPoint distance = pt - mGestureDownPoint;
     if (Abs(distance.x) > AssertedCast<uint32_t>(pixelThresholdX) ||
         Abs(distance.y) > AssertedCast<uint32_t>(pixelThresholdY)) {
@@ -3011,13 +3009,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       }
 
       WidgetWheelEvent* wheelEvent = aEvent->AsWheelEvent();
-      WheelPrefs::Action action = WheelPrefs::GetInstance()->ComputeActionFor(wheelEvent);
-      if (action == WheelPrefs::ACTION_SCROLL && gfxPrefs::AsyncPanZoomEnabled()) {
-        // When APZ is enabled, the actual scroll animation is handled by the
-        // compositor. Ignore it here.
-        action = WheelPrefs::ACTION_NONE;
-      }
-      switch (action) {
+      switch (WheelPrefs::GetInstance()->ComputeActionFor(wheelEvent)) {
         case WheelPrefs::ACTION_SCROLL: {
           // For scrolling of default action, we should honor the mouse wheel
           // transaction.
@@ -3222,9 +3214,9 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
         event.refPoint = mouseEvent->refPoint;
         if (mouseEvent->widget) {
-          event.refPoint += LayoutDeviceIntPoint::FromUntyped(mouseEvent->widget->WidgetToScreenOffset());
+          event.refPoint += mouseEvent->widget->WidgetToScreenOffset();
         }
-        event.refPoint -= LayoutDeviceIntPoint::FromUntyped(widget->WidgetToScreenOffset());
+        event.refPoint -= widget->WidgetToScreenOffset();
         event.modifiers = mouseEvent->modifiers;
         event.buttons = mouseEvent->buttons;
         event.inputSource = mouseEvent->inputSource;
@@ -4029,8 +4021,8 @@ EventStateManager::GenerateMouseEnterExit(WidgetMouseEvent* aMouseEvent)
           // in the other branch here.
           sSynthCenteringPoint = center;
           aMouseEvent->widget->SynthesizeNativeMouseMove(
-            LayoutDeviceIntPoint::ToUntyped(center) +
-              aMouseEvent->widget->WidgetToScreenOffset());
+            LayoutDeviceIntPoint::ToUntyped(center +
+              aMouseEvent->widget->WidgetToScreenOffset()));
         } else if (aMouseEvent->refPoint == sSynthCenteringPoint) {
           // This is the "synthetic native" event we dispatched to re-center the
           // pointer. Cancel it so we don't expose the centering move to content.
@@ -4166,7 +4158,7 @@ EventStateManager::SetPointerLock(nsIWidget* aWidget,
                                              aWidget,
                                              mPresContext);
     aWidget->SynthesizeNativeMouseMove(
-      LayoutDeviceIntPoint::ToUntyped(sLastRefPoint) + aWidget->WidgetToScreenOffset());
+      LayoutDeviceIntPoint::ToUntyped(sLastRefPoint + aWidget->WidgetToScreenOffset()));
 
     // Retarget all events to this element via capture.
     nsIPresShell::SetCapturingContent(aElement, CAPTURE_POINTERLOCK);
@@ -4182,7 +4174,7 @@ EventStateManager::SetPointerLock(nsIWidget* aWidget,
     // no movement.
     sLastRefPoint = mPreLockPoint;
     aWidget->SynthesizeNativeMouseMove(
-      LayoutDeviceIntPoint::ToUntyped(mPreLockPoint) + aWidget->WidgetToScreenOffset());
+      LayoutDeviceIntPoint::ToUntyped(mPreLockPoint + aWidget->WidgetToScreenOffset()));
 
     // Don't retarget events to this element any more.
     nsIPresShell::SetCapturingContent(nullptr, CAPTURE_POINTERLOCK);
@@ -4443,6 +4435,14 @@ EventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
     nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
     if (presShell) {
       nsCOMPtr<nsIContent> mouseContent = GetEventTargetContent(aEvent);
+      // Click events apply to *elements* not nodes. At this point the target
+      // content may have been reset to some non-element content, and so we need
+      // to walk up the closest ancestor element, just like we do in
+      // nsPresShell::HandlePositionedEvent.
+      while (mouseContent && !mouseContent->IsElement()) {
+        mouseContent = mouseContent->GetParent();
+      }
+
       if (!mouseContent && !mCurrentTarget) {
         return NS_OK;
       }

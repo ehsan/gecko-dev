@@ -45,8 +45,6 @@
 #include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 #include "vm/NativeObject-inl.h"
 #include "vm/Shape-inl.h"
@@ -58,7 +56,6 @@ using mozilla::UniquePtr;
 
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 
 /*
  * Convert |v| to an array index for an array of length |length| per
@@ -523,7 +520,7 @@ ArrayBufferObject::neuter(JSContext *cx, Handle<ArrayBufferObject*> buffer,
         // flag change will be observed.
         if (!cx->global()->getGroup(cx))
             CrashAtUnhandlableOOM("ArrayBufferObject::neuter");
-        types::MarkObjectGroupFlags(cx, cx->global(), types::OBJECT_FLAG_TYPED_OBJECT_NEUTERED);
+        MarkObjectGroupFlags(cx, cx->global(), OBJECT_FLAG_TYPED_OBJECT_NEUTERED);
         cx->compartment()->neuteredTypedObjects = 1;
     }
 

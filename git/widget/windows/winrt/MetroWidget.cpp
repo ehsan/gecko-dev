@@ -205,7 +205,6 @@ NS_IMETHODIMP
 MetroWidget::Create(nsIWidget *aParent,
                     nsNativeWidget aNativeParent,
                     const nsIntRect &aRect,
-                    nsDeviceContext *aContext,
                     nsWidgetInitData *aInitData)
 {
   LogFunction();
@@ -219,7 +218,7 @@ MetroWidget::Create(nsIWidget *aParent,
   // Ensure that the toolkit is created.
   nsToolkit::GetToolkit();
 
-  BaseCreate(aParent, aRect, aContext, aInitData);
+  BaseCreate(aParent, aRect, aInitData);
 
   if (mWindowType != eWindowType_toplevel) {
     switch(mWindowType) {
@@ -1492,10 +1491,10 @@ MetroWidget::SetTitle(const nsAString& aTitle)
   return NS_OK;
 }
 
-nsIntPoint
+LayoutDeviceIntPoint
 MetroWidget::WidgetToScreenOffset()
 {
-  return nsIntPoint(0,0);
+  return LayoutDeviceIntPoint(0,0);
 }
 
 NS_IMETHODIMP

@@ -6,8 +6,6 @@
 
 #include "vm/ArgumentsObject-inl.h"
 
-#include "jsinfer.h"
-
 #include "jit/JitFrames.h"
 #include "vm/GlobalObject.h"
 #include "vm/Stack.h"
@@ -167,7 +165,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     bool strict = callee->strict();
     const Class *clasp = strict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
 
-    RootedObjectGroup group(cx, cx->getNewGroup(clasp, TaggedProto(proto.get())));
+    RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, clasp, TaggedProto(proto.get())));
     if (!group)
         return nullptr;
 
@@ -340,7 +338,7 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
         if (arg < argsobj->initialLength() && !argsobj->isElementDeleted(arg)) {
             argsobj->setElement(cx, arg, vp);
             if (arg < script->functionNonDelazifying()->nargs())
-                types::TypeScript::SetArgument(cx, script, arg, vp);
+                TypeScript::SetArgument(cx, script, arg, vp);
             return true;
         }
     } else {

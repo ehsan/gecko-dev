@@ -7,6 +7,12 @@
  * CallTree view containing profiler call tree, controlled by DetailsView.
  */
 let JsCallTreeView = Heritage.extend(DetailsSubview, {
+
+  rerenderPrefs: [
+    "invert-call-tree",
+    "show-platform-data"
+  ],
+
   rangeChangeDebounceTime: 50, // ms
 
   /**
@@ -17,8 +23,6 @@ let JsCallTreeView = Heritage.extend(DetailsSubview, {
 
     this._onPrefChanged = this._onPrefChanged.bind(this);
     this._onLink = this._onLink.bind(this);
-
-    PerformanceController.on(EVENTS.PREF_CHANGED, this._onPrefChanged);
   },
 
   /**
@@ -26,8 +30,6 @@ let JsCallTreeView = Heritage.extend(DetailsSubview, {
    */
   destroy: function () {
     DetailsSubview.destroy.call(this);
-
-    PerformanceController.off(EVENTS.PREF_CHANGED, this._onPrefChanged);
   },
 
   /**
@@ -62,7 +64,7 @@ let JsCallTreeView = Heritage.extend(DetailsSubview, {
    */
   _prepareCallTree: function (profile, { startTime, endTime }, options) {
     let threadSamples = profile.threads[0].samples;
-    let contentOnly = !Prefs.showPlatformData;
+    let contentOnly = !PerformanceController.getPref("show-platform-data");
     let invertTree = PerformanceController.getPref("invert-call-tree");
 
     let threadNode = new ThreadNode(threadSamples,
@@ -103,18 +105,11 @@ let JsCallTreeView = Heritage.extend(DetailsSubview, {
 
     // When platform data isn't shown, hide the cateogry labels, since they're
     // only available for C++ frames.
-    let contentOnly = !Prefs.showPlatformData;
+    let contentOnly = !PerformanceController.getPref("show-platform-data");
     root.toggleCategories(!contentOnly);
   },
 
-  /**
-   * Called when a preference under "devtools.performance.ui." is changed.
-   */
-  _onPrefChanged: function (_, prefName, value) {
-    if (prefName === "invert-call-tree") {
-      this.render(OverviewView.getTimeInterval());
-    }
-  }
+  toString: () => "[object JsCallTreeView]"
 });
 
 /**

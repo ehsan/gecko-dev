@@ -488,7 +488,7 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
         // Note: objectReg and scratchReg may be the same register, so we cannot
         // use objectReg in the rest of this function.
         masm.loadPtr(Address(objectReg, JSObject::offsetOfGroup()), scratchReg);
-        Address proto(scratchReg, types::ObjectGroup::offsetOfProto());
+        Address proto(scratchReg, ObjectGroup::offsetOfProto());
         masm.branchPtr(Assembler::NotEqual, proto,
                        ImmMaybeNurseryPtr(obj->getProto()), failures);
     }
@@ -1268,10 +1268,9 @@ GetPropertyIC::allowArrayLength(Context cx, HandleObject obj) const
     CacheLocation *locs = ion->getCacheLocs(locationIndex);
     for (size_t i = 0; i < numLocations; i++) {
         CacheLocation &curLoc = locs[i];
-        types::StackTypeSet *bcTypes =
-            types::TypeScript::BytecodeTypes(curLoc.script, curLoc.pc);
+        StackTypeSet *bcTypes = TypeScript::BytecodeTypes(curLoc.script, curLoc.pc);
 
-        if (!bcTypes->hasType(types::Type::Int32Type()))
+        if (!bcTypes->hasType(TypeSet::Int32Type()))
             return false;
     }
 
@@ -1855,7 +1854,7 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
 
         // Monitor changes to cache entry.
         if (!cache.monitoredResult())
-            types::TypeScript::Monitor(cx, script, pc, vp);
+            TypeScript::Monitor(cx, script, pc, vp);
     }
 
     return true;
@@ -1897,14 +1896,14 @@ CheckTypeSetForWrite(MacroAssembler &masm, JSObject *obj, jsid id,
                      Register object, ConstantOrRegister value, Label *failure)
 {
     TypedOrValueRegister valReg = value.reg();
-    types::ObjectGroup *group = obj->group();
+    ObjectGroup *group = obj->group();
     if (group->unknownProperties())
         return;
-    types::HeapTypeSet *propTypes = group->maybeGetProperty(id);
+    HeapTypeSet *propTypes = group->maybeGetProperty(id);
     MOZ_ASSERT(propTypes);
 
     // guardTypeSet can read from type sets without triggering read barriers.
-    types::TypeSet::readBarrier(propTypes);
+    TypeSet::readBarrier(propTypes);
 
     Register scratch = object;
     masm.guardTypeSet(valReg, propTypes, BarrierKind::TypeSet, scratch, failure);
@@ -1929,7 +1928,7 @@ GenerateSetSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
         // just guard that it's already there.
 
         // Obtain and guard on the ObjectGroup of the object.
-        types::ObjectGroup *group = obj->group();
+        ObjectGroup *group = obj->group();
         masm.branchPtr(Assembler::NotEqual,
                        Address(object, JSObject::offsetOfGroup()),
                        ImmGCPtr(group), &failures);
@@ -2463,7 +2462,7 @@ SetPropertyIC::attachCallSetter(JSContext *cx, HandleScript outerScript, IonScri
 
 static void
 GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                NativeObject *obj, Shape *oldShape, types::ObjectGroup *oldGroup,
+                NativeObject *obj, Shape *oldShape, ObjectGroup *oldGroup,
                 Register object, ConstantOrRegister value,
                 bool checkTypeset)
 {
@@ -2520,7 +2519,7 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
         masm.push(object);
         masm.loadPtr(Address(object, JSObject::offsetOfGroup()), object);
         masm.branchPtr(Assembler::Equal,
-                       Address(object, types::ObjectGroup::offsetOfAddendum()),
+                       Address(object, ObjectGroup::offsetOfAddendum()),
                        ImmWord(0),
                        &noTypeChange);
         masm.pop(object);
@@ -2579,9 +2578,9 @@ static bool
 CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *checkTypeset)
 {
     bool shouldCheck = false;
-    types::ObjectGroup *group = obj->group();
+    ObjectGroup *group = obj->group();
     if (!group->unknownProperties()) {
-        types::HeapTypeSet *propTypes = group->maybeGetProperty(id);
+        HeapTypeSet *propTypes = group->maybeGetProperty(id);
         if (!propTypes)
             return false;
         if (!propTypes->unknown()) {
@@ -2590,7 +2589,7 @@ CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *
             shouldCheck = true;
             if (val.constant()) {
                 // If the input is a constant, then don't bother if the barrier will always fail.
-                if (!propTypes->hasType(types::GetValueType(val.value())))
+                if (!propTypes->hasType(TypeSet::GetValueType(val.value())))
                     return false;
                 shouldCheck = false;
             } else {
@@ -2601,7 +2600,7 @@ CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *
                 // contains the specific object, but doesn't have ANYOBJECT set.
                 if (reg.hasTyped() && reg.type() != MIRType_Object) {
                     JSValueType valType = ValueTypeFromMIRType(reg.type());
-                    if (!propTypes->hasType(types::Type::PrimitiveType(valType)))
+                    if (!propTypes->hasType(TypeSet::PrimitiveType(valType)))
                         return false;
                     shouldCheck = false;
                 }
@@ -3409,7 +3408,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
         if (!GetObjectElementOperation(cx, JSOp(*pc), obj, idval, res))
             return false;
         if (!cache.monitoredResult())
-            types::TypeScript::Monitor(cx, script, pc, res);
+            TypeScript::Monitor(cx, script, pc, res);
         return true;
     }
 
@@ -3463,7 +3462,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     }
 
     if (!cache.monitoredResult())
-        types::TypeScript::Monitor(cx, script, pc, res);
+        TypeScript::Monitor(cx, script, pc, res);
     return true;
 }
 
@@ -4143,7 +4142,7 @@ NameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain,
     }
 
     // Monitor changes to cache entry.
-    types::TypeScript::Monitor(cx, script, pc, vp);
+    TypeScript::Monitor(cx, script, pc, vp);
 
     return true;
 }

@@ -116,7 +116,8 @@ js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
 static void
 FinishOffThreadIonCompile(jit::IonBuilder *builder)
 {
-    HelperThreadState().ionFinishedList().append(builder);
+    if (!HelperThreadState().ionFinishedList().append(builder))
+        CrashAtUnhandlableOOM("FinishOffThreadIonCompile");
 }
 
 static inline bool
@@ -844,6 +845,15 @@ LeaveParseTaskZone(JSRuntime *rt, ParseTask *task)
     rt->clearUsedByExclusiveThread(task->cx->zone());
 }
 
+static bool
+EnsureConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
+{
+    if (!GlobalObject::ensureConstructor(cx, global, key))
+        return false;
+
+    return global->getPrototype(key).toObject().setDelegate(cx);
+}
+
 JSScript *
 GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *token)
 {
@@ -875,11 +885,11 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
     // Make sure we have all the constructors we need for the prototype
     // remapping below, since we can't GC while that's happening.
     Rooted<GlobalObject*> global(cx, &cx->global()->as<GlobalObject>());
-    if (!GlobalObject::ensureConstructor(cx, global, JSProto_Object) ||
-        !GlobalObject::ensureConstructor(cx, global, JSProto_Array) ||
-        !GlobalObject::ensureConstructor(cx, global, JSProto_Function) ||
-        !GlobalObject::ensureConstructor(cx, global, JSProto_RegExp) ||
-        !GlobalObject::ensureConstructor(cx, global, JSProto_Iterator))
+    if (!EnsureConstructor(cx, global, JSProto_Object) ||
+        !EnsureConstructor(cx, global, JSProto_Array) ||
+        !EnsureConstructor(cx, global, JSProto_Function) ||
+        !EnsureConstructor(cx, global, JSProto_RegExp) ||
+        !EnsureConstructor(cx, global, JSProto_Iterator))
     {
         LeaveParseTaskZone(rt, parseTask);
         return nullptr;
@@ -895,7 +905,7 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
          !iter.done();
          iter.next())
     {
-        types::ObjectGroup *group = iter.get<types::ObjectGroup>();
+        ObjectGroup *group = iter.get<ObjectGroup>();
         TaggedProto proto(group->proto());
         if (!proto.isObject())
             continue;

@@ -146,7 +146,7 @@ let lazilyLoadedObserverScripts = [
   ["Feedback", ["Feedback:Show"], "chrome://browser/content/Feedback.js"],
   ["SelectionHandler", ["TextSelection:Get"], "chrome://browser/content/SelectionHandler.js"],
   ["EmbedRT", ["GeckoView:ImportScript"], "chrome://browser/content/EmbedRT.js"],
-  ["Reader", ["Reader:Added", "Reader:Removed", "Gesture:DoubleTap"], "chrome://browser/content/Reader.js"],
+  ["Reader", ["Reader:FetchContent", "Reader:Removed", "Gesture:DoubleTap"], "chrome://browser/content/Reader.js"],
 ];
 if (AppConstants.MOZ_WEBRTC) {
   lazilyLoadedObserverScripts.push(
@@ -369,10 +369,18 @@ var BrowserApp = {
 
         // Queue up some other performance-impacting initializations
         Services.tm.mainThread.dispatch(function() {
+          // Spin up some services which impact performance.
           Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
+          Services.search.init();
 
+          // Spin up some features which impact performance.
           CastingApps.init();
           DownloadNotifications.init();
+
+          if (AppConstants.MOZ_SAFE_BROWSING) {
+            // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
+            SafeBrowsing.init();
+          };
 
           // Delay this a minute because there's no rush
           setTimeout(() => {
@@ -380,13 +388,6 @@ var BrowserApp = {
             BrowserApp.gmpInstallManager.simpleCheckAndInstall().then(null, () => {});
           }, 1000 * 60);
         }, Ci.nsIThread.DISPATCH_NORMAL);
-
-        if (AppConstants.MOZ_SAFE_BROWSING) {
-          Services.tm.mainThread.dispatch(function() {
-            // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
-            SafeBrowsing.init();
-          }, Ci.nsIThread.DISPATCH_NORMAL);
-        }
 
         if (AppConstants.NIGHTLY_BUILD) {
           WebcompatReporter.init();

@@ -95,7 +95,6 @@ public:
   NS_IMETHOD    Create(nsIWidget *aParent,
                        nsNativeWidget aNativeParent,
                        const nsIntRect &aRect,
-                       nsDeviceContext *aContext,
                        nsWidgetInitData *aInitData = nullptr);
   NS_IMETHOD    Destroy();
   NS_IMETHOD    EnableDragDrop(bool aEnable);
@@ -172,7 +171,7 @@ public:
   virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
   virtual void* GetNativeData(uint32_t aDataType);
   virtual void  FreeNativeData(void * data, uint32_t aDataType);
-  virtual nsIntPoint WidgetToScreenOffset();
+  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
 
   already_AddRefed<nsIPresShell> GetPresShell();
 

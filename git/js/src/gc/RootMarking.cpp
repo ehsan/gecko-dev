@@ -103,7 +103,7 @@ MarkExactStackRootsAcrossTypes(T context, JSTracer *trc)
     MarkExactStackRootList<JSObject *, MarkObjectRoot>(trc, context, "exact-object");
     MarkExactStackRootList<Shape *, MarkShapeRoot>(trc, context, "exact-shape");
     MarkExactStackRootList<BaseShape *, MarkBaseShapeRoot>(trc, context, "exact-baseshape");
-    MarkExactStackRootList<types::ObjectGroup *, MarkObjectGroupRoot>(
+    MarkExactStackRootList<ObjectGroup *, MarkObjectGroupRoot>(
         trc, context, "exact-objectgroup");
     MarkExactStackRootList<JSString *, MarkStringRoot>(trc, context, "exact-string");
     MarkExactStackRootList<JS::Symbol *, MarkSymbolRoot>(trc, context, "exact-symbol");
@@ -112,7 +112,7 @@ MarkExactStackRootsAcrossTypes(T context, JSTracer *trc)
     MarkExactStackRootList<LazyScript *, MarkLazyScriptRoot>(trc, context, "exact-lazy-script");
     MarkExactStackRootList<jsid, MarkIdRoot>(trc, context, "exact-id");
     MarkExactStackRootList<Value, MarkValueRoot>(trc, context, "exact-value");
-    MarkExactStackRootList<types::Type, MarkTypeRoot>(trc, context, "types::Type");
+    MarkExactStackRootList<TypeSet::Type, TypeSet::MarkTypeRoot>(trc, context, "TypeSet::Type");
     MarkExactStackRootList<Bindings, MarkBindingsRoot>(trc, context, "Bindings");
     MarkExactStackRootList<JSPropertyDescriptor, MarkPropertyDescriptorRoot>(
         trc, context, "JSPropertyDescriptor");

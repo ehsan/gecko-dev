@@ -49,7 +49,6 @@
 
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 using namespace js::frontend;
 
 using mozilla::ArrayLength;
@@ -873,7 +872,7 @@ CreateFunctionPrototype(JSContext *cx, JSProtoKey key)
         return nullptr;
 
     functionProto->initScript(script);
-    types::ObjectGroup* protoGroup = functionProto->getGroup(cx);
+    ObjectGroup* protoGroup = functionProto->getGroup(cx);
     if (!protoGroup)
         return nullptr;
 
@@ -2037,7 +2036,7 @@ js::CloneFunctionObjectUseSameScript(JSCompartment *compartment, HandleFunction 
 {
     return compartment == fun->compartment() &&
            !fun->isSingleton() &&
-           !types::UseSingletonForClone(fun);
+           !ObjectGroup::useSingletonForClone(fun);
 }
 
 JSFunction *

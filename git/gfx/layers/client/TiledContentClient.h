@@ -182,7 +182,7 @@ struct TileClient
     mCompositableClient = aCompositableClient;
   }
 
-  bool IsPlaceholderTile()
+  bool IsPlaceholderTile() const
   {
     return mBackBuffer == nullptr && mFrontBuffer == nullptr;
   }
@@ -273,6 +273,8 @@ struct TileClient
   nsIntRegion mInvalidFront;
   nsIntRegion mInvalidBack;
   nsExpirationState mExpirationState;
+
+  gfx::IntPoint mOrigin;
 
 private:
   // Copies dirty pixels from the front buffer into the back buffer,

@@ -15,7 +15,6 @@
 #include "js/Conversions.h"
 
 #include "jscntxtinlines.h"
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -834,7 +833,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             }
         }
 
-        if (name && NameToId(name) == types::IdToTypeId(NameToId(name))) {
+        if (name && NameToId(name) == IdToTypeId(NameToId(name))) {
             // Optimization 3: We have pn1["foo"] where foo is not an index.
             // Convert to a property access (like pn1.foo) which we optimize
             // better downstream. Don't bother with this for names which TI

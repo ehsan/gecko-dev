@@ -405,6 +405,9 @@ pref("browser.search.context.loadInBackground", false);
 
 pref("browser.search.showOneOffButtons", true);
 
+// comma seperated list of of engines to hide in the search panel.
+pref("browser.search.hiddenOneOffs", "");
+
 // How many times to show the new search highlight
 pref("browser.search.highlightCount", 5);
 
@@ -850,17 +853,17 @@ pref("browser.preferences.animateFadeIn", true);
 pref("browser.preferences.animateFadeIn", false);
 #endif
 
-// Toggles between the two Preferences implementations, pop-up window and in-content
-#ifdef EARLY_BETA_OR_EARLIER
-pref("browser.preferences.inContent", true);
-pref("browser.preferences.instantApply", true);
-#else
-pref("browser.preferences.inContent", false);
 #ifdef XP_WIN
 pref("browser.preferences.instantApply", false);
 #else
 pref("browser.preferences.instantApply", true);
 #endif
+
+// Toggles between the two Preferences implementations, pop-up window and in-content
+#ifdef EARLY_BETA_OR_EARLIER
+pref("browser.preferences.inContent", true);
+#else
+pref("browser.preferences.inContent", false);
 #endif
 
 pref("browser.download.show_plugins_in_list", true);
@@ -1184,15 +1187,15 @@ pref("browser.tabs.remote.desktopbehavior", true);
 // This will require a restart.
 pref("security.sandbox.windows.log", false);
 
-// Controls whether the Windows NPAPI plugin process is sandboxed by default.
+// Controls whether and how the Windows NPAPI plugin process is sandboxed.
 // To get a different setting for a particular plugin replace "default", with
 // the plugin's nice file name, see: nsPluginTag::GetNiceFileName.
-pref("dom.ipc.plugins.sandbox.default", false);
-pref("dom.ipc.plugins.sandbox.flash", true);
-
-// This controls whether the Windows NPAPI process sandbox is using a more
-// strict sandboxing policy.  This will require a restart.
-pref("dom.ipc.plugins.moreStrictSandbox", false);
+// On windows these levels are:
+// 0 - no sandbox
+// 1 - sandbox with USER_NON_ADMIN access token level
+// 2 - a more strict sandbox, which might cause functionality issues
+pref("dom.ipc.plugins.sandbox-level.default", 0);
+pref("dom.ipc.plugins.sandbox-level.flash", 1);
 
 #if defined(MOZ_CONTENT_SANDBOX)
 // This controls whether the Windows content process sandbox is using a more
@@ -1426,15 +1429,21 @@ pref("devtools.timeline.hiddenMarkers", "[]");
   pref("devtools.performance_dev.enabled", false);
 #endif
 
-pref("devtools.performance.ui.show-timeline-memory", false);
-
 // The default Profiler UI settings
+// TODO remove `devtools.profiler.ui.` branches when performance
+// tool lands (bug 1075567)
 pref("devtools.profiler.ui.flatten-tree-recursion", true);
 pref("devtools.profiler.ui.show-platform-data", false);
 pref("devtools.profiler.ui.show-idle-blocks", true);
 
 // The default Performance UI settings
 pref("devtools.performance.ui.invert-call-tree", true);
+pref("devtools.performance.ui.invert-flame-graph", false);
+pref("devtools.performance.ui.flatten-tree-recursion", true);
+pref("devtools.performance.ui.show-platform-data", false);
+pref("devtools.performance.ui.show-idle-blocks", true);
+pref("devtools.performance.ui.enable-memory", false);
+pref("devtools.performance.ui.enable-framerate", true);
 
 // The default cache UI setting
 pref("devtools.cache.disabled", false);
@@ -1747,6 +1756,12 @@ pref("identity.fxaccounts.remote.signin.uri", "https://accounts.firefox.com/sign
 // Note that this will always need to be in the same TLD as the
 // "identity.fxaccounts.remote.signup.uri" pref.
 pref("identity.fxaccounts.settings.uri", "https://accounts.firefox.com/settings");
+
+// The remote URL of the FxA Profile Server
+pref("identity.fxaccounts.remote.profile.uri", "https://profile.accounts.firefox.com/v1");
+
+// The remote URL of the FxA OAuth Server
+pref("identity.fxaccounts.remote.oauth.uri", "https://oauth.accounts.firefox.com/v1");
 
 // Migrate any existing Firefox Account data from the default profile to the
 // Developer Edition profile.

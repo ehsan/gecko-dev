@@ -105,6 +105,8 @@ class DecisionTask(object):
     @CommandArgument('--revision',
         required=True,
         help='Revision for this project')
+    @CommandArgument('--revision-hash',
+        help='Treeherder revision hash')
     @CommandArgument('--comment',
         required=True,
         help='Commit message for this revision')
@@ -121,6 +123,7 @@ class DecisionTask(object):
             'comment': params['comment'],
             'url': params['url'],
             'revision': params['revision'],
+            'revision_hash': params.get('revision_hash', ''),
             'owner': params['owner'],
             'as_slugid': SlugidJar(),
             'from_now': json_time_from_now,
@@ -137,7 +140,7 @@ class Graph(object):
         default=os.environ.get('GECKO_BASE_REPOSITORY'),
         help='URL for "base" repository to clone')
     @CommandArgument('--mozharness-repository',
-        default='http://hg.mozilla.org/build/mozharness',
+        default='https://github.com/lightsofapollo/build-mozharness',
         help='URL for custom mozharness repo')
     @CommandArgument('--head-repository',
         default=os.environ.get('GECKO_HEAD_REPOSITORY'),
@@ -149,7 +152,7 @@ class Graph(object):
         default=os.environ.get('GECKO_HEAD_REV'),
         help='Commit revision to use from head repository')
     @CommandArgument('--mozharness-rev',
-        default='tip',
+        default='emulator-perf',
         help='Commit revision to use from mozharness repository')
     @CommandArgument('--message',
         help='Commit message to be parsed. Example: "try: -b do -p all -u all"')

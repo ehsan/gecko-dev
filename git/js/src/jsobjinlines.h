@@ -22,7 +22,8 @@
 #include "jsatominlines.h"
 #include "jscompartmentinlines.h"
 #include "jsgcinlines.h"
-#include "jsinferinlines.h"
+
+#include "vm/TypeInference-inl.h"
 
 inline void
 JSObject::finalize(js::FreeOp *fop)
@@ -75,8 +76,8 @@ JSObject::setSingleton(js::ExclusiveContext *cx, js::HandleObject obj)
 {
     MOZ_ASSERT_IF(cx->isJSContext(), !IsInsideNursery(obj));
 
-    js::types::ObjectGroup *group = cx->getLazySingletonGroup(obj->getClass(),
-                                                              obj->getTaggedProto());
+    js::ObjectGroup *group = js::ObjectGroup::lazySingletonGroup(cx, obj->getClass(),
+                                                                 obj->getTaggedProto());
     if (!group)
         return false;
 
@@ -84,7 +85,7 @@ JSObject::setSingleton(js::ExclusiveContext *cx, js::HandleObject obj)
     return true;
 }
 
-inline js::types::ObjectGroup*
+inline js::ObjectGroup*
 JSObject::getGroup(JSContext *cx)
 {
     MOZ_ASSERT(cx->compartment() == compartment());
@@ -98,7 +99,7 @@ JSObject::getGroup(JSContext *cx)
 }
 
 inline void
-JSObject::setGroup(js::types::ObjectGroup *group)
+JSObject::setGroup(js::ObjectGroup *group)
 {
     MOZ_ASSERT(group);
     MOZ_ASSERT(!isSingleton());
@@ -177,7 +178,7 @@ js::GetElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t in
 inline bool
 js::DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
-    types::MarkTypePropertyNonData(cx, obj, id);
+    MarkTypePropertyNonData(cx, obj, id);
     if (DeletePropertyOp op = obj->getOps()->deleteProperty)
         return op(cx, obj, id, succeeded);
     return NativeDeleteProperty(cx, obj.as<NativeObject>(), id, succeeded);
@@ -198,7 +199,7 @@ js::DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, bool *succeed
 inline bool
 js::SetPropertyAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
-    types::MarkTypePropertyNonData(cx, obj, id);
+    MarkTypePropertyNonData(cx, obj, id);
     SetAttributesOp op = obj->getOps()->setAttributes;
     if (op)
         return op(cx, obj, id, attrsp);
@@ -758,7 +759,7 @@ NewObjectMetadata(ExclusiveContext *cxArg, JSObject **pmetadata)
         {
             // Use AutoEnterAnalysis to prohibit both any GC activity under the
             // callback, and any reentering of JS via Invoke() etc.
-            types::AutoEnterAnalysis enter(cx);
+            AutoEnterAnalysis enter(cx);
 
             if (!cx->compartment()->callObjectMetadataCallback(cx, pmetadata))
                 return false;
