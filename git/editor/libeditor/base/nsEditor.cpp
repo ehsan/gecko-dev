@@ -141,6 +141,7 @@ extern nsIParserService *sParserService;
 nsEditor::nsEditor()
 :  mModCount(0)
 ,  mFlags(0)
+,  mPresShellWeak(nsnull)
 ,  mUpdateCount(0)
 ,  mSpellcheckCheckboxState(eTriUnset)
 ,  mPlaceHolderTxn(nsnull)
@@ -158,7 +159,6 @@ nsEditor::nsEditor()
 ,  mIsIMEComposing(PR_FALSE)
 ,  mShouldTxnSetSelection(PR_TRUE)
 ,  mDidPreDestroy(PR_FALSE)
-,  mDidPostCreate(PR_FALSE)
 ,  mDocDirtyState(-1)
 ,  mDocWeak(nsnull)
 ,  mPhonetic(nsnull)
@@ -224,14 +224,14 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEditor, nsIEditor)
 
 
 NS_IMETHODIMP
-nsEditor::Init(nsIDOMDocument *aDoc, nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags)
+nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags)
 {
-  NS_PRECONDITION(aDoc, "bad arg");
-  if (!aDoc)
+  NS_PRECONDITION(aDoc && aPresShell, "bad arg");
+  if (!aDoc || !aPresShell)
     return NS_ERROR_NULL_POINTER;
 
   // First only set flags, but other stuff shouldn't be initialized now.
-  // Don't move this call after initializing mDocWeak.
+  // Don't move this call after initializing mDocWeak and mPresShellWeak.
   // SetFlags() can check whether it's called during initialization or not by
   // them.  Note that SetFlags() will be called by PostCreate().
 #ifdef DEBUG
@@ -241,20 +241,12 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIContent *aRoot, nsISelectionController *
   NS_ASSERTION(NS_SUCCEEDED(rv), "SetFlags() failed");
 
   mDocWeak = do_GetWeakReference(aDoc);  // weak reference to doc
-  // HTML editors currently don't have their own selection controller,
-  // so they'll pass null as aSelCon, and we'll get the selection controller
-  // off of the presshell.
-  nsCOMPtr<nsISelectionController> selCon;
-  if (aSelCon) {
-    mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
-    selCon = aSelCon;
-  } else {
-    nsCOMPtr<nsIPresShell> presShell;
-    GetPresShell(getter_AddRefs(presShell));
-    selCon = do_QueryInterface(presShell);
-  }
-  NS_ASSERTION(selCon, "Selection controller should be available at this point");
+  mPresShellWeak = do_GetWeakReference(aPresShell);   // weak reference to pres shell
+  mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
 
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
+  
   //set up root element if we are passed one.  
   if (aRoot)
     mRootElement = do_QueryInterface(aRoot);
@@ -267,17 +259,15 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIContent *aRoot, nsISelectionController *
   mIMEBufferLength = 0;
   
   /* Show the caret */
-  selCon->SetCaretReadOnly(PR_FALSE);
-  selCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
+  aSelCon->SetCaretReadOnly(PR_FALSE);
+  aSelCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
+  
+  aSelCon->SetSelectionFlags(nsISelectionDisplay::DISPLAY_ALL);//we want to see all the selection reflected to user
 
-  selCon->SetSelectionFlags(nsISelectionDisplay::DISPLAY_ALL);//we want to see all the selection reflected to user
-
-  NS_POSTCONDITION(mDocWeak, "bad state");
+  NS_POSTCONDITION(mDocWeak && mPresShellWeak, "bad state");
 
   // Make sure that the editor will be destroyed properly
   mDidPreDestroy = PR_FALSE;
-  // Make sure that the ediotr will be created properly
-  mDidPostCreate = PR_FALSE;
 
   return NS_OK;
 }
@@ -294,38 +284,31 @@ nsEditor::PostCreate()
   nsresult rv = SetFlags(~mFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // These operations only need to happen on the first PostCreate call
-  if (!mDidPostCreate) {
-    mDidPostCreate = PR_TRUE;
+  // Set up listeners
+  rv = CreateEventListeners();
+  if (NS_FAILED(rv))
+  {
+    RemoveEventListeners();
 
-    // Set up listeners
-    rv = CreateEventListeners();
-    if (NS_FAILED(rv))
-    {
-      RemoveEventListeners();
-
-      return rv;
-    }
-
-    rv = InstallEventListeners();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // nuke the modification count, so the doc appears unmodified
-    // do this before we notify listeners
-    ResetModificationCount();
-
-    // update the UI with our state
-    NotifyDocumentListeners(eDocumentCreated);
-    NotifyDocumentListeners(eDocumentStateChanged);
+    return rv;
   }
 
+  rv = InstallEventListeners();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // nuke the modification count, so the doc appears unmodified
+  // do this before we notify listeners
+  ResetModificationCount();
+  
+  // update the UI with our state
+  NotifyDocumentListeners(eDocumentCreated);
+  NotifyDocumentListeners(eDocumentStateChanged);
+  
   // update nsTextStateManager and caret if we have focus
   nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
   if (focusedContent) {
-    nsCOMPtr<nsIPresShell> ps;
-    GetPresShell(getter_AddRefs(ps));
+    nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
     NS_ASSERTION(ps, "no pres shell even though we have focus");
-    NS_ENSURE_TRUE(ps, NS_ERROR_UNEXPECTED);
     nsPresContext* pc = ps->GetPresContext(); 
 
     nsIMEStateManager::OnTextStateBlur(pc, nsnull);
@@ -354,7 +337,7 @@ nsEditor::CreateEventListeners()
 nsresult
 nsEditor::InstallEventListeners()
 {
-  NS_ENSURE_TRUE(mDocWeak && mEventListener,
+  NS_ENSURE_TRUE(mDocWeak && mPresShellWeak && mEventListener,
                  NS_ERROR_NOT_INITIALIZED);
 
   // Initialize the event target.
@@ -481,7 +464,7 @@ nsEditor::SetFlags(PRUint32 aFlags)
   PRBool spellcheckerWasEnabled = CanEnableSpellCheck();
   mFlags = aFlags;
 
-  if (!mDocWeak) {
+  if (!mDocWeak || !mPresShellWeak) {
     // If we're initializing, we shouldn't do anything now.
     // SetFlags() will be called by PostCreate(),
     // we should synchronize some stuff for the flags at that time.
@@ -541,12 +524,10 @@ nsEditor::GetPresShell(nsIPresShell **aPS)
 {
   NS_ENSURE_TRUE(aPS, NS_ERROR_NULL_POINTER);
   *aPS = nsnull; // init out param
-  NS_PRECONDITION(mDocWeak, "bad state, null mDocWeak");
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
-  *aPS = doc->GetShell();
-  NS_ENSURE_TRUE(*aPS, NS_ERROR_NOT_INITIALIZED);
-  NS_ADDREF(*aPS);
+  NS_PRECONDITION(mPresShellWeak, "bad state, null mPresShellWeak");
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
+  NS_ADDREF(*aPS = ps);
   return NS_OK;
 }
 
@@ -572,14 +553,8 @@ nsEditor::GetSelectionController(nsISelectionController **aSel)
 {
   NS_ENSURE_TRUE(aSel, NS_ERROR_NULL_POINTER);
   *aSel = nsnull; // init out param
-  nsCOMPtr<nsISelectionController> selCon;
-  if (mSelConWeak) {
-    selCon = do_QueryReferent(mSelConWeak);
-  } else {
-    nsCOMPtr<nsIPresShell> presShell;
-    GetPresShell(getter_AddRefs(presShell));
-    selCon = do_QueryInterface(presShell);
-  }
+  NS_PRECONDITION(mSelConWeak, "bad state, null mSelConWeak");
+  nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
   NS_ADDREF(*aSel = selCon);
   return NS_OK;
@@ -599,8 +574,7 @@ nsEditor::GetSelection(nsISelection **aSelection)
 {
   NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
   *aSelection = nsnull;
-  nsCOMPtr<nsISelectionController> selcon;
-  GetSelectionController(getter_AddRefs(selcon));
+  nsCOMPtr<nsISelectionController> selcon = do_QueryReferent(mSelConWeak);
   NS_ENSURE_TRUE(selcon, NS_ERROR_NOT_INITIALIZED);
   return selcon->GetSelection(nsISelectionController::SELECTION_NORMAL, aSelection);  // does an addref
 }
@@ -1032,11 +1006,10 @@ nsEditor::GetDocumentIsEmpty(PRBool *aDocumentIsEmpty)
 // XXX: the rule system should tell us which node to select all on (ie, the root, or the body)
 NS_IMETHODIMP nsEditor::SelectAll()
 {
-  if (!mDocWeak) { return NS_ERROR_NOT_INITIALIZED; }
+  if (!mDocWeak || !mPresShellWeak) { return NS_ERROR_NOT_INITIALIZED; }
   ForceCompositionEnd();
 
-  nsCOMPtr<nsISelectionController> selCon;
-  GetSelectionController(getter_AddRefs(selCon));
+  nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
   nsCOMPtr<nsISelection> selection;
   nsresult result = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
@@ -1049,7 +1022,7 @@ NS_IMETHODIMP nsEditor::SelectAll()
 
 NS_IMETHODIMP nsEditor::BeginningOfDocument()
 {
-  if (!mDocWeak) { return NS_ERROR_NOT_INITIALIZED; }
+  if (!mDocWeak || !mPresShellWeak) { return NS_ERROR_NOT_INITIALIZED; }
 
   // get the selection
   nsCOMPtr<nsISelection> selection;
@@ -1094,7 +1067,7 @@ NS_IMETHODIMP nsEditor::BeginningOfDocument()
 NS_IMETHODIMP
 nsEditor::EndOfDocument() 
 { 
-  if (!mDocWeak) { return NS_ERROR_NOT_INITIALIZED; } 
+  if (!mDocWeak || !mPresShellWeak) { return NS_ERROR_NOT_INITIALIZED; } 
   nsresult res; 
 
   // get selection 
@@ -1145,23 +1118,39 @@ nsEditor::GetDocumentModified(PRBool *outDocModified)
 NS_IMETHODIMP
 nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 {
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsIPresShell> presShell;
 
-  characterSet = doc->GetDocumentCharacterSet();
-  return NS_OK;
+  nsresult rv = GetPresShell(getter_AddRefs(presShell));
+  if (NS_SUCCEEDED(rv))
+  {
+    nsIDocument *doc = presShell->GetDocument();
+    if (doc) {
+      characterSet = doc->GetDocumentCharacterSet();
+      return NS_OK;
+    }
+    rv = NS_ERROR_NULL_POINTER;
+  }
+
+  return rv;
+
 }
 
 NS_IMETHODIMP
 nsEditor::SetDocumentCharacterSet(const nsACString& characterSet)
 {
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsIPresShell> presShell;
+  nsresult rv = GetPresShell(getter_AddRefs(presShell));
+  if (NS_SUCCEEDED(rv))
+  {
+    nsIDocument *doc = presShell->GetDocument();
+    if (doc) {
+      doc->SetDocumentCharacterSet(characterSet);
+      return NS_OK;
+    }
+    rv = NS_ERROR_NULL_POINTER;
+  }
 
-  doc->SetDocumentCharacterSet(characterSet);
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -2856,8 +2845,7 @@ nsEditor::SplitNodeImpl(nsIDOMNode * aExistingRightNode,
           }        
         }
         // handle selection
-        nsCOMPtr<nsIPresShell> ps;
-        GetPresShell(getter_AddRefs(ps));
+        nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
         if (ps)
           ps->FlushPendingNotifications(Flush_Frames);
 
@@ -3985,8 +3973,7 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
   
   NS_ENSURE_TRUE(aResult && content, NS_ERROR_NULL_POINTER);
   
-  nsCOMPtr<nsIPresShell> ps;
-  GetPresShell(getter_AddRefs(ps));
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   // Look at the node (and its parent if it's not an element), and grab its style context
@@ -4635,7 +4622,7 @@ nsEditor::CreateTxnForIMEText(const nsAString& aStringToInsert,
   nsRefPtr<IMETextTxn> txn = new IMETextTxn();
 
   nsresult rv = txn->Init(mIMETextNode, mIMETextOffset, mIMEBufferLength,
-                          mIMETextRangeList, aStringToInsert, this);
+                          mIMETextRangeList, aStringToInsert, mSelConWeak);
   if (NS_SUCCEEDED(rv))
   {
     txn.forget(aTxn);
@@ -4687,8 +4674,7 @@ nsEditor::CreateTxnForDeleteSelection(nsIEditor::EDirection aAction,
   *aTxn = nsnull;
 
   nsRefPtr<EditAggregateTxn> aggTxn;
-  nsCOMPtr<nsISelectionController> selCon;
-  GetSelectionController(getter_AddRefs(selCon));
+  nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
   nsCOMPtr<nsISelection> selection;
   nsresult result = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
@@ -4770,7 +4756,7 @@ nsEditor::CreateTxnForDeleteCharacter(nsIDOMCharacterData  *aData,
     }
   } else {
     segOffset = aOffset - 1;
-    if (segOffset > 0 &&
+    if (segOffset > 1 &&
         NS_IS_LOW_SURROGATE(data[segOffset]) &&
         NS_IS_HIGH_SURROGATE(data[segOffset-1])) {
       ++segLength;

@@ -140,6 +140,7 @@ private:
 };
 
 struct nsRuleDataFont : public nsCSSFont {
+  PRBool mFamilyFromHTML; // Is the family from an HTML FONT element
   nsRuleDataFont() {}
 private:
   nsRuleDataFont(const nsRuleDataFont& aOther); // NOT IMPLEMENTED

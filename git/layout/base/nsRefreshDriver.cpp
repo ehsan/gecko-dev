@@ -60,31 +60,23 @@ using mozilla::TimeStamp;
 
 // Compute the interval to use for the refresh driver timer, in
 // milliseconds
-PRInt32
-nsRefreshDriver::GetRefreshTimerInterval() const
+static PRInt32
+GetRefreshTimerInterval(bool aThrottled)
 {
   const char* prefName =
-    mThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
+    aThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
   PRInt32 rate = nsContentUtils::GetIntPref(prefName, -1);
   if (rate <= 0) {
     // TODO: get the rate from the platform
-    rate = mThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
+    rate = aThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
   }
   NS_ASSERTION(rate > 0, "Must have positive rate here");
-  PRInt32 interval = NSToIntRound(1000.0/rate);
-  if (mThrottled) {
-    interval = NS_MAX(interval, mLastTimerInterval * 2);
-  }
-  mLastTimerInterval = interval;
-  return interval;
+  return NSToIntRound(1000.0/rate);
 }
 
-PRInt32
-nsRefreshDriver::GetRefreshTimerType() const
+static PRInt32
+GetRefreshTimerType()
 {
-  if (mThrottled) {
-    return nsITimer::TYPE_ONE_SHOT;
-  }
   PRBool precise =
     nsContentUtils::GetBoolPref("layout.frame_rate.precise", PR_FALSE);
   return precise ? (PRInt32)nsITimer::TYPE_REPEATING_PRECISE
@@ -158,7 +150,7 @@ nsRefreshDriver::EnsureTimerStarted()
   }
 
   nsresult rv = mTimer->InitWithCallback(this,
-                                         GetRefreshTimerInterval(),
+                                         GetRefreshTimerInterval(mThrottled),
                                          GetRefreshTimerType());
   if (NS_FAILED(rv)) {
     mTimer = nsnull;
@@ -338,16 +330,6 @@ nsRefreshDriver::Notify(nsITimer * /* unused */)
     }
   }
 
-  if (mThrottled) {
-    // Stop the timer now and restart it here.  Stopping is ok because either
-    // it's already one-shot, and it just fired, and all we need to do is null
-    // it out, or it's repeating and we need to reset it to be one-shot.  Note
-    // that the EnsureTimerStarted() call here is ok because EnsureTimerStarted
-    // makes sure to not start the timer if it shouldn't be started.
-    StopTimer();
-    EnsureTimerStarted();
-  }
-
   return NS_OK;
 }
 
@@ -376,10 +358,10 @@ nsRefreshDriver::SetThrottled(bool aThrottled)
   if (aThrottled != mThrottled) {
     mThrottled = aThrottled;
     if (mTimer) {
-      // We want to switch our timer type here, so just stop and
-      // restart the timer.
-      StopTimer();
-      EnsureTimerStarted();
+      // Stopping and restarting the timer would update our most recent refresh
+      // time, which isn't quite right.  Luckily, we can just reschedule the
+      // timer.
+      mTimer->SetDelay(GetRefreshTimerInterval(mThrottled));
     }
   }
 }

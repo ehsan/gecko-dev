@@ -551,8 +551,11 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
   }
 
   // Call our pointer-to-member-function.
-  *aReturn = (this->*(propEntry->mGetter))();
-  NS_IF_ADDREF(*aReturn); // property getter gives us an object with refcount of 0
+  nsresult rv = (this->*(propEntry->mGetter))(aReturn);
+
+  if (NS_FAILED(rv)) {
+    *aReturn = nsnull;
+  }
 
   mOuterFrame = nsnull;
   mInnerFrame = nsnull;
@@ -562,7 +565,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
   // whenever a frame is not available.
   mStyleContextHolder = nsnull;
 
-  return NS_OK;
+  return rv;
 }
 
 
@@ -611,10 +614,11 @@ nsComputedDOMStyle::Item(PRUint32 aIndex, nsAString& aReturn)
 
 // Property getters...
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBinding()
+nsresult
+nsComputedDOMStyle::DoGetBinding(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleDisplay* display = GetStyleDisplay();
 
@@ -624,49 +628,62 @@ nsComputedDOMStyle::DoGetBinding()
     val->SetIdent(eCSSKeyword_none);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetClear()
+nsresult
+nsComputedDOMStyle::DoGetClear(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mBreakType,
                                                nsCSSProps::kClearKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetCssFloat()
+nsresult
+nsComputedDOMStyle::DoGetCssFloat(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mFloats,
                                                nsCSSProps::kFloatKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBottom()
+nsresult
+nsComputedDOMStyle::DoGetBottom(nsIDOMCSSValue** aValue)
 {
-  return GetOffsetWidthFor(NS_SIDE_BOTTOM);
+  return GetOffsetWidthFor(NS_SIDE_BOTTOM, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStackSizing()
+nsresult
+nsComputedDOMStyle::DoGetStackSizing(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(GetStyleXUL()->mStretchStack ? eCSSKeyword_stretch_to_fit :
                 eCSSKeyword_ignore);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-void
+nsresult
 nsComputedDOMStyle::SetToRGBAColor(nsROCSSPrimitiveValue* aValue,
                                    nscolor aColor)
 {
   if (NS_GET_A(aColor) == 0) {
     aValue->SetIdent(eCSSKeyword_transparent);
-    return;
+    return NS_OK;
   }
 
   nsROCSSPrimitiveValue *red   = GetROCSSPrimitiveValue();
@@ -674,38 +691,65 @@ nsComputedDOMStyle::SetToRGBAColor(nsROCSSPrimitiveValue* aValue,
   nsROCSSPrimitiveValue *blue  = GetROCSSPrimitiveValue();
   nsROCSSPrimitiveValue *alpha  = GetROCSSPrimitiveValue();
 
-  PRUint8 a = NS_GET_A(aColor);
-  nsDOMCSSRGBColor *rgbColor =
-    new nsDOMCSSRGBColor(red, green, blue, alpha, a < 255);
+  if (red && green && blue && alpha) {
+    PRUint8 a = NS_GET_A(aColor);
+    nsDOMCSSRGBColor *rgbColor =
+      new nsDOMCSSRGBColor(red, green, blue, alpha, a < 255);
 
-  red->SetNumber(NS_GET_R(aColor));
-  green->SetNumber(NS_GET_G(aColor));
-  blue->SetNumber(NS_GET_B(aColor));
-  alpha->SetNumber(nsStyleUtil::ColorComponentToFloat(a));
+    if (rgbColor) {
+      red->SetNumber(NS_GET_R(aColor));
+      green->SetNumber(NS_GET_G(aColor));
+      blue->SetNumber(NS_GET_B(aColor));
+      alpha->SetNumber(nsStyleUtil::ColorComponentToFloat(a));
 
-  aValue->SetColor(rgbColor);
+      aValue->SetColor(rgbColor);
+      return NS_OK;
+    }
+  }
+
+  delete red;
+  delete green;
+  delete blue;
+  delete alpha;
+
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColor()
+nsresult
+nsComputedDOMStyle::DoGetColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  SetToRGBAColor(val, GetStyleColor()->mColor);
-  return val;
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
+  const nsStyleColor* color = GetStyleColor();
+
+  nsresult rv = SetToRGBAColor(val, color->mColor);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOpacity()
+nsresult
+nsComputedDOMStyle::DoGetOpacity(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleDisplay()->mOpacity);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColumnCount()
+nsresult
+nsComputedDOMStyle::DoGetColumnCount(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleColumn* column = GetStyleColumn();
 
@@ -715,24 +759,29 @@ nsComputedDOMStyle::DoGetColumnCount()
     val->SetNumber(column->mColumnCount);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColumnWidth()
+nsresult
+nsComputedDOMStyle::DoGetColumnWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   // XXX fix the auto case. When we actually have a column frame, I think
   // we should return the computed column width.
   SetValueToCoord(val, GetStyleColumn()->mColumnWidth, PR_TRUE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColumnGap()
+nsresult
+nsComputedDOMStyle::DoGetColumnGap(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleColumn* column = GetStyleColumn();
   if (column->mColumnGap.GetUnit() == eStyleUnit_Normal) {
@@ -741,31 +790,43 @@ nsComputedDOMStyle::DoGetColumnGap()
     SetValueToCoord(val, GetStyleColumn()->mColumnGap, PR_TRUE);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColumnRuleWidth()
+nsresult
+nsComputedDOMStyle::DoGetColumnRuleWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  if (!val)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   val->SetAppUnits(GetStyleColumn()->GetComputedColumnRuleWidth());
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColumnRuleStyle()
+nsresult
+nsComputedDOMStyle::DoGetColumnRuleStyle(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  if (!val)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleColumn()->mColumnRuleStyle,
                                    nsCSSProps::kBorderStyleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColumnRuleColor()
+nsresult
+nsComputedDOMStyle::DoGetColumnRuleColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  if (!val)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   const nsStyleColumn* column = GetStyleColumn();
   nscolor ruleColor;
@@ -776,32 +837,42 @@ nsComputedDOMStyle::DoGetColumnRuleColor()
   }
 
   SetToRGBAColor(val, ruleColor);
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetContent()
+nsresult
+nsComputedDOMStyle::DoGetContent(nsIDOMCSSValue** aValue)
 {
   const nsStyleContent *content = GetStyleContent();
 
   if (content->ContentCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   if (content->ContentCount() == 1 &&
       content->ContentAt(0).mType == eStyleContentType_AltContent) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
     val->SetIdent(eCSSKeyword__moz_alt_content);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = content->ContentCount(); i < i_end; ++i) {
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(val);
+    if (!val || !valueList->AppendCSSValue(val)) {
+      delete valueList;
+      delete val;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     const nsStyleContentData &data = content->ContentAt(i);
     switch (data.mType) {
@@ -886,28 +957,40 @@ nsComputedDOMStyle::DoGetContent()
     }
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetCounterIncrement()
+nsresult
+nsComputedDOMStyle::DoGetCounterIncrement(nsIDOMCSSValue** aValue)
 {
   const nsStyleContent *content = GetStyleContent();
 
   if (content->CounterIncrementCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = content->CounterIncrementCount(); i < i_end; ++i) {
     nsROCSSPrimitiveValue* name = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(name);
+    if (!name || !valueList->AppendCSSValue(name)) {
+      delete valueList;
+      delete name;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsROCSSPrimitiveValue* value = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(value);
+    if (!value || !valueList->AppendCSSValue(value)) {
+      delete valueList;
+      delete value;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     const nsStyleCounterData *data = content->GetCounterIncrementAt(i);
     nsAutoString escaped;
@@ -916,44 +999,52 @@ nsComputedDOMStyle::DoGetCounterIncrement()
     value->SetNumber(data->mValue); // XXX This should really be integer
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
 /* Convert the stored representation into a list of two values and then hand
  * it back.
  */
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozTransformOrigin()
+nsresult
+nsComputedDOMStyle::DoGetMozTransformOrigin(nsIDOMCSSValue **aValue)
 {
   /* We need to build up a list of two values.  We'll call them
    * width and height.
    */
-
-  /* Store things as a value list */
-  nsDOMCSSValueList* valueList = GetROCSSValueList(PR_FALSE);
+  nsRefPtr<nsROCSSPrimitiveValue> width = GetROCSSPrimitiveValue();
+  nsRefPtr<nsROCSSPrimitiveValue> height = GetROCSSPrimitiveValue();
+  if (!width || !height)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   /* Now, get the values. */
   const nsStyleDisplay* display = GetStyleDisplay();
-
-  nsROCSSPrimitiveValue* width = GetROCSSPrimitiveValue();
   SetValueToCoord(width, display->mTransformOrigin[0], PR_FALSE,
                   &nsComputedDOMStyle::GetFrameBoundsWidthForTransform);
-  valueList->AppendCSSValue(width);
-
-  nsROCSSPrimitiveValue* height = GetROCSSPrimitiveValue();
   SetValueToCoord(height, display->mTransformOrigin[1], PR_FALSE,
                   &nsComputedDOMStyle::GetFrameBoundsHeightForTransform);
-  valueList->AppendCSSValue(height);
 
-  return valueList;
+  /* Store things as a value list, fail if we can't get one. */
+  nsRefPtr<nsDOMCSSValueList> valueList = GetROCSSValueList(PR_FALSE);
+  if (!valueList)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  /* Chain on width and height, fail if we can't. */
+  if (!valueList->AppendCSSValue(width))
+    return NS_ERROR_OUT_OF_MEMORY;
+  if (!valueList->AppendCSSValue(height))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  valueList.forget(aValue);
+  return NS_OK;
 }
 
 /* If the property is "none", hand back "none" wrapped in a value.
  * Otherwise, compute the aggregate transform matrix and hands it back in a
  * "matrix" wrapper.
  */
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozTransform()
+nsresult
+nsComputedDOMStyle::DoGetMozTransform(nsIDOMCSSValue **aValue)
 {
   static const PRInt32 NUM_FLOATS = 4;
 
@@ -965,10 +1056,13 @@ nsComputedDOMStyle::DoGetMozTransform()
    */
   if (!display->HasTransform()) {
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+    if (!val)
+      return NS_ERROR_OUT_OF_MEMORY;
 
     /* Set it to "none." */
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   /* Otherwise, we need to compute the current value of the transform matrix,
@@ -1017,29 +1111,44 @@ nsComputedDOMStyle::DoGetMozTransform()
   /* Create a value to hold our result. */
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
 
+  if (!val)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   val->SetString(resultString);
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetCounterReset()
+nsresult
+nsComputedDOMStyle::DoGetCounterReset(nsIDOMCSSValue** aValue)
 {
   const nsStyleContent *content = GetStyleContent();
 
   if (content->CounterResetCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = content->CounterResetCount(); i < i_end; ++i) {
     nsROCSSPrimitiveValue* name = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(name);
+    if (!name || !valueList->AppendCSSValue(name)) {
+      delete valueList;
+      delete name;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsROCSSPrimitiveValue* value = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(value);
+    if (!value || !valueList->AppendCSSValue(value)) {
+      delete valueList;
+      delete value;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     const nsStyleCounterData *data = content->GetCounterResetAt(i);
     nsAutoString escaped;
@@ -1048,28 +1157,40 @@ nsComputedDOMStyle::DoGetCounterReset()
     value->SetNumber(data->mValue); // XXX This should really be integer
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetQuotes()
+nsresult
+nsComputedDOMStyle::DoGetQuotes(nsIDOMCSSValue** aValue)
 {
   const nsStyleQuotes *quotes = GetStyleQuotes();
 
   if (quotes->QuotesCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = quotes->QuotesCount(); i < i_end; ++i) {
     nsROCSSPrimitiveValue* openVal = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(openVal);
+    if (!openVal || !valueList->AppendCSSValue(openVal)) {
+      delete valueList;
+      delete openVal;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsROCSSPrimitiveValue* closeVal = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(closeVal);
+    if (!closeVal || !valueList->AppendCSSValue(closeVal)) {
+      delete valueList;
+      delete closeVal;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsString s;
     nsStyleUtil::AppendEscapedCSSString(*quotes->OpenQuoteAt(i), s);
@@ -1079,13 +1200,15 @@ nsComputedDOMStyle::DoGetQuotes()
     closeVal->SetString(s);
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontFamily()
+nsresult
+nsComputedDOMStyle::DoGetFontFamily(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleFont* font = GetStyleFont();
 
@@ -1111,24 +1234,29 @@ nsComputedDOMStyle::DoGetFontFamily()
     val->SetString(fontName);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontSize()
+nsresult
+nsComputedDOMStyle::DoGetFontSize(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   // Note: GetStyleFont()->mSize is the 'computed size';
   // GetStyleFont()->mFont.size is the 'actual size'
   val->SetAppUnits(GetStyleFont()->mSize);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontSizeAdjust()
+nsresult
+nsComputedDOMStyle::DoGetFontSizeAdjust(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleFont *font = GetStyleFont();
 
@@ -1138,33 +1266,41 @@ nsComputedDOMStyle::DoGetFontSizeAdjust()
     val->SetIdent(eCSSKeyword_none);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontStretch()
+nsresult
+nsComputedDOMStyle::DoGetFontStretch(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleFont()->mFont.stretch,
                                                nsCSSProps::kFontStretchKTable));
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontStyle()
+nsresult
+nsComputedDOMStyle::DoGetFontStyle(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleFont()->mFont.style,
                                                nsCSSProps::kFontStyleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontWeight()
+nsresult
+nsComputedDOMStyle::DoGetFontWeight(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleFont* font = GetStyleFont();
 
@@ -1181,23 +1317,29 @@ nsComputedDOMStyle::DoGetFontWeight()
     val->SetIdent(eCSSKeyword_bolder);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFontVariant()
+nsresult
+nsComputedDOMStyle::DoGetFontVariant(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleFont()->mFont.variant,
                                    nsCSSProps::kFontVariantKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozFontFeatureSettings()
+nsresult
+nsComputedDOMStyle::DoGetMozFontFeatureSettings(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleFont* font = GetStyleFont();
   if (font->mFont.featureSettings.IsEmpty()) {
@@ -1207,13 +1349,14 @@ nsComputedDOMStyle::DoGetMozFontFeatureSettings()
     nsStyleUtil::AppendEscapedCSSString(font->mFont.featureSettings, str);
     val->SetString(str);
   }
-  return val;
+  return CallQueryInterface(val, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozFontLanguageOverride()
+nsresult
+nsComputedDOMStyle::DoGetMozFontLanguageOverride(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleFont* font = GetStyleFont();
   if (font->mFont.languageOverride.IsEmpty()) {
@@ -1223,50 +1366,68 @@ nsComputedDOMStyle::DoGetMozFontLanguageOverride()
     nsStyleUtil::AppendEscapedCSSString(font->mFont.languageOverride, str);
     val->SetString(str);
   }
-  return val;
+  return CallQueryInterface(val, aValue);
 }
 
-nsIDOMCSSValue*
+nsresult
 nsComputedDOMStyle::GetBackgroundList(PRUint8 nsStyleBackground::Layer::* aMember,
                                       PRUint32 nsStyleBackground::* aCount,
-                                      const PRInt32 aTable[])
+                                      const PRInt32 aTable[],
+                                      nsIDOMCSSValue** aResult)
 {
   const nsStyleBackground* bg = GetStyleBackground();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = bg->*aCount; i < i_end; ++i) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(val);
+    if (!val || !valueList->AppendCSSValue(val)) {
+      delete val;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     val->SetIdent(nsCSSProps::ValueToKeywordEnum(bg->mLayers[i].*aMember,
                                                  aTable));
   }
 
-  return valueList;
+  NS_ADDREF(*aResult = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundAttachment()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundAttachment(nsIDOMCSSValue** aValue)
 {
   return GetBackgroundList(&nsStyleBackground::Layer::mAttachment,
                            &nsStyleBackground::mAttachmentCount,
-                           nsCSSProps::kBackgroundAttachmentKTable);
+                           nsCSSProps::kBackgroundAttachmentKTable,
+                           aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundClip()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundClip(nsIDOMCSSValue** aValue)
 {
   return GetBackgroundList(&nsStyleBackground::Layer::mClip,
                            &nsStyleBackground::mClipCount,
-                           nsCSSProps::kBackgroundOriginKTable);
+                           nsCSSProps::kBackgroundOriginKTable,
+                           aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundColor()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-  SetToRGBAColor(val, GetStyleBackground()->mBackgroundColor);
-  return val;
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
+  const nsStyleBackground* color = GetStyleBackground();
+  nsresult rv = SetToRGBAColor(val, color->mBackgroundColor);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 
@@ -1311,7 +1472,7 @@ AppendCSSGradientLength(const nsStyleCoord& aValue,
   aString.Append(tokenString);
 }
 
-void
+nsresult
 nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
                                          nsAString& aString)
 {
@@ -1330,6 +1491,8 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
   PRBool needSep = PR_FALSE;
   nsAutoString tokenString;
   nsROCSSPrimitiveValue *tmpVal = GetROCSSPrimitiveValue();
+  if (!tmpVal)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   if (aGradient->mBgPosX.mUnit != eStyleUnit_None) {
     AppendCSSGradientLength(aGradient->mBgPosX, tmpVal, aString);
@@ -1382,7 +1545,11 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     if (needSep) {
       aString.AppendLiteral(", ");
     }
-    SetToRGBAColor(tmpVal, aGradient->mStops[i].mColor);
+    nsresult rv = SetToRGBAColor(tmpVal, aGradient->mStops[i].mColor);
+    if (NS_FAILED(rv)) {
+      delete tmpVal;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     tmpVal->GetCssText(tokenString);
     aString.Append(tokenString);
 
@@ -1395,25 +1562,35 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
 
   delete tmpVal;
   aString.AppendLiteral(")");
+  return NS_OK;
 }
 
 // -moz-image-rect(<uri>, <top>, <right>, <bottom>, <left>)
-void
+nsresult
 nsComputedDOMStyle::GetImageRectString(nsIURI* aURI,
                                        const nsStyleSides& aCropRect,
                                        nsString& aString)
 {
   nsDOMCSSValueList* valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   // <uri>
   nsROCSSPrimitiveValue *valURI = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(valURI);
+  if (!valURI || !valueList->AppendCSSValue(valURI)) {
+    delete valURI;
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   valURI->SetURI(aURI);
 
   // <top>, <right>, <bottom>, <left>
   NS_FOR_CSS_SIDES(side) {
     nsROCSSPrimitiveValue *valSide = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(valSide);
+    if (!valSide || !valueList->AppendCSSValue(valSide)) {
+      delete valSide;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     SetValueToCoord(valSide, aCropRect.Get(side), PR_FALSE);
   }
 
@@ -1424,9 +1601,10 @@ nsComputedDOMStyle::GetImageRectString(nsIURI* aURI,
   aString = NS_LITERAL_STRING("-moz-image-rect(") +
             argumentString +
             NS_LITERAL_STRING(")");
+  return NS_OK;
 }
 
-void
+nsresult
 nsComputedDOMStyle::SetValueToStyleImage(const nsStyleImage& aStyleImage,
                                          nsROCSSPrimitiveValue* aValue)
 {
@@ -1440,7 +1618,8 @@ nsComputedDOMStyle::SetValueToStyleImage(const nsStyleImage& aStyleImage,
       const nsStyleSides* cropRect = aStyleImage.GetCropRect();
       if (cropRect) {
         nsAutoString imageRectString;
-        GetImageRectString(uri, *cropRect, imageRectString);
+        nsresult rv = GetImageRectString(uri, *cropRect, imageRectString);
+        NS_ENSURE_SUCCESS(rv, rv);
         aValue->SetString(imageRectString);
       } else {
         aValue->SetURI(uri);
@@ -1450,8 +1629,9 @@ nsComputedDOMStyle::SetValueToStyleImage(const nsStyleImage& aStyleImage,
     case eStyleImageType_Gradient:
     {
       nsAutoString gradientString;
-      GetCSSGradientString(aStyleImage.GetGradientData(),
-                           gradientString);
+      nsresult rv = GetCSSGradientString(aStyleImage.GetGradientData(),
+                                         gradientString);
+      NS_ENSURE_SUCCESS(rv, rv);
       aValue->SetString(gradientString);
       break;
     }
@@ -1471,62 +1651,92 @@ nsComputedDOMStyle::SetValueToStyleImage(const nsStyleImage& aStyleImage,
       break;
     default:
       NS_NOTREACHED("unexpected image type");
-      break;
+      return NS_ERROR_UNEXPECTED;
   }
+
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundImage()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundImage(nsIDOMCSSValue** aValue)
 {
   const nsStyleBackground* bg = GetStyleBackground();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = bg->mImageCount; i < i_end; ++i) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(val);
+    if (!val || !valueList->AppendCSSValue(val)) {
+      delete val;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     const nsStyleImage& image = bg->mLayers[i].mImage;
-    SetValueToStyleImage(image, val);
+    nsresult rv = SetValueToStyleImage(image, val);
+    if (NS_FAILED(rv)) {
+      delete valueList;
+      return rv;
+    }
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundInlinePolicy()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundInlinePolicy(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(
                   GetStyleBackground()->mBackgroundInlinePolicy,
                   nsCSSProps::kBackgroundInlinePolicyKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundOrigin()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundOrigin(nsIDOMCSSValue** aValue)
 {
   return GetBackgroundList(&nsStyleBackground::Layer::mOrigin,
                            &nsStyleBackground::mOriginCount,
-                           nsCSSProps::kBackgroundOriginKTable);
+                           nsCSSProps::kBackgroundOriginKTable,
+                           aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundPosition()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundPosition(nsIDOMCSSValue** aValue)
 {
   const nsStyleBackground* bg = GetStyleBackground();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = bg->mPositionCount; i < i_end; ++i) {
     nsDOMCSSValueList *itemList = GetROCSSValueList(PR_FALSE);
-    valueList->AppendCSSValue(itemList);
+    if (!itemList || !valueList->AppendCSSValue(itemList)) {
+      delete valueList;
+      delete itemList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsROCSSPrimitiveValue *valX = GetROCSSPrimitiveValue();
-    itemList->AppendCSSValue(valX);
+    if (!valX || !itemList->AppendCSSValue(valX)) {
+      delete valueList;
+      delete valX;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsROCSSPrimitiveValue *valY = GetROCSSPrimitiveValue();
-    itemList->AppendCSSValue(valY);
+    if (!valY || !itemList->AppendCSSValue(valY)) {
+      delete valueList;
+      delete valY;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     const nsStyleBackground::Position &pos = bg->mLayers[i].mPosition;
 
@@ -1555,23 +1765,26 @@ nsComputedDOMStyle::DoGetBackgroundPosition()
     }
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBackgroundRepeat()
+nsresult
+nsComputedDOMStyle::DoGetBackgroundRepeat(nsIDOMCSSValue** aValue)
 {
   return GetBackgroundList(&nsStyleBackground::Layer::mRepeat,
                            &nsStyleBackground::mRepeatCount,
-                           nsCSSProps::kBackgroundRepeatKTable);
+                           nsCSSProps::kBackgroundRepeatKTable,
+                           aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozBackgroundSize()
+nsresult
+nsComputedDOMStyle::DoGetMozBackgroundSize(nsIDOMCSSValue** aValue)
 {
   const nsStyleBackground* bg = GetStyleBackground();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0, i_end = bg->mSizeCount; i < i_end; ++i) {
     const nsStyleBackground::Size &size = bg->mLayers[i].mSize;
@@ -1585,18 +1798,35 @@ nsComputedDOMStyle::DoGetMozBackgroundSize()
                              ? eCSSKeyword_contain
                              : eCSSKeyword_cover;
         nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-        valueList->AppendCSSValue(val);
+        if (!val || !valueList->AppendCSSValue(val)) {
+          delete valueList;
+          delete val;
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
         val->SetIdent(keyword);
         break;
       }
       default: {
         nsDOMCSSValueList *itemList = GetROCSSValueList(PR_FALSE);
-        valueList->AppendCSSValue(itemList);
+        if (!itemList || !valueList->AppendCSSValue(itemList)) {
+          delete valueList;
+          delete itemList;
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
 
         nsROCSSPrimitiveValue* valX = GetROCSSPrimitiveValue();
-        itemList->AppendCSSValue(valX);
+        if (!valX || !itemList->AppendCSSValue(valX)) {
+          delete valueList;
+          delete valX;
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
+
         nsROCSSPrimitiveValue* valY = GetROCSSPrimitiveValue();
-        itemList->AppendCSSValue(valY);
+        if (!valY || !itemList->AppendCSSValue(valY)) {
+          delete valueList;
+          delete valY;
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
 
         if (size.mWidthType == nsStyleBackground::Size::eAuto) {
           valX->SetIdent(eCSSKeyword_auto);
@@ -1648,287 +1878,336 @@ nsComputedDOMStyle::DoGetMozBackgroundSize()
     }
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPadding()
+nsresult
+nsComputedDOMStyle::DoGetPadding(nsIDOMCSSValue** aValue)
 {
   // return null per spec.
-  return nsnull;
+  *aValue = nsnull;
+
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPaddingTop()
+nsresult
+nsComputedDOMStyle::DoGetPaddingTop(nsIDOMCSSValue** aValue)
 {
-  return GetPaddingWidthFor(NS_SIDE_TOP);
+  return GetPaddingWidthFor(NS_SIDE_TOP, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPaddingBottom()
+nsresult
+nsComputedDOMStyle::DoGetPaddingBottom(nsIDOMCSSValue** aValue)
 {
-  return GetPaddingWidthFor(NS_SIDE_BOTTOM);
+  return GetPaddingWidthFor(NS_SIDE_BOTTOM, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPaddingLeft()
+nsresult
+nsComputedDOMStyle::DoGetPaddingLeft(nsIDOMCSSValue** aValue)
 {
-  return GetPaddingWidthFor(NS_SIDE_LEFT);
+  return GetPaddingWidthFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPaddingRight()
+nsresult
+nsComputedDOMStyle::DoGetPaddingRight(nsIDOMCSSValue** aValue)
 {
-  return GetPaddingWidthFor(NS_SIDE_RIGHT);
+  return GetPaddingWidthFor(NS_SIDE_RIGHT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderCollapse()
+nsresult
+nsComputedDOMStyle::DoGetBorderCollapse(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleTableBorder()->mBorderCollapse,
                                    nsCSSProps::kBorderCollapseKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderSpacing()
+nsresult
+nsComputedDOMStyle::DoGetBorderSpacing(nsIDOMCSSValue** aValue)
 {
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   nsROCSSPrimitiveValue* xSpacing = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(xSpacing);
+  if (!xSpacing) {
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  if (!valueList->AppendCSSValue(xSpacing)) {
+    delete valueList;
+    delete xSpacing;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsROCSSPrimitiveValue* ySpacing = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(ySpacing);
+  if (!ySpacing) {
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  if (!valueList->AppendCSSValue(ySpacing)) {
+    delete valueList;
+    delete ySpacing;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   const nsStyleTableBorder *border = GetStyleTableBorder();
   xSpacing->SetAppUnits(border->mBorderSpacingX);
   ySpacing->SetAppUnits(border->mBorderSpacingY);
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetCaptionSide()
+nsresult
+nsComputedDOMStyle::DoGetCaptionSide(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleTableBorder()->mCaptionSide,
                                    nsCSSProps::kCaptionSideKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetEmptyCells()
+nsresult
+nsComputedDOMStyle::DoGetEmptyCells(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleTableBorder()->mEmptyCells,
                                    nsCSSProps::kEmptyCellsKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTableLayout()
+nsresult
+nsComputedDOMStyle::DoGetTableLayout(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleTable()->mLayoutStrategy,
                                    nsCSSProps::kTableLayoutKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderStyle()
+nsresult
+nsComputedDOMStyle::DoGetBorderStyle(nsIDOMCSSValue** aValue)
 {
   // return null per spec.
-  return nsnull;
+  *aValue = nsnull;
+
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderTopStyle()
+nsresult
+nsComputedDOMStyle::DoGetBorderTopStyle(nsIDOMCSSValue** aValue)
 {
-  return GetBorderStyleFor(NS_SIDE_TOP);
+  return GetBorderStyleFor(NS_SIDE_TOP, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderBottomStyle()
+nsresult
+nsComputedDOMStyle::DoGetBorderBottomStyle(nsIDOMCSSValue** aValue)
 {
-  return GetBorderStyleFor(NS_SIDE_BOTTOM);
+  return GetBorderStyleFor(NS_SIDE_BOTTOM, aValue);
 }
-
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderLeftStyle()
+nsresult
+nsComputedDOMStyle::DoGetBorderLeftStyle(nsIDOMCSSValue** aValue)
 {
-  return GetBorderStyleFor(NS_SIDE_LEFT);
+  return GetBorderStyleFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderRightStyle()
+nsresult
+nsComputedDOMStyle::DoGetBorderRightStyle(nsIDOMCSSValue** aValue)
 {
-  return GetBorderStyleFor(NS_SIDE_RIGHT);
+  return GetBorderStyleFor(NS_SIDE_RIGHT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderBottomColors()
+nsresult
+nsComputedDOMStyle::DoGetBorderBottomColors(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorsFor(NS_SIDE_BOTTOM);
+  return GetBorderColorsFor(NS_SIDE_BOTTOM, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderLeftColors()
+nsresult
+nsComputedDOMStyle::DoGetBorderLeftColors(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorsFor(NS_SIDE_LEFT);
+  return GetBorderColorsFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderRightColors()
+nsresult
+nsComputedDOMStyle::DoGetBorderRightColors(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorsFor(NS_SIDE_RIGHT);
+  return GetBorderColorsFor(NS_SIDE_RIGHT, aValue);
 }
 
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderTopColors()
+nsresult
+nsComputedDOMStyle::DoGetBorderTopColors(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorsFor(NS_SIDE_TOP);
+  return GetBorderColorsFor(NS_SIDE_TOP, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderBottomLeftRadius()
-{
-  return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_BOTTOM_LEFT, PR_TRUE);
-}
-
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderBottomRightRadius()
+nsresult
+nsComputedDOMStyle::DoGetBorderBottomLeftRadius(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_BOTTOM_RIGHT, PR_TRUE);
+                         NS_CORNER_BOTTOM_LEFT, PR_TRUE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderTopLeftRadius()
+nsresult
+nsComputedDOMStyle::DoGetBorderBottomRightRadius(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_TOP_LEFT, PR_TRUE);
+                         NS_CORNER_BOTTOM_RIGHT, PR_TRUE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderTopRightRadius()
+nsresult
+nsComputedDOMStyle::DoGetBorderTopLeftRadius(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_TOP_RIGHT, PR_TRUE);
+                         NS_CORNER_TOP_LEFT, PR_TRUE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderWidth()
+nsresult
+nsComputedDOMStyle::DoGetBorderTopRightRadius(nsIDOMCSSValue** aValue)
+{
+  return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
+                         NS_CORNER_TOP_RIGHT, PR_TRUE, aValue);
+}
+
+nsresult
+nsComputedDOMStyle::DoGetBorderWidth(nsIDOMCSSValue** aValue)
 {
   // return null per spec.
-  return nsnull;
+  *aValue = nsnull;
+
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderTopWidth()
+nsresult
+nsComputedDOMStyle::DoGetBorderTopWidth(nsIDOMCSSValue** aValue)
 {
-  return GetBorderWidthFor(NS_SIDE_TOP);
+  return GetBorderWidthFor(NS_SIDE_TOP, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderBottomWidth()
+nsresult
+nsComputedDOMStyle::DoGetBorderBottomWidth(nsIDOMCSSValue** aValue)
 {
-  return GetBorderWidthFor(NS_SIDE_BOTTOM);
+  return GetBorderWidthFor(NS_SIDE_BOTTOM, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderLeftWidth()
+nsresult
+nsComputedDOMStyle::DoGetBorderLeftWidth(nsIDOMCSSValue** aValue)
 {
-  return GetBorderWidthFor(NS_SIDE_LEFT);
+  return GetBorderWidthFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderRightWidth()
+nsresult
+nsComputedDOMStyle::DoGetBorderRightWidth(nsIDOMCSSValue** aValue)
 {
-  return GetBorderWidthFor(NS_SIDE_RIGHT);
+  return GetBorderWidthFor(NS_SIDE_RIGHT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderTopColor()
+nsresult
+nsComputedDOMStyle::DoGetBorderTopColor(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorFor(NS_SIDE_TOP);
+  return GetBorderColorFor(NS_SIDE_TOP, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderBottomColor()
+nsresult
+nsComputedDOMStyle::DoGetBorderBottomColor(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorFor(NS_SIDE_BOTTOM);
+  return GetBorderColorFor(NS_SIDE_BOTTOM, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderLeftColor()
+nsresult
+nsComputedDOMStyle::DoGetBorderLeftColor(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorFor(NS_SIDE_LEFT);
+  return GetBorderColorFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderRightColor()
+nsresult
+nsComputedDOMStyle::DoGetBorderRightColor(nsIDOMCSSValue** aValue)
 {
-  return GetBorderColorFor(NS_SIDE_RIGHT);
+  return GetBorderColorFor(NS_SIDE_RIGHT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarginWidth()
+nsresult
+nsComputedDOMStyle::DoGetMarginWidth(nsIDOMCSSValue** aValue)
 {
   // return null per spec.
-  return nsnull;
+  *aValue = nsnull;
+
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarginTopWidth()
+nsresult
+nsComputedDOMStyle::DoGetMarginTopWidth(nsIDOMCSSValue** aValue)
 {
-  return GetMarginWidthFor(NS_SIDE_TOP);
+  return GetMarginWidthFor(NS_SIDE_TOP, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarginBottomWidth()
+nsresult
+nsComputedDOMStyle::DoGetMarginBottomWidth(nsIDOMCSSValue** aValue)
 {
-  return GetMarginWidthFor(NS_SIDE_BOTTOM);
+  return GetMarginWidthFor(NS_SIDE_BOTTOM, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarginLeftWidth()
+nsresult
+nsComputedDOMStyle::DoGetMarginLeftWidth(nsIDOMCSSValue** aValue)
 {
-  return GetMarginWidthFor(NS_SIDE_LEFT);
+  return GetMarginWidthFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarginRightWidth()
+nsresult
+nsComputedDOMStyle::DoGetMarginRightWidth(nsIDOMCSSValue** aValue)
 {
-  return GetMarginWidthFor(NS_SIDE_RIGHT);
+  return GetMarginWidthFor(NS_SIDE_RIGHT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarkerOffset()
+nsresult
+nsComputedDOMStyle::DoGetMarkerOffset(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStyleContent()->mMarkerOffset, PR_FALSE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutline()
+nsresult
+nsComputedDOMStyle::DoGetOutline(nsIDOMCSSValue** aValue)
 {
   // return null per spec.
-  return nsnull;
+  *aValue = nsnull;
+
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineWidth()
+nsresult
+nsComputedDOMStyle::DoGetOutlineWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleOutline* outline = GetStyleOutline();
 
@@ -1946,59 +2225,69 @@ nsComputedDOMStyle::DoGetOutlineWidth()
   }
   val->SetAppUnits(width);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineStyle()
+nsresult
+nsComputedDOMStyle::DoGetOutlineStyle(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleOutline()->GetOutlineStyle(),
                                    nsCSSProps::kOutlineStyleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineOffset()
+nsresult
+nsComputedDOMStyle::DoGetOutlineOffset(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetAppUnits(GetStyleOutline()->mOutlineOffset);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineRadiusBottomLeft()
+nsresult
+nsComputedDOMStyle::DoGetOutlineRadiusBottomLeft(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_BOTTOM_LEFT, PR_FALSE);
+                         NS_CORNER_BOTTOM_LEFT, PR_FALSE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineRadiusBottomRight()
+nsresult
+nsComputedDOMStyle::DoGetOutlineRadiusBottomRight(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_BOTTOM_RIGHT, PR_FALSE);
+                         NS_CORNER_BOTTOM_RIGHT, PR_FALSE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineRadiusTopLeft()
+nsresult
+nsComputedDOMStyle::DoGetOutlineRadiusTopLeft(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_TOP_LEFT, PR_FALSE);
+                         NS_CORNER_TOP_LEFT, PR_FALSE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineRadiusTopRight()
+nsresult
+nsComputedDOMStyle::DoGetOutlineRadiusTopRight(nsIDOMCSSValue** aValue)
 {
   return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_TOP_RIGHT, PR_FALSE);
+                         NS_CORNER_TOP_RIGHT, PR_FALSE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOutlineColor()
+nsresult
+nsComputedDOMStyle::DoGetOutlineColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   nscolor color;
 #ifdef GFX_HAS_INVERT
@@ -2008,14 +2297,21 @@ nsComputedDOMStyle::DoGetOutlineColor()
     color = GetStyleColor()->mColor;
 #endif
 
-  SetToRGBAColor(val, color);
-  return val;
+  nsresult rv = SetToRGBAColor(val, color);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
+nsresult
 nsComputedDOMStyle::GetEllipseRadii(const nsStyleCorners& aRadius,
                                     PRUint8 aFullCorner,
-                                    PRBool aIsBorder) // else outline
+                                    PRBool aIsBorder, // else outline
+                                    nsIDOMCSSValue** aValue)
 {
   nsStyleCoord radiusX, radiusY;
   if (mInnerFrame && aIsBorder) {
@@ -2047,35 +2343,50 @@ nsComputedDOMStyle::GetEllipseRadii(const nsStyleCorners& aRadius,
   // for compatibility, return a single value if X and Y are equal
   if (radiusX == radiusY) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
     SetValueToCoord(val, radiusX, PR_TRUE);
 
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
+  } else {
+    nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+    NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
+
+    nsROCSSPrimitiveValue *valX = GetROCSSPrimitiveValue();
+    if (!valX || !valueList->AppendCSSValue(valX)) {
+      delete valX;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    nsROCSSPrimitiveValue *valY = GetROCSSPrimitiveValue();
+    if (!valY || !valueList->AppendCSSValue(valY)) {
+      delete valY;
+      // valX deleted by valueList destructor
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    SetValueToCoord(valX, radiusX, PR_TRUE);
+    SetValueToCoord(valY, radiusY, PR_TRUE);
+
+    NS_ADDREF(*aValue = valueList);
+    return NS_OK;
   }
-
-  nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
-
-  nsROCSSPrimitiveValue *valX = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(valX);
-
-  nsROCSSPrimitiveValue *valY = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(valY);
-
-  SetValueToCoord(valX, radiusX, PR_TRUE);
-  SetValueToCoord(valY, radiusY, PR_TRUE);
-
-  return valueList;
 }
 
-nsIDOMCSSValue*
+nsresult
 nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
                                       const nscolor& aDefaultColor,
-                                      PRBool aIsBoxShadow)
+                                      PRBool aIsBoxShadow,
+                                      nsIDOMCSSValue** aValue)
 {
   if (!aArray) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   static nscoord nsCSSShadowItem::* const shadowValuesNoSpread[] = {
@@ -2102,16 +2413,25 @@ nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (nsCSSShadowItem *item = aArray->ShadowAt(0),
                    *item_end = item + aArray->Length();
        item < item_end; ++item) {
     nsDOMCSSValueList *itemList = GetROCSSValueList(PR_FALSE);
-    valueList->AppendCSSValue(itemList);
+    if (!itemList || !valueList->AppendCSSValue(itemList)) {
+      delete itemList;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     // Color is either the specified shadow color or the foreground color
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    itemList->AppendCSSValue(val);
+    if (!val || !itemList->AppendCSSValue(val)) {
+      delete val;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     nscolor shadowColor;
     if (item->mHasColor) {
       shadowColor = item->mColor;
@@ -2123,43 +2443,57 @@ nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
     // Set the offsets, blur radius, and spread if available
     for (PRUint32 i = 0; i < shadowValuesLength; ++i) {
       val = GetROCSSPrimitiveValue();
-      itemList->AppendCSSValue(val);
+      if (!val || !itemList->AppendCSSValue(val)) {
+        delete val;
+        delete valueList;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       val->SetAppUnits(item->*(shadowValues[i]));
     }
 
     if (item->mInset && aIsBoxShadow) {
       // This is an inset box-shadow
       val = GetROCSSPrimitiveValue();
-      itemList->AppendCSSValue(val);
+      if (!val || !itemList->AppendCSSValue(val)) {
+        delete val;
+        delete valueList;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       val->SetIdent(
         nsCSSProps::ValueToKeywordEnum(NS_STYLE_BOX_SHADOW_INSET,
                                        nsCSSProps::kBoxShadowTypeKTable));
     }
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxShadow()
+nsresult
+nsComputedDOMStyle::DoGetBoxShadow(nsIDOMCSSValue** aValue)
 {
   return GetCSSShadowArray(GetStyleBorder()->mBoxShadow,
                            GetStyleColor()->mColor,
-                           PR_TRUE);
+                           PR_TRUE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetZIndex()
+nsresult
+nsComputedDOMStyle::DoGetZIndex(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStylePosition()->mZIndex, PR_FALSE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetListStyleImage()
+nsresult
+nsComputedDOMStyle::DoGetListStyleImage(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleList* list = GetStyleList();
 
@@ -2173,60 +2507,95 @@ nsComputedDOMStyle::DoGetListStyleImage()
     val->SetURI(uri);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetListStylePosition()
+nsresult
+nsComputedDOMStyle::DoGetListStylePosition(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleList()->mListStylePosition,
                                    nsCSSProps::kListStylePositionKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetListStyleType()
+nsresult
+nsComputedDOMStyle::DoGetListStyleType(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleList()->mListStyleType,
                                    nsCSSProps::kListStyleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetImageRegion()
+nsresult
+nsComputedDOMStyle::DoGetImageRegion(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleList* list = GetStyleList();
 
+  nsresult rv = NS_OK;
+  nsROCSSPrimitiveValue *topVal = nsnull;
+  nsROCSSPrimitiveValue *rightVal = nsnull;
+  nsROCSSPrimitiveValue *bottomVal = nsnull;
+  nsROCSSPrimitiveValue *leftVal = nsnull;
   if (list->mImageRegion.width <= 0 || list->mImageRegion.height <= 0) {
     val->SetIdent(eCSSKeyword_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
-    nsROCSSPrimitiveValue *topVal    = GetROCSSPrimitiveValue();
-    nsROCSSPrimitiveValue *rightVal  = GetROCSSPrimitiveValue();
-    nsROCSSPrimitiveValue *bottomVal = GetROCSSPrimitiveValue();
-    nsROCSSPrimitiveValue *leftVal   = GetROCSSPrimitiveValue();
-    nsDOMCSSRect * domRect = new nsDOMCSSRect(topVal, rightVal,
-                                              bottomVal, leftVal);
-    topVal->SetAppUnits(list->mImageRegion.y);
-    rightVal->SetAppUnits(list->mImageRegion.width + list->mImageRegion.x);
-    bottomVal->SetAppUnits(list->mImageRegion.height + list->mImageRegion.y);
-    leftVal->SetAppUnits(list->mImageRegion.x);
-    val->SetRect(domRect);
+    topVal = GetROCSSPrimitiveValue();
+    rightVal = GetROCSSPrimitiveValue();
+    bottomVal = GetROCSSPrimitiveValue();
+    leftVal = GetROCSSPrimitiveValue();
+    if (topVal && rightVal && bottomVal && leftVal) {
+      nsDOMCSSRect * domRect = new nsDOMCSSRect(topVal, rightVal,
+                                                bottomVal, leftVal);
+      if (domRect) {
+        topVal->SetAppUnits(list->mImageRegion.y);
+        rightVal->SetAppUnits(list->mImageRegion.width + list->mImageRegion.x);
+        bottomVal->SetAppUnits(list->mImageRegion.height + list->mImageRegion.y);
+        leftVal->SetAppUnits(list->mImageRegion.x);
+        val->SetRect(domRect);
+      } else {
+        rv = NS_ERROR_OUT_OF_MEMORY;
+      }
+    } else {
+      rv = NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
-  return val;
+  if (NS_FAILED(rv)) {
+    delete topVal;
+    delete rightVal;
+    delete bottomVal;
+    delete leftVal;
+    delete val;
+
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetLineHeight()
+nsresult
+nsComputedDOMStyle::DoGetLineHeight(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   nscoord lineHeight;
   if (GetLineHeightCoord(lineHeight)) {
@@ -2236,33 +2605,43 @@ nsComputedDOMStyle::DoGetLineHeight()
                     nsnull, nsCSSProps::kLineHeightKTable);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetVerticalAlign()
+nsresult
+nsComputedDOMStyle::DoGetVerticalAlign(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStyleTextReset()->mVerticalAlign, PR_FALSE,
                   &nsComputedDOMStyle::GetLineHeightCoord,
                   nsCSSProps::kVerticalAlignKTable);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextAlign()
+nsresult
+nsComputedDOMStyle::DoGetTextAlign(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleText()->mTextAlign,
                                    nsCSSProps::kTextAlignKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextDecoration()
+nsresult
+nsComputedDOMStyle::DoGetTextDecoration(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   PRInt32 intValue = GetStyleTextReset()->mTextDecoration;
 
@@ -2281,134 +2660,183 @@ nsComputedDOMStyle::DoGetTextDecoration()
     val->SetString(decorationString);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextIndent()
+nsresult
+nsComputedDOMStyle::DoGetTextIndent(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStyleText()->mTextIndent, PR_FALSE,
                   &nsComputedDOMStyle::GetCBContentWidth);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextShadow()
+nsresult
+nsComputedDOMStyle::DoGetTextShadow(nsIDOMCSSValue** aValue)
 {
   return GetCSSShadowArray(GetStyleText()->mTextShadow,
                            GetStyleColor()->mColor,
-                           PR_FALSE);
+                           PR_FALSE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextTransform()
+nsresult
+nsComputedDOMStyle::DoGetTextTransform(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleText()->mTextTransform,
                                    nsCSSProps::kTextTransformKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMozTabSize()
+nsresult
+nsComputedDOMStyle::DoGetMozTabSize(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleText()->mTabSize);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetLetterSpacing()
+nsresult
+nsComputedDOMStyle::DoGetLetterSpacing(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStyleText()->mLetterSpacing, PR_FALSE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetWordSpacing()
+nsresult
+nsComputedDOMStyle::DoGetWordSpacing(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetAppUnits(GetStyleText()->mWordSpacing);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetWhiteSpace()
+nsresult
+nsComputedDOMStyle::DoGetWhiteSpace(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleText()->mWhiteSpace,
                                    nsCSSProps::kWhitespaceKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetWindowShadow()
+nsresult
+nsComputedDOMStyle::DoGetWindowShadow(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleUIReset()->mWindowShadow,
                                    nsCSSProps::kWindowShadowKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetWordWrap()
+nsresult
+nsComputedDOMStyle::DoGetWordWrap(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleText()->mWordWrap,
                                    nsCSSProps::kWordwrapKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPointerEvents()
+nsresult
+nsComputedDOMStyle::DoGetPointerEvents(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleVisibility()->mPointerEvents,
                                    nsCSSProps::kPointerEventsKTable));
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetVisibility()
+nsresult
+nsComputedDOMStyle::DoGetVisibility(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleVisibility()->mVisible,
                                                nsCSSProps::kVisibilityKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetDirection()
+nsresult
+nsComputedDOMStyle::DoGetDirection(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleVisibility()->mDirection,
                                    nsCSSProps::kDirectionKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetUnicodeBidi()
+nsresult
+nsComputedDOMStyle::DoGetUnicodeBidi(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleTextReset()->mUnicodeBidi,
                                    nsCSSProps::kUnicodeBidiKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetCursor()
+nsresult
+nsComputedDOMStyle::DoGetCursor(nsIDOMCSSValue** aValue)
 {
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleUserInterface *ui = GetStyleUserInterface();
 
@@ -2416,20 +2844,37 @@ nsComputedDOMStyle::DoGetCursor()
          *item_end = ui->mCursorArray + ui->mCursorArrayLength;
        item < item_end; ++item) {
     nsDOMCSSValueList *itemList = GetROCSSValueList(PR_FALSE);
-    valueList->AppendCSSValue(itemList);
+    if (!itemList || !valueList->AppendCSSValue(itemList)) {
+      delete itemList;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsCOMPtr<nsIURI> uri;
     item->GetImage()->GetURI(getter_AddRefs(uri));
 
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    itemList->AppendCSSValue(val);
+    if (!val || !itemList->AppendCSSValue(val)) {
+      delete val;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     val->SetURI(uri);
 
     if (item->mHaveHotspot) {
       nsROCSSPrimitiveValue *valX = GetROCSSPrimitiveValue();
-      itemList->AppendCSSValue(valX);
+      if (!valX || !itemList->AppendCSSValue(valX)) {
+        delete valX;
+        delete valueList;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+
       nsROCSSPrimitiveValue *valY = GetROCSSPrimitiveValue();
-      itemList->AppendCSSValue(valY);
+      if (!valY || !itemList->AppendCSSValue(valY)) {
+        delete valY;
+        delete valueList;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
 
       valX->SetNumber(item->mHotspotX);
       valY->SetNumber(item->mHotspotY);
@@ -2437,103 +2882,153 @@ nsComputedDOMStyle::DoGetCursor()
   }
 
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  if (!val) {
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(ui->mCursor,
                                                nsCSSProps::kCursorKTable));
-  valueList->AppendCSSValue(val);
-  return valueList;
+  if (!valueList->AppendCSSValue(val)) {
+    delete valueList;
+    delete val;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetAppearance()
+nsresult
+nsComputedDOMStyle::DoGetAppearance(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mAppearance,
                                                nsCSSProps::kAppearanceKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxAlign()
+nsresult
+nsComputedDOMStyle::DoGetBoxAlign(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxAlign,
                                                nsCSSProps::kBoxAlignKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxDirection()
+nsresult
+nsComputedDOMStyle::DoGetBoxDirection(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxDirection,
                                    nsCSSProps::kBoxDirectionKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxFlex()
+nsresult
+nsComputedDOMStyle::DoGetBoxFlex(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleXUL()->mBoxFlex);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxOrdinalGroup()
+nsresult
+nsComputedDOMStyle::DoGetBoxOrdinalGroup(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleXUL()->mBoxOrdinal);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxOrient()
+nsresult
+nsComputedDOMStyle::DoGetBoxOrient(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxOrient,
                                    nsCSSProps::kBoxOrientKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxPack()
+nsresult
+nsComputedDOMStyle::DoGetBoxPack(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxPack,
                                                nsCSSProps::kBoxPackKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBoxSizing()
+nsresult
+nsComputedDOMStyle::DoGetBoxSizing(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStylePosition()->mBoxSizing,
                                    nsCSSProps::kBoxSizingKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetBorderImage()
+nsresult
+nsComputedDOMStyle::DoGetBorderImage(nsIDOMCSSValue** aValue)
 {
   const nsStyleBorder* border = GetStyleBorder();
 
   // none
   if (!border->GetBorderImage()) {
     nsROCSSPrimitiveValue *valNone = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(valNone, NS_ERROR_OUT_OF_MEMORY);
     valNone->SetIdent(eCSSKeyword_none);
-    return valNone;
+    NS_ADDREF(*aValue = valNone);
+    return NS_OK;
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   // uri
   nsROCSSPrimitiveValue *valURI = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(valURI);
+  if (!valURI || !valueList->AppendCSSValue(valURI)) {
+    delete valURI;
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   nsCOMPtr<nsIURI> uri;
   border->GetBorderImage()->GetURI(getter_AddRefs(uri));
   valURI->SetURI(uri);
@@ -2541,18 +3036,30 @@ nsComputedDOMStyle::DoGetBorderImage()
   // four split numbers
   NS_FOR_CSS_SIDES(side) {
     nsROCSSPrimitiveValue *valSplit = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(valSplit);
+    if (!valSplit || !valueList->AppendCSSValue(valSplit)) {
+      delete valSplit;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     SetValueToCoord(valSplit, border->mBorderImageSplit.Get(side), PR_TRUE);
   }
 
   // copy of border-width
   if (border->mHaveBorderImageWidth) {
     nsROCSSPrimitiveValue *slash = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(slash);
+    if (!slash || !valueList->AppendCSSValue(slash)) {
+      delete slash;
+      delete valueList;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     slash->SetString(NS_LITERAL_STRING("/"));
     NS_FOR_CSS_SIDES(side) {
       nsROCSSPrimitiveValue *borderWidth = GetROCSSPrimitiveValue();
-      valueList->AppendCSSValue(borderWidth);
+      if (!borderWidth || !valueList->AppendCSSValue(borderWidth)) {
+        delete borderWidth;
+        delete valueList;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       nscoord width = GetStyleBorder()->mBorderImageWidth.side(side);
       borderWidth->SetAppUnits(width);
     }
@@ -2560,204 +3067,293 @@ nsComputedDOMStyle::DoGetBorderImage()
 
   // first keyword
   nsROCSSPrimitiveValue *keyword = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(keyword);
+  if (!keyword || !valueList->AppendCSSValue(keyword)) {
+    delete keyword;
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   keyword->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->mBorderImageHFill,
                                    nsCSSProps::kBorderImageKTable));
 
   // second keyword
   nsROCSSPrimitiveValue *keyword2 = GetROCSSPrimitiveValue();
-  valueList->AppendCSSValue(keyword2);
+  if (!keyword2 || !valueList->AppendCSSValue(keyword2)) {
+    delete keyword2;
+    delete valueList;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   keyword2->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->mBorderImageVFill,
                                    nsCSSProps::kBorderImageKTable));
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFloatEdge()
+nsresult
+nsComputedDOMStyle::DoGetFloatEdge(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->mFloatEdge,
                                    nsCSSProps::kFloatEdgeKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetForceBrokenImageIcon()
+nsresult
+nsComputedDOMStyle::DoGetForceBrokenImageIcon(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleUIReset()->mForceBrokenImageIcon);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetIMEMode()
+nsresult
+nsComputedDOMStyle::DoGetIMEMode(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleUIReset()->mIMEMode,
                                    nsCSSProps::kIMEModeKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetUserFocus()
+nsresult
+nsComputedDOMStyle::DoGetUserFocus(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleUserInterface()->mUserFocus,
                                    nsCSSProps::kUserFocusKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetUserInput()
+nsresult
+nsComputedDOMStyle::DoGetUserInput(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleUserInterface()->mUserInput,
                                    nsCSSProps::kUserInputKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetUserModify()
+nsresult
+nsComputedDOMStyle::DoGetUserModify(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleUserInterface()->mUserModify,
                                    nsCSSProps::kUserModifyKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetUserSelect()
+nsresult
+nsComputedDOMStyle::DoGetUserSelect(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleUIReset()->mUserSelect,
                                    nsCSSProps::kUserSelectKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetDisplay()
+nsresult
+nsComputedDOMStyle::DoGetDisplay(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mDisplay,
                                                nsCSSProps::kDisplayKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPosition()
+nsresult
+nsComputedDOMStyle::DoGetPosition(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mPosition,
                                                nsCSSProps::kPositionKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetClip()
+nsresult
+nsComputedDOMStyle::DoGetClip(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleDisplay* display = GetStyleDisplay();
 
+  nsresult rv = NS_OK;
+  nsROCSSPrimitiveValue *topVal = nsnull;
+  nsROCSSPrimitiveValue *rightVal = nsnull;
+  nsROCSSPrimitiveValue *bottomVal = nsnull;
+  nsROCSSPrimitiveValue *leftVal = nsnull;
   if (display->mClipFlags == NS_STYLE_CLIP_AUTO) {
     val->SetIdent(eCSSKeyword_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
-    nsROCSSPrimitiveValue *topVal    = GetROCSSPrimitiveValue();
-    nsROCSSPrimitiveValue *rightVal  = GetROCSSPrimitiveValue();
-    nsROCSSPrimitiveValue *bottomVal = GetROCSSPrimitiveValue();
-    nsROCSSPrimitiveValue *leftVal   = GetROCSSPrimitiveValue();
-    nsDOMCSSRect * domRect = new nsDOMCSSRect(topVal, rightVal,
-                                              bottomVal, leftVal);
-    if (display->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
-      topVal->SetIdent(eCSSKeyword_auto);
-    } else {
-      topVal->SetAppUnits(display->mClip.y);
-    }
+    topVal = GetROCSSPrimitiveValue();
+    rightVal = GetROCSSPrimitiveValue();
+    bottomVal = GetROCSSPrimitiveValue();
+    leftVal = GetROCSSPrimitiveValue();
+    if (topVal && rightVal && bottomVal && leftVal) {
+      nsDOMCSSRect * domRect = new nsDOMCSSRect(topVal, rightVal,
+                                                bottomVal, leftVal);
+      if (domRect) {
+        if (display->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
+          topVal->SetIdent(eCSSKeyword_auto);
+        } else {
+          topVal->SetAppUnits(display->mClip.y);
+        }
 
-    if (display->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
-      rightVal->SetIdent(eCSSKeyword_auto);
-    } else {
-      rightVal->SetAppUnits(display->mClip.width + display->mClip.x);
-    }
+        if (display->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
+          rightVal->SetIdent(eCSSKeyword_auto);
+        } else {
+          rightVal->SetAppUnits(display->mClip.width + display->mClip.x);
+        }
 
-    if (display->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
-      bottomVal->SetIdent(eCSSKeyword_auto);
-    } else {
-      bottomVal->SetAppUnits(display->mClip.height + display->mClip.y);
-    }
+        if (display->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
+          bottomVal->SetIdent(eCSSKeyword_auto);
+        } else {
+          bottomVal->SetAppUnits(display->mClip.height + display->mClip.y);
+        }
 
-    if (display->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
-      leftVal->SetIdent(eCSSKeyword_auto);
+        if (display->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
+          leftVal->SetIdent(eCSSKeyword_auto);
+        } else {
+          leftVal->SetAppUnits(display->mClip.x);
+        }
+
+        val->SetRect(domRect);
+      } else {
+        rv = NS_ERROR_OUT_OF_MEMORY;
+      }
     } else {
-      leftVal->SetAppUnits(display->mClip.x);
+      rv = NS_ERROR_OUT_OF_MEMORY;
     }
-    val->SetRect(domRect);
   }
 
-  return val;
+  if (NS_FAILED(rv)) {
+    delete topVal;
+    delete rightVal;
+    delete bottomVal;
+    delete leftVal;
+    delete val;
+
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOverflow()
+nsresult
+nsComputedDOMStyle::DoGetOverflow(nsIDOMCSSValue** aValue)
 {
   const nsStyleDisplay* display = GetStyleDisplay();
 
   if (display->mOverflowX != display->mOverflowY) {
     // No value to return.  We can't express this combination of
     // values as a shorthand.
-    return nsnull;
+    *aValue = nsnull;
+    return NS_OK;
   }
 
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(display->mOverflowX,
                                                nsCSSProps::kOverflowKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOverflowX()
+nsresult
+nsComputedDOMStyle::DoGetOverflowX(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mOverflowX,
                                    nsCSSProps::kOverflowSubKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetOverflowY()
+nsresult
+nsComputedDOMStyle::DoGetOverflowY(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mOverflowY,
                                    nsCSSProps::kOverflowSubKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetResize()
+nsresult
+nsComputedDOMStyle::DoGetResize(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mResize,
                                                nsCSSProps::kResizeKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPageBreakAfter()
+nsresult
+nsComputedDOMStyle::DoGetPageBreakAfter(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleDisplay *display = GetStyleDisplay();
 
@@ -2767,13 +3363,15 @@ nsComputedDOMStyle::DoGetPageBreakAfter()
     val->SetIdent(eCSSKeyword_auto);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetPageBreakBefore()
+nsresult
+nsComputedDOMStyle::DoGetPageBreakBefore(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleDisplay *display = GetStyleDisplay();
 
@@ -2783,13 +3381,15 @@ nsComputedDOMStyle::DoGetPageBreakBefore()
     val->SetIdent(eCSSKeyword_auto);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetHeight()
+nsresult
+nsComputedDOMStyle::DoGetHeight(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   PRBool calcHeight = PR_FALSE;
 
@@ -2823,13 +3423,15 @@ nsComputedDOMStyle::DoGetHeight()
                     minHeight, maxHeight);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetWidth()
+nsresult
+nsComputedDOMStyle::DoGetWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   PRBool calcWidth = PR_FALSE;
 
@@ -2863,63 +3465,80 @@ nsComputedDOMStyle::DoGetWidth()
                     nsCSSProps::kWidthKTable, minWidth, maxWidth);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMaxHeight()
+nsresult
+nsComputedDOMStyle::DoGetMaxHeight(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStylePosition()->mMaxHeight, PR_TRUE,
                   &nsComputedDOMStyle::GetCBContentHeight);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMaxWidth()
+nsresult
+nsComputedDOMStyle::DoGetMaxWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStylePosition()->mMaxWidth, PR_TRUE,
                   &nsComputedDOMStyle::GetCBContentWidth,
                   nsCSSProps::kWidthKTable);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMinHeight()
+nsresult
+nsComputedDOMStyle::DoGetMinHeight(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStylePosition()->mMinHeight, PR_TRUE,
                   &nsComputedDOMStyle::GetCBContentHeight);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMinWidth()
+nsresult
+nsComputedDOMStyle::DoGetMinWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStylePosition()->mMinWidth, PR_TRUE,
                   &nsComputedDOMStyle::GetCBContentWidth,
                   nsCSSProps::kWidthKTable);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetLeft()
+nsresult
+nsComputedDOMStyle::DoGetLeft(nsIDOMCSSValue** aValue)
 {
-  return GetOffsetWidthFor(NS_SIDE_LEFT);
+  return GetOffsetWidthFor(NS_SIDE_LEFT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetRight()
+nsresult
+nsComputedDOMStyle::DoGetRight(nsIDOMCSSValue** aValue)
 {
-  return GetOffsetWidthFor(NS_SIDE_RIGHT);
+  return GetOffsetWidthFor(NS_SIDE_RIGHT, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTop()
+nsresult
+nsComputedDOMStyle::DoGetTop(nsIDOMCSSValue** aValue)
 {
-  return GetOffsetWidthFor(NS_SIDE_TOP);
+  return GetOffsetWidthFor(NS_SIDE_TOP, aValue);
 }
 
 nsROCSSPrimitiveValue*
@@ -2942,8 +3561,9 @@ nsComputedDOMStyle::GetROCSSValueList(PRBool aCommaDelimited)
   return valueList;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetOffsetWidthFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetOffsetWidthFor(mozilla::css::Side aSide,
+                                      nsIDOMCSSValue** aValue)
 {
   const nsStyleDisplay* display = GetStyleDisplay();
 
@@ -2957,24 +3577,32 @@ nsComputedDOMStyle::GetOffsetWidthFor(mozilla::css::Side aSide)
     position = NS_STYLE_POSITION_STATIC;
   }
 
+  nsresult rv = NS_OK;
   switch (position) {
     case NS_STYLE_POSITION_STATIC:
-      return GetStaticOffset(aSide);
+      rv = GetStaticOffset(aSide, aValue);
+      break;
     case NS_STYLE_POSITION_RELATIVE:
-      return GetRelativeOffset(aSide);
+      rv = GetRelativeOffset(aSide, aValue);
+      break;
     case NS_STYLE_POSITION_ABSOLUTE:
     case NS_STYLE_POSITION_FIXED:
-      return GetAbsoluteOffset(aSide);
+      rv = GetAbsoluteOffset(aSide, aValue);
+      break;
     default:
       NS_ERROR("Invalid position");
-      return nsnull;
+      break;
   }
+
+  return rv;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetAbsoluteOffset(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetAbsoluteOffset(mozilla::css::Side aSide,
+                                      nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   nsIFrame* container = GetContainingBlockFor(mOuterFrame);
   if (container) {
@@ -3028,16 +3656,19 @@ nsComputedDOMStyle::GetAbsoluteOffset(mozilla::css::Side aSide)
     val->SetAppUnits(0);
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 PR_STATIC_ASSERT((NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3));
 #define NS_OPPOSITE_SIDE(s_) mozilla::css::Side(((s_) + 2) & 3)
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetRelativeOffset(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetRelativeOffset(mozilla::css::Side aSide,
+                                      nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStylePosition* positionData = GetStylePosition();
   PRInt32 sign = 1;
@@ -3061,22 +3692,29 @@ nsComputedDOMStyle::GetRelativeOffset(mozilla::css::Side aSide)
   }
 
   val->SetAppUnits(sign * StyleCoordToNSCoord(coord, baseGetter, 0, PR_FALSE));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetStaticOffset(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetStaticOffset(mozilla::css::Side aSide, nsIDOMCSSValue** aValue)
 
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStylePosition()->mOffset.Get(aSide), PR_FALSE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetPaddingWidthFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetPaddingWidthFor(mozilla::css::Side aSide, nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   if (!mInnerFrame) {
     SetValueToCoord(val, GetStylePadding()->mPadding.Get(aSide), PR_TRUE);
@@ -3086,7 +3724,8 @@ nsComputedDOMStyle::GetPaddingWidthFor(mozilla::css::Side aSide)
     val->SetAppUnits(mInnerFrame->GetUsedPadding().side(aSide));
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 PRBool
@@ -3120,8 +3759,9 @@ nsComputedDOMStyle::GetLineHeightCoord(nscoord& aCoord)
   return PR_TRUE;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetBorderColorsFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetBorderColorsFor(mozilla::css::Side aSide,
+                                       nsIDOMCSSValue** aValue)
 {
   const nsStyleBorder *border = GetStyleBorder();
 
@@ -3129,29 +3769,51 @@ nsComputedDOMStyle::GetBorderColorsFor(mozilla::css::Side aSide)
     nsBorderColors* borderColors = border->mBorderColors[aSide];
     if (borderColors) {
       nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+      NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
       do {
         nsROCSSPrimitiveValue *primitive = GetROCSSPrimitiveValue();
+        if (!primitive) {
+          delete valueList;
 
-        SetToRGBAColor(primitive, borderColors->mColor);
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
+        nsresult rv = SetToRGBAColor(primitive, borderColors->mColor);
+        if (NS_FAILED(rv)) {
+          delete valueList;
+          delete primitive;
+          return rv;
+        }
 
-        valueList->AppendCSSValue(primitive);
+        PRBool success = valueList->AppendCSSValue(primitive);
+        if (!success) {
+          delete valueList;
+          delete primitive;
+
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
         borderColors = borderColors->mNext;
       } while (borderColors);
 
-      return valueList;
+      NS_ADDREF(*aValue = valueList);
+      return NS_OK;
     }
   }
 
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(eCSSKeyword_none);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetBorderWidthFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetBorderWidthFor(mozilla::css::Side aSide, nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   nscoord width;
   if (mInnerFrame) {
@@ -3162,13 +3824,15 @@ nsComputedDOMStyle::GetBorderWidthFor(mozilla::css::Side aSide)
   }
   val->SetAppUnits(width);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetBorderColorFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetBorderColorFor(mozilla::css::Side aSide, nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   nscolor color;
   PRBool foreground;
@@ -3177,14 +3841,21 @@ nsComputedDOMStyle::GetBorderColorFor(mozilla::css::Side aSide)
     color = GetStyleColor()->mColor;
   }
 
-  SetToRGBAColor(val, color);
-  return val;
+  nsresult rv = SetToRGBAColor(val, color);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetMarginWidthFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetMarginWidthFor(mozilla::css::Side aSide, nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   if (!mInnerFrame) {
     SetValueToCoord(val, GetStyleMargin()->mMargin.Get(aSide), PR_FALSE);
@@ -3194,17 +3865,22 @@ nsComputedDOMStyle::GetMarginWidthFor(mozilla::css::Side aSide)
     val->SetAppUnits(mInnerFrame->GetUsedMargin().side(aSide));
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetBorderStyleFor(mozilla::css::Side aSide)
+nsresult
+nsComputedDOMStyle::GetBorderStyleFor(mozilla::css::Side aSide, nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->GetBorderStyle(aSide),
                                    nsCSSProps::kBorderStyleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
 void
@@ -3423,10 +4099,12 @@ nsComputedDOMStyle::GetFrameBoundsHeightForTransform(nscoord& aHeight)
   return PR_TRUE;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::GetSVGPaintFor(PRBool aFill)
+nsresult
+nsComputedDOMStyle::GetSVGPaintFor(PRBool aFill,
+                                   nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVG* svg = GetStyleSVG();
   const nsStyleSVGPaint* paint = nsnull;
@@ -3439,49 +4117,71 @@ nsComputedDOMStyle::GetSVGPaintFor(PRBool aFill)
   nsAutoString paintString;
 
   switch (paint->mType) {
-    case eStyleSVGPaintType_None:
-    {
-      val->SetIdent(eCSSKeyword_none);
-      break;
+  case eStyleSVGPaintType_None:
+  {
+    val->SetIdent(eCSSKeyword_none);
+    break;
+  }
+  case eStyleSVGPaintType_Color:
+  {
+    nsresult rv = SetToRGBAColor(val, paint->mPaint.mColor);
+    if (NS_FAILED(rv)) {
+      delete val;
+      return rv;
     }
-    case eStyleSVGPaintType_Color:
-    {
-      SetToRGBAColor(val, paint->mPaint.mColor);
-      break;
-    }
-    case eStyleSVGPaintType_Server:
-    {
-      nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
-      valueList->AppendCSSValue(val);
+    break;
+  }
+  case eStyleSVGPaintType_Server:
+  {
+    nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
+    NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
-      nsROCSSPrimitiveValue* fallback = GetROCSSPrimitiveValue();
-      valueList->AppendCSSValue(fallback);
-
-      val->SetURI(paint->mPaint.mPaintServer);
-      SetToRGBAColor(fallback, paint->mFallbackColor);
-      return valueList;
+    if (!valueList->AppendCSSValue(val)) {
+      delete valueList;
+      delete val;
+      return NS_ERROR_OUT_OF_MEMORY;
     }
+
+    nsROCSSPrimitiveValue* fallback = GetROCSSPrimitiveValue();
+    if (!fallback || !valueList->AppendCSSValue(fallback)) {
+      delete valueList;
+      delete fallback;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    val->SetURI(paint->mPaint.mPaintServer);
+    nsresult rv = SetToRGBAColor(fallback, paint->mFallbackColor);
+    if (NS_FAILED(rv)) {
+      delete valueList;
+      return rv;
+    }
+
+    NS_ADDREF(*aValue = valueList);
+    return NS_OK;
+  }
   }
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFill()
+nsresult
+nsComputedDOMStyle::DoGetFill(nsIDOMCSSValue** aValue)
 {
-  return GetSVGPaintFor(PR_TRUE);
+  return GetSVGPaintFor(PR_TRUE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStroke()
+nsresult
+nsComputedDOMStyle::DoGetStroke(nsIDOMCSSValue** aValue)
 {
-  return GetSVGPaintFor(PR_FALSE);
+  return GetSVGPaintFor(PR_FALSE, aValue);
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarkerEnd()
+nsresult
+nsComputedDOMStyle::DoGetMarkerEnd(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVG* svg = GetStyleSVG();
 
@@ -3490,13 +4190,15 @@ nsComputedDOMStyle::DoGetMarkerEnd()
   else
     val->SetIdent(eCSSKeyword_none);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarkerMid()
+nsresult
+nsComputedDOMStyle::DoGetMarkerMid(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVG* svg = GetStyleSVG();
 
@@ -3505,13 +4207,15 @@ nsComputedDOMStyle::DoGetMarkerMid()
   else
     val->SetIdent(eCSSKeyword_none);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMarkerStart()
+nsresult
+nsComputedDOMStyle::DoGetMarkerStart(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVG* svg = GetStyleSVG();
 
@@ -3520,224 +4224,330 @@ nsComputedDOMStyle::DoGetMarkerStart()
   else
     val->SetIdent(eCSSKeyword_none);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeDasharray()
+nsresult
+nsComputedDOMStyle::DoGetStrokeDasharray(nsIDOMCSSValue** aValue)
 {
   const nsStyleSVG* svg = GetStyleSVG();
 
   if (!svg->mStrokeDasharrayLength || !svg->mStrokeDasharray) {
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
     val->SetIdent(eCSSKeyword_none);
-    return val;
+    NS_ADDREF(*aValue = val);
+    return NS_OK;
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   for (PRUint32 i = 0; i < svg->mStrokeDasharrayLength; i++) {
     nsROCSSPrimitiveValue* dash = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(dash);
+    if (!dash || !valueList->AppendCSSValue(dash)) {
+      delete valueList;
+      delete dash;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     SetValueToCoord(dash, svg->mStrokeDasharray[i], PR_TRUE);
   }
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeDashoffset()
+nsresult
+nsComputedDOMStyle::DoGetStrokeDashoffset(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStyleSVG()->mStrokeDashoffset, PR_FALSE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeWidth()
+nsresult
+nsComputedDOMStyle::DoGetStrokeWidth(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   SetValueToCoord(val, GetStyleSVG()->mStrokeWidth, PR_TRUE);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFillOpacity()
+nsresult
+nsComputedDOMStyle::DoGetFillOpacity(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleSVG()->mFillOpacity);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFloodOpacity()
+nsresult
+nsComputedDOMStyle::DoGetFloodOpacity(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleSVGReset()->mFloodOpacity);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStopOpacity()
+nsresult
+nsComputedDOMStyle::DoGetStopOpacity(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleSVGReset()->mStopOpacity);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeMiterlimit()
+nsresult
+nsComputedDOMStyle::DoGetStrokeMiterlimit(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleSVG()->mStrokeMiterlimit);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeOpacity()
+nsresult
+nsComputedDOMStyle::DoGetStrokeOpacity(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetNumber(GetStyleSVG()->mStrokeOpacity);
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetClipRule()
+nsresult
+nsComputedDOMStyle::DoGetClipRule(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(
                   GetStyleSVG()->mClipRule, nsCSSProps::kFillRuleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFillRule()
+nsresult
+nsComputedDOMStyle::DoGetFillRule(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(nsCSSProps::ValueToKeywordEnum(
                   GetStyleSVG()->mFillRule, nsCSSProps::kFillRuleKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeLinecap()
+nsresult
+nsComputedDOMStyle::DoGetStrokeLinecap(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mStrokeLinecap,
                                    nsCSSProps::kStrokeLinecapKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStrokeLinejoin()
+nsresult
+nsComputedDOMStyle::DoGetStrokeLinejoin(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mStrokeLinejoin,
                                    nsCSSProps::kStrokeLinejoinKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextAnchor()
+nsresult
+nsComputedDOMStyle::DoGetTextAnchor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mTextAnchor,
                                    nsCSSProps::kTextAnchorKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColorInterpolation()
+nsresult
+nsComputedDOMStyle::DoGetColorInterpolation(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mColorInterpolation,
                                    nsCSSProps::kColorInterpolationKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetColorInterpolationFilters()
+nsresult
+nsComputedDOMStyle::DoGetColorInterpolationFilters(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mColorInterpolationFilters,
                                    nsCSSProps::kColorInterpolationKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetDominantBaseline()
+nsresult
+nsComputedDOMStyle::DoGetDominantBaseline(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVGReset()->mDominantBaseline,
                                    nsCSSProps::kDominantBaselineKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetImageRendering()
+nsresult
+nsComputedDOMStyle::DoGetImageRendering(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mImageRendering,
                                    nsCSSProps::kImageRenderingKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetShapeRendering()
+nsresult
+nsComputedDOMStyle::DoGetShapeRendering(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mShapeRendering,
                                    nsCSSProps::kShapeRenderingKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTextRendering()
+nsresult
+nsComputedDOMStyle::DoGetTextRendering(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mTextRendering,
                                    nsCSSProps::kTextRenderingKTable));
-  return val;
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFloodColor()
+nsresult
+nsComputedDOMStyle::DoGetFloodColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  SetToRGBAColor(val, GetStyleSVGReset()->mFloodColor);
-  return val;
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = SetToRGBAColor(val, GetStyleSVGReset()->mFloodColor);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetLightingColor()
+nsresult
+nsComputedDOMStyle::DoGetLightingColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  SetToRGBAColor(val, GetStyleSVGReset()->mLightingColor);
-  return val;
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = SetToRGBAColor(val, GetStyleSVGReset()->mLightingColor);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetStopColor()
+nsresult
+nsComputedDOMStyle::DoGetStopColor(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  SetToRGBAColor(val, GetStyleSVGReset()->mStopColor);
-  return val;
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = SetToRGBAColor(val, GetStyleSVGReset()->mStopColor);
+  if (NS_FAILED(rv)) {
+    delete val;
+    return rv;
+  }
+
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetClipPath()
+nsresult
+nsComputedDOMStyle::DoGetClipPath(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVGReset* svg = GetStyleSVGReset();
 
@@ -3746,13 +4556,15 @@ nsComputedDOMStyle::DoGetClipPath()
   else
     val->SetIdent(eCSSKeyword_none);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetFilter()
+nsresult
+nsComputedDOMStyle::DoGetFilter(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVGReset* svg = GetStyleSVGReset();
 
@@ -3761,13 +4573,15 @@ nsComputedDOMStyle::DoGetFilter()
   else
     val->SetIdent(eCSSKeyword_none);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetMask()
+nsresult
+nsComputedDOMStyle::DoGetMask(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   const nsStyleSVGReset* svg = GetStyleSVGReset();
 
@@ -3776,15 +4590,17 @@ nsComputedDOMStyle::DoGetMask()
   else
     val->SetIdent(eCSSKeyword_none);
 
-  return val;
+  NS_ADDREF(*aValue = val);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTransitionDelay()
+nsresult
+nsComputedDOMStyle::DoGetTransitionDelay(nsIDOMCSSValue** aValue)
 {
   const nsStyleDisplay* display = GetStyleDisplay();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ABORT_IF_FALSE(display->mTransitionDelayCount > 0,
                     "first item must be explicit");
@@ -3792,19 +4608,25 @@ nsComputedDOMStyle::DoGetTransitionDelay()
   do {
     const nsTransition *transition = &display->mTransitions[i];
     nsROCSSPrimitiveValue* delay = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(delay);
+    if (!delay || !valueList->AppendCSSValue(delay)) {
+      delete valueList;
+      delete delay;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     delay->SetTime((float)transition->GetDelay() / (float)PR_MSEC_PER_SEC);
   } while (++i < display->mTransitionDelayCount);
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTransitionDuration()
+nsresult
+nsComputedDOMStyle::DoGetTransitionDuration(nsIDOMCSSValue** aValue)
 {
   const nsStyleDisplay* display = GetStyleDisplay();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ABORT_IF_FALSE(display->mTransitionDurationCount > 0,
                     "first item must be explicit");
@@ -3812,20 +4634,26 @@ nsComputedDOMStyle::DoGetTransitionDuration()
   do {
     const nsTransition *transition = &display->mTransitions[i];
     nsROCSSPrimitiveValue* duration = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(duration);
+    if (!duration || !valueList->AppendCSSValue(duration)) {
+      delete valueList;
+      delete duration;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     duration->SetTime((float)transition->GetDuration() / (float)PR_MSEC_PER_SEC);
   } while (++i < display->mTransitionDurationCount);
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTransitionProperty()
+nsresult
+nsComputedDOMStyle::DoGetTransitionProperty(nsIDOMCSSValue** aValue)
 {
   const nsStyleDisplay* display = GetStyleDisplay();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ABORT_IF_FALSE(display->mTransitionPropertyCount > 0,
                     "first item must be explicit");
@@ -3833,7 +4661,11 @@ nsComputedDOMStyle::DoGetTransitionProperty()
   do {
     const nsTransition *transition = &display->mTransitions[i];
     nsROCSSPrimitiveValue* property = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(property);
+    if (!property || !valueList->AppendCSSValue(property)) {
+      delete valueList;
+      delete property;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     nsCSSProperty cssprop = transition->GetProperty();
     if (cssprop == eCSSPropertyExtra_all_properties)
       property->SetIdent(eCSSKeyword_all);
@@ -3850,15 +4682,17 @@ nsComputedDOMStyle::DoGetTransitionProperty()
       property->SetString(nsCSSProps::GetStringValue(cssprop));
   } while (++i < display->mTransitionPropertyCount);
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
-nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetTransitionTimingFunction()
+nsresult
+nsComputedDOMStyle::DoGetTransitionTimingFunction(nsIDOMCSSValue** aValue)
 {
   const nsStyleDisplay* display = GetStyleDisplay();
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_TRUE);
+  NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ABORT_IF_FALSE(display->mTransitionTimingFunctionCount > 0,
                     "first item must be explicit");
@@ -3866,7 +4700,11 @@ nsComputedDOMStyle::DoGetTransitionTimingFunction()
   do {
     const nsTransition *transition = &display->mTransitions[i];
     nsROCSSPrimitiveValue* timingFunction = GetROCSSPrimitiveValue();
-    valueList->AppendCSSValue(timingFunction);
+    if (!timingFunction || !valueList->AppendCSSValue(timingFunction)) {
+      delete valueList;
+      delete timingFunction;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     // set the value from the cubic-bezier control points
     // (We could try to regenerate the keywords if we want.)
@@ -3876,7 +4714,8 @@ nsComputedDOMStyle::DoGetTransitionTimingFunction()
                           tf.mX1, tf.mY1, tf.mX2, tf.mY2));
   } while (++i < display->mTransitionTimingFunctionCount);
 
-  return valueList;
+  NS_ADDREF(*aValue = valueList);
+  return NS_OK;
 }
 
 #define COMPUTED_STYLE_MAP_ENTRY(_prop, _method)              \

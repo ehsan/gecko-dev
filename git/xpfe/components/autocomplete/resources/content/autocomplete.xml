@@ -1514,7 +1514,6 @@
      <property name="pageCount"
                onget="return this.tree.treeBoxObject.getPageLength();"/>
 
-     <field name="maxRows">0</field>
      <field name="mLastRows">0</field>
 
       <method name="initialize">
@@ -1522,7 +1521,6 @@
         this.showCommentColumn = this.textbox.showCommentColumn;
         this.tree.view = this.textbox.view;
         this.view = this.textbox.view;
-        this.maxRows = this.textbox.maxRows;
         ]]></body>
       </method>
 
@@ -1535,7 +1533,7 @@
           // detect the desired height of the tree
           var bx = this.tree.treeBoxObject;
           var view = this.view;
-          var rows = this.maxRows || 6;
+          var rows = this.textbox ? this.textbox.maxRows : 6;
           if (!view.rowCount || (rows && view.rowCount < rows))
             rows = view.rowCount;
           
@@ -1638,7 +1636,6 @@
             this.tree.view = aInput.controller;
             this.view = this.tree.view;
             this.showCommentColumn = aInput.showCommentColumn;
-            this.maxRows = aInput.maxRows;
             this.invalidate();
 
             var viewer = aElement
