@@ -1100,9 +1100,12 @@ pref("devtools.editor.expandtab", true);
 // Tells which component you want to use for source editing in developer tools.
 //
 // Available components:
+//   "textarea" - this is a basic text editor, like an HTML <textarea>.
+//
 //   "orion" - this is the Orion source code editor from the Eclipse project. It
 //   provides programmer-specific editor features such as syntax highlighting,
-//   indenting and bracket recognition.
+//   indenting and bracket recognition. It may not be appropriate for all
+//   locales (esp. RTL) or a11y situations.
 pref("devtools.editor.component", "orion");
 
 // Whether the character encoding menu is under the main Firefox button. This

@@ -87,11 +87,10 @@ let gPage = {
       // Initialize the drop target shim.
       gDropTargetShim.init();
 
-#ifdef XP_MACOSX
       // Workaround to prevent a delay on MacOSX due to a slow drop animation.
-      document.addEventListener("dragover", this.onDragOver, false);
-      document.addEventListener("drop", this.onDrop, false);
-#endif
+      let doc = document.documentElement;
+      doc.addEventListener("dragover", this.onDragOver, false);
+      doc.addEventListener("drop", this.onDrop, false);
     }.bind(this));
   },
 
@@ -156,7 +155,7 @@ let gPage = {
    * @param aEvent The 'dragover' event.
    */
   onDragOver: function Page_onDragOver(aEvent) {
-    if (gDrag.isValid(aEvent) && gDrag.draggedSite)
+    if (gDrag.isValid(aEvent))
       aEvent.preventDefault();
   },
 
@@ -166,7 +165,7 @@ let gPage = {
    * @param aEvent The 'drop' event.
    */
   onDrop: function Page_onDrop(aEvent) {
-    if (gDrag.isValid(aEvent) && gDrag.draggedSite) {
+    if (gDrag.isValid(aEvent)) {
       aEvent.preventDefault();
       aEvent.stopPropagation();
     }
