@@ -42,7 +42,6 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDOMSVGMatrix.h"
-#include "mozilla/Attributes.h"
 
 // We make DOMSVGMatrix a pseudo-interface to allow us to QI to it in order
 // to check that the objects that scripts pass in are our *native* matrix
@@ -58,7 +57,7 @@ namespace mozilla {
 /**
  * DOM wrapper for an SVG matrix.
  */
-class DOMSVGMatrix MOZ_FINAL : public nsIDOMSVGMatrix
+class DOMSVGMatrix : public nsIDOMSVGMatrix
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGMATRIX_IID)

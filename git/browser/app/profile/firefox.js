@@ -1024,7 +1024,6 @@ pref("devtools.errorconsole.enabled", false);
 
 // Developer toolbar and GCLI preferences
 pref("devtools.toolbar.enabled", false);
-pref("devtools.toolbar.visible", false);
 pref("devtools.gcli.allowSet", false);
 
 // Enable the Inspector

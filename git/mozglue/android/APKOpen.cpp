@@ -62,7 +62,6 @@ extern "C" {
 }
 
 typedef int mozglueresult;
-typedef int64_t MOZTime;
 
 enum StartupEvent {
 #define mozilla_StartupTimeline_Event(ev, z) ev,
@@ -73,11 +72,11 @@ enum StartupEvent {
 
 using namespace mozilla;
 
-static MOZTime MOZ_Now()
+static uint64_t *sStartupTimeline;
+
+void StartupTimeline_Record(StartupEvent ev, struct timeval *tm)
 {
-  struct timeval tm;
-  gettimeofday(&tm, 0);
-  return (((MOZTime)tm.tv_sec * 1000000LL) + (MOZTime)tm.tv_usec);
+  sStartupTimeline[ev] = (((uint64_t)tm->tv_sec * 1000000LL) + (uint64_t)tm->tv_usec);
 }
 
 static struct mapping_info * lib_mapping = NULL;
@@ -670,7 +669,8 @@ loadGeckoLibs(const char *apkName)
     apk_mtime = status.st_mtime;
 #endif
 
-  MOZTime t0 = MOZ_Now();
+  struct timeval t0, t1;
+  gettimeofday(&t0, 0);
   struct rusage usage1;
   getrusage(RUSAGE_THREAD, &usage1);
   
@@ -742,18 +742,18 @@ loadGeckoLibs(const char *apkName)
   GETFUNC(onFullScreenPluginHidden);
   GETFUNC(getNextMessageFromQueue);
 #undef GETFUNC
-  void (*XRE_StartupTimelineRecord)(int, MOZTime) = (void (*)(int, MOZTime)) __wrap_dlsym(xul_handle, "XRE_StartupTimelineRecord");
-  MOZTime t1 = MOZ_Now();
+  sStartupTimeline = (uint64_t *) (uintptr_t) __wrap_dlsym(xul_handle, "_ZN7mozilla15StartupTimeline16sStartupTimelineE");
+  gettimeofday(&t1, 0);
   struct rusage usage2;
   getrusage(RUSAGE_THREAD, &usage2);
   __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loaded libs in %ldms total, %ldms user, %ldms system, %ld faults",
-                      (t1 - t0) / 1000,
+                      (t1.tv_sec - t0.tv_sec)*1000 + (t1.tv_usec - t0.tv_usec)/1000, 
                       (usage2.ru_utime.tv_sec - usage1.ru_utime.tv_sec)*1000 + (usage2.ru_utime.tv_usec - usage1.ru_utime.tv_usec)/1000,
                       (usage2.ru_stime.tv_sec - usage1.ru_stime.tv_sec)*1000 + (usage2.ru_stime.tv_usec - usage1.ru_stime.tv_usec)/1000,
                       usage2.ru_majflt-usage1.ru_majflt);
 
-  XRE_StartupTimelineRecord(LINKER_INITIALIZED, t0);
-  XRE_StartupTimelineRecord(LIBRARIES_LOADED, t1);
+  StartupTimeline_Record(LINKER_INITIALIZED, &t0);
+  StartupTimeline_Record(LIBRARIES_LOADED, &t1);
   return SUCCESS;
 }
 

@@ -9,7 +9,6 @@
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 
 class nsIFile;
 class nsCSSStyleSheet;
@@ -23,7 +22,7 @@ class Loader;
 
 class nsIMemoryReporter;
 
-class nsLayoutStylesheetCache MOZ_FINAL
+class nsLayoutStylesheetCache
  : public nsIObserver
 {
   NS_DECL_ISUPPORTS

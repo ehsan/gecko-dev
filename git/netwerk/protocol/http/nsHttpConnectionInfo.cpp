@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsHttpConnectionInfo.h"
+#include "nsIProtocolProxyService.h"
 
 void
 nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
@@ -24,7 +25,7 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
     const char *keyHost;
     PRInt32 keyPort;
 
-    if (mUsingHttpProxy && !mUsingConnect) {
+    if (mUsingHttpProxy && !mUsingSSL) {
         keyHost = ProxyHost();
         keyPort = ProxyPort();
     }
@@ -65,3 +66,18 @@ nsHttpConnectionInfo::Clone() const
     return clone;
 }
 
+bool
+nsHttpConnectionInfo::ShouldForceConnectMethod()
+{
+    if (!mProxyInfo)
+        return false;
+    
+    PRUint32 resolveFlags;
+    nsresult rv;
+    
+    rv = mProxyInfo->GetResolveFlags(&resolveFlags);
+    if (NS_FAILED(rv))
+        return false;
+
+    return resolveFlags & nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL;
+}

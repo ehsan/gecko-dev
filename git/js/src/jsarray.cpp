@@ -837,8 +837,8 @@ array_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiver, HandleI
     if (ValueIsSpecial(obj, &idval, &sid, cx))
         return array_getSpecial(cx, obj, receiver, Rooted<SpecialId>(cx, sid), vp);
 
-    JSAtom *atom = ToAtom(cx, idval);
-    if (!atom)
+    JSAtom *atom;
+    if (!js_ValueToAtom(cx, idval, &atom))
         return false;
 
     if (atom->isIndex(&index))
@@ -2279,7 +2279,7 @@ js::array_sort(JSContext *cx, unsigned argc, Value *vp)
                 if (!strElements.reserve(2 * n))
                     return false;
 
-                size_t cursor = 0;
+                int cursor = 0;
                 for (size_t i = 0; i < n; i++) {
                     if (!JS_CHECK_OPERATION_LIMIT(cx))
                         return false;

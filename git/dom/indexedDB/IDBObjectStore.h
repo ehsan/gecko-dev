@@ -24,7 +24,6 @@ BEGIN_INDEXEDDB_NAMESPACE
 class AsyncConnectionHelper;
 class IDBCursor;
 class IDBKeyRange;
-class IDBRequest;
 class IndexedDBObjectStoreChild;
 class IndexedDBObjectStoreParent;
 class Key;

@@ -15,15 +15,14 @@
 #include "nsITreeView.h"
 #include "nsITreeContentView.h"
 #include "nsITreeSelection.h"
-#include "mozilla/Attributes.h"
 
 class Row;
 
 nsresult NS_NewTreeContentView(nsITreeView** aResult);
 
-class nsTreeContentView MOZ_FINAL : public nsINativeTreeView,
-                                    public nsITreeContentView,
-                                    public nsStubDocumentObserver
+class nsTreeContentView : public nsINativeTreeView,
+                          public nsITreeContentView,
+                          public nsStubDocumentObserver
 {
   public:
     nsTreeContentView(void);

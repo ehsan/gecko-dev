@@ -44,7 +44,7 @@ public:
   }
 
 protected:
-  virtual ~nsDOMTokenList();
+  ~nsDOMTokenList();
 
   nsresult CheckToken(const nsAString& aStr);
   void AddInternal(const nsAttrValue* aAttr, const nsAString& aToken);

@@ -125,18 +125,11 @@ public class TabsTray extends LinearLayout
             return;
         }
 
-        int index = Tabs.getInstance().getIndexOf(tab);
-        if (msg == Tabs.TabEvents.ADDED) {
-            mTabsAdapter.addTab(index, tab);
-            mTabsAdapter.notifyDataSetChanged();
-            return;
-        }
-
         int position = mTabsAdapter.getPositionForTab(tab);
         if (position == -1)
             return;
 
-        if (index == -1) {
+        if (Tabs.getInstance().getIndexOf(tab) == -1) {
             mWaitingForClose = false;
             mTabsAdapter.removeTab(tab);
             mTabsAdapter.notifyDataSetChanged();
@@ -150,8 +143,8 @@ public class TabsTray extends LinearLayout
         }
     }
 
-    void autoHideTabs() {
-        GeckoApp.mAppContext.autoHideTabs();
+    void hideTabs() {
+        GeckoApp.mAppContext.hideTabs();
     }
 
     // ViewHolder for a row in the list
@@ -218,10 +211,6 @@ public class TabsTray extends LinearLayout
                 return -1;
 
             return mTabs.indexOf(tab);
-        }
-
-        public void addTab(int index, Tab tab) {
-            mTabs.add(index, tab);
         }
 
         public void removeTab(Tab tab) {
@@ -342,7 +331,7 @@ public class TabsTray extends LinearLayout
                     TabRow tab = (TabRow)mView.getTag();
                     int tabId = tab.id;
                     Tabs.getInstance().selectTab(tabId);
-                    autoHideTabs();
+                    hideTabs();
                 }
             }
 

@@ -522,8 +522,8 @@ InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
     }
 #endif
 
-    JSAtom *atom = ToAtom(cx, idval);
-    if (!atom)
+    JSAtom *atom;
+    if (!js_ValueToAtom(cx, idval, &atom))
         return false;
 
     *idp = AtomToId(atom);

@@ -11,7 +11,6 @@
 #include "nsIComponentManager.h"
 #include "nsGfxCIID.h"
 #include "nsIInterfaceRequestor.h"
-#include "mozilla/Attributes.h"
 
 //mmptemp
 
@@ -27,7 +26,7 @@ static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 /**
  * nsISupports-derived helper class that allows to store and get a view
  */
-class ViewWrapper MOZ_FINAL : public nsIInterfaceRequestor
+class ViewWrapper : public nsIInterfaceRequestor
 {
   public:
     NS_DECLARE_STATIC_IID_ACCESSOR(VIEW_WRAPPER_IID)

@@ -12,7 +12,6 @@
 #include "txResultRecycler.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 class Expr;
 class txXPathNode;
@@ -20,8 +19,8 @@ class txXPathNode;
 /**
  * A class for evaluating an XPath expression string
  */
-class nsXPathExpression MOZ_FINAL : public nsIDOMXPathExpression,
-                                    public nsIDOMNSXPathExpression
+class nsXPathExpression : public nsIDOMXPathExpression,
+                          public nsIDOMNSXPathExpression
 {
 public:
     nsXPathExpression(nsAutoPtr<Expr>& aExpression, txResultRecycler* aRecycler,

@@ -12,7 +12,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsSVGElement.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 
@@ -35,7 +34,7 @@ class SVGAnimatedTransformList;
  * nulling out our pointers to them when they die (making our pointers to them
  * true weak refs).
  */
-class DOMSVGAnimatedTransformList MOZ_FINAL : public nsIDOMSVGAnimatedTransformList
+class DOMSVGAnimatedTransformList : public nsIDOMSVGAnimatedTransformList
 {
   friend class DOMSVGTransformList;
 

@@ -14,13 +14,12 @@
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "prclist.h"
-#include "mozilla/Attributes.h"
 
 class nsPresContext;
 class nsMediaList;
 
-class nsDOMMediaQueryList MOZ_FINAL : public nsIDOMMediaQueryList,
-                                      public PRCList
+class nsDOMMediaQueryList : public nsIDOMMediaQueryList,
+                            public PRCList
 {
 public:
   // The caller who constructs is responsible for calling Evaluate

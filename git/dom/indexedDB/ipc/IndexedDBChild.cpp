@@ -104,38 +104,6 @@ public:
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
 };
 
-class VersionChangeRunnable : public nsRunnable
-{
-  nsRefPtr<IDBDatabase> mDatabase;
-  uint64_t mOldVersion;
-  uint64_t mNewVersion;
-
-public:
-  VersionChangeRunnable(IDBDatabase* aDatabase, const uint64_t& aOldVersion,
-                        const uint64_t& aNewVersion)
-  : mDatabase(aDatabase), mOldVersion(aOldVersion), mNewVersion(aNewVersion)
-  {
-    MOZ_ASSERT(aDatabase);
-  }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    if (mDatabase->IsClosed()) {
-      return NS_OK;
-    }
-
-    nsRefPtr<nsDOMEvent> event =
-      IDBVersionChangeEvent::Create(mOldVersion, mNewVersion);
-    MOZ_ASSERT(event);
-
-    bool dummy;
-    nsresult rv = mDatabase->DispatchEvent(event, &dummy);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-};
-
 } // anonymous namespace
 
 /*******************************************************************************
@@ -394,13 +362,12 @@ IndexedDBDatabaseChild::RecvBlocked(const uint64_t& aOldVersion)
   MOZ_ASSERT(mRequest);
   MOZ_ASSERT(!mDatabase);
 
-  nsCOMPtr<nsIRunnable> runnable =
-    IDBVersionChangeEvent::CreateBlockedRunnable(aOldVersion, mVersion,
-                                                 mRequest);
+  nsRefPtr<nsDOMEvent> event =
+    IDBVersionChangeEvent::CreateBlocked(aOldVersion, mVersion);
 
-  MainThreadEventTarget target;
-  if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Dispatch of blocked event failed!");
+  bool dummy;
+  if (NS_FAILED(mRequest->DispatchEvent(event, &dummy))) {
+    NS_WARNING("Failed to dispatch blocked event!");
   }
 
   return true;
@@ -412,12 +379,16 @@ IndexedDBDatabaseChild::RecvVersionChange(const uint64_t& aOldVersion,
 {
   MOZ_ASSERT(mDatabase);
 
-  nsCOMPtr<nsIRunnable> runnable =
-    new VersionChangeRunnable(mDatabase, aOldVersion, aNewVersion);
+  if (mDatabase->IsClosed()) {
+    return true;
+  }
 
-  MainThreadEventTarget target;
-  if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Dispatch of versionchange event failed!");
+  nsRefPtr<nsDOMEvent> event =
+    IDBVersionChangeEvent::Create(aOldVersion, aNewVersion);
+
+  bool dummy;
+  if (NS_FAILED(mDatabase->DispatchEvent(event, &dummy))) {
+    NS_WARNING("Failed to dispatch blocked event!");
   }
 
   return true;
@@ -532,7 +503,18 @@ IndexedDBTransactionChild::SetTransaction(IDBTransaction* aTransaction)
 }
 
 void
-IndexedDBTransactionChild::FireCompleteEvent(nsresult aRv)
+IndexedDBTransactionChild::ActorDestroy(ActorDestroyReason aWhy)
+{
+  if (mTransaction) {
+    mTransaction->SetActor(static_cast<IndexedDBTransactionChild*>(NULL));
+#ifdef DEBUG
+    mTransaction = NULL;
+#endif
+  }
+}
+
+bool
+IndexedDBTransactionChild::RecvComplete(const nsresult& aRv)
 {
   MOZ_ASSERT(mTransaction);
   MOZ_ASSERT(mStrongTransaction);
@@ -548,36 +530,10 @@ IndexedDBTransactionChild::FireCompleteEvent(nsresult aRv)
   //   }
 
   nsRefPtr<CommitHelper> helper = new CommitHelper(transaction, aRv);
-
-  MainThreadEventTarget target;
-  if (NS_FAILED(target.Dispatch(helper, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Dispatch of CommitHelper failed!");
-  }
-}
-
-void
-IndexedDBTransactionChild::ActorDestroy(ActorDestroyReason aWhy)
-{
-  if (mStrongTransaction) {
-    // We're being torn down before we received a complete event from the parent
-    // so fake one here.
-    FireCompleteEvent(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    MOZ_ASSERT(!mStrongTransaction);
+  if (NS_FAILED(helper->Run())) {
+    NS_WARNING("CommitHelper failed!");
   }
 
-  if (mTransaction) {
-    mTransaction->SetActor(static_cast<IndexedDBTransactionChild*>(NULL));
-#ifdef DEBUG
-    mTransaction = NULL;
-#endif
-  }
-}
-
-bool
-IndexedDBTransactionChild::RecvComplete(const nsresult& aRv)
-{
-  FireCompleteEvent(aRv);
   return true;
 }
 
@@ -1103,13 +1059,12 @@ IndexedDBDeleteDatabaseRequestChild::RecvBlocked(
 {
   MOZ_ASSERT(mOpenRequest);
 
-  nsCOMPtr<nsIRunnable> runnable =
-    IDBVersionChangeEvent::CreateBlockedRunnable(aCurrentVersion, 0,
-                                                 mOpenRequest);
+  nsRefPtr<nsDOMEvent> event =
+    IDBVersionChangeEvent::CreateBlocked(aCurrentVersion, 0);
 
-  MainThreadEventTarget target;
-  if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Dispatch of blocked event failed!");
+  bool dummy;
+  if (NS_FAILED(mOpenRequest->DispatchEvent(event, &dummy))) {
+    NS_WARNING("Failed to dispatch blocked event!");
   }
 
   return true;

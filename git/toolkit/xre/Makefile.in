@@ -33,7 +33,7 @@ CPPSRCS = \
   nsConsoleWriter.cpp \
   nsXREDirProvider.cpp \
   nsNativeAppSupportBase.cpp \
-  CreateAppData.cpp \
+  nsAppData.cpp \
   nsSigHandlers.cpp \
   nsEmbedFunctions.cpp \
   ProfileReset.cpp \

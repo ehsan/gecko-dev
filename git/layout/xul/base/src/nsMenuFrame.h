@@ -21,7 +21,6 @@
 #include "nsXULPopupManager.h"
 #include "nsITimer.h"
 #include "nsIContent.h"
-#include "mozilla/Attributes.h"
 
 nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -56,7 +55,7 @@ class nsMenuFrame;
  * to it. The callback is delegated to the contained nsMenuFrame as long as
  * the contained nsMenuFrame has not been destroyed.
  */
-class nsMenuTimerMediator MOZ_FINAL : public nsITimerCallback
+class nsMenuTimerMediator : public nsITimerCallback
 {
 public:
   nsMenuTimerMediator(nsMenuFrame* aFrame);

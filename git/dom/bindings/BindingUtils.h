@@ -502,13 +502,13 @@ template<class T>
 inline nsISupports*
 GetParentPointer(T* aObject)
 {
-  return ToSupports(aObject);
+  return aObject;
 }
 
 inline nsISupports*
 GetParentPointer(const ParentObject& aObject)
 {
-  return ToSupports(aObject.mObject);
+  return aObject.mObject;
 }
 
 // Only set allowNativeWrapper to false if you really know you need it, if in

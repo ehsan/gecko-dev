@@ -20,7 +20,6 @@
 #include "prlog.h"
 #include "mozilla/Preferences.h"
 #include "FileBlockCache.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -60,8 +59,8 @@ static const PRUint32 FREE_BLOCK_SCAN_LIMIT = 16;
 // size limits).
 static nsMediaCache* gMediaCache;
 
-class nsMediaCacheFlusher MOZ_FINAL : public nsIObserver,
-                                      public nsSupportsWeakReference {
+class nsMediaCacheFlusher : public nsIObserver,
+                            public nsSupportsWeakReference {
   nsMediaCacheFlusher() {}
   ~nsMediaCacheFlusher();
 public:

@@ -746,17 +746,9 @@ abstract public class GeckoApp
             GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(), 0, 0, 0, 0, 0, 0, dw, dh, dw, dh, GeckoAppShell.SCREENSHOT_THUMBNAIL, tab.getThumbnailBuffer()));
         }
     }
-
-    void handleThumbnailData(Tab tab, ByteBuffer data) {
-        if (shouldUpdateThumbnail(tab)) {
-            Bitmap b = tab.getThumbnailBitmap();
-            b.copyPixelsFromBuffer(data);
-            processThumbnail(tab, b, null);
-        }
-    }
-
+    
     void processThumbnail(Tab thumbnailTab, Bitmap bitmap, byte[] compressed) {
-        if (shouldUpdateThumbnail(thumbnailTab)) {
+        if (Tabs.getInstance().isSelectedTab(thumbnailTab)) {
             if (compressed == null) {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
@@ -771,10 +763,6 @@ abstract public class GeckoApp
         } catch (OutOfMemoryError ome) {
             Log.w(LOGTAG, "decoding byte array ran out of memory", ome);
         }
-    }
-
-    private boolean shouldUpdateThumbnail(Tab tab) {
-        return (Tabs.getInstance().isSelectedTab(tab) || mTabsPanel.isShown());
     }
 
     void updatePopups(final Tab tab) {
@@ -905,15 +893,6 @@ abstract public class GeckoApp
 
     public void hideTabs() { }
 
-    /**
-     * Close the tab UI indirectly (not as the result of a direct user
-     * action).  This does not force the UI to close; for example in Firefox
-     * tablet mode it will remain open unless the user explicitly closes it.
-     *
-     * @return True if the tab UI was hidden.
-     */
-    public boolean autoHideTabs() { return false; }
-
     public boolean areTabsShown() { return false; }
 
     public void handleMessage(String event, JSONObject message) {
@@ -1008,7 +987,7 @@ abstract public class GeckoApp
                         handleDocumentStart(tabId, showProgress, uri);
                     } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
                         Log.i(LOGTAG, "Got a document stop");
-                        handleDocumentStop(tabId, success);
+                        handleDocumentStop(tabId, success, uri);
                     }
                 }
             } else if (event.equals("Content:LoadError")) {
@@ -1329,7 +1308,7 @@ abstract public class GeckoApp
         });
     }
 
-    void handleDocumentStop(int tabId, boolean success) {
+    void handleDocumentStop(int tabId, boolean success, final String uri) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
@@ -1341,11 +1320,9 @@ abstract public class GeckoApp
                 Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.STOP);
             }
         });
-
-        final String oldURL = tab.getURL();
         GeckoAppShell.getHandler().postDelayed(new Runnable() {
             public void run() {
-                if (!oldURL.equals(tab.getURL()))
+                if (!uri.equals(tab.getURL()))
                     return;
 
                 getAndProcessThumbnailForTab(tab);
@@ -2710,7 +2687,8 @@ abstract public class GeckoApp
 
     @Override
     public void onBackPressed() {
-        if (autoHideTabs()) {
+        if (mTabsPanel != null && mTabsPanel.isShown() && !isTablet()) {
+            mTabsPanel.hide();
             return;
         }
 
@@ -3023,8 +3001,6 @@ abstract public class GeckoApp
         layerController.getView().getTouchEventHandler().setOnTouchListener(new View.OnTouchListener() {
             public boolean onTouch(View view, MotionEvent event) {
                 if (event == null)
-                    return true;
-                if (autoHideTabs())
                     return true;
                 GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event));
                 return true;

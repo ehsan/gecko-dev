@@ -9,7 +9,6 @@
 #include "nsIInterfaceInfoManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -17,7 +16,7 @@
 ////////////////////////////////////////////////////////////////////////
 // nsXTFInterfaceAggregator class
 
-class nsXTFInterfaceAggregator MOZ_FINAL : protected nsAutoXPTCStub
+class nsXTFInterfaceAggregator : protected nsAutoXPTCStub
 {
 protected:
   friend nsresult

@@ -31,42 +31,11 @@ nsSVGIntegrationUtils::UsingEffectsForFrame(const nsIFrame* aFrame)
   return (style->mFilter || style->mClipPath || style->mMask);
 }
 
-/* static */ nsPoint
-nsSVGIntegrationUtils::GetOffsetToUserSpace(nsIFrame* aFrame)
+/* static */ nsRect
+nsSVGIntegrationUtils::GetNonSVGUserSpace(nsIFrame* aFirst)
 {
-  // We could allow aFrame to be any continuation, but since that would require
-  // a GetPrevContinuation() virtual call and conditional returns, and since
-  // all our current consumers always pass in the first continuation, we don't
-  // currently bother.
-  NS_ASSERTION(!aFrame->GetPrevContinuation(), "Not first continuation");
-
-  // The GetAllInFlowRectsUnion() call gets the union of the frame border-box
-  // rects over all continuations, relative to the origin (top-left of the
-  // border box) of its second argument (here, aFrame, the first continuation).
-  return -nsLayoutUtils::GetAllInFlowRectsUnion(aFrame, aFrame).TopLeft();
-}
-
-/* static */ nsSize
-nsSVGIntegrationUtils::GetContinuationUnionSize(nsIFrame* aNonSVGFrame)
-{
-  NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
-               "SVG frames should not get here");
-  nsIFrame* firstFrame =
-    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
-  return nsLayoutUtils::GetAllInFlowRectsUnion(firstFrame, firstFrame).Size();
-}
-
-/* static */ gfxSize
-nsSVGIntegrationUtils::GetSVGCoordContextForNonSVGFrame(nsIFrame* aNonSVGFrame)
-{
-  NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
-               "SVG frames should not get here");
-  nsIFrame* firstFrame =
-    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
-  nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(firstFrame, firstFrame);
-  nsPresContext* presContext = firstFrame->PresContext();
-  return gfxSize(presContext->AppUnitsToFloatCSSPixels(r.width),
-                 presContext->AppUnitsToFloatCSSPixels(r.height));
+  NS_ASSERTION(!aFirst->GetPrevContinuation(), "Not first continuation");
+  return nsLayoutUtils::GetAllInFlowRectsUnion(aFirst, aFirst);
 }
 
 static nsRect
@@ -98,19 +67,16 @@ struct BBoxCollector : public nsLayoutUtils::BoxCallback {
 };
 
 static nsRect
-GetSVGBBox(nsIFrame* aFirstContinuation,
-           nsIFrame* aCurrentFrame,
-           const nsRect& aCurrentFramesPreEffectsOverflow,
-           const nsPoint& aFirstContinuationToUserSpace)
+GetSVGBBox(nsIFrame* aNonSVGFrame, nsIFrame* aCurrentFrame,
+           const nsRect& aCurrentOverflow, const nsRect& aUserSpaceRect)
 {
-  NS_ASSERTION(!aFirstContinuation->GetPrevContinuation(),
+  NS_ASSERTION(!aNonSVGFrame->GetPrevContinuation(),
                "Need first continuation here");
-  // Compute union of all overflow areas relative to aFirstContinuation:
-  BBoxCollector collector(aFirstContinuation, aCurrentFrame,
-                          aCurrentFramesPreEffectsOverflow);
-  nsLayoutUtils::GetAllInFlowBoxes(aFirstContinuation, &collector);
+  // Compute union of all overflow areas relative to 'first'.
+  BBoxCollector collector(aNonSVGFrame, aCurrentFrame, aCurrentOverflow);
+  nsLayoutUtils::GetAllInFlowBoxes(aNonSVGFrame, &collector);
   // Get it into "user space" for non-SVG frames
-  return collector.mResult + aFirstContinuationToUserSpace;
+  return collector.mResult - aUserSpaceRect.TopLeft();
 }
 
 nsRect
@@ -129,16 +95,15 @@ nsSVGIntegrationUtils::ComputeFrameEffectsRect(nsIFrame* aFrame,
   // XXX this isn't really right. We can't compute the correct filter
   // bbox until all aFrame's continuations have been reflowed.
   // but then it's too late to set the overflow areas for the earlier frames.
-  nsPoint firstFrameToUserSpace = GetOffsetToUserSpace(firstFrame);
-  nsRect r = GetSVGBBox(firstFrame, aFrame, aOverflowRect,
-                        firstFrameToUserSpace);
+  nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
+  nsRect r = GetSVGBBox(firstFrame, aFrame, aOverflowRect, userSpaceRect);
   // r is relative to user space
   PRUint32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntRect p = r.ToOutsidePixels(appUnitsPerDevPixel);
   p = filterFrame->GetPostFilterBounds(firstFrame, &p);
   r = p.ToAppUnits(appUnitsPerDevPixel);
   // Make it relative to aFrame again
-  return r - (aFrame->GetOffsetTo(firstFrame) + firstFrameToUserSpace);
+  return r + userSpaceRect.TopLeft() - aFrame->GetOffsetTo(firstFrame);
 }
 
 nsRect
@@ -167,23 +132,19 @@ nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(nsIFrame* aFrame,
     return aFrame->GetVisualOverflowRect();
   }
 
-  // Convert aInvalidRect into "user space" in dev pixels:
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  nsPoint toUserSpace =
-    aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  nsIntRect preEffectsRect =
-    (aInvalidRect + toUserSpace).ToOutsidePixels(appUnitsPerDevPixel);
-
-  nsIntRect postEffectsRect =
-    filterFrame->GetPostFilterDirtyArea(firstFrame, preEffectsRect);
-
-  // Return result relative to aFrame, rather than "user space":
-  return postEffectsRect.ToAppUnits(appUnitsPerDevPixel) - toUserSpace;
+  nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
+  nsPoint offset = aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
+  nsRect r = aInvalidRect + offset;
+  nsIntRect p = r.ToOutsidePixels(appUnitsPerDevPixel);
+  p = filterFrame->GetPostFilterDirtyArea(firstFrame, p);
+  r = p.ToAppUnits(appUnitsPerDevPixel);
+  return r - offset;
 }
 
 nsRect
 nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
-                                                       const nsRect& aDirtyRect)
+                                                       const nsRect& aDamageRect)
 {
   // Don't bother calling GetEffectProperties; the filter property should
   // already have been set up during reflow/ComputeFrameEffectsRect
@@ -192,20 +153,16 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   nsSVGFilterFrame* filterFrame =
     nsSVGEffects::GetFilterFrame(firstFrame);
   if (!filterFrame)
-    return aDirtyRect;
+    return aDamageRect;
   
-  // Convert aDirtyRect into "user space" in dev pixels:
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  nsPoint toUserSpace =
-    aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  nsIntRect postEffectsRect =
-    (aDirtyRect + toUserSpace).ToOutsidePixels(appUnitsPerDevPixel);
-
-  nsIntRect preEffectsRect =
-    filterFrame->GetPreFilterNeededArea(firstFrame, postEffectsRect);
-
-  // Return result relative to aFrame, rather than "user space":
-  return preEffectsRect.ToAppUnits(appUnitsPerDevPixel) - toUserSpace;
+  nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
+  nsPoint offset = aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
+  nsRect r = aDamageRect + offset;
+  nsIntRect p = r.ToOutsidePixels(appUnitsPerDevPixel);
+  p = filterFrame->GetPreFilterNeededArea(firstFrame, p);
+  r = p.ToAppUnits(appUnitsPerDevPixel);
+  return r - offset;
 }
 
 bool
@@ -213,10 +170,9 @@ nsSVGIntegrationUtils::HitTestFrameForEffects(nsIFrame* aFrame, const nsPoint& a
 {
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
-  // Convert aPt to user space:
-  nsPoint toUserSpace =
-    aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  nsPoint pt = aPt + toUserSpace;
+  nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
+  // get point relative to userSpaceRect
+  nsPoint pt = aPt + aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
   return nsSVGUtils::HitTestClip(firstFrame, pt);
 }
 
@@ -296,13 +252,10 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   gfxContext* gfx = aCtx->ThebesContext();
   gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
 
-  PRInt32 appUnitsPerDevPixel = 
-    aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
-  nsPoint firstFrameOffset = GetOffsetToUserSpace(firstFrame);
-  nsPoint offset = (aBuilder->ToReferenceFrame(firstFrame) - firstFrameOffset).
-                     ToNearestPixels(appUnitsPerDevPixel).
-                     ToAppUnits(appUnitsPerDevPixel);
-  aCtx->Translate(offset);
+  nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame) + aBuilder->ToReferenceFrame(firstFrame);
+  PRInt32 appUnitsPerDevPixel = aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
+  userSpaceRect = userSpaceRect.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
+  aCtx->Translate(userSpaceRect.TopLeft());
 
   gfxMatrix matrix = GetInitialMatrix(aEffectsFrame);
 
@@ -327,15 +280,15 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   /* Paint the child */
   if (filterFrame) {
     RegularFramePaintCallback callback(aBuilder, aInnerList, aEffectsFrame,
-                                       offset);
-    nsIntRect dirtyRect = (aDirtyRect - offset)
+                                       userSpaceRect.TopLeft());
+    nsIntRect dirtyRect = (aDirtyRect - userSpaceRect.TopLeft())
                             .ToOutsidePixels(appUnitsPerDevPixel);
     filterFrame->PaintFilteredFrame(aCtx, aEffectsFrame, &callback, &dirtyRect);
   } else {
     gfx->SetMatrix(matrixAutoSaveRestore.Matrix());
     aInnerList->PaintForFrame(aBuilder, aCtx, aEffectsFrame,
                               nsDisplayList::PAINT_DEFAULT);
-    aCtx->Translate(offset);
+    aCtx->Translate(userSpaceRect.TopLeft());
   }
 
   if (clipPathFrame && isTrivialClip) {
@@ -396,17 +349,31 @@ nsSVGIntegrationUtils::GetInitialMatrix(nsIFrame* aNonSVGFrame)
 }
 
 gfxRect
+nsSVGIntegrationUtils::GetSVGRectForNonSVGFrame(nsIFrame* aNonSVGFrame)
+{
+  NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
+               "SVG frames should not get here");
+  nsIFrame* firstFrame =
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
+  nsRect r = GetNonSVGUserSpace(firstFrame);
+  nsPresContext* presContext = firstFrame->PresContext();
+  return gfxRect(0, 0, presContext->AppUnitsToFloatCSSPixels(r.width),
+                       presContext->AppUnitsToFloatCSSPixels(r.height));
+}
+
+gfxRect
 nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(nsIFrame* aNonSVGFrame)
 {
   NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
                "SVG frames should not get here");
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
-  // 'r' is in "user space":
-  nsRect r = GetSVGBBox(firstFrame, nsnull, nsRect(),
-                        GetOffsetToUserSpace(firstFrame));
-  return nsLayoutUtils::RectToGfxRect(r,
-           aNonSVGFrame->PresContext()->AppUnitsPerCSSPixel());
+  nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
+  nsRect r = GetSVGBBox(firstFrame, nsnull, nsRect(), userSpaceRect);
+  gfxRect result(r.x, r.y, r.width, r.height);
+  nsPresContext* presContext = aNonSVGFrame->PresContext();
+  result.ScaleInverse(presContext->AppUnitsPerCSSPixel());
+  return result;
 }
 
 class PaintFrameCallback : public gfxDrawingCallback {
@@ -456,10 +423,10 @@ PaintFrameCallback::operator()(gfxContext* aContext,
   // nsLayoutUtils::PaintFrame will anchor its painting at mFrame. But we want
   // to have it anchored at the top left corner of the bounding box of all of
   // mFrame's continuations. So we add a translation transform.
+  nsRect bbox = nsSVGIntegrationUtils::GetNonSVGUserSpace(mFrame);
   PRInt32 appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-  nsPoint offset = nsSVGIntegrationUtils::GetOffsetToUserSpace(mFrame);
-  gfxPoint devPxOffset = gfxPoint(offset.x, offset.y) / appUnitsPerDevPixel;
-  aContext->Multiply(gfxMatrix().Translate(devPxOffset));
+  gfxPoint offset = gfxPoint(bbox.x, bbox.y) / appUnitsPerDevPixel;
+  aContext->Multiply(gfxMatrix().Translate(-offset));
 
   gfxSize paintServerSize =
     gfxSize(mPaintServerSize.width, mPaintServerSize.height) /
@@ -473,8 +440,7 @@ PaintFrameCallback::operator()(gfxContext* aContext,
   aContext->Multiply(scaleMatrix);
 
   // Draw.
-  nsRect dirty(-offset.x, -offset.y,
-               mPaintServerSize.width, mPaintServerSize.height);
+  nsRect dirty(bbox.x, bbox.y, mPaintServerSize.width, mPaintServerSize.height);
   nsLayoutUtils::PaintFrame(&context, mFrame,
                             dirty, NS_RGBA(0, 0, 0, 0),
                             nsLayoutUtils::PAINT_IN_TRANSFORM |

@@ -14,7 +14,6 @@
 #include "nsIDOMSVGPoint.h"
 #include "nsTArray.h"
 #include "SVGPoint.h"
-#include "mozilla/Attributes.h"
 
 class nsSVGElement;
 
@@ -45,7 +44,7 @@ namespace mozilla {
  * See the architecture comment in DOMSVGLength.h (yes, LENGTH) for an overview
  * of the important points regarding how this specific class works.
  */
-class DOMSVGPoint MOZ_FINAL : public nsIDOMSVGPoint
+class DOMSVGPoint : public nsIDOMSVGPoint
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGPOINT_IID)

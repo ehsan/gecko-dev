@@ -76,7 +76,6 @@
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "nsIDOMFormData.h"
 #include "DictionaryHelpers.h"
-#include "mozilla/Attributes.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "nsStreamListenerWrapper.h"
@@ -3547,7 +3546,7 @@ nsXMLHttpRequest::ChangeState(PRUint32 aState, bool aBroadcast)
  * Simple helper class that just forwards the redirect callback back
  * to the nsXMLHttpRequest.
  */
-class AsyncVerifyRedirectCallbackForwarder MOZ_FINAL : public nsIAsyncVerifyRedirectCallback
+class AsyncVerifyRedirectCallbackForwarder : public nsIAsyncVerifyRedirectCallback
 {
 public:
   AsyncVerifyRedirectCallbackForwarder(nsXMLHttpRequest *xhr)

@@ -155,11 +155,7 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
                  (aStartOffset >= 0 || (aStartOffset != -1 && aEndOffset != -1)),
                  NS_ERROR_INVALID_ARG);
 
-  nsRefPtr<Accessible> acc(do_QueryObject(aTextAccessible));
-  if (!acc)
-    return NS_ERROR_INVALID_ARG;
-
-  HyperTextAccessible* newPosition = acc->AsHyperText();
+  nsRefPtr<HyperTextAccessible> newPosition = do_QueryObject(aTextAccessible);
   if (!newPosition || !IsRootDescendant(newPosition))
     return NS_ERROR_INVALID_ARG;
 
@@ -174,7 +170,7 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
   mEndOffset = aEndOffset;
 
   nsRefPtr<Accessible> oldPosition = mPosition.forget();
-  mPosition = newPosition;
+  mPosition = newPosition.forget();
 
   NotifyOfPivotChange(oldPosition, oldStart, oldEnd);
 

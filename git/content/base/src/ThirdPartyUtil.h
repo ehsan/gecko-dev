@@ -9,13 +9,12 @@
 #include "nsString.h"
 #include "mozIThirdPartyUtil.h"
 #include "nsIEffectiveTLDService.h"
-#include "mozilla/Attributes.h"
 
 class nsIURI;
 class nsIChannel;
 class nsIDOMWindow;
 
-class ThirdPartyUtil MOZ_FINAL : public mozIThirdPartyUtil
+class ThirdPartyUtil : public mozIThirdPartyUtil
 {
 public:
   NS_DECL_ISUPPORTS

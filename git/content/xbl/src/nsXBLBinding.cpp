@@ -55,7 +55,7 @@
 #include "nsNodeUtils.h"
 
 // Nasty hack.  Maybe we could move some of the classinfo utility methods
-// (e.g. WrapNative) over to nsContentUtils?
+// (e.g. WrapNative and ThrowJSException) over to nsContentUtils?
 #include "nsDOMClassInfo.h"
 #include "nsJSUtils.h"
 
@@ -118,7 +118,7 @@ XBLResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
   
   if (~nodeClass->flags &
       (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) {
-    xpc::Throw(cx, NS_ERROR_UNEXPECTED);
+    nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_UNEXPECTED);
     return JS_FALSE;
   }
 
@@ -135,7 +135,7 @@ XBLResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
 
   nsCOMPtr<nsIContent> content = do_QueryWrappedNative(xpcWrapper);
   if (!content) {
-    xpc::Throw(cx, NS_ERROR_UNEXPECTED);
+    nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_UNEXPECTED);
     return JS_FALSE;
   }
 
@@ -160,7 +160,10 @@ XBLResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
                                     protoBinding->DocURI(),
                                     &didInstall);
   if (NS_FAILED(rv)) {
-    xpc::Throw(cx, rv);
+    if (!::JS_IsExceptionPending(cx)) {
+      nsDOMClassInfo::ThrowJSException(cx, rv);
+    }
+
     return JS_FALSE;
   }
 
@@ -254,7 +257,7 @@ TraverseKey(nsISupports* aKey, nsInsertionPointList* aData, void* aClosure)
   return PL_DHASH_NEXT;
 }
 
-NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLBinding)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLBinding)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLBinding)
   // XXX Probably can't unlink mPrototypeBinding->XBLDocumentInfo(), because
   //     mPrototypeBinding is weak.

@@ -9,7 +9,6 @@
 #include "nsDOMError.h"
 #include "nsIDOMSVGAnimatedString.h"
 #include "nsSVGElement.h"
-#include "mozilla/Attributes.h"
 
 class nsSVGString
 {
@@ -50,7 +49,7 @@ private:
   bool mIsBaseSet;
 
 public:
-  struct DOMAnimatedString MOZ_FINAL : public nsIDOMSVGAnimatedString
+  struct DOMAnimatedString : public nsIDOMSVGAnimatedString
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedString)

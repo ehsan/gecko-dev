@@ -96,7 +96,6 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/Attributes.h"
 #include "sampler.h"
 
 #include "nsIDOMClientRect.h"
@@ -218,7 +217,7 @@ PrintDocTreeAll(nsIDocShellTreeItem* aItem)
 }
 #endif
 
-class nsUITimerCallback MOZ_FINAL : public nsITimerCallback
+class nsUITimerCallback : public nsITimerCallback
 {
 public:
   nsUITimerCallback() : mPreviousCount(0) {}

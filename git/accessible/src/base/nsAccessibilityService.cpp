@@ -63,7 +63,6 @@
 #include "nsTextFragment.h"
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/Util.h"
 
@@ -1820,30 +1819,8 @@ nsAccessibilityService::CreateAccessibleForXULTree(nsIContent* aContent,
 // Services
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace mozilla {
-namespace a11y {
-
-FocusManager*
-FocusMgr()
+mozilla::a11y::FocusManager*
+mozilla::a11y::FocusMgr()
 {
   return nsAccessibilityService::gAccessibilityService;
-}
-
-EPlatformDisabledState
-PlatformDisabledState()
-{
-  static int disabledState = 0xff;
-
-  if (disabledState == 0xff) {
-    disabledState = Preferences::GetInt("accessibility.force_disabled", 0);
-    if (disabledState < ePlatformIsForceEnabled)
-      disabledState = ePlatformIsForceEnabled;
-    else if (disabledState > ePlatformIsDisabled)
-      disabledState = ePlatformIsDisabled;
-  }
-
-  return (EPlatformDisabledState)disabledState;
-}
-
-}
 }

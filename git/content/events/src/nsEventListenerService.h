@@ -12,7 +12,6 @@
 #include "nsString.h"
 #include "nsCycleCollectionParticipant.h"
 #include "jsapi.h"
-#include "mozilla/Attributes.h"
 
 
 class nsEventListenerInfo : public nsIEventListenerInfo
@@ -39,7 +38,7 @@ protected:
   bool                          mInSystemEventGroup;
 };
 
-class nsEventListenerService MOZ_FINAL : public nsIEventListenerService
+class nsEventListenerService : public nsIEventListenerService
 {
 public:
   NS_DECL_ISUPPORTS

@@ -42,7 +42,6 @@ class nsNativeTheme : public nsITimerCallback
   };
 
   nsNativeTheme();
-  virtual ~nsNativeTheme() {}
 
   // Returns the content state (hover, focus, etc), see nsEventStateManager.h
   nsEventStates GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType);

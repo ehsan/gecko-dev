@@ -10,7 +10,6 @@
 #include "nsITreeBoxObject.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
-#include "mozilla/Attributes.h"
 
 class nsTreeBodyFrame;
 class nsTreeColumns;
@@ -25,7 +24,7 @@ class nsTreeColumns;
 
 // This class is our column info.  We use it to iterate our columns and to obtain
 // information about each column.
-class nsTreeColumn MOZ_FINAL : public nsITreeColumn {
+class nsTreeColumn : public nsITreeColumn {
 public:
   nsTreeColumn(nsTreeColumns* aColumns, nsIContent* aContent);
   ~nsTreeColumn();
@@ -111,7 +110,7 @@ private:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsTreeColumn, NS_TREECOLUMN_IMPL_CID)
 
-class nsTreeColumns MOZ_FINAL : public nsITreeColumns {
+class nsTreeColumns : public nsITreeColumns {
 public:
   nsTreeColumns(nsITreeBoxObject* aTree);
   ~nsTreeColumns();

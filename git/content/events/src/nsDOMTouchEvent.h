@@ -11,9 +11,8 @@
 #include "nsTArray.h"
 #include "nsIDocument.h"
 #include "dombindings.h"
-#include "mozilla/Attributes.h"
 
-class nsDOMTouch MOZ_FINAL : public nsIDOMTouch
+class nsDOMTouch : public nsIDOMTouch
 {
 public:
   nsDOMTouch(nsIDOMEventTarget* aTarget,
