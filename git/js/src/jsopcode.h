@@ -82,14 +82,14 @@ typedef enum JSOp {
 #define JOF_LOOKUPSWITCH  5       /* lookup switch */
 #define JOF_QARG          6       /* quickened get/set function argument ops */
 #define JOF_LOCAL         7       /* var or block-local variable */
-#define JOF_SLOTATOM      8       /* uint16_t slot + constant index */
+/* 8 is unused */
 #define JOF_UINT24        12      /* extended unsigned 24-bit literal (index) */
 #define JOF_UINT8         13      /* uint8_t immediate, e.g. top 8 bits of 24-bit
                                      atom index */
 #define JOF_INT32         14      /* int32_t immediate operand */
 #define JOF_OBJECT        15      /* unsigned 16-bit object index */
 #define JOF_SLOTOBJECT    16      /* uint16_t slot index + object index */
-#define JOF_REGEXP        17      /* unsigned 16-bit regexp index */
+#define JOF_REGEXP        17      /* unsigned 32-bit regexp index */
 #define JOF_INT8          18      /* int8_t immediate operand */
 #define JOF_ATOMOBJECT    19      /* uint16_t constant index + object index */
 #define JOF_UINT16PAIR    20      /* pair of uint16_t immediates */
@@ -127,9 +127,7 @@ typedef enum JSOp {
 #define JOF_TMPSLOT_SHIFT 22
 #define JOF_TMPSLOT_MASK  (JS_BITMASK(2) << JOF_TMPSLOT_SHIFT)
 
-#define JOF_SHARPSLOT    (1U<<24) /* first immediate is uint16_t stack slot no.
-                                     that needs fixup when in global code (see
-                                     js::frontend::CompileScript) */
+/* (1U<<24) is unused */
 #define JOF_GNAME        (1U<<25) /* predicted global name */
 #define JOF_TYPESET      (1U<<26) /* has an entry in a script's type sets */
 #define JOF_DECOMPOSE    (1U<<27) /* followed by an equivalent decomposed
@@ -150,6 +148,18 @@ typedef enum JSOp {
 /*
  * Immediate operand getters, setters, and bounds.
  */
+
+static JS_ALWAYS_INLINE uint8_t
+GET_UINT8(jsbytecode *pc)
+{
+    return (uint8_t) pc[1];
+}
+
+static JS_ALWAYS_INLINE void
+SET_UINT8(jsbytecode *pc, uint8_t u)
+{
+    pc[1] = (jsbytecode) u;
+}
 
 /* Common uint16_t immediate format helpers. */
 #define UINT16_LEN              2
@@ -179,10 +189,27 @@ SET_JUMP_OFFSET(jsbytecode *pc, int32_t off)
     pc[4] = (jsbytecode)off;
 }
 
+#define UINT32_INDEX_LEN        4
+
+static JS_ALWAYS_INLINE uint32_t
+GET_UINT32_INDEX(jsbytecode *pc)
+{
+    return (pc[1] << 24) | (pc[2] << 16) | (pc[3] << 8) | pc[4];
+}
+
+static JS_ALWAYS_INLINE void
+SET_UINT32_INDEX(jsbytecode *pc, uint32_t index)
+{
+    pc[1] = (jsbytecode)(index >> 24);
+    pc[2] = (jsbytecode)(index >> 16);
+    pc[3] = (jsbytecode)(index >> 8);
+    pc[4] = (jsbytecode)index;
+}
+
 /*
  * A literal is indexed by a per-script atom or object maps. Most scripts
- * have relatively few literals, so the standard JOF_ATOM, JOF_OBJECT and
- * JOF_REGEXP formats specifies a fixed 16 bits of immediate operand index.
+ * have relatively few literals, so the standard JOF_ATOM and JOF_OBJECT
+ * format specifies a fixed 16 bits of immediate operand index.
  * A script with more than 64K literals must wrap the bytecode into
  * JSOP_INDEXBASE and JSOP_RESETBASE pair.
  */
@@ -343,12 +370,6 @@ js_GetIndexFromBytecode(JSScript *script, jsbytecode *pc, ptrdiff_t pcoff);
     JS_BEGIN_MACRO                                                            \
         uintN index_ = js_GetIndexFromBytecode((script), (pc), (pcoff));      \
         fun = (script)->getFunction(index_);                                  \
-    JS_END_MACRO
-
-#define GET_REGEXP_FROM_BYTECODE(script, pc, pcoff, obj)                      \
-    JS_BEGIN_MACRO                                                            \
-        uintN index_ = js_GetIndexFromBytecode((script), (pc), (pcoff));      \
-        obj = (script)->getRegExp(index_);                                    \
     JS_END_MACRO
 
 #ifdef __cplusplus
