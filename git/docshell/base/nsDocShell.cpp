@@ -1756,8 +1756,7 @@ nsDocShell::SetCharset(const char* aCharset)
     if (viewer) {
       nsCOMPtr<nsIMarkupDocumentViewer> muDV(do_QueryInterface(viewer));
       if (muDV) {
-        nsCString charset(aCharset);
-        NS_ENSURE_SUCCESS(muDV->SetDefaultCharacterSet(charset),
+        NS_ENSURE_SUCCESS(muDV->SetDefaultCharacterSet(nsDependentCString(aCharset)),
                           NS_ERROR_FAILURE);
       }
     }
@@ -4683,7 +4682,7 @@ nsDocShell::SetTitle(const PRUnichar * aTitle)
     }
 
     if (mGlobalHistory && mCurrentURI && mLoadType != LOAD_ERROR_PAGE) {
-        mGlobalHistory->SetPageTitle(mCurrentURI, nsString(mTitle));
+        mGlobalHistory->SetPageTitle(mCurrentURI, nsDependentString(aTitle));
     }
 
 
@@ -11356,7 +11355,7 @@ nsDocShell::ReloadDocument(const char* aCharset,
                            PRInt32 aSource)
 {
 
-  // XXX hack. keep the aCharset and aSource wait to pick it up
+  // XXX hack. kee the aCharset and aSource wait to pick it up
   nsCOMPtr<nsIContentViewer> cv;
   NS_ENSURE_SUCCESS(GetContentViewer(getter_AddRefs(cv)), NS_ERROR_FAILURE);
   if (cv)
@@ -11366,20 +11365,19 @@ nsDocShell::ReloadDocument(const char* aCharset,
     {
       PRInt32 hint;
       muDV->GetHintCharacterSetSource(&hint);
-      if (aSource > hint)
+      if( aSource > hint ) 
       {
-        nsCString charset(aCharset);
-        muDV->SetHintCharacterSet(charset);
-        muDV->SetHintCharacterSetSource(aSource);
-        if(eCharsetReloadRequested != mCharsetReloadState) 
-        {
-          mCharsetReloadState = eCharsetReloadRequested;
-          return Reload(LOAD_FLAGS_CHARSET_CHANGE);
-        }
+         muDV->SetHintCharacterSet(nsDependentCString(aCharset));
+         muDV->SetHintCharacterSetSource(aSource);
+         if(eCharsetReloadRequested != mCharsetReloadState) 
+         {
+            mCharsetReloadState = eCharsetReloadRequested;
+            return Reload(LOAD_FLAGS_CHARSET_CHANGE);
+         }
       }
     }
   }
-  //return failure if this request is not accepted due to mCharsetReloadState
+  //return failer if this request is not accepted due to mCharsetReloadState
   return NS_ERROR_DOCSHELL_REQUEST_REJECTED;
 }
 
