@@ -1001,7 +1001,6 @@ public class LocalBrowserDB {
                                   new String[] { faviconURL },
                                   null);
 
-        boolean shouldDelete = false;
         byte[] b = null;
         try {
             if (!c.moveToFirst()) {
@@ -1009,26 +1008,9 @@ public class LocalBrowserDB {
             }
 
             final int faviconIndex = c.getColumnIndexOrThrow(Favicons.DATA);
-            try {
-                b = c.getBlob(faviconIndex);
-            } catch (IllegalStateException e) {
-                // This happens when the blob is more than 1MB: Bug 1106347.
-                // Delete that row.
-                shouldDelete = true;
-            }
+            b = c.getBlob(faviconIndex);
         } finally {
             c.close();
-        }
-
-        if (shouldDelete) {
-            try {
-                Log.d(LOGTAG, "Deleting invalid favicon.");
-                cr.delete(mFaviconsUriWithProfile,
-                          Favicons.URL + " = ?",
-                          new String[] { faviconURL });
-            } catch (Exception e) {
-                // Do nothing.
-            }
         }
 
         if (b == null) {

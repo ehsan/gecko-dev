@@ -175,10 +175,8 @@
   border-color: initial!important;
 }
 
-#waterfall-details {
-  -moz-padding-start: 8px;
-  -moz-padding-end: 8px;
-  padding-top: 8vh;
+#timeline-waterfall-details {
+  padding-top: 28px;
   overflow: auto;
 }
 
@@ -188,16 +186,6 @@
   margin: 0 8px;
   border: 1px solid;
   border-radius: 1px;
-}
-
-.marker-details-start,
-.marker-details-end,
-.marker-details-duration {
-  padding-top: 3px;
-}
-
-.marker-details-labelname {
-  -moz-padding-end: 4px;
 }
 
 .marker-details-type {

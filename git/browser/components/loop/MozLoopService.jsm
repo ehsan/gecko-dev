@@ -71,9 +71,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "roomsPushNotification",
 XPCOMUtils.defineLazyModuleGetter(this, "MozLoopPushHandler",
                                   "resource:///modules/loop/MozLoopPushHandler.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "UITour",
-                                  "resource:///modules/UITour.jsm");
-
 XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
@@ -813,11 +810,6 @@ let MozLoopServiceInternal = {
         chatbox.removeEventListener("DOMContentLoaded", loaded, true);
 
         let window = chatbox.contentWindow;
-
-        window.addEventListener("unload", function onUnloadChat(evt) {
-          UITour.notify("Loop:ChatWindowClosed");
-        });
-
         injectLoopAPI(window);
 
         let ourID = window.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -858,8 +850,6 @@ let MozLoopServiceInternal = {
 
         let pc_static = new window.mozRTCPeerConnectionStatic();
         pc_static.registerPeerConnectionLifecycleCallback(onPCLifecycleChange);
-
-        UITour.notify("Loop:ChatWindowOpened");
       }.bind(this), true);
     };
 
