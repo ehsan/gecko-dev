@@ -126,6 +126,7 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
 
         DeviceHelper.init(this);
         GeckoHelper.init(this);
+        GestureHelper.init(this);
         NavigationHelper.init(this);
         WaitHelper.init(this);
     }

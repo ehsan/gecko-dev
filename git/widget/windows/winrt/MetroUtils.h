@@ -73,14 +73,12 @@ class MetroUtils
 public:
   // Functions to convert between logical pixels as used by most Windows APIs
   // and physical (device) pixels.
-  static double LogToPhysFactor();
-  static double PhysToLogFactor();
+  // See MSDN documentation about DIPs (device independent pixels) for details.
+  static int32_t LogToPhys(FLOAT aValue);
   static nsIntPoint LogToPhys(const Point& aPt);
   static nsIntRect LogToPhys(const Rect& aRect);
+  static FLOAT PhysToLog(int32_t aValue);
   static Point PhysToLog(const nsIntPoint& aPt);
-
-  // Resolution scale factor
-  static double ScaleFactor();
 
   static nsresult FireObserver(const char* aMessage, const PRUnichar* aData = nullptr);
 

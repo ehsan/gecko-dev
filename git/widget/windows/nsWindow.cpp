@@ -979,7 +979,7 @@ float nsWindow::GetDPI()
 
 double nsWindow::GetDefaultScaleInternal()
 {
-  return WinUtils::LogToPhysFactor();
+  return gfxWindowsPlatform::GetPlatform()->GetDPIScale();
 }
 
 nsWindow*
