@@ -219,7 +219,7 @@ public:
         return get();
     }
 
-    T* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN {
+    T* operator->() const {
         MOZ_ASSERT(mRawPtr != 0, "You can't dereference a nullptr WebGLRefPtr with operator->()!");
         return get();
     }

@@ -11,7 +11,6 @@
 #include "jsweakmap.h"
 
 #include "builtin/TypedObjectConstants.h"
-#include "js/Conversions.h"
 #include "vm/ArrayBufferObject.h"
 
 /*
@@ -105,10 +104,10 @@ static T ConvertScalar(double d)
     if (TypeIsFloatingPoint<T>()) {
         return T(d);
     } else if (TypeIsUnsigned<T>()) {
-        uint32_t n = JS::ToUint32(d);
+        uint32_t n = ToUint32(d);
         return T(n);
     } else {
-        int32_t n = JS::ToInt32(d);
+        int32_t n = ToInt32(d);
         return T(n);
     }
 }

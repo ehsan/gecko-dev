@@ -21,8 +21,8 @@ class nsGroupBoxFrame : public nsBoxFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsGroupBoxFrame(nsStyleContext* aContext):
-    nsBoxFrame(aContext) {}
+  nsGroupBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
+    nsBoxFrame(aShell, aContext) {}
 
   virtual nsresult GetBorderAndPadding(nsMargin& aBorderAndPadding);
 
@@ -75,7 +75,7 @@ public:
 nsIFrame*
 NS_NewGroupBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsGroupBoxFrame(aContext);
+  return new (aPresShell) nsGroupBoxFrame(aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsGroupBoxFrame)

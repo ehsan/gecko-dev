@@ -12,12 +12,12 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsIObserver.h"
+#include "nsITimer.h"
 #include "nsWrapperCache.h"
 #include "nsDOMNavigationTiming.h"
 #include "nsPIDOMWindow.h"
 
 class nsIConsoleAPIStorage;
-class nsIXPConnectJSObjectHolder;
 
 namespace mozilla {
 namespace dom {
@@ -25,14 +25,17 @@ namespace dom {
 class ConsoleCallData;
 struct ConsoleStackEntry;
 
-class Console MOZ_FINAL : public nsIObserver
+class Console MOZ_FINAL : public nsITimerCallback
+                        , public nsIObserver
                         , public nsWrapperCache
 {
   ~Console();
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Console)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(Console,
+                                                         nsITimerCallback)
+  NS_DECL_NSITIMERCALLBACK
   NS_DECL_NSIOBSERVER
 
   explicit Console(nsPIDOMWindow* aWindow);
@@ -129,6 +132,9 @@ private:
          const Sequence<JS::Value>& aData);
 
   void
+  AppendCallData(ConsoleCallData* aData);
+
+  void
   ProcessCallData(ConsoleCallData* aData);
 
   // If the first JS::Value of the array is a string, this method uses it to
@@ -185,16 +191,17 @@ private:
   IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
                    const nsTArray<JS::Heap<JS::Value>>& aArguments);
 
+  void
+  ClearConsoleData();
+
   bool
   ShouldIncludeStackTrace(MethodName aMethodName);
 
-  nsIXPConnectJSObjectHolder*
-  GetOrCreateSandbox(JSContext* aCx, nsIPrincipal* aPrincipal);
-
   nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsITimer> mTimer;
   nsCOMPtr<nsIConsoleAPIStorage> mStorage;
-  nsCOMPtr<nsIXPConnectJSObjectHolder> mSandbox;
 
+  LinkedList<ConsoleCallData> mQueuedCalls;
   nsDataHashtable<nsStringHashKey, DOMHighResTimeStamp> mTimerRegistry;
   nsDataHashtable<nsStringHashKey, uint32_t> mCounterRegistry;
 
@@ -202,7 +209,6 @@ private:
   uint64_t mInnerID;
 
   friend class ConsoleCallData;
-  friend class ConsoleRunnable;
   friend class ConsoleCallDataRunnable;
   friend class ConsoleProfileRunnable;
 };

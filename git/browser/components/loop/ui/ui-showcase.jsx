@@ -705,7 +705,7 @@
 
   window.addEventListener("DOMContentLoaded", function() {
     try {
-      React.render(<App />, document.body);
+      React.renderComponent(<App />, document.body);
     } catch(err) {
       console.log(err);
     }

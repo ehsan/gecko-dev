@@ -501,5 +501,14 @@ BasicCompositor::EndFrame()
   mRenderTarget = nullptr;
 }
 
+void
+BasicCompositor::AbortFrame()
+{
+  mRenderTarget->mDrawTarget->PopClip();
+  mRenderTarget->mDrawTarget->PopClip();
+  mDrawTarget = nullptr;
+  mRenderTarget = nullptr;
+}
+
 }
 }

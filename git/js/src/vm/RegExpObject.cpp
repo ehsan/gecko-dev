@@ -710,8 +710,6 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
     Rooted<TaggedProto> proto(cx, templateObject->getTaggedProto());
     types::TypeObject *type =
         cx->compartment()->types.newTypeObject(cx, templateObject->getClass(), proto);
-    if (!type)
-        return matchResultTemplateObject_; // = nullptr
     templateObject->setType(type);
 
     /* Set dummy index property */

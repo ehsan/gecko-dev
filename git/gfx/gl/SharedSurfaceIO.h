@@ -46,6 +46,12 @@ public:
         return static_cast<SharedSurface_IOSurface*>(surf);
     }
 
+    GLuint ConsTexture(GLContext* consGL);
+
+    GLenum ConsTextureTarget() const {
+        return LOCAL_GL_TEXTURE_RECTANGLE_ARB;
+    }
+
     MacIOSurface* GetIOSurface() const {
         return mIOSurf;
     }
@@ -61,6 +67,8 @@ private:
 
     RefPtr<MacIOSurface> mIOSurf;
     GLuint mProdTex;
+    const GLContext* mCurConsGL;
+    GLuint mConsTex;
 };
 
 class SurfaceFactory_IOSurface : public SurfaceFactory

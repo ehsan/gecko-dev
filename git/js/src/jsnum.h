@@ -12,7 +12,7 @@
 
 #include "NamespaceImports.h"
 
-#include "js/Conversions.h"
+#include "vm/NumericConversions.h"
 
 namespace js {
 
@@ -246,7 +246,7 @@ ToInteger(JSContext *cx, HandleValue v, double *dp)
         if (!ToNumberSlow(cx, v, dp))
             return false;
     }
-    *dp = JS::ToInteger(*dp);
+    *dp = ToInteger(*dp);
     return true;
 }
 

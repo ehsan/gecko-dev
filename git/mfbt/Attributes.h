@@ -520,15 +520,6 @@
  *   tells the compiler that the raw pointer is a weak reference, and that
  *   property is somehow enforced by the code.  This can make the compiler
  *   ignore these pointers when validating the usage of pointers otherwise.
- * MOZ_UNSAFE_REF: Applies to declarations of pointer types.  This attribute
- *   should be used for non-owning references that can be unsafe, and their
- *   safety needs to be validated through code inspection.  The string argument
- *   passed to this macro documents the safety conditions.
- * MOZ_NO_ADDREF_RELEASE_ON_RETURN: Applies to function declarations.  Makes it
- *   a compile time error to call AddRef or Release on the return value of a
- *   function.  This is intended to be used with operator->() of our smart
- *   pointer classes to ensure that the refcount of an object wrapped in a
- *   smart pointer is not manipulated directly.
  */
 #ifdef MOZ_CLANG_PLUGIN
 #  define MOZ_MUST_OVERRIDE __attribute__((annotate("moz_must_override")))
@@ -546,8 +537,6 @@
 #  define MOZ_NO_ARITHMETIC_EXPR_IN_ARGUMENT __attribute__((annotate("moz_no_arith_expr_in_arg")))
 #  define MOZ_OWNING_REF __attribute__((annotate("moz_strong_ref")))
 #  define MOZ_NON_OWNING_REF __attribute__((annotate("moz_weak_ref")))
-#  define MOZ_UNSAFE_REF(reason) __attribute__((annotate("moz_strong_ref")))
-#  define MOZ_NO_ADDREF_RELEASE_ON_RETURN __attribute__((annotate("moz_no_addref_release_on_return")))
 /*
  * It turns out that clang doesn't like void func() __attribute__ {} without a
  * warning, so use pragmas to disable the warning. This code won't work on GCC
@@ -569,8 +558,6 @@
 #  define MOZ_HEAP_ALLOCATOR /* nothing */
 #  define MOZ_OWNING_REF /* nothing */
 #  define MOZ_NON_OWNING_REF /* nothing */
-#  define MOZ_UNSAFE_REF(reason) /* nothing */
-#  define MOZ_NO_ADDREF_RELEASE_ON_RETURN /* nothing */
 #endif /* MOZ_CLANG_PLUGIN */
 
 /*

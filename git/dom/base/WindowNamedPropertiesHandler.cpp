@@ -83,11 +83,8 @@ WindowNamedPropertiesHandler::getOwnPropDescriptor(JSContext* aCx,
     return true;
   }
 
-  bool hasOnPrototype;
-  if (!HasPropertyOnPrototype(aCx, aProxy, aId, &hasOnPrototype)) {
-    return false;
-  }
-  if (hasOnPrototype) {
+  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, aProxy));
+  if (HasPropertyOnPrototype(aCx, aProxy, aId)) {
     return true;
   }
 
@@ -97,7 +94,6 @@ WindowNamedPropertiesHandler::getOwnPropDescriptor(JSContext* aCx,
   }
 
   // Grab the DOM window.
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, aProxy));
   nsGlobalWindow* win = xpc::WindowOrNull(global);
   if (win->Length() > 0) {
     nsCOMPtr<nsIDOMWindow> childWin = win->GetChildWindow(str);

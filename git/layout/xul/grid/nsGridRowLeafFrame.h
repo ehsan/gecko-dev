@@ -39,10 +39,11 @@ public:
   }
 #endif
 
-  nsGridRowLeafFrame(nsStyleContext* aContext,
+  nsGridRowLeafFrame(nsIPresShell* aPresShell,
+                     nsStyleContext* aContext,
                      bool aIsRoot,
                      nsBoxLayout* aLayoutManager):
-    nsBoxFrame(aContext, aIsRoot, aLayoutManager) {}
+    nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager) {}
 
   virtual nsresult GetBorderAndPadding(nsMargin& aBorderAndPadding) MOZ_OVERRIDE;
 

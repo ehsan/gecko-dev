@@ -61,7 +61,7 @@ bool nsTextBoxFrame::gInsertSeparatorPrefInitialized = false;
 nsIFrame*
 NS_NewTextBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-    return new (aPresShell) nsTextBoxFrame(aContext);
+    return new (aPresShell) nsTextBoxFrame (aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTextBoxFrame)
@@ -97,8 +97,8 @@ nsTextBoxFrame::AttributeChanged(int32_t         aNameSpaceID,
     return NS_OK;
 }
 
-nsTextBoxFrame::nsTextBoxFrame(nsStyleContext* aContext):
-  nsLeafBoxFrame(aContext), mAccessKeyInfo(nullptr), mCropType(CropRight),
+nsTextBoxFrame::nsTextBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
+  nsLeafBoxFrame(aShell, aContext), mAccessKeyInfo(nullptr), mCropType(CropRight),
   mNeedsReflowCallback(false)
 {
     MarkIntrinsicISizesDirty();

@@ -50,6 +50,7 @@ EXTRA_PP_JS_MODULES += [
     'AboutHome.jsm',
     'PluginContent.jsm',
     'RecentWindow.jsm',
+    'UITour.jsm',
     'webrtcUI.jsm',
 ]
 

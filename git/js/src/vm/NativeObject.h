@@ -21,6 +21,7 @@
 #include "gc/Heap.h"
 #include "gc/Marking.h"
 #include "js/Value.h"
+#include "vm/NumericConversions.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
 

@@ -2025,7 +2025,7 @@ public:
 
   NS_IMETHOD
   CollectReports(nsIMemoryReporterCallback* aCallback,
-                 nsISupports* aClosure, bool aAnonymize) MOZ_OVERRIDE
+                 nsISupports* aClosure, bool aAnonymize)
   {
     AssertIsOnMainThread();
 
@@ -5702,7 +5702,13 @@ WorkerPrivate::SetTimeout(JSContext* aCx,
   newInfo->mTargetTime = TimeStamp::Now() + newInfo->mInterval;
 
   if (!newInfo->mTimeoutString.IsEmpty()) {
-    if (!nsJSUtils::GetCallingLocation(aCx, newInfo->mFilename, &newInfo->mLineNumber)) {
+    const char* filenameChars;
+    uint32_t lineNumber;
+    if (nsJSUtils::GetCallingLocation(aCx, &filenameChars, &lineNumber)) {
+      newInfo->mFilename = filenameChars;
+      newInfo->mLineNumber = lineNumber;
+    }
+    else {
       NS_WARNING("Failed to get calling location!");
     }
   }

@@ -452,7 +452,6 @@ nsTransitionManager::ConsiderStartingTransition(
       // currently in the 'transition-delay').  It also might happen because we
       // just got a style change to a value that can't be interpolated.
       AnimationPlayerPtrArray& players = aElementTransitions->mPlayers;
-      players[currentIndex]->Cancel();
       oldPT = nullptr; // Clear pointer so it doesn't dangle
       players.RemoveElementAt(currentIndex);
       aElementTransitions->UpdateAnimationGeneration(mPresContext);

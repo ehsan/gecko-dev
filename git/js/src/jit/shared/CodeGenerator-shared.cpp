@@ -16,7 +16,6 @@
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/ParallelFunctions.h"
-#include "js/Conversions.h"
 #include "vm/TraceLogging.h"
 
 #include "jit/JitFrames-inl.h"
@@ -24,7 +23,6 @@
 using namespace js;
 using namespace js::jit;
 
-using mozilla::BitwiseCast;
 using mozilla::DebugOnly;
 
 namespace js {
@@ -1148,7 +1146,7 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
     if (gen->compilingAsmJS())
         masm.callWithABI(AsmJSImm_ToInt32);
     else
-        masm.callWithABI(BitwiseCast<void*, int32_t(*)(double)>(JS::ToInt32));
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, js::ToInt32));
     masm.storeCallResult(dest);
 
 #ifndef JS_CODEGEN_ARM

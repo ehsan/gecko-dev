@@ -126,8 +126,7 @@ dictionary IPConfiguration {
 
 [JSImplementation="@mozilla.org/wifimanager;1",
  NavigatorProperty="mozWifiManager",
- Func="Navigator::HasWifiManagerSupport",
- UnsafeInPrerendering]
+ Func="Navigator::HasWifiManagerSupport"]
 interface MozWifiManager : EventTarget {
   /**
    * Turn on/off wifi functionality.

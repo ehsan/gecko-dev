@@ -3617,13 +3617,7 @@ js::PrimitiveToObject(JSContext *cx, const Value &v)
     return SymbolObject::create(cx, v.toSymbol());
 }
 
-/*
- * Invokes the ES5 ToObject algorithm on vp, returning the result. If vp might
- * already be an object, use ToObject. reportCantConvert controls how null and
- * undefined errors are reported.
- *
- * Callers must handle the already-object case.
- */
+/* Callers must handle the already-object case. */
 JSObject *
 js::ToObjectSlow(JSContext *cx, HandleValue val, bool reportScanStack)
 {

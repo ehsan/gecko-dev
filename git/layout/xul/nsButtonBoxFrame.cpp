@@ -30,7 +30,7 @@ using namespace mozilla;
 nsIFrame*
 NS_NewButtonBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsButtonBoxFrame(aContext);
+  return new (aPresShell) nsButtonBoxFrame(aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsButtonBoxFrame)

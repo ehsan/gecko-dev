@@ -69,6 +69,8 @@ public:
 
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) MOZ_OVERRIDE {}
 
+  virtual void AbortFrame() MOZ_OVERRIDE {}
+
   virtual void PrepareViewport(const gfx::IntSize& aSize) MOZ_OVERRIDE;
 
   virtual bool SupportsPartialTextureUpdate() MOZ_OVERRIDE{ return true; }

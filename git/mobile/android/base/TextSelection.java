@@ -39,6 +39,7 @@ class TextSelection extends Layer implements GeckoEventListener {
     private final TextSelectionHandle anchorHandle;
     private final TextSelectionHandle caretHandle;
     private final TextSelectionHandle focusHandle;
+    private final EventDispatcher eventDispatcher;
 
     private final DrawListener mDrawListener;
     private boolean mDraggingHandles;
@@ -69,10 +70,13 @@ class TextSelection extends Layer implements GeckoEventListener {
 
     TextSelection(TextSelectionHandle anchorHandle,
                   TextSelectionHandle caretHandle,
-                  TextSelectionHandle focusHandle) {
+                  TextSelectionHandle focusHandle,
+                  EventDispatcher eventDispatcher,
+                  GeckoApp activity) {
         this.anchorHandle = anchorHandle;
         this.caretHandle = caretHandle;
         this.focusHandle = focusHandle;
+        this.eventDispatcher = eventDispatcher;
 
         mDrawListener = new DrawListener() {
             @Override

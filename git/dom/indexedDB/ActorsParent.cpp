@@ -3667,7 +3667,7 @@ public:
   }
 
   mozIStorageStatement*
-  operator->() MOZ_NO_ADDREF_RELEASE_ON_RETURN
+  operator->()
   {
     MOZ_ASSERT(mStatement);
     return mStatement;
@@ -4077,7 +4077,7 @@ struct FactoryOp::MaybeBlockedDatabaseInfo MOZ_FINAL
   }
 
   Database*
-  operator->() MOZ_NO_ADDREF_RELEASE_ON_RETURN
+  operator->()
   {
     return mDatabase;
   }

@@ -26,9 +26,10 @@ public:
   virtual nsSize GetPrefSize(nsBoxLayoutState& aState) MOZ_OVERRIDE;
 
 protected:
-  explicit nsListItemFrame(nsStyleContext *aContext,
-                           bool aIsRoot = false,
-                           nsBoxLayout* aLayoutManager = nullptr);
+  nsListItemFrame(nsIPresShell* aPresShell,
+                  nsStyleContext *aContext,
+                  bool aIsRoot = false,
+                  nsBoxLayout* aLayoutManager = nullptr);
   virtual ~nsListItemFrame();
 
 }; // class nsListItemFrame

@@ -236,7 +236,7 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   aDesiredSize.SetSize(wm, maxSize);
   aDesiredSize.SetOverflowAreasToDesiredBounds();
 
-  if (HasAbsolutelyPositionedChildren()) {
+  if (IsAbsoluteContainer()) {
     // Make a copy of the reflow state and change the computed width and height
     // to reflect the available space for the fixed items
     nsHTMLReflowState reflowState(aReflowState);
@@ -252,16 +252,18 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
     }
 
     nsRect rect = AdjustReflowStateAsContainingBlock(&reflowState);
-    nsOverflowAreas* overflowAreas = &aDesiredSize.mOverflowAreas;
-    nsIScrollableFrame* rootScrollFrame =
-                    aPresContext->PresShell()->GetRootScrollFrameAsScrollable();
-    if (rootScrollFrame && !rootScrollFrame->IsIgnoringViewportClipping()) {
-      overflowAreas = nullptr;
-    }
+
+    // Just reflow all the fixed-pos frames.
     GetAbsoluteContainingBlock()->Reflow(this, aPresContext, reflowState, aStatus,
                                          rect,
                                          false, true, true, // XXX could be optimized
-                                         overflowAreas);
+                                         &aDesiredSize.mOverflowAreas);
+
+    nsIScrollableFrame* rootScrollFrame =
+                    aPresContext->PresShell()->GetRootScrollFrameAsScrollable();
+    if (rootScrollFrame && !rootScrollFrame->IsIgnoringViewportClipping()) {
+      aDesiredSize.SetOverflowAreasToDesiredBounds();
+    }
   }
 
   if (mFrames.NotEmpty()) {

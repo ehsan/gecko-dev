@@ -11,14 +11,6 @@
 #include <shobjidl.h>
 #include <uxtheme.h>
 #include <dwmapi.h>
-
-// Undo the windows.h damage
-#undef GetMessage
-#undef CreateEvent
-#undef GetClassName
-#undef GetBinaryType
-#undef RemoveDirectory
-
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsRegion.h"

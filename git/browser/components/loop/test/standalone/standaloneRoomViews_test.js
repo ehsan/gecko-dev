@@ -40,13 +40,12 @@ describe("loop.standaloneRoomViews", function() {
   describe("StandaloneRoomView", function() {
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
-        React.createElement(
-          loop.standaloneRoomViews.StandaloneRoomView, {
-            dispatcher: dispatcher,
-            activeRoomStore: activeRoomStore,
-            feedbackStore: feedbackStore,
-            helper: new loop.shared.utils.Helper()
-          }));
+        loop.standaloneRoomViews.StandaloneRoomView({
+          dispatcher: dispatcher,
+          activeRoomStore: activeRoomStore,
+          feedbackStore: feedbackStore,
+          helper: new loop.shared.utils.Helper()
+        }));
     }
 
     function expectActionDispatched(view) {

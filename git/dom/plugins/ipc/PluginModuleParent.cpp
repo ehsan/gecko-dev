@@ -35,9 +35,8 @@
 #include "nsPluginTags.h"
 
 #ifdef XP_WIN
-#include "mozilla/widget/AudioSession.h"
-#include "nsWindowsHelpers.h"
 #include "PluginHangUIParent.h"
+#include "mozilla/widget/AudioSession.h"
 #endif
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
@@ -2482,7 +2481,7 @@ PluginModuleChromeParent::InitializeInjector()
         return;
 
     TimeStamp th32Start = TimeStamp::Now();
-    nsAutoHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (INVALID_HANDLE_VALUE == snapshot)
         return;
     TimeStamp th32End = TimeStamp::Now();

@@ -444,7 +444,7 @@ nsCSPParser::path(nsCSPHostSrc* aCspHost)
   }
   // path can begin with "/" but not "//"
   // see http://tools.ietf.org/html/rfc3986#section-3.3
-  if (peek(SLASH)) {
+  if (!hostChar()) {
     const char16_t* params[] = { mCurToken.get() };
     logWarningErrorToConsole(nsIScriptError::warningFlag, "couldntParseInvalidSource",
                              params, ArrayLength(params));

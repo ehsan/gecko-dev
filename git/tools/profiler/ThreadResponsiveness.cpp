@@ -34,7 +34,7 @@ protected:
   }
 
 public:
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MonitorAutoLock mon(mMonitor);
     if (mStop)

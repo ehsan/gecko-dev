@@ -193,7 +193,7 @@ partial interface Navigator {
   readonly attribute boolean cookieEnabled;
   [Throws]
   readonly attribute DOMString buildID;
-  [Throws, CheckPermissions="power", UnsafeInPrerendering]
+  [Throws, CheckPermissions="power"]
   readonly attribute MozPowerManager mozPower;
 
   // WebKit/Blink/Trident/Presto support this.
@@ -240,7 +240,7 @@ partial interface Navigator {
    *
    * @param aTopic resource name
    */
-  [Throws, Pref="dom.wakelock.enabled", Func="Navigator::HasWakeLockSupport", UnsafeInPrerendering]
+  [Throws, Pref="dom.wakelock.enabled", Func="Navigator::HasWakeLockSupport"]
   MozWakeLock requestWakeLock(DOMString aTopic);
 };
 
@@ -344,7 +344,7 @@ partial interface Navigator {
 #ifdef MOZ_TIME_MANAGER
 // nsIDOMMozNavigatorTime
 partial interface Navigator {
-  [Throws, CheckPermissions="time", UnsafeInPrerendering]
+  [Throws, CheckPermissions="time"]
   readonly attribute MozTimeManager mozTime;
 };
 #endif // MOZ_TIME_MANAGER

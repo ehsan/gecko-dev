@@ -36,7 +36,7 @@ public:
   Request(nsIGlobalObject* aOwner, InternalRequest* aRequest);
 
   JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  WrapObject(JSContext* aCx)
   {
     return RequestBinding::Wrap(aCx, this);
   }

@@ -52,8 +52,6 @@ public:
 private:
   ~GeckoMediaPluginService();
 
-  nsresult GMPDispatch(nsIRunnable* event, uint32_t flags = NS_DISPATCH_NORMAL);
-
   void ClearStorage();
 
   GMPParent* SelectPluginForAPI(const nsACString& aNodeId,
@@ -75,8 +73,6 @@ private:
   void RemoveOnGMPThread(const nsAString& aSearchDir);
 
   nsresult SetAsyncShutdownTimeout();
-
-  void ForgetThisSiteOnGMPThread(const nsACString& aOrigin);
 
 protected:
   friend class GMPParent;

@@ -4,6 +4,19 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.AppConstants;
+import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.gecko.util.HardwareUtils;
+
+import org.json.JSONArray;
+
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.text.TextUtils;
+import android.util.Log;
+
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,16 +24,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-
-import org.json.JSONArray;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.HardwareUtils;
-
-import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.text.TextUtils;
-import android.util.Log;
 
 /**
  * Use network-based search suggestions.
@@ -49,13 +52,20 @@ public class SuggestClient {
     private String mPrevQuery;
     private ArrayList<String> mPrevResults;
 
-    @RobocopTarget
-    public SuggestClient(Context context, String suggestTemplate, int timeout, int maxResults, boolean checkNetwork) {
+    public SuggestClient(Context context, String suggestTemplate, int timeout, int maxResults) {
         mContext = context;
         mMaxResults = maxResults;
         mSuggestTemplate = suggestTemplate;
         mTimeout = timeout;
-        mCheckNetwork = checkNetwork;
+        mCheckNetwork = true;
+    }
+
+    /**
+     * This constructor is used exclusively by Robocop.
+     */
+    @RobocopTarget
+    public SuggestClient(Context context, String suggestTemplate, int timeout) {
+        this(context, suggestTemplate, timeout, Integer.MAX_VALUE);
     }
 
     /**

@@ -42,7 +42,7 @@ public:
     return mThread;
   }
 
-  nsIThread* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN {
+  nsIThread* operator->() const {
     return mThread;
   }
 

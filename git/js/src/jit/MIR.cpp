@@ -19,7 +19,6 @@
 #include "jit/JitSpewer.h"
 #include "jit/MIRGraph.h"
 #include "jit/RangeAnalysis.h"
-#include "js/Conversions.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -27,8 +26,6 @@
 
 using namespace js;
 using namespace js::jit;
-
-using JS::ToInt32;
 
 using mozilla::NumbersAreIdentical;
 using mozilla::IsFloat32Representable;
@@ -3064,7 +3061,7 @@ MCompare::tryFold(bool *result)
             }
             if (!lhs()->mightBeType(MIRType_Null) &&
                 !lhs()->mightBeType(MIRType_Undefined) &&
-                !(lhs()->mightBeType(MIRType_Object) && operandMightEmulateUndefined()))
+                !operandMightEmulateUndefined())
             {
                 *result = (op == JSOP_NE);
                 return true;

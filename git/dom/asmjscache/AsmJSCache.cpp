@@ -354,7 +354,7 @@ public:
     }
 
     File*
-    operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
+    operator->() const
     {
       MOZ_ASSERT(mFile);
       return mFile;

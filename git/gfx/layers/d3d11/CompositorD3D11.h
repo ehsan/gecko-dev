@@ -125,6 +125,11 @@ public:
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) MOZ_OVERRIDE {}
 
   /**
+   * Tidy up if BeginFrame has been called, but EndFrame won't be
+   */
+  virtual void AbortFrame() MOZ_OVERRIDE {}
+
+  /**
    * Setup the viewport and projection matrix for rendering
    * to a window of the given dimensions.
    */

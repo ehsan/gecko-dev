@@ -9,8 +9,6 @@ const Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Prefetcher",
-                                  "resource://gre/modules/Prefetcher.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteAddonsParent",
                                   "resource://gre/modules/RemoteAddonsParent.jsm");
 
@@ -63,7 +61,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteAddonsParent",
 
 function AddonInterpositionService()
 {
-  Prefetcher.init();
   RemoteAddonsParent.init();
 
   // These maps keep track of the interpositions for all different
@@ -119,7 +116,7 @@ AddonInterpositionService.prototype = {
     }
 
     if (!interp) {
-      return Prefetcher.lookupInCache(addon, target, prop);
+      return null;
     }
 
     let desc = { configurable: false, enumerable: true };
@@ -141,7 +138,7 @@ AddonInterpositionService.prototype = {
       return desc;
     }
 
-    return Prefetcher.lookupInCache(addon, target, prop);
+    return null;
   },
 };
 

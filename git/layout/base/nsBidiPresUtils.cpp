@@ -2090,16 +2090,10 @@ public:
                                                *mTextRunConstructionContext);
   }
 
-  virtual void DrawText(nscoord aIOffset,
+  virtual void DrawText(nscoord aXOffset,
                         nscoord) MOZ_OVERRIDE
   {
-    nsPoint pt(mPt);
-    if (mFontMetrics->GetVertical()) {
-      pt.y += aIOffset;
-    } else {
-      pt.x += aIOffset;
-    }
-    mFontMetrics->DrawString(mText, mLength, pt.x, pt.y,
+    mFontMetrics->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
                              mCtx, mTextRunConstructionContext);
   }
 

@@ -3213,7 +3213,6 @@ let gViewportMargins = { top: 0, right: 0, bottom: 0, left: 0};
 let gTilesReportURL = null;
 
 function Tab(aURL, aParams) {
-  this.filter = null;
   this.browser = null;
   this.id = 0;
   this.lastTouchedAt = Date.now();
@@ -3368,9 +3367,7 @@ Tab.prototype = {
     let flags = Ci.nsIWebProgress.NOTIFY_STATE_ALL |
                 Ci.nsIWebProgress.NOTIFY_LOCATION |
                 Ci.nsIWebProgress.NOTIFY_SECURITY;
-    this.filter = Cc["@mozilla.org/appshell/component/browser-status-filter;1"].createInstance(Ci.nsIWebProgress);
-    this.filter.addProgressListener(this, flags)
-    this.browser.addProgressListener(this.filter, flags);
+    this.browser.addProgressListener(this, flags);
     this.browser.sessionHistory.addSHistoryListener(this);
 
     this.browser.addEventListener("DOMContentLoaded", this, true);
@@ -3545,9 +3542,7 @@ Tab.prototype = {
 
     this.browser.contentWindow.controllers.removeController(this.overscrollController);
 
-    this.browser.removeProgressListener(this.filter);
-    this.filter.removeProgressListener(this);
-    this.filter = null;
+    this.browser.removeProgressListener(this);
     this.browser.sessionHistory.removeSHistoryListener(this);
 
     this.browser.removeEventListener("DOMContentLoaded", this, true);
@@ -4504,13 +4499,9 @@ Tab.prototype = {
   },
 
   onProgressChange: function(aWebProgress, aRequest, aCurSelfProgress, aMaxSelfProgress, aCurTotalProgress, aMaxTotalProgress) {
-    // Note: aWebProgess and aRequest will be NULL since we are filtering webprogress
-    // notifications using nsBrowserStatusFilter.
   },
 
   onStatusChange: function(aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
-    // Note: aWebProgess and aRequest will be NULL since we are filtering webprogress
-    // notifications using nsBrowserStatusFilter.
   },
 
   _getGeckoZoom: function() {

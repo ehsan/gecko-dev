@@ -1613,7 +1613,7 @@ NativePropertyHooks sWorkerNativePropertyHooks = {
 bool
 GetPropertyOnPrototype(JSContext* cx, JS::Handle<JSObject*> proxy,
                        JS::Handle<jsid> id, bool* found,
-                       JS::MutableHandle<JS::Value> vp)
+                       JS::Value* vp)
 {
   JS::Rooted<JSObject*> proto(cx);
   if (!js::GetObjectProto(cx, proxy, &proto)) {
@@ -1624,31 +1624,33 @@ GetPropertyOnPrototype(JSContext* cx, JS::Handle<JSObject*> proxy,
     return true;
   }
 
-  if (!JS_HasPropertyById(cx, proto, id, found)) {
+  bool hasProp;
+  if (!JS_HasPropertyById(cx, proto, id, &hasProp)) {
     return false;
   }
 
-  if (!*found) {
+  *found = hasProp;
+  if (!hasProp || !vp) {
     return true;
   }
 
-  return JS_ForwardGetPropertyTo(cx, proto, id, proxy, vp);
+  JS::Rooted<JS::Value> value(cx);
+  if (!JS_ForwardGetPropertyTo(cx, proto, id, proxy, &value)) {
+    return false;
+  }
+
+  *vp = value;
+  return true;
 }
 
 bool
 HasPropertyOnPrototype(JSContext* cx, JS::Handle<JSObject*> proxy,
-                       JS::Handle<jsid> id, bool* has)
+                       JS::Handle<jsid> id)
 {
-  JS::Rooted<JSObject*> proto(cx);
-  if (!js::GetObjectProto(cx, proxy, &proto)) {
-    return false;
-  }
-  if (!proto) {
-    *has = false;
-    return true;
-  }
-
-  return JS_HasPropertyById(cx, proto, id, has);
+  bool found;
+  // We ignore an error from GetPropertyOnPrototype.  We pass nullptr
+  // for vp so that GetPropertyOnPrototype won't actually do a get.
+  return !GetPropertyOnPrototype(cx, proxy, id, &found, nullptr) || found;
 }
 
 bool
@@ -1668,16 +1670,7 @@ AppendNamedPropertyIds(JSContext* cx, JS::Handle<JSObject*> proxy,
       return false;
     }
 
-    bool shouldAppend = shadowPrototypeProperties;
-    if (!shouldAppend) {
-      bool has;
-      if (!HasPropertyOnPrototype(cx, proxy, id, &has)) {
-        return false;
-      }
-      shouldAppend = !has;
-    }
-
-    if (shouldAppend) {
+    if (shadowPrototypeProperties || !HasPropertyOnPrototype(cx, proxy, id)) {
       if (!props.append(id)) {
         return false;
       }

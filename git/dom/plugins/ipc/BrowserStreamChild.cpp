@@ -62,10 +62,7 @@ BrowserStreamChild::StreamConstructed(
     &mStream, seekable, stype);
   if (rv != NPERR_NO_ERROR) {
     mState = DELETING;
-    if (mStreamNotify) {
-      mStreamNotify->SetAssociatedStream(nullptr);
-      mStreamNotify = nullptr;
-    }
+    mStreamNotify = nullptr;
   }
   else {
     mState = ALIVE;

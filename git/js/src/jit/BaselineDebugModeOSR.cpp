@@ -205,20 +205,21 @@ CollectJitStackScripts(JSContext *cx, const Debugger::ExecutionObservableSet &ob
                     return false;
             } else {
                 uint8_t *retAddr = iter.returnAddressToFp();
-                if (iter.baselineFrame()->isDebuggerHandlingException()) {
-                    // We are in the middle of handling an exception. This
-                    // happens since we could have bailed out in place from
-                    // Ion after a throw, settling on the pc which may have no
-                    // ICEntry (e.g., Ion is free to insert resume points
-                    // after non-effectful ops for better register
-                    // allocation).
-                    jsbytecode *pc = script->baselineScript()->pcForNativeAddress(script, retAddr);
-                    if (!entries.append(DebugModeOSREntry(script, script->pcToOffset(pc))))
+                ICEntry *icEntry = script->baselineScript()->maybeICEntryFromReturnAddress(retAddr);
+                if (icEntry) {
+                    // Normally, the frame is settled on a pc with an ICEntry.
+                    if (!entries.append(DebugModeOSREntry(script, *icEntry)))
                         return false;
                 } else {
-                    // Normally, the frame is settled on a pc with an ICEntry.
-                    ICEntry &icEntry = script->baselineScript()->icEntryFromReturnAddress(retAddr);
-                    if (!entries.append(DebugModeOSREntry(script, icEntry)))
+                    // Otherwise, we are in the middle of handling an
+                    // exception. This happens since we could have bailed out
+                    // in place from Ion after a throw, settling on the pc
+                    // which may have no ICEntry (e.g., Ion is free to insert
+                    // resume points after non-effectful ops for better
+                    // register allocation).
+                    MOZ_ASSERT(iter.baselineFrame()->isDebuggerHandlingException());
+                    jsbytecode *pc = script->baselineScript()->pcForNativeAddress(script, retAddr);
+                    if (!entries.append(DebugModeOSREntry(script, script->pcToOffset(pc))))
                         return false;
                 }
             }

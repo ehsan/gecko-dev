@@ -55,10 +55,9 @@ describe("loop.roomViews", function () {
         render: function() { return React.DOM.div(); }
       });
 
-      var testView = TestUtils.renderIntoDocument(
-        React.createElement(TestView, {
-          roomStore: roomStore
-        }));
+      var testView = TestUtils.renderIntoDocument(TestView({
+        roomStore: roomStore
+      }));
 
       expect(testView.state).eql({
         roomState: ROOM_STATES.INIT,
@@ -75,10 +74,9 @@ describe("loop.roomViews", function () {
         mixins: [loop.roomViews.ActiveRoomStoreMixin],
         render: function() { return React.DOM.div(); }
       });
-      var testView = TestUtils.renderIntoDocument(
-        React.createElement(TestView, {
-          roomStore: roomStore
-        }));
+      var testView = TestUtils.renderIntoDocument(TestView({
+        roomStore: roomStore
+      }));
 
       activeRoomStore.setStoreState({roomState: ROOM_STATES.READY});
 
@@ -99,11 +97,10 @@ describe("loop.roomViews", function () {
 
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
-        React.createElement(
-          loop.roomViews.DesktopRoomInvitationView, {
-            dispatcher: dispatcher,
-            roomStore: roomStore
-          }));
+        new loop.roomViews.DesktopRoomInvitationView({
+          dispatcher: dispatcher,
+          roomStore: roomStore
+        }));
     }
 
     it("should dispatch an EmailRoomUrl action when the email button is " +
@@ -205,7 +202,7 @@ describe("loop.roomViews", function () {
 
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
-        React.createElement(loop.roomViews.DesktopRoomConversationView, {
+        new loop.roomViews.DesktopRoomConversationView({
           dispatcher: dispatcher,
           roomStore: roomStore,
           feedbackStore: new loop.store.FeedbackStore(dispatcher, {

@@ -4,18 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* ECMAScript conversion operations. */
+#ifndef vm_NumericConversions_h
+#define vm_NumericConversions_h
 
-#ifndef js_Conversions_h
-#define js_Conversions_h
-
+#include "mozilla/Assertions.h"
 #include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/TypeTraits.h"
 
 #include <math.h>
 
-namespace JS {
+namespace js {
 
 namespace detail {
 
@@ -125,7 +124,7 @@ ToIntWidth(double d)
     return (MinValue + static_cast<ResultType>(u - MaxValue)) - 1;
 }
 
-} // namespace detail
+} /* namespace detail */
 
 /* ES5 9.5 ToInt32 (specialized for doubles). */
 inline int32_t
@@ -294,6 +293,6 @@ ToInteger(double d)
     return d < 0 ? ceil(d) : floor(d);
 }
 
-} // namespace JS
+} /* namespace js */
 
-#endif /* js_Conversions_h */
+#endif /* vm_NumericConversions_h */
