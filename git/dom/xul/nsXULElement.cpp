@@ -1159,11 +1159,7 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                     nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
                     if (xuldoc) {
                         xuldoc->ResetDocumentLWTheme();
-                        UpdateBrightTitlebarForeground(document);
                     }
-                }
-                else if (aName == nsGkAtoms::brighttitlebarforeground) {
-                    UpdateBrightTitlebarForeground(document);
                 }
             }
     
@@ -1200,11 +1196,7 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                     nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
                     if (xuldoc) {
                         xuldoc->ResetDocumentLWTheme();
-                        UpdateBrightTitlebarForeground(doc);
                     }
-                }
-                else if (aName == nsGkAtoms::brighttitlebarforeground) {
-                    UpdateBrightTitlebarForeground(doc);
                 }
                 else if (aName == nsGkAtoms::drawintitlebar) {
                     SetDrawsInTitlebar(false);
@@ -1990,22 +1982,6 @@ nsXULElement::SetDrawsTitle(bool aState)
         // We can do this synchronously because SetDrawsTitle doesn't have any
         // synchronous effects apart from a harmless invalidation.
         mainWidget->SetDrawsTitle(aState);
-    }
-}
-
-void
-nsXULElement::UpdateBrightTitlebarForeground(nsIDocument* aDoc)
-{
-    nsIWidget* mainWidget = GetWindowWidget();
-    if (mainWidget) {
-        // We can do this synchronously because SetBrightTitlebarForeground doesn't have any
-        // synchronous effects apart from a harmless invalidation.
-        mainWidget->SetUseBrightTitlebarForeground(
-          aDoc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Bright ||
-          aDoc->GetRootElement()->AttrValueIs(kNameSpaceID_None,
-                                              nsGkAtoms::brighttitlebarforeground,
-                                              NS_LITERAL_STRING("true"),
-                                              eCaseMatters));
     }
 }
 

@@ -838,15 +838,18 @@ Chunk::init(JSRuntime *rt)
 }
 
 inline Chunk **
-GCRuntime::getAvailableChunkList()
+GCRuntime::getAvailableChunkList(Zone *zone)
 {
-    return &availableChunkListHead;
+    return zone->isSystem
+           ? &systemAvailableChunkListHead
+           : &userAvailableChunkListHead;
 }
 
 inline void
-Chunk::addToAvailableList(JSRuntime *rt)
+Chunk::addToAvailableList(Zone *zone)
 {
-    insertToAvailableList(rt->gc.getAvailableChunkList());
+    JSRuntime *rt = zone->runtimeFromAnyThread();
+    insertToAvailableList(rt->gc.getAvailableChunkList(zone));
 }
 
 inline void
@@ -1049,7 +1052,7 @@ Chunk::releaseArena(ArenaHeader *aheader)
     if (info.numArenasFree == 1) {
         MOZ_ASSERT(!info.prevp);
         MOZ_ASSERT(!info.next);
-        addToAvailableList(rt);
+        addToAvailableList(zone);
     } else if (!unused()) {
         MOZ_ASSERT(info.prevp);
     } else {
@@ -1119,10 +1122,10 @@ class js::gc::AutoMaybeStartBackgroundAllocation
 };
 
 Chunk *
-GCRuntime::pickChunk(const AutoLockGC &lock,
+GCRuntime::pickChunk(const AutoLockGC &lock, Zone *zone,
                      AutoMaybeStartBackgroundAllocation &maybeStartBackgroundAllocation)
 {
-    Chunk **listHeadp = getAvailableChunkList();
+    Chunk **listHeadp = getAvailableChunkList(zone);
     Chunk *chunk = *listHeadp;
     if (chunk)
         return chunk;
@@ -1156,7 +1159,7 @@ GCRuntime::pickChunk(const AutoLockGC &lock,
 
     chunk->info.prevp = nullptr;
     chunk->info.next = nullptr;
-    chunk->addToAvailableList(rt);
+    chunk->addToAvailableList(zone);
 
     return chunk;
 }
@@ -1171,7 +1174,8 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     stats(rt),
     marker(rt),
     usage(nullptr),
-    availableChunkListHead(nullptr),
+    systemAvailableChunkListHead(nullptr),
+    userAvailableChunkListHead(nullptr),
     maxMallocBytes(0),
     numArenasFreeCommitted(0),
     verifyPreData(nullptr),
@@ -1414,7 +1418,8 @@ GCRuntime::finish()
 
     zones.clear();
 
-    availableChunkListHead = nullptr;
+    systemAvailableChunkListHead = nullptr;
+    userAvailableChunkListHead = nullptr;
     if (chunkSet.initialized()) {
         for (GCChunkSet::Range r(chunkSet.all()); !r.empty(); r.popFront())
             releaseChunk(r.front());
@@ -1985,7 +1990,7 @@ ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind,
     if (maybeLock.isNothing())
         maybeLock.emplace(rt);
 
-    Chunk *chunk = rt->gc.pickChunk(maybeLock.ref(), maybeStartBGAlloc);
+    Chunk *chunk = rt->gc.pickChunk(maybeLock.ref(), zone, maybeStartBGAlloc);
     if (!chunk)
         return nullptr;
 
@@ -3238,7 +3243,8 @@ GCRuntime::decommitArenasFromAvailableList(Chunk **availableListHeadp)
 void
 GCRuntime::decommitArenas()
 {
-    decommitArenasFromAvailableList(&availableChunkListHead);
+    decommitArenasFromAvailableList(&systemAvailableChunkListHead);
+    decommitArenasFromAvailableList(&userAvailableChunkListHead);
 }
 
 void

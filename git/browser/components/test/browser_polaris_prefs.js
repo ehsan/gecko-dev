@@ -45,12 +45,7 @@ add_task(function* test_changing_pref_changes_tracking() {
     Services.prefs.setBoolPref(POLARIS_ENABLED, true);
     yield assertPref(pref, true);
     Services.prefs.setBoolPref(POLARIS_ENABLED, false);
-    // We don't clear the DNT pref if Polaris is disabled.
-    if (pref != PREF_DNT) {
-      yield assertPref(pref, false);
-    } else {
-      yield assertPref(pref, true);
-    }
+    yield assertPref(pref, false);
     Services.prefs.setBoolPref(POLARIS_ENABLED, true);
     yield assertPref(pref, true);
   }
@@ -68,10 +63,8 @@ add_task(function* test_prefs_can_be_changed_individually() {
     Services.prefs.setBoolPref(pref, false);
     yield assertPref(pref, false);
     yield assertPref(POLARIS_ENABLED, true);
-
     Services.prefs.setBoolPref(POLARIS_ENABLED, false);
     yield assertPref(pref, false);
-
     Services.prefs.setBoolPref(pref, true);
     yield assertPref(pref, true);
     yield assertPref(POLARIS_ENABLED, false);

@@ -30,7 +30,7 @@
 @BINPATH@/dictionaries/*
 @BINPATH@/hyphenation/*
 
-[assets destdir="assets/@ANDROID_CPU_ARCH@"]
+[assets destdir="assets"]
 #ifndef MOZ_STATIC_JS
 @BINPATH@/@DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
