@@ -77,7 +77,7 @@ SelectionCarets::SelectionCarets(nsIPresShell* aPresShell)
   , mActiveTouchId(-1)
   , mCaretCenterToDownPointOffsetY(0)
   , mDragMode(NONE)
-  , mUseAsyncPanZoom(false)
+  , mAsyncPanZoomEnabled(false)
   , mInAsyncPanZoomGesture(false)
   , mEndCaretVisible(false)
   , mStartCaretVisible(false)
@@ -113,9 +113,8 @@ SelectionCarets::Init()
     return;
   }
 
-#if defined(MOZ_WIDGET_GONK)
-  mUseAsyncPanZoom = gfxPrefs::AsyncPanZoomEnabled();
-#endif
+  docShell->GetAsyncPanZoomEnabled(&mAsyncPanZoomEnabled);
+  mAsyncPanZoomEnabled = mAsyncPanZoomEnabled && gfxPrefs::AsyncPanZoomEnabled();
 
   docShell->AddWeakReflowObserver(this);
   docShell->AddWeakScrollObserver(this);
@@ -1190,7 +1189,7 @@ void
 SelectionCarets::ScrollPositionChanged()
 {
   if (mVisible) {
-    if (!mUseAsyncPanZoom) {
+    if (!mAsyncPanZoomEnabled) {
       SetVisibility(false);
       //TODO: handling scrolling for selection bubble when APZ is off
 
@@ -1215,7 +1214,7 @@ SelectionCarets::ScrollPositionChanged()
 void
 SelectionCarets::LaunchLongTapDetector()
 {
-  if (mUseAsyncPanZoom) {
+  if (mAsyncPanZoomEnabled) {
     return;
   }
 
@@ -1237,7 +1236,7 @@ SelectionCarets::LaunchLongTapDetector()
 void
 SelectionCarets::CancelLongTapDetector()
 {
-  if (mUseAsyncPanZoom) {
+  if (mAsyncPanZoomEnabled) {
     return;
   }
 

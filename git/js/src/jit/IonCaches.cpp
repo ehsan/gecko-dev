@@ -1464,11 +1464,11 @@ GetPropertyIC::tryAttachTypedArrayLength(JSContext *cx, HandleScript outerScript
 }
 
 static void
-PushObjectOpResult(MacroAssembler &masm)
+PushObjectOpResult(MacroAssembler &masm, uint32_t value = ObjectOpResult::Uninitialized)
 {
-    static_assert(sizeof(ObjectOpResult) == sizeof(uintptr_t),
+    static_assert(sizeof(ObjectOpResult) == sizeof(int32_t),
                   "ObjectOpResult size must match size reserved by masm.Push() here");
-    masm.Push(ImmWord(ObjectOpResult::Uninitialized));
+    masm.Push(Imm32(value));
 }
 
 static bool
@@ -1515,7 +1515,7 @@ EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
     masm.movePtr(StackPointer, argProxyReg);
 
     // Unused space, to keep the same stack layout as Proxy::set frames.
-    PushObjectOpResult(masm);
+    PushObjectOpResult(masm, 0);
 
     masm.loadJSContext(argJSContextReg);
 
@@ -2146,9 +2146,6 @@ EmitObjectOpResultCheck(MacroAssembler &masm, Label *failure, bool strict,
     //         goto failure;
     masm.loadJSContext(argJSContextReg);
     masm.computeEffectiveAddress(
-        Address(StackPointer, FrameLayout::offsetOfObject()),
-        argObjReg);
-    masm.computeEffectiveAddress(
         Address(StackPointer, FrameLayout::offsetOfId()),
         argIdReg);
     masm.move32(Imm32(strict), argStrictReg);
@@ -2498,8 +2495,7 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
         masm.branchIfFalseBool(ReturnReg, masm.exceptionLabel());
 
         // Test for failure.
-        EmitObjectOpResultCheck<IonOOLSetterOpExitFrameLayout>(masm, masm.exceptionLabel(),
-                                                               strict, scratchReg,
+        EmitObjectOpResultCheck<IonOOLSetterOpExitFrameLayout>(masm, failure, strict, scratchReg,
                                                                argJSContextReg, argObjReg,
                                                                argIdReg, argVpReg, argResultReg);
 

@@ -17,7 +17,6 @@
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Likely.h"
 
 //-----------------------------------------------------------------------------
@@ -832,7 +831,7 @@ public:
                          nsIThread* aThread = nullptr);
 
 private:
-  mozilla::Atomic<uint32_t> mCounter;
+  volatile uint32_t mCounter;
 
   nsThreadPoolNaming(const nsThreadPoolNaming&) = delete;
   void operator=(const nsThreadPoolNaming&) = delete;

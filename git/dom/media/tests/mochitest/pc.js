@@ -897,13 +897,6 @@ PeerConnectionWrapper.prototype = {
     this._pc.removeTrack(sender);
   },
 
-  senderReplaceTrack : function(index, withTrack) {
-    var sender = this._pc.getSenders()[index];
-    delete this.expectedLocalTrackTypesById[sender.track.id];
-    this.expectedLocalTrackTypesById[withTrack.id] = withTrack.kind;
-    return sender.replaceTrack(withTrack);
-  },
-
   /**
    * Requests all the media streams as specified in the constrains property.
    *

@@ -80,26 +80,14 @@ class AutoIdVector;
 class ObjectOpResult
 {
   private:
-    /*
-     * code_ is either one of the special codes OkCode or Uninitialized, or
-     * an error code. For now the error codes are private to the JS engine;
-     * they're defined in js/src/js.msg.
-     *
-     * code_ is uintptr_t (rather than uint32_t) for the convenience of the
-     * JITs, which would otherwise have to deal with either padding or stack
-     * alignment on 64-bit platforms.
-     */
-    uintptr_t code_;
+    uint32_t code_;
 
   public:
-    enum SpecialCodes : uintptr_t {
-        OkCode = 0,
-        Uninitialized = uintptr_t(-1)
-    };
+    enum { OkCode = 0, Uninitialized = 0xffffffff };
 
     ObjectOpResult() : code_(Uninitialized) {}
 
-    /* Return true if succeed() was called. */
+    /* Return true if fail() was not called. */
     bool ok() const {
         MOZ_ASSERT(code_ != Uninitialized);
         return code_ == OkCode;
@@ -133,17 +121,15 @@ class ObjectOpResult
     JS_PUBLIC_API(bool) failCantRedefineProp();
     JS_PUBLIC_API(bool) failReadOnly();
     JS_PUBLIC_API(bool) failGetterOnly();
-    JS_PUBLIC_API(bool) failCantDelete();
-
     JS_PUBLIC_API(bool) failCantSetInterposed();
-    JS_PUBLIC_API(bool) failCantDefineWindowElement();
+    JS_PUBLIC_API(bool) failCantDelete();
     JS_PUBLIC_API(bool) failCantDeleteWindowElement();
     JS_PUBLIC_API(bool) failCantDeleteWindowNamedProperty();
     JS_PUBLIC_API(bool) failCantPreventExtensions();
 
     uint32_t failureCode() const {
         MOZ_ASSERT(!ok());
-        return uint32_t(code_);
+        return code_;
     }
 
     /*

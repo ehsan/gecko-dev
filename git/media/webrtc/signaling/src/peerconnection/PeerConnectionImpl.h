@@ -418,9 +418,10 @@ public:
 
   NS_IMETHODIMP_TO_ERRORRESULT(ReplaceTrack, ErrorResult &rv,
                                mozilla::dom::MediaStreamTrack& aThisTrack,
-                               mozilla::dom::MediaStreamTrack& aWithTrack)
+                               mozilla::dom::MediaStreamTrack& aWithTrack,
+                               DOMMediaStream& aStream)
   {
-    rv = ReplaceTrack(aThisTrack, aWithTrack);
+    rv = ReplaceTrack(aThisTrack, aWithTrack, aStream);
   }
 
   nsresult GetPeerIdentity(nsAString& peerIdentity)
