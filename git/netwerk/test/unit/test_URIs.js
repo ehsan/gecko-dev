@@ -306,8 +306,6 @@ var gTests = [
     prePath: "http://a",
     path:    "/b/c/g?y",
     ref:     "",// fix
-    specIgnoringRef: "http://a/b/c/g?y",
-    hasRef:  false,
     nsIURL:  true, nsINestedURI: false },
   { spec:    "http://a/b/c/d;p?q",
     relativeURI: "#s",
@@ -315,8 +313,6 @@ var gTests = [
     prePath: "http://a",
     path:    "/b/c/d;p?q#s",
     ref:     "s",// fix
-    specIgnoringRef: "http://a/b/c/d;p?q",
-    hasRef:  true,
     nsIURL:  true, nsINestedURI: false },
   { spec:    "http://a/b/c/d;p?q",
     relativeURI: "g#s",
@@ -692,11 +688,6 @@ function do_test_uri_basic(aTest) {
   do_check_property(aTest, URI, "username");
   do_check_property(aTest, URI, "password");
   do_check_property(aTest, URI, "host");
-  do_check_property(aTest, URI, "specIgnoringRef");
-  if ("hasRef" in aTest) {
-    do_info("testing hasref: " + aTest.hasRef + " vs " + URI.hasRef);
-    do_check_eq(aTest.hasRef, URI.hasRef);
-  }
 }
 
 // Test that a given URI parses correctly when we add a given ref to the end
@@ -736,8 +727,6 @@ function do_test_uri_with_hash_suffix(aTest, aSuffix) {
   do_info("testing " + aTest.spec +
           " is equalExceptRef to self with '" + aSuffix + "' appended");
   do_check_uri_eqExceptRef(origURI, testURI);
-
-  do_check_eq(testURI.hasRef, true);
 
   if (!origURI.ref) {
     // These tests fail if origURI has a ref
