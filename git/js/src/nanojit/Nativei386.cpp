@@ -1276,14 +1276,7 @@ namespace nanojit
                 SHLQi(rr, c);
             }
         } else {
-            Register rv;
-
-            if (lhs == rhs) {
-                rv = ra;
-            } else {
-                rv = findRegFor(rhs, GpRegs & ~(rmask(rr)));
-            }
-
+            Register rv = findRegFor(rhs, GpRegs);
             if (op == LIR_qiadd) {
                 ADDQ(rr, rv);
             } else if (op == LIR_qiand) {
