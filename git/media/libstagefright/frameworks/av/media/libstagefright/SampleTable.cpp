@@ -780,8 +780,7 @@ status_t SampleTable::getMetaDataForSample(
         size_t *size,
         uint32_t *compositionTime,
         uint32_t *duration,
-        bool *isSyncSample,
-        uint32_t *decodeTime) {
+        bool *isSyncSample) {
     Mutex::Autolock autoLock(mLock);
 
     status_t err;
@@ -799,10 +798,6 @@ status_t SampleTable::getMetaDataForSample(
 
     if (compositionTime) {
         *compositionTime = mSampleIterator->getSampleTime();
-    }
-
-    if (decodeTime) {
-        *decodeTime = mSampleIterator->getSampleDecodeTime();
     }
 
     if (duration) {

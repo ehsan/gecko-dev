@@ -66,7 +66,7 @@ nsQueryReferent::operator()(const nsIID& aIID, void** aAnswer) const
   return status;
 }
 
-nsIWeakReference*  // or else |already_AddRefed<nsIWeakReference>|
+NS_COM_GLUE nsIWeakReference*  // or else |already_AddRefed<nsIWeakReference>|
 NS_GetWeakReference(nsISupports* aInstancePtr, nsresult* aErrorPtr)
 {
   nsresult status;
@@ -90,7 +90,7 @@ NS_GetWeakReference(nsISupports* aInstancePtr, nsresult* aErrorPtr)
   return result;
 }
 
-nsresult
+NS_COM_GLUE nsresult
 nsSupportsWeakReference::GetWeakReference(nsIWeakReference** aInstancePtr)
 {
   if (!aInstancePtr) {

@@ -93,7 +93,7 @@ typedef Scoped<ScopedCloseFileTraits> ScopedCloseFile;
  * @param aLength length of file to grow to.
  * @return true on success.
  */
-bool fallocate(PRFileDesc* aFD, int64_t aLength);
+NS_COM_GLUE bool fallocate(PRFileDesc* aFD, int64_t aLength);
 
 /**
  * Use readahead to preload shared libraries into the file cache before loading.
@@ -102,7 +102,7 @@ bool fallocate(PRFileDesc* aFD, int64_t aLength);
  *
  * @param aFile nsIFile representing path to shared library
  */
-void ReadAheadLib(nsIFile* aFile);
+NS_COM_GLUE void ReadAheadLib(nsIFile* aFile);
 
 /**
  * Use readahead to preload a file into the file cache before reading.
@@ -115,9 +115,9 @@ void ReadAheadLib(nsIFile* aFile);
  * @param aOutFd Pointer to file descriptor. If specified, ReadAheadFile will
  *        return its internal, opened file descriptor instead of closing it.
  */
-void ReadAheadFile(nsIFile* aFile, const size_t aOffset = 0,
-                   const size_t aCount = SIZE_MAX,
-                   filedesc_t* aOutFd = nullptr);
+NS_COM_GLUE void ReadAheadFile(nsIFile* aFile, const size_t aOffset = 0,
+                               const size_t aCount = SIZE_MAX,
+                               filedesc_t* aOutFd = nullptr);
 
 #endif // !defined(XPCOM_GLUE)
 
@@ -128,7 +128,7 @@ void ReadAheadFile(nsIFile* aFile, const size_t aOffset = 0,
  *
  * @param aFilePath path to shared library
  */
-void ReadAheadLib(pathstr_t aFilePath);
+NS_COM_GLUE void ReadAheadLib(pathstr_t aFilePath);
 
 /**
  * Use readahead to preload a file into the file cache before loading.
@@ -141,9 +141,9 @@ void ReadAheadLib(pathstr_t aFilePath);
  * @param aOutFd Pointer to file descriptor. If specified, ReadAheadFile will
  *        return its internal, opened file descriptor instead of closing it.
  */
-void ReadAheadFile(pathstr_t aFilePath, const size_t aOffset = 0,
-                   const size_t aCount = SIZE_MAX,
-                   filedesc_t* aOutFd = nullptr);
+NS_COM_GLUE void ReadAheadFile(pathstr_t aFilePath, const size_t aOffset = 0,
+                               const size_t aCount = SIZE_MAX,
+                               filedesc_t* aOutFd = nullptr);
 
 /**
  * Use readahead to preload a file into the file cache before reading.
@@ -157,8 +157,8 @@ void ReadAheadFile(pathstr_t aFilePath, const size_t aOffset = 0,
  * @param aOffset Offset into the file to begin preloading
  * @param aCount Number of bytes to preload (SIZE_MAX implies file size)
  */
-void ReadAhead(filedesc_t aFd, const size_t aOffset = 0,
-               const size_t aCount = SIZE_MAX);
+NS_COM_GLUE void ReadAhead(filedesc_t aFd, const size_t aOffset = 0,
+                           const size_t aCount = SIZE_MAX);
 
 
 /* Define ReadSysFile() only on GONK to avoid unnecessary lubxul bloat.

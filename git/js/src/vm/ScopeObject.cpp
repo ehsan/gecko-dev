@@ -1323,7 +1323,7 @@ class DebugScopeProxy : public BaseProxyHandler
     }
 
   public:
-    static const char family;
+    static int family;
     static const DebugScopeProxy singleton;
 
     DebugScopeProxy() : BaseProxyHandler(&family) {}
@@ -1592,7 +1592,7 @@ class DebugScopeProxy : public BaseProxyHandler
 
 } /* anonymous namespace */
 
-const char DebugScopeProxy::family = 0;
+int DebugScopeProxy::family = 0;
 const DebugScopeProxy DebugScopeProxy::singleton;
 
 /* static */ DebugScopeObject *

@@ -21,7 +21,7 @@
  * @see nsTObserverArray, nsTArray
  */
 
-class nsTObserverArray_base
+class NS_COM_GLUE nsTObserverArray_base
 {
 public:
   typedef size_t index_type;

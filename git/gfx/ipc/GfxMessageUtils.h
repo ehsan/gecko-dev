@@ -761,7 +761,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mCompositionBounds);
     WriteParam(aMsg, aParam.mRootCompositionSize);
     WriteParam(aMsg, aParam.mScrollId);
-    WriteParam(aMsg, aParam.mScrollParentId);
     WriteParam(aMsg, aParam.mResolution);
     WriteParam(aMsg, aParam.mCumulativeResolution);
     WriteParam(aMsg, aParam.mZoom);
@@ -788,7 +787,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mCompositionBounds) &&
             ReadParam(aMsg, aIter, &aResult->mRootCompositionSize) &&
             ReadParam(aMsg, aIter, &aResult->mScrollId) &&
-            ReadParam(aMsg, aIter, &aResult->mScrollParentId) &&
             ReadParam(aMsg, aIter, &aResult->mResolution) &&
             ReadParam(aMsg, aIter, &aResult->mCumulativeResolution) &&
             ReadParam(aMsg, aIter, &aResult->mZoom) &&

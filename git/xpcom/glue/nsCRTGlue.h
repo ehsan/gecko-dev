@@ -17,7 +17,7 @@
  * @param aDelims The set of delimiters (null-terminated)
  * @param aStr    The string to search (null-terminated)
  */
-const char* NS_strspnp(const char* aDelims, const char* aStr);
+NS_COM_GLUE const char* NS_strspnp(const char* aDelims, const char* aStr);
 
 /**
  * Tokenize a string. This function is similar to the strtok function in the
@@ -35,39 +35,39 @@ const char* NS_strspnp(const char* aDelims, const char* aStr);
  * @return        The token. If no token is found (the string is only
  *                delimiter characters), nullptr is returned.
  */
-char* NS_strtok(const char* aDelims, char** aStr);
+NS_COM_GLUE char* NS_strtok(const char* aDelims, char** aStr);
 
 /**
  * "strlen" for char16_t strings
  */
-uint32_t NS_strlen(const char16_t* aString);
+NS_COM_GLUE uint32_t NS_strlen(const char16_t* aString);
 
 /**
  * "strcmp" for char16_t strings
  */
-int NS_strcmp(const char16_t* aStrA, const char16_t* aStrB);
+NS_COM_GLUE int NS_strcmp(const char16_t* aStrA, const char16_t* aStrB);
 
 /**
  * "strdup" for char16_t strings, uses the NS_Alloc allocator.
  */
-char16_t* NS_strdup(const char16_t* aString);
+NS_COM_GLUE char16_t* NS_strdup(const char16_t* aString);
 
 /**
  * "strdup", but using the NS_Alloc allocator.
  */
-char* NS_strdup(const char* aString);
+NS_COM_GLUE char* NS_strdup(const char* aString);
 
 /**
  * strndup for char16_t strings... this function will ensure that the
  * new string is null-terminated. Uses the NS_Alloc allocator.
  */
-char16_t* NS_strndup(const char16_t* aString, uint32_t aLen);
+NS_COM_GLUE char16_t* NS_strndup(const char16_t* aString, uint32_t aLen);
 
 // The following case-conversion methods only deal in the ascii repertoire
 // A-Z and a-z
 
 // semi-private data declarations... don't use these directly.
-class nsLowerUpperUtils
+class NS_COM_GLUE nsLowerUpperUtils
 {
 public:
   static const unsigned char kLower2Upper[256];
@@ -86,19 +86,19 @@ NS_ToLower(char aChar)
   return (char)nsLowerUpperUtils::kUpper2Lower[(unsigned char)aChar];
 }
 
-bool NS_IsUpper(char aChar);
-bool NS_IsLower(char aChar);
+NS_COM_GLUE bool NS_IsUpper(char aChar);
+NS_COM_GLUE bool NS_IsLower(char aChar);
 
-bool NS_IsAscii(char16_t aChar);
-bool NS_IsAscii(const char16_t* aString);
-bool NS_IsAsciiAlpha(char16_t aChar);
-bool NS_IsAsciiDigit(char16_t aChar);
-bool NS_IsAsciiWhitespace(char16_t aChar);
-bool NS_IsAscii(const char* aString);
-bool NS_IsAscii(const char* aString, uint32_t aLength);
+NS_COM_GLUE bool NS_IsAscii(char16_t aChar);
+NS_COM_GLUE bool NS_IsAscii(const char16_t* aString);
+NS_COM_GLUE bool NS_IsAsciiAlpha(char16_t aChar);
+NS_COM_GLUE bool NS_IsAsciiDigit(char16_t aChar);
+NS_COM_GLUE bool NS_IsAsciiWhitespace(char16_t aChar);
+NS_COM_GLUE bool NS_IsAscii(const char* aString);
+NS_COM_GLUE bool NS_IsAscii(const char* aString, uint32_t aLength);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
-void NS_MakeRandomString(char* aBuf, int32_t aBufLen);
+NS_COM_GLUE void NS_MakeRandomString(char* aBuf, int32_t aBufLen);
 #endif
 
 #define FF '\f'

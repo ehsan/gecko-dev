@@ -59,10 +59,11 @@ do_GetServiceFromCategory(const char* aCategory, const char* aEntry,
   return nsGetServiceFromCategory(aCategory, aEntry, aError);
 }
 
-nsresult CallGetService(const nsCID& aClass, const nsIID& aIID, void** aResult);
+NS_COM_GLUE nsresult CallGetService(const nsCID& aClass, const nsIID& aIID,
+                                    void** aResult);
 
-nsresult CallGetService(const char* aContractID, const nsIID& aIID,
-                        void** aResult);
+NS_COM_GLUE nsresult CallGetService(const char* aContractID, const nsIID& aIID,
+                                    void** aResult);
 
 // type-safe shortcuts for calling |GetService|
 template<class DestinationType>

@@ -120,7 +120,7 @@ this.ContentControl.prototype = {
 
         // Attempt to forward move to a potential child cursor in our
         // new position.
-        this.sendToChild(vc, aMessage, { action: childAction }, true);
+        this.sendToChild(vc, aMessage, { action: childAction});
       }
     } else if (!this._childMessageSenders.has(aMessage.target)) {
       // We failed to move, and the message is not from a child, so forward
@@ -136,8 +136,6 @@ this.ContentControl.prototype = {
     }
     if (!Utils.getMessageManager(aEvent.target)) {
       aEvent.preventDefault();
-    } else {
-      aEvent.target.focus();
     }
   },
 
@@ -155,7 +153,6 @@ this.ContentControl.prototype = {
     if (!forwarded) {
       this._contentScope.get().sendAsyncMessage('AccessFu:CursorCleared');
     }
-    this.document.activeElement.blur();
   },
 
   handleAutoMove: function cc_handleAutoMove(aMessage) {
@@ -251,7 +248,7 @@ this.ContentControl.prototype = {
     };
 
     let vc = this.vc;
-    if (!this.sendToChild(vc, aMessage, null, true)) {
+    if (!this.sendToChild(vc, aMessage)) {
       let position = vc.position;
       activateAccessible(getActivatableDescendant(position) || position);
     }
@@ -350,16 +347,10 @@ this.ContentControl.prototype = {
     return null;
   },
 
-  sendToChild: function cc_sendToChild(aVirtualCursor, aMessage, aReplacer,
-                                       aFocus) {
-    let position = aVirtualCursor.position;
-    let mm = this.getChildCursor(position);
+  sendToChild: function cc_sendToChild(aVirtualCursor, aMessage, aReplacer) {
+    let mm = this.getChildCursor(aVirtualCursor.position);
     if (!mm) {
       return false;
-    }
-
-    if (aFocus) {
-      position.takeFocus();
     }
 
     // XXX: This is a silly way to make a deep copy
@@ -441,7 +432,7 @@ this.ContentControl.prototype = {
           noOpIfOnScreen: true,
           forcePresent: true
         }
-      }, null, true);
+      });
 
       if (!moved && !sentToChild) {
         forcePresentFunc();

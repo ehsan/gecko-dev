@@ -33,7 +33,6 @@ struct SampleIterator {
     off64_t getSampleOffset() const { return mCurrentSampleOffset; }
     size_t getSampleSize() const { return mCurrentSampleSize; }
     uint32_t getSampleTime() const { return mCurrentSampleTime; }
-    uint32_t getSampleDecodeTime() const { return mCurrentSampleDecodeTime; }
     uint32_t getSampleDuration() const { return mCurrentSampleDuration; }
 
     status_t getSampleSizeDirect(
@@ -66,7 +65,6 @@ private:
     off64_t mCurrentSampleOffset;
     size_t mCurrentSampleSize;
     uint32_t mCurrentSampleTime;
-    uint32_t mCurrentSampleDecodeTime;
     uint32_t mCurrentSampleDuration;
 
     void reset();

@@ -20,6 +20,8 @@
 using namespace js;
 using namespace js::gc;
 
+const char js::sWrapperFamily = 0;
+
 /*
  * Wrapper forwards this call directly to the wrapped object for efficiency
  * and transparency. In particular, the hint is needed to properly stringify
@@ -129,7 +131,7 @@ js::IsCrossCompartmentWrapper(JSObject *obj)
 }
 
 Wrapper::Wrapper(unsigned flags, bool hasPrototype, bool hasSecurityPolicy)
-  : DirectProxyHandler(&family, hasPrototype, hasSecurityPolicy),
+  : DirectProxyHandler(&sWrapperFamily, hasPrototype, hasSecurityPolicy),
     mFlags(flags)
 {
 }
@@ -138,7 +140,6 @@ Wrapper::~Wrapper()
 {
 }
 
-const char Wrapper::family = 0;
 const Wrapper Wrapper::singleton((unsigned)0);
 const Wrapper Wrapper::singletonWithPrototype((unsigned)0, true);
 JSObject *Wrapper::defaultProto = TaggedProto::LazyProto;
@@ -747,7 +748,7 @@ template class js::SecurityWrapper<Wrapper>;
 template class js::SecurityWrapper<CrossCompartmentWrapper>;
 
 DeadObjectProxy::DeadObjectProxy()
-  : BaseProxyHandler(&family)
+  : BaseProxyHandler(&sDeadObjectFamily)
 {
 }
 
@@ -884,8 +885,8 @@ DeadObjectProxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandle
     return true;
 }
 
-const char DeadObjectProxy::family = 0;
 const DeadObjectProxy DeadObjectProxy::singleton;
+const char DeadObjectProxy::sDeadObjectFamily = 0;
 
 bool
 js::IsDeadProxyObject(JSObject *obj)

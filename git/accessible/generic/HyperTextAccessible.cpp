@@ -1440,15 +1440,8 @@ HyperTextAccessible::SelectionBoundsAt(int32_t aSelectionNum,
     endOffset = tempOffset;
   }
 
-  if (!nsContentUtils::ContentIsDescendantOf(startNode, mContent))
-    *aStartOffset = 0;
-  else
-    *aStartOffset = DOMPointToOffset(startNode, startOffset);
-
-  if (!nsContentUtils::ContentIsDescendantOf(endNode, mContent))
-    *aEndOffset = CharacterCount();
-  else
-    *aEndOffset = DOMPointToOffset(endNode, endOffset, true);
+  *aStartOffset = DOMPointToOffset(startNode, startOffset);
+  *aEndOffset = DOMPointToOffset(endNode, endOffset, true);
   return true;
 }
 
