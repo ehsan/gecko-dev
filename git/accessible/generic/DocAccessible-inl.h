@@ -9,7 +9,6 @@
 
 #include "DocAccessible.h"
 #include "nsAccessibilityService.h"
-#include "nsAccessiblePivot.h"
 #include "NotificationController.h"
 #include "States.h"
 #include "nsIScrollableFrame.h"
@@ -20,16 +19,6 @@
 
 namespace mozilla {
 namespace a11y {
-
-inline nsIAccessiblePivot*
-DocAccessible::VirtualCursor()
-{
-  if (!mVirtualCursor) {
-    mVirtualCursor = new nsAccessiblePivot(this);
-    mVirtualCursor->AddObserver(this);
-  }
-  return mVirtualCursor;
-}
 
 inline void
 DocAccessible::FireDelayedEvent(AccEvent* aEvent)

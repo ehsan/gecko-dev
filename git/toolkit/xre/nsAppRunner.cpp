@@ -4574,9 +4574,6 @@ mozilla::BrowserTabsRemote()
 bool
 mozilla::BrowserTabsRemoteAutostart()
 {
-#if !defined(NIGHTLY_BUILD)
-  return false;
-#endif
   if (!gBrowserTabsRemoteAutostartInitialized) {
     bool hasIME = KeyboardMayHaveIME();
     bool prefEnabled = Preferences::GetBool("browser.tabs.remote.autostart", false) ||

@@ -419,8 +419,10 @@ static const JSFunctionSpec profiling_functions[] = {
 #endif
 
 JS_PUBLIC_API(bool)
-JS_DefineProfilingFunctions(JSContext *cx, HandleObject obj)
+JS_DefineProfilingFunctions(JSContext *cx, JSObject *objArg)
 {
+    RootedObject obj(cx, objArg);
+
     assertSameCompartment(cx, obj);
 #ifdef MOZ_PROFILING
     return JS_DefineFunctions(cx, obj, profiling_functions);

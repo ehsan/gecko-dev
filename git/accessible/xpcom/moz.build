@@ -6,7 +6,6 @@
 
 EXPORTS += [
     'xpcAccessible.h',
-    'xpcAccessibleDocument.h',
     'xpcAccessibleHyperLink.h',
     'xpcAccessibleHyperText.h',
     'xpcAccessibleSelectable.h',
@@ -16,11 +15,8 @@ EXPORTS += [
 UNIFIED_SOURCES += [
     'nsAccessibleRelation.cpp',
     'xpcAccessible.cpp',
-    'xpcAccessibleApplication.cpp',
-    'xpcAccessibleDocument.cpp',
     'xpcAccessibleHyperLink.cpp',
     'xpcAccessibleHyperText.cpp',
-    'xpcAccessibleImage.cpp',
     'xpcAccessibleSelectable.cpp',
     'xpcAccessibleTable.cpp',
     'xpcAccessibleTableCell.cpp',

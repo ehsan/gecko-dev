@@ -501,7 +501,7 @@ MDefinition::hasLiveDefUses() const
                 return true;
         } else {
             MOZ_ASSERT(ins->isResumePoint());
-            if (!ins->toResumePoint()->isRecoverableOperand(*i))
+            if (ins->toResumePoint()->isObservableOperand(*i))
                 return true;
         }
     }
@@ -2706,12 +2706,6 @@ bool
 MResumePoint::isObservableOperand(size_t index) const
 {
     return block()->info().isObservableSlot(index);
-}
-
-bool
-MResumePoint::isRecoverableOperand(MUse *u) const
-{
-    return block()->info().isRecoverableOperand(indexOf(u));
 }
 
 MDefinition *

@@ -8,8 +8,6 @@
 
 #include "ISimpleDOMDocument_i.c"
 
-#include "nsNameSpaceManager.h"
-
 using namespace mozilla;
 using namespace mozilla::a11y;
 
@@ -34,7 +32,10 @@ sdnDocAccessible::get_URL(BSTR __RPC_FAR* aURL)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString URL;
-  mAccessible->URL(URL);
+  nsresult rv = mAccessible->GetURL(URL);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
   if (URL.IsEmpty())
     return S_FALSE;
 
@@ -57,7 +58,10 @@ sdnDocAccessible::get_title(BSTR __RPC_FAR* aTitle)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString title;
-  mAccessible->Title(title);
+  nsresult rv = mAccessible->GetTitle(title);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
   *aTitle = ::SysAllocStringLen(title.get(), title.Length());
   return *aTitle ? S_OK : E_OUTOFMEMORY;
 
@@ -133,9 +137,9 @@ sdnDocAccessible::get_nameSpaceURIForID(short aNameSpaceID,
     return E_INVALIDARG;  // -1 is kNameSpaceID_Unknown
 
   nsAutoString nameSpaceURI;
-  nsNameSpaceManager* nameSpaceManager = nsNameSpaceManager::GetInstance();
-  if (nameSpaceManager)
-    nameSpaceManager->GetNameSpaceURI(aNameSpaceID, nameSpaceURI);
+  nsresult rv = mAccessible->GetNameSpaceURIForID(aNameSpaceID, nameSpaceURI);
+  if (NS_FAILED(rv))
+    return E_FAIL;
 
   if (nameSpaceURI.IsEmpty())
     return S_FALSE;
